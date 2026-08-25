@@ -318,7 +318,7 @@ summary.bartNegbin <- function(
   summary.bart(object, vars = vars, ...)
 }
 
-# A hurdle fit (docs/design/hurdle.md) is two ordinary bart2 fits under the
+# A hurdle fit is two ordinary bart2 fits under the
 # hood - an occupancy probit on 1{y > 0} and a lognormal fit on the positive
 # part - so each summarizes through summary.bart unchanged; only the
 # packaging (both components, one call) and the print layout are new.

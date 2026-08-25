@@ -1,5 +1,5 @@
-# The dbartsSampler surface over a public Bayesian causal forest
-# (docs/design/bcf.md): $setForestBasis mirrors the engine
+# The dbartsSampler surface over a public Bayesian causal forest:
+# $setForestBasis mirrors the engine
 # and data@bases, $getForestFits/$getForestAmplitudes/
 # $getForestVariableCounts read the per-forest channels the low-level
 # bartcoreForestFits/bartcoreForestAmplitudes

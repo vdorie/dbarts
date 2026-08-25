@@ -1,5 +1,5 @@
-# The discrete-time hazard R surface (docs/design/survival.md, "Discrete-time
-# hazard"): person-period ingestion sugar over the binary families. The family
+# The discrete-time hazard R surface: person-period ingestion sugar over
+# the binary families. The family
 # adds no engine code - a hazard fit remaps to probit/logistic before any
 # family-keyed switch, so $family reads the binary token and every link-keyed
 # generic stays correct; the hazard provenance lives on the $periods marker,

@@ -2,7 +2,7 @@
 # container - lands on a sparse or mixed design without the caller densifying.
 # The bridge materializes the borrowed view under the STORE's implicit rule and
 # runs the dense entry, so every accepted shape must land BITWISE what its
-# dense equivalent lands (docs/design/sparse-columns.md, docs/design/data-store.md)
+# dense equivalent lands
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")

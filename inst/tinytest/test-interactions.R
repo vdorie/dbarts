@@ -1,4 +1,4 @@
-# Interaction constraints (docs/design/interaction-constraints.md): the
+# Interaction constraints: the
 # interactions() surface and its fit-time validation, a constrained fit obeying
 # max.order / forbid / groups, the per-forest BCF split, and warm-start refusal.
 # The exactness and containment gates live in tests/cpp/test_interaction.cpp and

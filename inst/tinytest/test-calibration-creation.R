@@ -1,5 +1,5 @@
-# Naming the leaf calibration at creation (docs/design/prior-defaults.md,
-# "prior.scale"): a composed model states the prior sd of its forest total in
+# Naming the leaf calibration at creation ('prior.scale'): a composed model
+# states the prior sd of its forest total in
 # RESPONSE units instead of inheriting it from the range of whatever vector the
 # sampler happened to be constructed on. The oracles are two composed probit
 # arms whose construction ranges are 16x apart - which today moves the posterior

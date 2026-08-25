@@ -31,7 +31,7 @@ namespace bartcore {
 /// One forest's serializable tree channels: value-encoded flattened live and
 /// saved trees, their slope/mask side channels, and the per-forest k. A
 /// ChainStateData holds one-or-more (BCF's prognostic and treatment forests);
-/// a single-forest state is a length-1 forest vector (docs/design/bcf.md).
+/// a single-forest state is a length-1 forest vector.
 struct ForestStateData {
   std::vector<std::vector<FlatNode>> trees;
   std::vector<std::vector<FlatNode>> savedTrees;  // slot-major; empty unless kept
@@ -78,9 +78,9 @@ struct ChainStateData {
   // vector at capture. Empty marks absent, so every non-ordinal state carries
   // no cutpoint block and an ordinal sampler refuses a state lacking one.
   std::vector<double> cutpoints;
-  // negative-binomial counts (NBResponse) only: the dispersion r at capture
-  // (docs/design/negative-binomial.md). NaN marks absent, so every non-NB state
-  // carries no dispersion block and an NB sampler refuses a state lacking one.
+  // negative-binomial counts (NBResponse) only: the dispersion r at capture.
+  // NaN marks absent, so every non-NB state carries no dispersion block and
+  // an NB sampler refuses a state lacking one.
   // omega rides the latents block above; this is its companion scalar.
   double dispersion = std::numeric_limits<double>::quiet_NaN();
   // grouped samplers only, internal scale so restores are exact
@@ -90,8 +90,8 @@ struct ChainStateData {
   double dartAlpha = 1.0;
   size_t dartNumUpdatesSkipped = 0;
   std::vector<unsigned char> rngState;
-  // The amplitude glue a combining response carries (docs/design/bcf.md);
-  // false off a coupling that carries none. RAGGED, because a total is not a
+  // The amplitude glue a combining response carries; false off a coupling
+  // that carries none. RAGGED, because a total is not a
   // layout: q = (1, 3) and q = (2, 2) both carry four amplitudes, so the
   // per-forest widths travel with them or a restore silently permutes the
   // blocks. amplitudes is forest-major, block f at the widths' prefix sum;
@@ -108,8 +108,8 @@ struct ChainStateData {
   // amplitudeWidths is empty, which is exactly a state written by hand rather
   // than by a combiner.
   double a = 1.0, aVariance = 1.0, b0 = 0.0, b1 = 1.0;
-  // heteroscedastic variance forest (docs/design/heteroscedastic.md): the
-  // variance trees' flattened structure, each leaf a POSITIVE scale value on
+  // heteroscedastic variance forest: the variance trees' flattened
+  // structure, each leaf a POSITIVE scale value on
   // the working scale. Empty for every homoscedastic state; a NEW branch of
   // the flat format (the value semantics and validation differ from a Gaussian
   // leaf - it must be positive). Rebuild recomputes s^2(x) from the product.
@@ -160,16 +160,14 @@ struct Forest {
   std::vector<std::uint8_t> columnMask;
   // per-forest interaction constraint (max-order + forbidden co-occurrence);
   // inactive by default (build not called), leaving the trees' constraint null
-  // and the availability path byte-for-byte unchanged
-  // (docs/design/interaction-constraints.md, the per-path max-order +
-  // co-occurrence mechanism). HEAP-allocated so
+  // and the availability path byte-for-byte unchanged. HEAP-allocated so
   // the address a tree's interaction_ borrows survives a forests_ vector
   // reallocation/move; a value member relocates with the Forest and dangles
   // every tree's pointer (the BCF multi-forest heap-use-after-free), whereas a
   // heap pointee stays put across the move, exactly as columnMask's data() does.
   std::unique_ptr<InteractionConstraint> interaction;
-  // per-tree block-additive constraint (docs/design/interaction-constraints.md,
-  // variant A): confine each WHOLE tree to one declared group of predictors so the
+  // per-tree block-additive constraint (variant A): confine each WHOLE tree
+  // to one declared group of predictors so the
   // ensemble is exactly f = sum_G f_G. blockMasks holds numBlocks group-membership
   // rows of numPredictors 0/1 bytes, group-major (row g intersected with any base
   // columnMask - the BCF tau case, where each tree's block row is ANDed with its
@@ -195,7 +193,7 @@ struct Forest {
   std::vector<double> treeFits;
   std::vector<double> totalFits, totalTestFits;
   // the running per-tree residual; fp64 by default, fp32 under the opt-in
-  // storage axis (docs/design/reduced-precision-storage.md sec 3b)
+  // storage axis
   std::vector<ResidT> treeY;
   std::vector<double> currTestFits;
   std::vector<double> paramByNode;
@@ -232,8 +230,8 @@ struct Forest {
 };
 
 /// Per-forest calibration for a BCF sampler: the prognostic (mu) and
-/// treatment (tau) forests carry bcf's distinct tree counts and priors
-/// (docs/design/bcf.md). Node scales are not spec'd: the calibration map
+/// treatment (tau) forests carry bcf's distinct tree counts and priors.
+/// Node scales are not spec'd: the calibration map
 /// (ForestSpec below) derives them from the family's own latent scale at
 /// construction, and the adaptive magnitude lives in the glue (a for mu,
 /// b0/b1 for tau).
@@ -249,8 +247,8 @@ struct ForestStructureSpec {
   // prognostic forest leaves it empty and reads the full store.
   const std::size_t* columns = nullptr;
   std::size_t numColumns = 0;
-  // optional per-forest interaction constraint (docs/design/interaction-
-  // constraints.md): a max-order cap (0 = uncapped) and a flat 0-based (a, b)
+  // optional per-forest interaction constraint: a max-order cap (0 =
+  // uncapped) and a flat 0-based (a, b)
   // forbidden co-occurrence pair stream (2 per pair; borrowed, consumed at
   // construction). BCF's mu / tau forests carry independent constraints - the
   // calibrated-additivity causal use (an additive-or-low-order tau, a free mu).
@@ -380,8 +378,7 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
 /// One category forest's calibration for a multinomial sampler; the K forests
 /// are symmetric, so a single spec builds them all (mbart2's convention). Node
 /// scale is not spec'd here: the chain constructor sets every forest's leaf
-/// scale from nodeScale (the pi*sqrt(3)/sqrt(2) anchor, see
-/// docs/design/multinomial.md) and k.
+/// scale from nodeScale (the pi*sqrt(3)/sqrt(2) anchor) and k.
 struct MultinomialForestSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
@@ -392,8 +389,8 @@ struct MultinomialForestSpec {
 /// The specification a multinomial (softmax) chain is built from: K symmetric
 /// category forests over the shared design, the borrowed grouped-count response,
 /// and the leaf-scale calibration. The K forests couple through a softmax
-/// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation
-/// (docs/design/multinomial.md). counts is an n x K nonnegative integer matrix,
+/// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation.
+/// counts is an n x K nonnegative integer matrix,
 /// category-major (column k contiguous, at k*n) to match the combiner's omega_
 /// layout; trials is the per-observation trial count n_i = sum_k counts[k*n + i]
 /// (>= 1). Single-trial labels enter as a one-hot counts matrix with every
@@ -443,7 +440,7 @@ struct ForestAmplitudePrior {
   bool ridge = true;   // whether afterCombine travels this block's ASIS orbit
 };
 
-/// The combining response's glue (docs/design/bcf.md): the per-forest amplitude
+/// The combining response's glue: the per-forest amplitude
 /// vectors and the bases they contract with, plus the sweep's per-forest
 /// scratch. The combined location is a mu + b_z tau - the response mean under
 /// gaussian (plus eps), the latent index under probit and logistic; a Chain
@@ -537,8 +534,8 @@ struct ForestCombiner {
   /// Forest f's per-observation VETO precisions: the weights half of
   /// formForestResponse, formed alone so a caller holding no glue draw can
   /// still ask which rows forest f's likelihood reaches. The tree prior is
-  /// conditioned on exactly that support (docs/design/empty-leaf-veto.md), so
-  /// an override owes the vector its own formForestResponse would return, and
+  /// conditioned on exactly that support, so an override owes the vector its
+  /// own formForestResponse would return, and
   /// may read nothing the response half draws. w is the chain's working
   /// precisions; the pointer aliases combiner scratch, valid until the next
   /// call. Pure rather than inert: a coupling defaulted to the global weights
@@ -733,7 +730,7 @@ struct ForestCombiner {
   virtual bool glueIsValid(const ChainStateData&) const { return true; }
 };
 
-/// BCF's combiner (docs/design/bcf.md): a prognostic forest mu (forest 0) and a
+/// BCF's combiner: a prognostic forest mu (forest 0) and a
 /// treatment forest tau (forest 1) combined into the location a mu + b_z tau,
 /// which is the response mean under gaussian (plus eps) and the latent index
 /// under probit and logistic. Holds the glue (the scalar a via its half-Cauchy
@@ -952,8 +949,8 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// The amplitude conditionals, forest by forest in index order: each block is
   /// drawn jointly from its Gaussian full conditional given the other forests,
   /// and a scale-mixture prior's variance is refreshed immediately after its own
-  /// block (docs/design/bcf.md - a as the mu coefficient under the half-Cauchy
-  /// mixture, b0/b1 as the tau coefficients over control/treated).
+  /// block (a as the mu coefficient under the half-Cauchy mixture, b0/b1 as
+  /// the tau coefficients over control/treated).
   ///
   /// The SHIPPED K = 2 shape keeps the two-scalar path it landed with, and the
   /// general q-variate conditional draws every other shape. The two are the
@@ -1300,16 +1297,14 @@ private:
   /// leaves). c = sqrt(v), v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)
   /// with L and M the count and squared sum of f's OCCUPIED leaves. The
   /// exponent follows a general rule: rescaling k leaf parameters against d
-  /// glue scalars gives p = (k - d)/2, so
-  /// q = 1 is the shipped (L - 1)/2 and q = 2 the b-move's (L - 2)/2; the naive
-  /// move-map Jacobian's (L - q + 1)/2 is off by one and its prototype rejects
-  /// it at KS 1.6e-21 (derivation and prototype at
-  /// docs/design/multiplier-combiner.md, "The exponent rule"). B reads the
-  /// LIVE prior variance, which for a scale mixture is the auxiliary this
-  /// move conditions on (refreshing it here would re-randomize the coordinate
-  /// just conditioned on and measurably throttle the mixing gain - IACT 69 ->
-  /// 196 on |a|, recorded at the same doc's "The ASIS ridge"); the one-sweep
-  /// lag is benign, the next drawGlue refreshing it | a_new.
+  /// glue scalars gives p = (k - d)/2, so q = 1 is the shipped (L - 1)/2 and
+  /// q = 2 the b-move's (L - 2)/2; the naive move-map Jacobian's
+  /// (L - q + 1)/2 is off by one and its prototype rejects it at KS 1.6e-21.
+  /// B reads the LIVE prior variance, which for a scale mixture is the
+  /// auxiliary this move conditions on (refreshing it here would
+  /// re-randomize the coordinate just conditioned on and measurably
+  /// throttle the mixing gain - IACT 69 -> 196 on |a|); the one-sweep lag is
+  /// benign, the next drawGlue refreshing it | a_new.
   ///
   /// A no-op consuming no rng below two occupied leaves or at a zero leaf sum,
   /// returning 1.0. record/sampleNum locate the keepTrees saved slot whose
@@ -1547,8 +1542,7 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// The multinomial (softmax) combiner: K symmetric category forests coupled
 /// through a log-linear likelihood, P(y_i = k) = softmax(f_i)_k, with an
 /// INTERLEAVED one-vs-rest Polya-Gamma augmentation and a likelihood-invariant
-/// level-centering move (docs/design/multinomial.md). Constant leaf only, as
-/// the whole chain is.
+/// level-centering move. Constant leaf only, as the whole chain is.
 ///
 /// Category k's one-vs-rest conditional is a binomial(n_i, .) logistic with
 /// linear predictor eta_ik = f_ik - C_ik, where C_ik = log sum_{j != k} exp(f_ij)
@@ -1862,8 +1856,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// grand shift c (afterCombine) is added uniformly to every totalFits but NOT
   /// to totalTestFits; softmax is invariant to a common shift, so this recovers
   /// the identified test probabilities without it, which is why afterCombine
-  /// leaves totalTestFits alone (docs/design/multinomial.md). combinedTest_ is
-  /// sized here, not at construction, because numTestObservations may be set
+  /// leaves totalTestFits alone. combinedTest_ is sized here, not at
+  /// construction, because numTestObservations may be set
   /// after the combiner is built (setTestPredictors); off the sweep hot path.
   ///
   /// Under a TEST offset the blend reads the offset test fits instead, through
@@ -1887,8 +1881,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
         combinedTest_.data());
   }
 
-  /// The likelihood-invariant LEVEL-CENTERING move (docs/design/multinomial.md):
-  /// the softmax is invariant to a common shift of all f_ik, a flat additive
+  /// The likelihood-invariant LEVEL-CENTERING move: the softmax is invariant
+  /// to a common shift of all f_ik, a flat additive
   /// direction the prior pins only weakly, so it mixes as a slow random walk.
   /// This move is a single DATASET-WIDE shift c added to every f_ik at once,
   /// absorbed UNIFORMLY: c/m_k lands on every occupied leaf of every one of

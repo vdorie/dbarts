@@ -65,8 +65,8 @@ inline void maskAndNot(const std::uint64_t* a, const std::uint64_t* b,
   for (size_t w = 0; w < numWords; ++w) out[w] = a[w] & ~b[w];
 }
 
-/// Per-forest interaction constraint (docs/design/interaction-constraints.md):
-/// a cap on the number of DISTINCT split variables along any
+/// Per-forest interaction constraint: a cap on the number of DISTINCT split
+/// variables along any
 /// root-to-leaf path (maxOrder) and/or a symmetric forbidden co-occurrence
 /// adjacency (variable pairs that may not share a path). Borrowed by the trees
 /// of a single forest through Tree::setInteractionConstraint; a null pointer -
@@ -262,7 +262,7 @@ public:
   // store offsets into this pool. Entries are immutable once a rule
   // references them, so rule copies (snapshots, node restores) alias
   // freely; moves truncate to a mark on rejection and the chain compacts
-  // between moves (docs/design/pooled-masks.md).
+  // between moves.
   std::vector<std::uint64_t> maskPool;
 
   void initialize(index_t* indexBuffer, size_t numObservations) {
@@ -335,11 +335,10 @@ public:
   const Node& at(int32_t i) const { return nodes[static_cast<size_t>(i)]; }
 
   /// Emptiness as the branch log-likelihood's veto means it: a leaf is empty
-  /// when no member carries positive weight (docs/design/empty-leaf-veto.md).
-  /// With no weight vector installed this IS the member count, bit for bit the
-  /// test the veto has always run; with one, a zero-weight row is absent from
-  /// the likelihood rather than downweighted (docs/design/empty-leaf-veto.md,
-  /// "What counts as empty"), so a leaf of only such rows carries
+  /// when no member carries positive weight. With no weight vector installed
+  /// this IS the member count, bit for bit the test the veto has always run;
+  /// with one, a zero-weight row is absent from the likelihood rather than
+  /// downweighted, so a leaf of only such rows carries
   /// nothing to estimate a parameter from and its branch must be vetoed. The
   /// scan stops at the first positive weight, so an ordinary leaf costs one
   /// gather; only a leaf that is about to be vetoed walks its members.
@@ -674,7 +673,7 @@ public:
   /// access). Templated on the residual element type: the default double path
   /// selects the fp64 kernels (byte-identical to before), the opt-in fp32
   /// residual (ResidT = float) selects the float-input kernels that load float
-  /// and accumulate double (docs/design/reduced-precision-storage.md sec 3b).
+  /// and accumulate double.
   template <typename ResidT>
   void computeLeafStats(int32_t nodeIndex, const ResidT* y, const double* weights) {
     Node& node(at(nodeIndex));
@@ -831,8 +830,7 @@ public:
   // pins the C++ gather-index buffer element type to the C kernel index type,
   // so passing index_t* where the retyped misc kernels expect misc_index_t*
   // (and the sizeof memcpy/memcmp over index segments) stays byte-exact; a
-  // width mismatch would silently truncate or overread indices
-  // (docs/design/reduced-precision-storage.md sec 3a).
+  // width mismatch would silently truncate or overread indices.
   static_assert(sizeof(index_t) == sizeof(misc_index_t));
 
   /// Partition a node's observations between its children by its rule.
@@ -924,7 +922,7 @@ public:
 
   /// Whether the tree is in the set the branch log-likelihood's veto admits:
   /// no bottom node fails leafHasNoWeight. This is the emptiness law of the
-  /// move kernels (docs/design/empty-leaf-veto.md), not the membership law
+  /// move kernels, not the membership law
   /// bottomNodesAreOccupied answers for state restore; the two agree exactly
   /// when no weight vector is installed. leafVetoRank splits the failure into
   /// the two levels the moves order lexicographically: a tree can leave this

@@ -104,8 +104,8 @@ concept IntegrableLeafModel =
 /// parameter) but its draw consumes (y, weights) directly - the conjugate
 /// statistic is a scale suffstat the node does not cache - rather than the
 /// cached location suffstat (sum w, sum wz) the ScalarLeafModel draw reads.
-/// The variance forest (heteroscedastic BART, docs/design/heteroscedastic.md)
-/// declares it; no location leaf does, and it is not IntegrableLeafModel, so
+/// The variance forest (heteroscedastic BART) declares it; no location leaf
+/// does, and it is not IntegrableLeafModel, so
 /// the scale path never instantiates in an existing sampler.
 template <typename L>
 concept ScaleLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
@@ -203,7 +203,7 @@ struct ConstantGaussianLeaf {
   // math above against the node's cached sufficient statistic. y and weights
   // are unused now that the node caches both sums; the residual pointer is
   // templated so the fp32-residual path (const float*) resolves here without a
-  // conversion (docs/design/reduced-precision-storage.md sec 3b).
+  // conversion.
   template <typename ResidT>
   double logIntegratedLikelihoodForNode(const Tree& tree, const ResidT*,
                                         const double*, double k,
@@ -226,8 +226,8 @@ struct ConstantGaussianLeaf {
 static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
 
 /// Constant variance (scale) leaf for the heteroscedastic variance forest
-/// (HBART; Pratola, Chipman, George, McCulloch 2020,
-/// docs/design/heteroscedastic.md). Each leaf carries one positive variance
+/// (HBART; Pratola, Chipman, George, McCulloch 2020). Each leaf carries one
+/// positive variance
 /// factor s^2_k ~ chi^-2(nu', lambda'^2) - the scaled-inverse-chi-squared prior
 /// dbarts's sigma prior uses (ChiSquaredScalePrior), here calibrated per
 /// variance tree. The conjugate statistic is (n_k, sum_k w_i r_i^2) over the
@@ -326,7 +326,7 @@ static_assert(!IntegrableLeafModel<ConstantVarianceLeaf>);
 // ---- Monotone (mBART) constrained constant leaf ---------------------------
 //
 // A constant leaf whose forest is monotone in a declared subset of predictors
-// (Chipman, George, McCulloch, Shively 2022; docs/design/monotone.md). Each
+// (Chipman, George, McCulloch, Shively 2022). Each
 // tree is constrained so neighboring leaves along a constrained axis are
 // ordered; the leaf-parameter draw is a coupled truncated-normal Gibbs sweep
 // and the birth/death score is the constrained (truncated) conditional
@@ -736,7 +736,7 @@ struct MonotoneConstantGaussianLeaf {
     // The empty-leaf veto is NOT applied here even though this branch owns the
     // whole marginal: it is the caller's branch RANK (moves.hpp), taken over
     // the same leaves for every leaf model, so that two vetoed branches stay
-    // comparable (docs/design/empty-leaf-veto.md). What survives below is the
+    // comparable. What survives below is the
     // FEASIBILITY sentinel, a different -HUGE_VAL: an empty constraint cone
     // has no draw at all. A zero-weight leaf's conditional is its prior
     // truncated to the neighbor bounds, which is finite and is what the
@@ -2556,7 +2556,7 @@ struct ChiSquaredScalePrior {
 /// The leaf model in force, as a value. All four location-scale leaves carry
 /// the one `scale` field the calibration surface writes, so the write is total
 /// over them; what the reported prior sd MEANS is leaf-specific and only this
-/// tag can say which (docs/design/nameable-calibration.md section 3).
+/// tag can say which.
 enum class LeafModelKind { constant = 0, monotone = 1, linear = 2, gp = 3 };
 
 /// A leaf model type's tag. A property of the type alone, so constexpr; the
@@ -2575,8 +2575,8 @@ template <typename L> constexpr LeafModelKind leafModelKindOf() {
 /// Response families the sampler can run; gaussian fits the response
 /// directly, the binary families fit a latent working response, aft fits
 /// log survival times (right-censored observations carry latent log-times),
-/// nbinom fits non-negative counts via the Polya-Gamma augmentation (NBResponse,
-/// docs/design/negative-binomial.md).
+/// nbinom fits non-negative counts via the Polya-Gamma augmentation
+/// (NBResponse).
 enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
 
 /// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
@@ -2586,8 +2586,8 @@ inline double logOnePlusExp(double x) {
 }
 
 /// A Polya-Gamma draw PG(b, z) for shape b: the omega-loop's shape-parameterized
-/// seam (docs/design/negative-binomial.md section 2). v1 ships the exact integer
-/// envelope, so b is integer-valued and PG(b, z) is the exact sum of round(b)
+/// seam. v1 ships the exact integer envelope, so b is integer-valued and
+/// PG(b, z) is the exact sum of round(b)
 /// independent PG(1, z) variates (the LogisticResponse reduction, PG(n, z) =
 /// sum of n PG(1, z)). At b = 1 this is bit-for-bit the shipped PG(1) Devroye
 /// stream. A later real-shape mode routes a fractional b to an approximate
@@ -3178,16 +3178,16 @@ private:
   std::vector<double> working_;
 };
 
-/// Ordered categorical response by a cumulative probit (docs/design/ordinal.md).
+/// Ordered categorical response by a cumulative probit.
 /// A latent z_i = f(x_i) + o_i + N(0, 1) is thresholded by ordered cutpoints
 /// -inf = gamma_0 < gamma_1 < ... < gamma_{K-1} < gamma_K = +inf into category
 /// y_i = k iff gamma_{k-1} < z_i <= gamma_k; y_ holds the 1-based category index
-/// in {1..K}. Scheme A identification (section 2): sigma fixed at 1 and gamma_1
+/// in {1..K}. Scheme A identification: sigma fixed at 1 and gamma_1
 /// pinned at 0, so K - 2 interior cutpoints are free and K = 2 collapses to
 /// probit. Each sweep first updates the free cutpoints by a marginal random-walk
 /// Metropolis step against eta = f + offset with the latents integrated out (the
 /// Phi-difference likelihood), then redraws z from the doubly-truncated normal on
-/// its category interval - cutpoints before latents (section 3). Reuses probit's
+/// its category interval - cutpoints before latents. Reuses probit's
 /// working = latents - offset, unit working weights, and fixed sigma; the
 /// boundary categories route through the same one-sided truncation primitives and
 /// NaN fallback probit uses, keeping the K = 2 rng stream bitwise identical.
@@ -3778,7 +3778,7 @@ private:
   std::vector<double> working_;
 };
 
-/// Accelerated failure time, log-normal error (docs/design/survival.md):
+/// Accelerated failure time, log-normal error:
 ///   log T_i = f(x_i) + offset_i + sigma * eps_i,   eps_i ~ N(0, 1).
 /// The forest fits log T on the log scale exactly as GaussianResponse, which
 /// this contains over a mutable log-time buffer it borrows to that Gaussian
@@ -3981,8 +3981,8 @@ private:
 };
 
 /// Sampled residual degrees of freedom nu on a fixed capped grid under a
-/// normalized gamma(2, 0.1) prior (docs/design/robust-errors.md section 4).
-/// With the mixing precisions lambda_i ~ Gamma(nu/2, nu/2), the log full
+/// normalized gamma(2, 0.1) prior. With the mixing precisions
+/// lambda_i ~ Gamma(nu/2, nu/2), the log full
 /// conditional at grid point nu is
 ///   n [(nu/2) log(nu/2) - lgamma(nu/2)] + (nu/2)(sumLogLambda - sumLambda)
 ///     + log p(nu)
@@ -4025,8 +4025,8 @@ private:
   std::array<double, gridSize> weight_;
 };
 
-/// Student-t continuous errors by the Gaussian scale-mixture augmentation
-/// (docs/design/robust-errors.md): sqrt(w_i) r_i / sigma ~ t_nu comes from
+/// Student-t continuous errors by the Gaussian scale-mixture augmentation:
+/// sqrt(w_i) r_i / sigma ~ t_nu comes from
 ///   r_i | lambda_i ~ N(0, sigma^2 / (w_i lambda_i)), lambda_i ~ Gamma(nu/2, nu/2),
 /// so a contained GaussianResponse over the same rescaled response sees the
 /// composite precision c_i = w_i lambda_i through setWeights,
@@ -4239,8 +4239,8 @@ private:
 };
 
 /// Sampled negative-binomial dispersion r on a capped positive-integer grid
-/// under a normalized gamma(2, 0.1) prior (docs/design/negative-binomial.md
-/// sections 2A, 3). This is the r-update seam: a grid full conditional today, a
+/// under a normalized gamma(2, 0.1) prior. This is the r-update seam: a
+/// grid full conditional today, a
 /// Chinese-restaurant-table (CRT) or real-valued-r strategy later, with
 /// integrality assumed only inside it. Under
 /// the logit-p parameterization p_i is r-free, so the log full conditional at
@@ -4320,8 +4320,8 @@ private:
 };
 
 /// Negative-binomial counts by the Polya-Gamma augmentation (Polson-Scott-Windle
-/// 2013; Zhou-Li-Dunson-Carin 2012) under the logit-p parameterization
-/// (docs/design/negative-binomial.md): the forest fits the log-odds latent
+/// 2013; Zhou-Li-Dunson-Carin 2012) under the logit-p parameterization:
+/// the forest fits the log-odds latent
 /// psi_i = f(x_i) + offset_i, the count law is y_i ~ NB(r, plogis(psi_i)) with
 /// dispersion r, and E[y_i] = r exp(psi_i) so the offset is a log-exposure. The
 /// augmentation generalizes LogisticResponse: omega_i ~ PG(y_i + r, psi_i) (a
@@ -4330,8 +4330,8 @@ private:
 /// z_i = kappa_i/omega_i - offset_i under per-sweep precisions omega_i, sigma
 /// fixed at 1. r is a positive integer, fixed (user-supplied) or estimated on
 /// the capped grid by the closed-form discrete full conditional
-/// (NBDispersionPrior); real-valued r stays deferred to a future extension
-/// (docs/design/negative-binomial.md section 2). Counts
+/// (NBDispersionPrior); real-valued r stays deferred to a future extension.
+/// Counts
 /// enter kappa directly, so like the binary families it does not rescale the
 /// response. Weights are unsupported (exposure belongs in the offset).
 /// latents() exposes the omega draws.

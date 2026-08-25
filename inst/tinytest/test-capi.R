@@ -1326,7 +1326,7 @@ expect_false(identical(rProbitMaskA$train, rProbitMaskB$train))
 rm(ptrMaskA, ptrMaskB, ptrMaskC, ptrProbitMaskA, ptrProbitMaskB)
 invisible(gc(FALSE))
 
-# the two-forest (BCF) surface, docs/design/bcf.md: a treatment vector on the
+# the two-forest (BCF) surface: a treatment vector on the
 # data object and the treatment forest's configuration on the control make a
 # Bayesian causal forest through this same creation entry point. The whole
 # mutation and reporting surface is driven from the consumer - the acceptances,

@@ -3,7 +3,7 @@ source(
   local = TRUE
 )
 
-# The Student-t residual surface (docs/design/robust-errors.md): the
+# The Student-t residual surface: the
 # resid.dist = student() constructor, its validation, the gaussian-only family
 # refusal, and that the resolved degrees of freedom ride the model's resid.df
 # attribute the C bridge reads (absent = gaussian, 0 = estimate, positive =

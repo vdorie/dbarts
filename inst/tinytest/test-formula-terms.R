@@ -1,5 +1,5 @@
 # forest() written inside a formula - bare, or as one operand of a ':'/'*'
-# node - declares an additional amplitude-coupled forest (docs/design/bcf.md),
+# node - declares an additional amplitude-coupled forest,
 # reached by rewriting the formula and feeding the existing
 # forests = list(forest(), forest(basis = )) channel (R/formulaTerms.R).
 # Block A: a formula with no forest() call anywhere is untouched. Block B: the

@@ -1,5 +1,5 @@
 # The no-empty-leaf conditioning the initializer applies
-# (docs/design/empty-leaf-veto.md, test-prior-init-empty-leaves.R) is PER
+# (test-prior-init-empty-leaves.R) is PER
 # FOREST. A move vetoes forest f's trees against the COMPOSED precisions - the
 # coupling's own per-forest weights, which carry the glue, times whatever
 # weight is installed for f - so each forest's rejection draw must condition on

@@ -202,7 +202,7 @@ methods::setValidity("dbartsFixedPrior", function(object) {
 
 ## The residual error LAW, orthogonal to resid.prior (the sigma^2 prior):
 ## gaussian() is the default; student(df) selects Student-t errors by the
-## Gaussian scale-mixture augmentation (docs/design/robust-errors.md). df of
+## Gaussian scale-mixture augmentation. df of
 ## NA_real_ means estimate the degrees of freedom on a capped grid; a finite
 ## positive df fixes them. The resolved value reaches the C bridge as a
 ## length-1 numeric resid.df attribute on the model object (0 = estimate).
@@ -506,14 +506,14 @@ methods::setClass(
     response.n.levels = "integer",
     # the original response's levels in order, kept for the round-trip an
     # ordinal (cumulative-probit) fit needs to label its K category-probability
-    # columns and map an argmax code back to a level (docs/design/ordinal.md
-    # section 5). Character for a factor/character response, NULL otherwise (a
+    # columns and map an argmax code back to a level. Character for a
+    # factor/character response, NULL otherwise (a
     # numeric ordinal fit derives sort(unique(y)) itself). The other families
     # never read it.
     response.levels = "ANY",
     # the per-forest amplitude bases a multi-forest fit combines its forests
-    # through (docs/design/bcf.md), null for an ordinary single-forest fit.
-    # Element f is forest f's n x q_f numeric matrix, or NULL for a forest
+    # through, null for an ordinary single-forest fit. Element f is forest
+    # f's n x q_f numeric matrix, or NULL for a forest
     # whose basis is the implicit intercept its single amplitude scales. They
     # ride the data object rather than the control, exactly as `weights` does:
     # they are conditioning data, so the setter that replaces one mirrors into
@@ -522,8 +522,8 @@ methods::setClass(
     # after a state restore preserves the restored amplitudes rather than the
     # constructed ones.
     bases = "listOrNULL",
-    # The multinomial (K-forest softmax) response, docs/design/multinomial.md:
-    # an n x K integer matrix whose column k holds category k's counts, null
+    # The multinomial (K-forest softmax) response: an n x K integer matrix
+    # whose column k holds category k's counts, null
     # for every other family. It rides the data object rather than an R5 field
     # for the reason the bases do - it is conditioning data, so a re-created
     # sampler carries it without further discipline and a saved fit reloads
@@ -625,8 +625,8 @@ methods::setValidity("dbartsData", function(object) {
       }
     }
   }
-  # the multinomial response and its two category offsets (docs/design/
-  # multinomial.md). Read bare, unlike every read outside this function: a
+  # the multinomial response and its two category offsets. Read bare,
+  # unlike every read outside this function: a
   # dbartsData deserialized from a fit saved before the slots existed never
   # reaches here, because validObject rejects it for the missing slots before
   # any validity function runs. Such an object stays READABLE - that is what

@@ -394,9 +394,8 @@ resolveSplitProbabilities <- function(prior, data) {
 ## rather than a switch per call site, since the multi-forest guard reads it
 ## too (a "non-default node scale" has always meant "differs from the family
 ## default"); the C bridge carries the twin it backstops direct-API consumers
-## with. Ordinal reuses probit's latent scale (docs/design/ordinal.md section 2,
-## scheme C: the K = 2 anchor is probit exactly) and nbinom's psi is a log-odds,
-## so it reuses logistic's (docs/design/negative-binomial.md section 1).
+## with. Ordinal reuses probit's latent scale (scheme C: the K = 2 anchor is
+## probit exactly) and nbinom's psi is a log-odds, so it reuses logistic's.
 defaultNodeScale <- function(family) {
   switch(
     family,
@@ -422,7 +421,7 @@ defaultNodeScale <- function(family) {
 ## RESPONSE's own sd, which already contains the signal, and sigma is DRAWN, so
 ## a prognostic total at a median 2 of them is both a statement about total
 ## variation and one the sampler can correct; that is bcf's use_muscale
-## convention (docs/design/bcf.md). Under the latent families the anchor is the
+## convention. Under the latent families the anchor is the
 ## LINK's own error sd and sigma is PINNED, so 2 asserts the median prognostic
 ## signal is twice the noise before any other forest is added, and nothing
 ## absorbs it: at 1 - one anchor unit, which is also what the Rd can state - the
@@ -512,8 +511,8 @@ resolveDartShorthand <- function(
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
-## to 2, the truncated leaf law having no clean chi-k update; see
-## docs/design/monotone.md) and a chi hyperprior is refused.
+## to 2, the truncated leaf law having no clean chi-k update) and a chi
+## hyperprior is refused.
 ##
 ## A multi-forest fit fixes it on the same terms and for the same reason: the
 ## calibration map pins every forest's k at 1 and never updates it, so the
@@ -747,7 +746,7 @@ resolveVarianceColumns <- function(variance, data) {
 }
 
 ## Resolve a column selector - the columns one forest of a multi-forest model
-## may split on (docs/design/bcf.md) - to sorted 1-based model-matrix column
+## may split on - to sorted 1-based model-matrix column
 ## indices, or NULL for an unrestricted forest. Column names resolve against
 ## colnames(data@x), indices are range-checked; an explicitly empty selection
 ## is an error rather than a silent full forest. `argument` names the spelling
@@ -1160,8 +1159,8 @@ forestParams <- function(specs, hasBasis, family) {
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into
-## the engine's per-forest constraint (docs/design/interaction-constraints.md):
-## a max-order cap (0 = uncapped) and a de-duplicated 2 x k integer matrix of
+## the engine's per-forest constraint: a max-order cap (0 = uncapped) and a
+## de-duplicated 2 x k integer matrix of
 ## 0-based forbidden co-occurrence pairs. Every validation happens here, at fit
 ## time, where the column set is known: unknown names, empty groups, a
 ## max.order below 1, and a forbid/group entry naming a dropped column all
@@ -1272,9 +1271,9 @@ resolveInteractions <- function(interactions, data) {
 }
 
 ## Resolve a blocks() specification against the fitted model matrix into the
-## engine's per-tree block-additive constraint (variant A,
-## docs/design/interaction-constraints.md): each whole tree is confined to one
-## declared group of predictors, so the ensemble is exactly f = sum_G f_G
+## engine's per-tree block-additive constraint (variant A): each whole tree
+## is confined to one declared group of predictors, so the ensemble is
+## exactly f = sum_G f_G
 ## (functional ANOVA / grouped GAMI). Unlike interactions(groups=)'s per-path
 ## allow-list, blocks() lowers to a STATIC per-tree column MASK, so a predictor
 ## named in no block would be masked out of every tree and go dead; the
@@ -1601,7 +1600,7 @@ chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
   )
 }
 
-## Residual-distribution constructors (docs/design/robust-errors.md), passed
+## Residual-distribution constructors, passed
 ## as resid.dist to dbarts()/bart()/bart2(). gaussian() is the default error
 ## law; student(df) selects outlier-robust Student-t errors. Not exported:
 ## resolved by bare name inside the resid.dist argument, like the priors, so
@@ -1660,8 +1659,8 @@ dart <- function(
   )
 }
 
-## Per-forest interaction constraint (docs/design/interaction-constraints.md),
-## passed as interactions = to dbarts()/bart2() (and mu.interactions /
+## Per-forest interaction constraint, passed as interactions = to
+## dbarts()/bart2() (and mu.interactions /
 ## tau.interactions to bcf()). Packages the raw specification; groups and forbid
 ## resolve against the model matrix, and every value is validated, at fit time
 ## in resolveInteractions. max.order caps the number of DISTINCT split variables
@@ -1678,9 +1677,9 @@ interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
   )
 }
 
-## Per-forest block-additive constraint (variant A,
-## docs/design/interaction-constraints.md), passed as blocks = to dbarts() /
-## bart2() (and mu.blocks / tau.blocks to bcf()). Confines each WHOLE tree to one
+## Per-forest block-additive constraint (variant A), passed as blocks = to
+## dbarts() / bart2() (and mu.blocks / tau.blocks to bcf()). Confines each
+## WHOLE tree to one
 ## declared group of predictors, so the ensemble is exactly f = sum_G f_G (a
 ## clean functional-ANOVA / grouped-GAMI decomposition). groups is a list
 ## partitioning the forest's predictors into disjoint blocks (by model-matrix
@@ -1701,7 +1700,7 @@ blocks <- function(groups, trees.per.group = NULL) {
   )
 }
 
-## One forest of a multi-forest model (docs/design/bcf.md), passed inside the
+## One forest of a multi-forest model, passed inside the
 ## forests = list(forest(), forest(...)) argument of dbarts()/dbartsSpec().
 ## Every knob is per forest, so the fitting functions grow exactly one argument
 ## however many forests a model has. basis is the data the forest's amplitudes

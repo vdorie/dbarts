@@ -202,8 +202,8 @@ packageBartResults <- function(
     )
   }
 
-  # the per-forest in-sample channels (docs/design/bcf.md): forestFits is
-  # each forest's own RESPONSE-scale raw total (response.scale * f_k, no glue
+  # the per-forest in-sample channels: forestFits is each forest's own
+  # RESPONSE-scale raw total (response.scale * f_k, no glue
   # folded in - $getForestFits' meaning up to that one scalar) and glue the
   # multiplier channel unchanged, so yhat = response.shift +
   # sum_k (basis_k %*% glue_k) * forestFits_k reconstructs train exactly. The
@@ -241,7 +241,7 @@ packageBartResults <- function(
   }
 
   # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
-  # original scale (docs/design/heteroscedastic.md); NULL for a homoscedastic fit
+  # original scale; NULL for a homoscedastic fit
   s.train <- NULL
   s.test <- NULL
   if (!is.null(samples[["variance"]])) {
@@ -351,8 +351,8 @@ packageBartResults <- function(
   # element stays absent) for every non-survival family
   result$status <- attr(fit$control, "bartcore.survival")
 
-  # the discrete-time hazard marker (docs/design/survival.md section 4): the
-  # ordered period grid, present only on hazard fits (parked on the control
+  # the discrete-time hazard marker: the ordered period grid, present only
+  # on hazard fits (parked on the control
   # attribute by dbarts()). $family reads the binary token on both, so every
   # link-keyed generic stays correct with zero change; survivalProbabilities
   # dispatches its hazard branch on THIS marker instead. NULL - and so the
@@ -370,8 +370,8 @@ packageBartResults <- function(
   if (hasForestReporting) {
     result$forestFits <- forestFits
     result$glue <- glue
-    # the expanded per-forest bases, no draw axis (docs/design/bcf.md): what
-    # makes the reconstruction identity evaluable from the fit alone, since
+    # the expanded per-forest bases, no draw axis: what makes the
+    # reconstruction identity evaluable from the fit alone, since
     # neither run() channel carries them
     result$bases <- fit$data@bases
     forestInfo <- attr(fit$control, "bartcore.forests")
@@ -716,8 +716,8 @@ bart2 <- function(
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   family <- match.arg(family)
-  # hurdle.lognormal / twopart (docs/design/hurdle.md): resolve the alias
-  # before anything reads 'family', so the token prints and dispatches as
+  # hurdle.lognormal / twopart: resolve the alias before anything reads
+  # 'family', so the token prints and dispatches as
   # "hurdle.lognormal" regardless of which spelling was requested
   if (identical(family, "twopart")) {
     family <- "hurdle.lognormal"
@@ -734,8 +734,8 @@ bart2 <- function(
   refuseCountsCarryingData(formula, "bart2()")
 
   # family = "auto" with a 3+-level UNORDERED factor/character response is
-  # multinomial (docs/design/multinomial.md); a 3+-level ORDERED factor is
-  # ordinal (docs/design/ordinal.md, the disjoint is.ordered() key). Route
+  # multinomial; a 3+-level ORDERED factor is ordinal (the disjoint
+  # is.ordered() key). Route
   # either into its branch below and announce. 2-level and numeric responses
   # stay on the standard path, where dbarts() resolves probit/gaussian (and
   # announces a factor probit itself).
@@ -812,7 +812,7 @@ bart2 <- function(
     refuseZeroSamples("bart2")
   }
 
-  # multinomial (docs/design/multinomial.md): a K-forest softmax model over
+  # multinomial: a K-forest softmax model over
   # a factor response or an n x K count matrix, validated and dispatched
   # here rather than threaded through the rest of bart2 - it bypasses the
   # standard single-forest packaging entirely, though bart2Multinomial/
@@ -838,8 +838,8 @@ bart2 <- function(
         "already expressible as row-wise count replication in the response"
       )
     }
-    # the n x K category offset (docs/design/multinomial.md "The surface"):
-    # a matrix enters the raw fits before the softmax and is threaded to
+    # the n x K category offset: a matrix enters the raw fits before the
+    # softmax and is threaded to
     # bartcoreMultinomialSampler/bartcoreMultinomialCountSampler's own offset
     # argument, never to the host dbarts() call below (matchedCall$offset is
     # cleared so redirectCall does not forward it there, where it would be
@@ -962,8 +962,8 @@ bart2 <- function(
       }
       y <- data
     }
-    # the count-matrix response form (docs/design/multinomial.md): an n x K
-    # matrix of nonnegative integer trial counts, beside the factor path
+    # the count-matrix response form: an n x K matrix of nonnegative
+    # integer trial counts, beside the factor path
     # below. Any numeric matrix is treated as an attempted count response, so
     # a too-narrow one gets its own error rather than falling through to the
     # factor message.
@@ -1058,8 +1058,8 @@ bart2 <- function(
     ))
   }
 
-  # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest fixed-
-  # scale latent model whose n x K category probabilities and per-draw cutpoints
+  # ordinal (cumulative probit): a single-forest fixed-scale latent model
+  # whose n x K category probabilities and per-draw cutpoints
   # are synthesized in R (the engine reports only the latent eta), dispatched
   # here rather than threaded through the standard single-forest path so its
   # K-widened fit object (class "bartOrdinal", never "bart") stays distinct.
@@ -1090,8 +1090,8 @@ bart2 <- function(
     ))
   }
 
-  # negative-binomial counts (docs/design/negative-binomial.md): a single-forest
-  # fixed-scale latent model whose mean counts mu = r exp(f + o) and per-draw
+  # negative-binomial counts: a single-forest fixed-scale latent model whose
+  # mean counts mu = r exp(f + o) and per-draw
   # dispersion r are synthesized in R (the engine reports the log-odds latent
   # psi; r lives only in its state block), dispatched here so its bartNegbin fit
   # object (never "bart") stays distinct. family = "nbinom" is always explicit -
@@ -1123,8 +1123,8 @@ bart2 <- function(
     ))
   }
 
-  # hurdle.lognormal / twopart (docs/design/hurdle.md): a semicontinuous two-
-  # part fit built from an occupancy probit on 1{y > 0} (all n) and a gaussian
+  # hurdle.lognormal / twopart: a semicontinuous two-part fit built from an
+  # occupancy probit on 1{y > 0} (all n) and a gaussian
   # on log(y) restricted to the y > 0 subset, glued at report time. Dispatched
   # here - not inside dbarts(), which returns a single sampler and cannot
   # express the two-sampler composition - so its bartHurdle fit object stays
@@ -1340,16 +1340,16 @@ extractMultinomialFormulaData <- function(
 }
 
 # family = "auto" peek for bart2: a 3+-level UNORDERED factor or character
-# response selects multinomial (an ORDERED factor is ordinal, split out here and
-# caught by detectAutoOrdinal instead - the disjoint is.ordered() key,
-# docs/design/ordinal.md). Returns classifyResponse's descriptor for that case,
+# response selects multinomial (an ORDERED factor is ordinal, split out here
+# and caught by detectAutoOrdinal instead - the disjoint is.ordered() key).
+# Returns classifyResponse's descriptor for that case,
 # NULL for anything that stays on the standard single-forest path (numeric,
 # 2-level, logical, ordered, a count matrix, or a pre-built dbartsData). Type
 # detection only - the multinomial branch re-extracts and validates the
 # response, so this evaluates the formula LHS directly rather than building a
 # model frame.
-# A dbartsData carrying the n x K count response is a multinomial declaration
-# (docs/design/multinomial.md), and the single-forest packaging of the entry
+# A dbartsData carrying the n x K count response is a multinomial
+# declaration, and the single-forest packaging of the entry
 # points below cannot read a K-location fit. The refusal is at the ENTRY, not
 # at a family branch: family = "auto" resolves counts to multinomial during
 # spec resolution, so a branch keyed on the token never sees it.
@@ -1401,8 +1401,8 @@ detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
 }
 
 # The ordinal analog of detectAutoMultinomial: a 3+-level ORDERED factor
-# response selects family = "ordinal" (docs/design/ordinal.md section 5). Only
-# is.ordered() responses match, so ordinal and unordered multinomial never
+# response selects family = "ordinal". Only is.ordered() responses match,
+# so ordinal and unordered multinomial never
 # overlap; everything else stays on the standard path.
 detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
   info <- detectAutoResponse(formula, data, dataIsMissing, callingEnv)
@@ -1418,8 +1418,8 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
   }
 }
 
-# The multinomial (softmax) fit path (docs/design/multinomial.md), reached
-# from bart2's family = "multinomial" branch after ingestion validation. y is
+# The multinomial (softmax) fit path, reached from bart2's family =
+# "multinomial" branch after ingestion validation. y is
 # the validated factor response; K = nlevels(y) follows from it. The sampler
 # is built DIRECTLY through dbarts()'s own family = "multinomial" dispatch -
 # the same public construction path dbarts(x, y, family = "multinomial")
@@ -1667,9 +1667,9 @@ reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
 # Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
 # samples$train is n.obs x K x n.samples (x n.chains); the K-carrying softmax
 # probabilities are already the identified quantity the engine reports (the
-# run's train channel is the identified deliverable; see
-# docs/design/multinomial.md), so no probabilityFromLatents-style transform
-# applies here, unlike the binary families. Reshaped to the package's
+# run's train channel is the identified deliverable), so no
+# probabilityFromLatents-style transform applies here, unlike the binary
+# families. Reshaped to the package's
 # draws-first convention (n.chains x) n.samples x n.obs x K - matching
 # combineChains as bart2's other families do - with the resolved category
 # levels named on the trailing K margin so every K-shaped output threads them.
@@ -1728,9 +1728,9 @@ packageMultinomialResults <- function(
   result
 }
 
-# The cumulative-probit category probabilities for one posterior draw
-# (docs/design/ordinal.md section 1): given the latent means eta (length n) and
-# the K-1 finite cutpoints gamma (gamma_1 < ... < gamma_{K-1}), returns the
+# The cumulative-probit category probabilities for one posterior draw: given
+# the latent means eta (length n) and the K-1 finite cutpoints gamma
+# (gamma_1 < ... < gamma_{K-1}), returns the
 # n x K matrix P(y = k) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), with
 # gamma_0 = -Inf and gamma_K = +Inf supplying the boundary columns of 0 and 1.
 # Shared by the fit-time reshape and predict.bartOrdinal's replay.
@@ -1745,8 +1745,8 @@ ordinalCategoryProbabilities <- function(eta, cutpoints) {
   bounds[, 2L:(K + 1L), drop = FALSE] - bounds[, 1L:K, drop = FALSE]
 }
 
-# The ordinal (cumulative probit) fit path (docs/design/ordinal.md section 5),
-# reached from bart2's family = "ordinal" branch. Unlike multinomial's K-forest
+# The ordinal (cumulative probit) fit path, reached from bart2's family =
+# "ordinal" branch. Unlike multinomial's K-forest
 # engine, ordinal is a SINGLE forest whose kept samples report the latent
 # eta = f(x) (like probit) and, in an ordinal-only run channel, the per-draw
 # K-1 cutpoints; the n x K category probabilities are synthesized here from the
@@ -1895,9 +1895,9 @@ bart2Ordinal <- function(
   result
 }
 
-# Assemble a bart2(family = "ordinal") fit from the synthesized channels
-# (docs/design/ordinal.md section 5). yhat.train/test are the n x K category
-# probabilities in the multinomial draws-first convention (levels named on the
+# Assemble a bart2(family = "ordinal") fit from the synthesized channels.
+# yhat.train/test are the n x K category probabilities in the multinomial
+# draws-first convention (levels named on the
 # K margin); cutpoints are the per-draw K-1 thresholds, the ordinal analog of
 # gaussian's sigma; y is rebuilt as the ordered factor of observed categories
 # for residuals and reporting.
@@ -1974,9 +1974,9 @@ packageOrdinalResults <- function(
   result
 }
 
-# The negative-binomial mean counts for one posterior draw (docs/design/
-# negative-binomial.md section 1): given the log-odds latent psi = f(x) + o and
-# the dispersion r, the mean is mu_i = r exp(psi_i). Shared by the fit-time
+# The negative-binomial mean counts for one posterior draw: given the
+# log-odds latent psi = f(x) + o and the dispersion r, the mean is
+# mu_i = r exp(psi_i). Shared by the fit-time
 # reshape and predict.bartNegbin's replay.
 negbinMeanCounts <- function(psi, r) {
   r * exp(psi)
@@ -1984,8 +1984,8 @@ negbinMeanCounts <- function(psi, r) {
 
 # One posterior-predictive count per (draw, observation) of a negative-binomial
 # fit: y ~ NB(size = r, mean = mu) with mu the draw's mean count and r its
-# dispersion (docs/design/negative-binomial.md). mu is a (chains x) draws x obs
-# array; r is the draws-shaped dispersion, broadcast across the observation
+# dispersion. mu is a (chains x) draws x obs array; r is the draws-shaped
+# dispersion, broadcast across the observation
 # margin so each column shares its draw's r. Only this and predict's ppd touch
 # the RNG, so type = "ev"/"bart" stay draw-neutral.
 negbinPpd <- function(mu, r) {
@@ -1996,8 +1996,8 @@ negbinPpd <- function(mu, r) {
   )
 }
 
-# The negative-binomial count fit path (docs/design/negative-binomial.md
-# sections 4-5), reached from bart2's family = "nbinom" branch. A SINGLE forest
+# The negative-binomial count fit path, reached from bart2's family =
+# "nbinom" branch. A SINGLE forest
 # fits the log-odds latent psi = f(x) + o (like logistic under the Polya-Gamma
 # augmentation); the mean counts mu = r exp(psi) and the per-draw dispersion r
 # are synthesized here. The run is driven one kept sample at a time (through the
@@ -2137,9 +2137,9 @@ bart2Negbin <- function(
   result
 }
 
-# Assemble a bart2(family = "nbinom") fit from the synthesized channels
-# (docs/design/negative-binomial.md section 4). yhat.train/test are the mean
-# counts mu = r exp(f + o), the reported deliverable; latent.train/test are the
+# Assemble a bart2(family = "nbinom") fit from the synthesized channels.
+# yhat.train/test are the mean counts mu = r exp(f + o), the reported
+# deliverable; latent.train/test are the
 # log-odds latent psi draws (type = "bart"/"link"); dispersion is the per-draw r,
 # the count analog of gaussian's sigma; y is the observed counts.
 packageNegbinResults <- function(
@@ -2204,11 +2204,10 @@ packageNegbinResults <- function(
   result
 }
 
-# Splits a hurdle response into its two ingested parts (docs/design/hurdle.md
-# sections 0-1): the occupancy indicator z = 1{y > 0} over all n, and the
-# subset mask {i : y_i > 0} with the positive part's working response
-# log(y[S]). y must be finite and non-negative (the nbinom non-negative-count
-# precedent, docs/design/negative-binomial.md section 4, extended to a
+# Splits a hurdle response into its two ingested parts: the occupancy
+# indicator z = 1{y > 0} over all n, and the subset mask {i : y_i > 0} with
+# the positive part's working response log(y[S]). y must be finite and
+# non-negative (the nbinom non-negative-count precedent, extended to a
 # continuous response) and carry at least one exact zero and one positive
 # value - the two parts a hurdle needs in order to fit either part at all.
 splitHurdleResponse <- function(y) {
@@ -2239,14 +2238,14 @@ splitHurdleResponse <- function(y) {
   )
 }
 
-# The hurdle.lognormal / twopart fit path (docs/design/hurdle.md), reached
-# from bart2's family = "hurdle.lognormal" branch. Composed R-side from two
-# ordinary single-forest fits - never a coupled engine model, section 0 - so
-# this simply calls bart2() twice, once per component, at two independently
-# derived seeds (section 13 hardening b: a shared seed correlates the two
-# chains and biases the combined credible interval). The positive fit's
-# 'test' is forced to the FULL training x (hardening c) so its in-sample
-# fitted()/extract() carries E[y | y > 0, x] at the zero rows it never
+# The hurdle.lognormal / twopart fit path, reached from bart2's family =
+# "hurdle.lognormal" branch. Composed R-side from two ordinary single-forest
+# fits - never a coupled engine model - so this simply calls bart2() twice,
+# once per component, at two independently derived seeds (a shared seed
+# would correlate the two chains and bias the combined credible interval).
+# The positive fit's 'test' is forced to the FULL training x so its
+# in-sample fitted()/extract() carries E[y | y > 0, x] at the zero rows it
+# never
 # trained on. Reusing bart2() itself - rather than building the sampler
 # directly, as bart2Negbin does - makes the reduction to two standalone
 # bart2() calls exact by construction (benchmarks/R/hurdle-reduction.R): the
@@ -2384,9 +2383,9 @@ survivalProbabilitiesFromDraws <- function(
   result
 }
 
-# Survival-probability draws from a discrete-time hazard fit
-# (docs/design/survival.md section 4). The fit is an ordinary binary fit on
-# the person-period-expanded rows, so the per-(subject, period) hazards are
+# Survival-probability draws from a discrete-time hazard fit. The fit is an
+# ordinary binary fit on the person-period-expanded rows, so the
+# per-(subject, period) hazards are
 # h(k | x) = g(f(x, k) + o) through the fit's link (probit/logistic), and
 # S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). This ALWAYS re-expands
 # its subjects to the full grid and predicts - the training design is ragged
@@ -2473,8 +2472,8 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
   out
 }
 
-# Survival-probability draws from an AFT fit (docs/design/survival.md).
-# Under the log-normal model log T = f(x) + sigma eps, S(t | x) =
+# Survival-probability draws from an AFT fit. Under the log-normal model
+# log T = f(x) + sigma eps, S(t | x) =
 # 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
 # and sigma. Returns draws per the package's three-tier convention
 # (extract = draws, fitted = mean, ci.level = interval): users take means
@@ -2527,8 +2526,8 @@ survivalProbabilities.bart <- function(
   )
 }
 
-# Grouped (random-intercept) AFT survival curves (docs/design/survival.md,
-# riAFTBART's model). The linear predictor is E[log T | x, group] = f(x) plus
+# Grouped (random-intercept) AFT survival curves (riAFTBART's model). The
+# linear predictor is E[log T | x, group] = f(x) plus
 # the drawn group intercept - sourced from the "ev" channel (extract for the
 # training data, predict for newdata), NOT the bare BART component, so the
 # intercepts enter the curve. "ev" is on the log scale here (aft carries
@@ -2736,8 +2735,8 @@ bart <- function(
 
   # bart() is the frozen BayesTree shim and does not package an ordinal fit; an
   # ordered-factor response (which dbarts() would auto-dispatch to ordinal) is
-  # refused up front, pointing to bart2 (docs/design/ordinal.md section 5). The
-  # matrix interface names the response directly; a formula response is caught
+  # refused up front, pointing to bart2. The matrix interface names the
+  # response directly; a formula response is caught
   # by the family backstop after the sampler is built.
   if (
     !is.formula(x.train) &&

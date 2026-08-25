@@ -1,4 +1,4 @@
-# Public multi-forest creation (docs/design/bcf.md): dbarts() and dbartsSpec()
+# Public multi-forest creation: dbarts() and dbartsSpec()
 # take a forests = list(forest(...)) declaration and build an ordinary
 # dbartsSampler holding the model it names. Two forests, the second carrying a
 # two-level factor basis, is the Bayesian causal forest. The internal

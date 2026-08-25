@@ -26,8 +26,7 @@ PTHREAD_LIBS.default = @PTHREAD_LIBS@
 PTHREAD_CPPFLAGS = $(PTHREAD_CPPFLAGS.$(COMPILER))
 PTHREAD_LIBS = $(PTHREAD_LIBS.$(COMPILER))
 
-# the generalized core (bartcore/) requires C++20; see
-# docs/design/core-generalization.md
+# the generalized core (bartcore/) requires C++20
 CXX_STD = CXX20
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)

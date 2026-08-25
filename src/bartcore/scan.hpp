@@ -16,8 +16,7 @@
 // prefix-scan the histogram into every candidate cut's collapsed left/right
 // statistics, and score each cut by the leaf's integrated log-likelihood. The
 // shared building block of grow-from-root (grow.hpp) and the informed-proposal
-// birth/death of docs/design/parallel-bart-frontier.md; landed once here
-// so both consumers include it unchanged (docs/design/grow-from-root.md).
+// birth/death; landed once here so both consumers include it unchanged.
 //
 // Occupancy-aware: a cut with a zero-count side gets the never-selected
 // sentinel, so a scan-based builder never creates an empty leaf and the MH
@@ -73,9 +72,9 @@ struct ConstantLeafScanBin {
 ///
 /// Constraint the two layouts exist to hold: a candidate's children must
 /// partition the SAME member set the caller's no-split term covers. Under MIA a
-/// missing row is routed by the rule's own missing direction
-/// (docs/design/mia-missingness.md), so the direction belongs to the candidate
-/// wherever it moves a statistic, and the missing rows' (count, sum w, sum wz)
+/// missing row is routed by the rule's own missing direction, so the
+/// direction belongs to the candidate wherever it moves a statistic, and
+/// the missing rows' (count, sum w, sum wz)
 /// join the child that direction names - the rule scanCategoricalPartitions
 /// already follows, a missing value there being the column's reserved
 /// pseudo-category and a real histogram bin the partition routes like any
@@ -147,7 +146,7 @@ std::size_t scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
     double rightWeights = total.sumWeights - left.sumWeights;
     double* entry = logLikelihood + (routesMissing ? 2 * cut : cut);
     // Occupancy is the MOVES' emptiness law - positive weight on each side,
-    // not positive member count (docs/design/empty-leaf-veto.md) - so a cut
+    // not positive member count - so a cut
     // isolating none but zero-weight members is undrawable rather than a leaf
     // a later birth would have to compare -inf against -inf out of. It
     // subsumes the member count, weights being nonnegative: a side with no

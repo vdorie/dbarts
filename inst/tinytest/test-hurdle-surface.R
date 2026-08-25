@@ -1,6 +1,5 @@
-# The public bart2(family = "hurdle.lognormal") surface (docs/design/
-# hurdle.md sections 0-1, 13): family-token routing
-# (both spellings), the y >= 0 / require-a-zero / require-a-positive
+# The public bart2(family = "hurdle.lognormal") surface: family-token
+# routing (both spellings), the y >= 0 / require-a-zero / require-a-positive
 # validation errors, and the family-vector refusals shared with every
 # composed family (dbarts() cannot express two samplers; xbart and rbart_vi
 # omit the token). The analytic combine/retransform oracle, predict-on-
@@ -26,7 +25,7 @@ fitArgs <- list(
 )
 
 # --- family routing: both spellings reach a bartHurdle, printing/reading the
-# canonical token (docs/design/hurdle.md section 13, NAMING) ---
+# canonical token ---
 fit <- do.call(bart2, c(list(x, y, family = "hurdle.lognormal"), fitArgs))
 expect_inherits(fit, "bartHurdle")
 expect_false(inherits(fit, "bart"))
@@ -47,7 +46,7 @@ printedAlias <- capture.output(print(fitAlias))
 expect_true(any(grepl("hurdle.lognormal", printedAlias, fixed = TRUE)))
 
 # --- y >= 0 validation and the require-a-zero / require-a-positive edges
-# (docs/design/hurdle.md sections 0-1, splitHurdleResponse) ---
+# (splitHurdleResponse) ---
 expect_error(
   bart2(x, y - 10, family = "hurdle.lognormal"),
   "non-negative"

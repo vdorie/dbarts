@@ -1,6 +1,6 @@
 # The exported augmentation helpers: the per-observation draws a response
 # family's engine site runs every sweep, made callable from R against R's own
-# random number stream (docs/design/r-c-division.md). 'fit' is the location
+# random number stream. 'fit' is the location
 # WITHOUT the offset - what $getFitsWithoutOffset() reports - and the bridge
 # forms the linear predictor as fit + offset.
 

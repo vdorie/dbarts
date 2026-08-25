@@ -1,5 +1,5 @@
-# Block-additive constraints (variant A, docs/design/interaction-constraints.md):
-# the blocks() surface and its fit-time validation, a constrained fit confining
+# Block-additive constraints (variant A): the blocks() surface and its
+# fit-time validation, a constrained fit confining
 # every tree to one declared group, and the per-forest BCF split. The engine
 # confinement + warm-start refusal gates live in tests/cpp/test_state.cpp
 # (testBlockAdditiveConfinement).
@@ -117,9 +117,8 @@ expect_true(allConfined(treesC3, groupsC3))
 
 # ---- per-block tree counts match trees.per.group -------------------------------
 
-# the deterministic contiguous assignment
-# (docs/design/interaction-constraints.md): the first counts[1] trees belong to
-# group 1, the next counts[2] to group 2, and so on. A tree that splits must
+# the deterministic contiguous assignment: the first counts[1] trees belong
+# to group 1, the next counts[2] to group 2, and so on. A tree that splits must
 # stay within ITS OWN assigned block - a stronger check than allConfined's
 # "any block" test.
 blockOfTreeIndex <- function(idx, counts) {
@@ -227,8 +226,8 @@ expect_true(allConfined(extract(fitBoth, type = "trees"), groups))
 # ---- blocks() and monotone() compose on one forest -----------------------------
 
 # monotone constrains leaf-value direction, blocks() constrains split
-# selection - orthogonal seams (docs/design/interaction-constraints.md); the
-# fit must run and confinement must still hold
+# selection - orthogonal seams; the fit must run and confinement must still
+# hold
 fitMono <- do.call(
   bart2,
   c(

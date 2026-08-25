@@ -440,8 +440,8 @@ classifyResponse <- function(y) {
 # type. A factor (or a character coerced with factor(), or a logical) becomes
 # 0-based codes exactly as the historic x/y path did; a numeric response is
 # passed through as.double, byte-identical to the previous handling. The
-# original levels are returned alongside so an ordinal fit can round-trip them
-# (docs/design/ordinal.md section 5); they are NULL for a numeric response
+# original levels are returned alongside so an ordinal fit can round-trip
+# them; they are NULL for a numeric response
 # (a numeric ordinal derives sort(unique(y)) itself) and were previously
 # discarded.
 # codeResponse flattens any matrix response with as.double(), column-major,
@@ -522,7 +522,7 @@ resolveClassificationFamily <- function(
 ) {
   responseType <- data@response.type
   K <- data@response.n.levels
-  # ordinal (cumulative probit, docs/design/ordinal.md section 5): only
+  # ordinal (cumulative probit): only
   # dbarts()/bart2() pass allowOrdinal = TRUE. family = "ordinal" is the
   # explicit primitive and forces the model on any response (numeric levels are
   # sort(unique(y)), resolved later); family = "auto" auto-dispatches an ORDERED
@@ -615,8 +615,8 @@ resolveClassificationFamily <- function(
 }
 
 # Resolve the ordered category structure for an ordinal (cumulative-probit) fit
-# from a dbartsData whose family has resolved to "ordinal" (docs/design/
-# ordinal.md section 5). Returns the ONE-based category codes the engine reads
+# from a dbartsData whose family has resolved to "ordinal". Returns the
+# ONE-based category codes the engine reads
 # (its y_ holds 1..K), the count K, and the ordered level labels for the
 # round-trip. A factor/character response takes its stored level order - an
 # UNORDERED one with an informational note, since the factor default
@@ -652,9 +652,9 @@ resolveOrdinalResponse <- function(data) {
 }
 
 # Resolve the negative-binomial dispersion argument to the length-1 real the C
-# bridge reads off the control's bartcore.dispersion attribute (docs/design/
-# negative-binomial.md section 2). NA (the default) estimates r on the capped
-# integer grid, encoded as a non-positive spec; a supplied value FIXES r. v1
+# bridge reads off the control's bartcore.dispersion attribute. NA (the
+# default) estimates r on the capped integer grid, encoded as a non-positive
+# spec; a supplied value FIXES r. v1
 # ships the exact integer envelope, so a fixed dispersion must be a single
 # positive integer - a real fixed value is refused informatively, so admitting
 # it later is a validation relaxation, not a signature change.
@@ -702,8 +702,8 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 }
 
 # Validate and subset a user-supplied list of per-forest amplitude bases, the
-# matrices a multi-forest fit combines its forests through
-# (docs/design/bcf.md). A NULL passes through; otherwise every non-null element
+# matrices a multi-forest fit combines its forests through. A NULL passes
+# through; otherwise every non-null element
 # is coerced to a numeric matrix. 'subsetRows' (resolveFormulaBasisSubset's
 # result, R/model.R), when given, resolves each element the way a forests =
 # declaration's basis already does - alignForestBasisToSubset, the same
@@ -791,7 +791,7 @@ validateXYOffset <- function(
 }
 
 # Coerce a raw multinomial response to the n x K count matrix the softmax
-# engine's response is (docs/design/multinomial.md). Two shapes arrive: an
+# engine's response is. Two shapes arrive: an
 # n x K matrix (or data frame) of non-negative integer counts, whose trials are
 # its row sums, and a length-n vector of labels - a factor, character, logical
 # or integer code - which is the single-trial special case, one-hot expanded
@@ -1548,7 +1548,7 @@ dbartsData <- function(
   # with NA rather than erroring, so a NA response here can be that instead
   # of a genuinely incomplete row - naming 'subset' when it was given is a
   # cheap, cause-agnostic hint rather than a claim of certainty.
-  # The multinomial response (docs/design/multinomial.md): the n x K count
+  # The multinomial response: the n x K count
   # matrix IS the response, and 'y' is its trials vector n_i = sum_k
   # counts[i, k], which is what keeps every length(data@y) reader meaningful on
   # such an object. DERIVED rather than taken, so the two cannot disagree and a

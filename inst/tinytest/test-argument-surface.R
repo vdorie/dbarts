@@ -762,7 +762,7 @@ expect_false(identical(
 # < 1e-12 - the tolerance test-bcf-reporting.R's own assertion of this
 # identity uses - on a binary basis and a 3-level-factor basis. Not bitwise:
 # the engine associates the sum differently from any R-side re-derivation.
-# forestFits_k already carries response.scale (docs/design/bcf.md), so the
+# forestFits_k already carries response.scale, so the
 # identity needs no further scaling. Built directly off dbarts() plus the
 # internal packager, since a formula term is not a route into a
 # multi-forest fit.

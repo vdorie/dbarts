@@ -16,8 +16,8 @@
 #include "scan.hpp"
 #include "tree.hpp"
 
-// XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019),
-// the warm-start forest builder of docs/design/grow-from-root.md. Parallel to
+// XBART-style root-down stochastic tree construction (He, Yalov and Hahn
+// 2019), the warm-start forest builder. Parallel to
 // moves.hpp's metropolisJumpForTree, but a builder rather than a reversible MH
 // kernel: at each node it scans every ordinal cut and every categorical
 // partition candidate of every available variable (scan.hpp) and draws one
@@ -149,8 +149,7 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 ///    test_grow.cpp chi-squares the realized root-rule frequencies against the
 ///    exact law over the SUPPORT the occupancy sentinel leaves - the rules
 ///    whose non-missing sides are both occupied - and against the law the scan
-///    realized while it dropped the missing rows from a split likelihood;
-///    docs/design/grow-from-root.md section 7 records what it measured.
+///    realized while it dropped the missing rows from a split likelihood.
 ///  - A CATEGORICAL split draws exactly 1 + A more symmetric coins and NEVER
 ///    rejects: one orientation coin, then one per category REACHABLE at the
 ///    node but ABSENT from its members (A = R - P), taken over the reachable
@@ -169,8 +168,8 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 /// violating an ancestor cut have codes confined to the interval, so
 /// out-of-interval cuts have an empty side and are already zeroed - and keeps
 /// both children carrying positive WEIGHT against the vector passed here, so
-/// the built tree satisfies the same structural invariant the MH moves veto on
-/// (docs/design/empty-leaf-veto.md). That vector is the caller's composed one,
+/// the built tree satisfies the same structural invariant the MH moves veto
+/// on. That vector is the caller's composed one,
 /// per-forest under a coupling, which is why the law can be read off the scan's
 /// own sums rather than off member counts. The categorical branch's enumeration
 /// domain rules out an empty side by construction, and its mask comes out

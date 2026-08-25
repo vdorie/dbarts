@@ -1044,7 +1044,7 @@ SEXP capi_set_forest_prior_scale(SEXP ptrExpr, SEXP forestExpr,
     Rf_asReal(priorScaleExpr)));
 }
 
-/* The two-forest (BCF) surface, docs/design/bcf.md. Every verdict below is
+/* The two-forest (BCF) surface. Every verdict below is
  * reached HERE rather than in R: what is under test is that the flat API and
  * the R bridge apply one rule, so each acceptance, each refusal, and the reason
  * a refusal names are checked in the consumer, and the R side only reads the

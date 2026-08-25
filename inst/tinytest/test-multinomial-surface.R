@@ -924,7 +924,7 @@ expect_error(
 )
 rm(samplerSigma, bcSigma)
 
-# --- argument leaks (docs/design/multinomial.md): buildMultinomialSampler
+# --- argument leaks: buildMultinomialSampler
 # copies only power/base/proposal-probability fields into the K-forest
 # engine, so DART (on either formal), split.probs, monotone, and variance
 # are refused by name rather than silently dropped. The refusal sits ahead

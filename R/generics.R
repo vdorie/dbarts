@@ -19,8 +19,8 @@ probabilityFromLatents <- function(latents, object) {
   }
 }
 
-# A heteroscedastic fit's residual scale is the per-observation surface s(x)
-# (docs/design/heteroscedastic.md), stored - like the draw channels it is laid
+# A heteroscedastic fit's residual scale is the per-observation surface s(x),
+# stored - like the draw channels it is laid
 # out as - either combined or split. This normalizes whichever storage the fit
 # used to the split, chain-fastest layout, so as.vector() on it enumerates
 # draws in the order as.vector() on the split fits does and the two pair
@@ -565,8 +565,8 @@ resolveForestSelection <- function(forest, forestNames) {
 }
 
 # extract(type = "forest"): the packaged per-forest response-scale raw total
-# by default (docs/design/bcf.md; forestFits already carries response.scale),
-# or its per-observation contribution under contribution = TRUE, computed on
+# by default (forestFits already carries response.scale), or its
+# per-observation contribution under contribution = TRUE, computed on
 # demand as (basis %*% glue) * raw rather than stored. The selected forests
 # always keep the trailing forest margin, even at length one. Refuses by name
 # on a fit without forest reporting (the amplitude coupling, not the forest
@@ -894,14 +894,14 @@ residuals.bart <- function(object, type = "ev", ...) {
   object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
-# bart2(family = "multinomial") generics (docs/design/multinomial.md). The
+# bart2(family = "multinomial") generics. The
 # fit object is class "bartMultinomial" - deliberately NOT "bart" - so it
 # never falls through to the "bart" methods above: those assume an n x
 # samples (x chains) shape with no K margin and would silently misread the
 # K-widened arrays here rather than error.
 #
 # type = "ev" is the engine's own train channel: already softmax
-# PROBABILITIES (docs/design/multinomial.md), so unlike the binary
+# PROBABILITIES, so unlike the binary
 # families there is no latent-to-probability transform. type = "bart" (the
 # latent scale) is refused: the run records only the identified
 # probabilities, and the raw per-category fits are non-identified and
@@ -1146,8 +1146,8 @@ residuals.bartMultinomial <- function(object, ...) {
   observed - phat
 }
 
-# Out-of-sample softmax probabilities by replaying the K forests' saved trees
-# (docs/design/multinomial.md). Requires a fit kept with keepTrees: a kept
+# Out-of-sample softmax probabilities by replaying the K forests' saved
+# trees. Requires a fit kept with keepTrees: a kept
 # $fit alone is not enough, since a sampler kept ONLY via keepSampler carries
 # no saved trees to replay. Returns a levels-named (n.chains x) n.samples x
 # n.new x K probability array, the yhat.test/train convention. type = "bart"
@@ -1278,7 +1278,7 @@ print.bartMultinomial <- function(x, ...) {
   invisible(x)
 }
 
-# bart2(family = "ordinal") generics (docs/design/ordinal.md section 5). Like
+# bart2(family = "ordinal") generics. Like
 # bartMultinomial, the fit object is class "bartOrdinal" - never "bart" - so the
 # K-widened category-probability arrays never fall through to the single-forest
 # "bart" methods. Unlike multinomial, ordinal DOES carry a latent scale: the
@@ -1453,7 +1453,7 @@ residuals.bartOrdinal <- function(object, ...) {
 
 # Out-of-sample category probabilities by replaying the saved forest's trees to
 # the newdata latent, then differencing the cumulative probit at the STORED
-# per-draw cutpoints (docs/design/ordinal.md). Requires a fit kept with
+# per-draw cutpoints. Requires a fit kept with
 # keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
 # draw-neutral. The replay reads through $fit's own pointer: $fit is the
@@ -1558,8 +1558,8 @@ print.bartOrdinal <- function(x, ...) {
   invisible(x)
 }
 
-# bart2(family = "nbinom") generics (docs/design/negative-binomial.md section
-# 4). The fit object is class "bartNegbin" - never "bart" - so the count arrays
+# bart2(family = "nbinom") generics. The fit object is class "bartNegbin" -
+# never "bart" - so the count arrays
 # never fall through to the single-forest "bart" methods. A single forest fits
 # the log-odds latent psi = f(x) + o, so type = "bart" returns that latent (like
 # probit/logistic), while type = "ev" returns the mean counts mu = r exp(psi)
@@ -1690,8 +1690,8 @@ residuals.bartNegbin <- function(object, ...) {
 }
 
 # Out-of-sample mean counts by replaying the saved forest's trees to the newdata
-# log-odds latent psi, then mu = r exp(psi) at the STORED per-draw dispersion
-# (docs/design/negative-binomial.md). A log-exposure offset.test enters psi
+# log-odds latent psi, then mu = r exp(psi) at the STORED per-draw
+# dispersion. A log-exposure offset.test enters psi
 # additively, the fit-time convention. Requires a fit kept with keepTrees.
 # type = "bart" returns the replayed latent; type = "ppd" draws one count per
 # posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
@@ -1794,8 +1794,8 @@ print.bartNegbin <- function(x, ...) {
   invisible(x)
 }
 
-# bart2(family = "hurdle.lognormal") generics (docs/design/hurdle.md sections
-# 6, 13). The fit object is class "bartHurdle" - never "bart" - holding the two
+# bart2(family = "hurdle.lognormal") generics. The fit object is class
+# "bartHurdle" - never "bart" - holding the two
 # conditionally-independent component fits ($occupancy, a probit fit of
 # 1{y > 0} over all n; $positive, a gaussian fit of log(y) over the y > 0
 # subset whose x.test is the full-n x). The report-time combine glues their
@@ -1806,8 +1806,8 @@ print.bartNegbin <- function(x, ...) {
 # the positive part's log-scale linear predictor f(x); type = "ev"/"response"
 # the combined natural-scale mean via posterior-predictive Monte Carlo,
 # E[y | x]_s = pi_s exp(f_s + sigma_s^2 / 2) PER DRAW s then aggregated across
-# draws - NOT the biased plug-in of posterior means into one exponential
-# (docs/design/hurdle.md section 13). type = "ppd" is the proper bimodal
+# draws - NOT the biased plug-in of posterior means into one exponential.
+# type = "ppd" is the proper bimodal
 # predictive the plain gaussian ppd cannot make: per draw a Bernoulli(pi_s)
 # spike at zero, else a lognormal exp(f_s + sigma_s z), z ~ N(0, 1).
 
@@ -2092,8 +2092,8 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
 }
 
 # Out-of-sample combined draws by replaying BOTH saved forests at newdata and
-# gluing them the same way the in-sample channels are (docs/design/hurdle.md
-# section 13). Requires a fit kept with keepTrees (both components keep trees
+# gluing them the same way the in-sample channels are. Requires a fit kept
+# with keepTrees (both components keep trees
 # when the hurdle does).
 predict.bartHurdle <- function(
   object,

@@ -13,9 +13,9 @@
 # the transparent re-creation getPointer performs after save/load - continues
 # the chains bitwise identically.
 
-# A public dbartsSampler created through the forests = spec branch
-# (docs/design/bcf.md) carries its forests' amplitude bases on data@bases,
-# mirroring data@weights; this is the R-level capability probe, cheaper than
+# A public dbartsSampler created through the forests = spec branch carries
+# its forests' amplitude bases on data@bases, mirroring data@weights; this
+# is the R-level capability probe, cheaper than
 # a round trip through the bridge's own (totalAmplitudes-based) one. It is a
 # CAPABILITY test - "carries amplitudes" - and deliberately not a forest count:
 # a K-forest multinomial carries several forests and no amplitudes at all, so a
@@ -45,7 +45,7 @@ refuseAmplitudeMutation <- function(sampler, what, ...) {
 
 # The multinomial capability probe on a SAMPLER, the counts analog of
 # samplerCarriesAmplitudes: a K-forest softmax sampler is exactly the one whose
-# data object carries the n x K count response (docs/design/multinomial.md).
+# data object carries the n x K count response.
 # A CAPABILITY test, deliberately not a forest count, for the reason the
 # amplitude probe is one - the two multi-forest models are indistinguishable by
 # numForests. The read goes through the migration guard, so a sampler restored
@@ -194,8 +194,7 @@ bartcoreSamplerSetPredictor <- function(
   updateCutPoints
 ) {
   # A sparse design - a pure dgCMatrix or a mixed dense/sparse container -
-  # accepts column-granular and whole-matrix mutation
-  # (docs/design/sparse-columns.md), maintained R-side by
+  # accepts column-granular and whole-matrix mutation, maintained R-side by
   # installPredictorColumns rather than by the dense branch's pointer swap;
   # only per-observation replacement of a sparse-backed column stays fixed at
   # creation. Read before data@x is swapped.
@@ -225,8 +224,8 @@ bartcoreSamplerSetPredictor <- function(
     column <- as.integer(column)
     # a CSC-backed column's rank storage cannot take a cell-at-a-time write
     # without an O(nnz) shift per cell; a DENSE-backed column of a mixed design
-    # can, and is the motivating IRT latent case (docs/design/sparse-columns.md
-    # extension (i)), so the refusal is per column rather than per design
+    # can, and is the motivating IRT latent case, so the refusal is per
+    # column rather than per design
     if (predictorColumnIsSparseBacked(sampler$data@x, column)) {
       stop(
         "per-observation updates require a dense-backed column; replace a ",
@@ -714,7 +713,7 @@ bartcoreSamplerFromHandle <- function(
   result
 }
 
-# A BCF two-forest sampler (docs/design/bcf.md), internal:
+# A BCF two-forest sampler, internal:
 # the model spec is the prognostic forest mu(x, pihat) - the caller supplies
 # pihat as an ordinary predictor column - the arguments below the treatment
 # forest tau(x) and the glue. z is the 0/1 treatment. sd.control and
@@ -793,8 +792,8 @@ bartcoreBCFSampler <- function(
       update.b
     ))
   )
-  # per-forest interaction constraints (docs/design/interaction-constraints.md):
-  # mu and tau each resolve their own interactions() prior against the shared
+  # per-forest interaction constraints: mu and tau each resolve their own
+  # interactions() prior against the shared
   # design, so the treatment forest can be capped additive-or-low-order while
   # the prognostic forest stays free (the calibrated-additivity causal use)
   muInteractions <- resolveInteractions(mu.interactions, sampler$data)
@@ -906,8 +905,8 @@ validateCategoryTestOffset <- function(offset.test, sampler, K) {
   )
 }
 
-# A K-forest multinomial (softmax) sampler (docs/design/multinomial.md),
-# internal and single-trial: the K symmetric category forests couple through a
+# A K-forest multinomial (softmax) sampler, internal and single-trial: the
+# K symmetric category forests couple through a
 # softmax likelihood with an interleaved one-vs-rest Polya-Gamma augmentation
 # and a level-centering move. labels are the 0-based category codes (0..K-1),
 # one per observation - the response, so the host sampler's own response is
@@ -959,8 +958,8 @@ bartcoreMultinomialSampler <- function(
   bartcoreMultinomialDataSampler(sampler, counts, K, offset, offset.test)
 }
 
-# The grouped-count analog of bartcoreMultinomialSampler (docs/design/
-# multinomial.md): the response is an n x K matrix of nonnegative integer
+# The grouped-count analog of bartcoreMultinomialSampler: the response is
+# an n x K matrix of nonnegative integer
 # counts, column k holding category k's success counts per observation, with
 # trials n_i = sum_k counts[i, k] (>= 1). K defaults to the column count. Same
 # K-forest softmax engine; the single-trial label path is the special case of a

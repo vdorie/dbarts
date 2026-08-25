@@ -126,7 +126,7 @@ expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
 
 # extract() is the on-demand materializer of the current data@x, on both
 # the mutated original and the copy it no longer follows (the data@x
-# contract, docs/design/data-ownership.md)
+# contract)
 expect_equal(extract(sampler, "predictors"), as.matrix(sampler$data@x))
 expect_equal(extract(shallowCopy, "predictors"), as.matrix(x.shared))
 expect_false(isTRUE(all.equal(

@@ -1,4 +1,4 @@
-# Internal BCF two-forest surface (docs/design/bcf.md; src/bartcore/). Sanity
+# Internal BCF two-forest surface (src/bartcore/). Sanity
 # only - creation, a short run, sane glue and per-forest fits, setForestBasis,
 # and the step-4 state refusal. The exact-posterior gate lives in benchmarks/.
 

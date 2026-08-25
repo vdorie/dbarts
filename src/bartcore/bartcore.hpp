@@ -7,7 +7,7 @@
 // families, with Student-t continuous errors by scale mixture; heteroscedastic
 // variance forests; grouped random intercepts; DART split-variable selection;
 // BCF two-forest and multinomial softmax forest couplings; and sparse-column
-// ingestion. See docs/design/core-generalization.md.
+// ingestion.
 
 // IWYU pragma: begin_exports
 #include "data.hpp"

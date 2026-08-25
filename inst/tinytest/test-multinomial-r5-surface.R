@@ -1,5 +1,5 @@
-# The PUBLIC multinomial surface (docs/design/multinomial.md):
-# dbarts(family = "multinomial") builds a real, runnable
+# The PUBLIC multinomial surface: dbarts(family = "multinomial") builds a
+# real, runnable
 # K-forest softmax sampler; the response and both category offsets ride the
 # data object, so a re-created or reloaded sampler carries them; and every
 # channel the softmax gives no meaning to is refused by a message naming the
@@ -244,7 +244,7 @@ expect_error(sampler$getFitsWithoutOffset(), "softmax probabilities")
 # the four channels whose refusal is R-canonical - raised before the .Call, so
 # the caller is told which R method serves them - name no C entry point. The
 # rest are the bridge's own backstops and keep its caller-name prefix, which is
-# the shared-guard convention (docs/design/error-style.md R7/R8), not a leak.
+# the shared-guard convention, not a leak.
 multinomialRefusals <- vapply(
   list(
     function() sampler$setResponse(rep(1.0, n)),

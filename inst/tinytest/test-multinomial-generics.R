@@ -24,9 +24,9 @@ n.trees <- 10L
 n.burn <- 5L
 n.samples <- 7L
 
-# ---- fix 1: print.bartMultinomial's "kept draws (per chain)" arithmetic.
-# Under the buggy version, combineChains = TRUE (the default) reported the
-# COMBINED total (n.samples * n.chains) instead of the per-chain count.
+# ---- print.bartMultinomial's "kept draws (per chain)" arithmetic ----
+# combineChains = TRUE (the default) must report the per-chain count, not
+# the combined total (n.samples * n.chains).
 
 set.seed(3301)
 fitCombined <- bart2(
@@ -77,8 +77,8 @@ fitSingle <- bart2(
 )
 expect_equal(parseKeptDraws(capture.output(print(fitSingle))), 11L)
 
-# ---- fix 2: residuals.bartMultinomial. Previously fell to residuals.default
-# and silently returned NULL.
+# ---- residuals.bartMultinomial must not fall through to residuals.default
+# (which would silently return NULL) ----
 
 res <- residuals(fitCombined)
 expect_false(is.null(res))
@@ -125,16 +125,16 @@ resCounts <- residuals(fitCounts)
 expect_equal(dim(resCounts), c(n.c, 3L))
 expect_equal(resCounts, counts.c / rowSums(counts.c) - fitted(fitCounts))
 
-# ---- fix 3: plot.bartMultinomial. Previously fell to plot.default with a
-# "'x' is a list, but does not have components 'x' and 'y'" error.
+# ---- plot.bartMultinomial must not fall through to plot.default (which
+# errors on "'x' is a list, but does not have components 'x' and 'y'") ----
 
 pdf(NULL)
 expect_silent(plot(fitCombined))
 expect_silent(plot(fitSingle))
 dev.off()
 
-# ---- fix 4: summary.bartMultinomial. Previously fell to summary.default
-# (a raw structure dump).
+# ---- summary.bartMultinomial must not fall through to summary.default (a
+# raw structure dump) ----
 
 sm <- summary(fitCombined)
 expect_equal(class(sm), "summary.bart")
@@ -172,7 +172,7 @@ if (havePosterior) {
   rm(oldPosteriorAvailable, smDegraded)
 }
 
-# ---- fix 5: predict.bartMultinomial's new 'type' argument.
+# ---- predict.bartMultinomial's 'type' argument ----
 
 x.test <- x[seq_len(20L), , drop = FALSE]
 set.seed(3302)
@@ -225,9 +225,9 @@ expect_error(
   "non-identified and unrecorded"
 )
 
-# ---- fix 6: the type= register runs through validateType, so the
-# predict.glm synonyms reach these methods, and the two latent-scale values
-# they name only to refuse say why.
+# ---- type= runs through validateType, so the predict.glm synonyms reach
+# these methods, and the two latent-scale values they name are refused with
+# a reason ----
 
 expect_identical(predict(fitKeep, x.test, type = "response"), predEv)
 expect_identical(
@@ -267,9 +267,9 @@ expect_error(extract(fitKeep, type = "nonsense"), "type must be in 'ev'")
 expect_error(predict(fitKeep, x.test, type = "loglik"), "type must be in")
 expect_error(fitted(fitKeep, type = "loglik"), "type must be in")
 
-# ---- fix 7: predict on a fit trained with an n x K category offset.
-# The predicted rows are the caller's, so no resident offset describes them:
-# the shift rides its own argument, and the fit requires it.
+# ---- predict on a fit trained with an n x K category offset requires an
+# explicit offset argument: the predicted rows are the caller's, so no
+# resident offset describes them ----
 
 set.seed(5501)
 categoryOffset <- matrix(rnorm(n * 3L, sd = 0.4), n, 3L)
@@ -326,8 +326,8 @@ expect_false(identical(
   predEv
 ))
 
-# ---- fix 8: extract's combineChains formal, honoured instead of ignored
-# (previously silently returning the fit's own stored layout).
+# ---- extract's combineChains formal must be honoured, not ignored (which
+# would silently return the fit's own stored layout) ----
 
 fitMC <- bart2(
   x,
@@ -345,9 +345,9 @@ splitEv <- extract(fitMC, type = "ev", combineChains = FALSE)
 expect_equal(dim(combinedEv), c(2L * n.samples, n, 3L))
 expect_equal(dim(splitEv), c(2L, n.samples, n, 3L))
 
-# ---- fix 9: extract(type = "loglik"), the multinomial log-pmf (its
-# coefficient included) against an independently coded oracle (dmultinom),
-# for both response ingestions; extract-only, sample = "test" refused.
+# ---- extract(type = "loglik") is the multinomial log-pmf (its coefficient
+# included), checked against an independently coded oracle (dmultinom) for
+# both response ingestions; extract-only, sample = "test" refused ----
 
 llLabel <- extract(fitCombined, type = "loglik")
 evLabel <- extract(fitCombined, type = "ev")
@@ -381,9 +381,9 @@ expect_error(
 llSplit <- extract(fitMC, type = "loglik", combineChains = FALSE)
 expect_equal(dim(llSplit), c(2L, n.samples, n))
 
-# ---- fix 10: fitted/predict's ci.level, an (obs x K x 3) array on this
-# K-margined family (a plain 3-column matrix has no room for the category
-# margin, so pooling it would average incomparable probabilities).
+# ---- fitted/predict's ci.level returns an (obs x K x 3) array on this
+# K-margined family: a plain 3-column matrix has no room for the category
+# margin, so pooling it would average incomparable probabilities ----
 
 fitCi <- fitted(fitCombined, ci.level = 0.9)
 expect_equal(dim(fitCi), c(n, 3L, 3L))
@@ -391,9 +391,9 @@ expect_equal(dimnames(fitCi)[[3L]], c("est", "ci.lower", "ci.upper"))
 predCi <- predict(fitKeep, x.test, ci.level = 0.9)
 expect_equal(dim(predCi), c(20L, 3L, 3L))
 
-# ---- fix 11: the bart-family-only formals are refused by name instead of
-# vanishing into '...' - verified against the unmodified build by hand
-# (identical() to the call without the argument, the swallow's signature).
+# ---- bart-family-only formals are refused by name instead of vanishing
+# into '...' - verified against the unmodified build by hand (identical()
+# to the call without the argument, the swallow's signature) ----
 
 expect_error(
   extract(fitCombined, forest = 1L),
@@ -441,8 +441,8 @@ expect_error(
   fixed = TRUE
 )
 
-# ---- fix 12: plotTree/survivalProbabilities are refused by name instead of
-# a raw 'no applicable method'.
+# ---- plotTree/survivalProbabilities are refused by name instead of a raw
+# 'no applicable method' ----
 
 expect_error(
   plotTree(fitCombined),
@@ -455,10 +455,9 @@ expect_error(
   fixed = TRUE
 )
 
-# ---- fix 13: plot(object) draws a second panel now (both response
-# ingestions), a real content assertion the "kept draws" arithmetic fix
-# cannot fail on (expect_silent alone would pass on either the 1- or
-# 2-panel version).
+# ---- plot(object) draws a second panel for both response ingestions - a
+# real content assertion the "kept draws" arithmetic check cannot fail on
+# (expect_silent alone would pass on either the 1- or 2-panel version) ----
 
 pdf(NULL)
 plot(fitCombined)
@@ -469,7 +468,7 @@ dev.off()
 expect_equal(combinedMfrow, c(1L, 2L))
 expect_equal(countsMfrow, c(1L, 2L))
 
-# ---- fix 14: as_draws_array/df expose meanProb[<level>], never yhat.train.
+# ---- as_draws_array/df expose meanProb[<level>], never yhat.train ----
 
 if (havePosterior) {
   meanProbNames <- paste0("meanProb[", levels(y), "]")

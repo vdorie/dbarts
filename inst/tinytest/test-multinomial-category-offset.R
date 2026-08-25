@@ -1,4 +1,4 @@
-# The multinomial category offset (docs/design/multinomial.md): an n x K matrix
+# The multinomial category offset: an n x K matrix
 # entering the latent as f_ik + o_ik, so it shifts the log-sum-exp margins, is
 # subtracted back out of each category's working response, and rides the
 # reported softmax - never a leaf value, and never the response model's offset,

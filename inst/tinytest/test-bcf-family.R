@@ -1,6 +1,6 @@
-# The K-forest coupling under a non-gaussian response (docs/design/bcf.md,
-# docs/design/multiplier-combiner.md): probit and logistic are built, the wider
-# families are doors that refuse by name. What is pinned here is (i) the
+# The K-forest coupling under a non-gaussian response: probit and logistic
+# are built, the wider families are doors that refuse by name. What is
+# pinned here is (i) the
 # ALL-BASIS shape, in which every forest is fixed-variance and nothing in the
 # sampler can absorb a mis-stated prior, (ii) the CALIBRATION ANCHOR itself,
 # which is the only number here that a running, mixing sampler cannot

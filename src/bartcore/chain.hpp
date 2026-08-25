@@ -72,7 +72,7 @@ struct SamplerOptions {
   // the dense block and the build retains nothing; mapped, the view's own
   // block is copied into the store and its CSC slices stay borrowed for the
   // store's lifetime. Consumed during construction, which clears it. See
-  // PredictorSource (data.hpp) and docs/design/sparse-columns.md.
+  // PredictorSource (data.hpp).
   PredictorSource predictors;
 
   // linear leaves: the ordinal predictor columns entering every leaf's
@@ -84,9 +84,8 @@ struct SamplerOptions {
   // monotone (mBART) constraints: a borrowed per-predictor direction in
   // {-1, 0, +1} (length numPredictors), consumed at construction. A nonzero
   // entry selects the constrained constant-leaf instantiation at the factory;
-  // null - or all zero - keeps the unchanged constant-leaf path
-  // (docs/design/monotone.md). Requires the constant leaf; refused under a
-  // linear or gp node prior.
+  // null - or all zero - keeps the unchanged constant-leaf path. Requires
+  // the constant leaf; refused under a linear or gp node prior.
   const std::int8_t* monotoneDirections = nullptr;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
@@ -132,9 +131,9 @@ struct SamplerOptions {
   const std::size_t* forestColumns = nullptr;
   std::size_t numForestColumns = 0;
 
-  // per-forest interaction constraint (docs/design/interaction-constraints.md):
-  // interactionMaxOrder caps the DISTINCT split variables on
-  // any root-to-leaf path (0 = uncapped); interactionForbiddenPairs lists
+  // per-forest interaction constraint: interactionMaxOrder caps the
+  // DISTINCT split variables on any root-to-leaf path (0 = uncapped);
+  // interactionForbiddenPairs lists
   // forbidden co-occurrence pairs as 2 * interactionNumForbiddenPairs column
   // indices (borrowed, consumed at construction). Both defaults leave every
   // path unconstrained - the availability path is byte-for-byte unchanged.
@@ -144,8 +143,7 @@ struct SamplerOptions {
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;
 
-  // per-forest block-additive constraint
-  // (docs/design/interaction-constraints.md): confine each WHOLE tree to one
+  // per-forest block-additive constraint: confine each WHOLE tree to one
   // declared group of predictors so the
   // ensemble is exactly f = sum_G f_G. blockOfColumn (length numPredictors,
   // borrowed) gives each column's 0-based group (negative = in no block, only for a
@@ -157,8 +155,8 @@ struct SamplerOptions {
   const std::int32_t* blockOfColumn = nullptr;
   const std::size_t* blockTreeCounts = nullptr;
 
-  // heteroscedastic variance forest (HBART, docs/design/heteroscedastic.md):
-  // numVarianceTrees > 0 adds a SECOND forest modeling s^2(x) as a product of
+  // heteroscedastic variance forest (HBART): numVarianceTrees > 0 adds a
+  // SECOND forest modeling s^2(x) as a product of
   // scaled-inverse-chi-squared leaves, coupled to the mean forest through the
   // precision (weight) channel w_i^mean = user_w_i / s^2(x_i). 0 (default) is
   // homoscedastic - byte-for-byte unchanged, no variance forest built. Gaussian
@@ -183,22 +181,22 @@ struct SamplerOptions {
   bool sigmaIsFixed = false;
 
   // continuous (gaussian family) responses only: a finite residualDf selects
-  // Student-t errors via the scale-mixture augmentation (TResponse,
-  // docs/design/robust-errors.md) - a positive value fixes nu, <= 0 estimates
-  // it on the grid; NaN (default) and +Inf keep the Gaussian law. Non-gaussian
+  // Student-t errors via the scale-mixture augmentation (TResponse) - a
+  // positive value fixes nu, <= 0 estimates it on the grid; NaN (default)
+  // and +Inf keep the Gaussian law. Non-gaussian
   // families ignore it (the bridge refuses the combination host-side).
   double residualDf = std::numeric_limits<double>::quiet_NaN();
 
-  // ordinal (cumulative-probit) responses only: the number of ordered category
-  // levels K (docs/design/ordinal.md), selecting OrdinalResponse with a K-1
-  // cutpoint vector. 0 (default) is a non-ordinal response; the bridge sets it
+  // ordinal (cumulative-probit) responses only: the number of ordered
+  // category levels K, selecting OrdinalResponse with a K-1 cutpoint
+  // vector. 0 (default) is a non-ordinal response; the bridge sets it
   // from the ordered-factor level count and refuses K < 2.
   std::size_t numCategories = 0;
 
-  // negative-binomial counts (nbinom family) only: the dispersion spec
-  // (docs/design/negative-binomial.md sections 4, 5), the residualDf sign
-  // convention - a positive value fixes r there (an integer), a non-positive
-  // value estimates r on the capped grid. Only the nbinom construction reads it;
+  // negative-binomial counts (nbinom family) only: the dispersion spec, the
+  // residualDf sign convention - a positive value fixes r there (an
+  // integer), a non-positive value estimates r on the capped grid. Only the
+  // nbinom construction reads it;
   // NaN (default) is ignored by every other family.
   double dispersion = std::numeric_limits<double>::quiet_NaN();
 
@@ -213,8 +211,8 @@ struct SamplerOptions {
   bool verbose = false;
   std::uint32_t printEvery = 100;
 
-  // opt-in fp32 running residual (docs/design/reduced-precision-storage.md):
-  // stores Forest::treeY in fp32 with fp64-accumulated reductions,
+  // opt-in fp32 running residual: stores Forest::treeY in fp32 with
+  // fp64-accumulated reductions,
   // halving the dominant suffstat gather's memory traffic at large n. The
   // factory mints the fp32 instantiation ONLY for the gaussian constant-leaf
   // path; the default (false) instantiation is byte-for-byte the fp64 engine.
@@ -265,8 +263,7 @@ struct ModelParameters {
 /// the identified, nameable object - the forest total's prior sd at k = 1 -
 /// and is what the setter writes; priorSd is priorScale / k and moves every
 /// sweep under kHasHyperprior while priorScale does not. What priorSd bounds
-/// is leaf-model specific, exact only for the constant leaf
-/// (docs/design/nameable-calibration.md section 3).
+/// is leaf-model specific, exact only for the constant leaf.
 ///
 /// The five below are the CALIBRATION MAP's own decomposition of priorScale,
 /// NaN on any forest with no map entry - every single-forest and every
@@ -309,7 +306,7 @@ struct ForestCalibration {
 /// numVariableCountForests, prognostic first, so a caller leaving it at 1 gets
 /// that same prognostic slab and nothing else. The treatment forest's own fit
 /// is reached through the per-forest channels
-/// (forestTotalFits + bcfGlue, docs/design/bcf.md). logLikelihood is likewise
+/// (forestTotalFits + bcfGlue). logLikelihood is likewise
 /// NaN-filled under BCF (the blended per-observation location is not visible
 /// to the response model).
 struct Results {
@@ -397,8 +394,8 @@ using SweepCallback =
   std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
                      bool isBurnIn)>;
 
-/// The heteroscedastic variance ensemble (HBART; docs/design/heteroscedastic.md
-/// sections 5-6): a second forest of ConstantVarianceLeaf trees whose product
+/// The heteroscedastic variance ensemble (HBART): a second forest of
+/// ConstantVarianceLeaf trees whose product
 /// s^2(x_i) = prod_j h_j(x_i) modulates the mean forest's precision through the
 /// weight channel (w_i^mean = user_w_i / s^2(x_i)). It is distinctly typed from
 /// the mean Forest<L, ResidT> - a scale leaf, and a MULTIPLICATIVE running residual
@@ -485,8 +482,7 @@ struct VarianceForest {
 /// summation order and so is part of the draw law: a knob here would mean the
 /// package has no single law, with every baseline and every bug report
 /// conditional on it. Measured: K = 1 loses (the single-accumulator FP
-/// dependency chain), K = 4 is green on both architectures
-/// (docs/design/memory-wall-frontier.md secs 11-12).
+/// dependency chain), K = 4 is green on both architectures.
 constexpr std::size_t fusedSuffstatBanks = 4;
 
 /// Fixed-order combine of one node's banks: ((b0 + b1) + b2) + b3, strictly
@@ -609,7 +605,7 @@ public:
     case ResponseFamily::gaussian:
       // a finite residualDf selects the Student-t scale-mixture error law
       // (TResponse: > 0 fixes nu, <= 0 estimates it on the grid); NaN and Inf
-      // keep the Gaussian law (docs/design/robust-errors.md)
+      // keep the Gaussian law
       if (std::isfinite(options.residualDf))
         response_ = std::make_unique<TResponse>(
           y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
@@ -627,14 +623,14 @@ public:
       break;
     case ResponseFamily::ordinal:
       // y holds one-based category indices in {1..K}; a ConstantGaussianLeaf
-      // single-forest model like probit, sigma fixed at 1 (docs/design/ordinal.md)
+      // single-forest model like probit, sigma fixed at 1
       response_ = std::make_unique<OrdinalResponse>(y, offset, numObservations,
                                                     options.numCategories);
       break;
     case ResponseFamily::nbinom:
       // y holds non-negative counts; the forest fits the log-odds latent under
       // the Polya-Gamma augmentation, sigma fixed at 1, with dispersion r fixed
-      // (options.dispersion > 0) or grid-estimated (docs/design/negative-binomial.md)
+      // (options.dispersion > 0) or grid-estimated
       response_ = std::make_unique<NBResponse>(y, offset, numObservations,
                                                options.dispersion);
       break;
@@ -748,8 +744,8 @@ public:
     resizeTestStorage();
   }
 
-  /// K-forest combining chain (docs/design/bcf.md): forests combined into the
-  /// location sum_f dot(a_f, B_f(i,.)) f_f(x_i), of which bcf's a mu + b_z tau
+  /// K-forest combining chain: forests combined into the location
+  /// sum_f dot(a_f, B_f(i,.)) f_f(x_i), of which bcf's a mu + b_z tau
   /// is the K = 2 instance. Under gaussian that location is the response mean
   /// and eps carries a drawn sigma; under probit and logistic it is the latent
   /// index, on the link's own fixed scale. Constant leaves only; each forest
@@ -803,8 +799,8 @@ public:
                     options.sigmaIsFixed;
     sigma_ = response_->initialSigma();
 
-    // Calibration map (docs/design/bcf.md, generalized to K by ForestSpec):
-    // s is the family's own latent scale, the sample sd of the range-scaled
+    // Calibration map (bcf's, generalized to K by ForestSpec): s is the
+    // family's own latent scale, the sample sd of the range-scaled
     // response (y mapped to [-0.5, 0.5]) under gaussian. A forest whose
     // amplitude carries a half-Cauchy scale mixture keeps its node scale at
     // nodeScaleFactor s and puts the magnitude in the amplitude prior - bcf's
@@ -865,8 +861,8 @@ public:
     resizeTestStorage();
   }
 
-  /// K-forest multinomial (softmax) chain (docs/design/multinomial.md): K
-  /// symmetric constant-leaf category forests coupled through a softmax
+  /// K-forest multinomial (softmax) chain: K symmetric constant-leaf
+  /// category forests coupled through a softmax
   /// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation and a
   /// likelihood-invariant level-centering move, all owned by
   /// MultinomialForestCombiner. The grouped-count response (an n x K count matrix
@@ -1153,9 +1149,9 @@ public:
   /// residual sigma degrees of freedom, which count positive OBSERVATION
   /// weights; s_i = 0 says only that row i carries no information about forest
   /// f, and its leaves stay well-defined prior draws. It DOES reach forest f's
-  /// empty-leaf veto, which counts positive composed weights
-  /// (docs/design/empty-leaf-veto.md): forest f cannot hold a leaf whose every
-  /// member has s_i = 0, since no likelihood term of that forest reaches it -
+  /// empty-leaf veto, which counts positive composed weights: forest f
+  /// cannot hold a leaf whose every member has s_i = 0, since no likelihood
+  /// term of that forest reaches it -
   /// installed on a grown forest it can strand one, which the moves then price
   /// their way out of rather than freeze on.
   ///
@@ -1589,8 +1585,8 @@ public:
     response_->setOffset(offset, updateScale, &sigma_);
   }
   /// Weights do not ride the tree state, so a vector zeroing rows a GROWN
-  /// forest already split on can leave leaves the moves veto
-  /// (docs/design/empty-leaf-veto.md). That is a legal state, not an error:
+  /// forest already split on can leave leaves the moves veto. That is a
+  /// legal state, not an error:
   /// the veto ranks such a branch below an admissible one, so the tree keeps
   /// moving under prior x transition and any move clearing the veto is
   /// accepted outright. No check here refuses it.
@@ -1661,8 +1657,8 @@ public:
   /// its prior and every row still receives a fit. Literally so, on a grown
   /// forest as on a fresh one - every branch is vetoed there, and the veto
   /// ranks equals, so the structure keeps moving under the CGM prior x the
-  /// transition at constant likelihood (docs/design/empty-leaf-veto.md); a
-  /// PARTIAL mask strands only the leaves it empties and the trees absorb
+  /// transition at constant likelihood; a PARTIAL mask strands only the
+  /// leaves it empties and the trees absorb
   /// back into the admissible set as those leaves clear.
   ///
   /// The scan lives here rather than in a host because the engine is the only
@@ -1899,8 +1895,8 @@ public:
         Tree& tree(forest.trees[t]);
         // Rejection, not projection: the moves price the CGM prior restricted
         // and renormalized to the trees carrying no empty leaf
-        // (logLikelihoodForBranch's veto, docs/design/empty-leaf-veto.md), and
-        // collapsing the empty leaves out of an unrestricted draw is a
+        // (logLikelihoodForBranch's veto), and collapsing the empty leaves
+        // out of an unrestricted draw is a
         // different distribution - it maps the rejected mass onto smaller trees
         // instead of removing it. The retry is WHOLE-TREE because the
         // conditioning tilts every draw the recursion made, the parent's rule
@@ -2884,7 +2880,7 @@ public:
   /// the same map storeSample's test channel applies to totalTestFits. The
   /// level-centering grand shift is absent from the saved (flattened) leaves,
   /// but softmax is invariant to a shift common to all K categories, so the
-  /// replayed probabilities are the identified ones (docs/design/multinomial.md).
+  /// replayed probabilities are the identified ones.
   /// The per-forest total is on the internal (softmax log-odds) scale, not the
   /// fitScale-shifted response scale, exactly as totalTestFits is - fitScale is
   /// the identity for the multinomial response, so no conversion applies.
@@ -3272,7 +3268,7 @@ public:
       return false;
     // an NB sampler needs both its omega latents (in latents) and a finite
     // positive dispersion r; an old state, or one from another family, carries
-    // neither and cannot continue the augmentation (docs/design/negative-binomial.md)
+    // neither and cannot continue the augmentation
     if (response_->carriesDispersion() &&
         (state.latents.size() != n || !(state.dispersion > 0.0) ||
          !std::isfinite(state.dispersion)))
@@ -3742,8 +3738,8 @@ public:
       if (fs.leafScale > 0.0) forest.leaf.scale = fs.leafScale;
     }
     setSigma(state.sigma);
-    // RESTORE CONTRACT (docs/design/negative-binomial.md section 5): an NB
-    // response's restoreLatents rebuilds the working response from omega AND r,
+    // RESTORE CONTRACT: an NB response's restoreLatents rebuilds the
+    // working response from omega AND r,
     // so the dispersion MUST be reinstalled before the latents - a restore that
     // installs omega first would rebuild working against the stale r. stateIsValid
     // guaranteed a finite positive r for an NB sampler.
@@ -4592,9 +4588,8 @@ private:
   /// observation-order pass: roll resid[i] exactly as rollTreeResidual does,
   /// then scatter-add it into acc[leafOf[i]], a node-indexed accumulator small
   /// enough to stay L1-resident, so setNodeAverages' random gather over
-  /// indices[] never runs. That gather is 39-40% of a sweep
-  /// (docs/design/memory-wall-frontier.md sec 10); the fusion measures 1.41x
-  /// to 1.54x on Zen2 and 1.07x to 1.25x on M1 Max (secs 11-12).
+  /// indices[] never runs. That gather is 39-40% of a sweep; the fusion
+  /// measures 1.41x to 1.54x on Zen2 and 1.07x to 1.25x on M1 Max.
   ///
   /// Returns false, having written nothing, when the fusion is not eligible;
   /// the caller then runs the stock rollTreeResidual + Tree::setNodeAverages
@@ -4884,11 +4879,10 @@ private:
     }
     if (!stepTaken) return;
     if (stepType == StepType::birth) {
-      // grow the block to the new node count, then draw the two children from
-      // their exact constrained conditional (docs/design/monotone.md eq. 4.17);
-      // the sibling slots are
-      // read but not their stale mu, so growing with zeros before the draw is
-      // safe
+      // grow the block to the new node count, then draw the two children
+      // from their exact constrained conditional; the sibling slots are
+      // read but not their stale mu, so growing with zeros before the draw
+      // is safe
       mu.resize(tree.nodes.size(), 0.0);
       forest.leaf.redrawAfterBirth(rng_, tree, changedNode, forest.k,
                                    sigma_ * sigma_, mu.data());
@@ -4938,7 +4932,7 @@ private:
         // move phase kept it sized and feasible); grow it for any node the tree
         // gained without disturbing existing leaves, then the coupled Gibbs
         // sweep updates every leaf in place. Fixed k only, the truncated draw
-        // carries no clean chi-k statistic (docs/design/monotone.md section 6)
+        // carries no clean chi-k statistic
         mu.resize(tree.nodes.size(), 0.0);
         forest.leaf.drawParametersForTree(rng_, tree, bottoms, forest.k,
                                           sigma_ * sigma_, mu.data());
@@ -5011,8 +5005,7 @@ private:
   }
 
   /// Sample sd of the range-scaled working response, the anchor the BCF
-  /// calibration map (docs/design/bcf.md) states its per-forest leaf scales
-  /// against.
+  /// calibration map states its per-forest leaf scales against.
   double scaledResponseSd() const {
     std::size_t n = data_.numObservations;
     const double* yScaled = response_->workingResponse();
@@ -5111,8 +5104,8 @@ private:
     return 0.5 * (lower + upper);
   }
 
-  /// Variant A block-additive install (docs/design/interaction-constraints.md):
-  /// confine each whole tree to one declared group of predictors so the ensemble
+  /// Variant A block-additive install: confine each whole tree to one
+  /// declared group of predictors so the ensemble
   /// is exactly f = sum_G f_G. Build the numBlocks group-membership rows (each
   /// intersected with any base columnMask already on the forest - the BCF-tau
   /// case, so the moderator restriction is never lost), assign trees to groups by
@@ -5211,8 +5204,7 @@ private:
 
   /// One symmetric category forest for a multinomial chain: constant leaf, no
   /// DART, no split restriction, fixed k, leaf scale nodeScale/sqrt(numTrees)
-  /// (the pi*sqrt(3)/sqrt(2) anchor, docs/design/multinomial.md). Every category
-  /// forest is identical.
+  /// (the pi*sqrt(3)/sqrt(2) anchor). Every category forest is identical.
   void buildMultinomialForest(const MultinomialForestSpec& spec,
                               double nodeScale, double k) {
     std::size_t n = data_.numObservations;
@@ -5324,7 +5316,7 @@ private:
         // carries no test treatment vector, so only the bare prognostic
         // forest could be recorded, which silently misreports the fit.
         // Flag the channel as unusable; BCF consumers recombine per forest
-        // via forestTotalFits + the bcfGlue coefficients (docs/design/bcf.md).
+        // via forestTotalFits + the bcfGlue coefficients.
         for (size_t i = 0; i < nTest * numLocations; ++i)
           out[i] = std::numeric_limits<double>::quiet_NaN();
       } else {
@@ -5333,9 +5325,9 @@ private:
         // blend the K forests' totalTestFits into the K softmax test
         // probabilities. The level-centering grand shift is common to all K
         // forests and absent from totalTestFits, but softmax invariance to a
-        // common shift makes the blend correct without it (afterCombine leaves
-        // totalTestFits untouched; docs/design/multinomial.md). At L = 1 testSrc
-        // is the bare totalTestFits and the write is byte-identical.
+        // common shift makes the blend correct without it (afterCombine
+        // leaves totalTestFits untouched). At L = 1 testSrc is the bare
+        // totalTestFits and the write is byte-identical.
         const double* testSrc = (combiner_ && numLocations > 1)
           ? combiner_->combinedTestFits(forests_)
           : forest.totalTestFits.data();
@@ -5487,8 +5479,8 @@ private:
   std::vector<const double*> forestWeights_;
   std::vector<double> forestWeightScratch_;
 
-  // heteroscedastic variance forest (docs/design/heteroscedastic.md); null for
-  // every homoscedastic sampler, so its sweep and the weight division are
+  // heteroscedastic variance forest; null for every homoscedastic sampler,
+  // so its sweep and the weight division are
   // branched out and the mean path is byte-identical. meanWeights_ is the mean
   // forest's per-sweep divided precisions user_w_i / s^2(x_i), sized only when
   // the variance forest is built.

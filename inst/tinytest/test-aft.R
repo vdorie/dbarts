@@ -1,5 +1,5 @@
-# AFT log-normal survival family on the bartcore engine (src/bartcore/,
-# docs/design/survival.md). Exercised through the internal bartcore surface,
+# AFT log-normal survival family on the bartcore engine (src/bartcore/).
+# Exercised through the internal bartcore surface,
 # with the per-observation status on the control's bartcore.survival
 # attribute (as the public survival surface sets it). The exact-posterior
 # gate lives in benchmarks/R/aft-exact.R.

@@ -1,5 +1,5 @@
-# The empty-leaf veto counts POSITIVE-WEIGHT members, not members
-# (docs/design/empty-leaf-veto.md). A weight of zero is absence, not
+# The empty-leaf veto counts POSITIVE-WEIGHT members, not members.
+# A weight of zero is absence, not
 # downweighting, so a leaf all of whose rows carry weight zero contributes to no
 # likelihood term and must be vetoed exactly as an unoccupied one is. The oracle
 # is structural and needs no tree walk: routing ONLY the positive-weight rows

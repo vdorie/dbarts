@@ -176,8 +176,8 @@ public:
                      sigmaRawScale, rngs);
   }
 
-  /// A K-forest combining sampler over dense predictors (docs/design/bcf.md),
-  /// bcf's prognostic-plus-treatment pair being its K = 2 instance. The family
+  /// A K-forest combining sampler over dense predictors, bcf's
+  /// prognostic-plus-treatment pair being its K = 2 instance. The family
   /// rides the spec (gaussian, probit or logistic); family_ takes it rather
   /// than a pin, since every family-keyed predicate a host reads - the pinned
   /// sigma and binary weight refusals, the response-support test - answers
@@ -210,8 +210,8 @@ public:
     }
   }
 
-  /// A K-forest multinomial (softmax) sampler over dense predictors
-  /// (docs/design/multinomial.md): constant leaf only, no response/weights/
+  /// A K-forest multinomial (softmax) sampler over dense predictors:
+  /// constant leaf only, no response/weights/
   /// offset (the category labels ride the spec; only single-trial is
   /// supported here). The
   /// CSC/mixed and view ingestion paths are not offered here.
@@ -1377,7 +1377,7 @@ public:
   /// collapses emptied leaves into their parents. The mutation kernels index
   /// the values as one column-major block, so only a dense view is consumable
   /// (unsupportedSource otherwise) - a CSC-valued replacement has no kernel
-  /// yet (docs/design/sparse-columns.md).
+  /// yet.
   PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                      bool forceUpdate, bool updateCutPoints) {
     if (!newX.isDenseBlock()) return PredictorUpdateResult::unsupportedSource;
@@ -1493,7 +1493,7 @@ public:
   size_t numChains() const { return chains_.size(); }
   size_t numThreads() const { return options_.numThreads; }
 
-  // BCF surface, fanned to every chain (docs/design/bcf.md); benign on
+  // BCF surface, fanned to every chain; benign on
   // single-forest samplers, where numForests() is 1 and bcfGlue reports none.
   size_t numForests() const { return chains_[0]->numForests(); }
   /// Whether the forest coupling permits a whole-response swap; chain 0

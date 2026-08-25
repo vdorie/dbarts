@@ -1,6 +1,6 @@
-# The mid-chain half of the named calibration
-# (docs/design/nameable-calibration.md): $getCalibration is the authoritative
-# reader of the leaf prior in force, and $setCalibration rewrites its scale
+# The mid-chain half of the named calibration: $getCalibration is the
+# authoritative reader of the leaf prior in force, and $setCalibration
+# rewrites its scale
 # half on every chain. The oracles are the two fidelity directions - a read
 # followed by a write must be BITWISE inert, and a write followed by a read
 # must return what was written - plus the refusal matrix and every mutation

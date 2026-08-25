@@ -1,8 +1,7 @@
 #ifndef R_INTERFACE_BARTCORE_HPP
 #define R_INTERFACE_BARTCORE_HPP
 
-// internal bridge to the generalized core (bartcore/); see
-// docs/design/core-generalization.md
+// internal bridge to the generalized core (bartcore/)
 
 #include <external/Rinternals.h> // SEXP
 

@@ -1,6 +1,6 @@
-# The multinomial category offset on the OUT-OF-SAMPLE side
-# (docs/design/multinomial.md): an nTest x K matrix entering the reported test
-# blend where the train offset enters the reported train blend, and a per-call
+# The multinomial category offset on the OUT-OF-SAMPLE side: an nTest x K
+# matrix entering the reported test blend where the train offset enters the
+# reported train blend, and a per-call
 # nNew x K matrix entering each predict replay's raw fits before the softmax.
 #
 # The one fact these oracles are built around is that the two sides are

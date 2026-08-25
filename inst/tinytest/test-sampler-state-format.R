@@ -1,5 +1,5 @@
-# The additive-by-name state format (docs/design/public-surface.md 2,
-# c-api-growth): setState reads per-chain blocks by name behind an encoding
+# The additive-by-name state format: setState reads per-chain blocks by
+# name behind an encoding
 # floor, so future additive versions still load, a genuinely older encoding is
 # refused, and a missing REQUIRED block is named. States are opaque R lists
 # with attributes, so these are pure attribute surgery (no C needed).

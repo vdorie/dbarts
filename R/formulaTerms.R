@@ -1,7 +1,7 @@
 ## A forest() call written inside a formula (bare, or a ':'/'*' operand)
 ## declares an ADDITIONAL amplitude-coupled forest: sugar over the existing
-## forests = list(forest(), forest(basis = )) declaration
-## (docs/design/bcf.md), sharing its ingestion between dbarts() and bart2()
+## forests = list(forest(), forest(basis = )) declaration,
+## sharing its ingestion between dbarts() and bart2()
 ## (bart2 reaches it only by forwarding its own formula, unchanged, into
 ## dbarts()). Everything decidable from the unevaluated formula - grammar,
 ## ancestor position, the two collisions below - refuses without touching

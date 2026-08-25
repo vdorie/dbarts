@@ -344,9 +344,9 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
   *sumWX = swx;
 }
 
-// fp32-residual variants of the four suffstat kernels above (docs/design/
-// reduced-precision-storage.md sec 3b): the running residual x is
-// stored fp32, so these load float and PROMOTE each element to double before
+// fp32-residual variants of the four suffstat kernels above: the running
+// residual x is stored fp32, so these load float and PROMOTE each element
+// to double before
 // accumulating - the reduction stays fp64 and, because float->double promotion
 // is exact and the summation order mirrors the double kernels byte-for-byte,
 // the sums equal round-to-fp32-then-sum-in-fp64 exactly. Only the opt-in

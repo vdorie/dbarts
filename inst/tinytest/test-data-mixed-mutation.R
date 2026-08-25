@@ -2,7 +2,7 @@
 # owns its dense block, so cut-point requantization, a rolled-back
 # transactional update, the setState cut-point replay, and a linear leaf's
 # covariate regather all read the mutated values rather than the ones the
-# container was built from (docs/design/sparse-columns.md)
+# container was built from
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")

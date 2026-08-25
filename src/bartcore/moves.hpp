@@ -100,8 +100,8 @@ BranchScore logLikelihoodForBranch(const MoveContext& ctx, const L& leaf,
 /// the branch of worse rank takes -HUGE_VAL and the comparison is decided
 /// there, ranks equal it is today's arithmetic on the finite parts.
 ///
-/// This keeps empty leaves out of the chain state (docs/design/
-/// empty-leaf-veto.md) at every scale - a valid branch's log-likelihood is
+/// This keeps empty leaves out of the chain state at every scale - a valid
+/// branch's log-likelihood is
 /// unbounded below, so a finite penalty would be out-penalized by a big node
 /// or a small sigma and the empty leaf accepted - while leaving a chain whose
 /// CURRENT state is vetoed a law to move under. Weights do not ride the tree,
@@ -389,8 +389,8 @@ inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
                                           std::uint64_t* arena, size_t depth);
 
 /// Draw a categorical assignment straight from the node prior (the
-/// propose-from-prior mechanism; see docs/design/change-move-balance.md): a
-/// single unrestricted gauge-pattern draw over the
+/// propose-from-prior mechanism): a single unrestricted gauge-pattern draw
+/// over the
 /// reachable set, with no descendant-validity rejection loop. Returns true and
 /// fills newRule when the draw leaves every same-variable descendant
 /// satisfiable; returns false (pi(T') = 0, an automatic no-op) otherwise. The
@@ -470,8 +470,7 @@ inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
 /// OWN rule, so the reverse ordinal count, re-enumerated on the current tree,
 /// equals its value on the changed tree and always contains the old rule
 /// (>= 1, never zero); a same-variable redraw gives correction 1. Omitting the
-/// correction is the CGM-lineage defect this repairs
-/// (docs/design/change-move-balance.md).
+/// correction is the CGM-lineage defect this repairs.
 template <MoveScorableLeafModel L, typename ResidT = double>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
                   const ResidT* y, double sigma, bool* stepTaken,

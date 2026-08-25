@@ -219,7 +219,7 @@ rbart_vi <- function(
     )]]
   }
 
-  # survival (AFT) response ingestion (docs/design/survival.md, R surface):
+  # survival (AFT) response ingestion (R surface):
   # a survival::Surv or two-column (time, status) response enters through the
   # formula's left-hand side, evaluated in the caller's data/environment as
   # group.by is. dbartsData's formula-path Surv refusal stays intact for every

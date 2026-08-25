@@ -1,6 +1,6 @@
-# grow-from-root now places real categorical split rules (docs/design/
-# grow-from-root.md, the v1 "categorical predictors are ordinal-only"
-# contract inverted): a categorical-heavy design should see the init forest
+# grow-from-root now places real categorical split rules (the v1
+# "categorical predictors are ordinal-only" contract inverted): a
+# categorical-heavy design should see the init forest
 # split on its signal factors, warm-start bart2 to a lower early RMSE than a
 # cold start, and feed real split counts into a concurrent DART update.
 

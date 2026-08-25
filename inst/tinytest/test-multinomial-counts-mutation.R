@@ -1,4 +1,4 @@
-# The multinomial counts mutation channel (docs/design/multinomial.md): a
+# The multinomial counts mutation channel: a
 # softmax sampler's response is the n x K count matrix the combiner borrows,
 # not the chain's y, so the response swap every other family reaches through
 # setResponse has its own entry here. n and K are fixed at creation.

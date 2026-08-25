@@ -21,9 +21,9 @@ using xint_t = std::uint16_t;
 
 /// Per-observation GATHER INDEX type for the hot index buffers (Tree::indices,
 /// Forest/VarianceForest::indexBuffer): a subscript into the n-length columns,
-/// narrowed from size_t to halve the single biggest hot array
-/// (docs/design/reduced-precision-storage.md sec 3a). Must match the C kernel
-/// index type misc_index_t (pinned by a static_assert in tree.hpp); DISTINCT
+/// narrowed from size_t to halve the single biggest hot array. Must match
+/// the C kernel index type misc_index_t (pinned by a static_assert in
+/// tree.hpp); DISTINCT
 /// from length/count storage, which stays size_t. Capped by a guard that
 /// refuses numObservations > UINT32_MAX at ingestion.
 using index_t = std::uint32_t;
@@ -87,15 +87,14 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
 /// category codes 0..numCategories-1 directly and split by subset. Masks of
 /// up to 63 categories live inline in the rule word (and inline in the
 /// flattened node); wider columns pool their mask words per tree and the
-/// flattened format references them through a side channel (see
-/// docs/design/pooled-masks.md). Codes must fit xint_t, including the
-/// reserved missing code K of a pooled column.
+/// flattened format references them through a side channel. Codes must fit
+/// xint_t, including the reserved missing code K of a pooled column.
 enum class ColumnType : std::uint8_t { ordinal, categorical };
 
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
-/// storage; denser ones densify their codes (docs/design/sparse-columns.md).
+/// storage; denser ones densify their codes.
 constexpr double sparseDensityThreshold = 0.2;
 
 /// Rank-bitmap hot storage of a sparse ordinal column: code(i) is zeroCode
@@ -596,7 +595,7 @@ struct ColumnStore {
   // it, so a mutation writes the new values through denseRaw and every later
   // reader - setCutPoints, state restore, a linear/GP leaf's regather - sees
   // the live column rather than the creation-time one. Empty on dense builds
-  // and views (docs/design/sparse-columns.md).
+  // and views.
   std::vector<double> ownedDenseValues;
 
   // Owned re-quantize sources for CSC-backed columns after mutation. A column
@@ -606,7 +605,7 @@ struct ColumnStore {
   // reflects the live values (setCutPoints and state restore re-quantize from
   // the slice). Sized numPredictors on a CSC/mixed build, empty on dense
   // builds and views; ownedCsc*[j] stay empty and cscColumnOwned[j] false
-  // until column j is first mutated (docs/design/sparse-columns.md).
+  // until column j is first mutated.
   std::vector<std::vector<int>> ownedCscRows;
   std::vector<std::vector<double>> ownedCscValues;
   std::vector<std::uint8_t> cscColumnOwned;
@@ -1423,7 +1422,7 @@ struct ColumnStore {
       maxNumCuts = parent.maxNumCuts;
     }
     // views densify: gathered codes are fully dense whatever the parent's
-    // per-column storage (docs/design/sparse-columns.md)
+    // per-column storage
     train.codes.resize(numRows * numPredictors);
     train.codeOffsets.resize(numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) train.codeOffsets[j] = j * numRows;

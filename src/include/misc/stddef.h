@@ -12,9 +12,9 @@
 #endif
 
 // Narrowed per-observation GATHER INDEX type, DISTINCT from the length/count
-// type misc_size_t (which stays size_t). Halves the hot index buffers
-// (docs/design/reduced-precision-storage.md sec 3a); a pure retype, so the
-// partition/suffstat kernels stay bitwise-draw-preserving. Lengths and counts
+// type misc_size_t (which stays size_t). Halves the hot index buffers; a
+// pure retype, so the partition/suffstat kernels stay bitwise-draw-preserving.
+// Lengths and counts
 // remain misc_size_t; only index-carrying storage narrows to this.
 #ifdef __cplusplus
 typedef std::uint32_t misc_index_t;

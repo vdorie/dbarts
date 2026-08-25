@@ -545,8 +545,7 @@ replaceSparseColumns <- function(sparse, ranks, implicits, values) {
 }
 
 ## Install a block of predictor columns into a sampler's stored source BY
-## REFERENCE (the reference-install mutation semantics,
-## docs/design/data-ownership.md, "Mutation: reference-install") - keeps
+## REFERENCE (the reference-install mutation semantics) - keeps
 ## data@x current under
 ## mutation without adding an R-side copy on top of R's own copy-on-write.
 ## rows = NULL replaces columns whole: a dense-backed slot j is repointed
@@ -580,8 +579,8 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
-  # a pure dgCMatrix design (the sparse-column in-place mutation extension,
-  # docs/design/sparse-columns.md): every column is CSC-backed and ordinal, so
+  # a pure dgCMatrix design (the sparse-column in-place mutation extension):
+  # every column is CSC-backed and ordinal, so
   # the implicit rows read numeric zero
   if (inherits(x, "dgCMatrix")) {
     numObservations <- nrow(x)

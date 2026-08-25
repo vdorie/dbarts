@@ -1,7 +1,7 @@
 # sparse predictor matrices: a Matrix::dgCMatrix enters through the x/y
 # interface, columns below a density threshold take rank-bitmap storage in
 # the engine, denser ones densify their codes, and the raw-x mutation
-# surface is fixed at creation (docs/design/sparse-columns.md)
+# surface is fixed at creation
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")

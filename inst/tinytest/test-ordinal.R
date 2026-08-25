@@ -1,5 +1,4 @@
-# The ordinal (cumulative-probit) R surface (docs/design/ordinal.md sections
-# 5-6): family dispatch and
+# The ordinal (cumulative-probit) R surface: family dispatch and
 # refusals, fit-object shapes and the level round-trip, prediction, state
 # save/load through the R surface, setResponse mutation semantics, and a
 # seeded statistical recovery smoke. The exact-posterior gate lives in

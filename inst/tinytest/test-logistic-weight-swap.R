@@ -3,7 +3,7 @@
 # is a model change with a defined meaning: the engine redraws omega against
 # the new counts on the spot, and an outer sampler can vary exposure between
 # sweeps. Probit, ordinal, aft and nbinom decline by identification and keep
-# their refusals. See docs/design/r-c-division.md.
+# their refusals.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),

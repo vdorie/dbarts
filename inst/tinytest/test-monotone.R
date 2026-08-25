@@ -1,4 +1,4 @@
-# Per-variable monotone (mBART) constraints (docs/design/monotone.md): the
+# Per-variable monotone (mBART) constraints: the
 # `monotone` surface, its refusals, and family/prior forcing, plus a recovery
 # smoke test. The exact-posterior gate lives in benchmarks/R/monotone-reference.R.
 

@@ -665,12 +665,12 @@ uint64_t dbarts_apiHash(void);
 /// dbarts_sampler_setSigma can repair. The fixed-unit-scale families (probit,
 /// logistic, ordinal, nbinom) never read it and take the NA as it stands.
 ///
-/// The K-forest amplitude family (docs/design/multiplier-combiner.md) is
+/// The K-forest amplitude family is
 /// created through this same entry point. Each forest carries its own basis,
 /// whose row contracts with that forest's own amplitude vector into the scalar
 /// the forest's fit is multiplied by, so the location is
 /// sum_f dot(a_f, B_f(i, .)) * forestFits(f)[i]; a Bayesian causal forest
-/// (docs/design/bcf.md) is the K = 2 instance, forest 0 prognostic over an
+/// is the K = 2 instance, forest 0 prognostic over an
 /// implicit intercept and forest 1 over a treatment indicator. The R
 /// specification dbartsSpec(data, control, forests = list(forest(), forest(
 /// basis = ~ factor(z)))) puts each declared forest's basis columns on the data

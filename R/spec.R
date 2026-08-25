@@ -135,7 +135,7 @@ resolveSamplerSpec <- function(
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
   )
-  # multinomial (K-forest softmax, docs/design/multinomial.md): the response is
+  # multinomial (K-forest softmax): the response is
   # the n x K count matrix on the data object, so the family is DECLARED by the
   # slot and not inferred from any response shape - data@y is that matrix's
   # trials vector. A counts-carrying object resolves to it from "auto" without
@@ -167,7 +167,7 @@ resolveSamplerSpec <- function(
     # category count; data@y is already the trials
     NULL
   } else if (identical(family, "ordinal")) {
-    # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest
+    # ordinal (cumulative probit): a single-forest
     # fixed-unit-scale model like probit, but K-level. Recode the response to
     # the 1-based category codes the engine reads, and attach K on the control
     # attribute the bridge reads to select OrdinalResponse (the
@@ -178,7 +178,7 @@ resolveSamplerSpec <- function(
     data@response.levels <- ordinal$levels
     attr(control, "bartcore.n.categories") <- ordinal$K
   } else if (identical(family, "nbinom")) {
-    # negative-binomial counts (docs/design/negative-binomial.md section 4): the
+    # negative-binomial counts: the
     # count response has no unambiguous class, so "nbinom" is never auto - only
     # explicit. y must be a non-negative integer count (the NB pmf has zero mass
     # off the integers and the grid kernel's count histogram presumes integer
@@ -214,8 +214,8 @@ resolveSamplerSpec <- function(
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
   # (not control@binary), and it reports K category levels. nbinom (counts) is
   # likewise a fixed-unit-scale family (sigma fixed at 1, the log-odds latent
-  # entering kappa directly, docs/design/negative-binomial.md section 1),
-  # selected by the bartcore.dispersion attribute. fixedUnitScale covers all
+  # entering kappa directly), selected by the bartcore.dispersion attribute.
+  # fixedUnitScale covers all
   # three families wherever the unit-scale handling matters.
   # multinomial (softmax) is the fourth: its K category forests take their leaf
   # scale from the softmax calibration map's own anchor, there is no residual
@@ -270,7 +270,7 @@ resolveSamplerSpec <- function(
     }
   }
 
-  # the multi-forest declaration (docs/design/bcf.md): forests = list(forest(),
+  # the multi-forest declaration: forests = list(forest(),
   # forest(basis = ~ factor(z))) names the ensembles the mean is a weighted sum
   # of, and every knob is per forest. The FIRST forest's structural knobs are
   # this fit's own - its tree count is control@n.trees and its structure prior
@@ -382,7 +382,7 @@ resolveSamplerSpec <- function(
     node.scale = defaultNodeScale(family)
   )
 
-  # Student-t residuals (docs/design/robust-errors.md): only a continuous
+  # Student-t residuals: only a continuous
   # gaussian response carries them (the binary families and aft have their own
   # latent scale), refused here R-side to match the C bridge's backstop. The
   # resolved degrees of freedom ride the model's resid.df attribute the bridge
@@ -406,8 +406,8 @@ resolveSamplerSpec <- function(
   }
 
   # the resolved per-forest interaction constraint (max-order cap + forbidden
-  # co-occurrence pairs, docs/design/interaction-constraints.md) rides two model
-  # attributes the C bridge reads into SamplerOptions (the monotone precedent).
+  # co-occurrence pairs) rides two model attributes the C bridge reads into
+  # SamplerOptions (the monotone precedent).
   # Absent when no interactions() prior is supplied, so the availability path is
   # byte-for-byte unchanged.
   interactionSpec <- resolveInteractions(interactions, data)
@@ -428,7 +428,7 @@ resolveSamplerSpec <- function(
   }
 
   # The K category forests are built from the softmax calibration map and the
-  # CONSTANT-leaf instantiation only (docs/design/multinomial.md): a monotone
+  # CONSTANT-leaf instantiation only: a monotone
   # constraint or a non-constant leaf selects an instantiation the multinomial
   # factory does not build, a DART prior and a drawn k are unadjudicated
   # against the map's fixed anchor, the map owns every leaf scale so a named
@@ -469,7 +469,7 @@ resolveSamplerSpec <- function(
     }
     attr(control, "bartcore.survival") <- survivalStatus
   }
-  # the discrete-time hazard marker (docs/design/survival.md section 4): the
+  # the discrete-time hazard marker: the
   # period grid, parked here for packageBartResults to read into $periods. The
   # C bridge never reads this attribute (unlike bartcore.survival), so a hazard
   # fit's draw stream is byte-identical to the by-hand binary fit's - the
@@ -478,7 +478,7 @@ resolveSamplerSpec <- function(
     attr(control, "bartcore.hazard.periods") <- hazardPeriods
   }
 
-  # the heteroscedastic variance forest (docs/design/heteroscedastic.md): a
+  # the heteroscedastic variance forest: a
   # `variance` selector installs a second forest modeling s^2(x); its config
   # rides the control attribute the C bridge reads. Gaussian + constant leaf
   # only (the C factory refuses otherwise; a friendly R check for the family).
@@ -513,9 +513,8 @@ resolveSamplerSpec <- function(
         "\" routes precision through its own latent channel instead"
       )
     }
-    # the scale-mixture reweighting (docs/design/robust-errors.md) and the
-    # variance forest's weight-channel routing (docs/design/heteroscedastic.md
-    # section 5) are unadjudicated together; refuse rather than silently fit
+    # the scale-mixture reweighting and the variance forest's weight-channel
+    # routing are unadjudicated together; refuse rather than silently fit
     # an uncomposed model
     if (!is.null(residDf)) {
       stop(
@@ -549,7 +548,7 @@ resolveSamplerSpec <- function(
     )
   }
 
-  # the Bayesian causal forest (docs/design/bcf.md): a second forest with a
+  # the Bayesian causal forest: a second forest with a
   # two-level factor basis selects the model y = a mu(x) + b_z tau(x) + eps.
   # The 0/1 column that basis expands to is conditioning DATA and rides the
   # data object beside the weights it mirrors; the second forest's
@@ -579,8 +578,8 @@ resolveSamplerSpec <- function(
     # single site the refusal is owed at. What a lone amplitude forest is
     # missing is the second ensemble its amplitudes would distinguish it from;
     # reaching it as a configuration is VCBART's shape (the general per-forest
-    # multiplier door of docs/design/model-space-survey.md), which owes
-    # acceptance evidence of its own before it could be opened.
+    # multiplier door), which owes acceptance evidence of its own before it
+    # could be opened.
     if (numForests < 2L) {
       stop(
         "a multi-forest model needs at least two forests, and ",
@@ -764,7 +763,7 @@ resolveSamplerSpec <- function(
   namedList(control, model, data, family)
 }
 
-## The exported consumer surface (docs/design/consumer-spec-surface.md): resolves
+## The exported consumer surface: resolves
 ## a specification without constructing a sampler, for a LinkingTo: dbarts
 ## consumer that holds its sampler C-side through dbarts.h and supplies its own
 ## design matrix. dbartsData() (already exported) builds the response half; this

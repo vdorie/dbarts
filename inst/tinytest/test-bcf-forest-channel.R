@@ -1,6 +1,6 @@
 # Packaging the per-forest in-sample channels (forestFits, glue) and
 # extract(type = "forest") on top of the sampler-level reporting
-# test-bcf-reporting.R already exercises (docs/design/bcf.md).
+# test-bcf-reporting.R already exercises.
 
 set.seed(311)
 n <- 50L

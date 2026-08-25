@@ -47,7 +47,6 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
 // fp32-residual (opt-in) variants: identical reduction, but the running
 // residual x is stored fp32 - each element is loaded as float and promoted to
 // double before accumulating, so the reduction stays fp64
-// (docs/design/reduced-precision-storage.md sec 3b)
 void misc_computeFloatSufficientStatisticsFast(const float* x, misc_size_t length, double* restrict sumW, double* restrict sumWX);
 void misc_computeIndexedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, misc_size_t length, double* restrict sumW, double* restrict sumWX);
 void misc_computeWeightedFloatSufficientStatisticsFast(const float* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);

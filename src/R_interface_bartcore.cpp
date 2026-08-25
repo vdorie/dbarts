@@ -145,16 +145,16 @@ size_t validatePredictorMatrix(const bartcore::SamplerBase& sampler,
 
 struct ParsedControl {
   bool responseIsBinary = false;
-  // ordinal (cumulative-probit) response shape (docs/design/ordinal.md): the
-  // ordered category count K, the third response shape beside the binary and
-  // continuous ones. K >= 2 selects the ordinal family; 0 (absent) is a
-  // non-ordinal response, so every existing family parses unchanged. The R
-  // surface attaches the count (the bartcore.n.categories control
-  // attribute); parseControl reads it here.
+  // ordinal (cumulative-probit) response shape: the ordered category count
+  // K, the third response shape beside the binary and continuous ones. K >=
+  // 2 selects the ordinal family; 0 (absent) is a non-ordinal response, so
+  // every existing family parses unchanged. The R surface attaches the count
+  // (the bartcore.n.categories control attribute); parseControl reads it
+  // here.
   size_t numOrdinalCategories = 0;
-  // negative-binomial count response shape (docs/design/negative-binomial.md
-  // section 4): the fourth response shape beside the binary, ordinal, and
-  // continuous ones. countResponse marks it (a count is none of the others);
+  // negative-binomial count response shape: the fourth response shape
+  // beside the binary, ordinal, and continuous ones. countResponse marks it
+  // (a count is none of the others);
   // dispersion is the r spec, the residualDf sign convention - a positive value
   // fixes r there (an integer), a non-positive value estimates r on the grid.
   // The dbarts()/bart2 surface attaches both through one control attribute
@@ -166,9 +166,9 @@ struct ParsedControl {
   bool keepTrainingFits = true;
   bool useQuantiles = false;
   bool keepTrees = false;
-  // opt-in fp32 running residual (control@storage == "single",
-  // docs/design/reduced-precision-storage.md sec 3b); the createSampler gate
-  // refuses it for anything but a gaussian constant-leaf model
+  // opt-in fp32 running residual (control@storage == "single"); the
+  // createSampler gate refuses it for anything but a gaussian constant-leaf
+  // model
   bool fp32Residual = false;
   size_t defaultNumSamples = 0;
   size_t numTrees = 75;
@@ -229,7 +229,6 @@ struct ParsedData {
   bartcore::PredictorSource predictors;
   // the storage FLAVOR the parse saw, kept for the refusal texts and the
   // CSC code-validation memory-safety gates that must not key on the map
-  // (docs/design/sparse-columns.md)
   bool xIsSparse = false;
   bool xIsMixed = false;
   std::vector<std::int32_t> columnSources;
@@ -261,9 +260,9 @@ struct ParsedData {
   const double* weights = NULL;
   const double* offset = NULL;
   const double* testOffset = NULL;
-  // the per-forest amplitude bases a multi-forest fit's amplitudes multiply
-  // (docs/design/bcf.md), EMPTY for every single-forest model. Entry f is
-  // forest f's n x basisColumns[f] matrix as R holds it - COLUMN-major -
+  // the per-forest amplitude bases a multi-forest fit's amplitudes
+  // multiply, EMPTY for every single-forest model. Entry f is forest f's
+  // n x basisColumns[f] matrix as R holds it - COLUMN-major -
   // borrowed from the data object and transposed into the engine's row-major
   // contract at the build; a null entry leaves forest f the dense all-ones
   // column the engine synthesizes.
@@ -297,18 +296,18 @@ struct ParsedModel {
   double sigmaQuantile = 0.9;
   // the chi-squared prior's scale before anchoring to the sigma estimate
   double sigmaRawScale = 1.0;
-  // Student-t residual degrees of freedom (docs/design/robust-errors.md): NaN
-  // is the Gaussian default, a positive value fixes nu, 0 estimates it on the
-  // grid. The dbarts()/bart2 surface attaches it (the model's resid.df
-  // attribute); absent it stays NaN.
+  // Student-t residual degrees of freedom: NaN is the Gaussian default, a
+  // positive value fixes nu, 0 estimates it on the grid. The dbarts()/bart2
+  // surface attaches it (the model's resid.df attribute); absent it stays
+  // NaN.
   double residualDf = NA_REAL;
   // per-predictor monotone directions in {-1, 0, +1}, narrowed from the R
   // integer spec; empty when no constraint is declared
   std::vector<std::int8_t> monotoneDirections;
-  // per-forest interaction constraint (docs/design/interaction-constraints.md):
-  // interactionMaxOrder caps the distinct split variables on any path (0 =
-  // uncapped); interactionForbiddenPairs is a flat 0-based (a, b) stream (two
-  // indices per forbidden co-occurrence). Both defaults leave the path free.
+  // per-forest interaction constraint: interactionMaxOrder caps the
+  // distinct split variables on any path (0 = uncapped);
+  // interactionForbiddenPairs is a flat 0-based (a, b) stream (two indices
+  // per forbidden co-occurrence). Both defaults leave the path free.
   size_t interactionMaxOrder = 0;
   std::vector<size_t> interactionForbiddenPairs;
   // per-forest block-additive constraint (per-tree column grouping): blockOfColumn is the 0-based
@@ -451,10 +450,10 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   if (control.haveRngSeed)
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
 
-  // optional ordinal shape (docs/design/ordinal.md): an integer K >= 2 the R
-  // surface attaches for an ordered-factor response, read raw and guarded
-  // like resid.df. Absent (the default) leaves a non-ordinal response, so every
-  // existing family parses byte-for-byte unchanged.
+  // optional ordinal shape: an integer K >= 2 the R surface attaches for an
+  // ordered-factor response, read raw and guarded like resid.df. Absent (the
+  // default) leaves a non-ordinal response, so every existing family parses
+  // byte-for-byte unchanged.
   // An attribute of the rooted controlExpr cannot be collected, so the PROTECT
   // is redundant to that rooting; it is what the PROTECT-balance analyzer reads,
   // which sees only that Rf_isInteger may allocate (it tests for a factor).
@@ -466,12 +465,12 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
       static_cast<size_t>(INTEGER(ordinalExpr)[0]);
   UNPROTECT(1);
 
-  // optional count shape (docs/design/negative-binomial.md section 4): a length-1
-  // real the R surface attaches for a count response, guarded like
-  // bartcore.n.categories. Its presence marks the count shape; its value is the
-  // dispersion spec (positive fixes r, non-positive estimates on the grid).
-  // Absent (the default) leaves a non-count response, so every existing family
-  // parses byte-for-byte unchanged.
+  // optional count shape: a length-1 real the R surface attaches for a
+  // count response, guarded like bartcore.n.categories. Its presence marks
+  // the count shape; its value is the dispersion spec (positive fixes r,
+  // non-positive estimates on the grid). Absent (the default) leaves a
+  // non-count response, so every existing family parses byte-for-byte
+  // unchanged.
   SEXP dispersionExpr =
     Rf_getAttrib(controlExpr, Rf_install("bartcore.dispersion"));
   if (Rf_isReal(dispersionExpr) && Rf_xlength(dispersionExpr) == 1) {
@@ -947,9 +946,8 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   data.y = REAL(slotExpr);
   data.numObservations = rc_getLength(slotExpr);
   // The hot gather index is stored as bartcore::index_t (uint32); a subscript
-  // n - 1 must fit. Unreachable in practice (predictor codes would be terabytes
-  // first, docs/design/reduced-precision-storage.md sec 3a), but must not
-  // silently truncate.
+  // n - 1 must fit. Unreachable in practice (predictor codes would be
+  // terabytes first), but must not silently truncate.
   if (data.numObservations > static_cast<size_t>(UINT32_MAX))
     Rf_error("number of observations exceeds the %u index limit", UINT32_MAX);
 
@@ -1216,10 +1214,10 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
 
-  // the named calibration, response units (docs/design/prior-defaults.md). NA
-  // is the unnamed default, which the engine reads off the same non-finite
-  // test that lets a NaN through; anything else must be usable as a divisor,
-  // so infinity is refused here alongside the R validity method's own check.
+  // the named calibration, response units. NA is the unnamed default, which
+  // the engine reads off the same non-finite test that lets a NaN through;
+  // anything else must be usable as a divisor, so infinity is refused here
+  // alongside the R validity method's own check.
   REPROTECT_SLOT(slotExpr, modelExpr, "prior.scale", slotIndex);
   model.priorScale = rc_getDouble(
     slotExpr, "named prior scale", RC_LENGTH | RC_EQ, rc_asRLength(1),
@@ -1229,7 +1227,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   // monotone (mBART) directions ride the model as a per-predictor integer
   // attribute the R surface resolves; absent or all-zero keeps the
-  // unconstrained constant leaf (docs/design/monotone.md section 8)
+  // unconstrained constant leaf
   REPROTECT_SLOT(slotExpr, modelExpr, "monotone", slotIndex);
   if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0) {
     if (static_cast<size_t>(rc_getLength(slotExpr)) != numPredictors)
@@ -1433,10 +1431,10 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     Rf_error("unsupported residual variance prior type '%s'", classStr);
   }
 
-  // Student-t residual df (docs/design/robust-errors.md): an optional numeric
-  // model attribute (resid.df) the R surface attaches; absent it stays NaN, the
-  // Gaussian law. Read raw here - the family cross-check and sign policy live
-  // in parseSamplerSpecification, once the family is known.
+  // Student-t residual df: an optional numeric model attribute (resid.df)
+  // the R surface attaches; absent it stays NaN, the Gaussian law. Read raw
+  // here - the family cross-check and sign policy live in
+  // parseSamplerSpecification, once the family is known.
   SEXP residDfExpr = Rf_getAttrib(modelExpr, Rf_install("resid.df"));
   if (Rf_isReal(residDfExpr) && Rf_xlength(residDfExpr) == 1)
     model.residualDf = REAL(residDfExpr)[0];
@@ -1588,15 +1586,15 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
       return bartcore::ResponseFamily::probit;
     Rf_error("unrecognized response family for a binary response");
   }
-  // ordinal is the K-level categorical shape (docs/design/ordinal.md): the
-  // cumulative probit is the only family defined on it
+  // ordinal is the K-level categorical shape: the cumulative probit is the
+  // only family defined on it
   if (control.numOrdinalCategories >= 2) {
     if (familyName[0] == '\0' || std::strcmp(familyName, "ordinal") == 0)
       return bartcore::ResponseFamily::ordinal;
     Rf_error("an ordinal (K-level) response supports only family \"ordinal\"");
   }
-  // nbinom is the count shape (docs/design/negative-binomial.md section 4): the
-  // negative binomial is the only family defined on it
+  // nbinom is the count shape: the negative binomial is the only family
+  // defined on it
   if (control.countResponse) {
     if (familyName[0] == '\0' || std::strcmp(familyName, "nbinom") == 0)
       return bartcore::ResponseFamily::nbinom;
@@ -1753,15 +1751,15 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   bartcore::SamplerOptions options;
   options.numTrees = control.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
-  // the gaussian construction path reads this: finite selects Student-t errors
-  // (docs/design/robust-errors.md), NaN keeps the Gaussian law
+  // the gaussian construction path reads this: finite selects Student-t
+  // errors, NaN keeps the Gaussian law
   options.residualDf = model.residualDf;
-  // ordinal construction reads this: K >= 2 selects OrdinalResponse with a K-1
-  // cutpoint vector (docs/design/ordinal.md), 0 leaves a non-ordinal response
+  // ordinal construction reads this: K >= 2 selects OrdinalResponse with a
+  // K-1 cutpoint vector, 0 leaves a non-ordinal response
   options.numCategories = control.numOrdinalCategories;
-  // nbinom construction reads this: a positive value fixes the dispersion r, a
-  // non-positive value estimates it on the grid (docs/design/negative-binomial.md);
-  // NaN (a non-count response) is ignored
+  // nbinom construction reads this: a positive value fixes the dispersion r,
+  // a non-positive value estimates it on the grid; NaN (a non-count
+  // response) is ignored
   options.dispersion = control.dispersion;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
@@ -1959,7 +1957,7 @@ void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
 // vector, 1 for an uncensored event, 0 for a right-censored observation. Only
 // full creation reads it, and only for family aft. status outlives the options
 // borrow: the response copies it during construction. The public surface sets
-// the attribute from a Surv or (time, status) ingest (docs/design/survival.md).
+// the attribute from a Surv or (time, status) ingest.
 void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
                             bartcore::ResponseFamily family,
                             bartcore::SamplerOptions& options,
@@ -1986,8 +1984,8 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
   options.survivalStatus = status.data();
 }
 
-// The heteroscedastic variance forest (docs/design/heteroscedastic.md) arrives
-// on an internal control attribute `bartcore.variance`: a list carrying the
+// The heteroscedastic variance forest arrives on an internal control
+// attribute `bartcore.variance`: a list carrying the
 // tree count, the tree-structure prior (base/power), and optional 1-based
 // column indices (the `variance = ~ subset` selector; null spans all mean
 // predictors). Absent leaves the fit homoscedastic. The factory refuses the
@@ -2360,8 +2358,7 @@ void refuseUnsupportedAmplitudeComposition(
 
 // A sampler created over a data handle holds no raw predictor values, so
 // the raw-x mutation surface has nothing to work from; a CSC-built sampler
-// holds only borrowed slices and refuses the same surface by design
-// (docs/design/sparse-columns.md).
+// holds only borrowed slices and refuses the same surface by design.
 void refusePredictorMutation(const bartcore::SamplerBase& sampler,
                              const char* caller) {
   const bartcore::ColumnStore& data = sampler.data();
@@ -2375,11 +2372,11 @@ void refusePredictorMutation(const bartcore::SamplerBase& sampler,
 
 // The predictor-MUTATION surface (setPredictor, updatePredictor, and the
 // per-observation sessions) re-quantizes columns from a new dense column, so
-// unlike whole-data setData it runs on CSC/mixed stores too (they retain their
-// slices; a mutated column repoints at engine-owned nonzeros -
-// docs/design/sparse-columns.md extension (i)). Cut installation and state
-// restore re-quantize from those same retained slices, so they share this guard
-// rather than carrying one of their own. Only a data-handle view, which keeps
+// unlike whole-data setData it runs on CSC/mixed stores too (they retain
+// their slices; a mutated column repoints at engine-owned nonzeros). Cut
+// installation and state restore re-quantize from those same retained
+// slices, so they share this guard rather than carrying one of their own.
+// Only a data-handle view, which keeps
 // no raw source at all, is refused here; a per-observation caller additionally
 // refuses a CSC-backed target column by name below.
 void refuseMutationOnView(const bartcore::SamplerBase& sampler,
@@ -2534,24 +2531,24 @@ bartcore::ResponseFamily parseSamplerSpecification(
                                            data.numObservations,
                                            "sampler creation");
   // a weighted truncated-latent draw is not a coherent likelihood; AFT v1
-  // rejects weights (docs/design/survival.md)
+  // rejects weights
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
     Rf_error("aft (survival) models do not support case weights");
   // ordinal refuses weights for probit's reason: a weighted truncated-normal
-  // latent likelihood is not a coherent model (docs/design/ordinal.md)
+  // latent likelihood is not a coherent model
   if (family == bartcore::ResponseFamily::ordinal && data.weights != NULL)
     Rf_error("ordinal models do not support weights: a weighted truncated-"
              "normal latent likelihood is not a coherent model");
-  // nbinom refuses weights in v1 (docs/design/negative-binomial.md section 4):
-  // the usual count "weight" is exposure, which belongs in the offset as a
-  // log-exposure term, not in observation replication
+  // nbinom refuses weights in v1: the usual count "weight" is exposure,
+  // which belongs in the offset as a log-exposure term, not in observation
+  // replication
   if (family == bartcore::ResponseFamily::nbinom && data.weights != NULL)
     Rf_error("nbinom (count) models do not support weights: exposure belongs in "
              "the offset as a log-exposure term");
-  // Student-t continuous errors (docs/design/robust-errors.md): a finite
-  // resid.df selects the scale-mixture error law - a positive value fixes the
-  // degrees of freedom, 0 estimates them on the grid. Only the gaussian family
-  // carries it; NaN (absent) keeps the Gaussian law.
+  // Student-t continuous errors: a finite resid.df selects the
+  // scale-mixture error law - a positive value fixes the degrees of
+  // freedom, 0 estimates them on the grid. Only the gaussian family carries
+  // it; NaN (absent) keeps the Gaussian law.
   if (std::isfinite(model.residualDf)) {
     if (family != bartcore::ResponseFamily::gaussian)
       Rf_error("a continuous gaussian response is required for Student-t "
@@ -2793,8 +2790,7 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
 // trivially safe on every host, and orders of magnitude past any count a
 // negative-binomial regression is a sensible model for. The exact Polya-Gamma
 // augmentation's O(y + r) draw cost stays a recorded family cost above and
-// below the bound (docs/design/negative-binomial.md section 2); it is not what
-// this refuses.
+// below the bound; it is not what this refuses.
 constexpr double maximumCount = 1.0e6;
 
 // The post-creation half of the response-support policy the R surface applies
@@ -2862,7 +2858,7 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 // sum_f dot(a_f, B_f(i,.)) f_f(x_i) is ill-defined off the training rows, so
 // the engine would fall back to the bare first forest and silently misreport.
 // Reject test data and out-of-sample prediction there; consumers recombine per
-// forest via getForestFits + the amplitude glue (docs/design/bcf.md). Gated on
+// forest via getForestFits + the amplitude glue. Gated on
 // testFitsAreDefined rather than the forest count so a multi-forest model
 // whose test blend IS defined (multinomial softmax over the K forests'
 // totalTestFits) is allowed through; only the couplings that leave the channel
@@ -2897,7 +2893,7 @@ void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
 // (buildVarianceForest leaves family_ gaussian, so the family test alone would
 // miss it). Keyed on the family, NOT on sigmaIsFixed_: a gaussian sampler with
 // resid.prior = fixed() pins sigma too, and driving it per sweep is the
-// supported outer-Gibbs conditioning idiom (docs/design/correlated-outcomes.md).
+// supported outer-Gibbs conditioning idiom.
 // External linkage: the flat C API reuses this on dbarts_sampler_setSigma.
 void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
                              const char* caller) {
@@ -3017,15 +3013,14 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // internal control attribute; the chains copy the indices at construction
     applyGroupAttribute(controlExpr, data.numObservations, options,
                         groupIndices);
-    // grouped ordinal is a recorded but unbuilt door (docs/design/ordinal.md
-    // section 8): the cutpoint block and the group block are not yet shown to
-    // interleave, so refuse the composition here, the host backstop the R
-    // surface (rbart_vi) mirrors
+    // grouped ordinal is a recorded but unbuilt door: the cutpoint block and
+    // the group block are not yet shown to interleave, so refuse the
+    // composition here, the host backstop the R surface (rbart_vi) mirrors
     if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
       Rf_error("grouped random effects are not supported for ordinal responses");
-    // grouped nbinom is a recorded but unbuilt door (docs/design/negative-binomial.md
-    // section 7): the dispersion block and the group block are not yet shown to
-    // interleave, so refuse the composition here, the backstop rbart_vi mirrors
+    // grouped nbinom is a recorded but unbuilt door: the dispersion block
+    // and the group block are not yet shown to interleave, so refuse the
+    // composition here, the backstop rbart_vi mirrors
     if (family == bartcore::ResponseFamily::nbinom && options.numGroups > 0)
       Rf_error("grouped random effects are not supported for count (nbinom) responses");
     // AFT survival status arrives the same way; the response copies it
@@ -3054,8 +3049,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  "heteroscedastic variance forest");
     }
 
-    // The multi-forest model (docs/design/bcf.md) is selected by the two halves
-    // of a spec: the per-forest bases on the data object and the forests'
+    // The multi-forest model is selected by the two halves of a spec: the
+    // per-forest bases on the data object and the forests'
     // configuration on the control attribute. Cross-check them in BOTH
     // directions, so a half stripped in transit (a setControl that drops the
     // attribute, a data object rebuilt without the slot) is a loud refusal
@@ -3140,8 +3135,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
-/// A K-forest amplitude sampler reached from the internal bcf constructor
-/// (docs/design/bcf.md): bases supplies each forest's amplitude basis and
+/// A K-forest amplitude sampler reached from the internal bcf constructor:
+/// bases supplies each forest's amplitude basis and
 /// bcfParams the K-length list of length-8 parameter vectors (tree count, base,
 /// power; the node-scale factor and divisor; the amplitude prior's variance and
 /// half-Cauchy scale; the amplitude update flag), the first forest taking its
@@ -3357,8 +3352,8 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
 // combiner's counts_ layout, so the buffer copies directly), and the trials
 // n_i = sum_k Y_ik must be >= 1 (an empty row carries no information; a PG(0, .)
 // point mass at 0 would break the working response). Same engine as the label
-// entry, count-native (docs/design/multinomial.md). categoryOffsetExpr is the
-// optional n x K category offset (null for none) and categoryTestOffsetExpr its
+// entry, count-native. categoryOffsetExpr is the optional n x K category
+// offset (null for none) and categoryTestOffsetExpr its
 // optional nTest x K test twin, which requires test rows to describe.
 //
 // numCategories is taken as a value rather than an expression because it is
@@ -3448,8 +3443,8 @@ SEXP readNullableSlot(SEXP objectExpr, const char* name) {
   return rc_isS4Null(slotExpr) ? R_NilValue : slotExpr;
 }
 
-/// The PUBLIC spec route's multinomial creation (docs/design/multinomial.md):
-/// the count response and both category offsets ride the data object's own
+/// The PUBLIC spec route's multinomial creation: the count response and
+/// both category offsets ride the data object's own
 /// slots rather than arriving beside it, so a sampler re-created from its own
 /// (control, model, data) triple - which is what getPointer does after a save
 /// and load, and what setState does on a dead pointer - finds them exactly
@@ -3737,8 +3732,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   });
 }
 
-// A K-forest combining sampler; internal (docs/design/bcf.md). The model spec
-// is forest 0 - and carries the family, which is read off its own slot rather
+// A K-forest combining sampler; internal. The model spec is forest 0 - and
+// carries the family, which is read off its own slot rather
 // than passed beside it - bases the per-forest amplitude bases (a null entry
 // leaving that forest the implicit intercept), and bcfParams the K-length
 // per-forest parameter list.
@@ -3757,7 +3752,7 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 // trees carry over, fitted to the previous counts, so the swap is the response
 // mutation every other family reaches through setResponse - which cannot serve
 // here, since the combiner names the chain's y out and reads these counts
-// directly (docs/design/multinomial.md).
+// directly.
 //
 // n and K are fixed: every combiner buffer and every forest allocation is
 // sized by them, and K is the forest count, which no live sampler can change.
@@ -6220,7 +6215,7 @@ namespace bartcore_bridge {
 // dbartsDrawLatents/dbartsWorkingResponse above and the flat
 // dbarts_drawLatents/dbarts_workingResponse (C_interface.cpp). The laws are
 // RESTATED here rather than shared with the response models, which run against
-// a different generator (docs/design/r-c-division.md).
+// a different generator.
 
 bartcore::ResponseFamily augmentationFamily(const char* name) {
   using RF = bartcore::ResponseFamily;
@@ -6355,46 +6350,34 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
   }
 }
 
-// Provenance stamp for the on-disk layout storeState/setState exchange. The
-// shipped format (version 2) folds in three pre-release iterations that never
-// shipped on their own. An early step tagged each flat node and stored its
-// payload as a raw word - an inline categorical mask no longer bit-casts
-// through a double - so the side channel holds only pooled masks (past 63
-// categories); it also dropped the accumulation-history slots (total.fits,
-// indices) and the variance prior's internal scale (the third fit.scale
-// element): restore rebuilds them from the trees, and sigma rides on the
-// original response scale. A later step gave each chain's tree channels a
-// forest dimension (docs/design/bcf.md): the tree/saved/param/mask/k slots
-// move into a per-chain "forests" list, and an amplitude-carrying chain adds
-// a "glue" slot. A single-forest state is a length-1 forest list.
+// Provenance stamp for the on-disk layout storeState/setState exchange.
 //
-// Registry rule for evolving the format (docs/design/public-surface.md 2):
-// block names are APPEND-ONLY and a shipped name's on-disk encoding is FROZEN.
-// A new capability adds a NEW optional block name; setState reads blocks by
-// name (rc_getListElement), defaults an absent OPTIONAL block, and refuses -
-// naming the block - only when a REQUIRED (or config-conditionally-required)
-// block is missing. So an ADDITIVE block addition does NOT bump the version
-// (an old reader ignores the unknown name; a new reader defaults it), and MUST
-// NOT bump minReadableStateFormatVersion. Only a non-additive change to an
-// existing block's encoding - one that cannot be expressed as a new name -
-// bumps both. RENAMING a block is such a change, and a silent one: the reader
+// Registry rule for evolving the format: block names are APPEND-ONLY and a
+// shipped name's on-disk encoding is FROZEN. A new capability adds a NEW
+// optional block name; setState reads blocks by name (rc_getListElement),
+// defaults an absent OPTIONAL block, and refuses - naming the block - only
+// when a REQUIRED (or config-conditionally-required) block is missing. So an
+// ADDITIVE block addition does NOT bump the version (an old reader ignores
+// the unknown name; a new reader defaults it), and MUST NOT bump
+// minReadableStateFormatVersion. Only a non-additive change to an existing
+// block's encoding - one that cannot be expressed as a new name - bumps
+// both. RENAMING a block is such a change, and a silent one: the reader
 // would find the old name absent and default an OPTIONAL block rather than
-// error, leaving the amplitudes at their construction values. Version 2 is the
-// glue block's rename from "bcf", and the floor moves with it so a state
+// error, leaving the amplitudes at their construction values. Version 2 was
+// the glue block's rename from "bcf", and the floor moved with it so a state
 // carrying the old name is refused by version before any block is read.
 // Version 3 adds the saved-tree store's recorded-draw count beside its write
 // cursor. It is REQUIRED and not defaultable: a version-2 state carries no
 // count, and every value one could infer is a misread - capacity promotes a
 // partly filled store to full and replays slots nothing wrote, 0 discards a
-// full one - so the floor moves with it too.
+// full one - so the floor moved with it too.
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
 // ignores one it does not know. "weights.digest" is such an addition - a state
 // written before it carries none, and setState then behaves as it did before
 // the attribute existed. Making it REQUIRED behind a floor bump would buy no
-// compatibility (no release ever shipped format 3) and orphan in-flight states
-// for nothing.
+// compatibility and orphan in-flight states for nothing.
 static const int stateFormatVersion = 3;
 
 // The oldest ENCODING this reader still understands: additive block additions
@@ -6459,7 +6442,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
   // the format version (an old state simply lacks the name and decodes as
   // empty). The variance.* block is the heteroscedastic variance forest's
-  // flattened trees (docs/design/heteroscedastic.md).
+  // flattened trees.
   enum {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,

@@ -1,5 +1,5 @@
-# The exactness a zero treatment multiplier buys, measured rather than derived
-# (docs/design/bcf.md). Under the fixed glue (a, b0, b1) = (1, 0, 1) every
+# The exactness a zero treatment multiplier buys, measured rather than
+# derived. Under the fixed glue (a, b0, b1) = (1, 0, 1) every
 # control row's treatment multiplier is exactly zero, and with the treatment
 # forest restricted to a single binary moderator every control row sharing a
 # moderator value shares every treatment leaf. Their reported treatment fits

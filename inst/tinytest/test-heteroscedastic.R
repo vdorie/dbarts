@@ -1,4 +1,4 @@
-# Heteroscedastic BART (docs/design/heteroscedastic.md): a `variance` selector
+# Heteroscedastic BART: a `variance` selector
 # adds a second forest modeling s^2(x). The fit recovers f(x) and a plausible
 # s(x); a homoscedastic truth does not manufacture spurious heteroscedasticity;
 # the surface is gaussian + constant-leaf only, and predict returns s(x).
@@ -54,7 +54,7 @@ expect_true(sNew[2L] > 2 * sNew[1L]) # x = 0.75 noisier than x = 0.25
 # ---- the SAVED variance trees survive a state round trip ----
 # predict addresses the saved variance buffer, never the live trees, so a
 # re-created sampler that restored only the live ones replays the identity fill
-# and reports s(x) == 0 (docs/design/heteroscedastic.md section 16).
+# and reports s(x) == 0.
 fit$fit$storeState()
 expect_false(is.null(fit$fit$state[[1L]][["variance.saved.vars"]]))
 
@@ -220,7 +220,7 @@ expect_error(
 )
 
 # ---- Student-t residuals and a grouped fit: unadjudicated with 'variance' ----
-# (docs/design/heteroscedastic.md section 15). resid.dist is NSE (parsed in
+# resid.dist is NSE (parsed in
 # dbarts's own vocabulary), so these stay literal calls rather than do.call.
 expect_error(
   bart2(

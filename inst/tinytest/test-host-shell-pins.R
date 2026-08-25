@@ -1,5 +1,4 @@
-# The dbartsSampler surface, post host-shell removal
-# (docs/design/multinomial-mutation-arc.md). Pointer adoption for
+# The dbartsSampler surface, post host-shell removal. Pointer adoption for
 # ordinal/nbinom and direct construction for multinomial mean every
 # bart2() alternate-family fit's $fit is now the sampler that actually
 # ran: no hostFor field, no refuseHostMutation/refuseHostRead guards, no

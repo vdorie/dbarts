@@ -1,5 +1,5 @@
-# A BCF run's per-draw per-forest reporting channels (docs/design/bcf.md):
-# forestFits carries each forest's own internal-scale function values (mu in
+# A BCF run's per-draw per-forest reporting channels: forestFits carries
+# each forest's own internal-scale function values (mu in
 # slot 1, tau in slot 2) and glue the (a, b0, b1) that recombines them into that
 # draw's location, so one run reports both surfaces for every sample rather than
 # only the live values the accessors read after it. A model whose forests

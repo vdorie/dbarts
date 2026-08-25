@@ -335,7 +335,7 @@ public:
   /// serializing state. 0 off a family carrying one, so a caller gates on
   /// SamplerShape::carriesDispersion rather than on the value.
   virtual double dispersion(std::size_t chainNum) const = 0;
-  /// The per-forest amplitude basis (docs/design/bcf.md): installs forest
+  /// The per-forest amplitude basis: installs forest
   /// forestIndex's n x numColumns ROW-major basis, COPIED, in every chain;
   /// false, installing nothing, off a coupling that carries amplitudes, on an
   /// index naming no forest, or on a basis it refuses (a zero width, a
@@ -722,8 +722,7 @@ inline bool updatePredictorPerObservationJointly(
 /// The constant-leaf instantiation over the response families. rngs supplies
 /// one generator per chain (options.numChains of them).
 ///
-/// The opt-in fp32 running residual (options.fp32Residual,
-/// docs/design/reduced-precision-storage.md sec 3b) mints ONE extra
+/// The opt-in fp32 running residual (options.fp32Residual) mints ONE extra
 /// instantiation - the gaussian constant leaf with ResidT = float - and only
 /// on that branch; every other family/leaf keeps the byte-identical fp64
 /// engine. The host (R bridge) validates the gaussian-constant-leaf gate before
@@ -793,7 +792,7 @@ inline std::unique_ptr<SamplerBase> createSampler(
   // the heteroscedastic variance forest is gaussian + plain-constant-leaf only:
   // the latent families own the weight channel it routes through (a collision),
   // and v1 keeps the mean leaf constant. Refuse every other combination here,
-  // before any Chain is built (docs/design/heteroscedastic.md section 5).
+  // before any Chain is built.
   if (options.numVarianceTrees > 0 &&
       (family != ResponseFamily::gaussian || options.numLeafCovariates != 0 ||
        monotoneConstraintIsActive(options, numPredictors)))
@@ -862,7 +861,7 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
     sigmaRawScale, options, rngs);
 }
 
-/// A K-forest combining sampler (docs/design/bcf.md), bcf's two-forest shape
+/// A K-forest combining sampler, bcf's two-forest shape
 /// being its K = 2 instance: constant-leaf only, so the single instantiation -
 /// the family rides the spec and selects a runtime response model, exactly as
 /// it does on the single-forest path. rngs supplies one generator per chain.
@@ -889,8 +888,8 @@ inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
     sigmaDf, sigmaRawScale, options, spec, rngs);
 }
 
-/// A K-forest multinomial (softmax) sampler (docs/design/multinomial.md):
-/// constant-leaf only, so the single instantiation. rngs supplies one
+/// A K-forest multinomial (softmax) sampler: constant-leaf only, so the
+/// single instantiation. rngs supplies one
 /// generator per chain.
 inline std::unique_ptr<SamplerBase> createMultinomialSampler(
   const double* x, std::size_t numObservations, std::size_t numPredictors,

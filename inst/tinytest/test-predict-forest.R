@@ -1,6 +1,6 @@
 # Out-of-sample per-forest replay: predict(type = "forest") on an
-# amplitude-coupled fit, and the $predictForests method under it
-# (docs/design/bcf.md). The in-sample twin is test-bcf-forest-channel.R;
+# amplitude-coupled fit, and the $predictForests method under it. The
+# in-sample twin is test-bcf-forest-channel.R;
 # the contract here is that the same quantity comes back at NEW rows, raw and
 # per forest, with the recombination left to the caller.
 

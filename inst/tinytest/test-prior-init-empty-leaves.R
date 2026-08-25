@@ -1,5 +1,5 @@
 # sampleTreesFromPrior draws the tree prior CONDITIONED on the empty-leaf-free
-# set the move kernels price (docs/design/empty-leaf-veto.md), by per-tree
+# set the move kernels price, by per-tree
 # rejection. The conditioning predicate is the veto's own - positive WEIGHT,
 # not membership - so under a zero-weight half-space no leaf of a from-prior
 # forest may hold only zero-weight rows. The projection this replaced collapsed

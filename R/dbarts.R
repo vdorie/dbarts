@@ -5,7 +5,7 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
   .Object
 })
 
-# Parse a survival response (docs/design/survival.md): a survival::Surv object
+# Parse a survival response: a survival::Surv object
 # (recognized by inherits(), so survival need not be imported; right-censoring
 # only in v1) or a plain two-column (time, status) matrix or data frame.
 # Returns the raw event/censoring time and the 0/1 status vector, or NULL when
@@ -67,13 +67,12 @@ extractSurvivalResponse <- function(value) {
   list(log.time = log(survival$time), status = survival$status)
 }
 
-# Discrete-time hazard ingestion (docs/design/survival.md, "Discrete-time
-# hazard"): the RAW time and status, the AFT sibling that skips the log()
-# transform, for the person-period expander.
+# Discrete-time hazard ingestion: the RAW time and status, the AFT sibling
+# that skips the log() transform, for the person-period expander.
 extractSurvivalTimes <- parseSurvivalResponse
 
 # Resolve the discrete-time grid and each subject's terminal period from the
-# observed times (docs/design/survival.md section 1). `breaks` NULL (the
+# observed times. `breaks` NULL (the
 # default) uses the sorted distinct observed times (surv.bart's convention);
 # a length-1 integer bins at the (1:K)/K quantiles (surv.bart's K); a longer
 # numeric vector gives explicit interval boundaries b_0 < ... < b_K with
@@ -118,7 +117,7 @@ resolveHazardGrid <- function(time, breaks) {
   list(periods = periods, terminalPeriod = terminal)
 }
 
-# The person-period expander (docs/design/survival.md section 1): a subject
+# The person-period expander: a subject
 # i observed to time_i (event or censoring) becomes its at-risk rows, one per
 # period k = 1..t_i, each carrying x_i, the ordinal period column (appended
 # LAST), and the binary indicator y_ik = status_i * 1{k = t_i}. A censored
@@ -402,7 +401,7 @@ dbarts <- function(
   # below - every downstream refusal that names 'family' echoes this, not
   # the resolved spelling, which is an implementation detail
   requestedFamily <- family
-  # hurdle.lognormal / twopart (docs/design/hurdle.md): the alias resolves to
+  # hurdle.lognormal / twopart: the alias resolves to
   # the canonical token immediately, so every downstream message and any
   # packaged $family reads "hurdle.lognormal" regardless of which spelling
   # was requested
@@ -442,7 +441,7 @@ dbarts <- function(
 
   if (identical(family, "hurdle.lognormal")) {
     # a hurdle fit composes TWO independent samplers (an occupancy probit and
-    # a positive-part gaussian, docs/design/hurdle.md section 2); dbarts()
+    # a positive-part gaussian); dbarts()
     # returns exactly one sampler and cannot express that composition - only
     # bart2() (bart2Hurdle) builds it
     stop(
@@ -452,7 +451,7 @@ dbarts <- function(
     )
   }
 
-  # survival response ingestion (docs/design/survival.md): a survival::Surv
+  # survival response ingestion: a survival::Surv
   # object or an explicit family = "aft" with a two-column (time, status)
   # response fits the AFT log-normal model. The matrix (x.train, y.train)
   # interface is supported here, the response being the second positional
@@ -468,7 +467,7 @@ dbarts <- function(
   hazardTokens <- c("hazard", "hazard.probit", "hazard.logistic")
   # a Surv response declares the model, so it auto-dispatches to aft from
   # "auto"; an explicit hazard token selects the discrete-time model instead
-  # (the guard whitelist admits it, docs/design/survival.md section 2). Any
+  # (the guard whitelist admits it). Any
   # other explicit family with a Surv response is a conflict, never a silent
   # override.
   if (responseIsSurv && family %not_in% c("auto", "aft", hazardTokens)) {
@@ -479,8 +478,8 @@ dbarts <- function(
     )
   }
 
-  # discrete-time hazard ingestion (docs/design/survival.md, "Discrete-time
-  # hazard"): person-period-expand (x, time, status) into an ordinary binary
+  # discrete-time hazard ingestion: person-period-expand (x, time, status)
+  # into an ordinary binary
   # (X', y') design and REMAP the hazard token to its underlying binary link
   # BEFORE any family-keyed switch runs (node.scale, control@binary,
   # fixedUnitScale, the weight policy). The engine, bridge, and ResponseModels
@@ -572,7 +571,7 @@ dbarts <- function(
     survivalStatus <- survival$status
   }
 
-  # multinomial (K-forest softmax, docs/design/multinomial.md): the response is
+  # multinomial (K-forest softmax): the response is
   # an n x K count matrix, which the response vector every other family takes
   # has no shape for, so it rides the data object's own 'counts' argument -
   # where 'subset' reaches it, where the validity method constrains it, and
@@ -615,8 +614,8 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
-  # a forests = declaration's bases are conditioning DATA (docs/design/bcf.md),
-  # so the columns they expand to ride the data object beside the weights they
+  # a forests = declaration's bases are conditioning DATA, so the columns
+  # they expand to ride the data object beside the weights they
   # mirror. Evaluated here, against this fit's own (pre-subset) data, since a
   # raw 'bases' entry is otherwise the caller's own value with no index to
   # restrict it by. The alignment to whatever rows the model frame will keep
@@ -1179,8 +1178,8 @@ dbartsSampler <- setRefClass(
       newControl@binary <- control@binary
       newControl@call <- control@call
       # bartcore.* attributes (the BCF, variance, grouped, survival and
-      # ordinal/nbinom configuration resolveSamplerSpec attaches at creation,
-      # docs/design/bcf.md) live outside the S4 slots newControl replaces
+      # ordinal/nbinom configuration resolveSamplerSpec attaches at creation)
+      # live outside the S4 slots newControl replaces
       # wholesale; a freshly built dbartsControl() never carries them, so
       # carry them forward exactly as binary/call are. Without this, a
       # legitimate setControl silently orphans the model configuration the

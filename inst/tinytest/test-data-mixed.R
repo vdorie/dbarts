@@ -2,7 +2,7 @@
 # factor columns alongside Matrix::sparseVector or dgCMatrix columns enters
 # through the x/y interface, dense-backed columns keep categorical splits
 # and linear leaves, and CSC-backed columns tier exactly as an all-sparse
-# design does (docs/design/sparse-columns.md)
+# design does
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")

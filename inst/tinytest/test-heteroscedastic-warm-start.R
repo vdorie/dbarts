@@ -1,7 +1,7 @@
 # A warm start from a donor's SAVED sample installs that sample's own scale
 # surface, not the donor's final one: the mean and variance saved buffers are
-# index-aligned, so sample k names one (mean forest, scale surface) pair
-# (docs/design/heteroscedastic.md). There is no behavioral readout of a LIVE
+# index-aligned, so sample k names one (mean forest, scale surface) pair.
+# There is no behavioral readout of a LIVE
 # variance surface - predict replays the saved slots, which a warm start leaves
 # untouched - so the pin is on the state's variance blocks, sliced out of the
 # donor's own saved block by hand rather than by the code under test.
