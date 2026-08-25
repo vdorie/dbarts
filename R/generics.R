@@ -1053,7 +1053,7 @@ fitted.bartMultinomial <- function(
     list(...),
     "fitted",
     "bartMultinomial",
-    multinomialFittedSampleReason
+    c(multinomialUnusedArgs, multinomialFittedSampleReason)
   )
   probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
   if (!is.null(ci.level)) {
@@ -1093,7 +1093,7 @@ residuals.bartMultinomial <- function(object, ...) {
     list(...),
     "residuals",
     "bartMultinomial",
-    multinomialResidualsTypeReason
+    c(multinomialUnusedArgs, multinomialResidualsTypeReason)
   )
   phat <- fitted.bartMultinomial(object, type = "ev")
   y <- object$y
@@ -1145,7 +1145,7 @@ predict.bartMultinomial <- function(
     list(...),
     "predict",
     "bartMultinomial",
-    multinomialUnusedArgs["forest"]
+    multinomialUnusedArgs
   )
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     stop(
@@ -1357,7 +1357,7 @@ fitted.bartOrdinal <- function(
     list(...),
     "fitted",
     "bartOrdinal",
-    ordinalFittedSampleReason
+    c(ordinalUnusedArgs, ordinalFittedSampleReason)
   )
   if (type == "bart") {
     latent <- object$latent.train
@@ -1399,7 +1399,7 @@ residuals.bartOrdinal <- function(object, ...) {
     list(...),
     "residuals",
     "bartOrdinal",
-    ordinalResidualsTypeReason
+    c(ordinalUnusedArgs, ordinalResidualsTypeReason)
   )
   phat <- fitted.bartOrdinal(object, type = "ev")
   y <- object$y
@@ -1431,7 +1431,7 @@ predict.bartOrdinal <- function(
     list(...),
     "predict",
     "bartOrdinal",
-    ordinalUnusedArgs["forest"]
+    ordinalUnusedArgs
   )
   if (is.null(object[["cutpoints.raw"]])) {
     stop(
@@ -1613,7 +1613,7 @@ fitted.bartNegbin <- function(
     list(...),
     "fitted",
     "bartNegbin",
-    negbinFittedSampleReason
+    c(negbinUnusedArgs, negbinFittedSampleReason)
   )
   channel <- if (type == "bart") object$latent.train else object$yhat.train
   if (!is.null(ci.level)) {
@@ -1633,7 +1633,7 @@ residuals.bartNegbin <- function(object, ...) {
     list(...),
     "residuals",
     "bartNegbin",
-    negbinResidualsTypeReason
+    c(negbinUnusedArgs, negbinResidualsTypeReason)
   )
   object$y - fitted.bartNegbin(object, type = "ev")
 }
@@ -1662,7 +1662,7 @@ predict.bartNegbin <- function(
     list(...),
     "predict",
     "bartNegbin",
-    negbinUnusedArgs["forest"]
+    negbinUnusedArgs
   )
   if (is.null(object[["dispersion.raw"]])) {
     stop(
@@ -1943,7 +1943,7 @@ extract.bartHurdle <- function(
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
-  sample <- match.arg(sample)
+  sample <- validateSample(sample, eval(formals(extract.bartHurdle)$sample))
   refuseUnusedGenericArgs(list(...), "extract", "bartHurdle", hurdleUnusedArgs)
   if (sample == "test") {
     stop(
@@ -2006,6 +2006,7 @@ fitted.bartHurdle <- function(
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(fitted.bartHurdle)$type))
+  refuseUnusedGenericArgs(list(...), "fitted", "bartHurdle", hurdleUnusedArgs)
   draws <- extract(object, type = type, sample = sample, combineChains = TRUE)
   if (!is.null(ci.level)) {
     return(posteriorInterval(draws, ci.level))
@@ -2018,6 +2019,12 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
   # call the method by name (the residuals.bart idiom) so the package namespace
   # need not import the stats fitted generic
   refuseResidualsSample(list(...))
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "bartHurdle",
+    hurdleUnusedArgs
+  )
   object$y - fitted.bartHurdle(object, type = type, sample = "train", ...)
 }
 
@@ -2038,7 +2045,7 @@ predict.bartHurdle <- function(
     list(...),
     "predict",
     "bartHurdle",
-    hurdleUnusedArgs["forest"]
+    hurdleUnusedArgs
   )
   if (is.null(object$occupancy[["fit"]])) {
     stop(

@@ -259,6 +259,29 @@ expect_error(
   "'forest' is not used by predict on a bartHurdle fit",
   fixed = TRUE
 )
+expect_error(
+  predict(fit, x.new, contribution = TRUE),
+  "'contribution' is not used by predict on a bartHurdle fit",
+  fixed = TRUE
+)
+expect_error(
+  fitted(fit, forest = 1L),
+  "'forest' is not used by fitted on a bartHurdle fit",
+  fixed = TRUE
+)
+expect_error(
+  residuals(fit, contribution = TRUE),
+  "'contribution' is not used by residuals on a bartHurdle fit",
+  fixed = TRUE
+)
+
+# every class validates 'sample' with the one wording, not match.arg's
+# "'arg' should be one of"
+expect_error(
+  extract(fit, sample = "bogus"),
+  "sample must be in 'train', 'test'",
+  fixed = TRUE
+)
 
 # plotTree/survivalProbabilities refused by name, naming the components
 expect_error(

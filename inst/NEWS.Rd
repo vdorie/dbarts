@@ -1906,7 +1906,9 @@
             \code{\link{bart}}-family arguments they do not implement -
             \code{extract(forest = )}, \code{extract(combineChains = )},
             \code{fitted(sample = )}, \code{residuals(type = )},
-            \code{summary(vars = )} on a multinomial fit - because each
+            \code{summary(vars = )} on a multinomial fit, and
+            \code{forest}/\code{contribution} on \code{fitted},
+            \code{residuals} and \code{predict} - because each
             fell through to an unused \code{\dots}. Every one is now
             refused by name; \code{extract}'s \code{combineChains} and
             \code{fitted}/\code{predict}'s \code{ci.level} are honoured

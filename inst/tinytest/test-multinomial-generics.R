@@ -411,6 +411,21 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
+  predict(fitKeep, x.test, contribution = TRUE),
+  "'contribution' is not used by predict on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  fitted(fitCombined, forest = 1L),
+  "'forest' is not used by fitted on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  residuals(fitCombined, forest = 1L),
+  "'forest' is not used by residuals on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
   fitted(fitCombined, sample = "test"),
   "'sample' is not used by fitted on a bartMultinomial fit",
   fixed = TRUE

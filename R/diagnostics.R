@@ -233,9 +233,10 @@ as_draws_df.bartMultinomial <- function(x, vars = "meanProb", ...) {
 # The union of both components' present scalar fields, each labelled with an
 # "occupancy."/"positive." prefix (a dot, not a bracket: posterior parses a
 # bracket as an index) - the same two blocks print.summary.bartHurdle already
-# prints under, so as_draws and summary agree. Both components share the
-# same draw indexing (hurdle.md), so their (iteration, chain) margins match
-# and the variable margins concatenate directly.
+# prints under, so as_draws and summary agree. Both components are driven by
+# one n.chains/n.samples schedule and indexed draw for draw, so their
+# (iteration, chain) margins match and the variable margins concatenate
+# directly.
 hurdleDrawsArray <- function(object, vars) {
   occ <- bartDrawsArray(object$occupancy, vars)
   pos <- bartDrawsArray(object$positive, vars)

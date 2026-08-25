@@ -95,9 +95,11 @@
     \code{"bartOrdinal"} fit's \code{"cutpoints"} contributes
     \code{cutpoint[1]} (pinned at 0) through \code{cutpoint[K - 1]}; a
     \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
-    per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has no
-    \code{vars} formal at all and always reports \code{meanProb[<level>]},
-    its only scalar posterior parameter; a \code{"bartHurdle"} fit
+    per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has a
+    single channel, so its \code{vars} only ever means \code{"meanProb"}
+    and it always reports \code{meanProb[<level>]}, its only scalar
+    posterior parameter (\code{summary} on such a fit carries no
+    \code{vars} at all and refuses one by name); a \code{"bartHurdle"} fit
     applies \code{vars} to both components and labels the result
     \code{occupancy.<field>}/\code{positive.<field>} (a dot, not a
     bracket, since \pkg{posterior} parses a bracket as an index).
