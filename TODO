@@ -30,6 +30,10 @@ items
     never ran (darwin/arm64, valgrind.yaml unregistered off bartcore)
     - rides the first nightly after bartcore reaches main; per-push CI
     sanitizers cover the tinytest file under instrumented R meanwhile.
+  bcf-baseline-cross-host: exempt the BCF snapshot channels under a
+    cross-host flag and re-record bcf-equivalence at the RC tip with
+    summaries (docs/plans/prerc-surface-freeze.md D7); absorbs the
+    cross-host half of equivalence-harness-statistical-mode.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -56,6 +60,9 @@ items
     target, per-column x.test update, and engine-resident sparse
     predict all shipped (docs/plans/cheap-uniformity.md). No open
     door recorded.
+  composition-refusals: grouped + variance= and heteroscedastic +
+    group.by refused as validation errors by name, formals kept, door
+    memo (docs/plans/prerc-surface-freeze.md D6). Pre-RC by rule.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -64,6 +71,14 @@ items
     with EXACT pure-AR-1 errors a deferred ENGINE door (banded
     residual precision + cross-leaf GLS leaf updates break per-leaf
     independence). causal-motivated, decision-gated.
+  dbarts-h-freeze-fixes: int32_t spelling, size_t printEvery, one
+    reader-name form, printTrees useLiveTrees, a family accessor
+    returning an enum; one hash re-bake, lockstep consumer rebuilds
+    (docs/plans/prerc-surface-freeze.md D4). Pre-RC by rule; first
+    with stub-version-check.
+  deprecation-shim-removal: delete predict.rbart's value= and
+    "post-mean" shims - nothing released to deprecate from
+    (docs/plans/prerc-surface-freeze.md D5). Pre-RC by rule.
   equivalence-harness-statistical-mode: bcf-equivalence.R and
     multinomial-equivalence.R fall through to equivalence.R's
     statistical shape (per-summary Welch z over each scenario's
@@ -171,6 +186,15 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
+  predict-na-refusal: NA in newdata on a training-complete column
+    refused by name at predict; ?dbarts states the rule
+    (docs/plans/prerc-surface-freeze.md D8). Pre-RC by rule.
+  predict-refusal-names-cure: keepTrees stays FALSE; predict()'s
+    refusal on a treeless fit names keepTrees = TRUE
+    (docs/plans/prerc-surface-freeze.md D2). Pre-RC by rule.
+  predict-signature-unification: one predict() order (object,
+    newdata, type, ...) and one offset name on every method; group.by
+    named only (docs/plans/prerc-surface-freeze.md D1). Pre-RC by rule.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -248,6 +272,14 @@ items
     widths: gate STANDS - perf/memory only with no measured win;
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
+  stub-version-check: the dbarts.h stub path checks major == and
+    minor >= as the header promises; hash equality becomes the opt-in
+    lockstep check (docs/plans/prerc-surface-freeze.md D3). Pre-RC by
+    rule; first, with dbarts-h-freeze-fixes.
+  surface-smalls: one forest-argument convention across the four
+    accessors, fitted() type vocabulary equal to predict()/extract(),
+    usage entries for the 15 alias-only S3 methods
+    (docs/plans/prerc-surface-freeze.md D9). Pre-RC by rule.
   survival-followups: doors out of the survival family pair (records
     in docs/plans/survival-models.md and docs/design/survival.md sec
     6): competing risks (value lifted; the named consumer of

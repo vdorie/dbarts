@@ -157,7 +157,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`TODO:155-161`) then said "The multinomial
+`multinomial-counts-mutation` entry (`TODO:173-179`) then said "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -723,7 +723,7 @@ depend on the file's full execution history, not just the preceding
   `docs/design/multinomial.md:190-380`;
   `docs/design/bart-as-a-component.md` section 2.
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
-  `multinomial-counts-mutation` (`:155-161`) gains the surface note.
+  `multinomial-counts-mutation` (`:173-179`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
   shipped sentence at `:1795`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
