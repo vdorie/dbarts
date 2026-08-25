@@ -59,26 +59,29 @@
 Source:
 [`inst/CITATION`](https://github.com/vdorie/dbarts/blob/bartcore/inst/CITATION)
 
-Dorie V, Chipman H, McCulloch R (2026). *dbarts: Discrete Bayesian
-Additive Regression Trees Sampler*. R package version 1.0-0,
-<https://vdorie.github.io/dbarts/>.
-
-    @Manual{,
-      title = {dbarts: Discrete Bayesian Additive Regression Trees Sampler},
-      author = {Vincent Dorie and Hugh Chipman and Robert McCulloch},
-      year = {2026},
-      note = {R package version 1.0-0},
-      url = {https://vdorie.github.io/dbarts/},
-    }
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. R package version 1.0-0.
+Vincent Dorie, Hugh Chipman, Robert McCulloch (2026). dbarts: Discrete
+Bayesian Additive Regression Trees Sampler. R package version 1.0-0.
 https://CRAN.R-project.org/package=dbarts
 
     @Manual{,
-      author = {Vincent Dorie},
+      author = {Vincent Dorie and Hugh Chipman and Robert McCulloch},
       title = {dbarts: Discrete Bayesian Additive Regression Trees Sampler},
       year = {2026},
       note = {R package version 1.0-0},
       url = {https://CRAN.R-project.org/package=dbarts},
+    }
+
+Chipman, H. A., George, E. I., and McCulloch, R. E. (2010). BART:
+Bayesian additive regression trees. The Annals of Applied Statistics,
+4(1), 266-298. doi:10.1214/09-AOAS285
+
+    @Article{,
+      author = {Hugh Chipman and Edward George and Robert McCulloch},
+      title = {BART: Bayesian additive regression trees},
+      journal = {The Annals of Applied Statistics},
+      year = {2010},
+      volume = {4},
+      number = {1},
+      pages = {266--298},
+      doi = {10.1214/09-AOAS285},
     }
