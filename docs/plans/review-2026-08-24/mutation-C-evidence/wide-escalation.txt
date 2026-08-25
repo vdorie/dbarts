@@ -1,0 +1,6 @@
+gm1	predict.bart passes a nonsense n.threads down	65s	K=0	
+pd4	plot.pdbart renders only the first requested predictor	68s	K=0	
+dcm3	x/y weights installed in reverse row order	66s	K=2	test-bart-weights-parity.R(FAIL=4 test-bart-weights-parity.R :22-22;test-bart-weights-parity.R :28-31;test-bart-weights-parity.R :33-33;test-bart-weights-parity.R :46-46); test-generics-posteriorPredictiveDistribution.R(FAIL=2 test-generics-posteriorPredictiveDistribution.R :90-90;test-generics-posteriorPredictiveDistribution.R :121-121)
+bg3	bart2 grows one sweep regardless of n.grow.sweeps	86s	K=0	
+fr3	3+-level factor refusal dropped from the single-forest entri	91s	K=0	
+gs1	setResponse(updateScale=TRUE) no longer refused under a grou	69s	K=0	

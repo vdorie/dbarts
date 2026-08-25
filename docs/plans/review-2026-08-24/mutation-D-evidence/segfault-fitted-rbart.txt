@@ -1,0 +1,30 @@
+test-predict-sparse.R	PASS=20	FAIL=0	
+test-prior-init-empty-leaves.R	PASS=3	FAIL=0	
+test-prior-predictive.R	PASS=20	FAIL=0	
+test-rbart-aft.R	PASS=NA	FAIL=ERR	no 'dimnames' attribute for array
+test-rbart-bartcore.R	PASS=16	FAIL=0	
+test-rbart-custom-prior.R	PASS=2	FAIL=0	
+test-rbart-error.R	PASS=6	FAIL=0	
+test-rbart-example.R	PASS=16	FAIL=0	
+test-rbart-generics.R	PASS=NA	FAIL=ERR	no 'dimnames' attribute for array
+test-rbart-loop-callback.R	PASS=6	FAIL=0	
+test-rbart-multithreaded.R	PASS=1	FAIL=0	
+family = "auto": 2-level logical response detected, fitting family = "probit"; set 'family' to override
+test-rbart-options.R	PASS=15	FAIL=0	
+
+ *** caught segfault ***
+address 0xfffffd8cb2ebfb30, cause 'invalid permissions'
+
+Traceback:
+ 1: fitted.rbart(rbartFit)
+ 2: fitted(rbartFit)
+ 3: eval(expr, envir = e)
+ 4: eval(expr, envir = e)
+ 5: tinytest::run_test_file(file.path(root, f), verbose = 0)
+ 6: withCallingHandlers(expr, warning = function(w) if (inherits(w,     classes)) tryInvokeRestart("muffleWarning"))
+ 7: suppressWarnings(tinytest::run_test_file(file.path(root, f),     verbose = 0))
+ 8: doTryCatch(return(expr), name, parentenv, handler)
+ 9: tryCatchOne(expr, names, parentenv, handlers[[1L]])
+10: tryCatchList(expr, classes, parentenv, handlers)
+11: tryCatch({    r <- suppressWarnings(tinytest::run_test_file(file.path(root,         f), verbose = 0))    lg <- as.logical(r)    ok <- sum(lg, na.rm = TRUE)    bad <- sum(!lg | is.na(lg))    det <- ""    if (bad > 0) {        idx <- which(!lg | is.na(lg))        det <- paste(vapply(idx, function(i) {            a <- r[[i]]            paste0(attr(a, "file"), " :", attr(a, "fst"), "-",                 attr(a, "lst"))        }, ""), collapse = ";")    }    sprintf("%s\tPASS=%d\tFAIL=%d\t%s", basename(f), ok, bad,         det)}, error = function(e) sprintf("%s\tPASS=NA\tFAIL=ERR\t%s", basename(f),     gsub("[\t\n]", " ", conditionMessage(e))))
+An irrecoverable exception occurred. R is aborting now ...

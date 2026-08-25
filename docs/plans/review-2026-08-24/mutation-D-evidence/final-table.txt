@@ -1,0 +1,69 @@
+file                                                    n pin shp cmp all smk ref   P   M  Mn  verdict
+predict-sparse                                         20   0   1  12   0   2   5   3   1   0  GAP
+prior-init-empty-leaves                                 3   1   0   0   0   2   0   2   3   2  OK
+prior-predictive                                       20   0   7   5   3   2   3   3   3   2  OK
+rbart-aft                                              33   3   4   7   9   4   6   0   5   4  OK
+rbart-bartcore                                         16   2   5   1   3   3   2   1   6   5  OK
+rbart-custom-prior                                      2   0   0   0   0   2   0   0   3   2  OK
+rbart-error                                             6   0   0   1   0   0   5   2   3   2  OK
+rbart-example                                          16   0  12   4   0   0   0   0   3   2  OK
+rbart-generics                                         15   0   0  14   0   1   0   2   5   4  OK
+rbart-loop-callback                                     6   0   0   6   0   0   0   0   4   3  OK
+rbart-multithreaded                                     1   0   0   0   0   1   0   1   1   0  GAP
+rbart-options                                          15   3   2   2   1   6   1   5   4   3  OK
+rbart-performance                                       3   0   0   1   0   2   0   0   3   2  OK
+rbart-reproducibility                                   7   0   0   6   0   1   0   0   1   0  GAP
+rbart-weighted-binary                                  10   0   0   0   7   2   1   0   1   0  GAP
+reproducibility-binaryResponse                          7   0   2   5   0   0   0   0   0   0  GAP
+reproducibility-continuousResponse-multithreaded        3   0   0   3   0   0   0   1   1   0  GAP
+reproducibility-continuousResponse-singleThreaded      14   0   3  11   0   0   0   0   1   0  GAP
+reproducibility-rbart                                   1   0   0   1   0   0   0   0   3   2  OK
+reproducibility-xbart                                   3   0   0   2   1   0   0   1   7   6  OK
+rng                                                     7   0   0   6   0   1   0   1   2   1  WEAK
+robust-errors                                          22   4   6   1   1   3   7   2   3   2  OK
+sampler-degenerate-cuts                                15   1   3   1   7   1   2   1   2   1  WEAK
+sampler-model                                           3   0   0   0   0   3   0   2   2   1  WEAK
+sampler-offset                                         22   0   7  15   0   0   0   3   3   3  OK
+sampler-prior                                           1   0   0   0   0   1   0   0   1   0  GAP
+sampler-prior-midchain                                  6   0   0   6   0   0   0   1   2   1  WEAK
+sampler-residuals                                       2   0   0   2   0   0   0   0   1   0  GAP
+sampler-saveLoad                                        2   0   0   1   0   0   1   1   2   1  WEAK
+sampler-setData                                         1   0   0   1   0   0   0   1   1   0  GAP
+sampler-setPredictorPerObservation                     30   0   3   8   5  10   4   0   1   0  GAP
+sampler-splitProbabilities                             17   0   6   3   3   0   5   3   3   2  OK
+sampler-state-emptyLeafVeto                             4   0   0   2   0   2   0   1   0   0  GAP
+sampler-updatePredictorPerObservationJointly           44   0   3  16   4  14   7   1   2   1  WEAK
+sampler-updateState                                    11   0   0   2   0   9   0   1   3   2  OK
+serialization-storeState                                5   0   0   3   0   1   1   1   4   3  OK
+simd                                                    3   0   0   3   0   0   0   0   1   0  GAP
+slice-sample                                           22  10   1   0   5   2   4   4   3   3  OK
+spec                                                   30  15   4   4   0   2   5   2   4   3  OK
+sum-to-one-tolerance                                    6   0   0   0   0   3   3   0   1   0  GAP
+utility-chains                                         10   0   2   8   0   0   0   4   4   4  OK
+validate-composition                                   55   7   3   6   3  23  13   4   4   4  OK
+warm-start                                             14   0   0   4   3   2   5   1   1   0  GAP
+weighted-logistic                                      10   1   1   0   2   3   3   0   0   0  GAP
+xbart-error                                            52   1   0   1   0   0  50   2   5   4  OK
+xbart-loss                                              8   0   2   2   0   4   0   4   3   2  OK
+xbart-method                                           13   0   4   2   1   5   1   3   3   2  OK
+xbart-model                                            37   0   4   6   0  15  12   2   6   5  OK
+xbart-oracle                                           16   3   1  10   1   1   0   4   8   7  OK
+xbart-reproducibility                                   7   0   2   2   2   1   0   1   6   5  OK
+zero-weights                                            8   0   0   4   2   2   0   1   2   1  WEAK
+
+OK 28, WEAK 7, GAP 16
+mutations scored: 66
+
+ZERO-KILLER:
+  e01   empty-leaf veto priced at a finite -1e7 instead of -HUGE_VAL
+  o01   dbartsControl: n.threads silently forced to 1
+  p02   sparse test column recode: category codes off by one
+  p03   sparse test column recode: the reference level is left on th
+  p04   sparse test column: unseen-level refusal dropped
+  pp3   samplePriorPredictive: sigma is held at sigest rather than d
+  r03   rbart in-core: keepTrainingFits = FALSE still stores trainin
+  rb2   student(): non-positive df is accepted
+  ro2   rbart_vi: DART split probabilities are dropped from the resu
+  s02   sliceSample: the upper boundary no longer clamps the steppin
+  sd1   setData: the replacement data is quantized onto a single cut
+  sp2   uniform split probabilities are no longer canonicalized to t

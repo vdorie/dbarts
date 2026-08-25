@@ -1,0 +1,53 @@
+test-aft.R                                             46  content_pin=2 shape_pin=6 expr_vs_expr=11 bound=4 all_true=5 all_finite=1 bool_other=2 refusal_pat=15
+test-assignInPlace-bounds.R                             9  refusal_pat=9
+test-augmentation.R                                    59  content_pin=1 expr_vs_expr=11 bound=21 all_true=4 bool_other=3 refusal_pat=19
+test-bart-weights-parity.R                              6  shape=1 expr_vs_expr=4 refusal_pat=1
+test-bart2-grow-from-root.R                             6  expr_vs_expr=1 bound=2 all_finite=1 refusal_pat=2
+test-bcf-forest-channel.R                              23  content_pin=1 shape_pin=7 shape=2 expr_vs_expr=11 refusal_pat=2
+test-bcf-zero-multiplier.R                              6  content_pin=1 shape_pin=1 all_true=2 all_finite=1 bool_other=1
+test-binaryResponse-hyperprior.R                       12  shape=2 expr_vs_expr=1 bound=6 all_true=1 all_finite=1 bool_other=1
+test-calibration-prior-draws.R                         18  bound=13 all_true=5
+test-composition-sequences.R                           52  content_pin=4 shape=1 expr_vs_expr=16 bound=11 all_true=2 all_finite=10 bool_other=6 refusal_pat=2
+test-control-errors.R                                  36  refusal_pat=36
+test-control-valuesAreUsed.R                           11  content_pin=1 expr_vs_expr=9 all_true=1
+test-convergence-diagnostics.R                         44  content_pin=2 shape_pin=14 shape=7 expr_vs_expr=12 bool_other=8 refusal_pat=1
+test-dart-mixed-columns.R                              13  shape_pin=4 all_true=4 all_finite=4 bool_other=1
+test-data-categorical-declared.R                       21  content_pin=2 shape_pin=2 shape=2 all_true=1 all_finite=8 bool_other=2 refusal_pat=3 | other:expect_inherits=1
+test-data-categorical-wide.R                           21  content_pin=1 shape_pin=2 shape=2 expr_vs_expr=2 bound=2 all_true=5 all_finite=4 bool_other=2 smoke_silent=1
+test-data-categorical.R                                28  content_pin=1 shape_pin=2 shape=4 expr_vs_expr=11 all_true=2 all_finite=2 bool_other=2 refusal_pat=1 smoke_silent=1 | other:expect_inherits=2
+test-data-compatibility.R                               8  expr_vs_expr=1 | other:expect_inherits=7
+test-data-formula.R                                    13  expr_vs_expr=2 | other:expect_inherits=11
+test-data-handle.R                                     21  shape_pin=2 shape=1 expr_vs_expr=2 bound=1 all_finite=3 refusal_pat=10 smoke_silent=2
+test-data-missing-matrix.R                             16  content_pin=1 expr_vs_expr=9 finite=1 bool_other=2 refusal_pat=2 smoke_silent=1
+test-data-missing.R                                    26  content_pin=1 shape_pin=2 shape=1 expr_vs_expr=4 bound=3 all_true=1 all_finite=3 bool_other=5 refusal_pat=4 smoke_silent=1 | other:expect_inherits=1
+test-data-testOffset.R                                 40  content_pin=13 shape=5 expr_vs_expr=21 refusal_pat=1
+test-embedding-recipes.R                               32  content_pin=4 expr_vs_expr=5 bound=17 all_true=3 bool_other=2 refusal_pat=1
+test-factor-response.R                                 24  content_pin=6 expr_vs_expr=6 bool_other=2 refusal_pat=9 | other:expect_inherits=1
+test-family-offset.R                                   16  content_pin=2 expr_vs_expr=2 bound=5 all_finite=7
+test-family.R                                          25  content_pin=8 expr_vs_expr=7 bound=2 all_true=1 all_finite=1 bool_other=3 refusal_pat=2 | other:expect_inherits=1
+test-generics-correctValues.R                          13  expr_vs_expr=12 bool_other=1
+test-generics-errors.R                                  5  refusal_pat=5
+test-generics-intervals.R                              17  shape_pin=1 shape=4 expr_vs_expr=5 bound=3 all_true=2 refusal_pat=2
+test-generics-multithreaded.R                           2  expr_vs_expr=2
+test-generics-posteriorPredictiveDistribution.R         6  shape=1 expr_vs_expr=2 all_true=3
+test-generics-sequentialExecution.R                     2  expr_vs_expr=1 | other:expect_inherits=1
+test-gp-leaves.R                                       30  shape=4 expr_vs_expr=3 bound=3 all_finite=10 refusal_pat=8 smoke_silent=2
+test-grouped-swap.R                                    26  expr_vs_expr=3 bound=5 all_true=1 all_finite=1 bool_other=1 refusal_pat=8 smoke_silent=7
+test-grow-from-root-categorical.R                       9  shape=1 bound=3 all_finite=1 bool_other=4
+test-hazard.R                                          37  content_pin=6 shape_pin=2 shape=1 expr_vs_expr=8 bound=2 all_true=4 bool_other=4 refusal_pat=10
+test-heteroscedastic-mutation.R                        36  content_pin=5 shape=2 expr_vs_expr=2 bound=7 all_true=4 all_finite=4 bool_other=6 refusal_pat=1 smoke_silent=5
+test-hurdle-surface.R                                  17  content_pin=2 shape=1 expr_vs_expr=2 bool_other=2 refusal_pat=8 | other:expect_inherits=2
+test-interactions.R                                    16  content_pin=2 bound=3 bool_other=3 refusal_pat=8
+test-linear-leaves.R                                   25  shape_pin=1 shape=2 expr_vs_expr=3 bound=3 all_finite=6 refusal_pat=8 smoke_silent=2
+test-model-errors.R                                    19  refusal_pat=19
+test-model-priors.R                                    39  content_pin=9 shape_pin=4 shape=3 expr_vs_expr=4 bound=2 all_true=1 refusal_pat=9 | other:expect_inherits=7
+test-monotone.R                                        29  content_pin=9 shape_pin=1 shape=2 expr_vs_expr=2 bound=4 all_true=3 all_finite=3 refusal_pat=4 | other:expect_inherits=1
+test-multinomial-counts-mutation.R                     44  expr_vs_expr=18 all_finite=2 bool_other=4 refusal_pat=19 smoke_silent=1
+test-multithreaded.R                                   11  shape_pin=1 shape=2 expr_vs_expr=5 bound=1 bool_other=2
+test-mutate-sparse-valued.R                            17  shape=1 expr_vs_expr=5 finite=1 bool_other=4 refusal_pat=5 | other:expect_inherits=1
+test-mutate-then-serialize.R                            0  
+test-pdbart.R                                          12  expr_vs_expr=8 refusal_pat=2 smoke_silent=2
+test-pointwise-loglik.R                                46  content_pin=4 shape_pin=10 shape=1 expr_vs_expr=19 bound=1 all_true=1 bool_other=2 refusal_pat=8
+test-ppd-sigma-pairing.R                               15  shape_pin=6 expr_vs_expr=8 all_true=1
+
+TOTAL 1105 [('expr_vs_expr', 260), ('refusal_pat', 244), ('bound', 124), ('content_pin', 88), ('bool_other', 75), ('all_finite', 73), ('shape_pin', 68), ('all_true', 57), ('shape', 53), ('other:expect_inherits', 36), ('smoke_silent', 25), ('finite', 2)]

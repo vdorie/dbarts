@@ -1,0 +1,38 @@
+suppressPackageStartupMessages(library(dbarts))
+set.seed(20260824); n<-40L; nTest<-10L
+x <- matrix(runif(n*3L),n,3L); colnames(x)<-c("x1","x2","x3")
+xTest <- matrix(runif(nTest*3L),nTest,3L); colnames(xTest)<-colnames(x)
+yG <- as.numeric(2*x[,1]-x[,2]+rnorm(n,0,0.3)); zA <- rbinom(n,1L,0.5)
+ct <- dbartsControl(n.chains=1L,n.threads=1L,n.trees=4L,n.burn=3L,n.samples=5L,keepTrees=TRUE,keepTrainingFits=TRUE)
+p <- function(lab, ex){ r <- tryCatch(withCallingHandlers(eval(ex), warning=function(w) invokeRestart("muffleWarning")),
+    error=function(e) structure(conditionMessage(e), class="err"))
+  if (inherits(r,"err")) cat(sprintf("%-50s ERROR: %s\n", lab, substr(as.character(r),1,110)))
+  else cat(sprintf("%-50s OK %s %s\n", lab, paste(class(r),collapse="/"), if(!is.null(dim(r))) paste(dim(r),collapse="x") else paste0("len",length(r)))) }
+cat("=== clean amplitude sampler state round-trip ===\n")
+sa <- dbarts(x, yG, control=ct, forests=list(forest(n.trees=3L), forest(basis=cbind(1-zA,zA), n.trees=3L)), verbose=FALSE)
+invisible(sa$run(3L,5L))
+p("sa$setState(sa$state)  [no mutation first]", quote(sa$setState(sa$state)))
+p("sa$storeState()",                            quote(sa$storeState()))
+p("sa$setState(sa$state)  [after storeState]",  quote(sa$setState(sa$state)))
+p("sa$getForestAmplitudes()",                   quote(sa$getForestAmplitudes()))
+sa2 <- dbarts(x, yG, control=ct, forests=list(forest(n.trees=3L), forest(basis=cbind(1-zA,zA), n.trees=3L)), verbose=FALSE)
+invisible(sa2$run(3L,5L)); sa2$storeState()
+saveRDS(sa2, file.path(Sys.getenv("D"),"sa2.rds"))
+sg <- dbarts(x, yG, control=ct, verbose=FALSE); invisible(sg$run(3L,5L)); sg$storeState()
+saveRDS(sg, file.path(Sys.getenv("D"),"sg.rds"))
+fA <- bart2(y ~ x1 + x2 + z:forest(x1 + x2), data.frame(y=yG,x1=x[,1],x2=x[,2],z=zA),
+      n.trees=4L,n.samples=6L,n.burn=4L,n.chains=1L,n.threads=1L,keepTrees=TRUE,keepTrainingFits=TRUE,verbose=FALSE,seed=1L)
+fA$fit$storeState(); saveRDS(fA, file.path(Sys.getenv("D"),"fA.rds"))
+fG <- bart2(x, yG, n.trees=4L,n.samples=6L,n.burn=4L,n.chains=1L,n.threads=1L,keepTrees=TRUE,keepTrainingFits=TRUE,test=xTest,verbose=FALSE,seed=1L)
+fG$fit$storeState(); saveRDS(fG, file.path(Sys.getenv("D"),"fG.rds"))
+fM <- bart2(x, factor(sample(c("a","b","c"),n,TRUE)), family="multinomial", n.trees=4L,n.samples=6L,n.burn=4L,
+      n.chains=1L,n.threads=1L,keepTrees=TRUE,keepTrainingFits=TRUE,verbose=FALSE,seed=1L)
+fM$fit$storeState(); saveRDS(fM, file.path(Sys.getenv("D"),"fM.rds"))
+grp <- factor(sample(letters[1:3],n,TRUE))
+fR <- rbart_vi(x, yG, group.by=grp, n.trees=4L,n.samples=6L,n.burn=4L,n.chains=2L,n.threads=1L,keepTrees=TRUE,verbose=FALSE)
+invisible(lapply(fR$fit, function(f) f$storeState())); saveRDS(fR, file.path(Sys.getenv("D"),"fR.rds"))
+fH <- bart2(x, ifelse(runif(n)<0.3,0,rlnorm(n)), family="hurdle.lognormal", n.trees=4L,n.samples=6L,n.burn=4L,
+      n.chains=1L,n.threads=1L,keepTrees=TRUE,keepTrainingFits=TRUE,verbose=FALSE,seed=1L)
+cat("hurdle names:", paste(names(fH),collapse=","), "\n")
+saveRDS(fH, file.path(Sys.getenv("D"),"fH.rds"))
+cat("saved\n")

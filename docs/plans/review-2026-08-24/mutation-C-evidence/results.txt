@@ -1,0 +1,144 @@
+cv1	fitted.bart returns posterior median not mean	65s	KILLERS=3	test-family.R(FAIL=1 test-family.R :171-174); test-generics-correctValues.R(FAIL=2 test-generics-correctValues.R :50-50;test-generics-correctValues.R :53-53); test-generics-intervals.R(FAIL=1 test-generics-intervals.R :35-35)
+cv2	residuals.bart ignores type, always ev	74s	KILLERS=1	test-generics-correctValues.R(FAIL=2 test-generics-correctValues.R :123-123;test-generics-correctValues.R :124-124)
+cv3	combineChains flattens sample-major instead of chain-major	72s	KILLERS=3	test-generics-correctValues.R(FAIL=4 test-generics-correctValues.R :75-80;test-generics-correctValues.R :75-80;test-generics-correctValues.R :75-80;test-gene); test-pointwise-loglik.R(FAIL=2 test-pointwise-loglik.R :193-193;test-pointwise-loglik.R :194-194); test-ppd-sigma-pairing.R(FAIL=2 test-ppd-sigma-pairing.R :33-33;test-ppd-sigma-pairing.R :195-195)
+ge1	predict keeptrees refusal text unpinned	71s	KILLERS=1	test-generics-errors.R(FAIL=1 test-generics-errors.R :19-22)
+ge2	extract type=trees keepTrees refusal text	73s	KILLERS=1	test-generics-errors.R(FAIL=1 test-generics-errors.R :41-41)
+ge3	extract keepTrainingFits refusal text	76s	KILLERS=1	test-generics-errors.R(FAIL=1 test-generics-errors.R :42-42)
+gi1	posteriorInterval est column is median not mean	78s	KILLERS=1	test-generics-intervals.R(FAIL=2 test-generics-intervals.R :35-35;test-generics-intervals.R :125-125)
+gi2	posteriorInterval band bounds reversed	19s	K=1	test-generics-intervals.R(FAIL=3 test-generics-intervals.R :38-41;test-generics-intervals.R :46-49;test-generics-intervals.R :53-56)
+gi3	posteriorInterval ignores ci.level, always 95pct	9s	K=1	test-generics-intervals.R(FAIL=1 test-generics-intervals.R :53-56)
+gi4	posteriorInterval drops length-1 validation of ci.level	9s	K=1	test-generics-intervals.R(FAIL=1 test-generics-intervals.R :65-68)
+gm1	predict.bart passes a nonsense n.threads down	19s	K=0	
+gm2	sampler$predict default n.threads pinned to 1	9s	K=0	
+pd1	pdbart non-keepTrees block offset advances by one block only	9s	K=1	test-pdbart.R(FAIL=2 test-pdbart.R :84-84;test-pdbart.R :86-86)
+pd2	pdbart sampleronly override guard removed	18s	K=1	test-pdbart.R(FAIL=2 test-pdbart.R :96-110;test-pdbart.R :204-218)
+pd3	pdbart keepTrees arm averages with median	10s	K=1	test-pdbart.R(FAIL=2 test-pdbart.R :84-84;test-pdbart.R :86-86)
+pd4	plot.pdbart renders only the first requested predictor	9s	K=0	
+a1	survivalProbabilities reports the lower tail (1 - S)	10s	K=1	test-aft.R(FAIL=2 test-aft.R :207-207;test-aft.R :209-209)
+a2	aft ingestion drops the positive-time refusal	10s	K=1	test-aft.R(FAIL=1 test-aft.R :213-216)
+a3	AFT never imputes a censored latent (pins it at the bound)	24s	K=1	test-aft.R(FAIL=2 test-aft.R :88-102;test-aft.R :88-102)
+ai1	assignInPlace bounds check removed	24s	K=1	test-assignInPlace-bounds.R(FAIL=1 test-assignInPlace-bounds.R :10-13)
+ai2	assignInPlace index-arity check removed	24s	K=1	test-assignInPlace-bounds.R(FAIL=1 test-assignInPlace-bounds.R :41-44)
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 88, in <module>
+    main()
+    ~~~~^^
+  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 75, in main
+    cur=parse(outp)
+  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 43, in parse
+    for line in open(path):
+                ~~~~^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/logs/ai3.txt'
+ai3 CRASH-KILL (R session died, no output file: bounds test segfaults)
+bw1	bart() tail no longer attaches $weights	24s	K=1	test-bart-weights-parity.R(FAIL=3 test-bart-weights-parity.R :22-22;test-bart-weights-parity.R :28-31;test-bart-weights-parity.R :46-46)
+bw2	pointwise loglik ignores case weights	9s	K=2	test-bart-weights-parity.R(FAIL=1 test-bart-weights-parity.R :28-31); test-pointwise-loglik.R(FAIL=1 test-pointwise-loglik.R :64-67)
+bw3	bart() drops the thinned-to-zero ndpost refusal	10s	K=1	test-bart-weights-parity.R(FAIL=1 test-bart-weights-parity.R :52-65)
+bg1	bart2 drops the non-negative n.grow.sweeps refusal	10s	K=1	test-bart2-grow-from-root.R(FAIL=1 test-bart2-grow-from-root.R :38-49)
+bg2	bart2 drops the warm.start/n.grow.sweeps conflict refusal	10s	K=1	test-bart2-grow-from-root.R(FAIL=1 test-bart2-grow-from-root.R :22-35)
+bg3	bart2 grows one sweep regardless of n.grow.sweeps	12s	K=0	
+bf1	extract forest contribution adds instead of multiplying	10s	K=1	test-bcf-forest-channel.R(FAIL=2 test-bcf-forest-channel.R :90-90;test-bcf-forest-channel.R :91-91)
+bf2	packaged n.forests pinned at 1	11s	K=1	test-bcf-forest-channel.R(FAIL=1 test-bcf-forest-channel.R :49-49)
+bf3	extractForest reshapes uncombined before slicing	11s	K=1	test-bcf-forest-channel.R(FAIL=ERR incorrect number of dimensions)
+bz1	formForestResponse near-zero multiplier snap removed	24s	K=1	test-bcf-zero-multiplier.R(FAIL=3 test-bcf-zero-multiplier.R :50-50;test-bcf-zero-multiplier.R :58-58;test-bcf-zero-multiplier.R :68-72)
+bz2	formForestVetoWeights near-zero snap removed (leg A finding 	24s	K=0	
+bh1	sampled k is no longer capped at 1e6	25s	K=1	test-binaryResponse-hyperprior.R(FAIL=3 test-binaryResponse-hyperprior.R :125-125;test-binaryResponse-hyperprior.R :126-126;test-binaryResponse-hyperprior.R :127-127)
+bh2	k posterior shape ignores the hyperprior degrees of freedom	25s	K=1	test-binaryResponse-hyperprior.R(FAIL=1 test-binaryResponse-hyperprior.R :127-127)
+bh3	k posterior rate ignores the hyperprior scale (Inf treated a	25s	K=1	test-binaryResponse-hyperprior.R(FAIL=1 test-binaryResponse-hyperprior.R :127-127)
+cp1	a named prior.scale is dropped (falls back to the response r	46s	K=1	test-calibration-prior-draws.R(FAIL=15 test-calibration-prior-draws.R :57-57;test-calibration-prior-draws.R :115-115;test-calibration-prior-draws.R :140-140;test-calibration-prior-draws.R :)
+cp2	named prior sd not converted to a scale by k	32s	K=0	
+ag1	probit augmentation always truncates below (ignores y)	24s	K=1	test-augmentation.R(FAIL=18 test-augmentation.R :61-73;test-augmentation.R :61-73;test-augmentation.R :61-73;test-augmentation.R :61-73;test-augmentation.R :61-73;test-augmentati)
+ag2	working response does not remove the offset	25s	K=1	test-augmentation.R(FAIL=9 test-augmentation.R :259-259;test-augmentation.R :260-260;test-augmentation.R :261-261;test-augmentation.R :274-274;test-augmentation.R :275-275;test-)
+ag3	logistic augmentation ignores the case weight (PG shape 1)	26s	K=1	test-augmentation.R(FAIL=8 test-augmentation.R :95-107;test-augmentation.R :95-107;test-augmentation.R :95-107;test-augmentation.R :95-107;test-augmentation.R :95-107;test-augme)
+bz3	bcf glue ignores update.b (b is always resampled)	24s	K=1	test-bcf-zero-multiplier.R(FAIL=2 test-bcf-zero-multiplier.R :44-47;test-bcf-zero-multiplier.R :61-65)
+cp3	resolved monotone directions never reach the engine	33s	K=1	test-calibration-prior-draws.R(FAIL=3 test-calibration-prior-draws.R :167-167;test-calibration-prior-draws.R :171-171;test-calibration-prior-draws.R :172-172)
+dca1	ordered factors typed categorical instead of ordinal	11s	K=1	test-data-categorical.R(FAIL=1 test-data-categorical.R :25-25)
+dca2	test factors recoded on their own level order, not training'	10s	K=0	
+dca3	getTrees skips the categorical direction decode	10s	K=0	
+dcd1	decode pads to the observed max code, not the declared level	11s	K=1	test-data-categorical-wide.R(FAIL=ERR missing value where TRUE/FALSE needed)
+dcd2	unobserved trailing levels decode as R rather than L	10s	K=0	
+dcd3	setPredictor no longer bounds a categorical code	25s	K=1	test-data-categorical-declared.R(FAIL=1 test-data-categorical-declared.R :76-79)
+dcm1	validateXYWeights ignores subset	23s	K=1	test-data-compatibility.R(FAIL=ERR 'weights' must be null or have length equal to that of 'y')
+dcm2	x/y interface silently discards the user offset	9s	K=0	
+dfm1	formula interface drops test weights	9s	K=1	test-data-formula.R(FAIL=1 test-data-formula.R :101-101)
+dfm2	test offset named in 'data' no longer resolved there	9s	K=0	
+dmm1	matrix branch complete-cases filters unconditionally again	9s	K=1	test-data-missing-matrix.R(FAIL=10 test-data-missing-matrix.R :20-20;test-data-missing-matrix.R :21-21;test-data-missing-matrix.R :22-22;test-data-missing-matrix.R :23-23;test-data-miss)
+dmm2	matrix branch drops its pre-filter missing checks	9s	K=1	test-data-missing-matrix.R(FAIL=1 test-data-missing-matrix.R :27-30)
+dm1	getTrees decodes the NA route with the sides swapped	9s	K=1	test-data-missing.R(FAIL=55 test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missi)
+dm2	all-NA predictor column refusal dropped	9s	K=0	
+dto1	offset.test = offset no longer flagged as reusing the regula	9s	K=1	test-data-testOffset.R(FAIL=1 test-data-testOffset.R :80-80)
+dto2	offset.test expressions no longer substitute the regular off	9s	K=0	
+dto3	quoted offset.test = offset loses the regular-offset flag	9s	K=0	
+dh1	view samplers no longer refuse predictor mutation	24s	K=1	SESSION-CRASH(ran 0 of 1)
+ce1	n.thin positivity check no longer refuses	24s	K=1	test-control-errors.R(FAIL=3 test-control-errors.R :105-108;test-control-errors.R :109-112;test-control-errors.R :116-119)
+ce2	n.burn non-negativity check no longer refuses	10s	K=1	test-control-errors.R(FAIL=2 test-control-errors.R :53-56;test-control-errors.R :57-60)
+ce3	n.threads positivity check no longer refuses	10s	K=1	test-control-errors.R(FAIL=2 test-control-errors.R :92-95;test-control-errors.R :96-99)
+cvu1	bart() no longer thins n.burn	11s	K=0	
+cvu2	bart() ignores keepevery	11s	K=1	test-control-valuesAreUsed.R(FAIL=1 test-control-valuesAreUsed.R :55-55)
+cd1	bartDrawsArray transposes the iteration and chain margins	13s	K=1	test-convergence-diagnostics.R(FAIL=ERR subscript out of bounds)
+cd2	print.summary.bart never notes a high R-hat	12s	K=1	test-convergence-diagnostics.R(FAIL=1 test-convergence-diagnostics.R :148-148)
+cd3	quantileSummary pools every variable into one column	12s	K=0	
+fa1	logistic default node scale loses the logistic latent sd	12s	K=1	test-family.R(FAIL=1 test-family.R :46-46)
+fa2	probit silently discards weights instead of refusing	17s	K=1	test-family.R(FAIL=1 test-family.R :98-110)
+fo1	getFitsWithoutOffset returns a shifted location	24s	K=2	test-embedding-recipes.R(FAIL=9 test-embedding-recipes.R :61-61;test-embedding-recipes.R :62-62;test-embedding-recipes.R :63-65;test-embedding-recipes.R :108-108;test-embedding-recip); test-augmentation.R(FAIL=5 test-augmentation.R :259-259;test-augmentation.R :260-260;test-augmentation.R :261-261;test-augmentation.R :274-274;test-augmentation.R :275-275)
+dca4	factor level table stored reversed	17s	K=1	test-data-categorical.R(FAIL=4 test-data-categorical.R :28-28;test-data-categorical.R :29-29;test-data-categorical.R :63-66;test-data-categorical.R :67-70)
+dcm3	x/y weights installed in reverse row order	10s	K=0	
+dfm3	formula test weights read from reversed test rows	11s	K=1	test-data-formula.R(FAIL=1 test-data-formula.R :101-101)
+mo1	monotone accepts a categorical predictor	32s	K=1	test-monotone.R(FAIL=1 test-monotone.R :68-71)
+mo2	unnamed monotone length check dropped	30s	K=0	
+mo3	named monotone directions resolve with the sign flipped	67s	K=2	test-monotone.R(FAIL=7 test-monotone.R :29-32;test-monotone.R :33-36;test-monotone.R :37-40;test-monotone.R :169-169;test-monotone.R :172-174;test-monotone.R :192-192;test-m); test-calibration-prior-draws.R(FAIL=1 test-calibration-prior-draws.R :171-171)
+hu1	hurdle no longer requires an exact zero	14s	K=1	test-hurdle-surface.R(FAIL=1 test-hurdle-surface.R :63-66)
+hu2	hurdle response non-negativity check dropped	15s	K=1	test-hurdle-surface.R(FAIL=2 test-hurdle-surface.R :51-54;test-hurdle-surface.R :55-58)
+hz1	hazard fits lose the periods marker	13s	K=1	test-hazard.R(FAIL=ERR survivalProbabilities requires an aft (survival) fit)
+hz2	hazard survival cumulates a period short	13s	K=0	
+it1	interactions forbid arity refusal dropped	12s	K=1	test-interactions.R(FAIL=1 test-interactions.R :126-126)
+it2	interactions max.order validation replaced by a silent defau	17s	K=1	test-interactions.R(FAIL=2 test-interactions.R :116-116;test-interactions.R :117-117)
+it3	the resolved max.order cap never reaches the engine	11s	K=1	test-interactions.R(FAIL=3 test-interactions.R :96-96;test-interactions.R :99-99;test-interactions.R :136-150)
+pp1	gaussian ppd adds no residual noise	12s	K=2	test-ppd-sigma-pairing.R(FAIL=2 test-ppd-sigma-pairing.R :77-77;test-ppd-sigma-pairing.R :114-117); test-generics-posteriorPredictiveDistribution.R(FAIL=200 test-generics-posteriorPredictiveDistribution.R :31-39;test-generics-posteriorPredictiveDistribution.R :31-39;test-generics-posteriorPredictiveDistrib)
+pp2	ppd does not split a combined sigma before pairing	12s	K=2	test-ppd-sigma-pairing.R(FAIL=2 test-ppd-sigma-pairing.R :77-77;test-ppd-sigma-pairing.R :152-152); test-generics-posteriorPredictiveDistribution.R(FAIL=200 test-generics-posteriorPredictiveDistribution.R :31-39;test-generics-posteriorPredictiveDistribution.R :31-39;test-generics-posteriorPredictiveDistrib)
+pl1	gaussian pointwise loglik returns the density, not its log	20s	K=1	test-pointwise-loglik.R(FAIL=9 test-pointwise-loglik.R :28-30;test-pointwise-loglik.R :28-30;test-pointwise-loglik.R :28-30;test-pointwise-loglik.R :64-67;test-pointwise-loglik.R :6)
+pl2	zero-weight rows report -Inf instead of NaN	11s	K=0	
+dt1	DART split probabilities never recorded	26s	K=1	test-dart-mixed-columns.R(FAIL=4 test-dart-mixed-columns.R :41-41;test-dart-mixed-columns.R :42-42;test-dart-mixed-columns.R :60-60;test-dart-mixed-columns.R :61-61)
+mp1	unset DART update.delay resolves to the full burn-in	25s	K=1	test-model-priors.R(FAIL=1 test-model-priors.R :145-145)
+mp2	prior-constructor positivity refusal dropped	10s	K=0	
+me1	no-op control mutation	11s	K=0	
+fr1	classifyResponse never reports an ordered factor	36s	K=1	test-factor-response.R(FAIL=1 test-factor-response.R :72-75)
+fr2	factor response coded 1-based instead of 0-based	16s	K=1	test-factor-response.R(FAIL=ERR sampler creation: a binary (probit/logistic) response must be coded 0 or 1; fit family = "gaussian" for a continuous response)
+fr3	3+-level factor refusal dropped from the single-forest entri	13s	K=0	
+fo2	setOffset drops its NA refusal	24s	K=0	
+fo3	clearing the offset leaves a synced test offset installed	22s	K=0	
+fo4	no-op probe on the setOffset conduit	12s	K=0	
+gl1	gp lengthscale refusal text unpinned	16s	K=1	test-gp-leaves.R(FAIL=1 test-gp-leaves.R :27-30)
+gl2	a scalar gp lengthscale is no longer recycled	17s	K=0	
+ml1	unresolved node-prior designation refusal text unpinned	14s	K=2	test-linear-leaves.R(FAIL=1 test-linear-leaves.R :31-34); test-gp-leaves.R(FAIL=1 test-gp-leaves.R :35-38)
+ms1	setPredictor drops the missing = error policy check	11s	K=2	test-data-missing.R(FAIL=1 test-data-missing.R :106-109); test-mutate-sparse-valued.R(FAIL=1 test-mutate-sparse-valued.R :266-269)
+cw1	getTrees leaves the NA route as raw integer codes	11s	K=2	test-data-categorical-wide.R(FAIL=1 test-data-categorical-wide.R :125-125); test-data-missing.R(FAIL=23 test-data-missing.R :77-77;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missi)
+cvu3	the sampler's control call slot is not propagated	11s	K=1	test-control-valuesAreUsed.R(FAIL=1 test-control-valuesAreUsed.R :71-71)
+mt1	bart2 no longer thins n.burn	13s	K=0	
+gs1	setResponse(updateScale=TRUE) no longer refused under a grou	14s	K=0	
+gs2	setResponse installs the response in reverse row order	12s	K=2	test-grouped-swap.R(FAIL=3 test-grouped-swap.R :54-54;test-grouped-swap.R :58-58;test-grouped-swap.R :165-165); test-composition-sequences.R(FAIL=1 test-composition-sequences.R :374-377)
+mc1	setCounts derives trials from the first category only	10s	K=0	
+mc2	setCounts drops its category-count check	10s	K=0	
+dh2	data-handle view drops its train-row range check	27s	K=1	test-data-handle.R(FAIL=1 test-data-handle.R :152-161)
+dcd5	missing-required-block refusal text unpinned	26s	K=1	test-data-categorical-declared.R(FAIL=1 test-data-categorical-declared.R :163-166)
+ll1	linear-leaf slope columns keep their generic names	42s	K=1	test-linear-leaves.R(FAIL=1 test-linear-leaves.R :63-63)
+dto4	vectored-offset refusal text unpinned	19s	K=1	test-data-testOffset.R(FAIL=1 test-data-testOffset.R :93-96)
+hz3	probabilityFromLatents always uses the probit link	21s	K=2	test-hazard.R(FAIL=1 test-hazard.R :86-86); test-family.R(FAIL=3 test-family.R :166-166;test-family.R :167-170;test-family.R :171-174)
+er2	setCalibration doubles the requested prior scale	26s	K=2	test-embedding-recipes.R(FAIL=5 test-embedding-recipes.R :62-62;test-embedding-recipes.R :63-65;test-embedding-recipes.R :68-68;test-embedding-recipes.R :240-240;test-embedding-recip); test-augmentation.R(FAIL=8 test-augmentation.R :257-257;test-augmentation.R :259-259;test-augmentation.R :260-260;test-augmentation.R :261-261;test-augmentation.R :272-272;test-)
+mts1	state format version bumped without a reader change	49s	K=0	
+mth1	bart2 collapses every request to a single chain	43s	K=0	
+gfc1	getTrees decodes the missing route only when it is absent	10s	K=2	test-grow-from-root-categorical.R(FAIL=ERR replacement has 0 rows, data has 198); test-data-missing.R(FAIL=23 test-data-missing.R :77-77;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missing.R :84-91;test-data-missi)
+me2	gp lengthscale positivity refusal dropped	18s	K=1	test-gp-leaves.R(FAIL=1 test-gp-leaves.R :19-22)
+mth2	bart() packages a test channel even with no test rows	14s	K=3	test-multithreaded.R(FAIL=ERR dim(X) must have a positive length); test-generics-multithreaded.R(FAIL=ERR dim(X) must have a positive length); test-control-valuesAreUsed.R(FAIL=ERR dim(X) must have a positive length)
+mth3	bart() averages the test channel over the wrong margin	11s	K=0	
+fo5	setOffset does not mirror the new offset into data@offset	10s	K=1	test-family-offset.R(FAIL=1 test-family-offset.R :44-44)
+mp3	named split probabilities resolve to nothing	10s	K=1	test-model-priors.R(FAIL=2 test-model-priors.R :86-89;test-model-priors.R :100-103)
+me3	prior positivity refusal text unpinned	12s	K=0	
+mc3	setCounts never reaches the engine	15s	K=0	
+mc4	bartcoreSetCounts never reaches the engine	11s	K=1	test-multinomial-counts-mutation.R(FAIL=16 test-multinomial-counts-mutation.R :95-95;test-multinomial-counts-mutation.R :96-96;test-multinomial-counts-mutation.R :97-97;test-multinomial-counts-)
+mc5 ANCHOR-FAIL ANCHOR_2 R/bartcore.R
+mts3 ANCHOR-FAIL ANCHOR_0 R/dbarts.R
+mc5	bartcoreSetCounts installs the first two categories swapped	10s	K=1	test-multinomial-counts-mutation.R(FAIL=ERR bartcore_setCounts: requires an integer matrix of 120 observations x 3 categories)
+mts3	storeState becomes a no-op	10s	K=2	test-mutate-then-serialize.R(FAIL=ERR 'state' must inherit from bartcoreState); test-data-categorical-wide.R(FAIL=ERR 'state' must inherit from bartcoreState)
+se1	sampleTreesFromPrior never reaches the engine	37s	K=1	test-calibration-prior-draws.R(FAIL=2 test-calibration-prior-draws.R :171-171;test-calibration-prior-draws.R :172-172)
+me4	tree.prior refusal text unpinned	10s	K=1	test-model-errors.R(FAIL=1 test-model-errors.R :35-38)
+hm1	varianceForest ignores the requested n.trees	9s	K=1	test-heteroscedastic-mutation.R(FAIL=1 test-heteroscedastic-mutation.R :187-187)

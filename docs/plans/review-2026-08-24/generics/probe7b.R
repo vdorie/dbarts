@@ -1,0 +1,11 @@
+suppressPackageStartupMessages(library(dbarts))
+set.seed(9); nTest<-10L; xTest <- matrix(runif(nTest*3L),nTest,3L); colnames(xTest)<-c("x1","x2","x3")
+p <- function(lab, ex){ r <- tryCatch(eval(ex), error=function(e) structure(conditionMessage(e), class="err"))
+  if (inherits(r,"err")) cat(sprintf("%-46s ERROR: %s\n", lab, substr(as.character(r),1,110)))
+  else cat(sprintf("%-46s OK %s %s\n", lab, paste(class(r),collapse="/"), if(!is.null(dim(r))) paste(dim(r),collapse="x") else paste0("len",length(r)))) }
+D <- Sys.getenv("D")
+s7 <- readRDS(file.path(D,"s7.rds"))
+p("narrowed-basis sampler getForestAmplitudes", quote(s7$getForestAmplitudes()))
+p("narrowed-basis sampler run(0,1)",            quote(s7$run(0L,1L)))
+fH <- readRDS(file.path(D,"fH2.rds"))
+p("hurdle predict after component storeState",  quote(predict(fH, xTest)))

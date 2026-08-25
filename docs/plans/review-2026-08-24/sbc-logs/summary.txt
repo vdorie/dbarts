@@ -1,0 +1,120 @@
+arms 11  total functionals 83  Bonferroni alpha 0.000602
+
+arm              functional     chisqP      ksP  ecdfDiff   band05 bandBonf  meanRk   verd
+bcf              sigma           0.710    0.437    0.0609   0.0917   0.1375   100.1   PASS
+bcf              a               0.105    0.081    0.0869   0.0917   0.1375   104.8   PASS
+bcf              abs.a           0.255    0.396    0.0617   0.0917   0.1375    95.5   PASS
+bcf              b1.minus.b0     0.000    0.002    0.1261   0.0917   0.1375    93.1   NOTE
+bcf              abs.diff        0.407    0.824    0.0433   0.0917   0.1375   101.7   PASS
+bcf              prog1           0.040    0.029    0.1014   0.0917   0.1375   110.1   NOTE
+bcf              eff1            0.457    0.218    0.0719   0.0917   0.1375    94.7   PASS
+bcf              prog2           0.057    0.071    0.0871   0.0917   0.1375   106.3   PASS
+bcf              eff2            0.246    0.262    0.0673   0.0917   0.1375    97.4   PASS
+bcf              prog3           0.014    0.003    0.1261   0.0917   0.1375   111.7   NOTE
+bcf              eff3            0.083    0.063    0.0915   0.0917   0.1375    93.8   PASS
+bcf              prog4           0.444    0.240    0.0717   0.0917   0.1375   107.0   PASS
+bcf              eff4            0.828    0.507    0.0561   0.0917   0.1375   103.5   PASS
+bcf              prog5           0.136    0.131    0.0814   0.0917   0.1375   105.5   PASS
+bcf              eff5            0.419    0.591    0.0513   0.0917   0.1375    98.0   PASS
+gaussian         avg.f           0.237    0.461    0.0563   0.0917   0.1375    98.1   PASS
+gaussian         f.star1         0.509    0.539    0.0542   0.0917   0.1375   101.0   PASS
+gaussian         f.star2         0.080    0.511    0.0575   0.0917   0.1375   103.4   PASS
+gaussian         f.star3         0.563    0.797    0.0415   0.0917   0.1375   101.0   PASS
+gaussian         f.star4         0.828    0.906    0.0389   0.0917   0.1375    99.5   PASS
+gaussian         f.star5         0.204    0.029    0.1028   0.0917   0.1375   109.0   NOTE
+gaussian         sigma           0.760    0.573    0.0513   0.0917   0.1375   100.8   PASS
+grouped-gaussian tau             0.030    0.073    0.0873   0.0917   0.1375   105.7   PASS
+grouped-gaussian b1              0.795    0.909    0.0362   0.0917   0.1375    99.8   PASS
+grouped-gaussian b2              0.031    0.274    0.0703   0.0917   0.1375    97.5   PASS
+grouped-gaussian avg.f           0.294    0.318    0.0658   0.0917   0.1375   100.5   PASS
+grouped-gaussian sigma           0.000    0.000    0.2916   0.0917   0.1375   135.2   FLAG
+grouped-gaussian f.star1         0.326    0.893    0.0401   0.0917   0.1375   101.4   PASS
+grouped-gaussian f.star2         0.806    0.618    0.0512   0.0917   0.1375   101.6   PASS
+grouped-gaussian f.star3         0.603    0.993    0.0280   0.0917   0.1375   100.2   PASS
+grouped-gaussian f.star4         0.087    0.765    0.0442   0.0917   0.1375   101.7   PASS
+grouped-gaussian f.star5         0.992    0.464    0.0582   0.0917   0.1375    96.0   PASS
+grouped-probit   tau             0.119    0.561    0.0542   0.0917   0.1375   103.9   PASS
+grouped-probit   b1              0.563    0.894    0.0377   0.0917   0.1375   100.7   PASS
+grouped-probit   b2              0.684    0.445    0.0575   0.0917   0.1375    98.5   PASS
+grouped-probit   avg.f           0.174    0.378    0.0622   0.0917   0.1375   101.8   PASS
+grouped-probit   f.star1         0.483    0.766    0.0443   0.0917   0.1375   100.9   PASS
+grouped-probit   f.star2         0.105    0.882    0.0382   0.0917   0.1375    99.9   PASS
+grouped-probit   f.star3         0.431    0.836    0.0413   0.0917   0.1375    98.2   PASS
+grouped-probit   f.star4         0.189    0.745    0.0442   0.0917   0.1375   101.2   PASS
+grouped-probit   f.star5         0.114    0.106    0.0822   0.0917   0.1375    95.5   PASS
+logistic         avg.f           0.795    0.943    0.0368   0.0917   0.1375    98.6   PASS
+logistic         f.star1         0.657    0.960    0.0334   0.0917   0.1375    99.5   PASS
+logistic         f.star2         0.009    0.232    0.0717   0.0917   0.1375    92.6   PASS
+logistic         f.star3         0.966    0.903    0.0387   0.0917   0.1375   101.8   PASS
+logistic         f.star4         0.274    0.775    0.0430   0.0917   0.1375    99.5   PASS
+logistic         f.star5         0.710    0.402    0.0587   0.0917   0.1375   103.3   PASS
+multinom         p1              0.710    0.429    0.0598   0.0924   0.1371    73.2   PASS
+multinom         p2              0.348    0.906    0.0373   0.0924   0.1371    75.2   PASS
+multinom         p3              0.858    0.363    0.0645   0.0924   0.1371    78.6   PASS
+multinom         f.1.1           0.326    0.149    0.0779   0.0924   0.1371    68.9   PASS
+multinom         f.2.2           0.395    0.244    0.0701   0.0924   0.1371    72.5   PASS
+multinom         f.3.3           0.958    0.728    0.0439   0.0924   0.1371    74.0   PASS
+nbinom           r               0.000    0.000    0.2000   0.0924   0.1371    88.3   FLAG
+nbinom           avg.mu          0.204    0.079    0.0884   0.0924   0.1371    71.2   PASS
+nbinom           agg.psi         0.000    0.000    0.1785   0.0924   0.1371    64.9   FLAG
+ordinal          gamma2          0.125    0.220    0.0722   0.0924   0.1371    68.3   PASS
+ordinal          gamma3          0.006    0.183    0.0739   0.0924   0.1371    73.2   PASS
+ordinal          avg.eta         0.509    0.932    0.0363   0.0924   0.1371    74.1   PASS
+ordinal          eta.star1       0.563    0.379    0.0629   0.0924   0.1371    73.0   PASS
+ordinal          eta.star2       0.057    0.355    0.0633   0.0924   0.1371    79.6   PASS
+ordinal          eta.star3       0.011    0.021    0.1065   0.0924   0.1371    70.0   NOTE
+ordinal          p1              0.049    0.545    0.0520   0.0924   0.1371    77.3   PASS
+ordinal          p2              0.644    0.934    0.0332   0.0924   0.1371    73.9   PASS
+ordinal          p3              0.109    0.386    0.0593   0.0924   0.1371    80.1   PASS
+ordinal          p4              0.431    0.432    0.0579   0.0924   0.1371    77.5   PASS
+probit           avg.f           0.212    0.081    0.0885   0.0917   0.1375    94.7   PASS
+probit           f.star1         0.348    0.493    0.0562   0.0917   0.1375   102.9   PASS
+probit           f.star2         0.630    0.395    0.0622   0.0917   0.1375   104.2   PASS
+probit           f.star3         0.657    0.144    0.0770   0.0917   0.1375    92.9   PASS
+probit           f.star4         0.006    0.125    0.0820   0.0917   0.1375   103.1   PASS
+probit           f.star5         0.189    0.111    0.0818   0.0917   0.1375    93.9   PASS
+t                sigma           0.383    0.829    0.0400   0.0924   0.1371    75.9   PASS
+t                nu              0.697    0.685    0.0490   0.0924   0.1371    72.3   PASS
+t                avg.f           0.063    0.202    0.0725   0.0924   0.1371    77.9   PASS
+t                agg.f.star      0.760    0.666    0.0485   0.0924   0.1371    74.8   PASS
+weighted         avg.f           0.047    0.309    0.0657   0.0917   0.1375    97.5   PASS
+weighted         f.star1         0.942    0.982    0.0326   0.0917   0.1375   100.1   PASS
+weighted         f.star2         0.549    0.640    0.0514   0.0917   0.1375    97.2   PASS
+weighted         f.star3         0.817    0.831    0.0406   0.0917   0.1375    98.4   PASS
+weighted         f.star4         0.509    0.652    0.0489   0.0917   0.1375    97.9   PASS
+weighted         f.star5         0.161    0.427    0.0602   0.0917   0.1375   104.4   PASS
+weighted         sigma           0.902    0.962    0.0316   0.0917   0.1375   101.8   PASS
+
+== flag detail ==
+
+[bcf b1.minus.b0] ecdfDiff 0.1261  band05 0.0917  bandBonf 0.1375  chisqP 0.000  mean rank 93.1 (target 100.0)
+bin counts (20 bins, low rank -> high):
+   29 12 8 14 11 5 6 6 7 10 5 10 12 5 10 1 11 9 8 21 
+
+[bcf prog1] ecdfDiff 0.1014  band05 0.0917  bandBonf 0.1375  chisqP 0.040  mean rank 110.1 (target 100.0)
+bin counts (20 bins, low rank -> high):
+   14 8 2 8 11 12 5 5 12 12 8 10 8 6 11 10 17 12 10 19 
+
+[bcf prog3] ecdfDiff 0.1261  band05 0.0917  bandBonf 0.1375  chisqP 0.014  mean rank 111.7 (target 100.0)
+bin counts (20 bins, low rank -> high):
+   14 5 11 5 8 7 12 6 6 10 10 11 8 10 5 10 13 15 11 23 
+
+[gaussian f.star5] ecdfDiff 0.1028  band05 0.0917  bandBonf 0.1375  chisqP 0.204  mean rank 109.0 (target 100.0)
+bin counts (20 bins, low rank -> high):
+   13 7 7 11 6 5 8 6 8 15 15 7 10 11 7 9 14 17 11 13 
+
+[grouped-gaussian sigma] ecdfDiff 0.2916  band05 0.0917  bandBonf 0.1375  chisqP 0.000  mean rank 135.2 (target 100.0)
+bin counts (20 bins, low rank -> high):
+   8 3 4 4 3 8 8 7 6 6 3 9 5 9 15 13 10 19 19 41 
+
+[nbinom r] ecdfDiff 0.2000  band05 0.0924  bandBonf 0.1371  chisqP 0.000  mean rank 88.3 (target 75.0)
+bin counts (20 bins, low rank -> high):
+   15 15 4 13 3 7 5 7 2 7 9 6 5 7 6 15 7 10 16 41 
+
+[nbinom agg.psi] ecdfDiff 0.1785  band05 0.0924  bandBonf 0.1371  chisqP 0.000  mean rank 64.9 (target 75.0)
+bin counts (20 bins, low rank -> high):
+   44 7 7 12 11 10 6 6 4 4 12 4 7 8 9 5 9 6 10 19 
+
+[ordinal eta.star3] ecdfDiff 0.1065  band05 0.0924  bandBonf 0.1371  chisqP 0.011  mean rank 70.0 (target 75.0)
+bin counts (20 bins, low rank -> high):
+   14 15 6 9 14 6 9 9 7 9 12 14 19 13 14 6 12 3 4 5 
