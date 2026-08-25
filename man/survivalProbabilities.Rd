@@ -3,6 +3,10 @@
 \alias{survivalProbabilities}
 \alias{survivalProbabilities.bart}
 \alias{survivalProbabilities.rbart}
+\alias{survivalProbabilities.bartMultinomial}
+\alias{survivalProbabilities.bartOrdinal}
+\alias{survivalProbabilities.bartNegbin}
+\alias{survivalProbabilities.bartHurdle}
 \description{
   Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
@@ -11,6 +15,11 @@
   \code{family = "aft"}, or a discrete-time hazard fit produced by
   \code{\link{bart2}} with \code{family = "hazard"} (or
   \code{"hazard.logistic"}).
+
+  \code{\link{bart2}}'s four own-class fits (\code{"bartMultinomial"},
+  \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}) refuse
+  by name instead: none of the four is a survival model, so none carries
+  a hazard channel.
 }
 \usage{
 survivalProbabilities(object, ...)
@@ -31,6 +40,14 @@ survivalProbabilities(object, ...)
   combineChains = TRUE,
   ...
 )
+
+\method{survivalProbabilities}{bartMultinomial}(object, ...)
+
+\method{survivalProbabilities}{bartOrdinal}(object, ...)
+
+\method{survivalProbabilities}{bartNegbin}(object, ...)
+
+\method{survivalProbabilities}{bartHurdle}(object, ...)
 }
 \arguments{
   \item{object}{

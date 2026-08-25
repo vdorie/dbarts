@@ -184,6 +184,78 @@ as_draws_df.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
 }
 as_draws_df.rbart <- as_draws_df.bart
 
+# matches summary.bartOrdinal's own default 'vars'; bartDrawsArray already
+# special-cases "cutpoints" to ordinalCutpointsArray.
+as_draws_array.bartOrdinal <- function(
+  x,
+  vars = c("cutpoints", "sigma", "k", "tau"),
+  ...
+) {
+  posterior::as_draws_array(bartDrawsArray(x, vars))
+}
+as_draws_df.bartOrdinal <- function(
+  x,
+  vars = c("cutpoints", "sigma", "k", "tau"),
+  ...
+) {
+  posterior::as_draws_df(bartDrawsArray(x, vars))
+}
+
+# matches summary.bartNegbin's own default 'vars'; scalarFields already lists
+# "dispersion" as a sigma-shaped field.
+as_draws_array.bartNegbin <- function(
+  x,
+  vars = c("dispersion", "sigma", "k", "tau"),
+  ...
+) {
+  posterior::as_draws_array(bartDrawsArray(x, vars))
+}
+as_draws_df.bartNegbin <- function(
+  x,
+  vars = c("dispersion", "sigma", "k", "tau"),
+  ...
+) {
+  posterior::as_draws_df(bartDrawsArray(x, vars))
+}
+
+# This family has no scalar parameter at all: the pooled per-category mean
+# predicted probability is its only convergence instrument, and 'summary'
+# already chose it (multinomialDrawsArray), so the two agree. 'vars' is
+# accepted for signature symmetry with the other classes but has only ever
+# one meaning here - never object$yhat.train's n x K per-observation draws.
+as_draws_array.bartMultinomial <- function(x, vars = "meanProb", ...) {
+  posterior::as_draws_array(multinomialDrawsArray(x))
+}
+as_draws_df.bartMultinomial <- function(x, vars = "meanProb", ...) {
+  posterior::as_draws_df(multinomialDrawsArray(x))
+}
+
+# The union of both components' present scalar fields, each labelled with an
+# "occupancy."/"positive." prefix (a dot, not a bracket: posterior parses a
+# bracket as an index) - the same two blocks print.summary.bartHurdle already
+# prints under, so as_draws and summary agree. Both components share the
+# same draw indexing (hurdle.md), so their (iteration, chain) margins match
+# and the variable margins concatenate directly.
+hurdleDrawsArray <- function(object, vars) {
+  occ <- bartDrawsArray(object$occupancy, vars)
+  pos <- bartDrawsArray(object$positive, vars)
+  dimnames(occ)[[3L]] <- paste0("occupancy.", dimnames(occ)[[3L]])
+  dimnames(pos)[[3L]] <- paste0("positive.", dimnames(pos)[[3L]])
+  arr <- array(
+    c(occ, pos),
+    dim = c(dim(occ)[1:2], dim(occ)[3L] + dim(pos)[3L])
+  )
+  dimnames(arr) <- list(NULL, NULL, c(dimnames(occ)[[3L]], dimnames(pos)[[3L]]))
+  arr
+}
+
+as_draws_array.bartHurdle <- function(x, vars = c("sigma", "k", "tau"), ...) {
+  posterior::as_draws_array(hurdleDrawsArray(x, vars))
+}
+as_draws_df.bartHurdle <- function(x, vars = c("sigma", "k", "tau"), ...) {
+  posterior::as_draws_df(hurdleDrawsArray(x, vars))
+}
+
 # plain per-variable mean/sd/quantiles, pooling samples and chains; the
 # degrade path when posterior is not installed
 quantileSummary <- function(arr) {
@@ -289,16 +361,39 @@ multinomialMeanProbArray <- function(object) {
   arr
 }
 
+# multinomialMeanProbArray with its categories named on the variable margin -
+# this family's only convergence instrument (no sigma/k/tau scale), shared by
+# summary and as_draws so the two report the same channel under the same
+# names.
+multinomialDrawsArray <- function(object) {
+  arr <- multinomialMeanProbArray(object)
+  dimnames(arr)[[3L]] <- paste0("meanProb[", object$levels, "]")
+  arr
+}
+
+multinomialSummaryVarsReason <- list(
+  vars = paste0(
+    "it pools the per-category mean-probability channel, which selects ",
+    "nothing"
+  )
+)
+
 # Convergence summary for a bart2(family = "multinomial") fit, mirroring
 # summary.bart's shape (posterior mean/sd/quantiles, R-hat/ESS when
 # 'posterior' is installed). This family has no sigma/k/tau scale to
 # summarize, so the scalar channel is each category's posterior mean
 # predicted probability, pooled over the training observations per draw -
 # enough to eyeball per-category convergence without dumping every
-# observation's draws.
+# observation's draws. There is no other channel to pool instead, so 'vars'
+# is refused by name rather than silently ignored.
 summary.bartMultinomial <- function(object, ...) {
-  arr <- multinomialMeanProbArray(object)
-  dimnames(arr)[[3L]] <- paste0("meanProb[", object$levels, "]")
+  refuseUnusedGenericArgs(
+    list(...),
+    "summary",
+    "bartMultinomial",
+    multinomialSummaryVarsReason
+  )
+  arr <- multinomialDrawsArray(object)
   havePosterior <- posteriorAvailable()
   stats <- if (havePosterior) {
     posterior::summarise_draws(posterior::as_draws_array(arr))

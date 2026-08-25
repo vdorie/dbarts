@@ -6,15 +6,28 @@
 .onLoad <- function(libname, pkgname) {
   registerPosteriorMethods <- function(...) {
     ns <- asNamespace("posterior")
-    registerS3method("as_draws_array", "bart", as_draws_array.bart, envir = ns)
-    registerS3method(
-      "as_draws_array",
+    classes <- c(
+      "bart",
       "rbart",
-      as_draws_array.rbart,
-      envir = ns
+      "bartMultinomial",
+      "bartOrdinal",
+      "bartNegbin",
+      "bartHurdle"
     )
-    registerS3method("as_draws_df", "bart", as_draws_df.bart, envir = ns)
-    registerS3method("as_draws_df", "rbart", as_draws_df.rbart, envir = ns)
+    for (class in classes) {
+      registerS3method(
+        "as_draws_array",
+        class,
+        get(paste0("as_draws_array.", class)),
+        envir = ns
+      )
+      registerS3method(
+        "as_draws_df",
+        class,
+        get(paste0("as_draws_df.", class)),
+        envir = ns
+      )
+    }
   }
   setHook(packageEvent("posterior", "onLoad"), registerPosteriorMethods)
   if (isNamespaceLoaded("posterior")) registerPosteriorMethods()

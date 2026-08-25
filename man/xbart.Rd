@@ -130,6 +130,8 @@ xbart(
   An array of dimensions \code{n.reps} \eqn{\times}{*} \code{length(n.trees)} \eqn{\times}{*} \code{length(k)} \eqn{\times}{*} \code{length(power)} \eqn{\times}{*} \code{length(base)}. If \code{drop} is \code{TRUE}, dimensions of length 1 are omitted. If all hyperparameters are of length 1, then the result will be a vector of length \code{n.reps}. When the result is an array, the \code{dimnames} of the result shall be set to the corresponding hyperparameters.
 
   For method \code{"k-fold"}, each element is an average across the \eqn{K} fits. For \code{"random subsample"}, each element represents a single fit.
+
+  The result is a bare array with no class, so the fit generics - \code{predict}, \code{extract}, \code{fitted}, \code{residuals} - do not apply to it; it is a table of losses, not a fit.
 }
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}

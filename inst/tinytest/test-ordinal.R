@@ -389,3 +389,132 @@ expect_identical(
 )
 # a value this family does not offer refuses against the set it does
 expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")
+
+# --- extract's combineChains formal, honoured instead of returning the
+# fit's own stored layout ---
+
+combinedEv <- extract(fit2c, type = "ev")
+expect_equal(dim(combinedEv), c(40L, n, 3L))
+splitBart <- extract(fit2c, type = "bart", combineChains = FALSE)
+expect_equal(dim(splitBart), c(2L, 20L, n))
+
+# --- extract(type = "loglik"): log of the stored category probability at
+# the observed level, an independently-coded oracle; extract-only,
+# sample = "test" refused, shape drops the K margin ---
+
+ll <- extract(fit, type = "loglik")
+ev <- extract(fit, type = "ev")
+k <- match(y, lv)
+oracleLl <- log(vapply(seq_len(n), function(i) ev[1L, i, k[i]], numeric(1L)))
+expect_equal(ll[1L, ], oracleLl, tolerance = 1e-12)
+expect_equal(dim(ll), dim(ev)[-3L])
+expect_error(
+  extract(fit, type = "loglik", sample = "test"),
+  "no test response exists"
+)
+expect_error(predict(fit, x.test, type = "loglik"), "type must be in")
+expect_error(fitted(fit, type = "loglik"), "type must be in")
+
+# --- fitted/predict's ci.level: (obs x K x 3) on type = "ev", a plain
+# 3-column matrix on type = "bart" ---
+
+fitCiEv <- fitted(fit, ci.level = 0.9)
+expect_equal(dim(fitCiEv), c(n, 3L, 3L))
+fitCiBart <- fitted(fit, type = "bart", ci.level = 0.9)
+expect_equal(dim(fitCiBart), c(n, 3L))
+expect_equal(colnames(fitCiBart), c("est", "ci.lower", "ci.upper"))
+predCiEv <- predict(fit, x.test, ci.level = 0.9)
+expect_equal(dim(predCiEv), c(10L, 3L, 3L))
+
+# --- bart-family-only formals refused by name ---
+
+expect_error(
+  extract(fit, forest = 1L),
+  "'forest' is not used by extract on a bartOrdinal fit",
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, contribution = TRUE),
+  "'contribution' is not used by extract on a bartOrdinal fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit, x.test, forest = 1L),
+  "'forest' is not used by predict on a bartOrdinal fit",
+  fixed = TRUE
+)
+expect_error(
+  fitted(fit, sample = "test"),
+  "'sample' is not used by fitted on a bartOrdinal fit",
+  fixed = TRUE
+)
+
+# --- own-class extract's 'sample' validation now shares bart/rbart's
+# wording instead of a bare match.arg's "'arg' should be one of ..." ---
+
+expect_error(extract(fit, sample = "bogus"), "sample must be in 'train'")
+
+# --- plotTree/survivalProbabilities refused by name ---
+
+expect_error(
+  plotTree(fit),
+  "plotTree is defined for bart, rbart_vi and dbartsSampler fits",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit),
+  "survivalProbabilities applies to a discrete-time hazard fit",
+  fixed = TRUE
+)
+
+# --- plot(object): two panels (K > 2) with the cutpoint trace, one panel
+# at K = 2 (no free cutpoint), content asserted via mfrow ---
+
+pdf(NULL)
+plot(fit)
+mfrowK3 <- par("mfrow")
+
+y2 <- ordered(ifelse(z > 0, "hi", "lo"), levels = c("lo", "hi"))
+fit2 <- bart2(
+  x,
+  y2,
+  family = "ordinal",
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = n.trees,
+  n.chains = 1L,
+  verbose = FALSE
+)
+dev.off()
+pdf(NULL)
+plot(fit2)
+mfrowK2 <- par("mfrow")
+dev.off()
+expect_equal(mfrowK3, c(1L, 2L))
+expect_equal(mfrowK2, c(1L, 1L))
+
+# --- as_draws_array/df default to vars = c("cutpoints", "sigma", "k",
+# "tau"); cutpoint[1] (pinned at 0) is kept ---
+
+if (requireNamespace("posterior", quietly = TRUE)) {
+  ad <- posterior::as_draws_array(fit)
+  adNames <- dimnames(unclass(ad))[[3L]]
+  expect_true(all(c("cutpoint[1]", "cutpoint[2]") %in% adNames))
+  rm(ad, adNames)
+}
+
+rm(
+  combinedEv,
+  splitBart,
+  ll,
+  ev,
+  k,
+  oracleLl,
+  fitCiEv,
+  fitCiBart,
+  predCiEv,
+  mfrowK3,
+  y2,
+  fit2,
+  mfrowK2
+)

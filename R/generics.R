@@ -162,12 +162,18 @@ pointwiseLogLikelihood <- function(object, ev) {
 
 # per-observation posterior summary for the interval-returning generics: est
 # (the posterior mean) plus a symmetric ci.level credible band from the draw
-# quantiles, pooled over all samples and chains (observations are the last
-# array margin, as in the mean path). The interval KIND follows the caller's
-# type: "ev" gives a credible interval for E[Y|x] (a probability for binary),
-# "ppd" a prediction interval that also carries the residual noise, and "bart"
-# a credible interval on the latent scale.
-posteriorInterval <- function(draws, ci.level) {
+# quantiles, pooled over every margin except the trailing 'trailing' ones
+# (observations are the sole trailing margin for the bart-family generics, as
+# in the mean path). The interval KIND follows the caller's type: "ev" gives a
+# credible interval for E[Y|x] (a probability for binary), "ppd" a prediction
+# interval that also carries the residual noise, and "bart" a credible
+# interval on the latent scale. A K-widened channel (a category-probability
+# draw) keeps K as a second trailing margin (trailing = 2) instead of pooling
+# across categories, which would average incomparable probabilities; the
+# result is then an array with est/ci.lower/ci.upper on a new trailing margin
+# rather than a 3-column matrix, since a plain matrix cannot carry both an
+# observation and a category index.
+posteriorInterval <- function(draws, ci.level, trailing = 1L) {
   if (
     !is.numeric(ci.level) ||
       length(ci.level) != 1L ||
@@ -183,13 +189,27 @@ posteriorInterval <- function(draws, ci.level) {
       c(mean(draws), quantile(draws, probs, names = FALSE)),
       nrow = 1L
     )
-  } else {
-    obsMargin <- length(dim(draws))
-    est <- apply(draws, obsMargin, mean)
-    bounds <- apply(draws, obsMargin, quantile, probs = probs, names = FALSE)
-    result <- cbind(est, bounds[1L, ], bounds[2L, ])
+    colnames(result) <- c("est", "ci.lower", "ci.upper")
+    return(result)
   }
-  colnames(result) <- c("est", "ci.lower", "ci.upper")
+  d <- dim(draws)
+  keepAxes <- seq.int(length(d) - trailing + 1L, length(d))
+  est <- apply(draws, keepAxes, mean)
+  bounds <- apply(draws, keepAxes, quantile, probs = probs, names = FALSE)
+  if (trailing == 1L) {
+    result <- cbind(est, bounds[1L, ], bounds[2L, ])
+    colnames(result) <- c("est", "ci.lower", "ci.upper")
+    return(result)
+  }
+  result <- array(
+    c(as.vector(est), as.vector(bounds[1L, , ]), as.vector(bounds[2L, , ])),
+    dim = c(dim(est), 3L)
+  )
+  dn <- dimnames(est)
+  dimnames(result) <- c(
+    if (is.null(dn)) rep(list(NULL), length(dim(est))) else dn,
+    list(c("est", "ci.lower", "ci.upper"))
+  )
   result
 }
 
@@ -407,17 +427,7 @@ extract.bart <- function(
     return(eval(treesCall, parent.frame()))
   }
 
-  if (
-    !is.character(sample) ||
-      sample[1L] %not_in% eval(formals(extract.bart)$sample)
-  ) {
-    stop(
-      "sample must be in '",
-      paste0(eval(formals(extract.bart)$sample), collapse = "', '"),
-      "'"
-    )
-  }
-  sample <- sample[1L]
+  sample <- validateSample(sample, eval(formals(extract.bart)$sample))
 
   if (type == "forest") {
     return(extractForest(object, sample, combineChains, forest, contribution))
@@ -806,18 +816,7 @@ fitted.bart <- function(
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bart)$type))
-
-  if (
-    !is.character(sample) ||
-      sample[1L] %not_in% eval(formals(fitted.bart)$sample)
-  ) {
-    stop(
-      "sample must be in '",
-      paste0(eval(formals(fitted.bart)$sample), collapse = "', '"),
-      "'"
-    )
-  }
-  sample <- sample[1L]
+  sample <- validateSample(sample, eval(formals(fitted.bart)$sample))
 
   result <- extract(object, type, sample, ...)
 
@@ -901,15 +900,53 @@ refuseMultinomialLatentType <- function(type) {
   invisible(NULL)
 }
 
+# 'forest'/'contribution' select among an amplitude-coupled fit's co-fit
+# forests (extract.bart's own vocabulary); every own-class fit but
+# bartMultinomial has a single forest per component to begin with, so both
+# names refuse for the same reason there.
+singleForestReason <- paste0(
+  "this selects among an amplitude-coupled fit's co-fit forests; this fit ",
+  "has a single forest"
+)
+
+# bart-family arguments this fit's K-widened shape has no room for: a single
+# category's forest is not identified individually (refuseMultinomialLatentType
+# already refuses type = "forest"; 'forest'/'contribution' are refused here so
+# passing them does not silently vanish into '...' regardless of type).
+multinomialUnusedArgs <- list(
+  forest = paste0(
+    "a multinomial fit's K category forests are not identified individually ",
+    "- the identified content is the reported probabilities"
+  ),
+  contribution = paste0(
+    "a multinomial fit's K category forests are not identified individually ",
+    "- the identified content is the reported probabilities"
+  )
+)
+
 extract.bartMultinomial <- function(
   object,
-  type = c("ev", "ppd", "bart", "forest"),
+  type = c("ev", "ppd", "bart", "forest", "loglik"),
   sample = c("train", "test"),
+  combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartMultinomial)$type))
-  sample <- match.arg(sample)
+  sample <- validateSample(
+    sample,
+    eval(formals(extract.bartMultinomial)$sample)
+  )
   refuseMultinomialLatentType(type)
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "bartMultinomial",
+    multinomialUnusedArgs
+  )
+
+  if (type == "loglik" && sample == "test") {
+    stop("cannot extract a test sample log-likelihood; no test response exists")
+  }
 
   probs <- if (sample == "test") {
     if (is.null(object$yhat.test)) {
@@ -922,10 +959,55 @@ extract.bartMultinomial <- function(
   } else {
     object$yhat.train
   }
+  n.chains <- fitNChains(object)
+
+  if (type == "loglik") {
+    result <- multinomialLogLik(
+      object,
+      reshapeChainedChannel(probs, n.chains, FALSE, 2L)
+    )
+    return(combineOrUncombineChains(result, n.chains, combineChains))
+  }
+
+  probs <- reshapeChainedChannel(probs, n.chains, combineChains, 2L)
   if (type == "ev") {
     return(probs)
   }
   multinomialPpdFromProbs(probs)
+}
+
+# ONE formula covers both response ingestions: with p[s,i,k] the reported
+# probability and n_i = sum_k y_ik (= 1 for a labeled response), the log
+# density of the observed row is the multinomial log-pmf including its
+# coefficient (as dmultinom reports it), which reduces to log(p[s,i,y_i]) when
+# n_i = 1. The likelihood unit is the observation ROW (n_i trials), not a
+# single trial or a (row, category) cell, so loo/WAIC on this channel is
+# leave-one-row-out. probs enters in the split (chains x) samples x obs x K
+# layout; the result drops the K margin (dim(ev) minus its trailing margin).
+# This does not contradict the engine's own per-observation channel staying
+# undefined for this family: that channel cannot see the K-blend, while this
+# is computed from the reported probabilities R already holds.
+multinomialLogLik <- function(object, probs) {
+  y <- object[["y"]]
+  levels <- object[["levels"]]
+  d <- dim(probs)
+  K <- d[length(d)]
+  nObs <- d[length(d) - 1L]
+  counts <- if (is.factor(y)) {
+    indicator <- matrix(0, length(y), K)
+    indicator[cbind(seq_along(y), match(y, levels))] <- 1
+    indicator
+  } else {
+    y
+  }
+  n <- rowSums(counts)
+  logCoef <- lgamma(n + 1) - rowSums(lgamma(counts + 1))
+  n.draws <- length(probs) %/% (nObs * K)
+  flat <- probs
+  dim(flat) <- c(n.draws * nObs, K)
+  idx <- rep(seq_len(nObs), each = n.draws)
+  term <- rowSums(counts[idx, , drop = FALSE] * log(flat))
+  array(rep(logCoef, each = n.draws) + term, d[-length(d)])
 }
 
 # shared by extract.bartMultinomial (stored channels) and
@@ -943,17 +1025,40 @@ multinomialPpdFromProbs <- function(probs) {
   array(codes, d[-length(d)])
 }
 
+# fitted values are always the training rows (extract's own 'sample' formal
+# reaches the test channel); a caller-supplied 'sample' is refused by name
+# instead of vanishing into '...' unused, as it does today.
+multinomialFittedSampleReason <- list(
+  sample = paste0(
+    "fitted values are always the training rows; use extract(object, ",
+    "sample = \"test\")"
+  )
+)
+
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
 # (type = "class") the argmax category of that mean as a factor over the
-# original levels - the class-prediction convenience.
+# original levels - the class-prediction convenience. ci.level opts into a
+# per-(observation, category) credible band instead of the posterior mean,
+# taken on the full probability draws before the class reduction so it is
+# meaningful regardless of 'type'.
 fitted.bartMultinomial <- function(
   object,
   type = c("ev", "class", "bart"),
+  ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bartMultinomial)$type))
   refuseMultinomialLatentType(type)
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "bartMultinomial",
+    multinomialFittedSampleReason
+  )
   probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(probs, ci.level, trailing = 2L))
+  }
   d <- dim(probs)
   numDims <- length(d)
   meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
@@ -974,8 +1079,22 @@ fitted.bartMultinomial <- function(
 # (columns named by 'levels'). For the labeled-response ingestion
 # (bart2Multinomial) the observed proportion is the 1[y = k] indicator; for
 # the grouped-count ingestion (bart2MultinomialCounts) it is y / rowSums(y),
-# which reduces to the same indicator when every row is a single trial.
+# which reduces to the same indicator when every row is a single trial. There
+# is no other residual to choose, so 'type' is refused by name.
+multinomialResidualsTypeReason <- list(
+  type = paste0(
+    "the residual is the per-category observed proportion minus the ",
+    "fitted probability"
+  )
+)
+
 residuals.bartMultinomial <- function(object, ...) {
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "bartMultinomial",
+    multinomialResidualsTypeReason
+  )
   phat <- fitted.bartMultinomial(object, type = "ev")
   y <- object$y
   observed <- if (is.factor(y)) {
@@ -1003,23 +1122,31 @@ residuals.bartMultinomial <- function(object, ...) {
 # $fit is the K-forest sampler that actually ran, so getPointer() can
 # re-create it from stored state after a save/reload.
 #
-# offset.category.test is the per-category shift at the PREDICTED rows,
-# spelled as dbartsData's own test-side channel: an nNew x K matrix entering
-# the raw fits before the softmax. It is never taken from the fit, because
-# these rows are not the fit's rows, so a fit trained under a category offset
-# requires one here rather than being served the offset-free surface by
-# default - an all-zero matrix asks for that surface on purpose. Passing the
-# training offset back at the training rows reproduces yhat.train.
+# offset is the per-category shift at the PREDICTED rows, the same name
+# predict.bart uses for its own new-row shift (R/generics.R's predict.bart):
+# an nNew x K matrix entering the raw fits before the softmax. It is never
+# taken from the fit, because these rows are not the fit's rows, so a fit
+# trained under a category offset requires one here rather than being served
+# the offset-free surface by default - an all-zero matrix asks for that
+# surface on purpose. Passing the training offset back at the training rows
+# reproduces yhat.train.
 predict.bartMultinomial <- function(
   object,
   newdata,
   type = c("ev", "ppd", "bart", "forest"),
-  offset.category.test = NULL,
+  offset = NULL,
   combineChains = TRUE,
+  ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartMultinomial)$type))
   refuseMultinomialLatentType(type)
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "bartMultinomial",
+    multinomialUnusedArgs["forest"]
+  )
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     stop(
       "predict requires bart2(family = \"multinomial\") to be called with ",
@@ -1030,12 +1157,12 @@ predict.bartMultinomial <- function(
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
   }
-  if (is.null(offset.category.test)) {
+  if (is.null(offset)) {
     if (!is.null(object$fit$data@offset.category)) {
       stop(
-        "'offset.category.test' is required on a multinomial fit trained ",
-        "with a category offset: the predicted rows are not the training ",
-        "rows, so pass their own ",
+        "'offset' is required on a multinomial fit trained with a category ",
+        "offset: the predicted rows are not the training rows, so pass ",
+        "their own ",
         nrow(newdata),
         " x ",
         object$K,
@@ -1043,17 +1170,17 @@ predict.bartMultinomial <- function(
       )
     }
   } else {
-    offset.category.test <- validateCategoryOffset(
-      offset.category.test,
+    offset <- validateCategoryOffset(
+      offset,
       nrow(newdata),
       object$K,
-      "'offset.category.test'"
+      "'offset'"
     )
   }
   # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape;
   # $fit$predict re-validates the coded newdata (idempotently) and shapes the
   # offset against the same rows
-  raw <- object$fit$predict(newdata, offset.category.test)
+  raw <- object$fit$predict(newdata, offset)
   probs <- shapeMultinomialChannel(
     raw,
     object$levels,
@@ -1061,7 +1188,14 @@ predict.bartMultinomial <- function(
     combineChains
   )
   if (type == "ppd") {
-    return(multinomialPpdFromProbs(probs))
+    probs <- multinomialPpdFromProbs(probs)
+  }
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(
+      probs,
+      ci.level,
+      trailing = if (type == "ev") 2L else 1L
+    ))
   }
   probs
 }
@@ -1110,14 +1244,43 @@ print.bartMultinomial <- function(x, ...) {
 # type = "ev"/"response" returns the n x K category probabilities computed from
 # the latent and the sampled cutpoints. type = "ppd" draws one category per
 # posterior draw. The K-1 cutpoint draws ride the fit's $cutpoints field.
+# ordinal has a single forest, so 'forest'/'contribution' refuse for the same
+# reason a bart-family single-forest fit does.
+ordinalUnusedArgs <- list(
+  forest = singleForestReason,
+  contribution = singleForestReason
+)
+
 extract.bartOrdinal <- function(
   object,
-  type = c("ev", "ppd", "bart"),
+  type = c("ev", "ppd", "bart", "loglik"),
   sample = c("train", "test"),
+  combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartOrdinal)$type))
-  sample <- match.arg(sample)
+  sample <- validateSample(sample, eval(formals(extract.bartOrdinal)$sample))
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "bartOrdinal",
+    ordinalUnusedArgs
+  )
+  n.chains <- fitNChains(object)
+
+  if (type == "loglik") {
+    if (sample == "test") {
+      stop(
+        "cannot extract a test sample log-likelihood; no test response exists"
+      )
+    }
+    result <- ordinalLogLik(
+      object,
+      reshapeChainedChannel(object$yhat.train, n.chains, FALSE, 2L)
+    )
+    return(combineOrUncombineChains(result, n.chains, combineChains))
+  }
+
   if (type == "bart") {
     latent <- if (sample == "test") {
       object$latent.test
@@ -1130,7 +1293,7 @@ extract.bartOrdinal <- function(
         "report out-of-sample latent fits"
       )
     }
-    return(latent)
+    return(combineOrUncombineChains(latent, n.chains, combineChains))
   }
   probs <- if (sample == "test") {
     if (is.null(object$yhat.test)) {
@@ -1143,22 +1306,70 @@ extract.bartOrdinal <- function(
   } else {
     object$yhat.train
   }
+  probs <- reshapeChainedChannel(probs, n.chains, combineChains, 2L)
   if (type == "ev") {
     return(probs)
   }
   multinomialPpdFromProbs(probs)
 }
 
+# log P(y_i = k | eta, gamma) IS the reported category probability at the
+# observed level: the run already stores the cumulative-probit difference,
+# verified to machine precision against a hand-built Phi difference, so no
+# recomputation from eta/cutpoints is needed. probs enters in the split
+# (chains x) samples x obs x K layout; the result drops the K margin, the same
+# shape type = "ppd" already returns for this family.
+ordinalLogLik <- function(object, probs) {
+  y <- object[["y"]]
+  levels <- object[["levels"]]
+  d <- dim(probs)
+  K <- d[length(d)]
+  nObs <- d[length(d) - 1L]
+  n.draws <- length(probs) %/% (nObs * K)
+  flat <- probs
+  dim(flat) <- c(n.draws * nObs, K)
+  k <- match(y, levels)
+  idx <- rep(seq_len(nObs), each = n.draws)
+  result <- log(flat[cbind(seq_len(n.draws * nObs), k[idx])])
+  array(result, d[-length(d)])
+}
+
+ordinalFittedSampleReason <- list(
+  sample = paste0(
+    "fitted values are always the training rows; use extract(object, ",
+    "sample = \"test\")"
+  )
+)
+
 # The posterior-mean n x K probability matrix (colnames = levels), or
 # (type = "class") the argmax category as an ordered factor over the original
 # levels, or (type = "bart") the posterior-mean latent eta per observation.
-fitted.bartOrdinal <- function(object, type = c("ev", "class", "bart"), ...) {
+# ci.level opts into a credible band instead of the posterior mean, taken on
+# the full draws before any mean/class reduction.
+fitted.bartOrdinal <- function(
+  object,
+  type = c("ev", "class", "bart"),
+  ci.level = NULL,
+  ...
+) {
   type <- validateType(type, eval(formals(fitted.bartOrdinal)$type))
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "bartOrdinal",
+    ordinalFittedSampleReason
+  )
   if (type == "bart") {
     latent <- object$latent.train
+    if (!is.null(ci.level)) {
+      return(posteriorInterval(latent, ci.level, trailing = 1L))
+    }
     return(apply(latent, length(dim(latent)), mean))
   }
   probs <- extract.bartOrdinal(object, type = "ev", sample = "train")
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(probs, ci.level, trailing = 2L))
+  }
   d <- dim(probs)
   numDims <- length(d)
   meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
@@ -1173,10 +1384,23 @@ fitted.bartOrdinal <- function(object, type = c("ev", "class", "bart"), ...) {
   )
 }
 
+ordinalResidualsTypeReason <- list(
+  type = paste0(
+    "the residual is the per-category observed-indicator minus the fitted ",
+    "probability"
+  )
+)
+
 # y - fitted() on the response scale has no single scalar for a categorical
 # response, so the per-category analog is the observed 1[y = k] indicator minus
 # the fitted probability, an n x K matrix (columns named by 'levels').
 residuals.bartOrdinal <- function(object, ...) {
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "bartOrdinal",
+    ordinalResidualsTypeReason
+  )
   phat <- fitted.bartOrdinal(object, type = "ev")
   y <- object$y
   indicator <- matrix(0, length(y), ncol(phat), dimnames = dimnames(phat))
@@ -1199,9 +1423,16 @@ predict.bartOrdinal <- function(
   newdata,
   type = c("ev", "ppd", "bart"),
   combineChains = TRUE,
+  ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartOrdinal)$type))
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "bartOrdinal",
+    ordinalUnusedArgs["forest"]
+  )
   if (is.null(object[["cutpoints.raw"]])) {
     stop(
       "predict requires bart2(family = \"ordinal\") to be called with ",
@@ -1220,7 +1451,11 @@ predict.bartOrdinal <- function(
   # channel's shape
   raw <- bartcorePredict(list(ptr = object$fit$getPointer()), newdata)
   if (type == "bart") {
-    return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
+    result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
+    if (!is.null(ci.level)) {
+      return(posteriorInterval(result, ci.level, trailing = 1L))
+    }
+    return(result)
   }
   K <- object$K
   cutpoints <- object$cutpoints.raw # (K-1) x n.samples x n.chains
@@ -1246,7 +1481,11 @@ predict.bartOrdinal <- function(
     combineChains
   )
   if (type == "ppd") {
-    return(multinomialPpdFromProbs(probs))
+    probs <- multinomialPpdFromProbs(probs)
+  }
+  if (!is.null(ci.level)) {
+    trailing <- if (type == "ev") 2L else 1L
+    return(posteriorInterval(probs, ci.level, trailing = trailing))
   }
   probs
 }
@@ -1276,14 +1515,29 @@ print.bartOrdinal <- function(x, ...) {
 # (the reported posterior mean count) and type = "ppd" draws one count per posterior draw
 # from NB(r, plogis(psi)). The per-draw dispersion r rides the fit's $dispersion
 # field, the count analog of gaussian's sigma.
+# nbinom has a single forest, so 'forest'/'contribution' refuse for the same
+# reason a bart-family single-forest fit does.
+negbinUnusedArgs <- list(
+  forest = singleForestReason,
+  contribution = singleForestReason
+)
+
 extract.bartNegbin <- function(
   object,
-  type = c("ev", "ppd", "bart"),
+  type = c("ev", "ppd", "bart", "loglik"),
   sample = c("train", "test"),
+  combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartNegbin)$type))
-  sample <- match.arg(sample)
+  sample <- validateSample(sample, eval(formals(extract.bartNegbin)$sample))
+  refuseUnusedGenericArgs(list(...), "extract", "bartNegbin", negbinUnusedArgs)
+  n.chains <- fitNChains(object)
+
+  if (type == "loglik" && sample == "test") {
+    stop("cannot extract a test sample log-likelihood; no test response exists")
+  }
+
   latent <- if (sample == "test") object$latent.test else object$latent.train
   mu <- if (sample == "test") object$yhat.test else object$yhat.train
   if (sample == "test" && is.null(mu)) {
@@ -1293,27 +1547,94 @@ extract.bartNegbin <- function(
     )
   }
   if (type == "bart") {
-    return(latent)
+    return(combineOrUncombineChains(latent, n.chains, combineChains))
+  }
+  if (type == "loglik") {
+    result <- negbinLogLik(
+      object,
+      combineOrUncombineChains(mu, n.chains, FALSE),
+      n.chains
+    )
+    return(combineOrUncombineChains(result, n.chains, combineChains))
   }
   if (type == "ev") {
-    return(mu)
+    return(combineOrUncombineChains(mu, n.chains, combineChains))
   }
-  negbinPpd(mu, object$dispersion)
+  # type == "ppd": pair mu with dispersion in a common split layout so the two
+  # align regardless of either's own storage, then reshape the result to the
+  # caller's request
+  muSplit <- combineOrUncombineChains(mu, n.chains, FALSE)
+  disp <- scalarDrawVec(object$dispersion, n.chains, length(muSplit))
+  result <- array(
+    rnbinom(length(muSplit), size = disp, mu = as.vector(muSplit)),
+    dim(muSplit)
+  )
+  combineOrUncombineChains(result, n.chains, combineChains)
 }
+
+# l[s,i] = dnbinom(y_i, size = dispersion[s], mu = yhat.train[s,i]); the
+# per-draw dispersion pairs with the draws the same chain-fastest way the
+# gaussian arm pairs sigma (dispersion is already sigma-shaped). mu enters
+# forced to the split (chains x) samples x obs layout so it aligns with
+# scalarDrawVec's own normalization regardless of either's own storage.
+negbinLogLik <- function(object, mu, n.chains) {
+  y <- object[["y"]]
+  n.draws <- length(mu) %/% length(y)
+  disp <- scalarDrawVec(object[["dispersion"]], n.chains, length(mu))
+  result <- dnbinom(
+    rep(y, each = n.draws),
+    size = disp,
+    mu = as.vector(mu),
+    log = TRUE
+  )
+  array(result, dim(mu))
+}
+
+negbinFittedSampleReason <- list(
+  sample = paste0(
+    "fitted values are always the training rows; use extract(object, ",
+    "sample = \"test\")"
+  )
+)
 
 # The posterior-mean count per observation (type = "ev"), or the posterior-mean
 # log-odds latent per observation (type = "bart"). The observation margin is the
 # array's last dimension in every chain layout, so we take the mean over that
-# observation margin.
-fitted.bartNegbin <- function(object, type = c("ev", "bart"), ...) {
+# observation margin. ci.level opts into a credible band instead, taken on the
+# full draws before the mean.
+fitted.bartNegbin <- function(
+  object,
+  type = c("ev", "bart"),
+  ci.level = NULL,
+  ...
+) {
   type <- validateType(type, eval(formals(fitted.bartNegbin)$type))
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "bartNegbin",
+    negbinFittedSampleReason
+  )
   channel <- if (type == "bart") object$latent.train else object$yhat.train
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(channel, ci.level, trailing = 1L))
+  }
   apply(channel, length(dim(channel)), mean)
 }
+
+negbinResidualsTypeReason <- list(
+  type = "the residual is the observed count minus the posterior-mean count"
+)
 
 # y - fitted() on the count scale: the observed count minus the posterior-mean
 # count, an n-vector (the gaussian residual, on counts).
 residuals.bartNegbin <- function(object, ...) {
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "bartNegbin",
+    negbinResidualsTypeReason
+  )
   object$y - fitted.bartNegbin(object, type = "ev")
 }
 
@@ -1333,9 +1654,16 @@ predict.bartNegbin <- function(
   type = c("ev", "ppd", "bart"),
   offset.test = NULL,
   combineChains = TRUE,
+  ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartNegbin)$type))
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "bartNegbin",
+    negbinUnusedArgs["forest"]
+  )
   if (is.null(object[["dispersion.raw"]])) {
     stop(
       "predict requires bart2(family = \"nbinom\") to be called with ",
@@ -1357,7 +1685,11 @@ predict.bartNegbin <- function(
     offset.test
   )
   if (type == "bart") {
-    return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
+    result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
+    if (!is.null(ci.level)) {
+      return(posteriorInterval(result, ci.level, trailing = 1L))
+    }
+    return(result)
   }
   if (length(dim(raw)) == 2L) {
     dim(raw) <- c(dim(raw), 1L)
@@ -1376,7 +1708,10 @@ predict.bartNegbin <- function(
   }
   means <- convertSamplesFromDbartsToBart(means, n.chains, combineChains)
   if (type == "ppd") {
-    return(negbinPpd(means, object$dispersion))
+    means <- negbinPpd(means, object$dispersion)
+  }
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(means, ci.level, trailing = 1L))
   }
   means
 }
@@ -1447,6 +1782,41 @@ validateType <- function(type, allowed) {
   type[1L]
 }
 
+# Validate a 'sample' argument (train/test) against the method's own allowed
+# set and return the canonical scalar - one wording for every class instead of
+# a bare match.arg's "'arg' should be one of ...".
+validateSample <- function(sample, allowed) {
+  if (!is.character(sample) || sample[1L] %not_in% allowed) {
+    stop("sample must be in '", paste0(allowed, collapse = "', '"), "'")
+  }
+  sample[1L]
+}
+
+# The own-class extract/fitted/predict/residuals/summary methods share the
+# bart-family generics' NAMES but not their whole vocabulary: a K-widened or
+# two-part shape has no single forest to select, no per-observation
+# contribution to decompose, no separate test-sample fitted values, and (for
+# a fixed-formula residual or vars channel) no caller choice to make. Reading
+# a caller-supplied name out of '...' and stopping on the first hit - rather
+# than letting it fall through silently, as it does today - refuses these by
+# name instead of discarding them.
+refuseUnusedGenericArgs <- function(dots, generic, class, reasons) {
+  supplied <- intersect(names(reasons), names(dots))
+  if (length(supplied) > 0L) {
+    stop(
+      "'",
+      supplied[1L],
+      "' is not used by ",
+      generic,
+      " on a ",
+      class,
+      " fit: ",
+      reasons[[supplied[1L]]]
+    )
+  }
+  invisible(NULL)
+}
+
 # Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
 # the canonical "ev"/"bart" and validate against 'allowed' (the predict.bart
 # idiom, so a mis-typed request errors rather than silently mis-reporting).
@@ -1472,22 +1842,21 @@ hurdleNChains <- function(object) {
   }
 }
 
-# The positive part's per-observation sigma as a flat vector aligned, draw for
-# draw, with the fit draws' as.vector order (chain-fastest, then sample, then
-# observation - the layout pointwiseLogLikelihood and sampleFromPPD pair sigma
-# with fits in); sigma may be stored combined (flat, chain-major) or split
-# ((n.chains x) n.samples matrix, chain-fastest), so it is normalized to the
-# split matrix first, exactly as chainFastest does in pointwiseLogLikelihood.
-# The positive fit is always homoscedastic (a variance forest requires
-# family = "gaussian", so the probit occupancy fit rejects it and the hurdle
-# never builds a heteroscedastic component), carrying one sigma_s per draw,
-# which rep_len recycles across the n.obs draw-blocks so each observation
-# reuses its draw's sigma.
-hurdleSigmaVec <- function(sigma, n.chains, n.total) {
-  if (is.null(dim(sigma))) {
-    sigma <- uncombineChains(as.vector(sigma), n.chains)
+# A scalar-per-draw field (sigma, dispersion, ...) as a flat vector aligned,
+# draw for draw, with the fit draws' as.vector order (chain-fastest, then
+# sample, then observation - the layout pointwiseLogLikelihood and
+# sampleFromPPD pair sigma with fits in); the field may be stored combined
+# (flat, chain-major) or split ((n.chains x) n.samples matrix, chain-fastest),
+# so it is normalized to the split matrix first, exactly as chainFastest does
+# in pointwiseLogLikelihood, THEN recycled across the n.obs draw-blocks with
+# rep_len so it aligns with a channel of any shape (combined or split) whose
+# trailing margin is the observations - regardless of the field's own
+# storage, or of a caller-requested combineChains that differs from it.
+scalarDrawVec <- function(x, n.chains, n.total) {
+  if (is.null(dim(x))) {
+    x <- uncombineChains(as.vector(x), n.chains)
   }
-  rep_len(as.vector(sigma), n.total)
+  rep_len(as.vector(x), n.total)
 }
 
 # Glue the flat, draw-aligned occupancy-probability, positive-log-mean, and
@@ -1536,7 +1905,7 @@ hurdleParts <- function(object, newdata) {
       combineChains = FALSE
     )
   }
-  sigmaVec <- hurdleSigmaVec(
+  sigmaVec <- scalarDrawVec(
     object$positive$sigma,
     hurdleNChains(object),
     length(f)
@@ -1559,15 +1928,23 @@ finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
   result
 }
 
+# hurdle's two components are each a single forest, so 'forest'/'contribution'
+# refuse for the same reason a bart-family single-forest fit does.
+hurdleUnusedArgs <- list(
+  forest = singleForestReason,
+  contribution = singleForestReason
+)
+
 extract.bartHurdle <- function(
   object,
-  type = c("ev", "ppd", "prob", "bart"),
+  type = c("ev", "ppd", "prob", "bart", "loglik"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
   sample <- match.arg(sample)
+  refuseUnusedGenericArgs(list(...), "extract", "bartHurdle", hurdleUnusedArgs)
   if (sample == "test") {
     stop(
       "this hurdle fit carries no separate test channel; call predict on ",
@@ -1575,6 +1952,13 @@ extract.bartHurdle <- function(
     )
   }
   n.chains <- hurdleNChains(object)
+  if (type == "loglik") {
+    return(combineOrUncombineChains(
+      hurdleLogLik(object),
+      n.chains,
+      combineChains
+    ))
+  }
   finishHurdle(
     hurdleParts(object),
     type,
@@ -1582,6 +1966,36 @@ extract.bartHurdle <- function(
     combineChains,
     NULL
   )
+}
+
+# Reuses hurdleParts() verbatim: the pi/f/sigma draws the ev/ppd channels
+# already glue, flat and draw-aligned, at ALL n rows (the occupancy's own
+# channel; the positive part's x.test channel, zero rows included). y == 0
+# rows take the occupancy's own log(1 - pi); y > 0 rows take the occupancy
+# log(pi) plus the lognormal density of y on its NATURAL scale (a -log(y)
+# Jacobian against the stored log-scale channel) - comparable to any other
+# model of y, not of log(y); NO truncation, since the positive part's
+# lognormal support is already (0, Inf) - a future truncated (count) hurdle
+# would need one and must not reuse this formula unchanged. This is NOT the
+# sum of the two components' own loglik channels: the positive fit's channel
+# covers only its y > 0 rows, sits on the log scale, and carries no Jacobian.
+hurdleLogLik <- function(object) {
+  parts <- hurdleParts(object)
+  y <- object[["y"]]
+  n.draws <- length(parts$f) %/% length(y)
+  yRep <- rep(y, each = n.draws)
+  positive <- yRep > 0
+  result <- numeric(length(parts$f))
+  result[!positive] <- log1p(-parts$pi[!positive])
+  result[positive] <- log(parts$pi[positive]) +
+    dnorm(
+      log(yRep[positive]),
+      parts$f[positive],
+      parts$sigma[positive],
+      log = TRUE
+    ) -
+    log(yRep[positive])
+  array(result, parts$shape)
 }
 
 fitted.bartHurdle <- function(
@@ -1620,6 +2034,12 @@ predict.bartHurdle <- function(
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(predict.bartHurdle)$type))
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "bartHurdle",
+    hurdleUnusedArgs["forest"]
+  )
   if (is.null(object$occupancy[["fit"]])) {
     stop(
       "predict requires bart2(family = \"hurdle.lognormal\") to be called ",
@@ -1939,17 +2359,7 @@ extract.rbart <- function(
     return(allTrees)
   }
 
-  if (
-    !is.character(sample) ||
-      sample[1L] %not_in% eval(formals(extract.rbart)$sample)
-  ) {
-    stop(
-      "sample must be in '",
-      paste0(eval(formals(extract.rbart)$sample), collapse = "', '"),
-      "'"
-    )
-  }
-  sample <- sample[1L]
+  sample <- validateSample(sample, eval(formals(extract.rbart)$sample))
 
   # the log-likelihood is against the stored training response; there is no
   # test response to evaluate
@@ -2056,18 +2466,7 @@ fitted.rbart <- function(
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.rbart)$type))
-
-  if (
-    !is.character(sample) ||
-      sample[1L] %not_in% eval(formals(fitted.rbart)$sample)
-  ) {
-    stop(
-      "sample must be in '",
-      paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"),
-      "'"
-    )
-  }
-  sample <- sample[1L]
+  sample <- validateSample(sample, eval(formals(fitted.rbart)$sample))
 
   if (sample == "train" && type != "ranef" && is.null(object[["yhat.train"]])) {
     stop(
@@ -2131,7 +2530,30 @@ plotTree.dbartsSampler <- function(object, ...) {
   invisible(object$plotTree(...))
 }
 
+# do.call(object$fit$plotTree, args) below forwards whatever the caller wrote
+# by name straight through, so a caller typing the extract/fitted vocabulary's
+# 'sample'/'chain' - instead of this method's own 'sampleNum'/'chainNum' -
+# partial-matches the wrong formal via R's own argument matching and silently
+# draws a different tree than intended. Reading the RAW (unmatched) call
+# catches the exact name the caller wrote, before that matching resolves it.
+refusePlotTreeArgs <- function(rawCall) {
+  supplied <- intersect(c("sample", "chain"), names(rawCall))
+  if (length(supplied) > 0L) {
+    stop(
+      "'",
+      supplied[1L],
+      "' is not used by plotTree; the saved ",
+      supplied[1L],
+      " is '",
+      supplied[1L],
+      "Num'"
+    )
+  }
+  invisible(NULL)
+}
+
 plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
+  refusePlotTreeArgs(sys.call())
   if (is.null(object[["fit"]])) {
     stop(
       "plotTree requires the trees to be kept: fit with ",
@@ -2155,6 +2577,7 @@ plotTree.rbart <- function(
   sampleNum,
   ...
 ) {
+  refusePlotTreeArgs(sys.call())
   if (is.null(object[["fit"]])) {
     stop(
       "plotTree requires the trees to be kept: fit rbart_vi with ",
@@ -2190,6 +2613,57 @@ plotTree.rbart <- function(
   invisible(do.call(sampler$plotTree, args))
 }
 
+# plotTree.bart/.rbart read the trees off object$fit; a K-widened or two-part
+# own-class fit has no single sampler that reads that way (bartHurdle has
+# two), so each refuses by name instead of falling through to "no applicable
+# method", pointing at the sampler(s) that do carry the trees.
+refusePlotTreeMethod <- function(class, hint) {
+  stop(
+    "plotTree is defined for bart, rbart_vi and dbartsSampler fits; a ",
+    class,
+    " fit's trees live on its sampler - call ",
+    hint
+  )
+}
+plotTree.bartMultinomial <- function(object, ...) {
+  refusePlotTreeMethod("bartMultinomial", "plotTree(object$fit, ...)")
+}
+plotTree.bartOrdinal <- function(object, ...) {
+  refusePlotTreeMethod("bartOrdinal", "plotTree(object$fit, ...)")
+}
+plotTree.bartNegbin <- function(object, ...) {
+  refusePlotTreeMethod("bartNegbin", "plotTree(object$fit, ...)")
+}
+plotTree.bartHurdle <- function(object, ...) {
+  refusePlotTreeMethod(
+    "bartHurdle",
+    "plotTree(object$occupancy$fit, ...) or plotTree(object$positive$fit, ...)"
+  )
+}
+
+# survivalProbabilities.bart/.rbart dispatch on an aft or discrete-time hazard
+# fit; none of the four own-class families is either, so each refuses by name
+# instead of falling through to "no applicable method".
+refuseSurvivalProbabilitiesMethod <- function(class) {
+  stop(
+    "survivalProbabilities applies to a discrete-time hazard fit ",
+    "(bart2(family = \"hazard\")); a ",
+    class,
+    " fit has no hazard channel"
+  )
+}
+survivalProbabilities.bartMultinomial <- function(object, ...) {
+  refuseSurvivalProbabilitiesMethod("bartMultinomial")
+}
+survivalProbabilities.bartOrdinal <- function(object, ...) {
+  refuseSurvivalProbabilitiesMethod("bartOrdinal")
+}
+survivalProbabilities.bartNegbin <- function(object, ...) {
+  refuseSurvivalProbabilitiesMethod("bartNegbin")
+}
+survivalProbabilities.bartHurdle <- function(object, ...) {
+  refuseSurvivalProbabilitiesMethod("bartHurdle")
+}
 
 # The gaussian posterior predictive's noise scale, in the split layout's
 # chain-fastest order sampleFromPPD draws in: the per-draw scalar sigma

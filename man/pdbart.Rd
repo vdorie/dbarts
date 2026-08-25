@@ -82,7 +82,7 @@ pd2bart(
 \value{
   The plot methods produce the plots and don't return anything.
 
-  \code{pdbart} and \code{pd2bart} return lists with components given below. The list returned by \code{pdbart} is assigned class \code{pdbart} and the list returned by \code{pd2bart} is assigned class \code{pd2bart}.
+  \code{pdbart} and \code{pd2bart} return lists with components given below. The list returned by \code{pdbart} is assigned class \code{pdbart} and the list returned by \code{pd2bart} is assigned class \code{pd2bart}. The class carries a \code{plot} method only; it is not a fit, so \code{predict}, \code{extract}, \code{fitted}, and \code{residuals} are not defined for it (\code{fitted} and \code{residuals} fall through to \pkg{stats}' defaults and return \code{NULL}).
 
   \item{fd}{
     A matrix whose \eqn{(i, j)} value is the \eqn{i}th draw of \eqn{f_s(x_s)} for the \eqn{j}th value of \eqn{x_s}. \dQuote{fd} is for \dQuote{function draws}.

@@ -416,3 +416,108 @@ expect_error(
   dbarts:::defaultNodeScale("hazard"),
   "no node scale is defined for family \"hazard\""
 )
+
+# --- extract's combineChains formal, honoured instead of returning the
+# fit's own stored layout ---
+
+combinedEv <- extract(fit2c, type = "ev")
+expect_equal(dim(combinedEv), c(40L, n))
+splitBart <- extract(fit2c, type = "bart", combineChains = FALSE)
+expect_equal(dim(splitBart), c(2L, 20L, n))
+
+# --- extract(type = "loglik"): dnbinom(y, size = dispersion, mu = yhat.train)
+# against an independently coded oracle; extract-only, sample = "test"
+# refused, dims = dim(ev) (no K margin for this family) ---
+
+ll <- extract(fit, type = "loglik")
+ev <- extract(fit, type = "ev")
+oracleLl <- dnbinom(y, size = fit$dispersion[1L], mu = ev[1L, ], log = TRUE)
+expect_equal(ll[1L, ], oracleLl, tolerance = 1e-12)
+expect_equal(dim(ll), dim(ev))
+expect_error(
+  extract(fit, type = "loglik", sample = "test"),
+  "no test response exists"
+)
+expect_error(predict(fit, x.test, type = "loglik"), "type must be in")
+expect_error(fitted(fit, type = "loglik"), "type must be in")
+
+# --- fitted/predict's ci.level: a plain 3-column matrix (no K margin) ---
+
+fitCi <- fitted(fit, ci.level = 0.9)
+expect_equal(dim(fitCi), c(n, 3L))
+expect_equal(colnames(fitCi), c("est", "ci.lower", "ci.upper"))
+predCi <- predict(fit, x.test, ci.level = 0.9)
+expect_equal(dim(predCi), c(10L, 3L))
+
+# --- bart-family-only formals refused by name ---
+
+expect_error(
+  extract(fit, forest = 1L),
+  "'forest' is not used by extract on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, contribution = TRUE),
+  "'contribution' is not used by extract on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit, x.test, forest = 1L),
+  "'forest' is not used by predict on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  fitted(fit, sample = "test"),
+  "'sample' is not used by fitted on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  residuals(fit, type = "bart"),
+  "'type' is not used by residuals on a bartNegbin fit",
+  fixed = TRUE
+)
+
+# --- own-class extract's 'sample' validation shares bart/rbart's wording ---
+
+expect_error(extract(fit, sample = "bogus"), "sample must be in 'train'")
+
+# --- plotTree/survivalProbabilities refused by name ---
+
+expect_error(
+  plotTree(fit),
+  "plotTree is defined for bart, rbart_vi and dbartsSampler fits",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit),
+  "survivalProbabilities applies to a discrete-time hazard fit",
+  fixed = TRUE
+)
+
+# --- plot(object): dispersion step-trace + counts panel, two panels ---
+
+pdf(NULL)
+plot(fit)
+usedMfrow <- par("mfrow")
+dev.off()
+expect_equal(usedMfrow, c(1L, 2L))
+
+# --- as_draws_array/df default to vars = c("dispersion", "sigma", "k",
+# "tau"); this family has no sigma/k/tau, so only "dispersion" survives ---
+
+if (requireNamespace("posterior", quietly = TRUE)) {
+  ad <- posterior::as_draws_array(fit)
+  expect_equal(dimnames(unclass(ad))[[3L]], "dispersion")
+  rm(ad)
+}
+
+rm(
+  combinedEv,
+  splitBart,
+  ll,
+  ev,
+  oracleLl,
+  fitCi,
+  predCi,
+  usedMfrow
+)

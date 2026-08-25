@@ -98,6 +98,32 @@ expect_error(
   pattern = "'chainNum' must be a single chain index"
 )
 
+# plotTree builds its call to the sampler's own plotTree via do.call(args =
+# list(treeNum = , ...)), so a caller writing the extract/fitted vocabulary's
+# 'sample'/'chain' - instead of this method's own 'sampleNum'/'chainNum' -
+# used to partial-match the wrong formal and silently draw a different tree;
+# both are now refused by name before dispatch, on both bart and rbart fits
+expect_error(
+  plotTree(pt.bart2, sample = 5L),
+  "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(pt.bart2, chain = 2L),
+  "'chain' is not used by plotTree; the saved chain is 'chainNum'",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(pt.rbart, sample = 5L),
+  "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(pt.rbart, chain = 1L),
+  "'chain' is not used by plotTree; the saved chain is 'chainNum'",
+  fixed = TRUE
+)
+
 # the print methods summarize a fit to the console, and keep doing so with
 # keepCall = FALSE (previously just "NULL()")
 # the synopsis is the last block of the printout, one labelled line per fact,

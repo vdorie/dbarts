@@ -101,6 +101,30 @@ expect_true(any(ppd == 0)) # some unoccupied draws land exactly on the spike
 expect_error(extract(h, type = "bogus"), pattern = "type must be")
 expect_error(extract(h, sample = "test"), pattern = "test channel")
 
+# extract(type = "loglik"): the composed natural-scale density from the same
+# closed-form pi/f/sigma used above (NOT the sum of the two components' own
+# loglik channels, no truncation - the positive part's lognormal support is
+# already (0, Inf)), against an independently coded oracle covering both the
+# y == 0 and y > 0 branches
+hLL <- h
+hLL$y <- c(0, 2.5, 0, 1.1)
+llH <- extract(hLL, type = "loglik")
+oracleLLH <- matrix(0, S, m)
+for (s in seq_len(S)) {
+  for (i in seq_len(m)) {
+    oracleLLH[s, i] <- if (hLL$y[i] == 0) {
+      log1p(-piMat[s, i])
+    } else {
+      log(piMat[s, i]) +
+        dnorm(log(hLL$y[i]), fMat[s, i], sigmaDraws[s], log = TRUE) -
+        log(hLL$y[i])
+    }
+  }
+}
+expect_equal(llH, oracleLLH, tolerance = 1e-12)
+expect_equal(dim(llH), c(S, m))
+rm(hLL, llH, oracleLLH, s, i)
+
 # --- (2) predict on new data + replay reproduces the in-sample fitted ---------
 
 set.seed(42L)
@@ -211,6 +235,62 @@ expect_equal(
 )
 expect_equal(dim(extract(fit2c, type = "ev", combineChains = TRUE)), c(40L, n))
 expect_equal(dim(predict(fit2c, x.new, combineChains = FALSE)), c(2L, 20L, 15L))
+llFit2c <- extract(fit2c, type = "loglik", combineChains = FALSE)
+expect_equal(dim(llFit2c), c(2L, 20L, n))
+
+# loglik is extract-only
+expect_error(predict(fit, x.new, type = "loglik"), "type must be in")
+expect_error(fitted(fit, type = "loglik"), "type must be in")
+
+# bart-family-only formals refused by name (a hurdle fit's two components
+# are each a single forest)
+expect_error(
+  extract(fit, forest = 1L),
+  "'forest' is not used by extract on a bartHurdle fit",
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, contribution = TRUE),
+  "'contribution' is not used by extract on a bartHurdle fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit, x.new, forest = 1L),
+  "'forest' is not used by predict on a bartHurdle fit",
+  fixed = TRUE
+)
+
+# plotTree/survivalProbabilities refused by name, naming the components
+expect_error(
+  plotTree(fit),
+  "object$occupancy$fit",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit),
+  "survivalProbabilities applies to a discrete-time hazard fit",
+  fixed = TRUE
+)
+
+# plot(object): 2x2 layout, all four panels render
+pdf(NULL)
+plot(fit)
+usedMfrow <- par("mfrow")
+dev.off()
+expect_equal(usedMfrow, c(2L, 2L))
+
+# as_draws_array/df: the union of both components' present scalar fields,
+# dot-prefixed by component
+if (requireNamespace("posterior", quietly = TRUE)) {
+  ad <- posterior::as_draws_array(fit)
+  adNames <- dimnames(unclass(ad))[[3L]]
+  expect_true(any(startsWith(adNames, "occupancy.")))
+  expect_true(any(startsWith(adNames, "positive.")))
+  expect_true("positive.sigma" %in% adNames)
+  rm(ad, adNames)
+}
+
+rm(llFit2c, usedMfrow)
 
 # --- (3) save / load round-trip: fitted and predict are identical -------------
 

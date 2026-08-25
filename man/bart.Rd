@@ -265,6 +265,8 @@ extract(object, \dots)
       \item \code{value} - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node
     }
     The order of nodes in the result corresponds to a depth-first traversal, going down the left-side first. The names of variables used in splitting can be recovered by examining the column names of the \code{fit$data@x} element of a fitted \code{bart} or \code{bart2} model. See the package vignette \dQuote{Working with dbarts Saved Trees}.
+
+    A fit made with \code{keeptrees}/\code{keepTrees} \code{FALSE} but a sampler kept anyway (\code{keepSampler = TRUE}, or a \code{bart2} fit with \code{fit} present per \sQuote{Value} below) still answers \code{extract(fit, "trees")}, the same fallback \code{\link{plotTree}} uses: the frame holds the sampler's CURRENT trees rather than a saved history, so it carries no \code{chain}/\code{sample} column and reflects whatever predictors and structure the sampler holds at the time of the call, not a fixed draw.
   }
 }
 \value{

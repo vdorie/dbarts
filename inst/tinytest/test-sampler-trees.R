@@ -97,6 +97,45 @@ expect_error(
 
 rm(individualSamples, combinations, allTrees, fit, n.samples, n.trees)
 
+## ---------------------------------------------------------------------------
+## extract(type = "trees") on a keepSampler-only fit (keeptrees FALSE,
+## keepSampler TRUE): follows plotTree's own documented fallback, the
+## sampler's CURRENT trees - no chain/sample column - rather than a saved
+## history, since keeptrees FALSE means no history was kept.
+## ---------------------------------------------------------------------------
+n.trees <- 3L
+fitKeepSampler <- dbarts::bart(
+  y ~ .,
+  df,
+  nthread = 1L,
+  ntree = n.trees,
+  nskip = 0L,
+  ndpost = 4L,
+  keeptrees = FALSE,
+  keepsampler = TRUE,
+  verbose = FALSE
+)
+currentTrees <- dbarts::extract(fitKeepSampler, "trees")
+expect_equal(colnames(currentTrees), c("tree", "n", "var", "value"))
+expect_true(nrow(currentTrees) > 0L)
+expect_equal(currentTrees, fitKeepSampler$fit$getTrees())
+
+fitKept <- dbarts::bart(
+  y ~ .,
+  df,
+  nthread = 1L,
+  ntree = n.trees,
+  nskip = 0L,
+  ndpost = 4L,
+  keeptrees = TRUE,
+  verbose = FALSE
+)
+keptTrees <- dbarts::extract(fitKept, "trees")
+expect_equal(colnames(keptTrees), c("sample", "tree", "n", "var", "value"))
+expect_true(nrow(keptTrees) > 0L)
+
+rm(n.trees, fitKeepSampler, currentTrees, fitKept, keptTrees)
+
 
 n.g <- 5L
 g <- sample(n.g, length(testData$y), replace = TRUE)

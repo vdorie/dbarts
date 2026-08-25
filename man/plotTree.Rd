@@ -3,6 +3,10 @@
 \alias{plotTree.bart}
 \alias{plotTree.rbart}
 \alias{plotTree.dbartsSampler}
+\alias{plotTree.bartMultinomial}
+\alias{plotTree.bartOrdinal}
+\alias{plotTree.bartNegbin}
+\alias{plotTree.bartHurdle}
 \title{Plot a Single Tree From a Fitted BART Model}
 \description{
   Minimalist visualization of the branching and leaf contents of one tree
@@ -11,6 +15,13 @@
   A fit-level convenience wrapper around the sampler's \code{plotTree}
   method, so the trees can be plotted without reaching into the sampler
   stored on the fit.
+
+  \code{\link{bart2}}'s four own-class fits (\code{"bartMultinomial"},
+  \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}) refuse
+  by name instead: their trees live on the sampler(s) those fits carry
+  (\code{object$fit} for the first three, \code{object$occupancy$fit}/
+  \code{object$positive$fit} for the hurdle), which \code{plotTree} can
+  be called on directly.
 }
 \usage{
 plotTree(object, \dots)
@@ -20,6 +31,14 @@ plotTree(object, \dots)
 \method{plotTree}{rbart}(object, treeNum = 1L, chainNum = 1L, sampleNum, \dots)
 
 \method{plotTree}{dbartsSampler}(object, \dots)
+
+\method{plotTree}{bartMultinomial}(object, \dots)
+
+\method{plotTree}{bartOrdinal}(object, \dots)
+
+\method{plotTree}{bartNegbin}(object, \dots)
+
+\method{plotTree}{bartHurdle}(object, \dots)
 }
 \arguments{
   \item{object}{

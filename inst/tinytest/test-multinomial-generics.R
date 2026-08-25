@@ -262,7 +262,10 @@ expect_error(
 )
 expect_error(extract(fitKeep, type = "forest"), forestReason, fixed = TRUE)
 # a value no multinomial method offers refuses against the set it does
-expect_error(extract(fitKeep, type = "loglik"), "type must be in 'ev'")
+expect_error(extract(fitKeep, type = "nonsense"), "type must be in 'ev'")
+# loglik is extract-only
+expect_error(predict(fitKeep, x.test, type = "loglik"), "type must be in")
+expect_error(fitted(fitKeep, type = "loglik"), "type must be in")
 
 # ---- fix 7: predict on a fit trained with an n x K category offset.
 # The predicted rows are the caller's, so no resident offset describes them:
@@ -285,21 +288,21 @@ fitOffset <- bart2(
 )
 expect_error(
   predict(fitOffset, x.test),
-  "'offset.category.test' is required on a multinomial fit trained with a",
+  "'offset' is required on a multinomial fit trained with a",
   fixed = TRUE
 )
 expect_error(
   predict(
     fitOffset,
     x.test,
-    offset.category.test = matrix(0, nrow(x.test), 2L)
+    offset = matrix(0, nrow(x.test), 2L)
   ),
   "must be a 20 x 3 matrix"
 )
 # ORACLE: the training rows under the training offset ARE the training
 # channel, replayed draw for draw out of the saved trees (measured 3.9e-15)
 expect_equal(
-  predict(fitOffset, x, offset.category.test = categoryOffset),
+  predict(fitOffset, x, offset = categoryOffset),
   fitOffset$yhat.train,
   tolerance = 1e-12
 )
@@ -307,7 +310,7 @@ expect_equal(
 predFree <- predict(
   fitOffset,
   x.test,
-  offset.category.test = matrix(0, nrow(x.test), 3L)
+  offset = matrix(0, nrow(x.test), 3L)
 )
 expect_equal(dim(predFree), c(n.samples, nrow(x.test), 3L))
 expect_true(max(abs(apply(predFree, c(1L, 2L), sum) - 1)) < 1e-12)
@@ -318,10 +321,149 @@ expect_false(identical(
   predict(
     fitKeep,
     x.test,
-    offset.category.test = matrix(c(1, 0, 0), nrow(x.test), 3L, byrow = TRUE)
+    offset = matrix(c(1, 0, 0), nrow(x.test), 3L, byrow = TRUE)
   ),
   predEv
 ))
+
+# ---- fix 8: extract's combineChains formal, honoured instead of ignored
+# (previously silently returning the fit's own stored layout).
+
+fitMC <- bart2(
+  x,
+  y,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 2L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+combinedEv <- extract(fitMC, type = "ev")
+splitEv <- extract(fitMC, type = "ev", combineChains = FALSE)
+expect_equal(dim(combinedEv), c(2L * n.samples, n, 3L))
+expect_equal(dim(splitEv), c(2L, n.samples, n, 3L))
+
+# ---- fix 9: extract(type = "loglik"), the multinomial log-pmf (its
+# coefficient included) against an independently coded oracle (dmultinom),
+# for both response ingestions; extract-only, sample = "test" refused.
+
+llLabel <- extract(fitCombined, type = "loglik")
+evLabel <- extract(fitCombined, type = "ev")
+oracleLabel <- matrix(0, nrow(llLabel), ncol(llLabel))
+for (s in seq_len(nrow(llLabel))) {
+  for (i in seq_len(ncol(llLabel))) {
+    indicatorRow <- as.integer(y[i] == levels(y))
+    oracleLabel[s, i] <- dmultinom(
+      indicatorRow,
+      prob = evLabel[s, i, ],
+      log = TRUE
+    )
+  }
+}
+expect_equal(llLabel, oracleLabel, tolerance = 1e-12)
+expect_equal(dim(llLabel), dim(evLabel)[-3L])
+
+llCounts <- extract(fitCounts, type = "loglik")
+evCounts <- extract(fitCounts, type = "ev")
+oracleCounts <- vapply(
+  seq_len(n.c),
+  function(i) dmultinom(counts.c[i, ], prob = evCounts[1L, i, ], log = TRUE),
+  numeric(1L)
+)
+expect_equal(llCounts[1L, ], oracleCounts, tolerance = 1e-12)
+
+expect_error(
+  extract(fitCombined, type = "loglik", sample = "test"),
+  "no test response exists"
+)
+llSplit <- extract(fitMC, type = "loglik", combineChains = FALSE)
+expect_equal(dim(llSplit), c(2L, n.samples, n))
+
+# ---- fix 10: fitted/predict's ci.level, an (obs x K x 3) array on this
+# K-margined family (a plain 3-column matrix has no room for the category
+# margin, so pooling it would average incomparable probabilities).
+
+fitCi <- fitted(fitCombined, ci.level = 0.9)
+expect_equal(dim(fitCi), c(n, 3L, 3L))
+expect_equal(dimnames(fitCi)[[3L]], c("est", "ci.lower", "ci.upper"))
+predCi <- predict(fitKeep, x.test, ci.level = 0.9)
+expect_equal(dim(predCi), c(20L, 3L, 3L))
+
+# ---- fix 11: the bart-family-only formals are refused by name instead of
+# vanishing into '...' - verified against the unmodified build by hand
+# (identical() to the call without the argument, the swallow's signature).
+
+expect_error(
+  extract(fitCombined, forest = 1L),
+  "'forest' is not used by extract on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  extract(fitCombined, contribution = TRUE),
+  "'contribution' is not used by extract on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(fitKeep, x.test, forest = 1L),
+  "'forest' is not used by predict on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  fitted(fitCombined, sample = "test"),
+  "'sample' is not used by fitted on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  residuals(fitCombined, type = "bart"),
+  "'type' is not used by residuals on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  summary(fitCombined, vars = "sigma"),
+  "'vars' is not used by summary on a bartMultinomial fit",
+  fixed = TRUE
+)
+
+# ---- fix 12: plotTree/survivalProbabilities are refused by name instead of
+# a raw 'no applicable method'.
+
+expect_error(
+  plotTree(fitCombined),
+  "plotTree is defined for bart, rbart_vi and dbartsSampler fits",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fitCombined),
+  "survivalProbabilities applies to a discrete-time hazard fit",
+  fixed = TRUE
+)
+
+# ---- fix 13: plot(object) draws a second panel now (both response
+# ingestions), a real content assertion the "kept draws" arithmetic fix
+# cannot fail on (expect_silent alone would pass on either the 1- or
+# 2-panel version).
+
+pdf(NULL)
+plot(fitCombined)
+combinedMfrow <- par("mfrow")
+plot(fitCounts)
+countsMfrow <- par("mfrow")
+dev.off()
+expect_equal(combinedMfrow, c(1L, 2L))
+expect_equal(countsMfrow, c(1L, 2L))
+
+# ---- fix 14: as_draws_array/df expose meanProb[<level>], never yhat.train.
+
+if (havePosterior) {
+  meanProbNames <- paste0("meanProb[", levels(y), "]")
+  ad <- posterior::as_draws_array(fitCombined)
+  expect_equal(sort(dimnames(unclass(ad))[[3L]]), sort(meanProbNames))
+  adf <- posterior::as_draws_df(fitCombined)
+  expect_true(all(meanProbNames %in% names(adf)))
+  rm(meanProbNames, ad, adf)
+}
 
 rm(
   parseKeptDraws,
@@ -365,5 +507,22 @@ rm(
   forestReason,
   categoryOffset,
   fitOffset,
-  predFree
+  predFree,
+  fitMC,
+  combinedEv,
+  splitEv,
+  llLabel,
+  evLabel,
+  oracleLabel,
+  s,
+  i,
+  indicatorRow,
+  llCounts,
+  evCounts,
+  oracleCounts,
+  llSplit,
+  fitCi,
+  predCi,
+  combinedMfrow,
+  countsMfrow
 )

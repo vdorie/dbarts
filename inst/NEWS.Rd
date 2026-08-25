@@ -1899,6 +1899,51 @@
       \item \code{names(fit)} on a \code{bart}/\code{bart2} fit no longer
             lists \code{yhat.test}/\code{s.train}/\code{s.test} when the fit
             carries none of them.
+      \item \code{extract}, \code{fitted}, \code{predict}, \code{residuals},
+            \code{plotTree}, and \code{survivalProbabilities} on a
+            \code{bart2(family = "multinomial"/"ordinal"/"nbinom"/
+            "hurdle.lognormal")} fit silently accepted several
+            \code{\link{bart}}-family arguments they do not implement -
+            \code{extract(forest = )}, \code{extract(combineChains = )},
+            \code{fitted(sample = )}, \code{residuals(type = )},
+            \code{summary(vars = )} on a multinomial fit - because each
+            fell through to an unused \code{\dots}. Every one is now
+            refused by name; \code{extract}'s \code{combineChains} and
+            \code{fitted}/\code{predict}'s \code{ci.level} are honoured
+            instead of ignored, matching \code{\link{bart}}'s own
+            generics; \code{plotTree}/\code{survivalProbabilities} on
+            these four classes now refuse by name (naming the sampler(s)
+            that do carry the trees) rather than raising a raw
+            \sQuote{no applicable method}. \code{predict}'s multinomial
+            argument \code{offset.category.test} is renamed \code{offset},
+            matching \code{predict.bart}'s own new-row shift.
+      \item \code{extract(type = "loglik")} is implemented for the four
+            \code{bart2} own-class families, and \code{plot} for the
+            three that lacked one (\code{bartOrdinal}, \code{bartNegbin},
+            \code{bartHurdle}; \code{bartMultinomial}'s gains a second
+            panel). \code{as_draws_array}/\code{as_draws_df} are
+            registered for all four when \pkg{posterior} is installed,
+            previously failing inside \pkg{posterior} with an opaque
+            \sQuote{All list elements must be lists themselves}. See
+            \code{\link{bart2}}'s \sQuote{Value} section for each
+            family's formula and shape.
+      \item \code{extract(type = "trees")} on a fit with no saved trees
+            but a kept sampler (\code{keepSampler = TRUE} without
+            \code{keeptrees}/\code{keepTrees}) silently returned the
+            sampler's CURRENT trees, with no \code{chain}/\code{sample}
+            column, undocumented; this is \code{\link{plotTree}}'s own
+            fallback and is kept, now disclosed under \code{\link{bart}}'s
+            \sQuote{Extracting Trees}.
+      \item \code{plotTree(fit, sample = )}/\code{plotTree(fit, chain = )}
+            partial-matched the wrong formal (\code{sampleNum}/
+            \code{chainNum}) instead of raising an error or reaching
+            \code{\dots}, silently drawing a different tree than
+            requested; both are now refused by name.
+      \item The four own-class \code{extract} methods validated
+            \code{sample} with a bare \code{match.arg}, giving
+            \sQuote{'arg' should be one of ...} where \code{\link{bart}}
+            and \code{rbart_vi} fits say \sQuote{sample must be in
+            'train', 'test'}; all eight sites now share the one wording.
     }
   }
 }

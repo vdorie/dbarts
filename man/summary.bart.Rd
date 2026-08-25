@@ -6,6 +6,14 @@
 \alias{as_draws_array.rbart}
 \alias{as_draws_df.bart}
 \alias{as_draws_df.rbart}
+\alias{as_draws_array.bartMultinomial}
+\alias{as_draws_array.bartOrdinal}
+\alias{as_draws_array.bartNegbin}
+\alias{as_draws_array.bartHurdle}
+\alias{as_draws_df.bartMultinomial}
+\alias{as_draws_df.bartOrdinal}
+\alias{as_draws_df.bartNegbin}
+\alias{as_draws_df.bartHurdle}
 \title{Convergence Diagnostics and Posterior-Package Draws for BART Fits}
 \description{
   \code{summary} reports a per-variable posterior summary of the scalar
@@ -23,6 +31,14 @@
   \code{posterior::as_draws_array} call); dbarts registers them only
   when \pkg{posterior} is available, as it is a \code{Suggests}, not a
   hard dependency.
+
+  \code{bart2}'s four own-class fits (\code{"bartMultinomial"},
+  \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}; see
+  \code{\link{bart2}}) are draws objects too, through their own
+  \code{summary}/\code{as_draws_array}/\code{as_draws_df} methods
+  (documented under \code{\link{bart2}}'s \sQuote{Value}), each exposing
+  the scalar posterior parameters that family carries rather than its
+  per-observation channels - never \code{yhat.train} itself.
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "tau"), \dots)
@@ -33,11 +49,26 @@
 \method{as_draws_array}{rbart}(x, vars = c("sigma", "k", "tau"), \dots)
 \method{as_draws_df}{bart}(x, vars = c("sigma", "k", "tau"), \dots)
 \method{as_draws_df}{rbart}(x, vars = c("sigma", "k", "tau"), \dots)
+
+\method{as_draws_array}{bartMultinomial}(x, vars = "meanProb", \dots)
+\method{as_draws_df}{bartMultinomial}(x, vars = "meanProb", \dots)
+\method{as_draws_array}{bartOrdinal}(
+  x, vars = c("cutpoints", "sigma", "k", "tau"), \dots)
+\method{as_draws_df}{bartOrdinal}(
+  x, vars = c("cutpoints", "sigma", "k", "tau"), \dots)
+\method{as_draws_array}{bartNegbin}(
+  x, vars = c("dispersion", "sigma", "k", "tau"), \dots)
+\method{as_draws_df}{bartNegbin}(
+  x, vars = c("dispersion", "sigma", "k", "tau"), \dots)
+\method{as_draws_array}{bartHurdle}(x, vars = c("sigma", "k", "tau"), \dots)
+\method{as_draws_df}{bartHurdle}(x, vars = c("sigma", "k", "tau"), \dots)
 }
 \arguments{
   \item{object, x}{
     An object of class \code{bart} or \code{rbart}, as returned by
-    \code{\link{bart}}, \code{\link{bart2}}, or \code{\link{rbart_vi}}.
+    \code{\link{bart}}, \code{\link{bart2}}, or \code{\link{rbart_vi}};
+    for the four own-class methods, a \code{bart2} fit of the matching
+    class.
   }
   \item{vars}{
     Character vector of fields to gather. Requested fields absent from
@@ -58,6 +89,18 @@
     response, a constant with no posterior content, so it is not
     reported as a parameter. \code{s.train} itself is reachable by
     name, contributing one variable per observation.
+
+    For the four own-class methods, \code{vars} is scoped to that
+    family's own vocabulary (see \code{\link{bart2}}): a
+    \code{"bartOrdinal"} fit's \code{"cutpoints"} contributes
+    \code{cutpoint[1]} (pinned at 0) through \code{cutpoint[K - 1]}; a
+    \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
+    per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has no
+    \code{vars} formal at all and always reports \code{meanProb[<level>]},
+    its only scalar posterior parameter; a \code{"bartHurdle"} fit
+    applies \code{vars} to both components and labels the result
+    \code{occupancy.<field>}/\code{positive.<field>} (a dot, not a
+    bracket, since \pkg{posterior} parses a bracket as an index).
   }
   \item{\dots}{Unused.}
 }
@@ -79,7 +122,8 @@
   \code{as_draws_array} and \code{as_draws_df} return a \pkg{posterior}
   \code{draws_array}/\code{draws_df}: the fit's native (chain, sample[,
   variable]) storage, transposed to \pkg{posterior}'s (iteration,
-  chain, variable) convention.
+  chain, variable) convention. The four own-class methods return the
+  same convention over their own family-scoped \code{vars}.
 }
 \seealso{
 \code{\link{bart}}, \code{\link{rbart_vi}}
