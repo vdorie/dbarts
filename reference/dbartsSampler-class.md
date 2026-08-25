@@ -887,6 +887,37 @@ with the package), which invokes the engine directly and performs no
 R-side collection; such clients supply their own current predictor
 matrix when replaying saved trees.
 
+### Infrastructure methods
+
+`getPointer()` returns the sampler's underlying engine pointer, checking
+it for validity first. If the engine the cached pointer refers to is no
+longer live (typically after a
+[`load`](https://rdrr.io/r/base/load.html)), it transparently re-creates
+one from `control`, `model`, `data` and the stored `state`, reinstalls
+every recorded forest weight (see `reapplyForestWeights` below, since
+forest weights do not ride the saved state) so the replacement matches a
+freshly built engine, and only then replaces the cached pointer; a
+re-creation that fails leaves the sampler exactly as it was.
+`adoptPointer(ptr)` is the write side of the same relationship: it
+rebinds the sampler onto `ptr`, an `externalptr` some caller built
+directly, outside this object, from this sampler's own
+`(control, model, data)` triple - typically by driving the C interface
+described under ‘Mutation cost’ - in place of the engine this object
+created at construction; the abandoned engine becomes unreachable and is
+released once by its own finalizer. `adoptPointer` trusts the caller
+that `ptr` was built from this object's own triple and performs no
+independent check. `reapplyForestWeights(ptr)` re-installs every
+per-forest weight mirrored on the sampler onto a freshly (re-)created
+`ptr`; it is called only from `getPointer` and `setState`, never
+directly.
+
+These three are the only R-level primitives for exchanging engine
+pointers with code that drives the engine directly through `dbarts.h`.
+There is no other R-level path to that boundary: the low-level `.Call`
+wrappers this class's methods delegate to are internal to the package
+and unexported, so a consumer below this reference class has `dbarts.h`
+and nothing else.
+
 ### Multi-forest and heteroscedastic predictor mutation
 
 `setPredictor` - whole-matrix, single- or multi-column (via `column`),
