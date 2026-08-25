@@ -66,4 +66,21 @@ linters: local({
 encoding: "UTF-8"
 # Vignette code chunks are formatted for prose exposition, not lint compliance
 # (indentation, line width, combined naming); exclude them from the package lint.
-exclusions: list("vignettes")
+# The low-level bartcore handle wrappers live in a helper that inst/tinytest
+# and benchmarks/R source() into a closure's scope; object_usage_linter only
+# resolves installed namespaces, so it cannot see a sourced definition and
+# misreads every such use as an undeclared global. A directory name in this
+# list only ever excludes a file from every linter at once - the installed
+# lintr expands a directory entry to Inf per file, dropping any per-linter
+# value given for it - so the two directories are listed by file instead,
+# each scoped to just this linter; new files there are picked up because the
+# listing runs at lint time.
+exclusions: local({
+    x <- list("vignettes")
+    for (dir in c("inst/tinytest", "benchmarks/R")) {
+      for (path in list.files(dir, pattern = "[.]R$", recursive = TRUE, full.names = TRUE)) {
+        x[[path]] <- list(object_usage_linter = Inf)
+      }
+    }
+    x
+  })
