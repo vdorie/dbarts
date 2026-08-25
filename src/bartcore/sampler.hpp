@@ -584,8 +584,11 @@ public:
   /// sum runs in tree order inside one slab, and nothing is reduced across
   /// workers, so no addend order depends on how the slabs were dealt out.
   ///
-  /// Scratch is allocated per worker HERE, before the spawn, so the replay
-  /// itself allocates nothing. Worker bodies must not call into R: an
+  /// Scratch is one struct per WORKER, not one per slab: the replay's buffers
+  /// grow to their working size on a worker's first slab and are reused for
+  /// the rest of its block, so nothing is shared between workers and the
+  /// allocation count is bounded by the worker count rather than by the slab
+  /// count. Worker bodies must not call into R: an
   /// exception escaping a std::thread body is std::terminate, and a large
   /// replay is exactly where bad_alloc is plausible, so each body catches and
   /// the first message is raised after the join, on the caller's thread.

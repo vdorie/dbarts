@@ -5917,9 +5917,9 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
     numThreads);
 }
 
-// The shape of the last out-of-sample replay's fan-out: list(n.workers, worker),
-// the second a per-slab worker index in the same (chain, draw) order the
-// replay's output is laid out in. It exists so a test can prove that a thread
+// The shape of the last out-of-sample replay's fan-out: list(resolved,
+// n.workers, worker), the last a per-slab worker index in the same (chain,
+// draw) order the replay's output is laid out in. It exists so a test can prove that a thread
 // argument reached the engine and that the partition covers every slab exactly
 // once, without measuring time; no R surface reads it, and the numbers it
 // reports never change an answer.
