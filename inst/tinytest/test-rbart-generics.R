@@ -204,6 +204,65 @@ expect_equal(
   predict(rbartFit.1, x, g, combineChains = FALSE)
 )
 
+# an rbart fit whose ranef dimnames do not name every group once crashed the
+# session: fitted matched each label to NA and handed the NAs to C, which
+# indexed the ranef array on NA_INTEGER
+strippedFit <- rbartFit.1
+dimnames(strippedFit$ranef) <- NULL
+expect_error(
+  fitted(strippedFit),
+  "'group.by' must name groups present in the 'ranef' dimnames"
+)
+expect_error(
+  residuals(strippedFit),
+  "'group.by' must name groups present in the 'ranef' dimnames"
+)
+rm(strippedFit)
+
+# the compiled entry point backstops a direct .Call that skips the guard above
+n.obs <- length(rbartFit.1$group.by)
+expect_error(
+  .Call(
+    dbarts:::C_rbart_fitted,
+    rbartFit.1$yhat.train,
+    rbartFit.1$ranef,
+    rep_len(NA_integer_, n.obs),
+    FALSE
+  ),
+  "group index must be a non-NA index into the 'ranef' group dimension"
+)
+expect_error(
+  .Call(
+    dbarts:::C_rbart_fitted,
+    rbartFit.1$yhat.train,
+    rbartFit.1$ranef,
+    rep_len(ncol(rbartFit.1$ranef) + 1L, n.obs),
+    FALSE
+  ),
+  "group index must be a non-NA index into the 'ranef' group dimension"
+)
+expect_error(
+  .Call(
+    dbarts:::C_rbart_fitted,
+    rbartFit.1$yhat.train,
+    rbartFit.1$ranef,
+    rep_len(0L, n.obs),
+    FALSE
+  ),
+  "group index must be a non-NA index into the 'ranef' group dimension"
+)
+expect_error(
+  .Call(
+    dbarts:::C_rbart_fitted,
+    rbartFit.1$yhat.train,
+    rbartFit.1$ranef,
+    rep_len(1L, n.obs - 1L),
+    FALSE
+  ),
+  "group index length must match the number of observations"
+)
+rm(n.obs)
+
 rm(rbartFit.1, rbartFit.0, g, y, x)
 
 

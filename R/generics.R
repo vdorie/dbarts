@@ -2084,25 +2084,25 @@ fitted.rbart <- function(
   if (type == "ev") {
     ranefNames <- dimnames(object$ranef)
     ranefNames <- ranefNames[[length(ranefNames)]]
-    if (sample == "train") {
-      groupByMatch <- match(object$group.by, ranefNames)
-      result <- .Call(
-        C_rbart_fitted,
-        object$yhat.train,
-        object$ranef,
-        groupByMatch,
-        is.null(object[["sigma"]])
-      )
-    } else {
-      groupByMatch <- match(object$group.by.test, ranefNames)
-      result <- .Call(
-        C_rbart_fitted,
-        object$yhat.test,
-        object$ranef,
-        groupByMatch,
-        is.null(object[["sigma"]])
+    groupByName <- if (sample == "train") "group.by" else "group.by.test"
+    groupByMatch <- match(object[[groupByName]], ranefNames)
+    # C_rbart_fitted indexes the group dimension of 'ranef' by this vector
+    # directly, so a label with no column - a fit whose 'ranef' dimnames were
+    # stripped or do not cover every group - has to be refused here
+    if (anyNA(groupByMatch)) {
+      stop(
+        "'",
+        groupByName,
+        "' must name groups present in the 'ranef' dimnames"
       )
     }
+    result <- .Call(
+      C_rbart_fitted,
+      if (sample == "train") object$yhat.train else object$yhat.test,
+      object$ranef,
+      groupByMatch,
+      is.null(object[["sigma"]])
+    )
   } else {
     result <- extract(object, type, sample, ...)
 

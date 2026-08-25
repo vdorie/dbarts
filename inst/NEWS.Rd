@@ -1843,6 +1843,14 @@
             \code{predict}'s column-name match refused it, which also
             broke a data.frame training input once it was converted to a
             named matrix.
+      \item \code{fitted} and \code{residuals} on an \code{rbart_vi} fit
+            whose \code{ranef} array carries no group names - or names that
+            do not cover every group - now refuse the call by name instead
+            of crashing the R session. The group labels were matched against
+            the \code{ranef} dimnames and the unmatched \code{NA} indices
+            passed to compiled code, which read outside the array. That entry
+            point bounds-checks the indices as well, for a direct
+            \code{.Call} that skips the R-level check.
     }
   }
 }
