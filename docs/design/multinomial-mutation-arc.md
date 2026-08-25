@@ -470,8 +470,10 @@ Three costs the first draft missed, all confirmed:
   MEASURED on `dbartsData(x, rep(1, n))`: the degeneracy check
   (`R/data.R:1259-1270`) fires `response values are indistinguishable, or
   nearly so, at double precision (1 distinct value(s) among 60
-  observations)`, and `dbarts(x, rep(1, n))` installs a starting sigma of
-  `1.52e-16`. A single-trial multinomial has `n_i == 1` for every row -
+  observations)`, and `dbarts(x, rep(1, n))` installs a starting sigma at
+  `estimateSigmaFromLinearModel`'s host-independent floor (was measured at
+  `1.52e-16` before the floor landed). A single-trial multinomial has
+  `n_i == 1` for every row -
   the dominant case - so both fire on EVERY such fit. The sigma gate is
   one condition (`fixedUnitScale`, `R/spec.R:178-180`, already a
   family-keyed flag). The warning gate is NOT: `dbartsData()` has no
@@ -804,7 +806,9 @@ revision 1 with corrections; 17-22 added this pass.
     refusal. Absent from revision 1's Fork G scope and price; now in S2.
 21. `R/data.R:1259-1270` degeneracy check and `R/spec.R:189-190` sigma
     estimate both fire on a single-trial multinomial response.
-    **MEASURED**: the warning text, and `sigma = 1.52e-16`.
+    **MEASURED**: the warning text, and a starting sigma at
+    `estimateSigmaFromLinearModel`'s host-independent floor (was
+    `sigma = 1.52e-16` before the floor landed).
     `dbartsData()` has no `family` formal (`R/data.R:735-746`), so the
     warning gate must key on `@counts`, not on family.
 22. `combiner.hpp:745-746` / `chain.hpp:744-745` carry the two residue

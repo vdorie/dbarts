@@ -574,7 +574,7 @@ estimateSigmaFromLinearModel <- function(data) {
   # signal dbarts already gives for a degenerate response (the
   # "response values are indistinguishable..." warning in R/data.R). Muffle
   # only that exact condition; everything else passes through.
-  withCallingHandlers(
+  sigma <- withCallingHandlers(
     summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma,
     warning = function(w) {
       if (grepl("essentially perfect fit", conditionMessage(w), fixed = TRUE)) {
@@ -582,6 +582,19 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   )
+  # A response the fit reproduces exactly (or a design that leaves no
+  # residual degrees of freedom) returns rounding noise rather than a
+  # meaningful sigma - down to landing at precisely 0 or NaN - and which
+  # exact value it lands on is a property of the host's BLAS kernel; the
+  # sampler refuses a non-positive sigma outright, so a host-dependent noise
+  # floor would make dbarts() itself succeed or fail by hardware. Replace it
+  # with a relative-epsilon floor so the estimate is host-independent. The
+  # floor uses the unweighted residual, matching the sparse fallback above:
+  # weights rescale the fit's effective sample, not the response's own
+  # scale, so they play no part in the floor.
+  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  sigmaFloor <- sqrt(.Machine$double.eps) * max(1, max(abs(residual)))
+  if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
 
 ## Recode a sparseFactor test column over the training level table, keeping

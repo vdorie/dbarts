@@ -85,10 +85,17 @@ expect_identical(length(plainWarnings), 1L)
 expect_true(grepl("indistinguishable", plainWarnings[1L], fixed = TRUE))
 
 # --- family gate 2: no degenerate starting sigma ------------------------------
-# the plain fit of the same constant response installs sigma ~ 1e-16; the
+# the plain fit of the same constant response installs sigma at the
+# host-independent floor (estimateSigmaFromLinearModel, R/utility.R); the
 # multinomial one is a fixed-unit-scale family and installs none at all
 expect_true(is.na(sampler$data@sigma))
-expect_false(is.na(suppressWarnings(dbarts(x, rep(1.0, n)))$data@sigma))
+plainSigma <- suppressWarnings(dbarts(x, rep(1.0, n)))$data@sigma
+expect_false(is.na(plainSigma))
+expect_true(plainSigma > 0)
+# tolerance = 0: the default relative tolerance would call a host's raw
+# rounding noise (~1e-15) "equal to" this floor (~1e-8) too, since both are
+# tiny; only an exact comparison pins the floor itself
+expect_equal(plainSigma, sqrt(.Machine$double.eps), tolerance = 0)
 
 # --- it runs, and reports K softmax probabilities ---------------------------
 samples <- sampler$run(6L, 8L)

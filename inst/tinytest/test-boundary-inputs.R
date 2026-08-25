@@ -22,21 +22,30 @@ n <- 100L
 x.p1 <- matrix(runif(n), n, 1L)
 y.p1 <- 2 * x.p1[, 1L] + rnorm(n, 0, 0.3)
 sampler.p1 <- dbarts(y.p1 ~ x.p1, control = control)
+# a non-degenerate fit is unaffected by estimateSigmaFromLinearModel's floor
+expect_equal(sampler.p1$data@sigma, summary(lm(y.p1 ~ x.p1))$sigma)
 expect_equal(ncol(sampler.p1$data@x), 1L)
 samples.p1 <- sampler.p1$run(50L, 50L)
 expect_true(all(is.finite(samples.p1$train)))
 expect_true(all(is.finite(samples.p1$sigma)))
 
-# n = 2: the linear-fit sigma estimate is degenerate (residual df 0), so the
-# sampler refuses at creation with a clear R-level error rather than crashing
+# n = 2: the linear-fit sigma estimate is degenerate (residual df 0, so lm's
+# sigma is exactly 0/0 = NaN); estimateSigmaFromLinearModel's floor covers any
+# non-finite estimate, not only a perfect fit's rounding noise, so the
+# sampler now runs on the floor instead of refusing
 x.n2 <- matrix(c(0.2, 0.8, 0.3, 0.7), 2L, 2L)
 y.n2 <- c(1.0, -1.0)
-expect_error(dbarts(y.n2 ~ x.n2, control = control), pattern = "sigma estimate")
+sampler.n2 <- dbarts(y.n2 ~ x.n2, control = control)
+expect_equal(sampler.n2$data@sigma, sqrt(.Machine$double.eps), tolerance = 0)
+samples.n2 <- sampler.n2$run(10L, 10L)
+expect_true(all(is.finite(samples.n2$train)))
+expect_true(all(is.finite(samples.n2$sigma)))
 
-# a constant response: the fit runs, sigma collapses to ~0, and the train
-# fits equal the constant. Finite throughout. A constant response is exactly
-# the precision-degenerate case dbartsData now warns about (see
-# test-data-precision-warning.R), so the warning is expected here too.
+# a constant response: the fit runs, sigma is floored at a relative epsilon,
+# and the train fits equal the constant. Finite throughout. A constant
+# response is exactly the precision-degenerate case dbartsData now warns
+# about (see test-data-precision-warning.R), so the warning is expected here
+# too.
 set.seed(1)
 x.const <- matrix(runif(n * 2L), n, 2L)
 y.const <- rep(3.0, n)
@@ -48,6 +57,13 @@ warnings.const <- captureWarnings(
 # degenerate-response warning should reach here.
 expect_equal(length(warnings.const), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.const[[1L]])))
+# the constant response's own residual, not its weight-scaled counterpart,
+# sets the floor: sqrt(eps) * max(1, |y|)
+expect_equal(
+  sampler.const$data@sigma,
+  sqrt(.Machine$double.eps) * 3.0,
+  tolerance = 0
+)
 samples.const <- sampler.const$run(30L, 30L)
 expect_true(all(is.finite(samples.const$train)))
 expect_true(all(is.finite(samples.const$sigma)))
