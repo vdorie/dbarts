@@ -12,6 +12,7 @@ on:
       - 'TODO'
       - 'benchmarks/**'
   pull_request:
+    branches: [main, master, bartcore]
   release:
     types: [published]
   workflow_dispatch:

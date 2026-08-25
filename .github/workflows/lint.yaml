@@ -13,6 +13,7 @@ on:
       - '**.md'
       - 'benchmarks/baselines/**'
   pull_request:
+    branches: [main, master, bartcore]
   workflow_dispatch:
 
 concurrency:
@@ -69,3 +70,20 @@ jobs:
 
       - name: Check formatting
         run: air format --check .
+
+  doc-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          use-public-rspm: true
+
+      - name: Check Windows config header drift
+        run: Rscript tools/check-win-drift.R .
+
+      - name: Check design/plan doc freshness
+        run: Rscript tools/check-doc-freshness.R .

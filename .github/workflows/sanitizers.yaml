@@ -14,7 +14,7 @@ name: sanitizers
 
 on:
   push:
-    branches: [bartcore]
+    branches: [main, master, bartcore]
     # instrumented rebuilds cost ~an hour; documentation- and
     # benchmark-data-only pushes cannot change what they test
     paths-ignore:
@@ -23,7 +23,7 @@ on:
       - '**.md'
       - 'benchmarks/**'
   pull_request:
-    branches: [bartcore, main]
+    branches: [main, master, bartcore]
     paths-ignore:
       - 'docs/**'
       - 'TODO'

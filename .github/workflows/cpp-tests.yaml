@@ -15,7 +15,7 @@ on:
       - '**.md'
       - 'benchmarks/**'
   pull_request:
-    branches: [main, master]
+    branches: [main, master, bartcore]
   workflow_dispatch:
 
 concurrency:

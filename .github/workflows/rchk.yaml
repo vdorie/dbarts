@@ -51,9 +51,23 @@ jobs:
       # output from failing the job. A confirmed false positive is excluded
       # here by its exact rchk output line, with a one-line reason; there are
       # none tracked yet.
+      #
+      # An OOM-killed analyzer can exit leaving no .bcheck/.maacheck output
+      # at all, which the findings grep below would then read as a clean
+      # pass; require the analyzer's own "Analyzed N functions" completion
+      # line and the absence of a kill signal in rchk.log before trusting an
+      # empty findings set.
       - name: Fail on new PROTECT-balance findings
         run: |
           set -eo pipefail
+          if grep -q 'Killed' rchk.log; then
+            echo "::error::rchk was killed (likely OOM) before completing analysis"
+            exit 1
+          fi
+          if ! grep -qE 'Analyzed [0-9]+ functions' rchk.log; then
+            echo "::error::rchk.log has no 'Analyzed N functions' completion line; analysis did not finish"
+            exit 1
+          fi
           findings=$(find rchk-packages \( -name '*.bcheck' -o -name '*.maacheck' \) \
             -exec cat {} + 2>/dev/null \
             | grep -E '^\s*\[(PB|UP)\]|WARNING Suspicious call' || true)

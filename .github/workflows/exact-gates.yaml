@@ -33,7 +33,7 @@ on:
       - 'TODO'
       - '**.md'
   pull_request:
-    branches: [main, master]
+    branches: [main, master, bartcore]
   workflow_dispatch:
     inputs:
       mode:
