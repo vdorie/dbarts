@@ -3,3 +3,6 @@
 line-width = 80
 indent-width = 2
 indent-style = "space"
+# docs/ holds verbatim review records (R scripts included); they are not
+# package code and are never reformatted.
+exclude = ["docs/"]
