@@ -11,11 +11,9 @@ config.log
 config.status
 autom4te.cache
 src/config.hpp
-src/dbarts/config.hpp
 src/external/config.h
 src/misc/config.h
 src/include/misc/types.h
-inst/include/dbarts/types.hpp
 scratch
 
 # clangd: machine-specific paths / local index (regenerate per machine)
