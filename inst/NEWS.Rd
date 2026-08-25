@@ -1880,10 +1880,11 @@
             silently flattened column-major before the row count was
             compared.
       \item \code{monotone}'s per-element spelling no longer accepts the
-            undocumented abbreviations \code{"inc"}/\code{"dec"}/\code{"0"}
-            (as opposed to the numeric \code{0}, still unconstrained);
-            matching the documented tokens is case-insensitive, now stated
-            in \code{?dbarts} and \code{?bart2}.
+            undocumented abbreviations \code{"inc"} and \code{"dec"}
+            (\code{"0"}, the character form of the documented unconstrained
+            \code{0}, is still accepted); matching the documented tokens is
+            case-insensitive, now stated in \code{?dbarts} and
+            \code{?bart2}.
       \item \code{bart2}, \code{xbart} and \code{rbart_vi} share one
             message refusing an \code{n.samples} that thins to zero draws;
             \code{dbarts}/\code{dbartsControl} still accept it, for a

@@ -874,10 +874,13 @@ validateMultinomialCounts <- function(counts, initialNumObservations, subset) {
 
 # A matrix 'offset'/'offset.test' is only ever meaningful on a counts-
 # carrying (multinomial) data object, where it is the n x K category shift;
-# reached whenever one arrives without 'counts' to pair it with.
-refuseMatrixOffset <- function(offset) {
+# reached whenever one arrives without 'counts' to pair it with. 'argument'
+# is the spelling the caller used, which is the only one they can act on.
+refuseMatrixOffset <- function(offset, argument) {
   stop(
-    "'offset' must be a numeric vector of length n or a single number; a ",
+    "'",
+    argument,
+    "' must be a numeric vector of length n or a single number; a ",
     nrow(offset),
     " x ",
     ncol(offset),
@@ -889,10 +892,11 @@ refuseMatrixOffset <- function(offset) {
 # constant added to every category of a row leaves every reported
 # probability unchanged - so it carries no information a multinomial fit can
 # use; the meaningful shift is the n x K category offset instead.
-refuseFlatOffsetOnMultinomial <- function(offset) {
+refuseFlatOffsetOnMultinomial <- function(offset, argument = "offset") {
   stop(
-    "family = \"multinomial\" requires an n x K matrix \"offset\", one ",
-    "column per category; a length-",
+    "family = \"multinomial\" requires an n x K matrix \"",
+    argument,
+    "\", one column per category; a length-",
     length(offset),
     " vector was supplied, and a common per-observation shift is the ",
     "softmax's own null direction - it cancels"
@@ -905,7 +909,13 @@ refuseFlatOffsetOnMultinomial <- function(offset) {
 # test store and is pinned by the validity method instead. Distinct from
 # validateCategoryOffset, which checks a matrix arriving at a bartcore HANDLE
 # against that handle's own already-fixed n and K.
-validateDataCategoryOffset <- function(offset, rows, subset, argument) {
+validateDataCategoryOffset <- function(
+  offset,
+  rows,
+  subset,
+  argument,
+  categories = NULL
+) {
   if (is.null(offset)) {
     return(NULL)
   }
@@ -914,6 +924,21 @@ validateDataCategoryOffset <- function(offset, rows, subset, argument) {
   }
   if (!is.matrix(offset) || !is.numeric(offset)) {
     stop("'", argument, "' must be a numeric matrix")
+  }
+  # checked here rather than left to the class's validity method, which can
+  # only name the slot the value lands in and not the argument it arrived as
+  if (!is.null(categories) && ncol(offset) != categories) {
+    stop(
+      "'",
+      argument,
+      "' must have one column per category (K = ",
+      categories,
+      "); a ",
+      nrow(offset),
+      " x ",
+      ncol(offset),
+      " matrix was supplied"
+    )
   }
   if (anyNA(offset) || !all(is.finite(offset))) {
     stop("'", argument, "' values must all be finite")
@@ -1257,7 +1282,7 @@ dbartsData <- function(
       offset <- NULL
     } else if (is.matrix(offset) || is.data.frame(offset)) {
       if (is.null(counts)) {
-        refuseMatrixOffset(offset)
+        refuseMatrixOffset(offset, "offset")
       }
       categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
       offset <- NULL
@@ -1332,7 +1357,7 @@ dbartsData <- function(
       offset <- NULL
     } else if (is.matrix(offset) || is.data.frame(offset)) {
       if (is.null(counts)) {
-        refuseMatrixOffset(offset)
+        refuseMatrixOffset(offset, "offset")
       }
       categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
       offset <- NULL
@@ -1456,7 +1481,7 @@ dbartsData <- function(
       (is.matrix(offset.test) || is.data.frame(offset.test))
   ) {
     if (is.null(counts)) {
-      refuseMatrixOffset(offset.test)
+      refuseMatrixOffset(offset.test, "offset.test")
     }
     categoryTestOffset <- if (is.data.frame(offset.test)) {
       as.matrix(offset.test)
@@ -1516,14 +1541,15 @@ dbartsData <- function(
       refuseFlatOffsetOnMultinomial(offset)
     }
     if (!is.null(offset.test)) {
-      refuseFlatOffsetOnMultinomial(offset.test)
+      refuseFlatOffsetOnMultinomial(offset.test, "offset.test")
     }
   }
   offset.category <- validateDataCategoryOffset(
     categoryOffset,
     countsRows,
     countsSubset,
-    "offset"
+    "offset",
+    if (is.null(counts)) NULL else ncol(counts)
   )
   # the test twin's rows are the TEST rows, so it is not subset with the
   # training ones and its row count is pinned by the validity method
@@ -1531,8 +1557,12 @@ dbartsData <- function(
     categoryTestOffset,
     NULL,
     NULL,
-    "offset.test"
+    "offset.test",
+    if (is.null(counts)) NULL else ncol(counts)
   )
+  if (!is.null(offset.category.test) && is.null(x.test)) {
+    stop("'offset.test' must be null when 'test' is null")
+  }
 
   if (anyNA(y)) {
     if (!is.null(matchedCall$subset)) {

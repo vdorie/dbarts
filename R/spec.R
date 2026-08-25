@@ -266,7 +266,7 @@ resolveSamplerSpec <- function(
       refuseFlatOffsetOnMultinomial(data@offset)
     }
     if (!is.null(data@offset.test)) {
-      refuseFlatOffsetOnMultinomial(data@offset.test)
+      refuseFlatOffsetOnMultinomial(data@offset.test, "offset.test")
     }
   }
 

@@ -130,7 +130,7 @@ expect_error(
 )
 expect_error(
   dbartsData(x, counts = oneHot, offset = matrix(0.0, n, K + 1L)),
-  "dimensions of 'counts'"
+  "'offset' must have one column per category"
 )
 expect_error(
   dbartsData(x, counts = oneHot, offset = matrix(Inf, n, K)),
@@ -142,7 +142,12 @@ expect_error(
 )
 expect_error(
   dbartsData(x, counts = oneHot, offset.test = matrix(0.0, nTest, K)),
-  "'x.test' is null"
+  "'offset.test' must be null when 'test' is null"
+)
+# every shape refusal names the argument as typed, never the slot it lands in
+expect_error(
+  dbartsData(x, counts = oneHot, test = x.test, offset.test = rep(0.0, nTest)),
+  "requires an n x K matrix \"offset.test\""
 )
 # a counts-carrying object fits only the family whose response it is
 expect_error(

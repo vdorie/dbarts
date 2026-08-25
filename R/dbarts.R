@@ -446,8 +446,9 @@ dbarts <- function(
     # returns exactly one sampler and cannot express that composition - only
     # bart2() (bart2Hurdle) builds it
     stop(
-      "family \"hurdle.lognormal\" fits two component samplers and is only ",
-      "available through bart2()"
+      "family \"",
+      requestedFamily,
+      "\" fits two component samplers and is only available through bart2()"
     )
   }
 
