@@ -42,10 +42,10 @@ raw retention. That default only works because every residual consumer of
 stored raw values was tracked down and given an explicit, narrow home:
 
 - Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:928)
-  and quantile refresh (data.hpp:748). Not recoverable from codes (bin
+  and quantile refresh (data.hpp:897). Not recoverable from codes (bin
   counts do not locate new quantile values).
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
-  (model.hpp:994,1010,1358,1380); no per-draw raw reads. Leaves can own a raw
+  (model.hpp:998,1013,1362,1381); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
 - getTrees saved-tree replay reads store.x (R_interface_bartcore.cpp:5956);
   routable from codes while the cut grid is unchanged since save.
@@ -54,7 +54,7 @@ stored raw values was tracked down and given an explicit, narrow home:
 The panel's proposed resolutions, from that same 2026-07-06 synthesis:
 re-cuttability as an explicit creation-time column flag (default off), so
 refusals reflect a column's declared state rather than a policy surprise -
-the sparse-column precedent (facade.hpp:363); and, on a split panel call
+the sparse-column precedent (facade.hpp:810-814); and, on a split panel call
 (2/3), keeping a READ-ONLY borrow of REAL(x) as the pure-continuous matrix
 fast path, with write-through dying regardless of that split. The read-only
 borrow survived into the shipped design, narrowed to construction only (see
@@ -99,7 +99,7 @@ storage on updatable columns; that flag was designed, then killed before
 being built - see "Considered and rejected." Mutation instead works by
 reference-install, below.) With no flag set, a column owns codes only;
 undeclared capabilities refuse at the call with a declared-state error -
-the same precedent already used for sparse columns (facade.hpp:363), so
+the same precedent already used for sparse columns (facade.hpp:810-814), so
 refusals reflect a column's declared state rather than being a policy
 surprise.
 
@@ -187,7 +187,7 @@ mutation at the call with the same declared-state error used elsewhere.
 BCF's prognostic/treatment forests, and sum-of-BART families with
 per-model column subsets, need one container shared by several samplers.
 The shipped design: a standalone data handle (core-generalization.md:
-168-172) owns the container once; samplers and forests attach through
+181-185) owns the container once; samplers and forests attach through
 COLUMN-SUBSET views. Kernels already consume one column at a time
 (codes.data() + j*n), so a view is just a column-index list - no
 contiguous block per model is required. Cut tables and codes are shared

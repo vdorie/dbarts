@@ -355,12 +355,12 @@ forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 the `weights` precedent) and the treatment forest's configuration rides
 `attr(control, "bartcore.forests")` (R/spec.R:728-760, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:2243-2250). `$setForestBasis`, `$getForestFits`,
+(src/R_interface_bartcore.cpp:3052-3069). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1460, 1691-1716). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `forestFits`/`numForestAmplitudes`/`forestAmplitudes` are public `dbarts.h`
-entries (inst/include/dbarts/dbarts.h:497-506), and `setResponse` takes an
+entries (inst/include/dbarts/dbarts.h:495-508), and `setResponse` takes an
 explicit `updateScale` argument. (Corrected 2026-08-13: this paragraph named
 `setTreatment` and `bcfGlue` at :264-271, both retired at the dbarts.h reshape
 S1 re-bake, ab3aa2fa - `setTreatment` re-signed as `setForestBasis(sampler,

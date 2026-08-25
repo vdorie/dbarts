@@ -120,7 +120,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   the two fits.
 - Combined prediction / reporting / state serialization. Pure packaging convenience,
   which R gives for free in the bartMultinomial / bartNegbin idiom (a few dozen lines,
-  R/bart.R:2328,2332). The engine route would instead DOUBLE the state wire format
+  R/bart.R:1727,2203). The engine route would instead DOUBLE the state wire format
   (two response latent/sigma blocks, two forest lists) - a format bump, not a saving.
 - LinkingTo / dbarts.h reach. None in v1: nbinom, ordinal, hazard, and heteroscedastic
   all ship with zero dbarts.h exposure (negative-binomial.md). No gain.
@@ -256,7 +256,7 @@ across the two fits, and predict on new data.
 
 - **How the user asks.** family = "hurdle" (v1: probit occupancy + lognormal positive
   part), added to the dbarts and bart2 family vectors (R/dbarts.R:387, R/bart.R
-  around :691-692). Following the dbarts token convention (families are tokens, not
+  around :702). Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
   future variants are further tokens: "hurdle.logistic" (logistic occupancy),
   "hurdle.nbinom" (count positive part once a truncated-count family ships). The
@@ -287,7 +287,7 @@ across the two fits, and predict on new data.
   - print reports "family: hurdle (probit occupancy + lognormal)".
   Because each component fit carries the ordinary $family element ("probit"/"gaussian"),
   every existing $family-dispatched generic (probabilityFromLatents, pointwiseLogLikelihood,
-  R/generics.R:2098-2114) stays correct on the components unchanged; the hurdle-level combine
+  R/generics.R:14,56) stays correct on the components unchanged; the hurdle-level combine
   is new code keyed on the bartHurdle class / marker, the hazard $periods split
   (survival.md section 4). predict requires keepTrees (the predict.bart guard).
 
