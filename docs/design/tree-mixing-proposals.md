@@ -906,7 +906,7 @@ seeds** - while mean accuracy was mixed (PIMA fell 76.5 -> 73.4 and
 **Why the previously recorded architectural objection does not hold.** The
 survey declined this on the grounds that swapping breaks dbarts'
 per-chain RNG reproducibility, forces a synchronization barrier across the
-thread-parallel chain layout (`R/bart.R:667-668`), and destroys the
+thread-parallel chain layout (`R/bart.R:669-670`), and destroys the
 diagnostic value of multiple chains. All three assume swaps happen *among
 the user's chains*. Under the private-ladder construction - each cold chain
 owns its own rungs and cold chains never exchange with each other - each
@@ -1277,14 +1277,14 @@ Neither is engine work, and both should be in the documentation regardless.
 
 - **More trees.** Tan et al.: "Increasing the number of trees consistently
   dampens the trend in R-hat. Its effect on coverage and RMSE is
-  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:664`), below
+  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:666`), below
   BART's classic 200. **Carry the caveat with it**: more trees dampens
   R-hat partly *because* the ensemble self-averages structural labels
   harder, so an improved R-hat at larger m is not by itself evidence that
   tree-space mixing improved.
 - **More chains.** Ronen et al.'s own recommendation is to "increase the
   number of chains with the number of data points"; dbarts defaults to
-  `n.chains = 4L` (`R/bart.R:667`).
+  `n.chains = 4L` (`R/bart.R:669`).
 
 No engine candidate should be measured against a single-chain, 75-tree
 straw man.

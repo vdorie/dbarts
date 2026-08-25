@@ -57,7 +57,7 @@ anchors below are re-derived to the successor constructions):
 | `:1809` | ordinal | `buildHostSamplerCall(family = "ordinal")` | `bartcoreSampler(sampler, family = "ordinal")` (`:645`) |
 | `:2058` | nbinom | `buildHostSamplerCall(family = "nbinom")` | `bartcoreSampler(sampler, family = "nbinom")` |
 
-`buildHostSamplerCall` is `R/bart.R:538-558`. `result$bc <- bc` is
+`buildHostSamplerCall` is `R/bart.R:540-560`. `result$bc <- bc` is
 retired - the separate `$bc` handle is gone (section 1.5).
 `result$fit <- sampler` at `:1511`, `:1592`, `:1893`, `:2135`, gated on
 `control@keepTrees || keepSampler`.
@@ -95,7 +95,7 @@ codes `0..K-1`; `R/spec.R:198-207` resolves auto on a numeric response by
 - K >= 3: MEASURED `control@binary` FALSE, `model@family` `"gaussian"`,
   response transform anchored to the range of the integer category codes.
 - **`family = "auto"` never reaches this path.** `detectAutoMultinomial`
-  (`R/bart.R:1388-1396`) requires `n.levels >= 3L`, and a 2-level factor
+  (`R/bart.R:1390-1398`) requires `n.levels >= 3L`, and a 2-level factor
   under auto announces probit and returns class `"bart"`. MEASURED:
   `family = "auto": 2-level factor response detected, fitting family =
   "probit"; set 'family' to override`.
@@ -266,7 +266,7 @@ problems:
 - multinomial: A1, via fork G.
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
-`checkFamilyUnsupportedArgs` (`R/bart.R:616-644`) has **four** callers -
+`checkFamilyUnsupportedArgs` (`R/bart.R:618-646`) has **four** callers -
 multinomial `:914`, ordinal `:1067`, nbinom `:1100`, and
 **`hurdle.lognormal` `:1144`** - and its `samplerOnly` block is three
 lines (`:625-627`) inside a helper that refuses two other things.
@@ -456,7 +456,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`cutpoints.raw` (`R/bart.R:1890`) and `dispersion.raw` (`:2132`) inside
+`cutpoints.raw` (`R/bart.R:1892`) and `dispersion.raw` (`:2134`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -621,7 +621,7 @@ implementer splits them, S2 = 700/330 and S3 = 360/500, each with its own.
 |---|---|---|---|
 | **Door 1: twin-create deletion** | Drop the redundant `bartcore_create` for ordinal/nbinom (Fork D1). | ~60 / ~40, **moves 2 of 43** equivalence scenarios | 3ms per fit (MEASURED 0.003s against a 0.339s run) and "two engines per fit" survives into the RC |
 | **Door 2: flat ABI (Fork C2)** | `dbarts_sampler_createMultinomial` + counts/offset setters + a K-aware predict. | ~260 / ~200, **two literal re-bakes** (`dbarts.h:142`, `C_interface.cpp:461`), `test-capi.R:84` + one new `expect_false`, one in-house consumer rebuild | multinomial stays R-only; the named consumer (stan4bart) is on its own branch and its own release, so nothing is blocked |
-| **Door 3: nbinom loop collapse** | Replace the per-sweep loop (`R/bart.R:2076-2101`) with one `run`. | ~40 / ~30; **`bench-sampler` IS owed** - it removes `n.samples` R-level round trips from the sampling path, which is sweep-proportional | a per-sweep R round trip per kept draw |
+| **Door 3: nbinom loop collapse** | Replace the per-sweep loop (`R/bart.R:2078-2103`) with one `run`. | ~40 / ~30; **`bench-sampler` IS owed** - it removes `n.samples` R-level round trips from the sampling path, which is sweep-proportional | a per-sweep R round trip per kept draw |
 | **Door 4: `$getLatents` build (B1(i))** | Combiner-side `latents()` returning the n x K omegas. | ~40 engine / ~60 test, plus an ASAN/UBSAN leg | clause 4's read/write symmetry stays deliberately declined rather than met |
 | **Door 5: hurdle `samplerOnly`** | Decide whether a two-sampler `$fit` may be returned unrun. | decision, then ~20 / ~30 | the per-caller flag keeps today's refusal, which is correct-by-default |
 
@@ -757,7 +757,7 @@ environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:608/625`,
 `770/786`, `900/915`), three test assertions (`test-ordinal.R:139`,
 `test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
-paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1306`), and the
+paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1314`), and the
 `cutpoints.raw`/`dispersion.raw` co-gate. Under the standing
 no-backwards-compat constraint this was a NEWS migration, not a design
 input, and it has since landed.

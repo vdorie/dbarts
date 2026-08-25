@@ -120,7 +120,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   the two fits.
 - Combined prediction / reporting / state serialization. Pure packaging convenience,
   which R gives for free in the bartMultinomial / bartNegbin idiom (a few dozen lines,
-  R/bart.R:1727,2203). The engine route would instead DOUBLE the state wire format
+  R/bart.R:1729,2205). The engine route would instead DOUBLE the state wire format
   (two response latent/sigma blocks, two forest lists) - a format bump, not a saving.
 - LinkingTo / dbarts.h reach. None in v1: nbinom, ordinal, hazard, and heteroscedastic
   all ship with zero dbarts.h exposure (negative-binomial.md). No gain.
@@ -257,8 +257,8 @@ across the two fits, and predict on new data.
 
 - **How the user asks.** family = "hurdle.lognormal" (v1: probit occupancy +
   lognormal positive part), added to the dbarts and bart2 family vectors
-  (R/dbarts.R:387, R/bart.R:702), with `twopart` an accepted alias that resolves to
-  it (R/dbarts.R:409, R/bart.R:723). This section first proposed the bare "hurdle";
+  (R/dbarts.R:387, R/bart.R:704), with `twopart` an accepted alias that resolves to
+  it (R/dbarts.R:409, R/bart.R:725). This section first proposed the bare "hurdle";
   the NAMING decision in section 13 supersedes it, and the qualified token is what
   ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
@@ -275,7 +275,7 @@ across the two fits, and predict on new data.
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
   negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
-  bartNegbin idiom, R/bart.R:1727,2203) holding the two component fits (or their packaged
+  bartNegbin idiom, R/bart.R:1729,2205) holding the two component fits (or their packaged
   draws) plus a marker recording the variant. Generics combine the two components' draws
   by sample index (any pairing is a valid joint draw, section 0):
   - predict / fitted / extract, type = "ev"/"response": combined E[y | x] =

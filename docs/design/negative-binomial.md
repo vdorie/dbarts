@@ -417,7 +417,7 @@ token dbarts otherwise leans on. The ecosystem alternatives are `"negbinomial"`
 name) is an abbreviation no major package uses. Recommend `"nbinom"` for the
 R-core `dnbinom` alignment; `"negbinomial"` is the runner-up if brms-alignment is
 valued over R-core. Added to the dbarts and bart2 family vectors (R/dbarts.R:383,
-R/bart.R:698) and to the A_class whitelist (R/A_class.R:455-465).
+R/bart.R:700) and to the A_class whitelist (R/A_class.R:455-465).
 
 **Response validation.** y must be non-negative integers. The check belongs in
 the numeric-response branch of the family resolution (R/spec.R:199-210, where

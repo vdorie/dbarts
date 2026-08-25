@@ -4,7 +4,7 @@ Status: design settled 2026-08-25, after an independent blind critique
 of 35 findings (33 accepted, 1 settled on different grounds, 1
 disputed as stated with its remedy accepted; section 9). LANDED
 2026-08-25; section 11 records what shipped and what differs from the
-proposal. Anchor: bartcore 54dec2ab - every citation below was
+proposal. Anchor: bartcore e654012d - every citation below was
 re-verified live against that tree.
 
 ## 1. The ruling
@@ -173,7 +173,7 @@ The chosen R default is the fit's own thread count, and that exposure
 is stated plainly: 117 of 307 `bart2`/`rbart_vi` calls across
 inst/tinytest declare no thread argument, 50 with `n.chains > 1` or
 defaulted, so their `control@n.threads` is `min(guessNumCores(),
-n.chains)`, up to 4 on a CI box (R/bart.R:668), and under this default
+n.chains)`, up to 4 on a CI box (R/bart.R:670), and under this default
 every `predict()` becomes multi-worker on those fits, a posture
 already true of `run`. The new tests pin explicit counts of 2 or
 fewer.
@@ -216,7 +216,7 @@ the second (variance) fan-out (:5742) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`
-(R/bart.R:664). A parallel fraction near 0.98-0.995 gives an Amdahl
+(R/bart.R:666). A parallel fraction near 0.98-0.995 gives an Amdahl
 ceiling of roughly 3.8-3.9x at 4 threads and 7.0-7.7x at 8 - **a
 ceiling from a serial fraction, not a measured speedup**, since no
 threaded predict exists to measure. The real gate before the R-level

@@ -394,7 +394,7 @@ into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
 default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
 chi(1.5, 2.0) for binary, R/model.R:530; .kDefault unresolved - no such object
-ships; bart2's own k=NULL, R/bart.R:658, resolves the same), so a plain
+ships; bart2's own k=NULL, R/bart.R:660, resolves the same), so a plain
 bart2(..., monotone=..., family="probit") supplies a chi hyperprior by default.
 Resolution: under `monotone`, an UNSUPPLIED k resolves to fixed k = 2 (the
 continuous default and mBART's value) for BOTH continuous and binary responses -

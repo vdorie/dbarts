@@ -102,7 +102,7 @@ the grid is its natural home.
 ## 5. R surface: candidates (recommendation per option; no global pick)
 
 (a) A family value, family = "t". Precedent: family already resolves
-gaussian/probit/logistic/aft (dbarts.R:375-380, bart.R:695). Cost: a scalar
+gaussian/probit/logistic/aft (dbarts.R:375-380, bart.R:697). Cost: a scalar
 match.arg cannot carry nu, so it needs a companion resid.df arg, splitting one
 concept in two. Recommend only paired with (b)/(c) for the df.
 

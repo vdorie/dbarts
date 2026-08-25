@@ -34,7 +34,7 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at 54dec2ab - the cited line
+Anchors are verified BY CONTENT against the tree at e654012d - the cited line
 holds the construct the cell names, never an offset from another anchor - and a
 cell's VALUE is adjudicated separately from its anchor.
 
@@ -55,7 +55,7 @@ and schedules against the same way, so they earn rows.
 | multinom | Multinomial softmax, K forests (`MultinomialResponse` MOD:3716 + combiner) |
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3794) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:481-541) |
-| hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2256) |
+| hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2258) |
 | bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`AmplitudeForestCombiner` COM:741) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4706) |
 | hetero | Heteroscedastic variance forest (CH:742) |
@@ -76,24 +76,24 @@ cell says so.
 
 | model | `bart()` | `bart2()` | `dbarts()` + R5 | `rbart_vi()` | `xbart()` | flat C `dbarts.h` |
 |---|---|---|---|---|---|---|
-| gaussian | S bart.R:2834 | S bart.R:692 | S dbarts.R:377 | S rbart.R:49 | S xbart.R:26 | S CAPI:647 |
-| student | S bart.R:2689 | S bart.R:706 | S dbarts.R:364 | M rbart.R:56 | M xbart.R:2-33 | S RIB:2548-2556 [f2] |
-| probit | S bart.Rd:78 | S bart.R:693 | S dbarts.R:378 | S data.R:602 | S xbart.R:26 | S CAPI:645 |
-| logistic | S bart.R:2692 [f1] | S bart.R:694 | S dbarts.R:379 | R rbart.R:49 | S xbart.R:26 | S RIB:1584 |
-| ordinal | R bart.R:2599, 2747 [f1] | S bart.R:697 | S dbarts.R:382 | R data.R:558 | R data.R:558 | S RIB:1593 [f3] |
-| nbinom | R bart.R:2599 [f1] | S bart.R:698 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1600 [f3] |
-| multinom | R bart.R:2599 [f1] | S bart.R:696 | S dbarts.R:381 [f4] | R data.R:558 | R data.R:558 | M [f4] |
-| aft | S bart.R:2692 [f1] [f5] | S bart.R:695 | S dbarts.R:380 | S rbart.R:49 | M xbart.R:26 | S CAPI:648 |
-| hazard | R bart.R:2701 [f1] | S bart.R:699 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
-| hurdle | R bart.R:2599 [f1] | S bart.R:702 | R dbarts.R:447 | M | M | M [f6] |
+| gaussian | S bart.R:2836 | S bart.R:694 | S dbarts.R:377 | S rbart.R:49 | S xbart.R:26 | S CAPI:647 |
+| student | S bart.R:2691 | S bart.R:708 | S dbarts.R:364 | M rbart.R:56 | M xbart.R:2-33 | S RIB:2548-2556 [f2] |
+| probit | S bart.Rd:78 | S bart.R:695 | S dbarts.R:378 | S data.R:602 | S xbart.R:26 | S CAPI:645 |
+| logistic | S bart.R:2694 [f1] | S bart.R:696 | S dbarts.R:379 | R rbart.R:49 | S xbart.R:26 | S RIB:1584 |
+| ordinal | R bart.R:2601, 2749 [f1] | S bart.R:699 | S dbarts.R:382 | R data.R:558 | R data.R:558 | S RIB:1593 [f3] |
+| nbinom | R bart.R:2601 [f1] | S bart.R:700 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1600 [f3] |
+| multinom | R bart.R:2601 [f1] | S bart.R:698 | S dbarts.R:381 [f4] | R data.R:558 | R data.R:558 | M [f4] |
+| aft | S bart.R:2694 [f1] [f5] | S bart.R:697 | S dbarts.R:380 | S rbart.R:49 | M xbart.R:26 | S CAPI:648 |
+| hazard | R bart.R:2703 [f1] | S bart.R:701 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
+| hurdle | R bart.R:2601 [f1] | S bart.R:704 | R dbarts.R:447 | M | M | M [f6] |
 | bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:370 | R rbart.R:56 | M | S CAPI:668-690 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:384 | M | S RIB:1908 [f3] |
-| hetero | - [f1] | S bart.R:685 | S dbarts.R:369 | R rbart.R:56 | M | S RIB:1998 [f3] |
+| hetero | - [f1] | S bart.R:687 | S dbarts.R:369 | R rbart.R:56 | M | S RIB:1998 [f3] |
 
 Since this program, `family = "hazard"` (and the other five tokens not in
 `bart()`'s vocabulary - `"gaussian"`, `"probit"`, `"hazard.probit"`,
 `"hazard.logistic"`, `"twopart"`) now hit a NAMED refusal,
-`refuseBartRedirectedFamily` (bart.R:2632, called from `bart()` at bart.R:2701
+`refuseBartRedirectedFamily` (bart.R:2634, called from `bart()` at bart.R:2703
 ahead of `match.arg`), the same treatment the four own-class tokens already
 got; hazard's `bart()` cell accordingly moved from `-` (no mechanism reaches
 it) to `R` (deliberately refused by name). See [f1].
@@ -163,7 +163,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | multinom | R RIB:3246 | S COM:1686 [f21] | M MOD:3716 [f22] | S generics.R:1003 | R [f23] |
 | aft | R RIB:2535 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1730, 1735 [f16] |
 | hazard | R RIB:2748 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1730, 1735 [f6] |
-| hurdle | R bart.R:1153 | - [f12] | - [f12] | S generics.R:2018 [f25] | - [f12] |
+| hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2018 [f25] | - [f12] |
 | bcf | S COM:841, 887-891 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
 | grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2480 | S MOD:4863 [f27] |
 | hetero | S CH:4218, MOD:306 | S CH:4212 [f27] | - [f18] | ? generics.R:95 [f28] | S test-calibration-prior-draws.R:268 [f29] |
@@ -172,16 +172,16 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
-| gaussian | S FAC:795 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| student | R spec.R:521 [f30] | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| probit | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| logistic | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| ordinal | R spec.R:509 | M RIB:3020 [f31] | S CH:585 | R bart.R:629 | R bart.R:629 |
-| nbinom | R spec.R:509 | M RIB:3025 [f31] | S CH:585 | R bart.R:629 | R bart.R:629 |
-| multinom | R bart.R:904 | M RIB:1905 [f32] | R bart.R:900 [f33] | R bart.R:629 | R bart.R:629 |
-| aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
-| hurdle | R spec.R:509 [f34] | M | S bart.R:2297, 2306 [f35] | R bart.R:629 | R bart.R:629 |
+| gaussian | S FAC:795 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| student | R spec.R:521 [f30] | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| probit | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| logistic | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| ordinal | R spec.R:509 | M RIB:3020 [f31] | S CH:585 | R bart.R:631 | R bart.R:631 |
+| nbinom | R spec.R:509 | M RIB:3025 [f31] | S CH:585 | R bart.R:631 | R bart.R:631 |
+| multinom | R bart.R:906 | M RIB:1905 [f32] | R bart.R:902 [f33] | R bart.R:631 | R bart.R:631 |
+| aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| hurdle | R spec.R:509 [f34] | M | S bart.R:2299, 2308 [f35] | R bart.R:631 | R bart.R:631 |
 | bcf | R FAC:874 [f48] | R RIB:2341 | R spec.R:639-640 | S SAM:1029 [f36] | S CH:1990 [f36] |
 | grouped | ? [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
 | hetero | - | ? [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
@@ -217,15 +217,15 @@ through dbarts.h and untested there.
 ## Footnotes
 
 [f1] Since S10 (`bart2-argument-consolidation`, 726dab10) `bart()` carries a
-narrow, appended `family` formal, `c("auto", "logistic", "aft")` (bart.R:2692,
+narrow, appended `family` formal, `c("auto", "logistic", "aft")` (bart.R:2694,
 `bart`'s formals), forwarded to `dbarts()` verbatim; `"auto"` (the default)
 still infers gaussian/probit from the response, and `resid.dist` remains the
 separate Student-t lever, untouched by `family`. All ten tokens outside that
 vocabulary are refused BY NAME ahead of `match.arg`'s generic message, by the
-shared `refuseBartRedirectedFamily`/`bartRedirectedFamilies` (bart.R:2632,
-2619, called from `bart()` at bart.R:2701): four bart2-own-class tokens -
+shared `refuseBartRedirectedFamily`/`bartRedirectedFamilies` (bart.R:2634,
+2621, called from `bart()` at bart.R:2703): four bart2-own-class tokens -
 `"multinomial"`, `"ordinal"`, `"nbinom"`, `"hurdle.lognormal"` - redirect
-through `refuseBartOwnClassFamily`/`bartOwnClassFamilies` (bart.R:2599, 2592);
+through `refuseBartOwnClassFamily`/`bartOwnClassFamilies` (bart.R:2601, 2594);
 ordinal's own auto-detection off an ordered-factor response routes through the
 same helper now, no longer a hand-rolled backstop. The remaining six -
 `"gaussian"`, `"probit"`, `"hazard.probit"`, `"hazard"`, `"hazard.logistic"`,
@@ -281,7 +281,7 @@ expander: no formula interface (:495), no `subset` (:509), no `test` (:513).
 
 [f7] `treatment` is still not a `bart2()` formal, but the construct that used
 to refuse it - `rejectUnknownDotsArgs` - is RETIRED: `bart2()`'s full formal
-list (bart.R:647-715) carries no `...` at all any more, so there is nothing to
+list (bart.R:649-717) carries no `...` at all any more, so there is nothing to
 reject by name. An unrecognized argument like `treatment =` now hits ordinary
 R argument-matching ("unused argument"), not a dbarts-authored construct. But
 since S12 (`bart2-argument-consolidation`, 4b179585) the general
@@ -339,9 +339,9 @@ capability and the channel that serves the caller where one exists
 global `setActiveRows` stay open.
 
 [f12] Hurdle has no sampler of its own: `dbarts()` refuses construction at
-dbarts.R:449 and `bart2Hurdle` (bart.R:2256) composes two ordinary `bart2()`
-fits - an occupancy probit (bart.R:2297) and a lognormal positive part
-(bart.R:2306) - glued at report time. The channel questions resolve on the
+dbarts.R:449 and `bart2Hurdle` (bart.R:2258) composes two ordinary `bart2()`
+fits - an occupancy probit (bart.R:2299) and a lognormal positive part
+(bart.R:2308) - glued at report time. The channel questions resolve on the
 probit and gaussian rows of the two components.
 
 [f13] Since adoption-slate S3 (eeedc07c) a grouped sampler accepts a
@@ -744,11 +744,11 @@ never read for a multinomial sampler.
 (RIB:3281-3348) copies only power/base/proposal-probability fields, so a DART
 tree prior built from either the `dart` argument or a `tree.prior` object
 never reached the K-forest engine. `bart2` now refuses both routes by name
-(bart.R:900), matching BCF's own named refusal (spec.R:640,
+(bart.R:902), matching BCF's own named refusal (spec.R:640,
 `buildSpecifiedForest` CH:5145) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
-(bart.R:2297, 2306), so a user's `variance =` is forwarded to BOTH - including
+(bart.R:2299, 2308), so a user's `variance =` is forwarded to BOTH - including
 the occupancy component, which then sets `family = "probit"` and hits the
 non-gaussian variance refusal at spec.R:509 before either component fits.
 That refusal is deliberate, not a bug: the positive fit is always
@@ -757,7 +757,7 @@ unreachable. No comment in R/ states that (`hurdleSigmaVec`, retired, with no
 replacement construct); the evidence is the live `redirectCall`/spec.R:509
 mechanism above and the Rd text, at bart2.Rd:227 and dbarts.Rd:111.
 
-[f35] `dart` is forwarded to both components (bart.R:2297, 2306), each of
+[f35] `dart` is forwarded to both components (bart.R:2299, 2308), each of
 which is an ordinary single-forest chain that takes it.
 
 [f36] No family gate: `installForests` checks shape, grid, DART, and the
@@ -945,7 +945,7 @@ engine-reachable but not R-reachable. No flat-C test coverage.
 
 **ordinal.** No `xbart()` or `rbart_vi()` reach (both refused at data.R:558 as
 unsupported response shapes). Grouped ordinal is a recorded unbuilt door
-(RIB:3020). `warm.start` and `n.grow.sweeps` unbuilt for the arc (bart.R:629).
+(RIB:3020). `warm.start` and `n.grow.sweeps` unbuilt for the arc (bart.R:631).
 Its selecting control attribute is undocumented in the shipped header ([f3]).
 One dedicated tinytest file. SBC gamma3 resolved but not re-run at full R.
 Pointwise loglik (`ordinalLogLik`, generics.R:1365) is no longer a gap - built,

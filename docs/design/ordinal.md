@@ -287,7 +287,7 @@ drew no objection.
 
 **Family surface (recommend family = "ordinal" as the primitive, with
 auto-dispatch on ordered factors, announced).** family = "ordinal" is added to the
-bart2 and dbarts family vectors (R/bart.R:697, R/dbarts.R:382) and routed through
+bart2 and dbarts family vectors (R/bart.R:699, R/dbarts.R:382) and routed through
 resolveClassificationFamily (R/data.R:515). The response must be an ordered
 factor (is.ordered); the level ORDER defines the category order. An unordered
 factor or character under family = "ordinal" is accepted with an informational
@@ -310,8 +310,8 @@ classifyResponse tags "ordered factor" as its own response type
 (R/data.R:425-437).
 
 LIVE: the split is made on the disjoint is.ordered() key (stated at
-R/bart.R:1342-1344). detectAutoMultinomial (R/bart.R:1389) matches unordered
-factors and characters only; detectAutoOrdinal (R/bart.R:1403-1419) catches the
+R/bart.R:1344-1346). detectAutoMultinomial (R/bart.R:1391) matches unordered
+factors and characters only; detectAutoOrdinal (R/bart.R:1405-1421) catches the
 3+-level ordered factor and selects family = "ordinal". The single-forest
 entries still refuse, and R/data.R:546-548 names ordinal as the reason.
 
@@ -372,8 +372,8 @@ its own transform beside it rather than a generalization of it.
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
 (codeResponse, R/data.R:479-493). Ordinal must persist the ordered levels on the
 fit object to label the K probability columns and map argmax back - as
-bartMultinomial persists $levels (R/bart.R:1708). Give ordinal its own S3
-class bartOrdinal (mirroring bartMultinomial, R/bart.R:1727) carrying $levels and
+bartMultinomial persists $levels (R/bart.R:1710). Give ordinal its own S3
+class bartOrdinal (mirroring bartMultinomial, R/bart.R:1729) carrying $levels and
 $cutpoints, so the bart generics do not misread the K-widened arrays as a
 single-forest fit.
 
