@@ -525,16 +525,18 @@ buildSamplerPriors <- function(
 }
 
 # Builds the dbarts() host-sampler call shared by bart2's standard path and its
-# alternate-family arcs (multinomial/ordinal/nbinom): redirect the matched call
-# to dbarts(), install the resolved control, drop n.samples (the sampler is
-# driven by run() rather than sampled at construction), and thread the prebuilt
-# tree/node/resid priors. 'family', when supplied, overrides the forwarded
-# family token - NULL removes it (the multinomial host, which dbarts() does not
-# know), a string sets it (ordinal/nbinom); left missing it keeps the user's
-# forwarded family (the normal path). 'sigest', when supplied, sets the
-# sampler's sigma; left missing it is not touched (ordinal/nbinom read no
-# sigma). The multinomial data override (the placeholder response) is applied
-# by the caller afterward.
+# alternate-family paths (multinomial/ordinal/nbinom): redirect the matched
+# call to dbarts(), install the resolved control, drop n.samples (the sampler
+# is driven by run() rather than sampled at construction), and thread the
+# prebuilt tree/node/resid priors. 'family', when supplied, overrides the
+# forwarded family token - NULL removes it, a string sets it (dbarts() accepts
+# "multinomial", "ordinal", and "nbinom" as family tokens directly); left
+# missing it keeps the user's forwarded family (the normal path). 'sigest',
+# when supplied, sets the sampler's sigma; left missing it is not touched
+# (ordinal/nbinom read no sigma). The multinomial call sites set
+# samplerCall$data to the real response (a factor or count matrix, which
+# dbarts()'s own resolveMultinomialCounts one-hot expands) after this call
+# returns; it is not a placeholder.
 buildHostSamplerCall <- function(
   matchedCall,
   control,

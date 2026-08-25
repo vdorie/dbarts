@@ -493,13 +493,16 @@ expect_error(
   fixed = TRUE
 )
 
-# --- plot(object): dispersion step-trace + counts panel, two panels ---
+# --- plot(object): dispersion step-trace + counts panel, and the caller's
+# par is restored afterward - assert restoration against a sentinel value
+# distinct from both the plot's own layout and the device default ---
 
 pdf(NULL)
+par(mfrow = c(3L, 3L))
 plot(fit)
-usedMfrow <- par("mfrow")
+restoredMfrow <- par("mfrow")
 dev.off()
-expect_equal(usedMfrow, c(1L, 2L))
+expect_equal(restoredMfrow, c(3L, 3L))
 
 # --- as_draws_array/df default to vars = c("dispersion", "sigma", "k",
 # "tau"); this family has no sigma/k/tau, so only "dispersion" survives ---
@@ -518,5 +521,5 @@ rm(
   oracleLl,
   fitCi,
   predCi,
-  usedMfrow
+  restoredMfrow
 )

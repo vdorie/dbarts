@@ -455,18 +455,20 @@ expect_error(
   fixed = TRUE
 )
 
-# ---- plot(object) draws a second panel for both response ingestions - a
-# real content assertion the "kept draws" arithmetic check cannot fail on
-# (expect_silent alone would pass on either the 1- or 2-panel version) ----
+# ---- plot(object) draws a second panel for both response ingestions, and
+# restores the caller's par afterward - assert restoration against a
+# sentinel value distinct from both the plot's own layout and the device
+# default ----
 
 pdf(NULL)
+par(mfrow = c(3L, 3L))
 plot(fitCombined)
 combinedMfrow <- par("mfrow")
 plot(fitCounts)
 countsMfrow <- par("mfrow")
 dev.off()
-expect_equal(combinedMfrow, c(1L, 2L))
-expect_equal(countsMfrow, c(1L, 2L))
+expect_equal(combinedMfrow, c(3L, 3L))
+expect_equal(countsMfrow, c(3L, 3L))
 
 # ---- as_draws_array/df expose meanProb[<level>], never yhat.train ----
 

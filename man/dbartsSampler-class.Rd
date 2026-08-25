@@ -64,9 +64,9 @@
 \S4method{predictForests}{dbartsSampler}(
   x.test, offset.test, n.threads = control@n.threads
 )
-\S4method{setControl}{dbartsSampler}(control)
-\S4method{setModel}{dbartsSampler}(model)
-\S4method{setData}{dbartsSampler}(data)
+\S4method{setControl}{dbartsSampler}(newControl)
+\S4method{setModel}{dbartsSampler}(newModel)
+\S4method{setData}{dbartsSampler}(newData, updateState = NA)
 \S4method{setResponse}{dbartsSampler}(y, updateScale = FALSE, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
@@ -99,7 +99,7 @@
   prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
 )
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
-\S4method{storeState}{dbartsSampler}()
+\S4method{storeState}{dbartsSampler}(ptr = getPointer())
 \S4method{setState}{dbartsSampler}(newState)
 \S4method{plotTree}{dbartsSampler}(
   treeNum, chainNum, sampleNum, treePlotPars = c(
@@ -120,13 +120,13 @@
   \item{shallow}{
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
   }
-  \item{control}{
+  \item{newControl}{
     An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error.
   }
-  \item{model}{
+  \item{newModel}{
     An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.
   }
-  \item{data}{
+  \item{newData}{
     An object inheriting from \code{\link{dbartsData}}.
   }
   \item{y}{
@@ -315,6 +315,9 @@
   }
   \item{n.sweeps}{
     For \code{growFromRoot}, a single positive integer giving the number of grow-from-root sweeps run in place (default \code{2L}). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.
+  }
+  \item{ptr}{
+    For \code{storeState}, the sampler's engine pointer to capture from; defaults to \code{getPointer()} and is rarely passed explicitly.
   }
   \item{newState}{
     For \code{setState}, a state object previously produced by this sampler over the same model: its \code{state} field, calling \code{storeState()} first to refresh it if a later mutation may have gone unstored (\code{storeState} itself returns \code{NULL} invisibly, so its return value cannot be passed here). Must inherit from \code{bartcoreState}.

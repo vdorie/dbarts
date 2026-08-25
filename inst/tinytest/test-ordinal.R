@@ -467,9 +467,13 @@ expect_error(
 )
 
 # --- plot(object): two panels (K > 2) with the cutpoint trace, one panel
-# at K = 2 (no free cutpoint), content asserted via mfrow ---
+# at K = 2 (no free cutpoint, so par is untouched); the K > 2 branch
+# restores the caller's par afterward - assert restoration against a
+# sentinel value distinct from both the plot's own layout and the device
+# default ---
 
 pdf(NULL)
+par(mfrow = c(3L, 3L))
 plot(fit)
 mfrowK3 <- par("mfrow")
 
@@ -489,7 +493,7 @@ pdf(NULL)
 plot(fit2)
 mfrowK2 <- par("mfrow")
 dev.off()
-expect_equal(mfrowK3, c(1L, 2L))
+expect_equal(mfrowK3, c(3L, 3L))
 expect_equal(mfrowK2, c(1L, 1L))
 
 # --- as_draws_array/df default to vars = c("cutpoints", "sigma", "k",

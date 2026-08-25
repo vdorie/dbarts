@@ -221,6 +221,8 @@ plot.bartMultinomial <- function(
   plquants = c(0.05, 0.95),
   ...
 ) {
+  oldpar <- par(no.readonly = TRUE)
+  on.exit(par(oldpar), add = TRUE)
   par(mfrow = c(1L, 2L))
   arr <- multinomialMeanProbArray(x)
   d <- dim(arr)
@@ -301,6 +303,8 @@ plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
   cutpointMedians <- apply(cpArr, 3L, quantile, probs = 0.5)
 
   if (K > 2L) {
+    oldpar <- par(no.readonly = TRUE)
+    on.exit(par(oldpar), add = TRUE)
     par(mfrow = c(1L, 2L))
     cd <- dim(cpArr)
     trace <- matrix(cpArr, cd[1L] * cd[2L], cd[3L])[, -1L, drop = FALSE]
@@ -359,6 +363,8 @@ plot.bartNegbin <- function(
   cols = c("blue", "black"),
   ...
 ) {
+  oldpar <- par(no.readonly = TRUE)
+  on.exit(par(oldpar), add = TRUE)
   par(mfrow = c(1L, 2L))
   disp <- x$dispersion
   if (is.null(dim(disp))) {
@@ -406,6 +412,8 @@ plot.bartHurdle <- function(
   cols = c("blue", "black"),
   ...
 ) {
+  oldpar <- par(no.readonly = TRUE)
+  on.exit(par(oldpar), add = TRUE)
   par(mfrow = c(2L, 2L))
   plotSigmaTrace(x$positive$first.sigma, x$positive$sigma, setLayout = FALSE)
 
@@ -502,6 +510,8 @@ plot.pd2bart <- function(
     zlim <- range(qq[[2]])
     vind <- c(2)
   } else {
+    oldpar <- par(no.readonly = TRUE)
+    on.exit(par(oldpar), add = TRUE)
     par(mfrow = c(1, 3))
     zlim <- range(qq)
     vind <- 1:3

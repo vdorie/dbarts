@@ -87,3 +87,6 @@ jobs:
 
       - name: Check design/plan doc freshness
         run: Rscript tools/check-doc-freshness.R .
+
+      - name: Check dbartsSampler Rd usage against live formals
+        run: Rscript tools/check-rc-codoc.R .

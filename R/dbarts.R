@@ -2071,6 +2071,8 @@ dbartsSampler <- setRefClass(
         treePlotPars[["nodeGap"]] * (maxDepth - 1)
       dotsList <- list(...)
       dotsList$mar <- c(0, 0, 0, 0)
+      oldpar <- par(no.readonly = TRUE)
+      on.exit(par(oldpar), add = TRUE)
       par(dotsList)
       plot(
         NULL,

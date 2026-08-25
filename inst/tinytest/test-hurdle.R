@@ -294,12 +294,15 @@ expect_error(
   fixed = TRUE
 )
 
-# plot(object): 2x2 layout, all four panels render
+# plot(object): all four panels render on a 2x2 layout, and the caller's
+# par is restored afterward - assert restoration against a sentinel value
+# distinct from both the plot's own layout and the device default.
 pdf(NULL)
+par(mfrow = c(3L, 3L))
 plot(fit)
-usedMfrow <- par("mfrow")
+restoredMfrow <- par("mfrow")
 dev.off()
-expect_equal(usedMfrow, c(2L, 2L))
+expect_equal(restoredMfrow, c(3L, 3L))
 
 # as_draws_array/df: the union of both components' present scalar fields,
 # dot-prefixed by component
@@ -312,7 +315,7 @@ if (requireNamespace("posterior", quietly = TRUE)) {
   rm(ad, adNames)
 }
 
-rm(llFit2c, usedMfrow)
+rm(llFit2c, restoredMfrow)
 
 # --- (3) save / load round-trip: fitted and predict are identical -------------
 

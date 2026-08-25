@@ -135,6 +135,7 @@ colnames(x) <- c('rob', 'hugh', 'ed')
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
+\donttest{
 ## pdbart: one dimensional partial dependence plot
 set.seed(99)
 pdb1 <- pdbart(
@@ -164,6 +165,7 @@ lmFit  <- lm(y ~ ., data.frame(x, y))
 fitmat <- cbind(y, Ey, lmFit$fitted, pdb1$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
+}
 
 \donttest{
 ## example showing the use of a pre-fitted model

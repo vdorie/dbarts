@@ -1,7 +1,7 @@
 # convergence diagnostics: posterior-package draws accessors and a
 # summary() method for the scalar parameters of bart/bart2/rbart fits.
 # posterior is Suggests-only; as_draws_array/as_draws_df are registered
-# for it conditionally in zzz.R. summary() itself is a base generic and
+# for it conditionally in hooks.R. summary() itself is a base generic and
 # degrades to a plain quantile table when posterior is unavailable.
 
 # indirection point so tests can simulate posterior's absence without
