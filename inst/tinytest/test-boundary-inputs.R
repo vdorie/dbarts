@@ -46,6 +46,27 @@ samples.n2 <- sampler.n2$run(10L, 10L)
 expect_true(all(is.finite(samples.n2$train)))
 expect_true(all(is.finite(samples.n2$sigma)))
 
+# n = 1: the residual has no degrees of freedom for lm either, and its
+# marginal-fallback sd() is itself NA (undefined, not merely small); the
+# finiteness re-check after the fallback, not just before it, is what
+# floors this instead of erroring on the NA comparison.
+x.n1 <- matrix(c(0.2, 0.3), 1L, 2L)
+y.n1 <- c(1.0)
+warnings.n1 <- captureWarnings(
+  sampler.n1 <- dbarts(y.n1 ~ x.n1, control = control)
+)
+expect_equal(length(warnings.n1), 2L)
+expect_true(any(vapply(
+  warnings.n1,
+  inherits,
+  logical(1L),
+  "dbartsSigmaFallbackWarning"
+)))
+expect_equal(sampler.n1$data@sigma, sqrt(.Machine$double.eps), tolerance = 0)
+samples.n1 <- sampler.n1$run(10L, 10L)
+expect_true(all(is.finite(samples.n1$train)))
+expect_true(all(is.finite(samples.n1$sigma)))
+
 # a constant response: the fit runs, sigma is floored at a relative epsilon,
 # and the train fits equal the constant. Finite throughout. A constant
 # response is exactly the precision-degenerate case dbartsData now warns

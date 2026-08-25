@@ -611,9 +611,11 @@ estimateSigmaFromLinearModel <- function(data) {
   # estimate (raw fit or the marginal fallback above) at a relative epsilon
   # so it is host-independent. Uses the unweighted residual: weights
   # rescale the fit's effective sample, not the response's own scale, so
-  # they play no part in the floor.
+  # they play no part in the floor. sd() of a length-1 residual is itself
+  # NA (undefined, not merely small), which the fallback above can hand
+  # here; re-check finiteness rather than let that NA reach the comparison.
   sigmaFloor <- sqrt(.Machine$double.eps) * max(1, max(abs(residual)))
-  if (sigma < sigmaFloor) sigmaFloor else sigma
+  if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
 
 ## Recode a sparseFactor test column over the training level table, keeping
