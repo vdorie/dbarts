@@ -721,6 +721,70 @@ static void testMappedSourceReplay() {
   printf("ok: mapped source replay\n");
 }
 
+// CGM's rule mass for one split variable, on both column kinds. A column that
+// carries missing values doubles its rule space: under MIA every cut comes in
+// two rules, one sending the missing rows left and one right, so the uniform
+// over rules owes an extra log 2 that a plain column does not. The factor
+// enters treeLogProbability and so both MH ratios, but it CANCELS whenever a
+// proposal redraws a rule on the same variable - which is every proposal the
+// suite's structural checks can see. Only a ratio moving BETWEEN a
+// missing-bearing column and a plain one carries it, so it is pinned directly
+// here, against the closed form, at a root and below one.
+static void testRuleMassByColumnKind() {
+  const size_t n = 64, p = 2;
+  std::vector<double> x(n * p), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    double value = (double) (i % 8) / 7.0;
+    x[i] = value;          // column 0 carries missing values
+    x[i + n] = value;      // column 1 does not
+  }
+  for (size_t i = 0; i < 8; ++i) x[i * 8] = std::nan("");
+
+  ColumnStore store;
+  store.build(x.data(), n, p, 8);
+  check(store.hasMissing[0] == 1 && store.hasMissing[1] == 0,
+        "one column of the rule-mass fixture carries missing values");
+  check(store.numCuts[0] == store.numCuts[1],
+        "and both columns carry the same cut grid");
+  double numCuts = (double) store.numCuts[0];
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  CGMTreePrior prior;
+  Rule rule;
+
+  auto ruleMass = [&](int32_t variable, int32_t splitIndex) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    rule.variableIndex = variable;
+    rule.setSplitIndex(splitIndex);
+    tree.birth(store, 0, rule, y.data(), nullptr);
+    return prior.ruleForVariableLogProbability(tree, store, 0);
+  };
+  int32_t middle = (int32_t) store.numCuts[0] / 2;
+  checkNear(ruleMass(1, middle), -std::log(numCuts), 1e-14,
+            "a plain ordinal column spreads its mass over its cuts");
+  checkNear(ruleMass(0, middle), -std::log(2.0 * numCuts), 1e-14,
+            "a missing-bearing column owes the log 2 its two directions cost");
+
+  // below the root the interval narrows, and the doubling still applies to it
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  rule.variableIndex = 0;
+  rule.setSplitIndex(middle);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  int32_t left = tree.at(0).leftChild;
+  Rule childRule;
+  childRule.variableIndex = 0;
+  childRule.setSplitIndex(0);
+  tree.birth(store, left, childRule, y.data(), nullptr);
+  checkNear(prior.ruleForVariableLogProbability(tree, store, left),
+            -std::log(2.0 * (double) middle), 1e-14,
+            "and owes it against the ancestor-narrowed interval too");
+
+  printf("ok: rule mass by column kind\n");
+}
+
 void runTreeTests(ext_rng* rng) {
   testTreeMechanics();
   testTreePriorMath();
@@ -729,4 +793,5 @@ void runTreeTests(ext_rng* rng) {
   testPooledMaskMechanics(rng);
   testMissingMechanics();
   testMappedSourceReplay();
+  testRuleMassByColumnKind();
 }

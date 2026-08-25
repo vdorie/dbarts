@@ -1616,6 +1616,122 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   printf("ok: prior reset contract (INV-1 residual %.2e)\n", worstDeviation);
 }
 
+// The move-validity predicates, called directly. ruleIsValid and the two
+// subtree predicates under it decide whether a swap or change proposal is
+// SCORED or treated as a no-op, and they are reached only as a side condition
+// of those moves: a wrong verdict moves a proposal between the two, which no
+// structural check downstream can see. Both bounds of each are pinned here,
+// against hand-built trees whose rules are set in place (the predicates read
+// rules alone, so the stale member partition is not part of the question).
+//
+// Ordinal: a descendant splitting on the same variable must fall inside the
+// interval its ancestors leave, INCLUSIVE at both ends - the cut one past
+// either bound is the rule that would put two members of one leaf on opposite
+// sides of an ancestor cut.
+//
+// Categorical: a rule's direction mask must be a nonempty STRICT subset of the
+// categories reaching the node. Equality is the case a gauge that only tests
+// containment admits, and it leaves the right child holding every reachable
+// category and the left none.
+static void testMoveValidityPredicates() {
+  const size_t n = 200;
+  std::vector<double> xOrdinal(n), xCategorical(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    xOrdinal[i] = static_cast<double>(i) / static_cast<double>(n - 1);
+    xCategorical[i] = static_cast<double>(i % 4);
+  }
+
+  ColumnStore ordinalStore;
+  ordinalStore.build(xOrdinal.data(), n, 1, 100);
+  check(ordinalStore.numCuts[0] == 100, "the ordinal fixture has 100 cuts");
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(49);
+  tree.birth(ordinalStore, 0, rule, y.data(), nullptr);
+  int32_t left = tree.at(0).leftChild, right = left + 1;
+  Rule childRule;
+  childRule.variableIndex = 0;
+  childRule.setSplitIndex(30);
+  tree.birth(ordinalStore, left, childRule, y.data(), nullptr);
+  childRule.setSplitIndex(70);
+  tree.birth(ordinalStore, right, childRule, y.data(), nullptr);
+
+  // the root's rule leaves [0, 48] to the left child and [50, 99] to the right
+  auto ordinalValid = [&]() {
+    return ordinalRuleIsValid(tree, 0, 0, 0,
+                              static_cast<int32_t>(ordinalStore.numCuts[0]) - 1);
+  };
+  tree.at(left).rule.setSplitIndex(48);
+  check(ordinalValid(), "a descendant AT its ancestor's upper bound is valid");
+  tree.at(left).rule.setSplitIndex(49);
+  check(!ordinalValid(), "a descendant one past it is not");
+  tree.at(left).rule.setSplitIndex(30);
+  tree.at(right).rule.setSplitIndex(50);
+  check(ordinalValid(), "a descendant AT its ancestor's lower bound is valid");
+  tree.at(right).rule.setSplitIndex(49);
+  check(!ordinalValid(), "a descendant one below it is not");
+  tree.at(right).rule.setSplitIndex(70);
+
+  // and the same through the dispatcher, which reads the interval itself
+  MoveScratch scratch;
+  CGMTreePrior prior;
+  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.5, nullptr, 2.0,
+                         scratch};
+  check(ruleIsValid(ordinalCtx, tree, 0, 0),
+        "ruleIsValid accepts the well-formed ordinal subtree");
+  tree.at(left).rule.setSplitIndex(60);  // outside [0, 48]
+  check(!ruleIsValid(ordinalCtx, tree, 0, 0),
+        "ruleIsValid refuses a descendant outside its ancestor interval");
+
+  ColumnType type = ColumnType::categorical;
+  ColumnStore categoricalStore;
+  PredictorSource source =
+    densePredictorSource(xCategorical.data(), n, 1, &type);
+  categoricalStore.build(source, nullptr, 100, false);
+  check(categoricalStore.numCuts[0] == 4,
+        "the categorical fixture has four levels");
+
+  Tree categoricalTree;
+  categoricalTree.initialize(indexBuffer.data(), n);
+  categoricalTree.computeLeafStats(0, y.data(), nullptr);
+  Rule categoricalRule;
+  categoricalRule.variableIndex = 0;
+  categoricalRule.setCategoryDirections(0x3u);
+  categoricalTree.birth(categoricalStore, 0, categoricalRule, y.data(),
+                        nullptr);
+  std::uint64_t reachable =
+    categoricalTree.reachableCategories(categoricalStore, 0, 0);
+  check(reachable == 0xfu, "every category reaches the root");
+
+  auto categoricalValid = [&](std::uint64_t directions) {
+    categoricalTree.at(0).rule.setCategoryDirections(directions);
+    return categoricalSubtreeIsValid(categoricalTree, 0, 0, reachable);
+  };
+  check(categoricalValid(0x3u),
+        "a nonempty strict subset of the reachable categories is valid");
+  check(!categoricalValid(0x0u), "an empty direction mask is not");
+  check(!categoricalValid(reachable),
+        "a mask equal to the reachable set is not: it empties the left child");
+  check(!categoricalValid(0x13u),
+        "a mask reaching outside the reachable set is not");
+
+  categoricalValid(0x3u);
+  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.5, nullptr,
+                            2.0, scratch};
+  check(ruleIsValid(categoricalCtx, categoricalTree, 0, 0),
+        "ruleIsValid accepts the well-formed categorical subtree");
+  categoricalValid(reachable);
+  check(!ruleIsValid(categoricalCtx, categoricalTree, 0, 0),
+        "ruleIsValid refuses a rule at the reachable set");
+
+  printf("ok: move validity predicates\n");
+}
+
 void runMovesTests(ext_rng* rng) {
   testDartUpdate(rng);
   testLeafOfConsistency(rng);
@@ -1639,4 +1755,5 @@ void runMovesTests(ext_rng* rng) {
   testEmptyLeafVetoCountsWeight();
   testVetoRankUnfreezesStrandedTree();
   testEqualRankOneComparison();
+  testMoveValidityPredicates();
 }

@@ -1765,6 +1765,75 @@ static void testWeightsDigest() {
   printf("ok: weights digest and repair\n");
 }
 
+// The saved-store readers' DESTINATION stride, on the one shape every other
+// saved-tree test leaves out: more than one chain over a store that is not
+// full. The readers loop over the retained draws and must stride the output by
+// that same count - out is sized slab x filledSavedDraws x numChains - so a
+// stride taken from the CAPACITY instead lands chain c >= 1 past the end of
+// its slab, which is a heap write past the buffer for the last chain and a
+// never-written hole for the first. Single-chain fixtures cannot see it:
+// c * numDraws and c * capacity are both zero there.
+//
+// The oracle is the run's own recorded test fits, which the replay must
+// reproduce draw for draw, plus a poisoned guard region past the buffer that a
+// capacity-strided write falls into.
+static void testMultiChainPartialFillPredict() {
+  // own generators and own runif01 stream, restored on the way out, so the
+  // suites after this one read the same draws with or without it
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 200, nTest = 20, capacity = 4, numChains = 2, numDraws = 3;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = runif01();
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngs[c], 20260824u + static_cast<uint_least32_t>(c));
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numChains = numChains;
+  options.keepTrees = true;
+  options.numSamplesToStore = capacity;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs.data());
+  sampler.setTestPredictors(xTest.data(), nTest);
+
+  std::vector<double> sigma(numDraws * numChains),
+    testFits(nTest * numDraws * numChains);
+  Results results;
+  results.sigma = sigma.data();
+  results.testFits = testFits.data();
+  sampler.run(10, numDraws, results);
+  check(sampler.filledSavedDraws() == numDraws &&
+          sampler.savedTreeCapacity() == capacity,
+        "the multi-chain store holds three of four slots");
+
+  const double poison = -1.0e300;
+  size_t slab = nTest, live = slab * numDraws * numChains;
+  std::vector<double> out(live + 2 * slab, poison);
+  sampler.predict(xTest.data(), nTest, out.data());
+  check(std::equal(testFits.begin(), testFits.end(), out.begin()),
+        "every chain's slab replays that chain's own recorded test fits");
+  bool guardHeld = true;
+  for (size_t i = live; i < out.size(); ++i) guardHeld &= out[i] == poison;
+  check(guardHeld, "no reader writes past the retained-draw destination");
+
+  // the same for the per-forest and variance readers' shape argument: both
+  // take the destination stride from the same pair, so pin that they agree
+  // with predict's on this fixture rather than only on a full store
+  check(sampler.savedSlotForDraw(numDraws - 1) == numDraws - 1,
+        "a partly filled store still reads head-first");
+
+  for (ext_rng* generator : rngs) ext_rng_destroy(generator);
+  rngState = savedRngState;
+  printf("ok: multi-chain partial-fill predict\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -1785,4 +1854,5 @@ void runStateTests(ext_rng* rng) {
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
   testWeightsDigest();
+  testMultiChainPartialFillPredict();
 }

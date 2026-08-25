@@ -6932,6 +6932,272 @@ static void testFlatFamilyCreatePaths() {
   printf("ok: flat-C family create paths (logistic, ordinal, aft)\n");
 }
 
+// The ordinal per-observation log-likelihood, pinned against an independently
+// coded Phi difference. This is the channel every ordinal fit exports (loo and
+// WAIC read it), and it is the one place the cumulative-probit category
+// probability is written as a DIFFERENCE of two tails: the interior categories
+// need both, so a form that keeps only the upper one reports the probability of
+// "at most k" where the observation says "exactly k" - finite, ordered the same
+// way across observations, and wrong. Phi is coded here from erfc rather than
+// taken from the same library call the engine uses, so the two derivations are
+// independent; the etas and cutpoints keep every cell above 1e-3, where the
+// difference carries no cancellation error worth a tolerance.
+static void testOrdinalLogLikelihoodPin() {
+  const std::size_t n = 8, K = 4;
+  std::vector<double> y = {1, 2, 3, 4, 2, 3, 1, 4};
+  std::vector<double> eta = {-0.3, 0.2, 0.9, 1.4, -0.8, 0.5, 0.1, 2.0};
+  std::vector<double> offset = {0.1, -0.2, 0.0, 0.3, 0.2, -0.1, 0.4, -0.3};
+  const double gamma[K - 1] = {0.0, 0.8, 1.7};
+
+  OrdinalResponse response(y.data(), offset.data(), n, K);
+  response.restoreCutpoints(gamma);
+  std::vector<double> reported(n, 0.0);
+  response.computeLogLikelihood(eta.data(), 1.0, n, reported.data());
+
+  auto Phi = [](double value) {
+    return 0.5 * std::erfc(-value / std::sqrt(2.0));
+  };
+  bool matches = true;
+  double smallest = 1.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    int category = static_cast<int>(y[i]);
+    double location = eta[i] + offset[i];
+    double upper = category >= static_cast<int>(K)
+                     ? 1.0 : Phi(gamma[category - 1] - location);
+    double lower = category <= 1 ? 0.0 : Phi(gamma[category - 2] - location);
+    smallest = std::min(smallest, upper - lower);
+    matches &= std::fabs(reported[i] - std::log(upper - lower)) < 1.0e-12;
+  }
+  check(smallest > 1.0e-3,
+        "every category probability of the pinned fixture is measurable");
+  check(matches,
+        "the ordinal log-likelihood is the Phi difference on its category "
+        "interval, both tails");
+
+  // and the mask convention on the same channel: an inactive row is not in the
+  // model, so it reports NaN rather than the value its fit would still give
+  std::vector<double> active(n, 1.0);
+  active[2] = 0.0;
+  response.setActiveRows(active.data());
+  response.computeLogLikelihood(eta.data(), 1.0, n, reported.data());
+  check(std::isnan(reported[2]) && !std::isnan(reported[3]),
+        "an inactive row's ordinal log-likelihood is NaN");
+
+  printf("ok: ordinal log-likelihood pin\n");
+}
+
+// LogisticResponse::setWeights' cold start of the INACTIVE rows. The case
+// weights ARE the Polya-Gamma shape, so a swap restates the model; an active
+// row takes a fresh PG(w, psi) draw, but an inactive one draws nothing (a
+// discard would desynchronize the stream against a sampler built on the
+// retained rows) and must instead be returned to the deterministic cold start
+// against its NEW count - otherwise a row that reactivates carries an omega
+// shaped by counts the sampler no longer holds.
+static void testLogisticWeightSwapColdStart() {
+  const std::size_t n = 12;
+  std::vector<double> y(n), first(n), second(n), fits(n, 0.25);
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = i % 2 == 0 ? 1.0 : 0.0;
+    first[i] = 1.0 + static_cast<double>(i % 3);   // the counts in force
+    second[i] = 5.0 + static_cast<double>(i % 4);  // and the replacement
+  }
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260824u);
+  LogisticResponse response(y.data(), nullptr, first.data(), n);
+  response.refreshLatents(rng, fits.data(), 1.0);  // real draws, not the cold start
+
+  std::vector<double> active(n, 1.0);
+  active[0] = active[1] = 0.0;
+  check(response.setActiveRows(active.data()),
+        "the logistic family takes an active-row mask");
+  response.setWeights(second.data(), rng, fits.data());
+
+  const double* omega = response.latents();
+  const double* working = response.workingResponse();
+  bool coldStarted = true, redrawn = true;
+  for (std::size_t i = 0; i < n; ++i) {
+    double cold = 0.25 * second[i];
+    if (active[i] == 0.0) {
+      coldStarted &= omega[i] == cold &&
+                     working[i] == 4.0 * (y[i] - 0.5);
+    } else {
+      redrawn &= omega[i] != cold;
+    }
+  }
+  check(coldStarted,
+        "an inactive row's latent is the cold start against the NEW counts");
+  check(redrawn, "an active row's latent is a fresh draw");
+
+  // the claim the cold start exists for: a row that reactivates carries no
+  // omega shaped by counts the sampler no longer holds
+  check(response.setActiveRows(nullptr),
+        "the mask clears");
+  check(response.workingWeights()[0] == 0.25 * second[0],
+        "the reactivated row's served precision is its new count's cold start");
+
+  ext_rng_destroy(rng);
+  printf("ok: logistic weight swap cold start\n");
+}
+
+// The variance forest against a STRONG mean function. testVarianceForestRecovery
+// fits data with no mean at all, where the residual the variance trees bind and
+// its sign-flipped twin differ by 2f = 0 - so the residual could be formed from
+// y + f rather than y - f and the recovered surface would not move. Here the
+// mean is a step of 6 sitting on the LOW-noise half, so the wrong binding fits
+// (2f + e)^2 there and reports the noisier half as the QUIETER one. The mean's
+// own recovery is asserted beside it, which is the gate the design states.
+static void testVarianceForestNonConstantMean() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260824u);
+  const std::size_t n = 500, p = 1, numSamples = 200;
+  const double sLow = 0.3, sHigh = 2.0, step = 6.0;
+  std::vector<double> x(n * p), y(n), truth(n), weights(n, 1.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    double xi = static_cast<double>(i) / static_cast<double>(n);
+    x[i] = xi;
+    truth[i] = xi < 0.5 ? step : 0.0;  // the mean rides the QUIET half
+    y[i] = truth[i] +
+           (xi < 0.5 ? sLow : sHigh) * ext_rng_simulateStandardNormal(rng);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = 20;
+  Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    0.37804942330213542, options, rng);
+  std::vector<double> fits(n * numSamples), variance(n * numSamples);
+  Results results;
+  results.trainingFits = fits.data();
+  results.varianceFits = variance.data();  // the ORIGINAL-scale channel
+  chain.run(200, numSamples, results);
+
+  double lowVariance = 0.0, highVariance = 0.0, lowMean = 0.0, highMean = 0.0;
+  std::size_t numLow = 0, numHigh = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    double posterior = 0.0, surface = 0.0;
+    for (std::size_t sample = 0; sample < numSamples; ++sample) {
+      posterior += fits[i + sample * n];
+      surface += variance[i + sample * n];
+    }
+    posterior /= static_cast<double>(numSamples);
+    surface /= static_cast<double>(numSamples);
+    if (x[i] < 0.5) {
+      lowVariance += surface;
+      lowMean += posterior;
+      ++numLow;
+    } else {
+      highVariance += surface;
+      highMean += posterior;
+      ++numHigh;
+    }
+  }
+  lowVariance /= static_cast<double>(numLow);
+  highVariance /= static_cast<double>(numHigh);
+  lowMean /= static_cast<double>(numLow);
+  highMean /= static_cast<double>(numHigh);
+
+  check(highVariance > 2.5 * lowVariance,
+        "the variance forest still finds the noisier half under a strong mean");
+  check(lowVariance < 4.0 * sLow * sLow && highVariance > 0.25 * sHigh * sHigh,
+        "both halves' s^2 track their own noise, in original units, and not "
+        "the mean function");
+  check(std::fabs(lowMean - step) < 1.0 && std::fabs(highMean) < 1.0,
+        "the mean forest recovers f(x) beside it");
+  ext_rng_destroy(rng);
+  printf("ok: variance forest under a non-constant mean (s2 ratio %.2f, quiet "
+         "half %.3f)\n", highVariance / lowVariance, lowVariance);
+}
+
+// The vector leaf's U'WU cache under a family whose working weights move every
+// sweep. The cache is keyed on a node's ordered member list alone, so a sweep
+// that leaves a node's membership untouched serves the statistics gathered
+// under the PREVIOUS sweep's precisions - correct for a gaussian chain, whose
+// weights are fixed, and wrong for a latent one, whose refreshLatents replaces
+// every precision. The chain therefore invalidates the cache right after the
+// refresh, and every fixture pairing a vector leaf with a latent family is
+// where that line is reachable at all: under gaussian the branch is never
+// entered. (The function-valued leaf carries no vector-parameter cache, so it
+// is not part of this question.)
+//
+// The oracle is an equivalent run: setActiveRows on an unmasked chain installs
+// nothing and consumes no draw - it only invalidates the same cache - so a run
+// that calls it between sweeps must be BITWISE the plain run. It is not when
+// the refresh's own invalidation is missing.
+static void testVectorLeafLatentRefreshCache() {
+  const std::size_t n = 200, p = 2, sweeps = 6;
+  std::vector<double> x(n * p), y(n), counts(n);
+  std::uint64_t generator = 20260824u;
+  auto uniform = [&generator]() {
+    generator = generator * 6364136223846793005ull + 1442695040888963407ull;
+    return static_cast<double>((generator >> 11) & ((1ull << 53) - 1)) *
+           (1.0 / 9007199254740992.0);
+  };
+  for (std::size_t i = 0; i < n; ++i) {
+    x[i] = uniform();
+    x[i + n] = 2.0 * uniform() - 1.0;
+    double eta = 2.0 * (x[i] - 0.5) + 1.5 * x[i + n];
+    y[i] = uniform() < 1.0 / (1.0 + std::exp(-eta)) ? 1.0 : 0.0;
+    counts[i] = 1.0 + static_cast<double>(i % 3);
+  }
+
+  std::size_t covariates[] = {1};
+  SamplerOptions options;
+  options.numTrees = 8;
+  options.nodeScale = 3.0;
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+
+  // the premise: the shipped factory admits the cross, so the branch under
+  // test is reachable from the R surface's own entry point
+  ext_rng* probeRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                     nullptr);
+  ext_rng_setSeed(probeRng, 1u);
+  SamplerOptions probeOptions = options;
+  std::unique_ptr<SamplerBase> probe = createSampler(
+    x.data(), y.data(), n, p, counts.data(), nullptr, ResponseFamily::logistic,
+    1.0, 3.0, 1.0, probeOptions, &probeRng);
+  check(probe != nullptr && probe->shape().leafModel == LeafModelKind::linear,
+        "the factory builds a linear leaf under a latent family");
+  probe.reset();
+  ext_rng_destroy(probeRng);
+
+  auto build = [&](std::uint_least32_t seed, SamplerOptions opts) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rng, seed);
+    return std::pair<ext_rng*, std::unique_ptr<Sampler<LinearGaussianLeaf>>>(
+      rng, std::make_unique<Sampler<LinearGaussianLeaf>>(
+             x.data(), y.data(), n, p, counts.data(), nullptr,
+             ResponseFamily::logistic, 1.0, 3.0, 1.0, opts, &rng));
+  };
+  auto plain = build(20260824u, options);
+  auto invalidated = build(20260824u, options);
+
+  Results results;
+  for (std::size_t sweep = 0; sweep < sweeps; ++sweep) {
+    plain.second->run(0, 1, results);
+    invalidated.second->run(0, 1, results);
+    // installs nothing and draws nothing on an unmasked chain: the cache drop
+    // is its whole effect here
+    check(invalidated.second->setActiveRows(nullptr),
+          "the redundant invalidation is accepted");
+  }
+
+  SamplerStateData plainState, invalidatedState;
+  plain.second->getState(plainState);
+  invalidated.second->getState(invalidatedState);
+  check(statesAgree(plainState, invalidatedState),
+        "a latent family's refresh drops the vector leaf's cache: an extra "
+        "invalidation moves no draw");
+
+  ext_rng_destroy(plain.first);
+  ext_rng_destroy(invalidated.first);
+  printf("ok: vector leaf cache under a latent family\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testLeafSeamDispatch();
   testUnitLowerFactorization();
@@ -7017,4 +7283,8 @@ void runModelTests(ext_rng* rng) {
   testVarianceSavedPredict();
   testVarianceM1Reduction();
   testFlatFamilyCreatePaths();
+  testOrdinalLogLikelihoodPin();
+  testLogisticWeightSwapColdStart();
+  testVarianceForestNonConstantMean();
+  testVectorLeafLatentRefreshCache();
 }

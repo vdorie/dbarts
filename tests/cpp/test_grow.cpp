@@ -1553,6 +1553,150 @@ void testCategoricalGrowHonorsInteraction() {
          numCategorical);
 }
 
+// ---------------------------------------------------------------------------
+// The conditional law BELOW the root.
+//
+// Every other law test here measures a ROOT draw, where every variable is
+// available and the ancestor interval is the whole grid - the two places the
+// split-variable normalizer and the cut normalizer are indistinguishable from
+// their global counterparts. Below the root they are not: the normalizer is
+// 1 / numAvailable over the variables the node can still split on, and a
+// variable whose cuts an ancestor has exhausted is not one of them.
+//
+// The fixture makes those two counts differ. Column 0 carries two values, so
+// it has ONE cut; the root spends it, and at either child column 0 is
+// unavailable while column 1 still is. numAvailable is therefore 1 against 2
+// predictors, and the law that reads numPredictors instead multiplies every
+// split candidate by 1/2 relative to no-split - which is what the second
+// reference law below is, and what the chi-square must reject.
+void testConditionalLawBelowRoot() {
+  const size_t n = 512, numDraws = 60000;
+  const double alpha = 1e-3, k = 2.0, sigma = 0.9;
+  double residualVariance = sigma * sigma;
+
+  std::vector<double> x(n * 2), y(n);
+  std::uint64_t generator = 20260824u;
+  for (size_t i = 0; i < n; ++i) {
+    // two values, so the root's cut exhausts the column for its left child
+    x[i] = static_cast<double>(i % 2);
+    x[i + n] = static_cast<double>((i / 2) % 5);  // every cut occupied
+    y[i] = 0.55 * (2.0 * fixtureUniform(generator) - 1.0);
+  }
+
+  ColumnStore store;
+  store.build(x.data(), n, 2, 4);  // a four-cut grid, so every cell is measurable
+  check(store.numCuts[0] == 4 && store.numCuts[1] == 4,
+        "the conditional fixture carries four cuts per column");
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  CGMTreePrior prior;
+  ConstantGaussianLeaf leaf{0.5};
+  Rule rootRule;
+  rootRule.variableIndex = 0;
+  rootRule.setSplitIndex(0);
+  auto reset = [&]() {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    tree.birth(store, 0, rootRule, y.data(), nullptr);
+    return tree.at(0).leftChild;
+  };
+  int32_t child = reset();
+
+  // the premise, asserted rather than assumed: one of two predictors is
+  // available at the child, so the two normalizers are different numbers
+  std::vector<std::uint8_t> available(2);
+  check(tree.collectAvailableVariables(store, child, available.data()) == 1 &&
+          available[0] == 0 && available[1] == 1,
+        "the child can still split on column 1 alone");
+
+  // the child's own suffstats, per cut of column 1, off the raw rows
+  size_t numCuts = store.numCuts[1];
+  std::vector<ConstantLeafScanBin> bins(numCuts + 1);
+  ConstantLeafScanBin nodeTotal;
+  for (size_t i = 0; i < n; ++i) {
+    if (store.codeAt(0, i) > 0) continue;  // the right child's rows
+    bins[store.codeAt(1, i)].addObservation(1.0, y[i]);
+    nodeTotal.addObservation(1.0, y[i]);
+  }
+
+  double growth = prior.growthProbability(tree, store, child);
+  checkNear(growth, 0.95 / 4.0, 1e-15, "the child sits at depth 1");
+  auto marginal = [&](const ConstantLeafScanBin& bin) {
+    return leaf.logIntegratedLikelihood(k, residualVariance, bin.sumWeights,
+                                        bin.sumWeightedResponse);
+  };
+
+  size_t numCells = 1 + numCuts;
+  std::vector<double> logExact(numCells), logGlobal(numCells);
+  logExact[0] = logGlobal[0] = std::log(1.0 - growth) + marginal(nodeTotal);
+  double logCut = -std::log(static_cast<double>(numCuts));
+  ConstantLeafScanBin left;
+  for (size_t cut = 0; cut < numCuts; ++cut) {
+    left.addBin(bins[cut]);
+    ConstantLeafScanBin right;
+    right.count = nodeTotal.count - left.count;
+    right.sumWeights = nodeTotal.sumWeights - left.sumWeights;
+    right.sumWeightedResponse =
+      nodeTotal.sumWeightedResponse - left.sumWeightedResponse;
+    check(left.count > 0.0 && right.count > 0.0,
+          "every cut of the child is occupancy-nonempty");
+    double base = std::log(growth) + logCut + marginal(left) + marginal(right);
+    logExact[1 + cut] = base;                      // -log(1 available)
+    logGlobal[1 + cut] = base - std::log(2.0);     // -log(2 predictors)
+  }
+  std::vector<double> exact(normalizedFromLogWeights(logExact));
+  std::vector<double> global(normalizedFromLogWeights(logGlobal));
+
+  std::vector<double> realized(numCells, 0.0), control(numCells, 0.0);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260824u);
+  GrowScratch scratch;
+  for (size_t draw = 0; draw < numDraws; ++draw) {
+    child = reset();
+    growTreeFromRoot(store, prior, leaf, rng, tree, child, y.data(), nullptr, k,
+                     sigma, scratch);
+    size_t cell = 0;
+    if (!tree.at(child).isBottom()) {
+      check(tree.at(child).rule.variableIndex == 1,
+            "the child splits on the only variable left to it");
+      cell = 1 + static_cast<size_t>(tree.at(child).rule.splitIndex());
+    }
+    realized[cell] += 1.0;
+  }
+  for (size_t draw = 0; draw < numDraws; ++draw)
+    control[ext_rng_drawFromDiscreteDistribution(rng, exact.data(),
+                                                 numCells)] += 1.0;
+  ext_rng_destroy(rng);
+
+  double total = static_cast<double>(numDraws);
+  double df = static_cast<double>(numCells - 1);
+  auto pValue = [df](double statistic) {
+    return chiSquareUpperTail(statistic, df);
+  };
+  double vsExact = pValue(chiSquareStatistic(realized, exact, total));
+  double vsGlobal = pValue(chiSquareStatistic(realized, global, total));
+  double calibration = pValue(chiSquareStatistic(control, exact, total));
+  double minExpected = total;
+  for (double probability : exact) minExpected = std::min(minExpected,
+                                                          total * probability);
+
+  printf("  depth-1 conditional law, %zu cells, %zu draws: no-split exact "
+         "%.5f global %.5f realized %.5f\n", numCells, numDraws, exact[0],
+         global[0], realized[0] / total);
+  printf("    p(realized vs exact) %.3g, p(realized vs numPredictors law) "
+         "%.3g, p(control) %.3g\n", vsExact, vsGlobal, calibration);
+  check(minExpected >= 100.0,
+        "every cell of the conditional law is measurable at this draw count");
+  check(calibration >= alpha,
+        "the conditional law's own draws match it (chi-square calibration)");
+  check(vsExact >= alpha,
+        "realized child rules match the exact law over the available variable");
+  check(vsGlobal < alpha,
+        "the realized law is not the one normalizing over every predictor");
+  printf("ok: grow conditional law below the root\n");
+}
+
 }  // namespace
 
 void runGrowTests(ext_rng* rng) {
@@ -1570,4 +1714,5 @@ void runGrowTests(ext_rng* rng) {
   testCategoricalGroupMassClosedForm();
   testCategoricalGrowGaugeAndCoins();
   testCategoricalGrowHonorsInteraction();
+  testConditionalLawBelowRoot();
 }

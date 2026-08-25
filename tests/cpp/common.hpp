@@ -172,6 +172,10 @@ void runInteractionTests(ext_rng* rng);
 void runModelTests(ext_rng* rng);
 void runSamplerTests(ext_rng* rng);
 void runShapeTests(ext_rng* rng);
+// no rng argument on purpose: the conformance fixtures own their generators
+// and the suite restores the shared runif01 stream, so it neither shifts nor
+// is shifted by any other suite's draws
+void runFacadeTests();
 void runStateTests(ext_rng* rng);
 // no rng argument on purpose: the ensemble oracle owns its generator and
 // restores the shared runif01 stream, so it neither shifts nor is shifted by

@@ -4,8 +4,9 @@
 // Usage: test_bartcore [seed-count] [suite]
 //   seed-count  an integer: the mutation fuzzer's seed count (default 3)
 //   suite       a name prefix (data, tree, scan, grow, moves, interaction,
-//               model, sampler, shape, state, ensemble, fuzz) selecting only
-//               that suite; both arguments may appear in either order
+//               model, sampler, shape, facade, state, ensemble, fuzz)
+//               selecting only that suite; both arguments may appear in
+//               either order
 
 #include "common.hpp"
 
@@ -44,6 +45,11 @@ bool suiteSelected(const char* filter, const char* suite) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  // line-buffered stdout: a check that crashes the process (a bad index, a
+  // stale map) otherwise takes the buffered "ok:" and "FAIL:" lines with it,
+  // leaving a red CI job that names nothing.
+  std::setvbuf(stdout, nullptr, _IOLBF, 0);
+
   misc_printf = &printToStderr;
   misc_flushOutput = &flushStderr;
 
@@ -73,6 +79,7 @@ int main(int argc, char** argv) {
   if (suiteSelected(filter, "model")) runModelTests(rng);
   if (suiteSelected(filter, "sampler")) runSamplerTests(rng);
   if (suiteSelected(filter, "shape")) runShapeTests(rng);
+  if (suiteSelected(filter, "facade")) runFacadeTests();
   if (suiteSelected(filter, "state")) runStateTests(rng);
   // takes no shared rng and restores rngState, so it can sit anywhere here
   // without moving a downstream suite's draws
