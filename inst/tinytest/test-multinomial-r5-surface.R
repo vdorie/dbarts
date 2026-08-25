@@ -479,7 +479,7 @@ expect_true(anyNA(plain$predict(x.test, NA_real_)))
 # --- state round trip: STRUCTURAL, not bitwise -------------------------------
 # omega is a per-sweep latent redrawn against whatever margins the restored
 # forests present, so the restored chain reconstructs the MODEL - the trees and
-# their leaf parameters - rather than the draw stream (multinomial.md)
+# their leaf parameters - rather than the draw stream
 roundTrip <- dbarts(
   x,
   labels,

@@ -94,9 +94,9 @@ fit.test <- bart(
 expect_equal(ncol(fit.test$yhat.test), 20L)
 
 # the sampler surface: response-side mutation stays open; a sparse column
-# accepts column-granular and whole-matrix between-sweep mutation
-# (sparse-columns.md ext (i)); per-observation and whole-data replacement stay
-# fixed at creation, and grouped rbart_vi is reserved
+# accepts column-granular and whole-matrix between-sweep mutation;
+# per-observation and whole-data replacement stay fixed at creation, and
+# grouped rbart_vi is reserved
 control <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,

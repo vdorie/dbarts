@@ -659,9 +659,8 @@ bartcoreSampler <- function(sampler, family = "") {
 }
 
 # A built predictor store (cuts + codes) shared across row-subset samplers;
-# the shared-handle design (public-surface.md section 5), internal and
-# unserializable. control
-# contributes useQuantiles; data contributes x, the column types, and
+# internal and unserializable. control contributes useQuantiles; data
+# contributes x, the column types, and
 # n.cuts. leafCovariateColumns names (1-based) the columns whose raw values
 # a view's leaf model will read; the handle owns raw only for those, so a
 # constant-leaf caller passes none. A view designating an undeclared column

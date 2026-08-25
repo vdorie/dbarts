@@ -13,7 +13,7 @@
 
 #undef USE_FC_LEN_T
 
-// defines a crossplatform NORETURN (WG14 N1453, the noreturn proposal)
+// defines a crossplatform NORETURN http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1453.htm
 #if _MSC_VER >= 1310 
 #  define NORETURN _declspec(noreturn)
 #elif __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)

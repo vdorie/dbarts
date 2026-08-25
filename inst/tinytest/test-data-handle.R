@@ -1,5 +1,5 @@
-# The shared data handle and its row-subset view samplers
-# (public-surface.md section 5; internal). Views copy the handle's cut grid
+# The shared data handle and its row-subset view samplers (internal). Views
+# copy the handle's cut grid
 # and gather their rows' codes, so folds bin identically to the full data;
 # they refuse raw-predictor mutation.
 

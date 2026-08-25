@@ -177,7 +177,7 @@ expect_false(identical(
 ))
 # storage: xbart always creates its per-fold samplers over a shared data
 # handle (bartcoreDataHandle/bartcoreSamplerFromHandle), a path the engine
-# keeps fp64-only regardless of family (reduced-precision-storage.md sec 6);
+# keeps fp64-only regardless of family;
 # "single" reaching the fit is demonstrated by it reaching that refusal
 # rather than being silently dropped, while the "double" default still runs
 expect_silent(quickXbart(seed = 14L, storage = "double"))

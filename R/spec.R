@@ -350,8 +350,8 @@ resolveSamplerSpec <- function(
   }
 
   # A monotone constraint restricts the forest to birth/death proposals (change
-  # and swap would need a > 2-D constrained integral, monotone.md section 5): a
-  # defaulted proposal.probs is forced to birth/death-only, an explicit
+  # and swap would need a > 2-D constrained integral): a defaulted
+  # proposal.probs is forced to birth/death-only, an explicit
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
     defaultProbs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)

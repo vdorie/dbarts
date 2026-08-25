@@ -63,8 +63,8 @@ coarse$storeState()
 expect_silent(coarse$setState(coarse$state))
 expect_true(numDistinct(coarse$run(0L, 1L)$variance) <= 27L)
 
-# ---- statistical agreement with a from-scratch fit (post-mutation-assertions
-# ---- .md): a repair that re-routes but scatters the wrong factors fails here
+# ---- statistical agreement with a from-scratch fit: a repair that re-routes
+# ---- but scatters the wrong factors fails here
 set.seed(37, sample.kind = "Rejection")
 nAgree <- 300L
 xOld <- cbind(runif(nAgree), runif(nAgree))

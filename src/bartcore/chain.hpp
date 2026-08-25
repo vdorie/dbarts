@@ -551,7 +551,7 @@ public:
                 "the residual storage type is fp64 (default) or opt-in fp32");
   // ResidT is the running-residual (treeY) element type: double by default,
   // byte-identical to the fp64 engine; float only for the opt-in gaussian
-  // constant-leaf path the factory mints (reduced-precision-storage.md sec 3b).
+  // constant-leaf path the factory mints.
 
   /// Scalar and function-valued leaves read per-node weighted means
   /// (function leaves because their over-cap nodes delegate to the constant

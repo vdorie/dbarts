@@ -393,9 +393,9 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
                                  rc_asRLength(1), RC_END);
 
-  // storage precision: "single" opts the running residual into fp32
-  // (reduced-precision-storage.md sec 3b); anything else (default "double",
-  // or an old control lacking the slot) keeps the fp64 engine
+  // storage precision: "single" opts the running residual into fp32; anything
+  // else (default "double", or an old control lacking the slot) keeps the
+  // fp64 engine
   REPROTECT_SLOT(slotExpr, controlExpr, "storage", slotIndex);
   control.fp32Residual =
     Rf_isString(slotExpr) && rc_getLength(slotExpr) >= 1 &&
@@ -2485,7 +2485,7 @@ void refuseStaleCategoryTestOffset(bool hasCategoryTestOffset,
 }
 
 // A data handle is a built column store (cuts + codes) shared by row-subset
-// view samplers (public-surface.md section 5; internal), held by external
+// view samplers; internal, held by external
 // pointer. The pointer's protection slot pins the data expression whose x the
 // store borrows.
 void dataHandleFinalizer(SEXP ptrExpr) {
@@ -3032,7 +3032,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                             varianceColumns);
 
     // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
-    // PLAIN constant-leaf path (reduced-precision-storage.md sec 6); refuse
+    // PLAIN constant-leaf path; refuse
     // every other model rather than silently ignore the request. The monotone
     // constrained leaf is a distinct (double-only) instantiation the factory
     // dispatches ahead of the fp32 branch, so refuse it here too (it is not yet
@@ -3509,8 +3509,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
 // Builds the two-layer store (cuts + codes) once for sharing across
 // row-subset samplers: control contributes useQuantiles, data contributes
-// x, the column types, and n.cuts. Internal, with no serialization;
-// see public-surface.md section 5.
+// x, the column types, and n.cuts. Internal, with no serialization.
 SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                                SEXP leafCovariateColumnsExpr) {
   return unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
@@ -3689,8 +3688,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       options.numLeafCovariates = viewLeafCovariates.size();
     }
     // the store-view factory keeps the fp64 residual (fp32 is minted only by
-    // createSampler's gaussian constant-leaf branch, reduced-precision-storage.md
-    // sec 6); refuse rather than silently ignore a "single" request
+    // createSampler's gaussian constant-leaf branch); refuse rather than
+    // silently ignore a "single" request
     if (options.fp32Residual)
       Rf_error("storage = \"single\" is not supported for this sampler");
     rngs = createChainRngs(control, options.numChains);
