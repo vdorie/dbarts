@@ -200,3 +200,11 @@ Residue, recorded not fixed: a heteroscedastic sampler answers `DBARTS_FAMILY_GA
 
 Doors: drop `DBARTS_REQUIRE_EXACT_ABI` from both consumers at the coordinated 1.0 merge; the additive post-1.0 flat readers stay where
 prerc-surface-freeze.md lists them.
+
+CI addendum (2026-08-25): stan4bart's first post-freeze CI run (33b4aa8) failed on every R-CMD-check platform and the gates
+recompute job: the workflows pre-install dbarts@bartcore, but r-lib's setup-r-dependencies caches packages by version, not commit,
+and the pre-release branch never bumps 1.0-0, so a cached pre-freeze build replaced the fresh install and the compile lost the
+family enum. Fixed forward on stan4bart bartcore: feb8c29 adds a post-dependency step that reinstalls dbarts whenever the
+installed RemoteSha is not the live branch tip; f9bca65 keeps the installed build when ls-remote cannot be read (a runner DNS
+outage made the first fix reinstall - and fail - needlessly). Green across all three workflows at f9bca65. The step dies with the
+pre-install steps when dbarts 1.0-0 reaches CRAN.

@@ -1,6 +1,6 @@
 # predict() surface unification (D1), surface smalls (D9), shim removal (D5), saved-tree refusal (D2)
 
-Status: DESIGNED 2026-08-25, not started.
+Status: LANDED 2026-08-25 at 78f334c1 (design record 716acd1f; code tip ed43deef).
 
 Spec: docs/plans/prerc-surface-freeze.md D1, D9, D5, D2 and its Sequencing line ("then D1, D9, D5, D2"). TODO
 `predict-signature-unification`, `surface-smalls`, `deprecation-shim-removal`, `predict-refusal-names-cure` - four commits, one
@@ -760,3 +760,27 @@ something in this slice reached the sampler and the commit is wrong.
 Consumer gate, after commit 1: rebuild bartCause on `dbarts-1.0` with the one-line fix and run `testthat::test_local()`;
 stan4bart, treatSens and bairrtt need no rebuild for this slice (no hits), though the branch's habit of rebuilding both flat-C
 consumers costs little.
+
+## Landing note (2026-08-25)
+
+Landed as five commits, pushed together as 78f334c1: 7b3ac6bf (D1, commit 1), 71cc7133 (D9, commit 2), befc8f45 (D5, commit 3),
+ed43deef (D2, commit 4), 78f334c1 (docs/design anchor re-alignment by the 716acd1f..ed43deef diff line map; stamps in
+feature-matrix.md and threaded-predict.md moved to ed43deef). Implementer gates ran per commit; the independent battery re-ran on a
+git-archive snapshot of 78f334c1: tinytest 7352/0, tests/cpp + sampler pass, equivalence 43 identical (equivalence.R
+--strict-coverage), bcf 12 and multinomial 11 identical (their OWN sibling scripts bcf-equivalence.R/multinomial-equivalence.R -
+section 12's invocation naming equivalence.R for all three is wrong), check-rc-codoc 42 methods, freshness 0 FAIL / 68 WARN,
+NEWS.Rd 339 entries (three new UPGRADING items: D1, D5, D2), air + lintr::lint_package clean, R CMD check --as-cran 1 NOTE
+(days-since-update), census greps zero. All baselines bitwise; zero re-records.
+
+Deviations from the design, all content-neutral: the predict.rbart formals-order loop test in test-generics-multithreaded.R split
+so rbart checks (n.threads, ..., group.by); man/bart2.Rd's class/ppd prose landed in the "Generics for a X fit" paragraphs the
+design's line numbers actually named; commit 1's bart2.Rd edit was prose-only (the three own-class predicts already carried the
+target prefix).
+
+Consumers: bartCause dbarts-1.0 takes the one-line named group.by fix in R/generics.R (landed on that branch); stan4bart,
+treatSens, bairrtt unaffected (zero hits, re-verified by the critique). Residue: ordinal.md:364 and survival.md:615 cite
+R/generics.R:269-275, whose tail fell in a deletion - re-anchoring them needs intent, not arithmetic, so both stand as advisories;
+multinomial-mutation-arc.md:835's bart2.Rd:291 cite drifted to 348 but sits in frozen section 5, left by rule;
+model-space-survey.md:429 was stale before the slice (frozen exempt). The two settled-sub-choice doors that remain open:
+extract gains no "class" (a reduction over draws, not a channel) and fitted gains no "forest" (the last-margin reduction would
+average over forests, not observations).

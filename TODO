@@ -71,9 +71,6 @@ items
     with EXACT pure-AR-1 errors a deferred ENGINE door (banded
     residual precision + cross-leaf GLS leaf updates break per-leaf
     independence). causal-motivated, decision-gated.
-  deprecation-shim-removal: delete predict.rbart's value= and
-    "post-mean" shims - nothing released to deprecate from
-    (docs/plans/prerc-surface-freeze.md D5). Pre-RC by rule.
   equivalence-harness-statistical-mode: bcf-equivalence.R and
     multinomial-equivalence.R fall through to equivalence.R's
     statistical shape (per-summary Welch z over each scenario's
@@ -184,12 +181,6 @@ items
   predict-na-refusal: NA in newdata on a training-complete column
     refused by name at predict; ?dbarts states the rule
     (docs/plans/prerc-surface-freeze.md D8). Pre-RC by rule.
-  predict-refusal-names-cure: keepTrees stays FALSE; predict()'s
-    refusal on a treeless fit names keepTrees = TRUE
-    (docs/plans/prerc-surface-freeze.md D2). Pre-RC by rule.
-  predict-signature-unification: one predict() order (object,
-    newdata, type, ...) and one offset name on every method; group.by
-    named only (docs/plans/prerc-surface-freeze.md D1). Pre-RC by rule.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -267,10 +258,6 @@ items
     widths: gate STANDS - perf/memory only with no measured win;
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
-  surface-smalls: one forest-argument convention across the four
-    accessors, fitted() type vocabulary equal to predict()/extract(),
-    usage entries for the 15 alias-only S3 methods
-    (docs/plans/prerc-surface-freeze.md D9). Pre-RC by rule.
   survival-followups: doors out of the survival family pair (records
     in docs/plans/survival-models.md and docs/design/survival.md sec
     6): competing risks (value lifted; the named consumer of
