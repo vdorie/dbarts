@@ -2,7 +2,7 @@
 
 Read-only scope. Nine verified items plus a spot-check sweep. For each: file,
 exact current text, proposed replacement (verbatim), risk. CI note per item.
-Status: SCOPED 2026-08-26, at 9d0ee10f. Revised per an independent blind critique; all 15 adjudications
+Status: LANDED 2026-08-26 at 52c10e02 (design record 37ab6ea9; see the landing note); scoped at 9d0ee10f. Revised per an independent blind critique; all 15 adjudications
 below applied - see the per-item notes for what changed and why.
 
 ---
@@ -942,3 +942,26 @@ docs/ path or slice codename inside a shipped file - item 7's fix lives in
 `benchmarks/` and `docs/plans/`, neither a shipped directory, so existing
 docs/plans citations in comments are fine as-is and untouched by the
 proposed fix.
+
+## Landing note (2026-08-26)
+
+LANDED at 52c10e02 (design record 37ab6ea9), implemented on the
+surface-refusals slice d48aef8a as its cross-slice section orders and
+cherry-picked from its gated worktree build; both gate batteries
+green on that base: tinytest 7458/0, equivalence trio bitwise
+43/12/11, composition-matrix disagreements 2 -> 0 with confirmations
+181 -> 183 and the multinom dbarts5 cell now probing construction
+plus one sweep, R CMD check --as-cran 1 NOTE with codoc/usage OK over
+the new print aliases, rc-codoc green, freshness byte-identical to
+its base (17 FAIL / 77 WARN, all pre-existing stacked-slice drift),
+line counts invariant on TODO (347), composition-refusals.md (649),
+release-candidate-review.md (3894), multinomial-mutation-arc.md
+(1258). One design gap found and closed at implementation: item 1's
+man/bart.Rd insertions shift the Saving subsection by +3 lines and
+docs/design/multinomial-mutation-arc.md:233 cites it by exact line -
+the design's risk note covered man/ only as a freshness source, not
+as an anchor target - re-anchored :251 -> :254 in the same commit,
+single token, line-count neutral, outside that doc's frozen sections.
+The rbart n.chains fix is the unconditional assignment in
+packageRbartResults with the R/diagnostics.R comment retired and the
+two pinned tests flipped to expect the count.

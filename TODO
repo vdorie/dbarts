@@ -241,9 +241,9 @@ items
     (tracked at docs/plans/bartcore-review-tour.md, landed 0b89ab8b).
     Remaining: VD's own human review. Doors the wave recorded
     (negbin rootogram, ordinal tail-precision loglik, negbin burn-in
-    dispersion channel, the own-class predict(bases =)/
-    fitted(combineChains =) no-ops) live in
-    release-candidate-review.md's wave-3 landing note.
+    dispersion channel) live in release-candidate-review.md's wave-3
+    landing note; its own-class silent-no-op door closed with the
+    surface-refusals slice (docs/plans/surface-refusals.md).
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
     Status list. rbart_vi / linear leaf on sparse: value gate lifted
     (grouped random effects on high-dimensional sparse designs, the

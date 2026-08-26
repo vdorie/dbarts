@@ -840,7 +840,7 @@ one run(n.burn, n.samples), so plot draws no burn-in segment); par(mfrow) is not
 restored by any plot method (overbroad when written - the six own-class sites already restored, line 610; plot.bart/plot.rbart's half fixed fcbbc478);
 as_draws_array.bartMultinomial(vars =) ignores a non-meanProb value (documented);
 predict(bases =), predict(sample =), fitted(combineChains =) on the own-class fits
-are still silent no-ops (outside the judgement table; n.threads becomes real with the
+are still silent no-ops (fixed d48aef8a, refused by name; n.threads real since the
 threaded-predict arc); dbartsData(counts =) with a formula reaches its own later
 refusal; the `# ---- fix NN` section labels in tests (14 sites) and the 162
 pre-existing docs/design paths in shipped files are the strip pass's scope;

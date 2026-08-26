@@ -1,6 +1,6 @@
 # R-surface refusals, shapes and argument order (pre-RC)
 
-Status: DESIGN 2026-08-26, at 9d0ee10f; revised the same day against an independent blind critique (findings 1
+Status: LANDED 2026-08-26 at d48aef8a (design record 37ab6ea9; see the landing note); designed at 9d0ee10f, revised the same day against an independent blind critique (findings 1
 and 11 blocking; the adjudications are folded into sections 3, 4, 5, 6, 7, 9, 10, 11, 13, 14, 15 and 17
 rather than left as a change list). Every anchor below was read live at that tip.
 
@@ -792,3 +792,27 @@ Observed, out of scope, recorded so it is not rediscovered.
   correct for an object whose panels are indexed. Not aligned, not touched, recorded so section 9's "six
   siblings" is not later read as "seven".
 - No `plot` method gains a refusal: every one of them forwards `...` to `graphics::plot` deliberately.
+
+## Landing note (2026-08-26)
+
+LANDED at d48aef8a (design record 37ab6ea9), cherry-picked from its
+gated worktree build; both gate batteries green on its own base
+9d0ee10f: tinytest 7458/0 (85 new or rewritten assertions, split
+57/9/8/11), equivalence trio bitwise 43/12/11, lintr::lint_package()
+0 tree-wide, R CMD check --as-cran 1 NOTE, NEWS db 345, rc-codoc
+green. Behavioral probes confirmed at gate: extract(type = "trees",
+newdata =) still forwards; fitted(fit, "ev", 0.9) takes ci.level in
+slot 3; the class + ci.level and residuals(ci.level =) refusals fire
+with the designed wording. One probe correction for the record:
+bart() carries BayesTree argument names and no dots, so the
+whole-number refusal for a thread count fires at
+dbartsControl()/dbarts() and at the legacy interface's own coerced
+sites, not at a bart(n.threads =) spelling (which R itself refuses as
+unused). Deviation from section 13: the design's dbarts(n.threads =
+2.7) probe named a formal dbarts() does not have; the landed test
+probes dbarts(seed = 2.7), the direct call site the section 10 census
+names. Two review touch-ups landed with the slice: the
+refuseSamplerExtractArgs helper sits above the comment block that
+describes extract.dbartsSampler, and the NEWS entry claims the
+plotTree catch-all for the dbartsSampler method alone (the fit-class
+refusals predate this slice).

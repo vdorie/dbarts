@@ -1,6 +1,6 @@
 # dbarts.h shape freeze: the last breaking-if-deferred items
 
-Status: PROPOSED. Read at bartcore 9d0ee10f; revised after an independent blind
+Status: LANDED 2026-08-26 at 9df0cb50 (design record 37ab6ea9; see the landing note). Read at bartcore 9d0ee10f; revised after an independent blind
 critique (two blocking defects, several citation corrections, all folded). One
 slice, one hash re-bake, one lockstep consumer rebuild - the shape of
 docs/plans/dbarts-h-freeze.md (D3/D4), which this continues and does not reopen.
@@ -636,3 +636,28 @@ file, which would produce two line maps neither of which is true.
 1. Item 1 scope: seven entries (recommended) or the five named in the brief.
 2. Item 4: rename (recommended) or transpose the contract.
 3. Item 2: move `forest` (recommended) or state the rule and leave the order.
+
+## Landing note (2026-08-26)
+
+LANDED at 9df0cb50 (design record 37ab6ea9), cherry-picked from its
+gated worktree build; both gate batteries green on its own base
+9d0ee10f: tests/cpp 268 ok full + sampler subset, tinytest 7385/0,
+equivalence trio bitwise 43/12/11, air/lintr clean, R CMD check
+--as-cran 1 NOTE, NEWS db 342, ASAN+UBSAN 0 diagnostics. Hash
+re-bake: dbarts_apiSignatureToken 0x32e5b15aa6c88c69 ->
+0x5d02145d36620967, DBARTS_C_API_HASH 0x0939c0224353505b ->
+0x5a32aa4cd3872d55; the retired token joins test-capi.R's
+stale-token block as a sixth expect_false (the five existing lines
+already held correctly retired values, so none changed). Implementation
+deviations, all recorded at review: section 10's "heteroscedastic
+sampler built at :222-228" cite was ptrFixed (gaussian, fixed resid
+prior) - the setSigma -> 0 pin sits beside ptrVar's family assertion
+and the accepting 1 rides ptrFixed's existing call; where a predicate
+now answers a refusal the flat entry drops the superseded raiser
+rather than keeping dead code (setResponse/setOffset keep
+refuseMultiForestResponseMutation for its live updateScale arm);
+refuseNonBinaryMask takes no caller, keeping the R bridge's message
+bytes; the BCF LEG_RESPONSE_PINNED/LEG_OFFSET_PINNED/LEG_WEIGHTS legs
+assert == 1, pinning section 13's flat-unreachable claim; the restored
+capi_set_forest_basis leg pins the row-major transpose through
+basisRowNorm (5 row-major vs 4.95 column-major).
