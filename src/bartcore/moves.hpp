@@ -88,10 +88,13 @@ BranchScore logLikelihoodForBranch(const MoveContext& ctx, const L& leaf,
   }
 
   if constexpr (ParamScoringLeafModel<L>)
+    // `bottoms` is handed down rather than re-derived: the rank loop above has
+    // already walked exactly this branch.
     return {rank, leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y,
                                                         ctx.weights, ctx.k,
                                                         sigma * sigma,
-                                                        ctx.leafParams)};
+                                                        ctx.leafParams,
+                                                        bottoms)};
   return {rank, result};
 }
 

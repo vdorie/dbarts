@@ -141,13 +141,17 @@ concept TreeDrawLeafModel =
       -> std::same_as<void>;
   };
 
+/// The branch's bottom leaves are a parameter, not a re-derivation: the move
+/// takes the same list for its veto rank immediately before, so the score MUST
+/// read the caller's list and MUST NOT write through it.
 template <typename L>
 concept ParamScoringLeafModel =
   requires(const L leaf, const Tree& tree, std::int32_t branchIndex,
            const double* y, const double* weights, double k, double sigma2,
-           const double* leafParams) {
+           const double* leafParams,
+           const std::vector<std::int32_t>& branch) {
     { leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y, weights, k,
-                                            sigma2, leafParams) }
+                                            sigma2, leafParams, branch) }
       -> std::same_as<double>;
   };
 
@@ -427,7 +431,7 @@ inline bool monotoneBoxesOverlap(const Tree& tree, const ColumnStore& data,
 
 /// Scratch for the neighbor walk (per-leaf, reused across the sweep).
 struct MonotoneNeighborScratch {
-  std::vector<std::int32_t> branch, allBottoms, pathA, pathB, axes;
+  std::vector<std::int32_t> allBottoms, pathA, pathB, axes;
 };
 
 /// Bounds [a, b] on leaf k's value from its neighbors' frozen mu, plus whether
@@ -726,13 +730,14 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // ---- the constrained (truncated) birth/death marginal (ParamScoringLeafModel)
+  // `branch` is the caller's bottom-leaf list for branchIndex, taken for the
+  // veto rank immediately before this call; it is read, never written.
   double logLikelihoodForBranchWithParams(const Tree& tree,
                                           std::int32_t branchIndex,
                                           const double*, const double*,
                                           double k, double residualVariance,
-                                          const double* mu) const {
-    scratch.branch.clear();
-    tree.fillBottom(branchIndex, scratch.branch);
+                                          const double* mu,
+                                          const std::vector<std::int32_t>& branch) const {
     // The empty-leaf veto is NOT applied here even though this branch owns the
     // whole marginal: it is the caller's branch RANK (moves.hpp), taken over
     // the same leaves for every leaf model, so that two vetoed branches stay
@@ -744,7 +749,7 @@ struct MonotoneConstantGaussianLeaf {
     scratch.allBottoms.clear();
     tree.fillBottom(0, scratch.allBottoms);
 
-    std::size_t numLeaves = scratch.branch.size();
+    std::size_t numLeaves = branch.size();
     if (numLeaves == 2) {
       std::int32_t splitVar = tree.at(branchIndex).rule.variableIndex;
       if (directions[splitVar] != 0) {
@@ -761,9 +766,9 @@ struct MonotoneConstantGaussianLeaf {
     // the birth/death cases; for change/swap it still rejects an infeasible
     // arrangement (any empty bound gives the sentinel).
     double sum = 0.0;
-    for (std::int32_t leaf : scratch.branch) {
+    for (std::int32_t leaf : branch) {
       double term =
-        oneLeafLogMarginal(tree, leaf, mu, k, residualVariance, scratch.branch);
+        oneLeafLogMarginal(tree, leaf, mu, k, residualVariance, branch);
       if (term == -HUGE_VAL) return -HUGE_VAL;
       sum += term;
     }

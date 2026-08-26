@@ -6202,9 +6202,9 @@ struct TreeDrawMock {
                              double*) const {}
 };
 struct ParamScoreMock {
-  double logLikelihoodForBranchWithParams(const Tree&, std::int32_t,
-                                          const double*, const double*, double,
-                                          double, const double*) const {
+  double logLikelihoodForBranchWithParams(
+    const Tree&, std::int32_t, const double*, const double*, double, double,
+    const double*, const std::vector<std::int32_t>&) const {
     return 0.0;
   }
 };
@@ -6485,8 +6485,11 @@ static void testMonotoneFeasibility() {
   leaf.data = &store;
   leaf.directions.assign(d1.begin(), d1.end());
   leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  std::vector<std::int32_t> branchMid, branchRoot;
+  tree.fillBottom(midLeaf, branchMid);
+  tree.fillBottom(0, branchRoot);
   double sentinel = leaf.logLikelihoodForBranchWithParams(
-    tree, midLeaf, yg.data(), nullptr, 2.0, 1.0, mu.data());
+    tree, midLeaf, yg.data(), nullptr, 2.0, 1.0, mu.data(), branchMid);
   check(sentinel == -HUGE_VAL, "monotone empty cone scores the sentinel");
 
   // the constrained leaf owns the whole branch marginal, but NOT the veto:
@@ -6502,10 +6505,11 @@ static void testMonotoneFeasibility() {
     midZeroed[tree.indices[i]] = 0.0;
   check(std::isfinite(leaf.logLikelihoodForBranchWithParams(
           tree, 0, yg.data(), unitWeights.data(), 2.0, 1.0,
-          muFeasible.data())),
+          muFeasible.data(), branchRoot)),
         "monotone branch scores finite under positive weights");
   check(std::isfinite(leaf.logLikelihoodForBranchWithParams(
-          tree, 0, yg.data(), midZeroed.data(), 2.0, 1.0, muFeasible.data())),
+          tree, 0, yg.data(), midZeroed.data(), 2.0, 1.0, muFeasible.data(),
+          branchRoot)),
         "monotone branch scores a leaf of only zero-weight rows finite");
   check(tree.leafVetoRank(midLeaf, midZeroed.data()) == 1 &&
           tree.leafVetoRank(midLeaf, unitWeights.data()) == 0,
@@ -6744,8 +6748,10 @@ static void testMonotoneMarginal() {
   // and d_* = 1/2 in closed form
   const Node& nL = tree.at(lower);
   const Node& nR = tree.at(upper);
+  std::vector<std::int32_t> branch2d;
+  tree.fillBottom(0, branch2d);
   double got2d = leaf.logLikelihoodForBranchWithParams(tree, 0, y.data(), nullptr,
-                                                       k, sig2, nullptr);
+                                                       k, sig2, nullptr, branch2d);
   double mL, sL, mR, sR;
   refPosterior(kEff, sig2, nL.sumWeights, nL.sumWeightedResponse, leaf.scale, mL,
                sL);
