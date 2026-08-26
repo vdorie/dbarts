@@ -65,12 +65,15 @@ expect_error(
 
 # the grouped state (b, tau) rides save/load: a re-created sampler predicts
 # identically
-pred <- predict(fit, x, g, combineChains = FALSE)
+pred <- predict(fit, x, group.by = g, combineChains = FALSE)
 tempFile <- tempfile(fileext = ".rds")
 saveRDS(fit, tempFile)
 fit.loaded <- readRDS(tempFile)
 unlink(tempFile)
-expect_identical(predict(fit.loaded, x, g, combineChains = FALSE), pred)
+expect_identical(
+  predict(fit.loaded, x, group.by = g, combineChains = FALSE),
+  pred
+)
 
 # a custom prior function keeps the R loop and its per-chain samplers
 fit.custom <- dbarts::rbart_vi(

@@ -54,18 +54,19 @@ rbart_vi(
     \dots)
 
 \S3method{predict}{rbart}(
-    object, newdata, group.by, offset, weights,
+    object, newdata,
     type = c("ev", "ppd", "bart", "ranef"),
+    offset = NULL, weights = NULL,
     combineChains = TRUE,
     ci.level = NULL,
     n.threads,
-    \dots)
+    \dots, group.by)
 
 \S3method{residuals}{rbart}(object, type = "ev", \dots)
 }
 \arguments{
   \item{group.by}{
-    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}.
+    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}. For \code{predict} and \code{\link{survivalProbabilities}}, supplied by name only - it follows \code{\dots} in the signature, so it is never matched positionally; a missing one is refused, naming itself.
   }
   \item{group.by.test}{
     Grouping factor for test data, of the same type as \code{group.by}. Can be missing.

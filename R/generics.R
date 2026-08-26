@@ -229,8 +229,8 @@ combineOrUncombineChains <- function(x, n.chains, combine) {
 # is refused rather than floored because a zero, a negative, an NA or a
 # non-numeric is a caller mistake, and the offending value is echoed so which
 # call carried it is visible. Every predict method takes it as its LAST
-# positional formal: consumers call these methods positionally, so an earlier
-# insertion would rebind their arguments.
+# positional formal, so the argument a caller is most likely to supply by
+# position - 'type' - stays third on every one of them.
 validatePredictThreads <- function(n.threads) {
   if (
     !is.numeric(n.threads) ||
@@ -247,19 +247,38 @@ validatePredictThreads <- function(n.threads) {
   as.integer(n.threads)
 }
 
-# predict.bartNegbin's out-of-sample offset formal is named 'offset.test',
-# not 'offset'; a caller carrying that sibling's name here would otherwise
+# One offset spelling is live across every predict method - 'offset'. The
+# fit-time channels keep 'offset.test' (dbartsData, bart2, rbart_vi, and the
+# sampler's own $predict), so a caller carrying that name here would otherwise
 # vanish into '...' with the offset silently dropped instead of applied.
 predictOffsetUnusedArgs <- list(
   offset.test = "this fit's out-of-sample offset argument is named 'offset'"
+)
+# A per-observation weight scales the posterior-predictive DRAW of a fit whose
+# noise the caller can rescale - gaussian sigma, a logistic trial count. A
+# count, category or two-part draw comes from its own law with no such factor,
+# so the argument has nothing to act on here.
+predictWeightsUnusedArgs <- list(
+  weights = "this family's posterior-predictive draw takes no per-observation weight"
+)
+# An offset shifts the latent at rows the sampler never saw, and these two
+# families replay their trees with no offset channel at all, so either spelling
+# would be dropped rather than applied.
+noPredictOffsetReason <- paste0(
+  "this fit has no out-of-sample offset channel; predict replays the ",
+  "offset-free surface"
+)
+predictNoOffsetUnusedArgs <- list(
+  offset = noPredictOffsetReason,
+  offset.test = noPredictOffsetReason
 )
 
 predict.bart <- function(
   object,
   newdata,
-  offset,
-  weights,
   type = c("ev", "ppd", "bart", "forest"),
+  offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   forest = NULL,
@@ -267,13 +286,6 @@ predict.bart <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  if (missing(offset)) {
-    offset <- NULL
-  }
-  if (missing(weights)) {
-    weights <- NULL
-  }
-
   if (is.null(object[["fit"]])) {
     if (callName(object$call) == "bart2") {
       stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
@@ -1194,7 +1206,7 @@ predict.bartMultinomial <- function(
     list(...),
     "predict",
     "bartMultinomial",
-    multinomialUnusedArgs
+    c(multinomialUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     stop(
@@ -1484,7 +1496,7 @@ predict.bartOrdinal <- function(
     list(...),
     "predict",
     "bartOrdinal",
-    ordinalUnusedArgs
+    c(ordinalUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["cutpoints.raw"]])) {
     stop(
@@ -1712,7 +1724,7 @@ predict.bartNegbin <- function(
   object,
   newdata,
   type = c("ev", "ppd", "bart"),
-  offset.test = NULL,
+  offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   n.threads = object$fit$control@n.threads,
@@ -1723,7 +1735,7 @@ predict.bartNegbin <- function(
     list(...),
     "predict",
     "bartNegbin",
-    negbinUnusedArgs
+    c(negbinUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["dispersion.raw"]])) {
     stop(
@@ -1746,7 +1758,7 @@ predict.bartNegbin <- function(
   raw <- bartcorePredict(
     list(ptr = object$fit$getPointer()),
     newdata,
-    offset.test,
+    offset,
     n.threads
   )
   if (type == "bart") {
@@ -2118,7 +2130,7 @@ predict.bartHurdle <- function(
     list(...),
     "predict",
     "bartHurdle",
-    hurdleUnusedArgs
+    c(hurdleUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object$occupancy[["fit"]])) {
     stop(
@@ -2150,17 +2162,24 @@ print.bartHurdle <- function(x, ...) {
 predict.rbart <- function(
   object,
   newdata,
-  group.by,
-  offset,
-  weights,
   type = c("ev", "ppd", "bart", "ranef"),
+  offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   n.threads = object$fit[[1L]]$control@n.threads,
-  ...
+  ...,
+  group.by
 ) {
   if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
+  }
+  if (missing(group.by)) {
+    stop(
+      "'group.by' must be given by name: predict on an rbart fit needs the ",
+      "test rows' grouping factor, and it is no longer the third positional ",
+      "argument"
+    )
   }
   n.threads <- validatePredictThreads(n.threads)
 
@@ -2178,13 +2197,6 @@ predict.rbart <- function(
   }
   type <- validateType(type, eval(formals(predict.rbart)$type))
   refuseUnusedGenericArgs(dotsList, "predict", "rbart", predictOffsetUnusedArgs)
-
-  if (missing(offset)) {
-    offset <- NULL
-  }
-  if (missing(weights)) {
-    weights <- NULL
-  }
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)

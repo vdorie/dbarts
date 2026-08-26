@@ -128,7 +128,7 @@ expect_true(is.numeric(ppd.fitted))
 # predict.rbart has no train/test sample of its own (it always predicts on
 # fresh newdata), so it takes a 'weights' argument directly instead, mirroring
 # predict.bart's own convention rather than reading object$weights.test
-ppd.predict <- predict(weightedRFit, x, g, type = "ppd", weights = w)
+ppd.predict <- predict(weightedRFit, x, group.by = g, type = "ppd", weights = w)
 sd.highWeight.pred <- apply(ppd.predict[, w > 1, drop = FALSE], 2L, sd)
 sd.lowWeight.pred <- apply(ppd.predict[, w < 1, drop = FALSE], 2L, sd)
 expect_true(all(sd.highWeight.pred < sd.lowWeight.pred))

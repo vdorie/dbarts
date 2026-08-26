@@ -87,6 +87,128 @@ expect_error(
   "'offset.test' is not used by predict on a rbart fit",
   fixed = TRUE
 )
+# group.by follows '...' now: a positional third argument binds to 'type'
+# instead, and a missing one - named or positional - is refused by name
+expect_error(
+  predict(rbartFitKT, testData$x, groupBy),
+  "'group.by' must be given by name",
+  fixed = TRUE
+)
+expect_error(
+  predict(rbartFitKT, testData$x, type = "ev"),
+  "'group.by' must be given by name",
+  fixed = TRUE
+)
 rm(rbartFitKT, groupBy)
+
+# extend the offset.test refusal to the four own-class fits, and add the
+# 'weights' and offset-channel refusals the same signature reshape gained
+n <- 40L
+xSmall <- matrix(rnorm(n * 2L), n, 2L)
+
+multinomialFitKT <- dbarts::bart2(
+  xSmall,
+  factor(sample(letters[1:3], n, replace = TRUE)),
+  family = "multinomial",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  predict(multinomialFitKT, xSmall, offset.test = 0),
+  "'offset.test' is not used by predict on a bartMultinomial fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(multinomialFitKT, xSmall, weights = rep(1, n)),
+  "'weights' is not used by predict on a bartMultinomial fit",
+  fixed = TRUE
+)
+rm(multinomialFitKT)
+
+ordinalFitKT <- dbarts::bart2(
+  xSmall,
+  ordered(
+    sample(c("lo", "mid", "hi"), n, replace = TRUE),
+    levels = c("lo", "mid", "hi")
+  ),
+  family = "ordinal",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  predict(ordinalFitKT, xSmall, offset.test = 0),
+  "this fit has no out-of-sample offset channel",
+  fixed = TRUE
+)
+expect_error(
+  predict(ordinalFitKT, xSmall, offset = 0),
+  "this fit has no out-of-sample offset channel",
+  fixed = TRUE
+)
+expect_error(
+  predict(ordinalFitKT, xSmall, weights = rep(1, n)),
+  "'weights' is not used by predict on a bartOrdinal fit",
+  fixed = TRUE
+)
+rm(ordinalFitKT)
+
+negbinFitKT <- dbarts::bart2(
+  xSmall,
+  rpois(n, 3),
+  family = "nbinom",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  predict(negbinFitKT, xSmall, offset.test = rep(0, n)),
+  "'offset.test' is not used by predict on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(negbinFitKT, xSmall, weights = rep(1, n)),
+  "'weights' is not used by predict on a bartNegbin fit",
+  fixed = TRUE
+)
+rm(negbinFitKT)
+
+hurdleFitKT <- dbarts::bart2(
+  xSmall,
+  ifelse(runif(n) < 0.5, 0, rlnorm(n)),
+  family = "hurdle.lognormal",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  predict(hurdleFitKT, xSmall, offset.test = rep(0, n)),
+  "this fit has no out-of-sample offset channel",
+  fixed = TRUE
+)
+expect_error(
+  predict(hurdleFitKT, xSmall, offset = rep(0, n)),
+  "this fit has no out-of-sample offset channel",
+  fixed = TRUE
+)
+expect_error(
+  predict(hurdleFitKT, xSmall, weights = rep(1, n)),
+  "'weights' is not used by predict on a bartHurdle fit",
+  fixed = TRUE
+)
+rm(hurdleFitKT, n, xSmall)
 
 rm(testData)

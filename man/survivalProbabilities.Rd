@@ -36,9 +36,9 @@ survivalProbabilities(object, ...)
   object,
   times,
   newdata = NULL,
-  group.by,
   combineChains = TRUE,
-  ...
+  ...,
+  group.by
 )
 
 \method{survivalProbabilities}{bartMultinomial}(object, ...)
@@ -72,7 +72,9 @@ survivalProbabilities(object, ...)
     For the \code{rbart} method with \code{newdata}, the grouping factor for
     the new observations, as in \code{\link[=predict.rbart]{predict}}. A group
     not seen in training draws its intercept from \eqn{N(0, \tau)}. Ignored
-    (and unnecessary) when \code{newdata} is \code{NULL}.
+    (and unnecessary) when \code{newdata} is \code{NULL}. Supplied by name
+    only - it follows \code{\dots} in the signature, so it is never matched
+    positionally; a missing one is refused, naming itself.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the

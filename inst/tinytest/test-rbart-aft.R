@@ -114,6 +114,13 @@ sp.new <- suppressWarnings(
 expect_equal(dim(sp.new), c(n.draws, length(times), 4L))
 expect_true(all(sp.new >= 0 & sp.new <= 1))
 
+# ---- group.by follows '...', so a positional 4th argument binds to
+# ---- combineChains instead and raises the named-only message ----
+expect_error(
+  survivalProbabilities(fit, times, newdata = x.new, g.new),
+  pattern = "'group.by' must be given by name"
+)
+
 # ---- multi-chain conventions and the sigma-to-draw alignment ----
 
 fit.chains <- rbart_vi(

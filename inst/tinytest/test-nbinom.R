@@ -105,9 +105,9 @@ ppdNew <- predict(fit, x.test, type = "ppd")
 expect_equal(dim(ppdNew), c(n.samples, 10L))
 expect_true(all(ppdNew >= 0 & ppdNew == round(ppdNew)))
 
-# a log-exposure offset.test scales the mean counts multiplicatively
+# a log-exposure offset scales the mean counts multiplicatively
 evPlain <- predict(fit, x.test, type = "ev")
-evDoubled <- predict(fit, x.test, type = "ev", offset.test = rep(log(2), 10L))
+evDoubled <- predict(fit, x.test, type = "ev", offset = rep(log(2), 10L))
 expect_equal(evDoubled, 2 * evPlain)
 
 # --- predict requires keepTrees ---

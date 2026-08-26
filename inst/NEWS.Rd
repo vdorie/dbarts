@@ -73,6 +73,24 @@
             What such an object cannot do is pass \code{validObject}, which
             checks slot presence itself and reports the three as missing;
             rebuild the data object if you call it.
+      \item Every \code{predict} method's argument order is now uniform:
+            \code{(object, newdata, type, ...)}, then \code{offset},
+            \code{weights}, \code{combineChains}, \code{ci.level} in that
+            relative order wherever a class has the channel. This moves
+            \code{predict.bart}'s and \code{predict.rbart}'s \code{offset}
+            and \code{weights} formals after \code{type}, and moves
+            \code{predict.rbart}'s and \code{survivalProbabilities.rbart}'s
+            \code{group.by} after \code{...}, so it is matched by name only
+            - a caller passing it positionally, or omitting it, is refused
+            by name rather than silently binding \code{type} or
+            \code{combineChains}. \code{predict.bartNegbin}'s out-of-sample
+            offset formal is renamed from \code{offset.test} to
+            \code{offset}, matching every other predict method. The old
+            \code{offset.test} spelling is now refused by name on all six
+            predict methods rather than silently dropped, as is
+            \code{weights} on the four families with no such channel and
+            \code{offset}/\code{offset.test} on the two families with no
+            out-of-sample offset channel at all.
     }
   }
   \subsection{NEW FEATURES}{

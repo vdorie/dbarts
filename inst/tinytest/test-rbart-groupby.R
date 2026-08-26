@@ -180,11 +180,15 @@ rbartFit <- suppressWarnings(dbarts::rbart_vi(
   combineChains = FALSE
 ))
 expect_equal(
-  apply(predict(rbartFit, x.test, g.test), 2L, mean),
+  apply(predict(rbartFit, x.test, group.by = g.test), 2L, mean),
   fitted(rbartFit, sample = "test")
 )
 expect_equal(
-  apply(predict(rbartFit, x.test, g.test, combineChains = FALSE), 3L, mean),
+  apply(
+    predict(rbartFit, x.test, group.by = g.test, combineChains = FALSE),
+    3L,
+    mean
+  ),
   fitted(rbartFit, sample = "test")
 )
 
@@ -192,7 +196,13 @@ expect_equal(
 levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
 set.seed(0L)
 ranef.pred <- suppressWarnings(
-  predict(rbartFit, x.test, g.test, type = "ranef", combineChains = FALSE)
+  predict(
+    rbartFit,
+    x.test,
+    group.by = g.test,
+    type = "ranef",
+    combineChains = FALSE
+  )
 )
 expect_equal(
   ranef.pred[,, as.character(1L:4L)],
@@ -228,11 +238,15 @@ rbartFit <- suppressWarnings(dbarts::rbart_vi(
   verbose = FALSE
 ))
 expect_equal(
-  apply(predict(rbartFit, x.test, g.test), 2L, mean),
+  apply(predict(rbartFit, x.test, group.by = g.test), 2L, mean),
   fitted(rbartFit, sample = "test")
 )
 expect_equal(
-  apply(predict(rbartFit, x.test, g.test, combineChains = FALSE), 3L, mean),
+  apply(
+    predict(rbartFit, x.test, group.by = g.test, combineChains = FALSE),
+    3L,
+    mean
+  ),
   fitted(rbartFit, sample = "test")
 )
 
@@ -241,7 +255,7 @@ set.seed(0L)
 ranef.pred <- suppressWarnings(predict(
   rbartFit,
   x.test,
-  g.test,
+  group.by = g.test,
   type = "ranef"
 ))
 expect_equal(
@@ -274,7 +288,7 @@ rbartFit <- suppressWarnings(dbarts::rbart_vi(
   verbose = FALSE
 ))
 expect_equal(
-  apply(predict(rbartFit, x.test, g.test), 2L, mean),
+  apply(predict(rbartFit, x.test, group.by = g.test), 2L, mean),
   fitted(rbartFit, sample = "test")
 )
 levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
@@ -282,7 +296,7 @@ set.seed(0L)
 ranef.pred <- suppressWarnings(predict(
   rbartFit,
   x.test,
-  g.test,
+  group.by = g.test,
   type = "ranef"
 ))
 expect_equal(

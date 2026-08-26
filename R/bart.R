@@ -2552,9 +2552,9 @@ survivalProbabilities.rbart <- function(
   object,
   times,
   newdata = NULL,
-  group.by,
   combineChains = TRUE,
-  ...
+  ...,
+  group.by
 ) {
   if (!identical(object[["family"]], "aft")) {
     stop("survivalProbabilities requires an aft (survival) rbart fit")
@@ -2574,7 +2574,7 @@ survivalProbabilities.rbart <- function(
     extract(object, type = "ev", sample = "train", combineChains = FALSE)
   } else {
     if (missing(group.by)) {
-      stop("'group.by' must be specified when 'newdata' is given")
+      stop("'group.by' must be given by name when 'newdata' is given")
     }
     # predict.rbart maps intercepts through the factor levels (an unseen
     # level draws from N(0, tau)); coerce as rbart_vi does its group.by

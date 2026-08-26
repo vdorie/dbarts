@@ -258,28 +258,27 @@ rbartFit <- dbarts::rbart_vi(
   verbose = FALSE
 )
 expect_identical(
-  predict(rbartFit, xRe, g, n.threads = 1L),
-  predict(rbartFit, xRe, g, n.threads = 2L)
+  predict(rbartFit, xRe, group.by = g, n.threads = 1L),
+  predict(rbartFit, xRe, group.by = g, n.threads = 2L)
 )
 # rbart's Gibbs loop advances its sampler one draw at a time, so its store
 # holds a single slab: the worker count is clamped to it rather than spawning
 # an idle second worker
 expect_identical(partition(2L, 1L), partitionOK)
-# the formal is appended last, so a caller's THIRD positional argument is
-# still group.by
+# group.by follows '...', so it is matched by name only on every call
 expect_identical(
-  predict(rbartFit, xRe, g, n.threads = 2L),
+  predict(rbartFit, xRe, group.by = g, n.threads = 2L),
   predict(rbartFit, xRe, group.by = g, n.threads = 2L)
 )
 
-# ---- the formal is LAST on every predict method, immediately before '...' ----
+# ---- n.threads is LAST on every predict method; rbart's own group.by
+# ---- trails '...', so it, not n.threads, is rbart's final formal ----
 for (method in c(
   "predict.bart",
   "predict.bartMultinomial",
   "predict.bartOrdinal",
   "predict.bartNegbin",
-  "predict.bartHurdle",
-  "predict.rbart"
+  "predict.bartHurdle"
 )) {
   formalNames <- names(formals(utils::getFromNamespace(method, "dbarts")))
   expect_identical(
@@ -287,6 +286,18 @@ for (method in c(
     c("n.threads", "...")
   )
 }
+rbartFormalNames <- names(formals(utils::getFromNamespace(
+  "predict.rbart",
+  "dbarts"
+)))
+expect_identical(
+  rbartFormalNames[c(
+    length(rbartFormalNames) - 2L,
+    length(rbartFormalNames) - 1L,
+    length(rbartFormalNames)
+  )],
+  c("n.threads", "...", "group.by")
+)
 
 # ---- refusals, by name and echoing the value ----
 # a fractional value used to truncate silently via as.integer() despite the

@@ -159,7 +159,10 @@ rbartFit.0 <- dbarts::rbart_vi(
   keepTrees = TRUE,
   verbose = FALSE
 )
-expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g), 2L, mean))
+expect_equal(
+  fitted(rbartFit.0),
+  apply(predict(rbartFit.0, x, group.by = g), 2L, mean)
+)
 
 set.seed(0L)
 rbartFit.0 <- dbarts::rbart_vi(
@@ -177,7 +180,7 @@ rbartFit.0 <- dbarts::rbart_vi(
 )
 expect_equal(
   fitted(rbartFit.0),
-  apply(predict(rbartFit.0, x, g, combineChains = FALSE), 3L, mean)
+  apply(predict(rbartFit.0, x, group.by = g, combineChains = FALSE), 3L, mean)
 )
 
 set.seed(0L)
@@ -196,12 +199,15 @@ rbartFit.1 <- dbarts::rbart_vi(
 )
 expect_equal(
   fitted(rbartFit.1),
-  apply(predict(rbartFit.1, x, g), 2L, mean)
+  apply(predict(rbartFit.1, x, group.by = g), 2L, mean)
 )
-expect_equal(predict(rbartFit.0, x, g), predict(rbartFit.1, x, g))
 expect_equal(
-  predict(rbartFit.0, x, g, combineChains = FALSE),
-  predict(rbartFit.1, x, g, combineChains = FALSE)
+  predict(rbartFit.0, x, group.by = g),
+  predict(rbartFit.1, x, group.by = g)
+)
+expect_equal(
+  predict(rbartFit.0, x, group.by = g, combineChains = FALSE),
+  predict(rbartFit.1, x, group.by = g, combineChains = FALSE)
 )
 
 # an rbart fit whose ranef dimnames do not name every group once crashed the
