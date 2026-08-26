@@ -52,8 +52,9 @@ plot(
 
 # S3 method for class 'bart'
 predict(
-    object, newdata, offset, weights,
+    object, newdata,
     type = c("ev", "ppd", "bart", "forest"),
+    offset = NULL, weights = NULL,
     combineChains = TRUE,
     ci.level = NULL,
     forest = NULL,
@@ -438,12 +439,14 @@ residuals(object, type = "ev", ...)
 
   For `predict`: an optional offset for `newdata`, applied the same way
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `offset.test` is at fit time. `NULL` (the default, when missing)
-  applies none. Refused, by name, with `type = "forest"`: an offset
-  shifts the recombination of the forests, never any one forest's own
-  total, so it belongs to the arithmetic under ‘Value’ rather than to
-  what comes back. On an amplitude-coupled fit's combined arms
-  (`type = "ev"`, `"ppd"`, `"bart"`) it is that recombination, and
+  `offset.test` is at fit time. It shifts the PREDICTED rows, not the
+  training ones - a different channel from `offset.test`, which is why
+  it carries its own name rather than that one's. `NULL` (the default,
+  when missing) applies none. Refused, by name, with `type = "forest"`:
+  an offset shifts the recombination of the forests, never any one
+  forest's own total, so it belongs to the arithmetic under ‘Value’
+  rather than to what comes back. On an amplitude-coupled fit's combined
+  arms (`type = "ev"`, `"ppd"`, `"bart"`) it is that recombination, and
   enters the sum of trees before the family's link, exactly as it does
   for a single forest.
 
@@ -1071,7 +1074,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218637
+#> total seconds in loop: 0.219703
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -34,9 +34,9 @@ survivalProbabilities(
   object,
   times,
   newdata = NULL,
-  group.by,
   combineChains = TRUE,
-  ...
+  ...,
+  group.by
 )
 
 # S3 method for class 'bartMultinomial'
@@ -80,7 +80,9 @@ survivalProbabilities(object, ...)
   observations, as in
   [`predict`](https://vdorie.github.io/dbarts/reference/rbart.md). A
   group not seen in training draws its intercept from \\N(0, \tau)\\.
-  Ignored (and unnecessary) when `newdata` is `NULL`.
+  Ignored (and unnecessary) when `newdata` is `NULL`. Supplied by name
+  only - it follows `...` in the signature, so it is never matched
+  positionally; a missing one is refused, naming itself.
 
 - combineChains:
 

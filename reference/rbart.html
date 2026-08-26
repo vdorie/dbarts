@@ -92,12 +92,13 @@
 <span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span></span>
-<span>    <span class="va">object</span>, <span class="va">newdata</span>, <span class="va">group.by</span>, <span class="va">offset</span>, <span class="va">weights</span>,</span>
+<span>    <span class="va">object</span>, <span class="va">newdata</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"ranef"</span><span class="op">)</span>,</span>
+<span>    offset <span class="op">=</span> <span class="cn">NULL</span>, weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    ci.level <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    <span class="va">n.threads</span>,</span>
-<span>    <span class="va">...</span><span class="op">)</span></span>
+<span>    <span class="va">...</span>, <span class="va">group.by</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals</a></span><span class="op">(</span><span class="va">object</span>, type <span class="op">=</span> <span class="st">"ev"</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
@@ -107,7 +108,7 @@
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-group-by">group.by<a class="anchor" aria-label="anchor" href="#arg-group-by"></a></dt>
-<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>.</p></dd>
+<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>. For <code>predict</code> and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code>, supplied by name only - it follows <code>...</code> in the signature, so it is never matched positionally; a missing one is refused, naming itself.</p></dd>
 
   <dt id="arg-group-by-test">group.by.test<a class="anchor" aria-label="anchor" href="#arg-group-by-test"></a></dt>
 <dd><p>Grouping factor for test data, of the same type as <code>group.by</code>. Can be missing.</p></dd>
@@ -268,7 +269,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000301</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000291</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 </span>
@@ -281,7 +282,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001514</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001447</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 </span>
@@ -326,7 +327,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000423</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000431</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -339,7 +340,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002145</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002036</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

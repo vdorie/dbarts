@@ -80,13 +80,13 @@ getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
 getFitsWithoutOffset()
 # S4 method for class 'dbartsSampler'
-getForestFits(forest)
+getForestFits(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getForestAmplitudes(forest = NULL)
 # S4 method for class 'dbartsSampler'
-getForestVariableCounts(forest)
+getForestVariableCounts(forest = NULL)
 # S4 method for class 'dbartsSampler'
-getCalibration(forest = 1L)
+getCalibration(forest = NULL)
 # S4 method for class 'dbartsSampler'
 setCalibration(
   prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
@@ -524,16 +524,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - forest:
 
-  A single positive integer indexing the forests from `1`.
-  `getCalibration` and `setCalibration` default to `1`, the only forest
-  of an ordinary sampler, and `getForestAmplitudes` defaults to `NULL`,
-  every forest's block stacked; `getForestFits`,
-  `getForestVariableCounts`, `setForestWeights`, and `setForestBasis`
-  have no default. A Bayesian causal forest's prognostic forest is `1`
-  and its basis forest `2`; `setForestWeights` and `setForestBasis` are
-  both refused on a sampler whose forests carry no amplitudes, but not
-  with the same message - `setForestWeights` names the missing
-  capability, while `setForestBasis` raises
+  A single positive integer indexing the forests from `1`, or - for
+  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, and
+  `getCalibration` - `NULL` (the default on all four) for every forest,
+  stacked (see ‘Value’ for each reader's stacked shape). A single-forest
+  sampler's `NULL` read is bitwise its `forest = 1` read, so the default
+  costs nothing on an ordinary sampler. `setForestWeights` and
+  `setForestBasis` have no default: a writer names one target rather
+  than reading every one. `setCalibration` keeps `forest = 1L`: it is
+  refused on every multi-forest sampler, since a calibration map owns
+  those forests' scales, so `1` is the only value that can succeed and
+  `NULL` would name nothing writable. A Bayesian causal forest's
+  prognostic forest is `1` and its basis forest `2`; `setForestWeights`
+  and `setForestBasis` are both refused on a sampler whose forests carry
+  no amplitudes, but not with the same message - `setForestWeights`
+  names the missing capability, while `setForestBasis` raises
   `"forest index out of range"` - and `setForestBasis` accepts any
   forest of one that does. `getForestFits` and `getForestVariableCounts`
   accept `forest = 1` on any sampler - it selects the only forest - and
@@ -1214,17 +1219,23 @@ per-category softmax probabilities rather than one additive location;
 the current state when the sampler was built with `keepTrees`.
 
 For `getForestFits`, a multi-forest sampler's requested forest's current
-internal-scale fitted values, an n.observations x n.chains matrix. For
-`getForestAmplitudes`, the named forest's amplitudes - one per basis
-column - as a q x n.chains matrix, or, at the default `forest = NULL`,
-every forest's stacked forest-major into a sum(q) x n.chains matrix. The
-vector is *ragged*: a Bayesian causal forest's forest `1` carries the
-single \\a\\ on its implicit intercept and its forest `2` the pair
-\\(b_0, b_1)\\, so the stacked read is the \\(a, b_0, b_1)\\ of \\y = a
-\mu(x) + b_z \tau(x) + \epsilon\\. For `getForestVariableCounts`, the
-requested forest's current per-predictor split counts, an n.predictors x
-n.chains integer matrix; its rows are named by the training matrix's
-column names when that matrix carries them, and left unnamed otherwise.
+internal-scale fitted values, an n.observations x n.chains matrix, or,
+at the default `forest = NULL`, every forest stacked with the forest
+margin between the observations and the chains, n.observations x
+n.forests x n.chains (bitwise the `forest = 1` read on a single-forest
+sampler). For `getForestAmplitudes`, the named forest's amplitudes - one
+per basis column - as a q x n.chains matrix, or, at the default
+`forest = NULL`, every forest's stacked forest-major into a sum(q) x
+n.chains matrix. The vector is *ragged*: a Bayesian causal forest's
+forest `1` carries the single \\a\\ on its implicit intercept and its
+forest `2` the pair \\(b_0, b_1)\\, so the stacked read is the \\(a,
+b_0, b_1)\\ of \\y = a \mu(x) + b_z \tau(x) + \epsilon\\. For
+`getForestVariableCounts`, the requested forest's current per-predictor
+split counts, an n.predictors x n.chains integer matrix, or, at the
+default `forest = NULL`, every forest stacked the same way as
+`getForestFits`, n.predictors x n.forests x n.chains; its rows are named
+by the training matrix's column names when that matrix carries them (on
+margin 1 in both shapes), and left unnamed otherwise.
 
 For `predictForests`, the off-sample twin of `getForestFits`: every
 forest replayed separately at `x.test`, as an n.test x n.forests x
@@ -1263,7 +1274,13 @@ every sweep, in which case `prior.sd` moves every sweep while
 `prior.scale` does not), `response.scale`, and `response.shift`. The
 leaf model rides as a `"leaf.model"` attribute, one of `"constant"`,
 `"monotone"`, `"linear"`, or `"gp"`, and qualifies what `prior.sd`
-means.
+means. At the default `forest = NULL`, every forest's calibration is
+stacked with the forest margin appended LAST, n.chains x 12 x n.forests
+(bitwise the `forest = 1` read on a single-forest sampler) - the row
+margin here is the chain axis, so there is no row margin for the forest
+axis to sit behind, unlike the other three readers. The column dimnames
+and the `"leaf.model"` attribute are carried from the first forest,
+since both are properties of the sampler rather than of any one forest.
 
 Five further columns report the multi-forest CALIBRATION MAP that fixed
 `prior.scale` on a sampler built with `forests =` or

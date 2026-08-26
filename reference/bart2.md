@@ -72,7 +72,7 @@ fitted(
 # S3 method for class 'bartMultinomial'
 predict(
     object, newdata,
-    type = c("ev", "ppd", "bart", "forest"),
+    type = c("ev", "ppd", "bart", "forest", "class"),
     offset = NULL,
     combineChains = TRUE, ci.level = NULL, n.threads, ...)
 
@@ -81,6 +81,76 @@ print(x, ...)
 
 # S3 method for class 'bartMultinomial'
 residuals(object, ...)
+
+# S3 method for class 'bartOrdinal'
+extract(
+    object, type = c("ev", "ppd", "bart", "loglik"),
+    sample = c("train", "test"),
+    combineChains = TRUE, ...)
+
+# S3 method for class 'bartOrdinal'
+fitted(
+    object, type = c("ev", "class", "bart"),
+    ci.level = NULL, ...)
+
+# S3 method for class 'bartOrdinal'
+predict(
+    object, newdata,
+    type = c("ev", "ppd", "bart", "class"),
+    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+
+# S3 method for class 'bartOrdinal'
+print(x, ...)
+
+# S3 method for class 'bartOrdinal'
+residuals(object, ...)
+
+# S3 method for class 'bartNegbin'
+extract(
+    object, type = c("ev", "ppd", "bart", "loglik"),
+    sample = c("train", "test"),
+    combineChains = TRUE, ...)
+
+# S3 method for class 'bartNegbin'
+fitted(
+    object, type = c("ev", "ppd", "bart"),
+    ci.level = NULL, ...)
+
+# S3 method for class 'bartNegbin'
+predict(
+    object, newdata,
+    type = c("ev", "ppd", "bart"),
+    offset = NULL,
+    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+
+# S3 method for class 'bartNegbin'
+print(x, ...)
+
+# S3 method for class 'bartNegbin'
+residuals(object, ...)
+
+# S3 method for class 'bartHurdle'
+extract(
+    object, type = c("ev", "ppd", "prob", "bart", "loglik"),
+    sample = c("train", "test"),
+    combineChains = TRUE, ...)
+
+# S3 method for class 'bartHurdle'
+fitted(
+    object, type = c("ev", "ppd", "prob", "bart"),
+    sample = "train", ci.level = NULL, ...)
+
+# S3 method for class 'bartHurdle'
+predict(
+    object, newdata,
+    type = c("ev", "ppd", "prob", "bart"),
+    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+
+# S3 method for class 'bartHurdle'
+print(x, ...)
+
+# S3 method for class 'bartHurdle'
+residuals(object, type = "ev", ...)
 
 # S3 method for class 'bartMultinomial'
 plot(x, cols = NULL, plquants = c(0.05, 0.95), ...)
@@ -196,6 +266,11 @@ print(x, ...)
   large negative entry is a shift like any other: the probabilities it
   drives are the exact softmax, so one far enough below its row's others
   underflows to zero (and its log to `-Inf`) as it would anywhere else.
+
+  For `predict` on a `bartNegbin` fit, the same name is the log-exposure
+  shift at the PREDICTED rows, entering the replayed log-odds latent
+  \\\psi\\ additively before \\r e^{\psi}\\. `NULL` (the default)
+  applies none.
 
 - offset.test:
 
@@ -1143,16 +1218,20 @@ number of new observations \\\times\\ K probability array, the
 `yhat.test`/`yhat.train` convention; `type = "ppd"` draws one category
 per posterior draw the same way `extract(object, type = "ppd")` does;
 `type = "bart"` and `type = "forest"` are named only to be refused, for
-the non-identification reason above. `offset` supplies the per-category
-shift at the new rows, required on a fit trained with an `offset` and
-reproducing `yhat.train` when the training offset is passed back at the
-training rows. `residuals(object)` returns an n \\\times\\ K matrix, the
-observed proportion (an indicator for a factor response,
-`y / rowSums(y)` for a count-matrix one) minus the fitted probability in
-`fitted(object)`, per category. `extract`'s `combineChains` (default
-`TRUE`) reshapes `"ev"`/`"ppd"`/`"loglik"` to a combined or per-chain
-layout, exactly as `extract.bart`'s does. `fitted`/`predict`'s
-`ci.level` returns an (observation \\\times\\ K \\\times\\ 3) array of
+the non-identification reason above; `type = "class"` returns the same
+argmax factor `fitted(object, type = "class")` does, over the
+probability draws `predict` itself replays, and paired with `ci.level`
+returns the credible band on those draws instead, taken before the class
+reduction. `offset` supplies the per-category shift at the new rows,
+required on a fit trained with an `offset` and reproducing `yhat.train`
+when the training offset is passed back at the training rows.
+`residuals(object)` returns an n \\\times\\ K matrix, the observed
+proportion (an indicator for a factor response, `y / rowSums(y)` for a
+count-matrix one) minus the fitted probability in `fitted(object)`, per
+category. `extract`'s `combineChains` (default `TRUE`) reshapes
+`"ev"`/`"ppd"`/`"loglik"` to a combined or per-chain layout, exactly as
+`extract.bart`'s does. `fitted`/`predict`'s `ci.level` returns an
+(observation \\\times\\ K \\\times\\ 3) array of
 `est`/`ci.lower`/`ci.upper` instead of a 3-column matrix, since a
 category margin survives alongside the observation one.
 `extract(object, type = "loglik")` is the multinomial log-density of the
@@ -1215,13 +1294,16 @@ probability draws, `type = "bart"` (alias `"link"`) the latent draws,
 and `type = "ppd"` draws one category per posterior draw (1-based codes
 indexing `levels`). `predict(object, newdata)` requires
 `keepTrees = TRUE` and returns the probability draws at `newdata`
-(`type = "bart"` the replayed latent; `type = "ppd"` category draws);
-when `newdata` matches the fit-time `test` it reproduces `yhat.test`.
-`residuals(object)` returns the n \\\times\\ K matrix of
-observed-indicator minus fitted probability. `extract`'s `combineChains`
-(default `TRUE`) and `fitted`/`predict`'s `ci.level` work as for
-`bartMultinomial` above, including the (observation \\\times\\ K
-\\\times\\ 3) interval shape for a K-margined `type`.
+(`type = "bart"` the replayed latent; `type = "ppd"` category draws;
+`type = "class"` the argmax ordered factor
+`fitted(object, type = "class")` returns, over the replayed draws, with
+`ci.level` instead returning the band on those draws taken before the
+class reduction); when `newdata` matches the fit-time `test` it
+reproduces `yhat.test`. `residuals(object)` returns the n \\\times\\ K
+matrix of observed-indicator minus fitted probability. `extract`'s
+`combineChains` (default `TRUE`) and `fitted`/`predict`'s `ci.level`
+work as for `bartMultinomial` above, including the (observation
+\\\times\\ K \\\times\\ 3) interval shape for a K-margined `type`.
 `extract(object, type = "loglik")` is \\\log P(y_i \mid \eta,
 \gamma)\\ - exactly the stored category probability at the observed
 level, since `yhat.train` already holds the cumulative-probit
@@ -1264,18 +1346,20 @@ analog of `summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
 
 Generics for a `"bartNegbin"` fit: `fitted(object)` returns the
 posterior-mean count per observation; `fitted(object, type = "bart")`
-the posterior-mean log-odds latent. `extract(object, type = "ev")`
-returns the mean-count draws, `type = "bart"` the latent draws, and
-`type = "ppd"` draws one count per posterior draw from \\\mathrm{NB}(r,
-\mathrm{plogis}(\psi))\\; `sample = "test"` selects the test channel.
-`predict(object, newdata)` requires `keepTrees = TRUE` and returns the
-mean-count draws at `newdata` (`type = "bart"` the replayed latent;
-`type = "ppd"` count draws), with an optional log-exposure
-`offset.test`; when `newdata` matches the fit-time `test` and no offset
-is given it reproduces `yhat.test`. `residuals(object)` returns the
-observed count minus the posterior-mean count per observation.
-`extract`'s `combineChains` and `fitted`/`predict`'s `ci.level` (a plain
-3-column matrix here - this family has no K margin) work as for
+the posterior-mean log-odds latent; `fitted(object, type = "ppd")` a
+Monte Carlo mean over `extract(object, type = "ppd", sample = "train")`
+draws. `extract(object, type = "ev")` returns the mean-count draws,
+`type = "bart"` the latent draws, and `type = "ppd"` draws one count per
+posterior draw from \\\mathrm{NB}(r, \mathrm{plogis}(\psi))\\;
+`sample = "test"` selects the test channel. `predict(object, newdata)`
+requires `keepTrees = TRUE` and returns the mean-count draws at
+`newdata` (`type = "bart"` the replayed latent; `type = "ppd"` count
+draws), with an optional log-exposure `offset`; when `newdata` matches
+the fit-time `test` and no offset is given it reproduces `yhat.test`.
+`residuals(object)` returns the observed count minus the posterior-mean
+count per observation. `extract`'s `combineChains` and
+`fitted`/`predict`'s `ci.level` (a plain 3-column matrix here - this
+family has no K margin) work as for
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 `extract(object, type = "loglik")` is \\\mathrm{dnbinom}(y_i,
 \mathrm{size} = r_s, \mathrm{mu} = \mu\_{s,i})\\, extract-only,
@@ -1409,7 +1493,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001494
+#> total seconds in loop: 0.001461
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1456,7 +1540,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001684
+#> total seconds in loop: 0.001671
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

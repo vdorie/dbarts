@@ -90,9 +90,9 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <span>  <span class="va">object</span>,</span>
 <span>  <span class="va">times</span>,</span>
 <span>  newdata <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  <span class="va">group.by</span>,</span>
 <span>  combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  <span class="va">...</span>,</span>
+<span>  <span class="va">group.by</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bartMultinomial'</span></span>
@@ -133,7 +133,9 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <dd><p>For the <code>rbart</code> method with <code>newdata</code>, the grouping factor for
     the new observations, as in <code><a href="rbart.html">predict</a></code>. A group
     not seen in training draws its intercept from \(N(0, \tau)\). Ignored
-    (and unnecessary) when <code>newdata</code> is <code>NULL</code>.</p></dd>
+    (and unnecessary) when <code>newdata</code> is <code>NULL</code>. Supplied by name
+    only - it follows <code>...</code> in the signature, so it is never matched
+    positionally; a missing one is refused, naming itself.</p></dd>
 
   <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>A logical determining whether the chain dimension is collapsed into the
