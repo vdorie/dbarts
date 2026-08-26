@@ -227,3 +227,11 @@ and specifics:
   results are reproducible only for a fixed process history -
   regenerate hardcoded test values by replaying the whole test file,
   not just the seeded block.
+
+## Post-landing: composition with a variance forest (2026-08-25)
+
+A grouped fit alongside a heteroscedastic variance forest is refused as an
+unadjudicated composition - the group block conditions on a scalar residual
+scale a variance forest replaces row by row. See heteroscedastic.md "17.
+Post-landing: grouped random effects refused with a variance forest (D6)"
+for the mechanism, the refusal sites and what an adjudication would need.

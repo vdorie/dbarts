@@ -105,6 +105,12 @@
             each site had its own wording, one of which
             (\code{predict.rbart}'s) named the wrong entry point
             (\code{rbart} rather than \code{rbart_vi}).
+      \item Declaring a variance forest (\code{variance = }) alongside
+            grouped random effects (\code{rbart_vi}'s \code{group.by}, or a
+            control carrying the \code{bartcore.groups} attribute) is now a
+            validation error: the group block previously drew at the wrong
+            residual scale under a variance forest. Neither formal changes;
+            only the composition is refused.
     }
   }
   \subsection{NEW FEATURES}{

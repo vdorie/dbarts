@@ -265,3 +265,95 @@ expect_inherits(
   do.call(rbart_vi, c(list(yHom ~ xHom, group.by = g, n.trees = 10L), opts2)),
   "rbart"
 )
+
+# ---- grouped random effects + a variance forest: one model reached from
+# either spelling, refused as an unadjudicated composition (D6) ----
+groupedControl <- dbartsControl(
+  n.chains = 1L,
+  n.samples = 2L,
+  n.burn = 2L,
+  n.trees = 5L,
+  n.threads = 1L,
+  updateState = FALSE,
+  seed = 7L
+)
+attr(groupedControl, "bartcore.groups") <- list(
+  indices = as.integer(rep(seq_len(4L), length.out = n)),
+  n.groups = 4L,
+  prior = "cauchy",
+  rel.scale = sd(yHom),
+  n.steps = 1L
+)
+
+# entrance 1: dbarts(), the group attribute already on the control the
+# variance formal resolves against - the R check fires
+expect_error(
+  dbarts(
+    xHom,
+    yHom,
+    control = groupedControl,
+    variance = varianceForest(n.trees = 3L)
+  ),
+  "does not support grouped random effects"
+)
+# entrance 2: dbartsSpec(), same control, same R-side check
+expect_error(
+  dbartsSpec(
+    dbartsData(xHom, yHom),
+    control = groupedControl,
+    variance = varianceForest(n.trees = 3L)
+  ),
+  "does not support grouped random effects"
+)
+# entrance 3: new("dbartsSampler", ...), built from a dbartsSpec() result
+# with the group attribute added AFTERWARDS - resolveSamplerSpec never sees
+# it (the other order: variance resolves first, the group attribute arrives
+# after), so this is the createHolder backstop's own message
+acquiredSpec <- dbartsSpec(
+  dbartsData(xHom, yHom),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.samples = 2L,
+    n.burn = 2L,
+    n.trees = 5L,
+    n.threads = 1L,
+    updateState = FALSE,
+    seed = 7L
+  ),
+  variance = varianceForest(n.trees = 3L)
+)
+attr(acquiredSpec$control, "bartcore.groups") <-
+  attr(groupedControl, "bartcore.groups")
+expect_error(
+  new(
+    "dbartsSampler",
+    acquiredSpec$control,
+    acquiredSpec$model,
+    acquiredSpec$data
+  ),
+  "not supported with a heteroscedastic variance forest"
+)
+
+# each half ALONE still constructs: this is a composition check, not a
+# regression on either feature
+expect_inherits(
+  dbarts(xHom, yHom, control = groupedControl),
+  "dbartsSampler"
+)
+expect_inherits(
+  dbarts(
+    xHom,
+    yHom,
+    control = dbartsControl(
+      n.chains = 1L,
+      n.samples = 2L,
+      n.burn = 2L,
+      n.trees = 5L,
+      n.threads = 1L,
+      updateState = FALSE,
+      seed = 7L
+    ),
+    variance = varianceForest(n.trees = 3L)
+  ),
+  "dbartsSampler"
+)

@@ -522,6 +522,18 @@ resolveSamplerSpec <- function(
         "are not yet shown to compose"
       )
     }
+    # rbart_vi's group block draws b_j at the SCALAR residual scale the chain
+    # carries, which a variance forest pins at 1 while s^2(x) holds the residual
+    # scale row by row; the group effects would condition on a residual variance
+    # the fitted model does not have. Refuse rather than fit a composition whose
+    # Gibbs blocks disagree.
+    if (!is.null(attr(control, "bartcore.groups"))) {
+      stop(
+        "a variance forest does not support grouped random effects: the group ",
+        "effects draw at a scalar residual scale, which the variance forest ",
+        "replaces row by row"
+      )
+    }
     if (!is.null(monotoneDirections)) {
       stop("a variance forest is not supported with monotone constraints")
     }

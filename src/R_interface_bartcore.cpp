@@ -3030,6 +3030,14 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // factory refuses it for non-gaussian or non-constant-leaf models
     applyVarianceAttributes(controlExpr, data.numPredictors, options,
                             varianceColumns);
+    // grouped random effects and a variance forest is an unadjudicated
+    // composition: the group block draws b at the scalar sigma a variance
+    // forest pins at 1, so the effects condition on a residual variance the
+    // model does not have. Backstop for the entrances that skip the R
+    // surface's own refusal.
+    if (options.numGroups > 0 && options.numVarianceTrees > 0)
+      Rf_error("grouped random effects are not supported with a "
+               "heteroscedastic variance forest");
 
     // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
     // PLAIN constant-leaf path; refuse

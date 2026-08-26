@@ -685,9 +685,9 @@ installs nor rbart_vi's per-group Gibbs blocks were checked against the
 variance forest's weight-channel routing (section 5) when either landed:
 `resid.dist = student()` residuals declared alongside `variance` constructed
 and ran on the pre-refusal build and is now a validation error at the family
-gate's site (R/spec.R); a grouped (rbart_vi) fit alongside `variance` was
-already unreachable (rbart_vi declares no `variance` formal and its `...` is
-rejection-only), so no new refusal was needed there. Both are validation
+gate's site (R/spec.R); a grouped (rbart_vi) fit alongside `variance` also
+constructed and ran, reachable through four other entrances (section 17);
+rbart_vi has no `...` at all, so R's own wall raises. Both are validation
 errors only, not a withdrawal of the `variance` formal from any surface -
 support arrives by adjudicating whether the weight-channel divisor composes
 with the scale-mixture weights or the grouped Gibbs blocks and then dropping
@@ -773,3 +773,32 @@ state is touched. The sliced trees are additionally held to the scale-leaf
 positivity law state validation applies to a saved slot - the fix multiplies the
 hand-buildable surface by capacity, and a rebuild scatters the leaf straight
 into a divisor.
+
+## 17. Post-landing: grouped random effects refused with a variance forest (D6)
+
+Section 15 read the composition off `rbart_vi`'s formals alone and concluded it was unreachable. It is reachable
+wherever the two halves can be declared on one control, which is four entrances beside `rbart_vi` - `dbarts()`,
+`dbartsSpec()`, `new("dbartsSampler", ...)` and `dbarts_sampler_create`, plus re-creation from a control that acquired
+the attribute through `$setControl` - and it constructed and ran until D6. It is now a validation error at
+`resolveSamplerSpec`'s variance block with a backstop at `createHolder`, the one creation function all of them reach;
+both formals stay.
+
+What an adjudication would need, all three:
+
+- Engine. `drawGroupEffects` conditions on a scalar sigma and the base model's weights; under a variance forest the
+  per-row precision is `w_i / s^2(x_i)`, which the chain forms as `meanWeights_` and never shows the response model. A
+  correct b block needs that vector at the response-model interface - a change to `ResponseModel::refreshLatents`'s
+  contract, which every family implements, and the reason this is more than dropping a refusal.
+- Prior interaction and identifiability. `tau` and `s^2(x)` both explain dispersion, and they are not separated by the
+  data when the grouping is x-measurable (a group indicator among the predictors, a group that IS a region of x): the
+  variance forest can absorb between-group spread as a wider `s^2` on that region. The tau prior is also calibrated
+  once at construction from `rel.scale = sd(y)`, a homoscedastic quantity; under a variance surface it must be restated
+  against something the model still names.
+- Test oracle. The decisive cheap one is a conditional-exactness gate in the shape of
+  `benchmarks/R/heteroscedastic-exact.R` and `benchmarks/R/grouped-mixing.R`: hold `s^2(x)` fixed and check the b draw
+  against a brute-force posterior. It falsifies the pre-D6 code immediately and verifies a fix. A joint SBC arm is the
+  stronger form and needs the heteroscedastic SBC arm first, which is itself deferred ([f47]).
+
+A surface decision rides with it for the `group.by` spelling: the composition has no public spelling at all, so support
+means adding `variance` to `rbart_vi`'s formals (section 15's own suggestion) or `group.by` to `dbarts()`/`bart2()`
+(deferred post-1.0, VD 2026-08-24). Either is additive.

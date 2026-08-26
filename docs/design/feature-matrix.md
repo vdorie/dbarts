@@ -183,8 +183,8 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hurdle | R spec.R:509 [f34] | M | S bart.R:2299, 2308 [f35] | R bart.R:631 | R bart.R:631 |
 | bcf | R FAC:874 [f48] | R RIB:2341 | R spec.R:639-640 | S SAM:1029 [f36] | S CH:1990 [f36] |
-| grouped | ? [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
-| hetero | - | ? [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
+| grouped | R spec.R:532 [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
+| hetero | - | R spec.R:532 [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
 are refused at dbarts.R:1015-1023 and no-op at CH:1968, so every family above
@@ -726,9 +726,14 @@ variance forest does not support Student-t residuals: the two are not yet
 shown to compose") - a validation error only, the formal stays, and the door
 memo records that adjudicating the composition of two scale mixtures on the
 same precision channel reopens it. grouped + `variance =` and hetero +
-grouped still CONSTRUCT (CH:641 decorates before CH:742 builds the variance
-forest); whether those compositions are models anyone wants is not
-adjudicated anywhere.
+grouped ranef are the same construction reached from either spelling (CH:641
+decorates before CH:742 builds the variance forest), and now REFUSE at
+`spec.R:532` ("a variance forest does not support grouped random effects: the
+group effects draw at a scalar residual scale, which the variance forest
+replaces row by row"), with a `createHolder` backstop (RIB:3037) closing the
+entrances that never reach spec.R; heteroscedastic.md "17. Post-landing:
+grouped random effects refused with a variance forest (D6)" records what an
+adjudication would need.
 
 [f31] Recorded but UNBUILT doors, refused with that reason in the comment:
 grouped ordinal because the cutpoint block and the group block are not yet shown
@@ -1007,7 +1012,7 @@ reclassified here.
 `xbart()` or `dbartsSpec()` reach, and no `warm.start` / `n.grow.sweeps`
 formals ([f37]) though the engine paths carry no group gate. The `setResponse`
 gap CLOSED at adoption-slate S3 ([f13]; the section-2 cell is the record).
-Composition with a variance forest constructs unrefused and untested ([f30]).
+Composition with a variance forest now REFUSES at `spec.R:532` ([f30]).
 
 **heteroscedastic.** No `xbart()` reach. Pointwise loglik reads the
 per-observation `s.train` surface it stores and is pinned by value

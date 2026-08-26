@@ -787,6 +787,21 @@ expect_true(all(is.finite(rG$tau)) && all(rG$tau > 0))
 expect_equal(length(rG$ranef), numGroups * 4L)
 expect_true(all(is.finite(rG$ranef)))
 
+# grouped random effects plus a variance forest: the same unadjudicated
+# composition R/spec.R refuses, closed here for the flat entrance - the
+# create-path backstop is this attribute pair's only coverage
+controlGV <- controlG
+attr(controlGV, "bartcore.variance") <- list(
+  n.trees = 10L,
+  base = 0.95,
+  power = 2,
+  columns = NULL
+)
+expect_error(
+  CALL("capi_create", controlGV, spec$model, spec$data, ""),
+  "not supported with a heteroscedastic variance forest"
+)
+
 # the predictor entries take a design carrying a CSC-backed CATEGORICAL
 # column: the engine keys the replacement's nonzero pattern on
 # {i : code != refCode}, so a whole-column swap through the flat API lands
