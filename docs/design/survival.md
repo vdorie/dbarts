@@ -474,7 +474,7 @@ per-period indicators. With the remap done (family now reads "probit" or
 "logistic"), that design flows through the dbarts -> dbartsData -> bridge
 -> binary-family path with no change downstream of the remap point. The
 engine, the bridge (resolveFamily, applyGroupAttribute,
-applySurvivalAttribute - src/R_interface_bartcore.cpp:1580/1907/1963), and
+applySurvivalAttribute - src/R_interface_bartcore.cpp:1581/1907/1963), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
 R/spec.R:465-475) - the censoring is already baked into y'.
@@ -605,7 +605,7 @@ combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
 so the two survival families share ergonomics. The EVALUATION cannot
 mirror aft's training path, though: aft's newdata = NULL path reads one
 stored linear predictor per subject (extract type = "bart",
-sample = "train", R/bart.R:2564) because every subject has exactly
+sample = "train", R/bart.R:2573) because every subject has exactly
 one row, but the hazard training design is RAGGED - subject i has only
 t_i rows, so its stored training fits stop at its own event/censoring
 period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)

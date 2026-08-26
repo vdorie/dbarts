@@ -48,10 +48,10 @@ stored raw values was tracked down and given an explicit, narrow home:
   (model.hpp:998,1013,1362,1381); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
 - getTrees saved-tree replay (bartcore_getTrees,
-  R_interface_bartcore.cpp:5974) read store.x; it was routable from codes
+  R_interface_bartcore.cpp:6022) read store.x; it was routable from codes
   while the cut grid was unchanged since save. As shipped it needs neither:
   the replay reads the training predictors the R method supplies (data@x)
-  and the engine keeps no matrix (R_interface_bartcore.cpp:6042-6044).
+  and the engine keeps no matrix (R_interface_bartcore.cpp:6090-6092).
 - dbarts.h exposes no raw-x getter; the C ABI is unaffected.
 
 The panel's proposed resolutions, from that same 2026-07-06 synthesis:

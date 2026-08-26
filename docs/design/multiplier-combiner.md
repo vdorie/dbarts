@@ -71,7 +71,7 @@ only read the engine makes of a basis: a row is contiguous and the multiplier
 costs one stream per forest (combiner.hpp:1399-1407). The plan's "The channel,
 specified" section said COLUMN-major and was wrong about the shipped code;
 M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
-(dbarts.h:977-981, src/C_interface.cpp:966-968), and M4.5 corrected the plan
+(dbarts.h:1037-1040, src/C_interface.cpp:980-982), and M4.5 corrected the plan
 line itself (docs/plans/multiforest-extension-surface.md:557-561).
 
 ## The amplitude layout
@@ -312,7 +312,7 @@ with the `equivalence.yaml` bump in the same commit.
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis (`R/model.R:1153`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
-`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2176) and
+`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2177) and
 derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2178). So every
 basis-carrying forest gets `ridge = false`, and the combiner's own
 `halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
@@ -409,7 +409,7 @@ contract:
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
    tau, glue, sigma and train (combiner.hpp:939-944; M4.1 landing note, plan
    :4798-4808). `testCombinedFitsAssociation`
-   (tests/cpp/test_sampler.cpp:3579) is the ONLY in-process guard - the M4.0
+   (tests/cpp/test_sampler.cpp:3585) is the ONLY in-process guard - the M4.0
    seam pin structurally CANNOT see association, its reference expression
    inheriting the test compiler's own contraction.
 2. `formForestResponse`'s residual accumulates FORWARD, subtracting the other
@@ -461,7 +461,7 @@ is capped at one forest, for any K: `resolveForests` (R/model.R:1030-1100,
 refusal :1059-1065) requires every forest past the first to carry a basis, and
 `forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
 basis is present (R/model.R:1153), from which the bridge derives
-`forest.ridge = false` (R_interface_bartcore.cpp:2178) - forests 2..K are
+`forest.ridge = false` (R_interface_bartcore.cpp:2179) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
 as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
@@ -545,16 +545,16 @@ R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
 (R/spec.R:570-577, the `validateForestBases` install; the family gate it feeds
 is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
-`$getForestAmplitudes(forest)` (R/dbarts.R:1730), both 1-based via
+`$getForestAmplitudes(forest)` (R/dbarts.R:1748), both 1-based via
 `resolveForestIndex` (R/bartcore.R:1051). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_getForestAmplitudes`, ragged and ROW-major
-(inst/include/dbarts/dbarts.h:1075-1102).
+(inst/include/dbarts/dbarts.h:1137-1165).
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1021-1030,
-src/R_interface_bartcore.cpp:3937-3942).
+that rule in two independent places (src/C_interface.cpp:1035-1045,
+src/R_interface_bartcore.cpp:3981-3986).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
@@ -576,10 +576,10 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (combiner.hpp:1025-1026), so `setTestPredictors`, `setTestOffset` and
   `predict` refuse - through `refuseUndefinedTestFits`, gated on
   `testFitsAreDefined` rather than on the forest count
-  (src/R_interface_bartcore_common.hpp:210-215) - and no log-likelihood is
+  (src/R_interface_bartcore_common.hpp:232-242) - and no log-likelihood is
   reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
-  (dbarts.h:205-220); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
+  (dbarts.h:228-243); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
   binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   (facade.hpp:877).
@@ -701,6 +701,6 @@ reported raw nets against a dense band and appeared over budget when it was
 ## Status
 
 LANDED, gaussian, probit and logistic. M4.4 discharged the header's former
-"Gaussian responses only" - dbarts.h:686-687 now names gaussian, probit and
+"Gaussian responses only" - dbarts.h:717-718 now names gaussian, probit and
 logistic, with aft, ordinal and nbinom refused by name at creation. The ridgeB door is
 shut. The naming debt is discharged; see above.

@@ -290,7 +290,7 @@ recommendation, and one other justification changes:
    decisive arm is K GAUSSIAN samplers with host-drawn latents against
    the combined fit, which measurement predicts will AGREE.
 3. Flat rename: ADOPTED and DONE - the dbarts.h reshape re-bake landed
-   setForestBasis/numForestAmplitudes/forestAmplitudes (dbarts.h:497-510),
+   setForestBasis/numForestAmplitudes/forestAmplitudes (dbarts.h:528-541),
    + KEPT setForestWeights; stakes were low (the flat C surface has
    exactly one consumer and it is in-house - 1 reverse LinkingTo vs 23
    R-level consumers).
@@ -320,7 +320,7 @@ confirmed)
    note - a derived nbinom magnitude cap of 1e6 inside
    `validateResponseSupport`'s nbinom arm, so one edit covers creation and
    every y-swapping conduit on both surfaces
-   (src/R_interface_bartcore_common.hpp:190).
+   (src/R_interface_bartcore_common.hpp:212).
 2. SILENTLY WRONG: probit/ordinal setResponse accept out-of-support
    responses (non-0/1 y gives latents in the hundreds; constant 0.5
    collapses every latent to zero). setTreatment already shows the

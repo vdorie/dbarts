@@ -39,12 +39,12 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2613`) fires on a
+`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2618`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`,
 and the flat `dbarts_sampler_setTestOffset`.
 
-`refuseMultiForestResponseMutation` (`:2636`) is the one multi-forest family
+`refuseMultiForestResponseMutation` (`:2647`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
 swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1068`), which is
@@ -62,7 +62,7 @@ against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
 default the argument to FALSE. The weight conduit has no scale to pin and skips
 the clause.
 
-`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:2867`) closes the
+`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:2890`) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
 through. It guards `setTestPredictor`, `setTestOffset`,
@@ -94,7 +94,7 @@ per-observation, is open at every sampler shape.
 
 The engine RETAINS the pointer it is handed for the raw conditioning vectors
 - response, offset, test offset, case weights, per-forest weights - which the
-caller owns and must keep alive; `inst/include/dbarts/dbarts.h:53-66` states
+caller owns and must keep alive; `inst/include/dbarts/dbarts.h:87-105` states
 which setters retain and which borrow for the call alone. It holds no
 predictor matrix at all: predictors quantize into owned integer codes and the
 raw is borrowed for the build or re-quantize call only.
@@ -117,7 +117,7 @@ them again, and who does that depends on the layer:
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
   the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1872`). There is no
+  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1890`). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
 - Two holes remain, both known. A per-forest weight is not part of the state,
@@ -144,7 +144,7 @@ reproducibility - within-host across any SIMD dispatch only.
 
 Two ship, and neither is a mid-sweep hook.
 
-`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:792`) takes
+`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:823`) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop
 the run early. It fires at the top of each iteration, unthrottled by thinning,
 before sigma enters the sweep. It is refused when `numThreads > 1 &&
@@ -152,7 +152,7 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4503`) is the
+`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4551`) is the
 internal single-chain R hook behind `rbart_vi`'s Gibbs loop. It refuses more
 than one chain outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the

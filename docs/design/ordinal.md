@@ -268,7 +268,7 @@ ConstantGaussianLeaf single-forest model like probit, so it composes with the
 existing SamplerFacade instantiations (facade.hpp:413+) unchanged; K threads in
 through the same options struct the survival status and group indices use
 (chain.hpp:774-791). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1580-1618) branches on the boolean
+(src/R_interface_bartcore.cpp:1581-1619) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside
@@ -353,10 +353,10 @@ overlaps unordered multinomial: the disjoint key is is.ordered().
 **Prediction semantics.** fitted()/predict(type = "ev"/"response") return the
 n x K category-probability array (x n.chains x n.samples where extract does),
 P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by the
-ordered levels - the multinomial K-column shape (R/generics.R:1493-1507), computed
+ordered levels - the multinomial K-column shape (R/generics.R:1584-1598), computed
 through the cutpoints rather than a softmax. type = "bart"/"link" returns the
 single-column latent eta = f (probit returns its latent likewise,
-R/generics.R:392-396). A class-prediction convenience maps the argmax category
+R/generics.R:400-404). A class-prediction convenience maps the argmax category
 back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoint
 draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
