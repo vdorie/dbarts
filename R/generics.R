@@ -254,6 +254,26 @@ validatePredictThreads <- function(n.threads) {
 predictOffsetUnusedArgs <- list(
   offset.test = "this fit's out-of-sample offset argument is named 'offset'"
 )
+
+# predict, extract(type = "trees") and plotTree all read the fit's SAVED
+# trees, so a fit kept without them has nothing to read. The message names
+# the one argument that keeps them rather than restating the condition.
+refuseWithoutTrees <- function(what, keepTrees = "keepTrees") {
+  stop(
+    what,
+    " requires the fit's saved trees; refit with ",
+    keepTrees,
+    " = TRUE"
+  )
+}
+
+# bart spells it 'keeptrees', bart2 and rbart_vi 'keepTrees'. A fit kept with
+# keepCall = FALSE stores call("NULL") and names neither, so it takes bart's
+# spelling, which is the surface such a fit most likely came from.
+bartKeepTreesArgument <- function(object) {
+  if (callName(object[["call"]]) == "bart2") "keepTrees" else "keeptrees"
+}
+
 # A per-observation weight scales the posterior-predictive DRAW of a fit whose
 # noise the caller can rescale - gaussian sigma, a logistic trial count. A
 # count, category or two-part draw comes from its own law with no such factor,
@@ -287,11 +307,7 @@ predict.bart <- function(
   ...
 ) {
   if (is.null(object[["fit"]])) {
-    if (callName(object$call) == "bart2") {
-      stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
-    } else {
-      stop("predict requires bart to be called with 'keeptrees' == TRUE")
-    }
+    refuseWithoutTrees("predict", bartKeepTreesArgument(object))
   }
 
   refuseUnusedGenericArgs(list(...), "predict", "bart", predictOffsetUnusedArgs)
@@ -310,10 +326,11 @@ predict.bart <- function(
       !object$fit$control@keepTrees
   ) {
     stop(
-      "predict on an amplitude-coupled fit requires 'keeptrees'/'keepTrees' ",
-      "== TRUE: each saved draw's forests are paired with that draw's ",
-      "amplitudes, and without the tree store only the current trees replay, ",
-      "one set for every draw"
+      "predict requires the fit's saved trees; refit with ",
+      bartKeepTreesArgument(object),
+      " = TRUE: an amplitude-coupled fit pairs each saved draw's forests ",
+      "with that draw's own amplitudes, and without the tree store only the ",
+      "current trees replay, one set for every draw"
     )
   }
 
@@ -456,15 +473,10 @@ extract.bart <- function(
 
   if (type == "trees") {
     if (is.null(object$fit)) {
-      if (callName(object$call) == "bart2") {
-        stop(
-          "extracting trees requires bart2 to be called with 'keepTrees' == TRUE"
-        )
-      } else {
-        stop(
-          "extracting trees requires bart to be called with 'keeptrees' == TRUE"
-        )
-      }
+      refuseWithoutTrees(
+        "extract(type = \"trees\")",
+        bartKeepTreesArgument(object)
+      )
     }
     treesCall <- match.call()
     refuseTreesArguments(
@@ -1220,10 +1232,7 @@ predict.bartMultinomial <- function(
     c(multinomialUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
-    stop(
-      "predict requires bart2(family = \"multinomial\") to be called with ",
-      "'keepTrees' == TRUE"
-    )
+    refuseWithoutTrees("predict")
   }
   # after the fit check, whose absence the default here would otherwise report
   # as a missing slot
@@ -1507,10 +1516,7 @@ predict.bartOrdinal <- function(
     c(ordinalUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["cutpoints.raw"]])) {
-    stop(
-      "predict requires bart2(family = \"ordinal\") to be called with ",
-      "'keepTrees' == TRUE"
-    )
+    refuseWithoutTrees("predict")
   }
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
@@ -1763,10 +1769,7 @@ predict.bartNegbin <- function(
     c(negbinUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object[["dispersion.raw"]])) {
-    stop(
-      "predict requires bart2(family = \"nbinom\") to be called with ",
-      "'keepTrees' == TRUE"
-    )
+    refuseWithoutTrees("predict")
   }
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
@@ -2158,10 +2161,7 @@ predict.bartHurdle <- function(
     c(hurdleUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
   )
   if (is.null(object$occupancy[["fit"]])) {
-    stop(
-      "predict requires bart2(family = \"hurdle.lognormal\") to be called ",
-      "with 'keepTrees' == TRUE"
-    )
+    refuseWithoutTrees("predict")
   }
   # after the occupancy fit check, whose absence the default here would
   # otherwise report as a missing slot
@@ -2204,7 +2204,7 @@ predict.rbart <- function(
   group.by
 ) {
   if (is.null(object$fit)) {
-    stop("predict requires rbart to be called with 'keepTrees' == TRUE")
+    refuseWithoutTrees("predict")
   }
   if (missing(group.by)) {
     stop(
@@ -2440,9 +2440,7 @@ extract.rbart <- function(
 
   if (type == "trees") {
     if (is.null(object$fit)) {
-      stop(
-        "extracting trees requires rbart to be called with 'keepTrees' == TRUE"
-      )
+      refuseWithoutTrees("extract(type = \"trees\")")
     }
     treesCall <- match.call()
     refuseTreesArguments(treesCall, c("sample", "combineChains"))
@@ -2682,10 +2680,7 @@ refusePlotTreeArgs <- function(rawCall) {
 plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
   refusePlotTreeArgs(sys.call())
   if (is.null(object[["fit"]])) {
-    stop(
-      "plotTree requires the trees to be kept: fit with ",
-      "keeptrees/keepTrees = TRUE"
-    )
+    refuseWithoutTrees("plotTree", bartKeepTreesArgument(object))
   }
   args <- list(treeNum = treeNum, ...)
   if (!missing(chainNum)) {
@@ -2706,10 +2701,7 @@ plotTree.rbart <- function(
 ) {
   refusePlotTreeArgs(sys.call())
   if (is.null(object[["fit"]])) {
-    stop(
-      "plotTree requires the trees to be kept: fit rbart_vi with ",
-      "keepTrees = TRUE"
-    )
+    refuseWithoutTrees("plotTree")
   }
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)

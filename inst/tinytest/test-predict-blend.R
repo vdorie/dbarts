@@ -373,11 +373,11 @@ noTrees <- fitFrom(twoForests, keepTrees = FALSE)
 expect_false(noTrees$fit$control@keepTrees)
 expect_error(
   predict(noTrees, xNew, type = "bart", bases = zeroBasis),
-  pattern = "requires 'keeptrees'/'keepTrees'"
+  pattern = "saved trees"
 )
 expect_error(
   predict(noTrees, xNew, type = "forest"),
-  pattern = "requires 'keeptrees'/'keepTrees'"
+  pattern = "saved trees"
 )
 
 # --- a single-forest fit's own arms are untouched: no gate, no blend. Without

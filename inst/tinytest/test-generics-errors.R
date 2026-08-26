@@ -21,6 +21,23 @@ expect_error(
   pattern = "keeptrees"
 )
 expect_error(extract(bartFit, type = "trees"), pattern = "keeptrees")
+# the exact refusal stem is shared by predict, extract(type = "trees") and
+# plotTree, naming only the spelling this fit's own surface used
+expect_error(
+  predict(bartFit, testData$x),
+  "requires the fit's saved trees; refit with keeptrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  extract(bartFit, type = "trees"),
+  "requires the fit's saved trees; refit with keeptrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(bartFit),
+  "requires the fit's saved trees; refit with keeptrees = TRUE",
+  fixed = TRUE
+)
 
 bart2Fit <- dbarts::bart2(
   testData$x,
@@ -40,8 +57,54 @@ expect_error(
 )
 expect_error(extract(bart2Fit, type = "trees"), pattern = "keepTrees")
 expect_error(extract(bart2Fit, sample = "train"), pattern = "keepTrainingFits")
+expect_error(
+  predict(bart2Fit, testData$x),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  extract(bart2Fit, type = "trees"),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(bart2Fit),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
 
-rm(bartFit, bart2Fit)
+rbartFitNoTrees <- dbarts::rbart_vi(
+  testData$y ~ testData$x,
+  group.by = rep(1:2, length.out = nrow(testData$x)),
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = FALSE
+)
+expect_error(
+  predict(
+    rbartFitNoTrees,
+    testData$x,
+    group.by = rep(1:2, length.out = nrow(testData$x))
+  ),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  extract(rbartFitNoTrees, type = "trees"),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(rbartFitNoTrees),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+
+rm(bartFit, bart2Fit, rbartFitNoTrees)
 
 # predict.bart/predict.rbart did not call refuseUnusedGenericArgs: a caller
 # typing the sibling family's offset formal name ('offset.test', used by
@@ -134,6 +197,11 @@ expect_error(
   "'weights' is not used by predict on a bartMultinomial fit",
   fixed = TRUE
 )
+expect_error(
+  predict(multinomialFitKT, xSmall),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
 rm(multinomialFitKT)
 
 ordinalFitKT <- dbarts::bart2(
@@ -165,6 +233,11 @@ expect_error(
   "'weights' is not used by predict on a bartOrdinal fit",
   fixed = TRUE
 )
+expect_error(
+  predict(ordinalFitKT, xSmall),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
 rm(ordinalFitKT)
 
 negbinFitKT <- dbarts::bart2(
@@ -186,6 +259,11 @@ expect_error(
 expect_error(
   predict(negbinFitKT, xSmall, weights = rep(1, n)),
   "'weights' is not used by predict on a bartNegbin fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(negbinFitKT, xSmall),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
   fixed = TRUE
 )
 rm(negbinFitKT)
@@ -214,6 +292,11 @@ expect_error(
 expect_error(
   predict(hurdleFitKT, xSmall, weights = rep(1, n)),
   "'weights' is not used by predict on a bartHurdle fit",
+  fixed = TRUE
+)
+expect_error(
+  predict(hurdleFitKT, xSmall),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
   fixed = TRUE
 )
 rm(hurdleFitKT, n, xSmall)

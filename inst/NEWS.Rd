@@ -97,6 +97,14 @@
             \code{value} is refused by name, pointing at \code{type}, and
             \code{"post-mean"} falls straight into \code{type}'s own \dQuote{must
             be in} message, which names the replacement (\code{"ev"}).
+      \item The saved-tree refusal on \code{predict}, \code{extract(type =
+            "trees")} and \code{plotTree} is now one message across the whole
+            surface: \dQuote{requires the fit's saved trees; refit with
+            keepTrees = TRUE} (\code{keeptrees} on a fit built through
+            \code{bart} rather than \code{bart2}/\code{rbart_vi}). Previously
+            each site had its own wording, one of which
+            (\code{predict.rbart}'s) named the wrong entry point
+            (\code{rbart} rather than \code{rbart_vi}).
     }
   }
   \subsection{NEW FEATURES}{

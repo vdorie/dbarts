@@ -110,7 +110,7 @@ dev.off()
 
 expect_error(
   plotTree(fit.bart2, treeNum = 1L),
-  pattern = "requires the trees to be kept"
+  pattern = "saved trees"
 )
 expect_error(
   plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
