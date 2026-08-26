@@ -107,15 +107,16 @@ still accept, by ingesting it into the shape this function requires.
 
 ### Use with the C API
 
-The `family` element of the returned list is the token to pass as the
-fourth argument of `dbarts_sampler_create`. Passing the empty string
-there instead asks the library to dispatch on the shape of the response,
-which is correct for `"gaussian"`, `"probit"`, `"ordinal"`, and
-`"nbinom"` - each is inferable from the response coding or from an
-attribute the library reads - but is *wrong* for `"aft"` and
+The `family` element of the returned list names the `dbarts_family`
+enumerator to pass as the fourth argument of `dbarts_sampler_create`
+(`"gaussian"` names `DBARTS_FAMILY_GAUSSIAN`, and so on). Passing
+`DBARTS_FAMILY_AUTO` there instead asks the library to dispatch on the
+shape of the response, which is correct for `"gaussian"`, `"probit"`,
+`"ordinal"`, and `"nbinom"` - each is inferable from the response coding
+or from an attribute the library reads - but is *wrong* for `"aft"` and
 `"logistic"`, which are indistinguishable by shape from `"gaussian"` and
-`"probit"` respectively. Pass the returned token and the question does
-not arise.
+`"probit"` respectively. Pass the matching enumerator and the question
+does not arise.
 
 ### Differences from dbarts()
 
