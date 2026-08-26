@@ -612,7 +612,7 @@ period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)
 needs hazards at EVERY requested period, and only tree replay provides
 them: the hazard method ALWAYS re-expands its subjects to the requested
 grid and predicts - training data included - and therefore requires
-keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:269-275),
+keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:302-304),
 where aft's training-data path never needs it. Requested `times` are grid
 periods; S cumulates (1 - h) through each. Both quantities are thus
 available: per-period hazards via the ordinary binary predict/extract,

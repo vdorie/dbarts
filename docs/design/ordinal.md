@@ -361,7 +361,7 @@ back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoi
 draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
-predict.bart guard, R/generics.R:269-275). This K-column path deliberately
+predict.bart guard, R/generics.R:302-304). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
 (docs/plans/ordinal-outcomes.md step 1): probabilityFromLatents
 (R/generics.R:12-19) is a scalar link-inverse of a single latent column and
