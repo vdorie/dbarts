@@ -225,8 +225,8 @@ drawInterval <- function(m, plquants) {
 # category) cell.
 plot.bartMultinomial <- function(
   x,
-  cols = NULL,
   plquants = c(0.05, 0.95),
+  cols = NULL,
   ...
 ) {
   oldpar <- par(no.readonly = TRUE)

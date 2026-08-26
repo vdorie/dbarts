@@ -226,8 +226,9 @@ expect_error(
 )
 
 # type = "class" is fitted()'s own argmax reduction, reached through predict's
-# own replay; it must sit AFTER the ci.level block, since paired with
-# ci.level it returns the same band type = "ev" does rather than a factor
+# own replay; a class prediction is a label rather than a quantity with a
+# credible band, so pairing it with ci.level is refused by name instead of
+# silently returning the type = "ev" band in its place
 predClass <- predict(fitKeep, x.test, type = "class")
 expect_true(is.factor(predClass))
 expect_identical(levels(predClass), levels(y))
@@ -236,9 +237,13 @@ expect_identical(
   predict(fitKeep, x, type = "class"),
   fitted(fitKeep, type = "class")
 )
-expect_identical(
+expect_error(
   predict(fitKeep, x.test, type = "class", ci.level = 0.9),
-  predict(fitKeep, x.test, type = "ev", ci.level = 0.9)
+  "does not support 'ci.level'"
+)
+expect_error(
+  fitted(fitKeep, type = "class", ci.level = 0.9),
+  "does not support 'ci.level'"
 )
 
 # ---- type= runs through validateType, so the predict.glm synonyms reach

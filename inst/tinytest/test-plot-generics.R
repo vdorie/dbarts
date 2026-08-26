@@ -143,6 +143,27 @@ expect_error(
   fixed = TRUE
 )
 
+# plotTree.dbartsSampler now raises the same two strings directly, rather
+# than partial-matching 'sample'/'chain' onto its own 'sampleNum'/'chainNum'
+expect_error(
+  plotTree(pt.bart2$fit, sample = 5L),
+  "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
+  fixed = TRUE
+)
+expect_error(
+  plotTree(pt.bart2$fit, chain = 2L),
+  "'chain' is not used by plotTree; the saved chain is 'chainNum'",
+  fixed = TRUE
+)
+pdf(NULL)
+expect_silent(plotTree(
+  pt.bart2$fit,
+  treeNum = 1L,
+  chainNum = 2L,
+  sampleNum = 5L
+))
+dev.off()
+
 # the print methods summarize a fit to the console, and keep doing so with
 # keepCall = FALSE (previously just "NULL()")
 # the synopsis is the last block of the printout, one labelled line per fact,
@@ -331,5 +352,25 @@ fit2.qualified <- dbarts::bart2(
 expect_error(plot(fit2.qualified), pattern = "keepTrainingFits")
 
 rm(fit.qualified, fit2.qualified)
+
+# plot.bartMultinomial's argument order now matches the six plquants-second
+# siblings: (x, plquants, cols, ...), so a positional second argument is a
+# plquants pair rather than a color vector
+y.multi <- factor(sample(letters[1:3], n, replace = TRUE))
+fit.multinomial <- bart2(
+  x,
+  y.multi,
+  family = "multinomial",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+expect_silent(plot(fit.multinomial, c(0.1, 0.9)))
+dev.off()
+rm(y.multi, fit.multinomial)
 
 rm(x, y.cont, z.bin, g, n)

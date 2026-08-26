@@ -274,13 +274,6 @@ bartKeepTreesArgument <- function(object) {
   if (callName(object[["call"]]) == "bart2") "keepTrees" else "keeptrees"
 }
 
-# A per-observation weight scales the posterior-predictive DRAW of a fit whose
-# noise the caller can rescale - gaussian sigma, a logistic trial count. A
-# count, category or two-part draw comes from its own law with no such factor,
-# so the argument has nothing to act on here.
-predictWeightsUnusedArgs <- list(
-  weights = "this family's posterior-predictive draw takes no per-observation weight"
-)
 # An offset shifts the latent at rows the sampler never saw, and these two
 # families replay their trees with no offset channel at all, so either spelling
 # would be dropped rather than applied.
@@ -310,11 +303,20 @@ predict.bart <- function(
     refuseWithoutTrees("predict", bartKeepTreesArgument(object))
   }
 
-  refuseUnusedGenericArgs(list(...), "predict", "bart", predictOffsetUnusedArgs)
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "bart",
+    c(
+      predictOffsetUnusedArgs,
+      foreignArgsFor(predictForeignReasons, names(formals(predict.bart)))
+    )
+  )
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
   n.threads <- validatePredictThreads(n.threads)
+  refuseForestSelectionOutsideForestArm(type, forest)
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -343,6 +345,12 @@ predict.bart <- function(
         "'bases' does not apply to type = \"forest\": that arm reports each ",
         "forest's own total BEFORE any basis, which is what leaves the ",
         "recombination to the caller"
+      )
+    }
+    if (!is.null(ci.level)) {
+      stop(
+        "type = \"forest\" does not support 'ci.level': that arm reports ",
+        "each forest's own total before any basis"
       )
     }
     return(predictForest(
@@ -491,7 +499,26 @@ extract.bart <- function(
     return(eval(treesCall, parent.frame()))
   }
 
+  # below the type == "trees" branch and its own refuseTreesArguments, so
+  # extract(type = "trees", newdata = ) keeps forwarding to getTrees instead
+  # of being refused here for a name that arm alone accepts
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "bart",
+    foreignArgsFor(extractForeignReasons, names(formals(extract.bart)))
+  )
+
   sample <- validateSample(sample, eval(formals(extract.bart)$sample))
+  refuseForestSelectionOutsideForestArm(type, forest)
+  if (type != "forest" && isTRUE(contribution)) {
+    stop(
+      "type = \"",
+      type,
+      "\" does not support 'contribution': the ",
+      "per-observation decomposition applies to the per-forest channel alone"
+    )
+  }
 
   if (type == "forest") {
     return(extractForest(object, sample, combineChains, forest, contribution))
@@ -883,14 +910,23 @@ predictBlend <- function(
 fitted.bart <- function(
   object,
   type = c("ev", "ppd", "bart"),
-  sample = c("train", "test"),
   ci.level = NULL,
+  sample = c("train", "test"),
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bart)$type))
   sample <- validateSample(sample, eval(formals(fitted.bart)$sample))
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "bart",
+    c(
+      bartUnusedArgs,
+      foreignArgsFor(fittedForeignReasons, names(formals(fitted.bart)))
+    )
+  )
 
-  result <- extract(object, type, sample, ...)
+  result <- extract(object, type, sample)
 
   # ci.level opts into a per-observation est + credible band instead of the
   # posterior mean; the interval kind follows type (see posteriorInterval)
@@ -924,7 +960,16 @@ residuals.bart <- function(object, type = "ev", ...) {
   # type flows to fitted so link-scale (type = "bart") residuals are reachable;
   # residuals are always against the training response, so sample is pinned
   refuseResidualsSample(list(...))
-  object$y - fitted.bart(object, type = type, sample = "train", ...)
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "bart",
+    c(
+      bartUnusedArgs,
+      foreignArgsFor(residualsForeignReasons, names(formals(residuals.bart)))
+    )
+  )
+  object$y - fitted.bart(object, type = type, sample = "train")
 }
 
 # bart2(family = "multinomial") generics. The
@@ -1031,7 +1076,13 @@ extract.bartMultinomial <- function(
     list(...),
     "extract",
     "bartMultinomial",
-    multinomialUnusedArgs
+    c(
+      multinomialUnusedArgs,
+      foreignArgsFor(
+        extractForeignReasons,
+        names(formals(extract.bartMultinomial))
+      )
+    )
   )
 
   if (type == "loglik" && sample == "test") {
@@ -1143,8 +1194,16 @@ fitted.bartMultinomial <- function(
     list(...),
     "fitted",
     "bartMultinomial",
-    c(multinomialUnusedArgs, multinomialFittedSampleReason)
+    c(
+      multinomialUnusedArgs,
+      multinomialFittedSampleReason,
+      foreignArgsFor(
+        fittedForeignReasons,
+        names(formals(fitted.bartMultinomial))
+      )
+    )
   )
+  refuseClassCiLevel(type, ci.level)
   probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
   if (!is.null(ci.level)) {
     return(posteriorInterval(probs, ci.level, trailing = 2L))
@@ -1172,11 +1231,19 @@ multinomialResidualsTypeReason <- list(
 )
 
 residuals.bartMultinomial <- function(object, ...) {
+  refuseResidualsSample(list(...))
   refuseUnusedGenericArgs(
     list(...),
     "residuals",
     "bartMultinomial",
-    c(multinomialUnusedArgs, multinomialResidualsTypeReason)
+    c(
+      multinomialUnusedArgs,
+      multinomialResidualsTypeReason,
+      foreignArgsFor(
+        residualsForeignReasons,
+        names(formals(residuals.bartMultinomial))
+      )
+    )
   )
   phat <- fitted.bartMultinomial(object, type = "ev")
   y <- object$y
@@ -1229,8 +1296,16 @@ predict.bartMultinomial <- function(
     list(...),
     "predict",
     "bartMultinomial",
-    c(multinomialUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
+    c(
+      multinomialUnusedArgs,
+      predictOffsetUnusedArgs,
+      foreignArgsFor(
+        predictForeignReasons,
+        names(formals(predict.bartMultinomial))
+      )
+    )
   )
+  refuseClassCiLevel(type, ci.level)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
   }
@@ -1352,7 +1427,10 @@ extract.bartOrdinal <- function(
     list(...),
     "extract",
     "bartOrdinal",
-    ordinalUnusedArgs
+    c(
+      ordinalUnusedArgs,
+      foreignArgsFor(extractForeignReasons, names(formals(extract.bartOrdinal)))
+    )
   )
   n.chains <- fitNChains(object)
 
@@ -1445,8 +1523,13 @@ fitted.bartOrdinal <- function(
     list(...),
     "fitted",
     "bartOrdinal",
-    c(ordinalUnusedArgs, ordinalFittedSampleReason)
+    c(
+      ordinalUnusedArgs,
+      ordinalFittedSampleReason,
+      foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartOrdinal)))
+    )
   )
+  refuseClassCiLevel(type, ci.level)
   if (type == "bart") {
     latent <- object$latent.train
     if (!is.null(ci.level)) {
@@ -1476,11 +1559,19 @@ ordinalResidualsTypeReason <- list(
 # response, so the per-category analog is the observed 1[y = k] indicator minus
 # the fitted probability, an n x K matrix (columns named by 'levels').
 residuals.bartOrdinal <- function(object, ...) {
+  refuseResidualsSample(list(...))
   refuseUnusedGenericArgs(
     list(...),
     "residuals",
     "bartOrdinal",
-    c(ordinalUnusedArgs, ordinalResidualsTypeReason)
+    c(
+      ordinalUnusedArgs,
+      ordinalResidualsTypeReason,
+      foreignArgsFor(
+        residualsForeignReasons,
+        names(formals(residuals.bartOrdinal))
+      )
+    )
   )
   phat <- fitted.bartOrdinal(object, type = "ev")
   y <- object$y
@@ -1513,8 +1604,13 @@ predict.bartOrdinal <- function(
     list(...),
     "predict",
     "bartOrdinal",
-    c(ordinalUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
+    c(
+      ordinalUnusedArgs,
+      predictNoOffsetUnusedArgs,
+      foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
+    )
   )
+  refuseClassCiLevel(type, ci.level)
   if (is.null(object[["cutpoints.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -1625,7 +1721,15 @@ extract.bartNegbin <- function(
 ) {
   type <- validateType(type, eval(formals(extract.bartNegbin)$type))
   sample <- validateSample(sample, eval(formals(extract.bartNegbin)$sample))
-  refuseUnusedGenericArgs(list(...), "extract", "bartNegbin", negbinUnusedArgs)
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "bartNegbin",
+    c(
+      negbinUnusedArgs,
+      foreignArgsFor(extractForeignReasons, names(formals(extract.bartNegbin)))
+    )
+  )
   n.chains <- fitNChains(object)
 
   if (type == "loglik" && sample == "test") {
@@ -1708,7 +1812,11 @@ fitted.bartNegbin <- function(
     list(...),
     "fitted",
     "bartNegbin",
-    c(negbinUnusedArgs, negbinFittedSampleReason)
+    c(
+      negbinUnusedArgs,
+      negbinFittedSampleReason,
+      foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartNegbin)))
+    )
   )
   channel <- switch(
     type,
@@ -1732,11 +1840,19 @@ negbinResidualsTypeReason <- list(
 # y - fitted() on the count scale: the observed count minus the posterior-mean
 # count, an n-vector (the gaussian residual, on counts).
 residuals.bartNegbin <- function(object, ...) {
+  refuseResidualsSample(list(...))
   refuseUnusedGenericArgs(
     list(...),
     "residuals",
     "bartNegbin",
-    c(negbinUnusedArgs, negbinResidualsTypeReason)
+    c(
+      negbinUnusedArgs,
+      negbinResidualsTypeReason,
+      foreignArgsFor(
+        residualsForeignReasons,
+        names(formals(residuals.bartNegbin))
+      )
+    )
   )
   object$y - fitted.bartNegbin(object, type = "ev")
 }
@@ -1766,7 +1882,11 @@ predict.bartNegbin <- function(
     list(...),
     "predict",
     "bartNegbin",
-    c(negbinUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)
+    c(
+      negbinUnusedArgs,
+      predictOffsetUnusedArgs,
+      foreignArgsFor(predictForeignReasons, names(formals(predict.bartNegbin)))
+    )
   )
   if (is.null(object[["dispersion.raw"]])) {
     refuseWithoutTrees("predict")
@@ -1922,6 +2042,128 @@ refuseUnusedGenericArgs <- function(dots, generic, class, reasons) {
   invisible(NULL)
 }
 
+# A name that is a formal on one method of this surface and not on another
+# is a caller mistake wherever it is foreign, not an argument to discard.
+# Deriving each method's list from its own formals - rather than listing
+# the foreign names by hand per class - is what keeps a name added to one
+# signature refused on every sibling that does not take it.
+foreignArgsFor <- function(reasons, own) {
+  reasons[setdiff(names(reasons), own)]
+}
+
+# 'forest' selects among the per-forest channels only the "forest" arm
+# reports; every other arm has already recombined them into the reported
+# location, so a selection there would silently choose nothing.
+refuseForestSelectionOutsideForestArm <- function(type, forest) {
+  if (type != "forest" && !is.null(forest)) {
+    stop(
+      "type = \"",
+      type,
+      "\" does not support 'forest': every forest is ",
+      "already recombined into the location it reports"
+    )
+  }
+  invisible(NULL)
+}
+
+# type = "class" is a label, not a quantity with a credible band; the class
+# reduction below is otherwise unreachable whenever ci.level is supplied (the
+# ci.level branch returns first), so the combination is refused by name
+# instead of the ev band being silently returned in the class request's
+# place.
+refuseClassCiLevel <- function(type, ci.level) {
+  if (type == "class" && !is.null(ci.level)) {
+    stop(
+      "type = \"class\" does not support 'ci.level': a class prediction is ",
+      "a label rather than a quantity with a credible band"
+    )
+  }
+  invisible(NULL)
+}
+
+# Every own-class family has its own list of names its K-widened or two-part
+# shape has no room for; bart and rbart did not, so the two names a
+# fit-reduction never selects among had nowhere to be refused.
+bartUnusedArgs <- list(
+  forest = paste0(
+    "the reduction is over the combined location, in which every forest ",
+    "is already included"
+  ),
+  contribution = paste0(
+    "the reduction is over the combined location, in which every forest ",
+    "is already included"
+  )
+)
+rbartUnusedArgs <- list(
+  forest = singleForestReason,
+  contribution = singleForestReason
+)
+
+# The derived reason tables the surface's predict/extract/fitted/residuals
+# methods compose via foreignArgsFor above, one entry per name that is a
+# formal on some method of the generic and foreign on another. Composed
+# AFTER a method's own class list (multinomialUnusedArgs and siblings,
+# bartUnusedArgs, rbartUnusedArgs), so a class-specific reason for the same
+# name still wins - refuseUnusedGenericArgs reports the first hit in
+# 'reasons', and composition order is priority order.
+predictForeignReasons <- list(
+  sample = "the fit's stored train and test channels are extract's 'sample'",
+  weights = "this family's posterior-predictive draw takes no per-observation weight",
+  bases = "only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  group.by = "'group.by' is the grouped (rbart_vi) fit's own predict argument",
+  contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")"
+)
+
+extractReplaysNothingReason <- "extract reads stored channels and replays nothing"
+extractForeignReasons <- list(
+  ci.level = "extract returns the draws that fitted() and predict() take a band over",
+  newdata = "predict(object, newdata) is the read at new rows",
+  offset = extractReplaysNothingReason,
+  weights = extractReplaysNothingReason,
+  n.threads = extractReplaysNothingReason,
+  bases = extractReplaysNothingReason,
+  group.by = "the stored channels already carry the fit's own grouping"
+)
+
+fittedSummarizesNothingReason <- "fitted summarizes stored channels and replays nothing"
+fittedForeignReasons <- list(
+  combineChains = "the per-chain draws are extract(object, combineChains = FALSE)",
+  sample = "fitted values are always the fit's training rows",
+  newdata = fittedSummarizesNothingReason,
+  offset = fittedSummarizesNothingReason,
+  weights = fittedSummarizesNothingReason,
+  n.threads = fittedSummarizesNothingReason,
+  bases = fittedSummarizesNothingReason,
+  group.by = "the stored channels already carry the fit's own grouping"
+)
+
+residualsSummarizeNothingReason <- "residuals summarize stored channels and replay nothing"
+residualsForeignReasons <- list(
+  ci.level = "residuals are the observed response minus the posterior-mean fit",
+  combineChains = "the per-chain draws are extract(object, combineChains = FALSE)",
+  newdata = residualsSummarizeNothingReason,
+  offset = residualsSummarizeNothingReason,
+  weights = residualsSummarizeNothingReason,
+  n.threads = residualsSummarizeNothingReason,
+  bases = residualsSummarizeNothingReason,
+  group.by = "the stored channels already carry the fit's own grouping"
+)
+
+survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
+survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times' and 'newdata' alone"
+survivalProbabilitiesForeignReasons <- list(
+  group.by = "'group.by' is the grouped (rbart_vi) fit's own argument",
+  type = survivalProbabilitiesDrawsReason,
+  sample = survivalProbabilitiesDrawsReason,
+  ci.level = survivalProbabilitiesDrawsReason,
+  offset = survivalProbabilitiesOwnArgsReason,
+  weights = survivalProbabilitiesOwnArgsReason,
+  n.threads = survivalProbabilitiesOwnArgsReason,
+  forest = survivalProbabilitiesOwnArgsReason,
+  contribution = survivalProbabilitiesOwnArgsReason,
+  bases = survivalProbabilitiesOwnArgsReason
+)
+
 # Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
 # the canonical "ev"/"bart" and validate against 'allowed' (the predict.bart
 # idiom, so a mis-typed request errors rather than silently mis-reporting).
@@ -2056,7 +2298,15 @@ extract.bartHurdle <- function(
 ) {
   type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
   sample <- validateSample(sample, eval(formals(extract.bartHurdle)$sample))
-  refuseUnusedGenericArgs(list(...), "extract", "bartHurdle", hurdleUnusedArgs)
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "bartHurdle",
+    c(
+      hurdleUnusedArgs,
+      foreignArgsFor(extractForeignReasons, names(formals(extract.bartHurdle)))
+    )
+  )
   if (sample == "test") {
     stop(
       "this hurdle fit carries no separate test channel; call predict on ",
@@ -2113,13 +2363,22 @@ hurdleLogLik <- function(object) {
 fitted.bartHurdle <- function(
   object,
   type = c("ev", "ppd", "prob", "bart"),
-  sample = "train",
   ci.level = NULL,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(fitted.bartHurdle)$type))
-  refuseUnusedGenericArgs(list(...), "fitted", "bartHurdle", hurdleUnusedArgs)
-  draws <- extract(object, type = type, sample = sample, combineChains = TRUE)
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "bartHurdle",
+    c(
+      hurdleUnusedArgs,
+      foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartHurdle)))
+    )
+  )
+  # a hurdle fit has no separate test channel (extract.bartHurdle refuses
+  # sample = "test" unconditionally), so the read is always the training rows
+  draws <- extract(object, type = type, sample = "train", combineChains = TRUE)
   if (!is.null(ci.level)) {
     return(posteriorInterval(draws, ci.level))
   }
@@ -2135,9 +2394,15 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
     list(...),
     "residuals",
     "bartHurdle",
-    hurdleUnusedArgs
+    c(
+      hurdleUnusedArgs,
+      foreignArgsFor(
+        residualsForeignReasons,
+        names(formals(residuals.bartHurdle))
+      )
+    )
   )
-  object$y - fitted.bartHurdle(object, type = type, sample = "train", ...)
+  object$y - fitted.bartHurdle(object, type = type)
 }
 
 # Out-of-sample combined draws by replaying BOTH saved forests at newdata and
@@ -2158,7 +2423,11 @@ predict.bartHurdle <- function(
     list(...),
     "predict",
     "bartHurdle",
-    c(hurdleUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)
+    c(
+      hurdleUnusedArgs,
+      predictNoOffsetUnusedArgs,
+      foreignArgsFor(predictForeignReasons, names(formals(predict.bartHurdle)))
+    )
   )
   if (is.null(object$occupancy[["fit"]])) {
     refuseWithoutTrees("predict")
@@ -2220,7 +2489,12 @@ predict.rbart <- function(
     list(...),
     "predict",
     "rbart",
-    c(predictOffsetUnusedArgs, rbartPredictValueUnusedArgs)
+    c(
+      predictOffsetUnusedArgs,
+      rbartPredictValueUnusedArgs,
+      rbartUnusedArgs,
+      foreignArgsFor(predictForeignReasons, names(formals(predict.rbart)))
+    )
   )
 
   n.chains <- if (is.null(object$n.chains)) {
@@ -2484,6 +2758,19 @@ extract.rbart <- function(
     return(allTrees)
   }
 
+  # below the type == "trees" branch and its own refuseTreesArguments, so
+  # extract(type = "trees", newdata = ) keeps forwarding to getTrees instead
+  # of being refused here for a name that arm alone accepts
+  refuseUnusedGenericArgs(
+    list(...),
+    "extract",
+    "rbart",
+    c(
+      rbartUnusedArgs,
+      foreignArgsFor(extractForeignReasons, names(formals(extract.rbart)))
+    )
+  )
+
   sample <- validateSample(sample, eval(formals(extract.rbart)$sample))
 
   # the log-likelihood is against the stored training response; there is no
@@ -2571,11 +2858,27 @@ extract.rbart <- function(
   result
 }
 
+# this method's '...' forwards nowhere and nothing delegates through it, so a
+# caller-supplied name of any kind is refused rather than the generic's own
+# "on a <class> fit" wording, which reads wrong for a sampler
+refuseSamplerExtractArgs <- function(dots) {
+  if (length(names(dots)) > 0L) {
+    stop(
+      "'",
+      names(dots)[1L],
+      "' is not used by extract on a dbartsSampler: this method returns the ",
+      "sampler's coded predictor matrix"
+    )
+  }
+  invisible(NULL)
+}
+
 # Materialize the sampler's predictor code matrix: factor columns as their
 # integer codes, the historical form of data@x and the matrix getTrees
 # replays. A dense-frame/mixed container materializes through as.matrix; a
 # plain matrix (or a sparse dgCMatrix held as such) is returned unchanged.
 extract.dbartsSampler <- function(object, type = "predictors", ...) {
+  refuseSamplerExtractArgs(list(...))
   if (!is.character(type) || length(type) == 0L || type[1L] != "predictors") {
     stop("type must be 'predictors'")
   }
@@ -2586,12 +2889,21 @@ extract.dbartsSampler <- function(object, type = "predictors", ...) {
 fitted.rbart <- function(
   object,
   type = c("ev", "ppd", "bart", "ranef"),
-  sample = c("train", "test"),
   ci.level = NULL,
+  sample = c("train", "test"),
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.rbart)$type))
   sample <- validateSample(sample, eval(formals(fitted.rbart)$sample))
+  refuseUnusedGenericArgs(
+    list(...),
+    "fitted",
+    "rbart",
+    c(
+      rbartUnusedArgs,
+      foreignArgsFor(fittedForeignReasons, names(formals(fitted.rbart)))
+    )
+  )
 
   if (sample == "train" && type != "ranef" && is.null(object[["yhat.train"]])) {
     stop(
@@ -2602,7 +2914,7 @@ fitted.rbart <- function(
   # ci.level routes through the draws (extract) rather than the mean-only C
   # fast path below, then summarizes to est + credible band (kind follows type)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(extract(object, type, sample, ...), ci.level))
+    return(posteriorInterval(extract(object, type, sample), ci.level))
   }
 
   if (type == "ev") {
@@ -2628,7 +2940,7 @@ fitted.rbart <- function(
       is.null(object[["sigma"]])
     )
   } else {
-    result <- extract(object, type, sample, ...)
+    result <- extract(object, type, sample)
 
     result <- if (!is.null(dim(result))) {
       apply(result, length(dim(result)), mean)
@@ -2644,7 +2956,16 @@ residuals.rbart <- function(object, type = "ev", ...) {
   # as residuals.bart: type reaches fitted for link-scale residuals, sample
   # is pinned to the training response
   refuseResidualsSample(list(...))
-  object$y - fitted.rbart(object, type = type, sample = "train", ...)
+  refuseUnusedGenericArgs(
+    list(...),
+    "residuals",
+    "rbart",
+    c(
+      rbartUnusedArgs,
+      foreignArgsFor(residualsForeignReasons, names(formals(residuals.rbart)))
+    )
+  )
+  object$y - fitted.rbart(object, type = type, sample = "train")
 }
 
 # fit-level dispatch for the sampler's plotTree method, so a kept bart or
@@ -2652,6 +2973,7 @@ residuals.rbart <- function(object, type = "ev", ...) {
 # and sampleNum forward only when supplied, since the method detects them by
 # their absence
 plotTree.dbartsSampler <- function(object, ...) {
+  refusePlotTreeArgs(sys.call())
   invisible(object$plotTree(...))
 }
 

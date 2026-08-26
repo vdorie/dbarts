@@ -1675,6 +1675,15 @@ dbartsSampler <- setRefClass(
     getSigmas = function(result) {
       "Return current residual error term on original, standard deviation scale."
 
+      # the formal is held so it cannot be quietly repurposed: this reader
+      # allocates its own vector, and filling a caller's buffer in place is
+      # getLatents' contract alone
+      if (!missing(result)) {
+        stop(
+          "'result' is not used by getSigmas: this reader allocates its own vector"
+        )
+      }
+
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
@@ -1685,6 +1694,15 @@ dbartsSampler <- setRefClass(
     },
     getSumsOfSquaredResiduals = function(result) {
       "Return sum( (y - y.hat)^2 ) on original scale."
+      # the formal is held so it cannot be quietly repurposed: this reader
+      # allocates its own vector, and filling a caller's buffer in place is
+      # getLatents' contract alone
+      if (!missing(result)) {
+        stop(
+          "'result' is not used by getSumsOfSquaredResiduals: this reader ",
+          "allocates its own vector"
+        )
+      }
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },

@@ -67,6 +67,16 @@ expect_error(
   pattern = "must be a single number"
 )
 
+# fitted()'s positional slot 3 is now ci.level (it used to be sample): the
+# positional and named forms agree, and the old slot-3 usage - a string in
+# that position - now reaches ci.level's own validity check instead of
+# silently binding to sample
+expect_identical(
+  fitted(fit, "ev", 0.9),
+  fitted(fit, type = "ev", ci.level = 0.9)
+)
+expect_error(fitted(fit, "ev", "train"), pattern = "must be a single number")
+
 rm(fit, cred, pred, narrow, pci, x, y)
 rm(testData)
 
@@ -130,5 +140,90 @@ expect_true(is.matrix(predict(
   ci.level = 0.9
 )))
 
+# as above: fitted.rbart's positional slot 3 is now ci.level too
+expect_identical(
+  fitted(rfit, "ev", 0.9),
+  fitted(rfit, type = "ev", ci.level = 0.9)
+)
+
 rm(rfit, rci, g)
 rm(testData)
+
+# the remaining three classes' fitted() already had ci.level third before
+# this slice, so the identity below asserts nothing this slice could break -
+# a plain regression guard, kept for symmetry with the three above
+n <- 40L
+xSmall <- matrix(rnorm(n * 2L), n, 2L)
+
+fitM <- bart2(
+  xSmall,
+  factor(sample(letters[1:3], n, replace = TRUE)),
+  family = "multinomial",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(
+  fitted(fitM, "ev", 0.9),
+  fitted(fitM, type = "ev", ci.level = 0.9)
+)
+rm(fitM)
+
+fitO <- bart2(
+  xSmall,
+  ordered(
+    sample(c("lo", "mid", "hi"), n, replace = TRUE),
+    levels = c("lo", "mid", "hi")
+  ),
+  family = "ordinal",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(
+  fitted(fitO, "ev", 0.9),
+  fitted(fitO, type = "ev", ci.level = 0.9)
+)
+rm(fitO)
+
+fitN <- bart2(
+  xSmall,
+  rpois(n, 3),
+  family = "nbinom",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(
+  fitted(fitN, "ev", 0.9),
+  fitted(fitN, type = "ev", ci.level = 0.9)
+)
+rm(fitN)
+
+# hurdle DOES discriminate: fitted.bartHurdle lost its 'sample' formal
+# outright (section 8), so slot 3 is ci.level with no other candidate
+fitH <- bart2(
+  xSmall,
+  ifelse(runif(n) < 0.5, 0, rlnorm(n)),
+  family = "hurdle.lognormal",
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(
+  fitted(fitH, "ev", 0.9),
+  fitted(fitH, type = "ev", ci.level = 0.9)
+)
+rm(fitH, n, xSmall)

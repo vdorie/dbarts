@@ -2551,6 +2551,15 @@ survivalProbabilities.bart <- function(
   combineChains = TRUE,
   ...
 ) {
+  refuseUnusedGenericArgs(
+    list(...),
+    "survivalProbabilities",
+    "bart",
+    foreignArgsFor(
+      survivalProbabilitiesForeignReasons,
+      names(formals(survivalProbabilities.bart))
+    )
+  )
   if (!is.null(object[["periods"]])) {
     return(hazardSurvivalProbabilities(
       object,
@@ -2603,6 +2612,15 @@ survivalProbabilities.rbart <- function(
   ...,
   group.by
 ) {
+  refuseUnusedGenericArgs(
+    list(...),
+    "survivalProbabilities",
+    "rbart",
+    foreignArgsFor(
+      survivalProbabilitiesForeignReasons,
+      names(formals(survivalProbabilities.rbart))
+    )
+  )
   if (!identical(object[["family"]], "aft")) {
     stop("survivalProbabilities requires an aft (survival) rbart fit")
   }

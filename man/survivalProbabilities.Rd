@@ -74,14 +74,19 @@ survivalProbabilities(object, ...)
     not seen in training draws its intercept from \eqn{N(0, \tau)}. Ignored
     (and unnecessary) when \code{newdata} is \code{NULL}. Supplied by name
     only - it follows \code{\dots} in the signature, so it is never matched
-    positionally; a missing one is refused, naming itself.
+    positionally; a missing one is refused, naming itself. Refused by name on
+    the \code{bart} method, which has no grouping.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.
   }
   \item{...}{
-    Not used; for compatibility with the generic.
+    Not a formal on either method: a name belonging to a sibling generic
+    (\code{type}, \code{sample}, \code{ci.level}, \code{offset},
+    \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
+    \code{bases}) is refused by name rather than silently ignored, since this
+    method returns the draws of \eqn{S(t \mid x)} at \code{times} alone.
   }
 }
 \details{

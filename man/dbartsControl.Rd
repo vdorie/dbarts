@@ -3,6 +3,8 @@
 \title{Discrete Bayesian Additive Regression Trees Sampler Control}
 \description{
   Convenience function to create a control object for use with a \code{\link{dbarts}} sampler.
+
+  Every integer-valued argument here (\code{n.samples}, \code{n.cuts}, \code{n.burn}, \code{n.trees}, \code{n.chains}, \code{n.threads}, \code{n.thin}, \code{printEvery}, \code{printCutoffs}, \code{seed}) refuses a fractional double, naming the argument, rather than silently truncating it - the same whole-number rule every other count formal in the package follows, since it too is coerced through this construction.
 }
 \usage{
 dbartsControl(

@@ -249,3 +249,49 @@ expect_error(
   dbarts(surv ~ x1, data = list(surv = surv.all, x1 = x[, 1L])),
   "matrix interface"
 )
+
+# ---- survivalProbabilities's own surface refusals: 'group.by' is the
+# ---- grouped (rbart_vi) fit's own argument, refused by name on the plain
+# ---- bart method; 'type' is foreign to both ----
+bartAftFit <- bart2(
+  x,
+  surv,
+  family = "aft",
+  n.samples = 20L,
+  n.burn = 20L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  verbose = FALSE,
+  seed = 11L
+)
+expect_error(
+  survivalProbabilities(bartAftFit, times, newdata = x.new, group.by = g.new),
+  "'group.by' is not used by survivalProbabilities on a bart fit: 'group.by' is the grouped (rbart_vi) fit's own argument",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(bartAftFit, times, type = "ev"),
+  "'type' is not used by survivalProbabilities on a bart fit: survivalProbabilities returns the draws of S(t | x) at 'times'",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(
+    fit,
+    times,
+    newdata = x.new,
+    group.by = g.new,
+    type = "ev"
+  ),
+  "'type' is not used by survivalProbabilities on a rbart fit: survivalProbabilities returns the draws of S(t | x) at 'times'",
+  fixed = TRUE
+)
+# the same call, minus the foreign 'type', still works on the grouped
+# (rbart) method - 'group.by' is that method's own formal, not foreign there
+# (g.new's unmeasured "99" level draws from the prior, as at sp.new above)
+sp.accept <- suppressWarnings(
+  survivalProbabilities(fit, times, newdata = x.new, group.by = g.new)
+)
+expect_true(is.array(sp.accept))
+rm(bartAftFit, sp.accept)

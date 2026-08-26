@@ -287,8 +287,10 @@
     with multiple chains, matrix) that it fills in place and returns instead
     of allocating a new one; its length must equal the number of
     observations times the number of chains. Omit it to let \code{getLatents}
-    allocate. Accepted but not used by \code{getSigmas} and
-    \code{getSumsOfSquaredResiduals}.
+    allocate. Refused by name by \code{getSigmas} and
+    \code{getSumsOfSquaredResiduals}: both readers allocate their own vector,
+    and filling a caller's buffer in place is \code{getLatents}'s contract
+    alone.
   }
   \item{treeNum}{
     An integer listing the indices of the tree to plot.

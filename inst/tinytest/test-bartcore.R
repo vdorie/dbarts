@@ -262,6 +262,15 @@ expect_equal(dim(r.offset.engine$train), c(n, 1L))
 sampler.engine$setResponse(y + 1)
 sampler.engine$setSigma(1.0)
 expect_equal(length(sampler.engine$getSigmas()), 1L)
+# the formal is held so it cannot be quietly repurposed - getLatents alone
+# fills a caller's buffer in place
+expect_error(
+  sampler.engine$getSigmas(numeric(1)),
+  "'result' is not used by getSigmas: this reader allocates its own vector",
+  fixed = TRUE
+)
+# the refused call leaves the sampler untouched - the nullary read still works
+expect_equal(length(sampler.engine$getSigmas()), 1L)
 
 # column updates default to the transaction and resolve names
 expect_true(sampler.engine$setPredictor(

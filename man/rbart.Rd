@@ -42,8 +42,8 @@ rbart_vi(
 \S3method{fitted}{rbart}(
     object,
     type = c("ev", "ppd", "bart", "ranef"),
-    sample = c("train", "test"),
     ci.level = NULL,
+    sample = c("train", "test"),
     \dots)
 
 \S3method{extract}{rbart}(
@@ -105,10 +105,10 @@ rbart_vi(
     One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"loglik"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, training log-likelihood (\code{extract} only), random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. \code{"loglik"} evaluates the log-likelihood of each training observation at each posterior draw, conditioning on the drawn random intercepts as well as \eqn{\sigma}{sigma} (gaussian) or the fitted probability (binary); when chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the \pkg{loo} package; the chains-first convention is kept, so a per-chain array (\code{combineChains = FALSE}, dimension chains-by-samples-by-observations) is reordered to the draws-by-chains-by-observations that \code{loo::relative_eff} expects with \code{aperm(x, c(2, 1, 3))}. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
   }
   \item{sample}{
-    One of \code{"train"} or \code{"test"}, referring to the training or test samples respectively.
+    One of \code{"train"} or \code{"test"}, referring to the training or test samples respectively. It is \code{extract}'s and \code{fitted}'s own argument, and is refused by name on \code{predict}, whose stored train and test channels are \code{extract}'s \code{sample} instead.
   }
   \item{ci.level}{
-    For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) returns the posterior mean, while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}.
+    For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) returns the posterior mean, while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}. Refused, by name, on \code{residuals} - see \code{\link{bart}}'s own \code{ci.level} item for why.
   }
   \item{x, plquants, cols}{
     Same as in \code{\link{plot.bart}}.

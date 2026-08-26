@@ -170,6 +170,15 @@ coerceOrError <- function(x, type) {
     integer = as.integer,
     numeric = as.numeric
   )
+  # as.integer TRUNCATES a fractional double silently, so a mistyped count
+  # would take a different value than the caller wrote; the per-call thread
+  # argument already refuses one, and the two must not disagree. The subject
+  # is the caller's own spelling only when the argument arrived as a bare
+  # name - an expression has no name to quote.
+  if (type == "integer" && is.double(x) && any(is.finite(x) & x != trunc(x))) {
+    subject <- if (is.symbol(mc[[2L]])) paste0("'", mc[[2L]], "'") else "value"
+    stop(subject, " must be a whole number, not ", deparse(x)[1L])
+  }
   result <- tryCatch(func(x), warning = function(e) e)
   if (inherits(result, "warning")) {
     stop("'", mc[[2L]], "' must be coercible to type: ", type)

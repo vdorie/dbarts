@@ -388,3 +388,30 @@ noTreesPlain <- fitFrom(NULL, keepTrees = FALSE)
 plainReplay <- predict(noTreesPlain, xNew, type = "bart")
 expect_null(dim(plainReplay))
 expect_equal(length(plainReplay), nNew)
+
+# ---- surface refusals on an amplitude-coupled fit: 'ci.level' does not
+# ---- reach the per-forest arm (that arm reports each forest's own total
+# ---- before any basis), and 'forest'/'contribution' do not reach an arm
+# ---- that has already recombined every forest into the location it
+# ---- reports ----
+expect_error(
+  predict(fit, xNew, type = "forest", ci.level = 0.9),
+  pattern = "does not support 'ci.level'"
+)
+expect_error(
+  predict(fit, xNew, type = "ev", forest = 1L),
+  pattern = "does not support 'forest'"
+)
+expect_error(
+  extract(fit, type = "ev", forest = 1L),
+  pattern = "does not support 'forest'"
+)
+expect_error(
+  extract(fit, type = "ev", contribution = TRUE),
+  pattern = "does not support 'contribution'"
+)
+# the acceptance half: 'forest' still selects a slice on the one arm it
+# belongs to
+oneForestSlice <- predict(fit, xNew, type = "forest", forest = 1L)
+allForests <- predict(fit, xNew, type = "forest")
+expect_equal(oneForestSlice, allForests[,, 1L, drop = FALSE])

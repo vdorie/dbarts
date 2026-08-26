@@ -64,6 +64,10 @@ plotTree(object, \dots)
     Additional arguments, including \code{treePlotPars} (a named numeric
     vector controlling \code{nodeHeight}, \code{nodeWidth}, and
     \code{nodeGap}) and further arguments passed on to \code{\link{plot}}.
+    \code{sample}/\code{chain} are refused by name, on every method including
+    \code{dbartsSampler}'s: they partial-match this method's own
+    \code{sampleNum}/\code{chainNum} and would otherwise draw a different
+    tree than intended.
   }
 }
 \value{

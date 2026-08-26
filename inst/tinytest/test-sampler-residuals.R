@@ -17,6 +17,18 @@ expect_equal(
   sampler$getSumsOfSquaredResiduals(),
   sum((testData$y - samples$train[, 1L])^2)
 )
+# the formal is held so it cannot be quietly repurposed - getLatents alone
+# fills a caller's buffer in place
+expect_error(
+  sampler$getSumsOfSquaredResiduals(numeric(1)),
+  "'result' is not used by getSumsOfSquaredResiduals: this reader allocates its own vector",
+  fixed = TRUE
+)
+# the refused call leaves the sampler untouched - the nullary read still works
+expect_equal(
+  sampler$getSumsOfSquaredResiduals(),
+  sum((testData$y - samples$train[, 1L])^2)
+)
 
 # On a K-forest the fitted value is the COMBINED location
 # sum_f m_f(i) f_f(x_i), not forest 0's own total, and this getter reported the

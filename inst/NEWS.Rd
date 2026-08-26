@@ -120,6 +120,55 @@
             covariate is missing only on the zero-outcome rows is refused
             at construction for the same reason; previously it fit, with
             the positive part silently routing those rows left.
+      \item A name that is a formal on a sibling \code{predict}/
+            \code{extract}/\code{fitted}/\code{residuals}/
+            \code{survivalProbabilities} method but foreign to the one
+            actually called is now refused by name instead of silently
+            discarded through \code{\dots} - \code{sample}, \code{bases},
+            \code{group.by}, \code{forest}, and \code{contribution} on
+            \code{predict}; \code{ci.level}, \code{newdata}, \code{offset},
+            \code{weights}, \code{n.threads}, \code{bases}, and
+            \code{group.by} on \code{extract}; \code{combineChains} and the
+            same channel names on \code{fitted}; and, on \code{residuals},
+            the same names plus \code{ci.level} itself - \code{residuals}
+            never carried a credible band, and the pre-existing
+            \code{residuals(ci.level = )} on \code{bart}/\code{rbart}/
+            \code{bartHurdle} fits, which forwarded into \code{fitted} and
+            differenced a widening band against a constant, mislabelling
+            two of its three columns, is refused for the same reason.
+            \code{extract} on a \code{dbartsSampler} and \code{plotTree} on
+            a \code{dbartsSampler} gain their own catch-all refusals, the
+            latter closing the partial-match route by which
+            \code{sample =}/\code{chain =} reached \code{sampleNum}/
+            \code{chainNum} there too.
+      \item \code{type = "class"} paired with \code{ci.level} on a
+            \code{bartMultinomial}/\code{bartOrdinal} \code{predict}/
+            \code{fitted} call, and \code{ci.level} paired with
+            \code{type = "forest"} on \code{predict.bart}, are now refused by
+            name instead of silently returning the \code{type = "ev"}/
+            per-forest band in the requested type's place: a class
+            prediction is a label, and the per-forest arm reports each
+            forest's own total before any basis.
+      \item \code{fitted}'s positional third argument is now \code{ci.level}
+            on every class (it was \code{sample} on \code{bart},
+            \code{rbart}, and \code{bartHurdle}); \code{sample} moves to the
+            fourth position on \code{bart} and \code{rbart}, and
+            \code{fitted.bartHurdle} loses its \code{sample} formal outright
+            (a hurdle fit has no separate test channel, so the argument had
+            exactly one legal value). \code{plot.bartMultinomial}'s argument
+            order changes from \code{(x, cols, plquants, \dots)} to
+            \code{(x, plquants, cols, \dots)}, matching every other
+            \code{plot} method on this surface.
+      \item A fractional double is refused, naming the argument, rather than
+            silently truncated wherever the package coerces a count to an
+            integer - every \code{n.samples}/\code{n.trees}/\code{n.chains}/
+            \code{n.threads}/\dots{} formal on \code{dbartsControl},
+            \code{dbarts}, \code{bart}, \code{bart2}, \code{rbart_vi},
+            \code{xbart}, and \code{dbartsSpec}. The sampler's
+            \code{$getSigmas} and \code{$getSumsOfSquaredResiduals} now
+            refuse their vestigial \code{result} argument by name instead of
+            silently accepting and ignoring it; both readers always
+            allocate their own vector.
     }
   }
   \subsection{NEW FEATURES}{
