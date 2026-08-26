@@ -463,7 +463,7 @@ relocation: `bartcause-subset-pscore` (two pre-existing bartCause bugs,
 neither caused by `bcf()`) and `getforestvariablecounts-dimnames`. A bartCause
 rebuild against two adjacent dbarts tips showed the same three failing
 assertions at both, all `dbarts:::alignForestBasisToSubset` refusing a
-partial-data `basis` - a bartCause-side follow-up, which is why a grep here
+partial-data `basis` - a bartCause-side follow-up (fixed 765a596 on its dbarts-1.0 branch), which is why a grep here
 finds nothing. Calibration: BCF's sigma, flagged at ensemble size 50, is clean
 at 200, and the evidence is gaussian-only - no equivalence scenario and no SBC
 arm reaches a latent K-forest.

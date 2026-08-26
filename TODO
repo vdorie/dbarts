@@ -313,13 +313,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     once, at the freeze.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause is PUSHED on branch dbarts-1.0 in
-    ~/Repositories/bartCause (ahead of its main) but NOT ready: three
-    `dbarts:::alignForestBasisToSubset` assertions fail there, caused by
-    dbarts' deliberate basis/subset contract inversion after bartCause's
-    tip (4aa52288, 47cdb96a; see docs/plans/bartcore-review-tour.md's
-    "Known open"). The fix is bartCause's, pending on its dbarts-1.0
-    branch; submit dbarts regardless and re-verify bartCause once its
-    fix lands.
+    ~/Repositories/bartCause (ahead of its main) and READY: the three
+    `dbarts:::alignForestBasisToSubset` assertions that failed there,
+    caused by dbarts' deliberate basis/subset contract inversion after
+    bartCause's tip (4aa52288, 47cdb96a), were fixed at 765a596 on
+    that branch (the treatment basis is handed over at full pre-subset
+    length; suite 692/0). Re-verify bartCause against the final
+    re-baked header at the freeze like the other three.
   drop DBARTS_REQUIRE_EXACT_ABI from stan4bart (src/Makevars.in,
     src/Makevars.win) and treatSens (src/R_interface.cpp,
     src/bartTreatmentModel.cpp, src/sensitivityAnalysis.cpp) at the
