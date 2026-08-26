@@ -538,10 +538,13 @@ dbarts(
   `"incorporate"` keeps them: every split rule learns a direction for
   missing values on its variable, so an observation whose split value is
   `NA` follows that rule's chosen branch (“Missingness Incorporated in
-  Attributes”, Twala et al. 2008), in training and test data alike.
-  `"error"` rejects predictors containing `NA`. The response, `weights`,
-  and `offset` must always be complete; note that previous versions
-  silently dropped incomplete rows for formula inputs.
+  Attributes”, Twala et al. 2008). A route is learned per column, and
+  only where that column's training values were missing: test predictors
+  and `newdata` may carry `NA` in those columns, but a column complete
+  in training has no such route, and an `NA` there is refused, naming
+  the column. `"error"` rejects predictors containing `NA`. The
+  response, `weights`, and `offset` must always be complete; note that
+  previous versions silently dropped incomplete rows for formula inputs.
 
 - breaks:
 

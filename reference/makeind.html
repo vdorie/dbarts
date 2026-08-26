@@ -68,7 +68,7 @@
 <dd><p>An existing <code><a href="dbartsData.html">dbartsData</a></code> object.</p></dd>
 
   <dt id="arg-newdata">newdata<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
-<dd><p>Test data frame.</p></dd>
+<dd><p>Test data frame. <code>makeTestModelMatrix</code> refuses it, naming the column, if it carries <code>NA</code> in a column the fit's training data did not: a split rule learns a route for <code>NA</code> only where its column had missing training values.</p></dd>
 
 </dl></div>
     <div class="section level2">

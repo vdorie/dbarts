@@ -53,7 +53,10 @@ makeTestModelMatrix(data, newdata)
 
 - newdata:
 
-  Test data frame.
+  Test data frame. `makeTestModelMatrix` refuses it, naming the column,
+  if it carries `NA` in a column the fit's training data did not: a
+  split rule learns a route for `NA` only where its column had missing
+  training values.
 
 ## Details
 

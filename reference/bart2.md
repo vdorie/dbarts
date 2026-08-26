@@ -882,7 +882,9 @@ print(x, ...)
   direction for `NA`; `"error"` rejects predictors containing `NA` - the
   historical behavior
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) always
-  uses.
+  uses. The learned route is per column: an `NA` in `test` or `newdata`
+  is refused, naming the column, wherever that column was complete in
+  training.
 
 - resid.dist:
 
@@ -1493,7 +1495,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001461
+#> total seconds in loop: 0.001231
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1540,7 +1542,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001671
+#> total seconds in loop: 0.001300
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 
