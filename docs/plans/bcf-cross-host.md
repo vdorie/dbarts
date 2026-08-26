@@ -1,7 +1,7 @@
 # BCF equivalence baseline: cross-host mode (D7)
 
-Status: DESIGNED 2026-08-26 against tip faf1d167 (docs-only past 7012bb61;
-code unchanged). Read-only; no repo edits. Revised after an independent
+Status: LANDED 2026-08-26 at 3f532af2 (design record cbb1cb97; see the
+landing note). Read-only; no repo edits. Revised after an independent
 blind critique and the coordinator's adjudications - sections 1, 2, 4, 5,
 7 and 8 carry the rulings.
 
@@ -558,3 +558,61 @@ final patch. RECOMMEND (a) with the calibration clause: 1e-8 is far
 looser than a locked stream needs and far tighter than any defect class
 survives, so the expected outcome is that no widening is needed and the
 box number becomes the doc's evidence rather than its input.
+
+## Landing note (2026-08-26)
+
+LANDED at 3f532af2 (design record cbb1cb97). Both bcf-equivalence.R and
+multinomial-equivalence.R gain a `--cross-host` compare-only flag under
+the two-tier verdict: tier 1 LOCKED is the gate - a relative-deviation
+bound (`rtol = 1e-8`, `atol = rtol * max|a|`) on continuous channels,
+`identical()` on combinatorial channels; tier 2 `decoupled: statistical`
+is a labelled-weak fallback, a Welch z with an ESS-adjusted denominator.
+A non-finite guard runs on every gated channel; the partition assert
+(section 1) fires both at script load and inside the compare loop over
+`names(a)`. `exact-gates.yaml` runs both compares on every push,
+outside its quick `GATE_ARG` loop; `equivalence.yaml` carries the same
+`--cross-host` tokens for when it goes live. `benchmarks/README.md` is
+rewritten at the "regenerate rather than reusing across machines"
+sentence.
+
+Gates: default mode byte-identical before/after the patch (bcf 12
+identical, multinomial 11, equivalence.R 43 compared / 0 skipped);
+same-host `--cross-host` 12 and 11 tier 1 PASS; lint parity (0 new
+lints, 8 pre-existing brace_linter); both workflow yaml parse, `bash
+-n` clean, no apostrophe in the new run block.
+
+BOX validation (x86-64 Ryzen 7 3700X, R 4.3.3, gcc 13.3 - its final
+engine leg before retirement): bcf 12/12 tier 1 PASS, worst ratio
+3.7e-06; multinomial 11/11, worst 2.1e-06; equivalence.R 43 compared /
+0 skipped, all max |z| 0.00; tinytest all ok 7478. `rtol` stayed at
+1e-8 - the widening clause (section 2.2) did not fire, the observed
+ratios sitting ~2700x under its trigger.
+
+Discrimination probes, all run on the box. D-1' (`chain.hpp:5291`, a
+zero-RNG forest-0 `totalFits` write on a gated channel's own write
+path) 12/12 tier 1 FAIL and 12/12 tier 2 FAIL, exit 1. D-2 (the same
+mutant, unflagged) exit 1, naming `mu`/`tau`/`glue` in all 12 -
+confirms the flag is load-bearing rather than a no-op. D-3
+(`varcount` added to `snapshotChannels`) fires both asserts. D-4
+(`R_interface_bartcore.cpp:2174`, `sdModerate` x1.2 scoped to forest 1)
+12/12 tier 1 FAIL, but tier 2 flagged only 11 of 12
+(`set_predictor` max |z| 3.47) - the calibration evidence that tier 2
+alone would pass a 20 percent node-prior widening. The independent
+gate-runner reproduced the class on this host: a 1e-3 relative
+perturbation of one channel fails tier 1 but tier 2 cannot distinguish
+it, exit 0.
+
+Recorded deviations: under the flag the three per-scenario lines
+(exempt, non-finite, tier verdict) always print - the tier 1 line
+appends "all N GATED channels bitwise identical" when so, rather than
+a separate replacement pass line - so the path is exercisable
+same-host without a real cross-host divergence. About 250 lines were
+added per script against the ~90-line budget estimate, because the two
+scripts are independent and duplicate the tier/guard helpers rather
+than sharing them. The ubuntu-latest CI compare (`exact-gates.yaml`)
+is now the standing cross-host gate, the box having retired.
+
+Pending: the RC-tip same-host re-record of bcf-equivalence remains - a
+refresh, not a prerequisite; checklist in section 7 of this doc,
+including the MANIFEST anchor shift and `gate-ledger.md:111`. Door: a
+seeds-axis re-record, post-RC.

@@ -30,10 +30,10 @@ items
     never ran (darwin/arm64, valgrind.yaml unregistered off bartcore)
     - rides the first nightly after bartcore reaches main; per-push CI
     sanitizers cover the tinytest file under instrumented R meanwhile.
-  bcf-baseline-cross-host: exempt the BCF snapshot channels under a
-    cross-host flag and re-record bcf-equivalence at the RC tip with
-    summaries (docs/plans/prerc-surface-freeze.md D7); absorbs the
-    cross-host half of equivalence-harness-statistical-mode.
+  bcf-baseline-cross-host: cross-host mode LANDED 3f532af2 in
+    bcf-equivalence.R and multinomial-equivalence.R
+    (docs/plans/bcf-cross-host.md; prerc-surface-freeze.md D7).
+    Remaining: the RC-tip re-record refresh.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -74,20 +74,20 @@ items
     statChannels draws against the baseline's recorded summaries,
     |z| > 4 fails) on a bitwise mismatch; a mismatch outside
     statChannels (a point-in-time snapshot, an accept/reject verdict)
-    still gates directly. REMAINING: the multinomial half closed at
-    the level-centering fix - multinomial-equivalence-4d9a3337.rds
-    carries summaries - but bcf-equivalence-6e3b9fb8.rds still
-    predates them, so a cross-host x86 CI run on THAT gate degrades
-    loudly rather than passing statistically until it is re-recorded
-    (a re-record is only valid from the recording host); AND a
-    re-record alone is not sufficient: the non-statChannels entries
-    (mu, tau, glue, varcount, varcount.tau; forestFits, varcount,
-    accepted, installed) are live-sampler final-state snapshots that
-    mismatch bitwise across hosts by construction, so a cross-host
-    pass needs a further design decision - exempt snapshot channels
-    under an explicit cross-host flag, or convert them to draws-axis
-    recordings at a re-record - neither taken here. CI legs stay
-    default-branch-gated regardless.
+    still gates directly. CLOSED: the multinomial half closed at the
+    level-centering fix (multinomial-equivalence-4d9a3337.rds carries
+    summaries); the bcf half closed with the cross-host mode LANDED
+    3f532af2 (docs/plans/bcf-cross-host.md) - both harnesses gain a
+    --cross-host compare-only flag exempting the snapshot channels
+    (mu, tau, glue, varcount.tau, accepted, installed) under a
+    two-tier verdict: tier 1 LOCKED relative-deviation bound is the
+    gate, tier 2 a labeled-weak statistical fallback. exact-gates.yaml
+    runs both compares on every push; equivalence.yaml carries the
+    same tokens for when it goes live. Remaining, both doors open at
+    docs/plans/bcf-cross-host.md: the RC-tip re-record refresh (a
+    pin, not a prerequisite - the current .rds already suffices), and
+    a post-RC seeds-axis re-record replacing the single-chain
+    autocorrelated draws with independent per-scenario seeds.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
