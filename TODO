@@ -121,8 +121,8 @@ items
     Remaining doors: formal heredity (ensemble lattice prior) - value
     gate lifted, enabling functional-ANOVA BART (arXiv 2509.03317),
     for which dbarts already ships the hard-constraint half; soft
-    path-dependent penalties, gate STANDS - no model surfaced.
-    decision-gated.
+    path-dependent penalties, gate STANDS - no model surfaced. Formal
+    heredity is the first post-1.0 arc (VD 2026-08-26), not pre-RC.
   monotone-leaf-branch-fill: CLOSED, not adopted; benched 2026-08-26, no
     effect (within noise; fillBottom 0.18% of monotone run). Bitwise;
     door: coneProbability's quadrature; see archive/monotone-branch-fill
