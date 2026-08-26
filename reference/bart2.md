@@ -138,7 +138,7 @@ extract(
 # S3 method for class 'bartHurdle'
 fitted(
     object, type = c("ev", "ppd", "prob", "bart"),
-    sample = "train", ci.level = NULL, ...)
+    ci.level = NULL, ...)
 
 # S3 method for class 'bartHurdle'
 predict(
@@ -153,7 +153,7 @@ print(x, ...)
 residuals(object, type = "ev", ...)
 
 # S3 method for class 'bartMultinomial'
-plot(x, cols = NULL, plquants = c(0.05, 0.95), ...)
+plot(x, plquants = c(0.05, 0.95), cols = NULL, ...)
 
 # S3 method for class 'bartOrdinal'
 plot(x, plquants = c(0.05, 0.95), cols = NULL, ...)
@@ -1001,7 +1001,10 @@ print(x, ...)
 
 - sample:
 
-  Either `"train"` or `"test"`.
+  Either `"train"` or `"test"`. It is `extract`'s own argument (and
+  `fitted`'s, on the families that still carry it - fitted is always the
+  training rows); refused by name on `predict`, whose stored train and
+  test channels are `extract`'s `sample` instead.
 
 - vars:
 
@@ -1058,7 +1061,11 @@ print(x, ...)
   is the ordinary 3-column matrix. `bartHurdle`'s `ci.level` is
   documented under
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) directly,
-  since it never carries a K margin.
+  since it never carries a K margin. Refused, by name, on `residuals`
+  (as [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `ci.level` item); on `bartMultinomial` and `bartOrdinal` also refused,
+  by name, with `type = "class"` - a class prediction is a label rather
+  than a quantity with a credible band.
 
 ## Formula Terms
 
@@ -1222,34 +1229,38 @@ per posterior draw the same way `extract(object, type = "ppd")` does;
 `type = "bart"` and `type = "forest"` are named only to be refused, for
 the non-identification reason above; `type = "class"` returns the same
 argmax factor `fitted(object, type = "class")` does, over the
-probability draws `predict` itself replays, and paired with `ci.level`
-returns the credible band on those draws instead, taken before the class
-reduction. `offset` supplies the per-category shift at the new rows,
-required on a fit trained with an `offset` and reproducing `yhat.train`
-when the training offset is passed back at the training rows.
-`residuals(object)` returns an n \\\times\\ K matrix, the observed
-proportion (an indicator for a factor response, `y / rowSums(y)` for a
-count-matrix one) minus the fitted probability in `fitted(object)`, per
-category. `extract`'s `combineChains` (default `TRUE`) reshapes
-`"ev"`/`"ppd"`/`"loglik"` to a combined or per-chain layout, exactly as
-`extract.bart`'s does. `fitted`/`predict`'s `ci.level` returns an
-(observation \\\times\\ K \\\times\\ 3) array of
-`est`/`ci.lower`/`ci.upper` instead of a 3-column matrix, since a
-category margin survives alongside the observation one.
-`extract(object, type = "loglik")` is the multinomial log-density of the
-observed row (its coefficient included, so it reduces to \\\log p\_{i,
-y_i}\\ for a one-trial row), extract-only, `sample = "test"` refused by
-name, shaped like `"ppd"` (the K margin dropped) - loo/WAIC on it is
-leave-one-*row*-out, since the likelihood unit is the whole count row.
-`forest`/`contribution` on `extract`/`predict`, `sample` on `fitted`,
-`type` on `residuals`, and `vars` on `summary` are all refused by name
-rather than silently ignored: none is meaningful on this K-widened,
-non-identified-latent shape. `plot(object)` adds a second panel to the
-per-category trace: the posterior median and interval of the predicted
-probability of each observation's OWN observed category against that
-median (a count response with multi-trial rows instead plots the
-observed proportion \\y\_{ik} / n_i\\ against the interval of the drawn
-\\p\_{ik}\\, one point per row-category cell). `plotTree` and
+probability draws `predict` itself replays; paired with `ci.level` it is
+refused by name instead - a class prediction is a label rather than a
+quantity with a credible band. `offset` supplies the per-category shift
+at the new rows, required on a fit trained with an `offset` and
+reproducing `yhat.train` when the training offset is passed back at the
+training rows. `residuals(object)` returns an n \\\times\\ K matrix, the
+observed proportion (an indicator for a factor response,
+`y / rowSums(y)` for a count-matrix one) minus the fitted probability in
+`fitted(object)`, per category. `extract`'s `combineChains` (default
+`TRUE`) reshapes `"ev"`/`"ppd"`/`"loglik"` to a combined or per-chain
+layout, exactly as `extract.bart`'s does; refused by name on `fitted`
+and `residuals`, which always summarize the combined draws.
+`fitted`/`predict`'s `ci.level` returns an (observation \\\times\\ K
+\\\times\\ 3) array of `est`/`ci.lower`/`ci.upper` instead of a 3-column
+matrix, since a category margin survives alongside the observation one;
+refused by name on `residuals` (as
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+`ci.level` item). `extract(object, type = "loglik")` is the multinomial
+log-density of the observed row (its coefficient included, so it reduces
+to \\\log p\_{i, y_i}\\ for a one-trial row), extract-only,
+`sample = "test"` refused by name, shaped like `"ppd"` (the K margin
+dropped) - loo/WAIC on it is leave-one-*row*-out, since the likelihood
+unit is the whole count row. `forest`/`contribution` on
+`extract`/`predict`, `sample` on `fitted`, `type` on `residuals`, and
+`vars` on `summary` are all refused by name rather than silently
+ignored: none is meaningful on this K-widened, non-identified-latent
+shape. `plot(object)` adds a second panel to the per-category trace: the
+posterior median and interval of the predicted probability of each
+observation's OWN observed category against that median (a count
+response with multi-trial rows instead plots the observed proportion
+\\y\_{ik} / n_i\\ against the interval of the drawn \\p\_{ik}\\, one
+point per row-category cell). `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name (a multinomial fit's trees live on its sampler; it
 has no hazard channel). `as_draws_array`/`as_draws_df` (posterior, if
@@ -1298,14 +1309,16 @@ indexing `levels`). `predict(object, newdata)` requires
 `keepTrees = TRUE` and returns the probability draws at `newdata`
 (`type = "bart"` the replayed latent; `type = "ppd"` category draws;
 `type = "class"` the argmax ordered factor
-`fitted(object, type = "class")` returns, over the replayed draws, with
-`ci.level` instead returning the band on those draws taken before the
-class reduction); when `newdata` matches the fit-time `test` it
-reproduces `yhat.test`. `residuals(object)` returns the n \\\times\\ K
-matrix of observed-indicator minus fitted probability. `extract`'s
-`combineChains` (default `TRUE`) and `fitted`/`predict`'s `ci.level`
-work as for `bartMultinomial` above, including the (observation
-\\\times\\ K \\\times\\ 3) interval shape for a K-margined `type`.
+`fitted(object, type = "class")` returns, over the replayed draws;
+paired with `ci.level` it is refused by name instead, for the same
+reason `bartMultinomial` refuses it); when `newdata` matches the
+fit-time `test` it reproduces `yhat.test`. `residuals(object)` returns
+the n \\\times\\ K matrix of observed-indicator minus fitted
+probability. `extract`'s `combineChains` (default `TRUE`) and
+`fitted`/`predict`'s `ci.level` work as for `bartMultinomial` above,
+including the (observation \\\times\\ K \\\times\\ 3) interval shape for
+a K-margined `type`, the refusal of both on `residuals`, and the refusal
+of `combineChains` on `fitted`/`residuals`.
 `extract(object, type = "loglik")` is \\\log P(y_i \mid \eta,
 \gamma)\\ - exactly the stored category probability at the observed
 level, since `yhat.train` already holds the cumulative-probit
@@ -1362,14 +1375,16 @@ the fit-time `test` and no offset is given it reproduces `yhat.test`.
 count per observation. `extract`'s `combineChains` and
 `fitted`/`predict`'s `ci.level` (a plain 3-column matrix here - this
 family has no K margin) work as for
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
-`extract(object, type = "loglik")` is \\\mathrm{dnbinom}(y_i,
-\mathrm{size} = r_s, \mathrm{mu} = \mu\_{s,i})\\, extract-only,
-`sample = "test"` refused by name. `forest`/`contribution` on
-`extract`/`predict` and `sample` on `fitted` are refused by name.
-`plot(object)` traces the integer-gridded dispersion \\r\\ (a step plot;
-there is no burn-in channel to bridge from, since `bart2` drives one
-`n.burn`/`n.samples` sweep for this family) alongside
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), including
+`combineChains`'s refusal on `fitted`/`residuals` and `ci.level`'s on
+`residuals`. `extract(object, type = "loglik")` is
+\\\mathrm{dnbinom}(y_i, \mathrm{size} = r_s, \mathrm{mu} =
+\mu\_{s,i})\\, extract-only, `sample = "test"` refused by name.
+`forest`/`contribution` on `extract`/`predict` and `sample` on `fitted`
+are refused by name. `plot(object)` traces the integer-gridded
+dispersion \\r\\ (a step plot; there is no burn-in channel to bridge
+from, since `bart2` drives one `n.burn`/`n.samples` sweep for this
+family) alongside
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
 gaussian observed-vs-fitted panel, applied to the counts. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
@@ -1388,30 +1403,35 @@ under the `family` argument above, `type = "prob"` the occupancy
 probability, `type = "link"`/`"log"` the positive part's log-scale
 linear predictor, and `type = "ppd"` the bimodal predictive draw.
 `ci.level` on `fitted`/`predict` works as for
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
-`residuals(object)` returns the observed response minus `fitted(object)`
-on the natural scale. `extract(object, type = "loglik")` is the density
-of \\y_i\\ at its own natural scale (a \\-\log y_i\\ Jacobian against
-the components' log-scale channels, so it is comparable to any other
-model OF y, and differs from a log-y computation by the constant
-\\-\sum\_{y_i \> 0} \log y_i\\): \\\log(1 - \pi\_{s,i})\\ where \\y_i =
-0\\, else \\\log \pi\_{s,i} + \mathrm{dnorm}(\log y_i, f\_{s,i},
-\sigma_s, \log = \mathrm{TRUE}) - \log y_i\\, with NO truncation (the
-lognormal positive part's support is already \\(0, \infty)\\, unlike a
-count hurdle's positive part, which would have to be truncated at zero -
-the two rules must not be conflated); it is NOT the sum of the two
-components' own `"loglik"` channels, extract-only, `sample = "test"`
-refused by name. \\\pi\\ here is \\P(Y \> 0 \mid x)\\, the complement of
-the zero probability other implementations report (brms's `hu`), so the
-zero branch is \\\log(1 - \pi)\\ rather than \\\log \mathrm{hu}\\; a
-formula ported from one of those must be inverted.
-`forest`/`contribution` on `extract`/`predict` are refused by name (each
-component is a single forest). `plot(object)` draws four panels: the
-positive component's sigma trace; the occupancy probability \\\pi(x)\\;
-the positive part on the scale it fit (\\\log y\\ over the \\y \> 0\\
-rows); and the composed natural-scale mean \\E\[y \mid x\] = \pi e^{f +
-\sigma^2/2}\\ over all n rows, the only panel showing the model this
-family exists for. `plotTree` and
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), including
+its refusal on `residuals`; `combineChains` is likewise refused by name
+on `fitted`/`residuals`, and `fitted`'s own `sample` formal is gone
+outright - a hurdle fit has no separate test channel, so `fitted` is
+always the training rows and a supplied `sample` is refused by name, as
+it already was on `extract`. `residuals(object)` returns the observed
+response minus `fitted(object)` on the natural scale.
+`extract(object, type = "loglik")` is the density of \\y_i\\ at its own
+natural scale (a \\-\log y_i\\ Jacobian against the components'
+log-scale channels, so it is comparable to any other model OF y, and
+differs from a log-y computation by the constant \\-\sum\_{y_i \> 0}
+\log y_i\\): \\\log(1 - \pi\_{s,i})\\ where \\y_i = 0\\, else \\\log
+\pi\_{s,i} + \mathrm{dnorm}(\log y_i, f\_{s,i}, \sigma_s, \log =
+\mathrm{TRUE}) - \log y_i\\, with NO truncation (the lognormal positive
+part's support is already \\(0, \infty)\\, unlike a count hurdle's
+positive part, which would have to be truncated at zero - the two rules
+must not be conflated); it is NOT the sum of the two components' own
+`"loglik"` channels, extract-only, `sample = "test"` refused by name.
+\\\pi\\ here is \\P(Y \> 0 \mid x)\\, the complement of the zero
+probability other implementations report (brms's `hu`), so the zero
+branch is \\\log(1 - \pi)\\ rather than \\\log \mathrm{hu}\\; a formula
+ported from one of those must be inverted. `forest`/`contribution` on
+`extract`/`predict` are refused by name (each component is a single
+forest). `plot(object)` draws four panels: the positive component's
+sigma trace; the occupancy probability \\\pi(x)\\; the positive part on
+the scale it fit (\\\log y\\ over the \\y \> 0\\ rows); and the composed
+natural-scale mean \\E\[y \mid x\] = \pi e^{f + \sigma^2/2}\\ over all n
+rows, the only panel showing the model this family exists for.
+`plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name, naming `object$occupancy$fit`/`object$positive$fit`
 as the route to the trees. `as_draws_array`/`as_draws_df` return the
@@ -1495,7 +1515,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001231
+#> total seconds in loop: 0.001396
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1542,7 +1562,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001300
+#> total seconds in loop: 0.001584
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

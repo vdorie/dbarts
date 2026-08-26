@@ -151,7 +151,8 @@ xbart(
   the node-mean prior standard deviation. If `NULL`, the grid default of
   2 is used for every response family. Binary responses do not inherit
   `bart2`'s Chi hyperprior default: a hyperprior is not a grid, so
-  taking it here would leave the `k` axis a single cell. Hyperprior
+  taking it here would drop the `k` axis from the result array entirely,
+  rather than leave it a swept dimension (see ‘Value’). Hyperprior
   crossvalidation not possible at this time. A hyperprior `k` is held,
   not swept, and is DRAWN every sweep in every cell, so the reported
   loss is computed under a shrinkage that moves within each fit rather
@@ -243,7 +244,13 @@ xbart(
 - missing:
 
   How missing values in the predictors enter the model; as in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), with
+  one exception: `xbart`'s internal per-fold sampler construction does
+  not go through the entry points that check it, so the
+  test-`NA`-on-a-training-complete-column refusal described there does
+  not apply here - a held-out row that is `NA` on a column complete
+  within its own fold's training rows is never refused; it silently
+  takes that rule's default (left) branch instead.
 
 - node.prior:
 
@@ -334,12 +341,24 @@ continuous responses.
 
 ## Value
 
-An array of dimensions `n.reps` \\\times\\ `length(n.trees)` \\\times\\
-`length(k)` \\\times\\ `length(power)` \\\times\\ `length(base)`. If
-`drop` is `TRUE`, dimensions of length 1 are omitted. If all
-hyperparameters are of length 1, then the result will be a vector of
-length `n.reps`. When the result is an array, the `dimnames` of the
-result shall be set to the corresponding hyperparameters.
+An array with up to six dimensions, in order `rep` (length `n.reps`),
+`n.trees`, `k`, `power`, `base`, and `loss`. `rep` is always present.
+`n.trees`, `power`, and `base` are each omitted when `drop` is `TRUE`
+and the corresponding argument has length 1; with `drop = FALSE` they
+are always present. `k` follows a different rule: it is omitted whenever
+`k` was NOT given as a numeric grid (i.e. it resolved to a hyperprior;
+see the `k` argument above) REGARDLESS of `drop`, and otherwise follows
+the same drop-if-length-1 rule as the other three. The trailing `loss`
+dimension, sized to however many values a single call to `loss` returns,
+is present only when that count is greater than one - independent of
+`drop` entirely; the default losses and an ordinary scalar-returning
+custom `loss` never contribute it. When none of the above survive, the
+result collapses to a plain vector of length `n.reps`. When the result
+remains an array, its `dimnames` name the swept values on each surviving
+hyperparameter axis - exact integer labels for `n.trees`, values rounded
+to 2 significant digits for the double-valued `k`/`power`/`base` axes;
+the `loss` axis, when present, carries no per-slot names, and neither
+does `rep`.
 
 For method `"k-fold"`, each element is an average across the \\K\\ fits.
 For `"random subsample"`, each element represents a single fit.

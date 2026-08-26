@@ -663,7 +663,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   multiple chains, matrix) that it fills in place and returns instead of
   allocating a new one; its length must equal the number of observations
   times the number of chains. Omit it to let `getLatents` allocate.
-  Accepted but not used by `getSigmas` and `getSumsOfSquaredResiduals`.
+  Refused by name by `getSigmas` and `getSumsOfSquaredResiduals`: both
+  readers allocate their own vector, and filling a caller's buffer in
+  place is `getLatents`'s contract alone.
 
 - treeNum:
 
@@ -1118,6 +1120,31 @@ is `FALSE`, the function can be used to obtain the likelihood as part of
 a proposed new set of covariates in a Metropolis-Hastings step in a
 full-Bayes sampler. This would typically be followed by a call to
 `setPredictor` if the step is accepted.
+
+Its return shape mirrors `run()`'s own `train`/`test` channel for a
+single-forest sampler, with two exceptions. An amplitude-coupled
+(multi-forest, including a Bayesian causal forest) sampler refuses
+`predict` outright rather than answering here - see
+`getFitsWithoutOffset` below, which already records the same refusal -
+so everything that follows describes a single-forest or multinomial
+sampler only. For a single-forest sampler: with saved trees to replay
+(`keepTrees` `TRUE` and at least one recorded draw), the result is an
+n.test x n.samples x n.chains array, the trailing chain dimension
+dropped to a plain n.test x n.samples matrix when `n.chains` is `1`;
+without saved trees to replay, the CURRENT (live) trees are replayed
+once per chain instead, with no samples axis at all - a plain vector of
+length n.test at one chain, an n.test x n.chains matrix otherwise. A
+`family = "multinomial"` sampler's surface reports the K category
+probabilities instead: an n.test x K x n.samples (x n.chains) array, the
+K axis inserted between the rows and the samples. Unlike the
+single-forest case, this samples axis is never dropped: it is sized `1`
+rather than omitted when there are no saved trees to replay. A
+heteroscedastic (variance forest) single-forest sampler with saved trees
+to replay returns not a bare array but a named list
+`list(mean = ..., variance = ...)`, both members the single-forest shape
+above; without saved trees there is nothing for the variance forest to
+replay, so the bare mean array returns alone, exactly as a
+non-heteroscedastic sampler's would.
 
 For `getTrees`, a `data.frame` with one row per tree node in
 depth-first, left-hand-side pre-order, with columns `chain` (present

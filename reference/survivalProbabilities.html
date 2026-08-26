@@ -135,14 +135,19 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     not seen in training draws its intercept from \(N(0, \tau)\). Ignored
     (and unnecessary) when <code>newdata</code> is <code>NULL</code>. Supplied by name
     only - it follows <code>...</code> in the signature, so it is never matched
-    positionally; a missing one is refused, naming itself.</p></dd>
+    positionally; a missing one is refused, naming itself. Refused by name on
+    the <code>bart</code> method, which has no grouping.</p></dd>
 
   <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Not used; for compatibility with the generic.</p></dd>
+<dd><p>Not a formal on either method: a name belonging to a sibling generic
+    (<code>type</code>, <code>sample</code>, <code>ci.level</code>, <code>offset</code>,
+    <code>weights</code>, <code>n.threads</code>, <code>forest</code>, <code>contribution</code>,
+    <code>bases</code>) is refused by name rather than silently ignored, since this
+    method returns the draws of \(S(t \mid x)\) at <code>times</code> alone.</p></dd>
 
 </dl></div>
     <div class="section level2">

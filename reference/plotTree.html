@@ -126,7 +126,11 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Additional arguments, including <code>treePlotPars</code> (a named numeric
     vector controlling <code>nodeHeight</code>, <code>nodeWidth</code>, and
-    <code>nodeGap</code>) and further arguments passed on to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.</p></dd>
+    <code>nodeGap</code>) and further arguments passed on to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.
+    <code>sample</code>/<code>chain</code> are refused by name, on every method including
+    <code>dbartsSampler</code>'s: they partial-match this method's own
+    <code>sampleNum</code>/<code>chainNum</code> and would otherwise draw a different
+    tree than intended.</p></dd>
 
 </dl></div>
     <div class="section level2">

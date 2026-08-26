@@ -80,6 +80,10 @@ plotTree(object, ...)
   controlling `nodeHeight`, `nodeWidth`, and `nodeGap`) and further
   arguments passed on to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html).
+  `sample`/`chain` are refused by name, on every method including
+  `dbartsSampler`'s: they partial-match this method's own
+  `sampleNum`/`chainNum` and would otherwise draw a different tree than
+  intended.
 
 ## Value
 

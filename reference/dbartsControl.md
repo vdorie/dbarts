@@ -3,6 +3,13 @@
 Convenience function to create a control object for use with a
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) sampler.
 
+Every integer-valued argument here (`n.samples`, `n.cuts`, `n.burn`,
+`n.trees`, `n.chains`, `n.threads`, `n.thin`, `printEvery`,
+`printCutoffs`, `seed`) refuses a fractional double, naming the
+argument, rather than silently truncating it - the same whole-number
+rule every other count formal in the package follows, since it too is
+coerced through this construction.
+
 ## Usage
 
 ``` r

@@ -83,6 +83,7 @@ Fit BART models to fixed data.
 - [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`plot(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`predict(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`extract()`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`fitted(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`residuals(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
@@ -123,6 +124,7 @@ Fit BART models to fixed data.
   [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   : Bayesian Additive Regression Trees with Random Effects
 - [`xbart()`](https://vdorie.github.io/dbarts/reference/xbart.md) :

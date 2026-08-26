@@ -82,7 +82,8 @@ survivalProbabilities(object, ...)
   group not seen in training draws its intercept from \\N(0, \tau)\\.
   Ignored (and unnecessary) when `newdata` is `NULL`. Supplied by name
   only - it follows `...` in the signature, so it is never matched
-  positionally; a missing one is refused, naming itself.
+  positionally; a missing one is refused, naming itself. Refused by name
+  on the `bart` method, which has no grouping.
 
 - combineChains:
 
@@ -91,7 +92,11 @@ survivalProbabilities(object, ...)
 
 - ...:
 
-  Not used; for compatibility with the generic.
+  Not a formal on either method: a name belonging to a sibling generic
+  (`type`, `sample`, `ci.level`, `offset`, `weights`, `n.threads`,
+  `forest`, `contribution`, `bases`) is refused by name rather than
+  silently ignored, since this method returns the draws of \\S(t \mid
+  x)\\ at `times` alone.
 
 ## Details
 

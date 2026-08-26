@@ -126,10 +126,11 @@ dbarts(
 
 - n.samples:
 
-  A positive integer setting the default number of posterior samples to
-  be returned for each run of the sampler. Can be overriden at run-time.
-  See
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  A non-negative integer (`0` accepted) setting the default number of
+  posterior samples to be returned for each run of the sampler. Can be
+  overriden at run-time. See
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  `n.samples` item for the full contract.
 
 - tree.prior:
 

@@ -62,6 +62,9 @@ predict(
     n.threads,
     ...)
 
+# S3 method for class 'bart'
+print(x, ...)
+
 extract(object, ...)
 # S3 method for class 'bart'
 extract(
@@ -76,8 +79,8 @@ extract(
 fitted(
     object,
     type = c("ev", "ppd", "bart"),
-    sample = c("train", "test"),
     ci.level = NULL,
+    sample = c("train", "test"),
     ...)
 
 # S3 method for class 'bart'
@@ -254,7 +257,12 @@ residuals(object, type = "ev", ...)
 
 - ntree:
 
-  The number of trees in the sum-of-trees formulation.
+  The number of trees in the sum-of-trees formulation. Like every count
+  on this page (`nskip`, `ndpost`, `numcut`, `keepevery`, `printevery`,
+  `nthread`, `nchain`, `printcutoffs`), a fractional value is refused,
+  naming the argument, rather than silently truncated; see
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  for the shared whole-number rule.
 
 - ndpost:
 
@@ -533,7 +541,9 @@ residuals(object, type = "ev", ...)
   Either `"train"` or `"test"`. `"test"` is refused, by name, when
   `type` is `"forest"`: an amplitude-coupled fit has no test fits (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `forests =`).
+  `forests =`). It is `extract`'s and `fitted`'s own argument - `fitted`
+  is always the training rows - and is refused by name on `predict`,
+  whose stored train and test channels are `extract`'s `sample` instead.
 
 - forest:
 
@@ -541,7 +551,9 @@ residuals(object, type = "ev", ...)
   forest(s) to return, by 1-based index or by margin name (`"forest1"`,
   `"forest2"`, ...); `NULL` (the default) returns every forest. The
   returned array always keeps the trailing forest margin, subset to the
-  requested forests, even when only one is selected.
+  requested forests, even when only one is selected. Selecting a forest
+  outside `type = "forest"` is refused by name: every other arm has
+  already recombined the forests into the location it reports.
 
 - bases:
 
@@ -588,14 +600,23 @@ residuals(object, type = "ev", ...)
   yields a credible interval for the conditional mean (a probability for
   binary responses), `"ppd"` a prediction interval that additionally
   carries the residual noise (and so is wider), and `"bart"` a credible
-  interval on the latent scale.
+  interval on the latent scale. Refused, by name, with
+  `type = "forest"` - that arm reports each forest's own total before
+  any basis - and on `residuals`, where it would band a constant minus
+  an increasing triple and so mislabel two of its three columns; take
+  `y - fitted(object, ci.level = )` instead, where the reversal is
+  visible at the call site.
 
 - ...:
 
   Additional arguments passed on to `plot` (via `plot.bart`), or to the
   sampler's `getTrees` method via `extract` when `type` is `"trees"`
   (`chainNums`, `sampleNums`, `treeNums`, `newdata`; see ‘Extracting
-  Trees’ below). Not used in `predict`.
+  Trees’ below) - the one place a name belonging to a sibling method is
+  still accepted rather than refused. Elsewhere, a name that is a formal
+  on `predict`, `extract`, `fitted`, or `residuals` but foreign to the
+  method actually called is refused by name rather than silently
+  discarded.
 
 ## Details
 
@@ -676,6 +697,8 @@ model.
 fit this is \\y - P(Y = 1 \mid x)\\. Binary fits do not have
 `yhat.train.mean`/`yhat.test.mean` components (see ‘Value’); use
 `fitted` to obtain the equivalent posterior-mean probabilities directly.
+`residuals` is always against the training response, so `sample` is
+refused by name; `ci.level` is refused too (see its own entry above).
 
 ### Saving
 
@@ -973,6 +996,10 @@ For binary response fits, only this second kind of plot is drawn, with
 the posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and
 its posterior interval on the vertical axis.
 
+For `print.bart`, the fit itself (`x`), returned invisibly; the call and
+a short synopsis (family, chain/tree/burn counts, kept-draw count) print
+to the console as the side effect.
+
 ## References
 
 Chipman, H., George, E., and McCulloch, R. (2010) BART: Bayesian
@@ -1074,7 +1101,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.170324
+#> total seconds in loop: 0.210243
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

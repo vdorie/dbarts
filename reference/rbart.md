@@ -39,8 +39,8 @@ plot(
 fitted(
     object,
     type = c("ev", "ppd", "bart", "ranef"),
-    sample = c("train", "test"),
     ci.level = NULL,
+    sample = c("train", "test"),
     ...)
 
 # S3 method for class 'rbart'
@@ -60,6 +60,9 @@ predict(
     ci.level = NULL,
     n.threads,
     ..., group.by)
+
+# S3 method for class 'rbart'
+print(x, ...)
 
 # S3 method for class 'rbart'
 residuals(object, type = "ev", ...)
@@ -210,7 +213,9 @@ residuals(object, type = "ev", ...)
 - sample:
 
   One of `"train"` or `"test"`, referring to the training or test
-  samples respectively.
+  samples respectively. It is `extract`'s and `fitted`'s own argument,
+  and is refused by name on `predict`, whose stored train and test
+  channels are `extract`'s `sample` instead.
 
 - ci.level:
 
@@ -218,7 +223,9 @@ residuals(object, type = "ev", ...)
   As in [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
   `NULL` (the default) returns the posterior mean, while a level returns
   a matrix of `est`, `ci.lower`, and `ci.upper`, with the interval kind
-  following `type`.
+  following `type`. Refused, by name, on `residuals` - see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `ci.level` item for why.
 
 - x, plquants, cols:
 
@@ -270,8 +277,15 @@ See the generics section of
 
 An object of class `rbart`. Contains all of the same elements of an
 object of class
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), as well as
-the elements:
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), with one
+exception: `fit`, when present (`keepTrees`/`keepSampler` `TRUE`), is
+always a LIST rather than `bart`'s bare sampler object - a
+length-`n.chains` list of per-chain samplers on the general (custom
+`prior`/`callback`) fitting path, or a length-one list wrapping a single
+sampler that ran every chain together on the built-in-prior,
+no-`callback` path (the common case). `n.chains` is always present
+alongside it, whether or not `fit` is kept. `rbart_vi` also has the
+elements:
 
 - ranef:
 
@@ -307,6 +321,10 @@ the elements:
 - `callback`:
 
   Optional results of `callback` function.
+
+For `print.rbart`, the fit itself (`x`), returned invisibly, printed the
+same way as `print.bart` (see
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)).
 
 ## References
 
@@ -381,7 +399,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000324
+#> total seconds in loop: 0.000430
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -394,7 +412,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001628
+#> total seconds in loop: 0.002183
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -439,7 +457,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000472
+#> total seconds in loop: 0.000600
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -452,7 +470,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002297
+#> total seconds in loop: 0.002854
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 
