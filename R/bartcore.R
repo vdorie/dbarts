@@ -1056,6 +1056,11 @@ resolveForestIndex <- function(forest) {
   forest - 1L
 }
 
+# The sampler's forest count. A COUNT, not a capability probe:
+# samplerCarriesAmplitudes and samplerCarriesCounts each answer only for their
+# own model, and neither sees a plain single-forest sampler.
+bartcoreNumForests <- function(ptr) .Call(C_dbarts_bartcore_numForests, ptr)
+
 bartcoreSetModel <- function(bcSampler, model, data) {
   invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, data))
 }

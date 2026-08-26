@@ -99,6 +99,18 @@ ppdNew <- predict(fit, x.test, type = "ppd")
 expect_equal(dim(ppdNew), c(n.samples, 10L))
 expect_true(all(ppdNew %in% 1:3))
 
+# --- predict type = "class": the same ordered-factor argmax as fitted, must
+# --- sit after the ci.level block ---
+predClass <- predict(fit, x.test, type = "class")
+expect_true(is.ordered(predClass))
+expect_identical(levels(predClass), lv)
+expect_equal(length(predClass), nrow(x.test))
+expect_identical(predict(fit, x, type = "class"), fitted(fit, type = "class"))
+expect_identical(
+  predict(fit, x.test, type = "class", ci.level = 0.9),
+  predict(fit, x.test, type = "ev", ci.level = 0.9)
+)
+
 # --- print names the family and the ordered levels ---
 
 printed <- capture.output(print(fit))

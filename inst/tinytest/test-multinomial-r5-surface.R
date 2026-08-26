@@ -104,6 +104,14 @@ expect_equal(apply(samples$train[,, 1L], 1L, sum), rep(1.0, n))
 expect_identical(dim(samples$test), c(nTest, K, 8L))
 expect_true(all(samples$train > 0 & samples$train < 1))
 
+# forest = NULL stacks the K per-category forests with the forest margin
+# between the rows and the chains, on this K-forest softmax sampler
+forestFitsAll <- sampler$getForestFits()
+expect_equal(dim(forestFitsAll), c(n, K, 1L))
+for (k in seq_len(K)) {
+  expect_equal(c(forestFitsAll[, k, ]), c(sampler$getForestFits(k)))
+}
+
 # --- a grouped-count response ------------------------------------------------
 set.seed(11)
 grouped <- matrix(rpois(n * K, 2), n, K)

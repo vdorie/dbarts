@@ -4045,6 +4045,16 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   return R_NilValue;
 }
 
+// The sampler's forest count, the R twin of dbarts_sampler_numForests. The R5
+// readers stack their per-forest reads at forest = NULL and need the bound; a
+// capability probe cannot supply it, since a plain single-forest sampler
+// answers no to every one of them.
+SEXP bartcore_numForests(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  return Rf_ScalarInteger(
+    static_cast<int>(holder.sampler->shape().numForests));
+}
+
 // One forest's amplitudes, its own q_f x numChains matrix, or - at a NULL
 // forest - the whole vector stacked forest-major, sum_f q_f x numChains, which
 // is the shape the run's own glue channel carries. The vector is RAGGED, forest

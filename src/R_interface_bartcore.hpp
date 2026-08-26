@@ -22,6 +22,7 @@ SEXP bartcore_setCategoryTestOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setForestBasis(SEXP ptr, SEXP forest, SEXP basis);
 SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_setActiveRows(SEXP ptr, SEXP active);
+SEXP bartcore_numForests(SEXP ptr);
 SEXP bartcore_getForestAmplitudes(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_getFitsWithoutOffset(SEXP ptr);

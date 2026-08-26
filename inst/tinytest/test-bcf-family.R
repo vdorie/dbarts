@@ -268,6 +268,26 @@ for (fit in list(probit, logistic)) {
 }
 expect_equal(length(kForest(yContinuous)$getLatents()), 0L)
 
+# forest = NULL stacks both per-forest readers with the forest margin between
+# the rows and the chains, on this two-forest sampler; predictor rownames stay
+# on margin 1 in both the single-forest and the stacked shape
+fitsAll <- probit$getForestFits()
+expect_equal(dim(fitsAll), c(n, 2L, 1L))
+expect_equal(c(fitsAll[, 1L, ]), c(probit$getForestFits(1L)))
+expect_equal(c(fitsAll[, 2L, ]), c(probit$getForestFits(2L)))
+
+countsAll <- probit$getForestVariableCounts()
+expect_equal(dim(countsAll), c(p, 2L, 1L))
+expect_equal(
+  unname(countsAll[, 1L, ]),
+  unname(c(probit$getForestVariableCounts(1L)))
+)
+expect_equal(
+  unname(countsAll[, 2L, ]),
+  unname(c(probit$getForestVariableCounts(2L)))
+)
+expect_identical(rownames(countsAll), colnames(x))
+
 # --- THE TWO DEFAULTS THEMSELVES, in their own transport slots. Everything
 # above reads them only after the calibration map has folded factor, anchor,
 # divisor and row norm into one number, so a confusion between the two channels

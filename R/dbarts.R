@@ -1688,10 +1688,33 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
-    getForestFits = function(forest) {
-      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
+    getForestFits = function(forest = NULL) {
+      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getForestFits, ptr, resolveForestIndex(forest))
+      if (!is.null(forest)) {
+        return(.Call(
+          C_dbarts_bartcore_getForestFits,
+          ptr,
+          resolveForestIndex(forest)
+        ))
+      }
+      # the bridge counts forests from 0, as resolveForestIndex converts to
+      numForests <- bartcoreNumForests(ptr)
+      blocks <- lapply(
+        seq_len(numForests),
+        function(f) .Call(C_dbarts_bartcore_getForestFits, ptr, f - 1L)
+      )
+      if (numForests == 1L) {
+        return(blocks[[1L]])
+      }
+      result <- array(
+        0.0,
+        c(nrow(blocks[[1L]]), numForests, ncol(blocks[[1L]]))
+      )
+      for (f in seq_len(numForests)) {
+        result[, f, ] <- blocks[[f]]
+      }
+      result
     },
     getFitsWithoutOffset = function() {
       "Returns the sampler's combined per-observation location on the RESPONSE scale and WITHOUT the installed offset, an n.observations x n.chains matrix; run()$train reports the same quantity with the offset folded in, so getFitsWithoutOffset() plus the installed offset is that value. This is the incremental read: getLatents() minus run()$train is biased, because the two are not on the same footing. Refused on a multinomial sampler, whose reported channels are per-category softmax probabilities rather than one additive location. Contrast getForestFits, which reports ONE forest's INTERNAL-scale totals."
@@ -1713,24 +1736,68 @@ dbartsSampler <- setRefClass(
         if (is.null(forest)) NULL else resolveForestIndex(forest)
       )
     },
-    getForestVariableCounts = function(forest) {
-      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains, with rows named by the predictor columns when data@x carries colnames. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
+    getForestVariableCounts = function(forest = NULL) {
+      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the predictors and the chains, n.predictors x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). Rows are named by the predictor columns when data@x carries colnames, on margin 1 in both shapes. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
-      counts <- .Call(
-        C_dbarts_bartcore_getForestVariableCounts,
-        ptr,
-        resolveForestIndex(forest)
-      )
+      if (is.null(forest)) {
+        numForests <- bartcoreNumForests(ptr)
+        blocks <- lapply(
+          seq_len(numForests),
+          function(f) {
+            .Call(C_dbarts_bartcore_getForestVariableCounts, ptr, f - 1L)
+          }
+        )
+        counts <- if (numForests == 1L) {
+          blocks[[1L]]
+        } else {
+          result <- array(
+            0L,
+            c(nrow(blocks[[1L]]), numForests, ncol(blocks[[1L]]))
+          )
+          for (f in seq_len(numForests)) {
+            result[, f, ] <- blocks[[f]]
+          }
+          result
+        }
+      } else {
+        counts <- .Call(
+          C_dbarts_bartcore_getForestVariableCounts,
+          ptr,
+          resolveForestIndex(forest)
+        )
+      }
       predictorNames <- colnames(data@x)
       if (!is.null(predictorNames)) {
         rownames(counts) <- predictorNames
       }
       counts
     },
-    getCalibration = function(forest = 1L) {
-      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), node.scale.factor, node.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two node.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force."
+    getCalibration = function(forest = NULL) {
+      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), node.scale.factor, node.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two node.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force. At the default forest = NULL, every forest's calibration is stacked with the forest margin LAST, n.chains x 12 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and the 'leaf.model' attribute are carried from the first forest, since both are properties of the sampler rather than of any one forest."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getCalibration, ptr, resolveForestIndex(forest))
+      if (!is.null(forest)) {
+        return(.Call(
+          C_dbarts_bartcore_getCalibration,
+          ptr,
+          resolveForestIndex(forest)
+        ))
+      }
+      numForests <- bartcoreNumForests(ptr)
+      blocks <- lapply(
+        seq_len(numForests),
+        function(f) .Call(C_dbarts_bartcore_getCalibration, ptr, f - 1L)
+      )
+      if (numForests == 1L) {
+        return(blocks[[1L]])
+      }
+      first <- blocks[[1L]]
+      result <- array(0.0, c(nrow(first), ncol(first), numForests))
+      for (f in seq_len(numForests)) {
+        result[,, f] <- blocks[[f]]
+      }
+      dimnames(result) <- list(NULL, colnames(first), NULL)
+      attr(result, "leaf.model") <- attr(first, "leaf.model")
+      result
     },
     setCalibration = function(
       prior.scale,

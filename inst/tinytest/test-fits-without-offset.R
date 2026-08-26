@@ -248,6 +248,13 @@ expect_error(fitsWithoutOffset(multinomial), pattern = "keepTrees")
 calibrationGauss <- samplerGauss$getCalibration(1L)
 forestFitsGauss <- samplerGauss$getForestFits(1L)
 expect_equal(dim(forestFitsGauss), c(n, 2L))
+# forest = NULL (the new default on both readers) is bitwise the forest = 1
+# read on a single-forest sampler
+expect_identical(samplerGauss$getForestFits(), forestFitsGauss)
+expect_identical(
+  samplerGauss$getForestVariableCounts(),
+  samplerGauss$getForestVariableCounts(1L)
+)
 expect_true(any(calibrationGauss[, "response.scale"] != 1))
 expect_equal(
   sweep(

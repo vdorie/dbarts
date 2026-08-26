@@ -225,6 +225,22 @@ expect_error(
   "non-identified and unrecorded"
 )
 
+# type = "class" is fitted()'s own argmax reduction, reached through predict's
+# own replay; it must sit AFTER the ci.level block, since paired with
+# ci.level it returns the same band type = "ev" does rather than a factor
+predClass <- predict(fitKeep, x.test, type = "class")
+expect_true(is.factor(predClass))
+expect_identical(levels(predClass), levels(y))
+expect_equal(length(predClass), nrow(x.test))
+expect_identical(
+  predict(fitKeep, x, type = "class"),
+  fitted(fitKeep, type = "class")
+)
+expect_identical(
+  predict(fitKeep, x.test, type = "class", ci.level = 0.9),
+  predict(fitKeep, x.test, type = "ev", ci.level = 0.9)
+)
+
 # ---- type= runs through validateType, so the predict.glm synonyms reach
 # these methods, and the two latent-scale values they name are refused with
 # a reason ----

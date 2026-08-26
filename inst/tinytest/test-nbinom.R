@@ -523,3 +523,11 @@ rm(
   predCi,
   restoredMfrow
 )
+
+# --- fitted(type = "ppd"): a Monte Carlo mean over ppd draws, near the
+# --- posterior mean of the same quantity at a loose tolerance - placed at
+# --- the file's end since it is the one fitted() arm that consumes RNG ---
+fittedPpd <- fitted(fit, type = "ppd")
+expect_equal(length(fittedPpd), n)
+expect_true(all(fittedPpd >= 0))
+expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)

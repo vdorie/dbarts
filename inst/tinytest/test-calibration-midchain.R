@@ -383,6 +383,27 @@ expect_equal(
   rep_len(bcfParams[[2L]][6L], 2L)
 )
 expect_true(all(is.nan(bcfCalibration2[, "amplitude.prior.scale"])))
+
+# forest = NULL stacks every forest's calibration with the forest margin LAST;
+# a single-forest sampler's NULL read is bitwise its forest = 1 read
+expect_identical(plain$getCalibration(), plain$getCalibration(1L))
+bcfCalibrationAll <- bcf$getCalibration()
+expect_equal(dim(bcfCalibrationAll), c(2L, 12L, 2L))
+# a slice drops the array-level attributes below, which is ordinary R
+# behavior and not part of what this reader promises - strip them from the
+# indexed reads before comparing the numbers and dimnames a slice DOES carry
+bcfCalibrationNoAttr <- bcfCalibration
+attr(bcfCalibrationNoAttr, "leaf.model") <- NULL
+bcfCalibration2NoAttr <- bcfCalibration2
+attr(bcfCalibration2NoAttr, "leaf.model") <- NULL
+expect_identical(bcfCalibrationAll[,, 1L], bcfCalibrationNoAttr)
+expect_identical(bcfCalibrationAll[,, 2L], bcfCalibration2NoAttr)
+expect_identical(colnames(bcfCalibrationAll), colnames(bcfCalibration))
+expect_identical(
+  attr(bcfCalibrationAll, "leaf.model"),
+  attr(bcfCalibration, "leaf.model")
+)
+
 # and the anchor s the map states every node scale against is recoverable from
 # the reported decomposition, which is the only route to it under gaussian,
 # where s is the data-dependent scaled response sd: the two forests recover

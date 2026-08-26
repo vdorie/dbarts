@@ -960,6 +960,24 @@ refuseMultinomialLatentType <- function(type) {
   invisible(NULL)
 }
 
+# The posterior-mean n x K probability matrix of a K-widened draws array
+# (observation margin next-to-last, category margin last in every chain
+# layout), and its argmax as a factor over the fit's own levels - the class
+# prediction fitted() and predict() share, so the two cannot drift.
+meanCategoryProbabilities <- function(probs, levels) {
+  d <- length(dim(probs))
+  meanProbs <- apply(probs, c(d - 1L, d), mean)
+  dimnames(meanProbs) <- list(NULL, levels)
+  meanProbs
+}
+categoryFromMeanProbabilities <- function(meanProbs, levels, ordered = FALSE) {
+  factor(
+    levels[max.col(meanProbs, ties.method = "first")],
+    levels = levels,
+    ordered = ordered
+  )
+}
+
 # 'forest'/'contribution' select among an amplitude-coupled fit's co-fit
 # forests (extract.bart's own vocabulary); every own-class fit but
 # bartMultinomial has a single forest per component to begin with, so both
@@ -1119,18 +1137,11 @@ fitted.bartMultinomial <- function(
   if (!is.null(ci.level)) {
     return(posteriorInterval(probs, ci.level, trailing = 2L))
   }
-  d <- dim(probs)
-  numDims <- length(d)
-  meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
-  dimnames(meanProbs) <- list(NULL, object$levels)
-
+  meanProbs <- meanCategoryProbabilities(probs, object$levels)
   if (type == "ev") {
     return(meanProbs)
   }
-  factor(
-    object$levels[max.col(meanProbs, ties.method = "first")],
-    levels = object$levels
-  )
+  categoryFromMeanProbabilities(meanProbs, object$levels)
 }
 
 # residuals.bart is y - fitted() on the response scale; a multinomial fit has
@@ -1193,7 +1204,7 @@ residuals.bartMultinomial <- function(object, ...) {
 predict.bartMultinomial <- function(
   object,
   newdata,
-  type = c("ev", "ppd", "bart", "forest"),
+  type = c("ev", "ppd", "bart", "forest", "class"),
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
@@ -1258,8 +1269,12 @@ predict.bartMultinomial <- function(
     return(posteriorInterval(
       probs,
       ci.level,
-      trailing = if (type == "ev") 2L else 1L
+      trailing = if (type %in% c("ev", "class")) 2L else 1L
     ))
+  }
+  if (type == "class") {
+    meanProbs <- meanCategoryProbabilities(probs, object$levels)
+    return(categoryFromMeanProbabilities(meanProbs, object$levels))
   }
   probs
 }
@@ -1434,18 +1449,11 @@ fitted.bartOrdinal <- function(
   if (!is.null(ci.level)) {
     return(posteriorInterval(probs, ci.level, trailing = 2L))
   }
-  d <- dim(probs)
-  numDims <- length(d)
-  meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
-  dimnames(meanProbs) <- list(NULL, object$levels)
+  meanProbs <- meanCategoryProbabilities(probs, object$levels)
   if (type == "ev") {
     return(meanProbs)
   }
-  factor(
-    object$levels[max.col(meanProbs, ties.method = "first")],
-    levels = object$levels,
-    ordered = TRUE
-  )
+  categoryFromMeanProbabilities(meanProbs, object$levels, ordered = TRUE)
 }
 
 ordinalResidualsTypeReason <- list(
@@ -1485,7 +1493,7 @@ residuals.bartOrdinal <- function(object, ...) {
 predict.bartOrdinal <- function(
   object,
   newdata,
-  type = c("ev", "ppd", "bart"),
+  type = c("ev", "ppd", "bart", "class"),
   combineChains = TRUE,
   ci.level = NULL,
   n.threads = object$fit$control@n.threads,
@@ -1556,8 +1564,16 @@ predict.bartOrdinal <- function(
     probs <- multinomialPpdFromProbs(probs)
   }
   if (!is.null(ci.level)) {
-    trailing <- if (type == "ev") 2L else 1L
+    trailing <- if (type %in% c("ev", "class")) 2L else 1L
     return(posteriorInterval(probs, ci.level, trailing = trailing))
+  }
+  if (type == "class") {
+    meanProbs <- meanCategoryProbabilities(probs, object$levels)
+    return(categoryFromMeanProbabilities(
+      meanProbs,
+      object$levels,
+      ordered = TRUE
+    ))
   }
   probs
 }
@@ -1669,14 +1685,15 @@ negbinFittedSampleReason <- list(
   )
 )
 
-# The posterior-mean count per observation (type = "ev"), or the posterior-mean
-# log-odds latent per observation (type = "bart"). The observation margin is the
-# array's last dimension in every chain layout, so we take the mean over that
-# observation margin. ci.level opts into a credible band instead, taken on the
-# full draws before the mean.
+# The posterior-mean count per observation (type = "ev"), the posterior-mean
+# log-odds latent per observation (type = "bart"), or a Monte Carlo mean over
+# ppd draws (type = "ppd"). The observation margin is the array's last
+# dimension in every chain layout, so we take the mean over that observation
+# margin. ci.level opts into a credible band instead, taken on the full draws
+# before the mean.
 fitted.bartNegbin <- function(
   object,
-  type = c("ev", "bart"),
+  type = c("ev", "ppd", "bart"),
   ci.level = NULL,
   ...
 ) {
@@ -1687,7 +1704,15 @@ fitted.bartNegbin <- function(
     "bartNegbin",
     c(negbinUnusedArgs, negbinFittedSampleReason)
   )
-  channel <- if (type == "bart") object$latent.train else object$yhat.train
+  channel <- switch(
+    type,
+    bart = object$latent.train,
+    ev = object$yhat.train,
+    # the ppd arm is a draw, not a stored channel; extract pairs each mu with
+    # its own draw's dispersion, and the mean over the observation margin
+    # below is invariant to the chain layout it returns
+    ppd = extract.bartNegbin(object, type = "ppd", sample = "train")
+  )
   if (!is.null(ci.level)) {
     return(posteriorInterval(channel, ci.level, trailing = 1L))
   }
@@ -2084,7 +2109,7 @@ hurdleLogLik <- function(object) {
 
 fitted.bartHurdle <- function(
   object,
-  type = c("ev", "prob", "bart"),
+  type = c("ev", "ppd", "prob", "bart"),
   sample = "train",
   ci.level = NULL,
   ...
