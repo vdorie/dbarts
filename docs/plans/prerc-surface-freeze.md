@@ -3,8 +3,8 @@
 Status: DECIDED 2026-08-25 (VD, adopting the orchestrator's
 recommendations as written); D3 and D4 LANDED 6446ddce
 (docs/plans/dbarts-h-freeze.md); D1, D9, D5 and D2 LANDED 78f334c1
-(docs/plans/predict-surface.md); D6, D8 decided and not started, D7
-at the RC tip. Work items carry TODO entries named below. Evidence: the
+(docs/plans/predict-surface.md); D6 and D8 LANDED 936825d7
+(docs/plans/composition-refusals.md); D7 remains, at the RC tip. Work items carry TODO entries named below. Evidence: the
 three pre-RC lens reports tracked at
 docs/plans/review-2026-08-24/memos/prerc-lens1-surface.md,
 prerc-lens2-backlog.md, prerc-lens3-external.md (findings cited by

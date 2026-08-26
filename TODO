@@ -60,9 +60,6 @@ items
     target, per-column x.test update, and engine-resident sparse
     predict all shipped (docs/plans/cheap-uniformity.md). No open
     door recorded.
-  composition-refusals: grouped + variance= and heteroscedastic +
-    group.by refused as validation errors by name, formals kept, door
-    memo (docs/plans/prerc-surface-freeze.md D6). Pre-RC by rule.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -178,9 +175,6 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
-  predict-na-refusal: NA in newdata on a training-complete column
-    refused by name at predict; ?dbarts states the rule
-    (docs/plans/prerc-surface-freeze.md D8). Pre-RC by rule.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take

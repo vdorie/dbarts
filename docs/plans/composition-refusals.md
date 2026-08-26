@@ -1,6 +1,6 @@
 # Composition refusals (D6) and the predict-time NA refusal (D8)
 
-Status: DESIGNED 2026-08-25 at 578ee440 (578ee440 and eb35a2a2 are docs-only, so every anchor below is 78f334c1's code).
+Status: LANDED 2026-08-25 at 936825d7 (design record 93f3155c; code tip de18ef2b; anchors in the doc body are 78f334c1's code).
 
 Spec: docs/plans/prerc-surface-freeze.md D6, D8 and its Sequencing line ("then D1, D9, D5, D2, D6, D8, D7"). TODO
 `composition-refusals` (TODO:63-65) and `predict-na-refusal` (TODO:181-183) - two commits, one slice; they share only the
@@ -619,7 +619,31 @@ than left open.
 
 ## Draft docs/plans/INDEX.md row
 
-Alphabetical inside the API-surface cluster, between `capi-dispatch-table.md` (:204) and `consumer-spec-surface.md`
-(:205):
+## Landing note (2026-08-25)
 
-| composition-refusals.md | DESIGNED, 2026-08-25 | The pre-RC refusal slice for prerc-surface-freeze D6 + D8: grouped random effects with a variance forest - one model, two spellings, which constructed and ran with the group block drawing at a residual variance of 1 - becomes a validation error at `resolveSamplerSpec` with a `createHolder` backstop closing the four entrances that never reach it, formals kept and a door memo naming the engine/prior/oracle an adjudication would need; and an NA in test predictors on a column complete in training is refused by name at `validateXTest`, with a flat-entrance backstop in `validateTestSource`, since a split rule learns a missing direction only where the training column had one. |
+Landed as three commits, pushed together as 936825d7: fe0b3292 (D6: the resolveSamplerSpec refusal, the createHolder
+backstop, the heteroscedastic.md section 15 in-line correction plus its new section 17 door memo, feature-matrix [f30]
+rewrite, tests at the R and flat entrances), de18ef2b (D8: refuseTestMissingness at validateXTest's tail with the flat
+backstop in validateTestSource, the hurdle construction-time pre-check, Rd wording in dbarts/bart2/makeind, tests),
+936825d7 (docs/design anchor re-alignment by the 93f3155c..de18ef2b diff line map; stamps to de18ef2b). Implementer
+gates per phase; independent battery on a git-archive snapshot of 936825d7: tinytest 7375/0, tests/cpp 268+69 ok,
+equivalence 43/12/11 identical, check-rc-codoc 42, freshness 0 FAIL / 69 WARN (the +1 over the 68 baseline is an
+advisory intrinsic to [f30]'s own prose), NEWS 341, air + lint_package clean, as-cran 1 NOTE, census zero, both
+refusal messages probed live.
+
+Deviations from the design, both ruled at implementation under the standing grant: (1) the D8 refusal reaches hurdle
+CONSTRUCTION, not just predict - bart2Hurdle forces the positive part's test channel to the full design, so a
+covariate NA only on zero-outcome rows now refuses at fit with its own message (refuseHurdlePositiveMissingness,
+before either component builds; the generic replay refusal stands as backstop; a column NA on both row sets stays
+constructible). The exemption branch was rejected: those replayed rows feed the fit's own combined channels, the
+defect class D8 refuses. (2) head() was avoided in the two message builders (no utils import), spelled
+labels[seq_len(min(5L, length(labels)))].
+
+Residue for the record: sparseFactor() refuses NA outright, so test-sparse-factor.R's D8 fixture uses a dense factor
+column; benchmarks/R/composition-matrix.R reports two pre-existing DISAGREEMENTS unrelated to this slice (multinom
+dbarts5 "no base fixture recipe"; logistic setWeights integer-weights); multinomial-mutation-arc.md sections 5-8 and
+model-space-survey.md hold drifted anchors inside frozen text (C_interface.cpp:460/462, data.R ranges,
+model-space-survey.md:368-369), left by rule; direct data@x.test slot assignment bypasses the R refusal (validated
+surfaces + flat backstop are the contract) - bartCause's responseFit.R:180-189 uses that route at fit time.
+Consumers: zero migration lines (stan4bart refuses variance in bart_args and forbids na.pass; treatSens and bairrtt
+feed complete designs).
