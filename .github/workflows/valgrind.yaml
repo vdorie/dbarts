@@ -38,7 +38,7 @@ jobs:
       - name: Install test dependencies
         shell: Rscript {0}
         run: |
-          need <- setdiff(c("tinytest", "Matrix"), rownames(installed.packages()))
+          need <- setdiff(c("tinytest", "Matrix", "survival", "posterior"), rownames(installed.packages()))
           if (length(need)) install.packages(need, repos = "https://cloud.r-project.org")
 
       - name: Install dbarts

@@ -35,14 +35,14 @@
 # against the installed build.
 on:
   push:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
     # docs- and TODO-only pushes cannot change engine math or the gates
     paths-ignore:
       - 'docs/**'
       - 'TODO'
       - '**.md'
   pull_request:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
   workflow_dispatch:
     inputs:
       mode:

@@ -6,7 +6,7 @@
 # already provided by the R-CMD-check and sanitizer jobs.
 on:
   push:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
     # documentation- and benchmark-only pushes cannot change what this
     # builds and runs (src/ + tests/cpp)
     paths-ignore:
@@ -15,7 +15,7 @@ on:
       - '**.md'
       - 'benchmarks/**'
   pull_request:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
   workflow_dispatch:
 
 concurrency:

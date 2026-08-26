@@ -5,19 +5,11 @@
 # arch-pinned macos-latest. --strict-coverage turns a scenario the baseline
 # predates into a failure instead of a warning.
 #
-# bcf-equivalence and multinomial-equivalence are the same gate over the BCF
-# and multinomial harnesses (benchmarks/R/bcf-equivalence.R,
-# multinomial-equivalence.R): same runner class, same
-# benchmarks/baselines/<harness>-<hash>.rds convention, one job per harness so
-# they run in parallel. Neither script accepts --strict-coverage (gaussian's
-# harness only) or reads EQUIVALENCE_CORES (gaussian's harness only, for its
-# much larger scenario/seed grid); both compare their full scenario set under
-# --cross-host, which is required here because the baselines are recorded on
-# arm64/macOS and these runners are x86_64 Linux: it exempts the
-# point-in-time snapshot channels, which cannot reproduce bitwise off-host,
-# and gates every draws-axis channel under a two-tier verdict. exact-gates.yaml
-# carries the same two compares on every push; this workflow adds the weekly
-# cron and the gaussian arm.
+# This is the gaussian arm only. The BCF and multinomial cross-host compares
+# used to run here too (weekly), but they are byte-identical to the compares
+# exact-gates.yaml already runs on every push against the same pinned
+# baselines, so they were removed as a duplicate gate rather than kept as a
+# second cadence over the same evidence.
 #
 # NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so this run
 # does not fire until the workflow lands on main; on bartcore it is
@@ -65,58 +57,3 @@ jobs:
         run: |
           Rscript benchmarks/R/equivalence.R compare \
             benchmarks/baselines/equivalence-736bfb05.rds --strict-coverage
-
-  bcf-equivalence:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: 'release'
-          use-public-rspm: true
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          needs: check
-
-      - name: Install the package
-        run: R CMD INSTALL .
-
-      - name: Run the BCF cross-host equivalence gate
-        run: |
-          Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-6e3b9fb8.rds --cross-host
-
-  multinomial-equivalence:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: 'release'
-          use-public-rspm: true
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          needs: check
-
-      - name: Install the package
-        run: R CMD INSTALL .
-
-      - name: Run the multinomial cross-host equivalence gate
-        run: |
-          Rscript benchmarks/R/multinomial-equivalence.R compare \
-            benchmarks/baselines/multinomial-equivalence-4d9a3337.rds \
-            --cross-host

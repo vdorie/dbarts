@@ -22,3 +22,4 @@
 ^pkgdown$
 ^docs-site$
 ^TODO$
+^tools/[^/]*\.R$

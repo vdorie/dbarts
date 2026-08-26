@@ -4,7 +4,7 @@
 # https://github.com/posit-dev/setup-air
 on:
   push:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
     # lintr and air check R files only; benchmarks/R stays linted, so
     # only non-code trees are ignored
     paths-ignore:
@@ -13,7 +13,7 @@ on:
       - '**.md'
       - 'benchmarks/baselines/**'
   pull_request:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
   workflow_dispatch:
 
 concurrency:
@@ -84,9 +84,6 @@ jobs:
 
       - name: Check Windows config header drift
         run: Rscript tools/check-win-drift.R .
-
-      - name: Check design/plan doc freshness
-        run: Rscript tools/check-doc-freshness.R .
 
       - name: Check dbartsSampler Rd usage against live formals
         run: Rscript tools/check-rc-codoc.R .

@@ -2,7 +2,7 @@
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   push:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
     # documentation- and benchmark-only pushes cannot change what R CMD
     # check builds and tests (benchmarks/ and docs/ are .Rbuildignore'd)
     paths-ignore:
@@ -11,7 +11,7 @@ on:
       - '**.md'
       - 'benchmarks/**'
   pull_request:
-    branches: [main, master, bartcore]
+    branches: [main, bartcore]
   workflow_dispatch:
 
 concurrency:
