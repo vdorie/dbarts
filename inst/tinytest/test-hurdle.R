@@ -380,3 +380,69 @@ fittedPpd <- fitted(fit, type = "ppd")
 expect_equal(length(fittedPpd), n)
 expect_true(all(fittedPpd >= 0))
 expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)
+
+# --- (5) a hurdle-specific refusal: a covariate NA only on the zero rows is
+# complete for the positive part, but the positive part's own internal
+# 'test' call (forced to the full design so the combine covers every row)
+# would evaluate it there anyway. bart2() refuses AT CONSTRUCTION with a
+# message naming the situation, rather than letting the generic replay
+# backstop answer a "test predictors" complaint the caller never made.
+# Placed at the file's end, after every seeded snapshot above, since it
+# fits its own samplers. ---
+
+set.seed(97L)
+nH <- 150L
+xH1 <- runif(nH)
+xH2 <- runif(nH)
+piH.true <- pnorm(1.0 * xH1 - 0.5)
+occupiedH <- rbinom(nH, 1L, piH.true) == 1L
+yH <- numeric(nH)
+yH[occupiedH] <- exp(rnorm(sum(occupiedH), 1 + 0.5 * xH2[occupiedH], 0.4))
+
+# every NA sits in an unoccupied (y == 0) row: complete for the positive
+# part, so it never learns a route for it
+xH3 <- runif(nH)
+xH3[!occupiedH] <- NA_real_
+xH <- cbind(x1 = xH1, x2 = xH2, x3 = xH3)
+expect_error(
+  bart2(
+    xH,
+    yH,
+    family = "hurdle.lognormal",
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    seed = 13L
+  ),
+  pattern = "carry missing values only on the zero"
+)
+
+# NA on both row sets stays constructible: the positive part saw the
+# missing value in training and has a route for it, exactly as it does
+# outside a hurdle composition - and a newdata NA in that column predicts
+# fine for the same reason
+posIdxH <- which(occupiedH)[1L]
+zeroIdxH <- which(!occupiedH)[1L]
+xH4 <- runif(nH)
+xH4[c(posIdxH, zeroIdxH)] <- NA_real_
+xHBoth <- cbind(x1 = xH1, x2 = xH2, x4 = xH4)
+fitHBoth <- bart2(
+  xHBoth,
+  yH,
+  family = "hurdle.lognormal",
+  n.samples = 6L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 14L
+)
+expect_inherits(fitHBoth, "bartHurdle")
+newHBoth <- cbind(x1 = runif(4L), x2 = runif(4L), x4 = c(NA_real_, runif(3L)))
+predHBoth <- predict(fitHBoth, newHBoth)
+expect_equal(dim(predHBoth), c(6L, 4L))
+expect_true(!anyNA(predHBoth))

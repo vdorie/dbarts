@@ -29,7 +29,7 @@ makeTestModelMatrix(data, newdata)
     An existing \code{\link{dbartsData}} object.
   }
   \item{newdata}{
-    Test data frame.
+    Test data frame. \code{makeTestModelMatrix} refuses it, naming the column, if it carries \code{NA} in a column the fit's training data did not: a split rule learns a route for \code{NA} only where its column had missing training values.
   }
 }
 \details{

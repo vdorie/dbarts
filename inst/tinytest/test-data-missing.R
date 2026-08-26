@@ -173,18 +173,100 @@ xval <- xbart(
 )
 expect_true(!anyNA(xval))
 
+# ---- D8: an NA in test predictors is refused, by name, wherever the
+# training column carried none. Appended just before the cleanup below
+# (rather than mutating anything above) since a fresh RNG draw here would
+# shift every seeded value that follows it, and nothing does. ----
+test.df.x2na <- test.df
+test.df.x2na$x2[1L] <- NA_real_
+expect_error(sampler.keep$predict(test.df.x2na), pattern = "'x2'")
+expect_error(
+  sampler.keep$predict(test.df.x2na),
+  pattern = "carried none in training"
+)
+
+# the acceptance half: an NA in a training-incomplete column (x1) still
+# predicts, unchanged in shape
+test.df.x1na <- test.df
+test.df.x1na$x1[1L] <- NA_real_
+predictions.x1na <- sampler.keep$predict(test.df.x1na)
+expect_equal(dim(predictions.x1na), c(20L, 5L))
+
+# every offending column is named, not just the first: x3 is a second,
+# genuinely training-complete predictor
+df.extra <- data.frame(x1 = x1, x2 = x2, x3 = seq_len(n), g = g, y = y)
+sampler.extra <- dbarts(y ~ x1 + x2 + x3 + g, df.extra, control = control)
+test.df.extra <- test.df
+test.df.extra$x3 <- seq_len(20L)
+test.df.extra$x2[1L] <- NA_real_
+test.df.extra$x3[1L] <- NA_real_
+expect_error(sampler.extra$predict(test.df.extra), pattern = "'x2'")
+expect_error(sampler.extra$predict(test.df.extra), pattern = "'x3'")
+
+# the fit-time twin: dbarts(..., test = ) validates through the same path
+expect_error(
+  dbarts(y ~ x1 + x2 + g, df, test = test.df.x2na, control = control),
+  pattern = "'x2'"
+)
+
+# the flat-matrix $setTestPredictor entrance
+testMatrix <- makeTestModelMatrix(sampler.keep$data, test.df)
+testMatrix.x2na <- testMatrix
+testMatrix.x2na[1L, "x2"] <- NA_real_
+expect_error(
+  sampler.keep$setTestPredictor(testMatrix.x2na),
+  pattern = "'x2'"
+)
+
+# the exported caller
+expect_error(
+  makeTestModelMatrix(sampler.keep$data, test.df.x2na),
+  pattern = "'x2'"
+)
+
+# missing = "error": no column ever learned a route, so any test NA is
+# refused - today (pre-D8) it answers silently
+expect_error(
+  sampler.strict$predict(data.frame(x2 = c(NA_real_, 0.4, 0.6))),
+  pattern = "'x2'"
+)
+
+# the S3 surface: predict.bart reaches the same refusal on a bart2() fit,
+# so it is proven to reach a fit and not only a raw sampler
+fit.b2 <- bart2(
+  y ~ x1 + x2 + g,
+  df,
+  keepTrees = TRUE,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(predict(fit.b2, test.df.x2na), pattern = "'x2'")
+
 rm(
   sampler,
   sampler.keep,
   sampler.strict,
   sampler.state,
   sampler.restored,
+  sampler.extra,
   trees,
   samples,
   predictions,
+  predictions.x1na,
   xval,
   df,
+  df.extra,
   test.df,
+  test.df.x1na,
+  test.df.x2na,
+  test.df.extra,
+  testMatrix,
+  testMatrix.x2na,
+  fit.b2,
   df.badY,
   df.allNA,
   data.mia,

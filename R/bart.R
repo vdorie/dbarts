@@ -2253,6 +2253,52 @@ splitHurdleResponse <- function(y) {
   )
 }
 
+# A column complete on the positive rows but NA anywhere else is NA only on
+# the zero rows (the two row sets are exhaustive): the positive part trains
+# on the positive rows alone, so it never sees that column's missing values
+# and learns no route for them, yet its OWN 'test' call - forced to the full
+# design so the combine covers the zero rows too - evaluates it at every
+# row. Refuse by name before either component is built, rather than letting
+# the generic replay backstop answer with a "test predictors" message for a
+# call the caller never made. A column NA on both row sets stays
+# constructible: the positive part saw the missing value in training and
+# has a route for it, exactly as it does today.
+refuseHurdlePositiveMissingness <- function(x, positive) {
+  numColumns <- NCOL(x)
+  offending <- integer(0L)
+  for (j in seq_len(numColumns)) {
+    column <- x[, j]
+    if (anyNA(column[positive])) {
+      next
+    }
+    if (!anyNA(column[!positive])) {
+      next
+    }
+    offending <- c(offending, j)
+  }
+  if (length(offending) == 0L) {
+    return(invisible(NULL))
+  }
+  predictorNames <- colnames(x)
+  labels <- if (is.null(predictorNames)) {
+    paste0("column ", offending)
+  } else {
+    paste0("'", predictorNames[offending], "'")
+  }
+  shown <- labels[seq_len(min(5L, length(labels)))]
+  stop(
+    "family = \"hurdle.lognormal\": ",
+    toString(shown),
+    if (length(labels) > 5L) {
+      paste0(" and ", length(labels) - 5L, " more column(s)")
+    },
+    " carry missing values only on the zero (y == 0) rows: the positive ",
+    "part trains on the positive rows alone, so it learns no route for ",
+    "them, and the hurdle composition evaluates the positive part on ",
+    "every row"
+  )
+}
+
 # The hurdle.lognormal / twopart fit path, reached from bart2's family =
 # "hurdle.lognormal" branch. Composed R-side from two ordinary single-forest
 # fits - never a coupled engine model - so this simply calls bart2() twice,
@@ -2282,6 +2328,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   }
 
   split <- splitHurdleResponse(data)
+  refuseHurdlePositiveMissingness(formula, split$positive)
   xPositive <- formula[split$positive, , drop = FALSE]
 
   # independent per-component seeds derived deterministically from the

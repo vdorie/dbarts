@@ -47,6 +47,77 @@ makeTestModelMatrix <- function(data, newdata) {
   validateXTest(newdata, data@x)
 }
 
+## A split rule learns a route for NA only on a column whose TRAINING values
+## carried one: the missing direction is drawn only there and cannot be
+## restored onto an NA-free column, so on a training-complete column every
+## rule sends NA down one fixed branch. Refuse rather than answer from a
+## route the model never learned.
+sourceColumnHasNA <- function(source, j, numColumns, numObservations) {
+  column <- predictorSourceColumn(source, j, numColumns, numObservations)
+  if (is.list(column)) {
+    return(anyNA(column$x) || is.na(column$implicit))
+  }
+  anyNA(column)
+}
+
+sourceHasNA <- function(source) {
+  if (inherits(source, "dbartsMixedMatrix")) {
+    return(
+      any(vapply(source$dense, anyNA, logical(1L))) ||
+        (!is.null(source$sparse) && anyNA(source$sparse@x))
+    )
+  }
+  if (inherits(source, "dgCMatrix")) {
+    return(anyNA(source@x))
+  }
+  anyNA(source)
+}
+
+refuseTestMissingness <- function(x.test, x.train) {
+  # the whole-object probe short-circuits, so complete test data - the usual
+  # case - pays one scan and never touches the training side
+  if (!sourceHasNA(x.test)) {
+    return(invisible(NULL))
+  }
+  # validateXTest has already matched the two sides' column counts by here,
+  # so one count serves both
+  numColumns <- NCOL(x.test)
+  numTest <- NROW(x.test)
+  numTrain <- NROW(x.train)
+  offending <- integer(0L)
+  for (j in seq_len(numColumns)) {
+    if (!sourceColumnHasNA(x.test, j, numColumns, numTest)) {
+      next
+    }
+    if (sourceColumnHasNA(x.train, j, numColumns, numTrain)) {
+      next
+    }
+    offending <- c(offending, j)
+  }
+  # every NA sits in a column that carried training NAs: every one has a
+  # learned route, and nothing is refused
+  if (length(offending) == 0L) {
+    return(invisible(NULL))
+  }
+  predictorNames <- colnames(x.train)
+  labels <- if (is.null(predictorNames)) {
+    paste0("column ", offending)
+  } else {
+    paste0("'", predictorNames[offending], "'")
+  }
+  shown <- labels[seq_len(min(5L, length(labels)))]
+  stop(
+    "test predictors have missing values in ",
+    toString(shown),
+    if (length(labels) > 5L) {
+      paste0(" and ", length(labels) - 5L, " more column(s)")
+    },
+    ", which carried none in training: a split rule learns a route for NA ",
+    "only on a column that had missing values when the trees were grown, ",
+    "so these rows have no route to take"
+  )
+}
+
 validateXTest <- function(x.test, x.train) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
@@ -279,6 +350,8 @@ validateXTest <- function(x.test, x.train) {
       if (xIsNamed) colnames(x.test) <- predictorNames
     }
   }
+
+  refuseTestMissingness(x.test, x.train)
 
   x.test
 }

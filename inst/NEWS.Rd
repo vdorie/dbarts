@@ -111,6 +111,15 @@
             validation error: the group block previously drew at the wrong
             residual scale under a variance forest. Neither formal changes;
             only the composition is refused.
+      \item An \code{NA} in test predictors or \code{newdata} is now an error
+            wherever the corresponding training column was complete: a
+            split rule learns a missing-direction route only where its own
+            column had training \code{NA}s, so a complete column's test
+            \code{NA} had no route to take and was previously answered
+            silently. A \code{family = "hurdle.lognormal"} fit whose
+            covariate is missing only on the zero-outcome rows is refused
+            at construction for the same reason; previously it fit, with
+            the positive part silently routing those rows left.
     }
   }
   \subsection{NEW FEATURES}{
@@ -726,9 +735,12 @@
             \code{missing = "incorporate"}, the default on \code{dbarts},
             \code{dbartsData}, \code{bart2}, \code{xbart}, and \code{rbart_vi}, every split
             rule learns a direction for missing values of its variable,
-            so an NA observation follows that rule's chosen branch in
-            training and test data alike (Missingness Incorporated in
-            Attributes; Twala et al. 2008). \code{missing = "error"} rejects
+            so an NA observation follows that rule's chosen branch
+            (Missingness Incorporated in Attributes; Twala et al. 2008).
+            The route is learned per column, and only where that column's
+            training values were missing: an \code{NA} in test predictors or
+            \code{newdata} is refused, naming the column, wherever that
+            column was complete in training. \code{missing = "error"} rejects
             incomplete predictors. The response, weights, and offset must
             be complete, and predictor columns cannot be entirely
             missing; formula inputs previously na.omit-dropped incomplete

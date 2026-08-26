@@ -795,15 +795,6 @@ in.range.small <- dbartsData(
 )@x
 sampler.bound$setTestPredictorAndOffset(in.range.small, rep(0, 3L))
 expect_true(all(is.finite(sampler.bound$run(10L, 10L)$test)))
-test.dense.na <- cbind(rnorm(3L), c(0, NA, 2))
-colnames(test.dense.na) <- c("x1", "f")
-expect_inherits(
-  dbarts(
-    dbartsData(train.bound, y.bound, test = test.dense.na),
-    control = boundControl
-  ),
-  "dbartsSampler"
-)
 
 # MUTATION LIFT: a design carrying a sparse CATEGORICAL column takes
 # column-granular mutation. The engine keys the replacement's nonzero
@@ -1099,4 +1090,29 @@ expect_error(
     bad.container.ord
   ),
   pattern = referenceMessage
+)
+
+# NO FALSE REFUSALS, continued: an NA test code must not be read as an
+# out-of-range CATEGORY. That only holds on a column whose training values
+# carried an NA too (D8's new-route rule), so this needs its own NA-bearing
+# training design rather than mutating train.bound/sampler.bound, which every
+# code-bound assertion above shares. sparseFactor() itself refuses NA
+# (missing values are not supported in a sparseFactor), so the categorical
+# column here is dense, the train.bound.dense idiom above. Placed at the
+# file's end since a new rnorm() call here would shift every seeded draw that
+# follows it.
+labels.na <- labels.bound
+labels.na[2L] <- NA
+train.na <- data.frame(
+  x1 = train.bound$x1,
+  f = factor(labels.na, levels = levels.small)
+)
+test.dense.na <- cbind(rnorm(3L), c(0, NA, 2))
+colnames(test.dense.na) <- c("x1", "f")
+expect_inherits(
+  dbarts(
+    dbartsData(train.na, y.bound, test = test.dense.na),
+    control = boundControl
+  ),
+  "dbartsSampler"
 )

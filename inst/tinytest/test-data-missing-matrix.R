@@ -70,6 +70,17 @@ expect_identical(samples.matrix$train, samples.formula$train)
 expect_identical(samples.matrix$sigma, samples.formula$sigma)
 expect_true(any(is.na(sampler.matrix$data@x[, "x1"])))
 
+# the unnamed matrix interface has no column names to report by, so a
+# refused column is named by INDEX instead
+xMat.unnamed <- unname(xMat)
+sampler.unnamed <- dbarts::dbarts(xMat.unnamed, y, control = control)
+test.unnamed.na <- xMat.unnamed[1:5, ]
+test.unnamed.na[1L, 2L] <- NA_real_
+expect_error(
+  sampler.unnamed$predict(test.unnamed.na),
+  pattern = "column 2"
+)
+
 rm(
   n,
   x1,
@@ -77,6 +88,7 @@ rm(
   isMissing,
   y,
   xMat,
+  xMat.unnamed,
   df,
   data.matrix.inc,
   data.formula.inc,
@@ -84,6 +96,8 @@ rm(
   control,
   sampler.matrix,
   sampler.formula,
+  sampler.unnamed,
+  test.unnamed.na,
   samples.matrix,
   samples.formula
 )

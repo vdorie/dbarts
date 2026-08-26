@@ -246,14 +246,35 @@ const double* mutationValues(const TranslatedSource& source) {
   return block;
 }
 
+// A test NA takes a rule's learned missing direction, and a rule learns one
+// only where the training column had NAs (ColumnStore::hasMissing gates the
+// draw), so on a complete column it would take one fixed branch at every
+// split. The R surface refuses first and names the column; this is the flat
+// entrances' backstop, which has only the index.
+void refuseTestMissingness(const bartcore::ColumnStore& store,
+                           const bartcore::PredictorSource& source,
+                           const char* caller) {
+  bartcore::PredictorSourceColumns columns(source, store.types.data());
+  for (size_t j = 0; j < source.numColumns; ++j) {
+    if (store.hasMissing[j]) continue;
+    bartcore::PredictorSourceColumnReader column = columns.column(j);
+    for (size_t i = 0; i < source.numRows; ++i)
+      if (bartcore::isNA(column.at(i)))
+        Rf_error("%s: test column %zu has missing values but the training "
+                 "column had none, so no rule routes them", caller, j + 1);
+  }
+}
+
 // The test-side entries' shared refusals, in the order the R bridge runs them:
 // a designated leaf covariate must be dense (CSC serves no contiguous raw),
-// and every categorical code is bounded against the STORE's counts, which the
-// view's author cannot see.
+// every categorical code is bounded against the STORE's counts, which the
+// view's author cannot see, and a test NA is refused wherever the training
+// column carried none.
 void validateTestSource(const bartcore::SamplerBase& engine,
-                        const TranslatedSource& source) {
+                        const TranslatedSource& source, const char* caller) {
   refuseSparseLeafCovariate(engine.shape(), source.view);
   validateTestContainerAgainstStore(engine.data(), source.view);
+  refuseTestMissingness(engine.data(), source.view, caller);
 }
 
 // dbarts_leaf_model for the engine's tag; the two enumerations are separate on
@@ -785,7 +806,7 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
   TranslatedSource source =
     translateSource(engine.data(), xTest, NULL, engine.shape().numPredictors, 0,
                     "dbarts_sampler_setTestPredictors");
-  validateTestSource(engine, source);
+  validateTestSource(engine, source, "dbarts_sampler_setTestPredictors");
   // and a rebuild at a different row count would read the caller's offset past
   // its end on every recorded test fit, since nothing downstream re-checks the
   // two against each other; the pair moves together
@@ -828,7 +849,7 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
     "dbarts_sampler_predict");
   // a read-only replay builds no store, so the leaf-covariate rule is checked
   // on the view itself rather than answered by a store build
-  validateTestSource(engine, source);
+  validateTestSource(engine, source, "dbarts_sampler_predict");
   size_t numTestObservations = source.view.numRows;
 
   engine.predict(source.view, numTestObservations, NULL, numThreads, out);

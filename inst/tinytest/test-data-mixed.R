@@ -484,3 +484,21 @@ expect_error(
 # the well-formed container of the same design still installs and runs
 expect_silent(sampler.meta$setPredictor(data.mixed@x, forceUpdate = TRUE))
 expect_true(all(is.finite(sampler.meta$run()$sigma)))
+
+# D8's container probe: an NA in a dbartsMixedMatrix newdata column is
+# refused wherever the training column (itself container-backed) carried
+# none, in EITHER storage kind - a sparse column stores its own missing
+# marker as an explicit NaN entry (mixedMatrix.R), a different code path
+# from a dense column's NA
+test.mixed.dense.na <- data.frame(x1 = x1[1:5], f = f[1:5])
+test.mixed.dense.na$sv <- sv[1:5]
+test.mixed.dense.na$sm <- sm[1:5, , drop = FALSE]
+test.mixed.dense.na$x1[1L] <- NA_real_
+expect_error(sampler$predict(test.mixed.dense.na), pattern = "'x1'")
+
+test.mixed.sparse.na <- data.frame(x1 = x1[1:5], f = f[1:5])
+sv.test.na <- sv[1:5]
+sv.test.na[1L] <- NA_real_
+test.mixed.sparse.na$sv <- sv.test.na
+test.mixed.sparse.na$sm <- sm[1:5, , drop = FALSE]
+expect_error(sampler$predict(test.mixed.sparse.na), pattern = "'sv'")
