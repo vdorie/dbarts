@@ -91,6 +91,12 @@
             \code{weights} on the four families with no such channel and
             \code{offset}/\code{offset.test} on the two families with no
             out-of-sample offset channel at all.
+      \item \code{predict.rbart}'s pre-1.0 \code{value = } argument and its
+            \code{type = "post-mean"} alias, both carried over from the
+            0.9-x series, are removed. Neither is silently accepted:
+            \code{value} is refused by name, pointing at \code{type}, and
+            \code{"post-mean"} falls straight into \code{type}'s own \dQuote{must
+            be in} message, which names the replacement (\code{"ev"}).
     }
   }
   \subsection{NEW FEATURES}{

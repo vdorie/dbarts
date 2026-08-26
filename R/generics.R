@@ -1860,7 +1860,7 @@ print.bartNegbin <- function(x, ...) {
 # Fold the "response"/"link" type aliases onto the canonical "ev"/"bart" (the
 # non-hurdle predict/extract/fitted idiom). Validation of the folded value
 # against each method's allowed set stays at the call site, since those vary
-# (some also reject length-0 input; predict.rbart interposes a post-mean alias).
+# (some also reject length-0 input).
 foldTypeAliases <- function(type) {
   if (is.character(type)) {
     if (type[1L] == "response") {
@@ -2184,6 +2184,13 @@ print.bartHurdle <- function(x, ...) {
   invisible(x)
 }
 
+# 'value' was predict.rbart's pre-1.0 name for 'type'. It is not accepted,
+# only refused by name, since a supplied one would otherwise choose the
+# default channel silently.
+rbartPredictValueUnusedArgs <- list(
+  value = "predict's channel argument is named 'type'"
+)
+
 predict.rbart <- function(
   object,
   newdata,
@@ -2208,20 +2215,13 @@ predict.rbart <- function(
   }
   n.threads <- validatePredictThreads(n.threads)
 
-  dotsList <- list(...)
-  if (!is.null(dotsList[["value"]])) {
-    warning("argument 'value' has been deprecated; use 'type' instead")
-    type <- dotsList[["value"]]
-    dotsList[["value"]] <- NULL
-  }
-
-  type <- foldTypeAliases(type)
-  if (is.character(type) && length(type) > 0L && type[1L] == "post-mean") {
-    warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
-    type[1L] <- "ev"
-  }
   type <- validateType(type, eval(formals(predict.rbart)$type))
-  refuseUnusedGenericArgs(dotsList, "predict", "rbart", predictOffsetUnusedArgs)
+  refuseUnusedGenericArgs(
+    list(...),
+    "predict",
+    "rbart",
+    c(predictOffsetUnusedArgs, rbartPredictValueUnusedArgs)
+  )
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)

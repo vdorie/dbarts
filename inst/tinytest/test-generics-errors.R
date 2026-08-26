@@ -99,6 +99,13 @@ expect_error(
   "'group.by' must be given by name",
   fixed = TRUE
 )
+# the pre-1.0 'value' shim is deleted; the old spelling is refused by name
+# rather than accepted and folded onto 'type'
+expect_error(
+  predict(rbartFitKT, testData$x, group.by = groupBy, value = "ev"),
+  "'value' is not used by predict on a rbart fit: predict's channel argument is named 'type'",
+  fixed = TRUE
+)
 rm(rbartFitKT, groupBy)
 
 # extend the offset.test refusal to the four own-class fits, and add the
