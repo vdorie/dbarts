@@ -123,10 +123,10 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  monotone-leaf-branch-fill: monotone leaf double branch-fill on the
-    scoring path, a bench arm out of the second whole-branch review's
-    veto critique (item N6; docs/plans/release-candidate-review.md
-    wave-5a landing note). Perf only, post-RC.
+  monotone-leaf-branch-fill: CLOSED, not adopted; benched 2026-08-26, no
+    effect (within noise; fillBottom 0.18% of monotone run). Bitwise;
+    door: coneProbability's quadrature; see archive/monotone-branch-fill
+    at 98067fb3, review-2026-08-24/memos/monotone-branch-fill-bench.md.
   multiforest-extension-surface: the general basis family
     (forests = list(forest(...))) has landed in full
     (docs/plans/multiforest-extension-surface.md Landing notes).
