@@ -559,6 +559,17 @@ multinomActiveRows <- function(seed) {
   bc <- dbarts:::bartcoreMultinomialSampler(host, d$label - 1L, K = 3L)
   bartcoreSetActiveRows(bc, c(rep(1, n - 1L), 0))
 }
+multinomBase <- function(seed) {
+  d <- mkXY(seed)
+  sampler <- dbarts(
+    d$x,
+    factor(d$label),
+    family = "multinomial",
+    control = ctl(seed)
+  )
+  invisible(sampler$run(0L, 1L))
+  sampler
+}
 hurdleDart <- function(seed) {
   d <- mkXY(seed)
   bart2(
@@ -617,7 +628,14 @@ mutate <- list(
     s$setOffset(rep(0, length(s$data@y)), updateScale = TRUE)
   },
   setPredictor = function(s, d) s$setPredictor(s$data@x),
-  setWeights = function(s, d) s$setWeights(runif(length(s$data@y), 0.5, 1.5)),
+  setWeights = function(s, d) {
+    w <- if (identical(d$family, "logistic")) {
+      sample(1:3, length(s$data@y), replace = TRUE)
+    } else {
+      runif(length(s$data@y), 0.5, 1.5)
+    }
+    s$setWeights(w)
+  },
   setSigma = function(s, d) s$setSigma(1.0),
   testSurface = function(s, d) {
     x <- s$data@x
@@ -646,6 +664,9 @@ runProbe <- function(family, capability, seed) {
   }
   if (family == "hurdle" && capability == "dart") {
     return(attempt(hurdleDart(seed)))
+  }
+  if (family == "multinom" && capability == "dbarts5") {
+    return(attempt(multinomBase(seed)))
   }
   if (capability %in% names(table1Probes)) {
     return(attempt(table1Probes[[capability]](family, seed)))

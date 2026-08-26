@@ -51,7 +51,7 @@ dbarts(
     A logical determining if additional output is printed to the console. See \code{\link{dbartsControl}}.
   }
   \item{n.samples}{
-    A positive integer setting the default number of posterior samples to be returned for each run of the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}.
+    A non-negative integer (\code{0} accepted) setting the default number of posterior samples to be returned for each run of the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}'s \code{n.samples} item for the full contract.
   }
   \item{tree.prior}{
     An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} setting the tree prior used in fitting, or a prior object built with \code{\link{dbartsPriors}}.

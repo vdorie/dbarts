@@ -1,6 +1,7 @@
 \name{rbart}
 \alias{rbart_vi}
 \alias{plot.rbart}
+\alias{print.rbart}
 \alias{fitted.rbart}
 \alias{extract.rbart}
 \alias{predict.rbart}
@@ -61,6 +62,8 @@ rbart_vi(
     ci.level = NULL,
     n.threads,
     \dots, group.by)
+
+\S3method{print}{rbart}(x, \dots)
 
 \S3method{residuals}{rbart}(object, type = "ev", \dots)
 }
@@ -136,7 +139,7 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
 }
 }
 \value{
-  An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}}, as well as the elements:
+  An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}}, with one exception: \code{fit}, when present (\code{keepTrees}/\code{keepSampler} \code{TRUE}), is always a LIST rather than \code{bart}'s bare sampler object - a length-\code{n.chains} list of per-chain samplers on the general (custom \code{prior}/\code{callback}) fitting path, or a length-one list wrapping a single sampler that ran every chain together on the built-in-prior, no-\code{callback} path (the common case). \code{n.chains} is always present alongside it, whether or not \code{fit} is kept. \code{rbart_vi} also has the elements:
 
   \item{ranef}{
     Samples from the posterior of the random effects. A array/matrix of posterior samples. The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains} is one or \code{combineChains} is \code{TRUE}, the result is collapsed down to a matrix: with \eqn{m = }\code{n.samples \%/\% n.thin} draws kept per chain, row \eqn{r} is chain \eqn{1 + (r - 1) \%/\% m}'s draw \eqn{1 + (r - 1) \%\% m} - chain 1's whole run first, then chain 2's (chain-major), not interleaved draw by draw. Every collapsed field the fit returns (\code{sigma}, \code{tau}, \code{yhat.train}, ...) shares this row order, so row \eqn{r} of one pairs with row \eqn{r} of another.
@@ -153,6 +156,8 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
   \item{\code{callback}}{
     Optional results of \code{callback} function.
   }
+
+  For \code{print.rbart}, the fit itself (\code{x}), returned invisibly, printed the same way as \code{print.bart} (see \code{\link{bart}}).
 }
 \references{
 Makalic, E. and Schmidt, D.F. (2016)

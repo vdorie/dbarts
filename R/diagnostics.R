@@ -10,9 +10,9 @@ posteriorAvailable <- function() requireNamespace("posterior", quietly = TRUE)
 
 # n.chains survives on the object whether or not the sampler was kept (see
 # packageBartResults/packageRbartResults); fit is a single dbartsSampler for
-# bart/bart2 and a list of them (length n.chains, or 1 for the in-core
-# multi-chain rbart path, which always keeps n.chains on the object too) for
-# rbart
+# bart/bart2 and a list of them for rbart (length n.chains on the general
+# path, length 1 - one multi-chain sampler standing in for every chain - on
+# the in-core path)
 fitNChains <- function(object) {
   if (!is.null(object[["n.chains"]])) {
     return(object[["n.chains"]])

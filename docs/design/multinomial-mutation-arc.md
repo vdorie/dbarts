@@ -230,7 +230,7 @@ nbinom      reloaded predict: ERR: bartcore function called on NULL external poi
 ```
 
 The second line of each pair is the one that matters:
-`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:251` -
+`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:254` -
 does NOT help, because `predict` reaches through `$bc`, which has no
 state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in

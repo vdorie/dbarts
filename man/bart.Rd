@@ -1,6 +1,7 @@
 \name{bart}
 \alias{bart}
 \alias{plot.bart}
+\alias{print.bart}
 \alias{extract}
 \alias{predict.bart}
 \alias{extract.bart}
@@ -52,6 +53,8 @@ bart(
     bases = NULL,
     n.threads,
     \dots)
+
+\method{print}{bart}(x, \dots)
 
 extract(object, \dots)
 \method{extract}{bart}(
@@ -338,6 +341,8 @@ extract(object, \dots)
   Note that in the binary \eqn{y}, case \code{yhat.train} and \code{yhat.test} are \eqn{f(x) + \mathrm{binaryOffset}}{f(x) + binaryOffset}. For draws of the probability \eqn{P(Y = 1 | x)}, apply the family's inverse link to these values: the normal cdf (\code{pnorm}) for \code{"probit"} fits, \code{plogis} for \code{"logistic"} ones.
 
   For continuous response fits, the \code{plot} method sets \code{mfrow} to \code{c(1, 2)} and makes two plots. The first plot is the sequence of kept draws of \eqn{\sigma} including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \eqn{y} on the horizontal axis and posterior intervals for the corresponding \eqn{f(x)} on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \eqn{P(Y = 1 \mid x)} on the horizontal axis and its posterior interval on the vertical axis.
+
+  For \code{print.bart}, the fit itself (\code{x}), returned invisibly; the call and a short synopsis (family, chain/tree/burn counts, kept-draw count) print to the console as the side effect.
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2010)

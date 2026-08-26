@@ -89,7 +89,7 @@ fit.custom <- dbarts::rbart_vi(
   verbose = FALSE
 )
 expect_equal(length(fit.custom$fit), 2L)
-expect_true(is.null(fit.custom$n.chains))
+expect_equal(fit.custom$n.chains, 2L)
 
 # the gamma prior resolves by name
 fit.gamma <- dbarts::rbart_vi(
@@ -122,7 +122,7 @@ fit.named <- dbarts::rbart_vi(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_true(is.null(fit.named$n.chains))
+expect_equal(fit.named$n.chains, 1L)
 expect_true(all(is.finite(fit.named$tau)))
 
 rm(

@@ -641,7 +641,7 @@ labels[seq_len(min(5L, length(labels)))].
 
 Residue for the record: sparseFactor() refuses NA outright, so test-sparse-factor.R's D8 fixture uses a dense factor
 column; benchmarks/R/composition-matrix.R reports two pre-existing DISAGREEMENTS unrelated to this slice (multinom
-dbarts5 "no base fixture recipe"; logistic setWeights integer-weights); multinomial-mutation-arc.md sections 5-8 and
+dbarts5 "no base fixture recipe"; logistic setWeights integer-weights - fixed at HEAD, both harness bugs, not model gaps); multinomial-mutation-arc.md sections 5-8 and
 model-space-survey.md hold drifted anchors inside frozen text (C_interface.cpp:460/462, data.R ranges,
 model-space-survey.md:368-369), left by rule; direct data@x.test slot assignment bypasses the R refusal (validated
 surfaces + flat backstop are the contract) - bartCause's responseFit.R:180-189 uses that route at fit time.

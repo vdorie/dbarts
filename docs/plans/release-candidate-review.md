@@ -607,7 +607,7 @@ workflow); all files rewritten forward-facing.
 Doors left (unchanged unless noted): fit-time test-basis; logistic
 weights never ride saved state; DESCRIPTION Date bumps at the RC; the 70
 freshness advisories; plot.bart/plot.rbart still leak par() through
-plotSigmaTrace (the six own-class sites restore).
+plotSigmaTrace (the six own-class sites restore; plot.bart/plot.rbart fixed fcbbc478).
 
 ### The docs/ citation strip and xbart's k-grid sort (ad4d801d, e1223266, 2026-08-25)
 
@@ -837,7 +837,7 @@ threaded-predict-memo-r2.md, and threaded-predict-critique.md.
 Doors and residue recorded here, not in code: negbin rootogram panel; ordinal
 log_diff_exp tail precision; a negbin burn-in dispersion channel (bart2 negbin runs
 one run(n.burn, n.samples), so plot draws no burn-in segment); par(mfrow) is not
-restored by any plot method (plot.bart does not either - a shared change);
+restored by any plot method (overbroad when written - the six own-class sites already restored, line 610; plot.bart/plot.rbart's half fixed fcbbc478);
 as_draws_array.bartMultinomial(vars =) ignores a non-meanProb value (documented);
 predict(bases =), predict(sample =), fitted(combineChains =) on the own-class fits
 are still silent no-ops (outside the judgement table; n.threads becomes real with the

@@ -185,8 +185,8 @@ items
   r-c-division: the boundary guide, "R addresses the conditionals;
     C++ addresses the integrand" (docs/design/r-c-division.md). Its
     adoption slate has landed in full (docs/plans/adoption-slate.md).
-  rc-gate: the pre-RC slate is complete; the RC declaration itself is
-    VD-held.
+  rc-gate: the pre-RC slate is complete except bcf-baseline-cross-host,
+    still open at the RC tip; the RC declaration itself is VD-held.
   release-candidate-review: the charter for the orchestrated review
     wave before declaring a release candidate for serious human
     review (VD 2026-08-16), targeting the two defect families the

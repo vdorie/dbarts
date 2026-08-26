@@ -1292,9 +1292,8 @@ packageRbartResults <- function(
 
   if (keepSampler) {
     result$fit <- lapply(chainResults, function(x) x$sampler)
-  } else {
-    result$n.chains <- n.chains
   }
+  result$n.chains <- n.chains
 
   result$seed <- if (!is.na(seed)) {
     withFixedSeed(seed, .GlobalEnv$.Random.seed)
