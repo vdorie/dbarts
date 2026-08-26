@@ -12,7 +12,7 @@ K = 2 instance. Posterior-defining: `AmplitudeForestCombiner<L>`
 (chain.hpp:754-855), `expandForestSpecs` (combiner.hpp:361), the R resolution
 (R/model.R `resolveForests`, R/spec.R), and the gates
 (benchmarks/R/bcf-equivalence.R, bcf-exact{,-restricted,-weak}.R). Scope:
-GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:599-611 admits those three
+GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:611-623 admits those three
 and refuses each other family by name, chain.hpp:774-791 builds the matching
 response model, facade.hpp:882-885 the engine-side door), and CONSTANT leaves
 only (combiner.hpp:742-743). Under a latent family the combination is the
@@ -71,7 +71,7 @@ only read the engine makes of a basis: a row is contiguous and the multiplier
 costs one stream per forest (combiner.hpp:1399-1407). The plan's "The channel,
 specified" section said COLUMN-major and was wrong about the shipped code;
 M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
-(dbarts.h:977-981, src/C_interface.cpp:945-947), and M4.5 corrected the plan
+(dbarts.h:977-981, src/C_interface.cpp:966-968), and M4.5 corrected the plan
 line itself (docs/plans/multiforest-extension-surface.md:557-561).
 
 ## The amplitude layout
@@ -387,7 +387,7 @@ a hand-written K = 2 READING only, non-authoritative, read exactly when
 than by a combiner (combiner.hpp:104-110, :1099-1106).
 
 The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
-validated by `validateForestBases`, R/data.R:730), the way the design
+validated by `validateForestBases`, R/data.R:803), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
 rather than the constructed ones (combiner.hpp:1074-1077; plan :1958-1978, landed
@@ -543,7 +543,7 @@ the map and restores them.
 
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
-(R/spec.R:558-565, the `validateForestBases` install; the family gate it feeds
+(R/spec.R:570-577, the `validateForestBases` install; the family gate it feeds
 is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 `$getForestAmplitudes(forest)` (R/dbarts.R:1730), both 1-based via
 `resolveForestIndex` (R/bartcore.R:1051). Flat C:
@@ -553,8 +553,8 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1000-1009,
-src/R_interface_bartcore.cpp:3929-3934).
+that rule in two independent places (src/C_interface.cpp:1021-1030,
+src/R_interface_bartcore.cpp:3937-3942).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and

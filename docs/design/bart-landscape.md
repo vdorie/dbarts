@@ -201,7 +201,7 @@ engine. Its own paper's Table 1 gives the "C/C++ API" row exactly one check
 (its own) and the "Random effects" row exactly one, and its prose calls dbarts
 "a limited interface for interchanging a forest MCMC step with other
 samplers"; dbarts ships `inst/include/dbarts/dbarts.h` (39 entries in
-`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* `R/data.R:229-318`,
+`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* `R/data.R:300-391`,
 `R/model.R:93-133`, `R/bart.R:187-207`,
 `src/include/stochtree/leaf_model.h:352-358`, NAMESPACE; arXiv 2512.12051v1
 Section 1.2 and Table 1 fetched and converted to text.

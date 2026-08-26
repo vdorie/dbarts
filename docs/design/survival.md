@@ -598,14 +598,14 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
 path than aft's.** The generic (R/generics.R:8) gains a hazard branch in
 survivalProbabilities.bart, keyed on the $periods marker beside the aft
-$family gate (R/bart.R:2494,2502), computing S by cumulative hazard products
+$family gate (R/bart.R:2541,2549), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under
 combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
 so the two survival families share ergonomics. The EVALUATION cannot
 mirror aft's training path, though: aft's newdata = NULL path reads one
 stored linear predictor per subject (extract type = "bart",
-sample = "train", R/bart.R:2517) because every subject has exactly
+sample = "train", R/bart.R:2564) because every subject has exactly
 one row, but the hazard training design is RAGGED - subject i has only
 t_i rows, so its stored training fits stop at its own event/censoring
 period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)

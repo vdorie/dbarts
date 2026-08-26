@@ -353,9 +353,9 @@ BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.forests")` (R/spec.R:728-760, the `bartcore.variance`
+`attr(control, "bartcore.forests")` (R/spec.R:740-772, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:3052-3069). `$setForestBasis`, `$getForestFits`,
+(src/R_interface_bartcore.cpp:3060-3077). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1460, 1691-1716). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/

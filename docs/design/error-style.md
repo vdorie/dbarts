@@ -45,7 +45,7 @@ Wrap an argument, formal, or slot name in `'...'`. Never backtick, never bare,
 never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
 do not introduce them now).
 
-- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:699`).
+- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:772`).
 - Violation, since reworded: `"chainNum must be a single chain index in
   [1, ...]"` was bare; `R/generics.R:2708` now reads `stop("'chainNum'
   must be a single chain index in [1, ", n.chains, "]")`.
@@ -104,7 +104,7 @@ natural casing rather than force `"bcf does not support"`.
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
 - Violation: `src/R_interface_bartcore.cpp:2340` ("Student-t residuals ...")
-  is a genuine outlier, not an acronym - reword under the sweep. `:7426`
+  is a genuine outlier, not an acronym - reword under the sweep. `:7434`
   (DART) is the acronym exception and stays as-is; the two BCF-initial
   messages that sat beside it were reworded when the amplitude family took
   amplitude-rooted names, leaving DART the only one.
@@ -261,17 +261,17 @@ the same sites:
 - **Default - no prefix.** Raised directly in a `.Call` bridge entry point's
   own body (or a helper it alone reaches); R's `Error in .Call(...)` frame
   already attributes it. E.g. `"forest weight length must match the number of
-  observations"` (`src/R_interface_bartcore.cpp:3993`).
+  observations"` (`src/R_interface_bartcore.cpp:4001`).
 - **Flat C API entry points** (`src/C_interface.cpp`, `src/R_interface.cpp`,
   the `dbarts.h` ABI) **- hardcoded literal self-name.** Reachable by a
   `LinkingTo: dbarts` consumer with no R call frame to consult, so the message
   must self-identify. All 23 hardcoded instances are a `dbarts_sampler_*`
-  function naming itself (`src/C_interface.cpp:511`: `"dbarts_sampler_run:
+  function naming itself (`src/C_interface.cpp:532`: `"dbarts_sampler_run:
   results.structSize is 0..."`). Always follow the name with `:`.
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4649`/`:4942`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4657`/`:4950`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
   date (38 of 69 vs 31 without), e.g. `:2613`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
@@ -300,13 +300,13 @@ R message is canonical - the one users see, the one docs/tests quote; the
 C-side message is independently worded against this rule, not copied.
 Verbatim-identical strings across the boundary already failed once: `"forest
 weights must be finite and non-negative"` is byte-identical at
-`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4000`, but the very next
+`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4008`, but the very next
 guard in the same pair, the length check, drifted apart with no R counterpart
 to stay in sync with (`"forest weight length must match the number of
 observations"`, C-only). A string shared across two languages by hand is
 identical by discipline, not by construction, and the discipline already
 lapsed once. Every C-side backstop should carry a one-line comment naming it
-as direct-API defense in depth, on the model of `src/C_interface.cpp:755-761`
+as direct-API defense in depth, on the model of `src/C_interface.cpp:776-782`
 (`"defense in depth, since validateTestSource has already raised it"`). This
 is the message policy K6 reconciles predicates toward; K6 remains free to
 decide, guard by guard, whether a given C-side backstop is worth keeping.
@@ -348,7 +348,7 @@ Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1090`). **Argument omitted
 from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
 specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
 (`R/rbart.R:126`). Violation: `"'group.by' must be supplied when 'newdata' is
-given"` (`R/bart.R:2562`) - retired: already reworded to `specified`.
+given"` (`R/bart.R:2609`) - retired: already reworded to `specified`.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -378,8 +378,8 @@ in this document uses. This sub-shape of R9 is final.
 `"'<name>' must be a/an <type description>[, not <actual>]"` - the bare shape
 without the bracketed clause is dominant already (~25 sampled type-mismatch
 messages, only 2 use a different verb) and stays the required minimum.
-Conformance: `"'weights' must be a numeric vector"` (`R/data.R:692`,
-`R/data.R:1217`) - both guards in the same file now read exactly alike.
+Conformance: `"'weights' must be a numeric vector"` (`R/data.R:765`,
+`R/data.R:1290`) - both guards in the same file now read exactly alike.
 
 The bracketed `, not <actual>` clause is new: append it when the actual
 type/class is already in hand as a short noun (`class(x)[1]`, `typeof(x)`) at

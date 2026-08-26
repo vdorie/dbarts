@@ -288,7 +288,7 @@ drew no objection.
 **Family surface (recommend family = "ordinal" as the primitive, with
 auto-dispatch on ordered factors, announced).** family = "ordinal" is added to the
 bart2 and dbarts family vectors (R/bart.R:699, R/dbarts.R:382) and routed through
-resolveClassificationFamily (R/data.R:515). The response must be an ordered
+resolveClassificationFamily (R/data.R:588). The response must be an ordered
 factor (is.ordered); the level ORDER defines the category order. An unordered
 factor or character under family = "ordinal" is accepted with an informational
 message that order is taken from the level order (factor default: alphabetical -
@@ -302,18 +302,18 @@ bart2(family = "auto") routed it through detectAutoMultinomial, whose type
 match included "ordered factor" at n.levels >= 3, and SILENTLY fit an unordered
 multinomial, discarding the ordering. The single-forest entries (dbarts, xbart,
 rbart_vi) errored in resolveClassificationFamily's K >= 3 refusal
-(R/data.R:546-600). So EVERY option below - explicit-only included - had to
+(R/data.R:619-673). So EVERY option below - explicit-only included - had to
 split ordered factors out of detectAutoMultinomial, and bart2's behavior on
 ordered responses changed whichever option won; there was no
 zero-behavior-change choice. The detection hook already existed:
 classifyResponse tags "ordered factor" as its own response type
-(R/data.R:425-437).
+(R/data.R:498-510).
 
 LIVE: the split is made on the disjoint is.ordered() key (stated at
 R/bart.R:1344-1346). detectAutoMultinomial (R/bart.R:1391) matches unordered
 factors and characters only; detectAutoOrdinal (R/bart.R:1405-1421) catches the
 3+-level ordered factor and selects family = "ordinal". The single-forest
-entries still refuse, and R/data.R:546-548 names ordinal as the reason.
+entries still refuse, and R/data.R:619-621 names ordinal as the reason.
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:
@@ -370,7 +370,7 @@ cutpoints, a two-argument transform that does not fit that seam, so ordinal gets
 its own transform beside it rather than a generalization of it.
 
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
-(codeResponse, R/data.R:479-493). Ordinal must persist the ordered levels on the
+(codeResponse, R/data.R:552-566). Ordinal must persist the ordered levels on the
 fit object to label the K probability columns and map argmax back - as
 bartMultinomial persists $levels (R/bart.R:1710). Give ordinal its own S3
 class bartOrdinal (mirroring bartMultinomial, R/bart.R:1729) carrying $levels and

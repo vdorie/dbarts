@@ -494,11 +494,11 @@ getState writes it when carriesR() (chain.hpp:3096-3100, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:3272-3275); setState restoreR()s it (chain.hpp:3746-3747). The bridge adds a
 SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames
-(R_interface_bartcore.cpp:6457-6459), a
-conditional write when finite (:6634-6636, the resid.df line), and a by-name
-read tolerating absence (:7109-7115). Old states omit the slot and load
+(R_interface_bartcore.cpp:6465-6467), a
+conditional write when finite (:6642-6644, the resid.df line), and a by-name
+read tolerating absence (:7117-7123). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no
-state-format-version bump (additive, per the :6382-6384 rule).
+state-format-version bump (additive, per the :6390-6392 rule).
 
 **omega rides the existing latents slot.** The per-observation PG draws omega_i
 are the latents, serialized through the existing `latents` slot exactly as
