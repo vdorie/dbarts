@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (155 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (156 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -208,6 +208,7 @@ Columns: `file | STATUS | one-liner`.
 | interface-review.md | LANDED | Review-2 retrospective auditing the exported R surface; 11 code fixes + 6 doc fixes + 11 taste calls, all landed same day. |
 | nameable-calibration.md | COMMITTED | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain instead of inheriting it from the construction range; the per-chain getter is the authoritative reader of what is in force. |
 | pre-release-surface-fixes.md | LANDED | Fixes aft-loglik defect + freeze-regret paper-cuts from a pre-release surface audit. |
+| predict-surface.md | DESIGNED, 2026-08-25 (not started) | The pre-RC R-surface slice for prerc-surface-freeze D1 + D9 + D5 + D2: one `(object, newdata, type, ...)` order across the six predict methods with `offset` the single out-of-sample offset spelling and `group.by` named-only (after dots) on rbart's predict and survivalProbabilities, `forest = NULL` meaning every forest on the four R5 readers behind one new `bartcore_numForests` bridge entry and R-side stacking, fitted/predict type vocabularies equalized (`"class"` on the two categorical predicts, `"ppd"` second on negbin/hurdle fitted), the 15 bart2.Rd alias-only S3 methods given usage, predict.rbart's `value=`/`"post-mean"` shims deleted with `value` refused by name, and one saved-tree refusal wording naming `keepTrees = TRUE` across predict/extract(trees)/plotTree; four codoc-clean commits, one bartCause line to migrate, all baselines bitwise. |
 | r-ingestion-cleanups.md | LANDED | Unifies duplicated classification-family routing, sparse test-matrix handling, missing-policy guards. |
 | r5-cleanup.md | LANDED | Removes startThreads/stopThreads no-ops, documents offset sync, hides internal class names from S4 validity errors. |
 
