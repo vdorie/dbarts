@@ -777,8 +777,10 @@ so rbart checks (n.threads, ..., group.by); man/bart2.Rd's class/ppd prose lande
 design's line numbers actually named; commit 1's bart2.Rd edit was prose-only (the three own-class predicts already carried the
 target prefix).
 
-Consumers: bartCause dbarts-1.0 takes the one-line named group.by fix in R/generics.R (landed on that branch); stan4bart,
-treatSens, bairrtt unaffected (zero hits, re-verified by the critique). Residue: ordinal.md:364 and survival.md:615 cite
+Consumers: bartCause dbarts-1.0 takes TWO named group.by fixes in R/generics.R (d825cfc), not the one line both sweeps counted:
+the direct predict call at :162 and a do.call args list at :193 that neither parse-walk keyed on (it builds list(fit, x, group.by,
+...) rather than calling predict directly) - caught by running bartCause's suite against the landed build; stan4bart, treatSens,
+bairrtt unaffected (zero hits, re-verified by the critique). Residue: ordinal.md:364 and survival.md:615 cite
 R/generics.R:269-275, whose tail fell in a deletion - re-anchoring them needs intent, not arithmetic, so both stand as advisories;
 multinomial-mutation-arc.md:835's bart2.Rd:291 cite drifted to 348 but sits in frozen section 5, left by rule;
 model-space-survey.md:429 was stale before the slice (frozen exempt). The two settled-sub-choice doors that remain open:
