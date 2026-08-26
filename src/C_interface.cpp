@@ -26,17 +26,19 @@ using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::enforceBinaryWeightPolicy;
 using bartcore_bridge::drawAugmentation;
-using bartcore_bridge::refuseUndefinedTestFits;
-using bartcore_bridge::refuseBinaryWeightChange;
+using bartcore_bridge::familyCarriesNoWeights;
+using bartcore_bridge::isMultiForest;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
-using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
-using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
+using bartcore_bridge::responseConduitIsFixed;
 using bartcore_bridge::ResponseConduit;
+using bartcore_bridge::sigmaIsPinned;
+using bartcore_bridge::testFitsAreUndefined;
 using bartcore_bridge::validateColumnValues;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
@@ -520,7 +522,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0x32e5b15aa6c88c69ULL,
+static_assert(dbarts_apiSignatureToken == 0x5d02145d36620967ULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -637,8 +639,11 @@ void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler) {
   samplerOf(sampler).sampleNodeParametersFromPrior();
 }
 
-void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
-                                int updateScale) {
+int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
+                               int updateScale) {
+  // the capability answer, which no argument would have changed: a coupling
+  // that fixes its response conduit at creation
+  if (responseConduitIsFixed(samplerOf(sampler).shape())) return 0;
   // the shared conduit guard, not the whole-data refusal: a two-forest sampler
   // is flat-creatable, and its response swap is opt-in and scale-pinned rather
   // than refused - the same rule bartcore_setResponse applies
@@ -660,12 +665,14 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                           shape.numObservations, "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
   samplerOf(sampler).setResponse(y, updateScale != 0);
+  return 1;
 }
 
-void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
-                              int updateScale) {
+int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
+                             int updateScale) {
   // the offset is the response-side swap under a different pointer, so it
   // carries the same conditions; see dbarts_sampler_setResponse
+  if (responseConduitIsFixed(samplerOf(sampler).shape())) return 0;
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setOffset",
                                     ResponseConduit::offset, updateScale);
@@ -675,31 +682,36 @@ void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseGroupedScaleUpdate(samplerOf(sampler), "dbarts_sampler_setOffset",
                            ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(offset, updateScale != 0);
+  return 1;
 }
 
-void dbarts_sampler_setWeights(dbarts_sampler* sampler,
-                               const double* weights) {
-  // the weight conduit has no scale to pin; see dbarts_sampler_setResponse
-  refuseMultiForestResponseMutation(samplerOf(sampler),
-                                    "dbarts_sampler_setWeights",
-                                    ResponseConduit::weights, 0);
-  // and the family rule bartcore_setWeights states, which this entry used to
-  // drop on the floor: probit/ordinal/aft/nbinom install a vector nothing
-  // reads, and a logistic count that is not a positive integer leaves a row
-  // carrying a precision no observation of it justifies
-  refuseBinaryWeightChange(samplerOf(sampler));
+int dbarts_sampler_setWeights(dbarts_sampler* sampler,
+                              const double* weights) {
+  // both capability answers: a coupling that fixes the weight conduit at
+  // creation (the weight conduit has no scale to pin, so that is its whole
+  // condition), and the family rule bartcore_setWeights states, which this
+  // entry used to drop on the floor - probit/ordinal/aft/nbinom would install
+  // a vector nothing reads
   bartcore::SamplerShape weightShape = samplerOf(sampler).shape();
+  if (responseConduitIsFixed(weightShape) ||
+      familyCarriesNoWeights(samplerOf(sampler)))
+    return 0;
+  // the value half stays a raise: a logistic count that is not a positive
+  // integer leaves a row carrying a precision no observation of it justifies,
+  // and a different vector would have worked
   enforceBinaryWeightPolicy(weightShape.family, weights,
                             weightShape.numObservations);
   samplerOf(sampler).setWeights(weights);
+  return 1;
 }
 
-void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma) {
+int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma) {
   // reachable here: this entry creates probit/logistic/ordinal/nbinom samplers
   // by family name, and dbartsSpec(variance = ) hands a consumer a
   // heteroscedastic control (multinomial has no flat creation path)
-  refusePinnedSigmaChange(samplerOf(sampler), "dbarts_sampler_setSigma");
+  if (sigmaIsPinned(samplerOf(sampler))) return 0;
   samplerOf(sampler).setSigma(sigma);
+  return 1;
 }
 
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
@@ -786,13 +798,13 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
   return result == bartcore::PredictorUpdateResult::accepted ? 1 : 0;
 }
 
-void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
-                                      const dbarts_predictor_source* xTest) {
+int dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
+                                     const dbarts_predictor_source* xTest) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // an amplitude coupling's test blend is undefined without an off-sample
   // basis, and its whole test surface is refused; a multi-forest model whose
-  // blend IS defined passes (refuseUndefinedTestFits, not the forest count)
-  refuseUndefinedTestFits(engine, "dbarts_sampler_setTestPredictors");
+  // blend IS defined passes (the predicate is the blend, not the forest count)
+  if (testFitsAreUndefined(engine)) return 0;
   if (xTest == NULL) {
     // removal is the whole no-test-data state, the offset included: the engine
     // preserves a test offset across a test-store REBUILD (the caller keeps the
@@ -800,7 +812,7 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
     // longer exist, and the next install would silently re-adopt it
     engine.setTestPredictors(NULL, 0);
     engine.setTestOffset(NULL);
-    return;
+    return 1;
   }
   void* scratch = vmaxget();
   TranslatedSource source =
@@ -822,25 +834,27 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
     Rf_error("a leaf covariate column cannot be a sparse test column; "
              "supply it as a dense test column");
   vmaxset(scratch);
+  return 1;
 }
 
-void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
-                                  const double* offsetTest) {
-  // a multi-forest test offset lands after the forests are blended; unreachable
-  // today, guarded defensively, see dbarts_sampler_setResponse
-  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setTestOffset");
+int dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
+                                 const double* offsetTest) {
+  // a multi-forest test offset lands after the forests are blended, which is a
+  // fixed property of the sampler; see dbarts_sampler_setResponse
+  if (isMultiForest(samplerOf(sampler))) return 0;
   samplerOf(sampler).setTestOffset(offsetTest);
+  return 1;
 }
 
-void dbarts_sampler_predict(dbarts_sampler* sampler,
-                            const dbarts_predictor_source* xTest,
-                            const double* offsetTest, size_t numThreads,
-                            double* out) {
+int dbarts_sampler_predict(dbarts_sampler* sampler,
+                           const dbarts_predictor_source* xTest,
+                           const double* offsetTest, size_t numThreads,
+                           double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // predictColumns opens forests_[0] alone, so a caller would receive the
   // first forest's fit labelled as the whole; see
   // dbarts_sampler_setTestPredictors
-  refuseUndefinedTestFits(engine, "dbarts_sampler_predict");
+  if (testFitsAreUndefined(engine)) return 0;
   refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
   bartcore::SamplerShape shape = engine.shape();
   void* scratch = vmaxget();
@@ -862,6 +876,7 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
       misc_addVectorsInPlace(offsetTest, numTestObservations,
                              out + slab * numTestObservations);
   }
+  return 1;
 }
 
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
@@ -869,13 +884,13 @@ void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
   samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);
 }
 
-SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
+SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler, size_t forest,
                              const size_t* chainIndices,
                              size_t numChainIndices,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices, size_t numTreeIndices,
-                             int useLiveTrees, size_t forest) {
+                             int useLiveTrees) {
   if (forest >= samplerOf(sampler).shape().numForests)
     Rf_error("dbarts_sampler_getTrees: forest index out of range");
   // the n column replays the retained creation spec's predictors through each
@@ -889,14 +904,13 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
     "dbarts_sampler_getTrees");
 }
 
-void dbarts_sampler_printTrees(dbarts_sampler* sampler,
+void dbarts_sampler_printTrees(dbarts_sampler* sampler, size_t forest,
                                const size_t* chainIndices,
                                size_t numChainIndices,
                                const size_t* sampleIndices,
                                size_t numSampleIndices,
                                const size_t* treeIndices,
-                               size_t numTreeIndices, int useLiveTrees,
-                               size_t forest) {
+                               size_t numTreeIndices, int useLiveTrees) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   // the engine's printers index forests_[forest] unchecked, by design (fast
@@ -1020,7 +1034,8 @@ size_t dbarts_sampler_numForests(const dbarts_sampler* sampler) {
 }
 
 int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
-                                  const double* basis, size_t numColumns) {
+                                  const double* basisRowMajor,
+                                  size_t numColumns) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   // a capability probe rather than a forest count, matching the bridge: a
@@ -1028,18 +1043,19 @@ int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
   // multinomial would defeat a numForests test
   if (engine.totalAmplitudes() == 0) return 0;
   if (forest >= shape.numForests) return 0;
-  if (basis == NULL)
-    Rf_error("dbarts_sampler_setForestBasis: 'basis' cannot be NULL");
+  if (basisRowMajor == NULL)
+    Rf_error("dbarts_sampler_setForestBasis: 'basisRowMajor' cannot be NULL");
   if (numColumns == 0)
     Rf_error("dbarts_sampler_setForestBasis: a basis needs at least one "
              "column");
-  // ROW-major, row i at basis + i * numColumns, as the header states and the
-  // engine's own contraction reads it; the values are copied through
+  // ROW-major, row i at basisRowMajor + i * numColumns, as the parameter name
+  // states and the engine's own contraction reads it; the values are copied
+  // through
   size_t numValues = shape.numObservations * numColumns;
   for (size_t i = 0; i < numValues; ++i)
-    if (!std::isfinite(basis[i]))
+    if (!std::isfinite(basisRowMajor[i]))
       Rf_error("dbarts_sampler_setForestBasis: a basis value is not finite");
-  return engine.setForestBasis(forest, basis, numColumns) ? 1 : 0;
+  return engine.setForestBasis(forest, basisRowMajor, numColumns) ? 1 : 0;
 }
 
 int dbarts_sampler_getForestFits(const dbarts_sampler* sampler, size_t forest,
@@ -1159,10 +1175,14 @@ int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
                                  const double* active) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // the capability probe comes FIRST and never switches on the family -
-  // Student-t reports as gaussian - and the exact-{0,1} scan, the all-ones
-  // normalization and the copy are all the engine's, inherited rather than
-  // restated here
+  // Student-t reports as gaussian - and it is the only thing this return value
+  // reports; the all-ones normalization and the copy are the engine's
   if (!engine.shape().supportsActiveRows) return 0;
+  // the value refusal is the other channel, shared with the R bridge: a
+  // fractional element is recoverable, so it raises rather than answering the
+  // capability question with a no. The engine scans again on its own contract,
+  // which leaves the ? 1 : 0 below as defense in depth
+  refuseNonBinaryMask(active, engine.shape().numObservations);
   return engine.setActiveRows(active) ? 1 : 0;
 }
 

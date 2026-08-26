@@ -351,8 +351,12 @@ static int sweepCallback(void* userData, dbarts_sampler* sampler,
   (void) chainIndex;
   (void) isBurnIn;
   ++state->count;
+  /* the status cannot be discarded here and cannot be raised on either: an
+   * Rf_error out of a callback would longjmp through the engine's own sweep,
+   * so a refusal stops the run through the callback's own channel instead */
   if (state->sigmas != NULL && sweepIndex < state->numSigmas)
-    dbarts_sampler_setSigma(sampler, state->sigmas[sweepIndex]);
+    if (dbarts_sampler_setSigma(sampler, state->sigmas[sweepIndex]) == 0)
+      return 0;
   if (state->stopAt >= 0 && state->count >= state->stopAt) return 0;
   return 1;
 }
@@ -506,21 +510,24 @@ SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
+/* the conditioning setters answer a capability status, which the R side reads
+ * as an integer: 1 on a mutation, 0 where the sampler carries no such channel
+ * at all and nothing was touched */
 SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
-  dbarts_sampler_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr),
-                             Rf_asLogical(updateScaleExpr) == TRUE);
-  return R_NilValue;
+  return Rf_ScalarInteger(dbarts_sampler_setResponse(
+    samplerFromExpr(ptrExpr), REAL(yExpr),
+    Rf_asLogical(updateScaleExpr) == TRUE));
 }
 
 SEXP capi_set_weights(SEXP ptrExpr, SEXP weightsExpr) {
-  dbarts_sampler_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr));
-  return R_NilValue;
+  return Rf_ScalarInteger(
+    dbarts_sampler_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr)));
 }
 
 SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
-  dbarts_sampler_setTestOffset(samplerFromExpr(ptrExpr),
-                               Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr));
-  return R_NilValue;
+  return Rf_ScalarInteger(dbarts_sampler_setTestOffset(
+    samplerFromExpr(ptrExpr),
+    Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr)));
 }
 
 /* prints the first tree of the first chain of the named forest, exercising the
@@ -532,9 +539,9 @@ SEXP capi_print_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP forestExpr) {
   int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
   size_t numSamples =
     !useLiveTrees && dbarts_sampler_numSavedSamples(sampler) > 0 ? 1 : 0;
-  dbarts_sampler_printTrees(sampler, &chainIndex, 1, &sampleIndex, numSamples,
-                            &treeIndex, 1, useLiveTrees,
-                            (size_t) Rf_asInteger(forestExpr));
+  dbarts_sampler_printTrees(sampler, (size_t) Rf_asInteger(forestExpr),
+                            &chainIndex, 1, &sampleIndex, numSamples,
+                            &treeIndex, 1, useLiveTrees);
   return R_NilValue;
 }
 
@@ -558,15 +565,15 @@ SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
 }
 
 SEXP capi_set_offset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
-  dbarts_sampler_setOffset(samplerFromExpr(ptrExpr),
-                           Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
-                           Rf_asLogical(updateScaleExpr) == TRUE);
-  return R_NilValue;
+  return Rf_ScalarInteger(dbarts_sampler_setOffset(
+    samplerFromExpr(ptrExpr),
+    Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
+    Rf_asLogical(updateScaleExpr) == TRUE));
 }
 
 SEXP capi_set_sigma(SEXP ptrExpr, SEXP sigmaExpr) {
-  dbarts_sampler_setSigma(samplerFromExpr(ptrExpr), Rf_asReal(sigmaExpr));
-  return R_NilValue;
+  return Rf_ScalarInteger(
+    dbarts_sampler_setSigma(samplerFromExpr(ptrExpr), Rf_asReal(sigmaExpr)));
 }
 
 SEXP capi_get_latents(SEXP ptrExpr) {
@@ -760,13 +767,14 @@ SEXP capi_update_predictor_forced(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
 }
 
 SEXP capi_set_test_predictors(SEXP ptrExpr, SEXP xTestExpr) {
-  if (Rf_isNull(xTestExpr)) {
-    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL);
-  } else {
+  if (Rf_isNull(xTestExpr))
+    return Rf_ScalarInteger(
+      dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL));
+  {
     dbarts_predictor_source source = denseSource(xTestExpr);
-    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source);
+    return Rf_ScalarInteger(
+      dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source));
   }
-  return R_NilValue;
 }
 
 /* the source-shaped flavors, over an R-built spec: dense, CSC, mixed, or
@@ -791,10 +799,13 @@ SEXP capi_update_predictor_source(SEXP ptrExpr, SEXP specExpr,
 
 SEXP capi_set_test_predictors_source(SEXP ptrExpr, SEXP specExpr) {
   dbarts_predictor_source source = sourceFromList(specExpr);
-  dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source);
-  return R_NilValue;
+  return Rf_ScalarInteger(
+    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source));
 }
 
+/* the predict wrappers hand back NULL on a capability 0, the shape
+ * capi_get_latents already has: the buffer is untouched there, so returning it
+ * would report uninitialized memory as fits */
 SEXP capi_predict_source(SEXP ptrExpr, SEXP specExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   dbarts_predictor_source source = sourceFromList(specExpr);
@@ -804,9 +815,10 @@ SEXP capi_predict_source(SEXP ptrExpr, SEXP specExpr) {
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, &source, NULL, 0, REAL(result));
+  int predicted = dbarts_sampler_predict(sampler, &source, NULL, 0,
+                                         REAL(result));
   UNPROTECT(1);
-  return result;
+  return predicted ? result : R_NilValue;
 }
 
 /* the input-side write guard, inverted for a READ: an old, smaller caller
@@ -833,9 +845,10 @@ SEXP capi_predict_truncated(SEXP ptrExpr, SEXP xTestExpr) {
   size_t length =
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, &source, NULL, 0, REAL(result));
+  int predicted = dbarts_sampler_predict(sampler, &source, NULL, 0,
+                                         REAL(result));
   UNPROTECT(1);
-  return result;
+  return predicted ? result : R_NilValue;
 }
 
 SEXP capi_set_tree_storage(SEXP ptrExpr, SEXP keepTreesExpr,
@@ -857,11 +870,12 @@ SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
   /* 0 is the header's "the sampler's own count", so every assertion that
    * runs through here covers that resolution as well */
-  dbarts_sampler_predict(sampler, &source,
-                         Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), 0,
-                         REAL(result));
+  int predicted =
+    dbarts_sampler_predict(sampler, &source,
+                           Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), 0,
+                           REAL(result));
   UNPROTECT(1);
-  return result;
+  return predicted ? result : R_NilValue;
 }
 
 /* the same replay at an explicit per-call count. The count does not persist
@@ -876,10 +890,11 @@ SEXP capi_predict_threads(SEXP ptrExpr, SEXP xTestExpr, SEXP nThreadsExpr) {
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, &source, NULL,
-                         (size_t) Rf_asInteger(nThreadsExpr), REAL(result));
+  int predicted =
+    dbarts_sampler_predict(sampler, &source, NULL,
+                           (size_t) Rf_asInteger(nThreadsExpr), REAL(result));
   UNPROTECT(1);
-  return result;
+  return predicted ? result : R_NilValue;
 }
 
 /* sampleNumsExpr null reads every saved sample; otherwise its 1-based indices
@@ -914,9 +929,9 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr,
       sampleIndices[i] = (size_t) INTEGER(sampleNumsExpr)[i] - 1;
   }
 
-  return dbarts_sampler_getTrees(sampler, chainIndices, numChains,
+  return dbarts_sampler_getTrees(sampler, forest, chainIndices, numChains,
                                  sampleIndices, numSampleIndices, treeIndices,
-                                 numTrees, useLiveTrees, forest);
+                                 numTrees, useLiveTrees);
 }
 
 SEXP capi_store_state(SEXP ptrExpr) {
@@ -945,15 +960,24 @@ SEXP capi_set_forest_weights(SEXP ptrExpr, SEXP forestExpr,
     Rf_isNull(weightsExpr) ? NULL : REAL(weightsExpr)));
 }
 
-/* the mean channel: the basis a forest's amplitudes multiply, column-major
- * numObservations x numColumns and copied by the entry */
+/* the mean channel: the basis a forest's amplitudes multiply, ROW-major
+ * numObservations x numColumns and copied by the entry. An R matrix is
+ * column-major, so the transpose happens here rather than being handed to the
+ * entry sideways - the two layouts differ by no type a compiler could catch. */
 SEXP capi_set_forest_basis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
   SEXP dims = Rf_getAttrib(basisExpr, R_DimSymbol);
-  size_t numColumns =
-    Rf_isNull(dims) ? 1 : (size_t) INTEGER(dims)[1];
+  size_t numRows = Rf_isNull(dims) ? (size_t) Rf_xlength(basisExpr)
+                                   : (size_t) INTEGER(dims)[0];
+  size_t numColumns = Rf_isNull(dims) ? 1 : (size_t) INTEGER(dims)[1];
+  const double* columnMajor = REAL(basisExpr);
+  double* basisRowMajor =
+    (double*) R_alloc(numRows * numColumns, sizeof(double));
+  for (size_t i = 0; i < numRows; ++i)
+    for (size_t j = 0; j < numColumns; ++j)
+      basisRowMajor[i * numColumns + j] = columnMajor[j * numRows + i];
   return Rf_ScalarInteger(dbarts_sampler_setForestBasis(
-    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
-    REAL(basisExpr), numColumns));
+    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr), basisRowMajor,
+    numColumns));
 }
 
 /* the ragged amplitude read: the count first, so the caller sizes its own
@@ -1175,9 +1199,12 @@ static const char* const legRefusals[LEG_COUNT] = {
   NULL,
   "an offset swap only with updateScale = FALSE",
   NULL,
-  "multi-forest sampler fixes its data at creation",
-  "forest amplitudes have no off-sample basis",
-  "forest amplitudes have no off-sample basis",
+  /* the test-surface trio answers 0 rather than raising, so each leg's own
+   * body is what pins the refusal; only the two scale updates still carry a
+   * message, and they are the discriminating half of the split */
+  NULL,
+  NULL,
+  NULL,
   NULL,
   NULL,
   "a basis needs at least one column",
@@ -1227,36 +1254,47 @@ static SEXP bcfLegBody(void* data) {
     case LEG_NUM_FORESTS:
       legs->accepted = dbarts_sampler_numForests(legs->sampler) == 2;
       break;
+    /* this coupling opts into the response conduit, so all three answer 1: the
+     * capability arm the three entries gained is not this sampler's */
     case LEG_RESPONSE_PINNED:
-      dbarts_sampler_setResponse(legs->sampler, legs->y, 0);
+      legs->accepted =
+        dbarts_sampler_setResponse(legs->sampler, legs->y, 0) == 1;
       break;
     case LEG_RESPONSE_RESCALED:
       dbarts_sampler_setResponse(legs->sampler, legs->y, 1);
       break;
     case LEG_OFFSET_PINNED:
-      dbarts_sampler_setOffset(legs->sampler, legs->offset, 0);
+      legs->accepted =
+        dbarts_sampler_setOffset(legs->sampler, legs->offset, 0) == 1;
       break;
     case LEG_OFFSET_RESCALED:
       dbarts_sampler_setOffset(legs->sampler, legs->offset, 1);
       break;
     case LEG_WEIGHTS:
-      dbarts_sampler_setWeights(legs->sampler, legs->weights);
+      legs->accepted =
+        dbarts_sampler_setWeights(legs->sampler, legs->weights) == 1;
       break;
+    /* the three test-surface entries answer 0 without touching the sampler
+     * rather than raising: the blend a test fit needs is undefined here, which
+     * is a fixed property of this coupling and not a bad argument */
     case LEG_TEST_OFFSET:
-      dbarts_sampler_setTestOffset(legs->sampler, legs->offset);
+      legs->accepted =
+        dbarts_sampler_setTestOffset(legs->sampler, legs->offset) == 0;
       break;
     case LEG_TEST_PREDICTORS: {
       dbarts_predictor_source source = dbarts_dense_predictor_source(
         legs->xTest, legs->numTestObservations,
         dbarts_sampler_numPredictors(legs->sampler));
-      dbarts_sampler_setTestPredictors(legs->sampler, &source);
+      legs->accepted =
+        dbarts_sampler_setTestPredictors(legs->sampler, &source) == 0;
       break;
     }
     case LEG_PREDICT: {
       dbarts_predictor_source source = dbarts_dense_predictor_source(
         legs->xTest, legs->numTestObservations,
         dbarts_sampler_numPredictors(legs->sampler));
-      dbarts_sampler_predict(legs->sampler, &source, NULL, 0, legs->out);
+      legs->accepted =
+        dbarts_sampler_predict(legs->sampler, &source, NULL, 0, legs->out) == 0;
       break;
     }
     case LEG_BASIS: {

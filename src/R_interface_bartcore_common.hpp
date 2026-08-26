@@ -102,6 +102,12 @@ void validateColumnValues(const bartcore::ColumnStore& store,
                           std::size_t column, const double* values,
                           std::size_t numValues);
 
+/// True on a multi-forest sampler (BCF, numForests >= 2), the condition
+/// refuseMultiForestMutation raises on. Stated apart from the raiser because
+/// the flat C API answers this refusal through a return value rather than a
+/// longjmp; one predicate, two channels.
+bool isMultiForest(const bartcore::SamplerBase& sampler);
+
 /// Errors on a multi-forest sampler (BCF, numForests >= 2): a whole-data or
 /// whole-model mutation (setData, setModel) rebuilds or reprices only
 /// forest 0, leaving the rest against stale data or an uncalibrated prior.
@@ -115,6 +121,15 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
 /// carry one rule and differ only in what a refusal names and in whether the
 /// conduit has a scale to pin (weights do not).
 enum class ResponseConduit { response, offset, weights };
+
+/// True where a coupling fixes every response-side conduit at creation, which
+/// is refuseMultiForestResponseMutation's first arm alone: the sampler caches
+/// something per forest across sweeps rather than re-deriving it. Takes the
+/// shape rather than the sampler so a caller reading it for other reasons pays
+/// for one shape(). The second arm - a scale update against a pinned transform
+/// - is NOT covered here: it depends on the conduit and on updateScale, and it
+/// stays a raise on both surfaces.
+bool responseConduitIsFixed(const bartcore::SamplerShape& shape);
 
 /// Errors on a multi-forest sampler (numForests >= 2) that either fixes
 /// conduit at creation - its coupling caches something per forest across
@@ -180,9 +195,16 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 /// against them - and are held to the creation policy by
 /// enforceBinaryWeightPolicy above. The message names the actual family rather
 /// than "a binary response", which is the only thing an aft, ordinal or nbinom
-/// caller can act on. Both the R bridge and the flat C API guard with this, so
-/// the two surfaces cannot state different rules.
+/// caller can act on. The R bridge raises with this; the flat C API answers the
+/// same condition through familyCarriesNoWeights below, so the two surfaces
+/// state one rule in two channels.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
+
+/// True on a family that carries no case weights at all - probit, ordinal, aft
+/// and nbinom - which is exactly refuseBinaryWeightChange's condition. The
+/// value rule for the families that DO carry weights (logistic counts) is
+/// enforceBinaryWeightPolicy's and stays a raise.
+bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler);
 
 /// Errors on a response value outside the family's support, the post-creation
 /// half of the rule the R surface (R/spec.R) enforces when the sampler is
@@ -210,6 +232,11 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
                              const char* caller);
 
+/// True where that blend is undefined, the condition the raiser above states.
+/// The flat C API's test-side entries answer it through their return value
+/// instead of unwinding, so a host that did not build the sampler can probe it.
+bool testFitsAreUndefined(const bartcore::SamplerBase& sampler);
+
 /// Errors on a saved-tree read against a store holding no RECORDED draws -
 /// keepTrees on, nothing run since the last reset (creation, setTreeStorage,
 /// a warm-start install). Its slots hold zero-leaf trees, which replay as a
@@ -225,6 +252,19 @@ void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
 /// silently rescale every leaf posterior precision. caller labels the error.
 void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
                              const char* caller);
+
+/// True where that residual sd is structurally pinned, the disjunction the
+/// raiser above states. A heteroscedastic sampler answers gaussian, so this is
+/// the only thing that predicts the refusal without attempting the write.
+bool sigmaIsPinned(const bartcore::SamplerBase& sampler);
+
+/// Errors when an active-row mask carries an element that is neither 0 nor 1,
+/// a fractional value being a weighted likelihood the latent families have no
+/// coherent form for. Recoverable - a different mask would have worked - so it
+/// is an error on both surfaces rather than the engine's capability false,
+/// which every surface reads as "this family implements no mask". A null
+/// pointer (the clear) passes through.
+void refuseNonBinaryMask(const double* active, std::size_t numObservations);
 
 /// Errors when a CSC-backed column declares a reference level against a
 /// store-ORDINAL column: a reference is the code the column's IMPLICIT rows

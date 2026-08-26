@@ -43,6 +43,7 @@ using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
+using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
@@ -2608,13 +2609,17 @@ namespace bartcore_bridge {
 // combiner and stays allowed; setResponse is opt-in and scale-pinned rather
 // than refused, and carries its own condition in
 // refuseMultiForestResponseMutation below.
-// External linkage: the flat C API (C_interface.cpp) reuses this guard on
-// its own setTestOffset entry.
+// External linkage: the flat C API (C_interface.cpp) answers the same
+// condition on its own setTestOffset entry, through the predicate below.
+bool isMultiForest(const bartcore::SamplerBase& sampler) {
+  return sampler.shape().numForests >= 2;
+}
+
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller) {
-  if (sampler.shape().numForests >= 2)
-    Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
-             "new sampler instead", caller);
+  if (!isMultiForest(sampler)) return;
+  Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
+           "new sampler instead", caller);
 }
 
 // The response, offset and weight conduits are one rule under three names. The
@@ -2631,15 +2636,20 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
 // softmax is invariant to a common per-observation shift. Weights carry no
 // scale - setWeights never moves the transform, and BCF's scaledResponseSd is
 // unweighted - so only the opt-in half applies to them.
-// External linkage: the flat C API reuses this guard on its own setResponse,
-// setOffset and setWeights entries.
+// External linkage: the flat C API reuses this guard's SCALE arm on its own
+// setResponse and setOffset entries, and answers the conduit arm - a fixed
+// property of the sampler, so no argument would have worked - through the
+// predicate below rather than by unwinding.
+bool responseConduitIsFixed(const bartcore::SamplerShape& shape) {
+  return shape.numForests >= 2 && !shape.supportsResponseMutation;
+}
+
 void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        const char* caller,
                                        ResponseConduit conduit,
                                        int updateScale) {
   bartcore::SamplerShape shape = sampler.shape();
-  if (shape.numForests < 2) return;
-  if (!shape.supportsResponseMutation) {
+  if (responseConduitIsFixed(shape)) {
     // A coupling that owns its response as a count matrix does not fix it at
     // creation - it swaps through its own entry, and an integer case weight is
     // exactly the row-wise count replication that matrix already expresses - so
@@ -2673,7 +2683,8 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
     Rf_error("%s: this multi-forest sampler %s; make a new sampler instead",
              caller, fixed);
   }
-  if (conduit != ResponseConduit::weights && updateScale != FALSE)
+  if (shape.numForests >= 2 && conduit != ResponseConduit::weights &&
+      updateScale != FALSE)
     Rf_error("%s: a multi-forest sampler supports %s swap only with "
              "updateScale = FALSE, which pins the response transform its "
              "per-forest leaf calibrations are stated against", caller,
@@ -2768,12 +2779,18 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 // change under any surface. Naming the actual family matters: the one message
 // this used to carry told an aft, ordinal or nbinom caller about "a binary
 // response" they had not asked for.
-// External linkage: the flat C API reuses this on dbarts_sampler_setWeights,
-// which otherwise dropped a probit/ordinal/aft/nbinom weight change silently.
-void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
+// External linkage: the flat C API answers the same condition on
+// dbarts_sampler_setWeights, through the predicate below, rather than
+// dropping a probit/ordinal/aft/nbinom weight change silently as it once did.
+bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
   bartcore::ResponseFamily family = sampler.shape().family;
-  if (family == bartcore::ResponseFamily::gaussian ||
-      family == bartcore::ResponseFamily::logistic) return;
+  return family != bartcore::ResponseFamily::gaussian &&
+         family != bartcore::ResponseFamily::logistic;
+}
+
+void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
+  if (!familyCarriesNoWeights(sampler)) return;
+  bartcore::ResponseFamily family = sampler.shape().family;
   const char* name = "probit";
   if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
   else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
@@ -2862,16 +2879,21 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 // testFitsAreDefined rather than the forest count so a multi-forest model
 // whose test blend IS defined (multinomial softmax over the K forests'
 // totalTestFits) is allowed through; only the couplings that leave the channel
-// undefined are refused. External linkage: the flat C API reuses this guard on
-// its own predict and test-predictor entries.
+// undefined are refused. External linkage: the flat C API answers the same
+// condition on its own predict and test-predictor entries, through the
+// predicate below.
+bool testFitsAreUndefined(const bartcore::SamplerBase& sampler) {
+  bartcore::SamplerShape shape = sampler.shape();
+  return shape.numForests >= 2 && !shape.testFitsAreDefined;
+}
+
 void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
                              const char* caller) {
-  bartcore::SamplerShape shape = sampler.shape();
-  if (shape.numForests >= 2 && !shape.testFitsAreDefined)
-    Rf_error("%s: this sampler's forest amplitudes have no off-sample basis, "
-             "so its combined test fits are undefined; replay the forests "
-             "separately and recombine them with the amplitude glue instead",
-             caller);
+  if (!testFitsAreUndefined(sampler)) return;
+  Rf_error("%s: this sampler's forest amplitudes have no off-sample basis, "
+           "so its combined test fits are undefined; replay the forests "
+           "separately and recombine them with the amplitude glue instead",
+           caller);
 }
 
 void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
@@ -2894,18 +2916,40 @@ void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
 // miss it). Keyed on the family, NOT on sigmaIsFixed_: a gaussian sampler with
 // resid.prior = fixed() pins sigma too, and driving it per sweep is the
 // supported outer-Gibbs conditioning idiom.
-// External linkage: the flat C API reuses this on dbarts_sampler_setSigma.
+// External linkage: the flat C API answers the same condition on
+// dbarts_sampler_setSigma, through the predicate below.
+bool sigmaIsPinned(const bartcore::SamplerBase& sampler) {
+  bartcore::SamplerShape shape = sampler.shape();
+  return shape.hasVarianceForest ||
+         (shape.family != bartcore::ResponseFamily::gaussian &&
+          shape.family != bartcore::ResponseFamily::aft);
+}
+
 void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
                              const char* caller) {
-  bartcore::SamplerShape shape = sampler.shape();
-  if (shape.hasVarianceForest)
+  if (!sigmaIsPinned(sampler)) return;
+  if (sampler.shape().hasVarianceForest)
     Rf_error("%s: this sampler's variance forest owns the residual scale; "
              "there is no single sigma to set", caller);
-  if (shape.family != bartcore::ResponseFamily::gaussian &&
-      shape.family != bartcore::ResponseFamily::aft)
-    Rf_error("%s: this response family fixes the residual standard deviation "
-             "by definition; only gaussian and aft samplers carry a sigma to "
-             "set", caller);
+  // the only other disjunct, so no second test
+  Rf_error("%s: this response family fixes the residual standard deviation "
+           "by definition; only gaussian and aft samplers carry a sigma to "
+           "set", caller);
+}
+
+// The value half of the active-row contract, apart from the engine's
+// capability bool: a mask element that is neither 0 nor 1 is recoverable - a
+// different mask would have worked - so it raises on both surfaces, leaving
+// the engine's false to mean "this family implements no mask" alone. The scan
+// is the engine's own (bartcore/chain.hpp), restated here so a surface can
+// refuse before the install rather than after it.
+void refuseNonBinaryMask(const double* active, size_t numObservations) {
+  if (active == NULL) return;
+  for (size_t i = 0; i < numObservations; ++i)
+    if (active[i] != 0.0 && active[i] != 1.0)
+      Rf_error("active rows must be exactly 0 or 1: a fractional value is a "
+               "weighted likelihood, which the latent families have no "
+               "coherent form for");
 }
 
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
@@ -4046,6 +4090,10 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   if (!Rf_isReal(activeExpr) ||
       static_cast<size_t>(Rf_xlength(activeExpr)) != n)
     Rf_error("active row length must match the number of observations");
+  // the value refusal, stated once for both surfaces; the post-hoc test of the
+  // engine's bool below is then defense in depth, since the capability has
+  // already been probed and no other reason to refuse remains
+  refuseNonBinaryMask(REAL(activeExpr), n);
   if (!holder.sampler->setActiveRows(REAL(activeExpr)))
     Rf_error("active rows must be exactly 0 or 1: a fractional value is a "
              "weighted likelihood, which the latent families have no coherent "

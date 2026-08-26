@@ -1668,6 +1668,12 @@ static void testActiveRows() {
     ext_rng* rng;
     auto sampler = makeSampler(rng, ResponseFamily::gaussian, y.data(),
                                weights.data());
+    // the engine's two false reasons stay SEPARABLE by the probe: a chain
+    // that advertises the channel still refuses a non-binary mask, which is
+    // what lets a surface answer the capability with its return value while
+    // raising on the value
+    check(sampler->supportsActiveRows(),
+          "the mask channel is advertised whatever the values say");
     check(sampler->setActiveRows(d.values) == d.accepted, d.what);
     sampler->run(20, numSamples, resultsOther);
     check(sigmaPlain == sigmaOther && trainPlain == trainOther,

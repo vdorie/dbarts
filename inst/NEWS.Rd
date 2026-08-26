@@ -1093,6 +1093,38 @@
             is opt-in, behind \code{DBARTS_REQUIRE_EXACT_ABI} defined before
             including the header. \code{DBARTS_C_API_HASH} is re-baked again
             for this surface.
+      \item Seven entry points that refused by raising now answer in a return
+            value where the refusal is a fixed property of the sampler:
+            \code{dbarts_sampler_setResponse}, \code{dbarts_sampler_setOffset},
+            \code{dbarts_sampler_setWeights}, \code{dbarts_sampler_setSigma},
+            \code{dbarts_sampler_setTestPredictors},
+            \code{dbarts_sampler_setTestOffset} and
+            \code{dbarts_sampler_predict} return \code{int} in place of
+            \code{void}, giving 0 without touching the sampler where it cannot
+            carry the channel at all - a probit or heteroscedastic sampler
+            handed a sigma, a family with no case weights, a coupling whose
+            test blend is undefined - so a host driving a sampler it did not
+            build probes instead of unwinding through its own frames. What a
+            different argument would have fixed still raises: a response
+            outside its family's support, a logistic count that is not a
+            positive integer, a scale update against a pinned transform, a
+            malformed source. On the same rule
+            \code{dbarts_sampler_setActiveRows} moves its non-binary mask
+            refusal from 0 to an error, leaving its 0 to mean the family
+            implements no mask. \code{dbarts_sampler_getTrees} and
+            \code{dbarts_sampler_printTrees} take \code{forest} as the
+            argument after the sampler, where every other forest-naming entry
+            has it and where it precedes the tree indices it qualifies, and
+            \code{dbarts_sampler_setForestBasis} renames its \code{basis}
+            parameter to \code{basisRowMajor}, the header's one documented
+            exception to column-major storage. The header no longer defines
+            \code{USE_FC_LEN_T}: it declares no Fortran routine, and the define
+            turned \code{FC_LEN_T} on for a consumer's whole translation unit
+            through \code{Rconfig.h} with no way to restore it - a consumer
+            calling BLAS or LAPACK defines the macro itself, as R's own
+            documentation directs, and one that relied on this header to pull
+            in \code{<Rversion.h>} now includes it itself.
+            \code{DBARTS_C_API_HASH} is re-baked for these signatures.
     }
   }
   \subsection{BUG FIXES}{

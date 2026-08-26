@@ -82,9 +82,14 @@ expect_false(identical(hashes$text, "0x6c9776ae1197e8f5"))
 # the token before the freeze slice: the family enum, the four get renames,
 # the widened printEvery and printTrees' useLiveTrees all moved it
 expect_false(identical(hashes$text, "0x66d33f1613892406"))
+# the token before the shape freeze: seven void setters became int, getTrees
+# and printTrees took the forest index second, and setForestBasis renamed its
+# basis parameter, so a token blind to a return type, an argument order or a
+# parameter name would still read this one
+expect_false(identical(hashes$text, "0x0939c0224353505b"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x0939c0224353505b")
+expect_identical(hashes$text, "0x5a32aa4cd3872d55")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -228,7 +233,7 @@ ptrFixed <- CALL(
 )
 rm(specFixed)
 invisible(gc(FALSE)) # creation preserves what the sampler borrows
-CALL("capi_set_sigma", ptrFixed, 0.37)
+expect_equal(CALL("capi_set_sigma", ptrFixed, 0.37), 1L)
 rFixed <- CALL("capi_run", ptrFixed, 0L, 3L, FALSE, FALSE)
 expect_equal(unique(rFixed$sigma), 0.37)
 
@@ -305,6 +310,11 @@ expect_equal(
   CALL("capi_sampler_family", ptrVar),
   familyConstants[["gaussian"]]
 )
+# ... so the family accessor does not by itself predict the sigma refusal, and
+# the capability channel is what does: the variance forest owns the residual
+# scale row by row, so there is no single sigma to set and the entry answers 0
+# without touching anything
+expect_equal(CALL("capi_set_sigma", ptrVar, 0.5), 0L)
 
 rm(nVar, xVar, yVar, controlVar, specVar, ptrVar, xVarNew)
 invisible(gc(FALSE))
@@ -316,16 +326,18 @@ CALL("capi_set_test_predictors", ptr2, x.test)
 expect_equal(CALL("capi_dims", ptr2)[3L], 20L)
 
 # the remaining conditioning hooks: a replacement response moves the fits,
-# gaussian weights install, and leaf parameters redraw from the prior
+# gaussian weights install, and leaf parameters redraw from the prior. Each
+# answers 1 - the accepting half of the capability channel, without which a 0
+# somewhere below would not discriminate
 yShifted <- y + 10
-CALL("capi_set_response", ptr2, yShifted, TRUE)
+expect_equal(CALL("capi_set_response", ptr2, yShifted, TRUE), 1L)
 rShifted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
 expect_true(abs(mean(rShifted$train) - mean(yShifted)) < 3)
 CALL("capi_set_response", ptr2, y, TRUE)
 
 # the sampler borrows what it is handed, so the vector must stay live
 weights <- rep(c(0.5, 1.5), length.out = n)
-CALL("capi_set_weights", ptr2, weights)
+expect_equal(CALL("capi_set_weights", ptr2, weights), 1L)
 rWeighted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
 expect_true(all(is.finite(rWeighted$train)))
 
@@ -461,12 +473,11 @@ expect_equal(rBinLL$loglik[finite], twinLL[finite], tolerance = 1e-9)
 # dbarts_sampler_setSigma carries the same family rule as the R bridge entry:
 # a probit sampler's sigma is pinned at 1 by the model definition, so a write
 # would persist (no redraw corrects it) and rescale every leaf posterior
-# precision. ptrFixed above is the permitted case - gaussian with
-# resid.prior = fixed(), the outer-Gibbs conduit
-expect_error(
-  CALL("capi_set_sigma", ptrBinary, 0.5),
-  "response family fixes the residual standard deviation"
-)
+# precision. The flat entry answers this in the capability channel rather than
+# by unwinding - no sigma would have worked - while the R5 twin still raises.
+# ptrFixed above is the permitted case - gaussian with resid.prior = fixed(),
+# the outer-Gibbs conduit - and answers 1 there
+expect_equal(CALL("capi_set_sigma", ptrBinary, 0.5), 0L)
 
 # dbarts_sampler_setWeights carries the same family rule too, and used to carry
 # none: probit, ordinal, aft and nbinom read no weight at all, so this entry
@@ -474,12 +485,12 @@ expect_error(
 # positive integers left a row carrying a full PG(1, psi) precision nothing in
 # the data justifies - the count is the number of draws SUMMED and the first
 # one is unconditional, so a zero or negative count is a phantom observation,
-# not a division by zero. ptr2 above is the permitted gaussian case; the
-# logistic swap the rule now allows is driven with the flat family cells below
-expect_error(
-  CALL("capi_set_weights", ptrBinary, rep(1, n)),
-  "probit models do not support case weights"
-)
+# not a division by zero. The two halves land in different channels: a family
+# carrying no weights at all is the capability 0 below, while a bad count on a
+# family that does carry them still raises. ptr2 above is the permitted
+# gaussian case; the logistic swap the rule now allows is driven with the flat
+# family cells below
+expect_equal(CALL("capi_set_weights", ptrBinary, rep(1, n)), 0L)
 
 # the nbinom magnitude cap at the flat funnel, which has no R layer ahead of it
 # to state the rule: the dispersion grid's count histogram is sized from the
@@ -512,11 +523,9 @@ expect_error(
   CALL("capi_set_response", ptrCount, dataOverBound@y, FALSE),
   capRefusal
 )
-# and the weight refusal under a second family, whose message names it
-expect_error(
-  CALL("capi_set_weights", ptrCount, rep(1, n)),
-  "nbinom \\(count\\) models do not support case weights"
-)
+# and the weight refusal under a second family, in the capability channel; the
+# R5 twin is where the message naming the family is pinned
+expect_equal(CALL("capi_set_weights", ptrCount, rep(1, n)), 0L)
 
 # the dispersion channel from C: the results slot appended to dbarts_results
 # and the mid-sweep getter. The slot is NA-poisoned before the run, so an
@@ -1390,10 +1399,11 @@ rm(ptrSrc)
 invisible(gc(FALSE))
 
 # the active-row mask from C: a masked row leaves the data set for the sweep,
-# an all-ones mask installs nothing, a fractional value is refused (0, not a
-# raise), and NULL clears. The probe is a capability, never a family switch,
-# so a probit sampler takes one too, and a genuine mask must move ITS draws
-# exactly as it does the gaussian ones
+# an all-ones mask installs nothing, a fractional value RAISES - a different
+# mask would have worked, so it is not the capability channel - and NULL
+# clears. The probe is a capability, never a family switch, so a probit sampler
+# takes one too, and a genuine mask must move ITS draws exactly as it does the
+# gaussian ones
 ptrMaskA <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 ptrMaskB <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 ptrMaskC <- CALL("capi_create", spec$control, spec$model, spec$data, "")
@@ -1406,7 +1416,10 @@ rMaskB <- CALL("capi_run", ptrMaskB, 5L, 3L, TRUE, FALSE)
 expect_false(identical(rMaskA$train, rMaskB$train))
 expect_equal(CALL("capi_set_active_rows", ptrMaskC, rep(1, n)), 1L)
 expect_identical(CALL("capi_run", ptrMaskC, 5L, 3L, TRUE, FALSE), rMaskB)
-expect_equal(CALL("capi_set_active_rows", ptrMaskA, rep(0.5, n)), 0L)
+expect_error(
+  CALL("capi_set_active_rows", ptrMaskA, rep(0.5, n)),
+  "exactly 0 or 1"
+)
 expect_equal(CALL("capi_set_active_rows", ptrMaskA, NULL), 1L)
 ptrProbitMaskA <- CALL(
   "capi_create",
@@ -1627,6 +1640,32 @@ expect_error(
   CALL("capi_forest_amplitudes", ptrW2, 2L),
   "forest index out of range"
 )
+
+# the mean channel from R, where the two layouts are visible: an R matrix is
+# column-major and dbarts_sampler_setForestBasis reads its argument ROW-major,
+# a difference no type carries, so the wrapper transposes. The basis below has
+# a constant row norm of 5 under the row-major reading and a different one
+# under the column-major misreading, and the calibration map's basisRowNorm is
+# what tells the two apart. Its own sampler, so the legs above keep the layout
+# they left
+ptrBasisR <- CALL(
+  "capi_create",
+  specBCF$control,
+  specBCF$model,
+  specBCF$data,
+  ""
+)
+basisR <- cbind(rep(3, nBCF), rep(4, nBCF))
+expect_equal(CALL("capi_set_forest_basis", ptrBasisR, 1L, basisR), 1L)
+calBasisR <- CALL("capi_forest_calibration", ptrBasisR, 1L, 0L, FALSE)
+expect_equal(calBasisR$basis.row.norm, rep(5, 2L))
+expect_equal(CALL("capi_forest_amplitudes", ptrBasisR, 1L)$count, 2L)
+# a forest past the last one is a capability answer here, not a raise
+expect_equal(CALL("capi_set_forest_basis", ptrBasisR, 2L, basisR), 0L)
+# and a sampler carrying no amplitudes at all answers the same way
+expect_equal(CALL("capi_set_forest_basis", ptr1, 0L, rep(1, n)), 0L)
+rm(ptrBasisR, basisR, calBasisR)
+invisible(gc(FALSE))
 
 # the Student-t df channel from C: the results slot appended to
 # dbarts_results after the dispersion one, on a sampler whose error law is
