@@ -353,10 +353,10 @@ overlaps unordered multinomial: the disjoint key is is.ordered().
 **Prediction semantics.** fitted()/predict(type = "ev"/"response") return the
 n x K category-probability array (x n.chains x n.samples where extract does),
 P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by the
-ordered levels - the multinomial K-column shape (R/generics.R:1464-1478), computed
+ordered levels - the multinomial K-column shape (R/generics.R:1493-1507), computed
 through the cutpoints rather than a softmax. type = "bart"/"link" returns the
 single-column latent eta = f (probit returns its latent likewise,
-R/generics.R:363-367). A class-prediction convenience maps the argmax category
+R/generics.R:392-396). A class-prediction convenience maps the argmax category
 back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoint
 draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at

@@ -117,7 +117,7 @@ them again, and who does that depends on the layer:
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
   the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1805`). There is no
+  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1872`). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
 - Two holes remain, both known. A per-forest weight is not part of the state,
@@ -152,7 +152,7 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4485`) is the
+`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4495`) is the
 internal single-chain R hook behind `rbart_vi`'s Gibbs loop. It refuses more
 than one chain outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the

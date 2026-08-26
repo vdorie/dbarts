@@ -47,7 +47,7 @@ do not introduce them now).
 
 - Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:699`).
 - Violation, since reworded: `"chainNum must be a single chain index in
-  [1, ...]"` was bare; `R/generics.R:2679` now reads `stop("'chainNum'
+  [1, ...]"` was bare; `R/generics.R:2708` now reads `stop("'chainNum'
   must be a single chain index in [1, ", n.chains, "]")`.
 
 A value drawn from a closed set of choices (family name, class name used as an
@@ -184,7 +184,7 @@ majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
 Keep `sprintf()` as the accepted alternate when one clause interpolates two or
 more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
 (0 uses of either today). Conformance: `stop("'chainNum' must be a single
-chain index in [1, ", n.chains, "]")` (`R/generics.R:2679`). The example
+chain index in [1, ", n.chains, "]")` (`R/generics.R:2708`). The example
 this rule first cited, `"invalid monotone direction '", value, "'; use
 -1, 0, or +1"`, did not survive: R12's rewording left `R/model.R:557-560`
 a fixed two-literal message that interpolates nothing.
@@ -271,7 +271,7 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4639`/`:4932`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4649`/`:4942`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
   date (38 of 69 vs 31 without), e.g. `:2613`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
@@ -466,7 +466,7 @@ is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (`R/generics.R:552-556`). Violation: `"invalid monotone direction
+"', '"), "'"` (`R/generics.R:576-580`). Violation: `"invalid monotone direction
 '", value, "'; use -1, 0, or +1"` (`R/model.R:558`) - reword to `"'direction'
 must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
 site). `"unrecognized response family for a binary response"`
@@ -509,7 +509,7 @@ or model continuous weights' latents directly"` (`R/spec.R:54-59`).
 Violation, since reworded to exactly this rule's proposal: `"sample =
 \"test\" is not available for type = \"forest\": an ..."` is now
 `"type = \"forest\" does not support sample = \"test\": no test-sample
-per-forest channel is stored, ..."` (`R/generics.R:582-587`).
+per-forest channel is stored, ..."` (`R/generics.R:606-611`).
 
 **External evidence.** Checked hard, because this looked like a plausible
 override going in. Neither tidyverse nor rlang address "unsupported feature"
@@ -699,5 +699,5 @@ CRAN builds installed in this environment's R library.
    out-of-range: state the expected value/type/choices as the required
    minimum; append the actual/received value when it's already in hand,
    never as a mandatory re-derivation. `"'forest' index must be between 1
-   and <N>"` (`R/generics.R:562`) remains the model example; it was right
+   and <N>"` (`R/generics.R:586`) remains the model example; it was right
    the first time.

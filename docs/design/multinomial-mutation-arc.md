@@ -131,19 +131,19 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3489` -> `createMultinomialDataHolder` `:3455` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4241` | `bartcoreRun` `:1065` | S |
+| run | `bartcore_run` `:4251` | `bartcoreRun` `:1070` | S |
 | **response swap** | `bartcore_setCounts` `:3770` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
 | **train offset** | `bartcore_setCategoryOffset` `:3852` | `:108` | S, unexported |
 | **test offset** | `bartcore_setCategoryTestOffset` `:3891` | `:125` | S, unexported |
-| predictors: whole / column / per-obs / joint | `:5053`, `:5101`, `:5214`, `:5268` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5158` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4722` | `:558` | S (`refuseUndefinedTestFits` `:2867` gates on `testFitsAreDefined`, TRUE here) |
+| predictors: whole / column / per-obs / joint | `:5063`, `:5111`, `:5224`, `:5278` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
+| cut points | `bartcore_setCutPoints` `:5168` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:4732` | `:558` | S (`refuseUndefinedTestFits` `:2867` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4022` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5771` | `:1080` | S |
-| per-category fits / varcounts | `:4081`, `:4214` | retired; `R/dbarts.R:1691`, `:1716` | S |
-| calibration read | `bartcore_getCalibration` `:4139` | retired; `R/dbarts.R:1730` | S (map columns, NaN off-map) |
-| state store / restore | `:5618`, `:5623` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
-| saved trees | `bartcore_getTrees` `:5956` | retired; `R/dbarts.R:1932` | S, forest-indexed |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5781` | `:1085` | S |
+| per-category fits / varcounts | `:4091`, `:4224` | retired; `R/dbarts.R:1691`, `:1739` | S |
+| calibration read | `bartcore_getCalibration` `:4149` | retired; `R/dbarts.R:1775` | S (map columns, NaN off-map) |
+| state store / restore | `:5628`, `:5633` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
+| saved trees | `bartcore_getTrees` `:5966` | retired; `R/dbarts.R:1999` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, `:2652-2667`), `setWeights`
@@ -165,7 +165,7 @@ environment.
 
 ### 1.4 What the R5 class promises that the shells cannot deliver
 
-`dbartsSampler` (`R/dbarts.R:889-2091`): 43 methods, 7 fields (`pointer`,
+`dbartsSampler` (`R/dbarts.R:889-2158`): 43 methods, 7 fields (`pointer`,
 `control`, `model`, `data`, `state`, `hostFor` (retired: the field was
 deleted with the mechanism at S4/F1), `forestWeights` `:902`).
 
@@ -177,7 +177,7 @@ deleted with the mechanism at S4/F1), `forestWeights` `:902`).
   `setTestPredictorAndOffset`, `setTestOffset`, `setCalibration`,
   `setState`, `installTrees`.
 - **2 carry `refuseHostRead`** (retired: the guard is gone; both methods
-  remain): `getDispersion` (`:1681`), `getFitsWithoutOffset` (`:1696`).
+  remain): `getDispersion` (`:1681`), `getFitsWithoutOffset` (`:1719`).
 - **13 substantive methods answer from the placeholder, unguarded**:
   `copy`, `predict`, `getLatents`, `getSigmas`,
   `getSumsOfSquaredResiduals`, `getForestFits`, `getForestAmplitudes`,
@@ -206,7 +206,7 @@ an engine nothing reads. Same harm, one method call away.
 ### 1.5 `$fit` is load-bearing, so it cannot simply be deleted
 
 All three `predict` methods code `newdata` against the HOST's design:
-`R/generics.R:1199`, `:1489`, `:1728` all call
+`R/generics.R:1234`, `:1518`, `:1771` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
 `bartcorePredict` (retired: routed through `object$fit` directly, not a
 separate `$bc` handle). The host carries the factor level
@@ -230,7 +230,7 @@ nbinom      reloaded predict: ERR: bartcore function called on NULL external poi
 ```
 
 The second line of each pair is the one that matters:
-`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:250` -
+`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:251` -
 does NOT help, because `predict` reaches through `$bc`, which has no
 state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in
@@ -705,12 +705,12 @@ depend on the file's full execution history, not just the preceding
   four gates were `control@keepTrees || keepSampler`. Current
   `man/bart2.Rd` (e.g. line 332 for ordinal, 336 for nbinom) states only
   `fit`'s gate; there is no `bc` left to misdescribe.
-- `man/bart2.Rd:244` (the multinomial refusal set).
+- `man/bart2.Rd:301` (the multinomial refusal set).
 - `man/dbartsSampler-class.Rd`: the host-shell sentences (retired: deleted
   under F1), the `getLatents`
   paragraph (Fork B1), `\item{forest}`, and the fit-surface table
   `adoption-slate.md:224-233` added.
-- `man/bart.Rd:250` (save/load) extended to the three families - and it
+- `man/bart.Rd:251` (save/load) extended to the three families - and it
   is currently the ONLY place a user is told a workaround exists, which
   MEASURED does not work for them.
 - `man/dbarts.Rd`: the `family` formal gains `"multinomial"`; the
@@ -752,12 +752,12 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`R/generics.R:1472` and `:1710` now say so directly).** `$bc` was a bare
+`R/generics.R:1501` and `:1753` now say so directly).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
-time this section was written: six code readers (`R/generics.R:608/625`,
-`770/786`, `900/915`), three test assertions (`test-ordinal.R:139`,
+time this section was written: six code readers (`R/generics.R:632/649`,
+`794/810`, `924/939`), three test assertions (`test-ordinal.R:151`,
 `test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
-paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1314`), and the
+paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1346`), and the
 `cutpoints.raw`/`dispersion.raw` co-gate. Under the standing
 no-backwards-compat constraint this was a NEWS migration, not a design
 input, and it has since landed.

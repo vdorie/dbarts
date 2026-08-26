@@ -545,7 +545,7 @@ R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
 (R/spec.R:558-565, the `validateForestBases` install; the family gate it feeds
 is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
-`$getForestAmplitudes(forest)` (R/dbarts.R:1707), both 1-based via
+`$getForestAmplitudes(forest)` (R/dbarts.R:1730), both 1-based via
 `resolveForestIndex` (R/bartcore.R:1051). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_getForestAmplitudes`, ragged and ROW-major

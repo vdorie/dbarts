@@ -1946,7 +1946,7 @@ instrumentation, falsifiable in both directions.
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:1939`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:2006`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in
