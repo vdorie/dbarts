@@ -49,9 +49,12 @@ also detects unintended RNG shifts from refactors of the current engine.
     # ... install candidate build ...
     Rscript benchmarks/R/equivalence.R compare baseline-equivalence.rds
 
-Baselines are RNG- and build-dependent; regenerate them rather than reusing
-across machines. Comparisons must use the same settings (seeds, iterations)
-as the recorded baseline; the script enforces this.
+Baselines are RNG- and build-dependent, so a *bitwise* compare is a
+same-machine check. A baseline is still reusable off-host through the sibling
+harnesses' `--cross-host` flag (below), which exempts the channels that cannot
+reproduce across machines and gates the rest under a two-tier verdict.
+Comparisons must use the same settings (seeds, iterations) as the recorded
+baseline; the script enforces this.
 
 `compare` prints a coverage line (scenarios compared / skipped) and warns -
 or, with `--strict-coverage`, fails - when the installed engine offers
@@ -67,6 +70,19 @@ for the two multi-forest samplers, with their own current baselines named
 by the MANIFEST (which is authoritative; hashes rotate at every
 re-record); the three together are the "equivalence trio" the plan docs
 gate on.
+
+Both take `--cross-host` to compare a baseline recorded on another machine.
+The point-in-time snapshot channels (a forest's raw fit/amplitude/varcount
+query, a transaction's accept/reject verdict) are exempt: the scenario data
+run through the platform libm before any engine code does, so they can never
+reproduce bitwise off-host. Every draws-axis channel stays gated. Tier 1 is
+the gate - continuous channels within a tight relative bound, integer split
+counts exactly - and is a stream-lock detector, not a posterior test. Tier 2
+runs only when tier 1 fails, and only adjudicates: its draws axis is one
+autocorrelated chain rather than the independent seeds equivalence.R reduces
+over, so even with an ESS-adjusted denominator its |z| = 4 bar tolerates a
+per-cell shift of over a posterior sd. A tier-2 pass says the failure is not
+gross, never that the two builds agree.
 
 Passing `engine=new` routes the comparison side through a standalone shim
 build of the in-tree engine (tests/cpp/rshim.cpp, built on demand by
@@ -91,9 +107,11 @@ host-portable (unlike the equivalence bitwise check).
 
 .github/workflows/exact-gates.yaml runs all of them in `quick` mode on push /
 pull_request (one install, looped, one ::error:: per failing gate); dispatch it
-with mode=full for the long grid. Contrast the STATISTICAL gates (sbc.R,
-equivalence.R z-mode), which can false-alarm at the nominal level and stay
-schedule / workflow_dispatch only.
+with mode=full for the long grid. It also carries the two `--cross-host`
+compares, outside that loop: the baselines are recorded at full settings and
+the settings guard refuses to compare them against a `quick` run. Contrast the
+STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the
+nominal level and stay schedule / workflow_dispatch only.
 
 ## tests/cpp - bartcore component tests
 

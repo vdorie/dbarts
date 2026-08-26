@@ -16,6 +16,15 @@
 # ubuntu-latest -- the arch-pinned macos-latest of cpp-tests.yaml is only
 # needed where bitwise baselines are compared.
 #
+# One further step, after the loop, does read recorded baselines: the BCF and
+# multinomial equivalence harnesses in --cross-host mode. Those baselines are
+# recorded on arm64/macOS, so bitwise is unavailable here by construction and
+# the flag is what makes the comparison meaningful off-host -- it exempts the
+# point-in-time snapshot channels and gates every draws-axis channel under a
+# two-tier verdict whose tier 1 is a tight deviation bound. That makes this
+# workflow the per-push half of the cross-host gate; equivalence.yaml carries
+# the weekly half and the gaussian arm.
+#
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
 # compile instead of recompiling per gate. Every gate runs even if an earlier
@@ -120,4 +129,36 @@ jobs:
             fi
             echo "::endgroup::"
           done
+          exit $fail
+
+      # Outside the loop above on purpose: that loop passes `quick` to every
+      # gate, and these baselines are recorded at FULL settings, which each
+      # harness settings guard refuses to compare against a quick run. Runs
+      # even after a failing gate so one run surfaces every failure.
+      # Both compares finish in about a second on a 2020 desktop, against the
+      # ~4-minute install and 30-minute timeout of this job. The baseline hashes are
+      # pinned here and in equivalence.yaml, so a re-record repins both.
+      - name: Run the cross-host equivalence compares
+        if: ${{ !cancelled() }}
+        run: |
+          fail=0
+          echo "::group::bcf-equivalence --cross-host"
+          if Rscript benchmarks/R/bcf-equivalence.R compare \
+            benchmarks/baselines/bcf-equivalence-6e3b9fb8.rds --cross-host; then
+            echo "PASS bcf-equivalence"
+          else
+            echo "::error::cross-host gate bcf-equivalence FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          echo "::group::multinomial-equivalence --cross-host"
+          if Rscript benchmarks/R/multinomial-equivalence.R compare \
+            benchmarks/baselines/multinomial-equivalence-4d9a3337.rds \
+            --cross-host; then
+            echo "PASS multinomial-equivalence"
+          else
+            echo "::error::cross-host gate multinomial-equivalence FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
           exit $fail

@@ -53,6 +53,15 @@
 #   Rscript multinomial-equivalence.R compare baseline.rds
 # Append 'quick' for a fast smoke pass (fewer draws; the settings guard refuses a
 # mixed comparison against a full baseline).
+# Append '--cross-host' to compare a baseline recorded on ANOTHER machine.
+# Bitwise is unavailable there by construction: the scenario data run through
+# exp()/plogis(), which are the platform libm, so the inputs already differ in
+# the last ulp before any engine code runs. The flag exempts the point-in-time
+# snapshot channels (one query of the live sampler after the last sweep, no
+# draws axis to reduce over) and gates the draws-axis channels under a
+# two-tier verdict - tier 1 a tight deviation bound that is the real gate,
+# tier 2 a decoupled statistical fallback that adjudicates and never
+# certifies. Compare only; a recording is host-local by definition.
 
 source(
   system.file("common", "bartcoreHandle.R", package = "dbarts"),
@@ -64,7 +73,12 @@ suppressPackageStartupMessages(library(dbarts))
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
+crossHost <- "--cross-host" %in% args
+args <- setdiff(args, "--cross-host")
 mode <- if (length(args) >= 1L) args[[1L]] else "record"
+if (crossHost && mode != "compare") {
+  stop("--cross-host applies to compare only; a recording is host-local")
+}
 
 n.threads <- 1L
 n.burn <- if (quick) 20L else 40L
@@ -102,14 +116,277 @@ makeControl <- function() {
 # draw axis to summarize, as are any accept/reject or install verdict.
 statChannels <- c("train", "test", "runVarcount")
 
+# The complement: every channel with no draws axis, and the only channels
+# --cross-host exempts. These two vectors must partition the recorded names
+# (minus summaries), so a channel added to either list has to be absent from
+# the other; the compare loop re-checks the partition against what the
+# baseline actually holds, which is where a channel appended at a call site
+# rather than in recordChannels gets caught.
+snapshotChannels <- c("forestFits", "varcount", "accepted", "installed")
+stopifnot(length(intersect(snapshotChannels, statChannels)) == 0L)
+
+# Tier 1's relative tolerance. Under a locked RNG stream two builds agree to
+# rounding, so this is a stream-lock detector rather than a posterior test:
+# loose enough that cross-host libm differences pass, ~1e6 times tighter than
+# the tier-2 bar and so non-vacuous against every defect class the fixture
+# exists to catch. The worst deviation an arm64-recorded baseline shows
+# against an x86_64 Linux build sits about five orders of magnitude inside it.
+crossHostRtol <- 1e-8
+
+# A channel's draws laid out one row per cell, columns the trailing (draws)
+# axis.
+drawMatrix <- function(a) {
+  d <- dim(a)
+  matrix(a, ncol = if (is.null(d)) length(a) else d[length(d)])
+}
+
 # Posterior mean/var over a channel's trailing (draws) axis, one cell per
 # leading-index combination - the reduction equivalence.R's fitSummaries
 # performs by hand per channel, generalized over an arbitrary channel shape.
 drawSummary <- function(a) {
-  d <- dim(a)
-  n <- if (is.null(d)) length(a) else d[length(d)]
-  m <- matrix(a, ncol = n)
-  list(mean = rowMeans(m), var = apply(m, 1L, var), n = n)
+  m <- drawMatrix(a)
+  list(mean = rowMeans(m), var = apply(m, 1L, var), n = ncol(m))
+}
+
+# Per-cell lag-1 autocorrelation over the draws axis, 0 where a cell is
+# constant.
+lag1Acf <- function(m) {
+  n <- ncol(m)
+  if (n < 3L) {
+    return(rep(0, nrow(m)))
+  }
+  cx <- m[, -n, drop = FALSE]
+  cy <- m[, -1L, drop = FALSE]
+  cx <- cx - rowMeans(cx)
+  cy <- cy - rowMeans(cy)
+  den <- sqrt(rowSums(cx^2) * rowSums(cy^2))
+  ifelse(den > 0, rowSums(cx * cy) / den, 0)
+}
+
+# Tier 1 on a continuous channel: per-cell |a - b| against atol + rtol * |a|,
+# atol taken from the channel's own scale in this scenario. Returns the ratio
+# per cell, so <= 1 everywhere is the pass. A cell that agrees exactly scores 0
+# even where the tolerance is 0; a non-finite difference scores Inf so it can
+# never be read as a pass.
+toleranceRatio <- function(x, y, rtol) {
+  d <- abs(x - y)
+  ratio <- ifelse(d == 0, 0, d / (rtol * max(abs(x)) + rtol * abs(x)))
+  ratio[is.na(ratio)] <- Inf
+  ratio
+}
+
+# Welch z per cell with an ESS-aware denominator. The draws axis here is ONE
+# autocorrelated chain, not the independent seeds equivalence.R reduces over,
+# so the nominal n understates the Monte Carlo error; the effective size comes
+# from the pooled lag-1 autocorrelation, floored at 2 and capped at n so the
+# denominator can only grow relative to the nominal statistic.
+essCompare <- function(x, y) {
+  mx <- drawMatrix(x)
+  my <- drawMatrix(y)
+  r <- 0.5 * (lag1Acf(mx) + lag1Acf(my))
+  effective <- function(m) pmin(pmax(ncol(m) * (1 - r) / (1 + r), 2), ncol(m))
+  ex <- effective(mx)
+  ey <- effective(my)
+  list(
+    z = (rowMeans(mx) - rowMeans(my)) /
+      sqrt(apply(mx, 1L, var) / ex + apply(my, 1L, var) / ey),
+    ess = pmin(ex, ey)
+  )
+}
+
+# One scenario's cross-host verdict, three name-prefixed lines: the exempt
+# roster with a NON-GATING deviation diagnostic, the non-finite count, and the
+# tier verdict. Tier 1 is the gate; tier 2 runs only after tier 1 fails and
+# only adjudicates - did the posterior move, or did the stream merely decouple.
+# Its bar is weak by construction (the line reports how weak), so a tier-2 pass
+# is evidence the failure is not gross, never evidence the builds agree.
+# Combinatorial channels are integer split counts: tier 1 compares them
+# exactly, and tier 2 reports them diagnostically rather than through a z,
+# because a Welch z on counts is a bitwise test in disguise and a structurally
+# unsplit cell makes it 0/0.
+compareCrossHost <- function(name, a, b) {
+  exempt <- intersect(snapshotChannels, names(a))
+  gated <- setdiff(names(a), c("summaries", exempt))
+  for (ch in gated) {
+    stopifnot(
+      identical(dim(a[[ch]]), dim(b[[ch]])),
+      length(a[[ch]]) == length(b[[ch]])
+    )
+  }
+
+  n.differ <- 0L
+  rel.dev <- 0
+  for (ch in exempt) {
+    if (!identical(a[[ch]], b[[ch]])) {
+      n.differ <- n.differ + 1L
+    }
+    av <- unlist(a[[ch]])
+    bv <- unlist(b[[ch]])
+    if (is.double(av) && length(av) == length(bv) && max(abs(av)) > 0) {
+      rel.dev <- max(rel.dev, max(abs(av - bv)) / max(abs(av)))
+    }
+  }
+  cat(sprintf(
+    "%-6s exempt (cross-host): %s - %d snapshot channels skipped by design [%d of %d differ, max rel dev %.1e]\n",
+    name,
+    paste(exempt, collapse = ", "),
+    length(exempt),
+    n.differ,
+    length(exempt),
+    rel.dev
+  ))
+
+  # Exempting the point-in-time channels deletes the only guard that saw a
+  # NaN/Inf draw: every z built from one is NaN, and a max over NaNs with
+  # na.rm reports -Inf and passes. Count them directly instead.
+  nf <- vapply(
+    gated,
+    function(ch) c(sum(!is.finite(a[[ch]])), sum(!is.finite(b[[ch]]))),
+    numeric(2L)
+  )
+  failed <- FALSE
+  if (sum(nf) == 0) {
+    cat(sprintf("%-6s NON-FINITE: none\n", name))
+  } else {
+    failed <- TRUE
+    cat(sprintf(
+      "%-6s NON-FINITE: %s <- FAIL\n",
+      name,
+      paste(nonFiniteParts(gated, nf), collapse = ", ")
+    ))
+  }
+
+  is.continuous <- vapply(gated, function(ch) is.double(a[[ch]]), logical(1L))
+  cont <- gated[is.continuous]
+  comb <- gated[!is.continuous]
+  ratios <- lapply(cont, function(ch) {
+    toleranceRatio(a[[ch]], b[[ch]], crossHostRtol)
+  })
+  names(ratios) <- cont
+  worst <- vapply(ratios, max, numeric(1L))
+  cell <- vapply(ratios, which.max, integer(1L))
+  comb.differ <- vapply(comb, function(ch) sum(a[[ch]] != b[[ch]]), numeric(1L))
+  comb.n <- vapply(comb, function(ch) length(a[[ch]]), numeric(1L))
+
+  bad.cont <- worst > 1
+  bad.comb <- comb.differ > 0
+  if (!any(bad.cont) && !any(bad.comb)) {
+    cat(sprintf(
+      "%-6s tier 1 PASS: max dev ratio %.1e (%s)%s%s\n",
+      name,
+      max(c(0, worst)),
+      paste(sprintf("%s %.1e", cont, worst), collapse = ", "),
+      if (length(comb) > 0L) {
+        paste0(", ", paste(sprintf("%s identical", comb), collapse = ", "))
+      } else {
+        ""
+      },
+      if (all(worst == 0)) {
+        sprintf(" - all %d GATED channels bitwise identical", length(gated))
+      } else {
+        ""
+      }
+    ))
+    return(list(fail = failed, decoupled = FALSE))
+  }
+
+  cat(sprintf(
+    "%-6s tier 1 FAIL: %s\n",
+    name,
+    paste(
+      c(
+        sprintf(
+          "%s ratio %.1e (cell %d)",
+          cont[bad.cont],
+          worst[bad.cont],
+          cell[bad.cont]
+        ),
+        sprintf(
+          "%s %.0f of %.0f cells differ",
+          comb[bad.comb],
+          comb.differ[bad.comb],
+          comb.n[bad.comb]
+        )
+      ),
+      collapse = ", "
+    )
+  ))
+
+  tier2 <- lapply(cont, function(ch) essCompare(a[[ch]], b[[ch]]))
+  names(tier2) <- cont
+  z <- unlist(lapply(tier2, function(s) s$z))
+  ess <- unlist(lapply(tier2, function(s) s$ess))
+  n.warn <- sum(abs(z) > 3, na.rm = TRUE)
+  n.fail <- sum(abs(z) > 4, na.rm = TRUE)
+  cat(sprintf(
+    "%-6s decoupled: statistical - %d summaries, ESS-adjusted max |z| = %.2f (weak bar: tolerates %.2f posterior sd)%s%s%s\n",
+    name,
+    length(z),
+    max(abs(z), na.rm = TRUE),
+    4 * sqrt(2 / median(ess, na.rm = TRUE)),
+    paste0(
+      c(
+        "",
+        sprintf(
+          "%s diagnostic-only, %.0f of %.0f cells differ, worst %.0f",
+          comb[bad.comb],
+          comb.differ[bad.comb],
+          comb.n[bad.comb],
+          vapply(
+            comb[bad.comb],
+            function(ch) max(abs(as.numeric(a[[ch]]) - as.numeric(b[[ch]]))),
+            numeric(1L)
+          )
+        )
+      ),
+      collapse = "; "
+    ),
+    if (n.warn > 0L) sprintf(", %d with |z| > 3", n.warn) else "",
+    if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else ""
+  ))
+  if (n.fail > 0L) {
+    failed <- TRUE
+    offenders <- which(abs(z) > 4)
+    cat(
+      "  worst offenders:",
+      paste0(
+        names(z)[offenders],
+        " (z=",
+        round(z[offenders], 2L),
+        ")",
+        collapse = ", "
+      ),
+      "\n"
+    )
+  }
+  list(fail = failed, decoupled = TRUE)
+}
+
+# Per-channel non-finite counts, zeros included so the line names every gated
+# channel and a reader can see which one carries them.
+nonFiniteParts <- function(gated, nf) {
+  vapply(
+    seq_along(gated),
+    function(i) {
+      n <- sum(nf[, i])
+      if (n == 0) {
+        return(sprintf("%s 0", gated[i]))
+      }
+      sprintf(
+        "%s %.0f cells (%s)",
+        gated[i],
+        n,
+        if (nf[1L, i] > 0 && nf[2L, i] > 0) {
+          "baseline and this run"
+        } else if (nf[1L, i] > 0) {
+          "baseline"
+        } else {
+          "this run"
+        }
+      )
+    },
+    ""
+  )
 }
 
 recordChannels <- function(bc, result, K) {
@@ -573,6 +850,30 @@ if (mode == "record") {
       cat(sprintf("%-6s skipped (not produced this run)\n", name))
       next
     }
+    # statChannels and snapshotChannels have to partition what the baseline
+    # holds. A channel appended at a call site rather than in recordChannels is
+    # invisible to a check placed there, so the partition is re-asserted here
+    # against the recorded names: a channel added later stops the compare and
+    # forces the taxonomy decision instead of silently defaulting to
+    # gated-and-red off-host.
+    unclassified <- setdiff(
+      names(a),
+      c("summaries", statChannels, snapshotChannels)
+    )
+    if (length(unclassified) > 0L) {
+      stop(
+        "unclassified channel(s) in ",
+        name,
+        ": ",
+        paste(unclassified, collapse = ", ")
+      )
+    }
+    if (crossHost) {
+      verdict <- compareCrossHost(name, a, b)
+      anyFailure <- anyFailure || verdict$fail
+      usedStatistical <- usedStatistical || verdict$decoupled
+      next
+    }
     channels <- setdiff(names(a), "summaries")
     ok <- vapply(
       channels,
@@ -589,10 +890,16 @@ if (mode == "record") {
       next
     }
     usedStatistical <- TRUE
-    # No baseline summaries at all (recorded before this mode existed): there
-    # is nothing to Welch-z against, so this degrades loudly rather than
-    # silently passing a possibly-real divergence.
-    if (is.null(a[["summaries"]])) {
+    # summaries is a pure, deterministic reduction of the raw draws-axis
+    # channels, so a baseline that predates the field but stores those channels
+    # at full shape can still be compared: derive what it did not record.
+    aSummaries <- a[["summaries"]]
+    if (is.null(aSummaries) && all(statChannels %in% names(a))) {
+      aSummaries <- lapply(a[statChannels], drawSummary)
+    }
+    # Nothing to Welch-z against at all: degrade loudly rather than silently
+    # passing a possibly-real divergence.
+    if (is.null(aSummaries)) {
       anyFailure <- TRUE
       cat(sprintf(
         "%-6s statistical compare unsupported by this baseline (recorded before summaries)\n",
@@ -603,9 +910,12 @@ if (mode == "record") {
     bSummaries <- lapply(b[statChannels], drawSummary)
     z <- unlist(Map(
       function(sa, sb) {
+        # A channel whose shape changed would otherwise recycle into a garbage
+        # z rather than erroring.
+        stopifnot(length(sa$mean) == length(sb$mean))
         (sa$mean - sb$mean) / sqrt(sa$var / sa$n + sb$var / sb$n)
       },
-      a$summaries,
+      aSummaries,
       bSummaries
     ))
     n.warn <- sum(abs(z) > 3, na.rm = TRUE)
@@ -633,6 +943,22 @@ if (mode == "record") {
         "\n"
       )
     }
+    # A NaN or Inf draw makes every z NaN and a max over NaNs report -Inf, so
+    # the z-verdict above cannot see one at all. Count them directly.
+    gated <- intersect(statChannels, names(a))
+    nf <- vapply(
+      gated,
+      function(ch) c(sum(!is.finite(a[[ch]])), sum(!is.finite(b[[ch]]))),
+      numeric(2L)
+    )
+    if (sum(nf) > 0) {
+      anyFailure <- TRUE
+      cat(sprintf(
+        "%-6s NON-FINITE: %s <- FAIL\n",
+        name,
+        paste(nonFiniteParts(gated, nf), collapse = ", ")
+      ))
+    }
     # A mismatch outside statChannels (a point-in-time snapshot, or a
     # transaction's accept/reject verdict) has no draws to Welch-z, so it
     # gates independently of the z-verdict above - never let a clean z-score
@@ -652,7 +978,11 @@ if (mode == "record") {
     quit(status = 1L)
   }
   cat(
-    if (usedStatistical) {
+    if (crossHost && usedStatistical) {
+      "\nOK: every gated multinomial channel passed cross-host tier 1, or tier 2 could not distinguish it - a weak bar, so report any decoupled scenario\n"
+    } else if (crossHost) {
+      "\nOK: every gated multinomial channel within the cross-host tier 1 bound (snapshot channels exempt)\n"
+    } else if (usedStatistical) {
       "\nOK: every multinomial channel identical, or statistically indistinguishable (|z| < 4)\n"
     } else {
       "\nOK: every multinomial channel bitwise identical across every scenario\n"
