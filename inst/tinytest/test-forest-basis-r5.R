@@ -28,7 +28,7 @@ mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.2)
 
-seededControl <- function(...) {
+seededControlForestBasisR5 <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -45,7 +45,7 @@ twoForests <- function(...) {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControl(...)
+    control = seededControlForestBasisR5(...)
   )
 }
 
@@ -121,7 +121,7 @@ ragged <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~g)),
-  control = seededControl()
+  control = seededControlForestBasisR5()
 )
 ragged$run(5L, 2L)
 ragged$storeState()
@@ -148,7 +148,7 @@ threeForests <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z)), forest(basis = ~g)),
-  control = seededControl()
+  control = seededControlForestBasisR5()
 )
 threeResult <- threeForests$run(5L, 4L)
 expect_equal(dim(threeResult$glue), c(6L, 4L))
@@ -200,7 +200,7 @@ expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 # scale mixture, so its scale is its `sd` and its ridge is on. ---
 ridgeSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, cbind(1 - z, z))),
-  seededControl(),
+  seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
 ridgeParams <- attr(ridgeSpec$control, "bartcore.forests")$params
@@ -242,7 +242,7 @@ unevenTrees <- dbarts(
     forest(basis = ~ factor(z), n.trees = 31L),
     forest(basis = ~g, n.trees = 7L)
   ),
-  control = seededControl()
+  control = seededControlForestBasisR5()
 )
 expect_identical(unevenTrees$control@n.trees, 13L)
 # setControl cross-checks the control's count against the sampler's shape, so
@@ -274,7 +274,7 @@ expect_error(
 # alone, so a basis accepted and dropped would still fail. ---
 continuous <- x[, 1L] - 0.5
 continuousData <- dbartsData(x, y, bases = list(NULL, cbind(continuous)))
-continuousFit <- dbarts(continuousData, control = seededControl())
+continuousFit <- dbarts(continuousData, control = seededControlForestBasisR5())
 expect_equal(ncol(continuousFit$data@bases[[2L]]), 1L)
 expect_equal(continuousFit$data@bases[[2L]][, 1L], continuous)
 continuousResult <- continuousFit$run(5L, 3L)
@@ -302,7 +302,7 @@ expect_true(continuousError < 1e-12)
 # amplitudes", and is deliberately NOT a forest count, which a K-forest
 # multinomial (which carries no amplitudes at all) would defeat ---
 expect_true(dbarts:::samplerCarriesAmplitudes(threeForests))
-plain <- dbarts(x, y, control = seededControl())
+plain <- dbarts(x, y, control = seededControlForestBasisR5())
 expect_false(dbarts:::samplerCarriesAmplitudes(plain))
 # the five refusals it gates stay red on a multi-forest sampler
 expect_error(threeForests$setResponse(y, updateScale = TRUE), "does not supp")
@@ -318,7 +318,7 @@ expect_error(
 )
 # and the multinomial route is NOT misidentified by it
 mnLabels <- sample(0:2, n, replace = TRUE)
-mnSampler <- dbarts(x, y, control = seededControl())
+mnSampler <- dbarts(x, y, control = seededControlForestBasisR5())
 mn <- dbarts:::bartcoreMultinomialSampler(mnSampler, mnLabels, 3L)
 expect_error(
   bartcoreForestAmplitudes(mn, 0L),
@@ -342,7 +342,7 @@ probitForests <- function() {
     x,
     yBinary,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControl()
+    control = seededControlForestBasisR5()
   )
 }
 priorScale <- function(sampler, forest) {
@@ -388,7 +388,7 @@ zBasis <- cbind(1 - z, z)
 declared <- dbarts(
   dbartsData(x, yBinary, bases = list(3 * ones, 5 * zBasis)),
   forests = list(forest(sd = 2.5), forest(sd = 0.4)),
-  control = seededControl()
+  control = seededControlForestBasisR5()
 )
 expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
 expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 5), tolerance = 1e-12)
@@ -435,7 +435,7 @@ donorForests <- function(sd, variance) {
       forest(),
       forest(basis = ~ factor(z), sd = sd, amplitude.prior.variance = variance)
     ),
-    control = seededControl()
+    control = seededControlForestBasisR5()
   )
 }
 donor <- donorForests(2, 0.125)

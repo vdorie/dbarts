@@ -53,7 +53,7 @@ control <- dbartsControl(
 # records: the K softmax train and test probabilities, each category forest's
 # raw fits, each category forest's cumulative split counts, and the per-sample
 # per-category run varcount
-recordChannels <- function(bc, result) {
+recordChannelsCountsMutation <- function(bc, result) {
   list(
     train = result$train,
     test = result$test,
@@ -67,7 +67,7 @@ recordChannels <- function(bc, result) {
   )
 }
 
-buildSampler <- function(counts, n.chains = 1L) {
+buildSamplerCountsMutation <- function(counts, n.chains = 1L) {
   ctrl <- dbartsControl(
     n.chains = n.chains,
     n.threads = n.chains,
@@ -84,18 +84,18 @@ buildSampler <- function(counts, n.chains = 1L) {
 # data-independent pi*sqrt(3)/sqrt(2) anchor and sigma is fixed), so the parity
 # is exact and unconditional rather than conditional on a fixed resid.prior the
 # way BCF's weight swap is. ---
-parityArm <- function(build, swap, n.chains = 1L) {
+parityArmCountsMutation <- function(build, swap, n.chains = 1L) {
   set.seed(707)
-  bc <- buildSampler(build, n.chains)
+  bc <- buildSamplerCountsMutation(build, n.chains)
   if (!is.null(swap)) {
     bartcoreSetCounts(bc, swap)
   }
-  recordChannels(bc, bartcoreRun(bc, 20L, 8L))
+  recordChannelsCountsMutation(bc, bartcoreRun(bc, 20L, 8L))
 }
 
-arm.build <- parityArm(countsB, NULL)
-arm.swap <- parityArm(countsA, countsB)
-arm.keep <- parityArm(countsA, NULL)
+arm.build <- parityArmCountsMutation(countsB, NULL)
+arm.swap <- parityArmCountsMutation(countsA, countsB)
+arm.keep <- parityArmCountsMutation(countsA, NULL)
 
 expect_identical(arm.swap$train, arm.build$train)
 expect_identical(arm.swap$test, arm.build$test)
@@ -118,7 +118,7 @@ bc.labels <- dbarts:::bartcoreMultinomialSampler(
   K = K
 )
 bartcoreSetCounts(bc.labels, countsB)
-arm.labels <- recordChannels(
+arm.labels <- recordChannelsCountsMutation(
   bc.labels,
   bartcoreRun(bc.labels, 20L, 8L)
 )
@@ -127,8 +127,8 @@ expect_identical(arm.labels$forestFits, arm.build$forestFits)
 
 # every chain sees the swap: a two-chain sampler swapped mid-life is bitwise
 # the two-chain sampler built over the new counts, so no chain kept the old
-arm.build.chains <- parityArm(countsB, NULL, n.chains = 2L)
-arm.swap.chains <- parityArm(countsA, countsB, n.chains = 2L)
+arm.build.chains <- parityArmCountsMutation(countsB, NULL, n.chains = 2L)
+arm.swap.chains <- parityArmCountsMutation(countsA, countsB, n.chains = 2L)
 expect_identical(arm.swap.chains$train, arm.build.chains$train)
 expect_identical(arm.swap.chains$forestFits, arm.build.chains$forestFits)
 
@@ -140,12 +140,12 @@ expect_identical(arm.swap.chains$forestFits, arm.build.chains$forestFits)
 # lost them would show here. ---
 splitArm <- function(swap) {
   set.seed(911)
-  bc <- buildSampler(countsB)
+  bc <- buildSamplerCountsMutation(countsB)
   bartcoreRun(bc, 25L, 6L)
   if (!is.null(swap)) {
     bartcoreSetCounts(bc, swap)
   }
-  recordChannels(bc, bartcoreRun(bc, 0L, 6L))
+  recordChannelsCountsMutation(bc, bartcoreRun(bc, 0L, 6L))
 }
 
 arm.self <- splitArm(countsB)
@@ -170,7 +170,7 @@ expect_true(all(is.finite(arm.burned$train)))
 # softmax does not reproduce the engine's reduction order. Pinned here at the
 # null offset as the pre-existing invariant it is. ---
 set.seed(313)
-bc.vintage <- buildSampler(countsB)
+bc.vintage <- buildSamplerCountsMutation(countsB)
 res.vintage <- bartcoreRun(bc.vintage, 20L, 5L)
 fits.vintage <- vapply(
   seq_len(K) - 1L,
@@ -190,7 +190,7 @@ expect_equal(
 # against the current y. The counts are data and ride no wire block, so the
 # state carries none. ---
 set.seed(515)
-bc.state <- buildSampler(countsA)
+bc.state <- buildSamplerCountsMutation(countsA)
 bartcoreRun(bc.state, 20L, 4L)
 state.A <- bartcoreStoreState(bc.state)
 bartcoreSetCounts(bc.state, countsB)
@@ -200,7 +200,7 @@ expect_true(all(is.finite(res.restored$train)))
 # the restored trees run against B, not against the A they were fitted to: the
 # same restore under A draws a different chain
 set.seed(515)
-bc.stateA <- buildSampler(countsA)
+bc.stateA <- buildSamplerCountsMutation(countsA)
 bartcoreRun(bc.stateA, 20L, 4L)
 bartcoreSetState(bc.stateA, bartcoreStoreState(bc.stateA))
 expect_false(isTRUE(all.equal(
@@ -210,7 +210,7 @@ expect_false(isTRUE(all.equal(
 
 # --- Refusals, the counts half: what the channel refuses, and what the response-side
 # conduits now say. ---
-bc.mn <- buildSampler(countsA)
+bc.mn <- buildSamplerCountsMutation(countsA)
 
 # the capability probe is not a forest count: a gaussian sampler and a BCF
 # sampler (two forests) both own no counts, and both must name the family
@@ -302,9 +302,9 @@ expect_error(
 # furthest: it passes every R-side check and every per-cell check up to the row
 # it overflows on, so a build that validated in place would already have
 # written new counts into the buffer the combiner borrows.
-refusalArm <- function(attempt) {
+refusalArmCountsMutation <- function(attempt) {
   set.seed(808)
-  bc <- buildSampler(countsA)
+  bc <- buildSamplerCountsMutation(countsA)
   refused <- if (is.null(attempt)) {
     NA_character_
   } else {
@@ -318,11 +318,11 @@ refusalArm <- function(attempt) {
   }
   c(
     list(refused = refused),
-    recordChannels(bc, bartcoreRun(bc, 15L, 5L))
+    recordChannelsCountsMutation(bc, bartcoreRun(bc, 15L, 5L))
   )
 }
-arm.refused <- refusalArm(counts.overflow)
-arm.untouched <- refusalArm(NULL)
+arm.refused <- refusalArmCountsMutation(counts.overflow)
+arm.untouched <- refusalArmCountsMutation(NULL)
 expect_true(grepl("fit in an integer", arm.refused$refused))
 expect_identical(arm.refused$train, arm.untouched$train)
 expect_identical(arm.refused$forestFits, arm.untouched$forestFits)

@@ -50,7 +50,7 @@ y <- as.double(x[, 1L] + 2 * x[, 2L] + rnorm(n, 0, 0.3))
 w <- 0.5 + runif(n)
 a <- as.double(seq_len(n) %% 4L != 1L)
 
-makeSampler <- function(weights = NULL, ...) {
+makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
   dbarts::dbarts(
     x,
     y,
@@ -66,9 +66,9 @@ makeSampler <- function(weights = NULL, ...) {
 # what setWeights(w * a) draws with no mask. The comparator is w * a, never "no
 # weights" - an unweighted sampler is not bitwise one carrying rep(1, n),
 # because only the unweighted path takes the fused node-average roll.
-masked <- makeSampler(w)
+masked <- makeSamplerActiveRowsPins(w)
 masked$setActiveRows(a)
-composed <- makeSampler(w * a)
+composed <- makeSamplerActiveRowsPins(w * a)
 draws.masked <- masked$run(20L, 10L)
 draws.composed <- composed$run(20L, 10L)
 expect_identical(draws.masked$train, draws.composed$train)
@@ -77,9 +77,12 @@ rm(masked, composed, draws.masked, draws.composed)
 
 # Student-t, bitwise: both arms draw lambda at every row on the same build,
 # so the mask annihilates the composite without moving the stream
-masked.t <- makeSampler(w, resid.dist = dbarts:::student(df = 4))
+masked.t <- makeSamplerActiveRowsPins(w, resid.dist = dbarts:::student(df = 4))
 masked.t$setActiveRows(a)
-composed.t <- makeSampler(w * a, resid.dist = dbarts:::student(df = 4))
+composed.t <- makeSamplerActiveRowsPins(
+  w * a,
+  resid.dist = dbarts:::student(df = 4)
+)
 draws.masked.t <- masked.t$run(20L, 10L)
 draws.composed.t <- composed.t$run(20L, 10L)
 expect_identical(draws.masked.t$train, draws.composed.t$train)
@@ -125,17 +128,17 @@ rm(masked.bcf, composed.bcf, draws.masked.bcf, draws.composed.bcf, z.bcf)
 # probit and ordinal are the three configurations still on the fused
 # node-average path, which any non-null precision pointer leaves. A weighted
 # arm would pass on the values alone and prove nothing about the normalizer.
-plain <- makeSampler()
+plain <- makeSamplerActiveRowsPins()
 draws.plain <- plain$run(20L, 10L)
 
-r5.ones <- makeSampler()
+r5.ones <- makeSamplerActiveRowsPins()
 r5.ones$setActiveRows(rep(1, n))
 expect_identical(r5.ones$run(20L, 10L)$train, draws.plain$train)
 
 # the bridge entry drives its own engine handle (bartcoreSampler builds a
 # fresh sampler), so its arm runs through that handle end to end
-bc.plain <- dbarts:::bartcoreSampler(makeSampler())
-bc.ones <- dbarts:::bartcoreSampler(makeSampler())
+bc.plain <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
+bc.ones <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
 bartcoreSetActiveRows(bc.ones, rep(1, n))
 expect_identical(
   bartcoreRun(bc.ones, 20L, 10L)$train,
@@ -144,12 +147,12 @@ expect_identical(
 
 # a mask returning to all ones CLEARS, restoring the pre-mask pointer BY
 # IDENTITY - so the fused path comes back - and NULL clears the same way
-returned <- makeSampler()
+returned <- makeSamplerActiveRowsPins()
 returned$setActiveRows(a)
 returned$setActiveRows(rep(1, n))
 expect_identical(returned$run(20L, 10L)$train, draws.plain$train)
 
-cleared <- makeSampler()
+cleared <- makeSamplerActiveRowsPins()
 cleared$setActiveRows(a)
 cleared$setActiveRows(NULL)
 expect_identical(cleared$run(20L, 10L)$train, draws.plain$train)
@@ -159,7 +162,7 @@ rm(r5.ones, bc.plain, bc.ones, returned, cleared)
 # NA, and a wrong length each leave the sampler exactly where it was. Unweighted
 # again, so a partial application would show up by leaving the fused path.
 for (bad in list(replace(a, 2L, 0.5), replace(a, 2L, NA_real_), a[-1L])) {
-  refused <- makeSampler()
+  refused <- makeSamplerActiveRowsPins()
   expect_error(
     refused$setActiveRows(bad),
     "'active' (must be all 0 or 1|cannot be NA|must have the same length as 'y')"
@@ -170,7 +173,7 @@ rm(refused, bad)
 
 # The bridge enforces the same values with no R validation in front of it,
 # which is the point of putting the scan in the engine
-bc.bad <- dbarts:::bartcoreSampler(makeSampler())
+bc.bad <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
 expect_error(
   bartcoreSetActiveRows(bc.bad, replace(a, 2L, 0.5)),
   "exactly 0 or 1"
@@ -184,18 +187,18 @@ rm(bc.bad)
 # The two setters are absolute and INDEPENDENT: either order leaves the same
 # composite, and setResponse/setOffset do not disturb the mask.
 w2 <- 0.5 + runif(n)
-order.aw <- makeSampler(w)
+order.aw <- makeSamplerActiveRowsPins(w)
 order.aw$setActiveRows(a)
 order.aw$setWeights(w2)
-order.wa <- makeSampler(w)
+order.wa <- makeSamplerActiveRowsPins(w)
 order.wa$setWeights(w2)
 order.wa$setActiveRows(a)
 expect_identical(order.aw$run(20L, 10L)$train, order.wa$run(20L, 10L)$train)
 
-survives <- makeSampler(w)
+survives <- makeSamplerActiveRowsPins(w)
 survives$setActiveRows(a)
 survives$setOffset(rep(0.25, n))
-kept <- makeSampler(w * a)
+kept <- makeSamplerActiveRowsPins(w * a)
 kept$setOffset(rep(0.25, n))
 expect_identical(survives$run(20L, 10L)$train, kept$run(20L, 10L)$train)
 
@@ -203,10 +206,10 @@ expect_identical(survives$run(20L, 10L)$train, kept$run(20L, 10L)$train)
 # against a twin that took the same setData with no mask installed, since
 # setData cold-initializes state a never-swapped sampler does not have.
 newData <- dbarts::dbartsData(x, y, weights = w)
-dropped <- makeSampler(w)
+dropped <- makeSamplerActiveRowsPins(w)
 dropped$setActiveRows(a)
 dropped$setData(newData)
-swapped <- makeSampler(w)
+swapped <- makeSamplerActiveRowsPins(w)
 swapped$setData(newData)
 expect_identical(dropped$run(20L, 10L)$train, swapped$run(20L, 10L)$train)
 rm(order.aw, order.wa, survives, kept, dropped, swapped, newData, w2)
@@ -214,7 +217,7 @@ rm(order.aw, order.wa, survives, kept, dropped, swapped, newData, w2)
 # An all-zeros mask is ACCEPTED and runs - the natural answer for a host
 # whose stratum has emptied. Every forest sits at its prior and every row still
 # receives a fit, which is what makes the channel worth more than compaction.
-empty <- makeSampler(w)
+empty <- makeSamplerActiveRowsPins(w)
 empty$setActiveRows(rep(0, n))
 draws.empty <- empty$run(20L, 10L)
 expect_true(all(is.finite(draws.empty$train)))
@@ -343,7 +346,11 @@ ordinalSampler <- function(codes) {
 counts.binary <- rep(1, n)
 counts.binary.other <- counts.binary
 counts.binary.other[a == 0] <- 3
-logisticSampler <- function(y.logistic, trials = counts.binary, mask = a) {
+logisticSamplerActiveRowsPins <- function(
+  y.logistic,
+  trials = counts.binary,
+  mask = a
+) {
   sampler <- dbarts::dbarts(
     x,
     y.logistic,
@@ -363,7 +370,7 @@ logisticSampler <- function(y.logistic, trials = counts.binary, mask = a) {
 counts <- as.double(rpois(n, 3))
 counts.other <- counts
 counts.other[a == 0] <- counts[a == 0] + 5
-nbinomSampler <- function(y.count, mask = a) {
+nbinomSamplerActiveRowsPins <- function(y.count, mask = a) {
   sampler <- dbarts::dbarts(x, y.count, family = "nbinom", control = control)
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -374,10 +381,16 @@ nbinomSampler <- function(y.count, mask = a) {
 for (arms in list(
   list(ordinalSampler(codes.ord), ordinalSampler(codes.other)),
   list(
-    logisticSampler(y.binary),
-    logisticSampler(ifelse(a == 0, 1 - y.binary, y.binary), counts.binary.other)
+    logisticSamplerActiveRowsPins(y.binary),
+    logisticSamplerActiveRowsPins(
+      ifelse(a == 0, 1 - y.binary, y.binary),
+      counts.binary.other
+    )
   ),
-  list(nbinomSampler(counts), nbinomSampler(counts.other))
+  list(
+    nbinomSamplerActiveRowsPins(counts),
+    nbinomSamplerActiveRowsPins(counts.other)
+  )
 )) {
   train.a <- arms[[1L]]$run(20L, 10L)$train
   train.b <- arms[[2L]]$run(20L, 10L)$train
@@ -422,12 +435,12 @@ expect_true(max(abs(aft.train.a[a == 0, ] - aft.train.b[a == 0, ])) < 1e-12)
 # pointer by identity when it does - a new branch per family, so a new arm
 # per family.
 expect_identical(
-  logisticSampler(y.binary, mask = rep(1, n))$run(20L, 10L)$train,
-  logisticSampler(y.binary, mask = NULL)$run(20L, 10L)$train
+  logisticSamplerActiveRowsPins(y.binary, mask = rep(1, n))$run(20L, 10L)$train,
+  logisticSamplerActiveRowsPins(y.binary, mask = NULL)$run(20L, 10L)$train
 )
 expect_identical(
-  nbinomSampler(counts, rep(1, n))$run(20L, 10L)$train,
-  nbinomSampler(counts, NULL)$run(20L, 10L)$train
+  nbinomSamplerActiveRowsPins(counts, rep(1, n))$run(20L, 10L)$train,
+  nbinomSamplerActiveRowsPins(counts, NULL)$run(20L, 10L)$train
 )
 expect_identical(
   bartcoreRun(aftHandle(y, rep(1, n)), 20L, 10L)$train,
@@ -549,7 +562,7 @@ rm(
   w,
   a,
   control,
-  makeSampler,
+  makeSamplerActiveRowsPins,
   plain,
   draws.plain,
   levels.ord,
@@ -559,10 +572,10 @@ rm(
   ordinalSampler,
   counts.binary,
   counts.binary.other,
-  logisticSampler,
+  logisticSamplerActiveRowsPins,
   counts,
   counts.other,
-  nbinomSampler,
+  nbinomSamplerActiveRowsPins,
   status,
   aftHandle,
   y.other,

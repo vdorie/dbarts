@@ -9,7 +9,7 @@ source(
 # pre-serialization predictions exactly, and a fit saved without the capture
 # must error on predict naming storeState().
 
-roundTrip <- function(object) {
+roundTripStoreState <- function(object) {
   tempFile <- tempfile()
   saveRDS(object, file = tempFile)
   on.exit(unlink(tempFile))
@@ -32,7 +32,7 @@ bartFit <- dbarts::bart(
 )
 preds.old <- predict(bartFit, x)
 bartFit$fit$storeState()
-preds.new <- predict(roundTrip(bartFit), x)
+preds.new <- predict(roundTripStoreState(bartFit), x)
 expect_equal(preds.old, preds.new)
 
 # --- bart2 ----------------------------------------------------------------
@@ -50,11 +50,11 @@ bart2Fit <- dbarts::bart2(
 preds.old <- predict(bart2Fit, x)
 
 # without the capture, the reloaded fit refuses predict, naming the mechanism
-expect_error(predict(roundTrip(bart2Fit), x), pattern = "storeState")
+expect_error(predict(roundTripStoreState(bart2Fit), x), pattern = "storeState")
 
 bart2Fit$fit$storeState()
 expect_true(!is.null(bart2Fit$fit$state))
-preds.new <- predict(roundTrip(bart2Fit), x)
+preds.new <- predict(roundTripStoreState(bart2Fit), x)
 expect_equal(preds.old, preds.new)
 
 # --- rbart_vi (built-in tau prior: in-core / bartcore path) ---------------
@@ -75,5 +75,5 @@ rbartFit <- dbarts::rbart_vi(
 )
 preds.old <- predict(rbartFit, x, group.by = g)
 invisible(lapply(rbartFit$fit, function(f) f$storeState()))
-preds.new <- predict(roundTrip(rbartFit), x, group.by = g)
+preds.new <- predict(roundTripStoreState(rbartFit), x, group.by = g)
 expect_equal(preds.old, preds.new)

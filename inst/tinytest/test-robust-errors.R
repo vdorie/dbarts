@@ -123,7 +123,7 @@ expect_true(all(is.finite(fitEstimate$sigma)))
 
 # --- serialize + restore round-trip (the storeState ritual) ----------------
 
-roundTrip <- function(object) {
+roundTripRobustErrors <- function(object) {
   tempFile <- tempfile()
   saveRDS(object, file = tempFile)
   on.exit(unlink(tempFile))
@@ -131,7 +131,7 @@ roundTrip <- function(object) {
 }
 
 fitFixed$fit$storeState()
-restored <- roundTrip(fitFixed)
+restored <- roundTripRobustErrors(fitFixed)
 # the resolved df survives serialization on the model object
 expect_equal(attr(restored$fit$model, "resid.df"), 4)
 # and the restored fit reproduces its pre-serialization predictions

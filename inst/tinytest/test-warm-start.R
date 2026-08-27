@@ -151,7 +151,7 @@ deepDonor <- dbarts::bart2(
   verbose = FALSE,
   seed = 1L
 )
-earlyRMSE <- function(fit) {
+earlyRMSEWarmStart <- function(fit) {
   yh <- fit$yhat.train
   perSample <- sqrt(rowMeans(sweep(yh, 2L, y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
@@ -179,4 +179,4 @@ warmFit <- dbarts::bart2(
   seed = 2L,
   warm.start = deepDonor
 )
-expect_true(earlyRMSE(warmFit) < 0.8 * earlyRMSE(coldFit))
+expect_true(earlyRMSEWarmStart(warmFit) < 0.8 * earlyRMSEWarmStart(coldFit))

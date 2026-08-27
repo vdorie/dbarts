@@ -19,7 +19,7 @@ tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.2)
 wt <- runif(n, 0.2, 2)
 
-seededControl <- function(...) {
+seededControlForestWeightsR5 <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -35,7 +35,7 @@ build <- function() {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControl()
+    control = seededControlForestWeightsR5()
   )
 }
 
@@ -209,7 +209,7 @@ expect_true(abs(mean(tau0)) > 0.1)
 # --- the two refusals reachable through the public method: an
 # ordinary (non-BCF) sampler, and a multinomial fit's $fit, whose per-forest
 # leaf scales come from a log-sum-exp margin rather than an amplitude ---
-plain <- dbarts(x, y, control = seededControl())
+plain <- dbarts(x, y, control = seededControlForestWeightsR5())
 expect_error(
   plain$setForestWeights(1L, wt),
   "requires a sampler that carries forest amplitudes"

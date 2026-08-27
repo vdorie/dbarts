@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "checkXvalShape.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that random subsample runs correctly with valid inputs
 x <- testData$x
@@ -27,22 +31,7 @@ xval <- dbarts::xbart(
   n.threads = 2L
 )
 
-expect_inherits(xval, "array")
-expect_equal(
-  dim(xval),
-  c(n.reps, length(n.trees), length(k), length(power), length(base))
-)
-expect_true(!anyNA(xval))
-expect_equal(
-  dimnames(xval),
-  list(
-    rep = NULL,
-    n.trees = as.character(n.trees),
-    k = as.character(k),
-    power = as.character(power),
-    base = as.character(base)
-  )
-)
+checkXvalShape(xval, n.reps, n.trees, k, power, base)
 
 rm(xval, base, power, k, n.trees, n.reps, y, x)
 
@@ -72,22 +61,7 @@ xval <- dbarts::xbart(
   n.threads = 2L
 )
 
-expect_inherits(xval, "array")
-expect_equal(
-  dim(xval),
-  c(n.reps, length(n.trees), length(k), length(power), length(base))
-)
-expect_true(!anyNA(xval))
-expect_equal(
-  dimnames(xval),
-  list(
-    rep = NULL,
-    n.trees = as.character(n.trees),
-    k = as.character(k),
-    power = as.character(power),
-    base = as.character(base)
-  )
-)
+checkXvalShape(xval, n.reps, n.trees, k, power, base)
 
 rm(xval, base, power, k, n.trees, n.reps, y, x)
 
@@ -134,7 +108,7 @@ expect_inherits(xval, "array")
 # the fold sizes themselves: 24 rows over 5 folds is 5, 5, 5, 4, ... - a loss
 # that reports its own held-out row count averages to 24 / 5 in every cell,
 # which no fold plan that drops the remainder rows can reach
-foldSize <- function(y.test, y.test.hat, weights) length(y.test)
+foldSizeXbartMethod <- function(y.test, y.test.hat, weights) length(y.test)
 xvalFolds <- dbarts::xbart(
   x,
   y,
@@ -144,11 +118,11 @@ xvalFolds <- dbarts::xbart(
   n.test = 5,
   n.reps = 2L,
   k = k,
-  loss = foldSize,
+  loss = foldSizeXbartMethod,
   n.threads = 1L
 )
 expect_equal(as.vector(xvalFolds), rep_len(length(y) / 5, length(xvalFolds)))
-rm(xvalFolds, foldSize)
+rm(xvalFolds, foldSizeXbartMethod)
 
 rm(testData)
 

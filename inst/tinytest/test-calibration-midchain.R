@@ -429,9 +429,11 @@ expect_error(
 # the engine's own refusal, which the low-level route reaches past the R
 # guard, names the map by its coupling: the two-forest map at K = 2, and a
 # generic one above it, where no two-forest map owns the scale
-handleOf <- function(sampler) list(ptr = sampler$getPointer())
+handleOfCalibrationMidchain <- function(sampler) {
+  list(ptr = sampler$getPointer())
+}
 expect_error(
-  bartcoreSetForestPriorScale(handleOf(bcf), 0L, 1.5),
+  bartcoreSetForestPriorScale(handleOfCalibrationMidchain(bcf), 0L, 1.5),
   "two-forest calibration map"
 )
 threeForests <- dbarts(
@@ -445,7 +447,11 @@ threeForests <- dbarts(
   control = midControl()
 )
 threeRefusal <- tryCatch(
-  bartcoreSetForestPriorScale(handleOf(threeForests), 0L, 1.5),
+  bartcoreSetForestPriorScale(
+    handleOfCalibrationMidchain(threeForests),
+    0L,
+    1.5
+  ),
   error = function(e) conditionMessage(e)
 )
 expect_true(grepl("multi-forest calibration map", threeRefusal, fixed = TRUE))
@@ -616,7 +622,7 @@ expect_true(max(abs(priorScaleOf(warmRecipient) / 1.5 - 1)) < 1e-14)
 
 # --- the save/load gate: updateState = TRUE captures the write, and the
 # calibration survives the serialize/re-create round trip. ---
-roundTrip <- function(object) {
+roundTripCalibrationMidchain <- function(object) {
   tempFile <- tempfile()
   on.exit(unlink(tempFile))
   saveRDS(object, file = tempFile)
@@ -626,7 +632,7 @@ saved <- namedSampler()
 saved$run(10L, 5L)
 saved$storeState()
 saved$setCalibration(prior.scale = 0.6, updateState = TRUE)
-restored <- roundTrip(saved)
+restored <- roundTripCalibrationMidchain(saved)
 expect_true(max(abs(priorScaleOf(restored) / 0.6 - 1)) < 1e-14)
 expect_identical(priorScaleOf(restored), priorScaleOf(saved))
 # non-vacuity: without the capture the write does not reach the saved state,
@@ -635,4 +641,7 @@ uncaptured <- namedSampler()
 uncaptured$run(10L, 5L)
 uncaptured$storeState()
 uncaptured$setCalibration(prior.scale = 0.6)
-expect_true(max(abs(priorScaleOf(roundTrip(uncaptured)) / 1.5 - 1)) < 1e-14)
+expect_true(
+  max(abs(priorScaleOf(roundTripCalibrationMidchain(uncaptured)) / 1.5 - 1)) <
+    1e-14
+)

@@ -26,7 +26,7 @@ d <- data.frame(y = y, a = a, z = z)
 zBasis <- unname(cbind(1 - z, z))
 idx <- 1:20
 
-seededControl <- function(...) {
+seededControlForestBasisSubset <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -46,7 +46,7 @@ noSubset <- dbarts(
   y ~ a,
   d,
   forests = list(forest(), forest(basis = zBasis)),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_equal(dim(noSubset$data@bases[[2L]]), c(n, 2L))
 
@@ -57,14 +57,14 @@ subsetFull <- dbarts(
   d,
   subset = idx,
   forests = list(forest(), forest(basis = zBasis)),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(subsetFull$data@bases[[2L]], zBasis[idx, ])
 manual <- dbarts(
   y ~ a,
   d[idx, ],
   forests = list(forest(), forest(basis = zBasis[idx, ])),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(subsetFull$run(0L, 4L)$train, manual$run(0L, 4L)$train)
 
@@ -78,7 +78,7 @@ expect_error(
     d,
     subset = idx,
     forests = list(forest(), forest(basis = zBasis[idx, ])),
-    control = seededControl()
+    control = seededControlForestBasisSubset()
   ),
   ambiguousPattern
 )
@@ -88,7 +88,7 @@ formulaNoSubset <- dbarts(
   y ~ a,
   d,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_equal(dim(formulaNoSubset$data@bases[[2L]]), c(n, 2L))
 
@@ -99,14 +99,14 @@ formulaSubset <- dbarts(
   d,
   subset = idx,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(formulaSubset$data@bases[[2L]], zBasis[idx, ])
 manualFormula <- dbarts(
   y ~ a,
   d[idx, ],
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(
   formulaSubset$run(0L, 4L)$train,
@@ -122,7 +122,7 @@ expect_error(
     d,
     subset = idx,
     forests = list(forest(), forest(basis = ~ zBasis[idx, 2L])),
-    control = seededControl()
+    control = seededControlForestBasisSubset()
   ),
   ambiguousPattern
 )
@@ -133,7 +133,7 @@ termFit <- dbarts(
   y ~ a + z:forest(a),
   d,
   subset = idx,
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_equal(dim(termFit$data@bases[[2L]]), c(length(idx), 1L))
 
@@ -144,7 +144,7 @@ xyFull <- dbarts(
   y,
   subset = idx,
   forests = list(forest(), forest(basis = zBasis)),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(xyFull$data@bases[[2L]], zBasis[idx, ])
 expect_error(
@@ -153,7 +153,7 @@ expect_error(
     y,
     subset = idx,
     forests = list(forest(), forest(basis = zBasis[idx, ])),
-    control = seededControl()
+    control = seededControlForestBasisSubset()
   ),
   "'basis' must have the same length"
 )
@@ -191,7 +191,7 @@ equalCountForests <- dbarts(
   d,
   subset = recycled,
   forests = list(forest(), forest(basis = zBasis)),
-  control = seededControl()
+  control = seededControlForestBasisSubset()
 )
 expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
 expect_identical(equalCountForests$data@bases[[2L]], zBasis[recycled, ])

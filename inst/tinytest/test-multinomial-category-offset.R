@@ -42,7 +42,7 @@ offset <- cbind(
 )
 zeroOffset <- matrix(0, n, K)
 
-control <- function(n.chains = 1L) {
+controlCategoryOffset <- function(n.chains = 1L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = n.chains,
@@ -54,7 +54,7 @@ control <- function(n.chains = 1L) {
 # the recorded channels of an offset handle built without test data: the train
 # blend, the per-category forest fits and the two variable-count channels (the
 # test channel and its own offset are test-multinomial-test-offset.R's)
-recordChannels <- function(bc, result) {
+recordChannelsCategoryOffset <- function(bc, result) {
   list(
     train = result$train,
     forestFits = lapply(seq_len(K) - 1L, function(k) {
@@ -67,8 +67,12 @@ recordChannels <- function(bc, result) {
   )
 }
 
-buildSampler <- function(offset = NULL, n.chains = 1L) {
-  host <- dbarts(x, as.double(labels), control = control(n.chains))
+buildSamplerCategoryOffset <- function(offset = NULL, n.chains = 1L) {
+  host <- dbarts(
+    x,
+    as.double(labels),
+    control = controlCategoryOffset(n.chains)
+  )
   dbarts:::bartcoreMultinomialCountSampler(host, counts, K = K, offset = offset)
 }
 
@@ -78,18 +82,18 @@ buildSampler <- function(offset = NULL, n.chains = 1L) {
 # disagree about. There is no response transform to pin (the leaf scale is the
 # data-independent pi*sqrt(3)/sqrt(2) anchor and sigma is fixed), so the parity
 # is exact and unconditional. ---
-parityArm <- function(build, swap, n.chains = 1L) {
+parityArmCategoryOffset <- function(build, swap, n.chains = 1L) {
   set.seed(4242)
-  bc <- buildSampler(build, n.chains)
+  bc <- buildSamplerCategoryOffset(build, n.chains)
   if (!is.null(swap)) {
     bartcoreSetCategoryOffset(bc, swap)
   }
-  recordChannels(bc, bartcoreRun(bc, 20L, 8L))
+  recordChannelsCategoryOffset(bc, bartcoreRun(bc, 20L, 8L))
 }
 
-arm.build <- parityArm(offset, NULL)
-arm.swap <- parityArm(NULL, offset)
-arm.none <- parityArm(NULL, NULL)
+arm.build <- parityArmCategoryOffset(offset, NULL)
+arm.swap <- parityArmCategoryOffset(NULL, offset)
+arm.none <- parityArmCategoryOffset(NULL, NULL)
 
 expect_identical(arm.swap$train, arm.build$train)
 expect_identical(arm.swap$forestFits, arm.build$forestFits)
@@ -106,14 +110,14 @@ labelCounts <- matrix(0L, n, K)
 labelCounts[cbind(seq_len(n), labels + 1L)] <- 1L
 set.seed(4242)
 bc.labels <- dbarts:::bartcoreMultinomialSampler(
-  dbarts(x, as.double(labels), control = control()),
+  dbarts(x, as.double(labels), control = controlCategoryOffset()),
   labels,
   K = K,
   offset = offset
 )
 set.seed(4242)
 bc.onehot <- dbarts:::bartcoreMultinomialCountSampler(
-  dbarts(x, as.double(labels), control = control()),
+  dbarts(x, as.double(labels), control = controlCategoryOffset()),
   labelCounts,
   K = K,
   offset = offset
@@ -125,8 +129,8 @@ expect_identical(
 
 # every chain sees the install: a two-chain sampler offset mid-life is bitwise
 # the two-chain sampler built with it, so no chain kept the offset-free latent
-arm.build.chains <- parityArm(offset, NULL, n.chains = 2L)
-arm.swap.chains <- parityArm(NULL, offset, n.chains = 2L)
+arm.build.chains <- parityArmCategoryOffset(offset, NULL, n.chains = 2L)
+arm.swap.chains <- parityArmCategoryOffset(NULL, offset, n.chains = 2L)
 expect_identical(arm.swap.chains$train, arm.build.chains$train)
 expect_identical(arm.swap.chains$forestFits, arm.build.chains$forestFits)
 
@@ -136,15 +140,15 @@ expect_identical(arm.swap.chains$forestFits, arm.build.chains$forestFits)
 # Polya-Gamma sampler opens on |psi|, so -0.0 is absorbed at every consumer and
 # x + 0.0 is x. Clearing an installed offset must return to the same path, so
 # the sampler carries nothing of an offset it no longer has. ---
-arm.zero <- parityArm(zeroOffset, NULL)
+arm.zero <- parityArmCategoryOffset(zeroOffset, NULL)
 expect_identical(arm.zero$train, arm.none$train)
 expect_identical(arm.zero$forestFits, arm.none$forestFits)
 expect_identical(arm.zero$runVarcount, arm.none$runVarcount)
 
 set.seed(4242)
-bc.cleared <- buildSampler(offset)
+bc.cleared <- buildSamplerCategoryOffset(offset)
 bartcoreSetCategoryOffset(bc.cleared, NULL)
-arm.cleared <- recordChannels(
+arm.cleared <- recordChannelsCategoryOffset(
   bc.cleared,
   bartcoreRun(bc.cleared, 20L, 8L)
 )
@@ -153,7 +157,7 @@ expect_identical(arm.cleared$forestFits, arm.none$forestFits)
 
 # and installing the zero matrix on a live sampler is likewise the null path
 set.seed(4242)
-bc.zeroswap <- buildSampler(NULL)
+bc.zeroswap <- buildSamplerCategoryOffset(NULL)
 bartcoreSetCategoryOffset(bc.zeroswap, zeroOffset)
 expect_identical(
   bartcoreRun(bc.zeroswap, 20L, 8L)$train,
@@ -170,11 +174,19 @@ rowShift <- offset + matrix(rep(0.7 * x[, 1L], K), n, K)
 columnShift <- offset
 columnShift[, 2L] <- columnShift[, 2L] + 0.7
 set.seed(1717)
-train.plain <- bartcoreRun(buildSampler(offset), 0L, 3L)$train
+train.plain <- bartcoreRun(buildSamplerCategoryOffset(offset), 0L, 3L)$train
 set.seed(1717)
-train.rowshift <- bartcoreRun(buildSampler(rowShift), 0L, 3L)$train
+train.rowshift <- bartcoreRun(
+  buildSamplerCategoryOffset(rowShift),
+  0L,
+  3L
+)$train
 set.seed(1717)
-train.colshift <- bartcoreRun(buildSampler(columnShift), 0L, 3L)$train
+train.colshift <- bartcoreRun(
+  buildSamplerCategoryOffset(columnShift),
+  0L,
+  3L
+)$train
 expect_equal(train.rowshift, train.plain, tolerance = 1e-8)
 # non-vacuity: a shift of ONE column is not a null direction and does move it
 expect_false(isTRUE(all.equal(train.colshift, train.plain)))
@@ -206,7 +218,7 @@ sameVintage <- function(bc, result, sampleNum, offsetMatrix) {
 }
 
 set.seed(313)
-bc.vintage <- buildSampler(offset)
+bc.vintage <- buildSamplerCategoryOffset(offset)
 res.vintage <- bartcoreRun(bc.vintage, 20L, 5L)
 expect_true(sameVintage(bc.vintage, res.vintage, 5L, offset) < 1e-12)
 
@@ -215,7 +227,7 @@ expect_true(sameVintage(bc.vintage, res.vintage, 5L, offset) < 1e-12)
 # MUTATION time, outside any sweep. A blend that refreshed its offset fits only
 # from inside the sweep would report the pre-session fits for one more sample.
 set.seed(515)
-bc.session <- buildSampler(NULL)
+bc.session <- buildSamplerCategoryOffset(NULL)
 bartcoreRun(bc.session, 20L, 4L)
 bartcoreSetCategoryOffset(bc.session, offset)
 installed <- bartcoreUpdatePredictorPerObservation(
@@ -240,13 +252,13 @@ expect_equal(
 )
 
 # --- Refusals, the offset half. ---
-bc.mn <- buildSampler(NULL)
+bc.mn <- buildSamplerCategoryOffset(NULL)
 
 # the capability probe is not a forest count: a gaussian sampler and a BCF
 # sampler (two forests) both own no category offset, and both must name the
 # family situation rather than the forest count
 bc.gaussian <- dbarts:::bartcoreSampler(
-  dbarts(x, rnorm(n), control = control())
+  dbarts(x, rnorm(n), control = controlCategoryOffset())
 )
 expect_error(
   bartcoreSetCategoryOffset(bc.gaussian, offset),
@@ -254,7 +266,7 @@ expect_error(
 )
 set.seed(17)
 bc.bcf <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, rnorm(n), control = control()),
+  dbarts(x, rnorm(n), control = controlCategoryOffset()),
   rbinom(n, 1L, 0.5),
   n.trees.treatment = 10L
 )
@@ -315,9 +327,9 @@ for (bad in c(NA_real_, NaN, Inf, -Inf)) {
 # a refusal leaves the sampler byte-identical: the entrance validates a whole
 # scratch copy and swaps it in only once it holds, because the combiner borrows
 # the installed buffer and an in-place write would BE the mutation
-refusalArm <- function(attempt) {
+refusalArmCategoryOffset <- function(attempt) {
   set.seed(808)
-  bc <- buildSampler(NULL)
+  bc <- buildSamplerCategoryOffset(NULL)
   refused <- if (is.null(attempt)) {
     NA_character_
   } else {
@@ -331,13 +343,13 @@ refusalArm <- function(attempt) {
   }
   c(
     list(refused = refused),
-    recordChannels(bc, bartcoreRun(bc, 15L, 5L))
+    recordChannelsCategoryOffset(bc, bartcoreRun(bc, 15L, 5L))
   )
 }
 spoiled <- offset
 spoiled[n, K] <- Inf
-arm.refused <- refusalArm(spoiled)
-arm.untouched <- refusalArm(NULL)
+arm.refused <- refusalArmCategoryOffset(spoiled)
+arm.untouched <- refusalArmCategoryOffset(NULL)
 expect_true(grepl("finite", arm.refused$refused))
 expect_identical(arm.refused$train, arm.untouched$train)
 expect_identical(arm.refused$forestFits, arm.untouched$forestFits)
@@ -352,11 +364,16 @@ expect_identical(arm.refused$forestFits, arm.untouched$forestFits)
 # predict, whose rows are the caller's, refuses to guess. ---
 nTest <- 12L
 x.test <- x[seq_len(nTest), , drop = FALSE]
-# built exactly where buildSampler builds its host, so the two draw streams
+# built exactly where buildSamplerCategoryOffset builds its host, so the two draw streams
 # line up and the train comparison below is a statement about test data rather
 # than about creation order
 set.seed(4242)
-hostTest <- dbarts(x, as.double(labels), test = x.test, control = control())
+hostTest <- dbarts(
+  x,
+  as.double(labels),
+  test = x.test,
+  control = controlCategoryOffset()
+)
 bc.createTest <- dbarts:::bartcoreMultinomialCountSampler(
   hostTest,
   counts,
@@ -382,7 +399,7 @@ bc.test <- dbarts:::bartcoreMultinomialCountSampler(hostTest, counts, K = K)
 expect_silent(bartcoreSetCategoryOffset(bc.test, offset))
 # and the reverse direction: test data installs on a sampler already holding a
 # train offset, whose test rows the train offset says nothing about
-bc.offset <- buildSampler(offset)
+bc.offset <- buildSamplerCategoryOffset(offset)
 expect_silent(bartcoreSetTestPredictor(bc.offset, x.test))
 expect_true(all(is.finite(bartcoreRun(bc.offset, 0L, 3L)$test)))
 # the combined entry takes the test rows too; its FLAT offset argument stays
@@ -453,7 +470,7 @@ expect_error(
 )
 expect_error(
   dbarts:::bartcoreMultinomialCountSampler(
-    dbarts(x, as.double(labels), control = control()),
+    dbarts(x, as.double(labels), control = controlCategoryOffset()),
     counts.huge,
     K = K
   ),

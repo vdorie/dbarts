@@ -104,7 +104,7 @@ expect_error(
   fixed = TRUE
 )
 
-rm(bartFit, bart2Fit, rbartFitNoTrees)
+rm(bartFit, bart2Fit)
 
 # predict.bart/predict.rbart did not call refuseUnusedGenericArgs: a caller
 # typing the sibling family's offset formal name ('offset.test', used by
@@ -143,7 +143,6 @@ expect_error(
   "'group.by' is not used by predict on a bart fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
-rm(bart2FitKT)
 
 groupBy <- rep(1:2, length.out = nrow(testData$x))
 rbartFitKT <- dbarts::rbart_vi(
@@ -217,7 +216,6 @@ expect_true(is.numeric(predict(
   group.by = groupBy,
   type = "ev"
 )))
-rm(rbartFitKT, groupBy)
 
 # extend the offset.test refusal to the four own-class fits, and add the
 # 'weights' and offset-channel refusals the same signature reshape gained
@@ -265,7 +263,6 @@ expect_error(
   "'group.by' is not used by predict on a bartMultinomial fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
-rm(multinomialFitKT)
 
 ordinalFitKT <- dbarts::bart2(
   xSmall,
@@ -316,7 +313,6 @@ expect_error(
   "'group.by' is not used by predict on a bartOrdinal fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
-rm(ordinalFitKT)
 
 negbinFitKT <- dbarts::bart2(
   xSmall,
@@ -359,7 +355,6 @@ expect_error(
   "'group.by' is not used by predict on a bartNegbin fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
-rm(negbinFitKT)
 
 hurdleFitKT <- dbarts::bart2(
   xSmall,
@@ -407,34 +402,22 @@ expect_error(
   "'group.by' is not used by predict on a bartHurdle fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
-rm(hurdleFitKT, n, xSmall)
 
 # --- extract arm: ci.level/newdata/n.threads refused on extract.bart and
 # --- extract.rbart, BELOW the type == "trees" branch, and a representative
 # --- foreign name on each own-class extract ---
-bartFitKT <- dbarts::bart2(
-  testData$x,
-  testData$y,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = TRUE
-)
 expect_error(
-  extract(bartFitKT, type = "ev", ci.level = 0.9),
+  extract(bart2FitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a bart fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
 expect_error(
-  extract(bartFitKT, type = "ev", newdata = testData$x),
+  extract(bart2FitKT, type = "ev", newdata = testData$x),
   "'newdata' is not used by extract on a bart fit: predict(object, newdata) is the read at new rows",
   fixed = TRUE
 )
 expect_error(
-  extract(bartFitKT, type = "ev", n.threads = 1L),
+  extract(bart2FitKT, type = "ev", n.threads = 1L),
   "'n.threads' is not used by extract on a bart fit: extract reads stored channels and replays nothing",
   fixed = TRUE
 )
@@ -443,118 +426,53 @@ expect_error(
 # root of every tree holds every row, so the largest 'n' is the supplied
 # row count rather than the training one
 treesAtNewdata <- extract(
-  bartFitKT,
+  bart2FitKT,
   type = "trees",
   newdata = testData$x[1:5, , drop = FALSE]
 )
 expect_equal(max(treesAtNewdata$n), 5L)
-rm(bartFitKT)
+rm(bart2FitKT)
 
-groupByKT <- rep(1:2, length.out = nrow(testData$x))
-rbartFitKT2 <- dbarts::rbart_vi(
-  testData$y ~ testData$x,
-  group.by = groupByKT,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = TRUE
-)
 expect_error(
-  extract(rbartFitKT2, type = "ev", ci.level = 0.9),
+  extract(rbartFitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a rbart fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
 expect_error(
-  extract(rbartFitKT2, type = "ev", newdata = testData$x),
+  extract(rbartFitKT, type = "ev", newdata = testData$x),
   "'newdata' is not used by extract on a rbart fit: predict(object, newdata) is the read at new rows",
   fixed = TRUE
 )
 expect_error(
-  extract(rbartFitKT2, type = "ev", n.threads = 1L),
+  extract(rbartFitKT, type = "ev", n.threads = 1L),
   "'n.threads' is not used by extract on a rbart fit: extract reads stored channels and replays nothing",
   fixed = TRUE
 )
-rm(rbartFitKT2, groupByKT)
+rm(rbartFitKT, groupBy)
 
-n2 <- 40L
-xSmall2 <- matrix(rnorm(n2 * 2L), n2, 2L)
-multinomialFitKT2 <- dbarts::bart2(
-  xSmall2,
-  factor(sample(letters[1:3], n2, replace = TRUE)),
-  family = "multinomial",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  extract(multinomialFitKT2, type = "ev", ci.level = 0.9),
+  extract(multinomialFitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a bartMultinomial fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
-rm(multinomialFitKT2)
 
-ordinalFitKT2 <- dbarts::bart2(
-  xSmall2,
-  ordered(
-    sample(c("lo", "mid", "hi"), n2, replace = TRUE),
-    levels = c("lo", "mid", "hi")
-  ),
-  family = "ordinal",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  extract(ordinalFitKT2, type = "ev", ci.level = 0.9),
+  extract(ordinalFitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a bartOrdinal fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
-rm(ordinalFitKT2)
 
-negbinFitKT2 <- dbarts::bart2(
-  xSmall2,
-  rpois(n2, 3),
-  family = "nbinom",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  extract(negbinFitKT2, type = "ev", ci.level = 0.9),
+  extract(negbinFitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a bartNegbin fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
-rm(negbinFitKT2)
 
-hurdleFitKT2 <- dbarts::bart2(
-  xSmall2,
-  ifelse(runif(n2) < 0.5, 0, rlnorm(n2)),
-  family = "hurdle.lognormal",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  extract(hurdleFitKT2, type = "ev", ci.level = 0.9),
+  extract(hurdleFitKT, type = "ev", ci.level = 0.9),
   "'ci.level' is not used by extract on a bartHurdle fit: extract returns the draws that fitted() and predict() take a band over",
   fixed = TRUE
 )
-rm(hurdleFitKT2, n2, xSmall2)
 
 # extract.dbartsSampler's own catch-all: its '...' forwards nowhere, so any
 # supplied name is refused rather than only a listed few
@@ -601,8 +519,6 @@ rm(samplerKT)
 # --- ci.level refused on all six residuals (section 7), sample refused on
 # --- the three residuals methods that did not already refuse it, and
 # --- n.threads on one fitted and one residuals ---
-n3 <- 40L
-xSmall3 <- matrix(rnorm(n3 * 2L), n3, 2L)
 bartFitPlain <- dbarts::bart2(
   testData$x,
   testData$y,
@@ -647,145 +563,86 @@ expect_error(
 )
 rm(bartFitPlain)
 
-groupByPlain <- rep(1:2, length.out = nrow(testData$x))
-rbartFitPlain <- dbarts::rbart_vi(
-  testData$y ~ testData$x,
-  group.by = groupByPlain,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = FALSE
-)
 expect_error(
-  fitted(rbartFitPlain, combineChains = FALSE),
+  fitted(rbartFitNoTrees, combineChains = FALSE),
   "'combineChains' is not used by fitted on a rbart fit: the per-chain draws are extract(object, combineChains = FALSE)",
   fixed = TRUE
 )
 expect_error(
-  residuals(rbartFitPlain, ci.level = 0.9),
+  residuals(rbartFitNoTrees, ci.level = 0.9),
   "'ci.level' is not used by residuals on a rbart fit: residuals are the observed response minus the posterior-mean fit",
   fixed = TRUE
 )
-rm(rbartFitPlain, groupByPlain)
+rm(rbartFitNoTrees)
 
-multinomialFitPlain <- dbarts::bart2(
-  xSmall3,
-  factor(sample(letters[1:3], n3, replace = TRUE)),
-  family = "multinomial",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  fitted(multinomialFitPlain, combineChains = FALSE),
+  fitted(multinomialFitKT, combineChains = FALSE),
   "'combineChains' is not used by fitted on a bartMultinomial fit: the per-chain draws are extract(object, combineChains = FALSE)",
   fixed = TRUE
 )
 expect_error(
-  residuals(multinomialFitPlain, ci.level = 0.9),
+  residuals(multinomialFitKT, ci.level = 0.9),
   "'ci.level' is not used by residuals on a bartMultinomial fit: residuals are the observed response minus the posterior-mean fit",
   fixed = TRUE
 )
 expect_error(
-  residuals(multinomialFitPlain, sample = "train"),
+  residuals(multinomialFitKT, sample = "train"),
   "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
-rm(multinomialFitPlain)
+rm(multinomialFitKT)
 
-ordinalFitPlain <- dbarts::bart2(
-  xSmall3,
-  ordered(
-    sample(c("lo", "mid", "hi"), n3, replace = TRUE),
-    levels = c("lo", "mid", "hi")
-  ),
-  family = "ordinal",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  fitted(ordinalFitPlain, combineChains = FALSE),
+  fitted(ordinalFitKT, combineChains = FALSE),
   "'combineChains' is not used by fitted on a bartOrdinal fit: the per-chain draws are extract(object, combineChains = FALSE)",
   fixed = TRUE
 )
 expect_error(
-  residuals(ordinalFitPlain, ci.level = 0.9),
+  residuals(ordinalFitKT, ci.level = 0.9),
   "'ci.level' is not used by residuals on a bartOrdinal fit: residuals are the observed response minus the posterior-mean fit",
   fixed = TRUE
 )
 expect_error(
-  residuals(ordinalFitPlain, sample = "train"),
+  residuals(ordinalFitKT, sample = "train"),
   "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
 # 'type' is residuals.bart's own second argument, so the migrating call writes
 # it positionally; it lands in '...' here and is refused by position
 expect_error(
-  residuals(ordinalFitPlain, "ev"),
+  residuals(ordinalFitKT, "ev"),
   "residuals on a bartOrdinal fit does not support unnamed arguments: 1 supplied, the first at position 1 of '...'",
   fixed = TRUE
 )
-rm(ordinalFitPlain)
+rm(ordinalFitKT)
 
-negbinFitPlain <- dbarts::bart2(
-  xSmall3,
-  rpois(n3, 3),
-  family = "nbinom",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  fitted(negbinFitPlain, combineChains = FALSE),
+  fitted(negbinFitKT, combineChains = FALSE),
   "'combineChains' is not used by fitted on a bartNegbin fit: the per-chain draws are extract(object, combineChains = FALSE)",
   fixed = TRUE
 )
 expect_error(
-  residuals(negbinFitPlain, ci.level = 0.9),
+  residuals(negbinFitKT, ci.level = 0.9),
   "'ci.level' is not used by residuals on a bartNegbin fit: residuals are the observed response minus the posterior-mean fit",
   fixed = TRUE
 )
 expect_error(
-  residuals(negbinFitPlain, sample = "train"),
+  residuals(negbinFitKT, sample = "train"),
   "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
-rm(negbinFitPlain)
+rm(negbinFitKT)
 
-hurdleFitPlain <- dbarts::bart2(
-  xSmall3,
-  ifelse(runif(n3) < 0.5, 0, rlnorm(n3)),
-  family = "hurdle.lognormal",
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
 expect_error(
-  fitted(hurdleFitPlain, combineChains = FALSE),
+  fitted(hurdleFitKT, combineChains = FALSE),
   "'combineChains' is not used by fitted on a bartHurdle fit: the per-chain draws are extract(object, combineChains = FALSE)",
   fixed = TRUE
 )
 expect_error(
-  residuals(hurdleFitPlain, ci.level = 0.9),
+  residuals(hurdleFitKT, ci.level = 0.9),
   "'ci.level' is not used by residuals on a bartHurdle fit: residuals are the observed response minus the posterior-mean fit",
   fixed = TRUE
 )
-rm(hurdleFitPlain, n3, xSmall3)
+rm(hurdleFitKT, n, xSmall)
 
 rm(testData)

@@ -113,19 +113,10 @@ expect_equal(colnames(fit.mixed$varcount), colnames(mm))
 # a missing sigest on a mixed sparse/dense predictor set warns once that
 # the starting estimate is the marginal fallback, not a linear-model fit;
 # a fully dense set of the same shape gets no such warning
-countWarnings <- function(expr, class) {
-  count <- 0L
-  withCallingHandlers(
-    expr,
-    warning = function(w) {
-      if (inherits(w, class)) {
-        count <<- count + 1L
-      }
-      invokeRestart("muffleWarning")
-    }
-  )
-  count
-}
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 quick <- list(
   n.samples = 5L,
   n.burn = 2L,
@@ -355,13 +346,13 @@ expect_equal(
 frame.align.dense <- data.frame(x1 = x1.align, f = f.align)
 frame.align.dense$sv <- sv.align
 frame.align.dense$sm <- sm.align.dense
-alignmentGate <- function(test, seed) {
+alignmentGateDataMixed <- function(test, seed) {
   set.seed(seed)
   dbarts(x.frame, y, test = test, control = alignControl)$run()
 }
 expect_identical(
-  alignmentGate(container.align, 616L)$test,
-  alignmentGate(frame.align.dense, 616L)$test
+  alignmentGateDataMixed(container.align, 616L)$test,
+  alignmentGateDataMixed(frame.align.dense, 616L)$test
 )
 
 frame.align.new <- frame.align

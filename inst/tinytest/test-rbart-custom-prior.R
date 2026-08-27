@@ -32,7 +32,9 @@ d <- data.frame(x, y = y, g = g)
 
 # same body as rbart.priors$cauchy, under a name that misses the builtin
 # lookup so rbart_vi routes through the R loop
-customCauchy <- function(x, rel.scale) dcauchy(x, 0, rel.scale * 2.5, TRUE)
+customCauchyRbartCustomPrior <- function(x, rel.scale) {
+  dcauchy(x, 0, rel.scale * 2.5, TRUE)
+}
 
 rbartArgs <- list(
   y ~ x1 + x2 + x3 + x4 + x5,
@@ -51,7 +53,7 @@ rbartArgs <- list(
 set.seed(11L)
 fit.loop <- do.call(
   dbarts::rbart_vi,
-  c(rbartArgs, list(prior = customCauchy))
+  c(rbartArgs, list(prior = customCauchyRbartCustomPrior))
 )
 set.seed(11L)
 fit.core <- do.call(dbarts::rbart_vi, rbartArgs)
@@ -73,7 +75,7 @@ rm(
   g,
   y,
   d,
-  customCauchy,
+  customCauchyRbartCustomPrior,
   rbartArgs,
   fit.loop,
   fit.core,

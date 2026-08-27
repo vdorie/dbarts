@@ -10,32 +10,10 @@
 
 # reconstruct, for a single-tree / single-predictor sampler, the (lo, hi] interval of each
 # leaf from getTrees() (flattened pre-order; var == -1 marks a leaf, x > value goes right)
-parseLeaves <- function(rows) {
-  i <- 0L
-  leaves <- list()
-  recurse <- function(lo, hi) {
-    i <<- i + 1L
-    row <- rows[i, ]
-    if (row$var == -1) {
-      leaves[[length(leaves) + 1L]] <<- list(lo = lo, hi = hi, n = row$n)
-      return(invisible())
-    }
-    v <- row$value
-    recurse(lo, v) # left child:  x <= value
-    recurse(v, hi) # right child: x >  value
-  }
-  recurse(-Inf, Inf)
-  leaves
-}
-leafOfObservations <- function(leaves, values) {
-  vapply(
-    values,
-    function(xj) {
-      which(vapply(leaves, function(l) l$lo < xj & xj <= l$hi, logical(1)))
-    },
-    integer(1)
-  )
-}
+source(
+  system.file("common", "treeLeafIntervals.R", package = "dbarts"),
+  local = TRUE
+)
 
 
 ## ---------------------------------------------------------------------------

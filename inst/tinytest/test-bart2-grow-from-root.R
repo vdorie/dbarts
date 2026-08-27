@@ -91,7 +91,7 @@ expect_false(isTRUE(all.equal(fitA$yhat.train, fitOne$yhat.train)))
 
 ## the measurable claim: with no burn-in, a grow-from-root start reaches a much
 ## lower early-iteration training RMSE than the prior-init cold start
-earlyRMSE <- function(fit) {
+earlyRMSEBart2GrowFromRoot <- function(fit) {
   yh <- fit$yhat.train
   perSample <- sqrt(rowMeans(sweep(yh, 2L, y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
@@ -119,7 +119,10 @@ growFit <- dbarts::bart2(
   seed = 2L,
   n.grow.sweeps = 2L
 )
-expect_true(earlyRMSE(growFit) < 0.9 * earlyRMSE(coldFit))
+expect_true(
+  earlyRMSEBart2GrowFromRoot(growFit) <
+    0.9 * earlyRMSEBart2GrowFromRoot(coldFit)
+)
 
 ## a longer grow-initialized run converges to a sensible fit
 convergedFit <- dbarts::bart2(

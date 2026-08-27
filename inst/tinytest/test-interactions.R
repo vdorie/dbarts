@@ -53,10 +53,10 @@ pathHasAll <- function(vars, want) {
 # group a getTrees data.frame into one tree per (chain, sample, tree), using
 # whichever of those columns the format carries (bart2 extract has all three,
 # the BCF current-tree query only 'tree')
-splitTrees <- function(trees) {
-  cols <- intersect(c("chain", "sample", "tree"), names(trees))
-  split(trees, trees[cols], drop = TRUE)
-}
+source(
+  system.file("common", "splitTrees.R", package = "dbarts"),
+  local = TRUE
+)
 worstOrder <- function(trees) {
   max(vapply(splitTrees(trees), function(k) pathMaxOrder(k$var), integer(1)))
 }
@@ -84,7 +84,7 @@ fitArgs <- list(
   keepTrees = TRUE,
   verbose = FALSE
 )
-doFit <- function(interactions = NULL) {
+doFitInteractions <- function(interactions = NULL) {
   do.call(
     bart2,
     c(list(y ~ x1 + x2 + x3, df, interactions = interactions), fitArgs)
@@ -93,24 +93,24 @@ doFit <- function(interactions = NULL) {
 
 # ---- unconstrained baseline actually uses multiple variables ------------------
 
-expect_true(worstOrder(extract(doFit(), type = "trees")) >= 2L)
+expect_true(worstOrder(extract(doFitInteractions(), type = "trees")) >= 2L)
 
 # ---- max.order caps the distinct predictors on every path ---------------------
 
-fit1 <- doFit(interactions(max.order = 1))
+fit1 <- doFitInteractions(interactions(max.order = 1))
 expect_equal(worstOrder(extract(fit1, type = "trees")), 1L)
 
-fit2 <- doFit(interactions(max.order = 2))
+fit2 <- doFitInteractions(interactions(max.order = 2))
 expect_true(worstOrder(extract(fit2, type = "trees")) <= 2L)
 
 # ---- forbid bars a named pair from ever co-occurring --------------------------
 
-fitF <- doFit(interactions(forbid = list(c("x1", "x2"))))
+fitF <- doFitInteractions(interactions(forbid = list(c("x1", "x2"))))
 expect_false(anyCoOccur(extract(fitF, type = "trees"), c(1L, 2L)))
 
 # ---- groups: named columns co-occur only with their group-mates ---------------
 
-fitG <- doFit(interactions(groups = list(c("x1", "x3"), "x2")))
+fitG <- doFitInteractions(interactions(groups = list(c("x1", "x3"), "x2")))
 treesG <- extract(fitG, type = "trees")
 expect_false(anyCoOccur(treesG, c(1L, 2L))) # different groups
 expect_false(anyCoOccur(treesG, c(2L, 3L))) # different groups
@@ -118,17 +118,20 @@ expect_false(anyCoOccur(treesG, c(2L, 3L))) # different groups
 # ---- fit-time validation (safe over fast) -------------------------------------
 
 expect_error(interactions(), "at least one of")
-expect_error(doFit(interactions(max.order = 0)), "max.order")
-expect_error(doFit(interactions(max.order = -1L)), "max.order")
+expect_error(doFitInteractions(interactions(max.order = 0)), "max.order")
+expect_error(doFitInteractions(interactions(max.order = -1L)), "max.order")
 expect_error(
-  doFit(interactions(forbid = list(c("x1", "nope")))),
+  doFitInteractions(interactions(forbid = list(c("x1", "nope")))),
   "unrecognized variable name 'nope'"
 )
 expect_error(
-  doFit(interactions(groups = list(character(0)))),
+  doFitInteractions(interactions(groups = list(character(0)))),
   "at least one column"
 )
-expect_error(doFit(interactions(forbid = list("x1"))), "two or more columns")
+expect_error(
+  doFitInteractions(interactions(forbid = list("x1"))),
+  "two or more columns"
+)
 
 # ---- warm-start refusal: an unconstrained donor's order-2 trees cannot seed a
 #      max.order = 1 fit ---------------------------------------------------------

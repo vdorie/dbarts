@@ -12,10 +12,10 @@ source(
 set.seed(22L)
 
 # group a getTrees data.frame into one tree per (chain, sample, tree)
-splitTrees <- function(trees) {
-  cols <- intersect(c("chain", "sample", "tree"), names(trees))
-  split(trees, trees[cols], drop = TRUE)
-}
+source(
+  system.file("common", "splitTrees.R", package = "dbarts"),
+  local = TRUE
+)
 # the distinct 1-based split variables a flat tree uses (empty for a stump)
 usedVars <- function(k) {
   v <- k$var
@@ -59,7 +59,7 @@ fitArgs <- list(
   keepTrees = TRUE,
   verbose = FALSE
 )
-doFit <- function(blocks = NULL) {
+doFitBlocks <- function(blocks = NULL) {
   do.call(bart2, c(list(y ~ x1 + x2 + x3, df, blocks = blocks), fitArgs))
 }
 
@@ -67,20 +67,20 @@ doFit <- function(blocks = NULL) {
 
 # groups {x1} and {x2, x3} -> columns {1} and {2, 3}
 groups <- list(1L, c(2L, 3L))
-fit <- doFit(blocks(groups = list("x1", c("x2", "x3"))))
+fit <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
 trees <- extract(fit, type = "trees")
 expect_true(someSplit(trees))
 expect_true(allConfined(trees, groups))
 
 # an explicit trees.per.group runs and stays confined
-fitSplit <- doFit(blocks(
+fitSplit <- doFitBlocks(blocks(
   groups = list("x1", c("x2", "x3")),
   trees.per.group = c(5L, 15L)
 ))
 expect_true(allConfined(extract(fitSplit, type = "trees"), groups))
 
 # a numeric-index partition is equivalent
-fitIdx <- doFit(blocks(groups = list(1L, c(2L, 3L))))
+fitIdx <- doFitBlocks(blocks(groups = list(1L, c(2L, 3L))))
 expect_true(allConfined(extract(fitIdx, type = "trees"), groups))
 
 # ---- a never-split tree is a subset of all blocks, not a violation -------
@@ -157,27 +157,30 @@ expect_error(blocks(), "requires 'groups'")
 
 # an un-named predictor would be masked out of every tree and go dead
 expect_error(
-  doFit(blocks(groups = list("x1", "x2"))),
+  doFitBlocks(blocks(groups = list("x1", "x2"))),
   "name every predictor"
 )
 # a predictor named in two groups
 expect_error(
-  doFit(blocks(groups = list(c("x1", "x2"), c("x2", "x3")))),
+  doFitBlocks(blocks(groups = list(c("x1", "x2"), c("x2", "x3")))),
   "disjoint"
 )
 # an unrecognized name
 expect_error(
-  doFit(blocks(groups = list("x1", c("x2", "x3"), "nope"))),
+  doFitBlocks(blocks(groups = list("x1", c("x2", "x3"), "nope"))),
   "unrecognized variable name 'nope'"
 )
 # trees.per.group of the wrong length
 expect_error(
-  doFit(blocks(groups = list("x1", c("x2", "x3")), trees.per.group = 20L)),
+  doFitBlocks(blocks(
+    groups = list("x1", c("x2", "x3")),
+    trees.per.group = 20L
+  )),
   "one entry per group"
 )
 # trees.per.group that does not sum to n.trees
 expect_error(
-  doFit(blocks(
+  doFitBlocks(blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(5L, 5L)
   )),
@@ -185,7 +188,7 @@ expect_error(
 )
 # a non-positive capacity
 expect_error(
-  doFit(blocks(
+  doFitBlocks(blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(0L, 20L)
   )),
@@ -245,9 +248,9 @@ expect_true(allConfined(extract(fitMono, type = "trees"), groups))
 # ---- a fixed blocks() config + seed reproduces draws ---------------------------
 
 set.seed(77L)
-fitRepA <- doFit(blocks(groups = list("x1", c("x2", "x3"))))
+fitRepA <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
 set.seed(77L)
-fitRepB <- doFit(blocks(groups = list("x1", c("x2", "x3"))))
+fitRepB <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
 expect_identical(
   extract(fitRepA, type = "trees"),
   extract(fitRepB, type = "trees")

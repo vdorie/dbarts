@@ -27,9 +27,14 @@ source(
   local = TRUE
 )
 
-internalMultinomialFit <- function(
+# shared by internalMultinomialFit and internalMultinomialCountFit below,
+# which differ only in the sampler constructor and in how the response is
+# reduced to the dbartsData() double vector
+internalMultinomialFitCore <- function(
+  ctor,
   x,
-  labels,
+  response,
+  responseForData,
   K,
   n.trees,
   n.burn,
@@ -45,23 +50,59 @@ internalMultinomialFit <- function(
     updateState = FALSE
   )
   data <- if (is.null(test)) {
-    dbartsData(x, as.double(labels))
+    dbartsData(x, responseForData)
   } else {
-    dbartsData(x, as.double(labels), test = test)
+    dbartsData(x, responseForData, test = test)
   }
   spec <- dbartsSpec(data, control = control)
-  bc <- dbarts:::bartcoreMultinomialSampler(
-    spec,
+  bc <- ctor(spec, response, K = K, offset = offset)
+  bartcoreRun(bc, n.burn, n.samples)
+}
+
+internalMultinomialFit <- function(
+  x,
+  labels,
+  K,
+  n.trees,
+  n.burn,
+  n.samples,
+  test = NULL,
+  offset = NULL
+) {
+  internalMultinomialFitCore(
+    dbarts:::bartcoreMultinomialSampler,
+    x,
     labels,
-    K = K,
+    as.double(labels),
+    K,
+    n.trees,
+    n.burn,
+    n.samples,
+    test = test,
     offset = offset
   )
-  bartcoreRun(bc, n.burn, n.samples)
 }
 
 n.trees <- 20L
 n.burn <- 12L
 n.samples <- 12L
+
+# the shared knob block every plain multinomial fit below repeats; a caller
+# needing 'family = "auto"' detection (fit3Auto) or non-default knobs
+# (fitMulti/fitMultiSplit/fit3pMulti, the refusal checks) calls bart2()
+# directly instead
+mfit <- function(...) {
+  bart2(
+    ...,
+    family = "multinomial",
+    n.trees = n.trees,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.burn = n.burn,
+    n.samples = n.samples,
+    verbose = FALSE
+  )
+}
 
 # --- K = 3, covariate-dependent (the reproduction gate) ---
 set.seed(6301)
@@ -83,17 +124,7 @@ y3 <- factor(c("lo", "mid", "hi")[labels3 + 1L], levels = c("lo", "mid", "hi"))
 
 seed3 <- 7301L
 set.seed(seed3)
-fit3 <- bart2(
-  x3,
-  y3,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3 <- mfit(x3, y3)
 set.seed(seed3)
 internal3 <- internalMultinomialFit(x3, labels3, 3L, n.trees, n.burn, n.samples)
 
@@ -111,17 +142,7 @@ y2 <- factor(c("no", "yes")[labels2 + 1L], levels = c("no", "yes"))
 
 seed2 <- 7302L
 set.seed(seed2)
-fit2 <- bart2(
-  x2,
-  y2,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit2 <- mfit(x2, y2)
 set.seed(seed2)
 internal2 <- internalMultinomialFit(x2, labels2, 2L, n.trees, n.burn, n.samples)
 
@@ -159,17 +180,7 @@ expect_identical(vc2.fit, aperm(internal2$varcount, c(3L, 1L, 2L)))
 expect_null(dimnames(fit3$varcount)[[2L]])
 set.seed(6303)
 xn <- matrix(runif(n2 * p2), n2, p2, dimnames = list(NULL, c("aa", "bb")))
-fitNamed <- bart2(
-  xn,
-  y2,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fitNamed <- mfit(xn, y2)
 expect_equal(dimnames(fitNamed$varcount)[[2L]], c("aa", "bb"))
 expect_equal(dimnames(fitNamed$varcount)[[3L]], c("no", "yes"))
 
@@ -240,18 +251,7 @@ expect_equal(dim(fitMultiSplit$varcount), c(2L, 5L, p, 3L))
 # by softmax invariance to the common level shift, matches those train columns
 x3.test <- x3[seq_len(20L), , drop = FALSE]
 set.seed(seed3)
-fit3t <- bart2(
-  x3,
-  y3,
-  family = "multinomial",
-  test = x3.test,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3t <- mfit(x3, y3, test = x3.test)
 set.seed(seed3)
 internal3t <- internalMultinomialFit(
   x3,
@@ -292,37 +292,14 @@ expect_true(all(ppd3t %in% seq_len(3L)))
 # --- test data at creation: K = 2 ---
 x2.test <- x2[seq_len(15L), , drop = FALSE]
 set.seed(seed2)
-fit2t <- bart2(
-  x2,
-  y2,
-  family = "multinomial",
-  test = x2.test,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit2t <- mfit(x2, y2, test = x2.test)
 expect_equal(dim(fit2t$yhat.test), c(n.samples, 15L, 2L))
 expect_equal(dimnames(fit2t$yhat.test)[[3L]], c("no", "yes"))
 expect_true(all(fit2t$yhat.test >= 0 & fit2t$yhat.test <= 1))
 
 # --- predict-on-newdata: keepTrees replays all K saved forests ---
 set.seed(seed3)
-fit3p <- bart2(
-  x3,
-  y3,
-  family = "multinomial",
-  test = x3.test,
-  keepTrees = TRUE,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3p <- mfit(x3, y3, test = x3.test, keepTrees = TRUE)
 # THE REPRODUCTION GATE: predict at the fit-time test rows equals the recorded
 # test channel BIT FOR BIT. Both replay the same saved trees through the same
 # softmax, and neither carries the level-centering grand shift (afterCombine
@@ -360,19 +337,7 @@ expect_equal(ncol(fit3p$fit$data@x), ncol(x3))
 expect_identical(predict(fit3p, x3.test), pred3p)
 
 # --- keepSampler retains $fit independent of keepTrees ---
-fit3ks <- bart2(
-  x3,
-  y3,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE,
-  keepSampler = TRUE,
-  keepTrees = FALSE
-)
+fit3ks <- mfit(x3, y3, keepSampler = TRUE, keepTrees = FALSE)
 expect_false(is.null(fit3ks$fit))
 rm(fit3ks)
 
@@ -409,26 +374,18 @@ internalMultinomialCountFit <- function(
   test = NULL,
   offset = NULL
 ) {
-  control <- dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = n.trees,
-    n.samples = n.samples,
-    updateState = FALSE
-  )
-  data <- if (is.null(test)) {
-    dbartsData(x, as.double(counts[, 1L]))
-  } else {
-    dbartsData(x, as.double(counts[, 1L]), test = test)
-  }
-  spec <- dbartsSpec(data, control = control)
-  bc <- dbarts:::bartcoreMultinomialCountSampler(
-    spec,
+  internalMultinomialFitCore(
+    dbarts:::bartcoreMultinomialCountSampler,
+    x,
     counts,
-    K = K,
+    as.double(counts[, 1L]),
+    K,
+    n.trees,
+    n.burn,
+    n.samples,
+    test = test,
     offset = offset
   )
-  bartcoreRun(bc, n.burn, n.samples)
 }
 
 # K = 3, grouped counts (n_i > 1): the reproduction gate extended to the
@@ -453,17 +410,7 @@ colnames(counts3c) <- c("lo", "mid", "hi")
 
 seed3c <- 7304L
 set.seed(seed3c)
-fit3c <- bart2(
-  x3c,
-  counts3c,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3c <- mfit(x3c, counts3c)
 set.seed(seed3c)
 internal3c <- internalMultinomialCountFit(
   x3c,
@@ -492,17 +439,7 @@ expect_identical(fit3c$y, counts3c)
 unnamedCounts3c <- counts3c
 colnames(unnamedCounts3c) <- NULL
 set.seed(seed3c)
-fitUnnamed3c <- bart2(
-  x3c,
-  unnamedCounts3c,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fitUnnamed3c <- mfit(x3c, unnamedCounts3c)
 expect_equal(fitUnnamed3c$levels, c("1", "2", "3"))
 expect_equal(dimnames(fitUnnamed3c$yhat.train)[[3L]], c("1", "2", "3"))
 
@@ -519,18 +456,11 @@ ppd3c <- extract(fit3c, type = "ppd")
 expect_true(all(ppd3c %in% seq_len(3L)))
 
 set.seed(seed3c)
-fit3cKeep <- bart2(
+fit3cKeep <- mfit(
   x3c,
   counts3c,
-  family = "multinomial",
   test = x3c[seq_len(10L), , drop = FALSE],
-  keepTrees = TRUE,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
+  keepTrees = TRUE
 )
 pred3c <- predict(fit3cKeep, x3c[seq_len(10L), , drop = FALSE])
 expect_identical(pred3c, fit3cKeep$yhat.test)
@@ -545,17 +475,7 @@ expect_true(any(grepl("levels: lo, mid, hi", printed3c, fixed = TRUE)))
 onehot2 <- matrix(0L, n2, 2L, dimnames = list(NULL, c("no", "yes")))
 onehot2[cbind(seq_len(n2), labels2 + 1L)] <- 1L
 set.seed(seed2)
-fitOneHot2 <- bart2(
-  x2,
-  onehot2,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fitOneHot2 <- mfit(x2, onehot2)
 expect_identical(fitOneHot2$yhat.train, fit2$yhat.train)
 expect_identical(fitOneHot2$varcount, fit2$varcount)
 
@@ -596,18 +516,7 @@ df3 <- data.frame(x3Named, y3 = y3)
 # factor LHS: reproduces the matrix-interface factor fit bit for bit at the
 # same seed (the reproduction gate extended to the formula surface)
 set.seed(seed3)
-fit3Formula <- bart2(
-  y3 ~ x1 + x2 + x3 + x4,
-  data = df3,
-  family = "multinomial",
-  keepTrees = TRUE,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3Formula <- mfit(y3 ~ x1 + x2 + x3 + x4, data = df3, keepTrees = TRUE)
 probs3Formula <- fit3Formula$yhat.train
 dimnames(probs3Formula) <- NULL
 probs3Matrix <- fit3$yhat.train
@@ -648,17 +557,7 @@ expect_identical(fit3Auto$yhat.train, fit3Formula$yhat.train)
 y3Unused <- factor(y3, levels = c(levels(y3), "unused"))
 df3Unused <- data.frame(x3Named, y3Unused = y3Unused)
 set.seed(seed3)
-fit3Unused <- bart2(
-  y3Unused ~ x1 + x2 + x3 + x4,
-  data = df3Unused,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3Unused <- mfit(y3Unused ~ x1 + x2 + x3 + x4, data = df3Unused)
 expect_equal(fit3Unused$levels, c("lo", "mid", "hi", "unused"))
 expect_equal(fit3Unused$K, 4L)
 
@@ -674,17 +573,7 @@ df3c <- data.frame(
   hi = counts3c[, 3L]
 )
 set.seed(seed3c)
-fit3cFormula <- bart2(
-  cbind(lo, mid, hi) ~ x1 + x2 + x3 + x4,
-  data = df3c,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3cFormula <- mfit(cbind(lo, mid, hi) ~ x1 + x2 + x3 + x4, data = df3c)
 expect_equal(fit3cFormula$levels, c("lo", "mid", "hi"))
 probs3cFormula <- fit3cFormula$yhat.train
 dimnames(probs3cFormula) <- NULL
@@ -696,17 +585,7 @@ expect_identical(probs3cFormula, probs3cMatrix)
 # (plain factor(), so default alphabetical levels)
 df3Char <- data.frame(x3Named, y3Char = as.character(y3))
 set.seed(seed3)
-fit3Char <- bart2(
-  y3Char ~ x1 + x2 + x3 + x4,
-  data = df3Char,
-  family = "multinomial",
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3Char <- mfit(y3Char ~ x1 + x2 + x3 + x4, data = df3Char)
 expect_equal(fit3Char$levels, sort(levels(y3)))
 
 # --- category offset: bart2's own n x K matrix 'offset', threaded to
@@ -722,18 +601,7 @@ offset3 <- cbind(
   0.2 * sin(4 * x3[, 3L])
 )
 set.seed(seed3)
-fit3o <- bart2(
-  x3,
-  y3,
-  family = "multinomial",
-  offset = offset3,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3o <- mfit(x3, y3, offset = offset3)
 set.seed(seed3)
 internal3o <- internalMultinomialFit(
   x3,
@@ -757,18 +625,7 @@ offset3c <- cbind(
   0.1 * sin(3 * x3c[, 4L])
 )
 set.seed(seed3c)
-fit3co <- bart2(
-  x3c,
-  counts3c,
-  family = "multinomial",
-  offset = offset3c,
-  n.trees = n.trees,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.burn = n.burn,
-  n.samples = n.samples,
-  verbose = FALSE
-)
+fit3co <- mfit(x3c, counts3c, offset = offset3c)
 set.seed(seed3c)
 internal3co <- internalMultinomialCountFit(
   x3c,

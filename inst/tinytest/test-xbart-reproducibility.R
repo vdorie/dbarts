@@ -14,61 +14,30 @@ y <- testData$y
 
 k <- c(4, 8)
 
-xval.1 <- dbarts::xbart(
-  x,
-  y,
-  method = "k-fold",
-  n.reps = 4L,
-  n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
-  n.test = 5,
-  k = k,
-  n.threads = 1L,
-  seed = 0L
-)
+runXval <- function(n.threads) {
+  dbarts::xbart(
+    x,
+    y,
+    method = "k-fold",
+    n.reps = 4L,
+    n.samples = 20L,
+    n.burn = c(10L, 5L, 1L),
+    n.test = 5,
+    k = k,
+    n.threads = n.threads,
+    seed = 0L
+  )
+}
 
-xval.2 <- dbarts::xbart(
-  x,
-  y,
-  method = "k-fold",
-  n.reps = 4L,
-  n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
-  n.test = 5,
-  k = k,
-  n.threads = 1L,
-  seed = 0L
-)
+xval.1 <- runXval(1L)
+xval.2 <- runXval(1L)
 
 expect_true(all(!is.na(xval.1)))
 expect_equal(dim(xval.1), c(4L, length(k)))
 expect_equal(xval.1, xval.2)
 
-xval.3 <- dbarts::xbart(
-  x,
-  y,
-  method = "k-fold",
-  n.reps = 4L,
-  n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
-  n.test = 5,
-  k = k,
-  n.threads = 2L,
-  seed = 0L
-)
-
-xval.4 <- dbarts::xbart(
-  x,
-  y,
-  method = "k-fold",
-  n.reps = 4L,
-  n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
-  n.test = 5,
-  k = k,
-  n.threads = 2L,
-  seed = 0L
-)
+xval.3 <- runXval(2L)
+xval.4 <- runXval(2L)
 
 expect_true(all(!is.na(xval.3)))
 expect_equal(dim(xval.3), c(4L, length(k)))
@@ -84,7 +53,7 @@ expect_true(any(xval.1 != xval.3))
 # 1-vs-2-thread split is exercised here.
 expect_equal(apply(xval.1 == xval.3, 1L, all), c(TRUE, TRUE, FALSE, FALSE))
 
-rm(xval.4, xval.3, xval.2, xval.1, k, y, x)
+rm(xval.4, xval.3, xval.2, xval.1, runXval, k, y, x)
 
 suppressWarnings(RNGkind(sample.kind = oldSampleKind))
 rm(oldSampleKind)

@@ -11,35 +11,13 @@
 
 # reconstruct, for a single-tree / single-predictor sampler, the (lo, hi] interval of each leaf
 # from getTrees() (flattened pre-order; var == -1 marks a leaf, x > value goes right)
-parseLeaves <- function(rows) {
-  i <- 0L
-  leaves <- list()
-  recurse <- function(lo, hi) {
-    i <<- i + 1L
-    row <- rows[i, ]
-    if (row$var == -1) {
-      leaves[[length(leaves) + 1L]] <<- list(lo = lo, hi = hi, n = row$n)
-      return(invisible())
-    }
-    v <- row$value
-    recurse(lo, v) # left child:  x <= value
-    recurse(v, hi) # right child: x >  value
-  }
-  recurse(-Inf, Inf)
-  leaves
-}
-leafOfObservations <- function(leaves, values) {
-  vapply(
-    values,
-    function(xj) {
-      which(vapply(leaves, function(l) l$lo < xj & xj <= l$hi, logical(1)))
-    },
-    integer(1)
-  )
-}
+source(
+  system.file("common", "treeLeafIntervals.R", package = "dbarts"),
+  local = TRUE
+)
 
 # single-predictor sampler on a shared x with its own response (so trees differ across samplers)
-makeSampler <- function(y, x, seed, ntree = 1L) {
+makeSamplerUpdatePredictorJointly <- function(y, x, seed, ntree = 1L) {
   ctrl <- dbarts::dbartsControl(
     n.chains = 1L,
     n.trees = ntree,
@@ -66,8 +44,8 @@ noEmptyLeaf <- function(s) {
 set.seed(101L)
 n <- 50L
 x <- rnorm(n)
-A <- makeSampler(x + rnorm(n), x, 11L)
-B <- makeSampler(-x + rnorm(n), x, 22L)
+A <- makeSamplerUpdatePredictorJointly(x + rnorm(n), x, 11L)
+B <- makeSamplerUpdatePredictorJointly(-x + rnorm(n), x, 22L)
 
 orig <- as.numeric(A$data@x[, 1L])
 expect_equal(orig, as.numeric(B$data@x[, 1L])) # the column is genuinely shared
@@ -93,8 +71,8 @@ rm(A, B, x, n, orig, inst)
 set.seed(202L)
 n <- 60L
 x <- rnorm(n)
-A <- makeSampler(x + rnorm(n), x, 7L)
-B <- makeSampler(sin(3 * x) + rnorm(n), x, 99L)
+A <- makeSamplerUpdatePredictorJointly(x + rnorm(n), x, 7L)
+B <- makeSamplerUpdatePredictorJointly(sin(3 * x) + rnorm(n), x, 99L)
 orig <- as.numeric(A$data@x[, 1L])
 
 leavesA <- parseLeaves(A$getTrees())
@@ -157,8 +135,13 @@ rm(
 set.seed(303L)
 n <- 50L
 x <- rnorm(n)
-A <- makeSampler(x + rnorm(n), x, 13L) # single tree -> clean leaf-interval oracle
-B <- makeSampler(exp(x / 2) + rnorm(n), x, 31L, ntree = 15L)
+A <- makeSamplerUpdatePredictorJointly(x + rnorm(n), x, 13L) # single tree -> clean leaf-interval oracle
+B <- makeSamplerUpdatePredictorJointly(
+  exp(x / 2) + rnorm(n),
+  x,
+  31L,
+  ntree = 15L
+)
 orig <- as.numeric(A$data@x[, 1L])
 
 leavesA <- parseLeaves(A$getTrees())
@@ -210,8 +193,13 @@ rm(
 set.seed(303L)
 n <- 80L
 x <- rnorm(n)
-A <- makeSampler(x + rnorm(n), x, 5L, ntree = 20L)
-B <- makeSampler(cos(2 * x) + rnorm(n), x, 6L, ntree = 20L)
+A <- makeSamplerUpdatePredictorJointly(x + rnorm(n), x, 5L, ntree = 20L)
+B <- makeSamplerUpdatePredictorJointly(
+  cos(2 * x) + rnorm(n),
+  x,
+  6L,
+  ntree = 20L
+)
 
 set.seed(404L)
 anyRolledBack <- FALSE
@@ -424,4 +412,9 @@ expect_true(anyRolledBack) # the rollback path was actually exercised
 
 rm(RA, RB, nr, xr, rctrl, cur, prop, mask, anyRolledBack, trial)
 
-rm(parseLeaves, leafOfObservations, makeSampler, noEmptyLeaf)
+rm(
+  parseLeaves,
+  leafOfObservations,
+  makeSamplerUpdatePredictorJointly,
+  noEmptyLeaf
+)

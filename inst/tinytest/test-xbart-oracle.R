@@ -163,6 +163,6 @@ expect_false(isTRUE(all.equal(
 # (d) the fold averaging on its own, by hand rather than by capture: a loss
 # that reports its fold's size averages the fold sizes, and 12 rows split
 # 4, 4, 4 in 3 folds and 3, 3, 2, 2, 2 in 5
-foldSize <- function(y.test, testSamples, weights) length(y.test)
-expect_equal(xval(y, loss = foldSize), c(4, 4))
-expect_equal(xval(y, n.test = 5, loss = foldSize), c(2.4, 2.4))
+foldSizeXbartOracle <- function(y.test, testSamples, weights) length(y.test)
+expect_equal(xval(y, loss = foldSizeXbartOracle), c(4, 4))
+expect_equal(xval(y, n.test = 5, loss = foldSizeXbartOracle), c(2.4, 2.4))

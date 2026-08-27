@@ -32,7 +32,7 @@ stateControl <- dbarts::dbartsControl(
   updateState = FALSE,
   seed = 902L
 )
-logisticSampler <- function(weights) {
+logisticSamplerStateWeightPairing <- function(weights) {
   dbarts::dbarts(
     x,
     yBinary,
@@ -74,7 +74,7 @@ storedFrom <- function(sampler) {
 # --- what a stored state carries -------------------------------------------
 # an ADDITIVE top-level attribute: 8 raw bytes beside cutPoints, and the
 # encoding version does not move for it
-source.wA <- logisticSampler(wA)
+source.wA <- logisticSamplerStateWeightPairing(wA)
 state.wA <- storedFrom(source.wA)
 digest <- attr(state.wA, "weights.digest")
 expect_true(is.raw(digest))
@@ -84,14 +84,18 @@ expect_identical(attr(state.wA, "formatVersion"), 3L)
 # --- matched round trip: the identity --------------------------------------
 # the destination's weights ARE the ones the stored latents were shaped by, so
 # nothing is re-derived and the stored latents install unchanged
-matched <- logisticSampler(wA)
+matched <- logisticSamplerStateWeightPairing(wA)
 matched$setState(state.wA)
 expect_identical(matched$getLatents(), state.wA[[1L]][["latents"]])
 
 # and the restore is silent: no warning fires on either the matched or the
 # mismatched path
-quietMatched <- captureWarnings(logisticSampler(wA)$setState(state.wA))
-quietMismatched <- captureWarnings(logisticSampler(wB)$setState(state.wA))
+quietMatched <- captureWarnings(logisticSamplerStateWeightPairing(wA)$setState(
+  state.wA
+))
+quietMismatched <- captureWarnings(logisticSamplerStateWeightPairing(
+  wB
+)$setState(state.wA))
 expect_identical(length(quietMatched), 0L)
 expect_identical(length(quietMismatched), 0L)
 
@@ -101,7 +105,7 @@ expect_identical(length(quietMismatched), 0L)
 continued <- source.wA$run(0L, 5L)$train
 restored <- matched$run(0L, 5L)$train
 expect_true(max(abs(continued - restored)) <= 1e-13)
-restoredAgain <- logisticSampler(wA)
+restoredAgain <- logisticSamplerStateWeightPairing(wA)
 restoredAgain$setState(state.wA)
 expect_identical(restoredAgain$run(0L, 5L)$train, restored)
 
@@ -121,10 +125,10 @@ expect_identical(gagain$run(0L, 5L)$train, grestored)
 # arm 1 restores into the weights the state was stored under and then swaps
 # through the LIVE conduit; arm 2 restores into the swapped weights and lets
 # the seam reconcile. The two are the same sampler, bitwise.
-liveArm <- logisticSampler(wA)
+liveArm <- logisticSamplerStateWeightPairing(wA)
 liveArm$setState(state.wA)
 liveArm$setWeights(wB)
-stateArm <- logisticSampler(wB)
+stateArm <- logisticSamplerStateWeightPairing(wB)
 stateArm$setState(state.wA)
 expect_identical(stateArm$getLatents(), liveArm$getLatents())
 expect_identical(stateArm$run(0L, 3L)$train, liveArm$run(0L, 3L)$train)
@@ -137,7 +141,7 @@ expect_false(identical(stateArm$getLatents(), state.wA[[1L]][["latents"]]))
 # $setWeights does not refresh $state, so an ordinary save/load revives
 # through a state stored under the PREVIOUS weights. The revived latents are
 # the post-swap ones, not the pre-swap ones rewound.
-headline <- logisticSampler(wA)
+headline <- logisticSamplerStateWeightPairing(wA)
 invisible(headline$run(10L, 5L))
 headline$storeState()
 preSwap <- headline$getLatents()
@@ -195,7 +199,7 @@ nullSource <- dbarts::dbarts(
   control = stateControl
 )
 nullState <- storedFrom(nullSource)
-onesDest <- logisticSampler(rep(1, n))
+onesDest <- logisticSamplerStateWeightPairing(rep(1, n))
 onesDest$setState(nullState)
 expect_identical(onesDest$getLatents(), nullState[[1L]][["latents"]])
 nullDest <- dbarts::dbarts(
@@ -210,7 +214,11 @@ expect_identical(onesDest$run(0L, 3L)$train, nullDest$run(0L, 3L)$train)
 # --- additivity and refusal -------------------------------------------------
 # a state with NO digest - one written before the attribute existed - loads on
 # every family and restores exactly what it did before it existed
-for (make in list(logisticSampler, gaussianSampler, studentSampler)) {
+for (make in list(
+  logisticSamplerStateWeightPairing,
+  gaussianSampler,
+  studentSampler
+)) {
   donor <- storedFrom(make(wA))
   stripped <- make(wA)
   stripped$setState(withoutDigest(donor))
@@ -222,12 +230,12 @@ for (make in list(logisticSampler, gaussianSampler, studentSampler)) {
 malformed <- state.wA
 attr(malformed, "weights.digest") <- as.raw(1:4)
 expect_error(
-  logisticSampler(wA)$setState(malformed),
+  logisticSamplerStateWeightPairing(wA)$setState(malformed),
   pattern = "malformed weights digest in bartcore state"
 )
 attr(malformed, "weights.digest") <- 1:8
 expect_error(
-  logisticSampler(wA)$setState(malformed),
+  logisticSamplerStateWeightPairing(wA)$setState(malformed),
   pattern = "malformed weights digest in bartcore state"
 )
 
@@ -235,10 +243,10 @@ expect_error(
 # installTrees reads version and forests, never latents: a warm start
 # transplants across data by design, so a weight difference is not a mismatch
 # to reconcile and the destination's own latents are left where they were
-warmDonor <- logisticSampler(wA)
+warmDonor <- logisticSamplerStateWeightPairing(wA)
 invisible(warmDonor$run(10L, 5L))
 warmDonor$storeState()
-warmDest <- logisticSampler(wB)
+warmDest <- logisticSamplerStateWeightPairing(wB)
 invisible(warmDest$run(5L, 2L))
 beforeWarm <- warmDest$getLatents()
 warmDest$installTrees(warmDonor)

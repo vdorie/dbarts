@@ -66,19 +66,10 @@ expect_silent(fit2(y.aft, family = "aft", sigest = 5))
 expect_silent(fit2(y.binary, family = "probit"))
 
 # two gated names supplied together still emit exactly one warning
-countWarnings <- function(expr, class) {
-  count <- 0L
-  withCallingHandlers(
-    expr,
-    warning = function(w) {
-      if (inherits(w, class)) {
-        count <<- count + 1L
-      }
-      invokeRestart("muffleWarning")
-    }
-  )
-  count
-}
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 expect_equal(
   countWarnings(
     fit2(y.binary, family = "probit", sigest = 5, dispersion = 2),

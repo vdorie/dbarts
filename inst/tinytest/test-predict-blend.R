@@ -28,7 +28,7 @@ n.samples <- 6L
 # keepTrees is installed for the SAMPLING run only, after burn-in, as bart()
 # installs it: the saved-tree store then holds exactly the recorded draws, in
 # order, which is what pairs each draw's forests with its own amplitudes below.
-keptControl <- function(n.chains = 1L) {
+keptControlPredictBlend <- function(n.chains = 1L) {
   dbartsControl(
     n.threads = 1L,
     n.trees = 8L,
@@ -41,7 +41,7 @@ keptControl <- function(n.chains = 1L) {
   )
 }
 
-fitFrom <- function(
+fitFromPredictBlend <- function(
   forests,
   response = y,
   family = "auto",
@@ -54,7 +54,7 @@ fitFrom <- function(
     response,
     forests = forests,
     family = family,
-    control = keptControl(n.chains)
+    control = keptControlPredictBlend(n.chains)
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, keepTrees)
   dbarts:::packageBartResults(
@@ -71,7 +71,7 @@ fitFrom <- function(
 # basis, the shape that tells reading the glue by its "forest" attribute apart
 # from reading it positionally
 twoForests <- list(forest(), forest(basis = ~ factor(z)))
-fit <- fitFrom(twoForests)
+fit <- fitFromPredictBlend(twoForests)
 
 # --- THE PRIMARY ORACLE. At the TRAINING rows, with the fit's OWN bases, the
 # blend is the fit. yhat.train is what the engine's own combiner recorded, so
@@ -96,14 +96,14 @@ expect_true(abs(fit$fit$getCalibration(1L)[1L, "response.scale"] - 1) > 1e-8)
 # the same oracle on every other shape that can carry amplitudes. Under a
 # latent family the response transform is the identity, so "ev" is the link
 # applied to the recorded latent draws.
-probitFit <- fitFrom(twoForests, yBin, "probit")
+probitFit <- fitFromPredictBlend(twoForests, yBin, "probit")
 expect_true(
   max(abs(
     blendAtTraining(probitFit, type = "ev") - pnorm(probitFit$yhat.train)
   )) <
     1e-12
 )
-logisticFit <- fitFrom(twoForests, yBin, "logistic")
+logisticFit <- fitFromPredictBlend(twoForests, yBin, "logistic")
 expect_true(
   max(abs(
     blendAtTraining(logisticFit, type = "ev") - plogis(logisticFit$yhat.train)
@@ -112,7 +112,11 @@ expect_true(
 )
 # two chains stored uncombined: glue and the replay pair draw for draw only in
 # the combined layout, so the split result is a reshape of that one
-chainFit <- fitFrom(twoForests, n.chains = 2L, combineChains = FALSE)
+chainFit <- fitFromPredictBlend(
+  twoForests,
+  n.chains = 2L,
+  combineChains = FALSE
+)
 expect_equal(dim(chainFit$yhat.train), c(2L, n.samples, n))
 expect_true(
   max(abs(
@@ -126,13 +130,16 @@ expect_identical(
   dbarts:::uncombineChains(blendAtTraining(chainFit, type = "bart"), 2L)
 )
 # a three-column basis, so the ragged margin is (1, 3)
-wideFit <- fitFrom(list(forest(), forest(basis = ~g3)))
+wideFit <- fitFromPredictBlend(list(forest(), forest(basis = ~g3)))
 expect_identical(dim(wideFit$bases[[2L]]), c(n, 3L))
 expect_true(
   max(abs(blendAtTraining(wideFit, type = "bart") - wideFit$yhat.train)) < 1e-12
 )
 # forest 1 carrying a basis of its own rather than the implicit column
-bothBasesFit <- fitFrom(list(forest(basis = ~w), forest(basis = ~ factor(z))))
+bothBasesFit <- fitFromPredictBlend(list(
+  forest(basis = ~w),
+  forest(basis = ~ factor(z))
+))
 expect_identical(dim(bothBasesFit$bases[[1L]]), c(n, 1L))
 expect_true(
   max(abs(
@@ -147,15 +154,10 @@ expect_true(
 # pins is accumulation order; the oracle above is what pins the arithmetic.
 glueForest <- attr(fit$glue, "forest")
 predicted <- predict(fit, xNew, type = "forest")
-recombine <- function(perForest, bases, nRows) {
-  out <- matrix(shift, nrow(fit$glue), nRows)
-  for (k in seq_len(fit$n.forests)) {
-    basis <- if (is.null(bases[[k]])) matrix(1, nRows, 1L) else bases[[k]]
-    g <- fit$glue[, glueForest == dimnames(perForest)[[3L]][k], drop = FALSE]
-    out <- out + (g %*% t(basis)) * perForest[,, k]
-  }
-  out
-}
+source(
+  system.file("common", "recombine.R", package = "dbarts"),
+  local = TRUE
+)
 zeroBasis <- list(NULL, unname(cbind(rep(1, nNew), rep(0, nNew))))
 oneBasis <- list(NULL, unname(cbind(rep(0, nNew), rep(1, nNew))))
 atZero <- predict(fit, xNew, type = "bart", bases = zeroBasis)
@@ -292,7 +294,7 @@ expect_identical(
 
 # --- refusals ---
 # 'bases' on a fit with nothing to distribute it over, named by count
-plainFit <- fitFrom(NULL)
+plainFit <- fitFromPredictBlend(NULL)
 expect_error(
   predict(plainFit, xNew, bases = list(NULL)),
   pattern = "this fit has 1 forest"
@@ -369,7 +371,7 @@ expect_error(
 # keepTrees gates BOTH amplitude arms, with one text: without the store the
 # replay reports the current trees once for every draw, and the pairing the
 # blend is defined by does not exist
-noTrees <- fitFrom(twoForests, keepTrees = FALSE)
+noTrees <- fitFromPredictBlend(twoForests, keepTrees = FALSE)
 expect_false(noTrees$fit$control@keepTrees)
 expect_error(
   predict(noTrees, xNew, type = "bart", bases = zeroBasis),
@@ -384,7 +386,7 @@ expect_error(
 # the store it still reports the current trees as ONE draw, which is the shape
 # the amplitude arms refuse rather than pair against an n.samples glue.
 expect_equal(dim(predict(plainFit, xNew, type = "bart")), c(n.samples, nNew))
-noTreesPlain <- fitFrom(NULL, keepTrees = FALSE)
+noTreesPlain <- fitFromPredictBlend(NULL, keepTrees = FALSE)
 plainReplay <- predict(noTreesPlain, xNew, type = "bart")
 expect_null(dim(plainReplay))
 expect_equal(length(plainReplay), nNew)

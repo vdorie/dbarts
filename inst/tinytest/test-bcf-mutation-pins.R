@@ -127,7 +127,7 @@ rm(n.trees.treatment, priorTreatmentNodes, snapped)
 # success. Per-forest fits are internal-scale; fit.scale (the stored (min,
 # max) of y) carries the affine map back to the reported scale. a*mu + b_z*tau
 # under that map reconstructs the recorded train draw. ---
-reconstructTrain <- function(bcSampler, zVec, chain = 1L) {
+reconstructTrainMutationPins <- function(bcSampler, zVec, chain = 1L) {
   glue <- bartcoreForestAmplitudes(bcSampler)
   muFits <- bartcoreForestFits(bcSampler, 0L)[, chain]
   tauFits <- bartcoreForestFits(bcSampler, 1L)[, chain]
@@ -139,7 +139,7 @@ reconstructTrain <- function(bcSampler, zVec, chain = 1L) {
 }
 
 reconResult <- bartcoreRun(bc, 0L, 1L)
-reconTrain <- reconstructTrain(bc, z)
+reconTrain <- reconstructTrainMutationPins(bc, z)
 expect_equal(reconTrain, reconResult$train[, 1L], tolerance = 1e-10)
 
 # a per-sweep run loop is bitwise identical to one batched run of the same
@@ -166,7 +166,7 @@ batched <- bartcoreRun(bcBatch, 0L, numSamples)
 # sit at the last recorded sample, so it holds per chain here too
 for (chain in seq_len(control.loop@n.chains)) {
   expect_equal(
-    reconstructTrain(bcBatch, z, chain = chain),
+    reconstructTrainMutationPins(bcBatch, z, chain = chain),
     batched$train[, numSamples, chain],
     tolerance = 1e-10
   )

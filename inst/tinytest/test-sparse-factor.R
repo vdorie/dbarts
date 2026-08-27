@@ -1003,7 +1003,7 @@ frame.align.dense <- data.frame(
   x1 = frame.align$x1,
   f = factor(labels.align, levels = rev(levels.small))
 )
-alignmentGate <- function(test, seed) {
+alignmentGateSparseFactor <- function(test, seed) {
   set.seed(seed)
   dbarts(
     train.bound,
@@ -1014,8 +1014,8 @@ alignmentGate <- function(test, seed) {
   )$run(5L, 10L)
 }
 expect_identical(
-  alignmentGate(container.align, 606L)$test,
-  alignmentGate(frame.align.dense, 606L)$test
+  alignmentGateSparseFactor(container.align, 606L)$test,
+  alignmentGateSparseFactor(frame.align.dense, 606L)$test
 )
 
 # a level the training design never saw still refuses, by name

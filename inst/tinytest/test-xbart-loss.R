@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "checkXvalShape.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that works with custom loss
 x <- testData$x
@@ -33,22 +37,7 @@ xval <- dbarts::xbart(
   n.threads = 1L
 )
 
-expect_inherits(xval, "array")
-expect_equal(
-  dim(xval),
-  c(n.reps, length(n.trees), length(k), length(power), length(base))
-)
-expect_true(!anyNA(xval))
-expect_equal(
-  dimnames(xval),
-  list(
-    rep = NULL,
-    n.trees = as.character(n.trees),
-    k = as.character(k),
-    power = as.character(power),
-    base = as.character(base)
-  )
-)
+checkXvalShape(xval, n.reps, n.trees, k, power, base)
 
 
 xval <- dbarts::xbart(
@@ -67,22 +56,7 @@ xval <- dbarts::xbart(
   n.threads = 2L
 )
 
-expect_inherits(xval, "array")
-expect_equal(
-  dim(xval),
-  c(n.reps, length(n.trees), length(k), length(power), length(base))
-)
-expect_true(!anyNA(xval))
-expect_equal(
-  dimnames(xval),
-  list(
-    rep = NULL,
-    n.trees = as.character(n.trees),
-    k = as.character(k),
-    power = as.character(power),
-    base = as.character(base)
-  )
-)
+checkXvalShape(xval, n.reps, n.trees, k, power, base)
 
 # the reported cell IS the loss function's value, averaged over the folds
 # rather than summed: a loss that always returns 3 makes every cell 3

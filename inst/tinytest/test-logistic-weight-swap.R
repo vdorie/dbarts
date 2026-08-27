@@ -27,7 +27,7 @@ logisticControl <- function(n.chains = 1L) {
     seed = 902L
   )
 }
-logisticSampler <- function(weights, n.chains = 1L) {
+logisticSamplerWeightSwap <- function(weights, n.chains = 1L) {
   dbarts(
     x,
     y,
@@ -43,21 +43,21 @@ logisticSampler <- function(weights, n.chains = 1L) {
 # setResponse is the already-shipped conduit that runs the SAME refresh against
 # the same location, so a swapped sampler and one built with the new counts
 # agree BITWISE rather than merely closely.
-swapped <- logisticSampler(w1)
-built <- logisticSampler(w2)
+swapped <- logisticSamplerWeightSwap(w1)
+built <- logisticSamplerWeightSwap(w2)
 swapped$setWeights(w2)
 built$setResponse(y)
 expect_identical(swapped$getLatents(), built$getLatents())
 expect_identical(swapped$run(0L, 2L)$train, built$run(0L, 2L)$train)
 
 # not vacuous: a sampler left at the old counts is a different sampler
-untouched <- logisticSampler(w1)
+untouched <- logisticSamplerWeightSwap(w1)
 expect_false(identical(swapped$getLatents(), untouched$getLatents()))
 
 # the fan-out is per chain, each drawing from its own generator, which is what
 # a broken one gets wrong on the second chain alone
-swappedPair <- logisticSampler(w1, 2L)
-builtPair <- logisticSampler(w2, 2L)
+swappedPair <- logisticSamplerWeightSwap(w1, 2L)
+builtPair <- logisticSamplerWeightSwap(w2, 2L)
 swappedPair$setWeights(w2)
 builtPair$setResponse(y)
 expect_identical(dim(swappedPair$getLatents()), c(n, 2L))
@@ -65,8 +65,8 @@ expect_identical(swappedPair$getLatents(), builtPair$getLatents())
 
 # and off a grown forest, where the location the latents are drawn against is
 # no longer the all-zero one creation leaves
-ranA <- logisticSampler(w1)
-ranB <- logisticSampler(w1)
+ranA <- logisticSamplerWeightSwap(w1)
+ranB <- logisticSamplerWeightSwap(w1)
 invisible(ranA$run(5L, 1L))
 invisible(ranB$run(5L, 1L))
 grownBefore <- ranA$getLatents()
@@ -78,8 +78,8 @@ expect_false(identical(ranA$getLatents(), grownBefore))
 # the shape, deterministically and with no run: at psi = 0 a count-w row's
 # omega is PG(w, 0) with mean w/4, so the mean latent tracks the counts the
 # swap installs. Maskless on purpose - see the mask cell below
-unitCounts <- logisticSampler(w1)
-eightCounts <- logisticSampler(w1)
+unitCounts <- logisticSamplerWeightSwap(w1)
+eightCounts <- logisticSamplerWeightSwap(w1)
 unitCounts$setWeights(rep(1, n))
 eightCounts$setWeights(rep(8, n))
 expect_true(abs(mean(unitCounts$getLatents()) - 0.25) < 0.05)
@@ -145,7 +145,7 @@ expect_true(mean(abs(altFit - flatFit)) > 0.12)
 # would desynchronize the stream against a sampler built on the retained rows.
 # The inactive rows are not left carrying the OLD counts' omega either - they
 # return to the deterministic cold start against the new count, 0.25 w.
-masked <- logisticSampler(w1)
+masked <- logisticSamplerWeightSwap(w1)
 mask <- rep(1, n)
 mask[1:5] <- 0
 masked$setActiveRows(mask)
@@ -193,7 +193,7 @@ expect_true(all(is.finite(grouped$run(0L, 1L)$train)))
 
 # --- what a count may not be, on both conduits -----------------------------
 countRefusal <- "must be positive integers"
-pinned <- logisticSampler(w2)
+pinned <- logisticSamplerWeightSwap(w2)
 zeroWarnings <- captureWarnings(
   zeroData <- dbartsData(x, y, weights = replace(w2, 1L, 0))
 )
@@ -214,15 +214,18 @@ expect_identical(pinned$data@weights, w2)
 # against them rather than left at the cold start a data swap installs, so the
 # same build-vs-swap oracle holds on this conduit too: a sampler created with
 # counts and handed weightless data is bitwise one built unweighted.
-reset <- logisticSampler(w2)
-unweighted <- logisticSampler(w1)
+reset <- logisticSamplerWeightSwap(w2)
+unweighted <- logisticSamplerWeightSwap(w1)
 reset$setData(dbartsData(x, y))
 unweighted$setResponse(y)
 expect_true(is.null(reset$data@weights))
 expect_identical(reset$getLatents(), unweighted$getLatents())
 expect_identical(reset$run(0L, 2L)$train, unweighted$run(0L, 2L)$train)
 # not vacuous: the counts it was created with are gone, not carried through
-expect_false(identical(reset$getLatents(), logisticSampler(w2)$getLatents()))
+expect_false(identical(
+  reset$getLatents(),
+  logisticSamplerWeightSwap(w2)$getLatents()
+))
 # and stated counts on the same conduit are drawn against, not cold-started
 pinned$setData(dbartsData(x, y, weights = w2))
 expect_false(isTRUE(all.equal(pinned$getLatents(), 0.25 * w2)))
@@ -273,7 +276,7 @@ rm(
   w1,
   w2,
   logisticControl,
-  logisticSampler,
+  logisticSamplerWeightSwap,
   swapped,
   built,
   untouched,

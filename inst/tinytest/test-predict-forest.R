@@ -20,7 +20,7 @@ twoForests <- list(forest(), forest(basis = ~ factor(z)))
 # keepTrees rides the SAMPLING run only, as bart() turns it on: the store is a
 # circular buffer, so recording burn-in sweeps too would rotate the saved slots
 # away from the recorded draws the identity below reads.
-keptControl <- function(n.chains = 1L, keepTrees = FALSE) {
+keptControlPredictForest <- function(n.chains = 1L, keepTrees = FALSE) {
   dbartsControl(
     n.threads = 1L,
     n.trees = 8L,
@@ -33,8 +33,13 @@ keptControl <- function(n.chains = 1L, keepTrees = FALSE) {
   )
 }
 
-fitFrom <- function(forests, n.chains = 1L, combineChains = TRUE) {
-  sampler <- dbarts(x, y, forests = forests, control = keptControl(n.chains))
+fitFromPredictForest <- function(forests, n.chains = 1L, combineChains = TRUE) {
+  sampler <- dbarts(
+    x,
+    y,
+    forests = forests,
+    control = keptControlPredictForest(n.chains)
+  )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, TRUE)
   dbarts:::packageBartResults(
     sampler,
@@ -46,7 +51,7 @@ fitFrom <- function(forests, n.chains = 1L, combineChains = TRUE) {
   )
 }
 
-fit <- fitFrom(twoForests)
+fit <- fitFromPredictForest(twoForests)
 
 # --- shape and naming: the in-sample channel's layout at the new rows ---
 predicted <- predict(fit, xNew, type = "forest")
@@ -70,15 +75,10 @@ expect_true(max(abs(atTraining - inSample)) < 1e-12)
 # combination, which is why neither is folded into what comes back.
 shift <- fit$fit$getCalibration(1L)[1L, "response.shift"]
 glueForest <- attr(fit$glue, "forest")
-recombine <- function(perForest, bases, nRows) {
-  out <- matrix(shift, nrow(fit$glue), nRows)
-  for (k in seq_len(fit$n.forests)) {
-    basis <- if (is.null(bases[[k]])) matrix(1, nRows, 1L) else bases[[k]]
-    g <- fit$glue[, glueForest == dimnames(perForest)[[3L]][k], drop = FALSE]
-    out <- out + (g %*% t(basis)) * perForest[,, k]
-  }
-  out
-}
+source(
+  system.file("common", "recombine.R", package = "dbarts"),
+  local = TRUE
+)
 expect_true(
   max(abs(recombine(atTraining, fit$bases, n) - fit$yhat.train)) < 1e-12
 )
@@ -109,7 +109,7 @@ expect_error(
 
 # --- chains: combineChains folds and splits the same way the in-sample
 # channel does ---
-fit2 <- fitFrom(twoForests, n.chains = 2L)
+fit2 <- fitFromPredictForest(twoForests, n.chains = 2L)
 combined <- predict(fit2, xNew, type = "forest")
 split <- predict(fit2, xNew, type = "forest", combineChains = FALSE)
 expect_equal(dim(combined), c(2L * n.samples, nNew, 2L))
@@ -123,7 +123,7 @@ expect_error(
   pattern = "takes no offset"
 )
 # a fit with no per-forest reporting, by the same predicate extract reads
-plainFit <- fitFrom(NULL)
+plainFit <- fitFromPredictForest(NULL)
 expect_error(
   predict(plainFit, xNew, type = "forest"),
   pattern = "per-forest reporting"
@@ -159,7 +159,7 @@ sampler <- dbarts(
   x,
   y,
   forests = twoForests,
-  control = keptControl(keepTrees = TRUE)
+  control = keptControlPredictForest(keepTrees = TRUE)
 )
 sampler$run(2L, n.samples)
 before <- sampler$predictForests(xNew)
@@ -175,7 +175,7 @@ expect_true(max(abs(reloaded$predictForests(xNew) - before)) < 1e-12)
 # combineChains = FALSE stores (chains, samples, obs, forests), so the forest
 # margin is the LAST axis, not the third - predict(type = "forest") must read
 # it off the same axis extract's reshape-first path already does ---
-fit3 <- fitFrom(twoForests, n.chains = 2L, combineChains = FALSE)
+fit3 <- fitFromPredictForest(twoForests, n.chains = 2L, combineChains = FALSE)
 expect_equal(length(dim(fit3$forestFits)), 4L)
 predicted3 <- predict(fit3, xNew, type = "forest")
 expect_equal(dim(predicted3), c(2L * n.samples, nNew, 2L))

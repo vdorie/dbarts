@@ -44,7 +44,7 @@ expect_true(!anyNA(trees$directions[isSignalRule]))
 
 ## a bart2 fit warm-started off two grow sweeps reaches a lower early training
 ## RMSE than a cold start, shaped like test-bart2-grow-from-root.R's assertion
-earlyRMSE <- function(fit) {
+earlyRMSEGrowFromRootCategorical <- function(fit) {
   yh <- fit$yhat.train
   perSample <- sqrt(rowMeans(sweep(yh, 2L, d$y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
@@ -72,7 +72,10 @@ growFit <- dbarts::bart2(
   seed = 2L,
   n.grow.sweeps = 2L
 )
-expect_true(earlyRMSE(growFit) < 0.9 * earlyRMSE(coldFit))
+expect_true(
+  earlyRMSEGrowFromRootCategorical(growFit) <
+    0.9 * earlyRMSEGrowFromRootCategorical(coldFit)
+)
 
 ## the DART assertion: the grow sweeps' own close-of-sweep DART update
 ## (chain.hpp) now sees real categorical split counts instead of structural

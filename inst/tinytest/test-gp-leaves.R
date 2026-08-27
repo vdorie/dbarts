@@ -2,6 +2,10 @@ source(
   system.file("common", "bartcoreHandle.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "leafPriorChecks.R", package = "dbarts"),
+  local = TRUE
+)
 
 library(dbarts, quietly = TRUE)
 
@@ -119,18 +123,9 @@ expect_false(any(startsWith(names(trees), "beta.")))
 expect_true(all(is.na(trees$value[trees$var == -1L])))
 expect_true(all(!is.na(trees$value[trees$var > 0L])))
 
-# plotTree labels gp leaves
-pdf(NULL)
-expect_silent(sampler$plotTree(1L, sampleNum = 1L))
-dev.off()
-
-# the leaf covariate designation and kind are fixed at creation
-model.const <- sampler$model
-model.const@node.prior <- dbarts:::normal(2)
-expect_error(
-  sampler$setModel(model.const),
-  pattern = "fixed when a sampler is created"
-)
+# plotTree labels gp leaves; the leaf covariate designation and kind are
+# fixed at creation
+checkPlotTreeAndFixedPrior(sampler)
 
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
@@ -138,33 +133,19 @@ source(
 )
 # state serialization carries the fits slabs and saved blocks: a restored
 # sampler reproduces the model
-control.state <- dbartsControl(
-  n.chains = 2L,
-  n.threads = 1L,
-  n.trees = 5L,
-  n.samples = 5L,
-  updateState = FALSE
+list2env(
+  # unlike a literal node.prior = gp(...) written directly inside a dbarts()
+  # call, a gp() object threaded through this helper's own 'node.prior'
+  # parameter does not reach dbarts()'s NSE routing, so it must be built
+  # through the qualified name here
+  checkStateRoundTrip(
+    y ~ x1 + x2,
+    df,
+    dbarts:::gp("x1", max.leaf.size = 100L),
+    5L
+  ),
+  environment()
 )
-sampler.state <- dbarts(
-  y ~ x1 + x2,
-  df,
-  node.prior = gp("x1", max.leaf.size = 100L),
-  control = control.state
-)
-invisible(sampler.state$run(30L, 2L))
-sampler.state$storeState()
-expect_true(
-  "tree.params" %in% names(sampler.state$state[[1L]]$forests[[1L]])
-)
-sampler.restored <- dbarts(
-  y ~ x1 + x2,
-  df,
-  node.prior = gp("x1", max.leaf.size = 100L),
-  control = control.state
-)
-sampler.restored$setState(sampler.state$state)
-sampler.restored$storeState()
-statesAgree(sampler.restored$state, sampler.state$state)
 
 # the mutable-data surface stays live under gp leaves, including the
 # designated column itself: a mutated sampler's continued fit agrees with
@@ -215,53 +196,21 @@ samples.binary <- sampler.binary$run(100L, 20L)
 expect_true(all(is.finite(samples.binary$train)))
 
 # gp leaves ride the data-handle views: a full-rows view matches the
-# raw-data path bitwise, standardizing with the parent's constants
-control.view <- dbartsControl(
-  n.chains = 1L,
-  n.threads = 1L,
-  n.trees = 10L,
-  updateState = FALSE
+# raw-data path bitwise, standardizing with the parent's constants; a
+# proper fold serves its held-out rows through the gathered covariates
+# threaded through checkDataHandleViews()'s own 'node.prior' parameter, so
+# gp() must be the qualified name (see the checkStateRoundTrip() call above)
+list2env(
+  checkDataHandleViews(
+    y ~ x1 + x2,
+    df,
+    dbarts:::gp("x1", max.leaf.size = 100L),
+    10L,
+    n,
+    mu
+  ),
+  environment()
 )
-sampler.view <- dbarts(
-  y ~ x1 + x2,
-  df,
-  node.prior = gp("x1", max.leaf.size = 100L),
-  control = control.view
-)
-handle <- dbarts:::bartcoreDataHandle(
-  sampler.view$control,
-  sampler.view$data,
-  sampler.view$model@node.prior@columns
-)
-set.seed(7)
-view <- dbarts:::bartcoreSamplerFromHandle(
-  handle,
-  sampler.view$control,
-  sampler.view$model,
-  sampler.view$data,
-  trainRows = seq_len(n)
-)
-set.seed(7)
-full <- dbarts:::bartcoreSampler(sampler.view)
-samples.view <- bartcoreRun(view, 40L, 20L)
-samples.full <- bartcoreRun(full, 40L, 20L)
-expect_identical(samples.view$sigma, samples.full$sigma)
-expect_identical(samples.view$train, samples.full$train)
-
-# a proper fold serves its held-out rows through the gathered covariates
-testRows <- seq(1L, n, by = 4L)
-set.seed(11)
-fold <- dbarts:::bartcoreSamplerFromHandle(
-  handle,
-  sampler.view$control,
-  sampler.view$model,
-  sampler.view$data,
-  setdiff(seq_len(n), testRows),
-  testRows
-)
-samples.fold <- bartcoreRun(fold, 150L, 100L)
-expect_true(all(is.finite(samples.fold$test)))
-expect_true(cor(rowMeans(samples.fold$test), mu[testRows]) > 0.7)
 
 # xbart accepts a gp node prior, with its k standing in for a missing k
 # argument
@@ -327,7 +276,6 @@ rm(
   mu,
   x1.new,
   n,
-  model.const,
   control.chi,
   sampler.chi,
   samples.chi,

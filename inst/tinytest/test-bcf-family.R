@@ -29,7 +29,7 @@ yRare <- rbinom(n, 1L, 0.1)
 yContinuous <- eta + rnorm(n, sd = 0.3)
 counts <- rpois(n, 2)
 
-seededControl <- function(...) {
+seededControlBcfFamily <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -62,7 +62,7 @@ pinScales <- list(forest(sd = 2.5), forest(sd = 0.4))
 basisSampler <- function(y, bases, family = "auto", ...) {
   dbarts(
     dbartsData(x, y, bases = bases),
-    control = seededControl(),
+    control = seededControlBcfFamily(),
     family = family,
     ...
   )
@@ -87,7 +87,7 @@ for (bases in list(unitBases2, unitBases3, scaledBases)) {
   params <- attr(
     dbartsSpec(
       dbartsData(x, yContinuous, bases = bases),
-      seededControl()
+      seededControlBcfFamily()
     )$control,
     "bartcore.forests"
   )$params
@@ -217,7 +217,7 @@ kForest <- function(y, family = "auto", ...) {
     y,
     forests = twoForests,
     family = family,
-    control = seededControl(),
+    control = seededControlBcfFamily(),
     ...
   )
 }
@@ -303,7 +303,7 @@ transportParams <- function(y, bases, family, ...) {
   attr(
     dbartsSpec(
       dbartsData(x, y, bases = bases),
-      seededControl(),
+      seededControlBcfFamily(),
       family = family,
       ...
     )$control,
@@ -396,7 +396,7 @@ for (family in c("probit", "logistic")) {
       forests = twoForests,
       family = family,
       node.prior = normal(chi(1.5, 2)),
-      control = seededControl()
+      control = seededControlBcfFamily()
     ),
     "a 'k' hyperprior"
   )
@@ -407,7 +407,7 @@ for (family in c("probit", "logistic")) {
       forests = twoForests,
       family = family,
       node.prior = normal(2, scale = 1.5),
-      control = seededControl()
+      control = seededControlBcfFamily()
     ),
     "a named 'prior.scale'"
   )
@@ -415,7 +415,7 @@ for (family in c("probit", "logistic")) {
   # the bridge's own backstop is where a non-default one can be stated at all
   spec <- dbartsSpec(
     dbartsData(x, yBalanced),
-    seededControl(),
+    seededControlBcfFamily(),
     forests = twoForests,
     family = family
   )
@@ -477,7 +477,7 @@ expect_error(
     counts,
     forests = twoForests,
     family = "nbinom",
-    control = seededControl()
+    control = seededControlBcfFamily()
   ),
   "does not support family \"nbinom\""
 )
@@ -487,7 +487,7 @@ expect_error(
     cbind(exp(yContinuous), 1),
     forests = twoForests,
     family = "aft",
-    control = seededControl()
+    control = seededControlBcfFamily()
   ),
   "does not support family \"aft\""
 )
@@ -495,7 +495,7 @@ expect_error(
 # would have refused
 doorSpec <- dbartsSpec(
   dbartsData(x, yContinuous),
-  seededControl(),
+  seededControlBcfFamily(),
   forests = twoForests
 )
 doorSpec$model@family <- "aft"
@@ -508,7 +508,7 @@ expect_error(
 # --- the internal creation route derives its family from the model it is
 # handed, so the gate harness can construct one; a supplied family = names it
 # at the call site by writing that same slot ---
-host <- dbarts(x, yBalanced, control = seededControl())
+host <- dbarts(x, yBalanced, control = seededControlBcfFamily())
 internalProbit <- dbarts:::bartcoreBCFSampler(host, z)
 expect_equal(
   unname(bartcoreForestCalibration(internalProbit, 0L)[
@@ -529,7 +529,7 @@ expect_equal(
 )
 expect_error(
   dbarts:::bartcoreBCFSampler(
-    dbarts(x, yContinuous, control = seededControl()),
+    dbarts(x, yContinuous, control = seededControlBcfFamily()),
     z,
     family = "aft"
   ),
@@ -553,7 +553,7 @@ expect_equal(
 # gaussian keeps 2 on this route as on the public one, which is why the
 # gate harness (bcf-equivalence, gaussian throughout) re-records nothing
 internalGaussian <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, yContinuous, control = seededControl()),
+  dbarts(x, yContinuous, control = seededControlBcfFamily()),
   z
 )
 expect_equal(
@@ -612,7 +612,7 @@ rm(
   scaled,
   scaledBases,
   scales,
-  seededControl,
+  seededControlBcfFamily,
   spec,
   transportParams,
   twoForests,

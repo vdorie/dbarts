@@ -21,7 +21,7 @@ mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.2)
 
-seededControl <- function(...) {
+seededControlBcfR5Surface <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -40,7 +40,7 @@ sampler <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlBcfR5Surface()
 )
 result <- sampler$run(0L, 5L)
 
@@ -88,7 +88,7 @@ namedSampler <- dbarts(
   namedX,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlBcfR5Surface()
 )
 namedSampler$run(0L, 5L)
 namedCounts <- namedSampler$getForestVariableCounts(1L)
@@ -113,7 +113,7 @@ refused <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlBcfR5Surface()
 )
 
 expect_error(refused$setData(refused$data), "carries forest amplitudes")
@@ -186,7 +186,7 @@ expect_error(
 # regression canary: the new pre-checks fire on the capability alone and must
 # not reach an
 # ordinary single-forest sampler (exercised at scale by the rest of the suite)
-plain <- dbarts(x, y, control = seededControl())
+plain <- dbarts(x, y, control = seededControlBcfR5Surface())
 expect_silent(plain$setResponse(y, updateScale = TRUE))
 
 # --- the basis-mirror contract, both halves: $setForestBasis mirrors the
@@ -196,7 +196,7 @@ mirror <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlBcfR5Surface()
 )
 mirror$run(10L, 5L)
 z2 <- rep(0, n)
@@ -222,7 +222,7 @@ reloadedTauFits <- reloadedMirror$getForestFits(2L)[, 1L]
 # scale/shift (fit.scale = range(y)) are reused from the sampler above: y is
 # identical across every sampler in this file, so the affine map back to the
 # reported scale does not depend on which one built it
-reconstructTrain <- function(zVec) {
+reconstructTrainR5Surface <- function(zVec) {
   bzVec <- ifelse(zVec != 0, reloadedGlue[3L, 1L], reloadedGlue[2L, 1L])
   scale *
     (reloadedGlue[1L, 1L] * reloadedMuFits + bzVec * reloadedTauFits) +
@@ -230,14 +230,16 @@ reconstructTrain <- function(zVec) {
 }
 
 # POSITIVE: reconstructing with z2 (the mirrored assignment) matches
-diffZ2 <- max(abs(reconstructTrain(z2) - reloadedResult$train[, 1L]))
+diffZ2 <- max(abs(reconstructTrainR5Surface(z2) - reloadedResult$train[, 1L]))
 expect_true(diffZ2 < 1e-4)
 # NEGATIVE: reconstructing with the creation-time z does not - the mirror is
 # what is proven here, not merely that re-creation runs at all. b0 and b1 are
 # continuous Gibbs draws and tau(x) is a real fitted forest, so this margin
 # only requires b0 != b1 to double precision - not a particular separation -
 # which holds with probability 1 for any non-degenerate run
-diffOriginalZ <- max(abs(reconstructTrain(z) - reloadedResult$train[, 1L]))
+diffOriginalZ <- max(abs(
+  reconstructTrainR5Surface(z) - reloadedResult$train[, 1L]
+))
 expect_true(diffOriginalZ > 1e-6)
 
 # --- BCF leg: setControl preserves attr(control, "bartcore.forests"), so
@@ -251,11 +253,11 @@ controlled <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControl()
+  control = seededControlBcfR5Surface()
 )
 controlled$run(0L, 5L)
 controlled$storeState()
-controlled$setControl(seededControl(printEvery = 50L))
+controlled$setControl(seededControlBcfR5Surface(printEvery = 50L))
 
 controlledFile <- tempfile(fileext = ".rds")
 saveRDS(controlled, controlledFile)
@@ -275,7 +277,7 @@ expect_true(all(is.finite(rerunControlled$train)))
 # forest-block-count check, since a variance forest has no data-side vector
 # to cross-check against, so the mismatch was silent until the state, not
 # the creation, was pushed ---
-varControl <- seededControl()
+varControl <- seededControlBcfR5Surface()
 varSampler <- dbarts(
   x,
   y,
@@ -284,7 +286,7 @@ varSampler <- dbarts(
 )
 varSampler$run(0L, 5L)
 varSampler$storeState()
-varSampler$setControl(seededControl(printEvery = 50L))
+varSampler$setControl(seededControlBcfR5Surface(printEvery = 50L))
 
 varFile <- tempfile(fileext = ".rds")
 saveRDS(varSampler, varFile)

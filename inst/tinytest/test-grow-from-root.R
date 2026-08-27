@@ -6,7 +6,7 @@ source(
 x <- testData$x
 y <- testData$y
 
-makeSampler <- function(n.trees = 25L) {
+makeSamplerGrowFromRoot <- function(n.trees = 25L) {
   dbarts::dbarts(
     x,
     y,
@@ -20,7 +20,7 @@ makeSampler <- function(n.trees = 25L) {
 }
 
 ## grow-from-root in place yields a well-formed forest with finite predictions
-sampler <- makeSampler()
+sampler <- makeSamplerGrowFromRoot()
 sampler$growFromRoot(3L)
 grownFit <- as.vector(sampler$predict(x))
 expect_true(all(is.finite(grownFit)))
@@ -31,18 +31,18 @@ expect_true(all(is.finite(res$train)))
 
 ## seeded reproducibility: same seed -> identical grown fit
 set.seed(42L)
-s1 <- makeSampler()
+s1 <- makeSamplerGrowFromRoot()
 s1$growFromRoot(2L)
 f1 <- as.vector(s1$predict(x))
 set.seed(42L)
-s2 <- makeSampler()
+s2 <- makeSamplerGrowFromRoot()
 s2$growFromRoot(2L)
 f2 <- as.vector(s2$predict(x))
 expect_equal(f1, f2)
 
 ## a different seed grows a different forest (grow consumes RNG)
 set.seed(7L)
-s3 <- makeSampler()
+s3 <- makeSamplerGrowFromRoot()
 s3$growFromRoot(2L)
 f3 <- as.vector(s3$predict(x))
 expect_false(isTRUE(all.equal(f1, f3)))
@@ -51,7 +51,7 @@ expect_false(isTRUE(all.equal(f1, f3)))
 ## method may discard: at one seed each count leaves its own forest
 grownFor <- function(n.sweeps) {
   set.seed(101L)
-  sampler <- makeSampler()
+  sampler <- makeSamplerGrowFromRoot()
   sampler$growFromRoot(n.sweeps)
   as.vector(sampler$predict(x))
 }
@@ -86,8 +86,8 @@ target$installTrees(donor)
 expect_equal(as.vector(target$predict(x)), as.vector(donor$predict(x)))
 
 ## n.sweeps must be a single positive integer
-expect_error(makeSampler()$growFromRoot(0L), "positive integer")
-expect_error(makeSampler()$growFromRoot(-2L), "positive integer")
+expect_error(makeSamplerGrowFromRoot()$growFromRoot(0L), "positive integer")
+expect_error(makeSamplerGrowFromRoot()$growFromRoot(-2L), "positive integer")
 
 ## the linear-leaf model refuses grow-from-root with an informative error
 linSampler <- dbarts::dbarts(

@@ -251,7 +251,7 @@ set.seed(7L)
 n <- 50L
 x <- rnorm(n)
 y <- x + rnorm(n)
-makeSampler <- function(keepTrees) {
+makeSamplerTrees <- function(keepTrees) {
   ctrl <- dbarts::dbartsControl(
     n.chains = 1L,
     n.trees = 10L,
@@ -266,8 +266,8 @@ makeSampler <- function(keepTrees) {
   invisible(sampler$run(30L, 5L))
   sampler
 }
-keptSampler <- makeSampler(TRUE)
-liveSampler <- makeSampler(FALSE)
+keptSampler <- makeSamplerTrees(TRUE)
+liveSampler <- makeSamplerTrees(FALSE)
 
 saved <- keptSampler$getTrees() # snapshots
 current <- keptSampler$getTrees(current = TRUE) # live working trees
@@ -304,7 +304,7 @@ liveTrees <- keptSampler$getTrees(current = TRUE)
 expect_false(any(liveTrees$var == -1L & liveTrees$n == 0L))
 expect_true(length(inst) == n)
 
-rm(keptSampler, liveSampler, makeSampler, saved, current, liveTrees, inst)
+rm(keptSampler, liveSampler, makeSamplerTrees, saved, current, liveTrees, inst)
 rm(warnings.currentSample, currentFiltered)
 rm(x, y, n)
 

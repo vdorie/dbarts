@@ -25,7 +25,7 @@ yCount <- rnbinom(n, size = 6, mu = exp(0.5 + 0.8 * x[, 1L]))
 # the shipped capped positive-integer grid r is drawn on
 dispersionGrid <- c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
 
-samplerControl <- function(n.chains = 1L, ...) {
+samplerControlDispersionChannel <- function(n.chains = 1L, ...) {
   dbartsControl(
     n.threads = 1L,
     n.trees = 20L,
@@ -36,13 +36,16 @@ samplerControl <- function(n.chains = 1L, ...) {
   )
 }
 
-nbinomSampler <- function(n.chains = 1L, dispersion = NA_real_) {
+nbinomSamplerDispersionChannel <- function(
+  n.chains = 1L,
+  dispersion = NA_real_
+) {
   dbarts(
     x,
     yCount,
     family = "nbinom",
     dispersion = dispersion,
-    control = samplerControl(n.chains),
+    control = samplerControlDispersionChannel(n.chains),
     verbose = FALSE
   )
 }
@@ -81,7 +84,7 @@ dispersionSeries <- function(sampler, n.sweeps = 15L) {
 # --- estimated r, one chain: the arm the late-write and constant-fill
 # mutations are only visible on
 
-seriesEst1 <- dispersionSeries(nbinomSampler(1L))
+seriesEst1 <- dispersionSeries(nbinomSamplerDispersionChannel(1L))
 expect_true(!is.null(seriesEst1$slot))
 expect_true(!is.null(seriesEst1$getter))
 expect_equal(dim(seriesEst1$slot), c(15L, 1L))
@@ -95,7 +98,7 @@ expect_true(length(unique(seriesEst1$slot[, 1L])) >= 2L)
 
 # --- estimated r, two chains: the per-chain slab stride
 
-seriesEst2 <- dispersionSeries(nbinomSampler(2L))
+seriesEst2 <- dispersionSeries(nbinomSamplerDispersionChannel(2L))
 expect_true(!is.null(seriesEst2$slot))
 expect_true(!is.null(seriesEst2$getter))
 expect_equal(dim(seriesEst2$slot), c(15L, 2L))
@@ -111,14 +114,20 @@ expect_true(length(unique(seriesEst2$slot[, 2L])) >= 2L)
 # chain counts. 8 is on the grid, so this cell also pins that a fixed r is
 # never quietly re-drawn onto a neighbouring grid point.
 
-seriesFix1 <- dispersionSeries(nbinomSampler(1L, dispersion = 8), 5L)
+seriesFix1 <- dispersionSeries(
+  nbinomSamplerDispersionChannel(1L, dispersion = 8),
+  5L
+)
 expect_true(!is.null(seriesFix1$slot))
 expect_equal(dim(seriesFix1$slot), c(5L, 1L))
 expect_equal(seriesFix1$slot, seriesFix1$state)
 expect_equal(seriesFix1$getter, seriesFix1$state)
 expect_true(all(seriesFix1$slot == 8))
 
-seriesFix2 <- dispersionSeries(nbinomSampler(2L, dispersion = 8), 5L)
+seriesFix2 <- dispersionSeries(
+  nbinomSamplerDispersionChannel(2L, dispersion = 8),
+  5L
+)
 expect_true(!is.null(seriesFix2$slot))
 expect_equal(dim(seriesFix2$slot), c(5L, 2L))
 expect_equal(seriesFix2$slot, seriesFix2$state)
@@ -129,7 +138,7 @@ expect_true(all(seriesFix2$slot == 8))
 # slab, neither of which a run(0, 1) driver exercises. The last recorded draw
 # is the one the post-run state carries.
 
-samplerMulti <- nbinomSampler(2L)
+samplerMulti <- nbinomSamplerDispersionChannel(2L)
 rMulti <- samplerMulti$run(5L, 8L)
 samplerMulti$storeState()
 expect_true(!is.null(rMulti$dispersion))
@@ -141,7 +150,7 @@ expect_equal(
 )
 expect_true(length(unique(as.vector(rMulti$dispersion))) >= 2L)
 # a single chain drops the trailing margin, as sigma does
-samplerMulti1 <- nbinomSampler(1L)
+samplerMulti1 <- nbinomSamplerDispersionChannel(1L)
 rMulti1 <- samplerMulti1$run(5L, 8L)
 expect_true(!is.null(rMulti1$dispersion))
 expect_null(dim(rMulti1$dispersion))
@@ -150,7 +159,12 @@ expect_equal(length(rMulti1$dispersion), 8L)
 # --- the channel is nbinom-only: NULL slot and NULL getter everywhere else
 
 yGauss <- 3 + 2 * x[, 1L] + rnorm(n)
-samplerGauss <- dbarts(x, yGauss, control = samplerControl(), verbose = FALSE)
+samplerGauss <- dbarts(
+  x,
+  yGauss,
+  control = samplerControlDispersionChannel(),
+  verbose = FALSE
+)
 rGauss <- samplerGauss$run(0L, 2L)
 expect_true("dispersion" %in% names(rMulti1))
 expect_false("dispersion" %in% names(rGauss))
@@ -158,7 +172,12 @@ expect_null(rGauss$dispersion)
 expect_null(samplerGauss$getDispersion())
 
 yBinary <- as.numeric(yGauss > median(yGauss))
-samplerProbit <- dbarts(x, yBinary, control = samplerControl(), verbose = FALSE)
+samplerProbit <- dbarts(
+  x,
+  yBinary,
+  control = samplerControlDispersionChannel(),
+  verbose = FALSE
+)
 expect_null(samplerProbit$run(0L, 2L)$dispersion)
 expect_null(samplerProbit$getDispersion())
 
@@ -174,7 +193,7 @@ samplerOrdinal <- dbarts(
   x,
   yOrdinal,
   family = "ordinal",
-  control = samplerControl(),
+  control = samplerControlDispersionChannel(),
   verbose = FALSE
 )
 rOrdinal <- samplerOrdinal$run(0L, 2L)
@@ -191,7 +210,7 @@ samplerVariance <- dbarts(
   x,
   yGauss,
   variance = varianceForest(n.trees = 10L),
-  control = samplerControl(),
+  control = samplerControlDispersionChannel(),
   verbose = FALSE
 )
 rVariance <- samplerVariance$run(0L, 2L)
@@ -221,7 +240,7 @@ samplerBcf <- dbarts(
   x,
   yBcf,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = samplerControl(),
+  control = samplerControlDispersionChannel(),
   verbose = FALSE
 )
 rBcf <- samplerBcf$run(0L, 2L)

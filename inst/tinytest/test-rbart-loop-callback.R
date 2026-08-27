@@ -26,7 +26,9 @@ d <- data.frame(x, y = y, g = g)
 
 # same body as rbart.priors$cauchy, under a name that misses the builtin
 # lookup so rbart_vi routes through the callback path rather than in-core
-customCauchy <- function(x, rel.scale) dcauchy(x, 0, rel.scale * 2.5, TRUE)
+customCauchyLoopCallback <- function(x, rel.scale) {
+  dcauchy(x, 0, rel.scale * 2.5, TRUE)
+}
 
 runFit <- function() {
   set.seed(22L)
@@ -34,7 +36,7 @@ runFit <- function() {
     y ~ x1 + x2 + x3 + x4,
     data = d,
     group.by = g,
-    prior = customCauchy,
+    prior = customCauchyLoopCallback,
     n.trees = 30L,
     n.chains = 1L,
     n.threads = 1L,
@@ -93,7 +95,7 @@ rm(
   g,
   y,
   d,
-  customCauchy,
+  customCauchyLoopCallback,
   runFit,
   fit,
   fit2,

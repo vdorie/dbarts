@@ -27,7 +27,7 @@ mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.2)
 
-seededControl <- function(...) {
+seededControlBcfCreation <- function(...) {
   dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
@@ -40,7 +40,7 @@ seededControl <- function(...) {
 }
 
 # a public sampler's raw handle, so the internal per-forest readers apply to it
-handleOf <- function(sampler) list(ptr = sampler$getPointer())
+handleOfBcfCreation <- function(sampler) list(ptr = sampler$getPointer())
 
 # the declaration every refusal below is attached to: a plain first forest and
 # a second one whose two-level factor basis carries the (b0, b1) amplitudes
@@ -53,7 +53,7 @@ twoForests <- list(forest(), forest(basis = ~ factor(z)))
 # six channels the bcf-equivalence fixture reports. The removed treatment =
 # route needs no reconstruction: the internal constructor is, and always was,
 # the oracle this pin compares against. ---
-control <- seededControl()
+control <- seededControlBcfCreation()
 publicSampler <- dbarts(
   x,
   y,
@@ -78,15 +78,15 @@ expect_identical(publicResult$train, internalResult$train)
 expect_identical(publicResult$sigma, internalResult$sigma)
 expect_identical(publicResult$varcount, internalResult$varcount)
 expect_identical(
-  bartcoreForestFits(handleOf(publicSampler), 0L),
+  bartcoreForestFits(handleOfBcfCreation(publicSampler), 0L),
   bartcoreForestFits(internalSampler, 0L)
 )
 expect_identical(
-  bartcoreForestFits(handleOf(publicSampler), 1L),
+  bartcoreForestFits(handleOfBcfCreation(publicSampler), 1L),
   bartcoreForestFits(internalSampler, 1L)
 )
 expect_identical(
-  bartcoreForestAmplitudes(handleOf(publicSampler)),
+  bartcoreForestAmplitudes(handleOfBcfCreation(publicSampler)),
   bartcoreForestAmplitudes(internalSampler)
 )
 
@@ -114,7 +114,7 @@ swappedSampler <- dbarts(
     forest(),
     forest(basis = ~ factor(z, levels = c(1, 0)), n.trees = 25L, sd = 1.5)
   ),
-  control = seededControl()
+  control = seededControlBcfCreation()
 )
 expect_equal(
   swappedSampler$data@bases[[2L]],
@@ -154,10 +154,12 @@ expect_false(identical(unseededPublic$train, unseededInternal$train))
 # the per-forest fits reconstruct the recorded train draw through the stored
 # response transform (the identity a low-level pin already established, now
 # on a public sampler) ---
-glue <- bartcoreForestAmplitudes(handleOf(publicSampler))
-muFits <- bartcoreForestFits(handleOf(publicSampler), 0L)[, 1L]
-tauFits <- bartcoreForestFits(handleOf(publicSampler), 1L)[, 1L]
-fitScale <- bartcoreStoreState(handleOf(publicSampler))[[1L]]$fit.scale
+glue <- bartcoreForestAmplitudes(handleOfBcfCreation(publicSampler))
+muFits <- bartcoreForestFits(handleOfBcfCreation(publicSampler), 0L)[, 1L]
+tauFits <- bartcoreForestFits(handleOfBcfCreation(publicSampler), 1L)[, 1L]
+fitScale <- bartcoreStoreState(handleOfBcfCreation(publicSampler))[[
+  1L
+]]$fit.scale
 scale <- fitScale[2L] - fitScale[1L]
 shift <- scale * 0.5 + fitScale[1L]
 bz <- ifelse(z != 0, glue[3L, 1L], glue[2L, 1L])
@@ -173,10 +175,10 @@ restricted <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), vars = c("x3", "x4"))),
-  control = seededControl()
+  control = seededControlBcfCreation()
 )
 restricted$run(0L, 10L)
-tauCounts <- bartcoreForestVariableCounts(handleOf(restricted), 1L)
+tauCounts <- bartcoreForestVariableCounts(handleOfBcfCreation(restricted), 1L)
 expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
@@ -187,7 +189,7 @@ expect_true(sum(tauCounts[3:4, ]) > 0L)
 # leave a default here. ---
 knobs <- dbartsSpec(
   dbartsData(x, y),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(
     forest(
       n.trees = 30L,
@@ -271,10 +273,10 @@ pinnedPublic <- dbarts(
     forest(update.amplitude = FALSE),
     forest(basis = ~ factor(z), n.trees = 25L, update.amplitude = FALSE)
   ),
-  control = seededControl()
+  control = seededControlBcfCreation()
 )
 pinnedInternal <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, y, control = seededControl()),
+  dbarts(x, y, control = seededControlBcfCreation()),
   z,
   n.trees.treatment = 25L,
   update.a = FALSE,
@@ -287,9 +289,12 @@ expect_identical(
 
 # --- forests = NULL is byte-neutral, and a single-forest declaration is
 # the same fit with its structural knobs restated ---
-plainResult <- dbarts(x, y, control = seededControl())$run(0L, 5L)
+plainResult <- dbarts(x, y, control = seededControlBcfCreation())$run(0L, 5L)
 expect_identical(
-  dbarts(x, y, forests = NULL, control = seededControl())$run(0L, 5L)$train,
+  dbarts(x, y, forests = NULL, control = seededControlBcfCreation())$run(
+    0L,
+    5L
+  )$train,
   plainResult$train
 )
 expect_identical(
@@ -297,7 +302,7 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 50L)),
-    control = seededControl()
+    control = seededControlBcfCreation()
   )$run(0L, 5L)$train,
   plainResult$train
 )
@@ -316,7 +321,7 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 20L)),
-    control = seededControl()
+    control = seededControlBcfCreation()
   )$run(0L, 5L)$train,
   dbarts(x, y, control = twentyTrees)$run(0L, 5L)$train
 )
@@ -329,7 +334,7 @@ specSampler <- do.call(
   },
   dbartsSpec(
     dbartsData(x, y),
-    seededControl(),
+    seededControlBcfCreation(),
     forests = list(
       forest(),
       forest(basis = ~ factor(z), n.trees = 25L, sd = 1.5)
@@ -364,7 +369,7 @@ expect_error(
 expect_error(
   dbartsSpec(
     dbartsData(x, y),
-    seededControl(),
+    seededControlBcfCreation(),
     forests = list(forest(), forest(basis = ~ factor(z[1:10])))
   ),
   "'basis' must have the same length"
@@ -377,14 +382,14 @@ expect_error(
   dbarts(
     x,
     y,
-    control = seededControl(),
+    control = seededControlBcfCreation(),
     forests = list(forest(), forest(basis = ~ factor(z)))
   )$setForestBasis(2L, ~ factor(z[1:10])),
   "'basis' must have the same length"
 )
 offSlot <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl()
+  seededControlBcfCreation()
 )
 # the transport is RAGGED - one length-8 vector per forest, not one length-8
 # vector for the pair - and which magnitude channel `sd` reaches is decided by
@@ -401,7 +406,7 @@ expect_equal(
 # both defaults are 1 in this stretch of the vector and would not be.
 latentSlots <- dbartsSpec(
   dbartsData(x, as.double(y > median(y)), bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(forest(sd = 3.5), forest(sd = 1.25)),
   family = "logistic"
 )
@@ -416,7 +421,7 @@ subsetForests <- dbarts(
   y,
   subset = 1:100,
   forests = twoForests,
-  control = seededControl()
+  control = seededControlBcfCreation()
 )
 expect_equal(subsetForests$data@bases[[2L]], zBasis[1:100, ])
 
@@ -427,7 +432,7 @@ expect_equal(subsetForests$data@bases[[2L]], zBasis[1:100, ])
 # resolved spec ---
 sdViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(forest(sd = 3.5))
 )
 expect_equal(
@@ -437,7 +442,7 @@ expect_equal(
 
 noUpdateViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(forest(update.amplitude = FALSE))
 )
 expect_equal(
@@ -449,7 +454,7 @@ expect_equal(
 # basis reaches the data another way
 noBasisSecondForest <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(forest(), forest(n.trees = 25L))
 )
 expect_equal(
@@ -462,7 +467,7 @@ expect_equal(
 # ambiguity refusal and expect_silent tested below ---
 muInteractionsSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(forest(interactions = interactions(max.order = 1L)))
 )
 muInteractionAttr <-
@@ -471,7 +476,7 @@ expect_equal(muInteractionAttr$max.order, 1L)
 
 tauInteractionsSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(
     forest(),
     forest(interactions = interactions(max.order = 2L))
@@ -483,7 +488,7 @@ expect_equal(tauInteractionAttr$max.order, 2L)
 
 tauBlocksSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
-  seededControl(),
+  seededControlBcfCreation(),
   forests = list(
     forest(),
     forest(blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))))
@@ -564,7 +569,7 @@ expect_error(
     x,
     y,
     forests = twoForests,
-    control = seededControl(
+    control = seededControlBcfCreation(
       storage = "single"
     )
   ),
@@ -603,10 +608,13 @@ expect_error(
 # object's own resolved n.cuts
 unevenCuts <- dbartsData(x, y, bases = list(NULL, zBasis))
 unevenCuts@n.cuts <- c(50L, 100L, 100L, 100L)
-expect_error(dbartsSpec(unevenCuts, seededControl()), "per-column 'n.cuts'")
+expect_error(
+  dbartsSpec(unevenCuts, seededControlBcfCreation()),
+  "per-column 'n.cuts'"
+)
 # grouped random effects reach creation on rbart_vi's internal control
 # attribute; the composition with a second forest is a door, not a build
-groupedControl <- seededControl()
+groupedControl <- seededControlBcfCreation()
 attr(groupedControl, "bartcore.groups") <- list(
   indices = rep(1L, n),
   n.groups = 1L,
@@ -962,7 +970,11 @@ expect_error(
 # usable handle escapes. Driven past the R-layer refusal by hand-attaching the
 # variance attribute to an already-resolved BCF spec, so the bridge's own
 # backstop is what answers. ---
-resolved <- dbartsSpec(dbartsData(x, y), seededControl(), forests = twoForests)
+resolved <- dbartsSpec(
+  dbartsData(x, y),
+  seededControlBcfCreation(),
+  forests = twoForests
+)
 withVariance <- resolved
 attr(withVariance$control, "bartcore.variance") <- list(
   n.trees = 20L,
