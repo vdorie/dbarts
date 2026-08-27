@@ -301,9 +301,9 @@ summary.rbart <- summary.bart
 
 # bart2(family = "ordinal")'s scalar summary is the K - 1 cutpoints, the only
 # parameters this family's outer fit carries beyond whatever mean-function
-# scale it shares with 'vars' (present today: neither sigma nor k/tau is
-# tracked on the ordinal fit object, so the summary is cutpoints alone, but
-# any that ever are picked up automatically through 'vars', unchanged).
+# scale it shares with 'vars': neither sigma nor k/tau is tracked on the
+# ordinal fit object, so the summary is cutpoints alone; any that are later
+# tracked would be picked up automatically through 'vars'.
 summary.bartOrdinal <- function(
   object,
   vars = c("cutpoints", "sigma", "k", "tau"),

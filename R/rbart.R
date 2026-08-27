@@ -58,14 +58,12 @@ rbart_vi <- function(
 
   argNames <- names(matchedCall)[-1L]
 
-  # factors/missing are forwarded formal defaults - redirectCall only
+  # factors/missing are forwarded formal defaults: redirectCall only
   # carries a name into the host dbartsData() call when the caller supplied
-  # it, so an unsupplied one used to silently take dbartsData()'s own
-  # default rather than the token this signature advertises. Resolve here,
-  # in rbart_vi's own frame, and stamp the resolved value onto matchedCall
-  # unconditionally so the call built from it below forwards it explicitly.
-  # rbart_vi's formal defaults are kept textually identical to
-  # dbartsData()'s, so this is draw-neutral.
+  # it, so an unsupplied one must be resolved here, in rbart_vi's own
+  # frame, and stamped onto matchedCall unconditionally, or it would
+  # silently take dbartsData()'s own default rather than the token this
+  # signature advertises.
   factors <- match.arg(factors)
   missing <- match.arg(missing)
   matchedCall$factors <- factors
@@ -275,7 +273,7 @@ rbart_vi <- function(
       survivalStatus <- survival$status
       # bind the log-time in a child of the formula's environment and point
       # the left-hand side at it, so model.frame builds the response from a
-      # plain numeric while the right-hand side terms resolve as before
+      # plain numeric while the right-hand side terms resolve normally
       survEnv <- new.env(parent = environment(formula))
       assign(".dbartsSurvivalResponse", survival$log.time, envir = survEnv)
       survFormula <- formula
@@ -553,11 +551,10 @@ rbart_vi <- function(
 # One sampler run drives every kept sample through a per-sweep R closure
 # instead of a run(0, 1) round trip apiece. The closure conditions each sweep
 # on a fresh random-intercept draw (setOffset before the sweep) and, once the
-# sweep lands, reads its fit back to update the residual and slice-sample tau -
-# the identical operations in the identical order the round-trip loop ran, so
-# the draws are unchanged. Under n.thin > 1 only the first sweep of each
-# thinning block sets the offset and only the last is recorded, matching a
-# run(0, 1) that internally thins.
+# sweep lands, reads its fit back to update the residual and slice-sample tau.
+# Under n.thin > 1 only the first sweep of each thinning block sets the
+# offset and only the last is recorded, matching a run(0, 1) that internally
+# thins.
 rbart_vi_run <- function(
   sampler,
   data,

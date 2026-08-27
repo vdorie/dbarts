@@ -46,8 +46,7 @@ familyGatingInventory <- list(
   ),
   list(
     # A fixed-unit-scale family overwrites a supplied resid.prior with
-    # fixed(1) regardless (R/spec.R's fixedUnitScale branch), which was
-    # silent before bart2 could forward a resid.prior object at all
+    # fixed(1) regardless (R/spec.R's fixedUnitScale branch)
     names = "resid.prior",
     liveIn = c("gaussian", "aft", "hurdle.lognormal"),
     reason = "the residual scale is fixed, not estimated"
@@ -541,8 +540,7 @@ predictorColumnIsSparseBacked <- function(x, column) {
 ## handle's tracked source). A plain matrix passes through; a dense-backed
 ## container materializes to its numeric codes; a genuinely sparse source (a
 ## CSC-bearing container or a dgCMatrix) yields NULL, which the bridge reads
-## as "re-quantize from the retained slices" - the same signal a non-real
-## source gave before the container existed.
+## as "re-quantize from the retained slices".
 rawPredictorMatrix <- function(x) {
   if (is.matrix(x)) {
     x

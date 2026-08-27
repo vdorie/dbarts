@@ -71,8 +71,8 @@ pointwiseLogLikelihood <- function(object, ev) {
 
   if (identical(family, "gaussian")) {
     # resid.dist records the fitted residual law; a fit predating the field
-    # carries no element at all and is read as gaussian, the historical
-    # behavior, so old serialized fits keep working. "student" scores the
+    # carries no element at all and is read as gaussian, so old serialized
+    # fits keep working. "student" scores the
     # MARGINAL t density - the observation-level likelihood loo/waic are
     # defined on, and the density the engine itself reports - rather than the
     # gaussian working likelihood conditional on the latent precisions, which
@@ -174,9 +174,9 @@ pointwiseLogLikelihood <- function(object, ev) {
 # rather than a 3-column matrix, since a plain matrix cannot carry both an
 # observation and a category index.
 posteriorInterval <- function(draws, ci.level, trailing = 1L) {
-  # 'sample' sat in the slot 'ci.level' now holds, so a "train"/"test" value
-  # arriving here is a call written against the old order: name the argument
-  # that moved rather than one the caller never wrote
+  # ci.level is fitted's fourth argument; a "train"/"test" string here is a
+  # positional call written for 'sample', which precedes it - name the
+  # argument that value belongs to rather than one the caller never wrote
   if (
     is.character(ci.level) &&
       length(ci.level) == 1L &&
@@ -1157,9 +1157,6 @@ extract.bartMultinomial <- function(
 # single trial or a (row, category) cell, so loo/WAIC on this channel is
 # leave-one-row-out. probs enters in the split (chains x) samples x obs x K
 # layout; the result drops the K margin (dim(ev) minus its trailing margin).
-# This does not contradict the engine's own per-observation channel staying
-# undefined for this family: that channel cannot see the K-blend, while this
-# is computed from the reported probabilities R already holds.
 multinomialLogLik <- function(object, probs) {
   y <- object[["y"]]
   levels <- object[["levels"]]
@@ -1200,7 +1197,7 @@ multinomialPpdFromProbs <- function(probs) {
 
 # fitted values are always the training rows (extract's own 'sample' formal
 # reaches the test channel); a caller-supplied 'sample' is refused by name
-# instead of vanishing into '...' unused, as it does today.
+# instead of vanishing into '...' unused.
 multinomialFittedSampleReason <- list(
   sample = paste0(
     "fitted values are always the training rows; use extract(object, ",
@@ -1419,7 +1416,7 @@ print.bartMultinomial <- function(x, ...) {
   # a 4-dim yhat.train (combineChains = FALSE) already separates chains, so
   # d[2L] is per-chain; a 3-dim one (single chain, or combineChains = TRUE,
   # the default) folds the chain margin into d[1L] and must be divided back
-  # out - dividing by n.chains == 1 is a no-op, so this is correct either way
+  # out
   n.kept <- if (length(d) == 4L) d[2L] else d[1L] %/% x$n.chains
   cat("kept draws (per chain): ", n.kept, "\n", sep = "")
   if (!is.null(x$yhat.test)) {
@@ -1513,8 +1510,7 @@ extract.bartOrdinal <- function(
 
 # log P(y_i = k | eta, gamma) IS the reported category probability at the
 # observed level: the run already stores the cumulative-probit difference,
-# verified to machine precision against a hand-built Phi difference, so no
-# recomputation from eta/cutpoints is needed. probs enters in the split
+# so no recomputation from eta/cutpoints is needed. probs enters in the split
 # (chains x) samples x obs x K layout; the result drops the K margin, the same
 # shape type = "ppd" already returns for this family.
 ordinalLogLik <- function(object, probs) {
@@ -1620,8 +1616,8 @@ residuals.bartOrdinal <- function(object, ...) {
 # draw-neutral. The replay reads through $fit's own pointer: $fit is the
 # sampler whose engine actually ran, so getPointer() can re-create it from
 # stored state after a save/reload. The presence gate re-points to
-# cutpoints.raw, which this function already reads below and which rides the
-# same keepTrees gate a deleted $bc field used to.
+# cutpoints.raw, which this function already reads below and rides the same
+# keepTrees gate.
 predict.bartOrdinal <- function(
   object,
   newdata,
@@ -1900,7 +1896,7 @@ residuals.bartNegbin <- function(object, ...) {
 # replay reads through $fit's own pointer: $fit is the sampler whose engine
 # actually ran, so getPointer() can re-create it from stored state after a
 # save/reload. The presence gate re-points to dispersion.raw, which is read
-# below and rides the same keepTrees gate a deleted $bc field used to.
+# below and rides the same keepTrees gate.
 predict.bartNegbin <- function(
   object,
   newdata,
@@ -2056,9 +2052,9 @@ validateSample <- function(sample, allowed) {
 # two-part shape has no single forest to select, no per-observation
 # contribution to decompose, no separate test-sample fitted values, and (for
 # a fixed-formula residual or vars channel) no caller choice to make. Reading
-# a caller-supplied name out of '...' and stopping on the first hit - rather
-# than letting it fall through silently, as it does today - refuses these by
-# name instead of discarding them.
+# a caller-supplied name out of '...' and stopping on the first hit refuses
+# these by name instead of letting it fall through silently and discarding
+# them.
 refuseUnusedGenericArgs <- function(dots, generic, class, reasons) {
   supplied <- intersect(names(reasons), names(dots))
   if (length(supplied) > 0L) {
@@ -2937,8 +2933,8 @@ refuseSamplerExtractArgs <- function(dots) {
 }
 
 # Materialize the sampler's predictor code matrix: factor columns as their
-# integer codes, the historical form of data@x and the matrix getTrees
-# replays. A dense-frame/mixed container materializes through as.matrix; a
+# integer codes, the form data@x holds and the matrix getTrees replays. A
+# dense-frame/mixed container materializes through as.matrix; a
 # plain matrix (or a sparse dgCMatrix held as such) is returned unchanged.
 extract.dbartsSampler <- function(object, type = "predictors", ...) {
   refuseSamplerExtractArgs(list(...))
@@ -3220,9 +3216,9 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
   }
 
   # the noise added below is always gaussian (rnorm); resid.dist is absent
-  # for a fit predating the field or a binary fit and reads as gaussian, the
-  # historical behavior; a present non-"gaussian" token (student residuals)
-  # means that noise is wrong, so the draw is refused rather than taken
+  # for a fit predating the field or a binary fit and reads as gaussian; a
+  # present non-"gaussian" token (student residuals) means that noise is
+  # wrong, so the draw is refused rather than taken
   if (!responseIsBinary) {
     residDist <- object[["resid.dist"]]
     if (!is.null(residDist) && !identical(residDist, "gaussian")) {
@@ -3363,8 +3359,7 @@ fitSynopsis <- function(x) {
   # shapeMultinomialChannel shape: draws x p x n.forests), so its rank is one
   # higher throughout and the single-forest arms below would read the predictor
   # count as the draw count. n.forests, not the rank, is what separates the two
-  # - a single-forest uncombined varcount is rank 3 as well. The arithmetic is
-  # print.bartMultinomial's, which is why a multinomial fit never needed this
+  # - a single-forest uncombined varcount is rank 3 as well.
   n.forests <- x[["n.forests"]]
   n.kept <- if (!is.null(control)) {
     control@n.samples

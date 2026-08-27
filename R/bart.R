@@ -170,12 +170,9 @@ packageBartResults <- function(
   }
 
   # a multi-forest sampler's varcount channel carries a forest axis (raw
-  # p x n.forests x n.samples (x n.chains), prognostic first), which the
-  # single-forest reshape cannot see: it would fold the forest margin into the
-  # draws margin when chains are combined and error inside aperm when they are
-  # not. shapeMultinomialChannel is the K-margin reshape that already handles
-  # all three cases, so the forest axis lands on the trailing margin exactly as
-  # multinomial's category axis does, named in ENGINE vocabulary. The forest
+  # p x n.forests x n.samples (x n.chains), prognostic first); shapeMultinomialChannel
+  # is the K-margin reshape that handles it, landing the forest axis on the
+  # trailing margin exactly as multinomial's category axis does. The forest
   # count comes from the sampler rather than the array's rank, which is
   # ambiguous (a single-forest multi-chain channel is 3-D too); data@bases is
   # the same probe samplerCarriesAmplitudes uses.
@@ -283,12 +280,10 @@ packageBartResults <- function(
     )
   }
 
-  # the residual-distribution token every packaged fit carries, not only
-  # student ones. student() residuals are refused unless family ==
-  # "gaussian" (R/spec.R),
-  # so the model's resid.df attribute (residDistDf, R/model.R) being non-NULL
-  # is already the honest, cheapest record of which law was fit; read it
-  # straight rather than inventing a second representation.
+  # the residual-distribution token every packaged fit carries: student()
+  # residuals are refused unless family == "gaussian" (R/spec.R), so the
+  # model's resid.df attribute (residDistDf, R/model.R) being non-NULL
+  # already records which law was fit.
   residDist <- if (is.null(attr(fit$model, "resid.df"))) {
     "gaussian"
   } else {
@@ -352,11 +347,10 @@ packageBartResults <- function(
   result$status <- attr(fit$control, "bartcore.survival")
 
   # the discrete-time hazard marker: the ordered period grid, present only
-  # on hazard fits (parked on the control
-  # attribute by dbarts()). $family reads the binary token on both, so every
-  # link-keyed generic stays correct with zero change; survivalProbabilities
-  # dispatches its hazard branch on THIS marker instead. NULL - and so the
-  # element stays absent - for every non-hazard fit.
+  # on hazard fits (parked on the control attribute by dbarts()).
+  # survivalProbabilities dispatches its hazard branch on THIS marker
+  # instead of $family. NULL - and so the element stays absent - for every
+  # non-hazard fit.
   result$periods <- attr(fit$control, "bartcore.hazard.periods")
 
   # the forest count the widened varcount channel's trailing margin carries,
@@ -440,18 +434,14 @@ buildSamplerPriors <- function(
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
 
-  # A caller-supplied tree.prior/node.prior/resid.prior object fully
-  # replaces the flat build
-  # below and is forwarded UNEVALUATED, exactly as k already is (nodeK), so a
-  # bare vocabulary name inside it (linear(), gp(), fixed(), ...) resolves in
-  # the caller's own frame, not here. A shorthand that would otherwise help
-  # build the same prior is a collision, refused by name before anything is
-  # built. Only bart2 itself ever puts these three names in matchedCall - not
-  # bart(), not rbart_vi(), and not the alternate-family arcs' own recursive
-  # dbarts()/bart2() calls, which carry bart2's original matchedCall through
-  # unchanged - so this is a no-op at every other call site. An explicit
-  # `tree.prior = NULL` is itself NULL here (match.call() stores a literal
-  # NULL as NULL), so it is indistinguishable from not supplying one at all.
+  # A caller-supplied tree.prior/node.prior/resid.prior object fully replaces
+  # the flat build below and is forwarded UNEVALUATED, exactly as k already
+  # is (nodeK), so a bare vocabulary name inside it (linear(), gp(), fixed(),
+  # ...) resolves in the caller's own frame, not here. A shorthand that would
+  # otherwise help build the same prior is a collision, refused by name
+  # before anything is built. An explicit `tree.prior = NULL` is itself NULL
+  # here (match.call() stores a literal NULL as NULL), indistinguishable
+  # from not supplying one at all.
   treePriorObj <- matchedCall[["tree.prior"]]
   nodePriorObj <- matchedCall[["node.prior"]]
   residPriorObj <- matchedCall[["resid.prior"]]
@@ -563,9 +553,8 @@ buildHostSamplerCall <- function(
 # When burn-in is requested the test set is dropped and keepTrainingFits/verbose
 # forced FALSE for the burn run (a draw-neutral speedup - test fits do not feed
 # the MCMC), then restored for the kept-sample run, with keepTrees re-enabled
-# after burn when requested. The sequence of sampler$run() calls - and thus the
-# draw stream - is identical to the inline form it replaces. Returns the kept
-# samples plus the burn-in sigma/k channels.
+# after burn when requested. Returns the kept samples plus the burn-in
+# sigma/k channels.
 runWithBurnIn <- function(sampler, control, keepTrees) {
   burnInSigma <- NULL
   burnInK <- NULL
@@ -774,15 +763,12 @@ bart2 <- function(
 
   argNames <- names(matchedCall)[-1L]
 
-  # factors/missing/proposal.probs are forwarded formal defaults -
+  # factors/missing/proposal.probs are forwarded formal defaults:
   # redirectCall only carries a name into the host dbarts() call when the
-  # caller supplied it, so an unsupplied one used to silently take
-  # dbarts()'s own default rather than the token/value this signature
-  # advertises. Resolve here, in bart2's own frame, and stamp the resolved
-  # value onto matchedCall unconditionally so every call built from it below
-  # forwards it explicitly. bart2's formal defaults are kept textually
-  # identical to dbarts()'s, so this is draw-neutral: the resolved value is
-  # exactly what dbarts() would already have chosen.
+  # caller supplied it, so an unsupplied one must be resolved here, in
+  # bart2's own frame, and stamped onto matchedCall unconditionally, or it
+  # would silently take dbarts()'s own default rather than the token/value
+  # this signature advertises.
   factors <- match.arg(factors)
   missing <- match.arg(missing)
   matchedCall$factors <- factors
@@ -817,15 +803,13 @@ bart2 <- function(
     refuseZeroSamples("bart2")
   }
 
-  # multinomial: a K-forest softmax model over
-  # a factor response or an n x K count matrix, validated and dispatched
-  # here rather than threaded through the rest of bart2 - it bypasses the
-  # standard single-forest packaging entirely, though bart2Multinomial/
-  # bart2MultinomialCounts build their sampler through dbarts()'s own
-  # family = "multinomial" dispatch, the same one bartcoreMultinomialSampler/
-  # bartcoreMultinomialCountSampler now route through
-  # (benchmarks/R/multinomial-equivalence.R exercises that internal path
-  # directly). Every refusal below names the limitation rather than silently
+  # multinomial: a K-forest softmax model over a factor response or an n x K
+  # count matrix, validated and dispatched here rather than threaded through
+  # the rest of bart2 - it bypasses the standard single-forest packaging
+  # entirely, though bart2Multinomial/bart2MultinomialCounts build their
+  # sampler through dbarts()'s own family = "multinomial" dispatch, the same
+  # one bartcoreMultinomialSampler/bartcoreMultinomialCountSampler route
+  # through. Every refusal below names the limitation rather than silently
   # reshaping around it.
   if (family == "multinomial") {
     # a K-forest softmax has no amplitude-coupled slot for a forest() term to
@@ -863,12 +847,10 @@ bart2 <- function(
       multinomialOffset <- offset
       matchedCall$offset <- NULL
     }
-    # offset is train-side only: an explicit offset.test is caught HERE,
-    # before it would otherwise fall through buildHostSamplerCall's
-    # redirectCall into the host dbarts() call and be refused several layers
-    # down by parseMultinomialData, several steps from where the caller wrote
-    # it. yhat.test is always computed WITHOUT any category offset, so a
-    # caller wanting one needs the sampler-level channel this message names.
+    # offset is train-side only: an explicit offset.test is refused here
+    # rather than left to fall through to parseMultinomialData's later
+    # refusal. yhat.test is always computed WITHOUT any category offset, so
+    # a caller wanting one needs the sampler-level channel this message names.
     if (!missing(offset.test)) {
       stop(
         "family = \"multinomial\" does not support 'offset.test'; yhat.test ",
@@ -1287,11 +1269,7 @@ bart2 <- function(
 # call, choosing the categorical or indicators builder the same way via
 # 'factors' - so it carries the same term.labels/factor.levels/drop
 # attributes onto sampler$data@x that let predict.bartMultinomial's
-# validateXTest code a data.frame newdata. (A matrix coded here directly
-# would not work: 'factors = "categorical"', the default, produces a
-# dbartsMixedMatrix container that only dbartsData's data-frame branch
-# knows how to route to a fresh sampler build - the matrix/vector top-level
-# dispatch does not recognize it.)
+# validateXTest code a data.frame newdata.
 extractMultinomialFormulaData <- function(
   matchedCall,
   callingEnv,
@@ -1436,22 +1414,18 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
 }
 
 # The multinomial (softmax) fit path, reached from bart2's family =
-# "multinomial" branch after ingestion validation. y is
-# the validated factor response; K = nlevels(y) follows from it. The sampler
-# is built DIRECTLY through dbarts()'s own family = "multinomial" dispatch -
-# the same public construction path dbarts(x, y, family = "multinomial")
-# reaches - so bart2's usual tree.prior/node.prior/resid.prior/control
-# machinery resolves n.trees, n.chains, the tree prior and k exactly as it
-# would for any other family, and one bartcore_create builds the K-forest
-# engine $fit wraps: no abandoned host, no second engine.
-# benchmarks/R/multinomial-equivalence.R's own scenarios still exercise the
-# lower-level bartcoreMultinomialSampler path directly, which is now a thin
-# wrapper over the same factory (see R/bartcore.R). No warm start and no
-# two-phase burn-in/sample split: both are skipped, as bartcoreRun's single
-# call needs neither. offset, when non-NULL, is the validated n x K category
-# offset (bart2's own matrix-only surface, above); it is installed on the
-# constructed sampler through $setCategoryOffset, before the run - never
-# through the host dbarts() call's own flat offset argument.
+# "multinomial" branch after ingestion validation. y is the validated factor
+# response; K = nlevels(y) follows from it. The sampler is built directly
+# through dbarts()'s own family = "multinomial" dispatch, the same public
+# construction path dbarts(x, y, family = "multinomial") reaches, so bart2's
+# usual tree.prior/node.prior/resid.prior/control machinery resolves
+# n.trees, n.chains, the tree prior and k exactly as it would for any other
+# family. No warm start and no two-phase burn-in/sample split: both are
+# skipped, as bartcoreRun's single call needs neither. offset, when
+# non-NULL, is the validated n x K category offset (bart2's own matrix-only
+# surface, above); it is installed on the constructed sampler through
+# $setCategoryOffset, before the run - never through the host dbarts()
+# call's own flat offset argument.
 bart2Multinomial <- function(
   matchedCall,
   callingEnv,
@@ -1538,9 +1512,8 @@ bart2Multinomial <- function(
 # with y itself, already an n x K matrix, as the response:
 # resolveMultinomialCounts passes a matrix straight through. A one-hot y
 # with every row sum 1 is therefore the same draw stream as bart2Multinomial
-# on the equivalent factor (the single-trial reduction; see
-# benchmarks/R/multinomial-equivalence.R's k3counts scenario). offset, as
-# for bart2Multinomial, is installed through $setCategoryOffset.
+# on the equivalent factor (the single-trial reduction). offset, as for
+# bart2Multinomial, is installed through $setCategoryOffset.
 bart2MultinomialCounts <- function(
   matchedCall,
   callingEnv,
@@ -1656,7 +1629,7 @@ shapeMultinomialChannel <- function(
 # same on-demand reshape yhat.train already gets there. n.chains <= 1 is a
 # no-op, as it is for every other channel: one chain carries no separate axis
 # to fold or split. Round-trips bitwise with shapeMultinomialChannel's own
-# combine/uncombine forms (MEASURED against the reshape it inverts).
+# combine/uncombine forms.
 reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
   d <- dim(x)
   storedCombined <- length(d) == trailing + 1L
@@ -1821,8 +1794,7 @@ bart2Ordinal <- function(
   bc <- bartcoreSampler(sampler, family = "ordinal")
   # bc's engine is the one that runs below; adopt it into sampler so $fit
   # becomes an R5 wrapper around the engine that actually ran, not the
-  # abandoned first-created host. Both bartcore_create calls above still
-  # happen in the same order, so no draw moves.
+  # abandoned first-created host.
   sampler$adoptPointer(bc$ptr)
 
   probsTrain <- array(0, c(n.obs, K, n.samples, n.chains))
@@ -2257,14 +2229,11 @@ splitHurdleResponse <- function(y) {
 
 # A column complete on the positive rows but NA anywhere else is NA only on
 # the zero rows (the two row sets are exhaustive): the positive part trains
-# on the positive rows alone, so it never sees that column's missing values
-# and learns no route for them, yet its OWN 'test' call - forced to the full
-# design so the combine covers the zero rows too - evaluates it at every
-# row. Refuse by name before either component is built, rather than letting
-# the generic replay backstop answer with a "test predictors" message for a
-# call the caller never made. A column NA on both row sets stays
-# constructible: the positive part saw the missing value in training and
-# has a route for it, exactly as it does today.
+# on the positive rows alone, so it never sees that column's missing values,
+# yet its OWN 'test' call - forced to the full design so the combine covers
+# the zero rows too - evaluates it at every row. A column NA on both row
+# sets stays constructible: the positive part saw the missing value in
+# training and has a route for it.
 refuseHurdlePositiveMissingness <- function(x, positive) {
   numColumns <- NCOL(x)
   offending <- integer(0L)
@@ -2308,14 +2277,10 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
 # would correlate the two chains and bias the combined credible interval).
 # The positive fit's 'test' is forced to the FULL training x so its
 # in-sample fitted()/extract() carries E[y | y > 0, x] at the zero rows it
-# never
-# trained on. Reusing bart2() itself - rather than building the sampler
-# directly, as bart2Negbin does - makes the reduction to two standalone
-# bart2() calls exact by construction (benchmarks/R/hurdle-reduction.R): the
-# wrapper's component fits ARE those calls. family is always explicit and the
-# matrix interface only: the response is split before any dbartsData
-# ingestion runs (the discrete-time hazard precedent, R/dbarts.R's
-# extractSurvivalTimes), which a formula LHS cannot supply.
+# never trained on. family is always explicit and the matrix interface
+# only: the response is split before any dbartsData ingestion runs (the
+# discrete-time hazard precedent, R/dbarts.R's extractSurvivalTimes), which
+# a formula LHS cannot supply.
 bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   if (
     is.formula(formula) ||
@@ -2343,18 +2308,14 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   }
 
   # redirectCall forwards every bart2 formal the caller supplied, including
-  # names this outer site already diagnosed against "hurdle.lognormal"
-  # (3.c.4's table) - left alone, each component would re-diagnose them
-  # against ITS OWN forced family, both firing a warning where the outer
-  # site did not (dispersion/breaks/max.rows, inert on both components:
-  # a second and third copy of the same diagnosis) and, on the occupancy
-  # call, one the outer site correctly did NOT raise (sigest/sigdf/sigquant/
-  # resid.prior: genuinely live on the positive half, so a "probit" warning
-  # about them is a false diagnostic, not merely a redundant one). Strip what
-  # the outer site already covers before either component call runs.
-  # tree.prior/node.prior are NOT stripped from either list: they are
-  # live on both components, so they flow to both exactly as power/base/dart/
-  # k/prior.scale already do.
+  # names this outer site already diagnosed against "hurdle.lognormal";
+  # strip them before either component call runs, since each component
+  # would otherwise re-diagnose them against its own forced family
+  # (dispersion/breaks/max.rows duplicated on both; sigest/sigdf/sigquant/
+  # resid.prior a false "probit" diagnostic on the occupancy call, since
+  # they are genuinely live on the positive half). tree.prior/node.prior are
+  # NOT stripped from either list: they are live on both components, so they
+  # flow to both exactly as power/base/dart/k/prior.scale already do.
   gatedOnBoth <- c("dispersion", "breaks", "max.rows")
   gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
