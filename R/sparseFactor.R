@@ -1,10 +1,10 @@
 # Constructor and methods for the sparseFactor class (defined in
 # R/A_class.R): an unordered factor stored sparsely, entries at the given
 # positions carrying x's levels and every other row the implicit reference
-# level. The class is recognized by ingestion but refused at data
-# construction until sparse-categorical (CSC over level codes) engine
-# support lands; it exists so data sets can be assembled ahead of engine
-# support.
+# level. Accepted as a predictor through the x/y interface only - a bare S4
+# column cannot survive model.frame, so the formula path refuses it - and it
+# rides to the engine unexpanded as one categorical column over its level
+# table, binning bitwise-identically to a dense factor of the same values.
 #
 # The 'length' argument shadows base::length inside the constructor, so
 # every internal length is written base::length (the Matrix::sparseVector

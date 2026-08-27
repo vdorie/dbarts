@@ -1349,7 +1349,6 @@ struct GPGaussianLeaf {
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
   const std::vector<double>& lengthscales() const { return lengthscales_; }
-  std::size_t maxLeafSize() const { return maxLeafSize_; }
 
   /// Gather and standardize the designated columns and fix the kernel
   /// lengthscales: the supplied per-column values (standardized scale) when

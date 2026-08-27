@@ -74,9 +74,15 @@
             checks slot presence itself and reports the three as missing;
             rebuild the data object if you call it.
       \item Every \code{predict} method's argument order is now uniform:
-            \code{(object, newdata, type, ...)}, then \code{offset},
+            \code{(object, newdata, type, offset, ...)}, then
             \code{weights}, \code{combineChains}, \code{ci.level} in that
-            relative order wherever a class has the channel. This moves
+            relative order wherever a class has the channel. The first four
+            positions are the same on all six methods - \code{bartOrdinal}
+            and \code{bartHurdle}, which have no out-of-sample offset
+            channel, take \code{offset} as a formal only to refuse a
+            non-\code{NULL} value - while the positions after it still shift
+            with the class, since only \code{bart} and \code{rbart} carry
+            \code{weights}. This moves
             \code{predict.bart}'s and \code{predict.rbart}'s \code{offset}
             and \code{weights} formals after \code{type}, and moves
             \code{predict.rbart}'s and \code{survivalProbabilities.rbart}'s
@@ -136,11 +142,14 @@
             \code{bartHurdle} fits, which forwarded into \code{fitted} and
             differenced a widening band against a constant, mislabelling
             two of its three columns, is refused for the same reason.
-            \code{extract} on a \code{dbartsSampler} and \code{plotTree} on
-            a \code{dbartsSampler} gain their own catch-all refusals, the
-            latter closing the partial-match route by which
+            \code{extract} on a \code{dbartsSampler} gains a catch-all
+            refusal of any argument beyond its own, and \code{plotTree} on
+            a \code{dbartsSampler} refuses the partial-match route by which
             \code{sample =}/\code{chain =} reached \code{sampleNum}/
-            \code{chainNum} there too.
+            \code{chainNum} there. An extra argument passed positionally -
+            the shape a caller writes when migrating from a sibling method
+            that takes the name in that slot - is refused alongside the
+            named one rather than discarded.
       \item \code{type = "class"} paired with \code{ci.level} on a
             \code{bartMultinomial}/\code{bartOrdinal} \code{predict}/
             \code{fitted} call, and \code{ci.level} paired with

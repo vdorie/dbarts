@@ -843,13 +843,20 @@ if (mode == "record") {
   results <- runScenarios()
   anyFailure <- FALSE
   usedStatistical <- FALSE
+  nCompared <- 0L
+  nSkipped <- 0L
   for (name in names(baseline$results)) {
     a <- baseline$results[[name]]
     b <- results[[name]]
+    # a gate that compares nothing must not pass: a renamed or dropped scenario
+    # leaves every channel the baseline recorded for it unchecked
     if (is.null(b)) {
-      cat(sprintf("%-6s skipped (not produced this run)\n", name))
+      anyFailure <- TRUE
+      nSkipped <- nSkipped + 1L
+      cat(sprintf("%-6s skipped (not produced this run) <- FAIL\n", name))
       next
     }
+    nCompared <- nCompared + 1L
     # statChannels and snapshotChannels have to partition what the baseline
     # holds. A channel appended at a call site rather than in recordChannels is
     # invisible to a check placed there, so the partition is re-asserted here
@@ -974,6 +981,7 @@ if (mode == "record") {
     }
   }
 
+  cat(sprintf("%d compared / %d skipped\n", nCompared, nSkipped))
   if (anyFailure) {
     quit(status = 1L)
   }

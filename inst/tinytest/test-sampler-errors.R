@@ -83,7 +83,8 @@ expect_identical(sampler$data@weights, weightsBefore)
 
 # NA, NaN, and negative case weights are refused by the same guard and the
 # same message (predicate reconciled to the bridge's !(w >= 0.0), which also
-# rejects NaN); the direct-.Call route below keeps its own C-side refusal.
+# rejects NaN); the direct-.Call route below meets the family weight policy,
+# which states the same rule for the surfaces with no R layer ahead of them.
 weightsBad <- rep(1, n)
 weightsBad[1L] <- NA_real_
 expect_error(
@@ -114,7 +115,7 @@ expect_error(
     sampler$getPointer(),
     c(NaN, rep(1, n - 1L))
   ),
-  "weights must be non-negative"
+  "gaussian case weights must be finite and non-negative"
 )
 expect_identical(sampler$data@weights, weightsBefore)
 

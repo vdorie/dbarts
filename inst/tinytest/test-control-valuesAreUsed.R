@@ -147,4 +147,21 @@ expect_equal(bartFit$call, call("NULL"))
 
 rm(bartFit, sampler, control, n.trees, n.burn, n.samples)
 
+# printEvery is expressed in post-thinning samples, so thinning heavier than
+# the default print interval must still leave a positive one
+thinFit <- dbarts::bart2(
+  testData$x,
+  testData$y,
+  n.samples = 400L,
+  n.burn = 200L,
+  n.thin = 200L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 7L
+)
+expect_equal(nrow(thinFit$yhat.train), 2L)
+rm(thinFit)
+
 rm(testData)

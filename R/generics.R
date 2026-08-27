@@ -174,6 +174,22 @@ pointwiseLogLikelihood <- function(object, ev) {
 # rather than a 3-column matrix, since a plain matrix cannot carry both an
 # observation and a category index.
 posteriorInterval <- function(draws, ci.level, trailing = 1L) {
+  # 'sample' sat in the slot 'ci.level' now holds, so a "train"/"test" value
+  # arriving here is a call written against the old order: name the argument
+  # that moved rather than one the caller never wrote
+  if (
+    is.character(ci.level) &&
+      length(ci.level) == 1L &&
+      !is.na(ci.level) &&
+      ci.level %in% c("train", "test")
+  ) {
+    stop(
+      "'sample' is fitted's fourth argument and is matched by name; write ",
+      "sample = \"",
+      ci.level,
+      "\""
+    )
+  }
   if (
     !is.numeric(ci.level) ||
       length(ci.level) != 1L ||
@@ -285,6 +301,22 @@ predictNoOffsetUnusedArgs <- list(
   offset = noPredictOffsetReason,
   offset.test = noPredictOffsetReason
 )
+
+# 'offset' occupies the same slot on all six predict methods so the argument
+# order is uniform in position and not merely in relative order; the two
+# families with no offset channel take it as a formal and refuse a non-NULL
+# value with the same wording it would carry out of '...'.
+refusePredictOffsetChannel <- function(offset, class) {
+  if (!is.null(offset)) {
+    refuseUnusedGenericArgs(
+      list(offset = offset),
+      "predict",
+      class,
+      predictNoOffsetUnusedArgs
+    )
+  }
+  invisible(NULL)
+}
 
 predict.bart <- function(
   object,
@@ -949,7 +981,7 @@ fitted.bart <- function(
 refuseResidualsSample <- function(dots) {
   if ("sample" %in% names(dots)) {
     stop(
-      "'sample' is not used by residuals; residuals are always against the ",
+      "'sample' is not used by residuals: residuals are always against the ",
       "training response"
     )
   }
@@ -1594,6 +1626,7 @@ predict.bartOrdinal <- function(
   object,
   newdata,
   type = c("ev", "ppd", "bart", "class"),
+  offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   n.threads = object$fit$control@n.threads,
@@ -1610,6 +1643,7 @@ predict.bartOrdinal <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
     )
   )
+  refusePredictOffsetChannel(offset, "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["cutpoints.raw"]])) {
     refuseWithoutTrees("predict")
@@ -2039,6 +2073,27 @@ refuseUnusedGenericArgs <- function(dots, generic, class, reasons) {
       reasons[[supplied[1L]]]
     )
   }
+  # A positional extra is the same caller mistake as a named one, and the more
+  # likely one: the sibling method that does take the name takes it in a slot
+  # this method's own formals do not reach, so the value lands in '...' and
+  # would otherwise be discarded without a word.
+  unnamed <- if (is.null(names(dots))) {
+    seq_along(dots)
+  } else {
+    which(!nzchar(names(dots)))
+  }
+  if (length(unnamed) > 0L) {
+    stop(
+      generic,
+      " on a ",
+      class,
+      " fit does not support unnamed arguments: ",
+      length(unnamed),
+      " supplied, the first at position ",
+      unnamed[1L],
+      " of '...'"
+    )
+  }
   invisible(NULL)
 }
 
@@ -2090,8 +2145,8 @@ bartUnusedArgs <- list(
     "is already included"
   ),
   contribution = paste0(
-    "the reduction is over the combined location, in which every forest ",
-    "is already included"
+    "the per-observation contribution decomposes one forest's fit, and the ",
+    "reduction here is over the combined location"
   )
 )
 rbartUnusedArgs <- list(
@@ -2109,7 +2164,7 @@ rbartUnusedArgs <- list(
 predictForeignReasons <- list(
   sample = "the fit's stored train and test channels are extract's 'sample'",
   weights = "this family's posterior-predictive draw takes no per-observation weight",
-  bases = "only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  bases = "only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   group.by = "'group.by' is the grouped (rbart_vi) fit's own predict argument",
   contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")"
 )
@@ -2413,6 +2468,7 @@ predict.bartHurdle <- function(
   object,
   newdata,
   type = c("ev", "ppd", "prob", "bart"),
+  offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   n.threads = object$occupancy$fit$control@n.threads,
@@ -2429,6 +2485,7 @@ predict.bartHurdle <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartHurdle)))
     )
   )
+  refusePredictOffsetChannel(offset, "bartHurdle")
   if (is.null(object$occupancy[["fit"]])) {
     refuseWithoutTrees("predict")
   }
@@ -2859,14 +2916,20 @@ extract.rbart <- function(
 }
 
 # this method's '...' forwards nowhere and nothing delegates through it, so a
-# caller-supplied name of any kind is refused rather than the generic's own
-# "on a <class> fit" wording, which reads wrong for a sampler
+# caller-supplied argument of any kind - named or positional - is refused
+# rather than the generic's own "on a <class> fit" wording, which reads wrong
+# for a sampler
 refuseSamplerExtractArgs <- function(dots) {
-  if (length(names(dots)) > 0L) {
+  if (length(dots) > 0L) {
+    named <- names(dots)
+    named <- if (is.null(named)) character() else named[nzchar(named)]
     stop(
-      "'",
-      names(dots)[1L],
-      "' is not used by extract on a dbartsSampler: this method returns the ",
+      if (length(named) > 0L) {
+        paste0("'", named[1L], "'")
+      } else {
+        "a positional argument"
+      },
+      " is not used by extract on a dbartsSampler: this method returns the ",
       "sampler's coded predictor matrix"
     )
   }
@@ -2880,7 +2943,7 @@ refuseSamplerExtractArgs <- function(dots) {
 extract.dbartsSampler <- function(object, type = "predictors", ...) {
   refuseSamplerExtractArgs(list(...))
   if (!is.character(type) || length(type) == 0L || type[1L] != "predictors") {
-    stop("type must be 'predictors'")
+    stop("'type' must be one of 'predictors'")
   }
   x <- object$data@x
   if (inherits(x, "dbartsMixedMatrix")) as.matrix(x) else x

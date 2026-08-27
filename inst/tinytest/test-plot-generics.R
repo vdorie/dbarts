@@ -252,7 +252,7 @@ rm(fit.noTrainFits, fit.rbart.noTrainFits)
 # forward to fitted, raising a raw 'formal argument "sample" matched by
 # multiple actual arguments' - refused by name instead
 residualsSampleReason <- paste0(
-  "'sample' is not used by residuals; residuals are always against the ",
+  "'sample' is not used by residuals: residuals are always against the ",
   "training response"
 )
 expect_error(
@@ -369,6 +369,13 @@ fit.multinomial <- bart2(
   verbose = FALSE
 )
 pdf(NULL)
+# a color vector in the second slot is quantile()'s problem now, not a legal
+# 'cols': numeric colors would pass under either order and pin nothing
+expect_error(
+  plot(fit.multinomial, c("blue", "black")),
+  "'probs' outside [0,1]",
+  fixed = TRUE
+)
 expect_silent(plot(fit.multinomial, c(0.1, 0.9)))
 dev.off()
 rm(y.multi, fit.multinomial)

@@ -177,13 +177,15 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
                               int updateScale);
 
 /// Errors on a weight vector its family cannot carry: probit outright (a
-/// weighted probit has no tractable latent-variable form) and logistic on any
+/// weighted probit has no tractable latent-variable form), logistic on any
 /// element that is not a positive integer, since its weights are observation
-/// counts and PG(w, psi) is the sum of w PG(1, psi) draws. gaussian passes
-/// through, validated for non-negativity by its callers. numObservations sizes
-/// the logistic scan; a null weights pointer is a no-op. Called at creation and
-/// on every conduit that installs weights afterwards, so one text states the
-/// rule wherever it is enforced.
+/// counts and PG(w, psi) is the sum of w PG(1, psi) draws, and gaussian on any
+/// element that is not finite and non-negative, since a case weight is a
+/// precision multiplier there and a negative one subtracts information from a
+/// leaf's sufficient statistics. numObservations sizes the per-family scan; a
+/// null weights pointer is a no-op. Called at creation and on every conduit
+/// that installs weights afterwards, so one text states the rule wherever it
+/// is enforced, and no caller repeats it.
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
                                std::size_t numObservations);

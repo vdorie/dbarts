@@ -353,8 +353,8 @@ methods::setValidity("dbartsControl", function(object) {
     return("'n.thin' must be a positive integer")
   }
 
-  if (is.na(object@printEvery) || object@printEvery < 0L) {
-    return("'printEvery' must be a non-negative integer")
+  if (is.na(object@printEvery) || object@printEvery < 1L) {
+    return("'printEvery' must be a positive integer")
   }
   if (is.na(object@printCutoffs) || object@printCutoffs < 0L) {
     return("'printCutoffs' must be a non-negative integer")

@@ -101,6 +101,7 @@ bart2(
 \method{predict}{bartOrdinal}(
     object, newdata,
     type = c("ev", "ppd", "bart", "class"),
+    offset = NULL,
     combineChains = TRUE, ci.level = NULL, n.threads, \dots)
 
 \method{print}{bartOrdinal}(x, \dots)
@@ -138,6 +139,7 @@ bart2(
 \method{predict}{bartHurdle}(
     object, newdata,
     type = c("ev", "ppd", "prob", "bart"),
+    offset = NULL,
     combineChains = TRUE, ci.level = NULL, n.threads, \dots)
 
 \method{print}{bartHurdle}(x, \dots)
@@ -184,6 +186,8 @@ bart2(
      For \code{predict} on a \code{bartMultinomial} fit, the same name carries a different shape: the per-category shift at the PREDICTED rows, an \code{nrow(newdata)} x K numeric matrix entering the K raw fits before the softmax, in the same layout as \code{bart2}'s own train-side \code{offset} above. It is never taken from the fit - these rows are not the fit's rows - so a fit trained with an \code{offset} REQUIRES one here, refusing by name rather than reporting the offset-free surface, which an explicit all-zero matrix asks for. \code{NULL} (the default) is the only value a fit trained without one takes by default, and passing the training offset back at the training rows reproduces \code{yhat.train}. A large negative entry is a shift like any other: the probabilities it drives are the exact softmax, so one far enough below its row's others underflows to zero (and its log to \code{-Inf}) as it would anywhere else.
 
      For \code{predict} on a \code{bartNegbin} fit, the same name is the log-exposure shift at the PREDICTED rows, entering the replayed log-odds latent \eqn{\psi}{psi} additively before \eqn{r e^{\psi}}{r * exp(psi)}. \code{NULL} (the default) applies none.
+
+     For \code{predict} on a \code{bartOrdinal} or \code{bartHurdle} fit the name is a formal only so that the fourth position means the same thing on all six \code{predict} methods: neither family has an out-of-sample offset channel, so any value but \code{NULL} is refused by name.
    }
    \item{offset.test}{
      The equivalent of \code{offset} for test observations. Defaults to tracking \code{offset}: a scalar, or a vector already matching the test row count, is reused directly, and any other length is refused by name rather than silently recycled. See \code{\link{dbarts}}'s \sQuote{Test offset synchronization} details for how a live sampler keeps the two linked after fitting.

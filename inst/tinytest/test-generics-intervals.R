@@ -68,14 +68,17 @@ expect_error(
 )
 
 # fitted()'s positional slot 3 is now ci.level (it used to be sample): the
-# positional and named forms agree, and the old slot-3 usage - a string in
-# that position - now reaches ci.level's own validity check instead of
-# silently binding to sample
+# positional and named forms agree, and the old slot-3 usage - a train/test
+# string in that position - is refused by a message naming 'sample' and where
+# it went, instead of silently binding to it
 expect_identical(
   fitted(fit, "ev", 0.9),
   fitted(fit, type = "ev", ci.level = 0.9)
 )
-expect_error(fitted(fit, "ev", "train"), pattern = "must be a single number")
+expect_error(
+  fitted(fit, "ev", "train"),
+  pattern = "'sample' is fitted's fourth argument"
+)
 
 rm(fit, cred, pred, narrow, pci, x, y)
 rm(testData)

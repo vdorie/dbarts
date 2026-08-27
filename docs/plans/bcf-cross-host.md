@@ -35,7 +35,7 @@ R/, src/, inst/ or man/ file moves; no baseline re-records at this slice.
 
 ## 1. Channel taxonomy, verified against the script and the baseline
 
-`recordChannels` (benchmarks/R/bcf-equivalence.R:128-140) writes seven
+`recordChannels` (benchmarks/R/bcf-equivalence.R:412-424) writes seven
 channels plus a derived `summaries`; five scenarios append a verdict at
 the call sites (:291, :312, :338, :369, :392). Nine names in all. Shapes
 and storage modes below are the recorded file's, not inferred:
@@ -123,7 +123,7 @@ and cannot be mistaken for a mode or a path:
 
 Compare-mode only; `record` is host-local by definition and says so if
 passed the flag. Exemption is `exempt <- if (crossHost) snapshotChannels
-else character(0L)`, applied once at bcf-equivalence.R:484:
+else character(0L)`, applied once at bcf-equivalence.R:226:
 
     channels <- setdiff(names(a), c("summaries", exempt))
 
@@ -533,8 +533,8 @@ Residues:
   flag, with the snapshot channels exempt and the two-tier verdict), and
   extend the :44-66 statistical paragraph with the tier-2 weakness in one
   sentence.
-- The Welch z at bcf-equivalence.R:511-518 (and
-  multinomial-equivalence.R:603-612) does `sa$mean - sb$mean` with no
+- The Welch z at bcf-equivalence.R:833-838 (and
+  multinomial-equivalence.R:918-923) does `sa$mean - sb$mean` with no
   length check, so a channel SHAPE change silently recycles into a
   garbage z rather than erroring. That has already happened once - the
   `varcount` forest-axis widening (a16d703c). Add

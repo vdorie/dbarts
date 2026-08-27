@@ -288,7 +288,12 @@ summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
     quantileSummary(bartDrawsArray(object, present))
   }
   structure(
-    list(call = object[["call"]], stats = stats, posterior = havePosterior),
+    list(
+      call = object[["call"]],
+      stats = stats,
+      vars = vars,
+      posterior = havePosterior
+    ),
     class = "summary.bart"
   )
 }
@@ -402,7 +407,12 @@ summary.bartMultinomial <- function(object, ...) {
     quantileSummary(arr)
   }
   structure(
-    list(call = object[["call"]], stats = stats, posterior = havePosterior),
+    list(
+      call = object[["call"]],
+      stats = stats,
+      vars = "meanProb",
+      posterior = havePosterior
+    ),
     class = "summary.bart"
   )
 }
@@ -412,7 +422,13 @@ summary.bartMultinomial <- function(object, ...) {
 # for the fit and this body once per component
 printSummaryBartBody <- function(x, ...) {
   if (is.null(x$stats)) {
-    cat("No scalar parameters (sigma, k, tau) to summarize.\n")
+    # the requested set, not a fixed one: each family summarizes its own
+    cat(
+      "No scalar parameters (",
+      paste0(x$vars, collapse = ", "),
+      ") to summarize.\n",
+      sep = ""
+    )
     return(invisible(NULL))
   }
   print(x$stats, ...)

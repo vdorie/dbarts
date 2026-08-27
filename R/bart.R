@@ -808,7 +808,9 @@ bart2 <- function(
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
-  control@printEvery <- control@printEvery %/% control@n.thin
+  # printEvery counts post-thinning samples and must stay positive: thinning
+  # heavier than it would otherwise drive it to 0, which the sampler refuses
+  control@printEvery <- max(1L, control@printEvery %/% control@n.thin)
 
   # the multinomial branch below keeps its own family-named check
   if (family != "multinomial" && isTRUE(control@n.samples <= 0L)) {
@@ -2846,7 +2848,9 @@ bart <- function(
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- matchedCall
   control@n.burn <- control@n.burn %/% control@n.thin
-  control@printEvery <- control@printEvery %/% control@n.thin
+  # printEvery counts post-thinning samples and must stay positive: thinning
+  # heavier than it would otherwise drive it to 0, which the sampler refuses
+  control@printEvery <- max(1L, control@printEvery %/% control@n.thin)
   # control@keepTrees is still FALSE here regardless of 'keeptrees' (set
   # below, once burn-in is known); read the user's own argument, as bart2
   # does through its differently-sequenced control construction

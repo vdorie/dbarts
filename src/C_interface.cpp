@@ -698,7 +698,8 @@ int dbarts_sampler_setWeights(dbarts_sampler* sampler,
     return 0;
   // the value half stays a raise: a logistic count that is not a positive
   // integer leaves a row carrying a precision no observation of it justifies,
-  // and a different vector would have worked
+  // a gaussian weight that is negative or not finite corrupts the leaf
+  // sufficient statistics outright, and a different vector would have worked
   enforceBinaryWeightPolicy(weightShape.family, weights,
                             weightShape.numObservations);
   samplerOf(sampler).setWeights(weights);
@@ -968,6 +969,11 @@ void dbarts_sampler_setNumThin(dbarts_sampler* sampler, size_t numThin) {
 
 void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
                                size_t printEvery) {
+  // the print condition is a modulo by printEvery, so 0 is a division by zero
+  // rather than "never print"; refuse it here as the R bridge does, since a
+  // flat-C caller has no R layer ahead of it
+  if (printEvery == 0)
+    Rf_error("dbarts_sampler_setVerbose: printEvery must be at least 1");
   samplerOf(sampler).setVerbose(verbose != 0, printEvery);
 }
 

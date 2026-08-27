@@ -124,11 +124,17 @@ expect_error(
 )
 expect_error(
   dbarts::dbartsControl(printEvery = NA_integer_),
-  "'printEvery' must be a non-negative integer"
+  "'printEvery' must be a positive integer"
 )
 expect_error(
   dbarts::dbartsControl(printEvery = -1L),
-  "'printEvery' must be a non-negative integer"
+  "'printEvery' must be a positive integer"
+)
+# printEvery of 0 is refused by the sampler, so the class refuses it too rather
+# than let a valid control object fail at dbarts()
+expect_error(
+  dbarts::dbartsControl(printEvery = 0L),
+  "'printEvery' must be a positive integer"
 )
 
 expect_error(
@@ -167,7 +173,7 @@ expect_error(
 # every surface that funnels a count through it - not just n.threads
 expect_error(
   dbarts::dbartsControl(n.threads = 2.7),
-  "'n.threads' must be a whole number, not 2.7",
+  "'n.threads' must be a whole number; got '2.7'",
   fixed = TRUE
 )
 
@@ -175,28 +181,28 @@ xTiny <- matrix(runif(20L * 2L), 20L, 2L)
 yTiny <- rnorm(20L)
 expect_error(
   dbarts::dbarts(xTiny, yTiny, seed = 2.7),
-  "'seed' must be a whole number, not 2.7",
+  "'seed' must be a whole number; got '2.7'",
   fixed = TRUE
 )
 expect_error(
   dbarts::bart2(xTiny, yTiny, n.trees = 50.5),
-  "'n.trees' must be a whole number, not 50.5",
+  "'n.trees' must be a whole number; got '50.5'",
   fixed = TRUE
 )
 expect_error(
   dbarts::bart(xTiny, yTiny, nthread = 1.5),
-  "'nthread' must be a whole number, not 1.5",
+  "'nthread' must be a whole number; got '1.5'",
   fixed = TRUE
 )
 gTiny <- rep(1:2, length.out = 20L)
 expect_error(
   dbarts::rbart_vi(yTiny ~ xTiny, group.by = gTiny, n.chains = 2.5),
-  "'n.chains' must be a whole number, not 2.5",
+  "'n.chains' must be a whole number; got '2.5'",
   fixed = TRUE
 )
 expect_error(
   dbarts::xbart(xTiny, yTiny, n.trees = 50.5),
-  "'n.trees' must be a whole number, not 50.5",
+  "'n.trees' must be a whole number; got '50.5'",
   fixed = TRUE
 )
 # the acceptance half: an INTEGRAL double is not fractional

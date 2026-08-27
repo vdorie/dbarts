@@ -196,7 +196,7 @@ expect_error(
 )
 expect_error(
   predict(rbartFitKT, testData$x, group.by = groupBy, bases = list()),
-  "'bases' is not used by predict on a rbart fit: only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  "'bases' is not used by predict on a rbart fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
 expect_error(
@@ -257,7 +257,7 @@ expect_error(
 )
 expect_error(
   predict(multinomialFitKT, xSmall, bases = list()),
-  "'bases' is not used by predict on a bartMultinomial fit: only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  "'bases' is not used by predict on a bartMultinomial fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
 expect_error(
@@ -308,7 +308,7 @@ expect_error(
 )
 expect_error(
   predict(ordinalFitKT, xSmall, bases = list()),
-  "'bases' is not used by predict on a bartOrdinal fit: only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  "'bases' is not used by predict on a bartOrdinal fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
 expect_error(
@@ -351,7 +351,7 @@ expect_error(
 )
 expect_error(
   predict(negbinFitKT, xSmall, bases = list()),
-  "'bases' is not used by predict on a bartNegbin fit: only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  "'bases' is not used by predict on a bartNegbin fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
 expect_error(
@@ -399,7 +399,7 @@ expect_error(
 )
 expect_error(
   predict(hurdleFitKT, xSmall, bases = list()),
-  "'bases' is not used by predict on a bartHurdle fit: only an amplitude-coupled multi-forest fit takes bases at the predicted rows",
+  "'bases' is not used by predict on a bartHurdle fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
 expect_error(
@@ -578,6 +578,23 @@ expect_error(
   "'combineChains' is not used by extract on a dbartsSampler: this method returns the sampler's coded predictor matrix",
   fixed = TRUE
 )
+# an unnamed extra is refused too, and a named one still supplies the quoted
+# name when both are present
+expect_error(
+  extract(samplerKT, "predictors", 1),
+  "a positional argument is not used by extract on a dbartsSampler: this method returns the sampler's coded predictor matrix",
+  fixed = TRUE
+)
+expect_error(
+  extract(samplerKT, "predictors", 1, foo = 2),
+  "'foo' is not used by extract on a dbartsSampler: this method returns the sampler's coded predictor matrix",
+  fixed = TRUE
+)
+expect_error(
+  extract(samplerKT, type = "trees"),
+  "'type' must be one of 'predictors'",
+  fixed = TRUE
+)
 rm(samplerKT)
 
 # --- fitted/residuals arm: combineChains refused on all six fitted,
@@ -614,6 +631,18 @@ expect_error(
 expect_error(
   residuals(bartFitPlain, n.threads = 1L),
   "'n.threads' is not used by residuals on a bart fit: residuals summarize stored channels and replay nothing",
+  fixed = TRUE
+)
+# 'sample' was fitted's third argument, so the call written against that order
+# lands "test" in 'ci.level': the refusal names the argument that moved
+expect_error(
+  fitted(bartFitPlain, "ev", "test"),
+  "'sample' is fitted's fourth argument and is matched by name; write sample = \"test\"",
+  fixed = TRUE
+)
+expect_error(
+  fitted(bartFitPlain, "ev", "train"),
+  "'sample' is fitted's fourth argument and is matched by name; write sample = \"train\"",
   fixed = TRUE
 )
 rm(bartFitPlain)
@@ -665,7 +694,7 @@ expect_error(
 )
 expect_error(
   residuals(multinomialFitPlain, sample = "train"),
-  "'sample' is not used by residuals; residuals are always against the training response",
+  "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
 rm(multinomialFitPlain)
@@ -696,7 +725,14 @@ expect_error(
 )
 expect_error(
   residuals(ordinalFitPlain, sample = "train"),
-  "'sample' is not used by residuals; residuals are always against the training response",
+  "'sample' is not used by residuals: residuals are always against the training response",
+  fixed = TRUE
+)
+# 'type' is residuals.bart's own second argument, so the migrating call writes
+# it positionally; it lands in '...' here and is refused by position
+expect_error(
+  residuals(ordinalFitPlain, "ev"),
+  "residuals on a bartOrdinal fit does not support unnamed arguments: 1 supplied, the first at position 1 of '...'",
   fixed = TRUE
 )
 rm(ordinalFitPlain)
@@ -724,7 +760,7 @@ expect_error(
 )
 expect_error(
   residuals(negbinFitPlain, sample = "train"),
-  "'sample' is not used by residuals; residuals are always against the training response",
+  "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
 rm(negbinFitPlain)

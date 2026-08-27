@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3541`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3507`) - the dedicated
+(`src/R_interface_bartcore.cpp:3551`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3517`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -131,15 +131,15 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4307` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3822` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:3904` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:3943` | `:125` | S, unexported |
+| run | `bartcore_run` `:4315` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:3832` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:3914` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:3953` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5224` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4788` | `:558` | S (`refuseUndefinedTestFits` `:2890` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5227` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:4796` | `:558` | S (`refuseUndefinedTestFits` `:2900` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4074` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5837` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5840` | `:1085` | S |
 | per-category fits / varcounts | `:4147`, `:4280` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4205` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5684`, `:5689` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
@@ -206,7 +206,7 @@ an engine nothing reads. Same harm, one method call away.
 ### 1.5 `$fit` is load-bearing, so it cannot simply be deleted
 
 All three `predict` methods code `newdata` against the HOST's design:
-`R/generics.R:1309`, `:1614`, `:1891` all call
+`R/generics.R:1309`, `:1614`, `:1925` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
 `bartcorePredict` (retired: routed through `object$fit` directly, not a
 separate `$bc` handle). The host carries the factor level
@@ -267,7 +267,7 @@ problems:
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
 `checkFamilyUnsupportedArgs` (`R/bart.R:618-646`) has **four** callers -
-multinomial `:915`, ordinal `:1068`, nbinom `:1101`, and
+multinomial `:917`, ordinal `:1070`, nbinom `:1103`, and
 **`hurdle.lognormal` `:1145`** - and its `samplerOnly` block is three
 lines (`:625-627`) inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:162-168`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:1813`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:1822`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`R/generics.R:1688` and `:1869` now say so directly).** `$bc` was a bare
+`R/generics.R:1624` and `:1903` now say so directly).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,

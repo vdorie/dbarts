@@ -863,8 +863,10 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 /// rule above.
 ///
 /// A CAPABILITY STATUS: 1 on a swap, or 0 touching nothing where the family
-/// carries no weights or the coupling fixes them at creation. A logistic count
-/// that is not a positive integer is the other channel and raises.
+/// carries no weights or the coupling fixes them at creation. A value the
+/// family's likelihood cannot carry is the other channel and raises: a
+/// logistic count that is not a positive integer, or a gaussian case weight
+/// that is not finite and non-negative.
 int dbarts_sampler_setWeights(dbarts_sampler* sampler,
                               const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)
@@ -1079,6 +1081,8 @@ void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
 
 void dbarts_sampler_setNumThreads(dbarts_sampler* sampler, size_t numThreads);
 void dbarts_sampler_setNumThin(dbarts_sampler* sampler, size_t numThin);
+/// printEvery counts kept iterations between progress lines and must be at
+/// least 1, verbose or not; 0 is an error rather than "never print".
 void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
                                size_t printEvery);
 

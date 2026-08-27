@@ -97,7 +97,9 @@ rbart_vi <- function(
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
-  control@printEvery <- control@printEvery %/% control@n.thin
+  # printEvery counts post-thinning samples and must stay positive: thinning
+  # heavier than it would otherwise drive it to 0, which the sampler refuses
+  control@printEvery <- max(1L, control@printEvery %/% control@n.thin)
   if (control@n.samples == 0L) {
     refuseZeroSamples("rbart_vi")
   }

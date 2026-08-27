@@ -341,6 +341,27 @@ expect_equal(CALL("capi_set_weights", ptr2, weights), 1L)
 rWeighted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
 expect_true(all(is.finite(rWeighted$train)))
 
+# the gaussian half of the weight policy, at the entrance with no R layer
+# ahead of it: a case weight is a precision multiplier, so a negative one
+# subtracts information from the leaf sums and a NaN one poisons them - both
+# fit silently rather than erroring, and both are refused at every conduit
+weightRefusal <- "gaussian case weights must be finite and non-negative"
+expect_error(
+  CALL("capi_set_weights", ptr2, replace(weights, 1L, -1)),
+  weightRefusal
+)
+expect_error(
+  CALL("capi_set_weights", ptr2, replace(weights, 1L, NaN)),
+  weightRefusal
+)
+dataBadWeights <- spec$data
+dataBadWeights@weights <- replace(rep(1, n), 1L, -1)
+expect_error(
+  CALL("capi_create", spec$control, spec$model, dataBadWeights, ""),
+  weightRefusal
+)
+rm(dataBadWeights, weightRefusal)
+
 CALL("capi_sample_node_parameters_from_prior", ptr2)
 rPriorParams <- CALL("capi_run", ptr2, 0L, 2L, TRUE, FALSE)
 expect_true(all(is.finite(rPriorParams$train)))
@@ -350,6 +371,14 @@ CALL("capi_set_run_controls", ptr2, 1L, 2L, FALSE)
 rThinned <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
 expect_equal(length(rThinned$sigma), 2L)
 CALL("capi_set_run_controls", ptr2, 1L, 1L, FALSE)
+
+# printEvery divides the iteration count in the print condition, so 0 is a
+# division by zero in the engine rather than "never print"
+expect_error(
+  CALL("capi_set_verbose", ptr2, TRUE, 0L),
+  "dbarts_sampler_setVerbose: printEvery must be at least 1"
+)
+CALL("capi_set_verbose", ptr2, FALSE, 1L)
 
 # a live-tree dump goes through the R console without touching state
 printed <- capture.output(CALL("capi_print_trees", ptr2, FALSE, 0L))

@@ -2753,9 +2753,9 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
 // probit has no tractable weighted latent-variable form and is refused;
 // logistic treats weights as observation counts (its PG(w, psi) latent is the
 // sum of w PG(1, psi) draws), so they must be positive integers; gaussian
-// accepts any positive weight and is validated elsewhere. The R layer mirrors
-// this, so these errors backstop direct-API consumers, and the mutation
-// entries reuse it rather than stating a second text.
+// takes any finite non-negative weight. The R layer mirrors this, so these
+// errors backstop direct-API consumers, and the mutation entries reuse it
+// rather than stating a second text.
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
                                size_t numObservations) {
@@ -2770,6 +2770,16 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
         Rf_error("logistic weights are observation counts and must be "
                  "positive integers; drop zero-count rows, and use a gaussian "
                  "model for continuous weights");
+  // a gaussian weight enters the leaf sufficient statistics as a precision, so
+  // a negative one subtracts information and NaN/Inf poisons the sum - both
+  // fit silently rather than erroring. !(w >= 0.0) catches NaN. The O(n) scan
+  // is at a setter, and the flat entrance has no R layer ahead of it to have
+  // scanned already
+  if (family == bartcore::ResponseFamily::gaussian)
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!(weights[i] >= 0.0) || !std::isfinite(weights[i]))
+        Rf_error("gaussian case weights must be finite and non-negative: a "
+                 "weight is a precision multiplier, sd_i = sigma / sqrt(w_i)");
 }
 
 // The post-creation half of that policy: gaussian and logistic accept a weight
@@ -4095,9 +4105,7 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   // already been probed and no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
   if (!holder.sampler->setActiveRows(REAL(activeExpr)))
-    Rf_error("active rows must be exactly 0 or 1: a fractional value is a "
-             "weighted likelihood, which the latent families have no coherent "
-             "form for");
+    Rf_error("active-row masking is not implemented for this response family");
   return R_NilValue;
 }
 
@@ -4948,11 +4956,6 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   // fractional is silently rounded by the PG draw's lround and leaves a row
   // carrying a full PG(1, psi) precision it has no observation for
   enforceBinaryWeightPolicy(shape.family, weights, numObservations);
-  // defense in depth: dbartsSampler$setWeights already enforces this R-side;
-  // this backstop is load-bearing only for a direct .Call bypassing it
-  for (size_t i = 0; i < numObservations; ++i)
-    if (!(weights[i] >= 0.0))
-      Rf_error("weights must be non-negative");
   holder.sampler->setWeights(weights);
   retain(ptrExpr, PROT_WEIGHTS, weightsExpr);
   return R_NilValue;
@@ -5714,10 +5717,10 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
 // per-call worker count; the offset add and the variance clone below are
 // serial passes over the same output, so the bridge's own serial share is one
 // pass against the replay's numTrees.
-SEXP predictFromSource(bartcore::SamplerBase& sampler,
-                       const bartcore::SamplerShape& shape,
-                       const bartcore::PredictorSource& source,
-                       SEXP offsetExpr, size_t numThreads) {
+static SEXP predictFromSource(bartcore::SamplerBase& sampler,
+                              const bartcore::SamplerShape& shape,
+                              const bartcore::PredictorSource& source,
+                              SEXP offsetExpr, size_t numThreads) {
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0) Rf_error("bartcore_predict: requires rows");
 
@@ -5895,10 +5898,10 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
 // The result is numTestObservations x numForests x numSamples (x numChains) -
 // the layout the run's own per-forest channel carries, with numSamples the
 // saved capacity, or 1 off keepTrees, where the live trees replay instead.
-SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
-                                const bartcore::SamplerShape& shape,
-                                const bartcore::PredictorSource& source,
-                                size_t numThreads) {
+static SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
+                                       const bartcore::SamplerShape& shape,
+                                       const bartcore::PredictorSource& source,
+                                       size_t numThreads) {
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0)
     Rf_error("bartcore_predictPerForest: requires rows");

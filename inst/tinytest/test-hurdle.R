@@ -78,7 +78,7 @@ expect_equal(residuals(h), h$y - apply(expectedEv, 2L, mean))
 # multiple actual arguments' - refused by name instead
 expect_error(
   residuals(h, sample = "train"),
-  "'sample' is not used by residuals; residuals are always against the training response",
+  "'sample' is not used by residuals: residuals are always against the training response",
   fixed = TRUE
 )
 
@@ -261,6 +261,13 @@ expect_error(
 expect_error(
   predict(fit, x.new, contribution = TRUE),
   "'contribution' is not used by predict on a bartHurdle fit",
+  fixed = TRUE
+)
+# 'offset' holds the fourth position on every predict method, so a positional
+# fourth argument is an offset here too rather than 'combineChains'
+expect_error(
+  predict(fit, x.new, "ev", FALSE),
+  "'offset' is not used by predict on a bartHurdle fit: this fit has no out-of-sample offset channel",
   fixed = TRUE
 )
 expect_error(

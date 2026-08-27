@@ -555,6 +555,16 @@ SEXP capi_num_forests(SEXP ptrExpr) {
     (int) dbarts_sampler_numForests(samplerFromExpr(ptrExpr)));
 }
 
+/* printEvery gets its own entrance: the run-control setter below always hands
+ * over a legal one, so the entry point's refusal at 0 is otherwise unreachable
+ * from here */
+SEXP capi_set_verbose(SEXP ptrExpr, SEXP verboseExpr, SEXP printEveryExpr) {
+  dbarts_sampler_setVerbose(samplerFromExpr(ptrExpr),
+                            Rf_asLogical(verboseExpr) == TRUE,
+                            (size_t) Rf_asInteger(printEveryExpr));
+  return R_NilValue;
+}
+
 SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
                            SEXP numThinExpr, SEXP verboseExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);

@@ -494,6 +494,18 @@ expect_error(
   "'sample' is not used by fitted on a bartOrdinal fit",
   fixed = TRUE
 )
+# 'offset' holds the fourth position on every predict method, so a positional
+# fourth argument is an offset here as it is on bart, rather than binding
+# 'combineChains'; this family has no offset channel and refuses it
+expect_error(
+  predict(fit, x.test, "ev", FALSE),
+  "'offset' is not used by predict on a bartOrdinal fit: this fit has no out-of-sample offset channel",
+  fixed = TRUE
+)
+expect_equal(
+  dim(predict(fit2c, x.test, "ev", combineChains = FALSE)),
+  c(2L, 20L, 10L, 3L)
+)
 
 # --- own-class extract's 'sample' validation now shares bart/rbart's
 # wording instead of a bare match.arg's "'arg' should be one of ..." ---

@@ -271,7 +271,7 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4705`/`:4998`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4713`/`:4998`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
   date (38 of 69 vs 31 without), e.g. `:2618`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
