@@ -155,7 +155,6 @@ struct ColumnSource {
     return kind == ColumnSourceKind::cscRank ||
            kind == ColumnSourceKind::cscDensified;
   }
-  bool isRank() const { return kind == ColumnSourceKind::cscRank; }
 };
 
 /// One borrowed view of a host's predictor values, taken by creation, test
@@ -466,7 +465,9 @@ struct CodeBlock {
   /// all-CSC build, the sparse-source columns of a mixed one).
   bool columnIsCscBacked(size_t j) const { return sources[j].isCscBacked(); }
 
-  bool columnIsSparse(size_t j) const { return sources[j].isRank(); }
+  bool columnIsSparse(size_t j) const {
+    return sources[j].kind == ColumnSourceKind::cscRank;
+  }
   const SparseColumnData& sparseColumn(size_t j) const {
     return sparseColumns[static_cast<size_t>(sources[j].rankSlot)];
   }
@@ -573,7 +574,7 @@ struct ColumnStore {
   std::vector<double> ownedTestCscValues;
   std::vector<int> ownedTestCscRows;
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
-  // caller keeps the lengths consistent), clearTest clears it.
+  // caller keeps the lengths consistent), resetTestStorage clears it.
   const double* testOffset = nullptr;
 
   // Owned raw values of designated columns. build gathers a sampler's leaf
@@ -1038,18 +1039,13 @@ struct ColumnStore {
                   column, numObservations * sizeof(double));
   }
 
-  /// Whether test column j re-quantizes from a retained CSC test slice (the
-  /// CSC-backed columns of a mixed test build), test analog of columnIsCscBacked.
-  bool testColumnIsCscBacked(size_t j) const {
-    return test.columnIsCscBacked(j);
-  }
-
   /// Re-quantize test column j against the current cuts. A CSC-backed column
-  /// reads its retained owned slice; a dense-backed one reads the owned dense
-  /// raw (the mixed build's slice or the buildTest per-column copy). The test
-  /// side gates no draws, so it tracks no missingness.
+  /// (the CSC-backed columns of a mixed test build) reads its retained owned
+  /// slice; a dense-backed one reads the owned dense raw (the mixed build's
+  /// slice or the buildTest per-column copy). The test side gates no draws, so
+  /// it tracks no missingness.
   void quantizeTestColumn(size_t j) {
-    if (testColumnIsCscBacked(j)) {
+    if (test.columnIsCscBacked(j)) {
       quantizeCscColumnInto(test, numTestObservations, j, nullptr);
       return;
     }
@@ -1786,10 +1782,6 @@ struct ColumnStore {
     }
   }
 
-  void clearTest() {
-    resetTestStorage();
-  }
-
   /// Dense-stored columns only; rank columns have no contiguous codes.
   const xint_t* column(size_t variable) const { return train.column(variable); }
 
@@ -1804,10 +1796,10 @@ struct ColumnStore {
     return train.codeAt(variable, i);
   }
 
-  bool testColumnIsSparse(size_t variable) const {
+  bool testColumnIsSparseForTesting(size_t variable) const {
     return test.columnIsSparse(variable);
   }
-  const SparseColumnData& testSparseColumn(size_t variable) const {
+  const SparseColumnData& testSparseColumnForTesting(size_t variable) const {
     return test.sparseColumn(variable);
   }
   /// Storage-aware single test-code access (test-row descent), reading only

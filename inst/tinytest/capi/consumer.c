@@ -699,15 +699,17 @@ static const double* optionalReal(SEXP x) {
 
 SEXP capi_draw_latents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                        SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
-                       SEXP dispersionExpr, SEXP cutpointsExpr, SEXP dfExpr) {
+                       SEXP dispersionExpr, SEXP ordinalThresholdsExpr,
+                       SEXP dfExpr) {
   size_t n = (size_t) Rf_xlength(fitExpr);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
   dbarts_drawLatents(familyFromString(CHAR(STRING_ELT(familyExpr, 0))), n,
                      REAL(fitExpr), REAL(yExpr), optionalReal(weightsExpr),
                      optionalReal(offsetExpr), Rf_asReal(sigmaExpr),
-                     Rf_asReal(dispersionExpr), optionalReal(cutpointsExpr),
-                     (size_t) Rf_xlength(cutpointsExpr), Rf_asReal(dfExpr),
-                     REAL(result));
+                     Rf_asReal(dispersionExpr),
+                     optionalReal(ordinalThresholdsExpr),
+                     (size_t) Rf_xlength(ordinalThresholdsExpr),
+                     Rf_asReal(dfExpr), REAL(result));
   UNPROTECT(1);
   return result;
 }

@@ -186,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x5a32aa4cd3872d55ULL
+#  define DBARTS_C_API_HASH 0xb6c0e97dc0688991ULL
 #endif
 
 #ifdef __cplusplus
@@ -602,10 +602,10 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
   X(void, dbarts_drawLatents, \
     (int family, size_t numObservations, const double* fit, \
      const double* y, const double* weights, const double* offset, \
-     double sigma, double dispersion, const double* cutpoints, \
-     size_t numCutpoints, double df, double* out), \
+     double sigma, double dispersion, const double* ordinalThresholds, \
+     size_t numOrdinalThresholds, double df, double* out), \
     (family, numObservations, fit, y, weights, offset, sigma, dispersion, \
-     cutpoints, numCutpoints, df, out)) \
+     ordinalThresholds, numOrdinalThresholds, df, out)) \
   X(void, dbarts_workingResponse, \
     (int family, size_t numObservations, const double* latent, \
      const double* y, const double* weights, const double* offset, \
@@ -1273,8 +1273,9 @@ int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
 /// fall back on: weights are the logistic observation counts (null is unit),
 /// sigma the aft and student scale, dispersion the nbinom r (a positive WHOLE
 /// number - a fractional one is rounded into a different-shape draw, not
-/// refused), cutpoints the ordinal's numCutpoints strictly increasing interior
-/// cut points (unordered ones corrupt the draw silently, the rejection loop
+/// refused), ordinalThresholds the ordinal's numOrdinalThresholds strictly
+/// increasing interior cut points (unordered ones corrupt the draw silently,
+/// the rejection loop
 /// degrading to its fallback rather than erroring), and df the Student-t
 /// degrees of freedom. Omitting what a family's law requires is an error; what
 /// it does not read is ignored. Out-of-support y raises, as it does at
@@ -1289,8 +1290,8 @@ void dbarts_drawLatents(int family, size_t numObservations,
                         const double* fit, const double* y,
                         const double* weights, const double* offset,
                         double sigma, double dispersion,
-                        const double* cutpoints, size_t numCutpoints, double df,
-                        double* out);
+                        const double* ordinalThresholds,
+                        size_t numOrdinalThresholds, double df, double* out);
 /// Turns a drawn latent into the quantity a host regresses on, numObservations
 /// values into out: for DBARTS_FAMILY_LOGISTIC and DBARTS_FAMILY_NBINOM the
 /// Polya-Gamma kappa divided by the drawn precision (which must be positive),

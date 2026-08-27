@@ -79,12 +79,8 @@ private:
 /// Outcome of a transactional predictor change. invalidCutPoints reports a
 /// quantile-mode cut refresh whose new column would induce fewer cuts than
 /// existing splits require; unlike the pre-1.0 engine, which errored midway
-/// through installation, nothing has been modified. unsupportedSource reports
-/// a replacement view the dense mutation kernels cannot index (a mapped or
-/// CSC-valued one); nothing has been modified there either.
-enum class PredictorUpdateResult {
-  accepted, rolledBack, invalidCutPoints, unsupportedSource
-};
+/// through installation, nothing has been modified.
+enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 
 /// A whole sampler's serializable state: per-chain states, the store's cut
 /// points (setCutPoints may have replaced the ones creation induces), the
@@ -314,15 +310,15 @@ public:
     size_t numVarCountForests = results.numVariableCountForests;
     if (numVarCountForests > numVariableCountForests())
       numVarCountForests = numVariableCountForests();
-    // the per-sample cutpoint slab carries numCutpoints thresholds (0 off
-    // ordinal), so the per-chain cutpoint stride folds it in
-    size_t numCutpoints = results.numCutpoints;
+    // the per-sample threshold slab carries numOrdinalThresholds entries (0 off
+    // ordinal), so the per-chain threshold stride folds it in
+    size_t numOrdinalThresholds = results.numOrdinalThresholds;
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
       r.numReportedLocations = numLocations;
       r.numVariableCountForests = numVarCountForests;
-      r.numCutpoints = numCutpoints;
+      r.numOrdinalThresholds = numOrdinalThresholds;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
@@ -344,8 +340,9 @@ public:
       if (results.logLikelihood != nullptr)
         r.logLikelihood =
           results.logLikelihood + c * numSamples * data_.numObservations;
-      if (results.cutpoints != nullptr)
-        r.cutpoints = results.cutpoints + c * numSamples * numCutpoints;
+      if (results.ordinalThresholds != nullptr)
+        r.ordinalThresholds =
+          results.ordinalThresholds + c * numSamples * numOrdinalThresholds;
       if (results.dispersion != nullptr)
         r.dispersion = results.dispersion + c * numSamples;
       if (results.residualDf != nullptr)
@@ -1360,7 +1357,7 @@ public:
       data_.buildTest(x_test, numTestObservations);
       data_.testOffset = testOffset;
     } else {
-      data_.clearTest();
+      data_.resetTestStorage();
     }
 
     for (size_t c = 0; c < chains_.size(); ++c)
@@ -1372,12 +1369,11 @@ public:
   /// old values on failure). Unless forceUpdate, a leaf that would empty in
   /// any tree of any chain rolls the whole change back; forceUpdate instead
   /// collapses emptied leaves into their parents. The mutation kernels index
-  /// the values as one column-major block, so only a dense view is consumable
-  /// (unsupportedSource otherwise) - a CSC-valued replacement has no kernel
-  /// yet.
+  /// the values as one column-major block, so the view must be a dense one
+  /// (PredictorSource::isDenseBlock): a mapped or CSC-valued source has no
+  /// kernel, and its holder materializes it before the transaction begins.
   PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                      bool forceUpdate, bool updateCutPoints) {
-    if (!newX.isDenseBlock()) return PredictorUpdateResult::unsupportedSource;
     WholeMatrixUpdate strategy{data_, newX.denseValues};
     return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
@@ -1390,8 +1386,6 @@ public:
                                         const size_t* columns,
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
-    if (!newColumns.isDenseBlock())
-      return PredictorUpdateResult::unsupportedSource;
     SubsetUpdate strategy{data_, newColumns.denseValues, columns, numColumns};
     return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
@@ -1504,7 +1498,9 @@ public:
   size_t numVariableCountForests() const {
     return chains_[0]->numVariableCountForests();
   }
-  size_t numCutpoints() const { return chains_[0]->numCutpoints(); }
+  size_t numOrdinalThresholds() const {
+    return chains_[0]->numOrdinalThresholds();
+  }
   /// Whether the response family carries a dispersion r; chain 0 answers for
   /// all, as every chain carries the same family.
   bool carriesDispersion() const { return chains_[0]->carriesDispersion(); }

@@ -315,10 +315,10 @@ struct Results {
   // per-draw training log-likelihood, numObservations x numSamples, or null;
   // gaussian and binary families, NaN under BCF
   double* logLikelihood = nullptr;
-  // per-sample cutpoints, numCutpoints x numSamples, or null; filled only when
-  // the response family carriesCutpoints() (ordinal's K-1 thresholds). Every
-  // other family leaves it null and allocates nothing.
-  double* cutpoints = nullptr;
+  // per-sample thresholds, numOrdinalThresholds x numSamples, or null; filled
+  // only when the response family carriesOrdinalThresholds() (ordinal's K-1
+  // thresholds). Every other family leaves it null and allocates nothing.
+  double* ordinalThresholds = nullptr;
   // per-draw negative-binomial dispersion r, numSamples, or null; filled only
   // when the response family carriesDispersion() (nbinom alone). A pure read of
   // state the sweep already settled on - fixed r repeats the installed value,
@@ -365,10 +365,11 @@ struct Results {
   // Sampler::run clamps it to the combiner's own count once, up front, so the
   // stride and the writes cannot disagree.
   std::size_t numVariableCountForests = 1;
-  // per-sample cutpoints the cutpoints array carries: 0 for every family but
-  // ordinal (K-1). The run bridge sizes cutpoints by it and Sampler strides per
-  // chain by it; storeSample reads the count from the response directly.
-  std::size_t numCutpoints = 0;
+  // per-sample thresholds the ordinalThresholds array carries: 0 for every
+  // family but ordinal (K-1). The run bridge sizes ordinalThresholds by it and
+  // Sampler strides per chain by it; storeSample reads the count from the
+  // response directly.
+  std::size_t numOrdinalThresholds = 0;
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -964,7 +965,9 @@ public:
   }
   /// Per-sample cutpoints the recorded cutpoint channel carries: the response's
   /// K-1 for a cutpoint-carrying family (ordinal), 0 for every other.
-  std::size_t numCutpoints() const { return response_->numCutpoints(); }
+  std::size_t numOrdinalThresholds() const {
+    return response_->numOrdinalThresholds();
+  }
   /// Whether the response family carries a dispersion r (nbinom alone) - the
   /// gate the recorded dispersion channel and the mid-sweep read share.
   bool carriesDispersion() const { return response_->carriesDispersion(); }
@@ -1296,7 +1299,8 @@ public:
   /// a sweep, for the component tests; returns whatever that override reports,
   /// which is NOT a moved/did-not-move flag (ForestCombiner::afterCombine
   /// states each convention).
-  double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
+  double interweaveGlueRidgeForTesting(bool record = false,
+                                       std::size_t sampleNum = 0) {
     return combiner_
       ? combiner_->afterCombine(forests_, record, sampleNum, rng_)
       : 1.0;
@@ -3051,12 +3055,12 @@ public:
                          : std::numeric_limits<double>::quiet_NaN();
     // the ordinal-only cutpoint vector (length K-1); z rides latents above. A
     // non-ordinal chain carries none and writes no block.
-    if (response_->carriesCutpoints()) {
-      state.cutpoints.assign(
-        response_->cutpoints(),
-        response_->cutpoints() + response_->numCutpoints());
+    if (response_->carriesOrdinalThresholds()) {
+      state.ordinalThresholds.assign(
+        response_->ordinalThresholds(),
+        response_->ordinalThresholds() + response_->numOrdinalThresholds());
     } else {
-      state.cutpoints.clear();
+      state.ordinalThresholds.clear();
     }
     // an NB response's dispersion r is a companion scalar block (the resid.df
     // pattern); omega rides latents above. Absent (NaN) for every other family.
@@ -3228,8 +3232,8 @@ public:
       return false;
     // an ordinal sampler needs its full length-(K-1) cutpoint vector; an old
     // state, or one from another family, carries none and cannot continue
-    if (response_->carriesCutpoints() &&
-        state.cutpoints.size() != response_->numCutpoints())
+    if (response_->carriesOrdinalThresholds() &&
+        state.ordinalThresholds.size() != response_->numOrdinalThresholds())
       return false;
     // an NB sampler needs both its omega latents (in latents) and a finite
     // positive dispersion r; an old state, or one from another family, carries
@@ -3718,8 +3722,8 @@ public:
       response_->restoreResidualDf(state.residualDf);
     // stateIsValid guaranteed a full length-(K-1) cutpoint vector for an
     // ordinal sampler; z was restored above under these same cutpoints
-    if (response_->carriesCutpoints())
-      response_->restoreCutpoints(state.cutpoints.data());
+    if (response_->carriesOrdinalThresholds())
+      response_->restoreOrdinalThresholds(state.ordinalThresholds.data());
     if (!state.groupEffects.empty())
       response_->restoreGroupEffects(state.groupEffects.data(),
                                      state.groupTau);
@@ -5365,10 +5369,12 @@ private:
     // the K-1 ordinal thresholds, aligned with this sweep's latent draw; the
     // marginal cutpoint MH ran inside refreshLatents before this store, so
     // gamma is the accepted value the drawn latents are consistent with
-    if (results.cutpoints != nullptr && response_->carriesCutpoints()) {
-      std::size_t numCutpoints = response_->numCutpoints();
-      std::memcpy(results.cutpoints + sampleNum * numCutpoints,
-                  response_->cutpoints(), numCutpoints * sizeof(double));
+    if (results.ordinalThresholds != nullptr &&
+        response_->carriesOrdinalThresholds()) {
+      std::size_t numOrdinalThresholds = response_->numOrdinalThresholds();
+      std::memcpy(results.ordinalThresholds + sampleNum * numOrdinalThresholds,
+                  response_->ordinalThresholds(),
+                  numOrdinalThresholds * sizeof(double));
     }
 
     // the dispersion r this draw is conditioned on, the count analog of sigma;

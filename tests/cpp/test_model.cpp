@@ -4792,7 +4792,8 @@ static void testTFixedNuNoDraw(ext_rng*) {
                       0.37804942330213542, median);
   TResponse gridResp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
                      0.37804942330213542, -1.0);  // estimate on the grid
-  check(!fixedResp.estimatesResidualDf() && gridResp.estimatesResidualDf(),
+  check(!fixedResp.estimatesResidualDfForTesting() &&
+          gridResp.estimatesResidualDfForTesting(),
         "t mode flags: fixed vs grid");
 
   ext_rng* rngFixed = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -4888,7 +4889,7 @@ static void testOrdinalTruncatedNormal(ext_rng*) {
 // proportional to prod_i (Phi-difference) times the log-gap prior with its
 // Jacobian; the sampler's posterior mean/variance and a coarse histogram match a
 // fine-grid quadrature of it. Local generator, restored global rngState.
-static void testOrdinalCutpointConditional(ext_rng*) {
+static void testOrdinalThresholdConditional(ext_rng*) {
   std::uint64_t savedRngState = rngState;
   const std::size_t n = 10, K = 3;
   std::vector<double> y = {1, 1, 2, 2, 2, 3, 3, 2, 3, 1};
@@ -4915,10 +4916,11 @@ static void testOrdinalCutpointConditional(ext_rng*) {
   };
 
   // (a) the sampler's incremental acceptance equals the direct full evaluation
-  double current = resp.cutpoints()[1];  // cold-init gamma_2 = spacing = 1
+  // cold-init gamma_2 = spacing = 1
+  double current = resp.ordinalThresholds()[1];
   bool acceptExact = true;
   for (double p : {0.3, 0.7, 1.4, 2.5}) {
-    double got = resp.cutpointLogAcceptanceForTesting(eta.data(), 2, p);
+    double got = resp.ordinalThresholdLogAcceptanceForTesting(eta.data(), 2, p);
     if (std::fabs(got - (logPost(p) - logPost(current))) > 1e-9)
       acceptExact = false;
   }
@@ -4952,7 +4954,7 @@ static void testOrdinalCutpointConditional(ext_rng*) {
   std::vector<double> counts(numBins, 0.0);
   for (int d = 0; d < keep; ++d) {
     resp.refreshLatents(localRng, eta.data(), 1.0);
-    double g2 = resp.cutpoints()[1];
+    double g2 = resp.ordinalThresholds()[1];
     sum += g2; sumSq += g2 * g2;
     int b = static_cast<int>(g2 / binWidth);
     if (b >= 0 && b < numBins) counts[b] += 1.0;
@@ -4993,7 +4995,8 @@ static void testOrdinalProbitEquivalence(ext_rng*) {
 
   ProbitResponse probit(y01.data(), offset.data(), n);
   OrdinalResponse ordinal(y12.data(), offset.data(), n, 2);
-  check(ordinal.numCutpoints() == 1 && ordinal.cutpoints()[0] == 0.0,
+  check(ordinal.numOrdinalThresholds() == 1 &&
+          ordinal.ordinalThresholds()[0] == 0.0,
         "ordinal K = 2 pins a single cutpoint at 0");
 
   ext_rng* rngP = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -5085,8 +5088,8 @@ static void testOrdinalStateRoundTrip() {
     original->run(40, 0, empty);
     SamplerStateData state;
     original->getState(state);
-    check(state.chains[0].cutpoints.size() == 1 &&
-          state.chains[0].cutpoints[0] == 0.0,
+    check(state.chains[0].ordinalThresholds.size() == 1 &&
+          state.chains[0].ordinalThresholds[0] == 0.0,
           "ordinal K = 2 state carries the pinned length-1 cutpoint");
     auto restored = buildOrdinal(2, y2.data(), rngs2, 5500);
     check(restored->setState(state, nullptr), "an ordinal K = 2 state restores");
@@ -5103,7 +5106,7 @@ static void testOrdinalStateRoundTrip() {
     auto original = buildOrdinal(4, y4.data(), rngs, 3300);
     SamplerStateData fixedState;
     original->getState(fixedState);
-    check(fixedState.chains[0].cutpoints.size() == 3,
+    check(fixedState.chains[0].ordinalThresholds.size() == 3,
           "ordinal K = 4 state carries a length-(K-1) cutpoint vector");
     Results empty;
     original->run(80, 0, empty);
@@ -5111,10 +5114,11 @@ static void testOrdinalStateRoundTrip() {
     original->getState(state);
     bool moved = false;
     for (std::size_t c = 0; c < numChains; ++c)
-      if (state.chains[c].cutpoints != fixedState.chains[c].cutpoints)
+      if (state.chains[c].ordinalThresholds !=
+          fixedState.chains[c].ordinalThresholds)
         moved = true;
     check(moved, "ordinal free cutpoints move over sweeps");
-    check(state.chains[0].cutpoints[0] == 0.0,
+    check(state.chains[0].ordinalThresholds[0] == 0.0,
           "ordinal gamma_1 stays pinned at 0 across sweeps");
 
     auto restored = buildOrdinal(4, y4.data(), rngs2, 8800);
@@ -5123,11 +5127,11 @@ static void testOrdinalStateRoundTrip() {
                              "restored ordinal cutpoints and latents agree");
 
     SamplerStateData badLen(state);
-    badLen.chains[0].cutpoints.resize(2);
+    badLen.chains[0].ordinalThresholds.resize(2);
     check(!restored->setState(badLen, nullptr),
           "an ordinal state with a short cutpoint vector is refused");
     SamplerStateData noCut(state);
-    for (auto& ch : noCut.chains) ch.cutpoints.clear();
+    for (auto& ch : noCut.chains) ch.ordinalThresholds.clear();
     check(!restored->setState(noCut, nullptr),
           "an ordinal state lacking the cutpoint vector is refused");
     for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -5223,8 +5227,9 @@ static void testActiveRowsProbitKernel(ext_rng*) {
 
 // All three masked ordinal kernels against the compacted arm - the
 // count-derived proposal scales (computeScales), the marginal cutpoint MH pass
-// (updateCutpoints, whose target is cutpointLogAcceptance and whose stream
-// carries 1 or 2 variates per free cutpoint), and the latent redraw
+// (updateOrdinalThresholds, whose target is ordinalThresholdLogAcceptance and
+// whose stream carries 1 or 2 variates per free threshold), and the latent
+// redraw
 // (drawLatents). K is an input on both arms, so the comparison is well posed
 // even where the mask empties a category. Local generators, restored rngState.
 static void testActiveRowsOrdinalKernels(ext_rng*) {
@@ -5249,7 +5254,7 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
   OrdinalResponse compact(yCompact.data(), nullptr, yCompact.size(), K);
   check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
         "ordinal accepts an active-row mask");
-  check(masked.numCutpoints() == K - 1,
+  check(masked.numOrdinalThresholds() == K - 1,
         "an emptied boundary category leaves K and its cutpoints standing");
 
   const double* scalesMasked = masked.computeScalesForTesting();
@@ -5262,8 +5267,10 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
 
   bool targetAgrees = true;
   for (double proposal : {0.4, 0.9, 1.8})
-    if (masked.cutpointLogAcceptanceForTesting(eta.data(), 2, proposal) !=
-        compact.cutpointLogAcceptanceForTesting(etaCompact.data(), 2, proposal))
+    if (masked.ordinalThresholdLogAcceptanceForTesting(eta.data(), 2,
+                                                       proposal) !=
+        compact.ordinalThresholdLogAcceptanceForTesting(etaCompact.data(), 2,
+                                                        proposal))
       targetAgrees = false;
   check(targetAgrees,
         "masked ordinal cutpoint acceptance is the compacted arm's exactly");
@@ -5272,12 +5279,13 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
   ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngMasked, 20260813u);
   ext_rng_setSeed(rngCompact, 20260813u);
-  masked.updateCutpointsForTesting(rngMasked, eta.data());
-  compact.updateCutpointsForTesting(rngCompact, etaCompact.data());
-  bool cutpointsAgree = true;
+  masked.updateOrdinalThresholdsForTesting(rngMasked, eta.data());
+  compact.updateOrdinalThresholdsForTesting(rngCompact, etaCompact.data());
+  bool ordinalThresholdsAgree = true;
   for (std::size_t s = 0; s < K - 1; ++s)
-    if (masked.cutpoints()[s] != compact.cutpoints()[s]) cutpointsAgree = false;
-  check(cutpointsAgree && rngStreamsAgree(rngMasked, rngCompact),
+    if (masked.ordinalThresholds()[s] != compact.ordinalThresholds()[s])
+      ordinalThresholdsAgree = false;
+  check(ordinalThresholdsAgree && rngStreamsAgree(rngMasked, rngCompact),
         "a masked ordinal cutpoint pass matches the compacted one, stream and "
         "all");
 
@@ -5764,8 +5772,8 @@ static void testSparseTestDataEndToEnd() {
   bool built = sparseSampler.setTestData(
     mixedPredictorSource(numTest, p, denseBlock.data(), pointers.data(),
                          rows.data(), values.data(), columnSources.data()));
-  check(built && sparseSampler.data().testColumnIsSparse(1) &&
-        !sparseSampler.data().testColumnIsSparse(2),
+  check(built && sparseSampler.data().testColumnIsSparseForTesting(1) &&
+        !sparseSampler.data().testColumnIsSparseForTesting(2),
         "the test container builds with the expected storage tiers");
 
   const size_t numBurnIn = 30, numSamples = 40;
@@ -5970,7 +5978,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
     totalFits[i] = 0.2 * static_cast<double>(i) - 0.7;
 
   NBResponse resp(y.data(), offset.data(), n, -1.0);  // grid mode
-  check(resp.estimatesDispersion() && resp.carriesDispersion(),
+  check(resp.estimatesDispersionForTesting() && resp.carriesDispersion(),
         "nb grid mode estimates and carries dispersion");
 
   ext_rng* rResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -6050,7 +6058,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   // observably wrong
   double staleR = rSaved + 1.0;
   NBResponse stale(y.data(), offset.data(), n, staleR);  // fixed at staleR
-  check(!stale.estimatesDispersion() && stale.dispersion() == staleR,
+  check(!stale.estimatesDispersionForTesting() && stale.dispersion() == staleR,
         "nb fixed mode holds the supplied dispersion");
   stale.restoreLatents(omegaSaved.data());
   bool usesCurrentR = true, differsFromSaved = false;
@@ -6951,7 +6959,7 @@ static void testOrdinalLogLikelihoodPin() {
   const double gamma[K - 1] = {0.0, 0.8, 1.7};
 
   OrdinalResponse response(y.data(), offset.data(), n, K);
-  response.restoreCutpoints(gamma);
+  response.restoreOrdinalThresholds(gamma);
   std::vector<double> reported(n, 0.0);
   response.computeLogLikelihood(eta.data(), 1.0, n, reported.data());
 
@@ -7234,7 +7242,7 @@ void runModelTests(ext_rng* rng) {
   testTCompositeWeightDelegation(rng);
   testTFixedNuNoDraw(rng);
   testOrdinalTruncatedNormal(rng);
-  testOrdinalCutpointConditional(rng);
+  testOrdinalThresholdConditional(rng);
   testOrdinalProbitEquivalence(rng);
   testOrdinalStateRoundTrip();
   testActiveRowsProbitKernel(rng);

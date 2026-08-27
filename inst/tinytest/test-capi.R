@@ -87,9 +87,17 @@ expect_false(identical(hashes$text, "0x66d33f1613892406"))
 # basis parameter, so a token blind to a return type, an argument order or a
 # parameter name would still read this one
 expect_false(identical(hashes$text, "0x0939c0224353505b"))
+# the token before dbarts_drawLatents' ordinal threshold parameter was renamed
+# off the split-candidate grid's spelling: a parameter rename is an ABI
+# acknowledgment here, so a token blind to one would still read this
+expect_false(identical(hashes$text, "0x5a32aa4cd3872d55"))
+# the token from the first half of that rename, when only the threshold vector
+# itself had moved and its length still spelled numCutpoints: a token blind to
+# one parameter of a signature would still read this
+expect_false(identical(hashes$text, "0xc4a2d83f6050bb1f"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x5a32aa4cd3872d55")
+expect_identical(hashes$text, "0xb6c0e97dc0688991")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -1238,8 +1246,8 @@ expect_false(identical(printSrcLive, printSrcSaved))
 # the honesty falsifier: a CSC MUTATION source is materialized exactly as the
 # R bridge materializes its own, so it draws the same accept/reject verdict as
 # its dense equivalent and the sampler that took it draws bitwise identically.
-# Handing the engine a non-dense view instead would return unsupportedSource,
-# which the 1/0 mapping would report as an ordinary rollback
+# The engine's verdict is accept or roll back and nothing else, so a source it
+# cannot index has to be resolved to a block ahead of it
 ptrMutDense <- CALL(
   "capi_create",
   specSrc$control,

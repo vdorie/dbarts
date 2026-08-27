@@ -303,17 +303,17 @@ void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
 /// is the location WITHOUT the offset - the engine's own totalFits convention -
 /// so the linear predictor psi = fit + offset is formed inside and a null
 /// offset is zero; a working response reads its latent through the same member.
-/// weights are the logistic counts (null is unit), cutpoints the ordinal's
-/// K - 1, and the three scalars are read only by the family whose law names
-/// them.
+/// weights are the logistic counts (null is unit), ordinalThresholds the
+/// ordinal's K - 1, and the three scalars are read only by the family whose
+/// law names them.
 struct AugmentationInputs {
   std::size_t numObservations;
   const double* fit;
   const double* y;
   const double* weights;
   const double* offset;
-  const double* cutpoints;
-  std::size_t numCutpoints;
+  const double* ordinalThresholds;
+  std::size_t numOrdinalThresholds;
   double sigma;
   double dispersion;
   double df;

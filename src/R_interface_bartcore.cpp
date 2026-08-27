@@ -3879,15 +3879,8 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);
-    if (!holder.sampler->setCounts(holder.ownedCounts.data(),
-                                   holder.ownedTrials.data())) {
-      // defense in depth: the probe above is the engine's own predicate, so
-      // this is unreachable. Swap back first - the combiner still borrows the
-      // old buffer, which the scratch would free on the way out.
-      holder.ownedCounts.swap(counts);
-      holder.ownedTrials.swap(trials);
-      Rf_error("bartcore_setCounts: refused by the sampler");
-    }
+    holder.sampler->setCounts(holder.ownedCounts.data(),
+                              holder.ownedTrials.data());
     return R_NilValue;
   });
 }
@@ -3928,13 +3921,7 @@ SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
     holder.ownedCategoryOffset.swap(offset);
     const double* installed = holder.ownedCategoryOffset.empty()
       ? NULL : holder.ownedCategoryOffset.data();
-    if (!holder.sampler->setCategoryOffset(installed)) {
-      // defense in depth: the probe above is the engine's own predicate, so
-      // this is unreachable. Swap back first - the combiner still borrows the
-      // old buffer, which the scratch would free on the way out.
-      holder.ownedCategoryOffset.swap(offset);
-      Rf_error("bartcore_setCategoryOffset: refused by the sampler");
-    }
+    holder.sampler->setCategoryOffset(installed);
     return R_NilValue;
   });
 }
@@ -3968,13 +3955,7 @@ SEXP bartcore_setCategoryTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     holder.ownedCategoryTestOffset.swap(offset);
     const double* installed = holder.ownedCategoryTestOffset.empty()
       ? NULL : holder.ownedCategoryTestOffset.data();
-    if (!holder.sampler->setCategoryTestOffset(installed)) {
-      // defense in depth: the probe above is the engine's own predicate, so
-      // this is unreachable. Swap back first - the combiner still borrows the
-      // old buffer, which the scratch would free on the way out.
-      holder.ownedCategoryTestOffset.swap(offset);
-      Rf_error("bartcore_setCategoryTestOffset: refused by the sampler");
-    }
+    holder.sampler->setCategoryTestOffset(installed);
     return R_NilValue;
   });
 }
@@ -4017,11 +3998,7 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
         if (!R_FINITE(value)) Rf_error("a forest basis value is not finite");
         rowMajor[i * numColumns + j] = value;
       }
-    // defense in depth: the probe and the two checks above already cover the
-    // engine's own refusal conditions
-    if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(),
-                                        numColumns))
-      Rf_error("bartcore_setForestBasis: refused by the sampler");
+    holder.sampler->setForestBasis(forestIndex, rowMajor.data(), numColumns);
     return R_NilValue;
   });
 }
@@ -4066,10 +4043,7 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   holder.ownedForestWeights.resize(shape.numForests);
   std::vector<double>& owned = holder.ownedForestWeights[forestIndex];
   owned.assign(weights, weights + n);
-  // defense in depth: the probe and the range check already cover the engine's
-  // two refusal conditions
-  if (!holder.sampler->setForestWeights(forestIndex, owned.data()))
-    Rf_error("bartcore_setForestWeights: refused by the sampler");
+  holder.sampler->setForestWeights(forestIndex, owned.data());
   return R_NilValue;
 }
 
@@ -4100,12 +4074,10 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   if (!Rf_isReal(activeExpr) ||
       static_cast<size_t>(Rf_xlength(activeExpr)) != n)
     Rf_error("active row length must match the number of observations");
-  // the value refusal, stated once for both surfaces; the post-hoc test of the
-  // engine's bool below is then defense in depth, since the capability has
-  // already been probed and no other reason to refuse remains
+  // the value refusal, stated once for both surfaces; with the capability
+  // probed above, no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
-  if (!holder.sampler->setActiveRows(REAL(activeExpr)))
-    Rf_error("active-row masking is not implemented for this response family");
+  holder.sampler->setActiveRows(REAL(activeExpr));
   return R_NilValue;
 }
 
@@ -4380,9 +4352,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 
   // ordinal reports its K-1 cutpoints in an extra channel appended after ranef;
   // every other family carries none, so the list keeps its 8 slots and byte-for-
-  // byte layout. numCutpoints == 0 off ordinal.
-  size_t numCutpoints = shape.numCutpoints;
-  bool hasCutpoints = numCutpoints > 0;
+  // byte layout. numOrdinalThresholds == 0 off ordinal.
+  size_t numOrdinalThresholds = shape.numOrdinalThresholds;
+  bool hasOrdinalThresholds = numOrdinalThresholds > 0;
   // heteroscedastic samplers append s.train (+ s.test when test rows exist) as
   // a separately-typed variance channel; gaussian-only, so mutually exclusive
   // with the ordinal cutpoint slot
@@ -4400,9 +4372,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // a Student-t error law appends its per-draw df nu next, on the same
   // arithmetic; no response carries both, but the count composes regardless
   bool hasResidualDf = shape.carriesResidualDf;
-  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
-                       (hasResidualDf ? 1 : 0) + (hasVariance ? 2 : 0) +
-                       (hasForestReporting ? 2 : 0);
+  int numResultSlots = 8 + (hasOrdinalThresholds ? 1 : 0) +
+                       (hasDispersion ? 1 : 0) + (hasResidualDf ? 1 : 0) +
+                       (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
   // several chains add a trailing chain dimension. Every column roots in the
   // protected container the moment it is allocated (installChannel), so there
@@ -4448,9 +4420,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     installChannel("tau", numGroups == 0 ? R_NilValue : allocScalarChannel());
   SEXP ranefExpr = installChannel(
     "ranef", numGroups == 0 ? R_NilValue : allocChannel(REALSXP, {numGroups}));
-  SEXP cutpointsExpr = !hasCutpoints
+  SEXP ordinalThresholdsExpr = !hasOrdinalThresholds
     ? R_NilValue
-    : installChannel("cutpoints", allocChannel(REALSXP, {numCutpoints}));
+    : installChannel("cutpoints",
+                     allocChannel(REALSXP, {numOrdinalThresholds}));
   // one scalar per draw, so the dispersion channel takes sigma's own shape
   SEXP dispersionExpr = !hasDispersion
     ? R_NilValue
@@ -4507,10 +4480,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // is the surface that OPTS IN to the widened channel; a caller leaving the
   // field at its default 1 (the flat C API) keeps the single prognostic slab.
   results.numVariableCountForests = numVCForests;
-  // K-1 cutpoints per sample for ordinal, none otherwise; drives the chain-major
-  // cutpoint stride
-  results.cutpoints = hasCutpoints ? REAL(cutpointsExpr) : NULL;
-  results.numCutpoints = numCutpoints;
+  // K-1 thresholds per sample for ordinal, none otherwise; drives the
+  // chain-major threshold stride
+  results.ordinalThresholds =
+    hasOrdinalThresholds ? REAL(ordinalThresholdsExpr) : NULL;
+  results.numOrdinalThresholds = numOrdinalThresholds;
   // the dispersion r each draw is conditioned on; null off nbinom, which is the
   // guard storeSample's write shares
   results.dispersion = hasDispersion ? REAL(dispersionExpr) : NULL;
@@ -4689,8 +4663,9 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
   // support before install: the engine's latent refresh consumes y immediately
-  validateResponseSupport(shape.family, shape.numCutpoints + 1, REAL(yExpr),
-                          shape.numObservations, "bartcore_setResponse");
+  validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
+                          REAL(yExpr), shape.numObservations,
+                          "bartcore_setResponse");
   GetRNGstate(); // probit latent redraw
   holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
   PutRNGstate();
@@ -4744,8 +4719,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
                                 data.numObservations);
     }
     // the whole-data conduit swaps y too, so it carries the same support rule
-    validateResponseSupport(shape.family, shape.numCutpoints + 1, data.y,
-                            data.numObservations, "bartcore setData");
+    validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
+                            data.y, data.numObservations,
+                            "bartcore setData");
     for (size_t j = 0; j < data.numPredictors; ++j) {
       bool wasCategorical = sampler.data().types[j] ==
                             bartcore::ColumnType::categorical;
@@ -6210,7 +6186,8 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 /// from their own arguments.
 static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
                                              SEXP weightsExpr, SEXP offsetExpr,
-                                             SEXP cutpointsExpr, SEXP sigmaExpr,
+                                             SEXP ordinalThresholdsExpr,
+                                             SEXP sigmaExpr,
                                              SEXP dispersionExpr, SEXP dfExpr) {
   AugmentationInputs in;
   in.numObservations = static_cast<size_t>(Rf_xlength(fitExpr));
@@ -6218,9 +6195,10 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
   in.y = REAL(yExpr);
   in.weights = Rf_isNull(weightsExpr) ? NULL : REAL(weightsExpr);
   in.offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
-  in.cutpoints = Rf_isNull(cutpointsExpr) ? NULL : REAL(cutpointsExpr);
-  in.numCutpoints = Rf_isNull(cutpointsExpr)
-    ? 0 : static_cast<size_t>(Rf_xlength(cutpointsExpr));
+  in.ordinalThresholds =
+    Rf_isNull(ordinalThresholdsExpr) ? NULL : REAL(ordinalThresholdsExpr);
+  in.numOrdinalThresholds = Rf_isNull(ordinalThresholdsExpr)
+    ? 0 : static_cast<size_t>(Rf_xlength(ordinalThresholdsExpr));
   in.sigma = Rf_asReal(sigmaExpr);       // a null scalar reads as NA, which
   in.dispersion = Rf_asReal(dispersionExpr);  // only an arm that ignores it
   in.df = Rf_asReal(dfExpr);                  // ever sees
@@ -6232,14 +6210,15 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
 // the same function every conduit that swaps a y calls.
 SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                           SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
-                          SEXP dispersionExpr, SEXP cutpointsExpr,
+                          SEXP dispersionExpr, SEXP ordinalThresholdsExpr,
                           SEXP dfExpr) {
   bartcore::ResponseFamily family =
     augmentationFamily(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
-    augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr, cutpointsExpr,
-                       sigmaExpr, dispersionExpr, dfExpr);
-  validateResponseSupport(family, in.numCutpoints + 1, in.y,
+    augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr,
+                       ordinalThresholdsExpr, sigmaExpr, dispersionExpr,
+                       dfExpr);
+  validateResponseSupport(family, in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbartsDrawLatents");
   // everything that can longjmp runs BEFORE the generator exists, the result
   // vector included, so the draw loop cannot strand it
@@ -6324,19 +6303,21 @@ static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
       break;
     }
     case RF::ordinal: {
-      // category k lies in (cutpoints[k - 2], cutpoints[k - 1]], the boundary
-      // categories one-sided; numCutpoints is K - 1
+      // category k lies in (ordinalThresholds[k - 2],
+      // ordinalThresholds[k - 1]], the boundary categories one-sided;
+      // numOrdinalThresholds is K - 1
       int k = static_cast<int>(std::lround(in.y[i]));
       if (k <= 1) {
-        double z =
-          ext_rng_simulateUpperTruncatedNormalScale1(rng, psi, in.cutpoints[0]);
+        double z = ext_rng_simulateUpperTruncatedNormalScale1(
+          rng, psi, in.ordinalThresholds[0]);
         result[i] = !std::isnan(z) ? z : -DBL_EPSILON;
-      } else if (static_cast<size_t>(k) > in.numCutpoints) {
+      } else if (static_cast<size_t>(k) > in.numOrdinalThresholds) {
         double z = ext_rng_simulateLowerTruncatedNormalScale1(
-          rng, psi, in.cutpoints[in.numCutpoints - 1]);
+          rng, psi, in.ordinalThresholds[in.numOrdinalThresholds - 1]);
         result[i] = !std::isnan(z) ? z : DBL_EPSILON;
       } else {
-        double lower = in.cutpoints[k - 2], upper = in.cutpoints[k - 1];
+        double lower = in.ordinalThresholds[k - 2];
+        double upper = in.ordinalThresholds[k - 1];
         double z = ext_rng_simulateTruncatedNormalScale1(rng, psi, lower, upper);
         result[i] = !std::isnan(z) ? z : 0.5 * (lower + upper);
       }
@@ -6678,13 +6659,13 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     // the ordinal-only length-(K-1) cutpoint vector; z already rode the latents
     // slot above. A non-ordinal chain leaves it empty and writes no block, so
     // old and other-family states omit the slot.
-    if (!chainState.cutpoints.empty()) {
+    if (!chainState.ordinalThresholds.empty()) {
       SET_VECTOR_ELT(chainExpr, SLOT_CUTPOINTS,
                      Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
-                                      chainState.cutpoints.size())));
+                                      chainState.ordinalThresholds.size())));
       std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_CUTPOINTS)),
-                  chainState.cutpoints.data(),
-                  chainState.cutpoints.size() * sizeof(double));
+                  chainState.ordinalThresholds.data(),
+                  chainState.ordinalThresholds.size() * sizeof(double));
     }
 
     // the nbinom-only dispersion r; omega already rode the latents slot above. A
@@ -7153,14 +7134,15 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive ordinal-only block: absent (an old or non-ordinal state) leaves
     // the vector empty, which stateIsValid refuses only for an ordinal sampler
-    SEXP cutpointsExpr = rc_getListElement(chainExpr, "cutpoints");
-    if (!Rf_isNull(cutpointsExpr)) {
-      if (!Rf_isReal(cutpointsExpr)) {
+    SEXP ordinalThresholdsExpr = rc_getListElement(chainExpr, "cutpoints");
+    if (!Rf_isNull(ordinalThresholdsExpr)) {
+      if (!Rf_isReal(ordinalThresholdsExpr)) {
         errorMessage = malformedBlock("cutpoints");
         break;
       }
-      chainState.cutpoints.assign(
-        REAL(cutpointsExpr), REAL(cutpointsExpr) + Rf_xlength(cutpointsExpr));
+      chainState.ordinalThresholds.assign(
+        REAL(ordinalThresholdsExpr),
+        REAL(ordinalThresholdsExpr) + Rf_xlength(ordinalThresholdsExpr));
     }
 
     // additive nbinom-only block: absent (an old or non-count state) leaves the

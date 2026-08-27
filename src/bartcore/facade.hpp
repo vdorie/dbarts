@@ -56,7 +56,7 @@ struct SamplerShape {
   /// family but ordinal (K-1). The run bridge reads it to size and name the
   /// cutpoints channel, present only when nonzero; internal, invisible to
   /// dbarts.h.
-  std::size_t numCutpoints;
+  std::size_t numOrdinalThresholds;
   /// Whether the response family carries a dispersion r (nbinom alone). The run
   /// bridge reads it to decide whether the dispersion channel exists and the
   /// mid-sweep read to decide whether it answers at all; internal, invisible to
@@ -429,7 +429,7 @@ public:
     s.numReportedLocations = impl_.numReportedLocations();
     s.numVariableCountForests = impl_.numVariableCountForests();
     s.numAmplitudes = impl_.totalAmplitudes();
-    s.numCutpoints = impl_.numCutpoints();
+    s.numOrdinalThresholds = impl_.numOrdinalThresholds();
     s.carriesDispersion = impl_.carriesDispersion();
     s.carriesResidualDf = impl_.carriesResidualDf();
     s.savedTreeCapacity = impl_.savedTreeCapacity();

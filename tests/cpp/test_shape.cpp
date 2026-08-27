@@ -38,7 +38,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(leafCovariateColumns);
   CHECK_SHAPE_FIELD(numReportedLocations);
   CHECK_SHAPE_FIELD(numVariableCountForests);
-  CHECK_SHAPE_FIELD(numCutpoints);
+  CHECK_SHAPE_FIELD(numOrdinalThresholds);
   CHECK_SHAPE_FIELD(carriesResidualDf);
   CHECK_SHAPE_FIELD(savedTreeCapacity);
   CHECK_SHAPE_FIELD(family);
@@ -224,7 +224,7 @@ void testResponseSurfaces(ShapeFixture& fixture) {
       nullptr, nullptr, ResponseFamily::ordinal, 1.0, 3.0,
       0.37804942330213542, options, &rng);
     SamplerShape shape = facade.shape();
-    check(shape.numCutpoints == K - 1, "shape: ordinal cutpoint count");
+    check(shape.numOrdinalThresholds == K - 1, "shape: ordinal cutpoint count");
     check(shape.family == ResponseFamily::ordinal, "shape: ordinal family");
     check(shape.supportsActiveRows,
           "shape: an ordinal sampler accepts an active-row mask");

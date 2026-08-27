@@ -108,8 +108,8 @@ self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:525, then
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:465) and prints the new layout hash to paste over
 `DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed - live,
-C_interface.cpp:525 asserts `0x32e5b15aa6c88c69ULL` and dbarts.h:189
-bakes `0x0939c0224353505bULL`. This section also called for
+C_interface.cpp:525 asserts `0x0b33edcf638a3cd3ULL` and dbarts.h:189
+bakes `0xb6c0e97dc0688991ULL`. This section also called for
 `DBARTS_C_API_MINOR` (dbarts.h:138) to bump from 0 to 1; it did not, on
 the header's own pre-release rule - see section 11.
 `facade.hpp` took the parameter on all three predict virtuals -

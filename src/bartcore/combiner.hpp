@@ -77,7 +77,7 @@ struct ChainStateData {
   // ordinal (cumulative-probit) responses only: the length-(K-1) cutpoint
   // vector at capture. Empty marks absent, so every non-ordinal state carries
   // no cutpoint block and an ordinal sampler refuses a state lacking one.
-  std::vector<double> cutpoints;
+  std::vector<double> ordinalThresholds;
   // negative-binomial counts (NBResponse) only: the dispersion r at capture.
   // NaN marks absent, so every non-NB state carries no dispersion block and
   // an NB sampler refuses a state lacking one.
@@ -614,11 +614,11 @@ struct ForestCombiner {
   /// afterCombine's return is a REPORTING channel, not a record of whether it
   /// moved: each override states its own convention, the sweep discards the
   /// value, and only the component tests read it (through
-  /// Chain::interweaveGlueRidge). BCF's per-forest rescale returns the scale it
-  /// applied to the forest it reports, 1.0 if that one held while another
-  /// travelled; the multinomial shift returns 1.0 unconditionally, HAVING
-  /// moved, because an additive move has no scale to report. So 1.0 does not
-  /// mean the state is unchanged, and no caller may read it that way.
+  /// Chain::interweaveGlueRidgeForTesting). BCF's per-forest rescale returns
+  /// the scale it applied to the forest it reports, 1.0 if that one held while
+  /// another travelled; the multinomial shift returns 1.0 unconditionally,
+  /// HAVING moved, because an additive move has no scale to report. So 1.0
+  /// does not mean the state is unchanged, and no caller may read it that way.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
                         const std::vector<Forest<L, ResidT>>&) {}
   virtual double afterCombine(std::vector<Forest<L, ResidT>>&, bool, std::size_t,

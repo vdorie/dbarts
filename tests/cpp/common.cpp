@@ -102,9 +102,10 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
     // an == would reject, so treat both-absent as agreement
     bool bothNu = std::isnan(x.residualDf) && std::isnan(y.residualDf);
     if (!bothNu && x.residualDf != y.residualDf) return false;
-    // the ordinal cutpoint vector round-trips bitwise (restoreCutpoints is a
-    // copy); a non-ordinal state carries an empty vector on both sides
-    if (x.cutpoints != y.cutpoints) return false;
+    // the ordinal threshold vector round-trips bitwise
+    // (restoreOrdinalThresholds is a copy); a non-ordinal state carries an
+    // empty vector on both sides
+    if (x.ordinalThresholds != y.ordinalThresholds) return false;
     // the nbinom dispersion r round-trips bitwise (restoreDispersion is a copy);
     // a non-count state carries NaN on both sides, which an == would reject
     bool bothDispersion =

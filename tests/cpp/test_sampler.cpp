@@ -2727,7 +2727,7 @@ static void testBCFInterweave(ext_rng* rng) {
   double a0, b0, b1;
   sampler.chain(0).bcfGlue(a0, b0, b1);
 
-  double c = sampler.chain(0).interweaveGlueRidge();
+  double c = sampler.chain(0).interweaveGlueRidgeForTesting();
   check(c > 0.0 && std::isfinite(c), "interweave draws a positive finite c");
 
   std::vector<double> mu1(n), treeFits1(n * muTrees);
@@ -3558,7 +3558,7 @@ static void testBCFCombinerSeam() {
     sampler.chain(0).bcfGlue(a0, b0, b1);
     std::vector<double> before(n);
     sampler.forestTotalFits(0, 0, before.data());
-    double one = sampler.chain(0).interweaveGlueRidge();
+    double one = sampler.chain(0).interweaveGlueRidgeForTesting();
     double a1, b0p, b1p;
     sampler.chain(0).bcfGlue(a1, b0p, b1p);
     std::vector<double> after(n);

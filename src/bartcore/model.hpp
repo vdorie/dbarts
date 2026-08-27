@@ -2758,12 +2758,12 @@ public:
   /// Ordinal (cumulative-probit) responses (OrdinalResponse) carry a length-
   /// (K-1) cutpoint vector the state block serializes as a by-name "cutpoints"
   /// slot; other families carry none, so their states omit it and an ordinal
-  /// sampler refuses a state lacking one. numCutpoints() is the block length,
-  /// the residualDf trio's vector analog (a scalar needed no length).
-  virtual bool carriesCutpoints() const { return false; }
-  virtual const double* cutpoints() const { return nullptr; }
-  virtual std::size_t numCutpoints() const { return 0; }
-  virtual void restoreCutpoints(const double* /*gamma*/) {}
+  /// sampler refuses a state lacking one. numOrdinalThresholds() is the block
+  /// length, the residualDf trio's vector analog (a scalar needed no length).
+  virtual bool carriesOrdinalThresholds() const { return false; }
+  virtual const double* ordinalThresholds() const { return nullptr; }
+  virtual std::size_t numOrdinalThresholds() const { return 0; }
+  virtual void restoreOrdinalThresholds(const double* /*gamma*/) {}
 
   /// Count responses under a negative-binomial law (NBResponse) carry a scalar
   /// dispersion r the state block serializes as a by-name "dispersion" slot;
@@ -3202,7 +3202,7 @@ public:
     working_.resize(numObservations);
     gamma_.resize(numCategories - 1);
     proposalScale_.resize(numCategories - 1);
-    coldCutpoints();
+    coldOrdinalThresholds();
     computeScales();
     coldLatents();
     rebuildWorking();
@@ -3218,7 +3218,7 @@ public:
 
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double) override {
-    updateCutpoints(rng, totalFits);
+    updateOrdinalThresholds(rng, totalFits);
     drawLatents(rng, totalFits);
     rebuildWorking();
   }
@@ -3227,7 +3227,7 @@ public:
 
   /// Both cutpoint sums restrict to the active rows, so the proposal scale -
   /// a function of the category counts - is recomputed here; the target
-  /// (cutpointLogAcceptance) reads the mask directly.
+  /// (ordinalThresholdLogAcceptance) reads the mask directly.
   bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
@@ -3267,7 +3267,7 @@ public:
     activeRows_.clear();  // length-n and n may have changed
     latents_.resize(numObservations);
     working_.resize(numObservations);
-    coldCutpoints();
+    coldOrdinalThresholds();
     computeScales();
     coldLatents();
     rebuildWorking();
@@ -3286,14 +3286,15 @@ public:
   double sigmaScale() const override { return 1.0; }
 
   /// The K - 1 finite cutpoints gamma_1..gamma_{K-1} (gamma_1 pinned at 0), the
-  /// by-name "cutpoints" state block: getState reads numCutpoints() values from
-  /// cutpoints(), stateIsValid refuses a state of the wrong length, and setState
-  /// restoreCutpoints() reinstalls them. The one-based category index rides the
-  /// existing latents block. Also read by the component tests.
-  bool carriesCutpoints() const override { return true; }
-  const double* cutpoints() const override { return gamma_.data(); }
-  std::size_t numCutpoints() const override { return gamma_.size(); }
-  void restoreCutpoints(const double* gamma) override {
+  /// by-name "cutpoints" state block: getState reads numOrdinalThresholds()
+  /// values from ordinalThresholds(), stateIsValid refuses a state of the wrong
+  /// length, and setState restoreOrdinalThresholds() reinstalls them. The
+  /// one-based category index rides the existing latents block. Also read by
+  /// the component tests.
+  bool carriesOrdinalThresholds() const override { return true; }
+  const double* ordinalThresholds() const override { return gamma_.data(); }
+  std::size_t numOrdinalThresholds() const override { return gamma_.size(); }
+  void restoreOrdinalThresholds(const double* gamma) override {
     std::memcpy(gamma_.data(), gamma, gamma_.size() * sizeof(double));
   }
 
@@ -3318,9 +3319,9 @@ public:
   /// log-prior ratio; symmetric proposal, so no proposal term) for moving free
   /// cutpoint gamma_s to proposal, exposed so a component test can check the
   /// incremental two-category computation against a full-likelihood evaluation.
-  double cutpointLogAcceptanceForTesting(const double* totalFits,
+  double ordinalThresholdLogAcceptanceForTesting(const double* totalFits,
                                          std::size_t s, double proposal) const {
-    return cutpointLogAcceptance(totalFits, s, proposal);
+    return ordinalThresholdLogAcceptance(totalFits, s, proposal);
   }
 
   /// The three per-sweep kernels in isolation, so a component test can drive
@@ -3331,8 +3332,9 @@ public:
     computeScales();
     return proposalScale_.data();
   }
-  void updateCutpointsForTesting(ext_rng* rng, const double* totalFits) {
-    updateCutpoints(rng, totalFits);
+  void updateOrdinalThresholdsForTesting(ext_rng* rng,
+                                         const double* totalFits) {
+    updateOrdinalThresholds(rng, totalFits);
   }
   void drawLatentsForTesting(ext_rng* rng, const double* totalFits) {
     drawLatents(rng, totalFits);
@@ -3370,7 +3372,7 @@ private:
 
   /// Cutpoints at the default prior spacing exp(mean): gamma_s = (s - 1) *
   /// spacing with gamma_1 = 0 pinned.
-  void coldCutpoints() {
+  void coldOrdinalThresholds() {
     double spacing = std::exp(priorLogGapMean_);
     for (std::size_t s = 1; s < numCategories_; ++s)
       gamma_[s - 1] = static_cast<double>(s - 1) * spacing;
@@ -3410,14 +3412,14 @@ private:
   /// rejected before the accept draw; an in-bounds proposal is accepted on the
   /// two-adjacent-cell likelihood ratio times the prior ratio. Consumes no rng
   /// when there are no free cutpoints, so K = 2 stays bitwise probit.
-  void updateCutpoints(ext_rng* rng, const double* totalFits) {
+  void updateOrdinalThresholds(ext_rng* rng, const double* totalFits) {
     for (std::size_t s = 2; s < numCategories_; ++s) {
       int si = static_cast<int>(s);
       double proposal = gamma_[s - 1] +
         proposalScale_[s - 1] * ext_rng_simulateStandardNormal(rng);
       if (proposal <= cutAt(si - 1) || proposal >= cutAt(si + 1))
         continue;
-      double logAccept = cutpointLogAcceptance(totalFits, s, proposal);
+      double logAccept = ordinalThresholdLogAcceptance(totalFits, s, proposal);
       if (std::log(ext_rng_simulateContinuousUniform(rng)) < logAccept)
         gamma_[s - 1] = proposal;
     }
@@ -3425,7 +3427,7 @@ private:
 
   /// log acceptance for gamma_s -> proposal: only categories s and s + 1 change
   /// (gamma_s is their shared cutpoint), plus the two log-gaps gamma_s touches.
-  double cutpointLogAcceptance(const double* totalFits, std::size_t s,
+  double ordinalThresholdLogAcceptance(const double* totalFits, std::size_t s,
                                double proposal) const {
     int si = static_cast<int>(s);
     double current = gamma_[s - 1];
@@ -4164,7 +4166,7 @@ public:
   /// state block serializes nu whenever carriesResidualDf() is true.
   bool carriesResidualDf() const override { return true; }
   double residualDf() const override { return nu_; }
-  bool estimatesResidualDf() const { return estimateNu_; }
+  bool estimatesResidualDfForTesting() const { return estimateNu_; }
   void restoreResidualDf(double nu) override { nu_ = nu; }
 
   void getScale(double& min, double& max) const override {
@@ -4456,11 +4458,11 @@ public:
   /// The dispersion r for the by-name "dispersion" state block: getState reads
   /// dispersion() when carriesDispersion(), stateIsValid refuses a non-finite/
   /// non-positive r, and setState restoreDispersion()s it BEFORE restoreLatents
-  /// (the restore contract above). estimatesDispersion() is the grid-vs-fixed
-  /// flag, the estimatesResidualDf analog.
+  /// (the restore contract above). estimatesDispersionForTesting() is the
+  /// grid-vs-fixed flag, the estimatesResidualDfForTesting analog.
   bool carriesDispersion() const override { return true; }
   double dispersion() const override { return r_; }
-  bool estimatesDispersion() const { return estimateR_; }
+  bool estimatesDispersionForTesting() const { return estimateR_; }
   void restoreDispersion(double dispersion) override { r_ = dispersion; }
 
   /// The dispersion kernel L_k currently installed and the collapsed statistic

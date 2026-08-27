@@ -234,9 +234,9 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
 // The dense block a MUTATION reads. Every mutation kernel indexes values
 // column-major, so a non-dense source is materialized here exactly as the R
 // bridge materializes its own - and a plain dense block is passed straight
-// through, never copied. A non-dense view must never reach the engine: it
-// would answer unsupportedSource, which the accepted ? 1 : 0 mapping reports
-// to the caller as an ordinary rollback, a silent lie.
+// through, never copied. The engine's transaction has no arm for a source it
+// cannot index: what it reports is acceptance or rollback, so a non-dense view
+// must be resolved to a block before it reaches one.
 const double* mutationValues(const TranslatedSource& source) {
   if (source.view.isDenseBlock()) return source.view.denseValues;
   double* block = reinterpret_cast<double*>(
@@ -522,7 +522,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0x5d02145d36620967ULL,
+static_assert(dbarts_apiSignatureToken == 0x0b33edcf638a3cd3ULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -661,7 +661,7 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
   bartcore::SamplerShape shape = samplerOf(sampler).shape();
-  validateResponseSupport(shape.family, shape.numCutpoints + 1, y,
+  validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
                           shape.numObservations, "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
   samplerOf(sampler).setResponse(y, updateScale != 0);
@@ -1235,7 +1235,7 @@ static bartcore::ResponseFamily augmentationArguments(
     Rf_error("%s: the %s and response vectors are required", caller,
              drawing ? "fit" : "latent");
   if (drawing && resolved == RF::ordinal &&
-      (in.cutpoints == NULL || in.numCutpoints == 0))
+      (in.ordinalThresholds == NULL || in.numOrdinalThresholds == 0))
     Rf_error("%s: family \"ordinal\" requires cut points", caller);
   if (drawing && (resolved == RF::aft || resolved == RF::gaussian) &&
       !(R_FINITE(in.sigma) && in.sigma > 0.0))
@@ -1270,19 +1270,20 @@ void dbarts_drawLatents(int family, size_t numObservations,
                         const double* fit, const double* y,
                         const double* weights, const double* offset,
                         double sigma, double dispersion,
-                        const double* cutpoints, size_t numCutpoints, double df,
-                        double* out) {
+                        const double* ordinalThresholds,
+                        size_t numOrdinalThresholds, double df, double* out) {
   const char* familyName =
     augmentationFamilyName(family, "dbarts_drawLatents");
   AugmentationInputs in{.numObservations = numObservations, .fit = fit, .y = y,
                         .weights = weights, .offset = offset,
-                        .cutpoints = cutpoints, .numCutpoints = numCutpoints,
+                        .ordinalThresholds = ordinalThresholds,
+                        .numOrdinalThresholds = numOrdinalThresholds,
                         .sigma = sigma, .dispersion = dispersion, .df = df};
   bartcore::ResponseFamily resolved =
     augmentationArguments(familyName, in, true, "dbarts_drawLatents");
   if (out == NULL) Rf_error("dbarts_drawLatents: 'out' cannot be NULL");
   // the same support rule every conduit that swaps a y states
-  validateResponseSupport(resolved, in.numCutpoints + 1, in.y,
+  validateResponseSupport(resolved, in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbarts_drawLatents");
   drawAugmentation(resolved, in, out, "dbarts_drawLatents");
 }

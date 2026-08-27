@@ -775,8 +775,10 @@ static void testSparseTestColumnStore() {
   testSource.columnSources = columnSources.data();
   store.buildTest(testSource);
 
-  check(store.testColumnIsSparse(1) && !store.testColumnIsSparse(0) &&
-        !store.testColumnIsSparse(2) && !store.testColumnIsSparse(3),
+  check(store.testColumnIsSparseForTesting(1) &&
+          !store.testColumnIsSparseForTesting(0) &&
+          !store.testColumnIsSparseForTesting(2) &&
+          !store.testColumnIsSparseForTesting(3),
         "the density threshold splits the test storage tiers");
 
   bool codesMatch = true;
@@ -854,9 +856,10 @@ static void testSparseCategoricalTestColumnStore() {
   testSource.referenceCodes = &reference;
   store.buildTest(testSource);
 
-  check(store.testColumnIsSparse(0), "the sparse categorical test column is rank-tier");
+  check(store.testColumnIsSparseForTesting(0),
+        "the sparse categorical test column is rank-tier");
   check(reference != 0, "the reference level's code is not a numeric zero");
-  check(store.testSparseColumn(0).zeroCode == reference,
+  check(store.testSparseColumnForTesting(0).zeroCode == reference,
         "the test zero code carries the reference level's own code");
 
   bool codesMatch = true;
