@@ -29,19 +29,9 @@ suppressPackageStartupMessages(library(dbarts))
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
-useNewEngine <- "engine=new" %in% args
-args <- setdiff(args, "engine=new")
 strictCoverage <- "--strict-coverage" %in% args
 args <- setdiff(args, "--strict-coverage")
 mode <- if (length(args) >= 1L) args[[1L]] else "record"
-
-if (useNewEngine) {
-  source(file.path(
-    dirname(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
-    "bartcore-shim.R"
-  ))
-  loadBartcoreShim()
-}
 
 n.seeds <- if (quick) 3L else 20L
 ndpost <- if (quick) 250L else 1000L
@@ -1000,7 +990,7 @@ muffleBenignWarning <- function(w) {
 # engine (the control's engine flag retired with the classic engine).
 # scenario$samplerArgs (a named list) is spliced into the dbarts() call so a
 # scenario can select node.prior/tree.prior/family/missing without new plumbing.
-fitViaSamplerApi <- function(scenario, engineIsNew) {
+fitViaSamplerApi <- function(scenario) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(
     n.chains = n.chains,
@@ -1505,19 +1495,7 @@ fitSummaries <- function(scenario, seed) {
   } else if (!is.null(scenario$bart2ProbitFit)) {
     fitViaBart2Probit(scenario)
   } else if (!is.null(scenario$samplerApi)) {
-    fitViaSamplerApi(scenario, useNewEngine)
-  } else if (useNewEngine) {
-    bartcore_bart(
-      scenario$x,
-      scenario$y,
-      x.test = scenario$x.test,
-      weights = scenario$weights,
-      splitprobs = splitprobs,
-      usequants = isTRUE(scenario$usequants),
-      ntree = ntree,
-      ndpost = ndpost,
-      nskip = nskip
-    )
+    fitViaSamplerApi(scenario)
   } else if (!is.null(splitprobs)) {
     withCallingHandlers(
       bart(

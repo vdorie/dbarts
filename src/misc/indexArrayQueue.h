@@ -1,14 +1,10 @@
 #ifndef MISC_INDEX_ARRAY_QUEUE_H
 #define MISC_INDEX_ARRAY_QUEUE_H
 
-// A fixed-capacity ring buffer of size_t indices, shared verbatim by the plain
-// (thread.c) and blocking (blockingThreadManager.c) thread managers. Private
-// header - NOT part of the public misc/thread.h API. Empty slots hold
-// IAQ_INVALID; push returns ENOBUFS when full, pop returns IAQ_INVALID when
-// empty.
-//
-// Deliberately NOT included by hierarchicalThreadManager.c: that unit has its
-// own push/pop over a linked ThreadStack and does not use this queue.
+// A fixed-capacity ring buffer of size_t indices, the thread manager's ready
+// queue (thread.c). Private header - NOT part of the public misc/thread.h API.
+// Empty slots hold IAQ_INVALID; push returns ENOBUFS when full, pop returns
+// IAQ_INVALID when empty.
 
 #include <stddef.h> // size_t
 #include <errno.h>  // ENOMEM, ENOBUFS

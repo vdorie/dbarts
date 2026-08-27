@@ -503,7 +503,7 @@ std::string dumpTrees(SamplerBase& sampler, std::size_t forestIndex) {
 /// filled store, a wrapped one) it says so and arranges it itself.
 const Row rows[] = {
   {FacadeVirtual::shape, "shape", [](Fixtures& f) {
-    // the five fields test_shape.cpp's oracle does not carry, each read where
+    // the four fields test_shape.cpp's oracle does not carry, each read where
     // it differs from the quantity a mis-fill would take it from
     SamplerShape s = f.g.base().shape();
     check(s.numSavedDraws == f.g.impl().filledSavedDraws() &&
@@ -518,13 +518,6 @@ const Row rows[] = {
     check(f.b.base().shape().forestReportingIsDefined &&
             !f.g.base().shape().forestReportingIsDefined,
           "facade shape: the per-forest reporting flag is the coupling's");
-    const ResidualPrior& prior = f.v.impl().varianceLeafPrior();
-    ResidualPrior reported = f.v.base().shape().varianceLeafPrior;
-    check(reported.sigmaEstimate == prior.sigmaEstimate &&
-            reported.sigmaDf == prior.sigmaDf &&
-            reported.sigmaRawScale == prior.sigmaRawScale &&
-            prior.sigmaDf > 0.0,
-          "facade shape: the variance leaf prior is the forest's own");
   }},
   {FacadeVirtual::run, "run", [](Fixtures& f) {
     std::size_t filled = f.g.impl().filledSavedDraws();

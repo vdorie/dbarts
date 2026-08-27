@@ -27,10 +27,6 @@ suppressPackageStartupMessages(library(dbarts))
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
-# engine=new is accepted for compatibility with old invocations; the
-# installed package always runs the bartcore engine now (compare against
-# classic recordings made before its removal)
-args <- setdiff(args, "engine=new")
 big.grid <- "biggrid" %in% args || identical(Sys.getenv("BENCH_BIGGRID"), "1")
 args <- setdiff(args, "biggrid")
 mode <- if (length(args) >= 1L) args[[1L]] else "print"

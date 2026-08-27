@@ -1,14 +1,12 @@
 #ifndef MISC_THREAD_MANAGER_COMMON_H
 #define MISC_THREAD_MANAGER_COMMON_H
 
-// Internal helper shared verbatim by the three thread-manager translation units
-// (thread.c, blockingThreadManager.c, hierarchicalThreadManager.c). This is a
-// private header - it is NOT part of the public misc/thread.h API.
+// Internal helper for the thread-manager translation unit (thread.c). This is
+// a private header - it is NOT part of the public misc/thread.h API.
 //
-// misc_partitionThreadJob is the integer split arithmetic every manager runs to
-// hand out elements across its threads/pieces. (The plain and blocking managers
-// additionally share the ring buffer in indexArrayQueue.h; the hierarchical
-// manager uses its own linked-stack scheduling and does not.)
+// misc_partitionThreadJob is the integer split arithmetic the manager runs to
+// hand out elements across its threads. (Its ready queue is the ring buffer in
+// indexArrayQueue.h, likewise private.)
 
 #include <stddef.h> // size_t
 

@@ -815,9 +815,6 @@ public:
   /// tree count; the run/predict bridges gate the s(x) channels on this.
   bool hasVarianceForest() const { return chains_[0]->hasVarianceForest(); }
   size_t numVarianceTrees() const { return chains_[0]->numVarianceTrees(); }
-  const ResidualPrior& varianceLeafPrior() const {
-    return chains_[0]->varianceLeafPrior();
-  }
   /// Test hook passthrough: chain c's variance tree j.
   const Tree& varianceTreeForTesting(size_t chainNum, size_t j) const {
     return chains_[chainNum]->varianceTree(j);

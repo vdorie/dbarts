@@ -84,11 +84,6 @@ over, so even with an ESS-adjusted denominator its |z| = 4 bar tolerates a
 per-cell shift of over a posterior sd. A tier-2 pass says the failure is not
 gross, never that the two builds agree.
 
-Passing `engine=new` routes the comparison side through a standalone shim
-build of the in-tree engine (tests/cpp/rshim.cpp, built on demand by
-benchmarks/R/bartcore-shim.R) instead of the installed package. It
-compares a working-tree engine against an installed build.
-
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
 The exact-posterior gates (aft-exact, bcf-exact[-weak, -restricted],

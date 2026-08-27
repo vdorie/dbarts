@@ -1,9 +1,6 @@
 massign <- dbarts:::massign
 "[<-.lval" <- dbarts:::"[<-.lval"
 
-unpack <- dbarts:::unpack
-"[<-.named_lval" <- dbarts:::"[<-.named_lval"
-
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
   local = TRUE
@@ -76,24 +73,4 @@ rm(b, c)
 
 rm(rh)
 
-# test that unpack works with different orderings, missing names
-rh <- list(a = 2, b = 5)
-unpack[a, b] <- rh
-expect_equal(a, 2)
-expect_equal(b, 5)
-rm(a, b)
-
-unpack[b, a] <- rh
-expect_equal(a, 2)
-expect_equal(b, 5)
-rm(a, b)
-
-rh <- c(a = 2, c = 5)
-unpack[a, b] <- rh
-expect_equal(a, 2)
-expect_error(b, "object 'b' not found")
-rm(a)
-
-rm(rh)
-
-rm(list = c("[<-.named_lval", "unpack", "[<-.lval", "massign"))
+rm(list = c("[<-.lval", "massign"))

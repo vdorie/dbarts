@@ -7,19 +7,6 @@ CPPFLAGS += -I../../src/include
 
 MISC_LIB := ../../src/misc.a
 
-# linear_leaf links the full engine (bartcore headers pull in the R print API
-# through external/io.h), so it needs R's flags and all three static libraries.
-R_CPPFLAGS := $(shell R CMD config --cppflags)
-R_LDFLAGS := $(shell R CMD config --ldflags)
-ENGINE_LIBS := ../../src/misc.a ../../src/external.a ../../src/rc.a
-
-# -MMD -MP track linear_leaf.cpp's transitive #includes (it pulls in the
-# whole header-only bartcore engine), so a bartcore header edit is picked up
-# here instead of needing the binary deleted by hand.
-CXXFLAGS := -std=gnu++20 -MMD -MP
-
-DEPS := linear_leaf.d
-
 all: bench
 
 bench: bench.c partition_u8.c partition_u8.h $(MISC_LIB)
@@ -31,15 +18,10 @@ grow_from_root: grow_from_root.c $(MISC_LIB)
 sparse: sparse.c $(MISC_LIB)
 	$(CC) $(OPT) $(CPPFLAGS) -o $@ sparse.c $(MISC_LIB) -lpthread -lm
 
-linear_leaf: linear_leaf.cpp $(ENGINE_LIBS)
-	$(CXX) $(OPT) $(CXXFLAGS) -I../../src -I../../src/include $(R_CPPFLAGS) -o $@ linear_leaf.cpp $(ENGINE_LIBS) $(R_LDFLAGS) -lpthread -lm
-
 $(MISC_LIB):
 	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
 
--include $(DEPS)
-
 clean:
-	rm -f bench sparse linear_leaf grow_from_root $(DEPS)
+	rm -f bench sparse grow_from_root
 
 .PHONY: all clean

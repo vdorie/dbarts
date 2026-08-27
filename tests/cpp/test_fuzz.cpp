@@ -1355,17 +1355,12 @@ struct MultiForestFixture {
 
   // one mean forest plus the variance forest: scale signal on column 1 and
   // mean signal on column 0, so both ensembles split and the pruning has
-  // something to skip in either. restrictMean confines the mean forest to
-  // columns 0 and 1, which leaves columns 2 and 3 reachable by the variance
-  // forest ALONE - the shape in which the variance forest is the only ensemble
-  // that can veto, and the only one whose partition a transaction moves.
-  // restrictVariance is the mirror: the VARIANCE forest is confined instead, so
-  // columns 2 and 3 are reachable by no variance tree at any tree count or
-  // depth - the shape in which a transaction leaves the whole variance forest
-  // untouched.
+  // something to skip in either. restrictVariance confines the VARIANCE forest
+  // to columns 0 and 1, so columns 2 and 3 are reachable by no variance tree at
+  // any tree count or depth - the shape in which a transaction leaves the whole
+  // variance forest untouched.
   void buildHeteroscedastic(size_t n_, size_t p_, size_t numChains,
-                            std::uint32_t seed, bool restrictMean = false,
-                            bool restrictVariance = false) {
+                            std::uint32_t seed, bool restrictVariance = false) {
     n = n_;
     p = p_;
     x.resize(n * p);
@@ -1382,10 +1377,6 @@ struct MultiForestFixture {
     options.numTrees = 10;
     options.numVarianceTrees = 8;
     moderators = {0, 1};
-    if (restrictMean) {
-      options.forestColumns = moderators.data();
-      options.numForestColumns = moderators.size();
-    }
     if (restrictVariance) {
       options.varianceForestColumns = moderators.data();
       options.numVarianceForestColumns = moderators.size();
@@ -1681,7 +1672,7 @@ static void testUntouchedTreeExactness() {
     // an unrestricted variance forest of any useful size splits somewhere on
     // every column, so the aggregate claim below needs the confined shape to
     // have a case at all
-    else fixture.buildHeteroscedastic(n, p, 2, 4750u, false, true);
+    else fixture.buildHeteroscedastic(n, p, 2, 4750u, true);
     Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
 
     ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -1861,20 +1852,20 @@ static void testVarianceRollback() {
   rngState = 0x71B9E0C33A4D15ull;
   const size_t n = 240, p = 4;
   MultiForestFixture fixture;
-  fixture.buildHeteroscedastic(n, p, 1, 4900u, true);
+  fixture.buildHeteroscedastic(n, p, 1, 4900u);
   Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
   using Snap = FuzzSnapshot<Sampler<ConstantGaussianLeaf>>;
 
-  size_t rejected = 0, varianceObjected = 0;
+  size_t rejected = 0, varianceRerouted = 0;
   std::vector<std::uint32_t> uses(p);
   for (size_t column = 0; column < p; ++column) {
     // two levels of the existing grid: every tree splitting on the column
     // empties a leaf, so the whole transaction reverts
     std::vector<double> candidate(n);
     for (size_t i = 0; i < n; ++i) candidate[i] = i % 2 == 0 ? 0.25 : 0.75;
-    // columns 2 and 3 are outside the mean forest's mask, so a veto there is
-    // the variance forest's alone - the arm on which the rollback has variance
-    // partitions to restore at all
+    // a rollback only has variance partitions to restore where some variance
+    // tree splits on the column - the arm the repartition's variance step is
+    // load-bearing on
     const auto& ch(s.chain(0));
     size_t varianceSplitters = 0;
     for (size_t j = 0; j < ch.numVarianceTrees(); ++j) {
@@ -1887,7 +1878,7 @@ static void testVarianceRollback() {
       s.updatePredictor(candidate.data(), &column, 1, false, false);
     if (res == PredictorUpdateResult::accepted) continue;
     ++rejected;
-    if (column >= 2 && varianceSplitters > 0) ++varianceObjected;
+    if (varianceSplitters > 0) ++varianceRerouted;
     check(fuzzSnapshotsEqual(before, fuzzCapture(s)),
           "a rolled-back transaction leaves the variance forest bitwise");
   }
@@ -1905,11 +1896,10 @@ static void testVarianceRollback() {
     }
   }
   check(rejected > 0, "at least one transaction rolled back");
-  check(varianceObjected > 0,
-        "at least one rollback had the variance forest as sole objector");
+  check(varianceRerouted > 0,
+        "at least one rollback had variance partitions to restore");
   printf("ok: variance rollback identity (%zu rolled-back transactions, %zu "
-         "with the variance forest the sole objector)\n", rejected,
-         varianceObjected);
+         "with variance partitions to restore)\n", rejected, varianceRerouted);
 }
 
 static void testMutationFuzzer(int numSeeds) {

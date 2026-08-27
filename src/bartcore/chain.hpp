@@ -30,13 +30,6 @@
 
 namespace bartcore {
 
-/// A residual variance prior on the ORIGINAL response scale. A heteroscedastic
-/// chain retains its creation value because these three numbers - and nothing
-/// else - calibrate the scale leaf, once, at construction.
-struct ResidualPrior {
-  double sigmaEstimate = 0.0, sigmaDf = 0.0, sigmaRawScale = 0.0;
-};
-
 struct SamplerOptions {
   size_t numTrees = 200;
   size_t numChains = 1;
@@ -123,13 +116,6 @@ struct SamplerOptions {
   const double* splitProbabilities = nullptr;
   bool useDart = false;
   DartPrior dart;
-
-  // per-forest split-variable restriction: the column indices this forest may
-  // split on (borrowed; consumed during construction). Null, or count 0,
-  // leaves every column available - the default, nullptr-guarded so the
-  // availability path is byte-for-byte unchanged.
-  const std::size_t* forestColumns = nullptr;
-  std::size_t numForestColumns = 0;
 
   // per-forest interaction constraint: interactionMaxOrder caps the
   // DISTINCT split variables on any root-to-leaf path (0 = uncapped);
@@ -688,18 +674,6 @@ public:
       forest.trees[t].initialize(forest.indexBuffer.data() + t * numObservations,
                                  numObservations);
 
-    // A restricted forest clears the availability of every unlisted column; an
-    // empty list leaves the mask empty and the trees unrestricted (the default
-    // availability path, byte-for-byte).
-    if (options.forestColumns != nullptr && options.numForestColumns > 0) {
-      forest.columnMask.assign(data.numPredictors, 0);
-      for (size_t c = 0; c < options.numForestColumns; ++c)
-        forest.columnMask[options.forestColumns[c]] = 1;
-      for (size_t t = 0; t < forest.numTrees; ++t)
-        forest.trees[t].setColumnMask(forest.columnMask.data());
-    }
-    options_.forestColumns = nullptr;  // consumed above
-
     // Per-forest interaction constraint, installed like the column mask: an
     // unset (or inactive) constraint leaves every tree's pointer null and the
     // availability path byte-for-byte unchanged.
@@ -739,7 +713,7 @@ public:
     // this whole path compiled/branched out, so the mean sweep is byte-identical.
     if constexpr (std::is_same_v<L, ConstantGaussianLeaf>)
       if (family == ResponseFamily::gaussian && options.numVarianceTrees > 0)
-        buildVarianceForest(options, sigmaEstimate, sigmaDf, sigmaRawScale);
+        buildVarianceForest(options, sigmaDf, sigmaRawScale);
 
     resizeTestStorage();
   }
@@ -760,8 +734,6 @@ public:
                   "an amplitude coupling is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
-    // the per-forest restriction arrives via ForestStructureSpec instead
-    options_.forestColumns = nullptr;
     // The families the coupling is built for, EVERY enumerator listed and no
     // default arm: a family added without an arm here must fail the build
     // rather than silently acquire the gaussian law. aft, ordinal and nbinom
@@ -875,7 +847,6 @@ public:
                   "multinomial is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
-    options_.forestColumns = nullptr;
     response_ = std::make_unique<MultinomialResponse>(data.numObservations);
     // logistic marks the binary-family sigma semantics (fixed at 1); the
     // softmax has no sigma of its own, and family() is not read on this path.
@@ -913,9 +884,6 @@ public:
   std::size_t numVarianceTrees() const {
     return varianceForest_ ? varianceForest_->numTrees : 0;
   }
-  /// The residual prior the scale leaf was calibrated from at creation;
-  /// meaningful only under a variance forest, where nothing recalibrates it.
-  const ResidualPrior& varianceLeafPrior() const { return varianceLeafPrior_; }
 
   /// s^2(x) on the ORIGINAL scale for new rows of a Columns predictor source
   /// from one saved sample's variance trees; the per-tree factors MULTIPLY
@@ -1760,12 +1728,11 @@ public:
     }
 
     // Under a variance forest the residual prior calibrates the scale leaf
-    // rather than sigma - the same three numbers buildVarianceForest consumed,
+    // rather than sigma - the same numbers buildVarianceForest consumed,
     // through the same conversion to the working scale (initialSigma =
-    // sigmaEstimate / sigmaScale). The retained triple moves with the leaf, so
-    // it always names the prior the live calibration came from. The next sweep
-    // redraws every factor under the new prior; the current surface is left
-    // alone, as a homoscedastic setSigmaPrior leaves the current sigma.
+    // sigmaEstimate / sigmaScale). The next sweep redraws every factor under
+    // the new prior; the current surface is left alone, as a homoscedastic
+    // setSigmaPrior leaves the current sigma.
     // KNOWN GAP: sigmaScale() is read here and at creation, so an intervening
     // updateScale response/offset swap recalibrates onto the NEW scale while an
     // untouched leaf keeps the old one.
@@ -1774,8 +1741,6 @@ public:
       varianceForest_->leaf = ConstantVarianceLeaf::calibrated(
         model.sigmaDf, workingSigma * workingSigma * model.sigmaRawScale,
         varianceForest_->numTrees);
-      varianceLeafPrior_ = {model.sigmaEstimate, model.sigmaDf,
-                            model.sigmaRawScale};
     }
 
     if (!forest.useDart) {
@@ -4173,9 +4138,8 @@ private:
   /// derivation), seed s^2(x) at the initial variance, then fix the global
   /// sigma at 1 - the variance forest carries the residual variance from here.
   /// At numVarianceTrees == 1 the calibration reproduces the sigma prior exactly.
-  void buildVarianceForest(const SamplerOptions& options, double sigmaEstimate,
-                           double sigmaDf, double sigmaRawScale) {
-    varianceLeafPrior_ = {sigmaEstimate, sigmaDf, sigmaRawScale};
+  void buildVarianceForest(const SamplerOptions& options, double sigmaDf,
+                           double sigmaRawScale) {
     std::size_t n = data_.numObservations;
     double initialVariance = sigma_ * sigma_;  // sigma_ still holds initialSigma
     double priorScale = initialVariance * sigmaRawScale;
@@ -5486,7 +5450,6 @@ private:
   // the variance forest is built.
   std::unique_ptr<VarianceForest> varianceForest_;
   std::vector<double> meanWeights_;
-  ResidualPrior varianceLeafPrior_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The

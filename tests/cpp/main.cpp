@@ -18,7 +18,7 @@ namespace {
 
 // misc.a's output hooks default to NULL (src/misc/io.h); this standalone
 // host is not R, so it must install its own before any misc code that
-// prints (e.g. hierarchicalThreadManager's status output) can run.
+// prints can run.
 void printToStderr(const char* format, ...) {
   va_list argsPointer;
   va_start(argsPointer, format);

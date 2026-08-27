@@ -40,59 +40,6 @@ int misc_mt_runTasksWithInfo(misc_mt_manager_t restrict manager, misc_mt_taskFun
                              misc_mt_infoFunction_t info);
 
 
-// hierarchical thread manager
-#define EXT_HTM_INVALID_TASK_ID ((misc_size_t) -1)
-struct _misc_htm_manager_t;
-typedef struct _misc_htm_manager_t* misc_htm_manager_t;
-
-
-typedef void (*misc_htm_topLevelTaskFunction_t)(misc_size_t taskId, void*);
-typedef void (*misc_htm_subTaskFunction_t)(void*);
-
-int misc_htm_create(misc_htm_manager_t* manager, misc_size_t numThreads);
-int misc_htm_destroy(misc_htm_manager_t manager);
-
-misc_size_t misc_htm_getNumThreads(const misc_htm_manager_t manager);
-
-int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topLevelTaskFunction_t task,
-                              void** restrict data, misc_size_t numTasks);
-int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, misc_htm_topLevelTaskFunction_t task,
-                                        void** restrict data, misc_size_t numTasks, const struct timespec* restrict outputDelay);
-
-misc_size_t misc_htm_reserveThreadsForSubTask(const misc_htm_manager_t manager, misc_size_t taskId, misc_size_t percentComplete);
-int misc_htm_runSubTask(misc_htm_manager_t restrict manager, misc_size_t taskId, misc_htm_subTaskFunction_t subTask,
-                        void** restrict data, misc_size_t numPieces);
-
-misc_size_t misc_htm_getNumThreadsForTopLevelTask(const misc_htm_manager_t threadManager, misc_size_t taskId);
-void misc_htm_getNumPiecesForSubTask(const misc_htm_manager_t restrict threadManager, misc_size_t taskId,
-                                     misc_size_t numElements, misc_size_t minNumElementsPerPiece,
-                                     misc_size_t* restrict numPiecesPtr, misc_size_t* restrict numElementsPerPiecePtr,
-                                     misc_size_t* restrict offByOneIndexPtr);
-
-void misc_htm_printf(misc_htm_manager_t manager, const char* format, ...);
-
-// blocking thread manager
-#define EXT_BTM_INVALID_THREAD_ID ((misc_size_t) -1)
-struct _misc_btm_manager_t;
-typedef struct _misc_btm_manager_t* misc_btm_manager_t;
-typedef void (*misc_btm_taskFunction_t)(void*);
-
-int misc_btm_create(misc_btm_manager_t* manager, misc_size_t numThreads);
-int misc_btm_destroy(misc_btm_manager_t manager);
-
-int misc_btm_runTasks(misc_btm_manager_t restrict manager, misc_btm_taskFunction_t task,
-                      void** restrict data, misc_size_t numTasks);
-misc_size_t misc_btm_getNumThreads(const misc_btm_manager_t manager);
-void misc_btm_getNumThreadsForJob(const misc_btm_manager_t restrict threadManager, misc_size_t numElements, misc_size_t minNumElementsPerThread,
-                                  misc_size_t* restrict numThreadsPtr, misc_size_t* restrict numElementsPerThreadPtr,
-                                  misc_size_t* restrict offByOneIndexPtr);
-
-bool misc_btm_isNull(misc_btm_manager_t manager);
-
-int misc_btm_runTaskInParentThread(misc_btm_manager_t restrict manager, misc_size_t threadId, misc_btm_taskFunction_t task,
-                                   void* restrict data);
-
-
 #ifdef __cplusplus
 }
 #endif

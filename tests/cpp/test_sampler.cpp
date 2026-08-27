@@ -6144,109 +6144,6 @@ static void testLogLikelihood() {
   printf("ok: per-observation log-likelihood channel\n");
 }
 
-// Per-forest column restriction: a forest handed a column subset must never
-// propose or accept a split outside it over a real MH run.
-static void testForestColumnRestriction(ext_rng* rng) {
-  const size_t n = 400, p = 5;
-  std::vector<double> x(n * p), y(n);
-  for (double& v : x) v = runif01();
-  // signal in every column, strongest in the columns we forbid, so an
-  // unrestricted forest would certainly split on them
-  for (size_t i = 0; i < n; ++i) {
-    double u1 = runif01(), u2 = runif01();
-    double normal = std::sqrt(-2.0 * std::log(u1)) *
-                    std::cos(6.283185307179586 * u2);
-    y[i] = 3.0 * x[i + 1 * n] + 3.0 * x[i + 3 * n] + x[i] + x[i + 2 * n] +
-           x[i + 4 * n] + 0.2 * normal;
-  }
-
-  const std::vector<size_t> allowed = {0, 2};
-  std::vector<bool> isAllowed(p, false);
-  for (size_t c : allowed) isAllowed[c] = true;
-
-  SamplerOptions options;
-  options.numTrees = 40;
-  options.forestColumns = allowed.data();
-  options.numForestColumns = allowed.size();
-  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                              ResponseFamily::gaussian, 1.0, 3.0,
-                              0.37804942330213542, options, &rng);
-  Results empty;
-  sampler.run(60, 60, empty);
-
-  SamplerStateData state;
-  sampler.getState(state);
-  size_t splits = 0;
-  bool contained = true;
-  for (const std::vector<FlatNode>& tree : state.chains[0].forests[0].trees)
-    for (const FlatNode& node : tree)
-      if (node.variable != invalidVariable) {
-        ++splits;
-        if (!isAllowed[static_cast<size_t>(node.variable)]) contained = false;
-      }
-  check(contained, "restricted forest never splits outside its column subset");
-  check(splits > 0, "restricted forest still splits on its allowed columns");
-
-  printf("ok: forest column restriction (%lu splits, all within subset)\n",
-         static_cast<unsigned long>(splits));
-}
-
-// A restriction naming every column installs a non-null all-ones mask; its
-// draws must be byte-identical to the unrestricted (null-mask) default, so the
-// masking arithmetic perturbs nothing when it clears no bit. The default path's
-// own bitwise identity against the pre-change engine is the equivalence gate.
-static void testForestColumnRestrictionAllNeutral() {
-  const size_t n = 300, p = 4;
-  std::vector<double> x(n * p), y(n);
-  for (double& v : x) v = runif01();
-  for (size_t i = 0; i < n; ++i)
-    y[i] = std::sin(3.0 * x[i]) + x[i + n] + 0.5 * runif01();
-
-  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 918) != 0 ||
-      ext_rng_setSeed(rngB, 918) != 0) {
-    check(false, "column-restriction neutrality: rng creation");
-    return;
-  }
-
-  SamplerOptions optionsDefault;
-  optionsDefault.numTrees = 30;
-  ConstantLeafSampler unrestricted(x.data(), y.data(), n, p, nullptr, nullptr,
-                                   ResponseFamily::gaussian, 1.0, 3.0,
-                                   0.37804942330213542, optionsDefault, &rngA);
-
-  const std::vector<size_t> allColumns = {0, 1, 2, 3};
-  SamplerOptions optionsAll = optionsDefault;
-  optionsAll.forestColumns = allColumns.data();
-  optionsAll.numForestColumns = allColumns.size();
-  ConstantLeafSampler fullMask(x.data(), y.data(), n, p, nullptr, nullptr,
-                               ResponseFamily::gaussian, 1.0, 3.0,
-                               0.37804942330213542, optionsAll, &rngB);
-
-  const size_t numBurnIn = 40, numSamples = 40;
-  std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
-  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
-  Results resultsA, resultsB;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = fitsA.data();
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = fitsB.data();
-  unrestricted.run(numBurnIn, numSamples, resultsA);
-  fullMask.run(numBurnIn, numSamples, resultsB);
-
-  bool identical = true;
-  for (size_t s = 0; s < numSamples && identical; ++s)
-    identical = sigmaA[s] == sigmaB[s];
-  for (size_t i = 0; i < n * numSamples && identical; ++i)
-    identical = fitsA[i] == fitsB[i];
-  check(identical, "all-columns mask draws byte-match the unrestricted default");
-
-  ext_rng_destroy(rngB);
-  ext_rng_destroy(rngA);
-  printf("ok: forest column restriction neutral when it clears nothing\n");
-}
-
 // A BCF treatment forest handed a moderator subset must never split outside it,
 // while the prognostic forest keeps reading the full store. Signal sits in a
 // column tau is forbidden to use, so an unrestricted tau would split there.
@@ -6785,8 +6682,6 @@ static void testFitsWithoutOffset() {
 
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
-  testForestColumnRestriction(rng);
-  testForestColumnRestrictionAllNeutral();
   testBCFTauModeratorRestriction(rng);
   testPrintTreesForest();
   testBCFTwoForest(rng);

@@ -81,9 +81,6 @@ struct SamplerShape {
   /// Whether a heteroscedastic variance forest is present; the s^2(x)
   /// channels of run and predictVariance gate on it.
   bool hasVarianceForest;
-  /// The residual prior the variance forest's scale leaf was calibrated from
-  /// at creation, original scale; all zero when homoscedastic.
-  ResidualPrior varianceLeafPrior;
   /// True for function-valued (GP) leaf models, whose state and reporting
   /// layouts differ from the vector-parameter ones.
   bool usesFunctionLeaves;
@@ -440,7 +437,6 @@ public:
     s.family = impl_.family();
     s.leafModel = Sampler<L, ResidT>::leafModel();
     s.hasVarianceForest = impl_.hasVarianceForest();
-    s.varianceLeafPrior = impl_.varianceLeafPrior();
     s.usesFunctionLeaves = Sampler<L, ResidT>::usesFunctionLeaves();
     s.kIsSampled = impl_.kIsSampled();
     s.usesDart = impl_.usesDart();

@@ -114,26 +114,3 @@ massign <- structure(NA, class = "lval")
   }
   x
 }
-
-# adds names to arguments so that
-#   unpack[a,b] = unpack[a = a, b = b] = unpack[b = b, a = a] = unpack[b,a]
-# while massign[a,b] != massign[b,a]
-unpack <- structure(NA, class = "named_lval")
-
-"[<-.named_lval" <- function(x, ..., value) {
-  mc <- match.call()
-
-  mc[[1L]] <- as.symbol("[<-.lval")
-  sel <- seq.int(3L, length(mc) - 1L)
-  varNames <- as.character(mc[sel])
-  names(mc)[sel] <- varNames
-
-  if (!all(varNames %in% names(value))) {
-    mc <- mc[-sel[!(varNames %in% names(value))]]
-  }
-
-  mc[[2L]] <- x
-
-  callingEnv <- parent.frame(1L)
-  eval(mc, callingEnv)
-}

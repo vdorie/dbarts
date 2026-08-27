@@ -50,8 +50,8 @@ simd.source.neon = $(simd.source.neon.$(have.neon))
 simd.sources = $(simd.source.avx2) $(simd.source.neon)
 simd.objects = $(simd.sources:.c=.o)
 
-LOCAL_SOURCES=blockingThreadManager.c hierarchicalThreadManager.c io.c linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
-LOCAL_OBJECTS=blockingThreadManager.o hierarchicalThreadManager.o io.o linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
+LOCAL_SOURCES=io.c linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
+LOCAL_OBJECTS=io.o linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
 
 all : library
 
@@ -71,15 +71,9 @@ $(INCLUDE_DIR)/misc/io.h :
 $(INCLUDE_DIR)/misc/linearAlgebra.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/partition.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/simd.h :
-$(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h $(INCLUDE_DIR)/misc/thread.h
+$(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/stddef.h :
 $(INCLUDE_DIR)/misc/thread.h : $(INCLUDE_DIR)/misc/stddef.h
-
-blockingThreadManager.o : blockingThreadManager.c $(INCLUDE_DIR)/misc/thread.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c blockingThreadManager.c -o blockingThreadManager.o
-
-hierarchicalThreadManager.o : hierarchicalThreadManager.c $(INCLUDE_DIR)/misc/thread.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c hierarchicalThreadManager.c -o hierarchicalThreadManager.o
 
 io.o : io.c $(INCLUDE_DIR)/misc/io.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c io.c -o io.o

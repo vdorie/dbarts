@@ -833,109 +833,6 @@ static void testInteractionContainment() {
   printf("ok: interaction containment (%zu donor violators)\n", violators);
 }
 
-// Column-mask containment (F1): like the interaction gate above, the warm-start
-// install path had no feasibility gate for a forest's per-forest column mask
-// (BCF moderators, a column-restricted variance forest). A donor tree splitting
-// on a column OUTSIDE the target forest's mask was rebuilt and accepted, then
-// splitVariableLogProbability scored it over an availability menu
-// (collectAvailableVariables) that excludes the split - a silent wrong tree-prior
-// density. Grow an UNRESTRICTED donor whose signal forces an x1 split, prove by
-// hand its trees violate a column-0-only mask, then assert both setState and
-// installForests refuse it while a same-mask donor is accepted (a specific gate).
-// ---------------------------------------------------------------------------
-static void testColumnMaskContainment() {
-  std::uint64_t savedRngState = rngState;
-  rngState = 313131u;
-
-  const size_t n = 300, p = 2, numTrees = 30;
-  std::vector<double> x(n * p), y(n);
-  for (size_t i = 0; i < n; ++i) {
-    x[i] = runif01();          // x0
-    x[i + n] = runif01();      // x1
-    // signal lives ONLY in x1, so an unrestricted fitting tree must split on it -
-    // a split a column-0-only forest forbids
-    double u1 = runif01(), u2 = runif01();
-    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
-    y[i] = 3.0 * x[i + n] + 0.1 * z;
-  }
-
-  // each Sampler holds its rng pointer, so the rng objects must outlive it
-  std::vector<ext_rng*> rngs;
-  auto newRng = [&](std::uint32_t seed) {
-    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(r, seed);
-    rngs.push_back(r);
-    return r;
-  };
-  // the allow list outlives construction (consumed into forest.columnMask there)
-  const std::vector<size_t> allowZero = {0};
-  auto makeSampler = [&](std::uint32_t seed, bool restrictToZero) {
-    SamplerOptions options;
-    options.numTrees = numTrees;
-    if (restrictToZero) {
-      options.forestColumns = allowZero.data();
-      options.numForestColumns = allowZero.size();
-    }
-    ext_rng* r = newRng(seed);
-    return std::make_unique<ConstantLeafSampler>(
-      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
-      3.0, 0.37804942330213542, options, &r);
-  };
-
-  // (1) the unrestricted donor, grown until it captures the x1 signal
-  auto donor = makeSampler(555, false);
-  Results empty;
-  donor->run(200, 0, empty);
-  SamplerStateData donorState;
-  donor->getState(donorState);
-
-  // by-hand proof the donor is infeasible under a column-0-only mask: build each
-  // donor tree against an independent store carrying that mask
-  ColumnStore store;
-  store.build(x.data(), n, p, 100);  // the sampler's default cut grid
-  std::vector<std::uint8_t> maskZeroOnly(p, 0);
-  maskZeroOnly[0] = 1;
-  std::vector<index_t> idx(n);
-  std::vector<double> params;
-  Tree scratch;
-  size_t violators = 0;
-  for (const std::vector<FlatNode>& flat : donorState.chains[0].forests[0].trees) {
-    scratch.initialize(idx.data(), n);
-    scratch.setColumnMask(maskZeroOnly.data());
-    if (scratch.buildFromFlat(store, flat.data(), flat.size(), params) &&
-        !scratch.columnMaskSubtreeIsValid(0))
-      ++violators;
-  }
-  scratch.setColumnMask(nullptr);
-  check(violators > 0,
-        "column mask: the unrestricted donor holds an out-of-mask tree");
-
-  // (2) a column-0-only target refuses the donor on both install paths
-  auto target = makeSampler(777, true);
-  bool meanColumnMaskRefused = false;
-  check(!target->setState(donorState, nullptr, &meanColumnMaskRefused),
-        "column mask: setState refuses an out-of-mask donor");
-  check(meanColumnMaskRefused,
-        "column mask: setState names that refusal the column-mask one");
-  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(target->installForests(donorState, liveMap) ==
-          WarmStartResult::columnMaskMismatch,
-        "column mask: warm start refuses an out-of-mask donor");
-
-  // (3) specificity: a same-mask donor's trees are feasible and install cleanly
-  auto compliantDonor = makeSampler(999, true);
-  compliantDonor->run(200, 0, empty);
-  SamplerStateData compliantState;
-  compliantDonor->getState(compliantState);
-  auto target2 = makeSampler(111, true);
-  check(target2->installForests(compliantState, liveMap) == WarmStartResult::ok,
-        "column mask: a same-mask donor warm-starts cleanly");
-
-  for (ext_rng* r : rngs) ext_rng_destroy(r);
-  rngState = savedRngState;
-  printf("ok: column-mask containment (%zu donor violators)\n", violators);
-}
-
 // Block-additive constraint (variant A, docs/design/interaction-constraints.md):
 // each whole tree is confined to one declared group of predictors via the static
 // per-tree column mask, so the ensemble is exactly f = sum_G f_G. Two groups
@@ -1846,7 +1743,6 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
   testInteractionContainment();
-  testColumnMaskContainment();
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();
   testVarianceWarmStart();

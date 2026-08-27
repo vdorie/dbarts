@@ -1,44 +1,27 @@
+## target, dgenerator and constant are all on the log scale, the one contract
+## the callers here supply: sliceSample composes a log density with a log
+## envelope, and rbart_vi's custom prior is documented as log-scale.
 rejectionSample <- function(
   target,
   dgenerator,
   rgenerator,
   constant,
   boundary,
-  log = TRUE,
   maxIter = 100L
 ) {
-  useLog <- log
-  rm(log)
   numIters <- 0
-  if (useLog) {
-    while (TRUE) {
-      u <- -rexp(1)
-      x <- rgenerator()
-      numIters <- numIters + 1
-      if (x <= boundary[1] || x >= boundary[2]) {
-        next
-      }
-      if (u < target(x) - constant - dgenerator(x)) {
-        return(x)
-      }
-      if (numIters == maxIter) {
-        stop("unable to obtain rejection sample after ", maxIter)
-      }
+  while (TRUE) {
+    u <- -rexp(1)
+    x <- rgenerator()
+    numIters <- numIters + 1
+    if (x <= boundary[1] || x >= boundary[2]) {
+      next
     }
-  } else {
-    while (TRUE) {
-      u <- runif(1)
-      x <- rgenerator()
-      numIters <- numIters + 1
-      if (x <= boundary[1] || x >= boundary[2]) {
-        next
-      }
-      if (u < (target(x) / (constant * dgenerator(x)))) {
-        return(x)
-      }
-      if (numIters == maxIter) {
-        stop("unable to obtain rejection sample after ", maxIter)
-      }
+    if (u < target(x) - constant - dgenerator(x)) {
+      return(x)
+    }
+    if (numIters == maxIter) {
+      stop("unable to obtain rejection sample after ", maxIter)
     }
   }
 }
@@ -49,12 +32,8 @@ sliceSample <- function(
   numSamples = 100L,
   width = NA,
   maxIter = 100L,
-  boundary = c(-Inf, Inf),
-  log = TRUE
+  boundary = c(-Inf, Inf)
 ) {
-  useLog <- log
-  rm(log)
-
   findMode <- function(target, start, boundary) {
     optimResult <- tryCatch(
       optim(
@@ -205,22 +184,20 @@ sliceSample <- function(
     optimResult <- findMode(target, start, boundary)
 
     if (!inherits(optimResult, "error")) {
-      if (useLog == TRUE) {
-        normalizingConstant <- NULL ## for R CMD check
-        evalEnv <- list2env(list(
-          target = target,
-          normalizingConstant = optimResult$value
-        ))
-        f <- function(x) exp(target(x) - normalizingConstant)
-        environment(f) <- evalEnv
-        optimResult$value <- 1
-        ## optimResult$hessian is theoretically unchanged by the transformation, since f'(x_0) = 0 and (h(x_0) - normConst) = 0, however it can be inaccurate numerically
-        optimResult$hessian <- optimHess(
-          optimResult$par,
-          f,
-          control = list(fnscale = -1)
-        )
-      }
+      normalizingConstant <- NULL ## for R CMD check
+      evalEnv <- list2env(list(
+        target = target,
+        normalizingConstant = optimResult$value
+      ))
+      f <- function(x) exp(target(x) - normalizingConstant)
+      environment(f) <- evalEnv
+      optimResult$value <- 1
+      ## optimResult$hessian is theoretically unchanged by the transformation, since f'(x_0) = 0 and (h(x_0) - normConst) = 0, however it can be inaccurate numerically
+      optimResult$hessian <- optimHess(
+        optimResult$par,
+        f,
+        control = list(fnscale = -1)
+      )
       # width is derived from a normal approximation at the mode based on the equality of second derivatives
       # going out two standard deviations
       width <- 2 * abs(optimResult$hessian[1L] * sqrt(2 * pi))^(-1 / 3)
@@ -244,7 +221,7 @@ sliceSample <- function(
     d <- function(x) dnorm(x, mu, sigma, log = TRUE)
     environment(r) <- evalEnv
     environment(d) <- evalEnv
-    if (exists("optimResult") && useLog == TRUE) {
+    if (exists("optimResult")) {
       if (inherits(optimResult, "error")) {
         stop("slice sampler failed: unable to determine initial curvature")
       }
@@ -265,7 +242,7 @@ sliceSample <- function(
       c <- target(optimResult$par) - d(optimResult$par)
     } else {
       stop(
-        "rejection start for case without optimization and/or not on log scale not yet implemented"
+        "rejection start for case without optimization not yet implemented"
       )
     }
 
