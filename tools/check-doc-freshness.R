@@ -968,7 +968,11 @@ for (df in designFilesRel) {
   planDocForDoc <- {
     pm <- regmatches(
       blob,
-      regexpr("docs/plans/(?:archive/)?[A-Za-z0-9_.+-]+\\.md", blob, perl = TRUE)
+      regexpr(
+        "docs/plans/(?:archive/)?[A-Za-z0-9_.+-]+\\.md",
+        blob,
+        perl = TRUE
+      )
     )
     if (length(pm) == 1L && nzchar(pm) && file.exists(p(pm))) {
       pm
