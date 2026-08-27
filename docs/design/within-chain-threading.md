@@ -26,7 +26,7 @@ architectures. The reusable LESSON (section 11): a kernel microbench that
 omits the serial fraction overestimates threading speedup by roughly
 1/parallel-fraction; only an in-situ, real-engine measurement is trustworthy
 for a threading claim. Multi-chain parallelism remains the effective way to
-use additional cores. Companion document: docs/plans/blocked-jacobi-trees.md,
+use additional cores. Companion document: docs/plans/archive/blocked-jacobi-trees.md,
 the competing noise-split mechanism for the same regime - independently
 KILLED, and strictly dominated by this one wherever either shows a nonzero
 gain.

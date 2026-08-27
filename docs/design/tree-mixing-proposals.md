@@ -223,7 +223,7 @@ is the only thing keeping acceptance non-zero.
 **Corrupts.** Sigma's own posterior, interval coverage for the fitted
 function, and every structural readout. Point estimates survive.
 
-**Measured, in this house** (`docs/plans/bcf-sigma-residual.md`, measured
+**Measured, in this house** (`docs/plans/archive/bcf-sigma-residual.md`, measured
 at `bartcore 6944811`). In the causal-forest sampler's prior tail, where a
 scale parameter `a` multiplies one forest's contribution and the engine
 hands that forest weight `w_i * a^2` (`combiner.hpp:877-894`):
@@ -406,7 +406,7 @@ house at 6x.
 
 **Erratum (2026-08-10, composition mixing probe).** This section's
 first-overall rank is WITHDRAWN by measurement. The pre-registered probe
-(docs/plans/composition-mixing-probe.md, run to verdicts the day after this
+(docs/plans/archive/composition-mixing-probe.md, run to verdicts the day after this
 survey landed) returned YELLOW with its registered HARM clause fired and
 fresh-seed confirmed, which by the registration kills the blanket
 composition recommendation whatever the mixing gates say. What the probe
@@ -971,7 +971,7 @@ is where the survey set its kill line.
 
 **Cost.** M-L, ~300 lines plus a gate arm; the scan itself is already paid
 for, and the categorical analogue - scheduled when this was written - has
-LANDED (`docs/plans/grow-from-root-categorical-scan.md`; the TODO door is
+LANDED (`docs/plans/archive/grow-from-root-categorical-scan.md`; the TODO door is
 recorded closed at `TODO:302`). **The half worth as much as the
 mixing gain** is the free by-product: because the scan scores the whole
 neighbourhood, posterior functionals (variable inclusion, DART split
@@ -1662,8 +1662,8 @@ working papers untracked {memo,critique,synthesis}.md
               (gitignored; synthesis.md carries the per-finding
               ADOPT/OVERTURN record and the evidence for each)
 in-repo data  docs/design/grow-from-root-default.md sec 3, 4.4, 4.8, 4.9, 8
-              docs/plans/grow-from-root-default-study.md
-              docs/plans/bcf-sigma-residual.md sec 1-4
+              docs/plans/archive/grow-from-root-default-study.md
+              docs/plans/archive/bcf-sigma-residual.md sec 1-4
               docs/design/change-move-balance.md
               docs/design/grow-from-root.md sec 2, 3, 5
               docs/design/parallel-bart-frontier.md sec 3.1, 3.3
@@ -2076,7 +2076,7 @@ fixed.
      so `q` under-weights splits on missing-capable columns by 2x per
      split. **This is already known and scheduled**: it is exactly the
      pre-registered two-arm falsifier in
-     `docs/plans/grow-from-root-categorical-scan.md` sec S0, with an OPEN
+     `docs/plans/archive/grow-from-root-categorical-scan.md` sec S0, with an OPEN
      VD FORK on whether to change the shipped weight. What a regrow adds is
      stakes: for a warm start it is a start-quality bias, for a regrow it
      becomes a systematic term in the importance weight.
@@ -2380,7 +2380,7 @@ control, and the premise kill, which is a foregone answer in the informative
 direction and can fire spuriously in the low-noise cell. Added: an R-side
 tree walk or a small C-side per-tree readout, because `getTrees` does not
 return fitted vectors. Its cheapest form is as a rider on the pre-registered
-composition probe (`docs/plans/composition-mixing-probe.md`, RE-REGISTERED
+composition probe (`docs/plans/archive/composition-mixing-probe.md`, RE-REGISTERED
 v2, not run), which already runs the arms and has no timing metric - and
 which would then also pick up the prediction that absorbing the smooth
 share shrinks apportionment stickiness as well as section 3.1's mode.
@@ -2437,8 +2437,8 @@ code re-read  src/bartcore/grow.hpp (growTreeFromRoot 63-167, candidate
               src/R_interface_bartcore.cpp (nodeScale 255)
               R/dbarts.R (getTrees 1329, setOffset 1004), R/model.R
                 (blocks 1061), inst/include/dbarts/dbarts.h (setOffset 366)
-in-repo docs  docs/plans/grow-from-root-categorical-scan.md (S0),
-              docs/plans/composition-mixing-probe.md,
+in-repo docs  docs/plans/archive/grow-from-root-categorical-scan.md (S0),
+              docs/plans/archive/composition-mixing-probe.md,
               docs/design/forest-ranef-interweaving.md, TODO entries
               tree-mixing-proposals and grow-from-root-categorical-scan
 numerics      independent exact enumeration of the single-predictor tree

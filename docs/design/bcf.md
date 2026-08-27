@@ -4,7 +4,7 @@ Status: LANDED. Proposed 2026-07-07; the two-forest sampler and the Forest
 split it forced shipped 2026-07-07, with mixing refinements through 2026-07-10
 (see "Landing" below); the combiner's exact-zero multiplier snap and the
 caller-settable per-forest weight landed 2026-08-10
-(docs/plans/zero-weight-exactness.md); public creation, R5 mutation, a flat C
+(docs/plans/archive/zero-weight-exactness.md); public creation, R5 mutation, a flat C
 surface and per-draw reporting landed 2026-08-10 to 2026-08-11 - see "Public
 creation surface" below. Model and defaults follow Hahn, Murray,
 and Carvalho (2020), "Bayesian Regression Tree Models for Causal Inference"
@@ -159,7 +159,7 @@ nothing to that forest's sufficient statistics instead of an
 amplified-and-cancelled near-zero contribution. The snap is local to the
 reparameterization: `combinedFits` and `drawGlue` keep the exact `b0`, and no
 snapped value is written back into the glue
-(docs/plans/zero-weight-exactness.md).
+(docs/plans/archive/zero-weight-exactness.md).
 
 A caller-settable per-forest, per-observation weight composes with this
 multiplicatively: `forestWeights[i] = w_i * m_f^2 * s_{f,i}`, installed via
@@ -315,20 +315,20 @@ setResponse(updateScale = FALSE) path). The SBC harness pins its BCF
 burn to absolute sweeps accordingly. The |a| >= 40 extreme tail (~3%
 of the prior) is a structure-mixing limit no burn fixes; an engine
 remedy (tempered early sweeps) would be its own item. Records:
-docs/plans/bcf-sigma-residual.md.
+docs/plans/archive/bcf-sigma-residual.md.
 
 ## Landing (2026-07-07 to 2026-07-10)
 
 The Forest member split and the two-forest sampler above shipped
 2026-07-07: the sampler itself (d1ffb92), calibrated and gated
 against the exact posterior, closing the core item (c9fd2fe;
-docs/plans/forest-split-bcf.md); the state format gained a forest
+docs/plans/archive/forest-split-bcf.md); the state format gained a forest
 dimension (4e6b206); and a sampler can warm-start from a donor fit's
 forests (933eed8). Mixing refinements landed 2026-07-10: an
 interweaving (ASIS) rescale move on the PROGNOSTIC glue ridge - the
-a-move (9617c94; docs/plans/bcf-ridge-interweaving.md) - and the
+a-move (9617c94; docs/plans/archive/bcf-ridge-interweaving.md) - and the
 sigma burn-in calibration recorded above
-(docs/plans/bcf-sigma-residual.md).
+(docs/plans/archive/bcf-sigma-residual.md).
 bartCause is the intended consumer, over the public creation surface
 recorded below.
 
@@ -341,7 +341,7 @@ moving. The mechanism - the GIG draw, the exponent, and the
 rescale-consistency set - is
 docs/design/multiplier-combiner.md, "The ASIS ridge", and is not
 restated here. bcf's TREATMENT forest now has its own move available
-in that same code (the b-move, docs/plans/bcf-b-ridge.md), but it
+in that same code (the b-move, docs/plans/archive/bcf-b-ridge.md), but it
 ships OFF: `AmplitudeSpec::ridgeB = false`, because enabling it consumes a
 GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
 own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
@@ -349,7 +349,7 @@ own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
 BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
-(docs/plans/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
+(docs/plans/archive/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
@@ -400,7 +400,7 @@ arrive in bartCause the same way, through a `bcf()` fit function.
 `treatment =`, `moderators =` and `treatmentForest =` were removed from
 `dbarts()`/`dbartsSpec()` and replaced by the engine-vocabulary
 `forests = list(forest(basis = ...))` route
-(docs/plans/multiforest-extension-surface.md M2); `$setTreatment` became
+(docs/plans/archive/multiforest-extension-surface.md M2); `$setTreatment` became
 `$setForestBasis(forest, basis)` and `$getBCFGlue` became
 `$getForestAmplitudes()`. The S1/S2 mechanism above survived the re-skinning
 unchanged, which is what let M2 gate itself bitwise against the internal

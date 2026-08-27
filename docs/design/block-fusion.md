@@ -9,7 +9,7 @@ into an implementable engine design. VD approved pursuing the flagship engine
 perf project and accepting its one-time re-record (2026-07-11).
 
 This note is grounded in the current engine (bartcore HEAD 2e2b1c9) and stays
-consistent with the MEASURED falsifier numbers (docs/plans/parallel-falsifiers.md,
+consistent with the MEASURED falsifier numbers (docs/plans/archive/parallel-falsifiers.md,
 DONE 2026-07-08): E1 real-forest atom census and E2 field-fraction profile. It is
 the companion build-out of the substrate note docs/design/data-layout.md, which
 found the single-tree contiguous reorder is only a ~10% standalone lever and
@@ -459,7 +459,7 @@ forest. Generalization order, template = the U'WU cache:
 
 ## 6. Interaction with within-chain threading and a future GPU seam (noted, not designed)
 
-- Within-chain threading (docs/plans/within-chain-threading.md) parallelizes the
+- Within-chain threading (docs/plans/archive/within-chain-threading.md) parallelizes the
   O(n) passes with a FIXED-BLOCK reduction for thread-count invariance. 3.4
   COMPOSES: it makes those O(n) passes rarer (once per block, not per tree), so
   the barrier count drops from ~3m to ~3(m/b) per sweep, AND the surviving passes
@@ -654,7 +654,7 @@ O(atoms).
 ## 10. Stage B landing note (2026-07-13, LANDED dormant, bench VERDICT: KILL)
 
 Stage B's machinery (plan commits (i)-(iv-a) plus follow-ons,
-docs/plans/block-fusion-stage-b.md) is landed behind a runtime blockSize knob.
+docs/plans/archive/block-fusion-stage-b.md) is landed behind a runtime blockSize knob.
 The shipped default stays 1: the fused b>1 path never engages in production,
 Stage A's bitwise b=1 anchor is untouched, and DBARTS_BLOCKSIZE forces b>1 only
 for gates and benching.

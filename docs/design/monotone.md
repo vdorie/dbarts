@@ -1,6 +1,6 @@
 # Per-variable monotone constraints (mBART): design
 
-Status: LANDED 2026-07-19 (ee4ca79). Plan: docs/plans/monotone-bart.md (this is its
+Status: LANDED 2026-07-19 (ee4ca79). Plan: docs/plans/archive/monotone-bart.md (this is its
 step 1). Users declare a monotone-increasing or -decreasing relationship for any
 subset of predictors; each tree of the forest is constrained to be monotone in
 those predictors, so the sum-of-trees fit is monotone (Chipman, George,
@@ -183,7 +183,7 @@ and carrying mu as a degenerate function leaf - is rejected: it drags the
 function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4903-4924)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
 
-**Budget.** The plan front-matter's "~500 lines" (docs/plans/monotone-bart.md) no
+**Budget.** The plan front-matter's "~500 lines" (docs/plans/archive/monotone-bart.md) no
 longer holds once (2) and (3) are counted. Persisting leaf state into the move
 phase, a new constrained MoveStrategy that reads and writes it, the neighbor
 geometry (section 1), the tree-granularity draw, and c-inflation (section 6) are
@@ -582,7 +582,7 @@ the posterior-changing baseline for this arc.
 
 ## Plan-vs-code note
 
-The plan stub (docs/plans/monotone-bart.md) frames fork 3 as "exact
+The plan stub (docs/plans/archive/monotone-bart.md) frames fork 3 as "exact
 constrained marginals vs mBART's approach," implying mBART's approach is not
 exact. Finding: mBART's TARGET is exact (the conditional-on-mu_same marginal,
 eq. 4.11, hits the true constrained posterior); only its IMPLEMENTATION

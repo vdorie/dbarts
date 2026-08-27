@@ -16,7 +16,7 @@ rng: NEUTRAL on every shipped configuration, EVERY slice - nothing installs a
   row's pointwise log-likelihood becomes NaN where gaussian wrote `-Inf`.
 window: this arc's S1 must be preceded by the `empty-leaf-veto-fix` slice (see
   "Ordering against empty-leaf-veto-fix"), and the flat entry rides
-  `docs/plans/dbarts-h-reshape.md` S1, whose preconditions are "gated not
+  `docs/plans/archive/dbarts-h-reshape.md` S1, whose preconditions are "gated not
   assumed" - V4, V5 and V8 are settled here, so reshape S1 may start. Pre-release
   by default. Does NOT reopen the empty-leaf veto's own six count-based sites,
   and absorbs no part of that fix.
@@ -105,11 +105,11 @@ arc opens is the latent families that refusal does not reach.
 - `Chain::weights_` is WRITE-ONLY after construction (five writes, no reader),
   so the response model really is the sole authority on served weights and the
   normalizer's identity restore is a one-line branch per family.
-- Related plans: `docs/plans/zero-weight-exactness.md` (the shipped zero-weight
+- Related plans: `docs/plans/archive/zero-weight-exactness.md` (the shipped zero-weight
   semantics, the per-forest weight channel, and F1's re-association measurement),
-  `docs/plans/sigma-df-zero-weights.md` (the observation-weight df precedent),
-  `docs/plans/dbarts-h-reshape.md` S1 (which carries this arc's flat entry),
-  `docs/plans/c-api-growth.md` (the reservation record and the return-polarity
+  `docs/plans/archive/sigma-df-zero-weights.md` (the observation-weight df precedent),
+  `docs/plans/archive/dbarts-h-reshape.md` S1 (which carries this arc's flat entry),
+  `docs/plans/archive/c-api-growth.md` (the reservation record and the return-polarity
   erratum), `docs/design/empty-leaf-veto.md` (the fix this arc waits on).
 
 ## Binding decisions inherited (do not reopen)
@@ -334,7 +334,7 @@ refuted here on four counts, the first decisive:
 1. **The sigma df leak.** `GaussianResponse` counts positive weights from its
    OWN pointer and `drawSigma` passes that count to the posterior. A chain-owned
    composite never reaches it, so a masked gaussian would draw sigma at the
-   UNMASKED df: precisely the defect `docs/plans/sigma-df-zero-weights.md` fixed
+   UNMASKED df: precisely the defect `docs/plans/archive/sigma-df-zero-weights.md` fixed
    and `tests/cpp testSigmaPosteriorDf` pins at 4e5 draws. Family composition
    gets this right for free because the composite goes in through `setWeights`.
 2. **Direct readers bypass a chain buffer.** `formMeanWeights`,
@@ -613,7 +613,7 @@ Contract (Doxygen):
   accepted and installs nothing.
 - Returns **1 = accepted, 0 = refused** - the shipped convention
   (`dbarts_sampler_setPredictor` ends `accepted ? 1 : 0`; the polarity erratum in
-  `docs/plans/c-api-growth.md`). No version constant moves (dbarts-h-reshape
+  `docs/plans/archive/c-api-growth.md`). No version constant moves (dbarts-h-reshape
   binding decision 8).
 - **Ownership: the entry RETAINS NOTHING.** The values are consumed into the
   sampler's own buffer during the call and the caller's array is free
@@ -774,7 +774,7 @@ arc's test files.
    sentence, and the opposite-degenerate-policy sentence.
 2. `inst/NEWS.Rd`, including the pointwise-log-likelihood REPORTING change.
 3. A named recipe cross-referenced from `?bart` (feeding TODO `named-recipes`).
-4. `docs/plans/c-api-growth.md`: the `dbarts_sampler_setActiveRows` entry with
+4. `docs/plans/archive/c-api-growth.md`: the `dbarts_sampler_setActiveRows` entry with
    its retains-nothing ownership clause and its 1/0 polarity.
 5. The equivalence-baseline re-record, plus two new `benchmarks/R/equivalence.R`
    scenarios (`maskprobit`, `maskordinal`, beside `zeroweights`) and one
@@ -1123,7 +1123,7 @@ accordingly.
 S4 LANDED 93afd635, 2026-08-13 (implemented as 76fd3ba6, amended
 during independent review). Rd (man/dbartsSampler-class.Rd), NEWS
 (inst/NEWS.Rd), a named recipe (man/bart.Rd), the dbarts.h reservation
-(docs/plans/c-api-growth.md) and the r-c-division Adoption-slate mark
+(docs/plans/archive/c-api-growth.md) and the r-c-division Adoption-slate mark
 close the surface obligations; two new equivalence.R scenarios
 (maskprobit, maskordinal) and one bcf-equivalence.R scenario (masked)
 exercise $setActiveRows through the benchmark harnesses; tests/cpp

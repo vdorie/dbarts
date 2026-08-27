@@ -103,7 +103,7 @@ NO-GO), and it is still not arena-allocated - `docs/architecture.md` says both
 in its own voice.
 
 **One document that contradicts itself where a reviewer will land.**
-`docs/plans/variance-forest-mutation-routing.md:415-426` opens its last
+`docs/plans/archive/variance-forest-mutation-routing.md:415-426` opens its last
 recorded door with "CLOSED: built at c95a5e83" and then, without deleting it,
 continues with the original present-tense description of the hole
 ("`rebuildVarianceForest` has no `columnMaskSubtreeIsValid` backstop ... a

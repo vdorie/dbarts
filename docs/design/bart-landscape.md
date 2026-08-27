@@ -7,7 +7,7 @@ no ranking, no scheduling, no recommendation, and no maintenance promise: this
 is a dated photograph.
 
 Companion to two documents, duplicating neither.
-`docs/plans/roadmap-survey.md` (Review 5, 2026-07-10) RANKED dbarts's backlog
+`docs/plans/archive/roadmap-survey.md` (Review 5, 2026-07-10) RANKED dbarts's backlog
 by external demand; this document ranks nothing and is raw material a later
 ranking pass can cite, one implementation at a time (two of that survey's
 figures are corrected below from measurement taken today: embarcadero is no

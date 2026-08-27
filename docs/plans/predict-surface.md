@@ -183,8 +183,10 @@ never folded into the shared `*UnusedArgs` lists, because those same lists serve
 :1140-1145, :1315-1320, :1408-1413, :1450-1455, :1594, :1672-1677, :1692-1697, :2019, :2081, :2094-2099), which have no offset
 or weights formal to protect.
 
-Residue, recorded not fixed: positional slot 4 is `offset` on bart/rbart/multinomial/negbin and `combineChains` on
-ordinal/hurdle. Ordinal and hurdle do NOT gain a dummy refusing `offset` formal to close it (settled, section 13): the by-name
+Landed 74e2e050 ("the last predict slot-4 collision"), not post-1.0 residue - the integration tip this doc's
+landing was branched from: `predict.bartOrdinal`/`predict.bartHurdle` gained an `offset = NULL` formal ahead of
+`combineChains`, refused non-NULL by `refusePredictOffsetChannel`, reversing section 13's settled call below.
+Superseded record only: Ordinal and hurdle do NOT gain a dummy refusing `offset` formal to close it (settled, section 13): the by-name
 refusal above delivers the same message at the same moment, and a formal would buy positional uniformity for an argument D1 is
 simultaneously telling callers to pass by name. The split that remains is "has an out-of-sample offset channel", not the
 arbitrary one B2 found; every name means one thing everywhere, and every wrong guess is refused by name.
@@ -422,8 +424,9 @@ so :2180 reads `refuseUnusedGenericArgs(list(...), "predict", "rbart", c(predict
 rbartPredictValueUnusedArgs))`. `"post-mean"` needs nothing: `validateType` reports "type must be in 'ev', 'ppd', 'bart',
 'ranef'", which names the replacement.
 
-Nothing else in the package references either shim: `git grep post-mean` finds only :1826, :2175-2176, TODO:75, this plan and the
-memo, plus inst/NEWS.Rd:2394, which is the 0.9-x-era history entry that introduced `"ev"` and stays. No test and no Rd exercises
+Nothing else in the package references either shim: `git grep post-mean` finds only :1826, :2175-2176, this plan and the
+memo, plus inst/NEWS.Rd:2394, which is the 0.9-x-era history entry that introduced `"ev"` and stays (the TODO hit this
+sentence once cited is gone; TODO carries no "post-mean" text now). No test and no Rd exercises
 `value =` or `"post-mean"`.
 
 One thing the memo does not say and the implementer must know: the shims are in the RELEASED 0.9.34 (checked against the

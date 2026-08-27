@@ -1,7 +1,7 @@
 # Hurdle / two-part model: design
 
-Status: LANDED 2026-07-20 (901581e..7903855; records docs/plans/hurdle.md
-Landing). Plan: docs/plans/hurdle.md. A hurdle model fits a zero-inflated / semicontinuous outcome by factoring
+Status: LANDED 2026-07-20 (901581e..7903855; records docs/plans/archive/hurdle.md
+Landing). Plan: docs/plans/archive/hurdle.md. A hurdle model fits a zero-inflated / semicontinuous outcome by factoring
 its likelihood into two conditionally-independent parts: an OCCUPANCY model of
 1{y > 0} over all n observations, and a POSITIVE-PART model of y restricted to the
 subset {i : y_i > 0}. The load-bearing finding (section 0): because the parts share

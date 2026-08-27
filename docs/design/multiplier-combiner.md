@@ -3,7 +3,7 @@
 Status: LANDED, 2026-08-13 to 2026-08-14, across M4.0 (562ee684), M4.1
 (1458328c + e48fc5de), M4.2 (1a2aaedc), M4.3 (9c63e9d8) and M4.4 (this
 commit), with the landing records at e7708b7c and 54e114ff
-(docs/plans/multiforest-extension-surface.md, M4). The general K-forest
+(docs/plans/archive/multiforest-extension-surface.md, M4). The general K-forest
 basis/amplitude family: each forest carries its own basis, its row contracts
 with that forest's amplitude vector into a per-observation scalar, and the
 forest enters the combination scaled by it. bcf's `a mu + b_z tau` is the
@@ -72,7 +72,7 @@ costs one stream per forest (combiner.hpp:1399-1407). The plan's "The channel,
 specified" section said COLUMN-major and was wrong about the shipped code;
 M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
 (dbarts.h:1037-1040, src/C_interface.cpp:980-982), and M4.5 corrected the plan
-line itself (docs/plans/multiforest-extension-surface.md:557-561).
+line itself (docs/plans/archive/multiforest-extension-surface.md:557-561).
 
 ## The amplitude layout
 
@@ -192,12 +192,12 @@ rejects it at KS 1.6e-21 - derived and evidenced below, "The exponent rule".
 
 **One mechanism, not two.** Instantiated at q = 1 it IS bcf's shipped a-move
 bitwise; at q = 2 with a fixed prior variance it IS the b-move
-docs/plans/bcf-b-ridge.md derives (combiner.hpp:1005-1008).
+docs/plans/archive/bcf-b-ridge.md derives (combiner.hpp:1005-1008).
 
 B reads the LIVE prior variance, which for a scale mixture is the auxiliary
 this move conditions on. Refreshing it here would re-randomize the coordinate
 just conditioned on and throttle the mixing gain - measured, IACT 69 -> 196 on
-`|a|` (docs/plans/bcf-ridge-interweaving.md:488-492); the one-sweep lag is
+`|a|` (docs/plans/archive/bcf-ridge-interweaving.md:488-492); the one-sweep lag is
 benign, the next `drawGlue` refreshing it given the new amplitude
 (combiner.hpp:1300-1313).
 
@@ -211,7 +211,7 @@ The rescale-consistency set the move must carry, or a stored
 The rule is worked here at bcf's treatment forest (q = 2, `b0`, `b1` the two
 glue scalars, `Lt`/`Mt` that forest's occupied-leaf count/squared sum,
 `leafVar_tau` the leaf prior variance, `bPriorVariance` the fixed b prior
-variance) - moved from docs/plans/bcf-b-ridge.md secs 2.2-2.3 and 5a; its
+variance) - moved from docs/plans/archive/bcf-b-ridge.md secs 2.2-2.3 and 5a; its
 Gibbs-block invariance argument (why rescaling `(b0, b1, tau)` on this orbit
 is a legitimate sub-block update at all) stays there, sec 2.1, as BCF-specific
 bookkeeping rather than exponent evidence. That argument ends at `b0`'s full
@@ -302,7 +302,7 @@ parameterization the implementer will code is the one validated. PASSES.
 
 The b-move ships, but `AmplitudeSpec::ridgeB = false` (combiner.hpp:342).
 Enabling it costs a GIG draw per sweep, which re-records `bcf-equivalence`, and
-its own acceptance gate (docs/plans/bcf-b-ridge.md:438-449 - IACT payoff,
+its own acceptance gate (docs/plans/archive/bcf-b-ridge.md:438-449 - IACT payoff,
 bcf-exact mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork:
 it flips only on a named measured mixing case, plus that gate, plus a re-record
 with the `equivalence.yaml` bump in the same commit.

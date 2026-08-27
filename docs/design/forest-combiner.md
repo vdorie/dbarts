@@ -10,7 +10,7 @@ AmplitudeForestCombiner<L> is its first instance, the math it carried unchanged
 from bcf.md and bcf-ridge-interweaving's landing at the time - since
 GENERALIZED to the K-forest basis/amplitude family, whose math is
 docs/design/multiplier-combiner.md's; MultinomialForestCombiner<L>
-(docs/design/multinomial.md) is now the second. docs/plans/forest-combiner.md carries the
+(docs/design/multinomial.md) is now the second. docs/plans/archive/forest-combiner.md carries the
 step plan, its binding contracts, and its resolved Open questions; this note
 records the shape as landed and what it does and does not anticipate.
 
@@ -328,7 +328,7 @@ ForestCombiner<L> is its own hierarchy beside ResponseModel, not a subclass or
 member of it, even though architecture-numerical-review.md's debt #1 named the
 gap as combining belonging "on the ResponseModel side." VD confirmed reading
 that as a responsibility statement, not a class-hierarchy instruction
-(docs/plans/forest-combiner.md, Open questions): combining is a response-side
+(docs/plans/archive/forest-combiner.md, Open questions): combining is a response-side
 CONCERN, owned by a dedicated object, not necessarily a ResponseModel
 subclass. The one-line why: ResponseModel's interface is per-observation-
 location (workingResponse/workingWeights, refreshLatents, drawSigma - one
@@ -422,7 +422,7 @@ hierarchy" above, which this historical sentence predates: 1.0 no longer means
 unchanged) specifically so the cpp component tests can read it through
 Chain::interweaveGlueRidge, the public forwarder kept for exactly this; the
 sweep itself discards the return value. Doxygen comments relocated with the
-math were redirected from docs/plans/bcf-ridge-interweaving.md (and a
+math were redirected from docs/plans/archive/bcf-ridge-interweaving.md (and a
 "docs/plans Status" pointer) to docs/design/bcf.md, since that plan's
 landing had already folded into bcf.md's Burn-in and Landing sections - a
 relocated comment should point at where the math is documented going
@@ -444,7 +444,7 @@ virtuals), and Chain no longer names AmplitudeState anywhere. Gate: equivalence
 bcf-exact.R quick + full tinytest 2832, no regen.
 
 Commit 5 = this commit (docs). docs/design/forest-combiner.md added (this
-file); docs/plans/multi-forest-models.md's forest-combiner blocker marked
+file); docs/plans/archive/multi-forest-models.md's forest-combiner blocker marked
 discharged; docs/plans/architecture-numerical-review.md's debt #1 marked
 closed; the repo-root TODO's forest-combiner entry retired and the
 multi-forest-models entry's prerequisite clause updated. Gate: R CMD check

@@ -32,7 +32,7 @@ bartcore's replay entry points (`Sampler::predictColumns` at
 sampler.hpp:705, `predictPerForestColumns` at :783,
 `predictVarianceColumns` at :850) never gained one, while
 `Sampler::run` (:349-420) kept its fan-out.
-docs/plans/interface-review.md's F10 item (:199) already records both
+docs/plans/archive/interface-review.md's F10 item (:199) already records both
 formals as "fully inert, not merely serial," and lists "threaded
 prediction" on the 2.0-WISHLIST (:543); this design discharges both,
 striking the wishlist line. The NEWS entry is corrected in place

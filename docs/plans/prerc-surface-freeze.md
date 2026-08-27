@@ -102,4 +102,4 @@ with the full gate battery; D4 an Opus design read on the enum first.
 Post-1.0 by rule (additive): flat-API readers for heteroscedastic,
 ordinal cutpoints, groupEffects count, setSigma getter; data-handle
 serialization; pdbart on the new fit classes; variable-selection
-inference and random-effects breadth (docs/plans/roadmap-survey.md).
+inference and random-effects breadth (docs/plans/archive/roadmap-survey.md).

@@ -9,7 +9,7 @@ cut counts are unequal. This note records the defect, the acceptance
 that repairs it, the two proposal mechanisms it uses, the evidence
 behind the choice, and the gate that pins it. The blow-by-blow numbers
 live in the plan files (docs/plans/correctness-audit.md Status block 2;
-docs/plans/change-move-fix.md stages 1 and 2); this note is the
+docs/plans/archive/change-move-fix.md stages 1 and 2); this note is the
 standing account.
 
 ## The defect

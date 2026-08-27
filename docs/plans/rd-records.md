@@ -747,7 +747,7 @@ wrong):
 - `docs/design/multinomial-mutation-arc.md:812` -> `TODO:309-322`
 - `docs/design/tree-mixing-proposals.md:975` -> `TODO:302`
 - `docs/design/tree-mixing-proposals.md:2067` -> `TODO:312`
-- `docs/plans/multiforest-extension-surface.md:71` -> `TODO:190-214` (one
+- `docs/plans/archive/multiforest-extension-surface.md:71` -> `TODO:190-214` (one
   line past this entry; itself hash-qualified "at 934a02d5", so already
   self-marked as a snapshot reference rather than a live one)
 

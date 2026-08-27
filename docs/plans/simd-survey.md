@@ -94,7 +94,7 @@ Cold in the default sampler: the cut-scan histogram (scan.hpp) - see #C.
 => Cleanest safe win, but small and x86-gated. Recommend only after an x86
    microbench confirms a cache-resident delta.
 
-### #2  Close the two known misc dispatch GAPS  (from docs/plans/x86-simd.md)
+### #2  Close the two known misc dispatch GAPS  (from docs/plans/archive/x86-simd.md)
 Two "already-dispatched-with-a-gap" items, both bitwise-safe:
 (a) misc_setIndexedVectorToConstant (linearAlgebra.c:168) - the fit SCATTER of a
     constant to a leaf's member indices; used every sweep in the fit-scatter pass

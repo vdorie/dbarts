@@ -1,12 +1,12 @@
 # Owned predictor storage
 
 Status: COMPLETE. All five implementation plans landed (2026-07-11 through
-2026-07-14); docs/plans/data-ownership.md's landing note records "the
+2026-07-14); docs/plans/archive/data-ownership.md's landing note records "the
 data-ownership program (plans 1-5) is COMPLETE." The design below converged
 and FROZE 2026-07-11 - that freeze marks the design settling, not
 unfinished work; the program itself finished landing three days later.
 Supersedes the original copy-raw plan (rejected, VD, 2026-07-06 - see
-"Considered and rejected"); docs/plans/data-ownership.md tracks the
+"Considered and rejected"); docs/plans/archive/data-ownership.md tracks the
 plan-by-plan history and points here for the design record.
 
 Summary: the engine now owns predictor data as a typed, quantized,
@@ -321,7 +321,7 @@ Five plans, landed sequentially:
    testCodes; the mixed flavor's resident dense block (deferred here
    explicitly at plan 2) was also retired, ownership moving to the bridge
    holder/handle. That densification interim is now SUPERSEDED: LANDED
-   through 14bef56..22d7116 (docs/plans/test-data-parity.md), the test
+   through 14bef56..22d7116 (docs/plans/archive/test-data-parity.md), the test
    store gained its own per-column typed fields sharing the training cut
    grid, a sparse/frame x.test stays rank-bitmap or densified per column
    (the training tier rule) resident end to end through creation and

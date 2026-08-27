@@ -6,10 +6,10 @@ three-lens research panel (user-value, engine-feasibility, prior-art) and
 hardened by an adversarial code-verified critique (SOUND-WITH-CAVEATS); the
 two must-fix findings - the cross-variable swap walk and the state-install
 containment gate - were folded in and both shipped. Plan:
-docs/plans/interaction-constraints.md. P4 follow-on (variant A / blocks(),
+docs/plans/archive/interaction-constraints.md. P4 follow-on (variant A / blocks(),
 the columnMask warm-start bug fix) LANDED aadbbc8/103dbe2/073d3db
 (2026-07-21); see "P4 landing" below and plan
-docs/plans/interaction-constraints-p4.md.
+docs/plans/archive/interaction-constraints-p4.md.
 
 ## The capability
 
@@ -208,7 +208,7 @@ low-risk down-payment that shares the R surface.
 VD reviewed a design memo and an adversarial critique (both grounded in this
 worktree; not checked in - referenced by the plan) and directed building all
 three P4 deliverables, overriding the critique's recommendation to defer the
-consumerless engine. Plan: docs/plans/interaction-constraints-p4.md.
+consumerless engine. Plan: docs/plans/archive/interaction-constraints-p4.md.
 
 Variant A landed as blocks(groups, trees.per.group) (commit aadbbc8),
 confining each WHOLE tree to one declared group via a static per-tree column

@@ -3,7 +3,7 @@
 Status: AFT log-normal LANDED 2026-07-10 (f0efc03; grouped rbart_vi support
 ac6ec2c). Discrete-time hazard LANDED 2026-07-18 (4bcdccf; the section below).
 First survival families for 1.0-x. Companion to the roadmap in
-docs/plans/survival-models.md and the extensions table in
+docs/plans/archive/survival-models.md and the extensions table in
 docs/design/core-generalization.md ("Survival (AFT, discrete-time hazard),
 ordinal, quantile: ResponseModel latents; person-period expansion at
 ingest").
@@ -714,7 +714,7 @@ smoke beyond the reduction gate.
   expander feeds rbart_vi - whose family vector (R/rbart.R:48) would grow the
   hazard token as it grew "aft". The only work is surface, exactly
   paralleling the AFT grouped follow-up
-  (docs/plans/survival-grouped-surface.md). v1 ships the ungrouped hazard on
+  (docs/plans/archive/survival-grouped-surface.md). v1 ships the ungrouped hazard on
   dbarts/bart2; grouped hazard (rbart_vi + hazard expansion +
   survivalProbabilities.rbart cumulating hazards) is a recorded follow-up,
   feasible by construction.

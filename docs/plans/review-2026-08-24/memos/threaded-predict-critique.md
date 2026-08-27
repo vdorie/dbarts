@@ -22,7 +22,7 @@ slice lands the statement is true again" is wrong; (b) the repo DOES fix NEWS in
 the released 0.9-34 notes back out of 1.0-0's NEWS section".
 
 **3. MINOR - two records bearing on the serial choice, uncited.** No design doc records a reason (memo right). But
-docs/plans/interface-review.md:200-205 is the F10 item that renamed run's formal, with "(wiring threading itself is
+docs/plans/archive/interface-review.md:200-205 is the F10 item that renamed run's formal, with "(wiring threading itself is
 wishlist)" and "Verified alongside D1 that both run() and predict()'s thread-count formals are fully inert, not merely
 'serial'"; and :543 puts "threaded prediction" on the explicit 2.0-WISHLIST. Cite both - the item is already docketed,
 and the wishlist line must be struck when this lands.

@@ -6,9 +6,9 @@ blind critique and the coordinator's adjudications - sections 1, 2, 4, 5,
 7 and 8 carry the rulings.
 
 Spec: docs/plans/prerc-surface-freeze.md D7 (:72-80) and its Sequencing
-line (:100). TODO `bcf-baseline-cross-host` (TODO:33-36), which absorbs
+line (:100). TODO `bcf-baseline-cross-host` (TODO:33-34), which absorbs
 the cross-host half of `equivalence-harness-statistical-mode`
-(TODO:71-90). D7 is the last open pre-RC item (`rc-gate`, TODO:188-189).
+(TODO:66-73). D7 is the last open pre-RC item (`rc-gate`, TODO:163-164).
 
 Three facts settled by reading, each of which changes the shape of the
 work:
@@ -42,13 +42,13 @@ and storage modes below are the recorded file's, not inferred:
 
 | channel | shape | type | source | draws axis | kind |
 | --- | --- | --- | --- | --- | --- |
-| `mu` | 200 x 1 | double | `bartcoreForestFits(bc, 0)` :130 | no | continuous |
-| `tau` | 200 x 1 | double | `bartcoreForestFits(bc, 1)` :131 | no | continuous |
-| `glue` | 3 x 1 | double | `bartcoreForestAmplitudes` :132 | no | continuous |
-| `sigma` | 40 | double | `result$sigma` :133 | YES | continuous |
-| `train` | 200 x 40 | double | `result$train` :134 | YES | continuous |
-| `varcount` | 4 x 2 x 40 | integer | `result$varcount` :135 | YES | combinatorial |
-| `varcount.tau` | 4 x 1 | integer | `bartcoreForestVariableCounts(bc, 1)` :136 | no | combinatorial |
+| `mu` | 200 x 1 | double | `bartcoreForestFits(bc, 0)` :414 | no | continuous |
+| `tau` | 200 x 1 | double | `bartcoreForestFits(bc, 1)` :415 | no | continuous |
+| `glue` | 3 x 1 | double | `bartcoreForestAmplitudes` :416 | no | continuous |
+| `sigma` | 40 | double | `result$sigma` :417 | YES | continuous |
+| `train` | 200 x 40 | double | `result$train` :418 | YES | continuous |
+| `varcount` | 4 x 2 x 40 | integer | `result$varcount` :419 | YES | combinatorial |
+| `varcount.tau` | 4 x 1 | integer | `bartcoreForestVariableCounts(bc, 1)` :420 | no | combinatorial |
 | `accepted` | 1 | logical | 3 scenarios | no | combinatorial |
 | `installed` | 200 | logical | 2 scenarios | no | combinatorial |
 
@@ -85,7 +85,9 @@ installed)`:
   forest-axis widening (a16d703c), and the only per-draw guard on BOTH
   forests' tree structure (:20-24). The intended name is `varcount.tau`,
   the 4 x 1 cumulative final-state query at :136 - which the TODO's own
-  garbled parenthesis (TODO:84) lists on both sides of its semicolon.
+  garbled parenthesis (TODO:84 pre-collapse) listed on both sides of its
+  semicolon; gone now that TODO's equivalence-harness-statistical-mode
+  entry is collapsed to its closed summary.
 
 Corrected exemption list, six names:
 
@@ -122,10 +124,11 @@ and cannot be mistaken for a mode or a path:
     args <- setdiff(args, "--cross-host")
 
 Compare-mode only; `record` is host-local by definition and says so if
-passed the flag. Exemption is `exempt <- if (crossHost) snapshotChannels
-else character(0L)`, applied once at bcf-equivalence.R:226:
+passed the flag. Landed as `compareCrossHost` (:224-226), called from the
+compare loop only when `crossHost` is set (:793):
 
-    channels <- setdiff(names(a), c("summaries", exempt))
+    exempt <- intersect(snapshotChannels, names(a))
+    gated <- setdiff(names(a), c("summaries", exempt))
 
 ### 2.1 Why one |z| bar cannot be the gate
 
@@ -570,10 +573,13 @@ is a labelled-weak fallback, a Welch z with an ESS-adjusted denominator.
 A non-finite guard runs on every gated channel; the partition assert
 (section 1) fires both at script load and inside the compare loop over
 `names(a)`. `exact-gates.yaml` runs both compares on every push,
-outside its quick `GATE_ARG` loop; `equivalence.yaml` carries the same
-`--cross-host` tokens for when it goes live. `benchmarks/README.md` is
-rewritten at the "regenerate rather than reusing across machines"
-sentence.
+outside its quick `GATE_ARG` loop; `equivalence.yaml` carried the same
+`--cross-host` tokens for when it went live. Fixed-at 2518a0b5:
+`equivalence.yaml`'s bcf/multinomial cross-host jobs were deleted as
+duplicates of what exact-gates.yaml already runs on every push against
+the same pinned baselines; only the gaussian statistical job and its
+cron remain. `benchmarks/README.md` is rewritten at the "regenerate
+rather than reusing across machines" sentence.
 
 Gates: default mode byte-identical before/after the patch (bcf 12
 identical, multinomial 11, equivalence.R 43 compared / 0 skipped);

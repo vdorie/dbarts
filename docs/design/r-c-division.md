@@ -233,7 +233,7 @@ budgets)
   outcome is `docs/design/empty-leaf-veto.md` - the veto is now a
   lexicographic rank over leaves that separates "no member" from "no
   positive-weight member" - with the plan at
-  `docs/plans/empty-leaf-veto.md`): its own
+  `docs/plans/archive/empty-leaf-veto.md`): its own
   measured slice, a draw-law change - the veto counted LEAF MEMBERS
   where it should count POSITIVE-WEIGHT members
   (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site);
@@ -270,7 +270,7 @@ budgets)
   carries a surface and a nameable value, so all schedule pre-release
   under the recorded frame.
 
-## Fork implications (docs/plans/multiforest-extension-surface.md,
+## Fork implications (docs/plans/archive/multiforest-extension-surface.md,
 Open decisions) - ALL FOUR RESOLVED (VD 2026-08-11)
 
 All four recommendations ADOPTED; fork 1's scheduling changed from the
@@ -372,7 +372,7 @@ commit does not close.
 
 ## Errata this arc generates elsewhere
 
-- docs/plans/multiforest-extension-surface.md's anchor-refresh pass is
+- docs/plans/archive/multiforest-extension-surface.md's anchor-refresh pass is
   DONE, this commit (31 corrections applied; three stale line numbers
   its own header claimed were verified - :146, :360, :970 - plus the
   chain.hpp/combiner.hpp anchors drifted by the S4 landing, incl.

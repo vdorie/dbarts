@@ -1,6 +1,6 @@
 # Ordinal (cumulative-probit) outcomes: design
 
-Status: LANDED 2026-07-18 (e0c4982). Plan: docs/plans/ordinal-outcomes.md (this is its
+Status: LANDED 2026-07-18 (e0c4982). Plan: docs/plans/archive/ordinal-outcomes.md (this is its
 step 1). Ordered categorical responses fit by a cumulative probit: the
 truncated-normal latent machinery ProbitResponse already carries
 (src/bartcore/model.hpp:3057), generalized from a single threshold at 0 to K-1
@@ -363,7 +363,7 @@ ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
 predict.bart guard, R/generics.R:302-304). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
-(docs/plans/ordinal-outcomes.md step 1): probabilityFromLatents
+(docs/plans/archive/ordinal-outcomes.md step 1): probabilityFromLatents
 (R/generics.R:12-19) is a scalar link-inverse of a single latent column and
 stays binary-only; an ordinal probability is a Phi-DIFFERENCE against per-sample
 cutpoints, a two-argument transform that does not fit that seam, so ordinal gets
@@ -462,7 +462,7 @@ are never widened to pass.
   fallback is probit's sign * DBL_EPSILON. A strong equivalence anchor tying the
   new family to the shipped one.
 
-**Recovery.** The parent plan's recovery gate (docs/plans/ordinal-outcomes.md
+**Recovery.** The parent plan's recovery gate (docs/plans/archive/ordinal-outcomes.md
 step 3): simulated ordinal data over a nonlinear f at moderate n, checking
 category-probability calibration and cutpoint recovery against the truth - the
 family-level smoke beyond the exact gate, in the style of the existing recovery

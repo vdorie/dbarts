@@ -355,7 +355,7 @@ save/load without resident raw.
   ingestion, mutation, views/sharing, sparse categorical), and the
   test-data-parity superseding note. The "why" behind every ownership
   decision above.
-- `docs/plans/data-store-consolidation.md` - the four-stage consolidation
+- `docs/plans/archive/data-store-consolidation.md` - the four-stage consolidation
   (transaction helper, reset helpers, `ColumnSource` descriptor,
   `CodeBlock` de-twinning) whose landings carry the invariant decisions,
   including why there is no nested `CutGrid` type.

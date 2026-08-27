@@ -69,7 +69,7 @@ the arc generates.
   and "Defects found by this arc" items 4-6. All items pre-release; utility
   decides and price sizes a budget only.
 - Landed context this arc must not contradict: the empty-leaf veto weight law
-  (`docs/plans/empty-leaf-veto.md`, "Landing"), and G1/G5/G11 at 33f6fdc
+  (`docs/plans/archive/empty-leaf-veto.md`, "Landing"), and G1/G5/G11 at 33f6fdc
   (`docs/design/r-c-division.md`, "Defects").
 - Gate vocabulary: `docs/plans/README.md`, "RNG classes and their gates" and
   "Implementation protocol"; its ABI review rule governs S8.
@@ -513,7 +513,7 @@ re-record, and the SBC arm is the stronger gate.
 
 Gates: `--preclean` install; `tests/cpp` from clean, plain AND **under
 ASAN/UBSAN - REQUIRED**, because existing engine code becomes REACHABLE FROM R
-for the first time (`docs/plans/interaction-constraints.md`'s
+for the first time (`docs/plans/archive/interaction-constraints.md`'s
 new-reachable-code lesson); full tinytest FAILURES == 0; equivalence trio
 BITWISE, no re-record; the SBC swap arm run once locally, unmutated then
 mutated, both verdicts recorded; air + lintr on benchmarks/R/sbc.R and the
@@ -851,7 +851,7 @@ needing one, so no second window is owed before the freeze. Four items:
 4. The decision-8 carve-out comment. `dbarts.h` says in two places - the
    `dbarts_results` doc block and the "1.0-0 field boundary" comment - that an
    append bumps `DBARTS_C_API_MINOR`, while binding decision 8
-   (`docs/plans/dbarts-h-reshape.md`) pins MINOR at 0 through the window. Item
+   (`docs/plans/archive/dbarts-h-reshape.md`) pins MINOR at 0 through the window. Item
    1 makes the two collide, so this slice lands the one-sentence carve-out
    ("pre-1.0-0 appends extend the initial field set and move no version
    constant") in the same commit; without it the next author reads the header

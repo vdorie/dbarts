@@ -157,7 +157,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`TODO:162-168`) then said "The multinomial
+`multinomial-counts-mutation` entry (`TODO:138-144`) then said "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -352,7 +352,7 @@ header re-baked when `dbarts_sampler_predict` took a thread count, so
 beside `:73-74` and `:78`.
 
 **C1** no growth / **C2** grow / **C3** reserve only (~30 lines in
-`docs/plans/c-api-growth.md`).
+`docs/plans/archive/c-api-growth.md`).
 
 RECOMMEND **C3 now, C2 as a post-RC door.** The critique's finding 21 is
 right and my earlier C2-now recommendation rested on a misidentification
@@ -723,11 +723,11 @@ depend on the file's full execution history, not just the preceding
   `docs/design/multinomial.md:190-380`;
   `docs/design/bart-as-a-component.md` section 2.
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
-  `multinomial-counts-mutation` (`:162-168`) gains the surface note.
+  `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
   shipped sentence at `:1822`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
-- `docs/plans/c-api-growth.md`: Fork C3's reserve.
+- `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
   index today - verified).
 
@@ -831,7 +831,7 @@ re-resynced here (they are not live pointers into the current tree).
     Also: the MAJOR/MINOR carve-out should be cited to
     **`dbarts.h:100-104`**, the header's own words, not to a plan; the
     carve-out text sits at `adoption-slate.md:1757-1759` and decision 8
-    is owned by `docs/plans/dbarts-h-reshape.md`.
+    is owned by `docs/plans/archive/dbarts-h-reshape.md`.
 15. `man/bart2.Rd:291/:295/:299` - "`bc` and `fit` present only under
     `keepTrees`". **WRONG for `$fit`**, and contradicted by
     `test-multinomial-surface.R:340-354`. Moved to S0.
@@ -1042,7 +1042,7 @@ man/bart2.Rd correction (three paragraphs now state $fit rides
 keepTrees-or-keepSampler while $bc needs keepTrees), the bart2multinom
 scenario appended last in benchmarks/R/equivalence.R with its own literal
 seed, the $copy() hostFor transfer, and Fork C3's reserve section in
-docs/plans/c-api-growth.md (inst/include/dbarts/dbarts.h untouched).
+docs/plans/archive/c-api-growth.md (inst/include/dbarts/dbarts.h untouched).
 Price: 5 non-test dense (budget 120) + 389 test-and-harness dense
 (stop 390); docs/NEWS/MANIFEST/CI uncounted per convention.
 

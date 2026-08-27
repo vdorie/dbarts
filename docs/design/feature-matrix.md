@@ -425,7 +425,7 @@ still reporting a simplex) and the `setForestWeights` model-grounds refusal
 (also pinned in test-forest-weights.R). S4 landed at 93afd635
 (implemented as 76fd3ba6, amended during independent review): Rd
 (man/dbartsSampler-class.Rd), NEWS (inst/NEWS.Rd), a named recipe
-(man/bart.Rd), the dbarts.h reservation (docs/plans/c-api-growth.md),
+(man/bart.Rd), the dbarts.h reservation (docs/plans/archive/c-api-growth.md),
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
 bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). The
 flat-C entry, `dbarts_sampler_setActiveRows`, LANDED at dbarts-h-reshape
@@ -810,7 +810,7 @@ full-R third point is still owed.
 leaf-space conditional (COM:1922); the acceptance run at R = 200,
 `Rscript benchmarks/R/sbc.R multinom 200 150 30`, scores every functional PASS
 at band 0.1282, the three cells at 0.0688/0.0824/0.0675
-(docs/plans/multinomial-level-centering.md:177-192). The arm that ranks those
+(docs/plans/archive/multinomial-level-centering.md:177-192). The arm that ranks those
 cells is benchmarks/R/sbc.R:1755-1759.
 
 [f44] AFT is exercised only in combination, through the `grouped_aft` scenario
@@ -827,7 +827,7 @@ code.
 [f46] Tier A PASS with the sigma channel resolved as H-MIX on the (a, mu) ridge
 (sbc-calibration.md:650-660). Explicitly out of the family-tiers matrix, and
 `runSbcBCF` errors at that plan's HEAD (repair tracked separately in
-docs/plans/runsbcbcf-repair.md).
+docs/plans/archive/runsbcbcf-repair.md).
 
 [f47] OUT but DEFERRED rather than blocked: prior draws never reach
 `varianceForest_` today, and the arm is liftable R-side through `setState`

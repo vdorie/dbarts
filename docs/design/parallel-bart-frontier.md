@@ -325,7 +325,7 @@ sweep, DRAM-bound workload) and proceeds independently of any GPU
 decision. The backend seam is designed after items 4-5 report.
 
 Verdict at the time (2026-07-08, items 1-3 measured; drivers under
-benchmarks/R, raw records in docs/plans/parallel-falsifiers.md): 3.4
+benchmarks/R, raw records in docs/plans/archive/parallel-falsifiers.md): 3.4
 needed BOTH E1 and E2, both cleared, so 3.4 SURVIVED and became the
 flagship engine candidate, with one correction to the cost model -
 measured field share is ~85% not ~93%, so the realized DRAM drop is ~6x

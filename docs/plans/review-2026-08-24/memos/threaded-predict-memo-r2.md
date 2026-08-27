@@ -10,7 +10,7 @@ superseded; the critique's 35 findings are dispositioned in section 1.
 |---|-----|-------------|----------------------|
 | 1 | ok | ACK | Archaeology stands as written; no change. |
 | 2 | MAJ | **ACCEPTED** | Verified: `main:DESCRIPTION` = 0.9-34 (2026-08-20); 93f354a8 bumped to 0.9-31; `main:src/dbarts/bartFit.cpp` still carries the numThreads overload (7 hits). 0.9-31 SHIPPED and 1.0-0 is a live regression against four releases. Precedent f04e8686 (2026-08-20) edits NEWS in place. Decision 5 REVERSED - the entry is corrected in place (4.6). |
-| 3 | min | **ACCEPTED** | docs/plans/interface-review.md F10 (:198-205) records both formals "fully inert, not merely serial"; :543 lists "threaded prediction" on the 2.0-WISHLIST. Both cited; the wishlist line is struck by this slice. |
+| 3 | min | **ACCEPTED** | docs/plans/archive/interface-review.md F10 (:198-205) records both formals "fully inert, not merely serial"; :543 lists "threaded prediction" on the 2.0-WISHLIST. Both cited; the wishlist line is struck by this slice. |
 | 4 | ok | ACK | Independent `mutable` / SIMD-dispatch audit strengthens the no-shared-state claim; folded into 2.1. |
 | 5 | ok | ACK | Bitwise-identity-by-construction survives an adversarial read. Unchanged. |
 | 6 | MAJ | **ACCEPTED** | Scratch is per-SLAB, not per-task (chain.hpp:2805-2825 constructs `indices`/`blockOffsets`/`raw` on every call). Design now hoists scratch per WORKER before the spawn, and wraps each worker body in try/catch with a rethrow after the join (2.2). |
@@ -270,7 +270,7 @@ flag it either way. The NEW tests pass explicit values <= 2.
 - The 1.0-0 entry states that predict threading is BACK and that it partitions **per (chain,
   draw)**, not "across chains" - the 0.9-31 axis is not this one, so the old wording would stay
   false after the slice.
-- docs/plans/interface-review.md:543 - strike "threaded prediction" from the 2.0-WISHLIST; F10
+- docs/plans/archive/interface-review.md:543 - strike "threaded prediction" from the 2.0-WISHLIST; F10
   (:198-205) gets a landed note.
 
 ### 4.7 Tests, with the mutation each proves

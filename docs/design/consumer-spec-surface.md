@@ -1,7 +1,7 @@
 # Consumer specification surface (dbartsSpec): design
 
 Status: LANDED 2026-07-25 (6b6fed1); evaluation-environment follow-up 2026-07-27
-(b96d3bb, section 7). Plan: docs/plans/consumer-spec-surface.md. Adds one
+(b96d3bb, section 7). Plan: docs/plans/archive/consumer-spec-surface.md. Adds one
 exported function, `dbartsSpec()`, that resolves a `(control, model, data)` triple
 plus its family token exactly as `dbarts()` does, without constructing a sampler.
 It closes the last gap in the public path to the flat C API: a `LinkingTo: dbarts`

@@ -93,7 +93,7 @@ E1. CHANGE-MOVE DETAILED BALANCE. 0.9-34's changeRule.cpp accepts on the pure pi
 proposal-density term, inherited from the CGM-lineage original; 1.0-0 adds the hybrid
 correction (docs/design/change-move-balance.md:18-77, NEWS.Rd:1154-1163; exact gate
 benchmarks/R/change-balance.R, defect z +255 -> repair z -1.2,
-docs/plans/change-move-fix.md:200-207). The doc's bias factor, [p_var(v')/p_var(v)] *
+docs/plans/archive/change-move-fix.md:200-207). The doc's bias factor, [p_var(v')/p_var(v)] *
 [|Valid(v)|/|Valid(v')|], is invisible at equal cut counts AND equal split probabilities; both
 halves reproduce, each in its own scenario.
 - g_quants (coarse columns get 2-4 quantile cuts, the rest ~100): 0.9-34 OVER-uses the
@@ -137,7 +137,7 @@ fresh burn is adequate) while 0.9-34's loss RISES 1.562 -> 1.691 as the carried 
 Most of the gap is leakage; the 1.691 vs 1.758 residual is carry-over plus the per-fold cut grid.
 
 E5. BINARY k DEFAULT. 0.9-34 defaults binary k to chi(1.25, Inf) (== chi(1.5, Inf)), 1.0-0 to
-chi(1.5, 2.0) (5b6e4825, docs/plans/chi-default-research.md). On the strong-signal probit scenario
+chi(1.5, 2.0) (5b6e4825, docs/plans/archive/chi-default-research.md). On the strong-signal probit scenario
 it is invisible (b_probit_DEFAULTS max |z| 3.42, 0 over 4, sampled k 2.196 vs 2.119), correctly,
 since the research names weak-signal balanced cells as the regime. A dedicated
 weak-signal cell (n = 200, base rate 0.5, effect 0.3) reproduces the documented failure: 0.9-34's
@@ -156,7 +156,7 @@ not re-derive them:
 1. 0.9-34's sigma is the larger in all four matched gaussian/grouped arms, by 0.66-1.78%. Only
   rbart_sym clears |z| 4 (E3); the other three sit at z 0.88-1.51 against a ~3% floor. Consistent
   with E3 where it applies and with the change-move residual the design doc concedes even at equal
-  ROOT cut counts (CONTROL z -15.7 at exact-enumeration scale, docs/plans/change-move-fix.md), but
+  ROOT cut counts (CONTROL z -15.7 at exact-enumeration scale, docs/plans/archive/change-move-fix.md), but
   not separated from Monte Carlo error here.
 2. b_probit_k2's mean per-observation posterior sd differs by 0.16-0.18% against a 0.21% floor,
   reaching z 3.02 at 10x, but changes SIGN between the two precision arms, so it is not systematic.

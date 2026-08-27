@@ -4,11 +4,11 @@ Status: KILLED (measured), 2026-08-08. TODO `grow-from-root-default: RESOLVED
 NO`. This is the durable record of the pre-registered study and its result;
 working papers, the harness, and 98 checkpoints live in
 an untracked session directory (gitignored, not preserved).
-Pre-registration: `docs/plans/grow-from-root-default-study.md` (its Results
+Pre-registration: `docs/plans/archive/grow-from-root-default-study.md` (its Results
 section is the short form; this doc carries the full data and does not
 contradict it - see the Provenance section for one numeric discrepancy
 between the two that is reported, not resolved). Surface under study:
-`docs/plans/grow-from-root-warm-start.md` (LANDED 2026-07-10, opt-in
+`docs/plans/archive/grow-from-root-warm-start.md` (LANDED 2026-07-10, opt-in
 `n.grow.sweeps`). Validity floor: `docs/design/grow-from-root.md` section
 3(a) - the posterior is invariant to the warm start, so "should it default"
 is entirely a question of what a data-fitted init costs a sticky sampler,
@@ -1027,7 +1027,7 @@ the working-paper `results.md`); the consequential ones:
   existed, in the direction more permissive to KILL.
 
 **Numeric discrepancy, reported and not resolved.** The pre-registration's
-committed Results section (`docs/plans/grow-from-root-default-study.md`)
+committed Results section (`docs/plans/archive/grow-from-root-default-study.md`)
 states the SMALL-stratum aggregate benefit as "+0.199, z=25.5"; the
 gate-arithmetic table in the working paper `results.md` (section 4.5
 above) computes aggregate=0.15916, z=47.05 from the same five cells' B1@100
@@ -1056,7 +1056,7 @@ study needs to re-run this battery.
 The harness is NOT copied into `benchmarks/R/` (see the task note this
 document was written under, and the reasoning below), so re-running this
 battery means reconstructing it from the pre-registration
-(`docs/plans/grow-from-root-default-study.md`) and this document, not
+(`docs/plans/archive/grow-from-root-default-study.md`) and this document, not
 recovering a script. The harness as built was an 8-file, checkpoint-driven
 pipeline (`common.R` sourced by every other file via a HARDCODED absolute
 path; `m0.R` -> `stage0.R` -> `freeze.R` -> `partA.R` -> `partB.R` ->

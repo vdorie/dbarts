@@ -128,7 +128,7 @@ SIMD specializations only when profiling justifies them.
    partitionIndicesByMask (inline, <= 63 levels) and
    partitionIndicesByWideMask (pooled, > 63 levels) in src/bartcore/tree.hpp,
    reading a dense `const xint_t*` column. The sparse-categorical sibling
-   (docs/plans/data-ownership-5-sparse.md) mirrors both as
+   (docs/plans/archive/data-ownership-5-sparse.md) mirrors both as
    partitionIndicesSparseByMask / partitionIndicesSparseByWideMask, reading
    through SparseColumnData::at instead. Both pairs live next to the sparse
    MIA partition (partitionIndicesSparseMIA, tree.hpp) and are dispatched

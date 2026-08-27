@@ -15,8 +15,9 @@ functional count - 0.05/83 = 6.02e-4, band ~0.137. PASS/NOTE/FLAG = inside 5%
 band / over 5% but inside Bonferroni / over it. All harness self-checks passed
 at 200 trees, and `sbc.R discrete-selfcheck` replays BYTE-IDENTICAL.
 
-Wall clock 3 h 43 m (16:11-19:54), 9.45 h of CPU at 3 concurrent; logs, rank
-matrices (.rds) and the band recomputation are in ./sbc-logs/.
+Wall clock 3 h 43 m (16:11-19:54), 9.45 h of CPU at 3 concurrent; the driver
+and band recomputation are in ./sbc-logs/ (raw logs and rank matrices
+recording not retained).
 
 ## Family table (verdicts at the 5% band; 3 of 83 FLAG at the Bonferroni band)
 

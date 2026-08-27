@@ -101,8 +101,9 @@ except that A's only non-duplicate content IS that setData arm.
 The lane's driver (`sbc-logs/run-arm.R`) calls `runSbcGrouped` at the default
 `swap = FALSE`, the REBUILD arm - which is why the artifact shows. Three arms,
 one config (grouped gaussian, n = 160, 8 groups, rel.scale 0.2, 20% zero
-weights), m = 50, R = 120, L = 150, thin = 30, burn 2400 sweeps, 5% band 0.1172;
-logs and rank matrices in `sbc-logs/leafscale-pin-grouped-*`.
+weights), m = 50, R = 120, L = 150, thin = 30, burn 2400 sweeps, 5% band 0.1172
+(logs and rank matrices under `sbc-logs/leafscale-pin-grouped-*` recording
+not retained).
 
     arm                                sigma ecdf  chisq p  verdict  worst other
     rebuild, unpinned (the recorded)     0.2360    0.000    FLAG     0.0884 PASS

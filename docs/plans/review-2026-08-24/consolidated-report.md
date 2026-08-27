@@ -432,7 +432,7 @@ gaps: 31 mutations were re-planted against the FULL 167-file suite (pristine con
 assertions), and D's key engine mutation was additionally planted against tests/cpp. Verdicts below are
 therefore whole-suite, not half-suite. Driver and per-mutation logs: `addlog/` under the scratch dir named
 in (e); the two legs' own catalogues (`mutation-C-evidence/mutations.jsonl`,
-`mutation-D-evidence/mutations.jsonl`) replay as-is.
+`mutation-D-evidence/mutations.jsonl`) recording not retained.
 
 METHOD CAVEAT, recorded: the earlier header-mutation lane in section (b) was staged from a copy taken while
 the R lane was mid-flight, so it carried leg A's `mA09` (the aft-weights refusal deleted) as a background

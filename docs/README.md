@@ -78,20 +78,20 @@ a doc, start at the two INDEX files.
 
 These are real, intentional, and not to be renamed - just navigate them:
 
-- `docs/plans/c-api-growth.md` vs. `docs/plans/capi-callbacks.md` /
-  `docs/plans/capi-dispatch-table.md` - same ABI-growth subsystem, two
+- `docs/plans/archive/c-api-growth.md` vs. `docs/plans/archive/capi-callbacks.md` /
+  `docs/plans/archive/capi-dispatch-table.md` - same ABI-growth subsystem, two
   spellings of the same prefix (`c-api` vs `capi`). Three distinct
   stages of one arc, not redundant (only capi-dispatch-table.md
   explicitly cites c-api-growth.md).
-- `docs/plans/x86-simd.md` vs. `docs/plans/x86-simd-plan.md` - NOT
+- `docs/plans/archive/x86-simd.md` vs. `docs/plans/x86-simd-plan.md` - NOT
   duplicates. `x86-simd-plan.md` is a READ-ONLY measurement memo (the
   x86-measured follow-up to `simd-survey.md`); `x86-simd.md` is the
   action-plan-shaped file that resulted from it, now CLOSED/SUPERSEDED.
-- `docs/design/monotone.md` <-> `docs/plans/monotone-bart.md` - design doc
+- `docs/design/monotone.md` <-> `docs/plans/archive/monotone-bart.md` - design doc
   and plan file do not share a basename.
-- `docs/design/ordinal.md` <-> `docs/plans/ordinal-outcomes.md` - same
+- `docs/design/ordinal.md` <-> `docs/plans/archive/ordinal-outcomes.md` - same
   mismatch pattern.
-- `docs/plans/within-chain-threading.md` is a full plan file (goal,
+- `docs/plans/archive/within-chain-threading.md` is a full plan file (goal,
   steps, Landing notes summarizing the NO-GO), but the deep analysis
   lives in `docs/design/within-chain-threading.md` section 8, which its
   status line points at.

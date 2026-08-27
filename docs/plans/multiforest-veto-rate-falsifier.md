@@ -102,7 +102,7 @@ Three forks, in the order they bind. Only the first is decided here.
   `docs/design/empty-leaf-veto.md:115` prices occupancy-aware proposals at
   a "250-400 line, posterior-changing rewrite".
 - Precedent for falsifier-before-arc: `docs/design/memory-wall-frontier.md`
-  sec 11. Form of this file: `docs/plans/grow-from-root-default-study.md`.
+  sec 11. Form of this file: `docs/plans/archive/grow-from-root-default-study.md`.
 
 ## Constraints
 
@@ -1063,7 +1063,7 @@ what the orchestrator supplied. Nothing between the two tips touches the
 predictor-mutation, revalidation or export paths the design anchors on; every
 line reference in this file was re-verified at b4b8614 before the harness was
 written. During the run a concurrent agent landed d2e8e0a
-(`docs/plans/composition-mixing-probe.md`, documentation only), so branch HEAD
+(`docs/plans/archive/composition-mixing-probe.md`, documentation only), so branch HEAD
 has advanced; the measured binary is b4b8614's `src/` exactly.
 
 Also recorded against the header: the budget line says "~700-850 lines across

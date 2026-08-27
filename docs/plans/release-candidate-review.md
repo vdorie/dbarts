@@ -1058,9 +1058,9 @@ gate had reason to look for.
 The RC gate exists to prepare for the serious human review the charter
 names in section 1, so before the coverage/mutation/coherence passes,
 the content-heavy backlog went first. Four slices landed: 53525f4d,
-the multinomial fuzz arm (docs/plans/multinomial-counts-mutation.md);
+the multinomial fuzz arm (docs/plans/archive/multinomial-counts-mutation.md);
 139a1976, the predict-time blend
-(docs/plans/bcf-bartcause-relocation.md, 2026-08-24 note); d0701a6a,
+(docs/plans/archive/bcf-bartcause-relocation.md, 2026-08-24 note); d0701a6a,
 the logistic weight channel (docs/design/r-c-division.md's "The
 latent-family weight channel"; TODO's latent-family-weight-channel
 entry); and 124259d0 + 41661523, the saved-tree store cursor fix plus
@@ -3144,7 +3144,7 @@ The ledgered door-memo follow-up discharged: the b-move Jacobian
 exponent rule's derivation and prototype evidence (the operational
 c-form substitution, the GIG match giving the general p = (k - d)/2,
 and the proto-b.R run rejecting the naive Jacobian at KS 1.6e-21)
-move from docs/plans/bcf-b-ridge.md sections 2.2/2.3/5a into
+move from docs/plans/archive/bcf-b-ridge.md sections 2.2/2.3/5a into
 docs/design/multiplier-combiner.md, "The exponent rule", placed
 after "The ASIS ridge". The plan keeps its BCF-specific invariance
 argument, edge cases, and routing narrative, with MOVED pointer

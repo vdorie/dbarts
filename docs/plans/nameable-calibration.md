@@ -457,7 +457,7 @@ question 2 refused to pay for `setForestWeights`.
 
 The signature must be settled before the last re-bake; the CODE need not be.
 
-1. Write the section-8 footprint into `docs/plans/dbarts-h-reshape.md` S1 as a
+1. Write the section-8 footprint into `docs/plans/archive/dbarts-h-reshape.md` S1 as a
    numbered item (POD, enum, two X entries, the per-leaf-model Doxygen, the
    two error channels, the pointer rationale) and into TODO.
 2. Record the forward-compat note (the basis family relaxes a guard body, not
@@ -692,8 +692,8 @@ docs/plans/README.md.
 
 S0 - LANDED 4c866286, 2026-08-12. The frozen `dbarts_sampler_get/
 setCalibration` signatures and the `prior.scale` slot shape were
-written into `docs/plans/dbarts-h-reshape.md` S1 (items 7+8, beside
-the active-rows footprint) and `docs/plans/c-api-growth.md`; no code.
+written into `docs/plans/archive/dbarts-h-reshape.md` S1 (items 7+8, beside
+the active-rows footprint) and `docs/plans/archive/c-api-growth.md`; no code.
 
 S1 - LANDED c2a7e89b, 2026-08-13. All ten items shipped; the
 conversion is a private `Chain::resolvedNodeScale` helper shared by

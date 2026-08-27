@@ -132,7 +132,7 @@ N7 docs/plans/INDEX.md: 3 stale rows of 151 - multinomial-level-centering (OPEN 
    (RESEARCH-OPEN vs own CLOSED), setpredictor-leafof-rebuild (OPEN vs own CLOSED). check-doc-freshness.R checks docs/design
    labels only (37 checked).
 N8 Variable-selection inference and random-effects breadth (slopes, crossed, nested) are recorded ONLY in
-   docs/plans/roadmap-survey.md, which the TODO does not reference - a TODO-driven census misses them. Both large and
+   docs/plans/archive/roadmap-survey.md, which the TODO does not reference - a TODO-driven census misses them. Both large and
    post-1.0.
 
 ## 5. VD-HELD (recommendation attached, not an action)

@@ -30,10 +30,8 @@ items
     never ran (darwin/arm64, valgrind.yaml unregistered off bartcore)
     - rides the first nightly after bartcore reaches main; per-push CI
     sanitizers cover the tinytest file under instrumented R meanwhile.
-  bcf-baseline-cross-host: cross-host mode LANDED 3f532af2 in
-    bcf-equivalence.R and multinomial-equivalence.R
-    (docs/plans/bcf-cross-host.md; prerc-surface-freeze.md D7).
-    Remaining: the RC-tip re-record refresh.
+  bcf-baseline-cross-host: CLOSED (docs/plans/bcf-cross-host.md;
+    prerc-surface-freeze.md D7). Remaining: the RC-tip re-record refresh.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -47,7 +45,7 @@ items
     configuration - one varying-coefficient forest with no prognostic
     partner, which is VCBART's shape (D4 of docs/design/model-space-
     survey.md). Today it is a designed refusal (spec.R, added by
-    docs/plans/binary-kforest-prior-default.md). Priced live rather than
+    docs/plans/archive/binary-kforest-prior-default.md). Priced live rather than
     inherited: the engine already takes it - drawGlue dispatches
     K != 2 to the general drawAmplitudes, synthesizeIndicatorBasis is
     gated on numForests_ > 1, shippedShape() is simply false at K = 1,
@@ -56,10 +54,7 @@ items
     NOT engine work. Gated on ACCEPTANCE EVIDENCE: a new shipped
     configuration owes its own, which is why that plan refused rather
     than opened it.
-  cheap-uniformity: sparse-valued mutation on a container/CSC-backed
-    target, per-column x.test update, and engine-resident sparse
-    predict all shipped (docs/plans/cheap-uniformity.md). No open
-    door recorded.
+  cheap-uniformity: CLOSED, see docs/plans/archive/cheap-uniformity.md. No open door.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -68,26 +63,14 @@ items
     with EXACT pure-AR-1 errors a deferred ENGINE door (banded
     residual precision + cross-leaf GLS leaf updates break per-leaf
     independence). causal-motivated, decision-gated.
-  equivalence-harness-statistical-mode: bcf-equivalence.R and
-    multinomial-equivalence.R fall through to equivalence.R's
-    statistical shape (per-summary Welch z over each scenario's
-    statChannels draws against the baseline's recorded summaries,
-    |z| > 4 fails) on a bitwise mismatch; a mismatch outside
-    statChannels (a point-in-time snapshot, an accept/reject verdict)
-    still gates directly. CLOSED: the multinomial half closed at the
-    level-centering fix (multinomial-equivalence-4d9a3337.rds carries
-    summaries); the bcf half closed with the cross-host mode LANDED
-    3f532af2 (docs/plans/bcf-cross-host.md) - both harnesses gain a
-    --cross-host compare-only flag exempting the snapshot channels
-    (mu, tau, glue, varcount.tau, accepted, installed) under a
-    two-tier verdict: tier 1 LOCKED relative-deviation bound is the
-    gate, tier 2 a labeled-weak statistical fallback. exact-gates.yaml
-    runs both compares on every push; equivalence.yaml carries the
-    same tokens for when it goes live. Remaining, both doors open at
-    docs/plans/bcf-cross-host.md: the RC-tip re-record refresh (a
-    pin, not a prerequisite - the current .rds already suffices), and
-    a post-RC seeds-axis re-record replacing the single-chain
-    autocorrelated draws with independent per-scenario seeds.
+  equivalence-harness-statistical-mode: CLOSED - the multinomial half at
+    the level-centering fix (docs/plans/archive/multinomial-level-centering.md),
+    the bcf half with cross-host mode LANDED 3f532af2 (docs/plans/bcf-cross-host.md).
+    Remaining, both doors open at docs/plans/bcf-cross-host.md: the
+    RC-tip re-record refresh (a pin, not a prerequisite - the current
+    .rds already suffices), and a post-RC seeds-axis re-record
+    replacing the single-chain autocorrelated draws with independent
+    per-scenario seeds.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
@@ -114,10 +97,9 @@ items
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
     typed-ingestion at its close. consumer-gated.
-  interaction-constraints: deliverable B and the p4 follow-on landed
-    (records in docs/design/interaction-constraints.md,
-    docs/plans/interaction-constraints.md and
-    docs/plans/interaction-constraints-p4.md).
+  interaction-constraints: CLOSED (docs/design/interaction-constraints.md,
+    docs/plans/archive/interaction-constraints.md,
+    docs/plans/archive/interaction-constraints-p4.md).
     Remaining doors: formal heredity (ensemble lattice prior) - value
     gate lifted, enabling functional-ANOVA BART (arXiv 2509.03317),
     for which dbarts already ships the hard-constraint half; soft
@@ -129,13 +111,13 @@ items
     at 98067fb3, review-2026-08-24/memos/monotone-branch-fill-bench.md.
   multiforest-extension-surface: the general basis family
     (forests = list(forest(...))) has landed in full
-    (docs/plans/multiforest-extension-surface.md Landing notes).
+    (docs/plans/archive/multiforest-extension-surface.md Landing notes).
     Open: falsifier FA5 needs respecifying at M4 scheduling - its
     committed form tests a strawman (K independent probit samplers);
     the decisive arm is K Gaussian samplers with host-drawn latents
     against the combined fit.
   multiforest-mutation-gaps: doors open
-    (docs/plans/multiforest-mutation-gaps.md):
+    (docs/plans/archive/multiforest-mutation-gaps.md):
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,
     gated on a considered failure to find an enabled model - every
     verified multi-forest class holds n fixed, and the BART
@@ -150,24 +132,18 @@ items
     monotoneTreeIsFeasible's 1e-9: deliberately left (it is the
     acceptance predicate of the constrained-prior rejection sampler,
     a one-sided feasibility slack, not an equality tolerance).
-  multiforest-predictor-mutation: per-observation/transactional
-    predictor mutation on multi-forest samplers, including the
-    variance forest, landed in full
-    (docs/plans/multiforest-predictor-mutation.md Landing notes).
-    The statesAgree above-chain-level gap is deliberate, not a
-    workaround: cutPoints/currentSampleNum are compared separately in
-    the fuzz snapshot because statesAgree itself must skip them for
-    other callers that compare states across cut grids
-    (tests/cpp/test_fuzz.cpp:164-171).
+  multiforest-predictor-mutation: CLOSED, see
+    docs/plans/archive/multiforest-predictor-mutation.md. No open door (the
+    statesAgree above-chain-level gap is deliberate, not a workaround).
   multinomial-counts-mutation: predictPerForest's
     forestReportingIsDefined gate is a standing refusal, not merely
     unimplemented - every candidate use of per-forest off-sample
     replay is already served by log(predict(...)) to 1e-13 or needs a
     reference-category identification this model already declined;
     re-open trigger is a level-sensitive composition of the K latents
-    (docs/plans/multinomial-counts-mutation.md).
+    (docs/plans/archive/multinomial-counts-mutation.md).
   negbin-real-dispersion: recorded door out of the negative-binomial
-    landing (docs/plans/negative-binomial.md; design sec 2 carries fork
+    landing (docs/plans/archive/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
     Polya-Gamma draw, for which no exact sampler exists, so shipping it
     means dbarts' first documented-approximate family (truncated
@@ -182,9 +158,8 @@ items
     bounds, sparse metadata assembly) lives in the R bridge, and
     mixed/CSC stores hold lifetime borrows anchored by R protection.
     decision-gated.
-  r-c-division: the boundary guide, "R addresses the conditionals;
-    C++ addresses the integrand" (docs/design/r-c-division.md). Its
-    adoption slate has landed in full (docs/plans/adoption-slate.md).
+  r-c-division: CLOSED, see docs/design/r-c-division.md and
+    docs/plans/adoption-slate.md. No open door.
   rc-gate: the pre-RC slate is complete except bcf-baseline-cross-host,
     still open at the RC tip; the RC declaration itself is VD-held.
   release-candidate-review: the charter for the orchestrated review
@@ -230,16 +205,10 @@ items
   sbc-family-tiers: records in docs/plans/sbc-family-tiers.md and
     runsbcbcf-repair.md. Open doors: the monotone follow-on arm, the
     heteroscedastic setState lift, full-R ladder re-runs.
-  second-review-followups: what the second whole-branch review left
-    open (docs/plans/release-candidate-review.md,
-    "lenses, findings, fix waves 1-2" and "fix wave 3 - the
-    judgement-gated slices" landing notes). Every judgement group is
-    decided and landed, including the threaded-predict arc
-    (docs/design/threaded-predict.md section 11), the
-    constant-response sigma flake fix, the docs/-citation strip, and
-    the feature-matrix anchor resync, and the review-tour refresh
-    (tracked at docs/plans/bartcore-review-tour.md, landed 0b89ab8b).
-    Remaining: VD's own human review. Doors the wave recorded
+  second-review-followups: CLOSED except VD's own human review
+    (docs/plans/release-candidate-review.md, "lenses, findings, fix
+    waves 1-2" and "fix wave 3 - the judgement-gated slices" landing
+    notes). Remaining: VD's own human review. Doors the wave recorded
     (negbin rootogram, ordinal tail-precision loglik, negbin burn-in
     dispersion channel) live in release-candidate-review.md's wave-3
     landing note; its own-class silent-no-op door closed with the
@@ -253,7 +222,7 @@ items
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
   survival-followups: doors out of the survival family pair (records
-    in docs/plans/survival-models.md and docs/design/survival.md sec
+    in docs/plans/archive/survival-models.md and docs/design/survival.md sec
     6): competing risks (value lifted; the named consumer of
     multinomial-counts-mutation, the two move together), left
     truncation / delayed entry (value lifted; the cheapest door, a
@@ -266,7 +235,7 @@ items
     set would help? Durable record docs/design/tree-mixing-
     proposals.md (ranking sec 4.1 as amended, specialization addendum
     sec 12). The composition-probe mechanism
-    (docs/plans/composition-mixing-probe.md) survives as a
+    (docs/plans/archive/composition-mixing-probe.md) survives as a
     conditional tool (outer composition when absorbable structure is
     known). Ranked next steps, all decision-gated, likely
     post-release for code: same-variable cut redraw "perturb"
@@ -274,7 +243,7 @@ items
     generator-only regrow census, the re-specified reallocation
     census, heated companion chains.
   variance-forest-mutation-routing: doors open
-    (docs/plans/variance-forest-mutation-routing.md): scale-leaf
+    (docs/plans/archive/variance-forest-mutation-routing.md): scale-leaf
     staleness under updateScale; heteroscedastic prior-predictive
     draw.
   veto-arc-doors: out of the 2026-08-18 adversarial review
@@ -288,7 +257,7 @@ items
     with negbin-real-dispersion). decision-gated.
   x86-simd: CLOSED as a perf lever - compute width is already emitted,
     and the remaining kernel candidates measured NO-GO
-    (docs/plans/simd-flag-multiversioning.md, x86-simd.md). The live
+    (docs/plans/archive/simd-flag-multiversioning.md, x86-simd.md). The live
     perf frontier is the MEMORY WALL; its remaining unmeasured doors
     (weighted/fp32 fusion legs, move-phase child gathers, K=8) are
     docs/design/memory-wall-frontier.md sec 12.
@@ -344,4 +313,4 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     --as-cran on a clean-copy tarball, the suite, and the equivalence
     trio against the current baselines (the last full pre-submission
     gate run predates many engine commits; details in
-    docs/plans/cran-readiness.md).
+    docs/plans/archive/cran-readiness.md).

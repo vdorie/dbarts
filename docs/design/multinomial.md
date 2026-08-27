@@ -212,7 +212,7 @@ out of it, so DART (via either the dart argument or a DART tree.prior),
 split.probs, monotone, and variance are refused by name too, rather than
 silently reaching no K-forest engine slot. An n x K numeric matrix
 offset IS accepted (landed with the mutation channel below,
-docs/plans/multinomial-counts-mutation.md S5): a creation-time argument on
+docs/plans/archive/multinomial-counts-mutation.md S5): a creation-time argument on
 bart2's one-shot fit, threaded to the internal creator's own offset
 argument rather than to the host sampler's flat one. It is TRAIN-side only:
 bart2's own offset.test is refused by name, and yhat.test is always
@@ -230,7 +230,7 @@ both supported (below).
   drawn as the sum of n_i PG(1, .) draws - exact, because the shape is
   observed integer data, never sampled, so the real-shape gap that
   constrains negative binomial's dispersion has no analog here (landed
-  2bd34db, docs/plans/multinomial-counts.md). Single-trial labels
+  2bd34db, docs/plans/archive/multinomial-counts.md). Single-trial labels
   (0..K-1 codes) enter as a one-hot counts matrix with unit trials, the
   byte-identical n_i = 1 reduction that anchors every recorded
   equivalence baseline; K defaults to one past the largest code on the
@@ -252,7 +252,7 @@ both supported (below).
   on the p margin, mirroring every other K-shaped fit field.
 - The formula interface (bart2(y ~ x1 + x2, data = df, family =
   "multinomial")) is accepted beside the matrix interface (landed
-  2026-07-17, docs/plans/multinomial-formula.md); family = "multinomial"
+  2026-07-17, docs/plans/archive/multinomial-formula.md); family = "multinomial"
   is never auto-detected from a factor response - a multi-level factor
   left-hand side under any other family setting is untouched by this and
   still whatever it did before (an error, from dbartsData's own
@@ -309,7 +309,7 @@ both supported (below).
   `$setCounts` / `$setCategoryOffset` / `$setCategoryTestOffset` on an
   ordinary dbartsSampler built by `dbarts(family = "multinomial")`; still
   reachable as the internal `bartcore*` entries a bart2 handle drives;
-  docs/plans/multinomial-counts-mutation.md) are the exceptions to an
+  docs/plans/archive/multinomial-counts-mutation.md) are the exceptions to an
   otherwise-refused whole-data swap. bartcoreSetCounts replaces the n x K
   count response at fixed n and K (n and K cannot change on a live
   sampler); the trees carry over, refitted against the new counts on the

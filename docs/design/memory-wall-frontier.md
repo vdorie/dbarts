@@ -6,7 +6,7 @@ day by direct measurement of the strongest candidates. This was never a proposal
 to build by itself - it is a ranked idea map with falsifiers, and the record of
 which branches were tried, which closed, and which one shipped. Companion to
 docs/design/parallel-bart-frontier.md, within-chain-threading.md, block-fusion.md
-(excised), data-layout.md, gpu-bart.md, and docs/plans/blocked-jacobi-trees.md
+(excised), data-layout.md, gpu-bart.md, and docs/plans/archive/blocked-jacobi-trees.md
 (within-chain-parallelism verdicts).
 
 Summary: the panel's own re-profile found that the leafOf/muByTree refactor had
@@ -452,7 +452,7 @@ experiment, unaffected by storage. That experiment has since run to
 completion, independently of this doc: both within-chain threading and
 blocked-jacobi-trees are NO-GO on the real engine (the binding wall there is
 the serial fraction, not just bandwidth) - see within-chain-threading.md and
-docs/plans/blocked-jacobi-trees.md for the full argument; it is not re-derived
+docs/plans/archive/blocked-jacobi-trees.md for the full argument; it is not re-derived
 here. fp32 storage IS the memory-wall answer for this engine.
 
 ## 10. Re-profile and census at 06f73b0 (2026-08-04, dbarts-bench)

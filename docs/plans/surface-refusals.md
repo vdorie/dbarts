@@ -765,9 +765,9 @@ machine if the RC tip wants a clean sheet.
 
 Observed, out of scope, recorded so it is not rediscovered.
 
-- The terminal catch-all (section 3): now that every link in the `residuals` -> `fitted` -> `extract` chain
-  refuses foreign names and forwards no `...`, an "any unmatched name" refusal becomes a cheap additive
-  follow-on that would also catch typos (`ci.lvl`). Additive by rule, so post-1.0.
+- The terminal catch-all (section 3): landed 74e2e050 (the pre-review defect
+  slice: "positional foreign arguments"), not post-1.0 residue - the
+  integration tip this doc's landing was branched from.
 - `coerceOrError`'s two EXISTING messages (R/utility.R:164, :175) interpolate `mc[[2L]]` unguarded and have
   the same latent defect section 10 fixes for the new one - at R/spec.R:544-548 both would render an
   expression as a quoted name. Left alone here: they are existing corpus, and error-style.md's slice L

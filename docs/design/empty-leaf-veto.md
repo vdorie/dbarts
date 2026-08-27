@@ -183,7 +183,7 @@ bottom) is not confined to the move kernels. `Chain::stateIsValid`'s mean
 branch has always re-derived it structurally - build a scratch tree per stored
 tree, repartition against the sampler's current data, and refuse unless every
 bottom is occupied - as the criterion `$setState` and a warm start
-(`installForests`) both gate on. `docs/plans/multiforest-predictor-mutation.md`
+(`installForests`) both gate on. `docs/plans/archive/multiforest-predictor-mutation.md`
 made the TRANSACTIONAL predictor surface (`$setPredictor` - whole matrix,
 column subset, or per-observation - and the cross-sampler per-observation
 session) enforce that same criterion rather than a weaker one: a row installs
@@ -203,8 +203,8 @@ see docs/design/heteroscedastic.md section 14.
 
 The veto counted leaf MEMBERS. It now counts POSITIVE-WEIGHT members. A zero
 weight is ABSENCE, not reweighting - the shipped contract
-(`dbartsSampler-class.Rd`, docs/plans/zero-weight-exactness.md,
-docs/plans/sigma-df-zero-weights.md: the leaf suffstats multiply by `w` and the
+(`dbartsSampler-class.Rd`, docs/plans/archive/zero-weight-exactness.md,
+docs/plans/archive/sigma-df-zero-weights.md: the leaf suffstats multiply by `w` and the
 sigma posterior's df counts positive weights only) - so a leaf all of whose rows
 carry weight zero enters no likelihood term of the forest that holds it. Under
 the count law such a leaf was legal: it scored exactly `0.0`

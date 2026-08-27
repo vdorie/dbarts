@@ -14,7 +14,7 @@ builds of the same values exactly.
 
 - docs/design/sparse-columns.md landing notes defer: in-place mutation
   on sparse columns (raw-x surface fixed at creation today), sparse
-  x.test (DELIVERED by docs/plans/test-data-parity.md - resident sparse
+  x.test (DELIVERED by docs/plans/archive/test-data-parity.md - resident sparse
   test storage; removed from this scope), a streaming range kernel, and
   mutation on dense-backed mixed columns. The per-column u8 width entry
   moved to hot-layer-u8.
@@ -47,7 +47,7 @@ builds of the same values exactly.
   rebuilding the layout otherwise, with dense-identical codes/draws and
   transactional roll-back. Of the extensions deferred here, two have since
   been delivered elsewhere (2026-08-07 correction): sparse x.test by
-  docs/plans/test-data-parity.md (typed sparse test store, CLOSED there),
+  docs/plans/archive/test-data-parity.md (typed sparse test store, CLOSED there),
   and dense-backed mixed-column mutation, R mirror included, by
   typed-ingestion slice 2a (95db5d7). Still deferred and consumer-gated:
   a streaming range kernel, rbart_vi/linear-leaf on sparse, per-column

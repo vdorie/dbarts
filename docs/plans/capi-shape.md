@@ -564,7 +564,7 @@ with each file's line count invariant. THREE files shift, not two:
 
 - inst/include/dbarts/dbarts.h: 22 bare `dbarts.h:N` anchors plus 8 `CAPI:N`
   alias anchors (the alias is declared at tools/check-doc-freshness.R:147) = 30
-  in docs/design, plus docs/plans/multiforest-extension-surface.md:3289.
+  in docs/design, plus docs/plans/archive/multiforest-extension-surface.md:3289.
 - src/C_interface.cpp: 17 anchors.
 - src/R_interface_bartcore.cpp: the predicates of section 8 insert into
   :2613-2925, shifting 90 `RIB:` anchors plus 26 bare

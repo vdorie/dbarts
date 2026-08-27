@@ -3,8 +3,8 @@
 Status: LANDED 2026-07-20 (arc 3775437..994ec7e; records 31c0204); predictor
 mutation (setPredictor, transactional and per-observation) on a
 heteroscedastic sampler LANDED 2026-08-12
-(docs/plans/multiforest-predictor-mutation.md S3, a825263; see section 14).
-Plan: docs/plans/multi-forest-models.md (the heteroscedastic half). Users
+(docs/plans/archive/multiforest-predictor-mutation.md S3, a825263; see section 14).
+Plan: docs/plans/archive/multi-forest-models.md (the heteroscedastic half). Users
 declare a second ensemble modeling the residual
 variance as a function of predictors, so y_i = f(x_i) + s(x_i) eps_i with
 eps_i ~ N(0, 1): the mean forest f is the ordinary constant-leaf ensemble, and
@@ -636,7 +636,7 @@ TODO). Cite this note, not them, for the variance-forest's conjugacy.
 ## 14. Post-landing: predictor mutation on a heteroscedastic sampler
 
 Sections 0-13 cover the model's own landing (2026-07-20). Everything below is a
-later arc, docs/plans/multiforest-predictor-mutation.md S3 (2026-08-12), which
+later arc, docs/plans/archive/multiforest-predictor-mutation.md S3 (2026-08-12), which
 did not touch the model - no new draw, no changed prior, no changed sweep -
 only widened which store mutations the variance forest can survive.
 
@@ -673,7 +673,7 @@ terms as an ordinary single-forest sampler - a row installs only if it
 empties no leaf in any mean tree AND no variance tree, rolling back (or
 declining, per row) otherwise. See
 docs/design/empty-leaf-veto.md for why that criterion is not new, and
-docs/plans/multiforest-predictor-mutation.md for the full mechanism, the
+docs/plans/archive/multiforest-predictor-mutation.md for the full mechanism, the
 falsifiers that gate it (F9, F10 cover the variance-specific rollback and
 recovery-ordering claims), and the equivalence baselines.
 

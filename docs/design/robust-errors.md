@@ -1,6 +1,6 @@
 # Robust (Student-t) errors: design
 
-Status: LANDED 2026-07-17 (b4f818e). Plan: docs/plans/robust-errors.md (this is its
+Status: LANDED 2026-07-17 (b4f818e). Plan: docs/plans/archive/robust-errors.md (this is its
 step 1). Continuous responses gain a Student-t residual law by the classic
 Gaussian scale-mixture augmentation, riding the per-observation precisions the
 workingWeights hook already carries for logistic.

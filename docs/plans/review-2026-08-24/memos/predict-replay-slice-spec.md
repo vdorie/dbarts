@@ -1,7 +1,7 @@
 # Slice spec: out-of-sample per-forest predict replay
 # (priced 2026-08-20; AMENDED per blind critique, verdict EXECUTE-WITH-AMENDMENTS)
 
-Door: docs/plans/bcf-bartcause-relocation.md:1271-1276. Verdict MEDIUM-PLUS:
+Door: docs/plans/archive/bcf-bartcause-relocation.md:1271-1276. Verdict MEDIUM-PLUS:
 expect ~700-800 raw insertions, >= 13 files. Comparables: 88ffe12
 (multinomial C2 predict, 347/62/9) and 77013d72 (one new read method, 656
 insertions / 15 files - the closer calibration for the Rd/bridge surface).

@@ -3,14 +3,14 @@
 Code citations are at 39451b1; they are not live.
 
 Status: COMPLETE as a survey, 2026-08-08; D1 (section 4) subsequently LANDED
-2026-08-10 through 2026-08-12 (docs/plans/multiforest-predictor-mutation.md,
+2026-08-10 through 2026-08-12 (docs/plans/archive/multiforest-predictor-mutation.md,
 SL 7299b8b through S4) - see the landing note appended to section 4; D4
 (section 4, the general per-forest multiplier channel) ADDED and CLOSED
-2026-08-14 (docs/plans/multiforest-extension-surface.md M4.0-M4.3), carrying
+2026-08-14 (docs/plans/archive/multiforest-extension-surface.md M4.0-M4.3), carrying
 the four model classes the survey lacked as multiplier classes. Research
 only - no code changed. Run
 as the research gate VD placed in front of the two multi-forest update-shape
-doors (TODO `multiforest-mutation-gaps`; docs/plans/runsbcbcf-repair.md "setData
+doors (TODO `multiforest-mutation-gaps`; docs/plans/archive/runsbcbcf-repair.md "setData
 door survey"), on the standing rule that **the shape follows from the models**.
 Carries the `backlog-value-scan` TODO entry as section 7. Method was design memo
 -> blind refuting critique -> this synthesis; the critique's verdict was STANDS
@@ -100,12 +100,12 @@ it - see section 6.
 (R_interface_bartcore.cpp:2589-2600) builds a sampler over a row-subset view of
 a data handle, copying the handle's cut grid so folds bin identically to the full
 data. That is xbart's fold mechanism and the mechanism
-docs/plans/data-ownership-4-views.md names for "hurdle/IRT-style embeddings". The
+docs/plans/archive/data-ownership-4-views.md names for "hurdle/IRT-style embeddings". The
 subset is **fixed at creation**; such a sampler refuses `setPredictor`,
 `setData`, `setCutPoints` and `setState`.
 
 **Zero weights are already exact.** A zero-weight row leaves the weighted SSR and
-every leaf conditional, and since docs/plans/sigma-df-zero-weights.md the sigma
+every leaf conditional, and since docs/plans/archive/sigma-df-zero-weights.md the sigma
 posterior df counts only positive-weight rows. "Exact exclusion" as a
 *likelihood* concept is served. What is not served is exclusion of a row from
 *one forest of a coupled model*, and the O(|S|) cost that would come with it.
@@ -115,7 +115,7 @@ exact zero.** As surveyed, `formForestResponse` divided the residual by the
 forest multiplier and floored |m| at 1e-9, so a b0 = 0 control row entered
 tau's suffstats with weight ~1e-18 and response ~1e9 x resid: effective, not
 exact. The floor was REPLACED by an exact-zero snap at `0x1p-26` on 2026-08-10
-(combiner.hpp:787, applied :823-827; docs/plans/zero-weight-exactness.md), the
+(combiner.hpp:787, applied :823-827; docs/plans/archive/zero-weight-exactness.md), the
 shipment door 2's own update below records at "Update, 2026-08-10". A snapped
 row now leaves with exactly zero weight and exactly zero response. What the
 snap does NOT change is the cost: tau still pays O(n) per sweep, which is the
@@ -219,7 +219,7 @@ away under checking, and this is the survey's largest correction:
   lists it among door 2's four. The pinned record is right and the memo was
   wrong here: that class **runs today** at fixed n via the fixed glue
   (a = 1, b0 = 0, b1 = 1) plus per-iteration `setTreatment`
-  (docs/plans/runsbcbcf-repair.md). Its residual is **efficiency** - O(treated)
+  (docs/plans/archive/runsbcbcf-repair.md). Its residual is **efficiency** - O(treated)
   rather than O(n) tau cost - not mutability. (As written this also claimed
   "exact exclusion instead of the 1e-9 floor"; the floor became an exact zero on
   2026-08-10, so only the cost half survives. See section 2.)
@@ -249,7 +249,7 @@ class is efficiency, not mutability.
    exact-zero path in place of the then-live 1e-9 multiplier floor, plus a
    caller-settable per-forest weight. Both landed. Exact exclusion from the leaf
    conditionals and the sigma df is an already-solved semantic
-   (docs/plans/sigma-df-zero-weights.md).
+   (docs/plans/archive/sigma-df-zero-weights.md).
    This is the shape the surviving zero-inflation construction actually uses.
    Does **not** buy the O(|S|) cost reduction - the forest still pays O(n).
 3. **Physical COMPACTION.** The subset forest holds a gathered |S|-row view,
@@ -306,7 +306,7 @@ one-mechanism-or-two question open for (1) and (3).
 - **Whether one class is enough to build for.** The value gate lifts on one; the
   shape decision does not have a second consumer to triangulate against.
 
-**Update, 2026-08-10 (docs/plans/zero-weight-exactness.md).** Shape (2), per-
+**Update, 2026-08-10 (docs/plans/archive/zero-weight-exactness.md).** Shape (2), per-
 forest zero weight, SHIPPED: the combiner's exact-zero multiplier snap (S1) and
 a caller-settable per-forest, per-observation weight on
 `AmplitudeForestCombiner` (S2, `dbarts:::`-only). Shapes (1) (mutable row mask)
@@ -448,7 +448,7 @@ creation itself when the data carries a treatment vector
 the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:644,
 corrected from this section's stale :629) is no longer the only R entry.
 `bcf()` stays a comment (R/model.R:1666, 1684), expected to ship in
-bartCause instead (docs/plans/multiforest-extension-surface.md fork 4). The
+bartCause instead (docs/plans/archive/multiforest-extension-surface.md fork 4). The
 R5 surface (S2, 339aeb0), the flat C surface (S3, 1622eb9) and per-draw
 reporting (S4, 1df9c0c) followed; `treatment =`/`moderators =`/
 `treatmentForest =` are PROVISIONAL, scheduled for replacement by
@@ -470,7 +470,7 @@ so a MODEL is a choice of basis columns per forest. bcf is the K = 2 instance
 `(1 - z, z)` with amplitudes `(b0, b1)`). The mechanism, its conditionals, its
 mutation and persistence contracts and its bitwise contracts are
 docs/design/multiplier-combiner.md; the arc is
-docs/plans/multiforest-extension-surface.md M4. **Gaussian, probit and logistic
+docs/plans/archive/multiforest-extension-surface.md M4. **Gaussian, probit and logistic
 responses** (M4.4) - the creation surface admits those three and refuses `aft`,
 `ordinal` and `nbinom` by name (R/spec.R:504-526), and the K-forest chain builds
 the matching response model (chain.hpp:710-725) - so every class below is
@@ -488,7 +488,7 @@ classes it did NOT carry, each a different basis, are:
   arXiv:2007.09845, v1 only, no journal reference. Not merely venue-unverified;
   there is no venue. Recorded here because the phrase this section executes
   ("the four VERIFIED classes it lacks",
-  docs/plans/multiforest-extension-surface.md M4.5) called it verified, and the
+  docs/plans/archive/multiforest-extension-surface.md M4.5) called it verified, and the
   plan's own later corrected-citations pass (:488-493) downgraded it. Neither
   claim is left standing silently: the class is written, and it is written as
   unverified. dbarts expresses it TODAY - a one-column continuous basis is a
@@ -772,7 +772,7 @@ latent classes, and so supported nothing that survives.
 
 **Added 2026-08-14 with section 4's D4.** These three were verified by the
 extension-surface plan's corrected-citations pass
-(docs/plans/multiforest-extension-surface.md:483-493), NOT by a fresh fetch in
+(docs/plans/archive/multiforest-extension-surface.md:483-493), NOT by a fresh fetch in
 this file. Distinguishing the two is the point of this ledger, so it is stated
 rather than blurred.
 

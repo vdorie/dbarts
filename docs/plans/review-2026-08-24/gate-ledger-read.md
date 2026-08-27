@@ -100,7 +100,9 @@ OVERSTATED:
   change-move proposal-density omission of CGM lineage, INHERITED FROM THE DELETED CLASSIC ENGINE, biasing tree
   structure toward low-cardinality variables (confirmed by change-balance.R). equivalence-5430fdb.rds records that
   engine: cutover evidence, not a correctness reference.
-- L. TWO UNWIRED tools/ SCRIPTS COVER FAILURE MODES NOTHING ELSE SEES. check-win-drift.R is the only check of the
+- L. (fixed-at 74e2e050: both scripts named below are now wired - check-win-drift.R and check-rc-codoc.R from
+  lint.yaml's doc-freshness job, check-doc-freshness.R from its own no-paths-ignore doc-freshness.yaml.)
+  TWO tools/ SCRIPTS COVERED FAILURE MODES NOTHING ELSE SAW. check-win-drift.R is the only check of the
   hand-maintained src/*.win config headers against their *.in templates and DESCRIPTION (Windows has no configure,
   nothing regenerates them, drift is silent). check-doc-freshness.R resolves every file:line anchor in
   feature-matrix.md against the live tree. Both are fast, deterministic, host-portable, and wired to nothing.
@@ -118,8 +120,8 @@ OVERSTATED:
    this is a recorded open item, not an oversight.
 4. agent-fix, Opus, one dispatch + a recorded note. Run exact-gates mode=full once. Buys: the only 200-tree
    exact-posterior evidence that will exist, plus the tighter full-mode tolerances. Finding #2.
-5. agent-fix, Sonnet, ~30 lines. Wire check-win-drift.R and check-doc-freshness.R into lint.yaml. Buys: the only
-   coverage of silent Windows config drift and of dead doc anchors. Miss L.
+5. DONE (fixed-at 74e2e050): check-win-drift.R runs from lint.yaml, check-doc-freshness.R from its own
+   doc-freshness.yaml. Bought: coverage of silent Windows config drift and of dead doc anchors. Miss L closed.
 6. agent-fix, Sonnet, small. Add bartcore to the PR filters of check-standard/cpp-tests/exact-gates, or drop the bare
    `pull_request:` from lint/pkgdown, so a bartcore PR stops getting style checks without correctness checks. Confirm
    PR intent with VD first.

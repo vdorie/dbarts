@@ -463,7 +463,7 @@ Not a benchmark, and not a wall-clock claim - the payoff is MEMORY.
 `dbarts_apiHash()` alongside the unmoved major/minor handshake:
 `DBARTS_C_API_MAJOR`/`MINOR` stay 1/0 through the pre-release window and
 become the initial contract at the first release. One hash re-bake, no
-version bump. Full detail: docs/plans/dbarts-h-reshape.md.
+version bump. Full detail: docs/plans/archive/dbarts-h-reshape.md.
 
 ## 7. Initially deferred - since landed
 
@@ -505,8 +505,8 @@ version bump. Full detail: docs/plans/dbarts-h-reshape.md.
 
 BCF (docs/design/bcf.md) landed inside this document's cutover window but
 outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
-(docs/plans/bcf-public-surface.md S1-S4) and re-skinned into engine vocabulary
-2026-08-13 (docs/plans/multiforest-extension-surface.md M2):
+(docs/plans/archive/bcf-public-surface.md S1-S4) and re-skinned into engine vocabulary
+2026-08-13 (docs/plans/archive/multiforest-extension-surface.md M2):
 `dbarts(forests = list(forest(), forest(basis = ~ factor(z), vars =
 )))`/`dbartsSpec()` build an ordinary `dbartsSampler`; the (1 - z, z) pair the
 factor basis expands to rides the K-length `data@bases` list (the `weights`
