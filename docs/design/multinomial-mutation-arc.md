@@ -206,7 +206,7 @@ an engine nothing reads. Same harm, one method call away.
 ### 1.5 `$fit` is load-bearing, so it cannot simply be deleted
 
 All three `predict` methods code `newdata` against the HOST's design:
-`R/generics.R:1309`, `:1614`, `:1925` all call
+`R/generics.R:1344`, `:1650`, `:1927` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
 `bartcorePredict` (retired: routed through `object$fit` directly, not a
 separate `$bc` handle). The host carries the factor level
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:1822`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:1965`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`R/generics.R:1624` and `:1903` now say so directly).** `$bc` was a bare
+`inst/NEWS.Rd:1965` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,

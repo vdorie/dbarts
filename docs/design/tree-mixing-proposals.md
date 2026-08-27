@@ -2017,7 +2017,7 @@ a factor `k^2 = 4` smaller at the default `k = 2`. With `nodeScale = 0.5`
 (`src/R_interface_bartcore.cpp:281`), `tau = 0.0289` at `m = 75`, not
 `0.0577`. `k` is the shipped knob that enters the prediction **squared**
 while `n`, `m` and `sigma` enter linearly, and it is itself sampled when
-`updateK` is on (`chain.hpp:1565-1567`), which the caricature assumes
+`updateK` is on (`chain.hpp:1537`), which the caricature assumes
 fixed.
 
 ### 12.3 Substantive advisories, adjudicated
