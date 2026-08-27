@@ -1183,6 +1183,13 @@
             documentation directs, and one that relied on this header to pull
             in \code{<Rversion.h>} now includes it itself.
             \code{DBARTS_C_API_HASH} is re-baked for these signatures.
+      \item \code{dbarts_drawLatents}'s \code{cutpoints}/\code{numCutpoints}
+            parameters are renamed \code{ordinalThresholds}/
+            \code{numOrdinalThresholds}, disambiguating the ordinal family's
+            latent cut points from the engine's own \code{cutPoints} (the
+            tree split grid's per-column candidate list); the two were never
+            the same quantity. \code{DBARTS_C_API_HASH} is re-baked for this
+            signature.
     }
   }
   \subsection{BUG FIXES}{
@@ -2189,6 +2196,35 @@
             (Rtools40, gcc 8.3) provides; the previous
             \code{R (>= 4.0.0)} could not be honored by an R 4.0/4.1
             Windows build.
+      \item \code{\link{bart}}, \code{bart2}, and \code{rbart_vi} no longer
+            drive \code{control@printEvery} to 0 under heavy thinning
+            (\code{n.thin} greater than \code{printEvery}), which the
+            sampler then refused, naming \code{printEvery} - an argument the
+            caller may never have set; \code{printEvery} now floors at 1
+            instead. \code{dbartsControl}'s validity check refuses
+            \code{printEvery = 0} directly (previously accepted as
+            \sQuote{non-negative}, contradicting both the sampler and
+            \code{\link{dbartsControl}}'s own documentation).
+      \item \code{dbarts_sampler_setVerbose}'s \code{printEvery = 0} is now
+            refused (\sQuote{printEvery must be at least 1}) instead of
+            dividing by zero inside the sampler's print condition.
+      \item Gaussian case weights that are negative or not finite are now
+            refused wherever weights are installed, including
+            \code{dbarts_sampler_setWeights} in the flat C API, which
+            previously installed them unchecked; a negative or non-finite
+            weight enters a leaf's sufficient statistics as a corrupt
+            precision, silently.
+      \item \code{DESCRIPTION}'s \code{Authors@R} no longer credits code
+            that is not in the tree: the classic engine's adaptive radix
+            tree contributor, and the \code{m4} macros
+            \code{ax_cxx_namespace_std.m4} and
+            \code{ax_func_posix_memalign.m4}, which the build does not use;
+            the remaining \code{m4} contributors' credited file lists are
+            trimmed to the files still present.
+      \item \code{tools/*.R} - the doc-freshness, codoc, and Windows-config
+            drift checkers, developer-only scripts with no role in building
+            or running the package - are \code{.Rbuildignore}d and no
+            longer ship in the source tarball.
     }
   }
 }

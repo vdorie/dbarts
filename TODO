@@ -151,6 +151,7 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
+  pre-review-cleanup: CLOSED, see docs/plans/pre-review-cleanup.md. No open door.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -208,7 +209,9 @@ items
   second-review-followups: CLOSED except VD's own human review
     (docs/plans/release-candidate-review.md, "lenses, findings, fix
     waves 1-2" and "fix wave 3 - the judgement-gated slices" landing
-    notes). Remaining: VD's own human review. Doors the wave recorded
+    notes). Remaining: docs/plans/bartcore-review-tour.md regenerated
+    to VD's merge-decision bar (docs/plans/pre-review-cleanup.md OPEN
+    doors), then VD's own human review. Doors the wave recorded
     (negbin rootogram, ordinal tail-precision loglik, negbin burn-in
     dispersion channel) live in release-candidate-review.md's wave-3
     landing note; its own-class silent-no-op door closed with the

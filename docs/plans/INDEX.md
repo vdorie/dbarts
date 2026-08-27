@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (28 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (29 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -96,6 +96,7 @@ Columns: `file | STATUS | one-liner`.
 | release-candidate-review.md | SPECCED (2026-08-17, in execution) | Pre-RC review program: census-derived slate over the two families the slice gates cannot see (baseline-rightness and accumulation); six waves plus a parallel oracle lane under a freeze protocol; six VD forks. |
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | The pre-RC public-surface freeze: predict() signature order, keepTrees refusal text, stub version check, dbarts.h type/naming fixes, deprecation shims, composition refusals, BCF baseline format, NA-at-predict refusal, small surface items; evidence in review-2026-08-24/memos/prerc-lens*.md. |
 | bartcore-review-tour.md | LIVING REFERENCE, anchored at ae5b91d8 (2026-08-25) | The human review's entry point: an ordered walk of the branch with file:line stops and where each claim's evidence lives; the second whole-branch review's evidence is tracked verbatim under docs/plans/review-2026-08-24/ (consolidated-report.md is its entry). |
+| pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | The four adversarial pre-review reviews (staleness, completeness, YAGNI, agent accumulation) commissioned ahead of VD's own manual read, tracked verbatim under review-2026-08-24/memos/pre-review-*.md; the rulings table, the ten-commit landing, coverage deltas (a weakened tests/cpp counter, a lost dead-entrance test path), and the open doors (the cutpoints/ordinalThresholds R-vs-C-API spelling, the seeds-axis re-record, drawShippedGlue, the still-unwired gates). |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)
 

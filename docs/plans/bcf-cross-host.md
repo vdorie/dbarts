@@ -8,7 +8,7 @@ blind critique and the coordinator's adjudications - sections 1, 2, 4, 5,
 Spec: docs/plans/prerc-surface-freeze.md D7 (:72-80) and its Sequencing
 line (:100). TODO `bcf-baseline-cross-host` (TODO:33-34), which absorbs
 the cross-host half of `equivalence-harness-statistical-mode`
-(TODO:66-73). D7 is the last open pre-RC item (`rc-gate`, TODO:163-164).
+(TODO:66-73). D7 is the last open pre-RC item (`rc-gate`, TODO:164-165).
 
 Three facts settled by reading, each of which changes the shape of the
 work:
