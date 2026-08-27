@@ -119,6 +119,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span></span>
 <span>    <span class="va">object</span>, <span class="va">newdata</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"class"</span><span class="op">)</span>,</span>
+<span>    offset <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>, ci.level <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">n.threads</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
@@ -166,6 +167,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span></span>
 <span>    <span class="va">object</span>, <span class="va">newdata</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"prob"</span>, <span class="st">"bart"</span><span class="op">)</span>,</span>
+<span>    offset <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>, ci.level <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">n.threads</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bartHurdle'</span></span>
@@ -223,7 +225,8 @@
    <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
 <dd><p>An additive offset entering the family's mean or link, applied to training data; see <code><a href="dbarts.html">dbarts</a></code>'s <code>offset</code> item for the exact per-family formula. The same concept as <code><a href="bart.html">bart</a></code>'s <code>binaryOffset</code> (which only ever applies to that function's probit/logistic default family). Can be missing.</p>
 <p>For <code>predict</code> on a <code>bartMultinomial</code> fit, the same name carries a different shape: the per-category shift at the PREDICTED rows, an <code>nrow(newdata)</code> x K numeric matrix entering the K raw fits before the softmax, in the same layout as <code>bart2</code>'s own train-side <code>offset</code> above. It is never taken from the fit - these rows are not the fit's rows - so a fit trained with an <code>offset</code> REQUIRES one here, refusing by name rather than reporting the offset-free surface, which an explicit all-zero matrix asks for. <code>NULL</code> (the default) is the only value a fit trained without one takes by default, and passing the training offset back at the training rows reproduces <code>yhat.train</code>. A large negative entry is a shift like any other: the probabilities it drives are the exact softmax, so one far enough below its row's others underflows to zero (and its log to <code>-Inf</code>) as it would anywhere else.</p>
-<p>For <code>predict</code> on a <code>bartNegbin</code> fit, the same name is the log-exposure shift at the PREDICTED rows, entering the replayed log-odds latent \(\psi\) additively before \(r e^{\psi}\). <code>NULL</code> (the default) applies none.</p></dd>
+<p>For <code>predict</code> on a <code>bartNegbin</code> fit, the same name is the log-exposure shift at the PREDICTED rows, entering the replayed log-odds latent \(\psi\) additively before \(r e^{\psi}\). <code>NULL</code> (the default) applies none.</p>
+<p>For <code>predict</code> on a <code>bartOrdinal</code> or <code>bartHurdle</code> fit the name is a formal only so that the fourth position means the same thing on all six <code>predict</code> methods: neither family has an out-of-sample offset channel, so any value but <code>NULL</code> is refused by name.</p></dd>
 
    <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
 <dd><p>The equivalent of <code>offset</code> for test observations. Defaults to tracking <code>offset</code>: a scalar, or a vector already matching the test row count, is reused directly, and any other length is refused by name rather than silently recycled. See <code><a href="dbarts.html">dbarts</a></code>'s ‘Test offset synchronization’ details for how a live sampler keeps the two linked after fitting.</p></dd>
@@ -480,7 +483,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001358</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001172</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 </span>
@@ -527,7 +530,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001401</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001343</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 2 2 1 2 3 </span>

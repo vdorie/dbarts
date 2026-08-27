@@ -97,6 +97,7 @@ fitted(
 predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "class"),
+    offset = NULL,
     combineChains = TRUE, ci.level = NULL, n.threads, ...)
 
 # S3 method for class 'bartOrdinal'
@@ -144,6 +145,7 @@ fitted(
 predict(
     object, newdata,
     type = c("ev", "ppd", "prob", "bart"),
+    offset = NULL,
     combineChains = TRUE, ci.level = NULL, n.threads, ...)
 
 # S3 method for class 'bartHurdle'
@@ -271,6 +273,11 @@ print(x, ...)
   shift at the PREDICTED rows, entering the replayed log-odds latent
   \\\psi\\ additively before \\r e^{\psi}\\. `NULL` (the default)
   applies none.
+
+  For `predict` on a `bartOrdinal` or `bartHurdle` fit the name is a
+  formal only so that the fourth position means the same thing on all
+  six `predict` methods: neither family has an out-of-sample offset
+  channel, so any value but `NULL` is refused by name.
 
 - offset.test:
 
@@ -1515,7 +1522,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001358
+#> total seconds in loop: 0.001172
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1562,7 +1569,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001401
+#> total seconds in loop: 0.001343
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

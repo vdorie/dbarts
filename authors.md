@@ -9,9 +9,6 @@
 
 - **Robert McCulloch**. Author.
 
-- **Armon Dadgar**. Contributor.  
-  adaptive radix tree
-
 - **R Core Team**. Contributor.  
   basis of RNG
 
@@ -22,34 +19,23 @@
   ax_check_compile_flag.m4
 
 - **Christophe Tournayre**. Contributor.  
-  ax_compiler_ext.m4, ax_ext.m4
+  ax_compiler_ext.m4
 
 - **Michael Petch**. Contributor.  
-  ax_compiler_ext.m4, ax_ext.m4, ax_gcc_x86_avx_xgetbv.m4,
-  ax_gcc_x86_cpuid.m4
+  ax_compiler_ext.m4
 
 - **Rafael de Lucena Valle**. Contributor.  
-  ax_compiler_ext.m4, ax_ext.m4
+  ax_compiler_ext.m4
 
 - **Steven G. Johnson**. Contributor.
   [](https://orcid.org/0000-0001-7327-4967)  
-  ax_compiler_vendor.m4, ax_gcc_x86_cpuid.m4, ax_pthread.m4
+  ax_compiler_vendor.m4, ax_pthread.m4
 
 - **Matteo Frigo**. Contributor.  
-  ax_compiler_vendor.m4, ax_gcc_x86_cpuid.m4
+  ax_compiler_vendor.m4
 
 - **John Zaitseff**. Contributor.  
   ax_compiler_vendor.m4
-
-- **Todd Veldhuizen**. Contributor.  
-  ax_cxx_namespace_std.m4
-
-- **Luc Maisonobe**. Contributor.  
-  ax_cxx_namespace_std.m4
-
-- **Scott Pakin**. Contributor.
-  [](https://orcid.org/0000-0002-5220-1985)  
-  ax_func_posix_memalign.m4
 
 - **Daniel Richard G.**. Contributor.  
   ax_pthread.m4
