@@ -490,7 +490,7 @@ grid member, the TResponse estimatesResidualDf convention (model.hpp:4168).
 ChainStateData gains a scalar field near its residualDf field, named
 `dispersion` as shipped (retired: proposed as `r`; combiner.hpp:81-85, NaN
 marking absent);
-getState writes it when carriesR() (chain.hpp:3096-3100, the residualDf line);
+getState writes it when carriesR() (chain.hpp:3065-3069, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:3272-3275); setState restoreR()s it (chain.hpp:3746-3747). The bridge adds a
 SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames

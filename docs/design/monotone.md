@@ -48,7 +48,7 @@ with exactly two steps per tree that the constraint touches:
 1. a birth/death Metropolis move on the tree structure, and
 2. a draw of the leaf parameters given the structure.
 
-Our chain runs these as `metropolisJumpForTree` (chain.hpp:1481) then
+Our chain runs these as `metropolisJumpForTree` (chain.hpp:1453) then
 `sampleParametersAndSetFits` (chain.hpp:4896). The constraint modifies each: the
 move's branch score becomes a constrained (truncated) local marginal (section 4),
 and the parameter draw becomes a sequential truncated-normal Gibbs sweep coupling
@@ -158,7 +158,7 @@ mere re-pointing:
    per-leaf stays the default for every other model, byte-identical (section 8).
 2. Leaf values must stay VALID through the move phase. The move score needs
    mu_same, the frozen neighbor values, DURING `metropolisJumpForTree`
-   (chain.hpp:1481). Those values already survive there: `sampleParametersAndSetFits`
+   (chain.hpp:1453). Those values already survive there: `sampleParametersAndSetFits`
    runs AFTER the moves and only then zeroes and refills `muByTree[t]`
    (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4929-4940 - `mu` is a reference
    INTO the persistent `forest.muByTree[t]`), so during the moves the vector still
@@ -180,7 +180,7 @@ mere re-pointing:
 
 The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:83-88)
 and carrying mu as a degenerate function leaf - is rejected: it drags the
-function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4903-4924)
+function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4876-4898)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
 
 **Budget.** The plan front-matter's "~500 lines" (docs/plans/archive/monotone-bart.md) no

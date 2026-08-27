@@ -202,6 +202,23 @@ resolveToken <- function(tok) {
     return(tok)
   }
   hit <- basenameIndex[[tok]]
+  if (!is.null(hit) && file.exists(p(hit[1L]))) {
+    return(hit[1L])
+  }
+  # A plan doc's tracked-index location can be stale relative to the
+  # working tree (e.g. archived out from docs/plans/ into
+  # docs/plans/archive/ after the index was snapshotted); try both
+  # literal locations before giving up on the index's own answer.
+  if (grepl("\\.md$", tok)) {
+    planPath <- file.path("docs/plans", tok)
+    if (file.exists(p(planPath))) {
+      return(planPath)
+    }
+    archivePath <- file.path("docs/plans/archive", tok)
+    if (file.exists(p(archivePath))) {
+      return(archivePath)
+    }
+  }
   if (is.null(hit)) {
     return(NA_character_)
   }
@@ -615,8 +632,11 @@ resolveAnchorTokenGeneral <- function(tok) {
     # A path with a directory component is only "resolved" if it is
     # actually in this tree; otherwise treat it as a peer-package
     # citation (e.g. a survey doc quoting another package's own
-    # R/model.R) rather than reporting a false dead anchor.
-    if (tok %in% trackedFiles) {
+    # R/model.R) rather than reporting a false dead anchor. The
+    # tracked-file index can itself be stale relative to the working
+    # tree (e.g. an archive move the index was snapshotted before), so
+    # a literal on-disk hit still counts as resolved.
+    if (tok %in% trackedFiles || file.exists(p(tok))) {
       return(tok)
     }
     return(NA_character_)
@@ -627,15 +647,32 @@ resolveAnchorTokenGeneral <- function(tok) {
   } else {
     bareBasenameIndex[[tok]]
   }
+  if (!is.null(hits)) {
+    uniqueHits <- unique(hits)
+    if (length(uniqueHits) > 1L) {
+      nAmbiguousAnchor <<- nAmbiguousAnchor + 1L
+      return(NA_character_)
+    }
+    if (file.exists(p(uniqueHits[1L]))) {
+      return(uniqueHits[1L])
+    }
+  }
+  # As in resolveToken(): a plan doc's tracked-index location can be
+  # stale relative to the working tree after an archive move.
+  if (identical(ext, "md")) {
+    planPath <- file.path("docs/plans", tok)
+    if (file.exists(p(planPath))) {
+      return(planPath)
+    }
+    archivePath <- file.path("docs/plans/archive", tok)
+    if (file.exists(p(archivePath))) {
+      return(archivePath)
+    }
+  }
   if (is.null(hits)) {
     return(NA_character_)
   }
-  uniqueHits <- unique(hits)
-  if (length(uniqueHits) > 1L) {
-    nAmbiguousAnchor <<- nAmbiguousAnchor + 1L
-    return(NA_character_)
-  }
-  uniqueHits[1L]
+  unique(hits)[1L]
 }
 
 countWords <- function(s) {
@@ -931,9 +968,9 @@ for (df in designFilesRel) {
   planDocForDoc <- {
     pm <- regmatches(
       blob,
-      regexpr("docs/plans/[A-Za-z0-9_.+-]+\\.md", blob, perl = TRUE)
+      regexpr("docs/plans/(?:archive/)?[A-Za-z0-9_.+-]+\\.md", blob, perl = TRUE)
     )
-    if (length(pm) == 1L && nzchar(pm) && pm %in% trackedFiles) {
+    if (length(pm) == 1L && nzchar(pm) && file.exists(p(pm))) {
       pm
     } else {
       NA_character_

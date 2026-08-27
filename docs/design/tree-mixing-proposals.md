@@ -1904,9 +1904,9 @@ statistic**; the census is still worth running, but not as designed.
   real, low noise is doubly bad").
 - *(b) The `blocks()` arm cannot move the statistic the kill criterion
   reads.* Verified by reading the code: `forest.leaf.scale =
-  resolvedNodeScale(options.nodeScale, options.priorScale) / sqrt(forest.numTrees)` (`chain.hpp:648-650`) uses the
-  **total** tree count, and `installBlockMasks` (`chain.hpp:5116-5138`,
-  called at `:722`) installs per-tree column masks and nothing else - no
+  resolvedNodeScale(options.nodeScale, options.priorScale) / sqrt(forest.numTrees)` (`chain.hpp:635-637`) uses the
+  **total** tree count, and `installBlockMasks` (`chain.hpp:5084-5106`,
+  called at `:696`) installs per-tree column masks and nothing else - no
   per-group rescaling anywhere in the function. So the per-leaf prior sd
   `tau` is identical in both arms and the within-block apportionment
   timescale is the same number. What `blocks()` removes is not the

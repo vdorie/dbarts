@@ -429,7 +429,7 @@ Arm 5(iii) dead pin, :4957-4960).
 ## The calibration map, general in K
 
 Stated on `ForestSpec` rather than in the chain (combiner.hpp:300-309, applied
-chain.hpp:840-855). The node scale is
+chain.hpp:798-813). The node scale is
 `nodeScaleFactor * s / (nodeScaleDivisor * c)`, s the family's own LATENT
 SCALE and c the median nonzero row norm of the forest's basis - exactly `1.0`
 on every shipped route, so c is inert there:
@@ -460,7 +460,7 @@ instance bitwise.
 is capped at one forest, for any K: `resolveForests` (R/model.R:1030-1100,
 refusal :1059-1065) requires every forest past the first to carry a basis, and
 `forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
-basis is present (R/model.R:1153), from which the bridge derives
+basis is present (R/model.R:1126), from which the bridge derives
 `forest.ridge = false` (R_interface_bartcore.cpp:2179) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
@@ -553,8 +553,8 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1035-1045,
-src/R_interface_bartcore.cpp:3981-3986).
+that rule in two independent places (src/C_interface.cpp:1049-1050,
+src/R_interface_bartcore.cpp:3978-3981).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
@@ -643,7 +643,7 @@ replaced by length/finiteness refusals at creation). `consumer.c` `LEG_COUNT`
 18 -> 19. Engine ~165 dense-equivalent.
 
 **M4.4, 4da3bd8a (the latent family).** `probit` and `logistic` wired
-through the K-forest constructor's response switch (chain.hpp:774-791), the
+through the K-forest constructor's response switch (chain.hpp:747-762), the
 calibration map re-based on `latentScaleAnchor` at the settled Option L
 anchor - probit s = 1, logistic s = pi/sqrt(3) - and closed by option E, the
 basis row-norm divisor (median of nonzero row norms, re-derived on

@@ -47,7 +47,7 @@ and the flat `dbarts_sampler_setTestOffset`.
 `refuseMultiForestResponseMutation` (`:2647`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
-swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1068`), which is
+swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1039`), which is
 the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
 true (`combiner.hpp:1059`); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
@@ -135,7 +135,7 @@ them again, and who does that depends on the layer:
 Per-forest decomposition of TEST fits: `testFitsAreDefined()` is false under
 the BCF coupling, so there is nothing to decompose. Mid-sweep hooks: inside
 the tree loop `totalFits` is stale until rebuilt after it
-(`src/bartcore/chain.hpp:1456`), so a host reading a fit there would read a
+(`src/bartcore/chain.hpp:3784`), so a host reading a fit there would read a
 partially updated one; the refusal is on invariant grounds before it is on
 threading grounds. Per-forest saved-tree replay. Cross-host bitwise
 reproducibility - within-host across any SIMD dispatch only.

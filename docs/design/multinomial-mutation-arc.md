@@ -59,7 +59,7 @@ anchors below are re-derived to the successor constructions):
 
 `buildHostSamplerCall` is `R/bart.R:540-560`. `result$bc <- bc` is
 retired - the separate `$bc` handle is gone (section 1.5).
-`result$fit <- sampler` at `:1511`, `:1592`, `:1893`, `:2135`, gated on
+`result$fit <- sampler` at `:1502`, `:1582`, `:1882`, `:2124`, gated on
 `control@keepTrees || keepSampler`.
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
@@ -86,7 +86,7 @@ genuinely describes the engine. That fact is what makes fork D0 work.
 **Multinomial: a genuine placeholder whose resolved family depends on K,
 reachable only under an explicit token.** `family = NULL` removes the
 token, so `dbarts()` runs `family = "auto"` against `as.double(labels)`,
-codes `0..K-1`; `R/spec.R:198-207` resolves auto on a numeric response by
+codes `0..K-1`; `R/spec.R:197-206` resolves auto on a numeric response by
 `length(unique(y)) == 2 && sort(unique(y)) == c(0, 1)`.
 
 - K = 2, **under an explicit `family = "multinomial"`**: labels are 0/1,
@@ -95,7 +95,7 @@ codes `0..K-1`; `R/spec.R:198-207` resolves auto on a numeric response by
 - K >= 3: MEASURED `control@binary` FALSE, `model@family` `"gaussian"`,
   response transform anchored to the range of the integer category codes.
 - **`family = "auto"` never reaches this path.** `detectAutoMultinomial`
-  (`R/bart.R:1404-1412`) requires `n.levels >= 3L`, and a 2-level factor
+  (`R/bart.R:1384-1392`) requires `n.levels >= 3L`, and a 2-level factor
   under auto announces probit and returns class `"bart"`. MEASURED:
   `family = "auto": 2-level factor response detected, fitting family =
   "probit"; set 'family' to override`.
@@ -146,9 +146,9 @@ except where it names another file:
 | saved trees | `bartcore_getTrees` `:6022` | retired; `R/dbarts.R:2035` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
-(redirect to counts / category offset, `:2662-2677`), `setWeights`
-(`:2671-2675`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2618`), `setCalibration` (`:4261-4266`),
+(redirect to counts / category offset, `:2647-2674`), `setWeights`
+(`:2668-2672`, same branch), `setSigma`, `setData` / `setModel`
+(`refuseMultiForestMutation` `:2618`), `setCalibration` (`:4248-4256`),
 `setForestWeights` (`:4034-4037`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
@@ -267,8 +267,8 @@ problems:
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
 `checkFamilyUnsupportedArgs` (`R/bart.R:618-646`) has **four** callers -
-multinomial `:917`, ordinal `:1070`, nbinom `:1103`, and
-**`hurdle.lognormal` `:1145`** - and its `samplerOnly` block is three
+multinomial `:901`, ordinal `:1054`, nbinom `:1087`, and
+**`hurdle.lognormal` `:1131`** - and its `samplerOnly` block is three
 lines (`:625-627`) inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
 PAIR of samplers (`test-hurdle.R:213-214`) and which this arc does not
@@ -341,7 +341,7 @@ the plan doc). Multinomial has no flat creation path
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:189`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:484`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
+(`src/C_interface.cpp:513`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
 change, and one `expect_false` for the superseded literal should be added
@@ -435,7 +435,7 @@ instead of two. MOVES DRAWS for `bart2(family = "multinomial")`.
 D3 does not have to move `benchmarks/R/multinomial-equivalence.R`: that
 harness reseeds between the host build and the handle build (`:158-165`,
 `:177-184`) and `bartcoreMultinomialSampler` makes exactly one `.Call`
-(`R/bartcore.R:1034-1040`), so the 11 baselines are insulated - see Fork J
+(`R/bartcore.R:928-933`), so the 11 baselines are insulated - see Fork J
 for what that implies and how to discharge it.
 
 What D3 breaks is `test-multinomial-surface.R`'s REPRODUCTION GATE
@@ -456,7 +456,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`cutpoints.raw` (`R/bart.R:1905`) and `dispersion.raw` (`:2147`) inside
+`cutpoints.raw` (`R/bart.R:1879`) and `dispersion.raw` (`:2121`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -733,7 +733,7 @@ depend on the file's full execution history, not just the preceding
 
 **4.5 The two `static_assert` residue strings (retired: swept by the
 amplitude rename; both now read "an amplitude coupling is a constant-leaf
-model").** `combiner.hpp:743` and `chain.hpp:760` no longer say BCF;
+model").** `combiner.hpp:742` and `chain.hpp:734` no longer say BCF;
 `TODO:54-57` said sweep opportunistically with the
 next edit to those files. Honest read: **no slice above is expected to
 edit either file** - the multinomial engine is done. If Door 4 is taken,

@@ -4,7 +4,7 @@ Status: design settled 2026-08-25, after an independent blind critique
 of 35 findings (33 accepted, 1 settled on different grounds, 1
 disputed as stated with its remedy accepted; section 9). LANDED
 2026-08-25; section 11 records what shipped and what differs from the
-proposal. Anchor: bartcore 52c10e02 - every citation below was
+proposal. Anchor: bartcore 7cd71f2d - every citation below was
 re-verified live against that tree.
 
 ## 1. The ruling
@@ -32,7 +32,7 @@ bartcore's replay entry points (`Sampler::predictColumns` at
 sampler.hpp:705, `predictPerForestColumns` at :783,
 `predictVarianceColumns` at :850) never gained one, while
 `Sampler::run` (:349-420) kept its fan-out.
-docs/plans/archive/interface-review.md's F10 item (:199) already records both
+`docs/plans/archive/interface-review.md`'s F10 item (:199) already records both
 formals as "fully inert, not merely serial," and lists "threaded
 prediction" on the 2.0-WISHLIST (:543); this design discharges both,
 striking the wishlist line. The NEWS entry is corrected in place
@@ -60,7 +60,7 @@ covers `predictPerForestColumns`, `predictVarianceColumns`, and
 
 ## 4. Worker bodies and thread-count resolution
 
-`predictFromSavedSample` (chain.hpp:2832) constructs an `indices`
+`predictFromSavedSample` (chain.hpp:2801) constructs an `indices`
 vector plus `blockOffsets` on every slab call - numChains x
 numSavedDraws times, contended allocator traffic under a naive
 partition - so the design hoists one scratch struct per worker,
@@ -76,7 +76,7 @@ saved trees, is what makes the non-const `flattenTree` safe without
 synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
-on the C path - `Sampler::setNumThreads` (sampler.hpp:1203-1206) and
+on the C path - `Sampler::setNumThreads` (sampler.hpp:1197-1200) and
 `dbarts_sampler_setNumThreads` (C_interface.cpp:960-962) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,

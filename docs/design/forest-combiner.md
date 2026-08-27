@@ -200,7 +200,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   per-observation sigma - a decision this plan explicitly deferred. RESOLVED,
   2026-07-20 (docs/design/heteroscedastic.md): the WEIGHT-channel route was the
   right one, and it landed as a Chain-side nullable `varianceForest_`
-  (chain.hpp:5487) rather than through a combiner at all. The Chain
+  (chain.hpp:5457) rather than through a combiner at all. The Chain
   constraint itself stands unchanged; what is settled is the decision, not the
   constraint. The combiner's own weight-channel seam is therefore STILL the
   unused route a future combiner-HOSTED variance forest would take.

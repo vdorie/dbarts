@@ -188,7 +188,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   orthogonal Chain-level axis, not a combiner instance.
 - **Reuses the heteroscedastic nullable-second-object precedent as far as it goes.** A
   distinctly-typed, nullable member beside forests_ (the varianceForest_ shape,
-  chain.hpp:5487,738-742), null off hurdle so the single-forest path is byte-neutral by
+  chain.hpp:5457,738-742), null off hurdle so the single-forest path is byte-neutral by
   construction (heteroscedastic.md section 8).
 - **Where hurdle needs MORE than heteroscedastic.** Heteroscedastic's second forest (i)
   saw ALL n observations, (ii) SHARED the one response_ (it routed into that response's
@@ -258,7 +258,7 @@ across the two fits, and predict on new data.
 - **How the user asks.** family = "hurdle.lognormal" (v1: probit occupancy +
   lognormal positive part), added to the dbarts and bart2 family vectors
   (R/dbarts.R:387, R/bart.R:704), with `twopart` an accepted alias that resolves to
-  it (R/dbarts.R:409, R/bart.R:725). This section first proposed the bare "hurdle";
+  it (R/dbarts.R:409, R/bart.R:713). This section first proposed the bare "hurdle";
   the NAMING decision in section 13 supersedes it, and the qualified token is what
   ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
