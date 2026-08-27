@@ -34,7 +34,7 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at 52c10e02 - the cited line
+Anchors are verified BY CONTENT against the tree at 3080a9c5 - the cited line
 holds the construct the cell names, never an offset from another anchor - and a
 cell's VALUE is adjudicated separately from its anchor.
 
@@ -55,7 +55,7 @@ and schedules against the same way, so they earn rows.
 | multinom | Multinomial softmax, K forests (`MultinomialResponse` MOD:3716 + combiner) |
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3794) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:481-541) |
-| hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2304) |
+| hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2317) |
 | bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`AmplitudeForestCombiner` COM:741) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4706) |
 | hetero | Heteroscedastic variance forest (CH:742) |
@@ -76,17 +76,17 @@ cell says so.
 
 | model | `bart()` | `bart2()` | `dbarts()` + R5 | `rbart_vi()` | `xbart()` | flat C `dbarts.h` |
 |---|---|---|---|---|---|---|
-| gaussian | S bart.R:2901 | S bart.R:694 | S dbarts.R:377 | S rbart.R:49 | S xbart.R:26 | S CAPI:678 |
+| gaussian | S bart.R:2901 | S bart.R:694 | S dbarts.R:377 | S rbart.R:49 | S xbart.R:26 | S CAPI:748 |
 | student | S bart.R:2756 | S bart.R:708 | S dbarts.R:364 | M rbart.R:56 | M xbart.R:2-33 | S RIB:2549-2557 [f2] |
-| probit | S bart.Rd:82 | S bart.R:695 | S dbarts.R:378 | S data.R:675 | S xbart.R:26 | S CAPI:676 |
+| probit | S bart.Rd:82 | S bart.R:695 | S dbarts.R:378 | S data.R:675 | S xbart.R:26 | S CAPI:747 |
 | logistic | S bart.R:2759 [f1] | S bart.R:696 | S dbarts.R:379 | R rbart.R:49 | S xbart.R:26 | S RIB:1585 |
 | ordinal | R bart.R:2666, 2814 [f1] | S bart.R:699 | S dbarts.R:382 | R data.R:631 | R data.R:631 | S RIB:1594 [f3] |
 | nbinom | R bart.R:2666 [f1] | S bart.R:700 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1601 [f3] |
 | multinom | R bart.R:2666 [f1] | S bart.R:698 | S dbarts.R:381 [f4] | R data.R:631 | R data.R:631 | M [f4] |
-| aft | S bart.R:2759 [f1] [f5] | S bart.R:697 | S dbarts.R:380 | S rbart.R:49 | M xbart.R:26 | S CAPI:679 |
+| aft | S bart.R:2759 [f1] [f5] | S bart.R:697 | S dbarts.R:380 | S rbart.R:49 | M xbart.R:26 | S CAPI:749 |
 | hazard | R bart.R:2768 [f1] | S bart.R:701 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
 | hurdle | R bart.R:2666 [f1] | S bart.R:704 | R dbarts.R:447 | M | M | M [f6] |
-| bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:370 | R rbart.R:56 | M | S CAPI:699-721 |
+| bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:370 | R rbart.R:56 | M | S CAPI:770-792 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:384 | M | S RIB:1909 [f3] |
 | hetero | - [f1] | S bart.R:687 | S dbarts.R:369 | R rbart.R:56 | M | S RIB:1999 [f3] |
 
@@ -112,7 +112,7 @@ stating what it is missing (spec.R:616-642, which now also carries an explicit
 - "its forests are its categories... not an amplitude coupling"), with the
 same three-family gate at the bridge (`refusedAmplitudeFamilyReason`
 RIB:2266, called from both creation routes at RIB:2319 and RIB:3229) and at
-the factory (`createAmplitudeSampler` FAC:868-889).
+the factory (`createAmplitudeSampler` FAC:870-891).
 
 Since S12 (`bart2-argument-consolidation`), `bart2()`'s formula interface
 reaches the same `forests =` machinery through a `forest()` term rather than a
@@ -154,35 +154,35 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | zero-weight row subset | active-rows mask [f15] | `getLatents` | pointwise loglik | nameable calibration [f16] |
 |---|---|---|---|---|---|
-| gaussian | S sampler.Rd:177, MOD:2790 [f17] | S MOD:2875 | - RIB:6173 [f18] | S generics.R:72 | S dbarts.R:1793, 1753 [f16] |
-| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | S generics.R:118 [f19] | S dbarts.R:1793, 1753 [f16] |
-| probit | R RIB:2763 | S MOD:3100 | S MOD:3136 | S generics.R:127 | S dbarts.R:1793, 1753 [f16] |
-| logistic | R RIB:2767 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1793, 1753 [f16] |
-| ordinal | R RIB:2540 | S MOD:3232 | S MOD:3277 | S generics.R:1425 | S dbarts.R:1793, 1753 [f16] |
-| nbinom | R RIB:2546 | S MOD:4385 | S MOD:4438 | S generics.R:1741 | S dbarts.R:1793, 1753 [f16] |
-| multinom | R RIB:3298 | S COM:1686 [f21] | M MOD:3716 [f22] | S generics.R:1096 | R [f23] |
-| aft | R RIB:2536 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1793, 1753 [f16] |
-| hazard | R RIB:2759 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1793, 1753 [f6] |
-| hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2300 [f25] | - [f12] |
+| gaussian | S sampler.Rd:177, MOD:2790 [f17] | S MOD:2875 | - RIB:6173 [f18] | S generics.R:72 | S dbarts.R:1793, 1820 [f16] |
+| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | S generics.R:118 [f19] | S dbarts.R:1793, 1820 [f16] |
+| probit | R RIB:2763 | S MOD:3100 | S MOD:3136 | S generics.R:127 | S dbarts.R:1793, 1820 [f16] |
+| logistic | R RIB:2767 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1793, 1820 [f16] |
+| ordinal | R RIB:2540 | S MOD:3232 | S MOD:3277 | S generics.R:1437 | S dbarts.R:1793, 1820 [f16] |
+| nbinom | R RIB:2546 | S MOD:4385 | S MOD:4438 | S generics.R:1750 | S dbarts.R:1793, 1820 [f16] |
+| multinom | R RIB:3298 | S COM:1686 [f21] | M MOD:3716 [f22] | S generics.R:1105 | R [f23] |
+| aft | R RIB:2536 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1793, 1820 [f16] |
+| hazard | R RIB:2759 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1793, 1820 [f6] |
+| hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2317 [f25] | - [f12] |
 | bcf | S COM:841, 887-891 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
-| grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2802 | S MOD:4863 [f27] |
+| grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2812 | S MOD:4863 [f27] |
 | hetero | S CH:4218, MOD:306 | S CH:4212 [f27] | - [f18] | S generics.R:95 [f28] | S test-calibration-prior-draws.R:268 [f29] |
 
 ## 4. Model composition
 
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
-| gaussian | S FAC:795 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| gaussian | S FAC:798 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | student | R spec.R:521 [f30] | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | probit | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | logistic | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | ordinal | R spec.R:509 | M RIB:3064 [f31] | S CH:585 | R bart.R:631 | R bart.R:631 |
 | nbinom | R spec.R:509 | M RIB:3069 [f31] | S CH:585 | R bart.R:631 | R bart.R:631 |
-| multinom | R bart.R:906 | M RIB:1906 [f32] | R bart.R:902 [f33] | R bart.R:631 | R bart.R:631 |
+| multinom | R bart.R:907 | M RIB:1906 [f32] | R bart.R:903 [f33] | R bart.R:631 | R bart.R:631 |
 | aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
-| hurdle | R spec.R:509 [f34] | M | S bart.R:2346, 2355 [f35] | R bart.R:631 | R bart.R:631 |
-| bcf | R FAC:874 [f48] | R RIB:2342 | R spec.R:651-652 | S SAM:1029 [f36] | S CH:1990 [f36] |
+| hurdle | R spec.R:509 [f34] | M | S bart.R:2359, 2368 [f35] | R bart.R:631 | R bart.R:631 |
+| bcf | R FAC:879 [f48] | R RIB:2342 | R spec.R:651-652 | S SAM:1029 [f36] | S CH:1990 [f36] |
 | grouped | R spec.R:532 [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
 | hetero | - | R spec.R:532 [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
 
@@ -209,8 +209,8 @@ reads "constant leaf" in that column.
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
 Flat-C test coverage is thinner than family reach: inst/tinytest/test-capi.R
-drives only the `""`/`"probit"` tokens plus grouped (:697) and heteroscedastic
-(:222) by control attribute, and BCF (:1356) through `forests =
+drives only the `""`/`"probit"` tokens plus grouped (:785) and heteroscedastic
+(:803) by control attribute, and BCF (:1475) through `forests =
 list(forest(basis = ...))`. logistic, aft, ordinal and nbinom are reachable
 through dbarts.h and untested there.
 
@@ -339,9 +339,9 @@ capability and the channel that serves the caller where one exists
 global `setActiveRows` stay open.
 
 [f12] Hurdle has no sampler of its own: `dbarts()` refuses construction at
-dbarts.R:449 and `bart2Hurdle` (bart.R:2304) composes two ordinary `bart2()`
-fits - an occupancy probit (bart.R:2346) and a lognormal positive part
-(bart.R:2355) - glued at report time. The channel questions resolve on the
+dbarts.R:447 and `bart2Hurdle` (bart.R:2317) composes two ordinary `bart2()`
+fits - an occupancy probit (bart.R:2359) and a lognormal positive part
+(bart.R:2368) - glued at report time. The channel questions resolve on the
 probit and gaussian rows of the two components.
 
 [f13] Since adoption-slate S3 (eeedc07c) a grouped sampler accepts a
@@ -352,7 +352,7 @@ updateScale != FALSE only under a base family with a data-derived transform
 base's internal scale and converted by nothing, so a re-anchoring swap would
 silently restate both in response units. Grouped probit and logistic take
 updateScale = TRUE as the no-op it always was. The flat C API guards through
-the same call (C_interface.cpp:614, 636). setData stays refused.
+the same call (C_interface.cpp:658, 682). setData stays refused.
 
 [f14] Reads off the BASE family: grouped gaussian takes `setWeights` (MOD:4818)
 and `setSigma`; grouped probit is refused on both (RIB:2791, RIB:2928); grouped
@@ -368,7 +368,7 @@ logistic, nbinom, aft; **S3** multinomial (global only); **S4** surface,
 records, baselines. S0 landed at dc11a805 (the pins, now
 inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1666, which owns the single validating and
-normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:368 and its
+normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:370 and its
 shape probe FAC:108 - plus gaussian, Student-t, probit and ordinal, the R5
 `$setActiveRows` (dbarts.R:1398) and the bridge entry (RIB:4074). S2 landed at
 87d370ea: logistic (`workingWeights()` MOD:3537) and nbinom
@@ -461,8 +461,8 @@ force, independent of the model's recorded intent, so a `setResponse` /
 than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1230),
 sharing one `priorScaleFactor` conversion (CH:3996) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
-and carry no family switch (facade FAC:354, 361; `Sampler` SAM:1561, 1570; R5
-`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1793, 1753; bridge
+and carry no family switch (facade FAC:356, 363; `Sampler` SAM:1561, 1570; R5
+`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1793, 1820; bridge
 `bartcore_getCalibration`/`bartcore_setCalibration` RIB:4205, 4260). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
 single value to divide by, or once the chains' `k` have diverged) and for
@@ -749,11 +749,11 @@ never read for a multinomial sampler.
 (RIB:3333-3400) copies only power/base/proposal-probability fields, so a DART
 tree prior built from either the `dart` argument or a `tree.prior` object
 never reached the K-forest engine. `bart2` now refuses both routes by name
-(bart.R:902), matching BCF's own named refusal (spec.R:652,
+(bart.R:903), matching BCF's own named refusal (spec.R:652,
 `buildSpecifiedForest` CH:5145) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
-(bart.R:2346, 2355), so a user's `variance =` is forwarded to BOTH - including
+(bart.R:2359, 2368), so a user's `variance =` is forwarded to BOTH - including
 the occupancy component, which then sets `family = "probit"` and hits the
 non-gaussian variance refusal at spec.R:509 before either component fits.
 That refusal is deliberate, not a bug: the positive fit is always
@@ -762,7 +762,7 @@ unreachable. No comment in R/ states that (`hurdleSigmaVec`, retired, with no
 replacement construct); the evidence is the live `redirectCall`/spec.R:509
 mechanism above and the Rd text, at bart2.Rd:284 and dbarts.Rd:111.
 
-[f35] `dart` is forwarded to both components (bart.R:2346, 2355), each of
+[f35] `dart` is forwarded to both components (bart.R:2359, 2368), each of
 which is an ordinary single-forest chain that takes it.
 
 [f36] No family gate: `installForests` checks shape, grid, DART, and the
@@ -837,8 +837,8 @@ docs/plans/runsbcbcf-repair.md).
 multiforest-extension-surface M4.4 (625794fd). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
 naming what it is missing (spec.R:616-642, `refusedAmplitudeFamilyReason`
-RIB:2266, `createAmplitudeSampler` FAC:868-889 - the last sitting directly
-beside the variance-forest door at FAC:877, which is unchanged and
+RIB:2266, `createAmplitudeSampler` FAC:870-891 - the last sitting directly
+beside the variance-forest door at FAC:879, which is unchanged and
 family-independent). The calibration map's anchor is now family-keyed,
 `latentScaleAnchor` (CH:5045): sd(y) under gaussian, 1 under probit, pi/sqrt(3)
 under logistic, and stated per unit of basis row norm (`basisRowNorm` CH:5083).
