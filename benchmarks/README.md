@@ -69,7 +69,9 @@ R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
 for the two multi-forest samplers, with their own current baselines named
 by the MANIFEST (which is authoritative; hashes rotate at every
 re-record); the three together are the "equivalence trio" the plan docs
-gate on.
+gate on. The two sibling harnesses source their draws-axis reductions and
+cross-host verdict logic from R/equivalence-common.R; each keeps its own
+channel taxonomy and scenario list.
 
 Both take `--cross-host` to compare a baseline recorded on another machine.
 The point-in-time snapshot channels (a forest's raw fit/amplitude/varcount
