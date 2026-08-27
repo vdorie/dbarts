@@ -545,31 +545,11 @@ replaceSparseColumns <- function(sparse, ranks, implicits, values) {
 }
 
 ## Install a block of predictor columns into a sampler's stored source BY
-## REFERENCE (the reference-install mutation semantics) - keeps
-## data@x current under
-## mutation without adding an R-side copy on top of R's own copy-on-write.
-## rows = NULL replaces columns whole: a dense-backed slot j is repointed
-## straight at the supplied vector (or, for a multi-column call, the caller's
-## per-column slice of it), so an unmutated column stays shared with the prior
-## container and only the O(p) list spine is duplicated; a factor source
-## column decays to a plain code vector automatically, since the old column
-## is discarded rather than mutated in place. A CSC-backed column instead has
-## its entries spliced into the container's sparse block (replaceSparseColumn),
-## which is O(nnz); a mixed call naming both kinds dispatches per column on the
-## sign of the map. rows given (a partial merge)
-## starts from the old column and overwrites only the addressed rows - the
-## merge is inherent for a freshly supplied vector (O(n) for one column, no
-## worse than before); the O(spine) win there needs the caller's own
-## already-merged vector reinstalled in place. A matrix source has no
-## columnar spine to share, so it keeps copy-modify. Per-observation mutation
-## of a CSC-backed column is refused upstream, so the partial merge below only
-## ever addresses dense-backed columns. Naming several sparse-backed columns -
-## a whole-matrix replacement of a sparse design does - splices them in one
-## pass (replaceSparseColumns). In the container branch `values` may itself be
-## sparse - a dgCMatrix or another container - and is read one column at a
-## time, so a sparse-backed target column whose implicit agrees with the
-## argument's splices the argument's entries directly (O(nnz)) and an untouched
-## column is never materialized at all.
+## REFERENCE - keeps data@x current under mutation without adding an R-side
+## copy on top of R's own copy-on-write. rows = NULL replaces columns whole;
+## rows given merges only the addressed rows. Per-observation mutation of a
+## CSC-backed column is refused upstream, so the partial-row merge below only
+## ever addresses dense-backed columns.
 installPredictorColumns <- function(x, rows, columns, values) {
   if (is.matrix(x)) {
     if (is.null(rows)) {

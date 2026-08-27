@@ -54,10 +54,10 @@ xbart <- function(
   }
   storage <- match.arg(storage)
 
-  # control = is no longer a formal: xbart builds its own control, the
-  # knobs above landing where the flat formals' values landed, alongside
-  # six fields xbart has always forced regardless of what a caller-supplied
-  # control carried. n.trees/n.burn are xbart's own
+  # xbart builds its own control rather than accepting one, the knobs above
+  # landing where the flat formals' values land, alongside six fields xbart
+  # forces regardless of what a caller-supplied control would carry.
+  # n.trees/n.burn are xbart's own
   # grid axes (cellControl/cellModel overwrite them per cell below), seed is
   # handled by xbart's own RNG block, and printEvery/printCutoffs are inert
   # under verbose = FALSE, so control's copies of those five fields are left
@@ -127,7 +127,7 @@ xbart <- function(
 
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric
-  # response takes the historic 0/1-vs-continuous path unchanged.
+  # response takes the 0/1-vs-continuous path.
   family <- resolveClassificationFamily(data, family, "xbart", "gaussian")
   if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)

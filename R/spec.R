@@ -14,7 +14,7 @@
 ## scale latent index rather than an ordinary continuous response, which is
 ## what control@binary, the weight policy, and the resid.prior override below
 ## all key off. Shared so no entry point's own family gate can drift from
-## this one - xbart once carried the weaker `family != "gaussian"`.
+## this one.
 isBinaryFamily <- function(family) {
   family %in% c("probit", "logistic")
 }
@@ -121,7 +121,7 @@ resolveSamplerSpec <- function(
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
   # are multinomial, which only bart2(family = "multinomial") implements. A
-  # numeric response takes the historic 0/1-vs-continuous path unchanged.
+  # numeric response takes the 0/1-vs-continuous path.
   # dbarts() is also reached anonymously through bart(), which never sets an
   # explicit family; see resolveClassificationFamily's doc comment for why
   # its auto-branch message lists every single-forest entry point instead of
@@ -238,9 +238,9 @@ resolveSamplerSpec <- function(
     data@sigma <- estimateStartingSigma(data)
   }
 
-  # bart will passthrough with offset == something no matter what, which we
-  # can NULL out; a latent-scale fixed-unit family (binary, ordinal) keeps its
-  # zero offset as the meaningful reference, as probit always has
+  # bart passes offset == something through no matter what; a latent-scale
+  # fixed-unit family (binary, ordinal) keeps its zero offset as the
+  # meaningful reference, as probit always has
   if (!fixedUnitScale && !is.null(data@offset) && all(data@offset == 0.0)) {
     data@offset <- NULL
   }
@@ -472,8 +472,7 @@ resolveSamplerSpec <- function(
   # the discrete-time hazard marker: the
   # period grid, parked here for packageBartResults to read into $periods. The
   # C bridge never reads this attribute (unlike bartcore.survival), so a hazard
-  # fit's draw stream is byte-identical to the by-hand binary fit's - the
-  # reduction gate (benchmarks/R/hazard-reduction.R).
+  # fit's draw stream is byte-identical to the by-hand binary fit's.
   if (!is.null(hazardPeriods)) {
     attr(control, "bartcore.hazard.periods") <- hazardPeriods
   }
@@ -485,9 +484,8 @@ resolveSamplerSpec <- function(
   # `variance` accepts either the plain shorthand (NULL/FALSE/TRUE/formula/
   # character/index) or a varianceForest() object: its `vars`
   # slot routes through the SAME resolveVarianceColumns the shorthand uses -
-  # one selector vocabulary - and its n.trees/base/power knobs land exactly
-  # where the removed flat n.trees.variance/power.variance/base.variance
-  # formals' values used to, byte-identically.
+  # one selector vocabulary - and its n.trees/base/power knobs land on the
+  # same control attribute the C factory reads.
   varianceSpec <- if (inherits(variance, "dbartsVarianceForest")) {
     variance
   } else {
@@ -586,12 +584,10 @@ resolveSamplerSpec <- function(
     numForests <- length(data@bases)
     # K = 1 is not a shipped configuration. Both creation routes reach here -
     # the dbartsData(bases = ) one and the forests = one, whose declarations
-    # forestBasisDeclarations now carries down at any length - so this is the
+    # forestBasisDeclarations carries down at any length - so this is the
     # single site the refusal is owed at. What a lone amplitude forest is
-    # missing is the second ensemble its amplitudes would distinguish it from;
-    # reaching it as a configuration is VCBART's shape (the general per-forest
-    # multiplier door), which owes acceptance evidence of its own before it
-    # could be opened.
+    # missing is the second ensemble its amplitudes would distinguish it
+    # from.
     if (numForests < 2L) {
       stop(
         "a multi-forest model needs at least two forests, and ",
@@ -660,8 +656,8 @@ resolveSamplerSpec <- function(
         "dbartsFixedHyperprior"
       ) &&
         priors$node.hyperprior@k != 2.0,
-      # "differs from the family default", which is what the gaussian-only
-      # literal 0.5 this used to compare against always meant
+      # "differs from the family default": defaultNodeScale(family), not a
+      # gaussian-only literal
       "a non-default 'node.scale'" = model@node.scale !=
         defaultNodeScale(family),
       # the calibration map fixes every forest's leaf scale from the family's

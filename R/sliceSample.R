@@ -301,8 +301,7 @@ sliceSample <- function(
       int <- shrinkInterval(x, x.p, int)
     }
     # test acceptance, not the counter: a draw accepted on the maxIter'th pass
-    # leaves j == maxIter and used to raise the exhaustion error over a good
-    # sample
+    # leaves j == maxIter too, which is not itself exhaustion
     if (!accepted) {
       stop("slice sampler failed: maxIter reached")
     }

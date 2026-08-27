@@ -249,7 +249,7 @@ validateXTest <- function(x.test, x.train) {
     )
   }
   # a sparse-backed container stays resident (the engine codes it against the
-  # training cuts); everything else densifies as before
+  # training cuts); everything else densifies
   xTestIsSparseContainer <-
     inherits(x.test, "dbartsMixedMatrix") && predictorSourceIsSparse(x.test)
   if (!is.matrix(x.test) && !xTestIsSparseContainer) {
@@ -401,8 +401,8 @@ findTermInFormulaData <- function(formula, data, term) {
   NULL
 }
 
-## this used to be a function evaluated in the caller's frame, but
-## that causes warnings in R check so now it is just a block of code
+## A block of code rather than a function: evaluating a function this way in
+## the caller's frame triggers an R CMD check warning.
 getTestOffset <- quote({
   if (is.numeric(matchedCall$offset.test)) {
     return(list(offset.test = offset.test, testUsesRegularOffset = FALSE))
@@ -511,12 +511,10 @@ classifyResponse <- function(y) {
 
 # Code a raw response to the doubles the engine reads and report its original
 # type. A factor (or a character coerced with factor(), or a logical) becomes
-# 0-based codes exactly as the historic x/y path did; a numeric response is
-# passed through as.double, byte-identical to the previous handling. The
-# original levels are returned alongside so an ordinal fit can round-trip
-# them; they are NULL for a numeric response
-# (a numeric ordinal derives sort(unique(y)) itself) and were previously
-# discarded.
+# 0-based codes; a numeric response passes through as.double. The original
+# levels are returned alongside so an ordinal fit can round-trip them; they
+# are NULL for a numeric response (a numeric ordinal derives sort(unique(y))
+# itself).
 # codeResponse flattens any matrix response with as.double(), column-major,
 # to length ncol(y) * nrow(y); called on a Surv object or an n x K matrix
 # without this guard first, it silently produces a length mismatch against
@@ -736,10 +734,8 @@ resolveOrdinalResponse <- function(data) {
 # Resolve the negative-binomial dispersion argument to the length-1 real the C
 # bridge reads off the control's bartcore.dispersion attribute. NA (the
 # default) estimates r on the capped integer grid, encoded as a non-positive
-# spec; a supplied value FIXES r. v1
-# ships the exact integer envelope, so a fixed dispersion must be a single
-# positive integer - a real fixed value is refused informatively, so admitting
-# it later is a validation relaxation, not a signature change.
+# spec; a supplied value FIXES r as a single positive integer - the exact
+# integer envelope v1 ships, real dispersion not yet supported.
 resolveDispersion <- function(dispersion) {
   if (length(dispersion) != 1L) {
     stop("'dispersion' must be a single value")
@@ -793,7 +789,7 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # basis at the pre-'subset' data's row count is restricted to the rows a
 # formula's 'subset' kept, and a basis matching the kept-row count but not the
 # full data's is refused by name rather than guessed at. With no 'subsetRows'
-# (the x/y interface, or a formula with no 'subset'), the older row-index
+# (the x/y interface, or a formula with no 'subset'), the row-index
 # contract applies directly: 'initialNumObservations' is the row count to
 # match and 'subset', if given, is applied as-is. 'argument' names the surface
 # the value came from, so a caller who wrote a forest's basis is refused in
@@ -842,8 +838,8 @@ validateForestBases <- function(
 }
 
 # Validate and subset a user-supplied offset vector for the x/y interfaces
-# (shared by both x/y branches, formerly byte-identical): a NULL passes through
-# unchanged, otherwise the vector is numeric-checked, length-1 recycled (which
+# (shared by both x/y branches): a NULL passes through unchanged, otherwise
+# the vector is numeric-checked, length-1 recycled (which
 # sets offsetGivenAsScalar = TRUE, a longer vector FALSE), length-validated
 # against 'y', and restricted to 'subset'. offsetGivenAsScalar is threaded in
 # and back out so a NULL offset leaves it untouched. The offsetIsMissing guard
@@ -1496,15 +1492,10 @@ dbartsData <- function(
     # values are validated below, like the sparse-matrix branch above
     if (!xIsMixed) {
       # missing = "incorporate" must reach the shared NA handling at the end
-      # of this function intact, exactly like the sparse and mixed-container
-      # branches above - no row is dropped here for missingness in 'x' or
-      # 'y'. That shared code unconditionally rejects a missing response
-      # (anyNA(y) below) and only rejects a missing predictor when
-      # missing = "error", so deferring to it makes this branch agree with
-      # the formula interface instead of silently discarding incomplete
-      # rows regardless of 'missing' (the bug: incorporation was only
-      # reachable through the formula path, since this branch always
-      # complete-cases-filtered first).
+      # of this function intact, like the sparse and mixed-container branches
+      # above: no row is dropped here for missingness in 'x' or 'y'. That
+      # shared code unconditionally rejects a missing response (anyNA(y)
+      # below) and only rejects a missing predictor when missing = "error".
       completeCases <- if (missing == "error") {
         stats::complete.cases(x, y)
       } else {
@@ -1701,29 +1692,15 @@ dbartsData <- function(
     stop("response contains non-finite values")
   }
 
-  # Precision-degenerate response: a response with a
-  # large magnitude but a tiny spread quantizes to (near-)identical double
-  # values before the engine ever sees it - e.g. y in [1e15, 1e15 + 1e-3]
-  # rounds to a single representable double - so the engine fits an
-  # apparently-fine model that can no longer tell observations apart. The
-  # signature is range(y) tiny relative to scale(y): doubles near
-  # magnitude s are spaced ~2.22e-16 * s apart, so 1e-10 is ~1e6x the ulp
-  # spacing - real precision loss trips it with orders of magnitude of
-  # headroom before a merely low-variance (but not degenerate) response
-  # would. max(abs(y)) == 0 is guarded to avoid a 0/0; an all-zero
-  # response has no precision loss to report (it is exactly, not
-  # approximately, constant). No distinct-value-count check backs this up:
-  # a rounding collapse to a handful of distinct doubles means the range
-  # spans at most a few ulps (~1e-15 relative), which the ratio already
-  # catches five orders of magnitude earlier, while low-cardinality data
-  # the ratio does NOT flag has values separated by many ulps -
-  # legitimately discrete responses (binary, counts, ordinal scales) that
-  # standardization maps cleanly and the engine fits without degradation.
-  # A multinomial 'y' is the trials vector, not a modelled response: the
-  # dominant single-trial case is identically 1, which the ratio below reads as
-  # a degenerate response and reports as one. The check keys on the DATA
-  # OBJECT, not on a family - dbartsData has no 'family' formal, and carrying
-  # counts is the honest predicate anyway.
+  # Precision-degenerate response: a large magnitude but tiny spread
+  # quantizes to (near-)identical doubles before the engine ever sees it,
+  # e.g. y in [1e15, 1e15 + 1e-3] rounds to one representable double. Doubles
+  # near magnitude s are spaced ~2.22e-16 * s apart, so the 1e-10 threshold is
+  # ~1e6x the ulp spacing, clear of legitimately discrete (binary, counts,
+  # ordinal) responses. max(abs(y)) == 0 is guarded to avoid a 0/0. A
+  # multinomial 'y' is the trials vector, not a modelled response, so the
+  # check is skipped whenever 'counts' is carried, keyed on the data object
+  # rather than on a family dbartsData has no formal for.
   yRange <- diff(range(y))
   yScale <- max(abs(y))
   if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {

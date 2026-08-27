@@ -414,31 +414,21 @@ defaultNodeScale <- function(family) {
   )
 }
 
-## The half-Cauchy median a forest carrying NO basis takes when its `sd` is not
-## declared - the magnitude of its scalar amplitude, in units of the same latent
-## scale defaultNodeScale states above. FAMILY-AWARE, because the unit is not
-## the same quantity in the two cases. Under gaussian and aft the anchor is the
-## RESPONSE's own sd, which already contains the signal, and sigma is DRAWN, so
-## a prognostic total at a median 2 of them is both a statement about total
-## variation and one the sampler can correct; that is bcf's use_muscale
-## convention. Under the latent families the anchor is the
-## LINK's own error sd and sigma is PINNED, so 2 asserts the median prognostic
-## signal is twice the noise before any other forest is added, and nothing
-## absorbs it: at 1 - one anchor unit, which is also what the Rd can state - the
-## induced index prior reproduces the shipped single-forest binary default's
-## tail mass to within 3.4 percent (P(p < 0.01 or p > 0.99) 0.2468 against
-## 0.2387, where 2 gave 0.3764).
+## The half-Cauchy median a forest carrying NO basis takes when its `sd` is
+## not declared, in units of the latent scale defaultNodeScale states above.
+## FAMILY-AWARE: under gaussian and aft the anchor is the RESPONSE's own sd
+## (sigma is DRAWN); under the latent families the anchor is the LINK's own
+## error sd (sigma is PINNED), so the anchor unit differs 2:1 between them to
+## keep the induced index prior matched to the shipped single-forest binary
+## default.
 ##
 ## Total over the package's family vocabulary rather than over the three the
-## multi-forest path builds, so an unknown family ERRORS instead of returning
-## switch()'s invisible NULL: the internal bartcoreBCFSampler route has no
-## R-side family gate to borrow (its refusal is the bridge's), and a NULL there
-## collapses a length-8 transport vector to length 7. The families that route
-## refuses still resolve, so the refusal stays where it is written.
+## multi-forest path builds: an unknown family ERRORS instead of switch()'s
+## invisible NULL, since the internal bartcoreBCFSampler route has no R-side
+## family gate to borrow.
 ##
-## No C twin, unlike defaultNodeScale: applyAmplitudeSpec always receives explicit
-## per-forest parameter vectors, so there is no route on which this default
-## could be silently taken engine-side and nothing to backstop.
+## No C twin, unlike defaultNodeScale: applyAmplitudeSpec always receives
+## explicit per-forest parameter vectors, so there is nothing to backstop.
 defaultAmplitudePriorScale <- function(family) {
   switch(
     family,
@@ -945,13 +935,12 @@ resolveFormulaBasisSubset <- function(formula, data, subsetExpr) {
 ## (resolveFormulaBasisSubset's result). A NULL basis, or a NULL 'subsetRows'
 ## (no rule to apply - the x/y interface, or no 'subset'), passes through
 ## unchanged: the basis was already validated against the un-subset data at
-## the count dbartsData() checks it against, its previous contract. A basis
-## at the FULL data's row count is restricted to the same rows the model
-## frame keeps, the alignment 'weights' and every predictor column already
-## get. A basis at the SUBSET's row count instead - matching the kept-row
-## count but not the full data's - is the ambiguous shape a count-only check
-## once accepted by silent positional alignment; it is refused by name,
-## naming the forest and both counts, rather than guessed at.
+## the count dbartsData() checks it against. A basis at the FULL data's row
+## count is restricted to the same rows the model frame keeps, the alignment
+## 'weights' and every predictor column already get. A basis at the SUBSET's
+## row count instead - matching the kept-row count but not the full data's -
+## is an ambiguous shape, refused by name, naming the forest and both
+## counts, rather than guessed at.
 alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
   if (is.null(basis) || is.null(subsetRows)) {
     return(basis)
@@ -1110,32 +1099,15 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## Which of the two magnitude channels a forest's `sd` reaches is decided by
 ## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
 ## amplitude under a half-Cauchy scale mixture, so `sd` is that mixture's
-## median and the node scale stays at the calibration map's anchor - bcf's
-## prognostic forest. A forest WITH one has a fixed-variance amplitude block,
-## so `sd` multiplies the node scale, divided through the half-normal median
-## 0.674 so the amplitude spread times that scale sits at `sd` anchors - bcf's
-## basis forest. The ANCHOR is the family's own latent scale: sd(y) under
-## gaussian, 1 under probit and pi/sqrt(3) under logistic, per unit of basis
-## row norm.
-## Both defaults are stated here rather than engine-side, so a `forests`
-## declaring nothing beyond its basis and a data object carrying bases with no
-## declaration at all resolve to the same numbers.
+## median and the node scale stays at the calibration map's anchor. A forest
+## WITH one has a fixed-variance amplitude block, so `sd` multiplies the node
+## scale, divided through the half-normal median 0.674. The ANCHOR is the
+## family's own latent scale: sd(y) under gaussian, 1 under probit and
+## pi/sqrt(3) under logistic, per unit of basis row norm.
 ##
-## Each answers a question the caller did not. The basis-free channel's median
-## is the FAMILY's (defaultAmplitudePriorScale above). The fixed-variance
-## channel's node scale factor is K-AWARE, sqrt(2/K): the MAP carries no per-K
-## renormalization - ForestSpec is per forest and the calibration loop reads no
-## count - so at the literal 1 the all-basis index prior grew as
-## 1.04912 sqrt(K) s without bound, making the prior on the combined location
-## depend on how the caller DECOMPOSED the mean rather than on what they said
-## about it, the same model written as two forests or as four differing by
-## sqrt(2). sqrt(2/K) is that invariance, at K = 2 the identity, so bcf's own
-## convention is preserved rather than judged. A DEFAULT and not map algebra: a
-## declared `sd` keeps its per-forest reading at every K, and the basis-free
-## channel is untouched, a Cauchy having no finite variance to enter the budget
-## with - so the all-basis index prior is 1.4837 s at every K while the shipped
-## shape's fixed-variance channel is only CAPPED by it, rising from 0.699x of
-## the classic k = 2 budget toward 0.989x rather than passing 2x at K = 10.
+## The fixed-variance channel's node scale factor is K-AWARE, sqrt(2/K): that
+## keeps the prior on the combined location invariant to how the caller
+## decomposed the mean across forests, the identity at K = 2.
 forestParams <- function(specs, hasBasis, family) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
@@ -1754,9 +1726,8 @@ forest <- function(
 ## shorthand uses - one selector vocabulary - with vars = NULL on THIS
 ## object meaning every column, distinct from variance = NULL's "no
 ## variance forest". n.trees/base/power default to NULL, "not declared",
-## matching forest(); resolveSamplerSpec falls each back to what the old
-## flat n.trees.variance/power.variance/base.variance formals defaulted to
-## (40 trees; the mean forest's tree.prior base/power) when NULL. Validated
+## matching forest(); resolveSamplerSpec falls each back to a default when
+## NULL (40 trees; the mean forest's tree.prior base/power). Validated
 ## at fit time. Exported, like forest().
 varianceForest <- function(
   vars = NULL,

@@ -639,8 +639,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 # publicly. Columns marked CATEGORICAL (1L) in data@varTypes split by
 # category subset rather than by threshold; factors = "categorical", the
 # default on the public data constructor, sets this directly, so callers
-# no longer need to flip the type by hand. Values must be integer codes
-# 0..K-1, K <= 32.
+# never flip the type by hand. Values must be integer codes 0..K-1, K <= 32.
 
 bartcoreSampler <- function(sampler, family = "") {
   result <- new.env(parent = emptyenv())
@@ -769,9 +768,8 @@ bartcoreBCFSampler <- function(
   }
   if (is.null(sd.control)) {
     # the same helper the public route takes (R/model.R), so the two routes
-    # stay on one set of defaults - which is what the creation oracle's
-    # draw-for-draw comparison exists to hold - and a family this route cannot
-    # build still meets the bridge's own refusal rather than one from here
+    # stay on one set of defaults, and a family this route cannot build still
+    # meets the bridge's own refusal rather than one from here
     sd.control <- defaultAmplitudePriorScale(model@family)
   }
   # the K-length per-forest transport, at K = 2: the prognostic forest carries
@@ -925,10 +923,8 @@ validateCategoryTestOffset <- function(offset.test, sampler, K) {
 #
 # A thin shim: one-hot expands labels into counts and routes through
 # bartcoreMultinomialDataSampler, the same public bartcore_create dispatch a
-# direct bart2(family = "multinomial") fit reaches (one create), rather than
-# a dedicated creation entry - internal callers (the equivalence/SBC
-# harnesses, this file's own test fixtures) and bart2 now build through one
-# factory.
+# direct bart2(family = "multinomial") fit reaches, rather than a dedicated
+# creation entry.
 bartcoreMultinomialSampler <- function(
   sampler,
   labels,
@@ -951,7 +947,7 @@ bartcoreMultinomialSampler <- function(
     stop("multinomial label out of range 0..K-1")
   }
   # one-hot, category-major: the n_i = 1 special case of the grouped-count
-  # combiner, byte-identical to it (benchmarks/R/multinomial-equivalence.R)
+  # combiner, byte-identical to it
   counts <- matrix(0L, length(labels), K)
   counts[cbind(seq_along(labels), labels + 1L)] <- 1L
   bartcoreMultinomialDataSampler(sampler, counts, K, offset, offset.test)
@@ -1013,8 +1009,7 @@ bartcoreMultinomialCountSampler <- function(
 # dbarts(family = "multinomial") and getPointer's re-creation branch reach.
 # counts is already validated, category-major (n x K), integer-typed.
 # offset/offset.test are validated here, against the same creation-time
-# checks the retired dedicated entries used, so their messages are
-# unchanged.
+# checks a dedicated entry point would apply.
 bartcoreMultinomialDataSampler <- function(
   sampler,
   counts,

@@ -620,17 +620,17 @@ dbarts <- function(
   # raw 'bases' entry is otherwise the caller's own value with no index to
   # restrict it by. The alignment to whatever rows the model frame will keep
   # - a full-data basis restricted to them, an ambiguous shape refused by
-  # name - is dbartsData()'s own rule now (validateForestBases's
+  # name - is dbartsData()'s own rule (validateForestBases's
   # 'subsetRows' branch, R/data.R, resolveFormulaBasisSubset/
   # alignForestBasisToSubset, R/model.R), so it is left unapplied here and
   # the evaluated basis rides 'bases' at its raw, pre-subset shape.
   basisDeclarations <- forestBasisDeclarations(forests)
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
-  # argument in that case (its own ignored-args warning, R/data.R), so this
-  # combination used to fit an ordinary single-forest model with the
-  # declaration silently discarded. Refuse it by name instead. dbartsSpec() is
-  # not touched - its first argument must already be a dbartsData, so this
+  # argument in that case (its own ignored-args warning, R/data.R), which
+  # would silently fit an ordinary single-forest model with the declaration
+  # discarded - refused here by name instead. dbartsSpec() is not touched -
+  # its first argument must already be a dbartsData, so this
   # predicate would be unconditionally true there and would refuse the
   # supported route (R/spec.R installs the declaration rather than dropping
   # it). The supported composition - a data object already carrying '@bases'
@@ -692,7 +692,7 @@ dbarts <- function(
 
   # a forest() term's bases were already evaluated against the model frame
   # (R/formulaTerms.R), post-subset - unlike a forests = declaration's, which
-  # dbartsData()'s 'bases' argument now expects at the pre-subset shape and
+  # dbartsData()'s 'bases' argument expects at the pre-subset shape and
   # aligns itself. A term's basis needs no such alignment (it is already at
   # the kept rows), so it rides onto the data object directly rather than
   # through that argument; 'forests' being NULL here is enforced by the
@@ -1134,9 +1134,8 @@ dbartsSampler <- setRefClass(
             "'offset.test' must have the same number of rows as 'x.test'"
           )
         }
-        # a lone NA on the flat path reads as "no offset", which is what the
-        # NA_real_ default of this argument's older spelling meant; the engine
-        # takes a null rather than a sentinel
+        # a lone NA on the flat path reads as "no offset"; the engine takes a
+        # null rather than a sentinel
         if (length(offset.test) == 1L && is.na(offset.test)) {
           offset.test <- NULL
         }
