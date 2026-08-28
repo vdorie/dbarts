@@ -41,13 +41,6 @@
             Earlier versions always re-derived the prior location and
             scale from each new response; pass
             \code{updateScale = TRUE} for that behavior.
-      \item The prior defaults for a multi-forest model change, so seeded
-            results move for two classes of fit: a \code{"probit"} or
-            \code{"logistic"} model carrying a forest with no
-            \code{basis}, and any model of three or more forests under any
-            family. Declaring \code{forest(sd = )} on every forest - 2 on
-            a basis-free one and 1 on each basis one - reproduces the
-            previous model exactly.
       \item A \code{forests} list of length one that declares a
             \code{basis} is refused rather than fit as an ordinary
             single-forest model with the declaration dropped.
@@ -63,16 +56,6 @@
             than its previous, disjoint count-only check; its
             \code{x.train}/\code{y.train} interface already followed this
             rule and is unchanged.
-      \item \code{dbartsData} gains three slots - \code{counts},
-            \code{offset.category} and \code{offset.category.test} - so a
-            \code{dbartsData} serialized by an earlier build of 1.0-0 has
-            slots the class now declares. Reading such an object is
-            unaffected: every internal read of the three goes through
-            \code{methods::.hasSlot}, so a saved \code{bart}, \code{bart2}
-            or \code{dbartsSampler} still loads, predicts, mutates and runs.
-            What such an object cannot do is pass \code{validObject}, which
-            checks slot presence itself and reports the three as missing;
-            rebuild the data object if you call it.
       \item Every \code{predict} method's argument order is now uniform:
             \code{(object, newdata, type, offset, ...)}, then
             \code{weights}, \code{combineChains}, \code{ci.level} in that
@@ -178,6 +161,24 @@
             refuse their vestigial \code{result} argument by name instead of
             silently accepting and ignoring it; both readers always
             allocate their own vector.
+      \item \code{bart}'s new \code{family} argument (\code{"auto"},
+            \code{"logistic"}, \code{"aft"}) refuses, by name and quoting
+            the token as typed, any of \code{bart2}'s other ten family
+            tokens (\code{"multinomial"}, \code{"ordinal"}, \code{"nbinom"},
+            \code{"hurdle.lognormal"}, \code{"twopart"}, \code{"gaussian"},
+            \code{"probit"}, \code{"hazard"}, \code{"hazard.probit"},
+            \code{"hazard.logistic"}); fit one of those families through
+            \code{bart2} instead.
+      \item \code{bart}, \code{bart2}, \code{xbart}, and \code{rbart_vi} now
+            refuse by name, up front, an \code{n.samples}/\code{ndpost}
+            that leaves no draws after thinning (\code{ndpost} smaller
+            than \code{keepevery}, or \code{n.samples} smaller than
+            \code{n.thin}). \code{bart} previously reached this by faulting
+            deep in the result-array reshape and \code{xbart} inside its
+            loss calculation; \code{rbart_vi} already refused it, with
+            different wording. \code{dbarts}/\code{dbartsControl} still
+            accept it, for a sampler driven by a host loop's own
+            \code{run} calls.
     }
   }
   \subsection{NEW FEATURES}{
