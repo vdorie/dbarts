@@ -170,7 +170,7 @@ plot(x, plquants = c(0.05, 0.95), cols = c("blue", "black"), ...)
 summary(object, ...)
 
 # S3 method for class 'bartOrdinal'
-summary(object, vars = c("cutpoints", "sigma", "k", "tau"), ...)
+summary(object, vars = c("thresholds", "sigma", "k", "tau"), ...)
 
 # S3 method for class 'bartNegbin'
 summary(object, vars = c("dispersion", "sigma", "k", "tau"), ...)
@@ -741,7 +741,7 @@ print(x, ...)
   ordered thresholds \\-\infty = \gamma_0 \< \gamma_1 = 0 \< \gamma_2 \<
   \ldots \< \gamma\_{K-1} \< \gamma_K = \infty\\, so \\P(Y = k \mid x) =
   \Phi(\gamma_k - f(x)) - \Phi(\gamma\_{k-1} - f(x))\\. The free
-  cutpoints are sampled by a one-at-a-time marginal Metropolis update
+  thresholds are sampled by a one-at-a-time marginal Metropolis update
   (latents integrated out) under a log-gap prior \\N(0, 1.5^2)\\; at \\K
   = 2\\ the model is exactly the probit family. `y.train` should be an
   ordered factor ([`is.ordered`](https://rdrr.io/r/base/factor.html));
@@ -763,7 +763,7 @@ print(x, ...)
   the same object `fit` is under `keepSampler`. `test` and `keepTrees`
   are supported as for multinomial, and `predict` replays the saved
   trees at new predictors, differencing the cumulative probit at the
-  stored per-draw cutpoints. `rbart_vi` and `xbart` do not fit ordinal
+  stored per-draw thresholds. `rbart_vi` and `xbart` do not fit ordinal
   responses (grouped ordinal models and ordinal-scale cross-validation
   losses are recorded follow-ups). The fit's class is `"bartOrdinal"`,
   not `"bart"`: see ‘Value’ below.
@@ -1018,7 +1018,7 @@ print(x, ...)
   Character vector of fields to gather, as
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
   own `vars`; requested fields absent from `object` are silently
-  dropped. `summary.bartOrdinal`'s `"cutpoints"` contributes one draws
+  dropped. `summary.bartOrdinal`'s `"thresholds"` contributes one draws
   variable per threshold \\\gamma_1, \ldots, \gamma\_{K-1}\\, the
   ordinal analog of `sigma`; `summary.bartNegbin`'s `"dispersion"`
   contributes the per-draw dispersion \\r\\, the count analog of
@@ -1040,7 +1040,7 @@ print(x, ...)
 
   For `plot.bartMultinomial`/`plot.bartOrdinal`: a vector of colors, one
   per category, tracing each category's training-mean predicted
-  probability (`bartOrdinal`'s cutpoint panel, when drawn) or each
+  probability (`bartOrdinal`'s threshold panel, when drawn) or each
   category's own P2 panel point; `NULL` (the default) chooses colors
   automatically. For `plot.bartNegbin`/`plot.bartHurdle`: two colors, as
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
@@ -1286,24 +1286,24 @@ analog of `summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
 draws of the K category probabilities, shaped and levels-named exactly
 as the multinomial arrays above - `latent.train` (and `latent.test`) -
 the corresponding draws of the latent \\f(x)\\ on the unit-variance
-probit scale, shaped like a binary family's `yhat.train` - `cutpoints` -
-the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
-\gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K - 1), the ordinal
-analog of gaussian's `sigma`, from which probabilities at any latent
-value can be reconstructed - and `varcount`. `cutpoints.raw` (the
-per-draw thresholds in the internal layout `predict` consumes) is
-present only under `keepTrees`. `fit` is present whenever `keepTrees` is
-`TRUE` *or* `keepSampler` is set, independent of `keepTrees`: it is the
-`dbartsSampler` whose engine actually ran, fully mutable and readable
-like any sampler
+probit scale, shaped like a binary family's `yhat.train` -
+`thresholds` - the posterior draws of the K - 1 finite thresholds
+\\(\gamma_1 = 0, \gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K -
+1), the ordinal analog of gaussian's `sigma`, from which probabilities
+at any latent value can be reconstructed - and `varcount`.
+`thresholds.raw` (the per-draw thresholds in the internal layout
+`predict` consumes) is present only under `keepTrees`. `fit` is present
+whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
+`keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
+mutable and readable like any sampler
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) returns,
 and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartOrdinal` can replay through.
-`summary(object)` reports the cutpoints alongside whatever mean-function
-scale `vars` finds present, pooled into posterior mean/sd/quantiles
-(R-hat/ESS when posterior is installed), the ordinal analog of
-`summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
+`summary(object)` reports the thresholds alongside whatever
+mean-function scale `vars` finds present, pooled into posterior
+mean/sd/quantiles (R-hat/ESS when posterior is installed), the ordinal
+analog of `summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
 
 Generics for a `"bartOrdinal"` fit: `fitted(object)` returns the
 posterior-mean n \\\times\\ K probability matrix (columns named by
@@ -1333,17 +1333,17 @@ difference - extract-only, `sample = "test"` refused by name, shaped
 like `type = "ppd"`. `forest`/`contribution` on `extract`/`predict` and
 `sample` on `fitted` are refused by name (this family has a single
 forest and `fitted` is always the training rows). `plot(object)` traces
-the free cutpoints \\\gamma_2, \ldots, \gamma\_{K-1}\\ (\\\gamma_1 = 0\\
-is pinned and carries no information; at K = 2 there is none, and the
-plot degrades to one full-device panel) alongside the per-observation
-latent interval, observations ordered by median \\\eta\\, coloured by
-observed level, with dashed reference lines at the posterior-median
-cutpoints. `plotTree` and
+the free thresholds \\\gamma_2, \ldots, \gamma\_{K-1}\\ (\\\gamma_1 =
+0\\ is pinned and carries no information; at K = 2 there is none, and
+the plot degrades to one full-device panel) alongside the
+per-observation latent interval, observations ordered by median
+\\\eta\\, coloured by observed level, with dashed reference lines at the
+posterior-median thresholds. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name. `as_draws_array`/`as_draws_df` default to
-`vars = c("cutpoints", "sigma", "k", "tau")`, matching `summary`'s own
-default; `cutpoints` contributes `cutpoint[1]` (the pinned 0) through
-`cutpoint[K - 1]`.
+`vars = c("thresholds", "sigma", "k", "tau")`, matching `summary`'s own
+default; `thresholds` contributes `threshold[1]` (the pinned 0) through
+`threshold[K - 1]`.
 
 `bart2(family = "nbinom")` likewise returns its own list, of class
 `"bartNegbin"`. Components: `call`, `family` (`"nbinom"`), `n.chains`,
@@ -1522,7 +1522,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001464
+#> total seconds in loop: 0.001450
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1569,7 +1569,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001705
+#> total seconds in loop: 0.001588
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

@@ -470,7 +470,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   calibration (a masked gaussian - and so `aft`, and any `variance` or
   grouped decorator - keeps the range and residual-prior scale of every
   row); and an ordinal sampler keeps its FULL-data number of categories,
-  free cutpoints, and log-gap prior even when a mask empties a boundary
+  free thresholds, and log-gap prior even when a mask empties a boundary
   category - only `setData` changes them. `setData` also CLEARS an
   installed mask - the mask is a per-row vector and `setData` may change
   the number of rows - so a caller replacing the data must reinstall any

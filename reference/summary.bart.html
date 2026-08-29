@@ -126,10 +126,10 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <span><span class="fu">as_draws_df</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="st">"meanProb"</span>, <span class="va">...</span><span class="op">)</span></span>
 <span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
 <span><span class="fu">as_draws_array</span><span class="op">(</span></span>
-<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cutpoints"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"thresholds"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
 <span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
 <span><span class="fu">as_draws_df</span><span class="op">(</span></span>
-<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cutpoints"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"thresholds"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
 <span><span class="co"># S3 method for class 'bartNegbin'</span></span>
 <span><span class="fu">as_draws_array</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dispersion"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -171,8 +171,8 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     name, contributing one variable per observation.</p>
 <p>For the four own-class methods, <code>vars</code> is scoped to that
     family's own vocabulary (see <code><a href="bart2.html">bart2</a></code>): a
-    <code>"bartOrdinal"</code> fit's <code>"cutpoints"</code> contributes
-    <code>cutpoint[1]</code> (pinned at 0) through <code>cutpoint[K - 1]</code>; a
+    <code>"bartOrdinal"</code> fit's <code>"thresholds"</code> contributes
+    <code>threshold[1]</code> (pinned at 0) through <code>threshold[K - 1]</code>; a
     <code>"bartNegbin"</code> fit's <code>"dispersion"</code> contributes the
     per-draw dispersion \(r\); a <code>"bartMultinomial"</code> fit has a
     single channel, so its <code>vars</code> only ever means <code>"meanProb"</code>

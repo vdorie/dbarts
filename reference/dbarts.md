@@ -444,7 +444,7 @@ dbarts(
   `"ordinal"` fits an ordered categorical response by a cumulative
   probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim N(0, 1)\\,
   is cut at ordered thresholds \\\gamma_1 = 0 \< \gamma_2 \< \ldots \<
-  \gamma\_{K-1}\\ into the \\K\\ ordered categories, the free cutpoints
+  \gamma\_{K-1}\\ into the \\K\\ ordered categories, the free thresholds
   sampled by a marginal Metropolis update with the latents integrated
   out. The response should be an ordered factor
   ([`is.ordered`](https://rdrr.io/r/base/factor.html)), whose level

@@ -15,7 +15,7 @@ need not reimplement the family's augmentation.
 
 ``` r
 dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = NULL,
-                  dispersion = NULL, cutpoints = NULL, df = NULL)
+                  dispersion = NULL, thresholds = NULL, df = NULL)
 
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
                       dispersion = NULL)
@@ -78,7 +78,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   [`getDispersion`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   reports it.
 
-- cutpoints:
+- thresholds:
 
   `"ordinal"` only, and required there: the \\K - 1\\ strictly
   increasing category boundaries in force.

@@ -53,10 +53,10 @@ as_draws_array(x, vars = "meanProb", ...)
 as_draws_df(x, vars = "meanProb", ...)
 # S3 method for class 'bartOrdinal'
 as_draws_array(
-  x, vars = c("cutpoints", "sigma", "k", "tau"), ...)
+  x, vars = c("thresholds", "sigma", "k", "tau"), ...)
 # S3 method for class 'bartOrdinal'
 as_draws_df(
-  x, vars = c("cutpoints", "sigma", "k", "tau"), ...)
+  x, vars = c("thresholds", "sigma", "k", "tau"), ...)
 # S3 method for class 'bartNegbin'
 as_draws_array(
   x, vars = c("dispersion", "sigma", "k", "tau"), ...)
@@ -101,14 +101,14 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
   For the four own-class methods, `vars` is scoped to that family's own
   vocabulary (see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)): a
-  `"bartOrdinal"` fit's `"cutpoints"` contributes `cutpoint[1]` (pinned
-  at 0) through `cutpoint[K - 1]`; a `"bartNegbin"` fit's `"dispersion"`
-  contributes the per-draw dispersion \\r\\; a `"bartMultinomial"` fit
-  has a single channel, so its `vars` only ever means `"meanProb"` and
-  it always reports `meanProb[<level>]`, its only scalar posterior
-  parameter (`summary` on such a fit carries no `vars` at all and
-  refuses one by name); a `"bartHurdle"` fit applies `vars` to both
-  components and labels the result
+  `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
+  (pinned at 0) through `threshold[K - 1]`; a `"bartNegbin"` fit's
+  `"dispersion"` contributes the per-draw dispersion \\r\\; a
+  `"bartMultinomial"` fit has a single channel, so its `vars` only ever
+  means `"meanProb"` and it always reports `meanProb[<level>]`, its only
+  scalar posterior parameter (`summary` on such a fit carries no `vars`
+  at all and refuses one by name); a `"bartHurdle"` fit applies `vars`
+  to both components and labels the result
   `occupancy.<field>`/`positive.<field>` (a dot, not a bracket, since
   posterior parses a bracket as an index).
 
