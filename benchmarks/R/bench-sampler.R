@@ -11,8 +11,11 @@
 #                                              any metric > 5% slower
 # Append 'quick' for a fast smoke test (not comparable to full runs).
 #
-# Rscript bench-sampler.R biggrid [out.csv]    opt-in large-n grid (or set
-#                                              BENCH_BIGGRID=1); leaves the
+# Rscript bench-sampler.R biggrid [record|compare ...]   opt-in large-n grid
+#                                              (or set BENCH_BIGGRID=1); same
+#                                              record/compare/print grammar as
+#                                              above, defaulting to its own
+#                                              sampler-biggrid.csv; leaves the
 #                                              grid above and its baselines
 #                                              untouched.
 #
@@ -225,20 +228,21 @@ runBigGrid <- function(quick) {
 }
 
 results <- if (big.grid) runBigGrid(quick) else runBenchmarks(quick)
+default.file <- if (big.grid) "sampler-biggrid.csv" else "sampler-baseline.csv"
+print.cols <- if (big.grid) {
+  c("n", "m", "scenario", "value")
+} else {
+  c("scenario", "metric", "value")
+}
 
-if (big.grid) {
-  out.file <- if (length(args) >= 1L) args[[1L]] else "sampler-biggrid.csv"
+if (mode == "record") {
+  out.file <- if (length(args) >= 2L) args[[2L]] else default.file
   write.csv(results, out.file, row.names = FALSE)
   cat("wrote", nrow(results), "measurements to", out.file, "\n")
-  print(results[c("n", "m", "scenario", "value")], row.names = FALSE)
-} else if (mode == "record") {
-  out.file <- if (length(args) >= 2L) args[[2L]] else "sampler-baseline.csv"
-  write.csv(results, out.file, row.names = FALSE)
-  cat("wrote", nrow(results), "measurements to", out.file, "\n")
-  print(results[c("scenario", "metric", "value")], row.names = FALSE)
+  print(results[print.cols], row.names = FALSE)
 } else if (mode == "compare") {
   if (length(args) < 2L) {
-    stop("usage: bench-sampler.R compare baseline.csv")
+    stop("usage: bench-sampler.R [biggrid] compare baseline.csv")
   }
   baseline <- read.csv(args[[2L]])
   if (!identical(unique(baseline$quick), quick)) {
@@ -261,5 +265,5 @@ if (big.grid) {
   }
   cat("\nOK: no metric regressed more than 5%\n")
 } else {
-  print(results[c("scenario", "metric", "value")], row.names = FALSE)
+  print(results[print.cols], row.names = FALSE)
 }

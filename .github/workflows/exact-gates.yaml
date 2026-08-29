@@ -36,11 +36,13 @@
 on:
   push:
     branches: [main, bartcore]
-    # docs- and TODO-only pushes cannot change engine math or the gates
+    # docs- and TODO-only pushes cannot change engine math or the gates;
+    # MANIFEST is provenance prose, read by no script this workflow runs
     paths-ignore:
       - 'docs/**'
       - 'TODO'
       - '**.md'
+      - 'benchmarks/baselines/MANIFEST'
   pull_request:
     branches: [main, bartcore]
   workflow_dispatch:
@@ -111,7 +113,7 @@ jobs:
         run: |
           gates="
             bd-balance.R change-balance.R swap-balance.R
-            aft-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
+            aft-exact.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R
             multinomial-exact.R negbin-exact.R ordinal-exact.R t-exact.R

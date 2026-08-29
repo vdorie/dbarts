@@ -87,3 +87,7 @@ jobs:
 
       - name: Check dbartsSampler Rd usage against live formals
         run: Rscript tools/check-rc-codoc.R .
+
+      # No package build: verify-anchors just greps the mutation sites.
+      - name: Check mutation-battery anchors against the current tree
+        run: Rscript benchmarks/R/mutation-battery.R verify-anchors

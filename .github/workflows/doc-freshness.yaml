@@ -25,6 +25,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # full history: Part 4's commit-hash check resolves hashes with
+          # git, which a shallow clone cannot do, and self-skips on one
+          fetch-depth: 0
 
       - uses: r-lib/actions/setup-r@v2
         timeout-minutes: 12
