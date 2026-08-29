@@ -211,7 +211,8 @@ items
     Per-sweep vetoed-leaf diagnostics counter (R-readable);
     sampleTreesFromPrior's all-zero bare-root branch alignment with
     the mutate-path semantics (own scoped decision).
-  weighted-binary: integer-weight probit via replicated latents;
+  weighted-binary: integer-weight logistic ships via replicated latents
+    (probit refuses weights: no tractable weighted latent form);
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
     with negbin-real-dispersion). decision-gated.

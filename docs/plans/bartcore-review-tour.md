@@ -208,7 +208,6 @@ in `TODO`.
 | door | the undecided part | who decides |
 |---|---|---|
 | Ordinal threshold spelling | engine and `dbarts_drawLatents` say `ordinalThresholds`; the R-visible fit and `summary` say `cutpoints`. Keep the split, or align one to the other | VD |
-| K-forest batched front door | the spelling of a batched multi-forest creation verb; `forests = list(forest(...))` is what ships | VD |
 | `updateScale` on a multi-forest sampler | refused under *every* family, keyed on bases rather than family, "though its transform is the identity and the re-anchoring the refusal guards against cannot occur" - a stated divergence from the arc's own plan | VD |
 | Real-`r` nbinom | needs a non-integer-shape Polya-Gamma draw, for which no exact sampler exists; shipping it means dbarts' first documented-approximate family behind an explicit opt-in (`TODO` negbin-real-dispersion) | VD, decision-gated |
 | Weighted binary | integer-weight probit via replicated latents is built; real weights need a real-shape PG sampler and share the decision above (`TODO` weighted-binary) | VD, decision-gated |
