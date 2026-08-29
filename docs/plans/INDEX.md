@@ -4,7 +4,7 @@ Manifest of every `docs/plans/*.md` implementation plan (29 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
-2026-08-04, when a consistency pass re-verified every row against its doc -
+8e8a63ad, 2026-08-28 -
 see `docs/README.md` for how this index relates to the other navigation
 surfaces. See `docs/design/INDEX.md`
 for the paired design docs. 132 further plans that are LANDED/CLOSED/NO-GO
@@ -36,7 +36,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | simd-survey.md | REFERENCE (READ-ONLY survey) | arm64 SIMD candidate survey; ranks the fused residual-roll kernel and x86 dispatch gaps as safe wins, recommends leaving suffstat scalar for bitwise reproducibility. |
-| x86-simd-plan.md | REFERENCE (READ-ONLY investigation) | The x86-measured follow-up to simd-survey.md; finds AVX2 misdetected as AVX (real bug), ranks a suffstat SIMD toggle as the only worthwhile kernel win. |
+| x86-simd-plan.md | PARTLY LANDED (stats.h and AVX2 fixes shipped; R1b/R2/R3 open) | x86 SIMD investigation; its two fixes landed in src/misc/simd.c and stats.h (the AVX2 leaf-7 subleaf misdetection, the missing stats.h externs), remaining items open. |
 
 ## Mutation-surface cluster
 
@@ -71,15 +71,10 @@ Columns: `file | STATUS | one-liner`.
 | capi-shape.md | LANDED 9df0cb50, 2026-08-26 | The pre-RC dbarts.h shape-freeze continuation of dbarts-h-freeze.md: seven refusing entries answer a fixed-property refusal in an `int` return instead of raising (a three-class return doctrine - VALUE, TRANSACTION, CAPABILITY STATUS - stated in the header), `forest` becomes the argument after the sampler on `getTrees`/`printTrees`, `setForestBasis` renames its parameter `basisRowMajor` (the header's one stated exception to column-major), `setActiveRows` raises on a non-binary mask leaving its 0 to mean the family implements no mask, the two declared-not-read predictor-source fields kept with the rationale in the header, and `USE_FC_LEN_T` no longer defined; one hash re-bake, two stan4bart migration lines, equivalence trio bitwise. |
 | composition-refusals.md | LANDED 936825d7, 2026-08-25 | The pre-RC refusal slice for prerc-surface-freeze D6 + D8: grouped random effects with a variance forest - one model, two spellings, which constructed and ran with the group block drawing at a residual variance of 1 - becomes a validation error at resolveSamplerSpec with a createHolder backstop closing the four entrances that never reach it, formals kept and a door memo naming the engine/prior/oracle an adjudication would need; and an NA in test predictors on a column complete in training is refused by name at validateXTest, with a flat-entrance backstop in validateTestSource, since a split rule learns a missing direction only where the training column had one. |
 | dbarts-h-freeze.md | LANDED 6446ddce, 2026-08-25 | The pre-RC dbarts.h freeze slice for prerc-surface-freeze D4 + D3: a `dbarts_family` enum replacing the stringly-typed family at create/drawLatents/workingResponse plus a `dbarts_sampler_family` accessor, `get` ADDED to the four C readers whose R twins carry it, `useLiveTrees` on `printTrees`, `const int32_t*`/`size_t printEvery` retypes, and the stub path checking major-equality + minor-floor with hash equality behind `DBARTS_REQUIRE_EXACT_ABI`; one hash re-bake, no version constant moves, four edits each in stan4bart and treatSens, both opting into `DBARTS_REQUIRE_EXACT_ABI` until the 1.0 merge. |
-| nameable-calibration.md | COMMITTED | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain instead of inheriting it from the construction range; the per-chain getter is the authoritative reader of what is in force. |
+| nameable-calibration.md | LANDED ab3aa2fa, 2026-08-13 | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain instead of inheriting it from the construction range; the per-chain getter is the authoritative reader of what is in force. |
 | predict-surface.md | LANDED 78f334c1, 2026-08-25 | The pre-RC R-surface slice for prerc-surface-freeze D1 + D9 + D5 + D2: one `(object, newdata, type, ...)` order across the six predict methods with `offset` the single out-of-sample offset spelling and `group.by` named-only (after dots) on rbart's predict and survivalProbabilities, `forest = NULL` meaning every forest on the four R5 readers behind one new `bartcore_numForests` bridge entry and R-side stacking, fitted/predict type vocabularies equalized (`"class"` on the two categorical predicts, `"ppd"` second on negbin/hurdle fitted), the 15 bart2.Rd alias-only S3 methods given usage, predict.rbart's `value=`/`"post-mean"` shims deleted with `value` refused by name, and one saved-tree refusal wording naming `keepTrees = TRUE` across predict/extract(trees)/plotTree; four codoc-clean commits, one bartCause line to migrate, all baselines bitwise. |
 | rd-records.md | LANDED 52c10e02, 2026-08-26 | Pre-RC documentation and record corrections ahead of the human review: `print.bart`/`print.rbart` aliases + usage + value, corrected `xbart` (6-D array with the loss axis) and sampler-`$predict` value claims with the amplitude-coupling refusal carve-out, the rbart `n.chains` kept-sampler code fix, the xbart fold-view missingness scope sentence, both composition-matrix harness bugs closed (multinom dbarts5 base recipe, logistic integer-weight probe), and line-count-invariant fixed-at marks on stale records (TODO rc-gate, release-candidate-review's par claim). |
 | surface-refusals.md | LANDED d48aef8a, 2026-08-26 | The pre-RC R-surface refusal-coverage slice: a name that is a formal on a sibling method but foreign to the one called is refused by name across predict/extract/fitted/residuals/survivalProbabilities via formals-derived reason tables (extract's refusal sits below the trees branch so `extract(type = "trees", newdata =)` survives); `type = "class"` with `ci.level`, `ci.level` on `type = "forest"`, forest selection outside the forest arm, and `residuals(ci.level =)` all refused; `fitted`'s positional slot 3 unified to `ci.level` and `plot.bartMultinomial` aligned to `(x, plquants, cols, ...)`; fractional counts refused inside `coerceOrError`'s integer branch (32 call sites); `$getSigmas`/`$getSumsOfSquaredResiduals` refuse their inert `result` argument. |
-
-## Testing / gates / CI singletons
-
-| file | STATUS | purpose |
-|---|---|---|
 
 ## Build / infra singletons
 
@@ -95,7 +90,7 @@ Columns: `file | STATUS | one-liner`.
 | correctness-audit.md | REFERENCE | Re-derives every acceptance ratio / conjugate update term-by-term across 7 blocks; all CONFIRMED. |
 | release-candidate-review.md | SPECCED (2026-08-17, in execution) | Pre-RC review program: census-derived slate over the two families the slice gates cannot see (baseline-rightness and accumulation); six waves plus a parallel oracle lane under a freeze protocol; six VD forks. |
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | The pre-RC public-surface freeze: predict() signature order, keepTrees refusal text, stub version check, dbarts.h type/naming fixes, deprecation shims, composition refusals, BCF baseline format, NA-at-predict refusal, small surface items; evidence in review-2026-08-24/memos/prerc-lens*.md. |
-| bartcore-review-tour.md | LIVING REFERENCE, anchored at ae5b91d8 (2026-08-25) | The human review's entry point: an ordered walk of the branch with file:line stops and where each claim's evidence lives; the second whole-branch review's evidence is tracked verbatim under docs/plans/review-2026-08-24/ (consolidated-report.md is its entry). |
+| bartcore-review-tour.md | Current at 8e8a63ad | The merge review: what a user's script and a linked consumer see, the gates and what each proves, the risks, the open doors, and an ordered code walk. |
 | pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | The four adversarial pre-review reviews (staleness, completeness, YAGNI, agent accumulation) commissioned ahead of VD's own manual read, tracked verbatim under review-2026-08-24/memos/pre-review-*.md; the rulings table, the ten-commit landing, coverage deltas (a weakened tests/cpp counter, a lost dead-entrance test path), and the open doors (the cutpoints/ordinalThresholds R-vs-C-API spelling, the seeds-axis re-record, drawShippedGlue, the still-unwired gates). |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)
@@ -103,7 +98,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | gp-followups.md | RESEARCH-OPEN | Placeholder for two deferred GP-leaf extensions (sampled lengthscales, low-rank kernels); blocked on a named consumer. |
-| gpu-bart.md | RESEARCH-OPEN (memo DONE) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind the informed-kernel and CG-leaf prototypes (parallel-bart-frontier next-actions 4-5). |
+| gpu-bart.md | DONE (memo complete) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind the informed-kernel and CG-leaf prototypes (parallel-bart-frontier next-actions 4-5). |
 | python-bindings.md | RESEARCH-OPEN (no spike run recorded) | Feasibility spike memo for a Python binding over bartcore; decision-gated, likely out-of-repo. |
 | sparse-extensions.md | MIXED (ext (i) LANDED 2026-07-22; rest consumer-gated) | In-place nonzero mutation on sparse columns landed 343dd4c; sparse x.test, streaming range kernel, dense-backed mixed-column mutation and the smaller extensions stay deferred. |
 

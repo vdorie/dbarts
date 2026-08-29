@@ -24,6 +24,9 @@ Standing discipline (from the 2026-08-07 census): verify an entry's
 status claims against git and live code before scoping from it;
 re-run a full census before release.
 
+A "door" below means a recorded, undecided question, not a task; an
+entry can be otherwise closed and still list open doors.
+
 items
   augmentation-helpers: dbartsDrawLatents and dbartsWorkingResponse
     are shipped (docs/plans/adoption-slate.md). Open: the valgrind leg
@@ -54,7 +57,6 @@ items
     NOT engine work. Gated on ACCEPTANCE EVIDENCE: a new shipped
     configuration owes its own, which is why that plan refused rather
     than opened it.
-  cheap-uniformity: CLOSED, see docs/plans/archive/cheap-uniformity.md. No open door.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -67,14 +69,10 @@ items
     the level-centering fix (docs/plans/archive/multinomial-level-centering.md),
     the bcf half with cross-host mode LANDED 3f532af2 (docs/plans/bcf-cross-host.md).
     Remaining, both doors open at docs/plans/bcf-cross-host.md: the
-    RC-tip re-record refresh (a pin, not a prerequisite - the current
+    RC-tip re-record refresh (not a prerequisite - the current
     .rds already suffices), and a post-RC seeds-axis re-record
     replacing the single-chain autocorrelated draws with independent
     per-scenario seeds.
-  forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
-    permanent gate (benchmarks/R/grouped-mixing.R), and the
-    VD-sign-off reopen clause in
-    docs/design/forest-ranef-interweaving.md. decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost) and low-rank kernels. Value gate lifted by the
     model-space survey: GP-leaf BART as a surrogate for sequential
@@ -95,7 +93,7 @@ items
     shared scan.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
-    is exact in range so the slice MUST be trio-bitwise. Split out of
+    is exact in range so this change MUST be trio-bitwise. Split out of
     typed-ingestion at its close. consumer-gated.
   interaction-constraints: CLOSED (docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md,
@@ -104,18 +102,11 @@ items
     gate lifted, enabling functional-ANOVA BART (arXiv 2509.03317),
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced. Formal
-    heredity is the first post-1.0 arc (VD 2026-08-26), not pre-RC.
+    heredity is scheduled first post-1.0 (VD 2026-08-26), not pre-RC.
   monotone-leaf-branch-fill: CLOSED, not adopted; benched 2026-08-26, no
     effect (within noise; fillBottom 0.18% of monotone run). Bitwise;
-    door: coneProbability's quadrature; see archive/monotone-branch-fill
-    at 98067fb3, review-2026-08-24/memos/monotone-branch-fill-bench.md.
-  multiforest-extension-surface: the general basis family
-    (forests = list(forest(...))) has landed in full
-    (docs/plans/archive/multiforest-extension-surface.md Landing notes).
-    Open: falsifier FA5 needs respecifying at M4 scheduling - its
-    committed form tests a strawman (K independent probit samplers);
-    the decisive arm is K Gaussian samplers with host-drawn latents
-    against the combined fit.
+    open door: coneProbability's quadrature, an alternative not yet
+    benched; see review-2026-08-24/memos/monotone-branch-fill-bench.md.
   multiforest-mutation-gaps: doors open
     (docs/plans/archive/multiforest-mutation-gaps.md):
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,
@@ -132,16 +123,6 @@ items
     monotoneTreeIsFeasible's 1e-9: deliberately left (it is the
     acceptance predicate of the constrained-prior rejection sampler,
     a one-sided feasibility slack, not an equality tolerance).
-  multiforest-predictor-mutation: CLOSED, see
-    docs/plans/archive/multiforest-predictor-mutation.md. No open door (the
-    statesAgree above-chain-level gap is deliberate, not a workaround).
-  multinomial-counts-mutation: predictPerForest's
-    forestReportingIsDefined gate is a standing refusal, not merely
-    unimplemented - every candidate use of per-forest off-sample
-    replay is already served by log(predict(...)) to 1e-13 or needs a
-    reference-category identification this model already declined;
-    re-open trigger is a level-sensitive composition of the K latents
-    (docs/plans/archive/multinomial-counts-mutation.md).
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/archive/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -151,7 +132,16 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
-  pre-review-cleanup: CLOSED, see docs/plans/pre-review-cleanup.md. No open door.
+  pre-review-cleanup: LANDED 7cd71f2d, see docs/plans/pre-review-cleanup.md.
+    Open doors from its s5, not tracked elsewhere in TODO: the R-visible
+    `cutpoints` spelling vs the engine/C-API `ordinalThresholds` rename
+    (VD's call); `drawShippedGlue`, a duplicate amplitude-draw code path
+    kept pending a finish-or-cut decision; six benchmarks/R gate scripts
+    listed FINISH but wired into no workflow (backfit-exact.R,
+    composition-matrix.R, mutation-battery.R, bench-sampler.R's biggrid
+    check, sbc.R vs sbc.yaml's 6-of-26 subset, check-doc-freshness.R's
+    Part 4). (The seeds-axis re-record is tracked under
+    equivalence-harness-statistical-mode.)
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -159,63 +149,29 @@ items
     bounds, sparse metadata assembly) lives in the R bridge, and
     mixed/CSC stores hold lifetime borrows anchored by R protection.
     decision-gated.
-  r-c-division: CLOSED, see docs/design/r-c-division.md and
-    docs/plans/adoption-slate.md. No open door.
   rc-gate: the pre-RC slate is complete except bcf-baseline-cross-host,
     still open at the RC tip; the RC declaration itself is VD-held.
-  release-candidate-review: the charter for the orchestrated review
-    wave before declaring a release candidate for serious human
-    review (VD 2026-08-16), targeting the two defect families the
-    per-slice gate structure cannot see
-    (docs/plans/release-candidate-review.md). The second whole-branch
-    review's calibration lane found 8 BLOCKERS/44 MAJORS/35 MINORS
-    confirmed (docs/plans/review-2026-08-24/consolidated-report.md).
-    Family 1, correctness
-    beyond the gates' reach - the slice batteries prove diffs neutral
-    against agent-recorded baselines, never that the baselines were
-    right. Seed classes: math-vs-history oracles (exact-posterior and
-    Geweke-style joint checks, deeper SBC per family - the
-    sbc-family-tiers machinery exists); test-suite strength
-    (vacuous-assertion audit, package-scale sampled mutation,
-    coverage of never-executed branches); whole-surface coherence
-    once the surface is frozen (naming, defaults, Rd-vs-behavior,
-    examples, plan-vs-landed audit); a fresh adversarial whole-branch
-    review; the consumer-bundle re-run plus .win-variant drift; and
-    the analysis legs this host cannot run (rchk/valgrind workflows
-    exist but bind to the default branch - see the release section
-    below; TSAN/gctorture have no leg anywhere). Family 2,
-    accumulation - agent-written slices breed edit-history sediment,
-    missed factorization across the five fitting surfaces, surface
-    and feature inconsistency, dialect drift, and over-complication.
-    Seed review kinds: sediment (blame-informed hunt for code whose
-    justification names a state that no longer exists); factorization
-    (semantic duplication, with docs/design the arbiter of
-    INTENTIONAL divergence); justify-this-element simplicity; style
-    normalization. Findings land as behavior-neutral cleanup slices
-    under the standard bitwise battery - cheap only while the
-    no-compat window is open. The seed lists are a floor, not a
-    bound: this item's orchestrator re-derives the slate first and is
-    expected to find classes this entry overlooks. Load-bearing
-    ordering only: run after bart2-argument-consolidation closes;
-    land accumulation cleanups BEFORE the coverage/mutation/coherence
-    passes (reshaping invalidates them); behavior-level oracles may
-    run in parallel with anything. RC declaration itself stays
-    VD-held.
+  release-candidate-review: the pre-RC review program targeting two
+    defect families the per-slice gates can't see - correctness
+    beyond the gates' reach, and accumulation from agent-written
+    slices; full charter and seed lists in
+    docs/plans/release-candidate-review.md s1. Fix waves 1-3 landed
+    (docs/plans/review-2026-08-24/consolidated-report.md is the
+    ledger). What's left: VD's own human review
+    (second-review-followups) and the RC declaration itself, VD-held
+    (rc-gate).
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
   sbc-family-tiers: records in docs/plans/sbc-family-tiers.md and
-    runsbcbcf-repair.md. Open doors: the monotone follow-on arm, the
+    runsbcbcf-repair.md. Open doors: the monotone follow-on, the
     heteroscedastic setState lift, full-R ladder re-runs.
   second-review-followups: CLOSED except VD's own human review
     (docs/plans/release-candidate-review.md, "lenses, findings, fix
     waves 1-2" and "fix wave 3 - the judgement-gated slices" landing
-    notes). Remaining: docs/plans/bartcore-review-tour.md regenerated
-    to VD's merge-decision bar (docs/plans/pre-review-cleanup.md OPEN
-    doors), then VD's own human review. Doors the wave recorded
+    notes). Remaining: VD's own human review. Doors the wave recorded
     (negbin rootogram, ordinal tail-precision loglik, negbin burn-in
     dispersion channel) live in release-candidate-review.md's wave-3
-    landing note; its own-class silent-no-op door closed with the
-    surface-refusals slice (docs/plans/surface-refusals.md).
+    landing note.
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
     Status list. rbart_vi / linear leaf on sparse: value gate lifted
     (grouped random effects on high-dimensional sparse designs, the
@@ -226,9 +182,10 @@ items
     per-observation CSC mutation are recorded typed-ingestion doors.
   survival-followups: doors out of the survival family pair (records
     in docs/plans/archive/survival-models.md and docs/design/survival.md sec
-    6): competing risks (value lifted; the named consumer of
-    multinomial-counts-mutation, the two move together), left
-    truncation / delayed entry (value lifted; the cheapest door, a
+    6): competing risks (value lifted; the named consumer of the
+    multinomial counts-mutation reopen door
+    (docs/plans/archive/multinomial-counts-mutation.md), the two move
+    together), left truncation / delayed entry (value lifted; the cheapest door, a
     one-argument expander change), cloglog link (gate stands - awaits
     a cloglog binary family), grouped frailty, time-varying covariates
     in the auto-expander, continuous-time models (gate stands - that
@@ -266,7 +223,7 @@ items
     docs/design/memory-wall-frontier.md sec 12.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
-  bump the DESCRIPTION Date at the RC (unchanged since 2026-07-25).
+  bump the DESCRIPTION Date at the RC.
   note: the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) cannot register or run until they
     exist on the default branch - GitHub binds BOTH schedule and
@@ -285,13 +242,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     once, at the freeze.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause is PUSHED on branch dbarts-1.0 in
-    ~/Repositories/bartCause (ahead of its main) and READY: the three
-    `dbarts:::alignForestBasisToSubset` assertions that failed there,
-    caused by dbarts' deliberate basis/subset contract inversion after
-    bartCause's tip (4aa52288, 47cdb96a), were fixed at 765a596 on
-    that branch (the treatment basis is handed over at full pre-subset
-    length; suite 692/0). Re-verify bartCause against the final
-    re-baked header at the freeze like the other three.
+    ~/Repositories/bartCause (ahead of its main) and READY. Re-verify
+    bartCause (dbarts-1.0) against the final re-baked header at the
+    freeze.
   drop DBARTS_REQUIRE_EXACT_ABI from stan4bart (src/Makevars.in,
     src/Makevars.win) and treatSens (src/R_interface.cpp,
     src/bartTreatmentModel.cpp, src/sensitivityAnalysis.cpp) at the

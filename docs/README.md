@@ -11,43 +11,34 @@ decision - it explains where decisions live and how to find one.
 - `docs/design/` - design proposals, rationale, and landing/decision
   records. One doc per feature or investigation: the problem, the forks
   considered, the decision, and (for landed work) the landing notes.
-  Manifest: `docs/design/INDEX.md`.
+  Manifest: [`docs/design/INDEX.md`](design/INDEX.md) - every design doc,
+  grouped by theme, with current status and a one-liner. Use it to answer
+  "does X already have a design doc" or "what happened to Y."
 - `docs/plans/` - implementation plans: one file per TODO backlog item or
   landed feature, with Goal/Context/Steps/Verification and a closing
-  Status or Landing note (plus the process doc below).
-  Manifest: `docs/plans/INDEX.md`.
+  Status or Landing note. Manifest:
+  [`docs/plans/INDEX.md`](plans/INDEX.md) - every plan doc, grouped by
+  cluster, with current status and a one-liner. Same use as the design
+  index, for `docs/plans/`.
 - `docs/plans/README.md` - the process/contract doc: roles (who plans, who
   implements, who reviews), the plan-file template, RNG gate classes and
-  the gates each requires, the brevity rubric, the review checklist. It is
-  NOT an index and does not enumerate the directory's contents - that job
-  belongs to `docs/plans/INDEX.md`.
-- repo-root `TODO` - the live, unordered backlog of OPEN work. Most entries
-  name an implementation plan in `docs/plans/`; a few record instead in a
-  design doc or a differently-named plan. Completed work is deliberately
-  trimmed out of the TODO once landed; its record lives in git history and
-  in the design/plan docs themselves, not here.
-
-## Three navigation surfaces, three different jobs
-
-Do not expect any one of these to do another's job:
-
-1. **The root TODO** - what's still OPEN, right now. Forward-facing only;
-   landed items are removed once closed.
-2. **`docs/plans/README.md`** - HOW plans get written, gated, and
-   reviewed. Process, not content. Has no file-by-file listing.
-3. **`docs/design/INDEX.md` and `docs/plans/INDEX.md`** (this pair) - the
-   COMPLETE map of every doc in each directory, landed and closed included,
-   with a current status and a one-line purpose. Use these to answer "does
-   X already have a design doc / plan" or "what happened to Y."
+  the gates each requires, the brevity rubric, the review checklist. HOW
+  plans get written, gated, and reviewed - not a listing of the
+  directory's contents; that is `docs/plans/INDEX.md`'s job.
+- repo-root `TODO` - the live, unordered backlog of OPEN work, forward-
+  facing only. Most entries name an implementation plan in `docs/plans/`;
+  a few record instead in a design doc or a differently-named plan.
+  Completed work is trimmed out once landed; its record lives in git
+  history and in the design/plan docs themselves, not here.
 
 If you're deciding what to work on next, read the TODO. If you're writing
 a plan, read `docs/plans/README.md`. If you're trying to find or reconcile
-a doc, start at the two INDEX files.
+a doc, start at the two INDEX files above.
 
 ## Doc conventions
 
 - **Status header.** Most docs carry a status marker near the top, in one
-  of two forms - both in active use, normalize your reading of either:
+  of two forms - both forms are in use:
   - `Status: <WORD>, <date>...` as a top-of-file line (common in
     `docs/design/`).
   - `## Status` as a section heading, with the verdict in the prose below
@@ -60,13 +51,10 @@ a doc, start at the two INDEX files.
   neither form and isn't a standing reference, the two INDEX files fall
   back to a status drawn from the doc's own opening text rather than
   flagging a gap.
-- **Authoritative resolutions / dated supersedes.** The best docs in this
-  corpus close with a dated, explicitly-"authoritative" section that
-  states which earlier sections it overrides (e.g. `hurdle.md` section 13,
-  `forest-ranef-interweaving.md` section 9). This is what keeps a dense
-  document navigable without a rewrite: state the final answer once, dated,
-  scoped to what it overrides - don't require the reader to un-believe
-  earlier sections themselves.
+- **Authoritative resolutions.** Long docs close with a dated,
+  explicitly-"authoritative" section that overrides earlier ones (example:
+  `hurdle.md` section 13, `forest-ranef-interweaving.md` section 9); read
+  that section first.
 - **Design <-> plan pairing.** The common case is `docs/design/X.md` paired
   1:1 with `docs/plans/X.md` (same basename). Several features instead pair
   a design doc with a cluster of differently-named plan files (see
@@ -76,7 +64,7 @@ a doc, start at the two INDEX files.
 
 ## Known name collisions and non-obvious pairings
 
-These are real, intentional, and not to be renamed - just navigate them:
+These are intentional, not renamed for consistency - navigate them:
 
 - `docs/plans/archive/c-api-growth.md` vs. `docs/plans/archive/capi-callbacks.md` /
   `docs/plans/archive/capi-dispatch-table.md` - same ABI-growth subsystem, two
@@ -95,16 +83,3 @@ These are real, intentional, and not to be renamed - just navigate them:
   steps, Landing notes summarizing the NO-GO), but the deep analysis
   lives in `docs/design/within-chain-threading.md` section 8, which its
   status line points at.
-- Multi-part programs, three different suffix conventions for "part N of a
-  bigger arc": `data-ownership-{1-container,2-ingestion,3-mutation,
-  4-views,5-sparse}.md` (numbered-slug), `block-fusion-stage-{a,b}.md`
-  (lettered-stage), and `forest-split-bcf.md` (no suffix at all - a second
-  "Phase 2" is bolted onto the same file instead of getting its
-  own name).
-
-## Index files
-
-- [`docs/design/INDEX.md`](design/INDEX.md) - every design doc, grouped by
-  theme, with current status and a one-liner.
-- [`docs/plans/INDEX.md`](plans/INDEX.md) - every plan doc, grouped by
-  cluster, with current status and a one-liner.

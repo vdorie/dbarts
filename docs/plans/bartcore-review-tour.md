@@ -1,6 +1,7 @@
 # bartcore: the merge review
 
-Current at 23b9cde7 (bartcore); anchors checked by `tools/check-doc-freshness.R`.
+Current at 8e8a63ad (bartcore); the INDEX manifests it points at are
+machine-checked, this file is not.
 
 Regenerate: re-derive every claim against the new tip, print counts as
 commands rather than numbers, then `Rscript tools/check-doc-freshness.R .` -
@@ -171,22 +172,21 @@ Things that could be wrong and would not be caught.
 - **Warm start and grow-from-root are unrefused and untested at two forests.**
 - **The cross-host tier-2 bar is weak by construction**: at the measured ESS
   the `|z| = 4` bar tolerates ~1.4 posterior sd (0.85 of the residual sd on
-  `train`), and probe D-4 confirmed it passes a 20 percent node-prior widening
-  tier 1 fails. Tier 1 carries the gate; the honest fix, a real seeds axis, is
-  an explicit post-RC door (bcf-cross-host.md s2.1, s2.3, landing note).
-- **The C++ suite has measured mutation gaps.** Leg B planted 80 semantic
-  mutations and missed 17, two equivalent - 15 genuine, worst in `facade.hpp`
-  7(5), `model.hpp` 8(3), `moves.hpp` 12(3)
-  (`review-2026-08-24/mutation-B-findings.md`). The whole-suite replant closed
-  16; the per-header residue is the standing risk.
+  `train`), and a follow-up probe confirmed it passes a 20 percent
+  node-prior widening tier 1 fails. Tier 1 carries the gate; the honest
+  fix, a real seeds axis, is an explicit post-RC door (bcf-cross-host.md
+  s2.1, s2.3, landing note).
+- **The C++ suite still has measured mutation gaps** in `facade.hpp`,
+  `model.hpp` and `moves.hpp`, despite a whole-suite replant that closed most
+  of them; counts in `review-2026-08-24/mutation-B-findings.md`.
 - **A stale cross-reference in the column-mask coverage**: `test-blocks.R`'s
   warm-start block cites "the BCF columnMask refusal test in
   test-interactions.R", which that file no longer contains. The containment
   gate is still tested from `test-blocks.R`,
-  `test-heteroscedastic-warm-start.R` and `tests/cpp/test_state.cpp`; leg B's
-  A6 (`setState` ignoring the containment verdict) was MISSED, then
-  adjudicated an equivalent mutant and deferred.
-- **Eleven of 35 `benchmarks/R` harnesses are wired to no workflow**, and five
+  `test-heteroscedastic-warm-start.R` and `tests/cpp/test_state.cpp`; a
+  planted mutant making `setState` ignore the containment verdict was
+  MISSED, then adjudicated an equivalent mutant and deferred.
+- **Seven of 32 `benchmarks/R` harnesses are wired to no workflow**, and five
   that call themselves "repeatable" or "permanent" gates have one recorded
   manual run each - `mutation-battery.R`, `grouped-mixing.R` (whose re-measured
   IACT numbers already diverge from its own header, undetected because nothing
@@ -282,8 +282,8 @@ worth a look.
   return doctrine; s11 the migration list), `dbarts-h-freeze.md`,
   `surface-refusals.md` (s4 refusal lists, s17 residue), `rd-records.md`,
   `bcf-cross-host.md` (s2.1-2.2, the most transferable methodology here),
-  `composition-refusals.md`, `predict-surface.md`, and the forthcoming
-  `pre-review-cleanup.md`, recording today's cleanup rulings and hashes.
+  `composition-refusals.md`, `predict-surface.md`, and
+  `pre-review-cleanup.md` (the cleanup rulings and open doors, s5).
 - `docs/plans/release-candidate-review.md` - the master log, newest-first;
   sections 1-2 are premises at writing, not current state.
 - `docs/plans/review-2026-08-24/` - `consolidated-report.md` (the ledger),
