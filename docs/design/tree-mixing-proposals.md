@@ -226,7 +226,7 @@ function, and every structural readout. Point estimates survive.
 **Measured, in this house** (`docs/plans/archive/bcf-sigma-residual.md`, measured
 at `bartcore 6944811`). In the causal-forest sampler's prior tail, where a
 scale parameter `a` multiplies one forest's contribution and the engine
-hands that forest weight `w_i * a^2` (`combiner.hpp:877-894`):
+hands that forest weight `w_i * a^2` (`combiner.hpp:859-876`):
 
 - At `a0 = 40` and `100`: "sigma plateaus ~5x high with NO decay through
   40k sweeps - frozen structure."
@@ -1076,7 +1076,7 @@ survey's top recommendation, at XS cost and bitwise-neutral by default.
    tempering, which keeps the tempered draws with weights, and is off by
    default.
 3. **The temperature cannot be chosen from the literature.** The BCF
-   combiner hands a forest weight `w_i * a^2` (`combiner.hpp:877-894`), so
+   combiner hands a forest weight `w_i * a^2` (`combiner.hpp:859-876`), so
    its acceptance exponent carries `a^2 / sigma^2`. At `a0 = 100`, `a^2` is
    1e4 and the recorded 5x-high sigma claws back only 25x, leaving the
    exponent roughly 400x too large - about 2.6 orders of magnitude. Divide

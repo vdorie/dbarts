@@ -85,9 +85,9 @@ it - see section 6.
 
 - `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2629-2634).
 - Response-side mutation rides `supportsResponseMutation`: **true for BCF**
-  (combiner.hpp:636), **false for multinomial** (combiner.hpp:417 default, not
+  (combiner.hpp:621), **false for multinomial** (combiner.hpp:411 default, not
   overridden).
-- `setTreatment` swaps z mid-run at fixed n (combiner.hpp:445).
+- `setTreatment` swaps z mid-run at fixed n (combiner.hpp:439).
 - `setCutPoints` installs an arbitrary grid with no multi-forest guard.
 - Predictor mutation: the **forced** whole-matrix `setPredictor` is supported
   multi-forest and is the documented swap; the **transactional** and
@@ -115,7 +115,7 @@ exact zero.** As surveyed, `formForestResponse` divided the residual by the
 forest multiplier and floored |m| at 1e-9, so a b0 = 0 control row entered
 tau's suffstats with weight ~1e-18 and response ~1e9 x resid: effective, not
 exact. The floor was REPLACED by an exact-zero snap at `0x1p-26` on 2026-08-10
-(combiner.hpp:787, applied :823-827; docs/plans/archive/zero-weight-exactness.md), the
+(combiner.hpp:770, applied :805-809; docs/plans/archive/zero-weight-exactness.md), the
 shipment door 2's own update below records at "Update, 2026-08-10". A snapped
 row now leaves with exactly zero weight and exactly zero response. What the
 snap does NOT change is the cost: tau still pays O(n) per sweep, which is the
@@ -165,7 +165,7 @@ half of this paragraph that door 2 rests on.
   method throws the fit away *on purpose*. The narrow claim that survives:
   **no verified BART or BCF model maintains one fit across an accruing sample.**
 - The z-required constraint remains correct if the door is ever taken
-  (combiner.hpp:482/501/525 index `glue_.z` over live `numObservations`), but no
+  (combiner.hpp:467/486/510 index `glue_.z` over live `numObservations`), but no
   model was found to pay for it.
 
 If any part of door 1 is ever taken, take D1 and D3 (section 4) first: strictly
@@ -245,7 +245,7 @@ class is efficiency, not mutability.
 2. **Per-forest ZERO WEIGHT.** Excluded rows get weight 0 in that forest's
    `ForestResponse`. By far the cheapest, and SHIPPED since this was written
    (2026-08-10; see the update below): the combiner already formed a per-forest
-   weight vector every sweep (now combiner.hpp:815-835) and needed only an
+   weight vector every sweep (now combiner.hpp:797-817) and needed only an
    exact-zero path in place of the then-live 1e-9 multiplier floor, plus a
    caller-settable per-forest weight. Both landed. Exact exclusion from the leaf
    conditionals and the sigma df is an already-solved semantic
@@ -405,13 +405,13 @@ transactional entries.
 ### D2. Multinomial response-side mutation - a counts/offset channel
 
 `MultinomialForestCombiner` does not override `supportsResponseMutation`
-(combiner.hpp:417 default false), so `setResponse`, `setOffset` and `setWeights`
+(combiner.hpp:411 default false), so `setResponse`, `setOffset` and `setWeights`
 are all refused on a shipped public sampler. The gap is real: multinomial BART
 cannot participate in an outer Gibbs sampler on its **response** side.
 
 **Re-scoped, because the memo's premise was wrong.** Flipping the flag would
 enable **nothing**. `MultinomialForestCombiner::formForestResponse`
-(combiner.hpp:802-814) takes `const double* /*y*/, const double* /*w*/` - both
+(combiner.hpp:785-796) takes `const double* /*y*/, const double* /*w*/` - both
 ignored, as its own doc comment says ("the passed chain y is ignored"). The
 response *is* the combiner-owned `counts_` matrix, fixed at construction;
 `setResponse` on a multinomial would write a `y` nothing reads. D2's real content
@@ -492,9 +492,9 @@ classes it did NOT carry, each a different basis, are:
   plan's own later corrected-citations pass (:488-493) downgraded it. Neither
   claim is left standing silently: the class is written, and it is written as
   unverified. dbarts expresses it TODAY - a one-column continuous basis is a
-  legal `forest(basis = )` and the canonical predicate routes it onto the
-  general amplitude conditional by VALUE, which is exactly the case
-  `drawShippedGlue` must not see (combiner.hpp:896-902).
+  legal `forest(basis = )`, and there is no shape predicate left to route it
+  anywhere: `drawForestAmplitude` (combiner.hpp:1144) contracts whatever the
+  basis holds, so a continuous column is drawn as the design matrix it is.
 - **VCBART** (Deshpande, Bai, Balocchi, Starling, Weiss), Bayesian Analysis
   21(1):281-308, 2026. Varying coefficients: forest j carries the single column
   `X_j`, so `E[y_i] = sum_j beta_j(x_i) X_ij` with each `beta_j` its own

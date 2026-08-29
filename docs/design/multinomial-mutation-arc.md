@@ -304,7 +304,7 @@ read `refuseHostRead` blocks today.
 **B1 (OPEN VD FORK): `$getLatents` on a multinomial sampler.** NULL
 today (`[f22]`). r-c-division clause 4 defaults to read/write symmetry -
 "whatever the engine draws, the R program may read" - and the K x n omega
-matrix IS drawn every sweep (`combiner.hpp:1585`). (i) build a
+matrix IS drawn every sweep (`combiner.hpp:1428`). (i) build a
 combiner-side `latents()` (engine touch: `tests/cpp` cell plus an
 ASAN/UBSAN leg; ~40 engine + ~60 test by the
 `latent-family-weight-channel` sibling estimate); (ii) record a
@@ -733,7 +733,7 @@ depend on the file's full execution history, not just the preceding
 
 **4.5 The two `static_assert` residue strings (retired: swept by the
 amplitude rename; both now read "an amplitude coupling is a constant-leaf
-model").** `combiner.hpp:742` and `chain.hpp:734` no longer say BCF;
+model").** `combiner.hpp:727` and `chain.hpp:734` no longer say BCF;
 `TODO:54-57` said sweep opportunistically with the
 next edit to those files. Honest read: **no slice above is expected to
 edit either file** - the multinomial engine is done. If Door 4 is taken,
@@ -805,7 +805,7 @@ re-resynced here (they are not live pointers into the current tree).
    `refuseMultiForestMutation` `:2629`, `refuseMultiForestResponse
    Mutation` `:2652`, `refuseUndefinedTestFits` `:2849`,
    `Chain::supportsResponseMutation` `chain.hpp:1068`,
-   `AmplitudeForestCombiner` `combiner.hpp:741`. The sixth
+   `AmplitudeForestCombiner` `combiner.hpp:726`. The sixth
    (`refuseAmplitudeMutation`, `R/bartcore.R:36`) is exact as an anchor
    but is cited at **doc line 74**, outside the `:42-71` window I quoted;
    "ALL SIX VERIFIED EXACT" overstated the window, not the anchors.
@@ -861,7 +861,7 @@ re-resynced here (they are not live pointers into the current tree).
     `sigma = 1.52e-16` before the floor landed).
     `dbartsData()` has no `family` formal (`R/data.R:735-746`), so the
     warning gate must key on `@counts`, not on family.
-22. `combiner.hpp:743` / `chain.hpp:760` carry the two residue
+22. `combiner.hpp:728` / `chain.hpp:760` carry the two residue
     strings (retired: both now read "an amplitude coupling", not BCF).
 
 ---
@@ -886,7 +886,7 @@ re-resynced here (they are not live pointers into the current tree).
 | 14 | ACCEPTED and extended; I re-ran it across four cells (keepTrees x n.thin) on both channels. |
 | 15 | ACCEPTED; the SBC question is resolved in place, not deferred. Ledger 18. |
 | 16 | ACCEPTED and refined upward: **seven** files carry host-shell cells, not five; the ordinal/nbinom blocks pin family-specific text and INVERT under D0; `cutpoints.raw`/`dispersion.raw` co-gating recorded in the S4 spec. |
-| 17 | ACCEPTED; all anchor corrections applied (plans-vs-design paths, `:334-341`, `:309-322`, `:1757-1759`, `combiner.hpp:745-746`, and the `:42-71` window overstatement). |
+| 17 | ACCEPTED; all anchor corrections applied (plans-vs-design paths, `:334-341`, `:309-322`, `:1757-1759`, `combiner.hpp:730-731`, and the `:42-71` window overstatement). |
 | 18 | ACCEPTED; "silent no-op" replaced with "takes effect on an engine nothing reads", with the measured probe. |
 | 19 | ACCEPTED; the Rd defect moves from S5 to S0. |
 | 20 | ACCEPTED; the no-workaround line is now quoted from my own run, all three families. |

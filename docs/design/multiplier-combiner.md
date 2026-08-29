@@ -8,14 +8,14 @@ basis/amplitude family: each forest carries its own basis, its row contracts
 with that forest's amplitude vector into a per-observation scalar, and the
 forest enters the combination scaled by it. bcf's `a mu + b_z tau` is the
 K = 2 instance. Posterior-defining: `AmplitudeForestCombiner<L>`
-(src/bartcore/combiner.hpp:741), the K-forest chain constructor
-(chain.hpp:754-855), `expandForestSpecs` (combiner.hpp:361), the R resolution
+(src/bartcore/combiner.hpp:726), the K-forest chain constructor
+(chain.hpp:754-855), `expandForestSpecs` (combiner.hpp:355), the R resolution
 (R/model.R `resolveForests`, R/spec.R), and the gates
 (benchmarks/R/bcf-equivalence.R, bcf-exact{,-restricted,-weak}.R). Scope:
 GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:611-623 admits those three
 and refuses each other family by name, chain.hpp:774-791 builds the matching
 response model, facade.hpp:882-885 the engine-side door), and CONSTANT leaves
-only (combiner.hpp:742-743). Under a latent family the combination is the
+only (combiner.hpp:727-728). Under a latent family the combination is the
 INDEX, on the link's own fixed scale: sigma is pinned, the response transform
 is the identity, and every forest's prior scale is stated in latent sd units.
 
@@ -64,11 +64,11 @@ combination and the reporting channels all read one number per forest per row.
 `q_f >= 1` always, and there is NO implicit all-ones column. A forest whose
 multiplier is a plain amplitude carries the ones column densely and reaches it
 by the same contraction every other forest uses, which is what leaves exactly
-one multiplier path (combiner.hpp:1399-1407).
+one multiplier path (combiner.hpp:1294-1302).
 
 Storage is ROW-major, row i at `i * numColumns`, because the contraction is the
 only read the engine makes of a basis: a row is contiguous and the multiplier
-costs one stream per forest (combiner.hpp:1399-1407). The plan's "The channel,
+costs one stream per forest (combiner.hpp:1294-1302). The plan's "The channel,
 specified" section said COLUMN-major and was wrong about the shipped code;
 M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
 (dbarts.h:1037-1040, src/C_interface.cpp:980-982), and M4.5 corrected the plan
@@ -77,26 +77,26 @@ line itself (docs/plans/archive/multiforest-extension-surface.md:557-561).
 ## The amplitude layout
 
 The amplitudes are ONE flat vector, forest f's block at `amplitudeOffset[f]`,
-the offsets a pure prefix sum of the widths (combiner.hpp:468-470, :1494-1520).
+the offsets a pure prefix sum of the widths (combiner.hpp:453-455, :1338-1363).
 
 The vector is RAGGED, and a TOTAL IS NOT A LAYOUT: `q = (1, 3)` and
 `q = (2, 2)` both carry four amplitudes, so the per-forest widths travel with
 them or a restore silently permutes the blocks. That one sentence is what the
-whole persistence contract turns on (combiner.hpp:93-103, :1114-1130).
+whole persistence contract turns on (combiner.hpp:93-103, :1079-1089).
 
 bcf's named accessors `a()`, `b0()`, `b1()` index THROUGH the offsets rather
-than at 0/1/2 (combiner.hpp:491-496): forest 1's block starts wherever forest
+than at 0/1/2 (combiner.hpp:476-481): forest 1's block starts wherever forest
 0's ends, so a prognostic basis wider than one column moves them.
 
 ## The reparameterization
 
-`formForestResponse` (combiner.hpp:877-895) hands forest f the pair its own
+`formForestResponse` (combiner.hpp:859-877) hands forest f the pair its own
 constant-leaf node sums need: response `r_i / m_{f,i}` and weight
 `w_i m_{f,i}^2`, where `r_i` is the residual net of every OTHER forest's scaled
 contribution.
 
-A multiplier indistinguishable from zero at `0x1p-26` (combiner.hpp:842,
-applied :884-888) leaves the row with exactly zero weight AND exactly zero
+A multiplier indistinguishable from zero at `0x1p-26` (combiner.hpp:824,
+applied :866-870) leaves the row with exactly zero weight AND exactly zero
 response. The zero response is required rather than cosmetic: the chain reads
 this buffer arithmetically when it rolls the running residual and finalizes
 total fits, and the node sufficient-statistic kernels accumulate `w * y`, where
@@ -106,12 +106,12 @@ whatever the family, the weights and K, and the arithmetic downstream cancels
 that amplification EXACTLY rather than merely bounding it: the node kernels
 accumulate `sumWeights = sum_i w_i m_i^2` and `sumWeightedResponse =
 sum_i (w_i m_i^2)(r_i / m_i)`, whose exact value is `sum_i w_i m_i r_i`
-(combiner.hpp:855-861).
+(combiner.hpp:837-843).
 
 The snap belongs to the REPARAMETERIZATION, not to the model: `combinedFits`
 and the amplitude draw keep the exact multiplier, so a snapped row still
 receives `m_{f,i} f_f(x_i)` in the combination and still informs the amplitude
-conditional (combiner.hpp:930-931, :939-943).
+conditional (combiner.hpp:912-913, :921-925).
 
 The caller-settable per-forest, per-observation weight `s_{f,i}` composes as
 one further multiplicative factor after this call returns, before the tree
@@ -124,87 +124,87 @@ docs/design/bcf.md:159-169's.
 Forest by forest in INDEX order, each block drawn jointly from its Gaussian
 full conditional given the current value of every other block, so the pass is a
 Gibbs scan and a block sees the blocks before it already updated
-(combiner.hpp:1207-1222).
+(combiner.hpp:1102-1117).
 
 Forest f's design row is its basis row scaled by its own fit,
 `x_i = B_f(i,.) f_f(x_i)`, against the residual net of every other forest, so
 the conditional's precision is `P = I/priorVar + sum_i w_i x_i x_i' / sigma^2`
 and its first moment `sum_i w_i x_i r_i / sigma^2`. The prior term is what
 keeps P positive definite whatever the basis does, which is why the
-factorization needs no failure path (combiner.hpp:1224-1230).
+factorization needs no failure path (combiner.hpp:1119-1125).
 
 A scale-mixture prior's variance is refreshed straight after its own block,
-from `IG((1 + q)/2, (scale^2 + ||a_f||^2)/2)` - at q = 1 exactly the shipped
-path's shape 1.0 (combiner.hpp:1212-1220, :1170-1175).
+from `IG((1 + q)/2, (scale^2 + ||a_f||^2)/2)` - at q = 1 exactly the 1.0
+bcf's own spelling carries (combiner.hpp:1107-1115).
 
 **The LDL' fact, and why it is not the shipped Cholesky.** The factorization is
 the square-root-free unit-lower `L D L'` because only its solve reduces to ONE
 division per coordinate. Over an ORTHOGONAL basis - bcf's indicator pair, any
 factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
-(combiner.hpp:1244-1247). The two-sqrt Cholesky solve gives
+(combiner.hpp:1139-1142). The two-sqrt Cholesky solve gives
 `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2 landing note,
 plan :4855-4857). `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is
 its teeth, with a p = 1 arm asserting the Cholesky route DIFFERS and a p = 2
 orthogonal arm (plan :4891-4896).
 
-## Why bcf keeps a specialized draw
+## Why bcf no longer keeps a specialized draw
 
-`drawGlue` selects `drawShippedGlue` on
-`forests.size() == 2 && !generalAmplitudeDraw_ && shippedShape()`
-(combiner.hpp:983-987). The two paths are the SAME conditional in exact
-arithmetic - all four accumulators bitwise equal under `-ffp-contract=off` -
-and differ only in where the compiler forms fused multiply-adds: the a block
-accumulates in one statement and fuses, while the b block forms per-row
-products before a branch and accumulates inside it, which fuses unevenly.
+`drawGlue` (combiner.hpp:952-955) is the general sweep and nothing else. bcf's
+K = 2 shape landed with a two-scalar specialization beside it, selected on the
+forest count, a basis-shape predicate and an `AmplitudeSpec` flag. The two were
+the SAME conditional in exact arithmetic - all four accumulators bitwise equal
+under `-ffp-contract=off` - and differed only in where the compiler forms fused
+multiply-adds: the a block accumulated in one statement and fused, while the b
+block formed per-row products before a branch and accumulated inside it, which
+fused unevenly.
 
-The MEASURED split, carried here verbatim from the code comment because it is
-the trigger for deleting the branch: all four PRECISIONS reproduce bitwise,
-weighted and unweighted; the divergence is in the MOMENTS - unweighted, n1
-reproduces and n0 differs; weighted, both differ. No single accumulation shape
-reproduces both blocks, over 21 variants tried (combiner.hpp:960-976). So the
-general path CANNOT be bitwise on bcf, and the specialized one is kept until a
-`bcf-equivalence` re-record is authorized.
-`AmplitudeSpec::generalAmplitudeDraw` is the one-line switch that re-record
-flips (combiner.hpp:343-348).
+The MEASURED split, kept because it is what the deletion cost: all four
+PRECISIONS reproduced bitwise, weighted and unweighted; the divergence was in
+the MOMENTS - unweighted, n1 reproduced and n0 differed; weighted, both
+differed. No single accumulation shape reproduced both blocks, over 21 variants
+tried. So the general path could not be bitwise on bcf, and the specialization
+was held until a `bcf-equivalence` re-record was authorized. This IS that
+re-record: the branch, its predicate and its spec flag are gone, and every
+shape draws through the one conditional.
 
 ## The ASIS ridge
 
 Per forest, at most one GIG draw each, in index order. The blocks are DISJOINT,
 so the moves commute and each is an exact Gibbs update given the rest, which
 makes the order a stream convention rather than a modelling choice
-(combiner.hpp:995-1003). "At most" is exact: `afterCombine` skips a forest
+(combiner.hpp:961-969). "At most" is exact: `afterCombine` skips a forest
 entirely on `!prior.update || !prior.ridge`, before any draw
-(combiner.hpp:1014), and `rescaleAmplitudeRidge` returns 1.0 consuming NO rng
-below two occupied leaves or at a zero leaf sum (combiner.hpp:1337). Two
-further 1.0 returns guard a non-finite or non-positive draw (:1353, :1355), but
-those are reached only AFTER the GIG draw is taken, so :1337 is the sole
+(combiner.hpp:980), and `rescaleAmplitudeRidge` returns 1.0 consuming NO rng
+below two occupied leaves or at a zero leaf sum (combiner.hpp:1232). Two
+further 1.0 returns guard a non-finite or non-positive draw (:1248, :1250), but
+those are reached only AFTER the GIG draw is taken, so :1232 is the sole
 rng-free skip of the three. M4.0's pins hold all three inert on the stream.
 
 Forest f's `L + q` scale coordinates travel the likelihood-invariant orbit
 `(a_f, leaves) -> (a_f/c, c leaves)` with `c = sqrt(v)` and
 `v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)`, L and M the count and
-squared sum of that forest's OCCUPIED leaves (combiner.hpp:1340-1351,
-:1351-1360). The exponent follows the general rule `p = (k - d)/2` for
+squared sum of that forest's OCCUPIED leaves (combiner.hpp:1235-1246,
+:1246-1255). The exponent follows the general rule `p = (k - d)/2` for
 rescaling k leaf parameters against d glue scalars; the naive move-map
 Jacobian's `(L - q + 1)/2` is off by one and the b-move's prototype (q = 2)
 rejects it at KS 1.6e-21 - derived and evidenced below, "The exponent rule".
 
 **One mechanism, not two.** Instantiated at q = 1 it IS bcf's shipped a-move
 bitwise; at q = 2 with a fixed prior variance it IS the b-move
-docs/plans/archive/bcf-b-ridge.md derives (combiner.hpp:1005-1008).
+docs/plans/archive/bcf-b-ridge.md derives (combiner.hpp:971-974).
 
 B reads the LIVE prior variance, which for a scale mixture is the auxiliary
 this move conditions on. Refreshing it here would re-randomize the coordinate
 just conditioned on and throttle the mixing gain - measured, IACT 69 -> 196 on
 `|a|` (docs/plans/archive/bcf-ridge-interweaving.md:488-492); the one-sweep lag is
 benign, the next `drawGlue` refreshing it given the new amplitude
-(combiner.hpp:1300-1313).
+(combiner.hpp:1195-1208).
 
 The rescale-consistency set the move must carry, or a stored
 `amplitude * leaf` stops being the identified product: `muByTree`, `totalFits`,
 `totalTestFits`/`currTestFits` under `record`, and the keepTrees flattened slot
-(combiner.hpp:1360-1376).
+(combiner.hpp:1255-1271).
 
 ## The exponent rule
 
@@ -320,53 +320,53 @@ one reachable q > 1 scale-mixture state, a post-creation widening of a
 basis-free forest, consumes the SAME single GIG draw already taken at q = 1, at
 the M4.2-validated exponent, so no stream moves.
 
-## Draw-path selection is a VALUE predicate
+## The basis is read, not classified
 
-Per forest, IS-CANONICAL: `basis[f]` is canonical when it is a dense all-ones
-column, or a complementary two-column 0/1 pair (each entry in {0, 1}, each row
-summing to 1) (combiner.hpp:1442-1458).
+Nothing routes on basis SHAPE any more. `drawForestAmplitude`
+(combiner.hpp:1144) contracts forest f's design row - its basis row scaled by
+its own fit - whatever the basis holds, so a continuous two-column pair is the
+same conditional as an indicator pair rather than a different model.
 
-It is NOT a width test, and the reason is a silent-wrong-answer one:
-`drawShippedGlue` never reads `basis[1]` as a DESIGN MATRIX. It borrows that
-forest's column 1 and tests it for nonzero as a GROUP KEY, never multiplying by
-the stored values, and forms two disjoint group-precision accumulators from the
-partition (combiner.hpp:1141-1198). So a legal continuous 0.25/0.75 pair would
-be drawn as a different MODEL - both entries are nonzero, so every row lands in
-the treated group, and the values the general conditional would contract with
-never enter. A non-canonical basis at ANY forest forces the general path for
-the whole draw.
+That was not free before. The deleted two-scalar path never read `basis[1]` as
+a DESIGN MATRIX: it borrowed that forest's column 1 and tested it for nonzero
+as a GROUP KEY, never multiplying by the stored values, and formed two disjoint
+group-precision accumulators from the partition. A legal continuous 0.25/0.75
+pair would have been drawn as a different MODEL - both entries are nonzero, so
+every row lands in the treated group - which is why a per-forest IS-CANONICAL
+VALUE predicate, and not a width test, had to route it away.
 
-The flag is recomputed at install and at restore and never serialized, so
-nothing can carry a stale answer across a round trip (combiner.hpp:458-465,
-:811, :1112). Recorded as M4.3's doc-level residue (plan :4991-4994): the
-RESTORE-side recompute is VACUOUS, because `restoreGlue` never touches basis
-values - the load-bearing recompute is the install-time one. Verified at
-combiner.hpp:1096-1113, which calls `refreshCanonical()` after writing
-amplitudes only.
+The predicate is gone with the path it guarded: `AmplitudeState` carries no
+canonical flag, `installForestBasis` recomputes nothing, and there is no
+restore-side recompute left to explain as vacuous. What survives is the
+discriminator the tests/cpp arm keeps: two width-2 bases sharing a treated
+column and differing only in their control column must draw differently,
+because the conditional contracts the whole row - where a three-amplitude
+specialization keyed on the treated column alone would draw them
+identically.
 
 ## One mutation route
 
 Synthesis is CONSTRUCTION-ONLY: `synthesizeIndicatorBasis`
-(combiner.hpp:1424-1440) is called once, from the constructor (:781).
+(combiner.hpp:1319-1329) is called once, from the constructor (:765).
 `installForestBasis` is the SOLE mutator and therefore owns the guards nothing
 else is left to apply - the index, `numColumns >= 1`, a non-null pointer, and
-finiteness (combiner.hpp:802-812). It wins by being the only operation there
+finiteness (combiner.hpp:785-791). It wins by being the only operation there
 is, which is why no ordering between two mutators has to be specified
-(combiner.hpp:786-788).
+(combiner.hpp:769-771).
 
 Ordering is LAST INSTALL WINS, per forest, and both orderings of a widen and a
 swap collapse to it because `rebuildAmplitudeLayout` derives the offsets as a
 pure prefix sum of the width vector and carries every block by position
-(combiner.hpp:790-796, :1494-1520). Amplitudes PRESERVE and remap; surviving
+(combiner.hpp:773-779, :1338-1363). Amplitudes PRESERVE and remap; surviving
 coordinates keep their values at their new offsets and new ones enter at the
 neutral 1.0. A width-preserving install is the BITWISE IDENTITY on every
-amplitude (the :1502 early return) - that is bcf's mid-life z swap, and it is
+amplitude (the :1346 early return) - that is bcf's mid-life z swap, and it is
 baseline-gating.
 
-`glue_.z` is DELETED. `drawShippedGlue` partitions from `basis[1]`'s treated
-column, not from a borrowed indicator, because a width-preserving swap to a
-different complementary pair would otherwise install the new pair, leave the
-layout unmoved, and then draw `b0`/`b1` under the OLD partition while
+`glue_.z` is DELETED. The amplitude conditional contracts `basis[1]` itself,
+not a borrowed indicator, because a width-preserving swap to a different
+complementary pair would otherwise install the new pair, leave the layout
+unmoved, and then draw `b0`/`b1` under the OLD partition while
 `forestMultiplier` contracted the NEW basis (M4.3 item 1, plan :1908-1928;
 landed per :4926-4927).
 
@@ -375,22 +375,22 @@ landed per :4926-4927).
 The AMPLITUDES are state; the BASES are not.
 
 `serializeGlue`/`restoreGlue` carry the per-forest widths, the flat amplitude
-vector, and each forest's prior variance (combiner.hpp:1078-1094).
+vector, and each forest's prior variance (combiner.hpp:1044-1060).
 `glueIsValid` is the LAYOUT check `stateIsValid` routes through, because
 `restoreGlue` writes THROUGH the live offsets and a state with the same total
 over different widths would otherwise be admitted and silently permute the
-blocks (combiner.hpp:1114-1124, routed at chain.hpp:3158).
+blocks (combiner.hpp:1079-1089, routed at chain.hpp:3158).
 
 The four named scalars `a`/`aVariance`/`b0`/`b1` survive in `ChainStateData` as
 a hand-written K = 2 READING only, non-authoritative, read exactly when
 `amplitudeWidths` is empty - which is exactly a state written by hand rather
-than by a combiner (combiner.hpp:104-110, :1099-1106).
+than by a combiner (combiner.hpp:104-110, :1065-1072).
 
 The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
 validated by `validateForestBases`, R/data.R:803), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
-rather than the constructed ones (combiner.hpp:1074-1077; plan :1958-1978, landed
+rather than the constructed ones (combiner.hpp:1040-1043; plan :1958-1978, landed
 :4931-4933).
 
 ## Bitwise contracts
@@ -399,7 +399,7 @@ THREE accumulation directions, all observable once q > 1 or K > 2, each a
 contract:
 
 1. `combinedFits` accumulates WITHIN the row and from the LAST forest DOWN
-   (combiner.hpp:932-946, seed at :941, descending loop :942-943). This is the
+   (combiner.hpp:914-928, seed at :923, descending loop :924-925). This is the
    load-bearing one and it is MEASURED. Under fused multiply-add contraction
    exactly one product in a sum escapes its own rounding - the one the closing
    add absorbs - and the two-forest `a mu + b_z tau` this replaces absorbed
@@ -407,7 +407,7 @@ contract:
    only bare multiply in the closing add. Accumulating FORWARD absorbs the last
    forest's product instead, moves ~30% of rows by one ulp and contaminates the
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
-   tau, glue, sigma and train (combiner.hpp:939-944; M4.1 landing note, plan
+   tau, glue, sigma and train (combiner.hpp:921-926; M4.1 landing note, plan
    :4798-4808). `testCombinedFitsAssociation`
    (tests/cpp/test_sampler.cpp:3585) is the ONLY in-process guard - the M4.0
    seam pin structurally CANNOT see association, its reference expression
@@ -416,10 +416,10 @@ contract:
    forests in increasing index order, and deliberately NOT combinedFits'
    reverse: this sum has no two-term fused expression to reproduce, and the
    amplitude conditional forms the same residual the same way, so the two agree
-   by construction rather than by coincidence (combiner.hpp:889-892, :1268-1270).
+   by construction rather than by coincidence (combiner.hpp:871-874, :1163-1165).
 3. `forestMultiplier` contracts FORWARD over the columns; at q > 2 a
    reassociation moves the multiplier by an ulp and every reader of it with it
-   (combiner.hpp:1399-1408).
+   (combiner.hpp:1294-1303).
 
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values
@@ -511,7 +511,7 @@ mandate, discharged here in its successor form.
 
 ## bcf as the K = 2 instance
 
-`expandForestSpecs` (combiner.hpp:361-375) is the thin adapter between bcf's
+`expandForestSpecs` (combiner.hpp:355-369) is the thin adapter between bcf's
 two-forest spelling and the K-length vector every other layer works in, and it
 is LOAD-BEARING rather than courtesy: 25 `tests/cpp` fixtures and
 benchmarks/R/bcf-equivalence.R drive through the `AmplitudeSpec` spelling (plan
@@ -522,7 +522,7 @@ in its node scale.
 
 `bcfGlue(a, b0, b1)` survives as a named READING that returns false on any
 other layout, which is how a caller learns it is not looking at bcf
-(combiner.hpp:820-826, chain.hpp:1250-1256).
+(combiner.hpp:802-808, chain.hpp:1250-1256).
 
 ## Surfaces
 
@@ -573,7 +573,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   each is missing (gaussian, probit and logistic landed at M4.4).
 - The test surface, for EVERY family including the two M4.4 added.
   `testFitsAreDefined` and `logLikelihoodIsDefined` are both false
-  (combiner.hpp:1025-1026), so `setTestPredictors`, `setTestOffset` and
+  (combiner.hpp:991-992), so `setTestPredictors`, `setTestOffset` and
   `predict` refuse - through `refuseUndefinedTestFits`, gated on
   `testFitsAreDefined` rather than on the forest count
   (src/R_interface_bartcore_common.hpp:232-242) - and no log-likelihood is

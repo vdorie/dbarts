@@ -56,7 +56,7 @@ and schedules against the same way, so they earn rows.
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3794) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:481-541) |
 | hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2317) |
-| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`AmplitudeForestCombiner` COM:741) |
+| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`AmplitudeForestCombiner` COM:726) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4706) |
 | hetero | Heteroscedastic variance forest (CH:742) |
 
@@ -160,11 +160,11 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | logistic | R RIB:2767 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1793, 1820 [f16] |
 | ordinal | R RIB:2540 | S MOD:3232 | S MOD:3277 | S generics.R:1437 | S dbarts.R:1793, 1820 [f16] |
 | nbinom | R RIB:2546 | S MOD:4385 | S MOD:4438 | S generics.R:1750 | S dbarts.R:1793, 1820 [f16] |
-| multinom | R RIB:3298 | S COM:1686 [f21] | M MOD:3716 [f22] | S generics.R:1105 | R [f23] |
+| multinom | R RIB:3298 | S COM:1529 [f21] | M MOD:3716 [f22] | S generics.R:1105 | R [f23] |
 | aft | R RIB:2536 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1793, 1820 [f16] |
 | hazard | R RIB:2759 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1793, 1820 [f6] |
 | hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2317 [f25] | - [f12] |
-| bcf | S COM:841, 887-891 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
+| bcf | S COM:823, 869-873 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
 | grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2812 | S MOD:4863 [f27] |
 | hetero | S CH:4218, MOD:306 | S CH:4212 [f27] | - [f18] | S generics.R:95 [f28] | S test-calibration-prior-draws.R:268 [f29] |
 
@@ -399,12 +399,12 @@ independence arm of its own beside the kernel-level coverage. S3 landed at
 rather than the response, which holds no precisions of its own -
 `MultinomialResponse::setActiveRows` (MOD:3752) is a pass-through that only
 advertises the capability (MOD:3751), and `Chain::setActiveRows` forwards the
-mask to `MultinomialForestCombiner::setActiveRows` (COM:1686) after the
-response's own install (`ForestCombiner::setActiveRows` COM:719 is the inert
+mask to `MultinomialForestCombiner::setActiveRows` (COM:1529) after the
+response's own install (`ForestCombiner::setActiveRows` COM:704 is the inert
 default every additive coupling relies on instead). An inactive row's K
 interleaved Polya-Gamma draws are SKIPPED, not drawn and discarded, in
-`drawForestGlue` (COM:1699), and its composed precision is zeroed in every
-category in `formForestResponse` (COM:1816-1817); the row keeps its leaf
+`drawForestGlue` (COM:1542), and its composed precision is zeroed in every
+category in `formForestResponse` (COM:1659-1660); the row keeps its leaf
 occupancy and its reported softmax probabilities, and omega is never zeroed
 since the working response divides by it. PER-FOREST masking is refused
 permanently on model grounds at the only reachable per-forest,
@@ -567,11 +567,11 @@ rather than the response, which holds no precisions of its own to compose a
 mask into: `MultinomialResponse::setActiveRows` (MOD:3752) is a pass-through
 that only advertises the capability (`supportsActiveRows` MOD:3751), and
 `Chain::setActiveRows` forwards the mask to
-`MultinomialForestCombiner::setActiveRows` (COM:1686) after the response's own
+`MultinomialForestCombiner::setActiveRows` (COM:1529) after the response's own
 install. An inactive row's K interleaved Polya-Gamma draws are SKIPPED rather
-than drawn and discarded, in `drawForestGlue` (COM:1699), and its composed
+than drawn and discarded, in `drawForestGlue` (COM:1542), and its composed
 precision is zeroed in every category in `formForestResponse`
-(COM:1816-1817); the row keeps its leaf occupancy and its reported softmax
+(COM:1659-1660); the row keeps its leaf occupancy and its reported softmax
 probabilities, and omega is never zeroed since the working response divides
 by it. PER-FOREST masking stays REFUSED, permanently and on model grounds:
 the softmax margin is a log-sum-exp over the other K-1 forests, so a row
@@ -807,7 +807,7 @@ full-R third point is still owed.
 
 [f43] Aggregate `p_k(x*)` and the three raw per-forest `f_ik` cells all pass.
 `MultinomialForestCombiner::afterCombine` draws the level from its exact
-leaf-space conditional (COM:1922); the acceptance run at R = 200,
+leaf-space conditional (COM:1765); the acceptance run at R = 200,
 `Rscript benchmarks/R/sbc.R multinom 200 150 30`, scores every functional PASS
 at band 0.1282, the three cells at 0.0688/0.0824/0.0675
 (docs/plans/archive/multinomial-level-centering.md:177-192). The arm that ranks those
@@ -846,7 +846,7 @@ Cell by cell in section 2: `setResponse`/`setOffset` are OPEN under every
 family, because `Chain::setResponse` (CH:1666) now hands the response
 `combinedFits()` rather than forest 0's bare totals, which is what let the
 gaussian conjunct come off `Chain::supportsResponseMutation` (CH:1039); the
-combiner's own opt-in (COM:1059) is unchanged. `setSigma` is REFUSED for probit
+combiner's own opt-in (COM:1025) is unchanged. `setSigma` is REFUSED for probit
 and logistic; `setWeights` is refused for probit and OPEN for logistic, whose
 counts are its Polya-Gamma shape - both through the ORDINARY single-forest
 guards now that the sampler answers `shape.family` for itself

@@ -49,7 +49,7 @@ that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
 swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1039`), which is
 the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
-true (`combiner.hpp:1059`); the base `ForestCombiner` and the multinomial
+true (`combiner.hpp:1025`); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
 that no flat conduit can carry, so its refusal names `bartcore_setCounts`
 instead. There is no `family_ == gaussian` conjunct: it was removed when

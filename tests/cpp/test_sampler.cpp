@@ -3810,7 +3810,7 @@ static void testForestBasisOrdering() {
   // Arm 3 asserts amplitudes and the defect is in the NEXT draw. A
   // width-preserving swap to a DIFFERENT complementary pair must change that
   // draw's PARTITION. RED against a retained glue_.z (old z, new basis), green
-  // once drawShippedGlue partitions from basis[1].
+  // once the amplitude conditional contracts basis[1] itself.
   {
     // an ASYMMETRIC fit surface, so the two groups' conditionals differ and a
     // mis-grouped draw is visible in the values rather than only in the stream
@@ -3853,20 +3853,19 @@ static void testForestBasisOrdering() {
           "a width-preserving swap to a different pair changes the partition");
   }
 
-  // --- Arm 5, draw-path selection is a VALUE predicate, not a width test.
-  // Two decisive discriminators, one per half, each keyed on something the
-  // two-scalar path structurally CANNOT do.
+  // --- Arm 5, the conditional reads the whole basis, not a shape. Two
+  // discriminators, one per half, each keyed on something a two-scalar draw
+  // over (a, b0, b1) structurally CANNOT do.
   //
   // (i) it cannot write a second prognostic coordinate at all: it addresses
-  // (a, b0, b1) and nothing else, so under q0 = 2 the added coordinate would
-  // stay at the neutral 1.0 the widening entered it at.
+  // three amplitudes and nothing else, so under q0 = 2 the added coordinate
+  // would stay at the neutral 1.0 the widening entered it at.
   //
   // (ii) it never reads basis[1] beyond the treated indicator - it forms two
   // disjoint group accumulators keyed on it - so changing the CONTROL column
-  // alone would leave its draw bitwise unmoved. The general conditional reads
-  // the whole row, so it must move. This is the arm a width-only predicate
-  // (K == 2, q0 == 1, q1 == 2) passes wrongly: the 0.25/0.75 pair has exactly
-  // that shape.
+  // alone would leave its draw bitwise unmoved. The q-variate conditional
+  // contracts the whole design row, so it must move; a 0.25/0.75 pair carries
+  // exactly the widths an indicator pair has and a different model.
   {
     std::vector<double> weights = {0.5, 1.5, 2.0, 0.25, 1.0, 3.0};
     auto draw = [&](const std::vector<double>* prognostic,
@@ -3878,7 +3877,7 @@ static void testForestBasisOrdering() {
               "the q0 = 2 basis installs");
       if (treatment != nullptr)
         check(combiner.installForestBasis(1, treatment->data(), 2),
-              "the non-canonical width-2 basis installs");
+              "the continuous width-2 basis installs");
       ext_rng* rng = makeSeamRng();
       combiner.drawGlue(rng, 1.0, y.data(), weights.data(), forests);
       ext_rng_destroy(rng);
@@ -3889,8 +3888,8 @@ static void testForestBasisOrdering() {
 
     std::vector<double> widened = draw(&wide, nullptr);
     check(widened.size() == 4 && widened[1] != 1.0,
-          "a q0 = 2 basis routes the draw around the two-scalar path, which "
-          "cannot write the second prognostic coordinate");
+          "a q0 = 2 basis has its second prognostic coordinate drawn, which a "
+          "three-amplitude specialization could not write");
 
     std::vector<double> continuousA(2 * n), continuousB(2 * n);
     for (size_t i = 0; i < n; ++i) {
@@ -3904,47 +3903,21 @@ static void testForestBasisOrdering() {
     std::vector<double> drawnA = draw(nullptr, &continuousA);
     std::vector<double> drawnB = draw(nullptr, &continuousB);
     check(drawnA.size() == 3 && drawnB.size() == 3 && drawnA != drawnB,
-          "a NON-canonical width-2 basis routes it around too: the control "
-          "column moves the draw, which the two-scalar path never reads");
-
-    // (iii) and the canonical shape is still ON the two-scalar path. A
-    // canonical pair's control column is DETERMINED by its treated column -
-    // 1 - z, and nothing else is canonical - so the discriminating pair holds
-    // the treated column FIXED and moves only the control column off that
-    // determined value. Both bases then carry the same partition, which is all
-    // the two-scalar path reads: it would draw them IDENTICALLY. The general
-    // conditional reads the whole row, so it must not. The correct routing
-    // therefore separates them - the canonical one keeps the two-scalar path,
-    // the perturbed one is moved off it - and a width-only predicate, which
-    // would leave BOTH on the two-scalar path, collapses them and turns this
-    // red. Unlike the pair it replaces (built from identical expressions, true
-    // under any implementation), nothing here is satisfied by construction.
-    std::vector<double> canonical(2 * n), controlPerturbed(2 * n);
-    for (size_t i = 0; i < n; ++i) {
-      canonical[2 * i] = 1.0 - z[i];
-      canonical[2 * i + 1] = z[i];
-      // the same treated column, a control column a canonical pair could not
-      // have: 2 where the canonical one is forced to 1
-      controlPerturbed[2 * i] = 2.0 * (1.0 - z[i]);
-      controlPerturbed[2 * i + 1] = z[i];
-    }
-    check(draw(nullptr, &canonical) != draw(nullptr, &controlPerturbed),
-          "the canonical shape keeps the two-scalar path, which cannot see "
-          "the control column its perturbed twin moves");
+          "the control column moves the draw, which a group accumulator keyed "
+          "on the treated column never reads");
   }
 
   printf("ok: forest basis ordering\n");
 }
 
-// (3) The GENERAL q-variate amplitude conditional. Every pin above drives the
-// shipped K = 2 shape, which keeps its two-scalar path (drawGlue says why), so
-// none of them enters this code at all. Four arms: the conditional recovers a
-// known closed-form Gaussian posterior over a CONTINUOUS, non-orthogonal basis
-// (the case the factorization exists for); it agrees with the two-scalar path
-// on the shipped shape, which is the whole evidence for keeping both; the path
-// predicate reads the PRIOR a spec carries and not only its basis shape; and at
-// K = 3 every per-forest array is sized by the forest count, which is the read
-// that went out of bounds before.
+// (3) The q-variate amplitude conditional, which is the only one there is.
+// Four arms: it recovers a known closed-form Gaussian posterior over a
+// CONTINUOUS, non-orthogonal basis (the case the factorization exists for); on
+// a K = 2 indicator shape it agrees with the two-scalar conditional that shape
+// implies, which is what lets one path serve both; a scale mixture declared
+// past forest 0 is drawn rather than frozen; and at K = 3 every per-forest
+// array is sized by the forest count, which is the read that went out of
+// bounds before.
 static void testGeneralAmplitudeConditional() {
   const size_t n = 40;
   std::vector<double> xDummy(n, 0.0);
@@ -3979,7 +3952,6 @@ static void testGeneralAmplitudeConditional() {
     spec.z = z.data();
     spec.updateA = false;  // pin forest 0, so forest 1's block is all that moves
     spec.bPriorVariance = priorVariance;
-    spec.generalAmplitudeDraw = true;
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     combiner.installForestBasis(1, wide.data(), 2);
     ChainStateData glue;
@@ -4044,58 +4016,95 @@ static void testGeneralAmplitudeConditional() {
            mean1);
   }
 
-  // ---- the general path and the two-scalar path are the same conditional ----
-  // They cannot be BITWISE (drawGlue records the measurement: the b block's
-  // per-row products are formed before a branch and accumulated inside it,
-  // which fuses unevenly against a straight-line loop), so this asserts what
-  // is true - one conditional, one rng stream, agreeing to rounding.
+  // ---- on an indicator shape it IS the two-scalar conditional ----
+  // The two-scalar arithmetic that shape implies is written out here against
+  // the same stream: a from the residual net of b_z tau, its scale-mixture
+  // variance, then b0 and b1 from the residual net of the NEW a.
+  //
+  // The fixture is INTEGER-valued at unit sigma so that every accumulator is
+  // exact: with no rounding in the sums, neither the compiler's fusion nor a
+  // vectorized reduction can separate the two spellings, and what the a block
+  // then compares is the SOLVE alone. The b blocks still take a rounded
+  // residual (the new a is not exact), so they are asserted to rounding - the
+  // strongest statement true of them, since the group accumulators form their
+  // per-row products before a branch and the design-row loop does not.
   {
+    const double aScale = 2.0;  // AmplitudeSpec::aPriorScale, the mixture's
+    std::vector<double> yE(n), wE(n), muE(n), tauE(n);
+    for (size_t i = 0; i < n; ++i) {
+      yE[i] = static_cast<double>(i % 9) - 4.0;
+      wE[i] = 1.0 + static_cast<double>(i % 3);
+      muE[i] = static_cast<double>(i % 5) - 2.0;
+      tauE[i] = 2.0 - static_cast<double>(i % 4);
+    }
     AmplitudeSpec shipped;
     shipped.z = z.data();
     shipped.bPriorVariance = priorVariance;
-    AmplitudeSpec general = shipped;
-    general.generalAmplitudeDraw = true;
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, shipped);
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    forests[0].totalFits = muE;
+    forests[1].totalFits = tauE;
 
-    double drawn[2][4];
-    for (size_t arm = 0; arm < 2; ++arm) {
-      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-        data, arm == 0 ? shipped : general);
-      std::vector<Forest<ConstantGaussianLeaf>> forests(2);
-      forests[0].totalFits = mu;
-      forests[1].totalFits = tau;
-      ext_rng* rng = makeSeamRng();
-      combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
-      ChainStateData out;
-      combiner.serializeGlue(out);
-      drawn[arm][0] = out.a; drawn[arm][1] = out.aVariance;
-      drawn[arm][2] = out.b0; drawn[arm][3] = out.b1;
-      ext_rng_destroy(rng);
+    ChainStateData before;
+    combiner.serializeGlue(before);
+    ext_rng* rng = makeSeamRng();
+    combiner.drawGlue(rng, 1.0, yE.data(), wE.data(), forests);
+    ext_rng_destroy(rng);
+    ChainStateData out;
+    combiner.serializeGlue(out);
+
+    ext_rng* replay = makeSeamRng();
+    double aPrec = 1.0 / before.aVariance, aNum = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double bz = z[i] != 0.0 ? before.b1 : before.b0;
+      double r = yE[i] - bz * tauE[i];
+      aPrec += wE[i] * muE[i] * muE[i];
+      aNum += wE[i] * muE[i] * r;
     }
-    bool agrees = true;
-    for (size_t j = 0; j < 4; ++j)
-      agrees &= std::fabs(drawn[0][j] - drawn[1][j]) <=
-                1e-12 * std::fabs(drawn[0][j]);
-    check(agrees,
-          "the general conditional reproduces the shipped two-scalar draw to "
-          "rounding on the same stream");
-    // The a block IS bitwise, both accumulators reproducing under weights, so
-    // it pins the general path's solve arithmetic end to end: at q = 1 the
-    // square-root-free route divides the moment by the pivot ONCE and lands on
-    // the shipped n / P + e / sqrt(P) exactly. Swapping in the Cholesky the
+    double aWant =
+      aNum / aPrec + ext_rng_simulateStandardNormal(replay) / std::sqrt(aPrec);
+    double rate = 0.5 * (aWant * aWant) + 0.5 * (aScale * aScale);
+    double aVarianceWant = 1.0 / ext_rng_simulateGamma(replay, 1.0, 1.0 / rate);
+    double p0 = 1.0 / priorVariance, p1 = p0, num0 = 0.0, num1 = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double r = yE[i] - aWant * muE[i];
+      double prec = wE[i] * tauE[i] * tauE[i];
+      double num = wE[i] * tauE[i] * r;
+      if (z[i] != 0.0) { p1 += prec; num1 += num; }
+      else { p0 += prec; num0 += num; }
+    }
+    double b0Want =
+      num0 / p0 + ext_rng_simulateStandardNormal(replay) / std::sqrt(p0);
+    double b1Want =
+      num1 / p1 + ext_rng_simulateStandardNormal(replay) / std::sqrt(p1);
+    ext_rng_destroy(replay);
+
+    check(std::fabs(out.aVariance - aVarianceWant) <=
+            1e-12 * std::fabs(aVarianceWant) &&
+            std::fabs(out.b0 - b0Want) <= 1e-12 * std::fabs(b0Want) &&
+            std::fabs(out.b1 - b1Want) <= 1e-12 * std::fabs(b1Want),
+          "the q-variate sweep reproduces the two-scalar conditional on an "
+          "indicator shape, off the same rng stream in the same order");
+    // The a block is BITWISE on this fixture, which pins the solve end to end:
+    // at q = 1 the square-root-free route divides the moment by the pivot ONCE
+    // and lands on n / P + e / sqrt(P) exactly. Swapping in the Cholesky the
     // leaf models use divides twice by sqrt(P) instead and moves this by an
     // ulp - the one assertion in the suite that sees such a substitution
     // through the engine rather than in the helper (test_model.cpp).
-    check(drawn[0][0] == drawn[1][0],
-          "the general conditional's scalar block is BITWISE the shipped a "
-          "draw, which is what the square-root-free solve buys");
+    check(out.a == aWant,
+          "the scalar block is BITWISE n / P + e / sqrt(P), which is what the "
+          "square-root-free solve buys");
+    printf("ok: the q-variate sweep is the two-scalar conditional on an "
+           "indicator shape\n");
   }
 
-  // ---- the path predicate reads the prior, not only the basis shape ----
-  // A canonical K = 2 pair whose forest 1 declares a positive half-Cauchy scale
-  // is a scale MIXTURE on that block: its prior variance is a live auxiliary.
-  // The two-scalar path refreshes forest 0's and no other, so a predicate that
-  // read the basis alone would hold forest 1's variance at its declared value
-  // for every sweep - a different model, not a different rounding.
+  // ---- a scale mixture declared past forest 0 is drawn, not frozen ----
+  // A K = 2 pair whose forest 1 declares a positive half-Cauchy scale is a
+  // scale MIXTURE on that block: its prior variance is a live auxiliary, and
+  // the sweep refreshes it straight after its own block, at every forest that
+  // declares a scale. A path refreshing forest 0's alone would hold this at
+  // its declared value for every sweep - a different model, not a different
+  // rounding.
   {
     std::vector<double> indicator(2 * n);
     for (size_t i = 0; i < n; ++i) {
@@ -4103,44 +4112,32 @@ static void testGeneralAmplitudeConditional() {
       indicator[2 * i + 1] = z[i];
     }
     const double declared = 0.5;
-    AmplitudeSpec routed;
-    routed.forests.resize(2);
-    routed.forests[0].amplitudePriorScale = 2.0;
-    routed.forests[1].basis = indicator.data();
-    routed.forests[1].numBasisColumns = 2;
-    routed.forests[1].amplitudePriorVariance = declared;
-    routed.forests[1].amplitudePriorScale = 1.5;
-    // the same spec off the predicate entirely: whatever the routing decides,
-    // this arm is the general sweep, so an equality against it is the routing
-    // read out rather than a second copy of the arithmetic
-    AmplitudeSpec forced = routed;
-    forced.generalAmplitudeDraw = true;
+    AmplitudeSpec mixed;
+    mixed.forests.resize(2);
+    mixed.forests[0].amplitudePriorScale = 2.0;
+    mixed.forests[1].basis = indicator.data();
+    mixed.forests[1].numBasisColumns = 2;
+    mixed.forests[1].amplitudePriorVariance = declared;
+    mixed.forests[1].amplitudePriorScale = 1.5;
 
-    ChainStateData out[2];
-    for (size_t arm = 0; arm < 2; ++arm) {
-      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-        data, arm == 0 ? routed : forced);
-      std::vector<Forest<ConstantGaussianLeaf>> forests(2);
-      forests[0].totalFits = mu;
-      forests[1].totalFits = tau;
-      ext_rng* rng = makeSeamRng();
-      for (size_t sweep = 0; sweep < 40; ++sweep)
-        combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
-      combiner.serializeGlue(out[arm]);
-      ext_rng_destroy(rng);
-    }
-    check(out[0].amplitudeVariances[1] != declared &&
-            std::isfinite(out[0].amplitudeVariances[1]) &&
-            out[0].amplitudeVariances[1] > 0.0,
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, mixed);
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    forests[0].totalFits = mu;
+    forests[1].totalFits = tau;
+    ext_rng* rng = makeSeamRng();
+    for (size_t sweep = 0; sweep < 40; ++sweep)
+      combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
+    ChainStateData out;
+    combiner.serializeGlue(out);
+    ext_rng_destroy(rng);
+
+    check(out.amplitudeVariances[1] != declared &&
+            std::isfinite(out.amplitudeVariances[1]) &&
+            out.amplitudeVariances[1] > 0.0,
           "a scale mixture declared past forest 0 is drawn, not frozen at the "
           "variance it was declared with");
-    check(out[0].amplitudes == out[1].amplitudes &&
-            out[0].amplitudeVariances == out[1].amplitudeVariances,
-          "the spec routes to the general sweep bitwise, which is the path "
-          "that refreshes a second scale mixture");
-    printf("ok: amplitude path selection reads the prior (forest 1 variance "
-           "%.4f against a declared %.4f)\n", out[0].amplitudeVariances[1],
-           declared);
+    printf("ok: a second scale mixture is drawn (forest 1 variance %.4f "
+           "against a declared %.4f)\n", out.amplitudeVariances[1], declared);
   }
 
   // ---- K = 3: every per-forest array is sized by the forest count ----

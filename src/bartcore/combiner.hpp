@@ -340,12 +340,6 @@ struct AmplitudeSpec {
   // implements. It is OFF here because switching it on consumes a GIG draw per
   // sweep, which re-records bcf-equivalence.
   bool ridgeA = true, ridgeB = false;
-  // Whether the shipped K = 2 shape draws its amplitudes through the general
-  // q-variate conditional rather than through the two-scalar path it shipped
-  // with. The two agree in exact arithmetic and differ only in where the
-  // compiler forms fused multiply-adds (AmplitudeForestCombiner::drawGlue), so
-  // this is off by default to hold bcf-equivalence bitwise.
-  bool generalAmplitudeDraw = false;
   // The K-length reading. EMPTY leaves the mu/tau pair above authoritative and
   // the treatment forest's basis synthesized from z; non-empty supersedes both,
   // and z is then read by nothing.
@@ -455,15 +449,6 @@ struct ForestAmplitudePrior {
 /// forest 0's ends, so a prognostic basis wider than one column moves it.
 struct AmplitudeState {
   std::vector<ForestBasis> basis;
-  /// Per-forest IS-CANONICAL flag: whether basis[f] is still exactly one of the
-  /// constructor's synthesized shapes - a dense all-ones column, or a
-  /// complementary two-column 0/1 pair. A pure function of the basis VALUES,
-  /// recomputed at install and at restore and never serialized, so nothing can
-  /// carry a stale answer across a round trip. It selects the draw path:
-  /// drawShippedGlue is not a general q = 2 conditional (it never reads
-  /// basis[1] at all - it forms two disjoint group accumulators keyed on the
-  /// indicator), so a legal continuous two-column basis has to route around it.
-  std::vector<std::uint8_t> canonical;
   std::vector<double> amplitudes{1.0, 0.0, 1.0};
   // length K + 1, prefix sums of q_f; seeded with bcf's shipped layout so the
   // accessors below read the constructed amplitudes before any install
@@ -755,8 +740,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// question of which of two operations wins does not arise.
   AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
                     std::size_t numForests = 2)
-      : data_(data), numForests_(numForests < 2 ? 2 : numForests),
-        generalAmplitudeDraw_(spec.generalAmplitudeDraw) {
+      : data_(data), numForests_(numForests < 2 ? 2 : numForests) {
     std::size_t n = data_.numObservations;
     std::vector<ForestSpec> forests = expandForestSpecs(spec);
     glue_.basis.resize(numForests_);
@@ -780,7 +764,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     // two-level factor basis, whose amplitudes are exactly (b0, b1)
     if (spec.forests.empty() && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
     rebuildAmplitudeLayout();
-    refreshCanonical();
   }
 
   /// The SOLE basis-mutation route, at any forest and any width, and therefore
@@ -809,7 +792,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     glue_.basis[f].numColumns = numColumns;
     glue_.basis[f].values.assign(values, values + n * numColumns);
     rebuildAmplitudeLayout();
-    glue_.canonical[f] = basisIsCanonical(f) ? 1 : 0;
     return true;
   }
 
@@ -952,40 +934,24 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// block (a as the mu coefficient under the half-Cauchy mixture, b0/b1 as
   /// the tau coefficients over control/treated).
   ///
-  /// The SHIPPED K = 2 shape keeps the two-scalar path it landed with, and the
-  /// general q-variate conditional draws every other shape. The two are the
-  /// SAME conditional in exact arithmetic - measured, all four accumulators
-  /// bitwise equal under -ffp-contract=off - and differ only in where the
-  /// compiler forms fused multiply-adds: the a block accumulates in one
-  /// statement and fuses, while the b block's per-row products are formed
-  /// before a branch and accumulated inside it, which fuses unevenly.
+  /// ONE conditional serves every shape, and no branch selects among them.
+  /// At q = 1 the square-root-free solve is the scalar draw
+  /// n / P + e / sqrt(P); over an ORTHOGONAL basis - an indicator pair, any
+  /// factor basis - the unit triangles are identity, so the block is q scalar
+  /// draws in coordinate order, one standard normal each. A K = 2 indicator
+  /// shape is therefore drawn by exactly the arithmetic a two-scalar
+  /// conditional spells out, differing only in accumulation order.
   ///
-  /// The measured split, against the general loop on the equivalence fixtures,
-  /// because this comment is the trigger for deleting the branch below and a
-  /// re-measurement has to be able to check it: ALL FOUR PRECISIONS reproduce
-  /// bitwise, weighted and unweighted; the divergence is in the two MOMENTS -
-  /// unweighted, n1 reproduces and n0 differs; weighted, both differ. No single
-  /// accumulation shape reproduces both blocks (21 variants tried), so the
-  /// general path CANNOT be bitwise on bcf and the specialized one is kept
-  /// until a bcf-equivalence re-record is authorized, at which point
-  /// AmplitudeSpec::generalAmplitudeDraw becomes the default and this branch is
-  /// deleted.
-  ///
-  /// Path selection is a per-forest IS-CANONICAL VALUE predicate, not a width
-  /// test. The widths alone would admit a continuous two-column basis into the
-  /// shipped path, which never reads basis[1] as a DESIGN MATRIX: it tests
-  /// column 1 for nonzero as a group key and never multiplies by the stored
-  /// values, forming two disjoint group-precision accumulators instead. So on a
-  /// 0.25/0.75 pair it would silently draw a different model. A non-canonical
-  /// basis at ANY forest therefore forces the general path for the whole draw,
-  /// as does a scale-mixture prior on any forest past 0 (shippedShape says
-  /// why).
+  /// The block contracts the whole design ROW rather than keying group
+  /// accumulators off an indicator column, so a continuous two-column basis is
+  /// the same conditional rather than silently a different model. A
+  /// scale-mixture prior is refreshed at ANY forest that declares one, not at
+  /// forest 0 alone. Together those are why no basis-shape predicate is
+  /// needed: there is no shape this conditional must be routed around, and
+  /// none it reads as anything but a design matrix.
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
                 const std::vector<Forest<L, ResidT>>& forests) override {
-    if (forests.size() == 2 && !generalAmplitudeDraw_ && shippedShape())
-      drawShippedGlue(rng, sigma, y, w, forests);
-    else
-      drawAmplitudes(rng, sigma, y, w, forests);
+    drawAmplitudes(rng, sigma, y, w, forests);
   }
 
   /// Interweaving (ASIS, Yu & Meng 2011) rescale, per forest, of the amplitude
@@ -1109,7 +1075,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     glue_.amplitudes = state.amplitudes;
     for (std::size_t f = 0; f < glue_.prior.size(); ++f)
       glue_.prior[f].variance = state.amplitudeVariances[f];
-    refreshCanonical();
   }
   bool glueIsValid(const ChainStateData& state) const override {
     if (!state.hasAmplitudes || state.amplitudeWidths.empty()) return true;
@@ -1124,83 +1089,13 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
-  /// The two-scalar conditional the shipped K = 2 shape keeps: a against the
-  /// residual net of b_z tau, its scale-mixture variance, then b0 and b1
-  /// against the residual net of the NEW a. drawGlue states why this path
-  /// survives beside the general one; it is otherwise the general one at
-  /// q = 1 and q = 2 over an orthogonal basis, written out.
-  ///
-  /// The grouping is read from basis[1]'s TREATED column, not from a borrowed
-  /// z. There is no borrowed z any more: it had one writer (the retired
-  /// synthesis route) and only these two readers, so keeping it while
-  /// setForestBasis became the sole mutator would freeze it at its
-  /// construction value - a width-preserving swap would install the new pair,
-  /// leave the layout unmoved, and then partition by the OLD indicator while
-  /// forestMultiplier contracted the NEW basis. The stored column holds
-  /// exactly the values z did, so this is bitwise on every shipped route.
-  void drawShippedGlue(ext_rng* rng, double sigma, const double* y,
-                       const double* w,
-                       const std::vector<Forest<L, ResidT>>& forests) {
-    std::size_t n = data_.numObservations;
-    const double* mu = forests[0].totalFits.data();
-    const double* tau = forests[1].totalFits.data();
-    const double* treated = glue_.basis[1].values.data();  // row-major, col 1
-    double invSigmaSq = 1.0 / (sigma * sigma);
-
-    if (glue_.prior[0].update) {
-      double aPrec = 1.0 / glue_.prior[0].variance, aNum = 0.0;
-      for (std::size_t i = 0; i < n; ++i) {
-        double wi = w == nullptr ? 1.0 : w[i];
-        double bz = treated[2 * i + 1] != 0.0 ? glue_.b1() : glue_.b0();
-        double r = y[i] - bz * tau[i];
-        aPrec += wi * mu[i] * mu[i] * invSigmaSq;
-        aNum += wi * mu[i] * r * invSigmaSq;
-      }
-      glue_.a() =
-        aNum / aPrec + ext_rng_simulateStandardNormal(rng) / std::sqrt(aPrec);
-
-      // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
-      // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
-      // inverse. Gated on a POSITIVE scale, exactly as drawAmplitudes is: a
-      // zero scale (reachable - the bridge passes aPriorScale through with no
-      // positivity guard) is not a scale mixture at all, and refreshing there
-      // would leave the two paths different MODELS rather than the same
-      // conditional. Every shipped route sets a positive scale, so the gate is
-      // rng-neutral on every baseline.
-      if (glue_.prior[0].halfCauchyScale > 0.0) {
-        double rate = 0.5 * glue_.a() * glue_.a() +
-                      0.5 * glue_.prior[0].halfCauchyScale *
-                        glue_.prior[0].halfCauchyScale;
-        glue_.prior[0].variance =
-          1.0 / ext_rng_simulateGamma(rng, 1.0, 1.0 / rate);
-      }
-    }
-
-    if (glue_.prior[1].update) {
-      double bPrec = 1.0 / glue_.prior[1].variance;
-      double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
-      for (std::size_t i = 0; i < n; ++i) {
-        double wi = w == nullptr ? 1.0 : w[i];
-        double r = y[i] - glue_.a() * mu[i];
-        double prec = wi * tau[i] * tau[i] * invSigmaSq;
-        double num = wi * tau[i] * r * invSigmaSq;
-        if (treated[2 * i + 1] != 0.0) { p1 += prec; n1 += num; }
-        else { p0 += prec; n0 += num; }
-      }
-      glue_.b0() =
-        n0 / p0 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p0);
-      glue_.b1() =
-        n1 / p1 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p1);
-    }
-  }
-
   /// The general sweep over the amplitude blocks: forest by forest in INDEX
   /// order, each block's q-variate conditional drawn given the current value of
   /// every other block, so the pass is a Gibbs scan and a block sees the blocks
   /// before it already updated. A scale-mixture prior's variance is refreshed
   /// straight after its own block, from the q-variate inverse-gamma
-  /// conditional IG((1 + q)/2, (scale^2 + ||a_f||^2)/2) - at q = 1 the shape is
-  /// exactly the shipped path's 1.0.
+  /// conditional IG((1 + q)/2, (scale^2 + ||a_f||^2)/2), whose shape is 1.0 at
+  /// q = 1 and grows by a half per amplitude coordinate.
   void drawAmplitudes(ext_rng* rng, double sigma, const double* y,
                       const double* w,
                       const std::vector<Forest<L, ResidT>>& forests) {
@@ -1433,57 +1328,6 @@ private:
     }
   }
 
-  /// Whether basis[f] still holds one of the constructor's synthesized shapes:
-  /// a dense all-ones column, or a complementary two-column 0/1 pair (each
-  /// entry in {0, 1}, each row summing to 1). Any other width, and any values
-  /// off those two shapes, is non-canonical - a MODEL fact, since it is what
-  /// selects the amplitude conditional. Recomputed rather than tracked, so
-  /// there is no flag to serialize and none to go stale.
-  bool basisIsCanonical(std::size_t f) const {
-    std::size_t n = data_.numObservations;
-    const ForestBasis& basis = glue_.basis[f];
-    const double* values = basis.values.data();
-    if (basis.numColumns == 1) {
-      for (std::size_t i = 0; i < n; ++i)
-        if (values[i] != 1.0) return false;
-      return true;
-    }
-    if (basis.numColumns != 2) return false;
-    for (std::size_t i = 0; i < n; ++i) {
-      double control = values[2 * i], treated = values[2 * i + 1];
-      if ((control != 0.0 && control != 1.0) ||
-          (treated != 0.0 && treated != 1.0) || control + treated != 1.0)
-        return false;
-    }
-    return true;
-  }
-
-  void refreshCanonical() {
-    glue_.canonical.resize(glue_.basis.size());
-    for (std::size_t f = 0; f < glue_.basis.size(); ++f)
-      glue_.canonical[f] = basisIsCanonical(f) ? 1 : 0;
-  }
-
-  /// Whether the two bases are still bcf's own - forest 0 the plain intercept,
-  /// forest 1 the complementary indicator pair - which is what the two-scalar
-  /// draw is written against. The widths are checked alongside the value
-  /// predicate because canonical says "one of the two shapes", not which.
-  ///
-  /// The PRIOR is part of the shape, not just the basis: the two-scalar draw
-  /// refreshes forest 0's scale-mixture variance and no other, so a forest past
-  /// 0 declaring a positive half-Cauchy scale would get a FIXED variance here
-  /// where the general sweep samples it - a different model, not a different
-  /// rounding. bcf's own spelling puts a scale on forest 0 alone, so this
-  /// leaves every shipped route on the two-scalar path.
-  bool shippedShape() const {
-    if (glue_.basis.size() != 2 || !glue_.canonical[0] || !glue_.canonical[1] ||
-        glue_.basis[0].numColumns != 1 || glue_.basis[1].numColumns != 2)
-      return false;
-    for (std::size_t f = 1; f < glue_.prior.size(); ++f)
-      if (glue_.prior[f].halfCauchyScale > 0.0) return false;
-    return true;
-  }
-
   /// Re-derives the amplitude layout from the basis widths and carries the
   /// values across it. The offsets are the widths' prefix sums, so nothing can
   /// drift; a layout that did not move leaves the amplitudes untouched (bcf's
@@ -1515,7 +1359,6 @@ private:
 
   const ColumnStore& data_;
   const std::size_t numForests_;
-  const bool generalAmplitudeDraw_;
   AmplitudeState glue_;
 };
 

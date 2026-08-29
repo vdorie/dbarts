@@ -249,7 +249,7 @@ channel is already per-sweep and already refreshed when it varies
 omega precedent, model.hpp:3537-3539). It does add TWO n-length per-sweep scratch
 vectors (not "no new array", an earlier overstatement): the divided mean weights
 w_i^mean, and the variance forest's own per-tree divisor w_i / s^2_{-j}(x_i) - the
-BCF forestWeights/combined precedent (combiner.hpp:903,932-946), per-SWEEP scratch,
+BCF forestWeights/combined precedent (combiner.hpp:885,914-928), per-SWEEP scratch,
 never per-observation dispatch inside a kernel.
 
 **Requires Gaussian; refuses latent families (construction-time).** The weight
@@ -389,7 +389,7 @@ power, base, R/dbarts.R).
 - **Reporting.** The fit carries the mean fit as today plus a per-observation s(x)
   (or s^2(x)) channel - train and test - and per-variance-tree variable counts. This
   is a NEW reporting channel, NOT the multinomial numReportedLocations widening
-  (combiner.hpp:1598): that seam widens the SAME-typed response location K-fold through
+  (combiner.hpp:1441): that seam widens the SAME-typed response location K-fold through
   combinedFits/refreshLatents (multinomial.md), whereas the variance surface is a
   SEPARATELY-typed forest routed through the weight channel, never through response_,
   so it is reported from the variance forest's own combined fit directly. predict
@@ -399,7 +399,7 @@ power, base, R/dbarts.R).
 
 Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
-mirroring monotone (monotone.md) and BCF (combiner.hpp:515-516):
+mirroring monotone (monotone.md) and BCF (combiner.hpp:500-501):
 
 - No `variance` / `n.trees.variance` -> the factory (facade.hpp:787 createSampler)
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with

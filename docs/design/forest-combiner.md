@@ -51,7 +51,7 @@ the BCF constructor. The landed virtual surface:
   afterCombine's return is a REPORTING channel, not a record of whether it
   moved: each override states its own convention, 1.0 does NOT mean the state
   is unchanged, and no caller may read it that way (CORRECTED here; the base
-  Doxygen is authoritative, combiner.hpp:614-618). The per-forest amplitude
+  Doxygen is authoritative, combiner.hpp:599-603). The per-forest amplitude
   rescale returns the scale applied to the forest it reports, 1.0 if that one
   held while another travelled; the multinomial level shift returns 1.0
   unconditionally, HAVING moved, an additive move having no scale to report.
@@ -129,14 +129,14 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:820, chain.hpp:1250-1256, facade.hpp:864-868). The SPELLING
+(combiner.hpp:802, chain.hpp:1250-1256, facade.hpp:864-868). The SPELLING
 followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
 
-- It holds `AmplitudeState` (the per-forest bases and their canonical flags,
-  the flat ragged amplitude vector and its offsets, the per-forest amplitude
-  priors, and the per-sweep combined/forestResponse/forestWeights scratch) plus
+- It holds `AmplitudeState` (the per-forest bases, the flat ragged amplitude
+  vector and its offsets, the per-forest amplitude priors, and the per-sweep
+  combined/forestResponse/forestWeights scratch) plus
   a `const ColumnStore&` for the observation count and, in afterCombine, the
   data the ridge move touches. Built from `(data, spec, numForests)` by Chain's
   K-forest constructor.
@@ -222,16 +222,16 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   (docs/design/ multinomial.md), redrawing its per-sweep Polya-Gamma latents
   against the restored forests structurally, so restore is structural, not
   bitwise. The interface point did grow a THIRD virtual, `glueIsValid`
-  (combiner.hpp:1114, :1096-1113), the layout check `stateIsValid` routes
+  (combiner.hpp:1079, :1062-1078), the layout check `stateIsValid` routes
   through so a same-total different-layout state cannot be written through the
   live offsets.
 
 ### What the multiplier family closed, and what it opened
 
 The combiner API's own input side is now general in K AND in per-forest basis
-width: `setForestBasis` (combiner.hpp:797-799), the amplitude trio
-`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:607-609), and a ragged
-glue wire block (:721-730). The math is docs/design/multiplier-combiner.md's
+width: `setForestBasis` (combiner.hpp:780-782), the amplitude trio
+`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:592-594), and a ragged
+glue wire block (:706-715). The math is docs/design/multiplier-combiner.md's
 and is not restated here.
 
 **What the virtual surface grew, and the general rule it grew under.** Since
@@ -240,10 +240,10 @@ and is not restated here.
 `setCategoryTestOffset`, the amplitude trio, `forestReportingIsDefined`,
 `numReportedLocations`, `numVariableCountForests`/`variableCountForest`,
 `supportsResponseMutation`, `supportsForestWeights`, `setActiveRows` and
-`glueIsValid` (combiner.hpp:525-730). Every one of them follows one rule, and
+`glueIsValid` (combiner.hpp:510-715). Every one of them follows one rule, and
 it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
-it is audited** (combiner.hpp:577, :653, :702). And never a
+it is audited** (combiner.hpp:562, :638, :687). And never a
 forest-count test, because a K-forest multinomial defeats one - which is why
 the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:970-973).
 
