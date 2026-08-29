@@ -1174,7 +1174,7 @@ type check). The lesson the pin carries: family = "auto" resolution
 makes a new family reachable from EVERY dbartsData-accepting entry,
 not just the ones the slice built.
 
-Gating on the final tree (1d790a36; landed as 5a3bc276 after a
+Gating on the final tree (landed as 5a3bc276 after a
 patch-id-identical rebase onto the docs-only records tip): two
 independent legs. Gate battery PASS: tinytest 6686/0; trio 43/43
 strict (43 compared / 0 skipped), 12/12, 11/11 identical-draws lines,
@@ -1234,7 +1234,7 @@ pin/alignment items - all fixed) -> re-measurement (BLOCK on one
 content-free defect: the amend re-stamped the baseline's meta$rev to
 the dangling pre-amend hash; repaired by restoring the byte-identical
 correctly-stamped recording, orchestrator-applied) -> final LAND.
-Gate battery PASS twice (d5181ed6 fully; the final tree differs only
+Gate battery PASS twice (once pre-landing; the final tree differs only
 by that .Rbuildignore'd baseline metadata revert, package content
 identical): tinytest 6672/0; the re-record sequence as above;
 tests/cpp; mutation probe (cyclic one-hot shift caught by 6/126 +

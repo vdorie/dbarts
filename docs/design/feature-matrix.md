@@ -423,7 +423,7 @@ AND trial counts at the inactive rows, since PG(n_i, .) sums n_i variates),
 plus an all-zeros mask run (every category forest at its prior, every row
 still reporting a simplex) and the `setForestWeights` model-grounds refusal
 (also pinned in test-forest-weights.R). S4 landed at 93afd635
-(implemented as 76fd3ba6, amended during independent review): Rd
+(implemented as ccfee2d1, amended during independent review): Rd
 (man/dbartsSampler-class.Rd), NEWS (inst/NEWS.Rd), a named recipe
 (man/bart.Rd), the dbarts.h reservation (docs/plans/archive/c-api-growth.md),
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
@@ -834,7 +834,7 @@ docs/plans/archive/runsbcbcf-repair.md).
 (sbc-family-tiers.md:50-51).
 
 [f48] The K-forest coupling's family reach, landed at
-multiforest-extension-surface M4.4 (625794fd). gaussian, probit and logistic
+multiforest-extension-surface M4.4 (e5e93f11). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
 naming what it is missing (spec.R:616-642, `refusedAmplitudeFamilyReason`
 RIB:2266, `createAmplitudeSampler` FAC:870-891 - the last sitting directly
