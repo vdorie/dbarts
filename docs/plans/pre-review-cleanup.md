@@ -169,8 +169,6 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
 - `GP leaves` (yagni #4) and the flat C API's `getForestCalibration`/
   `setForestPriorScale` pair (yagni #5) were both explicitly KEPT rather than
   silently passed over - see rulings #10-11 for the value claims that held.
-- The tour restructuring (rulings #13) is adopted as a going-forward
-  structure, not executed: `docs/plans/bartcore-review-tour.md` is unchanged
-  by this stack (still 975 lines, stamped ae5b91d8) and TODO's
-  `second-review-followups` entry now names the regeneration as the step
-  before VD's own read.
+- The tour restructuring (rulings #13) is executed:
+  `docs/plans/bartcore-review-tour.md` is now the 7-section merge document
+  (315 lines, stamped 8e8a63ad).

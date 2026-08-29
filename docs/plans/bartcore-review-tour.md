@@ -48,20 +48,28 @@ authority where this table is terser.
 
 | change | evidence |
 |---|---|
-| Seeded draws differ from 0.9-x; sampling no longer advances R's stream, so R-level draws after a fit change too | UPGRADING item 1 |
-| Saved sampler states from earlier versions are unrestorable - refit | UPGRADING item 2 |
-| Family vocabulary refused by name: `bart(family=)` redirects to `bart2`, DART shorthand collisions named | `bartRedirectedFamilies`, `refuseBartRedirectedFamily` (R/bart.R); `resolveDartShorthand` (R/model.R) |
-| One `offset` spelling: `predict.bartNegbin`'s `offset.test` is now `offset`, and `offset.test` is refused by name on all six predict methods | UPGRADING, predict-order item |
-| `predict`'s first four positions uniform - `(object, newdata, type, offset, ...)` on all six; `group.by` moves after `...`, name-matched only | same item; `docs/plans/predict-surface.md` s3 |
-| `fitted`'s slot 3 is `ci.level` on every class; `sample` moves to slot 4 on `bart`/`rbart`, and `fitted.bartHurdle` loses it | `docs/plans/surface-refusals.md` s8 |
-| A name foreign to the method called is refused by name instead of vanishing through `...`, positionally as well as named, across predict/extract/fitted/residuals/survivalProbabilities | `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); surface-refusals.md s4 |
-| `residuals(ci.level=)` refused - it never carried a band and mislabelled two of three columns. `type = "class"` with `ci.level`, and `ci.level` with `type = "forest"`, likewise | surface-refusals.md s5-s7 |
-| A fractional double is refused, naming the argument, wherever a count is coerced | `coerceOrError` (R/utility.R); surface-refusals.md s10 |
-| `n.samples %/% n.thin == 0` refused by name on entry points that return draws; `printEvery` floored at 1 under thinning | `refuseZeroSamples` (R/utility.R); the `printEvery` floor in `bart`/`bart2` control assembly (R/bart.R) |
-| `NA` in test predictors or `newdata` is an error where the training column was complete | `docs/plans/composition-refusals.md` s7 |
-| A variance forest alongside grouped random effects is a validation error | composition-refusals.md s3 |
-| `print.bart`/`print.rbart` gain `\alias`/`\usage`/`\value`; `summary` has methods for every fit class | `docs/plans/rd-records.md` s1; `NAMESPACE` `S3method(summary, *)` |
-| Multi-forest prior defaults move; a length-one `forests` list declaring a `basis` is refused | UPGRADING, prior-defaults item |
+| Requires R 4.2.0 or newer; the sampler core is C++20 | UPGRADING item 1 |
+| Seeded draws differ from 0.9-x; sampling no longer advances R's stream, so R-level draws after a fit change too | UPGRADING item 2 |
+| Binary `k` prior becomes `chi(1.5, 2)` (`k = chi(1.5, Inf)` restores the old one); `xbart` now fixes `k = 2` on every family | UPGRADING item 3 |
+| Sampler states saved by earlier versions are unrestorable - refit | UPGRADING item 4 |
+| Packages linking against dbarts must port to the flat C API in `dbarts.h`; the old C++ headers are removed | UPGRADING item 5 |
+| `bart2`/`rbart_vi` default to `combineChains = TRUE`, merging the chain and sample margins; pass `combineChains = FALSE` for the old shape | UPGRADING item 6 |
+| Unordered factors split on level subsets and ordered factors become one ordinal column by default (`bart` unaffected); pass `factors = "indicators"` for the old expansion | UPGRADING item 7 |
+| A new `missing` argument keeps and models rows with missing predictors instead of silently dropping them; `NA` in test predictors or `newdata` errors where the training column was complete | UPGRADING item 8; `docs/plans/composition-refusals.md` s7 |
+| Test column names not covering the training design's are an error naming what's missing, not a positional-match warning | UPGRADING item 9 |
+| A factor response with three or more levels fits multinomial via `bart2`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
+| `dbartsControl` drops `rngKind`/`rngNormalKind` and renames `rngSeed` to `seed` | UPGRADING item 11 |
+| `xbart` loses its `control` argument, renames `sigma` to `sigest`, and `n.burn` now takes two values | UPGRADING item 12 |
+| A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 13 |
+| The sampler's mutators refresh `$state` only when called with `updateState = TRUE`; `NA` no longer defers to the control's setting | UPGRADING item 14 |
+| The sampler's `run` renames `numThreads` to `n.threads` | UPGRADING item 15 |
+| `setResponse` gains `updateScale` (default `FALSE`) as its second positional argument, displacing `updateState` to third | UPGRADING item 16 |
+| An `rbart_vi` fit with a built-in prior and no callback carries a length-one `$fit` list instead of one sampler per chain | UPGRADING item 17 |
+| `predict.bart`/`predict.rbart` take `(object, newdata, type, offset, ...)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 18; `docs/plans/predict-surface.md` s3 |
+| `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 19; `docs/plans/surface-refusals.md` s8 |
+| `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 20 |
+| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded | UPGRADING item 21; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); surface-refusals.md s4 |
+| A fractional double is refused, naming the argument, on the listed count arguments (`dbarts()`'s own `n.samples` still truncates); `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 22; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
 
 Decided since: an ordinal fit's R-visible spelling was renamed to
 `thresholds`, aligning it with the engine and C API's `ordinalThresholds`.
@@ -211,7 +219,7 @@ in `TODO`.
 | `updateScale` on a multi-forest sampler | **DECIDED**: refusal kept as-is under every family, keyed on bases not family - relaxing later breaks nobody (VD 2026-08-28). Listed so it is not re-opened | decided |
 | Real-`r` nbinom | **DECIDED**: scheduled after 1.0-0, value acknowledged (VD 2026-08-28) (`TODO` negbin-real-dispersion). Listed so it is not re-opened | decided |
 | Weighted binary | **DECIDED**: scheduled after 1.0-0, shares the decision above (VD 2026-08-28) (`TODO` weighted-binary). Listed so it is not re-opened | decided |
-| The RC declaration | the pre-RC slate is complete except the bcf baseline refresh; the declaration is VD-held (`TODO` rc-gate) | VD |
+| The RC declaration | VD's own read of this document, then the declaration; both VD-held (`TODO` rc-gate) | VD |
 | D7: same-host bcf baseline re-record at the RC tip | a refresh, not a prerequisite - the absent `summaries` field is a pure function of what is stored. Checklist at bcf-cross-host.md s7 | VD schedules |
 | Formal heredity (ensemble lattice prior) | **DECIDED**: the first post-1.0 arc, not pre-RC (VD 2026-08-26). Listed so it is not re-opened | decided |
 
@@ -288,8 +296,8 @@ worth a look.
 - `docs/plans/review-2026-08-24/` - `consolidated-report.md` (the ledger),
   `gate-ledger.md`, `mutation-{A,B,C,D}-findings.md`, `calibration-sbc.md`,
   `decision-brief.md`; memos and blind critiques under `memos/`.
-- root `TODO` - open work only. `second-review-followups` and `rc-gate` are
-  the "what is left" pointers; `release` is the one ordered procedure.
+- root `TODO` - an alphabetical backlog of open items, some scheduled after
+  1.0-0; `release` is the one ordered procedure, run when VD triggers it.
 
 Gate commands:
 

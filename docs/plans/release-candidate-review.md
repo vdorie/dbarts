@@ -2,9 +2,9 @@
 
 Status: SPECCED 2026-08-17 (base 96ab54e0), amended per the blind
 critique of the same date (verdict: execute with amendments; all
-eleven applied). The TODO entry
-release-candidate-review is the charter; this file is the derived
-slate and the program's record. Landing notes go newest-first under the Landing notes heading.
+eleven applied). This file is the program's
+charter, its derived slate, and its record (the TODO entry that once
+pointed here is discharged). Landing notes go newest-first under the Landing notes heading.
 
 ## 1. Charter (restated)
 
