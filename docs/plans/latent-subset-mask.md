@@ -1120,7 +1120,7 @@ lint clean); x86 leg green; CI six-green on the push. The new tests
 add more plan-label comments - the S4 normalization item grows
 accordingly.
 
-S4 LANDED 93afd635, 2026-08-13 (implemented as 76fd3ba6, amended
+S4 LANDED ccfee2d1, 2026-08-13 (implemented in a worktree, amended
 during independent review). Rd (man/dbartsSampler-class.Rd), NEWS
 (inst/NEWS.Rd), a named recipe (man/bart.Rd), the dbarts.h reservation
 (docs/plans/archive/c-api-growth.md) and the r-c-division Adoption-slate mark
@@ -1149,7 +1149,7 @@ registered by GitHub (it has never been on main), so no run would
 actually have fired from bartcore; the fix matters because the file
 is what runs once bartcore lands on main.
 
-Amend (76fd3ba6 -> 93afd635, 4 files, 6 lines): (i) equivalence.yaml
+Amend (before landing as ccfee2d1, 4 files, 6 lines): (i) equivalence.yaml
 bumped to equivalence-8b047f8b.rds and the bcf job to
 bcf-equivalence-8b047f8b.rds; (ii) the MANIFEST equivalence-8b047f8b
 entry reworded - the old-baseline partition compare runs WITHOUT
@@ -1192,7 +1192,7 @@ no ordinalFit-specific channel (the cutpoint pass is exercised through
 train only) - a coverage-scope note.
 
 Gates: implementer and reviewer batteries both green from scratch at
-76fd3ba6 (preclean private-lib install OK; tests/cpp from clean
+the pre-landing tree (preclean private-lib install OK; tests/cpp from clean
 231/231; full tinytest 4424/0; trio - vs OLD equivalence-21fc29c.rds
 35/35 bitwise (2 skipped, exit 0), vs NEW equivalence-8b047f8b.rds
 --strict-coverage 37/37 with 0 skipped, bcf vs OLD a825263 11/11
@@ -1201,11 +1201,11 @@ multinomial vs 1027be5 10/10 bitwise, no statistical (max |z|) line
 anywhere; air format --check clean; lintr zero new lints on touched R
 files; R CMD check on a clean-copy tarball Status OK zero E/W/N;
 pkgdown no problems); x86 leg (dbarts-bench, Ubuntu 24.04, R 4.3.3,
-x86_64) at 76fd3ba6, still valid for 93afd635 since the amend touches
+x86_64) on the pre-landing tree, still valid for ccfee2d1 since the amend touches
 no code the leg exercises (install clean; tests/cpp 121/121 via the
 libshim R_LDFLAGS route; tinytest 4412/0; equivalence.R statistical vs
 equivalence-8b047f8b.rds 37/37 compared, 0 skipped, max |z| = 0.00 on
-every scenario, exit 0); post-amend re-gate at 93afd635 (R CMD check
+every scenario, exit 0); post-amend re-gate at ccfee2d1 (R CMD check
 Status OK zero E/W/N; NEWS.Rd parses, news() returns 5 releases' items
 cleanly; pkgdown::check_pkgdown no problems). CI six-green on the
 push.
