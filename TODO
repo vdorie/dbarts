@@ -270,3 +270,8 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     trio against the current baselines (the last full pre-submission
     gate run predates many engine commits; details in
     docs/plans/archive/cran-readiness.md).
+  on the next edit of .github/workflows/exact-gates.yaml, for any reason:
+    add benchmarks/baselines/MANIFEST to its paths-ignore. Nothing the
+    workflow runs reads MANIFEST (only tools/check-doc-freshness.R
+    resolves its hashes), so a MANIFEST-only commit should not fire the
+    exact-posterior scripts; not worth a CI round on its own.
