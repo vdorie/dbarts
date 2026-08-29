@@ -75,67 +75,67 @@ applyGroupAttribute pattern.
 
 ## R surface (stage 4, kept separable)
 
-TASTE CALLS, each with a recommendation; the reviewer may revise with VD
-before merge, so stage-4 surface code stays cleanly separable from the
-engine.
+TASTE CALLS, all five settled as recommended below and SHIPPED; stage-4
+surface code stayed cleanly separable from the engine, which is what let
+them be decided one at a time.
 
-1. Response ingestion. RECOMMEND accepting both: a survival::Surv object
+1. Response ingestion. SHIPPED, accepting both: a survival::Surv object
    (detected by inherits(y, "Surv"), NOT importing survival -- Surv is a
    two-column matrix with a "type" attribute; we read time = column 1,
    status = column 2, and refuse types other than "right"), and a plain
    two-column (time, status) matrix / cbind for users without survival.
    Both transform to (log(time), status) at ingest.
 
-2. Family naming. RECOMMEND auto-dispatch on a Surv response (a Surv y
-   selects AFT with no family argument), plus explicit family = "aft" for
-   the plain two-column path (a bare 2-column matrix is otherwise
-   ambiguous). "aft" is the only survival family name in v1; the
-   discrete-time follow-up will not need a new family (it reuses probit /
-   logistic on the person-period expansion).
-   [Review 2026-07-10: auto-dispatch fires only from family "auto" (or an
-   explicit "aft"); a Surv response with a conflicting explicit family
-   (e.g. "gaussian") errors instead of being silently overridden. A factor
-   status (survival codes it as type "mright") is detected with a hint;
-   status must be 0/1 or logical. A Surv-like object with no type
-   attribute is documented as treated right-censored.]
+2. Family naming. SHIPPED: auto-dispatch on a Surv response, which fires
+   only from family "auto" (or an explicit "aft"), plus explicit
+   family = "aft" for the plain two-column path (a bare 2-column matrix
+   is otherwise ambiguous). A Surv response carrying a conflicting
+   explicit family (e.g. "gaussian") errors rather than being silently
+   overridden. A factor status (survival codes it as type "mright") is
+   detected with a hint, and status must be 0/1 or logical; a Surv-like
+   object with no type attribute is documented as treated
+   right-censored. "aft" is the only survival family name in v1 - the
+   discrete-time follow-up needed no new engine family, reusing probit /
+   logistic on the person-period expansion under its own hazard tokens
+   (the section below).
 
 3. Prediction semantics. The recorded fit is f(x) + offset = E[log T | x]
    on the LOG scale (storeSample de-scales through fitScale/fitShift like
-   Gaussian). RECOMMEND the minimal v1 surface:
+   Gaussian). The minimal v1 surface, as recommended:
    - predict()/extract() return the linear predictor E[log T | x] (log
      scale) by default -- posterior samples of f, no probability
      transform (unlike the binary families). This is the raw quantity
-     every downstream survival summary is built from.
-   - median survival time is exp(E[log T | x]) (the log-normal median);
-     document it as a one-line transform of the returned lp rather than a
-     separate predict type in v1.
+     every downstream survival summary is built from, and the default
+     stands (riAFTBART consumes yhat.train.mean on the log scale); the
+     Rd states the scale plainly and documents the response/link type
+     aliases as inert for aft.
+   - median survival time is exp(E[log T | x]) (the log-normal median),
+     documented as a one-line transform of the returned lp rather than a
+     separate predict type.
    - survival curve S(t | x) = 1 - Phi((log t - E[log T | x]) / sigma)
      needs the per-draw sigma, already exposed (fit$sigma / getSigmas).
-     RECOMMEND shipping one small R helper that combines the lp draws
-     with the sigma draws over a user time grid, rather than overloading
-     predict with a type argument in v1. Keep it out of the engine.
+     One small R helper combines the lp draws with the sigma draws over
+     a user time grid, rather than overloading predict with a type
+     argument, and stays out of the engine. It is the S3 generic
+     survivalProbabilities, with a bart method and an rbart method - the
+     grouped one sources the "ev" channel, so the drawn group intercepts
+     enter the curve, and both refuse a non-aft fit. It returns DRAWS
+     (draws x times x observations; a chain margin under combineChains =
+     FALSE) per the package's extract-draws / fitted-mean /
+     ci.level-interval tiers, computed in the uncombined convention
+     where sigma aligns with the fit draws.
    The `family` element on the packaged fit records "aft" so
    predict/extract skip the probability transform (probabilityFromLatents
    is probit/logistic only).
-   [Review 2026-07-10: the helper shipped as the S3 generic
-   survivalProbabilities (bart method; an rbart method errors - grouped
-   AFT is unreachable until rbart_vi grows a family argument, and a curve
-   dropping the intercepts would be wrong). It returns DRAWS (draws x
-   times x observations; a chain margin under combineChains = FALSE) per
-   the package's extract-draws / fitted-mean / ci.level-interval tiers,
-   computed in the uncombined convention where sigma aligns with the fit
-   draws. The log-scale predict default stands (riAFTBART consumes
-   yhat.train.mean on the log scale); the Rd states the scale plainly and
-   documents the response/link type aliases as inert for aft.]
 
-4. setResponse under censoring. RECOMMEND: setResponse(newLogTimes)
+4. setResponse under censoring. SHIPPED: setResponse(newLogTimes)
    replaces the observed log-times, keeps the status fixed at creation
    (which observations are censored is structural, like the group
    assignment), and redraws the censored latents against the current fit
    (the probit pattern; delegated through the contained Gaussian's
    setResponse). Changing the censoring pattern needs a new sampler.
 
-5. Weights. RECOMMEND unsupported in AFT v1 (reject at creation, as
+5. Weights. SHIPPED unsupported in AFT v1 (refused at creation, as
    probit does): a weighted truncated-latent draw is not a coherent
    likelihood at this scale, and riAFTBART does not need it. The
    uncensored path could carry Gaussian weights, but mixing weighted and
@@ -261,15 +261,15 @@ but for BART just fragments one clean ordinal column into K sparse ones with
 no benefit, since the trees already represent any function of period from
 the single column. Settled: one ordinal period column.
 
-**DECISION (open for VD) - ties and the time grid.** The model lives on a
-discrete grid, so continuous event times must be placed on one before
-expansion; ties WITHIN a period are automatic (same period index = same
-time-column value = same risk set {i : t_i >= k}). The open question is
+**Ties and the time grid - SETTLED as recommended, and shipped.** The model
+lives on a discrete grid, so continuous event times must be placed on one
+before expansion; ties WITHIN a period are automatic (same period index =
+same time-column value = same risk set {i : t_i >= k}). The question was
 who defines the grid and how. The survey below is decisive here and MOVED
 this fork's recommendation: an earlier draft refused continuous times
 outright unless `breaks` was given, a stance no surveyed package shares.
 
-- Recommend (revised per the survey): the default grid is the sorted
+- Settled (revised per the survey): the default grid is the sorted
   DISTINCT OBSERVED TIMES - exactly surv.bart's default (events <-
   unique(sort(times)), all observed times, censoring times included) and
   pammtools' (cut = NULL -> all unique event times). A `breaks` argument
@@ -296,12 +296,12 @@ outright unless `breaks` was given, a stance no surveyed package shares.
   asked either, and it hides a modeling choice - the number and placement
   of periods change the model, not just its resolution.
 
-Strongest counter to the revised recommendation: the unique-times default
-makes the model depend silently on the data's time RESOLUTION (the same
+Strongest counter to the settled choice: the unique-times default makes
+the model depend silently on the data's time RESOLUTION (the same
 phenomenon measured finer gets a different grid), where an
 explicit-breaks requirement forces the user to own that choice; and the
 N' guard catches only the memory pathology, not a
-statistically-too-fine grid that fits but mixes badly. VD to confirm.
+statistically-too-fine grid that fits but mixes badly. Accepted anyway.
 
 ### Survey: surv.bart and the expansion ecosystem (added 2026-07-18)
 
@@ -515,11 +515,11 @@ branch (section 4).
 
 ### 3. Link (probit vs logistic; cloglog)
 
-**DECISION (open for VD) - default link.** Both binary links give a valid,
-standard discrete-time hazard model; the choice is convention, not
+**Default link - SETTLED as probit, and shipped.** Both binary links give a
+valid, standard discrete-time hazard model; the choice is convention, not
 correctness, and the reduction gate (section 5) holds for either.
 
-- Recommend probit as the default (family = "hazard" = probit link),
+- Probit is the default (family = "hazard" = probit link), a choice
   UPHELD and strengthened by the survey: surv.bart's default is
   type = "pbart" - the PROBIT link - so the only shipped discrete-time
   BART defaults to probit, and a BART user arriving from it gets exactly
@@ -533,11 +533,11 @@ correctness, and the reduction gate (section 5) holds for either.
   the BART world expects logit (or cloglog), not probit; logistic's
   node.scale is already provisioned (pi*sqrt(3), :407).
 
-Recommend probit: the two constituencies split (BART users -> probit,
-applied survival -> logit), the tie-breaks are the house default and the
-direct BART precedent, and logit stays one token away. VD may still
-prefer logit to court the applied-survival audience. Low stakes - the two
-differ only in the link, and the section-5 gate certifies whichever wins.
+Probit it is: the two constituencies split (BART users -> probit, applied
+survival -> logit), so the tie-breaks were the house default and the
+direct BART precedent, with logit one token away - the applied-survival
+audience is served by "hazard.logistic". Low stakes - the two differ only
+in the link, and the section-5 gate certifies the shipped one.
 
 **cloglog (settled: not needed for v1, recorded as a door).** The
 complementary-log-log link is the CLASSICAL discrete-hazard link, for a

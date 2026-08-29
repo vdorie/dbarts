@@ -136,10 +136,10 @@ The bridge took the argument on both `.Call` entries -
 :421, test-multinomial-category-offset.R:436) call these `.Call`s
 directly and needed the fourth argument; all four pass it.
 `dbartsSampler$predict`/`$predictForests` (R/dbarts.R:1084-1169) pass
-their formal through; `bartcorePredict` (R/bartcore.R:1085) and
-`bartcorePredictPerForest` (unresolved: no such wrapper ships in `R/`;
-`$predictForests` calls the entry point directly, R/dbarts.R:1162-1168)
-gain the argument; `R/partialDependence.R`'s five
+their formal through; `bartcorePredict` (R/bartcore.R:1085) and the
+test harness's `bartcorePredictPerForest` in `inst/common/bartcoreHandle.R`
+(no per-forest wrapper ships in `R/`; `$predictForests` calls the entry
+point directly) gain the argument; `R/partialDependence.R`'s five
 `sampler$predict(x.test)` sites (:242, :244, :346, :363, :365) take it
 from the caller.
 
@@ -218,11 +218,11 @@ serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`
 (R/bart.R:666). A parallel fraction near 0.98-0.995 gives an Amdahl
 ceiling of roughly 3.8-3.9x at 4 threads and 7.0-7.7x at 8 - **a
-ceiling from a serial fraction, not a measured speedup**, since no
-threaded predict exists to measure. The real gate before the R-level
-default is enabled is the scaling curve measured by
-`benchmarks/R/bench-predict.R` at `n.threads` in `{1, 2, 4, 8}` on a
-quiet machine, matching the standing `bench-sampler` rule.
+ceiling from a serial fraction, not a measured speedup**. No scaling
+curve has been measured, and the script that would produce one at
+`n.threads` in `{1, 2, 4, 8}` on a quiet machine, under the standing
+`bench-sampler` rule, has not been written; the R-level default ships
+enabled, so that curve gates the cutoff constant, not the default.
 
 ## 9. Critique disposition
 
@@ -269,11 +269,11 @@ constants "become a compatibility contract at the first release ...
 and they do not move before it", and the struct field boundaries say a
 pre-1.0-0 change "moves no version constant". A signature that GAINS a
 parameter is not additive anyway - it is source- and ABI-breaking, so
-a minor bump would misdescribe it. Both baked literals were re-signed:
-`dbarts_apiSignatureToken` to `0xcb83367ee0c4175b` and
-`DBARTS_C_API_HASH` to `0x66d33f1613892406`. inst/tinytest/test-capi.R
-pins the new token and keeps the old one as a negative assertion, and
-its `capi_versions` row already asserts `c(1L, 0L)`.
+a minor bump would misdescribe it. Both baked literals were re-signed;
+they live in `DBARTS_C_API_HASH` (inst/include/dbarts/dbarts.h) and
+`src/C_interface.cpp`, re-baked at every header change, and section 5
+has them live. inst/tinytest/test-capi.R pins the current hash, keeps
+the superseded ones as negative assertions, and asserts `c(1L, 0L)`.
 
 **partialDependence.R was not touched.** Section 6 listed its five
 `sampler$predict(x.test)` sites as forwarding sites. They need no
@@ -306,7 +306,7 @@ src/init.cpp:972). bartCause needs no edit - its
 at R/generics.R:162 stays correct precisely because the formal is
 appended last.
 
-Open, unchanged: section 8's scaling curve on a quiet box, the tuned
-cutoff constant (`Sampler::predictParallelCutoff`, 1e7 traversals), and
-whether the R-level default stays the fit's own count. The
-implementation is correct at any cutoff value.
+Open, unchanged: section 8's scaling curve, whose benchmark script has not
+been written; the tuned cutoff constant (`Sampler::predictParallelCutoff`,
+1e7 traversals); and whether the R-level default stays the fit's own count.
+The implementation is correct at any cutoff value.

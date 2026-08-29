@@ -1,5 +1,15 @@
 # dbarts x86 AVX2 SIMD implementation plan (READ-ONLY investigation)
 
+Status: this memo's top two recommendations landed. R0 (the build break in
+src/include/external/stats.h, missing `Rf_dnorm4`/`Rf_qnorm5` externs) is
+fixed; both are now declared in stats.h. R1 (AVX2 misdetection from a stale
+cpuid leaf-7 subleaf) is fixed in src/misc/simd.c, which now calls
+`__get_cpuid_count` with an explicit subleaf. Open: R1b (the
+COMPILER_SUPPORTS_SSE4_1 configure.ac inconsistency, low priority); R2
+(SIMD indexed suffstat under a fast/reference toggle) and R3 (the
+do-not-bother list) were measured, not implemented, and remain open only if
+toggle infrastructure is built for other reasons.
+
 Job 120e5d72. Box: dbarts-bench, x86-64 Ubuntu, 16 core, gcc 13.3, R 4.3.3.
 CPU: fma sse4_1 sse4_2 avx f16c bmi1 avx2 bmi2 (NO avx512). perf present,
 perf_event_paranoid=4 (no perf record without sudo; perf stat user counters
@@ -280,9 +290,6 @@ TOP 2-3 TO IMPLEMENT: (1) R0 build fix [required]; (2) R1 AVX2 detection fix
 [correctness + ~1%]; (3) R2 SIMD indexed suffstat under the toggle [~3-4%, only
 if toggle exists]. Everything else is measured not worth it.
 ================================================================================
-- [ ] build on box to private lib; log runtime ISA
-- [ ] profile representative sampler run (perf stat / gprof / Rprof)
-- [ ] enumerate inline elementwise hot loops
-- [ ] microbench residual-roll scalar vs sse2 vs avx (1 pass vs 2)
-- [ ] moments caller search + verdict
-- [ ] ranked plan
+Investigation steps (build, profile, enumerate hot loops, microbench
+residual-roll, moments caller search, rank the plan above) are all done;
+see Status at the top of this file for what shipped.

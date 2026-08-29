@@ -1,5 +1,17 @@
 # Gate and baseline ledger - bartcore @ b102e17c, 2026-08-24
 
+Snapshot at b102e17c, 2026-08-24; counts below are as of that commit.
+
+At HEAD (8e8a63ad): .github/workflows/ now holds 12 files - doc-freshness.yaml
+was added after this snapshot and is not counted in section 1 below.
+benchmarks/baselines/ has been pruned to 11 files (the MANIFEST's row count
+no longer matches file count 1:1; section 3's "64 rows, 64 files" is stale).
+The central claim - that equivalence.yaml, sbc.yaml, rchk.yaml, valgrind.yaml
+and revdep-smoke.yaml have never run in CI - still holds: `gh run list
+--workflow=<file> --limit 2` returns "workflow not found on the default
+branch" for all five at HEAD, meaning GitHub has never registered a run for
+any of them.
+
 Read-only. Every count below was produced in this pass by direct commands (git, gh api/run list, grep,
 wc) against the checkout and the GitHub API for vdorie/dbarts, not copied from
 scratch/review-lenses-memo.md; where a number matches that memo it is noted, where it differs or adds

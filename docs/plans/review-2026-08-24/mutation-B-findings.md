@@ -1,4 +1,16 @@
 # Mutation testing, leg B: the C++ component suite and the engine
+
+Snapshot at b102e17c, 2026-08-24; counts below are as of that commit.
+
+At HEAD (8e8a63ad): tests/cpp/test_facade.cpp now drives every SamplerBase
+virtual through the base class (about 1,200 lines) and covers the gaps
+BLOCKER #2 names - numSavedDraws vs capacity, setResponse's updateScale,
+savedSlotForDraw, savedTree, and setForestWeights all have dedicated checks
+in that file. The "Ladder audit" section's premise - `default:` arms on the
+ResponseFamily switches - no longer holds: no `default:` label remains in
+src/bartcore/*.hpp or src/R_interface_bartcore.cpp. Other findings below
+have not been re-audited since this snapshot.
+
 Read-only at b102e17c.  Work in a `git archive HEAD` copy under
 /private/tmp/.../scratch/mutB-36911 with the checkout's src/*.a and generated
 config headers copied in; the checkout's src/ was never touched, and a final

@@ -972,7 +972,7 @@ is where the survey set its kill line.
 **Cost.** M-L, ~300 lines plus a gate arm; the scan itself is already paid
 for, and the categorical analogue - scheduled when this was written - has
 LANDED (`docs/plans/archive/grow-from-root-categorical-scan.md`; the TODO door is
-recorded closed at `TODO:302`). **The half worth as much as the
+recorded closed and removed from `TODO`). **The half worth as much as the
 mixing gain** is the free by-product: because the scan scores the whole
 neighbourhood, posterior functionals (variable inclusion, DART split
 counts) can be averaged over the neighbourhood instead of the single
@@ -2064,7 +2064,7 @@ fixed.
      accumulates the `naCode` rows into a missing bin that every candidate
      adds to one of its two children, and `scan.hpp:100-103` states that
      the scan's scores therefore agree with the leaf statistics
-     `tree.birth` caches, missing rows included (`TODO:312`,
+     `tree.birth` caches, missing rows included (TODO item
      `ordinal-scan-missing-rows`, DISCHARGED), so the structural mismatch
      concluded from the old premise no longer holds.
   2. **Missing-capable columns are halved twice.** `logCut` already

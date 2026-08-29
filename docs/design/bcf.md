@@ -18,10 +18,10 @@ treatment forest tau(x), combined as
 
 with z_i binary treatment. It is the concrete case the multi-forest provision
 (core-generalization.md, the multi-forest provision) was designed for, and
-bartCause is the intended consumer (see "Public creation surface" below for
-the corrected picture of how). Scope: binary z and a Gaussian response.
-Continuous treatment is out of scope (it needs a coefficient function b(z),
-not a two-level scalar).
+bartCause is the intended consumer (see "Public creation surface" below).
+Scope: binary z, and a gaussian, probit or logistic response - under a binary
+link the forests combine into the latent predictor with sigma fixed at 1, and
+aft, ordinal and nbinom are refused by name. Continuous z is out of scope.
 
 ## The Forest member split
 
@@ -163,15 +163,15 @@ snapped value is written back into the glue
 
 A caller-settable per-forest, per-observation weight composes with this
 multiplicatively: `forestWeights[i] = w_i * m_f^2 * s_{f,i}`, installed via
-`Chain::setForestWeights(f, s)` and reached from R as
-`dbarts:::bartcoreSetForestWeights` (`dbarts:::`-only; no public surface yet).
+`Chain::setForestWeights(f, s)` and reached from R as the documented public
+R5 method `$setForestWeights(forest, weights)`, which indexes forests from 1.
 It excludes a row from forest f's leaf conditionals without excluding it from
 the model, the combination, occupancy, or the residual sigma degrees of
 freedom. Two edges: at `s = 0` with `m != 0` only the WEIGHT is zeroed - the
 response stays `r/m`, so the snap's reported-fit exactness does not follow this
-channel; and the weight lives on the chain, not the serialized state (as `z`
-does not either), so a pipeline that rebuilds the sampler and restores its
-state silently drops the weight while `statesAgree` reports agreement.
+channel; and the weight lives on the chain, not the serialized state (as the
+basis does not either), so a pipeline that installs a DONOR's state into a
+fresh engine drops the weight while `statesAgree` reports agreement.
 
 ## Exact-posterior gate
 
@@ -213,14 +213,14 @@ which entry points fan per forest.
   data-ownership.md Sharing).
 - New for BCF: setForestBasis(f, basis), on the R5 surface and, as
   `dbarts_sampler_setForestBasis(sampler, forest, basis, numColumns)`, on the
-  flat one. (Corrected 2026-08-14: this bullet named `setTreatment(z)` as the
-  flat spelling. `setTreatment` is GONE at every layer - the flat entry was
-  re-signed at the dbarts.h reshape S1, and M4.3 retired the engine virtual
-  through all four layers, leaving `setForestBasis` the SOLE basis-mutation
-  route at any forest and any width.) The basis is the one response-side
-  quantity with no single-forest analog; installing a new one between sweeps
-  re-forms that forest's multiplier and every forest's residual. Installing
-  pihat as a mutable prognostic column uses the ordinary predictor path.
+  flat one. It is the SOLE basis-mutation route, at any forest and at any
+  width, and there is no `setTreatment` at any layer: not on the R5 class,
+  not in dbarts.h, and not as an engine virtual. A width-preserving install
+  leaves every amplitude bitwise; a width change carries each forest's block
+  to its new offset. The basis is the one response-side quantity with no
+  single-forest analog; installing a new one between sweeps re-forms that
+  forest's multiplier and every forest's residual. Installing pihat as a
+  mutable prognostic column uses the ordinary predictor path.
 - Also new for BCF: setForestWeights(f, s), a per-forest, per-observation
   precision multiplier ("The multiplier snap and the per-forest weight"
   above). Unlike the basis it does not ride the state; a warm start or a
@@ -228,8 +228,8 @@ which entry points fan per forest.
 
 C exposure stayed internal at first (bartcore helpers plus the bridge, as the
 data handle does); it is now the public dbarts.h surface - see "Public
-creation surface" below, which also corrects "bartCause drives from R" to name
-what it actually drives.
+creation surface" below, which also records how bartCause is expected to
+reach it, through a fit function rather than a mutation method.
 
 ## Open questions
 
@@ -351,7 +351,7 @@ own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
 BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 (docs/plans/archive/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
-`dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
+`dbartsSampler` (S1, a1dbde7): z rides `data@bases` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
 `attr(control, "bartcore.forests")` (R/spec.R:740-772, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
@@ -361,13 +361,13 @@ precedent), cross-checked in both directions at creation
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
 entries (inst/include/dbarts/dbarts.h:1115-1166), and `setResponse` takes an
-explicit `updateScale` argument. (Corrected 2026-08-13: this paragraph named
-`setTreatment` and `bcfGlue` at :264-271, both retired at the dbarts.h reshape
-S1 re-bake, ab3aa2fa - `setTreatment` re-signed as `setForestBasis(sampler,
-forest, basis, numColumns)` and `bcfGlue` replaced by the ragged
-`numForestAmplitudes`/`forestAmplitudes` pair.) A run reports
-both forests' fits and the combining glue for every draw (S4, 1df9c0c)
-instead of one call per sweep.
+explicit `updateScale` argument. The flat surface carries no `setTreatment`
+and no `bcfGlue`: the first was re-signed as `setForestBasis(sampler, forest,
+basis, numColumns)` and the second replaced by the ragged
+`numForestAmplitudes`/`forestAmplitudes` pair, which is what lets a forest
+carry more than two amplitudes. A run reports both forests' fits and the
+combining glue for every draw (S4, 1df9c0c) instead of one call per
+sweep.
 
 Per-forest SPLIT COUNTS joined them (bcf-bartcause-relocation D3): the
 amplitude coupling now overrides `numVariableCountForests`/
@@ -409,17 +409,17 @@ constructor: a `forests =` fit resolves to exactly the `data@treatment` plus
 factor basis expanded to its level indicators in R so the bridge sees what it
 always saw.
 
-**Two spellings that had not moved at M2 have both moved since (corrected
-2026-08-14; as written this paragraph also contradicted the correction two
-paragraphs above).** The flat `dbarts_sampler_setTreatment`/`bcfGlue` pair was
-re-signed at the dbarts.h reshape S1 (ab3aa2fa) to `setForestBasis` and the
-ragged `numForestAmplitudes`/`forestAmplitudes`. `dbartsData(treatment = )` and
-the `data@treatment` slot were retired at M4.3 (9c63e9d8) for a `data@bases`
-LIST, one entry per forest, which rides creation the way the design matrix does
-and is what lets a restore-then-widen work with no fourth reapply hook. So the
-data-side split M2 recorded as debt is CLOSED, by M4's n x q_f basis, which was
-one of the three carriers it named. `bcf()` itself is expected to land in
-bartCause (same plan, fork 4).
+**The data side moved with the surface.** There is no
+`dbartsData(treatment = )` argument and no `data@treatment` slot: each
+forest's basis rides a `data@bases` LIST instead, one entry per forest, which
+rides creation the way the design matrix does and is what lets a
+restore-then-widen work with no fourth reapply hook. A basis is conditioning
+data rather than state, so the R5 class mirrors it onto `data@bases` as the
+mutation lands and re-creation re-supplies it by construction. The data-side
+split that removing the causal argument names recorded as debt is therefore
+CLOSED, by the n x q_f per-forest basis, which was one of the three carriers
+it named. `bcf()` itself is still expected to land in bartCause rather than
+dbarts, as the named causal verb.
 
 ## Status
 

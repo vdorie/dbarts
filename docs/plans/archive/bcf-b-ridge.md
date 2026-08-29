@@ -1,5 +1,13 @@
 # BCF b-ridge (treatment-scale) interweaving / rescale move: derivation
 
+Note (added 2026-08-28): the recommendation below still holds - the
+treatment-scale ridge is not implemented; `AmplitudeForestCombiner` in
+src/bartcore/combiner.hpp defaults `ridgeB = false`. The code citations
+below (`BCFState`, `bcf_`, `buildBCFForest`, the hardcoded `forests_[1]`)
+predate the multi-forest generalization and no longer resolve; that
+machinery is now `AmplitudeForestCombiner` and its `ridgeB` flag in
+src/bartcore/combiner.hpp. Treat citations below as historical.
+
 Read-only derivation memo for the `bcf-sigma-residual` follow-up. Successor to
 `bcf-ridge-interweaving` (a-ridge, LANDED 9617c94): that move collapsed the
 prognostic `(a, mu)` ridge but left the thin=120 sigma SBC flag standing in
@@ -151,21 +159,13 @@ sign-ill-posed by design (A4b), as for the a-move. [checks 5a]
 
 ### 2.2 In terms of c (operational form) -- MOVED
 
-Moved to docs/design/multiplier-combiner.md, "The exponent rule": the
-substitution `b0 = b0_0/c` into 2.1's `(*)`, the resulting `q_c(c) prop
-c^{Lt-3} * exp(...)`, and the naive move-map Jacobian's off-by-one `c^{Lt-2}`
-contrast. It backs the general `p = (k-d)/2` rule "The ASIS ridge" states, so
-it belongs there, not here.
+Moved to docs/design/multiplier-combiner.md, "The exponent rule".
 
 ### 2.3 Result: c^2 is Generalized Inverse Gaussian -- MOVED
 
-Moved to docs/design/multiplier-combiner.md, "The exponent rule": the `v =
-c^2` substitution, the GIG match giving `p = (Lt-2)/2`, and the general rule
-`p = (k-d)/2` for k leaf params against d glue scalars. Section 4 below still
-uses the result directly: `gigP` = `(Lt-2)/2`, `gigB` =
-`(b0^2+b1^2)/bPriorVariance`. `ext_rng_simulateGeneralizedInverseGaussian`
-already ships (the a-move added it, external/random.{h,c}); the b-move reuses
-it verbatim.
+Moved to docs/design/multiplier-combiner.md, "The exponent rule" (section 4
+below still uses the result: `gigP = (Lt-2)/2`, `gigB =
+(b0^2+b1^2)/bPriorVariance`).
 
 ### 2.4 No aVariance analogue -- nothing to condition on or refresh
 

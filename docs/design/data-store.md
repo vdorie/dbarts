@@ -186,12 +186,12 @@ The view is self-contained: nothing references the parent after
 `isView` is pure provenance - this store was built from a parent - and
 gates only the parent-derived standardization constants
 (`suppliedStandardization`). Refusal reads two capability predicates on
-the store, one per granularity: `acceptsNewRawPredictors` (the raw-x
-mutation surface; false for views, which hold no raw, and for CSC-built
+the store, one per granularity: `acceptsNewRawPredictors` (whole-data
+replacement; false for views, which hold no raw, and for CSC-built
 stores, which fix the design at creation - the bridge's
-`refusePredictorMutation`) and `hasRequantizeSource` (cut installation
-and state restore; false only for views, which retain no re-quantize
-source at all - `refuseRequantizeWithoutSource`).
+`refusePredictorMutation`) and `hasRequantizeSource` (column mutation,
+cut installation and state restore; false only for views, which retain
+no re-quantize source at all - the bridge's `refuseMutationOnView`).
 
 ## Predictor mutation transaction
 
@@ -231,16 +231,16 @@ Snapshot ownership: the strategy owns the codes, missing flags, and cut
 grids it moves; the transaction owns the gathered-raw snapshot. This is
 the whole rollback record - there is no store-resident undo log.
 
-Refusal contract: these paths run on dense-built stores only. The bridge
-refuses the raw-x mutation surface on CSC/mixed stores
-(`refusePredictorMutation` - "sparse predictors fix the design at
-creation") and on views ("data-handle views hold none"). CSC-built
-samplers DO keep `setState` and `setCutPoints`
-(`refuseRequantizeWithoutSource`), because those re-quantize
-from the retained slices. Transactional (non-force) updates are also
-refused on multi-forest samplers (`refuseMultiForestTransactionalUpdate`),
-which revalidate only the primary forest; a forced whole-matrix
-`setPredictor` is the supported multi-forest swap.
+Refusal contract: `refuseMutationOnView` guards these paths -
+`setPredictor`, `updatePredictor`, the per-observation entries, cut
+installation, state restore, forest installation - and refuses only a
+data-handle view, which retains no re-quantize source. CSC and mixed
+stores keep all of them, re-quantizing from their retained slices; a
+per-observation entry additionally refuses a CSC-BACKED target column
+by name (a dense column of a mixed store stays open).
+`refusePredictorMutation` guards whole-data `setData` alone, which
+refuses views and CSC/mixed both ("sparse predictors fix the design at
+creation"). Multi-forest samplers carry no predictor guard at any entry.
 
 ## Ownership and borrow rules
 

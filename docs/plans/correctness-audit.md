@@ -4,7 +4,36 @@ agent: opus derivers, paired and independent; fable adjudicates
 rng: neutral (findings only; any fix becomes its own gated item)
 budget: findings per block recorded here; no code changes
 
-Review 1 of the retrospective program (retrospective-reviews.md).
+Review 1 of the retrospective program
+(docs/plans/archive/retrospective-reviews.md).
+
+## Disposition
+
+Every finding this audit filed as a fix item was confirmed and has
+since been fixed. The blocks below are the derivations and the
+evidence, not a list of live defects; each finding's own paragraph
+names its fix.
+
+- Block 1, the degenerate-root guard gap: birthOrDeathMove returns a
+  no-op for a root-only tree with no birthable node
+  (src/bartcore/moves.hpp).
+- Block 2, the CHANGE move's missing proposal density:
+  logProposalCorrection is computed and consumed in changeMove
+  (src/bartcore/moves.hpp).
+- Block 3, the chi hyperprior's mislabeled degrees of freedom:
+  ChiKHyperprior::draw uses shape 0.5 (M + nu)
+  (src/bartcore/model.hpp), with the binary default relabeled
+  chi(1.5, Inf) so default draws are unchanged.
+- Block 4, the sigma degrees of freedom over zero-weight rows:
+  numPositiveWeights_ feeds the sigma draw (src/bartcore/model.hpp).
+- Block 5, the empty-leaf chi-k count: constant and linear leaves now
+  match GP, as that finding's own paragraph records.
+- Blocks 6 and 7, test fits under a multi-forest coupling:
+  refuseUndefinedTestFits guards bartcore_setTestPredictor,
+  bartcore_setTestOffset and bartcore_predict
+  (src/R_interface_bartcore.cpp).
+
+Each fix carries its own archived plan under docs/plans/archive/.
 
 ## Goal
 
@@ -97,17 +126,19 @@ veto defines one consistent surrogate target across all moves.
 
 Findings routed onward:
 1. Degenerate-root guard gap (deriver A #17, adjudicated REAL but
-   latent): drawBirthableNode's single-node branch skips the
+   latent): drawBirthableNode's single-node branch skipped the
    availability check, so a root-only tree with NO available variable
-   forces a birth and drawRuleForVariable indexes
+   forced a birth and drawRuleForVariable indexed
    data.types[(size_t)-1] - out-of-bounds. The all-constant-column
-   case does not trigger it empirically (a constant column still
+   case did not trigger it empirically (a constant column still
    quantizes to >= 1 cut; births propose, hit the empty-leaf veto,
    reject - verified by running bart on constant x), but zero-cut
-   columns are reachable at least via setCutPoints on a root-only
+   columns were reachable at least via setCutPoints on a root-only
    sampler (invalidCutPoints only protects existing splits), and the
-   death branch is equally unguarded for single-node trees. Filed as
-   fix item moves-degenerate-root-guard.
+   death branch was equally unguarded for single-node trees. Filed as
+   fix item moves-degenerate-root-guard, and FIXED there:
+   birthOrDeathMove now returns a no-op when a root-only tree has no
+   birthable node.
 2. Cross-move categorical prior flag (deriver B): for > 54 reachable
    pooled categories, ruleForVariableLogProbability uses an
    approximate closed form while the draw density is exactly
@@ -129,25 +160,27 @@ targeted >54-category question RESOLVED as a false alarm by both: the
 -log(2^R - 2) (error O(2^(1-R)), sub-epsilon), so no cross-move
 target divergence exists there.
 
-MAJOR FINDING (both derivers independently, opposite orientations;
-orchestrator re-derived and concurs): the CHANGE move's acceptance
-(moves.hpp changeMove, the exp(yLogPi + yLogL - xLogPi - xLogL) with
-no transition term) omits the proposal-density ratio. The proposal
-draws the new variable from the prior but the new RULE uniformly over
-the descendant-valid good set (ordinal: findGoodOrdinalRules;
-categorical: reject-until-valid), while the acceptance retains the
-node's local rule prior normalized over the ancestor-only interval.
-These cancel only for same-variable redraws. Cross-variable changes
-are mis-weighted by [p_var(v')/p_var(v)] * [|Valid(v)|/|Valid(v')|]:
-the chain's stationary distribution carries an effectively SQUARED
-rule prior at changed nodes, biased toward low-cardinality /
+MAJOR FINDING, since FIXED (both derivers independently, opposite
+orientations; orchestrator re-derived and concurs): the CHANGE move's
+acceptance (moves.hpp changeMove, the exp(yLogPi + yLogL - xLogPi -
+xLogL) with no transition term) omitted the proposal-density ratio.
+The proposal drew the new variable from the prior but the new RULE
+uniformly over the descendant-valid good set (ordinal:
+findGoodOrdinalRules; categorical: reject-until-valid), while the
+acceptance retained the node's local rule prior normalized over the
+ancestor-only interval. Those cancel only for same-variable redraws.
+Cross-variable changes were mis-weighted by
+[p_var(v')/p_var(v)] * [|Valid(v)|/|Valid(v')|]: the chain's
+stationary distribution carried an effectively SQUARED rule prior at
+changed nodes, biased toward low-cardinality /
 descendant-constrained variables. Invisible when all variables have
 equal cut counts and trees are shallow - which is exactly the
 existing exact-posterior gates' regime. INHERITED: the deleted
 classic engine's changeRule.cpp computes the identical
 pure-pi-ratio acceptance (verified in git history at b354f3a~1), so
-this is a CGM-lineage defect dbarts has carried since its origin, not
-a rewrite regression. Deriver B's toy check shows detailed balance
+this was a CGM-lineage defect dbarts had carried since its origin,
+not a rewrite regression. changeMove now carries the missing term as
+logProposalCorrection. Deriver B's toy check shows detailed balance
 failing by exactly 2x in a 4-vs-2-cut config; deriver A's analysis
 predicts stationary rule-prior mass ~ 1/a_v^2 rather than 1/a_v.
 Fragility notes (no action): swap's correctness rests on the unstated
@@ -189,17 +222,17 @@ weighted per-group conjugate intercept update (reduces to R's
 unweighted form at unit weights), offset plumbing and recording
 de-scaling coherent end to end.
 
-ADJUDICATED FINDING (both derivers, same math, framing reconciled):
-the k posterior shape is 0.5(M + 2 nu - 1), the exact Gibbs step for
-a chi(2 nu - 1) prior on k - NOT the chi(nu) the degreesOfFreedom
-argument and docs describe. chi(1.25) delivers chi(1.5); the two
-coincide only at nu = 1. Bit-identical to classic parameterPrior.cpp
-(a Jacobian slip in the original k^2 derivation, inherited). The
-sampler is internally valid for its own prior; the defect is the
-LABEL. Filed as chi-hyperprior-df: VD picks doc-fix (document the
-implemented density) or code-fix (make chi(nu) mean chi(nu);
-posterior-changing but only for opt-in k = chi(...) fits - defaults
-fix k and are untouched).
+ADJUDICATED FINDING, since FIXED (both derivers, same math, framing
+reconciled): the k posterior shape was 0.5(M + 2 nu - 1), the exact
+Gibbs step for a chi(2 nu - 1) prior on k - NOT the chi(nu) the
+degreesOfFreedom argument and docs described. chi(1.25) delivered
+chi(1.5); the two coincide only at nu = 1. Bit-identical to classic
+parameterPrior.cpp (a Jacobian slip in the original k^2 derivation,
+inherited). The sampler was internally valid for its own prior; the
+defect was the LABEL. Filed as chi-hyperprior-df, where VD picked the
+code-fix: ChiKHyperprior::draw now uses shape 0.5 (M + nu), and the
+binary default is relabeled chi(1.5, Inf), which leaves default
+draws bit-identical.
 
 Targeted-test note for the SBC/blindspot reviews: the 1e-300
 normalized-gamma floor feeds log(1e-300) into the alpha grid's
@@ -207,20 +240,21 @@ sum-log-s under extreme sparsity (alpha/p << 1, many zero-count
 variables), plausibly biasing alpha low; worth a high-sparsity
 calibration check.
 
-CONSEQUENCE: dbarts' tree-structure posterior over-weights
-low-cardinality and descendant-constrained split variables in every
-configuration with unequal effective cut counts (mixed continuous/
-categorical predictors especially), and has since the package's
-origin. Fix decision is VD's: posterior-changing class, changes
-15-year-old semantics. Candidate fix shapes for the fix item's plan:
-(a) propose change rules from the unrestricted prior and let invalid
-descendants reject via pi = 0 (restores the exact cancellation with
-no valid-set counting - counting is infeasible for wide categorical
-masks - and removes the 64-try asymmetry), or (b) restricted
-proposals with explicit |Valid| ratios where countable. The
-change-balance.R test becomes the regression gate either way.
-(Resolved 2026-07-08: VD picked the hybrid after the change-move-fix
-stage-2 measurements; see that plan.)
+CONSEQUENCE, as it stood before the fix: dbarts' tree-structure
+posterior over-weighted low-cardinality and descendant-constrained
+split variables in every configuration with unequal effective cut
+counts (mixed continuous/categorical predictors especially), and had
+done so since the package's origin. The fix decision was VD's:
+posterior-changing class, changing 15-year-old semantics. The
+candidate shapes were (a) propose change rules from the unrestricted
+prior and let invalid descendants reject via pi = 0 (restores the
+exact cancellation with no valid-set counting - counting is
+infeasible for wide categorical masks - and removes the 64-try
+asymmetry), or (b) restricted proposals with explicit |Valid| ratios
+where countable. (Resolved 2026-07-08: VD picked the hybrid after the
+change-move-fix stage-2 measurements; see that plan. The landed term
+is logProposalCorrection in changeMove, src/bartcore/moves.hpp, and
+change-balance.R is its regression gate.)
 
 Block 4, response models (2026-07-08): CONFIRMED on every mainline
 path by both derivers except one adjudicated zero-weight defect.
@@ -243,25 +277,26 @@ place in every family (constant/linear/GP suffstats, sigma SSR,
 grouped-intercept precision; probit correctly weightless with the
 R-level guard).
 
-ADJUDICATED FINDING (deriver B; deriver A had graded the df term
-only as a fragility note; orchestrator verified numerically): the
-sigma posterior's degrees of freedom count ALL n observations
+ADJUDICATED FINDING, since FIXED (deriver B; deriver A had graded the
+df term only as a fragility note; orchestrator verified numerically):
+the sigma posterior's degrees of freedom counted ALL n observations
 (model.hpp drawSigmaSqFromPosterior, df + numObservations) while
 zero-weight rows contribute nothing to S, nothing to any leaf
 conditional, and are documented as "ignored" (the weights validator
-warns exactly that). The draw is not the conjugate update of any
-coherent model once w_i = 0 rows exist: df is over-counted by their
-number, deflating sigma. Verification: paired fits, 50 real rows vs
-the same 50 plus 50 EXACT DUPLICATE rows at w = 0 (duplicates cannot
-alter cut points, the y scaling, the leaf prior, or leaf-emptiness
-patterns, so the df term is the only open channel): mean sigma
-0.365 -> 0.048, z = -264 against the promised equality. The
-first-order df ratio predicts 0.72; the observed collapse is the
+warns exactly that). The draw was not the conjugate update of any
+coherent model once w_i = 0 rows existed: df was over-counted by
+their number, deflating sigma. Verification: paired fits, 50 real
+rows vs the same 50 plus 50 EXACT DUPLICATE rows at w = 0 (duplicates
+cannot alter cut points, the y scaling, the leaf prior, or
+leaf-emptiness patterns, so the df term is the only open channel):
+mean sigma 0.365 -> 0.048, z = -264 against the promised equality.
+The first-order df ratio predicts 0.72; the observed collapse is the
 stationary feedback loop (deflated sigma lets trees absorb residual
 as structure, shrinking S, deflating sigma further). Filed as fix
-item sigma-df-zero-weights: use the positive-weight count in the
-posterior df. Posterior-changing only for fits with zero weights
-(the zeroweights equivalence scenario shifts; no default touched).
+item sigma-df-zero-weights and FIXED there: numPositiveWeights_ is
+the count the posterior df now uses. Posterior-changing only for fits
+with zero weights (the zeroweights equivalence scenario shifted; no
+default touched).
 Gate-blindspot note: the zeroweights equivalence scenario compares
 the code to its own baseline and no exact-posterior gate covers
 zero weights, which is how this survived.
@@ -367,24 +402,29 @@ state save/restore round-trips a, aVariance, b0, b1, groupEffects,
 groupTau on the internal scale with scratch rebuilt per sweep.
 Sweep order (mu -> tau -> latents -> sigma -> glue -> intercepts)
 is a coherent blocked Gibbs scan on one joint. BCF and grouping are
-mutually exclusive by construction (the BCF ctor hardwires
-GaussianResponse), so that interaction cannot arise.
+mutually exclusive, but by an explicit bridge refusal rather than by
+a hardwired Gaussian response: the chain selects its response off the
+spec's family, and gaussian, probit and logistic all build. That
+interaction still cannot arise, but this block's derivations were run
+against the Gaussian arm and have not been re-run for the probit or
+logistic multi-forest chain.
 
 Findings routed onward:
 1. BCF testFits single-forest (deriver B, adjudicated REAL but
-   latent; verified by orchestrator at chain.hpp:2069-2076):
-   results.trainingFits has an explicit BCF blend but
-   results.testFits unconditionally reports scale *
+   latent; verified by orchestrator in chain.hpp):
+   results.trainingFits had an explicit BCF blend but
+   results.testFits unconditionally reported scale *
    forests_[0].totalTestFits + shift (+ testOffset) - the bare mu
    forest with the combined-response centering, no a, no b_z tau.
    A correct test-row blend is ill-defined without a test treatment
    vector (the API carries none; R-side prediction recombines
    through the facade's forestTotalFits/bcfGlue channels), so the
    channel cannot silently emit mu-only numbers dressed as fits.
-   Filed as fix item bcf-testfits-guard: reject/NA the testFits
-   channel under BCF rather than fill it wrong; document that
-   results.k/variableCounts/splitProbabilities are mu-forest
-   diagnostics under BCF.
+   Filed as fix item bcf-testfits-guard and FIXED there: the testFits
+   channel comes back NaN under BCF, refuseUndefinedTestFits guards
+   the entries that would otherwise fill it, and
+   results.k/variableCounts/splitProbabilities are documented as
+   mu-forest diagnostics under BCF.
 
 Fragility notes (no action): kHalfNormalMedian is the truncated
 literal 0.674 (exact value 0.67449; ~0.07 percent tau-scale
@@ -403,40 +443,39 @@ conditions on the previous sweep's glue while trainingFits uses the
 new glue (valid Gibbs, half-step phase when eyeballing single
 draws).
 
-Block 7, cross-cutting algebra (2026-07-08): CONFIRMED throughout
-by both derivers; the sole DISCREPANCY both found independently is
-the BCF testFits gap already filed from block 6 (bcf-testfits-guard
-- now upgraded: deriver B traced a concrete route, the unguarded
-bartcore_setTestPredictor entry accepts test predictors on a BCF
-pointer, verified by orchestrator at R_interface_bartcore.cpp:1815;
-the item's recommended fix gains "guard setTestPredictor on
-numForests >= 2"). Jointly confirmed by full symbolic trace: the
-fused residual roll (per-tree treeY is exactly the response net of
-all other trees' current fits, accept/reject-agnostic because
-parameters are always redrawn and rejected moves restore node
-sufficient statistics exactly - birth/death/change/swap all
-verified); totalFits maintenance (telescoped through the roll in a
-pure run, re-anchored by direct summation on every mutation and
-restore path); the two-forest roll (each forest's transformed
-response/weights recomputed from the other's fresh totals every
-sweep); every mutation entry point leaves membership, params, fits,
-totals, residuals, scaling, and latents mutually consistent before
-the next sweep or read (setData recovers params before the store
-moves; setPredictor validates all trees across all chains two-phase
-before any rebuild, and its per-observation session commits
-all-or-none; setCutPoints force-refreshes unconditionally by
-design); the affine scale map and its inverse are exact, sigma
-lives internally and is original-scale at every boundary (draw,
-record, serialize, restore), and the prior re-anchors on every
-range change; state store/restore is symmetric and validates cuts
-and occupancy all-or-none before mutating (semantic, documented
-non-bitwise); keepTrees flatten/unflatten indexing is uniform
-across store, read, and predict including circular wrap, every
-read walking the ring from the write cursor over the recorded
-draws (before 1.0-0 the readers walked raw slot order, which
-rotated a store two recorded runs had written); the
-per-sweep callback observes the previous sweep's fully-coherent
-end state.
+Block 7, cross-cutting algebra (2026-07-08): CONFIRMED throughout by
+both derivers; the sole DISCREPANCY both found independently was the
+BCF testFits gap already filed from block 6 (bcf-testfits-guard -
+upgraded there: deriver B traced a concrete route, the then unguarded
+bartcore_setTestPredictor entry accepting test predictors on a BCF
+pointer, so the item's fix grew a guard on that entry.
+refuseUndefinedTestFits, in src/R_interface_bartcore.cpp, is that
+guard, and it covers setTestOffset and predict as well). Jointly
+confirmed by full symbolic trace: the fused residual roll (per-tree
+treeY is exactly the response net of all other trees' current fits,
+accept/reject-agnostic because parameters are always redrawn and
+rejected moves restore node sufficient statistics exactly -
+birth/death/change/swap all verified); totalFits maintenance
+(telescoped through the roll in a pure run, re-anchored by direct
+summation on every mutation and restore path); the two-forest roll
+(each forest's transformed response/weights recomputed from the
+other's fresh totals every sweep); every mutation entry point leaves
+membership, params, fits, totals, residuals, scaling, and latents
+mutually consistent before the next sweep or read (setData recovers
+params before the store moves; setPredictor validates all trees across
+all chains two-phase before any rebuild, and its per-observation
+session commits all-or-none; setCutPoints force-refreshes
+unconditionally by design); the affine scale map and its inverse are
+exact, sigma lives internally and is original-scale at every boundary
+(draw, record, serialize, restore), and the prior re-anchors on every
+range change; state store/restore is symmetric and validates cuts and
+occupancy all-or-none before mutating (semantic, documented
+non-bitwise); keepTrees flatten/unflatten indexing is uniform across
+store, read, and predict including circular wrap, every read walking
+the ring from the write cursor over the recorded draws (before 1.0-0
+the readers walked raw slot order, which rotated a store two recorded
+runs had written); the per-sweep callback observes the previous
+sweep's fully-coherent end state.
 
 Fragility notes (no action): totalFits is never exactly re-anchored
 inside a pure run - the telescoped rounding error random-walks

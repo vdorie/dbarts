@@ -41,8 +41,8 @@ the flat C API cannot state different rules
 
 `refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2618`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
-rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`,
-and the flat `dbarts_sampler_setTestOffset`.
+rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`.
+It raises, as every helper below does; the flat entries return 0 instead.
 
 `refuseMultiForestResponseMutation` (`:2647`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
@@ -66,13 +66,13 @@ the clause.
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
 through. It guards `setTestPredictor`, `setTestOffset`,
-`setTestPredictorAndOffset` and `predict` on the bridge, and
-`dbarts_sampler_setTestPredictors` and `dbarts_sampler_predict` flat.
-Because the test predictors can never be installed, the whole surface is
-closed rather than partly closed. That is a SAMPLER-level closure: the
-combined location at new rows is still available at the fit level, where
-`predict.bart` blends the per-forest replay with the stored glue and the
-caller's own bases (R/generics.R, `predictBlend`).
+`setTestPredictorAndOffset` and `predict` on the bridge. The three flat
+entries call no bridge helper: `dbarts_sampler_setTestPredictors` and
+`dbarts_sampler_predict` test `testFitsAreUndefined` while
+`dbarts_sampler_setTestOffset` tests `isMultiForest`, and all three RETURN
+0 rather than raising - a `LinkingTo` consumer gets a status code to check.
+The closure is SAMPLER-level: `predict.bart` still blends the per-forest
+replay with the stored glue and the caller's own bases (`predictBlend`).
 
 R5 raises its own wording ahead of the bridge for a sampler carrying
 amplitudes (`refuseAmplitudeMutation`, `R/bartcore.R:36`), on

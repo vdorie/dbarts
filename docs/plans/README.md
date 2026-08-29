@@ -2,21 +2,9 @@
 
 The TODO at the repo root is an unordered backlog; most items name a
 plan file here, a few record instead in a design doc or a
-differently-named plan. This document is the contract between the
-planning agent, the implementing agents, and the reviewer.
-
-## Roles
-
-- Fable (orchestrator): writes and owns plans, routes items, reviews
-  diffs, updates the TODO. Plans are written against the code, not from
-  memory: every anchor in a plan was read before it was cited.
-- Opus (implementer): engine internals (src/bartcore/), numerics,
-  statistics, MCMC-kernel changes, C API design.
-- Sonnet (implementer): mechanical edits, deletions, build system,
-  R surface, tests, documentation.
-
-Routing is the plan's `agent:` field. When in doubt: could a mistake
-change the posterior? Opus. Otherwise Sonnet.
+differently-named plan. This document covers the plan-file format, the
+citation rule, the RNG-class gates a change needs, and where a landing
+gets recorded.
 
 ## Plan format
 
@@ -43,13 +31,15 @@ Sections:
 Cite a durable landmark: name the symbol, section title, or item label
 the change would move with - `rollTreeResidual (chain.hpp)`, not
 `chain.hpp:2581`; `data-ownership.md "Implementation record" item 5`,
-not `data-ownership.md:180`. A `file:NNN` line number commonly rides
-alongside as a locating convenience - in practice most citations across
-docs/plans/ carry one - and `tools/check-doc-freshness.R` verifies the
-cited symbol still occurs in the file, catching a moved anchor even
-where the citation is bare. State each fact in one home doc; elsewhere
-link to it by title, do not restate it (a copied fact is a second thing
-to keep in sync, and the one that rots).
+not `data-ownership.md:180`. Add a `file:NNN` line number alongside the
+symbol as a locating convenience, never in its place.
+`tools/check-doc-freshness.R` verifies docs/design anchors (both the
+file:line and the cited symbol) and the docs/design and docs/plans
+INDEX manifests; it does not check docs/plans citations themselves, so
+name the symbol as well as the line - a moved anchor there is caught
+only by re-reading, not by the checker. State each fact in one home
+doc; elsewhere link to it by title, do not restate it (a copied fact is
+a second thing to keep in sync, and the one that rots).
 
 ## RNG classes and their gates
 
@@ -67,51 +57,9 @@ to keep in sync, and the one that rots).
 Hot-path changes of any class additionally need bench-sampler.R compare
 on a quiet machine (maintainer-run; never concurrent with other load).
 
-## Implementation protocol
+## Landing
 
-- One item per agent, in an isolated worktree. The prompt is the plan
-  file path, CLAUDE.local.md, and the report format below. The plan is
-  the spec; do not restate it.
-- Data-adjacent work (the store, ingestion, mutation, or anything reading
-  quantized codes or raw predictors) reads docs/design/data-store.md
-  first: the standing contract for the data layer.
-- After any C/C++ change: R CMD INSTALL . before tinytest (--preclean
-  after header or virtual changes).
-- Stop conditions: a step fails twice; the diff exceeds 1.5x budget; a
-  needed change is out of scope. Report and stop; do not improvise.
-
-## Brevity (binding; Opus especially)
-
-- Final report <= 20 lines: files touched, gate results (pass/fail
-  lines verbatim), deviations from plan. Nothing else - no methodology,
-  no plan recap, no prose about what the code now does.
-- New comments only for constraints the code cannot show. The diff's
-  comment-line delta must not exceed its code-line delta; the reviewer
-  checks this mechanically.
-- No references in code or comments to this process, the plan, or the
-  conversation. "The classic engine did X" only when compatibility is
-  itself the constraint.
-- Match the surrounding file's comment density and idiom (Doxygen, LLVM
-  house style, ASCII).
-
-## Review (Fable)
-
-1. Diff vs plan: every step landed; nothing outside scope.
-2. Gates: re-run or verify transcripts; RNG class honored. Items touching
-   the bridge (src/R_interface*.cpp) note "rchk on next scheduled run".
-3. ABI: any diff under inst/include/dbarts/ is an ABI event. A new
-   capability must be a NEW name (append-only); a changed signature is
-   a SILENT break for LinkingTo consumers - they call through their own
-   declarations and get stack garbage, not a link error.
-   Either keep the shipped signature or bump the api version, and
-   build+test stan4bart against the change before landing.
-4. Brevity: comment/code delta, report length, no narration.
-5. Readability (standing): could a maintainer with no access to any
-   agent conversation understand the diff from code and comments alone?
-   Reject change-log comments, restated behavior, hedging prose.
-6. At most two fix rounds by message to the same agent; after that, fix
-   directly or withdraw and replan.
-7. Records at landing: append the plan's `## Landing` note AND bump the
-   matching `docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`.
-   The design Status line is the record most often missed; check it
-   explicitly at every landing.
+Append the plan's `## Landing` note, and bump the matching
+`docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`. The
+design Status line is the record most often missed; check it
+explicitly at every landing.
