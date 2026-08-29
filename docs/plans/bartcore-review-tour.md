@@ -303,7 +303,7 @@ Gate commands:
     Rscript benchmarks/R/equivalence.R compare \
       benchmarks/baselines/equivalence-736bfb05.rds
     Rscript benchmarks/R/bcf-equivalence.R compare \
-      benchmarks/baselines/bcf-equivalence-6e3b9fb8.rds --cross-host
+      benchmarks/baselines/bcf-equivalence-00cfa108.rds --cross-host
     Rscript benchmarks/R/multinomial-equivalence.R compare \
       benchmarks/baselines/multinomial-equivalence-4d9a3337.rds --cross-host
 

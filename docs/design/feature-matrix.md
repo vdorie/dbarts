@@ -644,7 +644,7 @@ accepted; on a sampler carrying `w` the mask is BITWISE `setWeights(w * a)` in
 refused. PINNED at mask S4: `inst/tinytest/test-active-rows-pins.R:89-117`
 (masked-bcf, bitwise vs `setWeights(w * a)` on train and sigma) and the
 `bcf-equivalence.R` `masked` scenario, carried by the current
-`bcf-equivalence-6e3b9fb8.rds`. A per-forest mask is refused as REDUNDANT rather
+`bcf-equivalence-00cfa108.rds`. A per-forest mask is refused as REDUNDANT rather
 than unbuilt: `setForestWeights` (RIB:4009) already expresses it - though note
 that channel is deliberately NOT row removal (CH:1141-1173: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
@@ -785,7 +785,7 @@ path, so this is a surface gap, not an engine one.
 (`buildVarianceForest` CH:4145 never sets `useDart`, default false at CH:117).
 
 [f39] Current baselines: `equivalence-736bfb05.rds` (43 scenarios),
-`bcf-equivalence-6e3b9fb8.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
+`bcf-equivalence-00cfa108.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
 - benchmarks/baselines/MANIFEST. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.
 
