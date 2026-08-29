@@ -329,20 +329,14 @@ mutations <- list(
     "R/: compositionCount stops enforcing its per-argument minimum (n.replications >= 2, n.thin >= 1, n.burn >= 0)"
   ),
 
-  mk(
-    "m19",
-    "R/utility.R",
-    "  isKnown <- argNames %in% fnFormals",
-    "  isKnown <- rep(TRUE, length(argNames))",
-    "KILL_EXPECTED",
-    kTinytest("inst/tinytest/test-argument-surface.R"),
-    paste0(
-      "R/: rejectUnknownDotsArgs stops recognizing any dots argument as ",
-      "unknown, silently swallowing a typo'd or retired one; enforceWeight",
-      "Policy's own integrality check is C++-backstopped (identical message",
-      " in enforceBinaryWeightPolicy), so weakening it alone is undetectable"
-    )
-  ),
+  # m19 retired, id left unassigned rather than reused: it targeted
+  # rejectUnknownDotsArgs, which refused a typo'd or retired bart2/
+  # rbart_vi argument name by checking it against the family's known
+  # formals. Both that function and bart2/rbart_vi's own '...' formal are
+  # gone; an unrecognized name now hits R's own base "unused argument"
+  # error, which is interpreter behavior, not source this harness can
+  # plant a mutation in. No other site is checked by the same gate, so
+  # there is nothing live to repoint m19 at.
 
   mk(
     "m20",
