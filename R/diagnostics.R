@@ -115,8 +115,8 @@ presentDrawsVars <- function(object, vars) {
   vars[!vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))]
 }
 
-# Reshapes bart2(family = "ordinal")'s per-draw cutpoints - the K - 1
-# thresholds gamma_1 < ... < gamma_{K-1} - into the (iteration, chain,
+# Reshapes bart2(family = "ordinal")'s per-draw thresholds - the K - 1
+# gamma_1 < ... < gamma_{K-1} - into the (iteration, chain,
 # variable) convention bartDrawsArray's other fields share. Combined storage
 # (the default) is (n.samples [* n.chains]) x (K - 1), the same layout
 # toDrawsArray already gives any per-column field, so that path is reused
@@ -124,25 +124,25 @@ presentDrawsVars <- function(object, vars) {
 # n.samples x n.chains - a different axis order than toDrawsArray's own 3-D
 # case assumes (which is built for a per-OBSERVATION field, chain-first), so
 # it is permuted here instead of routed through it.
-ordinalCutpointsArray <- function(object) {
-  cutpoints <- object$cutpoints
-  arr <- if (length(dim(cutpoints)) == 3L) {
-    aperm(cutpoints, c(2L, 3L, 1L))
+ordinalThresholdsArray <- function(object) {
+  thresholds <- object$thresholds
+  arr <- if (length(dim(thresholds)) == 3L) {
+    aperm(thresholds, c(2L, 3L, 1L))
   } else {
-    toDrawsArray(cutpoints, object$n.chains, isScalar = FALSE)
+    toDrawsArray(thresholds, object$n.chains, isScalar = FALSE)
   }
   dimnames(arr) <- list(
     NULL,
     NULL,
-    paste0("cutpoint[", seq_len(dim(arr)[3L]), "]")
+    paste0("threshold[", seq_len(dim(arr)[3L]), "]")
   )
   arr
 }
 
 # gathers one or more chain-dimensioned fields off a bart/bart2/rbart fit
-# into a single (iteration, chain, variable) base array. 'cutpoints'
+# into a single (iteration, chain, variable) base array. 'thresholds'
 # (bartOrdinal only) is the one field whose shape toDrawsArray cannot read
-# directly and so is special-cased to ordinalCutpointsArray, already named.
+# directly and so is special-cased to ordinalThresholdsArray, already named.
 bartDrawsArray <- function(object, vars) {
   n.chains <- fitNChains(object)
   present <- presentDrawsVars(object, vars)
@@ -155,8 +155,8 @@ bartDrawsArray <- function(object, vars) {
     )
   }
   pieces <- lapply(present, function(v) {
-    if (identical(v, "cutpoints")) {
-      return(ordinalCutpointsArray(object))
+    if (identical(v, "thresholds")) {
+      return(ordinalThresholdsArray(object))
     }
     piece <- toDrawsArray(drawsField(object, v), n.chains, v %in% scalarFields)
     dimnames(piece)[[3L]] <- if (v %in% scalarFields) {
@@ -185,17 +185,17 @@ as_draws_df.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
 as_draws_df.rbart <- as_draws_df.bart
 
 # matches summary.bartOrdinal's own default 'vars'; bartDrawsArray already
-# special-cases "cutpoints" to ordinalCutpointsArray.
+# special-cases "thresholds" to ordinalThresholdsArray.
 as_draws_array.bartOrdinal <- function(
   x,
-  vars = c("cutpoints", "sigma", "k", "tau"),
+  vars = c("thresholds", "sigma", "k", "tau"),
   ...
 ) {
   posterior::as_draws_array(bartDrawsArray(x, vars))
 }
 as_draws_df.bartOrdinal <- function(
   x,
-  vars = c("cutpoints", "sigma", "k", "tau"),
+  vars = c("thresholds", "sigma", "k", "tau"),
   ...
 ) {
   posterior::as_draws_df(bartDrawsArray(x, vars))
@@ -299,14 +299,14 @@ summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
 }
 summary.rbart <- summary.bart
 
-# bart2(family = "ordinal")'s scalar summary is the K - 1 cutpoints, the only
+# bart2(family = "ordinal")'s scalar summary is the K - 1 thresholds, the only
 # parameters this family's outer fit carries beyond whatever mean-function
 # scale it shares with 'vars': neither sigma nor k/tau is tracked on the
-# ordinal fit object, so the summary is cutpoints alone; any that are later
+# ordinal fit object, so the summary is thresholds alone; any that are later
 # tracked would be picked up automatically through 'vars'.
 summary.bartOrdinal <- function(
   object,
-  vars = c("cutpoints", "sigma", "k", "tau"),
+  vars = c("thresholds", "sigma", "k", "tau"),
   ...
 ) {
   summary.bart(object, vars = vars, ...)

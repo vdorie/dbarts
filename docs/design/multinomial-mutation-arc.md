@@ -279,7 +279,7 @@ three families this arc fixes, FALSE for hurdle; hurdle's own
 ### Fork B. Which mutations are meaningful per family
 
 **Ordinal, nbinom.** Nothing owed. Every channel is built and `S`;
-cutpoints ride `run()$cutpoints`, `r` rides `run()$dispersion` and
+thresholds ride `run()$thresholds`, `r` rides `run()$dispersion` and
 `$getDispersion()`. MEASURED: on a pointer-adopted nbinom sampler
 `$getDispersion()` answers with the FIT's `r`, which is precisely the
 read `refuseHostRead` blocks today.
@@ -456,7 +456,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`cutpoints.raw` (`R/bart.R:1879`) and `dispersion.raw` (`:2121`) inside
+`thresholds.raw` (`R/bart.R:1879`) and `dispersion.raw` (`:2121`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -599,7 +599,7 @@ rather than spends a header window.
 | **S0** | Pins + the two things that must not wait. (a) The 22/2/13/6 census; the `$copy()` laundering; the constant-1 host `predict`; the K-dependent host family under an explicit token; today's save/reload failure AND the absent `$fit$storeState()` workaround, all three families. (b) The shipped **Rd defect** (below) - it contradicts a shipped test, so it does not wait for a docs slice. (c) A **`bart2(family = "multinomial")` scenario appended to `equivalence.R`**, so the family bart2 emits has a baseline before S4 moves it. (d) The `$copy()` one-line `hostFor` transfer. (e) Fork C3's reserve doc. | 120 | 180 | 260 | 390 | 42/42 existing scenarios bitwise; one appended row; new baseline hash |
 | **S1a** | **Pointer adoption** (Fork D0): a named R5 adoption method, applied at the ordinal and nbinom sites; `$fit` becomes the engine that ran; `predict` routes through it; two `hostFor` sites die; the two family-specific refusal blocks invert to capability assertions; `samplerOnly` unblocks for these two via the per-caller flag (Fork A sub-decision). | 190 | 285 | 260 | 390 | **NEUTRAL - 43/43, 12/12, 11/11 bitwise** |
 | **S2+S3** | The multinomial surface. `dbartsData` slots + **validity method** + the two family gates + the `.hasSlot` migration guard; `bartcore_create` dispatch arm; `dbarts(family = "multinomial")`; the three R5 methods; the K-matrix `$predict` arm; the refusal matrix (Fork B); the message repoint (Fork H). | 1060 | 1590 | 830 | 1245 | NEUTRAL |
-| **S4/F1** | `bart2(family = "multinomial")` constructs direct; `$fit` is the sampler; `$bc` deleted (4 sites, 3 generics, 3 test assertions, 3 Rd paragraphs, 1 NEWS sentence) while `cutpoints.raw`/`dispersion.raw` keep their gate; `hostFor` mechanism deleted across seven test files; reproduction gate re-pointed; Fork J discharged. | 330 | 495 | 300 | 450 | **MOVES** - re-records exactly the S0 `bart2multinom` scenario, by design |
+| **S4/F1** | `bart2(family = "multinomial")` constructs direct; `$fit` is the sampler; `$bc` deleted (4 sites, 3 generics, 3 test assertions, 3 Rd paragraphs, 1 NEWS sentence) while `thresholds.raw`/`dispersion.raw` keep their gate; `hostFor` mechanism deleted across seven test files; reproduction gate re-pointed; Fork J discharged. | 330 | 495 | 300 | 450 | **MOVES** - re-records exactly the S0 `bart2multinom` scenario, by design |
 
 Arc total: **1700 non-test / 1650 test**.
 
@@ -758,7 +758,7 @@ time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,
 `test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
 paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1445`), and the
-`cutpoints.raw`/`dispersion.raw` co-gate. Under the standing
+`thresholds.raw`/`dispersion.raw` co-gate. Under the standing
 no-backwards-compat constraint this was a NEWS migration, not a design
 input, and it has since landed.
 
@@ -885,7 +885,7 @@ re-resynced here (they are not live pointers into the current tree).
 | 13 | ACCEPTED; `bench-sampler` is now marked OWED for Door 3 and not-owed elsewhere. |
 | 14 | ACCEPTED and extended; I re-ran it across four cells (keepTrees x n.thin) on both channels. |
 | 15 | ACCEPTED; the SBC question is resolved in place, not deferred. Ledger 18. |
-| 16 | ACCEPTED and refined upward: **seven** files carry host-shell cells, not five; the ordinal/nbinom blocks pin family-specific text and INVERT under D0; `cutpoints.raw`/`dispersion.raw` co-gating recorded in the S4 spec. |
+| 16 | ACCEPTED and refined upward: **seven** files carry host-shell cells, not five; the ordinal/nbinom blocks pin family-specific text and INVERT under D0; `thresholds.raw`/`dispersion.raw` co-gating recorded in the S4 spec. |
 | 17 | ACCEPTED; all anchor corrections applied (plans-vs-design paths, `:334-341`, `:309-322`, `:1757-1759`, `combiner.hpp:730-731`, and the `:42-71` window overstatement). |
 | 18 | ACCEPTED; "silent no-op" replaced with "takes effect on an engine nothing reads", with the measured probe. |
 | 19 | ACCEPTED; the Rd defect moves from S5 to S0. |
@@ -1196,7 +1196,7 @@ discharged; re-records exactly the S0 bart2multinom scenario).
 slice. bart2(family = "multinomial") constructs its sampler directly
 through the public dispatch arm: one bartcore_create per fit, $fit IS
 the sampler that ran, save/reload-predict round-trips for all three
-families now. $bc deleted everywhere (cutpoints.raw/dispersion.raw
+families now. $bc deleted everywhere (thresholds.raw/dispersion.raw
 keep their keepTrees gate and readers); the hostFor mechanism -
 field, refuseHostMutation, refuseHostRead, every call site, the Rd
 sentences, the S0 copy() transfer - deleted with zero survivors

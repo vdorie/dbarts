@@ -2,7 +2,7 @@
 # (bartOrdinal, bartNegbin, bartHurdle): before these existed, summary()
 # fell through to summary.default and printed a raw Length/Class/Mode table.
 # Pinned here: each returns a non-default summary object whose print output
-# names the family-specific rows (cutpoints, dispersion, or both hurdle
+# names the family-specific rows (thresholds, dispersion, or both hurdle
 # components), reusing summary.bart's own row-table machinery rather than
 # duplicating it.
 
@@ -19,7 +19,7 @@ seededControl <- list(
   verbose = FALSE
 )
 
-## --- ordinal: cutpoints, not summary.default -------------------------------
+## --- ordinal: thresholds, not summary.default -------------------------------
 yOrdinal <- ordered(
   sample(c("lo", "mid", "hi"), n, replace = TRUE),
   levels = c("lo", "mid", "hi")
@@ -32,8 +32,8 @@ expect_false(identical(class(summary(fitOrdinal)), "summary.default"))
 summaryOrdinal <- summary(fitOrdinal)
 expect_true(inherits(summaryOrdinal, "summary.bart"))
 ordinalOutput <- capture.output(print(summaryOrdinal))
-expect_true(any(grepl("cutpoint\\[1\\]", ordinalOutput)))
-expect_true(any(grepl("cutpoint\\[2\\]", ordinalOutput)))
+expect_true(any(grepl("threshold\\[1\\]", ordinalOutput)))
+expect_true(any(grepl("threshold\\[2\\]", ordinalOutput)))
 
 ## --- nbinom: dispersion, not summary.default -------------------------------
 yCount <- rpois(n, lambda = 4)

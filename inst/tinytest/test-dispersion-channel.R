@@ -199,8 +199,8 @@ samplerOrdinal <- dbarts(
 rOrdinal <- samplerOrdinal$run(0L, 2L)
 expect_null(rOrdinal$dispersion)
 expect_null(samplerOrdinal$getDispersion())
-expect_true(!is.null(rOrdinal$cutpoints))
-expect_equal(dim(rOrdinal$cutpoints), c(2L, 2L))
+expect_true(!is.null(rOrdinal$thresholds))
+expect_equal(dim(rOrdinal$thresholds), c(2L, 2L))
 
 # --- the slot INDICES downstream of the insertion. Neither model carries a
 # dispersion, which is the point: an off-by-one in varianceTrainSlot or

@@ -1434,8 +1434,8 @@ print.bartMultinomial <- function(x, ...) {
 # cumulative-probit fits are formed from a single latent eta = f(x), so
 # type = "bart"/"link" returns that latent (as it does for probit), while
 # type = "ev"/"response" returns the n x K category probabilities computed from
-# the latent and the sampled cutpoints. type = "ppd" draws one category per
-# posterior draw. The K-1 cutpoint draws ride the fit's $cutpoints field.
+# the latent and the sampled thresholds. type = "ppd" draws one category per
+# posterior draw. The K-1 threshold draws ride the fit's $thresholds field.
 # ordinal has a single forest, so 'forest'/'contribution' refuse for the same
 # reason a bart-family single-forest fit does.
 ordinalUnusedArgs <- list(
@@ -1510,7 +1510,7 @@ extract.bartOrdinal <- function(
 
 # log P(y_i = k | eta, gamma) IS the reported category probability at the
 # observed level: the run already stores the cumulative-probit difference,
-# so no recomputation from eta/cutpoints is needed. probs enters in the split
+# so no recomputation from eta/thresholds is needed. probs enters in the split
 # (chains x) samples x obs x K layout; the result drops the K margin, the same
 # shape type = "ppd" already returns for this family.
 ordinalLogLik <- function(object, probs) {
@@ -1610,13 +1610,13 @@ residuals.bartOrdinal <- function(object, ...) {
 
 # Out-of-sample category probabilities by replaying the saved forest's trees to
 # the newdata latent, then differencing the cumulative probit at the STORED
-# per-draw cutpoints. Requires a fit kept with
+# per-draw thresholds. Requires a fit kept with
 # keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
 # draw-neutral. The replay reads through $fit's own pointer: $fit is the
 # sampler whose engine actually ran, so getPointer() can re-create it from
 # stored state after a save/reload. The presence gate re-points to
-# cutpoints.raw, which this function already reads below and rides the same
+# thresholds.raw, which this function already reads below and rides the same
 # keepTrees gate.
 predict.bartOrdinal <- function(
   object,
@@ -1641,7 +1641,7 @@ predict.bartOrdinal <- function(
   )
   refusePredictOffsetChannel(offset, "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
-  if (is.null(object[["cutpoints.raw"]])) {
+  if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
   }
   # after the store check, whose absence the default here would otherwise
@@ -1670,7 +1670,7 @@ predict.bartOrdinal <- function(
     return(result)
   }
   K <- object$K
-  cutpoints <- object$cutpoints.raw # (K-1) x n.samples x n.chains
+  thresholds <- object$thresholds.raw # (K-1) x n.samples x n.chains
   if (length(dim(raw)) == 2L) {
     dim(raw) <- c(dim(raw), 1L)
   }
@@ -1680,7 +1680,7 @@ predict.bartOrdinal <- function(
   for (s in seq_len(n.samples)) {
     for (chain in seq_len(n.chains)) {
       probs[,, s, chain] <-
-        ordinalCategoryProbabilities(raw[, s, chain], cutpoints[, s, chain])
+        ordinalCategoryProbabilities(raw[, s, chain], thresholds[, s, chain])
     }
   }
   if (n.chains == 1L) {

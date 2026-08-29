@@ -187,7 +187,7 @@ fitSeed <- function(seed) {
     st <- bartcoreStoreState(bc)
     # the K-1 finite cutpoints c(gamma_1 = 0, gamma_2); the probability transform
     # needs the whole vector, the gamma_2 tracking only its free entry
-    gammaVec <- st[[1L]]$cutpoints
+    gammaVec <- st[[1L]]$thresholds
     gammaSum <- gammaSum + gammaVec[2L]
     etaA <- r$train[iA, 1L]
     etaB <- r$train[iB, 1L]

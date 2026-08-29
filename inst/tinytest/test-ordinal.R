@@ -51,7 +51,7 @@ expect_equal(fit$levels, lv)
 expect_equal(dim(fit$yhat.train), c(n.samples, n, 3L))
 expect_equal(dimnames(fit$yhat.train)[[3L]], lv)
 expect_equal(dim(fit$yhat.test), c(n.samples, 10L, 3L))
-expect_equal(dim(fit$cutpoints), c(n.samples, 2L))
+expect_equal(dim(fit$thresholds), c(n.samples, 2L))
 expect_equal(dim(fit$latent.train), c(n.samples, n))
 expect_equal(dim(fit$varcount), c(n.samples, 3L))
 expect_true(is.ordered(fit$y))
@@ -61,9 +61,9 @@ expect_true(all(fit$yhat.train >= 0 & fit$yhat.train <= 1))
 expect_true(
   max(abs(apply(fit$yhat.train, c(1L, 2L), sum) - 1)) < 1e-12
 )
-# cutpoints: gamma_1 pinned at 0, gamma_2 above it, every draw
-expect_true(all(fit$cutpoints[, 1L] == 0))
-expect_true(all(fit$cutpoints[, 2L] > 0))
+# thresholds: gamma_1 pinned at 0, gamma_2 above it, every draw
+expect_true(all(fit$thresholds[, 1L] == 0))
+expect_true(all(fit$thresholds[, 2L] > 0))
 
 # --- fitted ---
 
@@ -179,7 +179,7 @@ suppressMessages(
   )
 )
 expect_equal(dim(fit2c$yhat.train), c(2L, 20L, n, 3L))
-expect_equal(dim(fit2c$cutpoints), c(2L, 20L, 2L))
+expect_equal(dim(fit2c$thresholds), c(2L, 20L, 2L))
 expect_equal(
   dim(predict(fit2c, x.test, combineChains = FALSE)),
   c(2L, 20L, 10L, 3L)
@@ -258,8 +258,8 @@ expect_error(
   dbarts(x, y, family = "ordinal", weights = runif(n, 0.5, 2)),
   pattern = "weights"
 )
-# a single-category response has no cutpoint to place, and is refused by count
-# rather than left to fail on an empty cutpoint vector downstream
+# a single-category response has no threshold to place, and is refused by count
+# rather than left to fail on an empty threshold vector downstream
 expect_error(
   bart2(
     x,
@@ -326,9 +326,9 @@ r <- sampler$run(20L, 5L)
 expect_equal(dim(r$train), c(n, 5L))
 
 state1 <- sampler$state
-expect_equal(length(state1[[1L]]$cutpoints), 2L)
-expect_equal(state1[[1L]]$cutpoints[1L], 0)
-expect_true(all(diff(state1[[1L]]$cutpoints) > 0))
+expect_equal(length(state1[[1L]]$thresholds), 2L)
+expect_equal(state1[[1L]]$thresholds[1L], 0)
+expect_true(all(diff(state1[[1L]]$thresholds) > 0))
 
 # --- state save/load through the R surface: restore is deterministic ---
 
@@ -338,12 +338,12 @@ samplerC <- dbarts(x, y, family = "ordinal", control = control, verbose = FALSE)
 samplerB$setState(saved)
 samplerC$setState(saved)
 statesAgree(samplerB$state, saved)
-expect_identical(samplerB$state[[1L]]$cutpoints, saved[[1L]]$cutpoints)
+expect_identical(samplerB$state[[1L]]$thresholds, saved[[1L]]$thresholds)
 rB <- samplerB$run(0L, 5L)
 rC <- samplerC$run(0L, 5L)
 expect_identical(rB$train, rC$train)
 
-# an ordinal sampler refuses a state lacking its cutpoint block
+# an ordinal sampler refuses a state lacking its threshold block
 probitSampler <- dbarts(x, as.double(codes == 3L), verbose = FALSE)
 invisible(probitSampler$run(5L, 2L))
 expect_error(
@@ -351,10 +351,10 @@ expect_error(
   "'state' length must equal number of chains"
 )
 
-# --- mutation semantics: setResponse keeps cutpoints, redraws z ---
+# --- mutation semantics: setResponse keeps thresholds, redraws z ---
 
 before <- sampler$state
-cutBefore <- before[[1L]]$cutpoints
+threshBefore <- before[[1L]]$thresholds
 latentsBefore <- before[[1L]]$latents
 
 set.seed(101)
@@ -366,11 +366,11 @@ codesNew[swap] <- sample.int(3L, 40L, replace = TRUE)
 sampler$setResponse(as.double(codesNew), updateState = TRUE)
 
 after <- sampler$state
-expect_identical(after[[1L]]$cutpoints, cutBefore)
+expect_identical(after[[1L]]$thresholds, threshBefore)
 expect_false(identical(after[[1L]]$latents, latentsBefore))
-# the redrawn z respect the kept cutpoints' intervals for the NEW response:
+# the redrawn z respect the kept thresholds' intervals for the NEW response:
 # y = k implies gamma_{k-1} < z <= gamma_k (gamma_0 = -Inf, gamma_K = +Inf)
-bounds <- c(-Inf, cutBefore, Inf)
+bounds <- c(-Inf, threshBefore, Inf)
 zNew <- after[[1L]]$latents
 expect_true(all(zNew > bounds[codesNew] & zNew <= bounds[codesNew + 1L]))
 
@@ -387,7 +387,7 @@ expect_identical(sampler$data@y, as.double(codesNew))
 sampler$setResponse(as.double(codes))
 expect_identical(sampler$data@y, as.double(codes))
 
-# --- recovery: probabilities and the free cutpoint, statistically ---
+# --- recovery: probabilities and the free threshold, statistically ---
 
 set.seed(4242)
 nRec <- 300L
@@ -414,10 +414,10 @@ fitRec <- bart2(
 )
 phatRec <- fitted(fitRec)
 expect_true(mean(abs(phatRec - trueProbs)) < 0.08)
-expect_true(abs(mean(fitRec$cutpoints[, 2L]) - 0.8) < 0.35)
+expect_true(abs(mean(fitRec$thresholds[, 2L]) - 0.8) < 0.35)
 # and it MOVES: gamma_2 is redrawn every sweep, where a sampler that froze it
 # at its cold start (spacing 1) would sit inside the band above with sd 0
-expect_true(sd(fitRec$cutpoints[, 2L]) > 0.02)
+expect_true(sd(fitRec$thresholds[, 2L]) > 0.02)
 
 # --- type synonyms: "response" and "link" are the predict.glm spellings of
 # "ev" and "bart", accepted here exactly as on a "bart" fit ---
@@ -525,8 +525,8 @@ expect_error(
   fixed = TRUE
 )
 
-# --- plot(object): two panels (K > 2) with the cutpoint trace, one panel
-# at K = 2 (no free cutpoint, so par is untouched); the K > 2 branch
+# --- plot(object): two panels (K > 2) with the threshold trace, one panel
+# at K = 2 (no free threshold, so par is untouched); the K > 2 branch
 # restores the caller's par afterward - assert restoration against a
 # sentinel value distinct from both the plot's own layout and the device
 # default ---
@@ -555,13 +555,13 @@ dev.off()
 expect_equal(mfrowK3, c(3L, 3L))
 expect_equal(mfrowK2, c(1L, 1L))
 
-# --- as_draws_array/df default to vars = c("cutpoints", "sigma", "k",
-# "tau"); cutpoint[1] (pinned at 0) is kept ---
+# --- as_draws_array/df default to vars = c("thresholds", "sigma", "k",
+# "tau"); threshold[1] (pinned at 0) is kept ---
 
 if (requireNamespace("posterior", quietly = TRUE)) {
   ad <- posterior::as_draws_array(fit)
   adNames <- dimnames(unclass(ad))[[3L]]
-  expect_true(all(c("cutpoint[1]", "cutpoint[2]") %in% adNames))
+  expect_true(all(c("threshold[1]", "threshold[2]") %in% adNames))
   rm(ad, adNames)
 }
 

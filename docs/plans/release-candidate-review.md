@@ -782,7 +782,7 @@ clean staged copy) before its push, CI six-green on every push (one cure below):
   log(pi) + dlnorm at positives on the NATURAL scale with the Jacobian, no truncation
   because the positive part is lognormal - the Rd carries the four statements a porter
   needs), and as_draws_array/as_draws_df (scalar parameters only: dispersion;
-  cutpoint[k] with the pinned first; meanProb[level]; occupancy./positive. prefixes).
+  threshold[k] with the pinned first; meanProb[level]; occupancy./positive. prefixes).
   The survey behind the semantics (BART, brms, rstanarm, pscl, ordinal, nnet, VGAM;
   formulas verified numerically) is docs/plans/review-2026-08-24/generics-survey.md, the
   ruling generics-phase2-spec.md. The reviewer's own oracles agree to <= 3e-15 on all
@@ -3394,7 +3394,7 @@ four-slot prefix-sum audit plus a names-block edit (the post-K2
 Student-t df channel rides this). Neutrality, the strongest stack
 yet: 14/14 full-result identical() probes covering every channel
 (gaussian 1/2-chain, nulls, chi-k, DART varprobs, variance with
-and without test, ordinal cutpoints, nbinom dispersion, BCF
+and without test, ordinal thresholds, nbinom dispersion, BCF
 forestFits/glue/widened varcount, multinomial train/test, grouped
 tau/ranef, zero-sample NULL); trio bitwise 37/37 12/12 10/10;
 tests/cpp clean AND under ASAN/UBSAN; the instrumented R-package

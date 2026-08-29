@@ -530,7 +530,7 @@ API, two exported names.
 
 ```
 dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = 1,
-                  dispersion = NULL, cutpoints = NULL, df = NULL)
+                  dispersion = NULL, thresholds = NULL, df = NULL)
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
                       dispersion = NULL)
 ```
@@ -553,7 +553,7 @@ independent PG(1, psi) draws summed - the identical reduction
 other family. `dispersion` is NBINOM ONLY, the current r, entering as
 `PG(y[i] + r, psi)` through the integer-shape reduction
 `bartcore::simulatePolyaGammaShape` provides and `NBResponse::drawOmega` uses.
-`cutpoints` is ordinal only; `sigma` aft and student; `df` student.
+`thresholds` is ordinal only; `sigma` aft and student; `df` student.
 `dbartsDrawLatents` returns a numeric of length n with
 `attr(result, "quantity")` of "location" or "precision".
 
@@ -1199,7 +1199,7 @@ cells, and `air`'s vertical call formatting inflates raw lines against a dense
 reading; the note carries four mutations and five deviations. The spec's
 "engine ~10" costed the `storeSample` write alone and not the shape flag, pure
 virtual and facade override the R5 getter it also mandates. No `tests/cpp`
-cell; the `cutpoints` precedent carries none either.
+cell; the `thresholds` precedent carries none either.
 
 Battery, all on the slice's private lib (`/tmp/s2-lib`, since `~/.Renviron`
 overrides `R_LIBS_USER`): `--preclean` install clean; `tests/cpp` from
@@ -1413,7 +1413,7 @@ switches; `dbartsWorkingResponse` skips `validateResponseSupport` for ordinal
 only (y never enters that arm and there is no K to state support against);
 `sigma`, carrying a default, is refused off aft/student on `!missing(sigma)`
 rather than non-NULL; `weights` and `sigma` are refused off-family but
-OPTIONAL within it, while `dispersion`/`cutpoints`/`df` are two-way (their
+OPTIONAL within it, while `dispersion`/`thresholds`/`df` are two-way (their
 family REQUIRES them - the law has no fallback); the R layer adds
 positivity/wholeness/sortedness validation the spec implies but does not
 itemize, safe-over-fast.
@@ -1791,7 +1791,7 @@ validator; ordinal k-indexing is branch-safe). Three silent-degradation
 contracts the R surface validates and the flat surface CONTRACTS are now
 STATED in the Doxygen, added at the review round after the audit found them
 undisclosed: fractional dispersion is rounded into a different-shape
-Polya-Gamma draw, not refused; unordered cutpoints corrupt the draw
+Polya-Gamma draw, not refused; unordered thresholds corrupt the draw
 silently (the rejection loop degrades to its fallback); a non-finite y
 under "aft"/"student" propagates NaN into out, per the same contract
 `dbarts_sampler_setResponse` states. Known-weak cell, recorded, no action:

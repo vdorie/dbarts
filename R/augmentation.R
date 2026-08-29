@@ -64,7 +64,7 @@ dbartsDrawLatents <- function(
   offset = NULL,
   sigma = NULL,
   dispersion = NULL,
-  cutpoints = NULL,
+  thresholds = NULL,
   df = NULL
 ) {
   family <- match.arg(family, augFamilies)
@@ -80,7 +80,7 @@ dbartsDrawLatents <- function(
     augRestrict(TRUE, "sigma", family, c("aft", "student"))
   }
   augRestrict(!is.null(dispersion), "dispersion", family, "nbinom")
-  augRestrict(!is.null(cutpoints), "cutpoints", family, "ordinal")
+  augRestrict(!is.null(thresholds), "thresholds", family, "ordinal")
   augRestrict(!is.null(df), "df", family, "student")
 
   if (!is.null(weights)) {
@@ -98,10 +98,10 @@ dbartsDrawLatents <- function(
   if (!is.null(sigma)) {
     sigma <- augScalar(sigma, "sigma")
   }
-  if (!is.null(cutpoints)) {
-    cutpoints <- augVector(cutpoints, "cutpoints")
-    if (is.unsorted(cutpoints, strictly = TRUE)) {
-      stop("'cutpoints' must be strictly increasing")
+  if (!is.null(thresholds)) {
+    thresholds <- augVector(thresholds, "thresholds")
+    if (is.unsorted(thresholds, strictly = TRUE)) {
+      stop("'thresholds' must be strictly increasing")
     }
   }
 
@@ -114,7 +114,7 @@ dbartsDrawLatents <- function(
     offset,
     naIfNull(sigma),
     naIfNull(dispersion),
-    cutpoints,
+    thresholds,
     naIfNull(df)
   )
 }

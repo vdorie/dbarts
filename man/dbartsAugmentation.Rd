@@ -14,7 +14,7 @@
 }
 \usage{
 dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = NULL,
-                  dispersion = NULL, cutpoints = NULL, df = NULL)
+                  dispersion = NULL, thresholds = NULL, df = NULL)
 
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
                       dispersion = NULL)
@@ -57,7 +57,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
     \code{"nbinom"} only, and required there: the current dispersion \eqn{r}{r}, a positive whole
     number, as \code{\link[=dbartsSampler-class]{getDispersion}} reports it.
   }
-  \item{cutpoints}{
+  \item{thresholds}{
     \code{"ordinal"} only, and required there: the \eqn{K - 1}{K - 1} strictly increasing category
     boundaries in force.
   }

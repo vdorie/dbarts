@@ -463,7 +463,7 @@ weighted-binary fork.
 column eta = f (as probit/logistic return their latent). type = "ev"/"response"
 returns the MEAN counts mu = r exp(f + o) - which REQUIRES r, so the r draws are a
 first-class posterior output, an n.samples-length `r` field (the count analog of
-gaussian's sigma and ordinal's cutpoints; section 5). fitted()/predict() mean
+gaussian's sigma and ordinal's thresholds; section 5). fitted()/predict() mean
 shapes match the gaussian single-column ev shape (n x n.chains x n.samples where
 extract does), computed per draw as r_draw * exp(f + o). predict requires
 keepTrees (the predict.bart guard). A "prob-like" latent p = plogis(eta) may also
@@ -485,7 +485,7 @@ mechanism, the ordinal precedent.
 virtual trio carriesR() / r() / restoreR() to ResponseModel (default false / 0 /
 no-op), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
 (model.hpp:4166-4169). r is a scalar, so it needs no length (the residualDf
-analog, not the cutpoints vector analog); in grid mode the stored value is a
+analog, not the thresholds vector analog); in grid mode the stored value is a
 grid member, the TResponse estimatesResidualDf convention (model.hpp:4168).
 ChainStateData gains a scalar field near its residualDf field, named
 `dispersion` as shipped (retired: proposed as `r`; combiner.hpp:81-85, NaN

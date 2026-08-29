@@ -1653,7 +1653,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
-        gamma <- as.numeric(res$cutpoints)
+        gamma <- as.numeric(res$thresholds)
         eta <- res$train[, 1]
         p <- colMeans(sbcOrdinalProbs(eta, gamma))
         c(

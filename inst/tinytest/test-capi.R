@@ -636,7 +636,7 @@ flatCount <- drawFlat("nbinom", augFit, yCount, r = 3)
 flatOrdinal <- drawFlat("ordinal", augFit, yOrdinal, cuts = cuts)
 set.seed(14)
 rCount <- dbartsDrawLatents("nbinom", augFit, yCount, dispersion = 3)
-rOrdinal <- dbartsDrawLatents("ordinal", augFit, yOrdinal, cutpoints = cuts)
+rOrdinal <- dbartsDrawLatents("ordinal", augFit, yOrdinal, thresholds = cuts)
 expect_equal(flatCount, as.vector(rCount))
 expect_equal(flatOrdinal, as.vector(rOrdinal))
 

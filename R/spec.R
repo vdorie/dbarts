@@ -621,7 +621,7 @@ resolveSamplerSpec <- function(
             "censoring status reaches no multi-forest creation path"
           ),
           ordinal = paste0(
-            "its cutpoint block is not shown to interleave with the ",
+            "its threshold block is not shown to interleave with the ",
             "amplitude block"
           ),
           nbinom = paste0(

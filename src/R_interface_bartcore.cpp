@@ -1756,7 +1756,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // errors, NaN keeps the Gaussian law
   options.residualDf = model.residualDf;
   // ordinal construction reads this: K >= 2 selects OrdinalResponse with a
-  // K-1 cutpoint vector, 0 leaves a non-ordinal response
+  // K-1 threshold vector, 0 leaves a non-ordinal response
   options.numCategories = control.numOrdinalCategories;
   // nbinom construction reads this: a positive value fixes the dispersion r,
   // a non-positive value estimates it on the grid; NaN (a non-count
@@ -2273,7 +2273,7 @@ const char* refusedAmplitudeFamilyReason(bartcore::ResponseFamily family) {
     return "an AFT (survival) response: it draws sigma, which the coupling "
            "pins, and its censoring status reaches no K-forest creation path";
   case bartcore::ResponseFamily::ordinal:
-    return "an ordinal response: its cutpoint block is not shown to interleave "
+    return "an ordinal response: its threshold block is not shown to interleave "
            "with the amplitude block";
   case bartcore::ResponseFamily::nbinom:
     return "a count (nbinom) response: its dispersion block is not shown to "
@@ -3067,7 +3067,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // internal control attribute; the chains copy the indices at construction
     applyGroupAttribute(controlExpr, data.numObservations, options,
                         groupIndices);
-    // grouped ordinal is a recorded but unbuilt door: the cutpoint block and
+    // grouped ordinal is a recorded but unbuilt door: the threshold block and
     // the group block are not yet shown to interleave, so refuse the
     // composition here, the host backstop the R surface (rbart_vi) mirrors
     if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
@@ -4350,14 +4350,14 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     return R_NilValue;
   }
 
-  // ordinal reports its K-1 cutpoints in an extra channel appended after ranef;
+  // ordinal reports its K-1 thresholds in an extra channel appended after ranef;
   // every other family carries none, so the list keeps its 8 slots and byte-for-
   // byte layout. numOrdinalThresholds == 0 off ordinal.
   size_t numOrdinalThresholds = shape.numOrdinalThresholds;
   bool hasOrdinalThresholds = numOrdinalThresholds > 0;
   // heteroscedastic samplers append s.train (+ s.test when test rows exist) as
   // a separately-typed variance channel; gaussian-only, so mutually exclusive
-  // with the ordinal cutpoint slot
+  // with the ordinal threshold slot
   bool hasVariance = shape.hasVarianceForest;
   // a coupling that composes its forests through scalar glue (BCF) appends the
   // per-forest fits and that glue, so one run reports both surfaces and every
@@ -4366,7 +4366,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   bool hasForestReporting = shape.forestReportingIsDefined;
   size_t numForests = shape.numForests;
   // an nbinom sampler appends its per-draw dispersion r right after the ordinal
-  // cutpoint slot, so every later conditional slot shifts by it; no family
+  // threshold slot, so every later conditional slot shifts by it; no family
   // carries both, but the arithmetic composes regardless of that
   bool hasDispersion = shape.carriesDispersion;
   // a Student-t error law appends its per-draw df nu next, on the same
@@ -4422,7 +4422,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     "ranef", numGroups == 0 ? R_NilValue : allocChannel(REALSXP, {numGroups}));
   SEXP ordinalThresholdsExpr = !hasOrdinalThresholds
     ? R_NilValue
-    : installChannel("cutpoints",
+    : installChannel("thresholds",
                      allocChannel(REALSXP, {numOrdinalThresholds}));
   // one scalar per draw, so the dispersion channel takes sigma's own shape
   SEXP dispersionExpr = !hasDispersion
@@ -6496,7 +6496,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
+    SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_THRESHOLDS, SLOT_DISPERSION,
     SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
     SLOT_VARIANCE_FLAGS, SLOT_VARIANCE_MASKS,
     SLOT_VARIANCE_SAVED_VARS, SLOT_VARIANCE_SAVED_VALUES,
@@ -6508,7 +6508,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "glue", "resid.df", "cutpoints", "dispersion",
+    "rng.state", "glue", "resid.df", "thresholds", "dispersion",
     "variance.vars", "variance.values", "variance.sizes", "variance.flags",
     "variance.masks",
     "variance.saved.vars", "variance.saved.values", "variance.saved.sizes",
@@ -6656,14 +6656,14 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       SET_VECTOR_ELT(chainExpr, SLOT_RESID_DF,
                      Rf_ScalarReal(chainState.residualDf));
 
-    // the ordinal-only length-(K-1) cutpoint vector; z already rode the latents
+    // the ordinal-only length-(K-1) threshold vector; z already rode the latents
     // slot above. A non-ordinal chain leaves it empty and writes no block, so
     // old and other-family states omit the slot.
     if (!chainState.ordinalThresholds.empty()) {
-      SET_VECTOR_ELT(chainExpr, SLOT_CUTPOINTS,
+      SET_VECTOR_ELT(chainExpr, SLOT_THRESHOLDS,
                      Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
                                       chainState.ordinalThresholds.size())));
-      std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_CUTPOINTS)),
+      std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_THRESHOLDS)),
                   chainState.ordinalThresholds.data(),
                   chainState.ordinalThresholds.size() * sizeof(double));
     }
@@ -7134,10 +7134,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive ordinal-only block: absent (an old or non-ordinal state) leaves
     // the vector empty, which stateIsValid refuses only for an ordinal sampler
-    SEXP ordinalThresholdsExpr = rc_getListElement(chainExpr, "cutpoints");
+    SEXP ordinalThresholdsExpr = rc_getListElement(chainExpr, "thresholds");
     if (!Rf_isNull(ordinalThresholdsExpr)) {
       if (!Rf_isReal(ordinalThresholdsExpr)) {
-        errorMessage = malformedBlock("cutpoints");
+        errorMessage = malformedBlock("thresholds");
         break;
       }
       chainState.ordinalThresholds.assign(

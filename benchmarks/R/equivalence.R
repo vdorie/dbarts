@@ -1121,7 +1121,7 @@ fitViaOrdinal <- function(scenario) {
   list(
     yhat.test = fit$latent.test,
     varcount = fit$varcount,
-    cutpoints = fit$cutpoints,
+    cutpoints = fit$thresholds,
     probs.test = fit$yhat.test
   )
 }

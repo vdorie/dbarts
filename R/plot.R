@@ -297,18 +297,18 @@ plot.bartMultinomial <- function(
   invisible(x)
 }
 
-# P1: one trace per FREE cutpoint (gamma_1 is pinned at 0 and carries no
+# P1: one trace per FREE threshold (gamma_1 is pinned at 0 and carries no
 # information); at K = 2 there is none, so the plot degrades to the single
 # full-device latent panel plot.bart's binary branch draws. P2: the
 # per-observation latent posterior interval, observations ordered by median
 # eta, coloured by observed level, with dashed reference lines at the
-# posterior-median cutpoints - this shows whether the latent separates the
+# posterior-median thresholds - this shows whether the latent separates the
 # observed levels at the fitted thresholds, which a per-category probability
 # panel (the multinomial shape) would not, since it drops the order.
 plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
   K <- x$K
-  cpArr <- ordinalCutpointsArray(x) # (iteration, chain, cutpoint); [, , 1] == 0
-  cutpointMedians <- apply(cpArr, 3L, quantile, probs = 0.5)
+  cpArr <- ordinalThresholdsArray(x) # (iteration, chain, threshold); [, , 1] == 0
+  thresholdMedians <- apply(cpArr, 3L, quantile, probs = 0.5)
 
   if (K > 2L) {
     oldpar <- par(no.readonly = TRUE)
@@ -325,7 +325,7 @@ plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
       xlim = c(1L, nrow(trace)),
       ylim = range(trace),
       xlab = "iteration",
-      ylab = "cutpoint"
+      ylab = "threshold"
     )
     for (j in seq_len(ncol(trace))) {
       lines(seq_len(nrow(trace)), trace[, j], col = cols[j])
@@ -355,7 +355,7 @@ plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
   for (i in seq_along(band$med)) {
     lines(rep(i, 2L), c(band$lo[ord[i]], band$hi[ord[i]]), col = levelCols[i])
   }
-  abline(h = cutpointMedians, lty = 2L)
+  abline(h = thresholdMedians, lty = 2L)
   invisible(x)
 }
 

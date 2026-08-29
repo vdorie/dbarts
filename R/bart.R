@@ -1046,7 +1046,7 @@ bart2 <- function(
   }
 
   # ordinal (cumulative probit): a single-forest fixed-scale latent model
-  # whose n x K category probabilities and per-draw cutpoints
+  # whose n x K category probabilities and per-draw thresholds
   # are synthesized in R (the engine reports only the latent eta), dispatched
   # here rather than threaded through the standard single-forest path so its
   # K-widened fit object (class "bartOrdinal", never "bart") stays distinct.
@@ -1719,18 +1719,18 @@ packageMultinomialResults <- function(
 }
 
 # The cumulative-probit category probabilities for one posterior draw: given
-# the latent means eta (length n) and the K-1 finite cutpoints gamma
+# the latent means eta (length n) and the K-1 finite thresholds gamma
 # (gamma_1 < ... < gamma_{K-1}), returns the
 # n x K matrix P(y = k) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), with
 # gamma_0 = -Inf and gamma_K = +Inf supplying the boundary columns of 0 and 1.
 # Shared by the fit-time reshape and predict.bartOrdinal's replay.
-ordinalCategoryProbabilities <- function(eta, cutpoints) {
+ordinalCategoryProbabilities <- function(eta, thresholds) {
   n <- length(eta)
-  K <- length(cutpoints) + 1L
+  K <- length(thresholds) + 1L
   bounds <- matrix(0, n, K + 1L)
   bounds[, K + 1L] <- 1
   for (j in seq_len(K - 1L)) {
-    bounds[, j + 1L] <- pnorm(cutpoints[j] - eta)
+    bounds[, j + 1L] <- pnorm(thresholds[j] - eta)
   }
   bounds[, 2L:(K + 1L), drop = FALSE] - bounds[, 1L:K, drop = FALSE]
 }
@@ -1739,8 +1739,8 @@ ordinalCategoryProbabilities <- function(eta, cutpoints) {
 # "ordinal" branch. Unlike multinomial's K-forest
 # engine, ordinal is a SINGLE forest whose kept samples report the latent
 # eta = f(x) (like probit) and, in an ordinal-only run channel, the per-draw
-# K-1 cutpoints; the n x K category probabilities are synthesized here from the
-# two. A single run(n.burn, n.samples) drives the whole chain (the cutpoint
+# K-1 thresholds; the n x K category probabilities are synthesized here from the
+# two. A single run(n.burn, n.samples) drives the whole chain (the threshold
 # channel is aligned with each kept sweep's latent draw), so no per-sample
 # state read is needed. dbarts(family = "ordinal") does the 1-based recoding,
 # the fixed unit scale, and attaches K, so this reuses the standard bart2
@@ -1809,10 +1809,10 @@ bart2Ordinal <- function(
   } else {
     NULL
   }
-  cutpointsRaw <- array(0, c(K - 1L, n.samples, n.chains))
+  thresholdsRaw <- array(0, c(K - 1L, n.samples, n.chains))
 
-  # one run drives the whole chain; the cutpoints ride their own run channel
-  # (r$cutpoints, present because the ordinal family carries them), aligned with
+  # one run drives the whole chain; the thresholds ride their own run channel
+  # (r$thresholds, present because the ordinal family carries them), aligned with
   # each kept sweep's latent draw, so no per-sample state read is needed
   r <- bartcoreRun(bc, control@n.burn, n.samples)
 
@@ -1825,8 +1825,8 @@ bart2Ordinal <- function(
 
   for (chain in seq_len(n.chains)) {
     for (s in seq_len(n.samples)) {
-      gamma <- channelColumn(r$cutpoints, s, chain, n.chains)
-      cutpointsRaw[, s, chain] <- gamma
+      gamma <- channelColumn(r$thresholds, s, chain, n.chains)
+      thresholdsRaw[, s, chain] <- gamma
       etaTrain <- channelColumn(r$train, s, chain, n.chains)
       latentTrain[, s, chain] <- etaTrain
       probsTrain[,, s, chain] <-
@@ -1840,9 +1840,9 @@ bart2Ordinal <- function(
     }
   }
 
-  # keep the full 3-D (K-1) x n.samples x n.chains cutpoints for predict, which
+  # keep the full 3-D (K-1) x n.samples x n.chains thresholds for predict, which
   # pairs each replayed latent draw with its own thresholds
-  cutpointsRawFull <- cutpointsRaw
+  thresholdsRawFull <- thresholdsRaw
 
   # drop the trailing singleton chain margin so the reshapers see the
   # n.chains == 1 layout their multinomial/gaussian siblings emit
@@ -1853,7 +1853,7 @@ bart2Ordinal <- function(
       probsTest <- array(probsTest, dim(probsTest)[1:3])
       latentTest <- matrix(latentTest, n.test, n.samples)
     }
-    cutpointsRaw <- matrix(cutpointsRaw, K - 1L, n.samples)
+    thresholdsRaw <- matrix(thresholdsRaw, K - 1L, n.samples)
     varcountRaw <- matrix(varcountRaw, dim(varcountRaw)[1L], n.samples)
   }
 
@@ -1866,17 +1866,17 @@ bart2Ordinal <- function(
     latentTrain,
     probsTest,
     latentTest,
-    cutpointsRaw,
+    thresholdsRaw,
     varcountRaw,
     combineChains
   )
   # keepTrees retains the saved trees predict.bartOrdinal replays through (the
   # sweeps wrote them regardless), and the sampler codes newdata to the
-  # training columns. cutpoints.raw supplies predict's per-draw thresholds in
+  # training columns. thresholds.raw supplies predict's per-draw thresholds in
   # the raw (K-1) x n.samples x n.chains layout that pairs with the replayed
   # latent draws, so no re-run is needed.
   if (control@keepTrees) {
-    result$cutpoints.raw <- cutpointsRawFull
+    result$thresholds.raw <- thresholdsRawFull
   }
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
@@ -1887,7 +1887,7 @@ bart2Ordinal <- function(
 # Assemble a bart2(family = "ordinal") fit from the synthesized channels.
 # yhat.train/test are the n x K category probabilities in the multinomial
 # draws-first convention (levels named on the
-# K margin); cutpoints are the per-draw K-1 thresholds, the ordinal analog of
+# K margin); thresholds is the per-draw K-1 vector, the ordinal analog of
 # gaussian's sigma; y is rebuilt as the ordered factor of observed categories
 # for residuals and reporting.
 packageOrdinalResults <- function(
@@ -1899,7 +1899,7 @@ packageOrdinalResults <- function(
   latentTrain,
   probsTest,
   latentTest,
-  cutpointsRaw,
+  thresholdsRaw,
   varcountRaw,
   combineChains
 ) {
@@ -1926,8 +1926,8 @@ packageOrdinalResults <- function(
       levels = levels,
       ordered = TRUE
     ),
-    cutpoints = convertSamplesFromDbartsToBart(
-      cutpointsRaw,
+    thresholds = convertSamplesFromDbartsToBart(
+      thresholdsRaw,
       n.chains,
       combineChains
     ),

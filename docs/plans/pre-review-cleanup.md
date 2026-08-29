@@ -120,15 +120,13 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
 ## 5. Open doors
 
 - **The R-visible `cutpoints` spelling vs the C++/C-API `ordinalThresholds`
-  rename - VD's call.** 89577d7d renamed the internal engine identifier and
-  `dbarts_drawLatents`'s parameters, disambiguating them from the split
-  grid's `cutPoints`. It did not touch the R-facing vocabulary: `vars =
-  c("cutpoints", "sigma", "k", "tau")` (R/diagnostics.R, `summary.bart`'s
-  ordinal default) and the corresponding `man/summary.bart.Rd` prose still
-  say `"cutpoints"`. Whether the R surface should follow the C-API rename, or
-  whether `"cutpoints"` stays as the R-facing spelling (the ordinary
-  statistical-English word, distinct from the disambiguation problem the
-  C++/C rename solves) is undecided.
+  rename - VD's call: DECIDED, renamed.** 89577d7d renamed the internal engine
+  identifier and `dbarts_drawLatents`'s parameters, disambiguating them from
+  the split grid's `cutPoints`, but left the R-facing vocabulary untouched. A
+  later stack renamed the R-facing spelling to `thresholds` throughout
+  (`vars = c("thresholds", "sigma", "k", "tau")` in R/diagnostics.R,
+  `man/summary.bart.Rd`, and every other R-visible site), aligning it with
+  the C-API name.
 - **The seeds-axis re-record.** TODO's `equivalence-harness-statistical-mode`
   entry: a post-RC re-record of bcf-equivalence.R/multinomial-equivalence.R
   replacing the single-chain autocorrelated draws with independent
@@ -163,9 +161,9 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   passing `all = FALSE` gets an error under `all = TRUE`'s semantics rather
   than silently different output - still the worst of FINISH/CUT/as-is per
   yagni #12, left for a deliberate decision rather than folded into this batch.
-- The test-blocks.R stale in-test cite (section 4) and the R-visible
-  `cutpoints` spelling (section 5) are the two items a reader of this record
-  should not mistake for closed.
+- The test-blocks.R stale in-test cite (section 4) is the one item a reader
+  of this record should not mistake for closed; the R-visible `cutpoints`
+  spelling (section 5) was later decided and renamed to `thresholds`.
 - `GP leaves` (yagni #4) and the flat C API's `getForestCalibration`/
   `setForestPriorScale` pair (yagni #5) were both explicitly KEPT rather than
   silently passed over - see rulings #10-11 for the value claims that held.

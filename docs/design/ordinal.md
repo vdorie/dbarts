@@ -357,8 +357,8 @@ ordered levels - the multinomial K-column shape (R/generics.R:1584-1598), comput
 through the cutpoints rather than a softmax. type = "bart"/"link" returns the
 single-column latent eta = f (probit returns its latent likewise,
 R/generics.R:400-404). A class-prediction convenience maps the argmax category
-back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoint
-draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
+back to the ordered level (multinomial's max.col + levels idiom). The K-1 threshold
+draws are posterior output too: expose an n.samples x (K-1) "thresholds" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
 predict.bart guard, R/generics.R:302-304). This K-column path deliberately
@@ -374,7 +374,7 @@ its own transform beside it rather than a generalization of it.
 fit object to label the K probability columns and map argmax back - as
 bartMultinomial persists $levels (R/bart.R:1710). Give ordinal its own S3
 class bartOrdinal (mirroring bartMultinomial, R/bart.R:1729) carrying $levels and
-$cutpoints, so the bart generics do not misread the K-widened arrays as a
+$thresholds, so the bart generics do not misread the K-widened arrays as a
 single-forest fit.
 
 ## 6. Decision - state and mutation
@@ -383,9 +383,9 @@ single-forest fit.
 virtual trio carriesCutpoints() / cutpoints() / restoreCutpoints() to ResponseModel
 (default false / nullptr / no-op), exactly as carriesResidualDf() /residualDf()/
 restoreResidualDf() was added for Student-t (model.hpp:4169). serializeState
-writes a "cutpoints" slot only when carriesCutpoints()
+writes a "thresholds" slot only when carriesCutpoints()
 (the residualDf pattern at chain.hpp:3084-3086); the R<->C++ state list gains a
-named "cutpoints" slot beside "resid.df" (slotNames, R_interface_bartcore.cpp:
+named "thresholds" slot beside "resid.df" (slotNames, R_interface_bartcore.cpp:
 6457-6466), written only when present (the conditional write at 6612-6619) and
 read by name with absence tolerated (the getListElement decode at 7087-7095).
 stateIsValid refuses an ordinal sampler whose state lacks a length-(K-1) cutpoint

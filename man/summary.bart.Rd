@@ -53,9 +53,9 @@
 \method{as_draws_array}{bartMultinomial}(x, vars = "meanProb", \dots)
 \method{as_draws_df}{bartMultinomial}(x, vars = "meanProb", \dots)
 \method{as_draws_array}{bartOrdinal}(
-  x, vars = c("cutpoints", "sigma", "k", "tau"), \dots)
+  x, vars = c("thresholds", "sigma", "k", "tau"), \dots)
 \method{as_draws_df}{bartOrdinal}(
-  x, vars = c("cutpoints", "sigma", "k", "tau"), \dots)
+  x, vars = c("thresholds", "sigma", "k", "tau"), \dots)
 \method{as_draws_array}{bartNegbin}(
   x, vars = c("dispersion", "sigma", "k", "tau"), \dots)
 \method{as_draws_df}{bartNegbin}(
@@ -92,8 +92,8 @@
 
     For the four own-class methods, \code{vars} is scoped to that
     family's own vocabulary (see \code{\link{bart2}}): a
-    \code{"bartOrdinal"} fit's \code{"cutpoints"} contributes
-    \code{cutpoint[1]} (pinned at 0) through \code{cutpoint[K - 1]}; a
+    \code{"bartOrdinal"} fit's \code{"thresholds"} contributes
+    \code{threshold[1]} (pinned at 0) through \code{threshold[K - 1]}; a
     \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
     per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has a
     single channel, so its \code{vars} only ever means \code{"meanProb"}

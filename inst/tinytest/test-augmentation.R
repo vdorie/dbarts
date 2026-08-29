@@ -118,19 +118,19 @@ for (df in c(3, 10)) {
 }
 
 # ordinal draws z inside its own category interval, the boundary categories
-# one-sided; cutpoints are the K - 1 = 3 boundaries of K = 4 categories
-cutpoints <- c(-0.5, 0.4, 1.1)
+# one-sided; thresholds are the K - 1 = 3 boundaries of K = 4 categories
+thresholds <- c(-0.5, 0.4, 1.1)
 ordinalY <- rep(1:4, each = 50L)
 ordinalFit <- rep(0.3, length(ordinalY))
 ordinalDraws <- dbartsDrawLatents(
   "ordinal",
   ordinalFit,
   ordinalY,
-  cutpoints = cutpoints
+  thresholds = thresholds
 )
 expect_true(all(
-  ordinalDraws > c(-Inf, cutpoints)[ordinalY] &
-    ordinalDraws <= c(cutpoints, Inf)[ordinalY]
+  ordinalDraws > c(-Inf, thresholds)[ordinalY] &
+    ordinalDraws <= c(thresholds, Inf)[ordinalY]
 ))
 
 # and the ordinal law itself against the SAME closed forms, since containment
@@ -142,7 +142,7 @@ for (case in list(c(2, -0.5, 0.4), c(4, 1.1, Inf))) {
     "ordinal",
     ordinalPsi,
     rep(case[1L], N),
-    cutpoints = cutpoints
+    thresholds = thresholds
   )
   moments <- truncatedNormalMoments(0.3, 1, case[2L], case[3L])
   expect_true(abs(momentZ(draws, moments)) < 4)
@@ -156,7 +156,7 @@ quantityOf <- function(family) {
       family,
       0.2,
       1,
-      cutpoints = if (family == "ordinal") 0,
+      thresholds = if (family == "ordinal") 0,
       dispersion = if (family == "nbinom") 2,
       df = if (family == "student") 5
     ),
@@ -344,8 +344,8 @@ expect_error(
   "'dispersion' applies only to family \"nbinom\""
 )
 expect_error(
-  dbartsDrawLatents("probit", fitRng, yRng, cutpoints = 0),
-  "'cutpoints' applies only to family \"ordinal\""
+  dbartsDrawLatents("probit", fitRng, yRng, thresholds = 0),
+  "'thresholds' applies only to family \"ordinal\""
 )
 expect_error(
   dbartsDrawLatents("logistic", fitRng, yRng, df = 5),
@@ -372,7 +372,7 @@ expect_error(
 )
 expect_error(
   dbartsDrawLatents("ordinal", fitRng, rep(1, 6L)),
-  "family \"ordinal\" requires 'cutpoints'"
+  "family \"ordinal\" requires 'thresholds'"
 )
 expect_error(
   dbartsDrawLatents("student", fitRng, fitRng),
@@ -394,7 +394,7 @@ expect_error(
   "non-negative integer"
 )
 expect_error(
-  dbartsDrawLatents("ordinal", fitRng, rep(4, 6L), cutpoints = c(0, 1)),
+  dbartsDrawLatents("ordinal", fitRng, rep(4, 6L), thresholds = c(0, 1)),
   "integer category index in \\[1, 3\\]"
 )
 
@@ -412,8 +412,8 @@ expect_error(
   "'dispersion' must be a whole number"
 )
 expect_error(
-  dbartsDrawLatents("ordinal", fitRng, rep(1, 6L), cutpoints = c(1, 0)),
-  "'cutpoints' must be strictly increasing"
+  dbartsDrawLatents("ordinal", fitRng, rep(1, 6L), thresholds = c(1, 0)),
+  "'thresholds' must be strictly increasing"
 )
 expect_error(
   dbartsWorkingResponse("logistic", rep(0, 6L), yRng),

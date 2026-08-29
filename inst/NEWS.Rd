@@ -446,8 +446,8 @@
             \code{family = "ordinal"} in \code{dbarts} and \code{bart2}
             fits a cumulative probit - probit's truncated-normal latents
             generalized to K ordered categories split by sampled
-            cutpoints (\eqn{\gamma_1 = 0}{gamma_1 = 0} pinned; the free
-            cutpoints move by a marginal Metropolis update with the
+            thresholds (\eqn{\gamma_1 = 0}{gamma_1 = 0} pinned; the free
+            thresholds move by a marginal Metropolis update with the
             latents integrated out, under a log-gap
             \eqn{N(0, 1.5^2)}{N(0, 1.5^2)} prior). At K = 2 the model is
             probit exactly. An ordered factor response with three or
@@ -455,7 +455,7 @@
             announced; the level order defines the category order.
             \code{bart2} returns a \code{"bartOrdinal"} fit carrying the
             levels, the n x K category-probability draws, the latent
-            draws, and the cutpoint draws, with \code{fitted},
+            draws, and the threshold draws, with \code{fitted},
             \code{extract}, \code{predict}, and \code{residuals}
             methods. Weights are not supported; \code{rbart_vi} and
             \code{xbart} refuse ordinal responses (grouped ordinal
@@ -1613,7 +1613,7 @@
             families keyed \code{$fit} on \code{keepTrees} alone, so
             \code{keepSampler} had no effect. \code{keepTrees} still also
             retains the saved forests \code{predict} replays through, and
-            ordinal's/nbinom's own \code{cutpoints.raw}/\code{dispersion.raw}
+            ordinal's/nbinom's own \code{thresholds.raw}/\code{dispersion.raw}
             channels, as before.
       \item \code{monotone} combined with an explicit
             \code{proposal.probs = NULL} no longer errors; it is now
@@ -1964,7 +1964,7 @@
             \code{dbarts(family = "multinomial")} sampler, and
             \code{samplerOnly} is supported (returning that sampler unrun).
             \code{$bc} is removed from all three families' fit objects
-            (\code{cutpoints.raw} and \code{dispersion.raw} keep their
+            (\code{thresholds.raw} and \code{dispersion.raw} keep their
             \code{keepTrees} gate); \code{predict.bartMultinomial} now reads
             through \code{$fit}, so save/reload/predict round-trips for
             multinomial fits the same way it already does for ordinal and
@@ -1995,7 +1995,7 @@
             \code{"ordinal"}, \code{"nbinom"}, and \code{"hurdle.lognormal"}
             fits. Previously these fell through to \code{summary.default}
             and printed a raw \code{Length}/\code{Class}/\code{Mode} table.
-            An ordinal fit's summary reports its cutpoints, a
+            An ordinal fit's summary reports its thresholds, a
             negative-binomial fit's its dispersion draws, and a hurdle
             fit's both component fits' summaries under their own headers -
             alongside whatever mean-function scale (\code{sigma}, \code{k},
