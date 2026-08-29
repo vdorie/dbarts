@@ -131,17 +131,14 @@ items
     gamma-sum, bias bounded ~1e-3 at K = 200) behind an explicit
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
-    NB are companion doors (design sec 7). decision-gated.
+    NB are companion doors (design sec 7). decision-gated, scheduled
+    after 1.0-0 (VD 2026-08-28).
   pre-review-cleanup: LANDED 7cd71f2d, see docs/plans/pre-review-cleanup.md.
-    Open doors from its s5, not tracked elsewhere in TODO: the R-visible
-    `cutpoints` spelling vs the engine/C-API `ordinalThresholds` rename
-    (VD's call); `drawShippedGlue`, a duplicate amplitude-draw code path
-    kept pending a finish-or-cut decision; six benchmarks/R gate scripts
-    listed FINISH but wired into no workflow (backfit-exact.R,
-    composition-matrix.R, mutation-battery.R, bench-sampler.R's biggrid
-    check, sbc.R vs sbc.yaml's 6-of-26 subset, check-doc-freshness.R's
-    Part 4). (The seeds-axis re-record is tracked under
-    equivalence-harness-statistical-mode.)
+    Remaining from its s5, not tracked elsewhere in TODO: composition-
+    matrix.R (run once at the release candidate) and any growth of
+    sbc.yaml (after it has run once on main) stay manual by decision.
+    (The seeds-axis re-record is tracked under equivalence-harness-
+    statistical-mode.)
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -215,7 +212,8 @@ items
     (probit refuses weights: no tractable weighted latent form);
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
-    with negbin-real-dispersion). decision-gated.
+    with negbin-real-dispersion). decision-gated, scheduled after
+    1.0-0 (VD 2026-08-28).
   x86-simd: CLOSED as a perf lever - compute width is already emitted,
     and the remaining kernel candidates measured NO-GO
     (docs/plans/archive/simd-flag-multiversioning.md, x86-simd.md). The live
@@ -271,8 +269,3 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     trio against the current baselines (the last full pre-submission
     gate run predates many engine commits; details in
     docs/plans/archive/cran-readiness.md).
-  on the next edit of .github/workflows/exact-gates.yaml, for any reason:
-    add benchmarks/baselines/MANIFEST to its paths-ignore. Nothing the
-    workflow runs reads MANIFEST (only tools/check-doc-freshness.R
-    resolves its hashes), so a MANIFEST-only commit should not fire the
-    exact-posterior scripts; not worth a CI round on its own.

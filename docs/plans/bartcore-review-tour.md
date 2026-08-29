@@ -125,7 +125,7 @@ less than they look like they prove.
 | `check-standard` | push/PR | `R CMD check` at the standing 0E/0W/1N | CI |
 | `cpp-tests` | push/PR | the C++ component suite green, and a 7th `ResponseFamily` enumerator a hard compile error (`-Werror=switch`; every `default:` arm deleted) | CI |
 | `sanitizers` | push/PR | ASAN+UBSAN over engine and bridge on r-hub instrumented containers; any finding fails | CI |
-| `exact-gates` quick | push/PR | 20 exact-posterior and balance scripts - math against a closed form, not a recorded snapshot. Full mode has never run in CI | CI, quick only |
+| `exact-gates` quick | push/PR | 21 exact-posterior and balance scripts - math against a closed form, not a recorded snapshot. Full mode has never run in CI | CI, quick only |
 | `exact-gates` cross-host step | push/PR | bcf and multinomial equivalence under `--cross-host` tier 1 LOCKED: `rtol = 1e-8`, `atol = rtol * max|a|` continuous, `identical()` combinatorial | CI |
 | `lint` | push/PR | `air format --check`, lintr, `tools/check-rc-codoc.R` | CI |
 | `doc-freshness` | push/PR, own workflow, no `paths-ignore` | `docs/design` anchor identity and both INDEX manifests. Split out of `lint.yaml`, whose `paths-ignore` excluded this check's own inputs | CI |
@@ -187,11 +187,11 @@ Things that could be wrong and would not be caught.
   `test-heteroscedastic-warm-start.R` and `tests/cpp/test_state.cpp`; a
   planted mutant making `setState` ignore the containment verdict was
   MISSED, then adjudicated an equivalent mutant and deferred.
-- **Seven of 32 `benchmarks/R` harnesses are wired to no workflow**, and five
+- **Six of 32 `benchmarks/R` harnesses are wired to no workflow**, and four
   that call themselves "repeatable" or "permanent" gates have one recorded
   manual run each - `mutation-battery.R`, `grouped-mixing.R` (whose re-measured
   IACT numbers already diverge from its own header, undetected because nothing
-  re-runs it), `backfit-exact.R`, `geweke-mc.R`, `composition-matrix.R`.
+  re-runs it), `geweke-mc.R`, `composition-matrix.R`.
 - **`setForestBasis(k, ~var)` evaluates the formula in `environment(basis)`
   with `data = NULL`** (`$setForestBasis` -> `evaluateForestBasis`), so a
   data-frame-only column is not found.
@@ -208,9 +208,9 @@ in `TODO`.
 
 | door | the undecided part | who decides |
 |---|---|---|
-| `updateScale` on a multi-forest sampler | refused under *every* family, keyed on bases rather than family, "though its transform is the identity and the re-anchoring the refusal guards against cannot occur" - a stated divergence from the arc's own plan | VD |
-| Real-`r` nbinom | needs a non-integer-shape Polya-Gamma draw, for which no exact sampler exists; shipping it means dbarts' first documented-approximate family behind an explicit opt-in (`TODO` negbin-real-dispersion) | VD, decision-gated |
-| Weighted binary | integer-weight probit via replicated latents is built; real weights need a real-shape PG sampler and share the decision above (`TODO` weighted-binary) | VD, decision-gated |
+| `updateScale` on a multi-forest sampler | **DECIDED**: refusal kept as-is under every family, keyed on bases not family - relaxing later breaks nobody (VD 2026-08-28). Listed so it is not re-opened | decided |
+| Real-`r` nbinom | **DECIDED**: scheduled after 1.0-0, value acknowledged (VD 2026-08-28) (`TODO` negbin-real-dispersion). Listed so it is not re-opened | decided |
+| Weighted binary | **DECIDED**: scheduled after 1.0-0, shares the decision above (VD 2026-08-28) (`TODO` weighted-binary). Listed so it is not re-opened | decided |
 | The RC declaration | the pre-RC slate is complete except the bcf baseline refresh; the declaration is VD-held (`TODO` rc-gate) | VD |
 | D7: same-host bcf baseline re-record at the RC tip | a refresh, not a prerequisite - the absent `summaries` field is a pure function of what is stored. Checklist at bcf-cross-host.md s7 | VD schedules |
 | Formal heredity (ensemble lattice prior) | **DECIDED**: the first post-1.0 arc, not pre-RC (VD 2026-08-26). Listed so it is not re-opened | decided |
@@ -238,7 +238,7 @@ that state restore is semantic, not bitwise. Prefer `docs/architecture.md`'s
 own prose on RNG and threading.
 
 **Multi-forest** - `combiner.hpp`: `ForestCombiner`,
-`AmplitudeForestCombiner`, `shippedShape()`, `MultinomialForestCombiner`.
+`AmplitudeForestCombiner`, `MultinomialForestCombiner`.
 BCF's `a*mu + b_z*tau` is the K=2 instance of
 `docs/design/multiplier-combiner.md`. *Judge*: which mutations the combiner
 refuses and why - the mutation-legality table in

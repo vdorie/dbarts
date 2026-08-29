@@ -272,21 +272,21 @@ mutations <- list(
   mk(
     "m13",
     "src/bartcore/combiner.hpp",
-    "      double aPrec = 1.0 / glue_.prior[0].variance, aNum = 0.0;",
-    "      double aPrec = 0.0, aNum = 0.0;",
+    "    double priorPrecision = 1.0 / glue_.prior[f].variance;",
+    "    double priorPrecision = 0.0;",
     "KILL_EXPECTED",
     kScript("benchmarks/R/bcf-exact-weak.R"),
-    "poison 13: BCF a-glue full conditional drops its prior precision (was chain.hpp:2049, moved to combiner.hpp under the BCF relocation); gate-hardening-1.0 sub-item 1 added bcf-exact-weak.R for exactly this"
+    "poison 13: the amplitude full conditional drops its prior precision (was chain.hpp:2049, then combiner.hpp's two-scalar a-glue draw; retargeted to drawForestAmplitude's prior seed when that specialized path was deleted, which is the same defect at every forest rather than at a alone); gate-hardening-1.0 sub-item 1 added bcf-exact-weak.R for exactly this"
   ),
 
   mk(
     "m14",
     "src/bartcore/combiner.hpp",
-    "        aPrec += wi * mu[i] * mu[i] * invSigmaSq;",
-    "        aPrec += wi * mu[i] * invSigmaSq;",
+    "          crossproduct[j * q + k] += wi * row[j] * row[k] * invSigmaSq;",
+    "          crossproduct[j * q + k] += wi * row[j] * invSigmaSq;",
     "KILL_EXPECTED",
     kScript("benchmarks/R/bcf-exact.R", "quick"),
-    "poison 14: BCF a-glue precision accumulates w*m instead of w*m^2 (was chain.hpp:2022, moved to combiner.hpp)"
+    "poison 14: the amplitude precision accumulates w*x instead of w*x^2 (was chain.hpp:2022, then combiner.hpp's two-scalar a-glue draw; retargeted to drawForestAmplitude's crossproduct when that specialized path was deleted)"
   ),
 
   mk(

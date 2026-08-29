@@ -131,12 +131,14 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   entry: a post-RC re-record of bcf-equivalence.R/multinomial-equivalence.R
   replacing the single-chain autocorrelated draws with independent
   per-scenario seeds. Untouched by this stack.
-- **`drawShippedGlue` - FINISH-OR-CUT, unruled.** yagni #6: a duplicate
-  amplitude conditional (~125 engine lines) whose own comment names its
-  deletion trigger ("at which point `AmplitudeSpec::generalAmplitudeDraw`
-  becomes the default and this branch is deleted"); kept today because
-  cutting it re-records the bcf-equivalence baseline, so this is a baseline
-  decision as much as a design one. Not ruled this round.
+- **`drawShippedGlue` - DECIDED, cut.** yagni #6 flagged it FINISH-OR-CUT: a
+  duplicate amplitude conditional (~125 engine lines) whose own comment
+  named its deletion trigger. 00cfa108 cut it, along with `shippedShape()`,
+  `basisIsCanonical`/`refreshCanonical`, and the `generalAmplitudeDraw`
+  flag; the general `drawAmplitudes` path is the only amplitude draw. BCF
+  draws moved by accumulation order only; the bcf-equivalence baseline was
+  re-recorded at 00cfa108 (9227f9be) against the three BCF exact-posterior
+  scripts.
 - **The unwired gates yagni #7 lists as FINISH, beyond the three landed in
   2518a0b5.** `benchmarks/R/backfit-exact.R` is the one `*-exact.R` script
   omitted from exact-gates.yaml's 20-gate list; `composition-matrix.R` (766
