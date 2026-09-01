@@ -27,12 +27,20 @@ if test -z "${R_HOME}"; then
   exit 1
 fi
 CC=`"${R_HOME}/bin/R" CMD config CC`
-CXX=`"${R_HOME}/bin/R" CMD config CXX`
 CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CPICFLAGS=`"${R_HOME}/bin/R" CMD config CPICFLAGS`
 CPPFLAGS=`"${R_HOME}/bin/R" CMD config CPPFLAGS`
-CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
-CXXPICFLAGS=`"${R_HOME}/bin/R" CMD config CXXPICFLAGS`
+
+# src/Makevars.in sets CXX_STD = CXX20, so the C++ probes below have to run
+# against the C++20 toolchain rather than the compiler's default standard
+CXX20=`"${R_HOME}/bin/R" CMD config CXX20`
+if test -z "${CXX20}"; then
+  AC_MSG_ERROR([no C++20 compiler is available; dbarts requires C++20])
+fi
+CXX20STD=`"${R_HOME}/bin/R" CMD config CXX20STD`
+CXX="${CXX20} ${CXX20STD}"
+CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXX20FLAGS`
+CXXPICFLAGS=`"${R_HOME}/bin/R" CMD config CXX20PICFLAGS`
 
 AC_PROG_CC
 AC_PROG_CPP
