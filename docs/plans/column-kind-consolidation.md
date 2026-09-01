@@ -33,8 +33,8 @@ they have different fixes and very different risk.
 
 **1. There is no ordered-factor marker anywhere below R's model-matrix
 builder.** `makeCategoricalModelMatrix` collapses `is.ordered()` into
-`ORDINAL_VARIABLE` (`R/utility.R:469-473`), which is `0L`
-(`R/data.R:1`), the same value a numeric column gets (`R/utility.R:489-491`).
+`ORDINAL_VARIABLE` (`R/utility.R:510-514`), which is `0L`
+(`R/data.R:1`), the same value a numeric column gets (`R/utility.R:530-532`).
 The bridge states the consequence in as many words: "an ordered factor carries
 a level table too, but enters as an ordinal column, whose grid is cut points
 rather than categories" (`src/R_interface_bartcore.cpp:883-885`). The engine's
@@ -56,7 +56,7 @@ missing marker costs is four concrete things:
     `numCuts[j] = maxNumCuts[j]` (`data.hpp:881`), over the observed range
     `[0, K-1]`. That cap is `n.cuts`, default `100L`
     (`R/A_class.R:258`, `R/data.R:15`), recycled per column with no
-    cardinality clamp (`R/data.R:38`, `R/dbarts.R:690`), passed through
+    cardinality clamp (`R/data.R:38`, `R/dbarts.R:684`), passed through
     `options.maxNumCutsPerVariable` (`R_interface_bartcore.cpp:1775`) into
     `maxNumCuts` (`data.hpp:1149-1150`) and reduced only by the
     representability cap (`:1155-1157`). Codes come from `lower_bound` over
@@ -64,7 +64,7 @@ missing marker costs is four concrete things:
     `numCuts + 1` reachable code values, K > 101 guarantees by pigeonhole that
     two adjacent levels share a code and can never be separated by any rule.
     Nothing warns. An *un*ordered factor with too many levels errors and names
-    the cap (`R/utility.R:459-466`); the ordered one does not, because the cap
+    the cap (`R/utility.R:500-507`); the ordered one does not, because the cap
     check is gated on `!is.ordered(column)`.
 
   - *A split-prior distortion, not merely wasted work.* Below that threshold
@@ -116,8 +116,8 @@ columns numCuts holds the (fixed) category count, cutPoints stays empty"
 `data.hpp:555`, `:710`, `:723`, `:1465`; `tree.hpp:320`, `:330`, `:445`,
 `:473`, `:502`, `:650`, `:1475`, `:1536`, `:1561`, `:1611`, `:2069`, `:2083`,
 `:2148`; `moves.hpp:404`, `:708`; `model.hpp:2158`, `:2349`; `grow.hpp:84`,
-`:230`; `scan.hpp:301-304`; `R_interface_bartcore.cpp:3029`, `:5476`, `:5656`,
-`:7613`, `:7617`. Every one is already inside a `types[j] == categorical`
+`:230`; `scan.hpp:301-304`; `R_interface_bartcore.cpp:3029`, `:5483`, `:5663`,
+`:7620`, `:7624`. Every one is already inside a `types[j] == categorical`
 guard, which is what makes the split mechanical. Two deserve attention:
 `scan.hpp:301-304` sizes the categorical scan's histogram and is on the **hot
 path**, and `data.hpp:1465` is inside `buildFromParent`, which section 1
@@ -161,8 +161,8 @@ recorded-draw count, and nothing else (`sampler.hpp:89-97`); neither `types` nor
 `numCuts` is ever written. `docs/design/data-store.md:348-350` states why:
 "Predictors are not serialized in state; `getPointer()` re-creation rebuilds the
 store from the stored data object". Every restore entrance re-creates from a
-data object first - R's `getPointer`/`setState` (`R/dbarts.R:1911-1932`,
-`:1943-1957`), the flat C `dbarts_sampler_setState` (`C_interface.cpp:953-959`),
+data object first - R's `getPointer`/`setState` (`R/dbarts.R:1927-1948`,
+`:1959-1973`), the flat C `dbarts_sampler_setState` (`C_interface.cpp:953-959`),
 and stan4bart's own re-creation (`~/Repositories/stan4bart/src/init.cpp:373-376`)
 - so the kind rides `dbartsData@varTypes` (`R/A_class.R:487`), an S4 slot R
 serializes with the object, and reaches the rebuilt store through the ordinary
@@ -347,7 +347,7 @@ The ceiling is the code type's, not `n.cuts`: `build` clamps `maxNumCuts[j]` to
 `:1155-1157`), so a grid of K-1 cuts is representable exactly while
 K <= 65534. **An ordered factor with more than 65534 levels is refused at
 ingestion, naming the cap** - the ordered-side counterpart of the unordered
-factor's refusal above 65535 levels (`R/utility.R:459-466`), which is where the
+factor's refusal above 65535 levels (`R/utility.R:500-507`), which is where the
 R-side check belongs so the message names the column. The two ceilings are one
 apart (65534 against 65535) because the ordered side spends a code on the
 grid's upper bin and the unordered side does not; the two ceilings are
@@ -382,7 +382,7 @@ a level absent from training but present in test data cannot be separated from
 its neighbour, and the code-to-level correspondence is not stable under
 subsetting. The alternative is to place K-1 cuts from the **declared** level
 count, which the factor's own level table already carries - `factor.levels`
-(`R/utility.R:474`, filled for ordered factors too). That table does not reach
+(`R/utility.R:515`, filled for ordered factors too). That table does not reach
 the store today for exactly the reason this proposal exists:
 `readDeclaredCategoryCounts` skips any column the bridge does not consider
 categorical (`R_interface_bartcore.cpp:896`), so an ordered factor's declared
@@ -393,7 +393,7 @@ That function has a **second** early-continue worth naming: `:897` skips any
 column whose source is CSC-backed (`sourceOf(j) < 0`), because a container
 declares its own K for those. An ordered factor cannot reach that path from R -
 `makeCategoricalModelMatrix` only ever produces a `sparseFactor` as a
-*categorical* column (`R/utility.R:450-452`) - but the flat C API and
+*categorical* column (`R/utility.R:491-493`) - but the flat C API and
 `tests/cpp` can construct one, and under a declared-levels grid such a column
 would fall through to an inferred count. Whichever way the sub-decision goes,
 the CSC-backed ordered factor needs a stated answer rather than an inherited
@@ -430,7 +430,7 @@ factors are ordinal and never cap" over a 54-level ordered-factor case at
 survives because `dbartsData` is pure R construction and never reaches
 `buildCutsForColumn` at all, so no grid is built and no cap is consulted at the
 point the test measures. What the new refusal changes is the *R-side* level
-check that would sit beside `R/utility.R:459-466`, and 54 levels is far below
+check that would sit beside `R/utility.R:500-507`, and 54 levels is far below
 the 65534 ceiling, so that case passes too. The comment should be rewritten to
 say what is now true - an ordered factor caps at 65534 levels rather than never
 - and the file wants two additions: a case above `n.cuts` (say 150 levels)
@@ -444,7 +444,7 @@ cannot express, and a case above the ceiling asserting the new refusal.
 
 The state's one bit of per-column typing is carried by absence: the writer skips
 a categorical column's cut vector, leaving `R_NilValue`
-(`R_interface_bartcore.cpp:6684-6685`), and both readers test emptiness against
+(`R_interface_bartcore.cpp:6691-6692`), and both readers test emptiness against
 the live store's type (`sampler.hpp:899-910` in `setState`, `:993-999` in
 `installForests`). Under `ColumnKind` that bit still discriminates exactly what
 it must - subset-mask rules versus threshold rules - because an `orderedFactor`
@@ -453,11 +453,11 @@ the encoding changes, and the grid fix does not change it either: a state
 carries its own cut vector and `setState` installs it (`sampler.hpp:929-932`),
 so a state written under either grid restores onto its own cuts.
 
-Therefore neither `stateFormatVersion` (`R_interface_bartcore.cpp:6430`) nor
-`minReadableStateFormatVersion` (`:6439`) moves.
+Therefore neither `stateFormatVersion` (`R_interface_bartcore.cpp:6437`) nor
+`minReadableStateFormatVersion` (`:6446`) moves.
 
 The silent-misread hazard is real but applies to a different move. The registry
-rule at `R_interface_bartcore.cpp:6404-6429` (restated at
+rule at `R_interface_bartcore.cpp:6411-6436` (restated at
 `docs/design/public-surface.md:163-185`) says a *new named* block or top-level
 attribute is additive - an old reader ignores it, a new reader defaults it - and
 bumps nothing. What is non-additive, and what bumps both constants, is
@@ -508,7 +508,7 @@ makes the feature silently wrong rather than merely absent.
 **Provenance divergence, and why it cannot be repaired.** A `dbartsData` saved
 by an older build carries `varTypes` 0 for an ordered factor, and 0 is ambiguous
 - it also means numeric. There is no upgrade path: nothing in the stored object
-distinguishes the two. (`factor.levels` is *nearly* a marker - `R/utility.R:474`
+distinguishes the two. (`factor.levels` is *nearly* a marker - `R/utility.R:515`
 fills it for ordered factors too - but it is an attribute of `@x`, not a slot,
 and it is equally present for unordered factors, so it identifies "was a factor"
 rather than "was an ordered factor".) With the grid fix landing, the consequence
@@ -1063,7 +1063,7 @@ for R users does not change, because the bridge still fires first with its own
 wording (`R_interface_bartcore.cpp:1635-1638`).
 
 S3 also carries the engine-side backstop for S2's level ceiling. The
-K > 65534 refusal specified in section 1 sits beside `R/utility.R:459-466`,
+K > 65534 refusal specified in section 1 sits beside `R/utility.R:500-507`,
 which is R, so a header-only host reaches `build` with a wider ordered factor
 and gets a grid silently clamped by `maxNumCutsRepresentable`
 (`data.hpp:1155-1157`) - a merge, which is the defect S2 removes. `build` must
@@ -1125,7 +1125,7 @@ free. Sites: two three-arm ladders become one predicate plus their payload arms.
 Headroom worth noting and not spending: if a future kind ever needed its own
 flat tag, the flags byte has one spare `FlatKind` value and five free bits, and
 the state's `tree.flags` block is a `RAWSXP` per node
-(`R_interface_bartcore.cpp:5397-5427`), so widening the tag inside the byte
+(`R_interface_bartcore.cpp:5404-5434`), so widening the tag inside the byte
 would be additive and would not move the state version -
 `docs/design/public-surface.md:149-152` makes exactly that argument for the
 MIA flags field.
@@ -1233,7 +1233,7 @@ property.
     `GetRNGstate`/`PutRNGstate` bracket on the path
     (`R_interface_bartcore.cpp:1881-1889`), and the comment there states it
     outright - "sampling itself never advances R's stream" (`:1861-1862`), with
-    the run entry restating it at `:4528`. The number of creation draws is one
+    the run entry restating it at `:4535`. The number of creation draws is one
     per chain regardless of any grid. So a file's seeded `rnorm()` sequence is
     **invariant** to S2.
       * `inst/tinytest/test-data-categorical.R` **does** need replaying. Not for
