@@ -258,8 +258,8 @@ replaced its "Gaussian responses only" at CAPI:788-792.
 counts matrix or a factor/character/integer-code response, one-hot expanded
 (dbarts.R:381); `resolveMultinomialCounts` builds the counts matrix - now
 defined in R/data.R:883, called from dbarts.R:586. Creation routes through the
-same public dispatch every family uses, `bartcore_create` (RIB:3551), whose
-multinomial arm is `createMultinomialDataHolder` (RIB:3517); the dedicated
+same public dispatch every family uses, `bartcore_create` (RIB:3558), whose
+multinomial arm is `createMultinomialDataHolder` (RIB:3524); the dedicated
 `C_dbarts_bartcore_createMultinomial`/`...Counts` entries the matrix-interface
 shims used before multinomial-mutation-arc.md S4 are retired. Still has no
 dbarts.h creation path.
@@ -371,8 +371,8 @@ channel - `Chain::setActiveRows` CH:1638, which owns the single validating and
 normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:367 and its
 shape probe FAC:105 - plus gaussian, Student-t, probit and ordinal, the R5
 `$setActiveRows` (dbarts.R:1409) and the bridge entry (RIB:4058). S2 landed at
-87d370ea: logistic (`workingWeights()` MOD:3537) and nbinom
-(`workingWeights()` MOD:4358) serve a SEPARATE a_i omega_i composite rather
+87d370ea: logistic (`workingWeights()` MOD:3522) and nbinom
+(`workingWeights()` MOD:4343) serve a SEPARATE a_i omega_i composite rather
 than writing the zero into omega_ itself, since the working response divides
 by it and 0 * inf in the node kernels is a NaN; nbinom's `setActiveRows`
 (MOD:4369) additionally restricts the collapsed statistic S the dispersion
@@ -384,8 +384,8 @@ degrees-of-freedom recount, and skips the censored redraw at an inactive row
 (MOD:3836). All three report NaN pointwise log-likelihood at an inactive row.
 Oracles: per-family kernel comparisons against the compacted arm, bitwise in
 value and in RNG stream (`testActiveRowsLogisticKernel`
-tests/cpp/test_model.cpp:5460, `testActiveRowsNBKernels` :5546,
-`testActiveRowsAFTCensored` :5638 - each latent being a rejection sampler
+tests/cpp/test_model.cpp:5499, `testActiveRowsNBKernels` :5585,
+`testActiveRowsAFTCensored` :5677 - each latent being a rejection sampler
 means a discard-rather-than-skip at an inactive row fails the arm outright),
 plus a sampler-level conditional independence oracle under substituted
 inactive responses (inst/tinytest/test-active-rows-pins.R's S2 block:
@@ -536,7 +536,7 @@ creation, so the cell is family-dependent ([f48]).
 
 [f18] For gaussian and heteroscedastic no latent vector exists: both leave
 `ResponseModel::latents()` at its nullptr default (MOD:2681), and the bridge
-returns `R_NilValue` (RIB:6173). A K-forest sampler is no longer one of them.
+returns `R_NilValue` (RIB:6159). A K-forest sampler is no longer one of them.
 `Chain::latents()` (CH:1686) is a bare delegation to `response_->latents()`
 carrying no coupling gate and no family switch, and `bartcore_getLatents`
 (RIB:6173) gates only on that pointer being null, so since M4.4 a probit
