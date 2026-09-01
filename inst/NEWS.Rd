@@ -525,8 +525,9 @@
             refused at creation, naming what each is missing, as are the
             options a multi-forest model does not read - among them
             \code{monotone}, a variance forest, Student-t residuals, a DART
-            tree prior, a non-constant leaf, \code{storage = "single"}, and
-            test predictors - each named rather than dropped in silence.
+            tree prior, a linear or Gaussian-process node prior,
+            \code{storage = "single"}, and test predictors - each named
+            rather than dropped in silence.
             The prior defaults a forest takes
             when it says nothing are stated in terms a caller can defend: a
             forest with no \code{basis} takes a half-Cauchy median of 1
@@ -536,8 +537,8 @@
             latent index where the single-forest binary default already
             puts it, and a forest with a \code{basis} takes
             \eqn{\sqrt{2/K}}{sqrt(2/K)} rather than 1 for \eqn{K}{K}
-            forests, so declaring more forests no longer widens the prior
-            on the combined location without bound: with every forest
+            forests, so the prior on the combined location does not widen
+            without bound as more forests are declared: with every forest
             carrying a basis it is the same at every \eqn{K}{K}, and
             with a basis-free first forest the basis forests' own
             contribution rises toward that value instead of past it.
@@ -993,12 +994,13 @@
             available for model comparison: R's
             \code{\link{extract}(type = "loglik")}, and the flat C API's
             \code{logLikelihood} results field for every model whose
-            location the response model can see (it is \code{NaN} on a
-            multinomial sampler and on any amplitude-combined one at any
-            forest count, whose location is a forest combination), score each
-            training observation at each posterior
-            draw under the family's own likelihood - the Bernoulli mass for
-            a binary family, the marginal \eqn{t_\nu}{t_nu} density for
+            location the response model can see (it is \code{NaN} wherever
+            the combined location is not visible to the response model to
+            score - any amplitude-combined sampler, at any forest count, and
+            the multinomial softmax), score each training observation at
+            each posterior draw under the family's own likelihood - the
+            Bernoulli mass for a binary family, the marginal
+            \eqn{t_\nu}{t_nu} density for
             \code{resid.dist = student()}, the multinomial density of the
             observed count row, and so on, each documented under its
             family's own fit method; when chains are combined the result is
@@ -1083,7 +1085,7 @@
             \code{$getLatents()} is biased. On a Bayesian causal forest it is
             the only route from R to the combined fit at the sampler's
             current state - \code{$predict} is refused and
-            \code{$getForestFits} reports one forest's internal scale, while
+            \code{$getForestFits} reports the forests' internal scales, while
             \code{run()$train} reports the same quantity at recorded draws,
             with the offset folded in. Refused on a
             multinomial sampler, whose channels are per-category softmax
