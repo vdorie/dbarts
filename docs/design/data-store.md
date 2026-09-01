@@ -102,10 +102,11 @@ reads only the descriptor fields it owns:
   The build-reset baseline: every column is `denseOwned` until a builder
   overwrites it.
 - `denseBorrowed` - dense codes in `codes[]`; re-quantizes from the
-  `denseRaw` pointer the descriptor holds (a mixed build's borrowed dense
-  slice, or a test build's owned slice into `ownedTestValues`). `denseRaw`
-  is the only kind that serves `rawColumn`/`rawTestColumn` a raw pointer
-  directly.
+  `denseRaw` pointer the descriptor holds (a mixed build's store-owned
+  dense slice - the dense block is copied into `ownedDenseValues` at build,
+  not borrowed - or a test build's owned slice into `ownedTestValues`).
+  `denseRaw` is the only kind that serves `rawColumn`/`rawTestColumn` a raw
+  pointer directly.
 - `cscRank` - rank-bitmap storage in `sparseColumns[rankSlot]`;
   re-quantizes from the retained `slice`. Below the
   `sparseDensityThreshold` (0.2) nonzero fraction.
@@ -113,10 +114,13 @@ reads only the descriptor fields it owns:
   retained `slice`. Above the threshold. Runs the existing SIMD kernels
   bitwise-identically to a dense build of the same values.
 
-Two descriptor fields are CSC-categorical only. `cscCategoryCount` (the
-fixed level count K, unrecoverable from a slice that stores only
-non-reference entries) is train-side only - the test side reuses the
-store's fixed `numCuts[j]` for K. `refCode` is read on BOTH sides: its
+Of the two remaining descriptor fields, only `refCode` is CSC-categorical
+only. `declaredCategoryCount` (the fixed level count K a host declares -
+unrecoverable from observed codes alone when a level has zero training
+rows) is train-side only - the test side reuses the store's fixed
+`numCuts[j]` for K - but rides every storage kind, not just CSC: a
+dense-backed factor inside a mixed container declares a level table the
+same way a CSC-backed one does. `refCode` is read on BOTH sides: its
 test-side value comes from the test view's `referenceCodes`
 (`PredictorSource`, `data.hpp`), and `quantizeCscColumnInto` reads it
 block-parametrically for the implicit rows (`data.hpp:590`). It holds the
@@ -249,13 +253,14 @@ store's lifetime):
 
 - the call-time training `x` (dense builds): borrowed for the build or
   re-quantize call only; the store retains nothing unflagged.
-- a mixed build's dense slices (`denseBorrowed.denseRaw`) and CSC slices
-  (`slice`): borrowed for the store's lifetime, pointing into R-owned
-  memory or a bridge-owned assembly.
+- a mixed build's CSC slices (`slice`): borrowed for the store's lifetime,
+  pointing into R-owned memory or a bridge-owned assembly.
 
 Owned by the store (survive the borrow):
 
 - all `codes`, `sparseColumns`, cut grids, `gatheredRaw*`;
+- a mixed build's dense block (`ownedDenseValues`, which
+  `denseBorrowed.denseRaw` points into): copied at build, not borrowed;
 - the entire test store's raw: `ownedTestValues` (dense) and
   `ownedTestCscValues`/`ownedTestCscRows` (a mixed/CSC test build packs
   every CSC-backed test column's nonzeros so each slice points into
@@ -266,14 +271,13 @@ pointer carries a fixed set of protection slots (`PROT_DATA`,
 `PROT_RESPONSE`, ...; `line 41`). Predictors are NOT among them: the
 engine owns its codes and the R data object (`PROT_DATA` at creation, plus
 the live `sampler$data` the R methods hold) is the sole predictor GC
-anchor - there is no `PROT_PREDICTORS`. The one subtlety is the mixed
-container: the store borrows dense slices of a transiently assembled block
-(`ParsedData.denseAssembly`), so `createSampler`/`createDataHandle` MOVE
-that vector into the holder/handle (`holder->ownedMixedDense =
-std::move(data.denseAssembly)`, `line 1664`/`1970`) - a vector move
-preserves the buffer address the store cached. The CSC slots and mixed
-dense values themselves borrow R container memory, valid while `dataExpr`
-stays protected.
+anchor - there is no `PROT_PREDICTORS`. The mixed container needs no
+lifetime special-casing here: the store COPIES its transiently assembled
+dense block (`ParsedData.denseAssembly`) into `ownedDenseValues` during
+`build`, so the assembly need only survive the call that builds the store,
+which it already does as an entrance-scoped local - no holder/handle field
+extends its lifetime. The CSC slots borrow R container memory instead,
+valid while `dataExpr` stays protected.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
 non-R host. The `python-bindings` TODO entry records it: host-side

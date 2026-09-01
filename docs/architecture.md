@@ -198,24 +198,48 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   (categorical). `xint_t` is `std::uint16_t` uniformly - there is no
   per-column code-width selection (u8 for low-cardinality columns) in the
   shipped store; every column pays the 16-bit width.
+- **Column types**: `std::vector<ColumnType> types` marks each column
+  `ordinal` or `categorical` (`ColumnType`, data.hpp). A categorical
+  column's raw double IS its integer level index - `codeFor` casts it
+  directly rather than binning it against cut points, so raw value and code
+  coincide for a categorical column. An ordered factor is not a third type:
+  it enters as an ordinal column whose raw values are the 0..K-1 level
+  codes, binned against cut points like any other ordinal.
 - **Cut points**: `std::vector<std::vector<double>> cutPoints` plus
-  `numCuts`/`maxNumCuts` per column. ColumnStore is the sole owner of cut
-  construction and re-quantization - uniform-over-range or quantile mode,
-  selected by `useQuantiles`. Every other layer (moves, the tree prior)
-  reads cuts through `ColumnStore::codeFor`/`column()`/`cutPoints`; nothing
-  above the data layer computes or caches its own cut grid.
-- **Raw values**: a borrowed column-major `const double* x` for dense
-  builds, borrowed CSC slices (`cscSlices`) for sparse builds, or a mix per
-  column (`mixedRawColumns`, `columnSources`) when a data.frame carries both
-  dense and `dgCMatrix`/`sparseVector` columns. Row-subset views
-  (`buildFromParent`) instead gather and own a copy of designated raw
+  `numCuts`/`maxNumCuts` per column. `numCuts[j]` holds the ordinal cut
+  count for an ordinal column, or the fixed category count K for a
+  categorical one (`cutPoints[j]` stays empty for categoricals). ColumnStore
+  is the sole owner of cut construction and re-quantization -
+  uniform-over-range or quantile mode, selected by `useQuantiles`. Every
+  other layer (moves, the tree prior) reads cuts through
+  `ColumnStore::codeFor`/`column()`/`cutPoints`; nothing above the data
+  layer computes or caches its own cut grid.
+- **Raw values**: per-column storage and re-quantize source is one
+  descriptor, `ColumnSource` (carried in `sources[j]` on each `CodeBlock`),
+  discriminated by `ColumnSourceKind`: `denseOwned` (the build-reset
+  default; re-quantizes from the side's own dense block - the call-time `x`
+  on the train side, `ownedTestValues` on test), `denseBorrowed`
+  (re-quantizes from the descriptor's `denseRaw`, which despite the name
+  points into store-owned memory - `ownedDenseValues` on the train side of
+  a mixed build, `ownedTestValues` on test - not a live host pointer), and
+  `cscRank`/`cscDensified` (both re-quantize from the descriptor's retained
+  `slice`, a genuinely borrowed CSC values/rows pair that a mutation
+  repoints at store-owned `ownedCscValues`/`ownedCscRows` (train side) on
+  first write). A dense build retains no raw at all past the build call -
+  the store instead gathers and owns a copy of designated leaf-covariate
   columns (`gatheredRawValues`) plus their standardization constants
-  (`gatheredMeans`/`gatheredSds`), since a view has no live parent to borrow
-  from.
-- **Sparse storage**: columns at or below 20% nonzero density
-  (`sparseDensityThreshold`) take a rank-bitmap representation
+  (`gatheredMeans`/`gatheredSds`); a mixed build's dense block is likewise
+  copied into `ownedDenseValues`, not borrowed. The test side owns all of
+  its raw unconditionally: `ownedTestValues` (dense),
+  `ownedTestCscValues`/`ownedTestCscRows` (packed nonzeros of a mixed/CSC
+  test build), and, for a row-subset view, the gathered
+  `gatheredRawTestValues`.
+- **Sparse storage**: a CSC-built column at or below 20% nonzero density
+  (`sparseDensityThreshold`) takes a rank-bitmap representation
   (`SparseColumnData`: a bitset, per-word popcount ranks, and packed
-  nonzero codes); denser columns densify into the regular `codes` array.
+  nonzero codes); a denser CSC-built column densifies into the regular
+  `codes` array. The tiering applies only to CSC-built columns - a dense
+  build never takes rank-bitmap storage, however sparse its values.
 - **Missingness**: `hasMissing` per column gates the extra missing-direction
   draw in rules; a reserved code (`naCode` for ordinal, a reserved category
   position for categorical) marks a missing cell.
@@ -266,7 +290,9 @@ validation runs over the whole sampler before any chain's fits are rebuilt.
 
 ## Tree storage forms
 
-Three representations, used for different purposes:
+Four representations, used for different purposes. The last two are not
+independent tree encodings - both are aggregates built on top of the flat
+form below:
 
 - **Live**: `Tree` (`src/bartcore/tree.hpp`) is a flat arena -
   `std::vector<Node> nodes`, children allocated as adjacent pairs so
@@ -282,14 +308,34 @@ Three representations, used for different purposes:
   (`getTrees`), and state serialization - `flattenTree`, `savedTree`, and
   `ChainStateData::forests[*].trees` all traffic in it.
 - **State**: `SamplerStateData` (sampler.hpp) is the whole sampler's
-  serializable state - one `ChainStateData` per chain (itself one or more
-  `ForestStateData`, since BCF chains carry two forests), the store's cut
-  points, and the saved-tree write cursor. Restoring a chain rebuilds
-  everything else canonically (partitions from tree structure and cut
-  points, `totalFits` by summing tree fits, the variance-prior anchor by
-  re-running the same transform construction does) rather than replaying
-  history, so a restored chain continues equivalently but not bit-for-bit -
-  the last ulp of the original accumulation order is not reproduced.
+  in-process serializable state - one `ChainStateData` per chain (itself
+  one or more `ForestStateData`, since BCF chains carry two forests), the
+  store's cut points, and two saved-tree write cursors. It is an aggregate,
+  not a third tree encoding: `ForestStateData`'s tree fields, `trees` and
+  `savedTrees`, are both `std::vector<std::vector<FlatNode>>` (combiner.hpp).
+  A live forest's own saved-tree circular buffer (`Forest::savedTrees`,
+  combiner.hpp) is flat too, which is why `getState` re-flattens every live
+  tree into `ForestStateData::trees` but straight-copies the already-flat
+  buffer into `ForestStateData::savedTrees`. The two write cursors are
+  `currentSampleNum` (the next saved-tree slot, wrapping circularly) and
+  `recordedDraws` (slots written since the last reset, capped at capacity -
+  required rather than inferred, since an unwritten slot holds a zero-leaf
+  tree that would read as a legitimate draw); adding `recordedDraws`
+  alongside the existing cursor is what moved `stateFormatVersion` to 3.
+  Restoring a chain rebuilds everything else canonically (partitions from
+  tree structure and cut points, `totalFits` by summing tree fits, the
+  variance-prior anchor by re-running the same transform construction does)
+  rather than replaying history, so a restored chain continues equivalently
+  but not bit-for-bit - the last ulp of the original accumulation order is
+  not reproduced.
+- **Wire**: what actually leaves the process. `storeState`
+  (`src/R_interface_bartcore.cpp`) flattens `SamplerStateData` into a
+  struct-of-arrays SEXP that `setState` reads back, one list per chain. Each
+  tree block is four parallel R vectors - `tree.vars` (INTSXP), `tree.values`
+  (RAWSXP, 8 bytes per node, so an inline categorical mask's bit pattern
+  survives rather than being normalized by a REALSXP), `tree.sizes`
+  (per-tree node counts), and `tree.flags` (the missing direction plus the
+  `FlatKind` tag) - built by `storeFlatTrees`.
 
 ## RNG architecture
 
