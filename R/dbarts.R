@@ -2132,6 +2132,7 @@ dbartsSampler <- setRefClass(
     ) {
       "Minimialist visualization of tree branching and contents."
 
+      refusePlotTreeArgs(sys.call())
       matchedCall <- match.call()
       if (is.null(matchedCall$chainNum)) {
         if (control@n.chains == 1L) {

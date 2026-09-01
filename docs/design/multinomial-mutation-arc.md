@@ -177,7 +177,7 @@ deleted with the mechanism at S4/F1), `forestWeights` `:902`).
   `setTestPredictorAndOffset`, `setTestOffset`, `setCalibration`,
   `setState`, `installTrees`.
 - **2 carry `refuseHostRead`** (retired: the guard is gone; both methods
-  remain): `getDispersion` (`:1690`), `getFitsWithoutOffset` (`:1737`).
+  remain): `getDispersion` (`:1701`), `getFitsWithoutOffset` (`:1748`).
 - **13 substantive methods answer from the placeholder, unguarded**:
   `copy`, `predict`, `getLatents`, `getSigmas`,
   `getSumsOfSquaredResiduals`, `getForestFits`, `getForestAmplitudes`,

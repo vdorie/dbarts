@@ -257,9 +257,9 @@ replaced its "Gaussian responses only" at CAPI:788-792.
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
 counts matrix or a factor/character/integer-code response, one-hot expanded
 (dbarts.R:381); `resolveMultinomialCounts` builds the counts matrix - now
-defined in R/data.R:883, called from dbarts.R:592. Creation routes through the
-same public dispatch every family uses, `bartcore_create` (RIB:3558), whose
-multinomial arm is `createMultinomialDataHolder` (RIB:3524); the dedicated
+defined in R/data.R:883, called from dbarts.R:586. Creation routes through the
+same public dispatch every family uses, `bartcore_create` (RIB:3551), whose
+multinomial arm is `createMultinomialDataHolder` (RIB:3517); the dedicated
 `C_dbarts_bartcore_createMultinomial`/`...Counts` entries the matrix-interface
 shims used before multinomial-mutation-arc.md S4 are retired. Still has no
 dbarts.h creation path.
@@ -277,7 +277,7 @@ the token to `"probit"` or `"logistic"` at dbarts.R:538 before any model is
 built. The resulting sampler *is* an ordinary binary one, so its whole row
 equals the probit (or logistic) row, and the fit records `family = "probit"`.
 No engine code, hence no C-API token and no SBC arm. Refusals inside the
-expander: no formula interface (:495), no `subset` (:509), no `test` (:513).
+expander: no formula interface (:495), no `subset` (:502), no `test` (:505).
 
 [f7] `treatment` is still not a `bart2()` formal, but the construct that used
 to refuse it - `rejectUnknownDotsArgs` - is RETIRED: `bart2()`'s full formal
@@ -370,9 +370,9 @@ inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1638, which owns the single validating and
 normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:367 and its
 shape probe FAC:105 - plus gaussian, Student-t, probit and ordinal, the R5
-`$setActiveRows` (dbarts.R:1398) and the bridge entry (RIB:4058). S2 landed at
-87d370ea: logistic (`workingWeights()` MOD:3521) and nbinom
-(`workingWeights()` MOD:4342) serve a SEPARATE a_i omega_i composite rather
+`$setActiveRows` (dbarts.R:1409) and the bridge entry (RIB:4058). S2 landed at
+87d370ea: logistic (`workingWeights()` MOD:3537) and nbinom
+(`workingWeights()` MOD:4358) serve a SEPARATE a_i omega_i composite rather
 than writing the zero into omega_ itself, since the working response divides
 by it and 0 * inf in the node kernels is a NaN; nbinom's `setActiveRows`
 (MOD:4369) additionally restricts the collapsed statistic S the dispersion
@@ -462,8 +462,8 @@ than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1201),
 sharing one `priorScaleFactor` conversion (CH:3965) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
 and carry no family switch (facade FAC:353, 360; `Sampler` SAM:1561, 1570; R5
-`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1793, 1820; bridge
-`bartcore_getCalibration`/`bartcore_setCalibration` RIB:4212, 4260). Refused
+`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1804, 1831; bridge
+`bartcore_getCalibration`/`bartcore_setCalibration` RIB:4205, 4260). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
 single value to divide by, or once the chains' `k` have diverged) and for
 BCF/multinomial forests at creation and again mid-chain (see [f23]);
@@ -617,11 +617,11 @@ the bridge gate directly. These cells stay `R`.
 response is the expanded binary indicator.
 
 [f25] The composed hurdle fit has `family = "hurdle.lognormal"` and now
-supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2395)
+supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2408)
 combines the occupancy's `log(1 - pi)` / `log(pi)` with the positive part's
 lognormal density (a `-log(y)` Jacobian against the stored log-scale channel)
 at every row, reached from `extract.bartHurdle`'s `type == "loglik"` branch
-(generics.R:2343). This is NOT the sum of the two components' own loglik
+(generics.R:2356). This is NOT the sum of the two components' own loglik
 channels - the positive fit's own channel covers only its y > 0 rows and
 carries no Jacobian - but each component fit (`$occupancy` probit, `$positive`
 gaussian) still supports `extract(type = "loglik")` independently too.
@@ -649,11 +649,11 @@ than unbuilt: `setForestWeights` (RIB:4016) already expresses it - though note
 that channel is deliberately NOT row removal (CH:1141-1173: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
 forest's empty-leaf veto, which counts positive composed weights). It is now a
-PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1420, landed
+PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1431, landed
 multiforest-extension-surface M1, 05ac3b4b), 1-based via `resolveForestIndex`
 (a BCF basis forest is `2L`) and mirrored across re-creation through a
 dedicated `reapplyForestWeights(ptr)` method, called from `getPointer` and
-`setState` (dbarts.R:1890); the unexported `bartcoreSetForestWeights`, now
+`setState` (dbarts.R:1948); the unexported `bartcoreSetForestWeights`, now
 inst/common/bartcoreHandle.R:148 (moved out of R/bartcore.R along with every
 other low-level test-handle wrapper), stays the 0-based internal wrapper the
 R5 method does not call.
@@ -771,7 +771,7 @@ forest counts at SAM:1029, and `growForestFromRoot` loops every forest
 (CH:1990, the loop; the variance-forest pre-step above it sits at
 CH:1985-1988). Neither is exercised by a BCF test, and BCF has no `bart2()`
 surface, so both are reached only through the R5 `$installTrees`
-(dbarts.R:1973) / `$growFromRoot` (dbarts.R:1013).
+(dbarts.R:1984) / `$growFromRoot` (dbarts.R:1007).
 
 [f37] `rbart_vi()` carries no `warm.start` or `n.grow.sweeps` formal
 (rbart.R:9-53) and, since it also carries no `...` formal at all, an
@@ -961,7 +961,7 @@ though untested beyond the shape checks in test-ordinal.R.
 attribute undocumented. One dedicated tinytest file. SBC `r`/`agg.psi` flag
 standing (H-MIX read, third ladder point owed). Real-valued dispersion remains
 a recorded door (TODO `negbin-real-dispersion`). Pointwise loglik
-(`negbinLogLik`, generics.R:1808) is no longer a gap.
+(`negbinLogLik`, generics.R:1811) is no longer a gap.
 
 **multinomial.** No flat-C creation path at all ([f4]); `dbarts()`,
 `dbartsSpec()` and `bart2()` all build the R5 `dbartsSampler` directly
@@ -989,7 +989,7 @@ dedicated tinytest file.
 `xbart()` or flat-C reach. No warm start / grow-from-root. A heteroscedastic
 positive part is REFUSED via the occupancy component's own gate, deliberately,
 not a partial feature ([f34]). Top-level pointwise loglik (`hurdleLogLik`,
-generics.R:2395) is no longer a gap.
+generics.R:2408) is no longer a gap.
 
 **bcf.** No `bart2()` surface for the NAMED `bcf()` causal verb, by the
 resolved fork that puts it in bartCause; the general K-forest amplitude

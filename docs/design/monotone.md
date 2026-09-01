@@ -344,7 +344,7 @@ Set the constrained forest's move mix to birth/death only
 (birthOrDeathProbability = 1, chain.hpp:59), a legitimate difference from the
 unconstrained default mix (0.5/0.4/0.1 birth-death/change/swap). This overrides
 the user-facing `proposal.probs` (default c(birth_death = 0.5, swap = 0.1,
-change = 0.4, birth = 0.5), R/dbarts.R:365): resolve the clash by ERRORING at spec
+change = 0.4, birth = 0.5), R/dbarts.R:359): resolve the clash by ERRORING at spec
 time when `monotone` meets an EXPLICIT non-default `proposal.probs` (the user
 asked for swap/change the constrained sampler cannot honor), and forcing
 birth/death only, silently, when `proposal.probs` is left at its default.

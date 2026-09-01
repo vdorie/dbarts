@@ -164,6 +164,22 @@ expect_silent(plotTree(
 ))
 dev.off()
 
+# the reach-in path - calling $plotTree directly on the sampler, rather than
+# through plotTree.dbartsSampler above - used to accept 'sample'/'chain' via
+# R's own partial matching onto 'sampleNum'/'chainNum'; the same guard now
+# runs first inside the method itself, so the S3 path above (which already
+# stops before ever calling $plotTree) does not double-refuse
+expect_error(
+  pt.bart2$fit$plotTree(1L, sample = 5L),
+  "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
+  fixed = TRUE
+)
+expect_error(
+  pt.bart2$fit$plotTree(1L, chain = 2L),
+  "'chain' is not used by plotTree; the saved chain is 'chainNum'",
+  fixed = TRUE
+)
+
 # the print methods summarize a fit to the console, and keep doing so with
 # keepCall = FALSE (previously just "NULL()")
 # the synopsis is the last block of the printout, one labelled line per fact,
