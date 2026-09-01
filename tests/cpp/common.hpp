@@ -39,6 +39,21 @@ static_assert(sizeof(index_t) == sizeof(misc_index_t),
               "tests/cpp index buffers feed the misc.a kernels; index_t and "
               "misc_index_t must be the same width");
 
+// A storage-aware snapshot of a store's training codes: codeAt over every
+// cell, laid out column-major over ALL numPredictors columns, which is what
+// an index of j * numObservations + i means. train.codes packs the DENSELY
+// stored columns only, and codeOffsets is a running cursor over those, so a
+// snapshot taken off it cannot see a rank-stored column change and its
+// per-column offsets are not j * numObservations on a mixed store.
+inline std::vector<xint_t> storageDigest(const ColumnStore& data) {
+  std::vector<xint_t> digest(data.numObservations * data.numPredictors);
+  for (std::size_t j = 0; j < data.numPredictors; ++j)
+    for (std::size_t i = 0; i < data.numObservations; ++i)
+      digest[j * data.numObservations + i] =
+        static_cast<xint_t>(data.codeAt(j, i));
+  return digest;
+}
+
 // A canonical fingerprint of a tree's live structure alone (which nodes are
 // split and on what), so a chain that MOVES can be told from one that only
 // redraws its leaf parameters.

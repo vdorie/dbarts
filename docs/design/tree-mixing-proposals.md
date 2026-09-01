@@ -98,7 +98,7 @@ this package, all established by the grow-from-root default study
 
 ## 2. What the sampler can and cannot do today
 
-`metropolisJumpForTree` (`moves.hpp:844-865`) draws one uniform per tree
+`metropolisJumpForTree` (`moves.hpp:838-859`) draws one uniform per tree
 per sweep and dispatches to exactly one of three kernels:
 
 ```
@@ -153,9 +153,9 @@ Adjacent machinery already landed, relevant to cost: `scan.hpp:105`
 `scanOrdinalCuts` (leaf-templated full-cut scan); `grow.hpp:179`
 `growTreeFromRoot`; `chain.hpp:1967` `growForestFromRoot` (opt-in
 `n.grow.sweeps`, init only, with a reset/regrow/rebuild/redraw loop at
-`chain.hpp:2009-2022`); `tree.hpp:999-1021` `SubtreeSnapshot` (restores node
+`chain.hpp:2009-2022`); `tree.hpp:1025-1047` `SubtreeSnapshot` (restores node
 *contents* for a fixed set of node ids - it cannot undo a shape change);
-`tree.hpp:1065`/`:1257` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
+`tree.hpp:1091`/`:1283` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
 
 ---
 
@@ -858,7 +858,7 @@ though it lifted unique trees visited 1.83 -> 3.07.
   Ordinal-only in a first version, the same scoping `growTreeFromRoot`
   (`grow.hpp:179`) used when this was written. That precedent has since
   been spent: the builder scans categoricals too
-  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:337`, the
+  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:360`, the
   winning rule built at `grow.hpp:332-335`), so an ordinal-only rotation
   would now be scoping narrower than the builder rather than matching it.
 - *Interaction constraints.* A rotation lifts one variable above another -
@@ -2055,7 +2055,7 @@ fixed.
      share a member set. On a **missing-capable column they do not**: the
      no-split candidate is scored from the node's cached statistic over
      *all* members (`grow.hpp:187-190`) while `scanOrdinalCuts` skips
-     `naCode` members outright (`scan.hpp:128`). This does not break
+     `naCode` members outright (`scan.hpp:152`). This does not break
      exactness - `q` is whatever the builder's realized normalized weights
      are, and that is what an accumulator records - but it does break the
      memo's stated reason, and it is a structural `q`/`pi` mismatch rather
@@ -2068,7 +2068,7 @@ fixed.
      `ordinal-scan-missing-rows`, DISCHARGED), so the structural mismatch
      concluded from the old premise no longer holds.
   2. **Missing-capable columns are halved twice.** `logCut` already
-     subtracts `log 2` for `data.hasMissing[j]` (`grow.hpp:290-291`), matching
+     subtracts `log 2` for `data.hasMissing[j]` (`grow.hpp:283-284`), matching
      `ruleForVariableLogProbability`'s `+log 2` for *one* rule
      (`model.hpp:2179-2186`); the builder then draws the direction coin
      separately (`grow.hpp:340-342`). Since the candidate stands for the
@@ -2082,7 +2082,7 @@ fixed.
      becomes a systematic term in the importance weight.
      SUPERSEDED PREMISE: that `log 2` is gated on `routesMissing`
      (`grow.hpp:291`) - whether the scan emitted both directions for THIS
-     node's members (`grow.hpp:288`), each direction then its own candidate -
+     node's members (`grow.hpp:281`), each direction then its own candidate -
      and not on `data.hasMissing[j]`; the direction coin (`grow.hpp:341-342`)
      fires only where a candidate did NOT already name its direction. The
      double-halving concluded from the old premise no longer holds.
@@ -2100,7 +2100,7 @@ fixed.
   obvious from either file alone.
   SUPERSEDED PREMISE: `grow.hpp:224` now ENTERS the categorical branch and
   emits one candidate per admissible partition
-  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:337`), so
+  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:360`), so
   categoricals do generate candidates and the support gap concluded from
   the old premise is closed.
 - **Construction 2(a)'s exactness needs a DART scope condition.** A

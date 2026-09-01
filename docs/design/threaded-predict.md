@@ -46,7 +46,7 @@ landing, since the axis below is (chain, draw) slabs, not chains.
 `recordedDraws_`; each (chain, draw) pair is a SLAB writing a disjoint
 `out + (c * numDraws + i) * slab` range. The only accumulation anywhere
 in the replay is `fits[indices[k]] += leafValue` inside
-`addFlatPredictionsBelow` (tree.hpp:1828), once per row per tree, tree
+`addFlatPredictionsBelow` (tree.hpp:1852), once per row per tree, tree
 loop `t = 0..numTrees-1` identical at every entry point: each (slab,
 row) pair owns its accumulator and sees the same addend order, so a
 partition keeping a (slab, row) pair whole in one thread is bitwise

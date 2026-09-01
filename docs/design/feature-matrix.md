@@ -60,7 +60,7 @@ and schedules against the same way, so they earn rows.
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4706) |
 | hetero | Heteroscedastic variance forest (CH:742) |
 
-The engine's `ResponseFamily` enum has only six tokens (MOD:2580: gaussian,
+The engine's `ResponseFamily` enum has only six tokens (MOD:2564: gaussian,
 probit, logistic, aft, ordinal, nbinom); student, hazard, hurdle, bcf, grouped
 and hetero are all reached some other way, which is exactly why they need rows
 here rather than an enum read. That enum now REACHES the bcf row, which is why
@@ -354,7 +354,7 @@ silently restate both in response units. Grouped probit and logistic take
 updateScale = TRUE as the no-op it always was. The flat C API guards through
 the same call (C_interface.cpp:658, 682). setData stays refused.
 
-[f14] Reads off the BASE family: grouped gaussian takes `setWeights` (MOD:4818)
+[f14] Reads off the BASE family: grouped gaussian takes `setWeights` (MOD:4802)
 and `setSigma`; grouped probit is refused on both (RIB:2791, RIB:2928); grouped
 aft takes `setSigma` and refuses `setWeights`.
 
@@ -370,22 +370,22 @@ inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1638, which owns the single validating and
 normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:367 and its
 shape probe FAC:105 - plus gaussian, Student-t, probit and ordinal, the R5
-`$setActiveRows` (dbarts.R:1398) and the bridge entry (RIB:4065). S2 landed at
-87d370ea: logistic (`workingWeights()` MOD:3537) and nbinom
-(`workingWeights()` MOD:4358) serve a SEPARATE a_i omega_i composite rather
+`$setActiveRows` (dbarts.R:1398) and the bridge entry (RIB:4058). S2 landed at
+87d370ea: logistic (`workingWeights()` MOD:3521) and nbinom
+(`workingWeights()` MOD:4342) serve a SEPARATE a_i omega_i composite rather
 than writing the zero into omega_ itself, since the working response divides
 by it and 0 * inf in the node kernels is a NaN; nbinom's `setActiveRows`
-(MOD:4385) additionally restricts the collapsed statistic S the dispersion
+(MOD:4369) additionally restricts the collapsed statistic S the dispersion
 grid draw reads and REBUILDS the count-histogram kernel behind L_k
 (`NBDispersionPrior::computeKernel` MOD:4280) over the active rows at every
 mask change - the channel's one per-install cost; aft's `setActiveRows`
-(MOD:3851) composes into its contained Gaussian, inheriting the sigma
+(MOD:3835) composes into its contained Gaussian, inheriting the sigma
 degrees-of-freedom recount, and skips the censored redraw at an inactive row
-(MOD:3852). All three report NaN pointwise log-likelihood at an inactive row.
+(MOD:3836). All three report NaN pointwise log-likelihood at an inactive row.
 Oracles: per-family kernel comparisons against the compacted arm, bitwise in
 value and in RNG stream (`testActiveRowsLogisticKernel`
-tests/cpp/test_model.cpp:5491, `testActiveRowsNBKernels` :5554,
-`testActiveRowsAFTCensored` :5646 - each latent being a rejection sampler
+tests/cpp/test_model.cpp:5460, `testActiveRowsNBKernels` :5546,
+`testActiveRowsAFTCensored` :5638 - each latent being a rejection sampler
 means a discard-rather-than-skip at an inactive row fails the arm outright),
 plus a sampler-level conditional independence oracle under substituted
 inactive responses (inst/tinytest/test-active-rows-pins.R's S2 block:
@@ -397,8 +397,8 @@ block in `testActiveRows`), and ordinal - already S1 - gains a sampler-level
 independence arm of its own beside the kernel-level coverage. S3 landed at
 8b047f8b: multinomial's mask is GLOBAL and lands on the softmax coupling
 rather than the response, which holds no precisions of its own -
-`MultinomialResponse::setActiveRows` (MOD:3752) is a pass-through that only
-advertises the capability (MOD:3751), and `Chain::setActiveRows` forwards the
+`MultinomialResponse::setActiveRows` (MOD:3736) is a pass-through that only
+advertises the capability (MOD:3735), and `Chain::setActiveRows` forwards the
 mask to `MultinomialForestCombiner::setActiveRows` (COM:1529) after the
 response's own install (`ForestCombiner::setActiveRows` COM:704 is the inert
 default every additive coupling relies on instead). An inactive row's K
@@ -520,7 +520,7 @@ whose five buffers are left untouched), and `tests/cpp`
 below zero and warns that zeros are ignored; bridge RIB:4962). The conditionals
 are exact - leaf suffstats multiply by `w` (MOD:314, 1178), and the sigma
 posterior counts only positive-weight rows (`numPositiveWeights_` MOD:2790,
-recounted on every install at MOD:2981, consumed MOD:2804-2808). The one named
+recounted on every install at MOD:2965, consumed MOD:2788-2792). The one named
 inexactness against a true subset fit is CLOSED (`empty-leaf-veto-fix`,
 2026-08-12): the empty-leaf veto counts
 POSITIVE-WEIGHT members, so a leaf held alive only by zeroed rows is empty and
@@ -535,13 +535,13 @@ weights entirely and logistic holds them to positive integer counts, both at
 creation, so the cell is family-dependent ([f48]).
 
 [f18] For gaussian and heteroscedastic no latent vector exists: both leave
-`ResponseModel::latents()` at its nullptr default (MOD:2697), and the bridge
-returns `R_NilValue` (RIB:6180). A K-forest sampler is no longer one of them.
+`ResponseModel::latents()` at its nullptr default (MOD:2681), and the bridge
+returns `R_NilValue` (RIB:6173). A K-forest sampler is no longer one of them.
 `Chain::latents()` (CH:1686) is a bare delegation to `response_->latents()`
 carrying no coupling gate and no family switch, and `bartcore_getLatents`
-(RIB:6180) gates only on that pointer being null, so since M4.4 a probit
-K-forest reports its truncated normals (`ProbitResponse::latents` MOD:3136) and
-a logistic one its Polya-Gamma omegas (`LogisticResponse::latents` MOD:3628). A
+(RIB:6173) gates only on that pointer being null, so since M4.4 a probit
+K-forest reports its truncated normals (`ProbitResponse::latents` MOD:3120) and
+a logistic one its Polya-Gamma omegas (`LogisticResponse::latents` MOD:3612). A
 GAUSSIAN K-forest still reports none, which is why this cell is
 family-dependent rather than plainly `S`.
 
@@ -564,8 +564,8 @@ change to the zero-count creation refusal, which stands.
 
 [f21] The GLOBAL channel shipped at 8b047f8b, landing on the softmax coupling
 rather than the response, which holds no precisions of its own to compose a
-mask into: `MultinomialResponse::setActiveRows` (MOD:3752) is a pass-through
-that only advertises the capability (`supportsActiveRows` MOD:3751), and
+mask into: `MultinomialResponse::setActiveRows` (MOD:3736) is a pass-through
+that only advertises the capability (`supportsActiveRows` MOD:3735), and
 `Chain::setActiveRows` forwards the mask to
 `MultinomialForestCombiner::setActiveRows` (COM:1529) after the response's own
 install. An inactive row's K interleaved Polya-Gamma draws are SKIPPED rather
@@ -635,7 +635,7 @@ chain's response is not necessarily a `GaussianResponse`: it builds a
 overrides `setActiveRows` on its own terms (MOD:3100, MOD:3570) exactly as it
 does off a coupling, so [f15]'s S1 and S2 arms carry the latent K-forest with
 no edit of their own. Gaussian's composition into the case weights, which is
-what inherits the sigma df, is `GaussianResponse::setActiveRows` MOD:2875. The
+what inherits the sigma df, is `GaussianResponse::setActiveRows` MOD:2859. The
 measurements below are all GAUSSIAN two-forest ones; no latent K-forest mask is
 measured anywhere. MEASURED at 6db22aee on a 200-row two-forest
 sampler: `$setActiveRows(a)` and the bridge `bartcoreSetActiveRows` are both
@@ -663,7 +663,7 @@ active-rows column: neither row took an edit of its own. `GroupedResponse`
 forwards `setActiveRows` to its base (MOD:4832) exactly as it forwards
 `setWeights` (MOD:4818), advertising the base's capability (MOD:4829), and
 `drawGroupEffects` already weights its per-group sums by `workingWeights()`
-(MOD:4750), so an inactive row leaves its group's mean and precision and an
+(MOD:4734), so an inactive row leaves its group's mean and precision and an
 all-inactive group falls back to its prior through the same formula. The
 heteroscedastic `formMeanWeights` (CH:4180-4187) reads
 `response_->workingWeights()` at CH:4183 - the COMPOSED `w * a` while a mask is
@@ -677,7 +677,7 @@ against a composed-weight sampler (test_sampler.cpp:1857-1859); heteroscedastic
 likewise for train and varcount (test-active-rows-pins.R:272-273). The same
 delegation carries BOTH halves of the
 nameable-calibration column for grouped: `GroupedResponse::fitScale()`/`fitShift()`
-forward to their base (MOD:4863), so `Chain::resolvedNodeScale` (CH:3955) at
+forward to their base (MOD:4847), so `Chain::resolvedNodeScale` (CH:3955) at
 creation and `Chain::forestCalibration`/`setForestPriorScale` (CH:1188, 1230)
 mid-chain all convert a named `prior.scale` exactly as they do for the
 undecorated family, with no edit of grouped's own. Creation-time, grouped is

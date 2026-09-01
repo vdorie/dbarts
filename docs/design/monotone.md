@@ -57,7 +57,7 @@ seams that exist are re-pointed for the constrained forest.
 
 **Box geometry is already computed.** Each leaf's [L_ik, U_ik] along an ordinal
 column is `Tree::splitInterval` (tree.hpp:416), the ancestor-constrained cut
-interval used for availability (`hasAnyAvailableVariable`, tree.hpp:572,
+interval used for availability (`hasAnyAvailableVariable`, tree.hpp:616,
 moves.hpp:144). Neighbor determination for a constrained axis walks the tree's
 bottom nodes and, for each ordered pair, tests boundary adjacency in the
 constrained coordinate and interval overlap in every OTHER coordinate the two

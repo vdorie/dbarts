@@ -302,8 +302,8 @@ static void testColumnStoreMutation() {
   for (size_t i = 0; i < n; ++i) {
     // column 0's codes untouched; the store owns codes and never writes the
     // new values back into the caller's matrix (no write-through)
-    codesMatch &= store.train.codes[i] == originalCodes[i];
-    codesMatch &= store.train.codes[i + n] == store.codeFor(1, newColumn[i]);
+    codesMatch &= store.codeAt(0, i) == originalCodes[i];
+    codesMatch &= store.codeAt(1, i) == store.codeFor(1, newColumn[i]);
   }
   check(codesMatch, "setColumns re-quantizes only the target column");
   check(store.cutPoints[1].front() > 2.0 && store.cutPoints[1].back() < 5.0,
@@ -311,9 +311,9 @@ static void testColumnStoreMutation() {
   check(store.cutPoints[0] == originalCuts0, "setColumns leaves other cuts");
 
   // single-cell overwrite against existing cuts
-  xint_t before = store.train.codes[7];
+  xint_t before = store.codeAt(0, 7);
   store.setCell(7, 0, x[8]);
-  check(store.train.codes[7] == originalCodes[8], "setCell re-quantizes one cell");
+  check(store.codeAt(0, 7) == originalCodes[8], "setCell re-quantizes one cell");
   check(before == originalCodes[7], "");  // silence unused warning
 
   // whole-matrix replacement without cut refresh: quantized on old cuts, codes
@@ -323,7 +323,7 @@ static void testColumnStoreMutation() {
   store.setPredictors(x2.data(), false);
   codesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    codesMatch &= store.train.codes[i] == store.codeFor(0, x2[i]);
+    codesMatch &= store.codeAt(0, i) == store.codeFor(0, x2[i]);
   check(codesMatch, "setPredictors re-quantizes against existing cuts");
 
   printf("ok: column store mutation\n");
@@ -672,7 +672,11 @@ static void testTransientBlockAssembly() {
   fromReference.build(reference.data(), n, p, 100, false, types.data());
   fromAssembled.build(assembled.data(), n, p, 100, false, types.data());
 
-  check(fromAssembled.train.codes == fromReference.train.codes,
+  bool assembledMatches = true;
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < n; ++i)
+      assembledMatches &= fromAssembled.codeAt(j, i) == fromReference.codeAt(j, i);
+  check(assembledMatches,
         "container-assembled block quantizes to the cbind reference codes");
   check(fromAssembled.cutPoints == fromReference.cutPoints,
         "container-assembled block builds the cbind reference cut grid");

@@ -629,23 +629,23 @@ const Row rows[] = {
     f.buildDisposable();  // the rows after this one want the full store
   }},
   {FacadeVirtual::setPredictor, "setPredictor", [](Fixtures& f) {
-    std::vector<xint_t> codes = f.d.impl().data().train.codes;
+    std::vector<xint_t> codes = storageDigest(f.d.impl().data());
     check(f.d.base().setPredictor(
             densePredictorSource(f.replacement.data(), Fixtures::n,
                                  Fixtures::p),
             true, true) == PredictorUpdateResult::accepted,
           "facade setPredictor: the replacement is accepted");
-    check(f.d.impl().data().train.codes != codes,
+    check(storageDigest(f.d.impl().data()) != codes,
           "facade setPredictor: the impl's codes are the new ones");
   }},
   {FacadeVirtual::updatePredictor, "updatePredictor", [](Fixtures& f) {
-    std::vector<xint_t> codes = f.d.impl().data().train.codes;
+    std::vector<xint_t> codes = storageDigest(f.d.impl().data());
     const std::size_t columns[] = {1};
     check(f.d.base().updatePredictor(
             densePredictorSource(f.newColumn.data(), Fixtures::n, 1), columns,
             1, true, true) == PredictorUpdateResult::accepted,
           "facade updatePredictor: the named column is accepted");
-    const std::vector<xint_t>& updated = f.d.impl().data().train.codes;
+    std::vector<xint_t> updated = storageDigest(f.d.impl().data());
     bool columnZeroHeld = true, columnOneMoved = false;
     for (std::size_t i = 0; i < Fixtures::n; ++i) {
       columnZeroHeld &= updated[i] == codes[i];
@@ -668,7 +668,7 @@ const Row rows[] = {
   }},
   {FacadeVirtual::updatePredictorPerObservation, "perObservation",
    [](Fixtures& f) {
-    std::vector<xint_t> codes = f.d.impl().data().train.codes;
+    std::vector<xint_t> codes = storageDigest(f.d.impl().data());
     std::unique_ptr<bool[]> installed(new bool[Fixtures::n]);
     check(f.d.base().updatePredictorPerObservation(f.newColumn2.data(), 1,
                                                    installed.get()),
@@ -676,7 +676,7 @@ const Row rows[] = {
     std::size_t numInstalled = 0;
     for (std::size_t i = 0; i < Fixtures::n; ++i)
       numInstalled += installed[i] ? 1 : 0;
-    check(numInstalled > 0 && f.d.impl().data().train.codes != codes,
+    check(numInstalled > 0 && storageDigest(f.d.impl().data()) != codes,
           "facade perObservation: the installed rows reach the impl's codes");
   }},
   {FacadeVirtual::beginPredictorUpdate, "beginPredictorUpdate",
@@ -685,7 +685,7 @@ const Row rows[] = {
       f.d.base().beginPredictorUpdate(f.newColumn.data(), 1);
     check(session != nullptr,
           "facade beginPredictorUpdate: the boundary hands back a session");
-    std::vector<xint_t> codes = f.d.impl().data().train.codes;
+    std::vector<xint_t> codes = storageDigest(f.d.impl().data());
     std::size_t committed = 0;
     for (std::size_t i = 0; i < Fixtures::n; ++i)
       if (session->observationWouldRemainValid(i)) {
@@ -693,7 +693,7 @@ const Row rows[] = {
         ++committed;
       }
     check(session->finalize() && committed > 0 &&
-            f.d.impl().data().train.codes != codes,
+            storageDigest(f.d.impl().data()) != codes,
           "facade beginPredictorUpdate: the session drives the impl's store");
   }},
   {FacadeVirtual::currentSampleNum, "currentSampleNum", [](Fixtures& f) {

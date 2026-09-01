@@ -1002,14 +1002,15 @@ static void testSetData(ext_rng* rng) {
 
   double sigmaBefore = sampler.sigma(0);
   std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
-  std::vector<xint_t> codesBefore(sampler.data().train.codes);
+  std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
 
   // identity replacement: same values in new buffers; the rebuilt cuts equal
   // the old ones, every split remaps onto itself, and fits are recovered
   // exactly
   std::vector<double> xCopy(x), yCopy(y);
   sampler.setData(xCopy.data(), yCopy.data(), n, nullptr, nullptr, nullptr, 0);
-  check(sampler.data().train.codes == codesBefore, "identity setData preserves codes");
+  check(storageDigest(sampler.data()) == codesBefore,
+        "identity setData preserves codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore,
         "identity setData preserves fits");
   check(sampler.sigma(0) == sigmaBefore, "identity setData preserves sigma");
@@ -1213,7 +1214,7 @@ static void testSetDataQuantileShrink(ext_rng* rng) {
   for (size_t t = 0; t < 25; ++t)
     occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
   for (size_t i = 0; i < n; ++i)
-    codesInRange &= sampler.data().train.codes[i] <= 3;
+    codesInRange &= sampler.data().codeAt(0, i) <= 3;
   check(occupied, "quantile shrink leaves no empty leaves");
   check(codesInRange, "quantile shrink re-quantizes codes");
 

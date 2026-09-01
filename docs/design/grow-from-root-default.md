@@ -839,7 +839,7 @@ skeleton fixed (every split rule below the changed node is untouched) and
 only swaps the changed node's own rule, then reroutes every observation
 through that unchanged skeleton (`Tree::refreshSubtree`, called at
 moves.hpp:595) and rescores the FULL subtree's likelihood under the new
-routing (`logLikelihoodForBranch`, moves.hpp:591 and :602, walking every
+routing (`logLikelihoodForBranch`, moves.hpp:591 and :599, walking every
 bottom descendant via `fillBottom` and vetoing with `-HUGE_VAL` if any
 leaf empties, moves.hpp:79). Acceptance is `alpha = exp((belowY-belowX) +
 (yLogL-xLogL) + correction)`, capped at 1 (moves.hpp:609-611). At the root

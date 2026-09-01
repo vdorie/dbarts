@@ -401,50 +401,47 @@ inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
                                          int32_t newVariableIndex, Rule& newRule,
                                          size_t maskPoolMark) {
   int32_t leftChild = tree.at(nodeToChange).leftChild;
-  if (ctx.data.columnIsPooled(static_cast<size_t>(newVariableIndex))) {
-    size_t numWords = maskWordsForCount(
-      ctx.data.numCuts[static_cast<size_t>(newVariableIndex)]);
-    std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
-    reachable.resize(numWords);
-    tree.reachableCategoriesWide(ctx.data, nodeToChange, newVariableIndex,
-                                 reachable.data());
-    size_t numReachable = maskPopcount(reachable.data(), numWords);
-    ctx.scratch.patternWords.resize(numWords);
-    ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
-    size_t offset = tree.allocateMask(numWords);
-    CGMTreePrior::drawCategoryPatternWide(
-      rng, numReachable, ctx.scratch.patternWords.data(), numWords);
-    std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
-    CGMTreePrior::categoryDirectionsForPatternWide(
-      reachable.data(), ctx.scratch.patternWords.data(), directions, numWords);
-    std::uint64_t* leftReachable = ctx.scratch.maskArena.data();
-    maskAndNot(reachable.data(), directions, leftReachable, numWords);
-    if (!categoricalSubtreeIsValidWide(tree, leftChild, newVariableIndex,
-                                       leftReachable, numWords,
-                                       ctx.scratch.maskArena.data(), 1) ||
-        !categoricalSubtreeIsValidWide(tree, leftChild + 1, newVariableIndex,
-                                       directions, numWords,
-                                       ctx.scratch.maskArena.data(), 1)) {
-      tree.truncateMaskPool(maskPoolMark);
-      return false;
-    }
-    newRule.setMaskOffset(offset);
-    return true;
-  }
-
-  std::uint64_t reachable =
-    tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
-  int numReachable = std::popcount(reachable);
-  std::uint64_t pattern = CGMTreePrior::drawCategoryPattern(rng, numReachable);
-  std::uint64_t directions =
-    CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
-  if (!categoricalSubtreeIsValid(tree, leftChild, newVariableIndex,
-                                 reachable & ~directions) ||
-      !categoricalSubtreeIsValid(tree, leftChild + 1, newVariableIndex,
-                                 directions))
-    return false;  // narrow columns allocate no pool words to reclaim
-  newRule.setCategoryDirections(directions);
-  return true;
+  return tree.withReachableMask(
+    ctx.data, nodeToChange, newVariableIndex, ctx.scratch.reachableWords,
+    nullptr,
+    [&](const std::uint64_t* reachable, size_t numWords) {
+      size_t numReachable = maskPopcount(reachable, numWords);
+      ctx.scratch.patternWords.resize(numWords);
+      ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
+      size_t offset = tree.allocateMask(numWords);
+      CGMTreePrior::drawCategoryPatternWide(
+        rng, numReachable, ctx.scratch.patternWords.data(), numWords);
+      std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
+      CGMTreePrior::categoryDirectionsForPatternWide(
+        reachable, ctx.scratch.patternWords.data(), directions, numWords);
+      std::uint64_t* leftReachable = ctx.scratch.maskArena.data();
+      maskAndNot(reachable, directions, leftReachable, numWords);
+      if (!categoricalSubtreeIsValidWide(tree, leftChild, newVariableIndex,
+                                         leftReachable, numWords,
+                                         ctx.scratch.maskArena.data(), 1) ||
+          !categoricalSubtreeIsValidWide(tree, leftChild + 1, newVariableIndex,
+                                         directions, numWords,
+                                         ctx.scratch.maskArena.data(), 1)) {
+        tree.truncateMaskPool(maskPoolMark);
+        return false;
+      }
+      newRule.setMaskOffset(offset);
+      return true;
+    },
+    [&](std::uint64_t reachable) {
+      int numReachable = std::popcount(reachable);
+      std::uint64_t pattern =
+        CGMTreePrior::drawCategoryPattern(rng, numReachable);
+      std::uint64_t directions =
+        CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
+      if (!categoricalSubtreeIsValid(tree, leftChild, newVariableIndex,
+                                     reachable & ~directions) ||
+          !categoricalSubtreeIsValid(tree, leftChild + 1, newVariableIndex,
+                                     directions))
+        return false;  // narrow columns allocate no pool words to reclaim
+      newRule.setCategoryDirections(directions);
+      return true;
+    });
 }
 
 /// Change-move proposal kernel: redraw the split variable and rule at an
@@ -708,21 +705,18 @@ inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIn
                         int32_t variableIndex) {
   if (ctx.data.types[static_cast<size_t>(variableIndex)] ==
       ColumnType::categorical) {
-    size_t j = static_cast<size_t>(variableIndex);
-    if (ctx.data.columnIsPooled(j)) {
-      size_t numWords = maskWordsForCount(ctx.data.numCuts[j]);
-      std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
-      reachable.resize(numWords);
-      tree.reachableCategoriesWide(ctx.data, nodeIndex, variableIndex,
-                                   reachable.data());
-      ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
-      return categoricalSubtreeIsValidWide(tree, nodeIndex, variableIndex,
-                                           reachable.data(), numWords,
-                                           ctx.scratch.maskArena.data(), 0);
-    }
-    return categoricalSubtreeIsValid(
-      tree, nodeIndex, variableIndex,
-      tree.reachableCategories(ctx.data, nodeIndex, variableIndex));
+    return tree.withReachableMask(
+      ctx.data, nodeIndex, variableIndex, ctx.scratch.reachableWords, nullptr,
+      [&](const std::uint64_t* reachable, size_t numWords) {
+        ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
+        return categoricalSubtreeIsValidWide(tree, nodeIndex, variableIndex,
+                                             reachable, numWords,
+                                             ctx.scratch.maskArena.data(), 0);
+      },
+      [&](std::uint64_t reachable) {
+        return categoricalSubtreeIsValid(tree, nodeIndex, variableIndex,
+                                         reachable);
+      });
   }
 
   int32_t leftIndex, rightIndex;

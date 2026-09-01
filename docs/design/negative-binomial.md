@@ -502,7 +502,7 @@ state-format-version bump (additive, per the :6390-6392 rule).
 
 **omega rides the existing latents slot.** The per-observation PG draws omega_i
 are the latents, serialized through the existing `latents` slot exactly as
-LogisticResponse's omega does (model.hpp:4438); latents() returns omega_.data().
+LogisticResponse's omega does (model.hpp:4422); latents() returns omega_.data().
 **Restore-ordering REQUIREMENT: restoreR runs before restoreLatents.** The
 working response is ((y_i - r)/2)/omega_i - o_i, so restoreLatents rebuilds
 working from omega AND the current r; a restore that installs latents before r

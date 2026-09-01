@@ -100,7 +100,8 @@ struct FuzzGeometry {
 
 template <typename S>
 struct FuzzSnapshot {
-  // the store's quantized predictors; the persisted state carries the cut grid
+  // the store's quantized predictors, read storage-aware so a rank-stored
+  // column is inside the comparison; the persisted state carries the cut grid
   // but never the codes, and a rollback must put both back
   std::vector<xint_t> codes;
   SamplerStateData state;
@@ -125,7 +126,7 @@ template <typename S>
 static FuzzSnapshot<S> fuzzCapture(S& s) {
   FuzzSnapshot<S> snap;
   size_t n = s.numObservations();
-  snap.codes = s.data().train.codes;
+  snap.codes = storageDigest(s.data());
   s.getState(snap.state);
   FuzzGeometry& g(snap.geom);
   g.trees.resize(s.numChains());
@@ -1262,6 +1263,45 @@ static void testSnapshotCoversEveryFamily() {
   printf("ok: fuzz snapshot family coverage\n");
 }
 
+// The storage half of that gate. A rank-stored column keeps its codes outside
+// the dense block, so a snapshot read off train.codes cannot see one change;
+// fuzzCapture reads through codeAt instead. The check is that the read
+// discriminates: a flipped nonzero must move the digest, and must leave the
+// dense block it is not stored in identical.
+static void testSnapshotSeesSparseCodes() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+  rngState = 0x243F6A8885A308D3ull;
+  const size_t n = 256;
+  CscFixture fixture;
+  fixture.build(n, {0.10, 0.90});  // one rank-stored column, one densified
+
+  PredictorSource source;
+  source.numRows = n;
+  source.numColumns = fixture.p;
+  source.cscColumnPointers = fixture.pointers.data();
+  source.cscRowIndices = fixture.rows.data();
+  source.cscValues = fixture.values.data();
+  source.columnSources = fixture.allCscSources.data();
+  ColumnStore store;
+  store.build(source, nullptr, 20, false);
+  check(store.columnIsSparse(0) && !store.train.codes.empty(),
+        "the fixture mixes a rank-stored column with a dense-stored one");
+
+  std::vector<xint_t> digestBefore = storageDigest(store);
+  std::vector<xint_t> denseBefore = store.train.codes;
+  SparseColumnData& sparse = store.train.sparseColumns[static_cast<size_t>(
+    store.train.sources[0].rankSlot)];
+  check(!sparse.nzCodes.empty(), "the rank column stores a nonzero to flip");
+  sparse.nzCodes[0] ^= 1;
+
+  check(store.train.codes == denseBefore,
+        "a flipped rank code leaves the dense block identical");
+  check(storageDigest(store) != digestBefore,
+        "the snapshot digest sees a flipped rank code");
+  rngState = savedRngState;
+  printf("ok: fuzz snapshot digest covers rank storage\n");
+}
+
 // ---------------------------------------------------------------------------
 // The two gates on the per-observation session's PRUNED cache. The fuzzer
 // above proves the sampler stays self-consistent whatever the session
@@ -1982,6 +2022,7 @@ static void testMutationFuzzer(int numSeeds) {
 
 void runFuzzTests(int numSeeds) {
   testSnapshotCoversEveryFamily();
+  testSnapshotSeesSparseCodes();
   testPerObservationMaskExactness();
   testUntouchedTreeExactness();
   testVarianceRecoveryOrdering();

@@ -79,47 +79,49 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
     return holds != orientation;  // the complement when the coin says so
   };
 
-  if (data.columnIsPooled(j)) {
-    std::size_t numWords = maskWordsForCount(data.numCuts[j]);
-    scratch.reachableMask.resize(numWords);
-    tree.reachableCategoriesWide(data, nodeIndex,
-                                 static_cast<std::int32_t>(j),
-                                 scratch.reachableMask.data());
-    scratch.presentMask.assign(numWords, 0);
-    // grow never rejects, so the pool needs no mark and no truncate;
-    // growForestFromRoot compacts it per grown tree
-    std::size_t offset = tree.allocateMask(numWords);
-    std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
-    for (std::size_t position = 0; position < numPresent; ++position) {
-      maskSetBit(scratch.presentMask.data(), present[position].code);
-      if (goesRight(position)) maskSetBit(directions, present[position].code);
-    }
-    for (std::size_t w = 0; w < numWords; ++w) {
-      std::uint64_t absent =
-        scratch.reachableMask[w] & ~scratch.presentMask[w];
+  // the inline tier reads R off the mask collectAvailableVariables already
+  // narrowed at this node; the pooled tier walks for it
+  tree.withReachableMask(
+    data, nodeIndex, static_cast<std::int32_t>(j), scratch.reachableMask,
+    &tree.inlineReachableMasks()[j],
+    [&](const std::uint64_t* reachable, std::size_t numWords) {
+      scratch.presentMask.assign(numWords, 0);
+      // grow never rejects, so the pool needs no mark and no truncate;
+      // growForestFromRoot compacts it per grown tree
+      std::size_t offset = tree.allocateMask(numWords);
+      std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
+      for (std::size_t position = 0; position < numPresent; ++position) {
+        maskSetBit(scratch.presentMask.data(), present[position].code);
+        if (goesRight(position)) maskSetBit(directions, present[position].code);
+      }
+      for (std::size_t w = 0; w < numWords; ++w) {
+        std::uint64_t absent = reachable[w] & ~scratch.presentMask[w];
+        while (absent != 0) {
+          std::uint32_t bit =
+            static_cast<std::uint32_t>(std::countr_zero(absent));
+          absent &= absent - 1;
+          if (ext_rng_simulateBernoulli(rng, 0.5) == 1)
+            maskSetBit(directions, bit + 64u * static_cast<std::uint32_t>(w));
+        }
+      }
+      rule.setMaskOffset(offset);
+    },
+    [&](std::uint64_t reachable) {
+      std::uint64_t presentBits = 0, directions = 0;
+      for (std::size_t position = 0; position < numPresent; ++position) {
+        presentBits |= 1ull << present[position].code;
+        if (goesRight(position)) directions |= 1ull << present[position].code;
+      }
+      std::uint64_t absent = reachable & ~presentBits;
       while (absent != 0) {
-        std::uint32_t bit = static_cast<std::uint32_t>(std::countr_zero(absent));
+        std::uint32_t category =
+          static_cast<std::uint32_t>(std::countr_zero(absent));
         absent &= absent - 1;
         if (ext_rng_simulateBernoulli(rng, 0.5) == 1)
-          maskSetBit(directions, bit + 64u * static_cast<std::uint32_t>(w));
+          directions |= 1ull << category;
       }
-    }
-    rule.setMaskOffset(offset);
-    return;
-  }
-
-  std::uint64_t presentBits = 0, directions = 0;
-  for (std::size_t position = 0; position < numPresent; ++position) {
-    presentBits |= 1ull << present[position].code;
-    if (goesRight(position)) directions |= 1ull << present[position].code;
-  }
-  std::uint64_t absent = tree.inlineReachableMasks()[j] & ~presentBits;
-  while (absent != 0) {
-    std::uint32_t category = static_cast<std::uint32_t>(std::countr_zero(absent));
-    absent &= absent - 1;
-    if (ext_rng_simulateBernoulli(rng, 0.5) == 1) directions |= 1ull << category;
-  }
-  rule.setCategoryDirections(directions);
+      rule.setCategoryDirections(directions);
+    });
 }
 
 /// Recursively split `tree` from nodeIndex against the residual y (per-tree
@@ -225,18 +227,9 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
       // R, the categories that reach this node: read off the mask
       // collectAvailableVariables already narrowed for an inline column,
       // walked here for a pooled one (that pass skips those)
-      std::size_t numReachable;
-      if (data.columnIsPooled(j)) {
-        std::size_t numWords = maskWordsForCount(data.numCuts[j]);
-        scratch.reachableMask.resize(numWords);
-        tree.reachableCategoriesWide(data, nodeIndex,
-                                     static_cast<std::int32_t>(j),
-                                     scratch.reachableMask.data());
-        numReachable = maskPopcount(scratch.reachableMask.data(), numWords);
-      } else {
-        numReachable = static_cast<std::size_t>(
-          std::popcount(tree.inlineReachableMasks()[j]));
-      }
+      std::size_t numReachable = tree.reachableCategoryCount(
+        data, nodeIndex, static_cast<std::int32_t>(j), scratch.reachableMask,
+        &tree.inlineReachableMasks()[j]);
 
       std::size_t numEmitted = scanCategoricalPartitions(
         data, j, tree.indices + begin, numMembers, y, weights, leaf, k,

@@ -493,6 +493,59 @@ public:
     }
   }
 
+  /// Fill `scratch` with variableIndex's reachable-category words at nodeIndex
+  /// and return the word count. Pooled columns only; scratch is the caller's,
+  /// so a query on a const tree writes no shared state.
+  size_t reachableCategoryWords(const ColumnStore& data, int32_t nodeIndex,
+                                int32_t variableIndex,
+                                std::vector<std::uint64_t>& scratch) const {
+    size_t numWords =
+      maskWordsForCount(data.numCuts[static_cast<size_t>(variableIndex)]);
+    scratch.resize(numWords);
+    reachableCategoriesWide(data, nodeIndex, variableIndex, scratch.data());
+    return numWords;
+  }
+
+  /// How many of variableIndex's categories reach nodeIndex, over either
+  /// storage tier. `cachedInline` is an inline column's already-walked mask,
+  /// for a caller holding one from collectAvailableVariables, or null to walk
+  /// it here; a pooled column ignores it and fills `scratch` instead.
+  size_t reachableCategoryCount(const ColumnStore& data, int32_t nodeIndex,
+                                int32_t variableIndex,
+                                std::vector<std::uint64_t>& scratch,
+                                const std::uint64_t* cachedInline) const {
+    if (data.columnIsPooled(static_cast<size_t>(variableIndex))) {
+      size_t numWords =
+        reachableCategoryWords(data, nodeIndex, variableIndex, scratch);
+      return maskPopcount(scratch.data(), numWords);
+    }
+    return static_cast<size_t>(std::popcount(
+      cachedInline != nullptr
+        ? *cachedInline
+        : reachableCategories(data, nodeIndex, variableIndex)));
+  }
+
+  /// The same set handed to the tier's action rather than counted:
+  /// pooled(words, numWords) for a column with more than 63 categories,
+  /// narrow(mask) for one the mask fits inline. Both must return the same
+  /// type. Nothing here marks or truncates the mask pool - an action that
+  /// allocates from it owns the rollback.
+  template <typename Pooled, typename Narrow>
+  auto withReachableMask(const ColumnStore& data, int32_t nodeIndex,
+                         int32_t variableIndex,
+                         std::vector<std::uint64_t>& scratch,
+                         const std::uint64_t* cachedInline, Pooled pooled,
+                         Narrow narrow) const {
+    if (data.columnIsPooled(static_cast<size_t>(variableIndex))) {
+      size_t numWords =
+        reachableCategoryWords(data, nodeIndex, variableIndex, scratch);
+      return pooled(scratch.data(), numWords);
+    }
+    return narrow(cachedInline != nullptr
+                    ? *cachedInline
+                    : reachableCategories(data, nodeIndex, variableIndex));
+  }
+
   /// Install a per-forest split-variable restriction: a borrowed 0/1 byte per
   /// predictor (1 = splittable), or null to lift it. The availability queries
   /// short-circuit on the null before touching it, so an unrestricted tree
@@ -542,17 +595,8 @@ public:
     bool cutAvailable;
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
-      size_t j = static_cast<size_t>(variableIndex);
-      if (data.columnIsPooled(j)) {
-        size_t numWords = maskWordsForCount(data.numCuts[j]);
-        reachableScratch_.resize(numWords);
-        reachableCategoriesWide(data, nodeIndex, variableIndex,
-                                reachableScratch_.data());
-        cutAvailable = maskPopcount(reachableScratch_.data(), numWords) >= 2;
-      } else {
-        cutAvailable = std::popcount(reachableCategories(data, nodeIndex,
-                                                         variableIndex)) >= 2;
-      }
+      cutAvailable = reachableCategoryCount(data, nodeIndex, variableIndex,
+                                            reachableScratch_, nullptr) >= 2;
     } else {
       int32_t left, right;
       splitInterval(data, nodeIndex, variableIndex, &left, &right);
@@ -1504,9 +1548,7 @@ private:
       std::memcpy(directions, words, numWords * sizeof(std::uint64_t));
       if ((flat.flags & flatMissingGoesRight) != 0)
         maskSetBit(directions, numCategories);
-      reachableScratch_.resize(numWords);
-      reachableCategoriesWide(data, nodeIndex, flat.variable,
-                              reachableScratch_.data());
+      reachableCategoryWords(data, nodeIndex, flat.variable, reachableScratch_);
       if (maskIsZero(directions, numWords) ||
           !maskIsSubsetOf(directions, reachableScratch_.data(), numWords) ||
           maskEquals(directions, reachableScratch_.data(), numWords))

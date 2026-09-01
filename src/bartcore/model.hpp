@@ -2155,18 +2155,8 @@ struct CGMTreePrior {
     int32_t variableIndex = tree.at(nodeIndex).rule.variableIndex;
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
-      size_t j = static_cast<size_t>(variableIndex);
-      size_t numReachable;
-      if (data.columnIsPooled(j)) {
-        size_t numWords = maskWordsForCount(data.numCuts[j]);
-        reachableScratch_.resize(numWords);
-        tree.reachableCategoriesWide(data, nodeIndex, variableIndex,
-                                     reachableScratch_.data());
-        numReachable = maskPopcount(reachableScratch_.data(), numWords);
-      } else {
-        numReachable = static_cast<size_t>(std::popcount(
-          tree.reachableCategories(data, nodeIndex, variableIndex)));
-      }
+      size_t numReachable = tree.reachableCategoryCount(
+        data, nodeIndex, variableIndex, reachableScratch_, nullptr);
       // past 54 reachable pow(2, R) - 2 is no longer exact; the closed form
       // is a deterministic function of R, so MH ratios stay consistent
       if (numReachable > 54)
@@ -2356,31 +2346,25 @@ struct CGMTreePrior {
 
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
-      size_t j = static_cast<size_t>(variableIndex);
-      if (data.columnIsPooled(j)) {
-        size_t numWords = maskWordsForCount(data.numCuts[j]);
-        reachableScratch_.resize(numWords);
-        tree.reachableCategoriesWide(data, nodeIndex, variableIndex,
-                                     reachableScratch_.data());
-        size_t numReachable =
-          maskPopcount(reachableScratch_.data(), numWords);
-        patternScratch_.resize(numWords);
-        drawCategoryPatternWide(rng, numReachable, patternScratch_.data(),
-                                numWords);
-        size_t offset = tree.allocateMask(numWords);
-        categoryDirectionsForPatternWide(reachableScratch_.data(),
-                                         patternScratch_.data(),
-                                         tree.mutableMaskWordsFor(offset),
-                                         numWords);
-        result.setMaskOffset(offset);
-        return result;
-      }
-      std::uint64_t reachable =
-        tree.reachableCategories(data, nodeIndex, variableIndex);
-      int numReachable = std::popcount(reachable);
-      std::uint64_t pattern = drawCategoryPattern(rng, numReachable);
-      result.setCategoryDirections(
-        categoryDirectionsForPattern(reachable, pattern));
+      tree.withReachableMask(
+        data, nodeIndex, variableIndex, reachableScratch_, nullptr,
+        [&](const std::uint64_t* reachable, size_t numWords) {
+          size_t numReachable = maskPopcount(reachable, numWords);
+          patternScratch_.resize(numWords);
+          drawCategoryPatternWide(rng, numReachable, patternScratch_.data(),
+                                  numWords);
+          size_t offset = tree.allocateMask(numWords);
+          categoryDirectionsForPatternWide(reachable, patternScratch_.data(),
+                                           tree.mutableMaskWordsFor(offset),
+                                           numWords);
+          result.setMaskOffset(offset);
+        },
+        [&](std::uint64_t reachable) {
+          int numReachable = std::popcount(reachable);
+          std::uint64_t pattern = drawCategoryPattern(rng, numReachable);
+          result.setCategoryDirections(
+            categoryDirectionsForPattern(reachable, pattern));
+        });
       return result;
     }
 
