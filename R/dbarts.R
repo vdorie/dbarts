@@ -1293,6 +1293,24 @@ dbartsSampler <- setRefClass(
     },
     setResponse = function(y, updateScale = FALSE, updateState = NA) {
       "Changes the response against which the sampler is fitted. updateState is opt-in; see setData."
+      # a caller porting $setResponse(y, updateState) from before the
+      # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
+      # same position, now meaning updateScale; sys.call() carries the raw,
+      # unmatched call, so an unnamed second argument is caught before R's
+      # own positional matching resolves it silently
+      rawCall <- sys.call()
+      rawCallNames <- names(rawCall)
+      if (
+        length(rawCall) >= 3L &&
+          (is.null(rawCallNames) || !nzchar(rawCallNames[3L]))
+      ) {
+        warnOnce(
+          "setResponsePositionalUpdateScale",
+          "the second argument to $setResponse is 'updateScale' in dbarts ",
+          ">= 1.0-0, and 'updateState' has moved to third; pass both by ",
+          "name to avoid depending on this order"
+        )
+      }
       refuseCountsMutation(
         .self,
         "$setResponse",

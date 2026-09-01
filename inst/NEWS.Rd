@@ -134,6 +134,8 @@
             displaces \code{updateState} to third, so
             \code{setResponse(y, TRUE)} now sets \code{updateScale} where it
             used to set \code{updateState} - pass \code{updateState} by name.
+            Supplying the second argument positionally now also warns once
+            per session, naming the reorder.
       \item An \code{rbart_vi} fit built with a built-in \code{prior} and no
             \code{callback} - the default - carries a length-one \code{$fit}
             list holding one multi-chain sampler, rather than one

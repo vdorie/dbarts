@@ -1,4 +1,8 @@
 source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that dbarts sampler settors raise errors
 train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
@@ -342,6 +346,35 @@ expect_error(
   fixed = TRUE
 )
 
+# a positionally-supplied second argument to $setResponse warns once per
+# session that it now sets updateScale, not updateState; reset the flag so
+# this pin does not depend on suite execution order. onceWarnState is an
+# environment (reference semantics), so a two-step extract-then-assign
+# mutates the same one the package uses - pkg:::name$key <- value is not
+# valid R (name is not itself an assignable slot of the pkg:::-selected
+# binding).
+onceWarnState <- dbarts:::onceWarnState
+onceWarnState$setResponsePositionalUpdateScale <- NULL
+yForResponse <- sampler$data@y
+warnings.setResponsePositional <- captureWarnings({
+  sampler$setResponse(yForResponse, TRUE)
+  sampler$setResponse(yForResponse, TRUE)
+})
+expect_equal(length(warnings.setResponsePositional), 1L)
+expect_match(
+  conditionMessage(warnings.setResponsePositional[[1L]]),
+  "second argument to \\$setResponse is 'updateScale'"
+)
+# a named call never warns, whichever name is used
+warnings.setResponseNamed <- captureWarnings(
+  sampler$setResponse(yForResponse, updateScale = TRUE)
+)
+expect_equal(length(warnings.setResponseNamed), 0L)
+warnings.setResponseNamedState <- captureWarnings(
+  sampler$setResponse(yForResponse, updateState = FALSE)
+)
+expect_equal(length(warnings.setResponseNamedState), 0L)
+
 rm(
   binaryRefusal,
   varianceScaleRefusal,
@@ -375,7 +408,12 @@ rm(
   sampler.logistic,
   sampler.variance,
   sampler.fixed,
-  sampler.aft
+  sampler.aft,
+  onceWarnState,
+  yForResponse,
+  warnings.setResponsePositional,
+  warnings.setResponseNamed,
+  warnings.setResponseNamedState
 )
 
 rm(testData)

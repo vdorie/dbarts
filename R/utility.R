@@ -195,6 +195,25 @@ coerceOrError <- function(x, type) {
   result
 }
 
+# Session-scoped flags for a warning that would otherwise repeat on every
+# call inside a Gibbs/MH loop; one flag per key, so unrelated call sites
+# cannot silence each other. Not reset between tinytest files in one
+# session, so a test pinning the warned-once behavior resets its own key
+# first - extract the environment, then assign into the extracted
+# reference (env <- dbarts:::onceWarnState; env[[key]] <- NULL);
+# dbarts:::onceWarnState[[key]] <- value is not valid R, since ::: has no
+# replacement form to write the mutated environment back through.
+onceWarnState <- new.env(parent = emptyenv())
+
+warnOnce <- function(key, ...) {
+  if (isTRUE(onceWarnState[[key]])) {
+    return(invisible(NULL))
+  }
+  onceWarnState[[key]] <- TRUE
+  warning(...)
+  invisible(NULL)
+}
+
 "%not_in%" <- function(x, table) match(x, table, nomatch = 0L) <= 0L
 
 ## Bare name of the function a stored call invoked. A namespace-qualified call

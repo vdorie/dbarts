@@ -212,6 +212,10 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
+  setresponse-positional-arg-warning: drop the once-per-session warning on
+    a positionally-supplied second argument to $setResponse (it now sets
+    updateScale, not updateState) once callers have had a full minor cycle
+    to move to named arguments. Scheduled for 1.2-0 (VD 2026-09-01).
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
     Status list. rbart_vi / linear leaf on sparse: value gate lifted
     (grouped random effects on high-dimensional sparse designs, the
