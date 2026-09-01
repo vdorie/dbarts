@@ -150,6 +150,17 @@ items
     designing, since compaction and zero weight are not the same draw
     law (docs/design/model-space-survey.md D2). Design-gated, NOT
     scheduled (VD: revisit on a second consumer or a release want).
+  multinomial-doors: three entry-point doors, post-RC (VD 2026-09-01).
+    A formula interface for dbarts(family = "multinomial") - a formula
+    LHS carries no count matrix; bart2's cbind(c1, ..., cK) ~ x form
+    is the pattern to adopt if wanted. A dbarts.h creation path -
+    construction is R-bridge-only (docs/design/feature-matrix.md
+    [f4]); opens on a flat-C consumer wanting multinomial. The family
+    token in bart, rbart_vi, and xbart - per-entry-point scoping
+    choices, xbart additionally needing a multinomial loss defined.
+    Per-forest masking is NOT a door - permanently refused, a
+    category's margin being a log-sum-exp over the other K - 1
+    forests. consumer-gated.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
