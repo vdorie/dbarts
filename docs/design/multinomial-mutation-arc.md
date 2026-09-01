@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:1965`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:2002`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,12 +752,12 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`inst/NEWS.Rd:1965` records the deletion).** `$bc` was a bare
+`inst/NEWS.Rd:2002` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,
 `test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
-paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1445`), and the
+paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:2002`), and the
 `thresholds.raw`/`dispersion.raw` co-gate. Under the standing
 no-backwards-compat constraint this was a NEWS migration, not a design
 input, and it has since landed.
