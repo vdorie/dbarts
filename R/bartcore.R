@@ -223,7 +223,7 @@ bartcoreSamplerSetPredictor <- function(
     if (length(column) != 1L) {
       stop("partial updates can only be applied to a single column")
     }
-    column <- as.integer(column)
+    column <- coerceOrError(column, "integer")
     # a CSC-backed column's rank storage cannot take a cell-at-a-time write
     # without an O(nnz) shift per cell; a DENSE-backed column of a mixed design
     # can, and is the motivating IRT latent case, so the refusal is per
@@ -352,7 +352,7 @@ bartcoreSamplerSetPredictor <- function(
       if (isTRUE(updateSuccessful)) sampler$data@x <- newX
     }
   } else {
-    column <- as.integer(column)
+    column <- coerceOrError(column, "integer")
     if (any(column < 1L | column > ncol(sampler$data@x))) {
       stop(
         "column '",
@@ -547,11 +547,12 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
   cuts <- lapply(cuts, as.double)
 
   # the engine re-quantizes the transient borrow of the current predictors
+  column <- coerceOrError(column, "integer")
   .Call(
     C_dbarts_bartcore_setCutPoints,
     sampler$getPointer(),
     cuts,
-    as.integer(column),
+    column,
     rawPredictorMatrix(sampler$data@x)
   )
   invisible(NULL)
@@ -570,7 +571,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     # with a NULL removal.
     x.test <- validateXTest(x.test, sampler$data@x)
   } else {
-    column <- as.integer(column)
+    column <- coerceOrError(column, "integer")
     if (any(column < 1L | column > ncol(sampler$data@x.test))) {
       stop(
         "column '",
@@ -1046,7 +1047,7 @@ bartcoreMultinomialDataSampler <- function(
 # The R-level calibration surface indexes forests from 1, as R indexes; the
 # bridge and the flat C entries count from 0, as the engine does.
 resolveForestIndex <- function(forest) {
-  forest <- as.integer(forest)
+  forest <- coerceOrError(forest, "integer")
   if (length(forest) != 1L || is.na(forest) || forest < 1L) {
     stop("'forest' must be a single positive integer (1 selects the first)")
   }

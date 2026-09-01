@@ -600,7 +600,7 @@ the multinomial forest builder (`buildMultinomialSampler`, RIB:3350). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
 `refuseAmplitudeMutation` (dbarts.R:1847, MEASURED "multi-forest calibration
-map", test-calibration-midchain.R:425-428) before ever reaching the bridge; a
+map", test-calibration-midchain.R:433-436) before ever reaching the bridge; a
 multinomial fit's `$fit` refuses the same call the same way, for the same
 softmax-calibration-map reason - not a host-shell one, since S4 deleted that
 mechanism (multinomial-mutation-arc.md); underneath

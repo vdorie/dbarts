@@ -2767,6 +2767,7 @@ bart <- function(
   printcutoffs <- coerceOrError(printcutoffs, "integer")
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
+  seed <- coerceOrError(seed, "integer")
 
   # named ahead of dbartsControl(), whose own validity would otherwise
   # blame n.thin/n.burn - its slot names, not the formals these came in as
@@ -2804,7 +2805,7 @@ bart <- function(
     printEvery = printevery,
     printCutoffs = printcutoffs,
     n.cuts = numcut,
-    seed = as.integer(seed)
+    seed = seed
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- matchedCall

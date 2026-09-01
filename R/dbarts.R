@@ -91,7 +91,7 @@ resolveHazardGrid <- function(time, breaks) {
       stop("'breaks' must not contain missing values")
     }
     if (length(breaks) == 1L) {
-      K <- as.integer(breaks)
+      K <- coerceOrError(breaks, "integer")
       if (is.na(K) || K < 1L) {
         stop(
           "'breaks' as a single value must be a positive integer period count"
@@ -1987,7 +1987,7 @@ dbartsSampler <- setRefClass(
        NULL spreads the chains across the donor's kept samples."
       donorState <- warmStartState(donor)
       if (!is.null(samples)) {
-        samples <- as.integer(samples)
+        samples <- coerceOrError(samples, "integer")
       }
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_installForests, ptr, donorState, samples)
@@ -2009,7 +2009,7 @@ dbartsSampler <- setRefClass(
           warning("sampleNums ignored if keepTrees is FALSE")
           sampleNums <- NULL
         } else {
-          sampleNums <- as.integer(sampleNums)
+          sampleNums <- coerceOrError(sampleNums, "integer")
         }
       }
       if (is.null(matchedCall$treeNums)) {
@@ -2020,9 +2020,9 @@ dbartsSampler <- setRefClass(
       invisible(.Call(
         C_dbarts_bartcore_printTrees,
         ptr,
-        as.integer(chainNums),
+        coerceOrError(chainNums, "integer"),
         sampleNums,
-        as.integer(treeNums)
+        coerceOrError(treeNums, "integer")
       ))
     },
     getTrees = function(

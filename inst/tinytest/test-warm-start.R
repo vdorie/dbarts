@@ -87,6 +87,13 @@ expect_error(
 )
 expect_error(dest$installTrees(list(1, 2, 3)), "must be a dbarts sampler")
 expect_error(dest$installTrees(donor, samples = c(1L, 2L)), "one per chain")
+# a fractional samples index is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch)
+expect_error(
+  dest$installTrees(donor, samples = 1.5),
+  "'samples' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 
 # a raw state donor is read block by block, and a chain declaring no forests at
 # all is refused by name: the donor pool reads each chain's first forest

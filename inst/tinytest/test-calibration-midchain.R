@@ -309,6 +309,14 @@ expect_error(
 expect_error(badValues$getCalibration(2L), "forest index out of range")
 expect_error(badValues$setCalibration(prior.scale = 1, forest = 2L), "range")
 expect_error(badValues$getCalibration(0L), "single positive integer")
+# a fractional forest index is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch) - resolveForestIndex
+# is shared by every forest = method on the sampler
+expect_error(
+  badValues$getCalibration(1.5),
+  "'forest' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 
 # prior.mean is read-only; the message names the offset lever and the recipe
 meanRefusal <- tryCatch(

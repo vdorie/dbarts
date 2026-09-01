@@ -40,6 +40,13 @@ expect_error(
   sampler$setPredictor(testData$z, 3L),
   "column '3' is out of range"
 )
+# a fractional column is refused, naming the argument, rather than silently
+# truncated (coerceOrError's integer branch)
+expect_error(
+  sampler$setPredictor(testData$z, 1.5),
+  "'column' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 expect_error(
   sampler$setTestPredictor(numeric(0L), 1L),
   paste0("'x.test' must have length ", nrow(test))
@@ -51,6 +58,11 @@ expect_error(
 expect_error(
   sampler$setTestPredictor(testData$z, 3L),
   "column '3' is out of range"
+)
+expect_error(
+  sampler$setTestPredictor(testData$z, 1.5),
+  "'column' must be a whole number; got '1.5'",
+  fixed = TRUE
 )
 
 n <- length(testData$y)

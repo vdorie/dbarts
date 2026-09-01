@@ -75,6 +75,15 @@ byName <- extract(fit, type = "forest", forest = "forest2")
 expect_identical(byIndex, byName)
 expect_equal(dim(byIndex), c(6L, n, 1L))
 expect_identical(dimnames(byIndex)[[3L]], "forest2")
+# a fractional numeric forest selector is refused, naming the argument,
+# rather than silently truncated (coerceOrError's integer branch); a
+# character selector is unaffected (resolveForestSelection branches on
+# is.character(forest) before reaching the numeric path)
+expect_error(
+  extract(fit, type = "forest", forest = 1.5),
+  "'forest' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 
 # contribution = (basis %*% glue) * forestFits, computed on demand rather
 # than stored; re-derived here from the packaged elements alone, one

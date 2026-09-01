@@ -116,6 +116,13 @@ expect_error(
   plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
   pattern = "'chainNum' must be a single chain index"
 )
+# a fractional chainNum is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch)
+expect_error(
+  plotTree(pt.rbart, treeNum = 1L, chainNum = 1.5),
+  "'chainNum' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 
 # plotTree builds its call to the sampler's own plotTree via do.call(args =
 # list(treeNum = , ...)), so a caller writing the extract/fitted vocabulary's

@@ -207,6 +207,14 @@ expect_error(
   "'nthread' must be a whole number; got '1.5'",
   fixed = TRUE
 )
+# bart()'s own 'seed' pre-coerced with a bare as.integer() before reaching
+# dbartsControl(), masking its own coerceOrError check; routed through
+# coerceOrError directly instead
+expect_error(
+  dbarts::bart(xTiny, yTiny, seed = 2.7),
+  "'seed' must be a whole number; got '2.7'",
+  fixed = TRUE
+)
 gTiny <- rep(1:2, length.out = 20L)
 expect_error(
   dbarts::rbart_vi(yTiny ~ xTiny, group.by = gTiny, n.chains = 2.5),

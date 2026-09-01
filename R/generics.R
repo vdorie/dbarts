@@ -650,7 +650,7 @@ resolveForestSelection <- function(forest, forestNames) {
     }
     return(idx)
   }
-  idx <- suppressWarnings(as.integer(forest))
+  idx <- coerceOrError(forest, "integer")
   if (anyNA(idx) || any(idx < 1L | idx > length(forestNames))) {
     stop("'forest' index must be between 1 and ", length(forestNames))
   }
@@ -3104,7 +3104,7 @@ plotTree.rbart <- function(
   } else {
     object$n.chains
   }
-  chainNum <- as.integer(chainNum)
+  chainNum <- coerceOrError(chainNum, "integer")
   if (
     length(chainNum) != 1L ||
       is.na(chainNum) ||

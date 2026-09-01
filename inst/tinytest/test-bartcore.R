@@ -303,6 +303,13 @@ expect_error(
   sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1:2),
   "one cut point vector per column"
 )
+# a fractional column is refused, naming the argument, rather than silently
+# truncated (coerceOrError's integer branch)
+expect_error(
+  sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1.5),
+  "'column' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
 sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
@@ -654,6 +661,25 @@ expect_true(all(grepl(
   "^ *TBN: [01]{3}  (var: [0-9]+ ORDRule: |pred: )",
   print.saved
 )))
+
+# printTrees's treeNums/chainNums/sampleNums refuse a fractional double,
+# naming the argument, rather than silently truncating it (coerceOrError's
+# integer branch) - the same site getTrees was already routed through
+expect_error(
+  sampler.keep$printTrees(treeNums = 1.5, sampleNums = 1L),
+  "'treeNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  sampler.keep$printTrees(treeNums = 1L, chainNums = 1.5),
+  "'chainNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  sampler.keep$printTrees(treeNums = 1L, sampleNums = 1.5),
+  "'sampleNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 
 # prediction without keepTrees comes from the live trees, one set per chain
 control.bc <- dbartsControl(

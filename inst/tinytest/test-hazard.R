@@ -254,6 +254,20 @@ fit.b <- do.call(
 )
 expect_equal(fit.b$periods, c(2, 4, 6))
 
+# a fractional single-value breaks is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch)
+expect_error(
+  do.call(
+    bart2,
+    c(
+      list(x, cbind(d$time, d$status), family = "hazard", breaks = 3.5),
+      fitArgs
+    )
+  ),
+  "'breaks' must be a whole number; got '3.5'",
+  fixed = TRUE
+)
+
 # ---- the N' row guard refuses an over-fine grid, naming the levers ----
 expect_error(
   do.call(
