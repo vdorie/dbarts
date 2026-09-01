@@ -19,7 +19,7 @@ expect_error(
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, n.samples = "not-an-integer"),
-  "'n.samples' argument to dbarts must be coercible to integer type"
+  "'n.samples' must be coercible to type: integer"
 )
 
 expect_error(

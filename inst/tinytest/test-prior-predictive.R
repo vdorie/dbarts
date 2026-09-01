@@ -126,6 +126,13 @@ expect_error(
   samplePriorPredictive(sampler.gauss, type = "bogus"),
   pattern = "should be one of"
 )
+# a fractional n.samples is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch)
+expect_error(
+  samplePriorPredictive(sampler.gauss, n.samples = 5.5, type = "ev"),
+  "'n.samples' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
 
 # (f) a heteroscedastic sampler has no scalar sigma to add as observation
 # noise - s(x) comes from a prior draw of the variance forest, which the ppd
@@ -135,6 +142,18 @@ sampler.variance <- dbarts(
   y ~ x,
   control = control.plain,
   variance = varianceForest(n.trees = 5L)
+)
+# a fractional varianceForest(n.trees) is refused by name too, not merely
+# by "value" (R/spec.R hoists the if-expression coerceOrError otherwise
+# sees into a named local so coercionSubject can quote it)
+expect_error(
+  dbarts(
+    y ~ x,
+    control = control.plain,
+    variance = varianceForest(n.trees = 5.5)
+  ),
+  "'n.trees' must be a whole number; got '5.5'",
+  fixed = TRUE
 )
 expect_error(
   samplePriorPredictive(sampler.variance, n.samples = 5L, type = "ppd"),

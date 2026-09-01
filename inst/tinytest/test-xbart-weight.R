@@ -13,7 +13,7 @@ xval <- dbarts::xbart(
   y,
   weights = weights,
   n.samples = 6L,
-  n.burn = c(5L, 3L, 1L),
+  n.burn = c(5L, 3L),
   n.reps = 3,
   n.test = 5,
   k = 2,
@@ -53,7 +53,7 @@ expect_silent(dbarts::xbart(
   n.reps = 1L,
   n.threads = 1L,
   n.samples = 5L,
-  n.burn = c(3L, 2L, 1L)
+  n.burn = c(3L, 2L)
 ))
 
 expect_error(
@@ -75,7 +75,7 @@ expect_silent(dbarts::xbart(
   n.reps = 1L,
   n.threads = 1L,
   n.samples = 5L,
-  n.burn = c(3L, 2L, 1L)
+  n.burn = c(3L, 2L)
 ))
 
 rm(X, Z, testData)

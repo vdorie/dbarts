@@ -167,7 +167,7 @@ xval <- xbart(
   n.test = 5,
   n.reps = 2L,
   n.samples = 6L,
-  n.burn = c(5L, 3L, 1L),
+  n.burn = c(5L, 3L),
   n.trees = 5L,
   n.threads = 1L
 )

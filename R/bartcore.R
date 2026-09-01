@@ -144,6 +144,8 @@ bartcoreSamplerSetCategoryTestOffset <- function(sampler, offset.test) {
 # which drives a low-level bartcore handle directly.
 bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   control <- sampler$control
+  numBurnIn <- coerceOrError(numBurnIn, "integer")
+  numSamples <- coerceOrError(numSamples, "integer")
   if (is.na(numBurnIn)) {
     numBurnIn <- control@n.burn
   }
@@ -157,8 +159,8 @@ bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   result <- .Call(
     C_dbarts_bartcore_run,
     sampler$getPointer(),
-    as.integer(numBurnIn),
-    as.integer(numSamples)
+    numBurnIn,
+    numSamples
   )
   if (is.null(result)) {
     return(invisible(NULL))

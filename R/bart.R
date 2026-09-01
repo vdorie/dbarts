@@ -616,7 +616,7 @@ checkFamilyUnsupportedArgs <- function(
   if (isTRUE(samplerOnly) && !allow.samplerOnly) {
     stop("family = \"", family, "\" does not support 'samplerOnly'")
   }
-  grownSweeps <- as.integer(n.grow.sweeps)[1L]
+  grownSweeps <- coerceOrError(n.grow.sweeps, "integer")[1L]
   if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
     stop(
       "family = \"",
@@ -1209,7 +1209,7 @@ bart2 <- function(
 
   # the initial forest: a warm-start donor, a grow-from-root warm start, or a
   # draw from the prior (the default, byte-identical to before this argument)
-  n.grow.sweeps <- as.integer(n.grow.sweeps)[1L]
+  n.grow.sweeps <- coerceOrError(n.grow.sweeps, "integer")[1L]
   if (is.na(n.grow.sweeps) || n.grow.sweeps < 0L) {
     stop("'n.grow.sweeps' must be a non-negative integer")
   }

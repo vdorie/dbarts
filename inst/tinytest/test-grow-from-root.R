@@ -88,6 +88,13 @@ expect_equal(as.vector(target$predict(x)), as.vector(donor$predict(x)))
 ## n.sweeps must be a single positive integer
 expect_error(makeSamplerGrowFromRoot()$growFromRoot(0L), "positive integer")
 expect_error(makeSamplerGrowFromRoot()$growFromRoot(-2L), "positive integer")
+## a fractional n.sweeps is refused, naming the argument, rather than
+## silently truncated (coerceOrError's integer branch)
+expect_error(
+  makeSamplerGrowFromRoot()$growFromRoot(2.5),
+  "'n.sweeps' must be a whole number; got '2.5'",
+  fixed = TRUE
+)
 
 ## the linear-leaf model refuses grow-from-root with an informative error
 linSampler <- dbarts::dbarts(

@@ -402,7 +402,11 @@ xbart <- function(
   if (is.na(n.reps) || n.reps <= 0L) {
     stop("'n.reps' must be a positive integer")
   }
-  n.burn <- rep_len(coerceOrError(n.burn, "integer"), 2L)
+  n.burn <- coerceOrError(n.burn, "integer")
+  if (length(n.burn) > 2L) {
+    stop("'n.burn' must be of length 1 or 2")
+  }
+  n.burn <- rep_len(n.burn, 2L)
   if (anyNA(n.burn) || any(n.burn < 0L)) {
     stop("'n.burn' must contain non-negative integers")
   }

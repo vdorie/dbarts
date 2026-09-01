@@ -200,7 +200,7 @@ xval <- xbart(
   x.sparse,
   y,
   n.samples = 40L,
-  n.burn = c(20L, 5L, 5L),
+  n.burn = c(20L, 5L),
   n.trees = 25L,
   n.reps = 2L,
   n.test = 4L,

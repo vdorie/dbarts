@@ -328,6 +328,20 @@ expect_error(
   "aft \\(survival\\) models do not support case weights"
 )
 
+# $run's numBurnIn/numSamples refuse a fractional double, naming the
+# argument, rather than silently truncating it (coerceOrError's integer
+# branch)
+expect_error(
+  sampler$run(numBurnIn = 1.5, numSamples = 1L),
+  "'numBurnIn' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  sampler$run(numBurnIn = 1L, numSamples = 1.5),
+  "'numSamples' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+
 rm(
   binaryRefusal,
   varianceScaleRefusal,

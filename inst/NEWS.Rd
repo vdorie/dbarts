@@ -85,8 +85,10 @@
             \code{useQuantiles}, and \code{n.thin} are ordinary formals,
             spelled and defaulted exactly as \code{dbartsControl}'s own.
             \code{n.burn} takes two values rather than three: the
-            between-replication burn-in is gone, and a third element is
-            accepted and ignored.
+            between-replication burn-in is gone, and a length greater than
+            two is refused by name instead of the third (and any further)
+            element being silently dropped - 0.9-34's own default was three
+            elements and honored the third as the per-replication burn-in.
       \item A \code{probit} fit refuses \code{weights}. 0.9-x accepted them
             and fit a weighted probit, which was incorrect and is not carried
             forward; a vector identically 1 is treated as absent, and integer
@@ -183,7 +185,14 @@
             \code{n.test} on \code{xbart}; and \code{bart}'s own lowercase
             spellings \code{ntree}, \code{ndpost}, \code{nskip},
             \code{nchain}, \code{nthread}, \code{keepevery}, \code{numcut},
-            \code{printevery}, and \code{printcutoffs}. The sampler's
+            \code{printevery}, and \code{printcutoffs}. The rule now also
+            covers every remaining count a caller can write directly:
+            \code{dbarts} and \code{xbart}'s own \code{n.samples};
+            \code{varianceForest}'s \code{n.trees}; \code{bart2} and
+            \code{rbart_vi}'s \code{n.grow.sweeps}; and, on the sampler,
+            \code{$run}'s \code{numBurnIn}/\code{numSamples},
+            \code{$growFromRoot}'s \code{n.sweeps}, and \code{$getTrees}'s
+            \code{treeNums}/\code{chainNums}/\code{sampleNums}. The sampler's
             \code{$getSigmas} and \code{$getSumsOfSquaredResiduals} now
             refuse their vestigial \code{result} argument by name instead of
             silently accepting and ignoring it; both readers always allocate

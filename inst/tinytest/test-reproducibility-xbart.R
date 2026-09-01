@@ -25,7 +25,7 @@ xval.kf <- dbarts::xbart(
   method = "k-fold",
   n.reps = 4L,
   n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
+  n.burn = c(10L, 5L),
   n.test = 5,
   k = k,
   n.threads = 1L
@@ -38,7 +38,7 @@ xval.rs <- dbarts::xbart(
   method = "random subsample",
   n.reps = 20L,
   n.samples = 20L,
-  n.burn = c(10L, 5L, 1L),
+  n.burn = c(10L, 5L),
   k = k,
   n.threads = 1L
 )

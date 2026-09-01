@@ -48,6 +48,22 @@ expect_error(
   "non-negative"
 )
 
+## a fractional sweep count is refused, naming the argument, rather than
+## silently truncated (coerceOrError's integer branch)
+expect_error(
+  dbarts::bart2(
+    x,
+    y,
+    n.samples = 4L,
+    n.burn = 0L,
+    n.chains = 1L,
+    verbose = FALSE,
+    n.grow.sweeps = 2.5
+  ),
+  "'n.grow.sweeps' must be a whole number; got '2.5'",
+  fixed = TRUE
+)
+
 ## seeded reproducibility of a grow-initialized fit
 fitA <- dbarts::bart2(
   x,

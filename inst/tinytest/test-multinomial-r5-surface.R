@@ -396,7 +396,7 @@ expect_error(
   xbart(
     countsData,
     n.samples = 4L,
-    n.burn = c(2L, 1L, 1L),
+    n.burn = c(2L, 1L),
     n.reps = 1L,
     n.trees = 10L,
     n.threads = 1L,

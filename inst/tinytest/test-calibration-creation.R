@@ -409,7 +409,7 @@ xbartArgs <- list(
   data = yRef,
   n.samples = 20L,
   n.reps = 2L,
-  n.burn = c(20L, 20L, 20L),
+  n.burn = c(20L, 20L),
   n.trees = 25L,
   n.threads = 1L,
   seed = 5L,

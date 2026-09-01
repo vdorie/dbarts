@@ -400,6 +400,24 @@ expect_error(
 )
 expect_error(liveSampler$getTrees(treeNums = 999L), "'treeNums' must be in")
 
+# a fractional chain/sample/tree index is refused, naming the argument,
+# rather than silently truncated (coerceOrError's integer branch)
+expect_error(
+  liveSampler$getTrees(chainNums = 1.5),
+  "'chainNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  liveSampler$getTrees(treeNums = 1.5),
+  "'treeNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  keptSampler$getTrees(sampleNums = 1.5),
+  "'sampleNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+
 # exact ties: an observation equal to a split value routes left (x <= split), a
 # boundary random continuous newdata never exercises. Take a tree whose root
 # splits and feed values straddling and equal to that split.

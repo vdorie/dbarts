@@ -539,11 +539,9 @@ resolveSamplerSpec <- function(
     varianceNTrees <- if (is.null(varianceSpec)) NULL else varianceSpec$n.trees
     varianceBase <- if (is.null(varianceSpec)) NULL else varianceSpec$base
     variancePower <- if (is.null(varianceSpec)) NULL else varianceSpec$power
+    n.trees <- if (is.null(varianceNTrees)) 40L else varianceNTrees
     attr(control, "bartcore.variance") <- list(
-      n.trees = coerceOrError(
-        if (is.null(varianceNTrees)) 40L else varianceNTrees,
-        "integer"
-      ),
+      n.trees = coerceOrError(n.trees, "integer"),
       base = if (is.null(varianceBase)) {
         model@tree.prior@base
       } else {

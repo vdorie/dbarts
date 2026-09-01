@@ -281,13 +281,7 @@ validateArgumentsInEnvironment <- function(
   }
 
   if (!missing(n.samples)) {
-    tryCatch(n.samples <- as.integer(n.samples), warning = function(e) {
-      stop(
-        "'n.samples' argument to ",
-        funcName,
-        " must be coercible to integer type"
-      )
-    })
+    n.samples <- coerceOrError(n.samples, "integer")
     if (length(n.samples) != 1L) {
       stop("'n.samples' must be of length 1")
     }
@@ -792,7 +786,7 @@ samplePriorPredictive <- function(
     stop("'sampler' must inherit from dbartsSampler")
   }
   type <- match.arg(type)
-  n.samples <- as.integer(n.samples)[1L]
+  n.samples <- coerceOrError(n.samples, "integer")[1L]
   if (is.na(n.samples) || n.samples <= 0L) {
     stop("'n.samples' must be a positive integer")
   }
@@ -1022,7 +1016,7 @@ dbartsSampler <- setRefClass(
           "sampleTreesFromPrior instead"
         )
       }
-      n.sweeps <- as.integer(n.sweeps)
+      n.sweeps <- coerceOrError(n.sweeps, "integer")
       if (length(n.sweeps) != 1L || is.na(n.sweeps) || n.sweeps <= 0L) {
         stop("'n.sweeps' must be a single positive integer")
       }
@@ -2044,15 +2038,15 @@ dbartsSampler <- setRefClass(
           )
           sampleNums <- NULL
         } else {
-          sampleNums <- as.integer(sampleNums)
+          sampleNums <- coerceOrError(sampleNums, "integer")
         }
       }
       if (is.null(matchedCall$treeNums)) {
         treeNums <- seq_len(control@n.trees)
       }
 
-      chainNums <- as.integer(chainNums)
-      treeNums <- as.integer(treeNums)
+      chainNums <- coerceOrError(chainNums, "integer")
+      treeNums <- coerceOrError(treeNums, "integer")
 
       if (any(chainNums <= 0 | chainNums > control@n.chains)) {
         stop("'chainNums' must be in [1, ", control@n.chains, "]")

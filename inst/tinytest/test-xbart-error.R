@@ -25,11 +25,11 @@ expect_error(
 )
 expect_error(
   dbarts::xbart(y ~ x, n.samples = "not-a-integer"),
-  "'n.samples' argument to xbart must be coercible to integer type"
+  "'n.samples' must be coercible to type: integer"
 )
 expect_error(
   dbarts::xbart(y ~ x, n.samples = NULL),
-  "'n.samples' must be of length 1"
+  "'n.samples' cannot be NULL"
 )
 expect_error(
   dbarts::xbart(y ~ x, n.samples = NA_integer_),
@@ -81,7 +81,7 @@ expect_error(
 )
 
 expect_error(
-  dbarts::xbart(y ~ x, n.burn = c(200L, -1L, 50L)),
+  dbarts::xbart(y ~ x, n.burn = c(200L, -1L)),
   "'n.burn' must contain non-negative integers"
 )
 expect_error(
@@ -95,15 +95,31 @@ expect_error(
 )
 
 expect_equal(eval(formals(dbarts::xbart)$n.burn), c(200L, 150L))
-# a length-3 n.burn is still accepted; the third element is silently
-# dropped, mirroring n.test's own truncate-to-length posture
+# a length-3 (or longer) n.burn is refused by name instead of the third
+# (and any further) element being silently dropped: man/xbart.Rd documents
+# one or two, and 0.9-34's own three-element default honored the third as
+# the per-replication burn-in
+expect_error(
+  dbarts::xbart(
+    y ~ x,
+    method = "k-fold",
+    n.reps = 1L,
+    n.samples = 4L,
+    n.burn = c(2L, 1L, 99L),
+    n.test = 5,
+    n.threads = 1L,
+    seed = 0L
+  ),
+  "'n.burn' must be of length 1 or 2"
+)
+# length-1 recycling is kept
 expect_equal(
   dbarts::xbart(
     y ~ x,
     method = "k-fold",
     n.reps = 1L,
     n.samples = 4L,
-    n.burn = c(2L, 1L),
+    n.burn = 2L,
     n.test = 5,
     n.threads = 1L,
     seed = 0L
@@ -113,7 +129,7 @@ expect_equal(
     method = "k-fold",
     n.reps = 1L,
     n.samples = 4L,
-    n.burn = c(2L, 1L, 99L),
+    n.burn = c(2L, 2L),
     n.test = 5,
     n.threads = 1L,
     seed = 0L

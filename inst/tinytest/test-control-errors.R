@@ -184,6 +184,19 @@ expect_error(
   "'seed' must be a whole number; got '2.7'",
   fixed = TRUE
 )
+# dbarts()'s and xbart()'s own n.samples formals bypassed coerceOrError
+# until routed through it; pin both directly rather than through
+# dbartsControl's n.samples slot, which was already covered above
+expect_error(
+  dbarts::dbarts(xTiny, yTiny, n.samples = 5.5),
+  "'n.samples' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::xbart(xTiny, yTiny, n.samples = 5.5),
+  "'n.samples' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
 expect_error(
   dbarts::bart2(xTiny, yTiny, n.trees = 50.5),
   "'n.trees' must be a whole number; got '50.5'",
@@ -207,4 +220,8 @@ expect_error(
 )
 # the acceptance half: an INTEGRAL double is not fractional
 expect_true(methods::is(dbarts::dbartsControl(n.threads = 2), "dbartsControl"))
+expect_true(methods::is(
+  dbarts::dbarts(xTiny, yTiny, n.samples = 5),
+  "dbartsSampler"
+))
 rm(xTiny, yTiny, gTiny)

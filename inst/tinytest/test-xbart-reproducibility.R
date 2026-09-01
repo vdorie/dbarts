@@ -21,7 +21,7 @@ runXval <- function(n.threads) {
     method = "k-fold",
     n.reps = 4L,
     n.samples = 20L,
-    n.burn = c(10L, 5L, 1L),
+    n.burn = c(10L, 5L),
     n.test = 5,
     k = k,
     n.threads = n.threads,

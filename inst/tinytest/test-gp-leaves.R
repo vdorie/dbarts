@@ -219,7 +219,7 @@ xbart.gp <- xbart(
   df,
   node.prior = gp("x1", k = 3, max.leaf.size = 100L),
   n.samples = 60L,
-  n.burn = c(60L, 30L, 0L),
+  n.burn = c(60L, 30L),
   n.reps = 2L,
   n.trees = 10L,
   n.threads = 1L,
