@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (29 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (30 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -43,6 +43,12 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | latent-subset-mask.md | COMMITTED | Per-observation 0/1 active-row channel (`$setActiveRows`) extending between-draw row subsetting to the latent families zero weights cannot reach; v1 gaussian/Student-t/probit/ordinal, then logistic/nbinom/aft, then multinomial (global-only). |
+
+## Data-store / predictor-storage cluster
+
+| file | STATUS | purpose |
+|---|---|---|
+| column-kind-consolidation.md | DESIGNED, not landed | Closes four defects sharing one root in the predictor store's semantic-type axis (no ordered-factor marker below the model matrix, an overloaded `numCuts`, an unchecked double-to-code cast, `FlatKind`'s duplicated cross-check) via a three-valued `ColumnKind` plus a derived `splitsBySubset` predicate, an ordered-factor midpoint cut grid (posterior-changing), engine-side ingestion validation, and a full native-integer-ingestion/typed-storage rework so a factor column's raw is its codes rather than a codes-plus-double pair; seven slices S0-S4c landing in the ruled order S0, S1, S2, S3, S4a, S4c, S4b. |
 
 ## SBC / calibration cluster
 
