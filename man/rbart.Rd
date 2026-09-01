@@ -111,7 +111,7 @@ rbart_vi(
     One of \code{"train"} or \code{"test"}, referring to the training or test samples respectively. It is \code{extract}'s and \code{fitted}'s own argument, and is refused by name on \code{predict}, whose stored train and test channels are \code{extract}'s \code{sample} instead.
   }
   \item{ci.level}{
-    For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) returns the posterior mean, while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}. Refused, by name, on \code{residuals} - see \code{\link{bart}}'s own \code{ci.level} item for why.
+    For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) leaves each generic's own usual result alone - \code{fitted}'s posterior mean, \code{predict}'s full array of posterior samples - while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}. Refused, by name, on \code{residuals} - see \code{\link{bart}}'s own \code{ci.level} item for why.
   }
   \item{x, plquants, cols}{
     Same as in \code{\link{plot.bart}}.
