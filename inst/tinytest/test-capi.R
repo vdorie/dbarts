@@ -1736,7 +1736,7 @@ controlTV <- specT$control
 attr(controlTV, "bartcore.variance") <- varianceAttrT
 expect_error(
   CALL("capi_create", controlTV, specT$model, specT$data, ""),
-  "invalid leaf covariate designation"
+  "variance forest is combined with a non-gaussian family, Student-t"
 )
 # the refusal is the pair, not either half: the same model without the variance
 # forest, and the same variance forest on a gaussian model, both construct

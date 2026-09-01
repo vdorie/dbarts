@@ -3159,10 +3159,17 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
             data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
             rngs.data());
     if (sampler == NULL) {
-      // R-side resolution validates first, so only an invariant breach lands
+      // the R surface refuses these first, so only an entrance that skips it
+      // (the flat C API) reaches this
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("%s", carriesAmplitudes ? "invalid forest specification"
-                                       : "invalid leaf covariate designation");
+      Rf_error("%s",
+               carriesAmplitudes
+                 ? "invalid forest specification"
+                 : "invalid sampler specification: either the leaf covariate "
+                   "designation is not one the leaf models can take, or a "
+                   "variance forest is combined with a non-gaussian family, "
+                   "Student-t residuals, leaf covariates, or a monotone "
+                   "constraint");
     }
 
     if (data.numTestObservations > 0) {

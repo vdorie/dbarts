@@ -768,6 +768,29 @@ static void testVarianceForestRefusal() {
   options.numVarianceTrees = 4;
   options.residualDf = std::numeric_limits<double>::quiet_NaN();
 
+  // the store-view factory asks the same question, so a row-subset view cannot
+  // build a composition the full-data factory declines
+  {
+    ColumnStore parent;
+    parent.build(x.data(), n, p, options.maxNumCuts, false);
+    std::vector<size_t> rows(n);
+    for (size_t i = 0; i < n; ++i) rows[i] = i;
+    SamplerOptions viewOptions = options;
+    viewOptions.residualDf = 5.0;
+    ColumnStore refused;
+    refused.buildFromParent(parent, rows.data(), n, nullptr, 0);
+    check(createSamplerOverStore(std::move(refused), y.data(), nullptr, nullptr,
+                                 ResponseFamily::gaussian, 1.0, 3.0, 0.378,
+                                 viewOptions, rngs) == nullptr,
+          "store view refuses a variance forest with Student-t residuals");
+    ColumnStore accepted;
+    accepted.buildFromParent(parent, rows.data(), n, nullptr, 0);
+    check(createSamplerOverStore(std::move(accepted), y.data(), nullptr,
+                                 nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                 0.378, options, rngs) != nullptr,
+          "store view accepts a variance forest on a gaussian model");
+  }
+
   // a linear-leaf designation is also refused (v1 keeps the mean leaf constant)
   size_t covariate[] = {0};
   options.leafCovariateColumns = covariate;

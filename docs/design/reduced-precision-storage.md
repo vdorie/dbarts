@@ -40,7 +40,7 @@ INVARIANT (non-negotiable, verified by the blind critique below): the default
 instantiation stays BITWISE-IDENTICAL and pays ZERO new runtime cost.
 
 The facade already resolves runtime choices into monomorphic instantiations:
-`createSampler` (facade.hpp:787) reads the family / IsCategorical /
+`createSampler` (facade.hpp:805) reads the family / IsCategorical /
 ServesRawValues / leaf-covariate axes and dispatches ONCE to build a concrete
 `SamplerFacade<L>` (facade.hpp:413), handing the R bridge a type-erased
 `SamplerBase*`; every later call is "one virtual hop into fully typed code"

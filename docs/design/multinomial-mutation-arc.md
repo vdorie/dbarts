@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3551`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3517`) - the dedicated
+(`src/R_interface_bartcore.cpp:3558`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3524`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -132,7 +132,7 @@ except where it names another file:
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
 | run | `bartcore_run` `:4315` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3832` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **response swap** | `bartcore_setCounts` `:3839` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
 | **train offset** | `bartcore_setCategoryOffset` `:3914` | `:108` | S, unexported |
 | **test offset** | `bartcore_setCategoryTestOffset` `:3953` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |

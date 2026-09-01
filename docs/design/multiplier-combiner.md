@@ -14,7 +14,7 @@ K = 2 instance. Posterior-defining: `AmplitudeForestCombiner<L>`
 (benchmarks/R/bcf-equivalence.R, bcf-exact{,-restricted,-weak}.R). Scope:
 GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:611-623 admits those three
 and refuses each other family by name, chain.hpp:774-791 builds the matching
-response model, facade.hpp:882-885 the engine-side door), and CONSTANT leaves
+response model, facade.hpp:895-898 the engine-side door), and CONSTANT leaves
 only (combiner.hpp:727-728). Under a latent family the combination is the
 INDEX, on the link's own fixed scale: sigma is pinned, the response transform
 is the identity, and every forest's prior scale is stated in latent sd units.
@@ -554,7 +554,7 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
 that rule in two independent places (src/C_interface.cpp:1049-1050,
-src/R_interface_bartcore.cpp:3978-3981).
+src/R_interface_bartcore.cpp:3985-3988).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
@@ -582,7 +582,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (dbarts.h:228-243); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
   binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
-  (facade.hpp:877).
+  (facade.hpp:890).
 - Nameable leaf-prior calibration. The map owns it, so the write is refused on
   ANY combining sampler: `Chain::setForestPriorScale` returns `false` on
   `f >= forests_.size() || combiner_ != nullptr` (chain.hpp:1230-1231), which the

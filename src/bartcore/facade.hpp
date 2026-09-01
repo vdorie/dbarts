@@ -776,6 +776,24 @@ inline bool monotoneConstraintIsActive(const SamplerOptions& options,
   return active;
 }
 
+/// Whether a heteroscedastic variance forest is refused for this model. The
+/// forest is gaussian-plus-plain-constant-leaf only: the latent families own
+/// the weight channel it routes through (a collision), the Student-t
+/// augmentation shares that same channel while reporting the gaussian family
+/// (so a finite residualDf is its own term rather than a family test), and v1
+/// keeps the mean leaf constant, the monotone instantiation included. Every
+/// sampler factory that can build one asks here, so the two cannot drift.
+/// False off a variance forest, which short-circuits the monotone scan.
+inline bool varianceForestIsRefused(const SamplerOptions& options,
+                                    ResponseFamily family,
+                                    std::size_t numPredictors) {
+  if (options.numVarianceTrees == 0) return false;
+  return family != ResponseFamily::gaussian ||
+         options.numLeafCovariates != 0 ||
+         std::isfinite(options.residualDf) ||
+         monotoneConstraintIsActive(options, numPredictors);
+}
+
 /// Dispatch on the leaf model: designated leaf covariates select the
 /// linear-leaf instantiation - or the GP one under options.gpLeaves -
 /// anything else the constant leaf. Returns null on an invalid
@@ -788,17 +806,8 @@ inline std::unique_ptr<SamplerBase> createSampler(
   std::size_t numPredictors, const double* weights, const double* offset,
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
-  // the heteroscedastic variance forest is gaussian + plain-constant-leaf only:
-  // the latent families own the weight channel it routes through (a collision),
-  // and v1 keeps the mean leaf constant. The Student-t augmentation shares that
-  // same weight channel while reporting the gaussian family, so a finite
-  // residualDf is its own term here rather than a family test. Refuse every
-  // other combination, before any Chain is built.
-  if (options.numVarianceTrees > 0 &&
-      (family != ResponseFamily::gaussian || options.numLeafCovariates != 0 ||
-       std::isfinite(options.residualDf) ||
-       monotoneConstraintIsActive(options, numPredictors)))
-    return nullptr;
+  // refused before any Chain is built
+  if (varianceForestIsRefused(options, family, numPredictors)) return nullptr;
   if (options.numLeafCovariates == 0 &&
       monotoneConstraintIsActive(options, numPredictors))
     return std::make_unique<SamplerFacade<MonotoneConstantGaussianLeaf>>(
@@ -838,12 +847,16 @@ inline std::unique_ptr<SamplerBase> createSampler(
 /// select the linear-leaf instantiation exactly as createSampler does, with
 /// one extra requirement: the store must serve raw values for every
 /// designated column (a view gathers them when built with the designation).
-/// Returns null on an invalid designation.
+/// Returns null on an invalid designation, or on a refused variance forest.
 inline std::unique_ptr<SamplerBase> createSamplerOverStore(
   ColumnStore&& store, const double* y, const double* weights,
   const double* offset, ResponseFamily family, double sigmaEstimate,
   double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
   ext_rng* const* rngs) {
+  // as createSampler: the same refusal, so a view cannot build a composition
+  // the full-data factory declines
+  if (varianceForestIsRefused(options, family, store.numPredictors))
+    return nullptr;
   if (options.numLeafCovariates == 0)
     return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
       std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
