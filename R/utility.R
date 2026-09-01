@@ -156,18 +156,36 @@ checkMissingPolicy <- function(data, hasMissing, what) {
   }
 }
 
-# The subject of coerceOrError's refusals is the caller's own spelling only
-# when the argument arrived as a bare name - an expression has no name to
-# quote, and pasting one into the message splits it into its own parts.
-coercionSubject <- function(arg) {
+# The subject of coerceOrError's refusals is 'name' when the caller supplied
+# one (a resolver forwarding its own formal spelling on the caller's behalf,
+# where the bare-symbol trick below cannot reach it), else the caller's own
+# spelling when the argument arrived as a bare name - an expression has no
+# name to quote, and pasting one into the message splits it into its own
+# parts.
+coercionSubject <- function(arg, name = NULL) {
+  if (!is.null(name)) {
+    return(paste0("'", name, "'"))
+  }
   if (is.symbol(arg)) paste0("'", arg, "'") else "value"
 }
 
-coerceOrError <- function(x, type) {
-  mc <- match.call()
+# 'name' overrides the auto-detected caller spelling in the refusal message;
+# a resolver that fans one selector out over several formal names (a column
+# vector shared by forbid/groups, say) cannot make the argument it hands
+# coerceOrError a bare symbol spelled like the caller's own, so it passes the
+# spelling through explicitly instead.
+#
+# The success path (every call already holding an integer, e.g. $run's
+# per-iteration numBurnIn/numSamples) returns before match.call() or any
+# other name-bearing machinery runs; that cost is paid only in the refusal
+# branches below, where it is free relative to the stop() it is building.
+coerceOrError <- function(x, type, name = NULL) {
+  if (type == "integer" && is.integer(x)) {
+    return(x)
+  }
 
   if (is.null(x)) {
-    stop(coercionSubject(mc[[2L]]), " cannot be NULL")
+    stop(coercionSubject(match.call()[[2L]], name), " cannot be NULL")
   }
 
   func <- switch(
@@ -181,7 +199,7 @@ coerceOrError <- function(x, type) {
   # argument already refuses one, and the two must not disagree.
   if (type == "integer" && is.double(x) && any(is.finite(x) & x != trunc(x))) {
     stop(
-      coercionSubject(mc[[2L]]),
+      coercionSubject(match.call()[[2L]], name),
       " must be a whole number; got '",
       deparse(x)[1L],
       "'"
@@ -189,7 +207,11 @@ coerceOrError <- function(x, type) {
   }
   result <- tryCatch(func(x), warning = function(e) e)
   if (inherits(result, "warning")) {
-    stop(coercionSubject(mc[[2L]]), " must be coercible to type: ", type)
+    stop(
+      coercionSubject(match.call()[[2L]], name),
+      " must be coercible to type: ",
+      type
+    )
   }
 
   result

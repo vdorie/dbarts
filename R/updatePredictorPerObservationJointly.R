@@ -44,7 +44,7 @@ updatePredictorPerObservationJointly <- function(
         "cannot be matched across samplers"
       )
     }
-    column <- as.integer(column)
+    column <- coerceOrError(column, "integer")
     if (is.na(column) || column < 1L || column > length(columnNames)) {
       stop("column is out of range")
     }

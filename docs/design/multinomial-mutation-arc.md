@@ -177,7 +177,7 @@ deleted with the mechanism at S4/F1), `forestWeights` `:902`).
   `setTestPredictorAndOffset`, `setTestOffset`, `setCalibration`,
   `setState`, `installTrees`.
 - **2 carry `refuseHostRead`** (retired: the guard is gone; both methods
-  remain): `getDispersion` (`:1701`), `getFitsWithoutOffset` (`:1748`).
+  remain): `getDispersion` (`:1705`), `getFitsWithoutOffset` (`:1752`).
 - **13 substantive methods answer from the placeholder, unguarded**:
   `copy`, `predict`, `getLatents`, `getSigmas`,
   `getSumsOfSquaredResiduals`, `getForestFits`, `getForestAmplitudes`,
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2034`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:1916`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the

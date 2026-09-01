@@ -139,6 +139,21 @@ expect_error(
   doFitInteractions(interactions(forbid = list("x1"))),
   "two or more columns"
 )
+# a fractional forbid/groups entry is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch); a whole-number
+# double entry is accepted the same as an integer or name
+expect_error(
+  doFitInteractions(interactions(forbid = list(c(1.9, 2)))),
+  "'forbid' must be a whole number; got 'c(1.9, 2)'",
+  fixed = TRUE
+)
+expect_error(
+  doFitInteractions(interactions(groups = list(c(1.9, 3), 2))),
+  "'groups' must be a whole number; got 'c(1.9, 3)'",
+  fixed = TRUE
+)
+expect_silent(doFitInteractions(interactions(forbid = list(c(1, 2)))))
+expect_silent(doFitInteractions(interactions(groups = list(c(1, 3), 2))))
 
 # ---- warm-start refusal: an unconstrained donor's order-2 trees cannot seed a
 #      max.order = 1 fit ---------------------------------------------------------

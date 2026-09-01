@@ -1296,14 +1296,18 @@ dbartsSampler <- setRefClass(
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
       # same position, now meaning updateScale; sys.call() carries the raw,
-      # unmatched call, so an unnamed second argument is caught before R's
-      # own positional matching resolves it silently
+      # unmatched call, so two unnamed arguments are caught before R's own
+      # positional matching resolves them silently. Naming 'updateScale'
+      # anywhere in the call - s$setResponse(updateScale = FALSE, y) - is
+      # never the ported shape, whatever position its own unnamed argument
+      # then falls into, so it is excluded rather than counted.
       rawCall <- sys.call()
-      rawCallNames <- names(rawCall)
-      if (
-        length(rawCall) >= 3L &&
-          (is.null(rawCallNames) || !nzchar(rawCallNames[3L]))
-      ) {
+      rawCallArgNames <- names(rawCall)[-1L]
+      if (is.null(rawCallArgNames)) {
+        rawCallArgNames <- character(length(rawCall) - 1L)
+      }
+      unnamedArgs <- sum(!nzchar(rawCallArgNames))
+      if (unnamedArgs >= 2L && "updateScale" %not_in% rawCallArgNames) {
         warnOnce(
           "setResponsePositionalUpdateScale",
           "the second argument to $setResponse is 'updateScale' in dbarts ",

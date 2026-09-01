@@ -502,7 +502,15 @@ resolveSamplerSpec <- function(
   } else {
     varianceSpec$vars
   }
-  varianceColumns <- resolveVarianceColumns(varianceSelector, data)
+  # the numeric branch's fractional-index refusal names the spelling the
+  # caller actually wrote: 'vars' when the selector arrived through a
+  # varianceForest() object, 'variance' for the plain shorthand
+  varianceArgument <- if (is.null(varianceSpec)) "variance" else "vars"
+  varianceColumns <- resolveVarianceColumns(
+    varianceSelector,
+    data,
+    varianceArgument
+  )
   if (!is.null(varianceColumns)) {
     if (family != "gaussian") {
       stop(

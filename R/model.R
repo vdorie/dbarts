@@ -585,7 +585,8 @@ resolveColumnVector <- function(
   what,
   columnNames,
   termLabels,
-  numColumns
+  numColumns,
+  argument = what
 ) {
   if (is.character(cols)) {
     if (is.null(columnNames)) {
@@ -607,7 +608,7 @@ resolveColumnVector <- function(
     }
     result
   } else if (is.numeric(cols)) {
-    index <- as.integer(cols)
+    index <- coerceOrError(cols, "integer", name = argument)
     if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
       stop("cannot resolve ", what, ": column indices out of range")
     }
@@ -689,7 +690,7 @@ resolveMonotone <- function(monotone, data) {
 # expand to their indicator columns, the resolveMonotone precedent). Returns
 # an integer vector; a full-set selection returns every index (the caller may
 # elide the mask, which is equivalent).
-resolveVarianceColumns <- function(variance, data) {
+resolveVarianceColumns <- function(variance, data, argument = "variance") {
   if (is.null(variance) || isFALSE(variance)) {
     return(NULL)
   }
@@ -728,7 +729,7 @@ resolveVarianceColumns <- function(variance, data) {
     return(sort(unique(result)))
   }
   # numeric indices
-  index <- as.integer(variance)
+  index <- coerceOrError(variance, "integer", name = argument)
   if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
     stop("variance column indices must be in [1, number of columns]")
   }
@@ -759,7 +760,7 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
       stop("'", argument, "' name not found in the design's column names")
     }
   } else {
-    moderators <- as.integer(moderators)
+    moderators <- coerceOrError(moderators, "integer", name = argument)
     if (any(moderators < 1L | moderators > ncol(data@x))) {
       stop("'", argument, "' column index out of range")
     }
@@ -1176,7 +1177,8 @@ resolveInteractions <- function(interactions, data) {
         "forbidden interaction",
         columnNames,
         termLabels,
-        numColumns
+        numColumns,
+        "forbid"
       ))
       if (length(cols) < 2L) {
         stop("each interactions 'forbid' entry must name two or more columns")
@@ -1203,7 +1205,8 @@ resolveInteractions <- function(interactions, data) {
         "interaction group",
         columnNames,
         termLabels,
-        numColumns
+        numColumns,
+        "groups"
       ))
       if (length(cols) == 0L) {
         stop("interactions 'groups' entries must each name at least one column")
@@ -1293,7 +1296,8 @@ resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
       "block group",
       columnNames,
       termLabels,
-      numColumns
+      numColumns,
+      "groups"
     ))
     if (length(cols) == 0L) {
       stop("blocks() 'groups' entries must each name at least one column")

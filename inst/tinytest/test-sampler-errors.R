@@ -386,6 +386,13 @@ warnings.setResponseNamedState <- captureWarnings(
   sampler$setResponse(yForResponse, updateState = FALSE)
 )
 expect_equal(length(warnings.setResponseNamedState), 0L)
+# a call naming updateScale first still leaves one unnamed argument (y,
+# positional second), but only one - not the two-unnamed-argument shape the
+# warning targets - so it does not warn either
+warnings.setResponseNamedFirst <- captureWarnings(
+  sampler$setResponse(updateScale = FALSE, yForResponse)
+)
+expect_equal(length(warnings.setResponseNamedFirst), 0L)
 
 rm(
   binaryRefusal,

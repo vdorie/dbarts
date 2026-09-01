@@ -357,7 +357,7 @@ the `weights` precedent) and the treatment forest's configuration rides
 precedent), cross-checked in both directions at creation
 (src/R_interface_bartcore.cpp:3104-3121). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; R/dbarts.R:1471, 1720-1768). `dbarts_sampler_create` reaches
+339aeb0; R/dbarts.R:1475, 1724-1772). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
 entries (inst/include/dbarts/dbarts.h:1115-1166), and `setResponse` takes an

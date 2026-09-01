@@ -188,6 +188,15 @@ expect_error(
   "'trees.per.group' must be a whole number; got 'c(5.5, 15)'",
   fixed = TRUE
 )
+# a fractional groups entry is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch); a whole-number double
+# entry is accepted the same as an integer index
+expect_error(
+  doFitBlocks(blocks(groups = list(1.9, c(2L, 3L)))),
+  "'groups' must be a whole number; got '1.9'",
+  fixed = TRUE
+)
+expect_silent(doFitBlocks(blocks(groups = list(1, c(2, 3)))))
 # trees.per.group that does not sum to n.trees
 expect_error(
   doFitBlocks(blocks(

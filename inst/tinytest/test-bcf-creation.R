@@ -707,6 +707,29 @@ expect_equal(
   attr(firstForestVars$control, "bartcore.forests")$vars[[1L]],
   1L
 )
+# a fractional 'vars' entry is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch); a whole-number double
+# entry is accepted the same as an integer or name
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(vars = 2.9), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "'vars' must be a whole number; got '2.9'",
+  fixed = TRUE
+)
+firstForestVarsNumeric <- dbarts(
+  x,
+  y,
+  forests = list(forest(vars = 2), forest(basis = ~ factor(z))),
+  control = control
+)
+expect_equal(
+  attr(firstForestVarsNumeric$control, "bartcore.forests")$vars[[1L]],
+  2L
+)
 
 # 'amplitude.prior.variance' is legal wherever a basis is, the first forest
 # now included - and refused, restated per forest, where none is

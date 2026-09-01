@@ -187,12 +187,13 @@
             \code{n.test} on \code{xbart}; and \code{bart}'s own lowercase
             spellings \code{ntree}, \code{ndpost}, \code{nskip},
             \code{nchain}, \code{nthread}, \code{keepevery}, \code{numcut},
-            \code{printevery}, and \code{printcutoffs}. The rule now also
-            covers every remaining count a caller can write directly:
+            \code{printevery}, and \code{printcutoffs}. The rule also
+            reaches these further counts and column/group selectors a
+            caller can write directly:
             \code{dbarts} and \code{xbart}'s own \code{n.samples};
             \code{dbarts}'s single-value \code{breaks} (a hazard period
-            count); \code{varianceForest}'s \code{n.trees}; \code{bart2}
-            and \code{rbart_vi}'s \code{n.grow.sweeps}; \code{bart}'s own
+            count); \code{varianceForest}'s \code{n.trees}; \code{bart2}'s
+            \code{n.grow.sweeps}; \code{bart}'s own
             \code{seed} (previously pre-truncated before reaching
             \code{dbartsControl}'s own check); the \code{forest} argument
             shared by \code{$getCalibration}, \code{$setCalibration},
@@ -201,11 +202,15 @@
             \code{$setForestBasis}, and \code{extract}/\code{predict}'s
             own \code{forest} selector; \code{plotTree.rbart}'s
             \code{chainNum}; the \code{column} argument shared by
-            \code{$setPredictor}, \code{$setCutPoints}, and
-            \code{$setTestPredictor}; \code{linear} and \code{gp}'s numeric
-            \code{columns}; \code{forest}'s \code{n.trees};
-            \code{interactions}'s \code{max.order}; \code{blocks}'s
-            \code{trees.per.group}; \code{extract.rbart}'s own
+            \code{$setPredictor}, \code{$setCutPoints},
+            \code{$setTestPredictor}, and
+            \code{updatePredictorPerObservationJointly}; \code{linear} and
+            \code{gp}'s numeric \code{columns}; \code{varianceForest} and
+            \code{forest}'s \code{vars} selector; \code{forest}'s
+            \code{n.trees}; \code{interactions}'s \code{max.order},
+            \code{forbid}, and \code{groups}; \code{blocks}'s
+            \code{trees.per.group} and \code{groups};
+            \code{extract.rbart}'s own
             \code{chainNums} selector (a distinct meaning from
             \code{$getTrees}'s); and, on the sampler,
             \code{$run}'s \code{numBurnIn}/\code{numSamples},

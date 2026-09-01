@@ -462,7 +462,7 @@ than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1201),
 sharing one `priorScaleFactor` conversion (CH:3965) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
 and carry no family switch (facade FAC:353, 360; `Sampler` SAM:1561, 1570; R5
-`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1804, 1831; bridge
+`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1808, 1835; bridge
 `bartcore_getCalibration`/`bartcore_setCalibration` RIB:4205, 4260). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
 single value to divide by, or once the chains' `k` have diverged) and for
@@ -470,7 +470,7 @@ BCF/multinomial forests at creation and again mid-chain (see [f23]);
 `prior.mean` is refused as not writable, naming the `setOffset` recipe. `NaN`
 is refused as a malformed value rather than read as the unnamed spelling, both
 at creation (R/model.R:1482) and mid-chain (`validateLiveScale`,
-R/model.R:1491). Shipped tests: inst/tinytest/test-calibration-creation.R (two
+R/model.R:1495). Shipped tests: inst/tinytest/test-calibration-creation.R (two
 composed probit arms at construction ranges 16x apart agree to 1e-12 under a
 shared name, against 8.6 and 2.5 unnamed), inst/tinytest/test-calibration-prior-draws.R
 (what the named quantity means per leaf model - exact for the constant leaf,
@@ -649,7 +649,7 @@ than unbuilt: `setForestWeights` (RIB:4016) already expresses it - though note
 that channel is deliberately NOT row removal (CH:1141-1173: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
 forest's empty-leaf veto, which counts positive composed weights). It is now a
-PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1431, landed
+PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1435, landed
 multiforest-extension-surface M1, 05ac3b4b), 1-based via `resolveForestIndex`
 (a BCF basis forest is `2L`) and mirrored across re-creation through a
 dedicated `reapplyForestWeights(ptr)` method, called from `getPointer` and
@@ -771,7 +771,7 @@ forest counts at SAM:1029, and `growForestFromRoot` loops every forest
 (CH:1990, the loop; the variance-forest pre-step above it sits at
 CH:1985-1988). Neither is exercised by a BCF test, and BCF has no `bart2()`
 surface, so both are reached only through the R5 `$installTrees`
-(dbarts.R:1984) / `$growFromRoot` (dbarts.R:1007).
+(dbarts.R:1988) / `$growFromRoot` (dbarts.R:1007).
 
 [f37] `rbart_vi()` carries no `warm.start` or `n.grow.sweeps` formal
 (rbart.R:9-53) and, since it also carries no `...` formal at all, an

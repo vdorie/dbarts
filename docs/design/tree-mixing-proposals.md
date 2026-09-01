@@ -658,7 +658,7 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1327`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:853`) | shipped, supported |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1331`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:853`) | shipped, supported |
 | inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:37-40`, `:51`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
@@ -1946,7 +1946,7 @@ instrumentation, falsifiable in both directions.
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:2028`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:2032`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in

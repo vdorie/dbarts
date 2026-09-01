@@ -2520,13 +2520,6 @@ print.bartHurdle <- function(x, ...) {
   invisible(x)
 }
 
-# 'value' was predict.rbart's pre-1.0 name for 'type'. It is not accepted,
-# only refused by name, since a supplied one would otherwise choose the
-# default channel silently.
-rbartPredictValueUnusedArgs <- list(
-  value = "predict's channel argument is named 'type'"
-)
-
 predict.rbart <- function(
   object,
   newdata,
@@ -2558,7 +2551,6 @@ predict.rbart <- function(
     "rbart",
     c(
       predictOffsetUnusedArgs,
-      rbartPredictValueUnusedArgs,
       rbartUnusedArgs,
       foreignArgsFor(predictForeignReasons, names(formals(predict.rbart)))
     )

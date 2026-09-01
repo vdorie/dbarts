@@ -314,6 +314,17 @@ expect_error(
   ),
   "joint updates can only be applied to a single column"
 ) # not a single column
+# a fractional numeric column is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch); a whole-number double
+# is accepted the same as an integer literal ("theta" is column 1 of A and B)
+expect_error(
+  updatePredictorPerObservationJointly(list(A, B), xnew, 1.5),
+  "'column' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+instWhole <- updatePredictorPerObservationJointly(list(A, B), xnew, 1)
+expect_equal(length(instWhole), n)
+rm(instWhole)
 expect_error(
   updatePredictorPerObservationJointly(list(A, 1), xnew, "theta"),
   "'samplers' must be a dbartsSampler or list of dbartsSampler objects"

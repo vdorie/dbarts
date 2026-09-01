@@ -22,6 +22,27 @@ buildVarianceSampler <- function(predictors, response) {
     variance = dbarts::varianceForest(n.trees = 10L)
   )
 }
+
+# a fractional varianceForest(vars=) entry is refused, naming the argument,
+# rather than silently truncated (coerceOrError's integer branch); a
+# whole-number double entry is accepted the same as an integer index
+expect_error(
+  dbarts::dbarts(
+    x,
+    y,
+    control = control,
+    variance = dbarts::varianceForest(vars = 2.9, n.trees = 10L)
+  ),
+  "'vars' must be a whole number; got '2.9'",
+  fixed = TRUE
+)
+expect_silent(dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  variance = dbarts::varianceForest(vars = 2, n.trees = 10L)
+))
+
 # distinct reported values, quantized well below any routing difference: the
 # reported channels carry per-observation rounding of order 1e-16, which is not
 # what these bounds are counting
