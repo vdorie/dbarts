@@ -1381,5 +1381,13 @@ that reasoning, they do not replace it.
 
 ## Landing
 
-(none yet; slices S0-S4c append their landing notes here, in
-landing order, as each lands.)
+### S0 - gate enabling (8cd10833, 95d1375e)
+
+Adds three predictor-column shapes to benchmarks/R/equivalence.R -
+ordfactor (an ordered-factor predictor at K = 150 levels against the
+default n.cuts = 100), nafactor (two NA-bearing factor columns), and
+sparsefactor (a CSC-backed sparseFactor column) - and records the new
+baseline, equivalence-ee5ffe74.rds, 46 scenarios. Draw-preserving: all 43
+predecessor scenarios reproduce equivalence-736bfb05.rds bitwise;
+bcf-equivalence-00cfa108 stays 12/12 and multinomial-equivalence-4d9a3337
+stays 11/11. No product code. S1 next.

@@ -537,6 +537,200 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The R-surface rulings, the hot-path dispatch reshape, and the NEWS rewrite (dadf4c5b..8e0b0e9e, 2026-09-01)
+
+Nine slices land together: the WRE C++20 configure probe, an engine-level
+Student-t/variance-forest refusal backstop with a state-serialization
+comment correction, the hot-path dispatch reshape, a routeTestRows
+threading note, the column-kind consolidation plan doc, an
+equivalence-corpus extension and re-record, the NEWS NEW FEATURES
+rewrite, four VD-ruled R-surface fixes, and four anchor re-pin passes.
+
+- Configure C++20 probe (ee065561): src/Makevars.in sets CXX_STD = CXX20,
+  so configure.ac now selects the compiler with R CMD config
+  CXX20/CXX20STD/CXX20FLAGS/CXX20PICFLAGS instead of the plain
+  CXX/CXXFLAGS, as Writing R Extensions requires for a package pinned to
+  a C++ standard; an empty CXX20 now aborts configure by name instead of
+  failing later in the compile. No-op on R >= 4.6 (already defaults to
+  C++20; generated Makevars and config headers come out byte-identical);
+  latent on R 4.2-4.5, where it was a trap for the first C++20-sensitive
+  probe added to the script.
+
+- Variance-forest/Student-t refusal backstop (9d56e571, 1994b20e) and the
+  state-serialization comment fix (ca873d6b): createSampler keyed the
+  heteroscedastic refusal on the response family alone, and a Student-t
+  sampler reports the gaussian family, so the flat C entrance could pair
+  resid.df with a variance-forest control attribute and build an
+  uncomposed model - only the R surface refused it before. A finite
+  residualDf term now backstops the refusal at the engine factory and
+  through the flat entrance. createSamplerOverStore, the row-subset view
+  factory, carried no variance-forest refusal at all; it now shares the
+  same predicate (varianceForestIsRefused) with the create-path error
+  naming the real reason instead of claiming an invalid leaf covariate
+  designation for every case. Separately, the bridge's state-serialization
+  comment - which claimed the serialized state carries accumulated fits
+  and per-tree observation orderings and that a restore continues
+  bitwise - is corrected: restore rebuilds partitions and fits from the
+  trees, sigma travels on the original response scale, and the format
+  version and recorded-draw count ride alongside the cut points and the
+  write position.
+
+- Hot-path dispatch reshape (ca9a7330, 264fb9af, f743c6f1, ee5ffe74, four
+  commits, bitwise-preserving): a debug assert now guards ColumnStore's
+  three dense-code doors (CodeBlock::column, restoreColumn, setCell)
+  against a caller that skips the columnIsSparse test every existing
+  caller already makes (NDEBUG keeps the assert out of the shipping
+  build). The six hand-enumerated wrappers around partitionByPredicate
+  collapse into one template over (CodeStorage, PartitionRule); the three
+  out-of-line sparse arms compile to their previous instruction sequences
+  byte for byte, and the dense arms inline into partitionChildren, whose
+  __TEXT shrinks 64 bytes because the same commit hoists the segment
+  pointer and member count above the column-type test. The two
+  grow-from-root histogram passes take a storage-typed code reader
+  instead of re-testing a runtime kind flag every iteration (grow-from-root
+  is off by default; a cleanliness change, not a measured speedup). Eight
+  call sites that each spelled out the two-tier reachable-category
+  dispatch (pooled vs. inline) by hand now route through three const Tree
+  queries over caller-supplied scratch; neither query marks or truncates
+  the mask pool, and statement order at every relocated site is
+  unchanged. tests/cpp is green throughout, including a new fuzz snapshot
+  digest gated on a mixed store (one rank-stored column, one dense);
+  the compiled object code was checked byte-for-byte reproducible under
+  R's own build recipe; no new compiler warnings. Three defects found
+  before landing are fixed in the commits above: the new snapshot gate's
+  dense-block half was vacuous on an all-rank fixture (now gated on a
+  mixed store so a flipped nonzero must move the digest and leave the
+  dense block identical); an intermediate commit message claimed
+  byte-identical object code where __TEXT actually moved by 64 bytes
+  (corrected to state the real cause); and two normative docs
+  (kernel-vocabulary.md, sparse-columns.md) still named six deleted
+  partition-wrapper symbols as live code (renamed to the template).
+
+- routeTestRows threading note (5d905663): documents routeTestRows as the
+  in-chain test-fit pool in architecture.md's threading model. No code
+  change.
+
+- Column-kind consolidation plan doc (fcb65bc2): files the ruled design -
+  the ColumnKind axis, the ordered-factor midpoint cut grid, engine-side
+  ingestion validation, FlatKind cleanup, the denseBorrowed/denseOwned
+  rename, and the native-integer-ingestion/typed-storage rework - as
+  docs/plans/column-kind-consolidation.md, status designed and ruled,
+  implementation pending; slices land in the order S0, S1, S2, S3, S4a,
+  S4c, S4b. Adds it to docs/plans/INDEX.md's new Data-store /
+  predictor-storage cluster. TODO's integer-predictor-storage entry is
+  absorbed by the plan's section 2 and replaced with a single
+  forward-facing column-kind-consolidation entry at its alphabetical
+  position.
+
+- Equivalence corpus extension and re-record (8cd10833, 95d1375e): three
+  predictor-column shapes absent from benchmarks/R/equivalence.R
+  entirely - ordfactor (an ordered-factor predictor at K = 150 levels
+  against the default n.cuts = 100, three interior levels held out of
+  training and present in the test frame), nafactor (two NA-bearing
+  factor columns, giving MIA on a categorical column an anchor), and
+  sparsefactor (a CSC-backed sparseFactor column whose category count
+  comes from the declared level table) - are appended to makeScenarios()
+  and recorded as the new baseline, equivalence-ee5ffe74.rds, 46
+  scenarios. Oracle (P17), neutral: all 43 predecessor scenarios
+  reproduce equivalence-736bfb05.rds bitwise inside a non-strict compare
+  (coverage 43 compared / 3 skipped: the three additions), so the
+  additions changed no existing draw and no new-value oracle is owed;
+  bcf-equivalence-00cfa108 stays 12/12 bitwise and
+  multinomial-equivalence-4d9a3337 stays 11/11, so neither sister harness
+  gains a scenario. The new baseline reproduces itself 46/46 under
+  --strict-coverage. The four obligated sites move together: MANIFEST
+  (736bfb05's row relabeled historical, the new row inserted as current),
+  .github/workflows/equivalence.yaml's CI pin, feature-matrix.md's [f39]
+  footnote (43 -> 46), and mutation-battery.R's baseline path;
+  bartcore-review-tour.md's still-open gate list is updated too.
+
+- NEWS NEW FEATURES rewrite (dadf4c5b, cf0eb71a, dd489a5d, 2b56d225,
+  4b031821): regroups the unreleased 1.0-0 NEW FEATURES section by
+  feature instead of landing chronology, folding refinements into their
+  parent item and moving misfiled bug fixes into BUG FIXES - 71 items
+  become 34, five of them moved to BUG FIXES. Three independent
+  verifications against the published 0.9-34 tree and the installed
+  package followed. The first (44 and 31 defects across two readings)
+  restores four items the rewrite had cut - rbart_vi's Gibbs sampler,
+  xbart as an R-level driver, the grow-from-root ordinal missing-value
+  scoring, and the grouped sampler's response-side mutation surface,
+  whose updateScale refusal is a break and goes to UPGRADING - taking
+  NEW FEATURES to 37 items and the parsed NEWS database to 330 entries.
+  The second (38 defects, eight introduced by the prior correction) adds
+  the UPGRADING probit-weights item (0.9-x fit a weighted probit; 1.0-0
+  refuses) and splits the ordered from the unordered factor-response
+  item, taking the database to 331 entries. The third finds zero wrong
+  sentences and four wording nits, fixed in place. The multinomial
+  UPGRADING row's family = "auto" qualifier is mirrored into the review
+  tour's own table.
+
+- R-surface rulings (VD, 2026-09-01) and their implementation (77cad379,
+  31cd2473, 9ae41bc1, e21e914d, 23733ac0, b337a9ca, 549f8589, 31b030e0,
+  38bc67e7): four questions ruled. Finish the fractional-count refusal
+  rule everywhere a caller can write a count or column/group selector by
+  hand (coerceOrError, naming the argument), including dbarts()/xbart()'s
+  own n.samples, $run, $growFromRoot, $getTrees/$printTrees, bart2/
+  rbart_vi's n.grow.sweeps, samplePriorPredictive, xbart's n.burn
+  (refuses a length past two by name rather than dropping the third
+  element, as 0.9-34 honored it), and every remaining model-spec
+  column/group selector (linear, gp, forest, interactions, blocks,
+  varianceForest, updatePredictorPerObservationJointly). Close predict's
+  dots hole by refusing value by name across all six predict methods and
+  warning - never erroring, including through a subclass's own
+  NextMethod() - on any other unrecognized name, via base's chkDots.
+  Keep setResponse's argument order (it matches setOffset, as 0.9-34
+  shipped it) and warn once per session when the second argument is
+  supplied positionally. Guard the dbartsSampler reference-class
+  $plotTree method directly against sample=/chain= partial matching,
+  closing the one reach-in path the S3 door's existing guard did not
+  cover. The count-rule sweep found one real bug along the way: bart()'s
+  own seed was pre-truncated by a bare as.integer() before ever reaching
+  dbartsControl()'s own check. Confirmed clean before landing: the full
+  tinytest suite (7517/7517 at review time), lintr (0 lints), air format
+  --check (exit 0), and checkRd on every changed Rd/NEWS file, with no
+  consumer call site (bartCause dbarts-1.0, treatSens master, stan4bart
+  bartcore, bairrtt main) broken. Four items were fixed before landing:
+  two false NEWS claims (the rule did not yet cover every remaining
+  count; rbart_vi has no n.grow.sweeps formal) and the two count-rule
+  sites (updatePredictorPerObservationJointly's column, and the
+  model-spec constructors' vars/groups/forbid selectors) whose absence
+  made the first claim false. coerceOrError also gained an
+  already-integer fast path, so its match.call() cost is paid only on a
+  refusal rather than on every $run call.
+
+- Anchor re-pin passes (3c7d7264, 0671ab43, 55809991, 8e0b0e9e): re-pin
+  docs/design and docs/plans file:line citations shifted by the hot-path
+  dispatch reshape and the R-surface rulings' edits to R/dbarts.R,
+  R/utility.R, R/generics.R and src/R_interface_bartcore.cpp, verified by
+  content at each hunk boundary rather than by line-count alone;
+  column-kind-consolidation.md's own citations into data.hpp, scan.hpp,
+  grow.hpp, tree.hpp, model.hpp, facade.hpp and sampler.hpp are checked
+  the same way, and three of the eleven numeric re-pins made into other
+  docs/design files by earlier commits in this batch turn out wrong and
+  are corrected here (grow-from-root-default.md, two sites;
+  negative-binomial.md; multiplier-combiner.md). A closing full sweep -
+  not a sample - of every docs/design line added by the refusal
+  backstop, the comment fix and the hot-path dispatch reshape's seven
+  commits finds feature-matrix.md carrying the bulk of the remaining
+  drift: the response-model matrix's 28 setResponse/setOffset/setWeights
+  MOD: cites were stale by a uniform offset that an earlier landing
+  introduced and nobody had re-pinned since, invisible to
+  check-doc-freshness's feature-matrix check because it verifies a
+  symbol exists somewhere in the file, not at the cited line. Also
+  re-pinned in that sweep: the nameable-calibration dbarts.R cite (9
+  rows), the S2 setActiveRows cites, the bcf row's updateScale and DART
+  cites, the multinomial pointwise-loglik cite, and a leftover RIB:6180
+  anchor that never matched its getLatents R_NilValue return. Every other
+  docs/design line the seven commits touched checked correct by content.
+
+Gates (run at 95d1375e; the four anchor re-pin commits after it are
+docs-only): tests/cpp 267/0 full + 68/0 sampler; tinytest 7539/0;
+equivalence 46/46 --strict-coverage against equivalence-ee5ffe74.rds,
+neutrality 43/43 + 3 skipped against 736bfb05, bcf 12/12, multinomial
+11/11, all bitwise; air 0, lintr::lint_package 0; check-doc-freshness 0
+FAIL / 65 WARN at the tip; check-rc-codoc OK; NEWS 333 entries; R CMD
+check --as-cran OK, 0 NOTE.
+
 ### Repo-state audit and clean before the human review (018225ca..HEAD, 2026-08-25)
 
 Scope: VD's directive that present-facing files carry no edit history
