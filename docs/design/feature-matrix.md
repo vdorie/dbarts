@@ -131,18 +131,18 @@ it rides on.
 
 | model | `setResponse` | `setOffset` | `updateScale = TRUE` | `setPredictor` (+ per-obs) | `setWeights` | `setSigma` | test surface |
 |---|---|---|---|---|---|---|---|
-| gaussian | S MOD:2815 | S MOD:2895 | S MOD:2895 | S RIB:5126, 5270 | S MOD:2864 | S RIB:4700 | S RIB:4795, 4854 |
-| student | S MOD:4110 | S MOD:4117 | S MOD:4117 | S RIB:5126 | S MOD:4134 | S RIB:4700 | S RIB:4795 |
-| probit | S MOD:3110 | S MOD:3116 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
-| logistic | S MOD:3585 | S MOD:3608 | - [f9] | S RIB:5126 | S MOD:3600 [f10] | R RIB:2928 | S RIB:4795 |
-| ordinal | S MOD:3247 | S MOD:3255 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
-| nbinom | S MOD:4405 | S MOD:4412 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
+| gaussian | S MOD:2799 | S MOD:2879 | S MOD:2879 | S RIB:5126, 5270 | S MOD:2848 | S RIB:4700 | S RIB:4795, 4854 |
+| student | S MOD:4094 | S MOD:4101 | S MOD:4101 | S RIB:5126 | S MOD:4118 | S RIB:4700 | S RIB:4795 |
+| probit | S MOD:3094 | S MOD:3100 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
+| logistic | S MOD:3569 | S MOD:3592 | - [f9] | S RIB:5126 | S MOD:3584 [f10] | R RIB:2928 | S RIB:4795 |
+| ordinal | S MOD:3231 | S MOD:3239 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
+| nbinom | S MOD:4389 | S MOD:4396 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
 | multinom | - dbarts.R:1371 [f11] | - [f11] | - [f11] | - [f11] | - [f11] | - [f11] | - [f11] |
-| aft | S MOD:3869 | S MOD:3882 | S MOD:3882 | S RIB:5126 | R RIB:2791 | S RIB:4700 | S RIB:4795 |
-| hazard | S MOD:3110 [f6] | S MOD:3116 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
+| aft | S MOD:3853 | S MOD:3866 | S MOD:3866 | S RIB:5126 | R RIB:2791 | S RIB:4700 | S RIB:4795 |
+| hazard | S MOD:3094 [f6] | S MOD:3100 | - [f9] | S RIB:5126 | R RIB:2791 | R RIB:2928 | S RIB:4795 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
-| bcf | S CH:1068 [f48] | S CH:1068 [f48] | R bartcore.R:407, 428 [f48] | S RIB:5126, 5270 | S RIB:4942 [f48] | S RIB:4700 [f48] | R RIB:2890 [f49] |
-| grouped | S MOD:4788 [f13] | S MOD:4799 | R RIB:2737 [f13] | S RIB:5126 | S MOD:4818 [f14] | S RIB:4700 [f14] | S RIB:4795 |
+| bcf | S CH:1068 [f48] | S CH:1068 [f48] | R bartcore.R:409, 430 [f48] | S RIB:5126, 5270 | S RIB:4942 [f48] | S RIB:4700 [f48] | R RIB:2890 [f49] |
+| grouped | S MOD:4772 [f13] | S MOD:4783 | R RIB:2737 [f13] | S RIB:5126 | S MOD:4802 [f14] | S RIB:4700 [f14] | S RIB:4795 |
 | hetero | S RIB:2706 | S RIB:2706 | R RIB:2706 | S RIB:5126, 5270 | S RIB:4942 | R RIB:2928 | S RIB:4795 |
 
 `setData` (whole-data replacement, n free) is single-forest and dense-store
@@ -154,15 +154,15 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | zero-weight row subset | active-rows mask [f15] | `getLatents` | pointwise loglik | nameable calibration [f16] |
 |---|---|---|---|---|---|
-| gaussian | S sampler.Rd:177, MOD:2790 [f17] | S MOD:2875 | - RIB:6180 [f18] | S generics.R:72 | S dbarts.R:1793, 1820 [f16] |
-| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | S generics.R:118 [f19] | S dbarts.R:1793, 1820 [f16] |
-| probit | R RIB:2763 | S MOD:3100 | S MOD:3136 | S generics.R:127 | S dbarts.R:1793, 1820 [f16] |
-| logistic | R RIB:2767 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1793, 1820 [f16] |
-| ordinal | R RIB:2540 | S MOD:3232 | S MOD:3277 | S generics.R:1437 | S dbarts.R:1793, 1820 [f16] |
-| nbinom | R RIB:2546 | S MOD:4385 | S MOD:4438 | S generics.R:1750 | S dbarts.R:1793, 1820 [f16] |
-| multinom | R RIB:3305 | S COM:1529 [f21] | M MOD:3716 [f22] | S generics.R:1105 | R [f23] |
-| aft | R RIB:2536 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1793, 1820 [f16] |
-| hazard | R RIB:2759 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1793, 1820 [f6] |
+| gaussian | S sampler.Rd:177, MOD:2774 [f17] | S MOD:2859 | - RIB:6159 [f18] | S generics.R:72 | S dbarts.R:1808, 1835 [f16] |
+| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | S generics.R:118 [f19] | S dbarts.R:1808, 1835 [f16] |
+| probit | R RIB:2763 | S MOD:3100 | S MOD:3136 | S generics.R:127 | S dbarts.R:1808, 1835 [f16] |
+| logistic | R RIB:2767 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1808, 1835 [f16] |
+| ordinal | R RIB:2540 | S MOD:3232 | S MOD:3277 | S generics.R:1437 | S dbarts.R:1808, 1835 [f16] |
+| nbinom | R RIB:2546 | S MOD:4385 | S MOD:4438 | S generics.R:1750 | S dbarts.R:1808, 1835 [f16] |
+| multinom | R RIB:3305 | S COM:1529 [f21] | M MOD:3700 [f22] | S generics.R:1106 | R [f23] |
+| aft | R RIB:2536 | S MOD:3851 | S MOD:3912 | S generics.R:132 | S dbarts.R:1808, 1835 [f16] |
+| hazard | R RIB:2759 [f6] | S MOD:3100 [f6] | S MOD:3136 | S generics.R:127 [f24] | S dbarts.R:1808, 1835 [f6] |
 | hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2317 [f25] | - [f12] |
 | bcf | S COM:823, 869-873 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
 | grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2812 | S MOD:4863 [f27] |
@@ -182,7 +182,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hurdle | R spec.R:509 [f34] | M | S bart.R:2359, 2368 [f35] | R bart.R:631 | R bart.R:631 |
-| bcf | R FAC:892 [f48] | R RIB:2342 | R spec.R:651-652 | S SAM:1029 [f36] | S CH:1990 [f36] |
+| bcf | R FAC:892 [f48] | R RIB:2342 | R spec.R:653-654 | S SAM:1029 [f36] | S CH:1990 [f36] |
 | grouped | R spec.R:532 [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
 | hetero | - | R spec.R:532 [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
 
@@ -370,7 +370,7 @@ inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1638, which owns the single validating and
 normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:367 and its
 shape probe FAC:105 - plus gaussian, Student-t, probit and ordinal, the R5
-`$setActiveRows` (dbarts.R:1409) and the bridge entry (RIB:4058). S2 landed at
+`$setActiveRows` (dbarts.R:1413) and the bridge entry (RIB:4065). S2 landed at
 87d370ea: logistic (`workingWeights()` MOD:3522) and nbinom
 (`workingWeights()` MOD:4343) serve a SEPARATE a_i omega_i composite rather
 than writing the zero into omega_ itself, since the working response divides
