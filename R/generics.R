@@ -2801,10 +2801,11 @@ extract.rbart <- function(
     evalEnv <- parent.frame()
     dotsList <- list(...)
     chainNums <- if ("chainNums" %in% names(dotsList)) {
-      as.integer(dotsList[["chainNums"]])
+      dotsList[["chainNums"]]
     } else {
       seq_len(n.chains)
     }
+    chainNums <- coerceOrError(chainNums, "integer")
     varOrder <- c("chain", "sample", "tree", "n", "var", "value")
     allTrees <- lapply(chainNums, function(i) {
       result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)

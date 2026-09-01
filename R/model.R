@@ -233,7 +233,7 @@ resolveLeafCovariates <- function(prior, data) {
       )
     }
   } else if (is.numeric(columns)) {
-    columnIndices <- as.integer(columns)
+    columnIndices <- coerceOrError(columns, "integer")
     if (
       anyNA(columnIndices) ||
         any(columnIndices < 1L) ||
@@ -973,7 +973,8 @@ alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
 ## top-level-versus-forest-0 ambiguity below detectable.
 validateForestKnobs <- function(spec) {
   if (!is.null(spec$n.trees)) {
-    numTrees <- suppressWarnings(as.integer(spec$n.trees))
+    n.trees <- spec$n.trees
+    numTrees <- coerceOrError(n.trees, "integer")
     if (length(numTrees) != 1L || is.na(numTrees) || numTrees < 1L) {
       stop("forest 'n.trees' must be a single integer >= 1")
     }
@@ -1151,7 +1152,8 @@ resolveInteractions <- function(interactions, data) {
 
   maxOrder <- 0L
   if (!is.null(interactions$max.order)) {
-    order <- suppressWarnings(as.integer(interactions$max.order))
+    max.order <- interactions$max.order
+    order <- coerceOrError(max.order, "integer")
     if (length(order) != 1L || is.na(order) || order < 1L) {
       stop("interactions 'max.order' must be a single integer >= 1")
     }
@@ -1351,7 +1353,8 @@ resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
       counts[seq_len(remainder)] <- baseCount + 1L
     }
   } else {
-    counts <- suppressWarnings(as.integer(treesPerGroup))
+    trees.per.group <- treesPerGroup
+    counts <- coerceOrError(trees.per.group, "integer")
     if (length(counts) != numGroups || anyNA(counts)) {
       stop(
         "blocks() 'trees.per.group' must be an integer vector with one entry ",

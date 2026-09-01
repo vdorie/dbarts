@@ -120,6 +120,13 @@ expect_false(anyCoOccur(treesG, c(2L, 3L))) # different groups
 expect_error(interactions(), "at least one of")
 expect_error(doFitInteractions(interactions(max.order = 0)), "max.order")
 expect_error(doFitInteractions(interactions(max.order = -1L)), "max.order")
+# a fractional max.order is refused, naming the argument, rather than
+# silently truncated (coerceOrError's integer branch)
+expect_error(
+  doFitInteractions(interactions(max.order = 1.5)),
+  "'max.order' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 expect_error(
   doFitInteractions(interactions(forbid = list(c("x1", "nope")))),
   "unrecognized variable name 'nope'"

@@ -178,6 +178,16 @@ expect_error(
   )),
   "one entry per group"
 )
+# a fractional trees.per.group entry is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch)
+expect_error(
+  doFitBlocks(blocks(
+    groups = list("x1", c("x2", "x3")),
+    trees.per.group = c(5.5, 15L)
+  )),
+  "'trees.per.group' must be a whole number; got 'c(5.5, 15)'",
+  fixed = TRUE
+)
 # trees.per.group that does not sum to n.trees
 expect_error(
   doFitBlocks(blocks(

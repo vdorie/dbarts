@@ -25,6 +25,14 @@ expect_error(
   dbarts(y ~ x1 + x2, df, node.prior = gp("zz", k = 2)),
   pattern = "unrecognized column"
 )
+# a fractional numeric columns index is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch); shared with
+# linear()'s own resolveLeafCovariates path
+expect_error(
+  dbarts(y ~ x1 + x2, df, node.prior = gp(1.5, k = 2)),
+  "'columns' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 expect_error(
   dbarts:::gp("x1", k = 2, lengthscale = -1),
   pattern = "must be positive"

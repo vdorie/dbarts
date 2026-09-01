@@ -189,6 +189,15 @@ row.names(individualSamples) <- as.character(seq_len(nrow(individualSamples)))
 
 expect_equal(allTrees, individualSamples)
 
+# a fractional chainNums selector is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch); this is
+# extract.rbart's own per-chain-fit selector, not getTrees's chainNums
+expect_error(
+  extract(fit, "trees", chainNums = 1.5),
+  "'chainNums' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+
 # extract.rbart's own formals (sample, combineChains) collapse the same way
 # extract.bart's do; rbart has no forest/contribution formal to collide with.
 expect_error(

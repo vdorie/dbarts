@@ -32,6 +32,13 @@ expect_error(
   dbarts(y ~ x1 + x2 + x3, df, node.prior = linear(c(2, 2))),
   pattern = "duplicate"
 )
+# a fractional numeric columns index is refused, naming the argument, rather
+# than silently truncated (coerceOrError's integer branch)
+expect_error(
+  dbarts(y ~ x1 + x2 + x3, df, node.prior = linear(1.5)),
+  "'columns' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
 expect_error(
   dbarts(y ~ x1 + x2 + g, data.frame(df, g), node.prior = linear("g")),
   pattern = "must be continuous"

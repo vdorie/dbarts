@@ -914,6 +914,18 @@ expect_error(
   ),
   "forest 'n.trees'"
 )
+# a fractional n.trees is refused, naming the argument, rather than silently
+# truncated (coerceOrError's integer branch)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 5.5)),
+    control = control
+  ),
+  "'n.trees' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
 expect_error(
   dbarts(
     x,

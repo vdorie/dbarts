@@ -469,8 +469,8 @@ single value to divide by, or once the chains' `k` have diverged) and for
 BCF/multinomial forests at creation and again mid-chain (see [f23]);
 `prior.mean` is refused as not writable, naming the `setOffset` recipe. `NaN`
 is refused as a malformed value rather than read as the unnamed spelling, both
-at creation (R/model.R:1477) and mid-chain (`validateLiveScale`,
-R/model.R:1488). Shipped tests: inst/tinytest/test-calibration-creation.R (two
+at creation (R/model.R:1482) and mid-chain (`validateLiveScale`,
+R/model.R:1491). Shipped tests: inst/tinytest/test-calibration-creation.R (two
 composed probit arms at construction ranges 16x apart agree to 1e-12 under a
 shared name, against 8.6 and 2.5 unnamed), inst/tinytest/test-calibration-prior-draws.R
 (what the named quantity means per leaf model - exact for the constant leaf,

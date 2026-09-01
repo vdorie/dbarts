@@ -202,7 +202,12 @@
             own \code{forest} selector; \code{plotTree.rbart}'s
             \code{chainNum}; the \code{column} argument shared by
             \code{$setPredictor}, \code{$setCutPoints}, and
-            \code{$setTestPredictor}; and, on the sampler,
+            \code{$setTestPredictor}; \code{linear} and \code{gp}'s numeric
+            \code{columns}; \code{forest}'s \code{n.trees};
+            \code{interactions}'s \code{max.order}; \code{blocks}'s
+            \code{trees.per.group}; \code{extract.rbart}'s own
+            \code{chainNums} selector (a distinct meaning from
+            \code{$getTrees}'s); and, on the sampler,
             \code{$run}'s \code{numBurnIn}/\code{numSamples},
             \code{$growFromRoot}'s \code{n.sweeps}, \code{$installTrees}'s
             \code{samples}, and \code{$getTrees}'s/\code{$printTrees}'s
