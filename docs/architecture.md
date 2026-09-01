@@ -378,6 +378,16 @@ component test). Two execution paths:
   threads (so a Ctrl-C is delivered only to the main thread, whose poll
   turns it into a cooperative cancel rather than an R longjmp across
   threads).
+- **routeTestRows** (`chain.hpp`): the one pool that runs inside a chain
+  during sampling rather than across chains - a `misc_mt` pool
+  (`testFitPool_`) that fans a tree's test-row routing across this chain's
+  share of the thread budget (`options.numThreads / numChains`). Routing
+  draws no RNG and each row writes its own output slot, so results are
+  bitwise identical at any thread count; below `testFitParallelCutoff`
+  (65536 test rows) it runs serially, since dispatch would outweigh the
+  routing it saves. General within-chain parallelism is deliberately not
+  used (`docs/design/within-chain-threading.md`); this pool is the one
+  sanctioned exception because it is RNG-free and output-disjoint.
 
 **Callback restriction**: the per-sweep conditioning callback (`SweepCallback`
 in the engine, `dbarts_sampler_callback` on the C ABI) fires on the calling
