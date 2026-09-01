@@ -57,7 +57,7 @@ authority where this table is terser.
 | Unordered factors split on level subsets and ordered factors become one ordinal column by default (`bart` unaffected); pass `factors = "indicators"` for the old expansion | UPGRADING item 7 |
 | A new `missing` argument keeps and models rows with missing predictors instead of silently dropping them; `NA` in test predictors or `newdata` errors where the training column was complete | UPGRADING item 8; `docs/plans/composition-refusals.md` s7 |
 | Test column names not covering the training design's are an error naming what's missing, not a positional-match warning | UPGRADING item 9 |
-| A factor response with three or more levels fits multinomial via `bart2`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
+| A factor response with three or more levels fits multinomial via `bart2` under `family = "auto"`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
 | `dbartsControl` drops `rngKind`/`rngNormalKind` and renames `rngSeed` to `seed` | UPGRADING item 11 |
 | `xbart` loses its `control` argument, renames `sigma` to `sigest`, and `n.burn` now takes two values | UPGRADING item 12 |
 | A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 13 |
