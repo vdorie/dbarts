@@ -57,19 +57,20 @@ authority where this table is terser.
 | Unordered factors split on level subsets and ordered factors become one ordinal column by default (`bart` unaffected); pass `factors = "indicators"` for the old expansion | UPGRADING item 7 |
 | A new `missing` argument keeps and models rows with missing predictors instead of silently dropping them; `NA` in test predictors or `newdata` errors where the training column was complete | UPGRADING item 8; `docs/plans/composition-refusals.md` s7 |
 | Test column names not covering the training design's are an error naming what's missing, not a positional-match warning | UPGRADING item 9 |
-| A factor response with three or more levels fits multinomial via `bart2` under `family = "auto"`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
+| An unordered factor response with three or more levels fits multinomial via `bart2` under `family = "auto"`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
 | `dbartsControl` drops `rngKind`/`rngNormalKind` and renames `rngSeed` to `seed` | UPGRADING item 11 |
 | `xbart` loses its `control` argument, renames `sigma` to `sigest`, and `n.burn` now takes two values | UPGRADING item 12 |
-| A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 13 |
-| The sampler's mutators refresh `$state` only when called with `updateState = TRUE`; `NA` no longer defers to the control's setting | UPGRADING item 14 |
-| The sampler's `run` renames `numThreads` to `n.threads` | UPGRADING item 15 |
-| `setResponse` gains `updateScale` (default `FALSE`) as its second positional argument, displacing `updateState` to third | UPGRADING item 16 |
-| An `rbart_vi` fit with a built-in prior and no callback carries a length-one `$fit` list instead of one sampler per chain | UPGRADING item 17 |
-| `predict.bart`/`predict.rbart` take `(object, newdata, type, offset, ...)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 18; `docs/plans/predict-surface.md` s3 |
-| `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 19; `docs/plans/surface-refusals.md` s8 |
-| `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 20 |
-| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded | UPGRADING item 21; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); surface-refusals.md s4 |
-| A fractional double is refused, naming the argument, on the listed count arguments (`dbarts()`'s own `n.samples` still truncates); `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 22; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
+| A `probit` fit refuses `weights`; 0.9-x accepted them and fit a weighted probit | UPGRADING item 13 |
+| A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 14 |
+| The sampler's mutators refresh `$state` only when called with `updateState = TRUE`; `NA` no longer defers to the control's setting | UPGRADING item 15 |
+| The sampler's `run` renames `numThreads` to `n.threads` | UPGRADING item 16 |
+| `setResponse` gains `updateScale` (default `FALSE`) as its second positional argument, displacing `updateState` to third | UPGRADING item 17 |
+| An `rbart_vi` fit with a built-in prior and no callback carries a length-one `$fit` list instead of one sampler per chain | UPGRADING item 18 |
+| `predict.bart`/`predict.rbart` take `(object, newdata, type, offset, ...)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 19; `docs/plans/predict-surface.md` s3 |
+| `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 20; `docs/plans/surface-refusals.md` s8 |
+| `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 21 |
+| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded | UPGRADING item 22; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); surface-refusals.md s4 |
+| A fractional double is refused, naming the argument, on the listed count arguments (`dbarts()`'s own `n.samples` still truncates); `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 23; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
 
 Decided since: an ordinal fit's R-visible spelling was renamed to
 `thresholds`, aligning it with the engine and C API's `ordinalThresholds`.
