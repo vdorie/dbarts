@@ -2314,6 +2314,14 @@
             fold bins the predictors identically to a fit on all of the
             data and creation does not re-quantize per fold; numeric
             results shift accordingly.
+      \item A heteroscedastic variance forest combined with Student-t
+            residuals is now refused at sampler creation on every entrance,
+            the flat C API included, rather than only by the modelling
+            functions. The two route the residual scale through the same
+            per-observation weight channel and are not yet shown to compose;
+            because a Student-t sampler reports the \code{gaussian} family,
+            the engine's own refusal had let the pair through and fit an
+            uncomposed model.
     }
   }
 }

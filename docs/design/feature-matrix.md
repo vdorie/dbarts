@@ -384,8 +384,8 @@ degrees-of-freedom recount, and skips the censored redraw at an inactive row
 (MOD:3852). All three report NaN pointwise log-likelihood at an inactive row.
 Oracles: per-family kernel comparisons against the compacted arm, bitwise in
 value and in RNG stream (`testActiveRowsLogisticKernel`
-tests/cpp/test_model.cpp:5452, `testActiveRowsNBKernels` :5538,
-`testActiveRowsAFTCensored` :5630 - each latent being a rejection sampler
+tests/cpp/test_model.cpp:5468, `testActiveRowsNBKernels` :5554,
+`testActiveRowsAFTCensored` :5646 - each latent being a rejection sampler
 means a discard-rather-than-skip at an inactive row fails the arm outright),
 plus a sampler-level conditional independence oracle under substituted
 inactive responses (inst/tinytest/test-active-rows-pins.R's S2 block:

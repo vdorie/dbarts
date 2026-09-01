@@ -1726,6 +1726,35 @@ expect_true(all(is.na(dfG$recorded)))
 # a Student-t residual sampler's family IS gaussian: resid.dist selects the
 # error law, not a family of its own
 expect_equal(CALL("capi_sampler_family", ptrT), familyConstants[["gaussian"]])
+# Student-t residuals plus a heteroscedastic variance forest: the scale-mixture
+# augmentation and the variance forest route through the same weight channel,
+# an unadjudicated composition R/spec.R refuses. A Student-t sampler reports the
+# gaussian family, so the create-path backstop keys on the residual df instead;
+# the flat entrance is the only one that can pair the two
+varianceAttrT <- list(n.trees = 10L, base = 0.95, power = 2, columns = NULL)
+controlTV <- specT$control
+attr(controlTV, "bartcore.variance") <- varianceAttrT
+expect_error(
+  CALL("capi_create", controlTV, specT$model, specT$data, ""),
+  "invalid leaf covariate designation"
+)
+# the refusal is the pair, not either half: the same model without the variance
+# forest, and the same variance forest on a gaussian model, both construct
+ptrTNoVariance <- CALL(
+  "capi_create",
+  specT$control,
+  specT$model,
+  specT$data,
+  ""
+)
+expect_equal(typeof(ptrTNoVariance), "externalptr")
+controlV <- spec$control
+attr(controlV, "bartcore.variance") <- varianceAttrT
+ptrVNoT <- CALL("capi_create", controlV, spec$model, spec$data, "")
+expect_equal(typeof(ptrVNoT), "externalptr")
+rm(varianceAttrT, controlTV, controlV, ptrTNoVariance, ptrVNoT)
+invisible(gc(FALSE))
+
 rm(specT, ptrT, dfT, dfG)
 invisible(gc(FALSE))
 

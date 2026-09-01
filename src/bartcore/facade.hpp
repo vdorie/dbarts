@@ -1,6 +1,7 @@
 #ifndef BARTCORE_FACADE_HPP
 #define BARTCORE_FACADE_HPP
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -789,10 +790,13 @@ inline std::unique_ptr<SamplerBase> createSampler(
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   // the heteroscedastic variance forest is gaussian + plain-constant-leaf only:
   // the latent families own the weight channel it routes through (a collision),
-  // and v1 keeps the mean leaf constant. Refuse every other combination here,
-  // before any Chain is built.
+  // and v1 keeps the mean leaf constant. The Student-t augmentation shares that
+  // same weight channel while reporting the gaussian family, so a finite
+  // residualDf is its own term here rather than a family test. Refuse every
+  // other combination, before any Chain is built.
   if (options.numVarianceTrees > 0 &&
       (family != ResponseFamily::gaussian || options.numLeafCovariates != 0 ||
+       std::isfinite(options.residualDf) ||
        monotoneConstraintIsActive(options, numPredictors)))
     return nullptr;
   if (options.numLeafCovariates == 0 &&

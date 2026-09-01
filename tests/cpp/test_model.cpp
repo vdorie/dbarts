@@ -752,6 +752,22 @@ static void testVarianceForestRefusal() {
                         3.0, 0.378, options, rngs) == nullptr,
           "variance forest refused for a latent family");
   }
+  // a Student-t error law reports the gaussian family, so the refusal keys on
+  // the residual df: the scale-mixture augmentation and the variance forest
+  // route through the same weight channel
+  options.residualDf = 5.0;
+  check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          == nullptr,
+        "variance forest refused for Student-t residuals");
+  options.numVarianceTrees = 0;
+  check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          != nullptr,
+        "Student-t residuals accepted without a variance forest");
+  options.numVarianceTrees = 4;
+  options.residualDf = std::numeric_limits<double>::quiet_NaN();
+
   // a linear-leaf designation is also refused (v1 keeps the mean leaf constant)
   size_t covariate[] = {0};
   options.leafCovariateColumns = covariate;
