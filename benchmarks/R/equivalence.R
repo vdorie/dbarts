@@ -938,10 +938,9 @@ makeScenarios <- function() {
   # "multinomial" token (family = "auto" never reaches it). No scenario
   # above touches it, so this is the surface's first anchor in this file -
   # the engine-level bitwise gate lives in
-  # benchmarks/R/multinomial-equivalence.R. Runs LAST, with its own literal
-  # seed continuing the file's own literal-seed sequence, after every
-  # scenario above has already re-seeded for its own data, so it perturbs
-  # nothing above it.
+  # benchmarks/R/multinomial-equivalence.R. Its own literal seed continues
+  # the file's own literal-seed sequence, and every scenario re-seeds before
+  # generating its own data, so its position perturbs nothing around it.
   set.seed(5139L)
   n.mn <- 200L
   x.mn <- matrix(runif(n.mn * 4L), n.mn, 4L)
@@ -964,6 +963,167 @@ makeScenarios <- function() {
     binary = FALSE,
     multinomialFit = TRUE
   )
+
+  # --- predictor column-kind scenarios: the three predictor column shapes
+  # that no scenario above carries, each guarding a different part of the
+  # store's per-column typing (docs/design/data-store.md, "Cut grid"). Every
+  # factor case above is built with plain factor(), all-dense and complete,
+  # so an ordered factor's grid, a factor column's missing route, and a
+  # CSC-backed factor's category count moved no recorded draw in this file.
+  # Sizes are small and the forests are this group's own literal nTrees: the
+  # corpus is a bitwise gate, not a fit. ---
+
+  # an ORDERED-factor predictor, which this file had none of - the two
+  # ordered_result = TRUE uses above are RESPONSES. R collapses is.ordered()
+  # into the same ordinal type a numeric column takes, so the column reaches
+  # the store as threshold splits over n.cuts uniform cut points spanning its
+  # observed code range rather than one cut per level boundary. K = 150 levels
+  # against the default n.cuts = 100 leaves only 101 reachable codes, so 49
+  # adjacent level pairs share a code and no rule can separate them; K is also
+  # above the quantile path's own thinning threshold (numCuts + 1), so a grid
+  # rebuilt through that path is measured here too. Three interior levels are
+  # deliberately absent from training and present in the test frame, so a grid
+  # taken from observed values rather than declared ones is visible as well.
+  # Two numeric nuisance columns only, so the trees reach the ordered column
+  # often.
+  set.seed(5140L)
+  n.of <- 400L
+  K.of <- 150L
+  levels.of <- sprintf("L%03d", seq_len(K.of))
+  absent.of <- c(37L, 88L, 131L)
+  observed.of <- setdiff(seq_len(K.of), absent.of)
+  codes.of <- sample(observed.of, n.of, replace = TRUE)
+  x.of <- data.frame(
+    a = runif(n.of),
+    b = runif(n.of),
+    o = factor(levels.of[codes.of], levels = levels.of, ordered = TRUE)
+  )
+  codes.test.of <- c(absent.of, sample(observed.of, n.test - 3L))
+  x.test.of <- data.frame(
+    a = runif(n.test),
+    b = runif(n.test),
+    o = factor(levels.of[codes.test.of], levels = levels.of, ordered = TRUE)
+  )
+  result$ordfactor <- list(
+    x = x.of,
+    y = 10 *
+      sin(pi * x.of$a * x.of$b) +
+      0.06 * (codes.of - K.of / 2) +
+      rnorm(n.of),
+    x.test = x.test.of,
+    binary = FALSE,
+    samplerApi = TRUE,
+    nTrees = 50L
+  )
+
+  # an NA-bearing FACTOR predictor. The "missing" scenario above injects NAs
+  # into a numeric matrix only, so MIA on a categorical column - the reserved
+  # missing code beside the level codes, and the per-rule missing direction
+  # drawn only on columns whose training values carried an NA
+  # (docs/design/mia-missingness.md) - had no anchor: a build that flipped a
+  # factor column's hasMissing, or dropped the extra Bernoulli there, moved
+  # nothing. Missingness itself carries signal on both factor columns, so the
+  # learned direction shows in the fits rather than only in the stream, and
+  # the test frame carries NAs in both so the test-side routing is recorded
+  # too. The numeric columns stay complete, so the two factor columns are the
+  # only NA-bearing ones in the store.
+  set.seed(5141L)
+  n.nf <- 400L
+  g.nf <- factor(sample(letters[1:4], n.nf, replace = TRUE))
+  h.nf <- factor(sample(LETTERS[1:6], n.nf, replace = TRUE))
+  gMissing.nf <- runif(n.nf) < 0.18
+  hMissing.nf <- runif(n.nf) < 0.12
+  g.nf[gMissing.nf] <- NA
+  h.nf[hMissing.nf] <- NA
+  x.nf <- data.frame(
+    a = runif(n.nf),
+    b = runif(n.nf),
+    g = g.nf,
+    h = h.nf
+  )
+  g.test.nf <- factor(
+    sample(letters[1:4], n.test, replace = TRUE),
+    levels = letters[1:4]
+  )
+  h.test.nf <- factor(
+    sample(LETTERS[1:6], n.test, replace = TRUE),
+    levels = LETTERS[1:6]
+  )
+  g.test.nf[c(3L, 11L, 19L)] <- NA
+  h.test.nf[c(7L, 20L)] <- NA
+  x.test.nf <- data.frame(
+    a = runif(n.test),
+    b = runif(n.test),
+    g = g.test.nf,
+    h = h.test.nf
+  )
+  result$nafactor <- list(
+    x = x.nf,
+    y = 10 *
+      sin(pi * x.nf$a * x.nf$b) +
+      2.5 * gMissing.nf -
+      1.5 * hMissing.nf +
+      ifelse(!is.na(g.nf) & g.nf == "b", 2, 0) +
+      rnorm(n.nf),
+    x.test = x.test.nf,
+    binary = FALSE,
+    samplerApi = TRUE,
+    nTrees = 50L,
+    samplerArgs = list(missing = "incorporate")
+  )
+
+  # a CSC-backed FACTOR column (a sparseFactor, docs/design/sparse-columns.md):
+  # the one column shape whose category count comes from the container's own
+  # declared level table rather than from a sweep of the values, since the
+  # bridge's declared-count read skips a CSC-backed source. The "sparse"
+  # scenario above is all-ordinal and "mixedmatrix" carries its factor DENSE,
+  # so no scenario reached a categorical column over the sparse block at all:
+  # its pooled mask tier, its code validation and its declared count were all
+  # unguarded. Two of the eight levels are absent from training and present in
+  # the test frame, which a count inferred from observed values would get
+  # wrong - the TOP level among them, so an inferred count would come out 7
+  # where the declared table says 8. Reaches the engine through the x/y
+  # interface, the only entrance a sparseFactor has. Skipped when Matrix is unavailable, as "sparse" already
+  # is.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5142L)
+    n.sf <- 300L
+    K.sf <- 8L
+    levels.sf <- paste0("s", seq_len(K.sf))
+    observed.sf <- c(1L, 2L, 3L, 5L, 6L, 7L) # levels 4 and 8 unobserved
+    codes.sf <- sample(
+      observed.sf,
+      n.sf,
+      replace = TRUE,
+      prob = c(0.7, rep(0.06, 5L))
+    )
+    x.sf <- data.frame(a = runif(n.sf), b = runif(n.sf))
+    x.sf$f <- sparseFactor(
+      factor(levels.sf[codes.sf], levels = levels.sf),
+      reference = "s1"
+    )
+    x.test.sf <- data.frame(a = runif(n.test), b = runif(n.test))
+    x.test.sf$f <- sparseFactor(
+      factor(
+        levels.sf[c(4L, 8L, sample(observed.sf, n.test - 2L, replace = TRUE))],
+        levels = levels.sf
+      ),
+      reference = "s1"
+    )
+    result$sparsefactor <- list(
+      x = x.sf,
+      y = 10 *
+        sin(pi * x.sf$a * x.sf$b) +
+        3 * (codes.sf == 3L) -
+        2 * (codes.sf == 6L) +
+        rnorm(n.sf),
+      x.test = x.test.sf,
+      binary = FALSE,
+      samplerApi = TRUE,
+      nTrees = 50L,
+      recordTrain = TRUE
+    )
+  }
 
   result
 }
