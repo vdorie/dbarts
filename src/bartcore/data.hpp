@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -472,8 +473,16 @@ struct CodeBlock {
     return sparseColumns[static_cast<size_t>(sources[j].rankSlot)];
   }
 
-  /// Dense-stored columns only; rank columns have no contiguous codes.
-  const xint_t* column(size_t j) const { return codes.data() + codeOffsets[j]; }
+  /// Dense-stored columns only; rank columns have no contiguous codes. A rank
+  /// column's codeOffsets entry is never assigned past the build's zero fill,
+  /// so this would silently hand back whichever dense column starts at zero -
+  /// or null, an all-rank block holding no codes at all. Every caller must
+  /// have tested columnIsSparse; the assert is debug-only (R's build defines
+  /// NDEBUG), so the descent and partition paths pay nothing for it.
+  const xint_t* column(size_t j) const {
+    assert(!columnIsSparse(j));
+    return codes.data() + codeOffsets[j];
+  }
 
   /// Storage-aware single-code access (tree descent, restore validation),
   /// reading only the columns a rule visits rather than materializing a row.
@@ -1739,6 +1748,7 @@ struct ColumnStore {
 
   /// Undo a journaled re-quantize, restoring column j's codes from rollback.
   void restoreColumn(size_t j, const ColumnCodeRollback& rollback) {
+    assert(!train.columnIsSparse(j));
     xint_t* column = train.codes.data() + train.codeOffsets[j];
     if (rollback.full)
       std::memcpy(column, rollback.fullColumn.data(),
@@ -1754,6 +1764,7 @@ struct ColumnStore {
   /// (conservative but never wrong - the NA-aware partition handles NA-free
   /// columns too).
   void setCell(size_t i, size_t j, double value) {
+    assert(!train.columnIsSparse(j));
     writeOwnedDenseCell(i, j, value);
     train.codes[train.codeOffsets[j] + i] = codeFor(j, value);
     if (isNA(value)) hasMissing[j] = 1;
