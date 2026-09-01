@@ -215,6 +215,39 @@ expect_error(
   "'seed' must be a whole number; got '2.7'",
   fixed = TRUE
 )
+# bart()'s remaining lowercase-spelling count arguments refuse a fractional
+# value the same way, naming the argument (coerceOrError ahead of
+# dbartsControl(), whose own check would otherwise blame n.trees/n.burn/...)
+expect_error(
+  dbarts::bart(xTiny, yTiny, ndpost = 5.5),
+  "'ndpost' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(xTiny, yTiny, ntree = 5.5),
+  "'ntree' must be a whole number; got '5.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(xTiny, yTiny, nskip = 2.5),
+  "'nskip' must be a whole number; got '2.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(xTiny, yTiny, nchain = 1.5),
+  "'nchain' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(xTiny, yTiny, keepevery = 1.5),
+  "'keepevery' must be a whole number; got '1.5'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(xTiny, yTiny, numcut = 50.5),
+  "'numcut' must be a whole number; got '50.5'",
+  fixed = TRUE
+)
 gTiny <- rep(1:2, length.out = 20L)
 expect_error(
   dbarts::rbart_vi(yTiny ~ xTiny, group.by = gTiny, n.chains = 2.5),
