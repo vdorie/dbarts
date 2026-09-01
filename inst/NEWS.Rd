@@ -54,7 +54,8 @@
             argument on \code{dbarts}, \code{dbartsData}, \code{bart2},
             \code{xbart}, and \code{rbart_vi}, defaults to
             \code{"incorporate"}: the rows are kept and their missingness is
-            modeled. \code{missing = "error"} rejects them instead; neither
+            modeled (Missingness Incorporated in Attributes; Twala et al.
+            2008). \code{missing = "error"} rejects them instead; neither
             setting drops anything. \code{bart} takes no \code{missing}
             argument and refuses incomplete predictors outright. An
             \code{NA} in test predictors or \code{newdata} is an error
@@ -67,10 +68,11 @@
             do not cover the training design's are an error naming the
             missing columns; previously the mismatch warned and the columns
             were matched by position.
-      \item A factor response with three or more levels is multinomial:
-            \code{bart2} fits \code{family = "multinomial"}, and
-            \code{bart}, \code{dbarts}, \code{rbart_vi}, and \code{xbart}
-            refuse it, naming \code{bart2(family = "multinomial")}. Passed
+      \item A factor response with three or more levels is multinomial under
+            \code{family = "auto"}: \code{bart2} fits
+            \code{family = "multinomial"}, and \code{bart}, \code{dbarts},
+            \code{rbart_vi}, and \code{xbart} refuse it, naming
+            \code{bart2(family = "multinomial")}. Passed
             through the \code{x}/\code{y} interface it previously fit a
             continuous response on the integer level codes.
       \item \code{dbartsControl} loses \code{rngKind} and
@@ -183,203 +185,31 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
-      \item A \code{logistic}-family sampler's case weights - its observation
-            counts - can now be replaced between runs with
-            \code{$setWeights} or \code{$setData}, which redraw the
-            Polya-Gamma latents against the new counts before returning, so
-            an outer sampler can vary exposure from sweep to sweep; the
-            counts stay positive integers on every conduit, and
-            \code{probit}, \code{ordinal}, \code{aft} and \code{nbinom}
-            continue to refuse case weights entirely.
-      \item A model's leaf-prior calibration can be named at creation, in
-            response units, rather than inherited from the range of the
-            vector the sampler happened to be constructed on:
-            \code{prior.scale} (the prior standard deviation of the forest
-            total at \code{k = 1}) as a \code{dbartsModel} slot, as
-            \code{node.prior = normal(scale = )} on \code{dbarts} and
-            \code{xbart} (also \code{sd = }, the same quantity at the
-            resolved \code{k}, refused under a \code{k} hyperprior), and as
-            a \code{prior.scale} argument of \code{bart}, \code{bart2}, and
-            \code{rbart_vi}. It is re-derived at every \code{setModel}, so a
-            round trip through the model object holds it. Unset, nothing
-            changes.
-      \item A sampler reports the calibration in force, per chain and per
-            forest, with \code{$getCalibration}: \code{prior.scale},
-            \code{prior.sd}, \code{prior.mean}, \code{k},
-            \code{k.has.hyperprior}, the response transform, and a
-            \code{leaf.model} tag. It reads the engine rather than the model
-            object, so it is the first surface to show a re-anchoring channel
-            (a \code{setResponse}, \code{setOffset}, or \code{setData} that
-            re-derives the response transform) moving what is in force while
-            the named intent on the model stays where it was put. For the
-            monotone, linear, and Gaussian-process leaf models the reported
-            \code{prior.sd} is a stated bound rather than an equality.
-            \code{$setCalibration} rewrites its scale half on every chain,
-            mid-chain, touching nothing else - unlike \code{setModel}, which
-            also re-pins \code{sigma} and refuses a DART sampler outright.
-            Its \code{prior.sd} spelling meets the same sampled-\code{k}
-            refusal as at creation.
-      \item \code{$getCalibration} also reports the five calibration-map
-            quantities a multi-forest model runs under and no surface showed:
-            the forest's amplitude prior variance or half-Cauchy scale
-            (\code{amplitude.prior.variance} and
-            \code{amplitude.prior.scale}, exclusive per forest), its
-            \code{node.scale.factor} and \code{node.scale.divisor}, and the
-            \code{basis.row.norm} the map divides out. The induced prior on a
-            multi-forest model's combined location can now be reconstructed
-            from the sampler rather than from the call, including after a
-            \code{$setForestBasis} swap re-derives the row norm; they are
-            \code{NaN} on a forest whose scale the map does not own. The flat
-            C \code{dbarts_forest_calibration} gains the matching fields,
-            appended below its documented field boundary, so a caller
-            compiled against the earlier struct reads as before and one that
-            recompiles picks them up.
-      \item Multi-forest models: \code{dbarts} and \code{dbartsSpec} accept a
-            \code{forests} list of \code{\link{forest}} specifications, which
-            fits the mean as a weighted sum of the declared ensembles instead
-            of a single one. Each forest carries its own tree count, structure
-            prior, leaf scale, column restriction (\code{vars}) and
-            \code{interactions}/\code{blocks} constraints, and a forest given
-            a \code{basis} enters multiplied by the amplitudes on that basis's
-            columns. Any number of forests may be declared, each with a
-            basis of any width - a factor of any width expands to one
-            amplitude per level, and a numeric vector or matrix is already
-            those columns - with the two-forest, two-level-factor case being
-            the Bayesian causal forest
-            \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) +
-            b_z tau(x) + eps}. Every forest past the first needs a
-            \code{basis}, the amplitudes multiplying it being what distinguish
-            it from the first. The result is an ordinary
-            \code{dbartsSampler}: it stores, saves, and re-creates like any
-            other, and the columns a basis expands to ride the data object
-            beside the weights they mirror. Gaussian, \code{"probit"}, and
-            \code{"logistic"} responses; under the latter two the forests
-            combine into the index rather than the mean, on the link's own
-            fixed scale, so sigma is pinned and every forest's \code{sd} is
-            stated in latent standard deviations rather than
-            \eqn{sd(y)}{sd(y)}; and, under every family, each forest's
-            \code{sd} is now stated per unit of basis row norm, the median
-            of that basis's nonzero row norms dividing it out, so an
-            unnormalized basis no longer multiplies the prior and a Gaussian
-            fit whose basis rows are not unit norm changes. \code{"aft"},
-            \code{"ordinal"}, and \code{"nbinom"} are refused at creation,
-            naming what each is missing; every option the multi-forest model
-            does not read, and every declaration the engine cannot honour, is
-            refused the same way. \code{$setForestBasis} is the sole route by
-            which a basis changes after creation, at any forest and any width,
-            mirroring the matrix into \code{data@bases} as \code{$setWeights}
-            does for weights; the amplitudes are preserved and remapped, so a
-            width-preserving install leaves every one of them unchanged and a
-            width change carries each forest's block to its new offset.
-            \code{$getForestFits}, \code{$getForestAmplitudes}, and
-            \code{$getForestVariableCounts} read the forests' fitted values,
-            amplitudes, and split counts separately;
-            \code{$getForestAmplitudes} takes an optional \code{forest},
-            returning that forest's own block, since the amplitude vector is
-            ragged. \code{$setControl} no longer discards a sampler's
-            \code{bartcore.*} model configuration (the multi-forest structure,
-            a variance forest, and similar), which used to make the next
-            re-creation refuse loudly. A run reports every surface for every
-            draw rather than only the current one: \code{$run} gains a
-            \code{forestFits} element holding each forest's fitted values
-            (n.obs x n.forests x n.samples) and a \code{glue} element holding
-            the amplitudes that draw combines them through, stacked
-            forest-major (sum(q) x n.samples), so a caller reads every surface
-            and the amplitudes from one call instead of driving the sampler
-            one draw at a time. Neither element is present for any other
-            model. The \code{varcount} element widens on the same principle:
-            on a multi-forest sampler it carries a forest axis between the
-            predictors and the samples (n.predictors x n.forests x
-            n.samples), forest-major within a draw and the prognostic forest
-            first, where it reported that forest alone before. A
-            single-forest sampler's array is unchanged, and so is the flat C
-            API's, whose \code{dbarts_results} declares no forest count and
-            still receives the prognostic forest's counts.
-            \code{dbartsData} gains a \code{bases} argument naming the
-            same matrices directly. A list of length one is refused by
-            name rather than dropped: a lone forest has no second
-            ensemble for its amplitudes to distinguish it from.
-      \item A multi-forest fit predicts forest by forest at new rows:
-            \code{predict(fit, newdata, type = "forest", forest = )}
-            replays each forest's saved trees and reports its own
-            response-scale total, the out-of-sample twin of
-            \code{extract(type = "forest")}, and the sampler's
-            \code{$predictForests} serves the same read on the internal
-            scale. Neither folds in the amplitude glue, the response
-            shift, or an offset - off the training rows the bases the
-            amplitudes multiply are the caller's, so the recombination
-            \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k} is
-            theirs too, with a basis of their choosing. An offset is
-            refused rather than silently dropped. The sampler's own
-            test surface stays refused for the same reason, as does
-            test data.
-      \item A multi-forest fit predicts COMBINED at new rows too:
-            \code{predict(fit, newdata, type = "ev"/"ppd"/"bart")}
-            recombines that per-forest replay with each draw's own
-            amplitudes and the response shift,
-            \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k},
-            taking the bases at those rows through a new \code{bases}
-            argument - a length-K list, or the bare value when exactly
-            one forest carries a basis - or re-deriving them from
-            \code{newdata} when the fit declared them as a
-            \code{bart2} \code{forest()} term. An \code{offset} at the
-            new rows is accepted there and enters before the family's
-            link. Both amplitude arms now require
-            \code{keeptrees}/\code{keepTrees}: without the tree store
-            the replay reports the current trees once for every draw,
-            which cannot be paired with the amplitudes draw by draw.
-      \item The prior defaults a multi-forest model takes when a forest
-            says nothing are stated in the terms a caller can defend. A
-            forest with no \code{basis} takes a half-Cauchy median of 1
-            rather than 2 under \code{"probit"} and \code{"logistic"}
-            (unchanged at 2 under a gaussian response, where a drawn
-            \code{sigma} absorbs the difference), which puts the prior on
-            the latent index where the single-forest binary default
-            already puts it. A forest with a \code{basis} takes
-            \eqn{\sqrt{2/K}}{sqrt(2/K)} rather than 1 for \eqn{K}{K}
-            forests, so declaring more forests no longer widens the prior
-            on the combined location without bound: with every forest
-            carrying a basis it is now the same at every \eqn{K}{K}, and
-            otherwise it is bounded by that value instead of growing.
-            \code{forest(sd = )} overrides both and keeps its per-forest
-            reading at every \eqn{K}{K}; two forests is the fixed point of
-            the second, so nothing at two forests moves.
-      \item Interaction constraints: the new \code{interactions} argument of
-            \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
-            restricts which predictors may jointly shape the fit.
-            \code{interactions(max.order = K)} caps the distinct predictors on
-            any root-to-leaf path (\code{K = 1} is additive),
-            \code{interactions(forbid = list(c("a", "b")))} bars named
-            predictors from co-occurring, and \code{interactions(groups = )}
-            confines interactions to declared groups; the three combine. The
-            constraint is hard and applied per forest, so a multi-forest model
-            can hold one forest additive-or-low-order while another stays
-            free. An unconstrained fit is bit-for-bit
-            identical to previous builds. See \code{?interactions}.
-      \item Block-additive constraints: the new \code{blocks} argument of
-            \code{dbarts} and \code{bart2}, built with \code{\link{blocks}},
-            confines each whole tree to one declared group of predictors, so
-            the ensemble is exactly a sum of per-group functions
-            \eqn{f = \sum_G f_G}{f = sum_G f_G} (a functional-ANOVA /
-            grouped-GAMI decomposition). The partition must be total and
-            disjoint; \code{trees.per.group} optionally fixes each group's
-            tree count (an even split by default). Applied per forest, and
-            composes with \code{interactions} and \code{monotone}. A related
-            idiom is
-            already available: \code{interactions(groups = )} over a total
-            disjoint partition gives the same block-additive property
-            adaptively, with each tree's group chosen by the sampler rather
-            than fixed; see \code{?interactions}. An unconstrained fit is
-            bit-for-bit identical to previous builds. See \code{?blocks}.
-      \item Reduced-precision residual storage for large problems:
-            \code{storage = "single"} in \code{dbartsControl} (and
-            \code{bart2}) stores the running residual in single precision
-            (fp32) while accumulating every reduction in double, roughly
-            halving the memory traffic of the dominant per-sweep sufficient
-            statistic pass. It is opt-in and currently supported only for
-            gaussian responses with constant leaves (an error is raised
-            otherwise); the leaf draws stay double precision, so posteriors
-            are statistically indistinguishable from the default
+      \item The rewritten engine replaces the pre-1.0 engine: every
+            fitting function runs on it. Fits are not draw-for-draw
+            identical to the pre-1.0 engine's, and the corrections listed
+            under BUG FIXES move the posterior itself, so seeded results
+            change. \code{bart} keeps its
+            historical behavior apart from the engine (indicator
+            expansion of factors, probit for binary responses).
+            \code{dbartsControl} loses the \code{rngKind} and
+            \code{rngNormalKind} arguments; explicit generator kinds were a
+            pre-1.0-engine feature. Saved sampler states from previous
+            versions cannot be restored.
+      \item Sampling is faster: the benchmark run scenarios take 25 to
+            30 percent less time per iteration than the pre-1.0 engine,
+            the gap widening with the number of observations. The run
+            loop keeps a running residual across each sweep, and change
+            and swap proposals score the tree prior on the modified
+            subtree alone. For large problems, \code{storage = "single"}
+            in \code{dbartsControl} (and \code{bart2}) additionally stores
+            the running residual in single precision (fp32) while
+            accumulating every reduction in double, roughly halving the
+            memory traffic of the dominant per-sweep sufficient statistic
+            pass; it is opt-in and currently supported only for gaussian
+            responses with constant leaves (an error is raised otherwise),
+            and the leaf draws stay double precision, so posteriors are
+            statistically indistinguishable from the default
             double-precision fit. The speedup is largest where memory
             bandwidth binds - large \eqn{n}{n} and multi-chain runs -
             roughly 10-30\% at \eqn{n = 10^6}{n = 1e6} in testing, growing
@@ -388,60 +218,62 @@
             internal per-observation index storage was narrowed, lowering
             sampler memory use with no change to results. See
             \code{?dbartsControl}.
-      \item Semicontinuous two-part (hurdle) responses:
-            \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
-            \code{dbarts} and \code{bart2} fits a non-negative response with
-            exact zeros by composing, R-side, an occupancy probit fit of
-            \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations with a
-            lognormal positive-part fit - an ordinary gaussian fit of
-            \eqn{\log y}{log y} - over the \eqn{y > 0} subset, glued at
-            report time. The two parts share no parameters (no engine code
-            is added) and fit at independently derived seeds. Predictions
-            default to the natural scale via posterior-predictive Monte
-            Carlo, \eqn{E[y \mid x] = P(y > 0 \mid x) e^{f(x) + \sigma^2/2}}{
-            E[y | x] = Pr(y > 0 | x) * exp(f(x) + sigma^2/2)},
-            heteroscedasticity-aware when the positive part carries a
-            \code{variance = ~x} surface; \code{type = "prob"} gives the
-            occupancy probability, \code{"link"}/\code{"log"} the positive
-            part's log-scale linear predictor, and \code{"ppd"} a proper
-            bimodal predictive (a point mass at zero, else a lognormal
-            draw). \code{bart2} returns a \code{"bartHurdle"} fit carrying
-            both component fits, with \code{fitted}, \code{extract},
-            \code{predict}, and \code{residuals} methods. Fits currently use
-            the matrix interface only; \code{weights}, \code{subset},
-            \code{offset}, and \code{test} are refused (the positive part is
-            instead given the full training \code{x} as its own
-            \code{x.test}). \code{dbarts} does not fit this family - it
-            composes two samplers, which only \code{bart2} builds - and
-            \code{rbart_vi} and \code{xbart} do not fit it either (a shared
-            variable-selection prior across the two parts, Duan smearing,
-            and a heteroscedastic positive part are not supported).
-            See \code{?bart2}.
-      \item Heteroscedastic BART: \code{variance = ~ x1 + x2} (or
-            \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
-            adds a second forest modeling the residual variance surface
-            \eqn{s^2(x)} as a product of scaled-inverse-chi-squared
-            leaves (HBART; Pratola, Chipman, George, and McCulloch 2020).
-            The shorthand takes 40 trees under the mean forest's own
-            tree-structure prior; a \code{\link{varianceForest}(vars = ,
-            n.trees = , base = , power = )} object in its place
-            overrides any of them, its \code{vars} resolved through the
-            same column selector the shorthand uses. The fit gains
-            \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
-            \code{predict} returns \eqn{s(x)} on new data. Gaussian
-            responses only.
-      \item Monotone constraints: \code{monotone = c(x1 = "+", x3 = "-")}
-            in \code{dbarts} and \code{bart2} constrains the fit to be
-            monotone increasing or decreasing in named predictors
-            (monotone BART; Chipman, George, McCulloch, and Shively
-            2022). Directions accept the sign glyphs, the words
-            \code{"increasing"}/\code{"decreasing"}, or \eqn{+1}/\eqn{-1};
-            an unnamed length-p vector assigns them positionally. Only
-            numeric and ordered predictors are eligible (a direction on
-            an unordered factor is an error). A constraint forces
-            birth/death-only proposals and a fixed \code{k = 2}; linear
-            and Gaussian-process leaves are not supported under it.
-            Unconstrained fits are unchanged. See \code{?dbarts}.
+      \item The rewritten engine implements the full \code{dbartsSampler}
+            interface: every method works, including \code{keepTrees},
+            \code{getTrees}, \code{predict}, \code{plotTree}, \code{setWeights}, test offsets,
+            \code{printTrees}, sampling from the prior, \code{setControl},
+            \code{setModel}, verbose progress output, and saving/loading
+            sampler state (a restored sampler continues bitwise
+            identically; the stored state is opaque and incompatible with
+            states saved by previous versions). Not supported: weights
+            with binary responses, and \code{setControl} changes to settings
+            fixed at creation (chain/tree counts, generators, the cut
+            grid). \code{\link{extract.dbartsSampler}} returns the
+            predictor matrix as the sampler currently sees it - the same
+            numeric coding \code{getTrees} replays saved trees against -
+            reflecting any \code{setPredictor} mutation since creation.
+      \item Every chain runs its own generator. \code{seed} makes results
+            reproducible for any number of chains without touching R's
+            stream, seeded results no longer depend on the thread
+            count, and a single-chain run with a given seed reproduces
+            chain 0 of a multi-chain run with the same seed. Without a
+            seed, chain generators are seeded from R's stream at
+            creation, so \code{set.seed} alone suffices for reproducibility
+            and sampling itself never advances R's stream (the pre-1.0
+            engine ran single chains through R's generator and seeded
+            multiple chains from the clock).
+      \item \code{dbarts}, \code{bart2}, and \code{xbart} accept \code{family}: \code{"auto"} keeps
+            the existing dispatch (gaussian for continuous responses, probit
+            for 0/1), \code{"gaussian"} forces a continuous fit even for a 0/1
+            response, and \code{"logistic"} fits a logistic latent model via
+            Polya-Gamma augmentation. \code{xbart}'s built-in binary losses
+            transform test predictions through the resolved family's link.
+            A logistic
+            model accepts positive-integer count weights, a weight-w
+            observation contributing its likelihood to the w-th power;
+            a probit refuses weights (the weighted probit the pre-1.0
+            engine fit was incorrect and is not carried forward), except
+            that weights identically 1 are treated as absent, as
+            SuperLearner-style callers pass unit weights unconditionally.
+            A logistic sampler's counts can be replaced between runs with
+            \code{$setWeights} or \code{$setData}, which redraw the
+            Polya-Gamma latents against the new counts before returning,
+            so an outer sampler can vary exposure from sweep to sweep;
+            \code{probit}, \code{ordinal}, \code{aft}, and \code{nbinom}
+            continue to refuse case weights entirely, on every conduit.
+            Fits returned by \code{bart}, \code{bart2}, and \code{rbart_vi} record the
+            resolved family in a \code{family} element, and \code{predict},
+            \code{extract}, \code{fitted}, and \code{plot} transform latent draws
+            through that family's link; fits saved by earlier versions
+            lack the element and are treated as probit. \code{family = "auto"}
+            extends past probit and gaussian to detect a factor, logical,
+            or character response directly: two levels resolve to probit
+            and three or more to multinomial (\code{bart2} only; elsewhere
+            an error names the limitation), each reporting the choice in a
+            one-line message. Previously such a response was either
+            rejected outright or, for three or more levels given through
+            the x/y interface, silently fit as a continuous response on the
+            integer level codes.
       \item Ordinal (ordered categorical) responses:
             \code{family = "ordinal"} in \code{dbarts} and \code{bart2}
             fits a cumulative probit - probit's truncated-normal latents
@@ -478,7 +310,15 @@
             \eqn{\mathrm{gamma}(2, 0.1)}{gamma(2, 0.1)} prior; supplying
             \code{dispersion} as a positive integer fixes it (v1 ships
             the exact integer envelope, so a real fixed \code{dispersion}
-            is refused). \code{bart2} returns a \code{"bartNegbin"} fit
+            is refused). The dispersion in force at each draw is a
+            first-class channel: \code{run()} gains a \code{dispersion}
+            element, shaped exactly as \code{sigma}, and
+            \code{$getDispersion()} reads the value mid-sweep - a pure
+            read of state the sweep already settled on, consuming no
+            random numbers - which is how \code{bart2(family = "nbinom")}
+            itself reports it; both are \code{NULL} on every other
+            family, so a caller tests \code{!is.null()} rather than
+            comparing. \code{bart2} returns a \code{"bartNegbin"} fit
             carrying the mean-count draws, the latent draws, and the
             per-draw dispersion, with \code{fitted}, \code{extract},
             \code{predict}, and \code{residuals} methods. Weights are not
@@ -486,29 +326,105 @@
             and \code{xbart} refuse count responses (grouped
             negative-binomial models, real dispersion, and a Poisson
             family are not supported). See \code{?bart2}.
-      \item Discrete-time survival hazard responses:
+      \item \code{dbarts}, \code{bart2}, and \code{rbart_vi} accept \code{family = "aft"}: an
+            accelerated failure time, log-normal survival model (the forest
+            models the conditional mean of log survival time, with \code{sigma} the
+            log-scale residual standard deviation). The response is a
+            \code{survival::Surv} object (right-censoring only) or a two-column
+            \code{(time, status)} matrix or data frame; under \code{family = "auto"} a
+            \code{Surv} response selects \code{"aft"} on its own. \code{rbart_vi} adds a
+            random intercept per group to the same model, through its formula
+            interface; \code{dbarts} and \code{bart2} take the response through their
+            x/y interface. None of the three support \code{weights} or \code{subset} for
+            a survival fit. \code{predict}, \code{extract}, and \code{fitted} return the
+            log-time-scale linear predictor, never the time scale; the
+            \code{survivalProbabilities} generic draws the survival probability
+            over a user-supplied time grid instead. The same response also
+            fits as a discrete-time hazard model:
             \code{family = "hazard"} (probit link) and
-            \code{family = "hazard.logistic"} in \code{dbarts} and
-            \code{bart2} fit a discrete-time hazard model by
-            person-period expansion. The response is the same \code{Surv}
-            object or two-column \code{(time, status)} the \code{"aft"}
-            family takes; each subject is expanded into its at-risk rows
-            with an ordinal period column, and the discrete hazard
+            \code{family = "hazard.logistic"} in \code{dbarts} and \code{bart2}
+            expand each subject into its at-risk rows with an ordinal
+            period column and fit the discrete hazard
             \eqn{h(k \mid x) = g(f(x, k) + o)}{h(k | x) = g(f(x, k) + o)}
-            is fit as an ordinary binary model on the expanded rows - so a
-            hazard fit is byte-identical, draw for draw, to the binary fit
-            on the hand-expanded design. The time grid defaults to the
-            distinct observed times; \code{breaks} coarsens it (an integer
-            quantile count or an explicit boundary vector) and
-            \code{max.rows} guards the expansion size. The fit is an
-            ordinary \code{"bart"} object whose \code{$family} records the
-            binary link and whose \code{$periods} carries the grid;
-            \code{\link{survivalProbabilities}} produces survival-curve
+            as an ordinary binary model on the expanded rows - so a hazard
+            fit is byte-identical, draw for draw, to the binary fit on the
+            hand-expanded design. The time grid defaults to the distinct
+            observed times; \code{breaks} coarsens it (an integer quantile
+            count or an explicit boundary vector) and \code{max.rows}
+            guards the expansion size. The fit is an ordinary
+            \code{"bart"} object whose \code{$family} records the binary
+            link and whose \code{$periods} carries the grid;
+            \code{survivalProbabilities} again produces the survival-curve
             draws (requiring \code{keepTrees}). The matrix interface is
-            required, and weights follow the chosen binary family's
-            policy. \code{rbart_vi} and \code{xbart} refuse hazard
-            responses (grouped/frailty hazard and a cloglog link are
-            not supported). See \code{?bart2}.
+            required for a hazard fit, and weights follow the chosen
+            binary family's policy. \code{rbart_vi} and \code{xbart} refuse
+            both survival forms (grouped/frailty hazard, a cloglog link,
+            real dispersion, and cross-validation losses for either are
+            not supported).
+      \item Semicontinuous two-part (hurdle) responses:
+            \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
+            \code{dbarts} and \code{bart2} fits a non-negative response with
+            exact zeros by composing, R-side, an occupancy probit fit of
+            \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations with a
+            lognormal positive-part fit - an ordinary gaussian fit of
+            \eqn{\log y}{log y} - over the \eqn{y > 0} subset, glued at
+            report time. The two parts share no parameters (no engine code
+            is added) and fit at independently derived seeds. Predictions
+            default to the natural scale via posterior-predictive Monte
+            Carlo, \eqn{E[y \mid x] = P(y > 0 \mid x) e^{f(x) + \sigma^2/2}}{
+            E[y | x] = Pr(y > 0 | x) * exp(f(x) + sigma^2/2)},
+            heteroscedasticity-aware when the positive part carries a
+            \code{variance = ~x} surface; \code{type = "prob"} gives the
+            occupancy probability, \code{"link"}/\code{"log"} the positive
+            part's log-scale linear predictor, and \code{"ppd"} a proper
+            bimodal predictive (a point mass at zero, else a lognormal
+            draw). \code{bart2} returns a \code{"bartHurdle"} fit carrying
+            both component fits, with \code{fitted}, \code{extract},
+            \code{predict}, and \code{residuals} methods. Fits currently use
+            the matrix interface only; \code{weights}, \code{subset},
+            \code{offset}, and \code{test} are refused (the positive part is
+            instead given the full training \code{x} as its own
+            \code{x.test}). \code{dbarts} does not fit this family - it
+            composes two samplers, which only \code{bart2} builds - and
+            \code{rbart_vi} and \code{xbart} do not fit it either (a shared
+            variable-selection prior across the two parts, Duan smearing,
+            and a heteroscedastic positive part are not supported).
+            See \code{?bart2}.
+      \item \code{bart2} accepts \code{family = "multinomial"}: a K-category softmax
+            classifier, K forests coupled through an interleaved Polya-Gamma
+            one-vs-rest augmentation. The response is a factor (or character)
+            with three or more levels, an n x K matrix of nonnegative integer
+            trial counts (one column per category), or the equivalent
+            \code{cbind(c1, ..., cK) ~ x} formula; under \code{family = "auto"} a factor
+            (or character) response with three or more levels is detected and
+            routed here, reporting the choice in a one-line message. The
+            fit's class is \code{"bartMultinomial"}, with its own \code{residuals},
+            \code{plot}, \code{summary}, \code{print}, and \code{predict} (\code{type = "ev"}/\code{"ppd"})
+            methods, separate from \code{bart}'s. The sampler surface a
+            multinomial fit's \code{$fit} exposes is its own:
+            \code{$setCounts} replaces the n x K count matrix (trials
+            \eqn{n_i = \sum_k \mathrm{counts}_{ik}}{n_i = sum_k counts[i, k]}
+            at least 1), \code{$setCategoryOffset} installs or clears an
+            n x K offset entering the log-sum-exp margins before the
+            softmax - the response-side counterpart of \code{setCounts},
+            distinct from the flat, softmax-null \code{setOffset} - and
+            \code{$setCategoryTestOffset} does the same for the recorded
+            test channel. \code{n} and \code{K} are fixed at creation; only
+            the values change, and the trees carry over, fitted to the
+            previous counts, exactly as \code{setResponse} leaves a
+            single-forest sampler's. The rest of the mutation surface -
+            \code{$setResponse}, \code{$setOffset}, \code{$setSigma},
+            \code{$setCalibration}, and \code{$setForestWeights} among
+            them - is refused by name, each naming the channel that serves
+            the caller instead. \code{predict} on a fitted model gains
+            \code{offset.category.test}, the per-category shift at the
+            predicted rows: an \code{nrow(newdata)} x K matrix entering the
+            raw fits before the softmax, spelled as
+            \code{\link{dbartsData}}'s channel of the same name. A fit
+            trained with an \code{offset} requires it - the predicted rows
+            are not the training rows, so no resident offset describes them -
+            and passing the training offset back at the training rows
+            reproduces \code{yhat.train}.
       \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t
@@ -527,10 +443,261 @@
             so an estimated \eqn{\nu}{nu} should be posterior-checked. The
             degrees of freedom in force at each draw are recorded on the fit
             as \code{$resid.df} (\code{run()$resid.df} on a sampler, and
-            \code{dbarts_results::residualDf} in the C API), and
-            \code{extract(type = "loglik")} scores the marginal
-            \eqn{t_\nu}{t_nu} density from it - the observation-level
-            likelihood WAIC and PSIS-LOO are defined on.
+            \code{dbarts_results::residualDf} in the C API), and its
+            pointwise log-likelihood scores the marginal
+            \eqn{t_\nu}{t_nu} density from it rather than the gaussian one.
+      \item Multi-forest models: \code{dbarts} and \code{dbartsSpec} accept a
+            \code{forests} list of \code{\link{forest}} specifications, which
+            fits the mean as a weighted sum of the declared ensembles instead
+            of a single one. Each forest carries its own tree count, structure
+            prior, leaf scale, column restriction (\code{vars}) and
+            \code{interactions}/\code{blocks} constraints, and a forest given
+            a \code{basis} enters multiplied by the amplitudes on that basis's
+            columns. Any number of forests may be declared, each with a
+            basis of any width - a factor of any width expands to one
+            amplitude per level, and a numeric vector or matrix is already
+            those columns - with the two-forest, two-level-factor case being
+            the Bayesian causal forest
+            \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) +
+            b_z tau(x) + eps}. Every forest past the first needs a
+            \code{basis}, the amplitudes multiplying it being what distinguish
+            it from the first. The result is an ordinary
+            \code{dbartsSampler}: it stores, saves, and re-creates like any
+            other, and the columns a basis expands to ride the data object
+            beside the weights they mirror. Gaussian, \code{"probit"}, and
+            \code{"logistic"} responses; under the latter two the forests
+            combine into the index rather than the mean, on the link's own
+            fixed scale, so sigma is pinned and every forest's \code{sd} is
+            stated in latent standard deviations rather than
+            \eqn{sd(y)}{sd(y)}; and, under every family, each forest's
+            \code{sd} is now stated per unit of basis row norm, the median
+            of that basis's nonzero row norms dividing it out, so an
+            unnormalized basis no longer multiplies the prior and a Gaussian
+            fit whose basis rows are not unit norm changes. \code{"aft"},
+            \code{"ordinal"}, and \code{"nbinom"} are refused at creation,
+            naming what each is missing. The prior defaults a forest takes
+            when it says nothing are stated in terms a caller can defend: a
+            forest with no \code{basis} takes a half-Cauchy median of 1
+            rather than 2 under \code{"probit"} and \code{"logistic"}
+            (unchanged at 2 under a gaussian response, where a drawn
+            \code{sigma} absorbs the difference), putting the prior on the
+            latent index where the single-forest binary default already
+            puts it, and a forest with a \code{basis} takes
+            \eqn{\sqrt{2/K}}{sqrt(2/K)} rather than 1 for \eqn{K}{K}
+            forests, so declaring more forests no longer widens the prior
+            on the combined location without bound; \code{forest(sd = )}
+            overrides both and keeps its per-forest reading at every
+            \eqn{K}{K} (two forests is the fixed point of the basis default,
+            so nothing at two forests moves). \code{$setForestBasis} is the
+            sole route by which a basis changes after creation, at any
+            forest and any width, mirroring the matrix into
+            \code{data@bases} as \code{$setWeights} does for weights; the
+            amplitudes are preserved and remapped, so a width-preserving
+            install leaves every one of them unchanged and a width change
+            carries each forest's block to its new offset.
+            \code{$setForestWeights} installs a per-forest, per-observation
+            weight - a multiplicative precision factor on the named forest's
+            own leaf conditionals, composing with \code{weights} and
+            \code{active} as \eqn{(w_i a_i) m_f^2 s_i}{(w_i * a_i) * m_f^2 *
+            s_i} rather than widening either channel, so it excludes a row
+            from that forest's own leaf conditionals alone, leaving its
+            occupancy, its place in the combination, and the residual
+            degrees of freedom untouched. \code{$getForestFits},
+            \code{$getForestAmplitudes}, and \code{$getForestVariableCounts}
+            read the forests' fitted values, amplitudes, and split counts
+            separately, the last two taking an optional \code{forest} since
+            they are ragged across forests. A run reports every surface for
+            every draw: \code{$run} gains a \code{forestFits} element
+            holding each forest's fitted values (n.obs x n.forests x
+            n.samples) and a \code{glue} element holding the amplitudes
+            that draw combines them through, stacked forest-major (sum(q) x
+            n.samples); the \code{varcount} element similarly widens with a
+            forest axis, forest-major within a draw and the prognostic
+            forest first. Neither \code{forestFits} nor \code{glue} is
+            present for any other model; a single-forest sampler's arrays,
+            and the flat C API's \code{dbarts_results}, are unchanged.
+            \code{dbartsData} gains a \code{bases} argument naming the same
+            matrices directly (a list of length one is refused - a lone
+            forest has no second ensemble for its amplitudes to distinguish
+            it from), and predicting at new rows works both per forest and
+            combined: \code{predict(fit, newdata, type = "forest", forest =
+            )} (or the sampler's \code{$predictForests}) replays one
+            forest's saved trees and reports its own response-scale total,
+            with no offset, response shift, or amplitude glue folded in -
+            those are the caller's to add, given a \code{basis} of their
+            choosing - while \code{predict(fit, newdata, type =
+            "ev"/"ppd"/"bart")} recombines that per-forest replay with
+            each draw's own amplitudes and the response shift,
+            \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k}, taking
+            the bases at those rows through a new \code{bases} argument (a
+            length-K list, or the bare value when exactly one forest
+            carries a basis) or re-deriving them from \code{newdata} when
+            the fit declared them as a \code{bart2} \code{forest()} term;
+            an \code{offset} at the new rows enters before the family's
+            link on the combined arm only. Both amplitude arms require
+            \code{keeptrees}/\code{keepTrees} (without the tree store the
+            replay reports the current trees for every draw, which cannot
+            be paired with the amplitudes draw by draw), and both refuse
+            the sampler's own test surface and test data, for the same
+            reason an offset is refused on the per-forest arm. Finally,
+            \code{$setControl} no longer discards a sampler's
+            \code{bartcore.*} model configuration (the multi-forest
+            structure, a variance forest, and similar), which used to make
+            the next re-creation refuse loudly.
+      \item Interaction and block constraints restrict which predictors may
+            jointly shape the fit. The new \code{interactions} argument of
+            \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
+            offers three combinable rules: \code{interactions(max.order = K)} caps
+            the distinct predictors on any root-to-leaf path (\code{K = 1} is
+            additive), \code{interactions(forbid = list(c("a", "b")))} bars named
+            predictors from co-occurring, and \code{interactions(groups = )}
+            confines interactions to declared groups. The new \code{blocks}
+            argument, built with \code{\link{blocks}}, is stricter still:
+            it confines each whole tree to one declared group of predictors,
+            so the ensemble is exactly a sum of per-group functions
+            \eqn{f = \sum_G f_G}{f = sum_G f_G} (a functional-ANOVA /
+            grouped-GAMI decomposition) over a partition that must be total
+            and disjoint; \code{trees.per.group} optionally fixes each
+            group's tree count (an even split by default).
+            \code{interactions(groups = )} over the same kind of partition
+            gives the block-additive property adaptively instead, with each
+            tree's group chosen by the sampler rather than fixed. Both
+            constraints are hard, apply per forest - so a multi-forest model
+            can hold one forest additive-or-low-order while another stays
+            free - and compose with \code{monotone}. An unconstrained fit under
+            either is bit-for-bit identical to previous builds. See
+            \code{?interactions} and \code{?blocks}.
+      \item Monotone constraints: \code{monotone = c(x1 = "+", x3 = "-")}
+            in \code{dbarts} and \code{bart2} constrains the fit to be
+            monotone increasing or decreasing in named predictors
+            (monotone BART; Chipman, George, McCulloch, and Shively
+            2022). Directions accept the sign glyphs, the words
+            \code{"increasing"}/\code{"decreasing"}, or \eqn{+1}/\eqn{-1};
+            an unnamed length-p vector assigns them positionally. Only
+            numeric and ordered predictors are eligible (a direction on
+            an unordered factor is an error). A constraint forces
+            birth/death-only proposals and a fixed \code{k = 2}; linear
+            and Gaussian-process leaves are not supported under it.
+            Unconstrained fits are unchanged. See \code{?dbarts}.
+      \item Heteroscedastic BART: \code{variance = ~ x1 + x2} (or
+            \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
+            adds a second forest modeling the residual variance surface
+            \eqn{s^2(x)} as a product of scaled-inverse-chi-squared
+            leaves (HBART; Pratola, Chipman, George, and McCulloch 2020).
+            The shorthand takes 40 trees under the mean forest's own
+            tree-structure prior; a \code{\link{varianceForest}(vars = ,
+            n.trees = , base = , power = )} object in its place
+            overrides any of them, its \code{vars} resolved through the
+            same column selector the shorthand uses. The fit gains
+            \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
+            \code{predict} returns \eqn{s(x)} on new data. Gaussian
+            responses only.
+      \item Two new node priors fit smooth, rather than constant, leaf
+            functions in \code{dbarts}. \code{node.prior = gp(columns, k,
+            lengthscale, max.leaf.size)} fits each bottom node with a
+            smooth Gaussian-process function of the designated continuous
+            predictor columns under a squared-exponential kernel, the
+            prior scale tied to \code{k} exactly as the other leaf priors;
+            \code{k} may be fixed or given the \code{chi} hyperprior (the
+            binary default), sampled from the drawn functions'
+            standardized magnitudes; lengthscales fix at creation, per
+            column or by a median-distance heuristic; leaves larger than
+            \code{max.leaf.size} fall back to constant fits, confining the
+            cubic kernel cost to small leaves; \code{getTrees} reports
+            \code{NA} leaf values and no coefficient columns for these
+            function-valued fits, and \code{keepTrees} storage grows with
+            leaf sizes. \code{node.prior = linear(columns, k)} instead
+            fits each bottom node with an intercept plus a linear term in
+            the designated continuous predictor columns (standardized
+            internally, every coefficient sharing the \code{normal(k)}
+            prior), so a forest models smoothly-varying coefficients -
+            treed regression in the sense of Chipman, George, and
+            McCulloch, or the varying-slope structure of Bayesian Causal
+            Forests when the covariate is a treatment indicator;
+            \code{getTrees} reports leaf intercepts in \code{value} plus
+            one \code{beta.<column>} slope column per covariate, and
+            \code{plotTree} labels linear leaves with their coefficients.
+            Both compose with the full sampler surface - weights, probit
+            and logistic responses, \code{keepTrees} with \code{predict}
+            (saved replays reproduce recorded test fits exactly), state
+            serialization, and the predictor-mutation methods - and both
+            are accepted by \code{xbart} through a new \code{node.prior}
+            argument; for linear leaves, folds standardize the leaf
+            covariates with full-data constants, matching the final fit's
+            calibration the way folds bin on the full-data cut grid.
+      \item \code{tree.prior = dart(...)} runs DART (Linero 2018), a Dirichlet
+            prior over the split-variable probabilities inducing variable
+            selection, with optional sampling of the concentration.
+            \code{bart2}, \code{rbart_vi}, and \code{xbart} expose it through a
+            \code{dart} argument taking \code{TRUE} or a full prior specification,
+            along with \code{split.probs} for fixed, non-uniform variable
+            weights. Runs return the per-sample probabilities alongside
+            the variable counts, as \code{varprobs} in the sampler's results
+            and on \code{bart2} and \code{rbart_vi} fits.
+      \item Two ways to start a forest other than a fresh draw from the
+            tree prior. A warm start (\code{bart2}'s \code{warm.start}, or a
+            sampler's \code{installTrees}) accepts a donor fit on a
+            different cut grid (differing in \code{n.cuts},
+            \code{useQuantiles}, or its predictor values): the donor's
+            splits are remapped onto the destination's grid, collapsing
+            any the grid starves, the same way replacing a sampler's data
+            remaps its existing splits; a donor with a different tree
+            count or DART setting is still refused. \code{n.grow.sweeps}
+            (\code{bart2}) and the sampler's \code{growFromRoot} method
+            instead build the initial forest by XBART-style grow-from-root
+            (He, Yalov and Hahn 2019): each requested sweep rebuilds every
+            tree from the root against the current residual, in place of a
+            draw from the tree prior, before the ordinary
+            Metropolis-Hastings sweeps take over. It is opt-in (the
+            default \code{n.grow.sweeps = 0L} leaves fits unchanged),
+            mutually exclusive with \code{warm.start}, and leaves the
+            targeted posterior unchanged - only where the chain starts.
+            The initializer places real categorical split rules rather
+            than skipping categorical predictors: below ten categories
+            present at a node the node's choice is exact over all category
+            subsets, and above it a sorted-prefix family carries the same
+            total prior mass, so a variable's realized split mass stays
+            continuous in its level count. With \code{dart = TRUE},
+            categorical predictors accordingly receive real split counts
+            during the grow sweeps rather than the structurally zero
+            counts a categorical-blind initializer would draw, so factor
+            signals inform the sampled split-variable probabilities from
+            the first regular sweep.
+      \item Factor columns in data frames now default to
+            \code{factors = "categorical"} in \code{dbarts}, \code{dbartsData}, \code{bart2},
+            \code{xbart}, and \code{rbart_vi} (a new argument on all five):
+            each unordered factor stays a single predictor with subset
+            splits instead of expanding into indicator columns. Pass
+            \code{factors = "indicators"} for the previous behavior. Under
+            \code{factors = "categorical"}, splits send a subset of a
+            factor's levels down each branch (at most 65535, see below);
+            ordered factors are coded as ordinal. Level tables are
+            retained so test data are coded identically, with unseen
+            levels an error. \code{getTrees} gains, when the sampler has
+            categorical predictors, a \code{directions} column decoding
+            each categorical rule into one "L"/"R" character per level;
+            such a rule's \code{value} is \code{NA}, as it has no scalar
+            cut point. \code{plotTree} labels categorical rules with the
+            levels sent down the left branch.
+      \item Missing values in the predictors are supported. Under
+            \code{missing = "incorporate"}, the default on \code{dbarts},
+            \code{dbartsData}, \code{bart2}, \code{xbart}, and \code{rbart_vi}, every split
+            rule learns a direction for missing values of its variable,
+            so an NA observation follows that rule's chosen branch
+            (Missingness Incorporated in Attributes; Twala et al. 2008).
+            The route is learned per column, and only where that column's
+            training values were missing: an \code{NA} in test predictors or
+            \code{newdata} is refused, naming the column, wherever that
+            column was complete in training. \code{missing = "error"} rejects
+            incomplete predictors. The response, weights, and offset must
+            be complete, and predictor columns cannot be entirely
+            missing; both interfaces previously dropped incomplete rows
+            silently.
+            \code{getTrees} reports each rule's missing route in a \code{missing}
+            column and \code{plotTree} appends it to rule labels. \code{bart}
+            refuses missing data outright, where it previously dropped the
+            incomplete rows silently. On complete data the new default draws
+            exactly as \code{missing = "error"} does.
       \item Sparse predictor matrices: the x/y interfaces of
             \code{dbarts}, \code{dbartsData}, \code{bart}, \code{bart2},
             and \code{xbart} accept a \code{Matrix::dgCMatrix}. Columns
@@ -553,32 +720,30 @@
             sparse-backed column and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as
             usual. \code{rbart_vi} and \code{node.prior = linear()} do not
-            yet support sparse inputs.
-      \item Mixed dense and sparse predictors: a data frame passed to
-            the x/y interfaces may hold \code{Matrix::sparseVector} and
+            yet support sparse inputs. A data frame passed to the x/y
+            interfaces may also hold \code{Matrix::sparseVector} and
             \code{dgCMatrix} columns (assign them into the frame; they
             do not survive \code{data.frame(...)} or \code{I()})
-            alongside ordinary numeric and factor columns. Sparse
-            columns pass through unexpanded and tier exactly as an
-            all-sparse design does, while dense-backed columns keep the
-            full feature set: factors still split categorically and
-            \code{node.prior = linear()} may designate dense-backed
-            columns. A mixed design accepts between-sweep column
-            mutation - \code{sampler$setPredictor(x, column = j)} over
-            dense-backed and sparse-backed columns alike, including a
-            sparse \code{sparseFactor} column, and one call may name both
-            kinds - with per-observation updates
-            (\code{forceUpdate = "partial"}) open on dense-backed columns.
-            Whole-matrix replacement (\code{sampler$setPredictor(x)}) is
-            accepted too and leaves \code{data@x} a container; a replaced
-            sparse column's storage densifies permanently, since every row
-            then differs from the implicit value. A test data frame expands to a
-            dense matrix, and a predictor container built from other data
-            is re-coded against the training factor levels before it is
-            used, so its codes mean what the training design's mean.
-            \code{rbart_vi} still requires dense inputs. The sparse column
-            constructor is exported as \code{\link{sparseFactor}}, and the
-            container a mixed frame assembles into is exported as
+            alongside ordinary numeric and factor columns, mixing dense
+            and sparse predictors: sparse columns pass through unexpanded
+            and tier exactly as an all-sparse design does, while
+            dense-backed columns keep the full feature set - factors
+            still split categorically and \code{node.prior = linear()}
+            may designate dense-backed columns. A mixed design accepts
+            between-sweep column mutation over dense-backed and
+            sparse-backed columns alike, including a sparse
+            \code{sparseFactor} column, and one call may name both kinds,
+            with per-observation updates (\code{forceUpdate = "partial"})
+            open on dense-backed columns. Whole-matrix replacement leaves
+            \code{data@x} a container; a replaced sparse column's storage
+            densifies permanently, as for an all-sparse design. A test
+            data frame expands to a dense matrix, and a predictor
+            container built from other data is re-coded against the
+            training factor levels before it is used, so its codes mean
+            what the training design's mean. \code{rbart_vi} still
+            requires dense inputs. The sparse column constructor is
+            exported as \code{\link{sparseFactor}}, and the container a
+            mixed frame assembles into is exported as
             \code{\link{dbartsMixedMatrix}}, with its own \code{dim},
             \code{dimnames}, \code{[}, and \code{as.matrix} methods.
       \item Categorical predictors support up to 65535 levels, up from
@@ -588,119 +753,15 @@
             \code{directions} column carries the decode as before. Everything
             else composes unchanged, including missing values, saved
             trees with \code{predict}, and state serialization.
-      \item GP leaves: \code{node.prior = gp(columns, k, lengthscale,
-            max.leaf.size)} in \code{dbarts} fits each bottom node with a
-            smooth Gaussian-process function of the designated
-            continuous predictor columns under a squared-exponential
-            kernel, the prior scale tied to \code{k} exactly as the other
-            leaf priors, giving smooth fits where constant-leaf BART
-            steps. \code{k} may be fixed or given the \code{chi} hyperprior (the
-            binary default), sampled from the drawn functions'
-            standardized magnitudes; lengthscales fix at creation, per
-            column or by
-            a median-distance heuristic; leaves larger than
-            \code{max.leaf.size} fall back to constant fits, so the cubic
-            kernel cost is confined to small leaves. The sampler surface
-            composes: weights, probit and logistic responses,
-            \code{keepTrees} with \code{predict} (saved replays reproduce recorded
-            test fits exactly), state serialization, and the
-            predictor-mutation methods. Function-valued fits ride
-            prediction only: \code{getTrees} reports \code{NA} leaf values and no
-            coefficient columns, and \code{keepTrees} storage grows with leaf
-            sizes. \code{xbart} accepts the same specification through
-            \code{node.prior}.
-      \item Linear leaves: \code{node.prior = linear(columns, k)} in \code{dbarts}
-            fits each bottom node with an intercept plus a linear term
-            in the designated continuous predictor columns (standardized
-            internally, every coefficient sharing the \code{normal(k)}
-            prior), so a forest models smoothly-varying coefficients -
-            treed regression in the sense of Chipman, George, and
-            McCulloch, or the varying-slope structure of Bayesian Causal
-            Forests when the covariate is a treatment indicator. The
-            full sampler surface composes: weights, probit and logistic
-            responses, \code{keepTrees} with \code{predict}, state serialization,
-            and the predictor-mutation methods. \code{getTrees} reports leaf
-            intercepts in \code{value} plus one \code{beta.<column>} slope column
-            per covariate, and \code{plotTree} labels linear leaves with
-            their coefficients. \code{xbart} accepts the same specification
-            through a new \code{node.prior} argument, crossvalidating over
-            its \code{k} grid as usual; folds standardize the leaf
-            covariates with full-data constants, matching the final
-            fit's calibration the way folds bin on the full-data cut
-            grid.
-      \item \code{rbart_vi} with a built-in \code{prior} (\code{cauchy}, \code{gamma}) and
-            no \code{callback} now runs its whole Gibbs sampler - random
-            intercepts and their standard deviation included - inside
-            the engine: one sampler with \code{n.chains} chains on worker
-            threads instead of per-chain samplers driven
-            iteration-by-iteration from R over a PSOCK/FORK cluster.
-            Custom prior functions and callbacks keep the previous
-            implementation. Results are statistically equivalent but
-            not draw-for-draw identical: the response scaling is fixed
-            at creation from the data alone (the old loop re-anchored
-            it during warmup with the current random effects
-            subtracted), and with case weights the conjugate intercept
-            update now weights the group contributions (the old loop's
-            update ignored weights). Fitted objects keep their shape;
-            with \code{keepSampler} the \code{fit} element holds one multi-chain
-            sampler instead of one sampler per chain, and save/load of
-            such fits continues to work.
-      \item The rewritten engine replaces the pre-1.0 engine: every
-            fitting function runs on it. Fits are not draw-for-draw
-            identical to the pre-1.0 engine's, and the corrections listed
-            under BUG FIXES move the posterior itself, so seeded results
-            change. \code{bart} keeps its
-            historical behavior apart from the engine (indicator
-            expansion of factors, probit for binary responses).
-            \code{dbartsControl} loses the \code{rngKind} and
-            \code{rngNormalKind} arguments; explicit generator kinds were a
-            pre-1.0-engine feature. Saved sampler states from previous
-            versions cannot be restored.
-      \item Sampling is faster: the benchmark run scenarios take 25 to
-            30 percent less time per iteration than the pre-1.0 engine,
-            the gap widening with the number of observations. The run
-            loop keeps a running residual across each sweep, and change
-            and swap proposals score the tree prior on the modified
-            subtree alone.
-      \item A flat C interface for packages compiling against dbarts,
-            \code{dbarts/dbarts.h}: an opaque sampler handle over the rewritten
-            engine, created from the R specification objects, with entry
-            points for running into caller-owned buffers, the mutation
-            surface (response, offset, weights, sigma, predictors, test
-            data), latents, prediction, tree storage and introspection,
-            and state save and restore. Entry points are reached through
-            \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_MAJOR}
-            and \code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an
-            opt-in exact-ABI check, which moves on additive releases as well.
-            It replaces the removed C++ interface in
-            \code{dbarts/R_C_interface.hpp}.
-      \item Every chain runs its own generator. \code{seed} makes results
-            reproducible for any number of chains without touching R's
-            stream, seeded results no longer depend on the thread
-            count, and a single-chain run with a given seed reproduces
-            chain 0 of a multi-chain run with the same seed. Without a
-            seed, chain generators are seeded from R's stream at
-            creation, so \code{set.seed} alone suffices for reproducibility
-            and sampling itself never advances R's stream (the pre-1.0
-            engine ran single chains through R's generator and seeded
-            multiple chains from the clock).
-      \item \code{bart2} and \code{rbart_vi} default to
-            \code{combineChains = TRUE}, so a multi-chain fit's draw
-            channels arrive with the chain and sample margins merged.
-            \code{combineChains = FALSE} keeps them separate, as the
-            previous default did.
-      \item \code{resid.prior = fixed(value)} now follows its documentation:
-            the residual standard deviation holds at \code{sqrt(value)}, at
-            creation and through \code{setModel} alike. The
-            pre-1.0 engine ignored the value at creation (holding sigma
-            at its starting estimate) and installed it as a standard
-            deviation in \code{setModel}.
-      \item Factor columns in data frames now default to
-            \code{factors = "categorical"} in \code{dbarts}, \code{dbartsData}, \code{bart2},
-            \code{xbart}, and \code{rbart_vi} (a new argument on all five):
-            each unordered factor stays a single predictor with subset
-            splits instead of expanding into indicator columns. Pass
-            \code{factors = "indicators"} for the previous behavior.
+      \item Prior specifications are ordinary objects built by the
+            constructors in the new exported list \code{dbartsPriors} (\code{cgm},
+            \code{dart}, \code{normal}, \code{chi}, \code{chisq}, \code{fixed}), usable
+            programmatically and passable to the
+            \code{tree.prior}/\code{node.prior}/\code{resid.prior} arguments. The
+            bare-name forms (\code{node.prior = normal(chi(1.25))}) keep working
+            and now resolve against dbarts' own vocabulary inside those
+            arguments, so attaching packages that export \code{normal} or
+            similar cannot change their meaning.
       \item The binary default for \code{k} - used by \code{dbarts},
             \code{bart2}, and \code{rbart_vi} when \code{k} is left
             unspecified - is now
@@ -713,164 +774,143 @@
             explicitly. Pass \code{k = chi(1.5, Inf)} for the
             old prior; seeded default binary fits otherwise draw
             differently.
-      \item Prior specifications are ordinary objects built by the
-            constructors in the new exported list \code{dbartsPriors} (\code{cgm},
-            \code{dart}, \code{normal}, \code{chi}, \code{chisq}, \code{fixed}), usable
-            programmatically and passable to the
-            \code{tree.prior}/\code{node.prior}/\code{resid.prior} arguments. The
-            bare-name forms (\code{node.prior = normal(chi(1.25))}) keep working
-            and now resolve against dbarts' own vocabulary inside those
-            arguments, so attaching packages that export \code{normal} or
-            similar cannot change their meaning.
-      \item \code{tree.prior = dart(...)} runs DART (Linero 2018), a Dirichlet
-            prior over the split-variable probabilities inducing variable
-            selection, with optional sampling of the concentration.
-            \code{bart2}, \code{rbart_vi}, and \code{xbart} expose it through a
-            \code{dart} argument taking \code{TRUE} or a full prior specification,
-            along with \code{split.probs} for fixed, non-uniform variable
-            weights. Runs return the per-sample probabilities alongside
-            the variable counts, as \code{varprobs} in the sampler's results
-            and on \code{bart2} and \code{rbart_vi} fits.
-      \item \code{xbart} is reimplemented as an R-level driver over the sampler
-            interface, gaining every sampler feature. Chains now warm-start
-            only across
-            parameter settings over the same data split, never across
-            folds or replications: the retired implementation carried
-            chains between splits whose held-out rows the previous
-            training set contained, letting slowly-mixing settings (small
-            ensembles especially) score against data they had effectively
-            seen. The third element of \code{n.burn} is accordingly ignored.
-            Parallelism uses a \code{parallel} cluster over replications;
-            results are reproducible for a fixed \code{seed} and \code{n.threads}.
-            Also fixed: the weighted RMSE loss was not on the scale of the
-            response, and \code{loss = "log"} on a continuous response now
-            errors instead of silently computing RMSE. Folds now share the
-            full data's cut grid through an internal data handle instead
-            of each deriving a grid from its own training rows, so every
-            fold bins the predictors identically to a fit on all of the
-            data and creation does not re-quantize per fold; numeric
-            results shift accordingly.
-      \item \code{dbarts}, \code{bart2}, and \code{xbart} accept \code{family}: \code{"auto"} keeps
-            the existing dispatch (gaussian for continuous responses, probit
-            for 0/1), \code{"gaussian"} forces a continuous fit even for a 0/1
-            response, and \code{"logistic"} fits a logistic latent model via
-            Polya-Gamma augmentation. \code{xbart}'s built-in binary losses
-            transform test predictions through the resolved family's link.
-            A logistic
-            model accepts positive-integer count weights, a weight-w
-            observation contributing its likelihood to the w-th power;
-            a probit refuses weights (the weighted probit the pre-1.0
-            engine fit was incorrect and is not carried forward), except
-            that weights identically 1 are treated as absent, as
-            SuperLearner-style callers pass unit weights unconditionally.
-            Fits returned by \code{bart}, \code{bart2}, and \code{rbart_vi} record the
-            resolved family in a \code{family} element, and \code{predict},
-            \code{extract}, \code{fitted}, and \code{plot} transform latent draws
-            through that family's link; fits saved by earlier versions
-            lack the element and are treated as probit.
-      \item \code{fitted} and \code{predict} gain a \code{ci.level} argument: given a
-            level in (0, 1) they return a matrix of \code{est}, \code{ci.lower}, and
-            \code{ci.upper} per observation rather than the posterior mean. The
-            interval kind follows \code{type} - \code{"ev"} gives a credible interval
-            for the mean (a probability for binary responses), \code{"ppd"} a
-            wider prediction interval that carries the residual noise, and
-            \code{"bart"} a credible interval on the latent scale.
-      \item \code{dbarts} gains a \code{seed} argument mirroring
-            \code{dbartsControl(seed = )}; \code{residuals} gains a \code{type} argument
-            that reaches \code{fitted}, so link-scale residuals are available;
-            and \code{plotTree} is now a generic that plots a tree from a kept
-            \code{bart} or \code{rbart} fit directly rather than through the stored
-            sampler.
-      \item MCMC runs are now interruptible: pressing \code{Ctrl-C} during a
-            \code{bart}, \code{bart2}, \code{rbart_vi}, \code{xbart}, or sampler \code{run} stops it
-            between iterations - joining any worker threads first - and
-            returns to the prompt with an error, instead of deferring the
-            interrupt until the whole run finishes. The check is polled about
-            ten times a second and does not affect the draws.
-      \item Under \code{factors = "categorical"}, splits send a subset of a
-            factor's levels (at most 65535, see above) down each branch;
-            ordered factors are coded as ordinal. Level tables are retained
-            so test data are coded identically, with unseen levels an error.
-      \item \code{getTrees} gains, when the sampler has categorical predictors, a
-            \code{directions} column decoding each categorical rule into one
-            "L"/"R" character per level; such a rule's \code{value} is \code{NA}, as it
-            has no scalar cut point. \code{plotTree} labels categorical rules with
-            the levels sent down the left branch.
-      \item Missing values in the predictors are supported. Under
-            \code{missing = "incorporate"}, the default on \code{dbarts},
-            \code{dbartsData}, \code{bart2}, \code{xbart}, and \code{rbart_vi}, every split
-            rule learns a direction for missing values of its variable,
-            so an NA observation follows that rule's chosen branch
-            (Missingness Incorporated in Attributes; Twala et al. 2008).
-            The route is learned per column, and only where that column's
-            training values were missing: an \code{NA} in test predictors or
-            \code{newdata} is refused, naming the column, wherever that
-            column was complete in training. \code{missing = "error"} rejects
-            incomplete predictors. The response, weights, and offset must
-            be complete, and predictor columns cannot be entirely
-            missing; both interfaces previously dropped incomplete rows
-            silently.
-            \code{getTrees} reports each rule's missing route in a \code{missing}
-            column and \code{plotTree} appends it to rule labels. \code{bart}
-            refuses missing data outright, where it previously dropped the
-            incomplete rows silently. On complete data the new default draws
-            exactly as \code{missing = "error"} does.
-      \item The rewritten engine implements the full \code{dbartsSampler}
-            interface: every method works, including \code{keepTrees},
-            \code{getTrees}, \code{predict}, \code{plotTree}, \code{setWeights}, test offsets,
-            \code{printTrees}, sampling from the prior, \code{setControl},
-            \code{setModel}, verbose progress output, and saving/loading
-            sampler state (a restored sampler continues bitwise
-            identically; the stored state is opaque and incompatible with
-            states saved by previous versions). Not supported: weights
-            with binary responses, and \code{setControl} changes to settings
-            fixed at creation (chain/tree counts, generators, the cut
-            grid).
-      \item \code{\link{extract.dbartsSampler}} returns the predictor
-            matrix as a sampler currently sees it - the same numeric
-            coding \code{getTrees} replays saved trees against - reflecting
-            any \code{setPredictor} mutation since creation.
-      \item A warm start (\code{bart2}'s \code{warm.start}, or a sampler's
-            \code{installTrees}) accepts a donor fit on a different cut grid
-            (differing in \code{n.cuts}, \code{useQuantiles}, or its predictor
-            values): the donor's splits are remapped onto the
-            destination's grid, collapsing any the grid starves, the same
-            way replacing a sampler's data remaps its existing splits. A
-            donor with a different tree count or DART setting is still
-            refused.
-      \item \code{dbarts}, \code{bart2}, and \code{rbart_vi} accept \code{family = "aft"}: an
-            accelerated failure time, log-normal survival model (the forest
-            models the conditional mean of log survival time, with \code{sigma} the
-            log-scale residual standard deviation). The response is a
-            \code{survival::Surv} object (right-censoring only) or a two-column
-            \code{(time, status)} matrix or data frame; under \code{family = "auto"} a
-            \code{Surv} response selects \code{"aft"} on its own. \code{rbart_vi} adds a
-            random intercept per group to the same model, through its formula
-            interface; \code{dbarts} and \code{bart2} take the response through their
-            x/y interface. None of the three support \code{weights} or \code{subset} for
-            a survival fit. \code{predict}, \code{extract}, and \code{fitted} return the
-            log-time-scale linear predictor, never the time scale; the new
-            \code{survivalProbabilities} generic draws the survival probability
-            over a user-supplied time grid instead.
-      \item \code{bart2} accepts \code{family = "multinomial"}: a K-category softmax
-            classifier, K forests coupled through an interleaved Polya-Gamma
-            one-vs-rest augmentation. The response is a factor (or character)
-            with three or more levels, an n x K matrix of nonnegative integer
-            trial counts (one column per category), or the equivalent
-            \code{cbind(c1, ..., cK) ~ x} formula; under \code{family = "auto"} a factor
-            (or character) response with three or more levels is detected and
-            routed here, reporting the choice in a one-line message. The
-            fit's class is \code{"bartMultinomial"}, with its own \code{residuals},
-            \code{plot}, \code{summary}, \code{print}, and \code{predict} (\code{type = "ev"}/\code{"ppd"})
-            methods, separate from \code{bart}'s.
-      \item \code{family = "auto"} (\code{dbarts}, \code{bart2}, \code{xbart}, and \code{rbart_vi}
-            where applicable) now detects a factor, logical, or character
-            response: two levels resolve to probit and three or more to
-            multinomial (\code{bart2} only; elsewhere an error names the
-            limitation), each reporting the choice in a one-line message.
-            Previously such a response was either rejected outright or,
-            for three or more levels given through the x/y interface,
-            silently fit as a continuous response on the integer level codes.
+      \item A model's leaf-prior calibration can be named at creation, in
+            response units, rather than inherited from the range of the
+            vector the sampler happened to be constructed on:
+            \code{prior.scale} (the prior standard deviation of the forest
+            total at \code{k = 1}) as a \code{dbartsModel} slot, as
+            \code{node.prior = normal(scale = )} on \code{dbarts} and
+            \code{xbart} (also \code{sd = }, the same quantity at the
+            resolved \code{k}, refused under a \code{k} hyperprior), and as
+            a \code{prior.scale} argument of \code{bart}, \code{bart2}, and
+            \code{rbart_vi}; it is re-derived at every \code{setModel}, so a
+            round trip through the model object holds it, and unset,
+            nothing changes. A sampler reports the calibration actually IN
+            FORCE, per chain and per forest, with \code{$getCalibration}:
+            \code{prior.scale}, \code{prior.sd}, \code{prior.mean},
+            \code{k}, \code{k.has.hyperprior}, the response transform, and
+            a \code{leaf.model} tag. It reads the engine rather than the
+            model object, so it is the first surface to show a
+            re-anchoring channel (a \code{setResponse}, \code{setOffset},
+            or \code{setData} that re-derives the response transform)
+            moving what is in force while the named intent on the model
+            stays where it was put. For the monotone, linear, and
+            Gaussian-process leaf models the reported \code{prior.sd} is a
+            stated bound rather than an equality. \code{$setCalibration}
+            rewrites its scale half on every chain, mid-chain, touching
+            nothing else - unlike \code{setModel}, which also re-pins
+            \code{sigma} and refuses a DART sampler outright; its
+            \code{prior.sd} spelling meets the same sampled-\code{k}
+            refusal as at creation. On a multi-forest model
+            \code{$getCalibration} also reports the five calibration-map
+            quantities the combination runs under and no other surface
+            shows: the forest's amplitude prior variance or half-Cauchy
+            scale (\code{amplitude.prior.variance} and
+            \code{amplitude.prior.scale}, exclusive per forest), its
+            \code{node.scale.factor} and \code{node.scale.divisor}, and the
+            \code{basis.row.norm} the map divides out - so the induced
+            prior on a multi-forest model's combined location can be
+            reconstructed from the sampler rather than from the call,
+            including after a \code{$setForestBasis} swap re-derives the
+            row norm (\code{NaN} on a forest whose scale the map does not
+            own).
+      \item \code{\link{samplePriorPredictive}} draws repeatedly from a
+            sampler's prior - tree structure, end-node parameters, and
+            optionally response noise - and evaluates the resulting forest
+            at \code{x.test}, for inspecting a prior before ever fitting to
+            data (e.g. the implied prior on a treatment effect
+            \eqn{f(x_1) - f(x_0)}{f(x1) - f(x0)}). It runs on a freshly
+            constructed private sampler built from the caller's control,
+            model, and data, so the sampler passed in is never modified and
+            successive calls draw independently unless \code{seed} is
+            fixed. \code{type = "ev"} draws the forest sum (or the
+            link-transformed probability); \code{type = "ppd"} adds the
+            observation model on top, sigma freshly drawn from its own
+            prior each sample for a gaussian sampler. A heteroscedastic
+            sampler refuses \code{type = "ppd"} rather than returning a
+            homoscedastic prior predictive.
+      \item Several small fitting-surface additions. \code{fitted} and
+            \code{predict} gain a \code{ci.level} argument: given a level
+            in (0, 1) they return a matrix of \code{est}, \code{ci.lower},
+            and \code{ci.upper} per observation rather than the posterior
+            mean, the interval kind following \code{type} - \code{"ev"} a
+            credible interval for the mean (a probability for binary
+            responses), \code{"ppd"} a wider prediction interval carrying
+            the residual noise, and \code{"bart"} a credible interval on
+            the latent scale. \code{dbarts} gains a \code{seed} argument
+            mirroring \code{dbartsControl(seed = )}; \code{residuals}
+            gains a \code{type} argument that reaches \code{fitted}, so
+            link-scale residuals are available; and \code{plotTree} is now
+            a generic that plots a tree from a kept \code{bart} or
+            \code{rbart} fit directly rather than through the stored
+            sampler. \code{bart2} and \code{rbart_vi} default to
+            \code{combineChains = TRUE}: a multi-chain fit's draw channels
+            arrive with the chain and sample margins already merged,
+            matching what \code{summary}, \code{as_draws_df}, and most
+            downstream consumers expect without a reshape;
+            \code{combineChains = FALSE} keeps them separate, as the
+            previous default did. Finally, MCMC runs are now
+            interruptible: pressing \code{Ctrl-C} during a \code{bart},
+            \code{bart2}, \code{rbart_vi}, \code{xbart}, or sampler
+            \code{run} stops it between iterations - joining any worker
+            threads first - and returns to the prompt with an error,
+            instead of deferring the interrupt until the whole run
+            finishes; the check is polled about ten times a second and
+            does not affect the draws.
+      \item \code{predict}'s \code{n.threads} parallelizes for real, on every
+            predict method (\code{bart}, \code{bartMultinomial},
+            \code{bartOrdinal}, \code{bartNegbin}, \code{bartHurdle},
+            \code{rbart}) and on the sampler's own \code{predict} and
+            \code{predictForests}. 0.9-x partitioned a replay across chains
+            only; this partitions the saved-tree replay per (chain,
+            posterior draw), so a single-chain fit parallelizes too. Each
+            partition writes its own rows and nothing is reduced across
+            workers, so the answer is identical bit for bit at every value;
+            a replay too small to pay for the partition runs inline. The
+            argument defaults to the fit's own thread count, does not
+            persist, and is the LAST positional formal on every method, so
+            callers passing arguments by position are unaffected. A value
+            that is not a single positive number is an error. \code{run}'s
+            \code{n.threads} argument remains inert.
+      \item Reporting and diagnostics grew two surfaces with no 0.9-x
+            counterpart. Every family's pointwise log-likelihood is now
+            available for model comparison: the flat C API's
+            \code{logLikelihood} results field, and R's
+            \code{\link{extract}(type = "loglik")} (and, for the gaussian,
+            probit, logistic, and aft families, \code{pointwiseLogLikelihood}
+            directly), score each training observation at each posterior
+            draw under the family's own likelihood - the Bernoulli mass for
+            a binary family, the marginal \eqn{t_\nu}{t_nu} density for
+            \code{resid.dist = student()}, the multinomial density of the
+            observed count row, and so on, each documented under its
+            family's own fit method; when chains are combined the result is
+            a samples-by-observations matrix directly consumable by
+            WAIC/PSIS-LOO implementations such as those in the \pkg{loo}
+            package (a per-chain array, \code{combineChains = FALSE}, is
+            reordered to the draws-by-chains-by-observations shape
+            \code{loo::relative_eff} expects with
+            \code{aperm(x, c(2, 1, 3))}). Separately,
+            \code{\link{summary.bart}} (and \code{summary.rbart}) reports a
+            per-variable posterior summary of a fit's scalar parameters
+            (\code{sigma}, \code{k}, \code{tau} for \code{\link{rbart_vi}}),
+            with split-\eqn{\hat{R}}{Rhat} and effective sample size when the
+            \pkg{posterior} package is installed, and a built-in fallback
+            summary when it is not; \code{as_draws_array} and
+            \code{as_draws_df} methods for \code{bart}/\code{rbart} fits
+            convert a fit's chain-dimensioned draws to \pkg{posterior}'s
+            array/data frame conventions. All three are registered only
+            when \pkg{posterior} is installed, a \code{Suggests} rather
+            than a hard dependency.
+      \item A flat C interface for packages compiling against dbarts,
+            \code{dbarts/dbarts.h}: an opaque sampler handle over the rewritten
+            engine, created from the R specification objects, with entry
+            points for running into caller-owned buffers, the mutation
+            surface (response, offset, weights, sigma, predictors, test
+            data), latents, prediction, tree storage and introspection,
+            and state save and restore. Entry points are reached through
+            \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_MAJOR}
+            and \code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an
+            opt-in exact-ABI check, which moves on additive releases as well.
       \item New \code{dbartsSpec} resolves the \code{control}/\code{model}/\code{data} triple and
             family token that describe a sampler, without constructing one,
             for packages that embed dbarts and supply their own design
@@ -882,56 +922,15 @@
             monotonicity, interaction and block constraints, a variance
             forest, robust residuals - reachable from a \code{LinkingTo: dbarts}
             package without reaching into an unexported function.
-      \item \code{n.grow.sweeps} (\code{bart2}) and the sampler's
-            \code{growFromRoot} method build the initial forest by
-            XBART-style grow-from-root (He, Yalov and Hahn 2019): each
-            requested sweep rebuilds every tree from the root against the
-            current residual, in place of a draw from the tree prior,
-            before the ordinary Metropolis-Hastings sweeps take over. It is
-            opt-in (the default \code{n.grow.sweeps = 0L} leaves fits
-            unchanged), mutually exclusive with \code{warm.start}, and
-            leaves the targeted posterior unchanged - only where the chain
-            starts.
-      \item The \code{n.grow.sweeps} initializer now places real categorical
-            split rules instead of skipping categorical predictors, so a
-            factor-heavy design no longer pays those columns into the
-            split-variable probability while drawing nothing out. Below ten
-            categories present at a node the node's choice is exact over all
-            category subsets; above it a sorted-prefix family carries the
-            same total prior mass, so a variable's realized split mass stays
-            continuous in its level count.
-      \item With \code{dart = TRUE}, categorical predictors now receive split
-            counts during the grow sweeps, instead of the structurally zero
-            counts they always drew before, so factor signals inform the
-            sampled split-variable probabilities from the first regular
-            sweep.
-      \item The \code{n.grow.sweeps} initializer weights and scores cut
-            candidates on ordinal predictors that carry missing values
-            consistently with the rest of a node's choice. Such a predictor's
-            rules come in pairs - missing values routed left, missing values
-            routed right - and a pair now carries the prior mass of both rules
-            rather than one, so it no longer enters the choice at half its
-            weight relative to not splitting. Where a node actually holds
-            missing rows the two directions are now scored separately, each
-            with those rows in the child it sends them to; they previously
-            shared one likelihood that omitted those rows while the
-            not-splitting term counted them, which biased the choice toward
-            not splitting by an amount that grew with the missing rows'
-            responses.
       \item A sampler accepts a per-observation 0/1 active-row mask
             (\code{$setActiveRows}), which removes a row from the likelihood
-            and from the latent draws of a gaussian, Student-t, \code{probit}
-            or \code{ordinal} sampler between draws while keeping its fitted
-            value and its leaf occupancy - the row stays in the forest, just
-            not in the model this sweep. \code{NULL} clears; an all-ones mask
-            is treated as no mask; fractional or \code{NA} values are refused.
+            and from the latent draws of a gaussian, Student-t, \code{probit},
+            \code{ordinal}, \code{logistic}, \code{nbinom}, or \code{aft}
+            sampler between draws while keeping its fitted value and its
+            leaf occupancy - the row stays in the forest, just not in the
+            model this sweep. \code{NULL} clears; an all-ones mask is
+            treated as no mask; fractional or \code{NA} values are refused.
             Independent of \code{setWeights} and composes with it.
-      \item The active-row mask extends to \code{logistic}, \code{nbinom} and
-            \code{aft} samplers.
-      \item The active-row mask extends to multinomial samplers, where it
-            applies to every category at once; a per-category mask is
-            refused, since the softmax margin reads every category's forest.
-            \code{dbarts:::}-only; no public surface in this release.
       \item A sampler reports its combined per-observation location on the
             response scale WITHOUT the installed offset
             (\code{$getFitsWithoutOffset()}), which is what an outer block
@@ -940,105 +939,22 @@
             \code{$getLatents()} is biased. On a Bayesian causal forest it is
             the only route from R to the combined fit at all. Refused on a
             multinomial sampler, whose channels are per-category softmax
-            probabilities and not one additive location. There is no
-            with-offset twin; the caller adds back the offset it installed.
+            probabilities and not one additive location; there is no
+            with-offset twin, the caller adds back the offset it installed.
             \code{?dbartsSampler} gains a table of which method reports which
             scale, with or without the offset, and from the current state or
-            from stored draws.
-      \item A \code{"nbinom"} sampler reports its dispersion \eqn{r}{r} as a
-            first-class per-draw channel: \code{run()} gains a
-            \code{dispersion} element, shaped exactly as \code{sigma}, and
-            \code{$getDispersion()} reads the value in force mid-sweep. Both
-            are pure reads of state the sweep already settled on, so neither
-            consumes random numbers or changes a draw. A host driving the
-            sampler one sweep at a time no longer has to serialize the whole
-            state block to recover \eqn{r}{r}, which is how
-            \code{bart2(family = "nbinom")} itself now reads it. Both are
-            \code{NULL} on every other family - a channel absent rather than
-            an error - so a caller tests \code{!is.null()} rather than
-            comparing.
-      \item The sampler's mutators take \code{updateState} as an opt-in:
-            only an explicit \code{TRUE} refreshes the local \code{state}
-            cache, where \code{NA} used to defer to
-            \code{\link{dbartsControl}}'s own \code{updateState}. Mutators
-            are called per sweep inside a host Gibbs loop, where serializing
-            the state each time is pure cost. \code{$run},
-            \code{$sampleTreesFromPrior}, and
-            \code{$sampleNodeParametersFromPrior} keep the old convention.
-      \item \code{$setResponse} takes \code{updateScale}, as
-            \code{$setOffset} already did: at the default \code{FALSE} the
-            response transform fixed at creation carries across the swap,
-            which is what a conditional update inside a larger sampler
-            needs; \code{TRUE} re-derives it from the new response, as every
-            continuous-response swap used to. It is the second positional
-            argument and displaces \code{updateState} to third.
-      \item A sampler carrying grouped random effects - the one
-            \code{\link{rbart_vi}} returns in \code{$fit} - accepts
-            \code{$setResponse} and \code{$setOffset} at the pinned scale
-            (\code{updateScale = FALSE}, the default) instead of refusing
-            every response-side swap, so a grouped BART fits inside a larger
-            Gibbs sampler on the same terms as an ungrouped one. The group
-            effects and their scale are carried across the swap as the Gibbs
-            block they are. \code{updateScale = TRUE} is now refused on a
-            gaussian, Student-t or \code{"aft"} grouped sampler, naming the
-            effects and their scale: it re-anchored the response transform
-            underneath both while converting neither, silently restating them
-            in response units - and on \code{$setOffset} it did so without
-            any refusal at all. A grouped \code{"probit"} or
-            \code{"logistic"} sampler still accepts \code{TRUE}, where it is
-            the no-op it has always been. \code{$setData} remains refused.
-      \item A \code{"nbinom"} response is capped at \eqn{10^6}{1e6} and a
-            larger count refused, at creation and on every conduit that swaps
-            the response, on the R and the flat C surfaces alike. The
-            dispersion grid's count histogram is sized from the largest
-            count, so a bigger one allocated without bound - \code{y = 1e9}
-            asked for 8 GB and took the process down where no R error could
-            be raised. Counts at or under the bound draw exactly as before.
-      \item \code{dbarts_sampler_setWeights} refuses a weight change under
-            any family but gaussian, the rule the R sampler's
-            \code{$setWeights} and the header's own contract already stated.
-            A \code{"probit"}, \code{"ordinal"}, \code{"aft"} or
-            \code{"nbinom"} sampler installed a vector nothing reads, and a
-            \code{"logistic"} one carried a negative weight into a division
-            by zero in its working response.
-      \item \code{$getLatents} is documented per family. It reports a
-            LOCATION for \code{"probit"}, \code{"ordinal"} and \code{"aft"}
-            and a PRECISION for \code{"logistic"}, \code{"nbinom"} and a
-            Student-t residual distribution; the flat C API's
-            \code{dbarts_sampler_getLatents} comment said \dQuote{gaussian}
-            where it meant \dQuote{augments nothing}, and a gaussian-family
-            sampler with \code{resid.dist = student()} does report latents.
-            Documentation only; no value changes.
-      \item The pointwise log-likelihood channel - the flat C API's
-            \code{logLikelihood} results field, and, for a stored zero-weight
-            \code{gaussian} fit, R's \code{pointwiseLogLikelihood}/
-            \code{\link{extract}(type = "loglik")} - now reports \code{NaN}
-            at any row whose composed weight is zero, rather than a finite
-            value or \code{-Inf}: a row not in the model has no likelihood to
-            report. Previously a zero-weight \code{gaussian} row reported
-            \code{-Inf}, and a zero-weight \code{probit} or \code{ordinal}
-            row (reachable only through the active-row mask above) reported a
-            finite value. Multinomial and Bayesian causal forest fits report no
-            pointwise log-likelihood at all, with or without a mask.
-      \item The augmentation draws a non-gaussian family runs inside each
-            sweep are callable from R: \code{\link{dbartsDrawLatents}} draws
-            the latent at a supplied fit, and
-            \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}} turns it
-            into the quantity a host regresses on - which for
+            from stored draws. Built on that same offset-free location, the
+            augmentation draws a non-gaussian family runs inside each sweep
+            are callable from R too:
+            \code{\link{dbartsDrawLatents}} draws the latent at a supplied
+            fit, and \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}}
+            turns it into the quantity a host regresses on - which for
             \code{"logistic"} and \code{"nbinom"} is not the latent at all,
             those being precisions. The draws come from R's own stream, so
             \code{\link{set.seed}} reproduces them and they compose with any
-            other R draw; a sampler's chain generator is untouched. The
-            \code{fit} argument is the location WITHOUT the offset, as
-            \code{$getFitsWithoutOffset()} reports it.
-      \item \code{\link{dbartsValidateComposition}} runs simulation-based
-            calibration over a one-sweep step the caller supplies, for a model
-            the caller states as a prior draw and a simulation, and reports per
-            scalar functional whether the composed kernel targets the posterior
-            it claims. It catches the defect class in which a posterior mean is
-            reported where a draw belongs, and needs no sampler: the functionals
-            may be derived, the ranks are tie-broken, and the uniformity band is
-            corrected over the functionals ranked in the call.
+            other R draw; a sampler's chain generator is untouched, and the
+            \code{fit} argument in both is the location WITHOUT the offset,
+            as \code{$getFitsWithoutOffset()} reports it.
       \item Six named compositions ship as a vignette,
             \code{vignette("dbarts-as-a-component")}: data augmentation written
             in R, an outer block on the offset channel and its calibration
@@ -1047,41 +963,17 @@
             incremental read. Each is a runnable outer sampler and each is also
             a test cell. \code{\link{dbarts-embedding}} is the reference page
             behind them: which channel an outer block writes, which fit it
-            reads back, and whose prior is in force after a swap.
-      \item \code{\link{summary.bart}} (and \code{summary.rbart}) reports a
-            per-variable posterior summary of a fit's scalar parameters
-            (\code{sigma}, \code{k}, \code{tau} for \code{\link{rbart_vi}}),
-            with split-\eqn{\hat{R}}{Rhat} and effective sample size when the
-            \pkg{posterior} package is installed, and a built-in fallback
-            summary when it is not. \code{as_draws_array} and
-            \code{as_draws_df} methods for \code{bart}/\code{rbart} fits
-            convert a fit's chain-dimensioned draws to \pkg{posterior}'s
-            array/data frame conventions; both are registered only when
-            \pkg{posterior} is installed, a \code{Suggests} rather than a
-            hard dependency.
-      \item \code{predict}'s \code{n.threads} is wired again, on every
-            predict method (\code{bart}, \code{bartMultinomial},
-            \code{bartOrdinal}, \code{bartNegbin}, \code{bartHurdle},
-            \code{rbart}) and on the sampler's own \code{predict} and
-            \code{predictForests}. It partitions the saved-tree replay per
-            (chain, posterior draw) rather than across chains as 0.9-x did, so
-            a single-chain fit parallelizes too. Each partition writes its own
-            rows and nothing is reduced across workers, so the answer is
-            identical bit for bit at every value; a replay too small to pay for
-            the partition runs inline. The argument defaults to the fit's own
-            thread count, does not persist, and is the LAST positional formal
-            on every method, so callers passing arguments by position are
-            unaffected. A value that is not a single positive number is an
-            error. \code{run}'s \code{n.threads} argument remains inert.
-      \item \code{predict} on a \code{bart2(family = "multinomial")} fit
-            gains \code{offset.category.test}, the per-category shift at the
-            predicted rows: an \code{nrow(newdata)} x K matrix entering the
-            raw fits before the softmax, spelled as
-            \code{\link{dbartsData}}'s channel of the same name. A fit
-            trained with an \code{offset} requires it - the predicted rows
-            are not the training rows, so no resident offset describes them -
-            and passing the training offset back at the training rows
-            reproduces \code{yhat.train}.
+            reads back, and whose prior is in force after a swap. Checking
+            that a composition actually targets the posterior it claims is
+            itself a new tool: \code{\link{dbartsValidateComposition}} runs
+            simulation-based calibration over a one-sweep step the caller
+            supplies, for a model the caller states as a prior draw and a
+            simulation, and reports per scalar functional whether the
+            composed kernel is well calibrated. It catches the defect class
+            in which a posterior mean is reported where a draw belongs, and
+            needs no sampler: the functionals may be derived, the ranks are
+            tie-broken, and the uniformity band is corrected over the
+            functionals ranked in the call.
     }
   }
   \subsection{C API}{
@@ -2261,6 +2153,45 @@
             drift checkers, developer-only scripts with no role in building
             or running the package - are \code{.Rbuildignore}d and no
             longer ship in the source tarball.
+      \item \code{resid.prior = fixed(value)} now follows its documentation:
+            the residual standard deviation holds at \code{sqrt(value)}, at
+            creation and through \code{setModel} alike. The pre-1.0 engine
+            ignored the value at creation, holding sigma at its starting
+            estimate instead, and installed it as a standard deviation
+            (rather than a variance) in \code{setModel}.
+      \item A \code{"nbinom"} response is capped at \eqn{10^6}{1e6} and a
+            larger count refused, at creation and on every conduit that swaps
+            the response, on the R and the flat C surfaces alike. The
+            dispersion grid's count histogram is sized from the largest
+            count, so a bigger one allocated without bound - \code{y = 1e9}
+            asked for 8 GB and took the process down where no R error could
+            be raised. Counts at or under the bound draw exactly as before.
+      \item \code{dbarts_sampler_setWeights} now refuses a weight change on
+            any family but \code{gaussian} and \code{logistic}, the rule the
+            R sampler's \code{$setWeights} and the header's own contract
+            already state. A \code{"probit"}, \code{"ordinal"}, \code{"aft"}
+            or \code{"nbinom"} sampler previously installed a vector nothing
+            reads, and a \code{"logistic"} sampler carried a negative weight
+            into a division by zero in its working response.
+      \item The pointwise log-likelihood channel - the flat C API's
+            \code{logLikelihood} results field, and, for a stored zero-weight
+            \code{gaussian} fit, R's \code{pointwiseLogLikelihood}/
+            \code{\link{extract}(type = "loglik")} - now reports \code{NaN}
+            at any row whose composed weight is zero, rather than a finite
+            value or \code{-Inf}: a row not in the model has no likelihood to
+            report. Previously a zero-weight \code{gaussian} row reported
+            \code{-Inf}, and a zero-weight \code{probit} or \code{ordinal}
+            row (reachable only through the active-row mask) reported a
+            finite value. Multinomial and Bayesian causal forest fits report
+            no pointwise log-likelihood at all, with or without a mask.
+      \item \code{xbart}'s weighted RMSE loss was not on the scale of the
+            response, and \code{loss = "log"} on a continuous response now
+            errors instead of silently computing RMSE. Folds now share the
+            full data's cut grid through an internal data handle instead
+            of each deriving a grid from its own training rows, so every
+            fold bins the predictors identically to a fit on all of the
+            data and creation does not re-quantize per fold; numeric
+            results shift accordingly.
     }
   }
 }
