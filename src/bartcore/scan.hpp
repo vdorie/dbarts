@@ -34,6 +34,34 @@ namespace bartcore {
 inline constexpr double cutScanEmptySentinel =
   -std::numeric_limits<double>::infinity();
 
+/// Per-storage code readers for the histogram passes. Neither owns anything;
+/// both are valid only for the call that built them.
+struct DenseCodeReader {
+  const xint_t* codes;
+  xint_t operator[](std::size_t observation) const {
+    return codes[observation];
+  }
+};
+struct SparseCodeReader {
+  const SparseColumnData* column;
+  xint_t operator[](std::size_t observation) const {
+    return column->at(observation);
+  }
+};
+
+/// Call `body` with the code reader for `variable`'s storage kind. The kind is
+/// a template parameter of the body, so a histogram loop inside it resolves
+/// the storage once per scan rather than once per observation; hoisting the
+/// kind into a local does not, the reads staying a runtime choice.
+template <typename Body>
+void withColumnCodes(const ColumnStore& data, std::size_t variable,
+                     Body body) {
+  if (data.columnIsSparse(variable))
+    body(SparseCodeReader{&data.sparseColumn(variable)});
+  else
+    body(DenseCodeReader{data.column(variable)});
+}
+
 /// Constant-leaf histogram bin: the (count, sum w, sum wz) reduction the
 /// ConstantGaussianLeaf marginal consumes. count is the member tally, the
 /// histogram's own census; the occupancy contract reads sumWeights, since the
@@ -113,21 +141,18 @@ std::size_t scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
   binScratch.assign(numBins, ConstantLeafScanBin{});
   ConstantLeafScanBin missing;
 
-  // histogram the members' statistics per code, branching on storage once so
-  // the dense inner loop stays a plain gather (the common case)
-  bool dense = !data.columnIsSparse(variable);
-  const xint_t* denseColumn = dense ? data.column(variable) : nullptr;
-  const SparseColumnData* sparseColumn =
-    dense ? nullptr : &data.sparseColumn(variable);
-  for (std::size_t i = 0; i < numMembers; ++i) {
-    std::size_t obs = indices[i];
-    xint_t code = dense ? denseColumn[obs] : sparseColumn->at(obs);
-    double weight = weights == nullptr ? 1.0 : weights[obs];
-    // naCode indexes no bin: the missing rows reduce once, into the bin every
-    // candidate adds to one of its two children
-    if (code == naCode) missing.addObservation(weight, y[obs]);
-    else binScratch[code].addObservation(weight, y[obs]);
-  }
+  // histogram the members' statistics per code
+  withColumnCodes(data, variable, [&](auto codes) {
+    for (std::size_t i = 0; i < numMembers; ++i) {
+      std::size_t obs = indices[i];
+      xint_t code = codes[obs];
+      double weight = weights == nullptr ? 1.0 : weights[obs];
+      // naCode indexes no bin: the missing rows reduce once, into the bin
+      // every candidate adds to one of its two children
+      if (code == naCode) missing.addObservation(weight, y[obs]);
+      else binScratch[code].addObservation(weight, y[obs]);
+    }
+  });
 
   // node total over the non-missing bins (the left-fold order the prefix scan
   // reproduces, so a cut's right side is bitwise total - left)
@@ -281,21 +306,19 @@ std::size_t scanCategoryHistogram(const ColumnStore& data, std::size_t variable,
   if (scratch.seen.size() < numBins) scratch.seen.resize(numBins, 0);
   scratch.touched.clear();
 
-  bool dense = !data.columnIsSparse(variable);
-  const xint_t* denseColumn = dense ? data.column(variable) : nullptr;
-  const SparseColumnData* sparseColumn =
-    dense ? nullptr : &data.sparseColumn(variable);
-  for (std::size_t i = 0; i < numMembers; ++i) {
-    std::size_t obs = indices[i];
-    std::size_t code = dense ? denseColumn[obs] : sparseColumn->at(obs);
-    if (scratch.seen[code] == 0) {
-      scratch.seen[code] = 1;
-      scratch.touched.push_back(static_cast<std::uint32_t>(code));
-      scratch.bins[code] = ConstantLeafScanBin{};
+  withColumnCodes(data, variable, [&](auto codes) {
+    for (std::size_t i = 0; i < numMembers; ++i) {
+      std::size_t obs = indices[i];
+      std::size_t code = codes[obs];
+      if (scratch.seen[code] == 0) {
+        scratch.seen[code] = 1;
+        scratch.touched.push_back(static_cast<std::uint32_t>(code));
+        scratch.bins[code] = ConstantLeafScanBin{};
+      }
+      scratch.bins[code].addObservation(weights == nullptr ? 1.0 : weights[obs],
+                                        y[obs]);
     }
-    scratch.bins[code].addObservation(weights == nullptr ? 1.0 : weights[obs],
-                                      y[obs]);
-  }
+  });
 
   scratch.present.clear();
   scratch.present.reserve(scratch.touched.size());
