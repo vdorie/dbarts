@@ -223,8 +223,8 @@ should have been.
 **One admissibility decision this makes silently, and which must be stated
 rather than absorbed.** Three refusal predicates key on `categorical`:
 monotone directions (`facade.hpp:770-773`), leaf-covariate designation from a
-predictor source (`facade.hpp:814-818`), and the same from a pre-built store
-(`facade.hpp:850-851`). Under `splitsBySubset(j)` all three keep an
+predictor source (`facade.hpp:827-831`), and the same from a pre-built store
+(`facade.hpp:867-868`). Under `splitsBySubset(j)` all three keep an
 **orderedFactor column admissible**, exactly as today. For monotonicity that is
 right and already ruled: `docs/design/monotone.md:117-121` says in as many
 words that "ORDERED factors and numeric columns ... DO accept the constraint -
@@ -606,9 +606,9 @@ state is:
     design rather than by accident.** This is already safe: their only consumers
     are the linear- and GP-leaf covariate gathers (`model.hpp:1017`, `:1039`,
     `:1059`, `:1384`, `:1409`, `:1423`), the view gather
-    (`data.hpp:1443`), and the designation validity check (`facade.hpp:851`) -
+    (`data.hpp:1443`), and the designation validity check (`facade.hpp:868`) -
     and a categorical column is refused as a leaf covariate at the factory
-    (`facade.hpp:814-818`, `:850-851`). The one live question the grid fix
+    (`facade.hpp:827-831`, `:867-868`). The one live question the grid fix
     raises is settled by decision 2: an `orderedFactor` **stays admissible** as
     a leaf covariate, making it the single column kind that needs a double for
     a reason other than splitting. It is served the way every other leaf
@@ -1322,7 +1322,7 @@ that reasoning, they do not replace it.
 2. **Ordered factors REMAIN ADMISSIBLE as leaf covariates and as monotone
    directions, deliberately.** DECIDED (2026-09-01, at orchestrator discretion
    under VD grant). Under the `splitsBySubset` predicate this is what
-   `facade.hpp:770-773`, `:814-818` and `:850-851` already do; the ruling makes
+   `facade.hpp:770-773`, `:827-831` and `:867-868` already do; the ruling makes
    it intentional rather than inherited. An ordered factor designated as a
    linear- or GP-leaf covariate enters as standardized integer level codes,
    i.e. treated as equally-spaced interval data, which is the same reading that

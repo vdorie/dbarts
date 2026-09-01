@@ -582,7 +582,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (dbarts.h:228-243); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
   binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
-  (facade.hpp:890).
+  (facade.hpp:892).
 - Nameable leaf-prior calibration. The map owns it, so the write is refused on
   ANY combining sampler: `Chain::setForestPriorScale` returns `false` on
   `f >= forests_.size() || combiner_ != nullptr` (chain.hpp:1230-1231), which the
