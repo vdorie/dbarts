@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that predict fails if sampler not saved
 bartFit <- dbarts::bart(
@@ -142,6 +146,49 @@ expect_error(
   predict(bart2FitKT, testData$x, group.by = 1L),
   "'group.by' is not used by predict on a bart fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
+)
+# 'value' was predict.rbart's pre-1.0 name for 'type'; refused on every
+# predict method, not only rbart's own
+expect_error(
+  predict(bart2FitKT, testData$x, value = "ppd"),
+  "'value' is not used by predict on a bart fit: predict's channel argument is named 'type'",
+  fixed = TRUE
+)
+# a name that is neither the blocklist above nor any predict formal is
+# otherwise inert in '...' - warn once rather than silently discard it
+warningCount.bogus <- countWarnings(
+  predBogus <- predict(bart2FitKT, testData$x, bogus = 1),
+  "chkDotsWarning"
+)
+expect_equal(warningCount.bogus, 1L)
+expect_true(!is.null(predBogus))
+
+# a subclass method with its own formal that reaches predict.bart's '...'
+# through NextMethod() must warn, never refuse, on that formal's name: the
+# caller supplied it to a real argument of the subclass method, not a typo
+predict.dbartsThrowawaySubclass <- function(
+  object,
+  newdata,
+  ...,
+  extra = NULL
+) {
+  NextMethod()
+}
+throwawayFit <- bart2FitKT
+class(throwawayFit) <- c("dbartsThrowawaySubclass", class(throwawayFit))
+warningCount.subclass <- countWarnings(
+  predSubclass <- predict(throwawayFit, testData$x, extra = "unused"),
+  "chkDotsWarning"
+)
+expect_equal(warningCount.subclass, 1L)
+expect_true(!is.null(predSubclass))
+rm(
+  predict.dbartsThrowawaySubclass,
+  throwawayFit,
+  warningCount.bogus,
+  predBogus,
+  warningCount.subclass,
+  predSubclass
 )
 
 groupBy <- rep(1:2, length.out = nrow(testData$x))

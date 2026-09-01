@@ -344,6 +344,7 @@ predict.bart <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bart)))
     )
   )
+  chkDots(...)
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
@@ -1334,6 +1335,7 @@ predict.bartMultinomial <- function(
       )
     )
   )
+  chkDots(...)
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
@@ -1639,6 +1641,7 @@ predict.bartOrdinal <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
     )
   )
+  chkDots(...)
   refusePredictOffsetChannel(offset, "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["thresholds.raw"]])) {
@@ -1918,6 +1921,7 @@ predict.bartNegbin <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartNegbin)))
     )
   )
+  chkDots(...)
   if (is.null(object[["dispersion.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -2162,8 +2166,17 @@ predictForeignReasons <- list(
   weights = "this family's posterior-predictive draw takes no per-observation weight",
   bases = "only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   group.by = "'group.by' is the grouped (rbart_vi) fit's own predict argument",
-  contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")"
+  contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")",
+  value = "predict's channel argument is named 'type'"
 )
+
+# Every predict method's own dots are otherwise inert (handed nowhere but to
+# refuseUnusedGenericArgs above), so a name that survives the blocklist -
+# neither a foreign name from another method of this surface nor a
+# class-specific one - would otherwise be silently discarded rather than
+# pointing the caller at a typo. base's chkDots warns on it (never errors,
+# so a subclass method forwarding its own extra formals through NextMethod's
+# '...' is not refused for arguments its caller legitimately supplied).
 
 extractReplaysNothingReason <- "extract reads stored channels and replays nothing"
 extractForeignReasons <- list(
@@ -2481,6 +2494,7 @@ predict.bartHurdle <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartHurdle)))
     )
   )
+  chkDots(...)
   refusePredictOffsetChannel(offset, "bartHurdle")
   if (is.null(object$occupancy[["fit"]])) {
     refuseWithoutTrees("predict")
@@ -2549,6 +2563,7 @@ predict.rbart <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.rbart)))
     )
   )
+  chkDots(...)
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)

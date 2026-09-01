@@ -2280,6 +2280,11 @@
             out-of-sample offset formal on these two methods is
             \code{offset} - instead of silently dropping it into
             \code{\dots}.
+      \item Every \code{predict} method now refuses \code{value} by name
+            (\code{predict.rbart} already did, with its own more specific
+            message naming \code{type}); any other name that is neither a
+            formal nor a recognized foreign one now warns instead of
+            vanishing silently into \code{\dots}.
       \item \code{Depends} now states \code{R (>= 4.2.0)}, where 0.9-34's
             floor was \code{R (>= 3.1-0)}: the C++20 \code{concept}
             declarations in the sampler's core need a compiler newer than
