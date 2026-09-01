@@ -5379,15 +5379,15 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
   });
 }
 
-// State serialization. The returned object is engine-specific and opaque:
-// one list per chain (flattened trees, the saved-tree buffer, accumulated
-// fits, per-tree observation orderings, internal-scale sigma, k, the
-// response transform, latents, dart state, and the serialized rng), with
-// the store's cut points and the saved-tree write position as attributes.
-// A sampler restored from it over the same data continues bitwise
-// identically to one that was never stored; the stored transform makes
-// that hold even when setOffset(updateScale) moved the scale after
-// creation.
+// State serialization. The returned object is engine-specific and opaque: one
+// list per chain (flattened live and saved trees with each forest's k and leaf
+// scale, original-scale sigma, the response transform at capture, latents and
+// their per-family companions, group, glue and dart state, and the serialized
+// rng), with the store's cut points, the saved-tree write position, the draws
+// it is read against, and the format version as attributes. Restore reinstalls
+// the captured transform - a scale setOffset(updateScale) moved after creation
+// survives - and rebuilds the rest canonically, partitions and fits from the
+// trees, so a restored sampler continues EQUIVALENTLY, not bitwise.
 
 // flattened trees as parallel R vectors: concatenated 1-based-with-(-1)
 // variables, tagged 8-byte payloads, per-tree node counts, and flags (the
