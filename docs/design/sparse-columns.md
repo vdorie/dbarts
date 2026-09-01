@@ -145,9 +145,9 @@ vocabulary.md planned addition 4): the two-pointer partition over
 engine uses it for every sparse ordinal partition including the root -
 misc_partitionRange assumes identity index content, which holds only on
 the dense path - so a streaming range variant remains headroom. Columns
-with missing values take an engine-side scalar MIA sibling
-(partitionIndicesSparseMIA), mirroring partitionIndicesMIA over the rank
-accessor. Tree descent (findBottomNodeForObservation) and state-restore
+with missing values take the missing-aware arm of the engine-side
+Tree::partitionIndicesScalar, over the rank accessor rather than a dense
+column. Tree descent (findBottomNodeForObservation) and state-restore
 partition checks (setPartitionsFromOrderedIndices) go through a
 storage-aware codeAt(j, i). Test codes stay dense row-major and x.test
 stays a dense matrix: quantization only reads cut points.
@@ -206,7 +206,7 @@ Landed per the plan; deltas and specifics:
 - misc_partitionIndicesSparse lives in src/misc/partition.c as a plain
   exported function (no dispatch pointer until a SIMD variant exists),
   mirroring the scalar two-pointer body exactly. MIA columns take the
-  engine-side partitionIndicesSparseMIA in tree.hpp.
+  engine-side missing-aware arm of Tree::partitionIndicesScalar (tree.hpp).
 - ColumnStore: codeOffsets indexes the single packed codes vector
   (j * n for dense builds, packed among densified columns for CSC
   builds); rank columns live in SparseColumnData slots keyed by

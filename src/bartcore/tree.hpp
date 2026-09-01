@@ -753,73 +753,58 @@ public:
     return lo;
   }
 
-  /// Two-pointer in-place partition by category mask: bit-clear codes go
-  /// left. The mask analogue of misc_partitionIndices, sans SIMD.
-  static size_t partitionIndicesByMask(const xint_t* column,
-                                       std::uint64_t directions,
+  /// How a scalar partition reads a column's codes: a contiguous dense array
+  /// or the rank-bitmap layout.
+  enum class CodeStorage { dense, sparse };
+  template <CodeStorage storage>
+  using PartitionColumn =
+    std::conditional_t<storage == CodeStorage::dense, const xint_t*,
+                       const SparseColumnData&>;
+
+  /// What a scalar partition tests a code against, and with it the type of the
+  /// rule payload the caller supplies: an inline 64-bit category mask by
+  /// value, a pooled rule's mask words, or the Rule itself for the ordinal
+  /// split with a direction for the reserved missing code.
+  enum class PartitionRule { inlineMask, pooledMask, missingAware };
+
+  /// The missing-aware test's operands, decoded from the rule once rather than
+  /// per observation.
+  struct MissingAwareSplit {
+    int32_t splitIndex;
+    bool missingGoesRight;
+  };
+
+  /// The scalar partitions the SIMD kernels do not cover, over the (storage,
+  /// rule) cross product: category membership on either storage, and the
+  /// missing-aware ordinal compare on either. The inline-mask arms carry the
+  /// shift's code < 64 invariant, which is what confines them to a column of
+  /// at most 63 categories plus the reserved missing position.
+  ///
+  /// The swap sequence is partitionByPredicate's, so every instantiation
+  /// produces the same index permutation - and thus the same downstream
+  /// sufficient-statistic summation order - as a hand-written loop would.
+  template <CodeStorage storage, PartitionRule rule, typename Payload>
+  static size_t partitionIndicesScalar(PartitionColumn<storage> column,
+                                       const Payload& payload,
                                        index_t* indices, size_t length) {
+    auto test = [&] {
+      if constexpr (rule == PartitionRule::missingAware)
+        return MissingAwareSplit{payload.splitIndex(),
+                                 payload.missingGoesRight()};
+      else
+        return payload;  // a mask arrives already decoded
+    }();
     return partitionByPredicate(indices, length, [&](index_t i) {
-      return ((directions >> column[i]) & 1u) != 0;
-    });
-  }
-
-  /// The pooled-mask sibling of partitionIndicesByMask: the direction bit
-  /// for a code lives in the rule's pool words.
-  static size_t partitionIndicesByWideMask(const xint_t* column,
-                                           const std::uint64_t* directions,
-                                           index_t* indices, size_t length) {
-    return partitionByPredicate(indices, length, [&](index_t i) {
-      return maskTestBit(directions, column[i]);
-    });
-  }
-
-  /// The sparse sibling of partitionIndicesByMask: an inline categorical
-  /// membership partition (up to 63 levels) reading codes through the
-  /// rank-bitmap layout instead of a dense array.
-  static size_t partitionIndicesSparseByMask(const SparseColumnData& column,
-                                             std::uint64_t directions,
-                                             index_t* indices, size_t length) {
-    return partitionByPredicate(indices, length, [&](index_t i) {
-      return ((directions >> column.at(i)) & 1u) != 0;
-    });
-  }
-
-  /// The sparse sibling of partitionIndicesByWideMask: a pooled categorical
-  /// membership partition (more than 63 levels) over the rank-bitmap layout.
-  static size_t partitionIndicesSparseByWideMask(
-      const SparseColumnData& column, const std::uint64_t* directions,
-      index_t* indices, size_t length) {
-    return partitionByPredicate(indices, length, [&](index_t i) {
-      return maskTestBit(directions, column.at(i));
-    });
-  }
-
-  /// partitionIndicesMIA over rank-bitmap storage: the sparse sibling of
-  /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
-  /// sparse columns).
-  static size_t partitionIndicesSparseMIA(const SparseColumnData& column,
-                                          const Rule& rule, index_t* indices,
-                                          size_t length) {
-    int32_t splitIndex = rule.splitIndex();
-    bool missingGoesRight = rule.missingGoesRight();
-    return partitionByPredicate(indices, length, [&](index_t i) {
-      xint_t code = column.at(i);
-      return code == naCode ? missingGoesRight
-                            : static_cast<int32_t>(code) > splitIndex;
-    });
-  }
-
-  /// Two-pointer ordinal partition aware of the reserved missing code:
-  /// codes at or below the split go left, missing codes go by the rule's
-  /// direction. The scalar fallback for columns containing NAs.
-  static size_t partitionIndicesMIA(const xint_t* column, const Rule& rule,
-                                    index_t* indices, size_t length) {
-    int32_t splitIndex = rule.splitIndex();
-    bool missingGoesRight = rule.missingGoesRight();
-    return partitionByPredicate(indices, length, [&](index_t i) {
-      xint_t code = column[i];
-      return code == naCode ? missingGoesRight
-                            : static_cast<int32_t>(code) > splitIndex;
+      xint_t code;
+      if constexpr (storage == CodeStorage::dense) code = column[i];
+      else code = column.at(i);
+      if constexpr (rule == PartitionRule::inlineMask)
+        return ((test >> code) & 1u) != 0;
+      else if constexpr (rule == PartitionRule::pooledMask)
+        return maskTestBit(test, code);
+      else
+        return code == naCode ? test.missingGoesRight
+                              : static_cast<int32_t>(code) > test.splitIndex;
     });
   }
 
@@ -842,60 +827,57 @@ public:
     size_t numOnLeft = 0;
     if (node.numObservations() > 0) {
       size_t variable = static_cast<size_t>(node.rule.variableIndex);
+      index_t* segment = indices + node.begin;
+      size_t numMembers = node.numObservations();
       if (data.types[variable] == ColumnType::categorical) {
+        bool pooled = data.columnIsPooled(variable);
         if (data.columnIsSparse(variable)) {
-          const SparseColumnData& sparse = data.sparseColumn(variable);
-          if (data.columnIsPooled(variable)) {
-            numOnLeft = partitionIndicesSparseByWideMask(
-              sparse, maskWordsFor(node.rule), indices + node.begin,
-              node.numObservations());
-          } else {
-            numOnLeft = partitionIndicesSparseByMask(
-              sparse, node.rule.categoryDirections(), indices + node.begin,
-              node.numObservations());
-          }
+          const SparseColumnData& column = data.sparseColumn(variable);
+          numOnLeft = pooled
+            ? partitionIndicesScalar<CodeStorage::sparse,
+                                     PartitionRule::pooledMask>(
+                column, maskWordsFor(node.rule), segment, numMembers)
+            : partitionIndicesScalar<CodeStorage::sparse,
+                                     PartitionRule::inlineMask>(
+                column, node.rule.categoryDirections(), segment, numMembers);
         } else {
           const xint_t* column = data.column(variable);
-          if (data.columnIsPooled(variable)) {
-            numOnLeft = partitionIndicesByWideMask(column,
-                                                   maskWordsFor(node.rule),
-                                                   indices + node.begin,
-                                                   node.numObservations());
-          } else {
-            numOnLeft = partitionIndicesByMask(column,
-                                               node.rule.categoryDirections(),
-                                               indices + node.begin,
-                                               node.numObservations());
-          }
+          numOnLeft = pooled
+            ? partitionIndicesScalar<CodeStorage::dense,
+                                     PartitionRule::pooledMask>(
+                column, maskWordsFor(node.rule), segment, numMembers)
+            : partitionIndicesScalar<CodeStorage::dense,
+                                     PartitionRule::inlineMask>(
+                column, node.rule.categoryDirections(), segment, numMembers);
         }
       } else if (data.columnIsSparse(variable)) {
         // in-place partition at the root too: misc_partitionRange assumes
         // identity index content, which only the dense path maintains
         const SparseColumnData& column = data.sparseColumn(variable);
         if (data.hasMissing[variable]) {
-          numOnLeft = partitionIndicesSparseMIA(column, node.rule,
-                                                indices + node.begin,
-                                                node.numObservations());
+          numOnLeft = partitionIndicesScalar<CodeStorage::sparse,
+                                             PartitionRule::missingAware>(
+            column, node.rule, segment, numMembers);
         } else {
           numOnLeft = misc_partitionIndicesSparse(
             column.bits.data(), column.wordRanks.data(),
             column.nzCodes.data(), column.zeroCode,
-            static_cast<misc_xint_t>(node.rule.splitIndex()),
-            indices + node.begin, node.numObservations());
+            static_cast<misc_xint_t>(node.rule.splitIndex()), segment,
+            numMembers);
         }
       } else {
         const xint_t* column = data.column(variable);
         bool isRoot = node.parent == invalidNode;
         if (data.hasMissing[variable]) {
-          numOnLeft = partitionIndicesMIA(column, node.rule,
-                                          indices + node.begin,
-                                          node.numObservations());
+          numOnLeft = partitionIndicesScalar<CodeStorage::dense,
+                                             PartitionRule::missingAware>(
+            column, node.rule, segment, numMembers);
         } else {
           numOnLeft = isRoot
             ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
-                                  indices + node.begin, node.numObservations())
+                                  segment, numMembers)
             : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
-                                    indices + node.begin, node.numObservations());
+                                    segment, numMembers);
         }
       }
     }

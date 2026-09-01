@@ -3058,9 +3058,13 @@ static void testSparseCategoricalColumnStore() {
       for (std::uint64_t mask : masks) {
         std::vector<index_t> a(segment), b(segment);
         size_t leftDense =
-          Tree::partitionIndicesByMask(dense, mask, a.data(), a.size());
-        size_t leftSparse = Tree::partitionIndicesSparseByMask(
-          sparse, mask, b.data(), b.size());
+          Tree::partitionIndicesScalar<Tree::CodeStorage::dense,
+                                       Tree::PartitionRule::inlineMask>(
+            dense, mask, a.data(), a.size());
+        size_t leftSparse =
+          Tree::partitionIndicesScalar<Tree::CodeStorage::sparse,
+                                       Tree::PartitionRule::inlineMask>(
+            sparse, mask, b.data(), b.size());
         allOk &= leftDense == leftSparse && a == b;
       }
     } else {
@@ -3070,10 +3074,14 @@ static void testSparseCategoricalColumnStore() {
         for (std::uint32_t c = 0; c < config.K; ++c)
           if ((c + static_cast<std::uint32_t>(m)) % 3 == 0) maskSetBit(mask.data(), c);
         std::vector<index_t> a(segment), b(segment);
-        size_t leftDense = Tree::partitionIndicesByWideMask(
-          dense, mask.data(), a.data(), a.size());
-        size_t leftSparse = Tree::partitionIndicesSparseByWideMask(
-          sparse, mask.data(), b.data(), b.size());
+        size_t leftDense =
+          Tree::partitionIndicesScalar<Tree::CodeStorage::dense,
+                                       Tree::PartitionRule::pooledMask>(
+            dense, mask.data(), a.data(), a.size());
+        size_t leftSparse =
+          Tree::partitionIndicesScalar<Tree::CodeStorage::sparse,
+                                       Tree::PartitionRule::pooledMask>(
+            sparse, mask.data(), b.data(), b.size());
         allOk &= leftDense == leftSparse && a == b;
       }
     }

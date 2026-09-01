@@ -124,16 +124,16 @@ SIMD specializations only when profiling justifies them.
 1. **Width variants**: partition and (where profitable) scan kernels for u8
    codes alongside u16; table index becomes (rule kind, width).
 2. **Categorical membership partition**: LANDED, but not as a misc.a kernel -
-   dense categorical membership landed engine-side as
-   partitionIndicesByMask (inline, <= 63 levels) and
-   partitionIndicesByWideMask (pooled, > 63 levels) in src/bartcore/tree.hpp,
-   reading a dense `const xint_t*` column. The sparse-categorical sibling
-   (docs/plans/archive/data-ownership-5-sparse.md) mirrors both as
-   partitionIndicesSparseByMask / partitionIndicesSparseByWideMask, reading
-   through SparseColumnData::at instead. Both pairs live next to the sparse
-   MIA partition (partitionIndicesSparseMIA, tree.hpp) and are dispatched
-   from partitionChildren's categorical branch (dense vs. columnIsSparse),
-   scalar throughout - no table-lookup/shuffle SIMD variant was built.
+   categorical membership landed engine-side as
+   Tree::partitionIndicesScalar in src/bartcore/tree.hpp, one template over
+   a storage tag (a dense `const xint_t*` column or SparseColumnData::at)
+   and a rule tag (an inline mask for <= 63 levels, a pooled mask above
+   that, or the missing-aware ordinal compare), the rule payload being its
+   third parameter. The sparse arms are the sibling
+   docs/plans/archive/data-ownership-5-sparse.md asked for.
+   partitionChildren instantiates the arm for the column's storage tier and
+   the rule's kind, scalar throughout - no table-lookup/shuffle SIMD variant
+   was built.
 3. **NA-aware variants**: a reserved per-column NA code plus a
    goes-left/right flag folded into the rule encoding; kernels take the
    encoded rule rather than a bare cut once missingness lands (phase 4).
