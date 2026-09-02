@@ -537,6 +537,37 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Every warning classed under dbartsWarning, rule R15 (be6e372b, dbb58595, 2026-09-02)
+
+Rule R15 of [[docs/design/error-style.md#R15. Warning classes]], ruled
+2026-09-02: every warning the package raises is signaled as a classed
+condition, `c("dbarts<Thing>Warning", "dbartsWarning")`, where Thing names
+the condition reported and sites reporting one condition share a class;
+message bodies are unchanged; each class is documented in one sentence on
+the help page of the exported function whose call raises it. Before this
+slice four classes existed and 25 sites raised bare `warning()` calls.
+
+Landed: eight new classes over those 25 sites - dbartsPositionalArgsWarning
+(`$setResponse`'s once-per-session positional warning through
+[[R/utility.R#warnOnce]], test columns matched by position, massign's
+position-only case), dbartsIgnoredArgWarning, dbartsUnmeasuredLevelsWarning,
+dbartsFallbackWarning with the subclasses dbartsThreadFallbackWarning and
+dbartsDrawFallbackWarning, dbartsDegenerateResponseWarning and
+dbartsDuplicateNameWarning; twelve classes in all, inventory in R15.
+Thirteen class pins across nine tinytest files. Help pages touched: dbarts,
+bart, bart2, xbart, dbartsData, dbartsSampler-class, pdbart, rbart and
+sparseFactor, which had claimed the sparse sigma fallback was silent. The
+review split the implementer's single fallback class three ways: a caller
+promoting the exhausted-rejection draw fallback to an error with
+`options(warn = 2)` must not also promote a threading notice. massign's
+three sites are classed but documented on no page, since no exported call
+reaches them.
+
+Gates at dbb58595: tinytest 7684/0; air and tree-wide lintr clean; R CMD
+check --as-cran OK with no warning or note; NEWS 340 entries;
+check-doc-freshness OK; check-rc-codoc OK; pkgdown no problems. No src/
+change, so draws are untouched and no baseline was re-recorded.
+
 ### UBSAN null-source memcpy in the test-store build and the tree-column emit (05207e5e, 76936292, 2d254700, 2026-09-02)
 
 The sanitizer workflow went red on d28b087b with every test passing:
