@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### setForestBasis names the missing amplitudes; the tour's column-mask bullet corrected (849f08ea, b6d236e0, 2026-09-02)
+
+`$setForestBasis` on a sampler that carries no forest amplitudes now
+refuses with "$setForestBasis is not available on a sampler that carries
+no forest amplitudes: amplitudes are fixed at creation; make a new
+sampler instead", the R14 mutation-guard shape, instead of "forest index
+out of range", which stays for a genuine out-of-range index on a sampler
+that does carry them ([[R/dbarts.R#dbartsSampler$setForestBasis]]; pinned
+in [[test-forest-basis-r5.R#"carries no forest amplitudes"]]). This was
+the last live numbered finding of the 2026-08-24 review. The tour's
+section 4 bullet claiming that test-blocks.R cited a columnMask refusal
+test test-interactions.R no longer holds was itself wrong: the test is
+there, the warm-start refusal of a cross-moderator donor with the
+"column restriction" error, and the bullet now states only the untested
+setState containment path. Gates at 849f08ea: tinytest 7685/0, run by
+the implementer and again by the orchestrator; air and lintr clean;
+R CMD check --as-cran OK; check-doc-freshness OK; check-rc-codoc OK.
+
 ### Review-path documentation sweep before the human review (b5b86152, 2026-09-02)
 
 Three read-only verifiers opened every cite and every checkable claim in

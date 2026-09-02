@@ -4,7 +4,7 @@ Manifest of every `docs/plans/*.md` implementation plan (30 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
-18f47358, 2026-09-02 -
+849f08ea, 2026-09-02 -
 see `docs/README.md` for how this index relates to the other navigation
 surfaces. See `docs/design/INDEX.md`
 for the paired design docs. 132 further plans that are LANDED/CLOSED/NO-GO
@@ -96,7 +96,7 @@ Columns: `file | STATUS | one-liner`.
 | correctness-audit.md | REFERENCE | Re-derives every acceptance ratio and conjugate update term by term; all confirmed correct. |
 | release-candidate-review.md | SPECCED (2026-08-17, in execution) | The pre-release-candidate review program and its log of findings and fixes. |
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | Records nine pre-release-candidate decisions on the public surface: the `predict()` signature order, the `keepTrees` refusal wording, the stub version check, `dbarts.h` type/naming fixes, deprecation shims, composition refusals, the BCF baseline format, and the NA-at-predict refusal. |
-| bartcore-review-tour.md | Current at 18f47358 | The merge review: what breaks for users and consumers, what each gate proves, the risks, the one open scope question, and an ordered code walk. |
+| bartcore-review-tour.md | Current at 849f08ea | The merge review: what breaks for users and consumers, what each gate proves, the risks, the one open scope question, and an ordered code walk. |
 | pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | Four reviews run ahead of VD's own manual read (staleness, completeness, YAGNI, agent accumulation), and the cleanup they led to. |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)

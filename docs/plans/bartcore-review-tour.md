@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 18f47358 (bartcore), 2026-09-02.
+Current at 849f08ea (bartcore), 2026-09-02.
 
 This is the case for merging bartcore into main. Sections 0-5 are what
 you need to rule on it; the code is current at the tip named above.
