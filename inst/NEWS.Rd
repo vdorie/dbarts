@@ -30,6 +30,15 @@
             binary response previously inherited the hyperprior.
       \item Sampler states saved by earlier versions cannot be restored;
             refit anything you need to continue.
+      \item A \code{dbartsData} object saved by an earlier version keeps the
+            design and column types it was built with; loading one does not
+            upgrade it, and it fits differently from an object freshly built
+            over the same data frame. There is no upgrade path for an ordered
+            factor in particular: a column's type rides the \code{varTypes}
+            slot, and the code an ordered factor carried before this version
+            is the code a numeric column carries, so nothing in the stored
+            object tells the two apart. Rebuild any saved data object with
+            \code{dbartsData} to fit under the current coding.
       \item Packages compiling against dbarts must port to the flat C API in
             \code{dbarts/dbarts.h}. The C++ headers -
             \code{dbarts/R_C_interface.hpp}, \code{dbarts/bartFit.hpp} and
@@ -864,6 +873,20 @@
             container a mixed frame assembles into is documented as
             \code{\link{dbartsMixedMatrix}}, with its own \code{dim},
             \code{dimnames}, \code{[}, and \code{as.matrix} methods.
+      \item An ordered factor predictor splits between every adjacent pair of
+            its levels. Such a column is coded ordinal on its level codes,
+            and its split grid is the midpoints between consecutive
+            \emph{declared} levels - one candidate threshold per level
+            boundary - so every pair of neighboring levels can be told apart,
+            each distinct threshold enters the split prior with the same
+            weight as any other, and a level that appears in test data but
+            not in training still has its own boundary. \code{n.cuts} does
+            not apply to such a column, exactly as it does not to an
+            unordered factor: a factor's grid follows its level table, and a
+            column wanting a fixed number of cut points over a range is a
+            numeric one. An ordered factor is limited to 65534 levels, one
+            below the unordered limit below, and a wider one is an error
+            naming the column.
       \item Categorical predictors support up to 65535 levels, where a
             0.9-x categorical rule held its directions in a single 32-bit
             word: a rule's mask lives inline up to 63 levels and is pooled
