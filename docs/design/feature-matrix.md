@@ -34,7 +34,7 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at 30a53dbf - the cited line
+Anchors are verified BY CONTENT against the tree at d477a46b - the cited line
 holds the construct the cell names, never an offset from another anchor - and a
 cell's VALUE is adjudicated separately from its anchor.
 
@@ -219,8 +219,8 @@ cut grid rests on it plus `benchmarks/R/categorical-exact.R`'s
 ordered-factor arm.
 
 Flat-C test coverage is thinner than family reach: `inst/tinytest/test-capi.R`
-drives only the `""`/`"probit"` tokens plus grouped (:785) and heteroscedastic
-(:803) by control attribute, and BCF (:1475) through `forests =
+drives only the `""`/`"probit"` tokens plus grouped (:826) and heteroscedastic
+(:844) by control attribute, and BCF (:1528) through `forests =
 list(forest(basis = ...))`. logistic, aft, ordinal and nbinom are reachable
 through dbarts.h and untested there.
 
