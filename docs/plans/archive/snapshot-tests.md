@@ -19,7 +19,7 @@ reference objects, labeled as seeded-drift tripwires.
   test-rbart-reproducibility.R (~5), test-xbart-reproducibility.R (~2).
 - Regeneration today replays whole files ("draws depend on the
   preceding fits through R's stream position and last-ulp arithmetic",
-  [[test-rbart-reproducibility.R:118-119@3a36190e]]).
+  [[inst/tinytest/test-rbart-reproducibility.R:118-119@c4391bf2]]).
 - Their original oracle (BayesTree cross-package values) is dead; their
   remaining value is a CI-run tripwire for unintended seeded-result
   drift. Correctness lives in the exact-posterior gates and component
