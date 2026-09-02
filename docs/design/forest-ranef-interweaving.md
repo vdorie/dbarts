@@ -38,7 +38,7 @@ Gibbs.
 in one joint proposal" overstates stan4bart: the HMC block marginalizes
 only WITHIN the parametric block (b, Sigma); the (f, b) ridge itself is
 still traversed by alternation - stan4bart runs one BART sweep per
-parametric draw (stan4bart init.cpp:642). The strongest-evidence claim
+parametric draw (stan4bart's init.cpp). The strongest-evidence claim
 should read: joint moves pay within the parametric block, and whether
 composition helps the cross-block ridge is measured, not established -
 see docs/design/tree-mixing-proposals.md (parametric absorption).
@@ -78,24 +78,24 @@ narrow corner (section 6). That tension is the go/no-go.
 The Gibbs blocks per raw sweep, as run() drives them:
 
 1. `f | b` -- one tree sweep of the mean forest against the working response
-   `z_i - b_{g(i)}` (GroupedResponse::workingResponse, model.hpp:4902-4906),
-   backfit tree-by-tree (chain.hpp:1418-1530). This is where f sees the group
+   `z_i - b_{g(i)}` ([[model.hpp#GroupedResponse::workingResponse]]),
+   backfit tree-by-tree ([[chain.hpp#Chain::run]]). This is where f sees the group
    intercepts subtracted, so f fits the residual-of-b.
-2. `b | f` -- refreshLatents (chain.hpp:1535) calls GroupedResponse::
-   refreshLatents (model.hpp:4746-4779), which draws b_j conjugately from the
+2. `b | f` -- refreshLatents ([[chain.hpp#Chain::run]]) calls GroupedResponse::
+   refreshLatents ([[model.hpp#GroupedResponse::refreshLatents]]), which draws b_j conjugately from the
    group means of `z_i - F_i` with F = f-only fits (drawGroupEffects,
-   model.hpp:4668-4691; called at :4750-4753 with the combined = f-only fits).
+   [[model.hpp#drawGroupEffects]]; called from [[model.hpp#GroupedResponse::refreshLatents]] with the combined = f-only fits).
 3. `tau | b` -- exact Makalic-Schmidt cauchy draw (drawTauCauchyExactIG,
-   model.hpp:4647-4657) or slice for the gamma prior.
-4. `sigma | f, b` -- drawSigma on the shifted fits (chain.hpp:1545,
-   model.hpp:4782-4786).
+   [[model.hpp#drawTauCauchyExactIG]]) or slice for the gamma prior.
+4. `sigma | f, b` -- drawSigma on the shifted fits ([[chain.hpp#Chain::run]],
+   [[model.hpp#GroupedResponse::drawSigma]]).
 
 Blocks 1 and 2 are the ridge: f conditions on the current b, b conditions on the
 current f, and neither integrates the other out. When x carries group-level
 structure (the common applied case: groups correlate with covariates), f can
 absorb part of each `fbar_j` and b absorbs the rest; the pair traverses the
 `fbar_j + b_j = const` ridge one block at a time, slowly. The GroupedResponse
-decorator (model.hpp:4706) presents only `(z, w)` to the forest, so it CANNOT
+decorator ([[model.hpp#GroupedResponse]]) presents only `(z, w)` to the forest, so it CANNOT
 see the coupling -- the collapse cannot live in the decorator (section 3).
 
 ## 2. The measured bottleneck (HEAD, benchmarks/R/grouped-mixing.R)
@@ -165,11 +165,11 @@ untouched (block 3), independent of f given b.
 
 The constant leaf's marginal and draw depend on a node ONLY through
 `(sumWeights, sumWeightedResponse)` against a SCALAR `residualVariance`
-(logIntegratedLikelihood model.hpp:165-183; drawFromPosterior model.hpp:186-198;
-posteriorPrecision = sumWeights/residualVariance, model.hpp:174,190), and the
+([[model.hpp#ConstantGaussianLeaf::logIntegratedLikelihood]]; [[model.hpp#ConstantGaussianLeaf::drawFromPosterior]];
+posteriorPrecision = sumWeights/residualVariance, [[model.hpp#posteriorPrecision]]), and the
 birth/death score sums that per-leaf marginal independently across leaves
-(logLikelihoodForBranch moves.hpp:67; metropolisJumpForTree moves.hpp:844; the
-cached node stat moves.hpp:280-281). The compound-symmetry covariance BREAKS
+([[moves.hpp#logLikelihoodForBranch]]; [[moves.hpp#metropolisJumpForTree]]; the
+cached node stat [[moves.hpp#birthOrDeathMove]]). The compound-symmetry covariance BREAKS
 this: the Woodbury correction couples every leaf that a group touches, so a
 node's `(sumWeights, sumWeightedResponse)` is no longer a sufficient statistic
 -- the leaf marginal needs, per group overlapping the leaf, the group's total
@@ -332,7 +332,7 @@ Per review section 5 (the migration battery), unchanged in shape:
   equivalence scenarios use the GAMMA prior (tau-cauchy-exact-ig.md);
   a cauchy-branch collapse would need a cauchy-grouped z-summary added, or the
   scenarios re-recorded under cauchy.
-- The custom-prior R loop (rbart.R:868-1042) stays untouched and must keep
+- The custom-prior R loop ([[rbart.R#rbart_vi_fit]]) stays untouched and must keep
   working -- a custom prior forcing the cauchy density is the cross-check the
   grouped landing used.
 - grouped-mixing.R (this arc's gate) re-run: the collapse must drop the Part B
@@ -380,8 +380,8 @@ they touch:
 - COST/NOVELTY (softens section 3.2). "Widest surgery / off the clean
   ResponseModel-decorator seam / from-scratch" OVERSTATES novelty: a coupled-
   scoring seam ALREADY exists - ParamScoringLeafModel + logLikelihoodForBranch-
-  WithParams (model.hpp:145-152,729), used live by MonotoneConstantGaussianLeaf
-  in the sweep (chain.hpp:1479-1480). A GroupCollapsedGaussianLeaf would RIDE that
+  WithParams ([[model.hpp#ParamScoringLeafModel, MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams]]), used live by MonotoneConstantGaussianLeaf
+  in the sweep ([[chain.hpp#maintainMonotoneLeafStore]]). A GroupCollapsedGaussianLeaf would RIDE that
   path, not invent it. The CORE claim stands - the constant-leaf suffstat
   (sumWeights, sumWeightedResponse) is insufficient for the per-group Woodbury
   correction, which couples leaves across the group partition AND across trees
