@@ -8,7 +8,7 @@ workingWeights hook already carries for logistic.
 ## 1. Augmentation and the lambda draw
 
 Internal (rescaled) scale: working response z_i = yRescaled_[i]
-(GaussianResponse::rescale, model.hpp:3009), fit f_i = totalFits[i], residual
+([[src/bartcore/model.hpp#GaussianResponse::rescale]]), fit f_i = totalFits[i], residual
 r_i = z_i - f_i, residual variance sigma^2, user precision w_i. The Student-t
 error is the mean-1 Gamma scale mixture
 
@@ -22,17 +22,17 @@ lambda_i^{1/2} exp(-w_i lambda_i r_i^2 / (2 sigma^2))):
 
 in (shape, rate), drawn via ext_rng_simulateGamma(rng, (nu+1)/2, scale) with
 SCALE = 2 / (nu + w_i r_i^2/sigma^2) (the DartPrior.update idiom,
-model.hpp:4074). Its mean (nu+1)/(nu + w_i r_i^2/sigma^2) is ~1 in-range, small
+[[src/bartcore/model.hpp#TResponse::refreshLatents]]). Its mean (nu+1)/(nu + w_i r_i^2/sigma^2) is ~1 in-range, small
 for a gross outlier -- that downweighting IS the robustness.
 
 lambda enters the tree stage exactly as logistic's omega does: the engine weights
-node sufficient statistics by ResponseModel::workingWeights() (chain.hpp:1374;
-into setNodeAverages chain.hpp:1469 and MoveContext.weights moves.hpp:40), where
+node sufficient statistics by ResponseModel::workingWeights() ([[src/bartcore/chain.hpp#Chain::run]];
+into setNodeAverages [[src/bartcore/tree.hpp#Tree::setNodeAverages]] and MoveContext.weights [[src/bartcore/moves.hpp#MoveContext::weights]]), where
 the t family returns the composite precision c_i = w_i lambda_i.
 **No engine change, no GaussianResponse edit (item 2).** The constant leaf
 recomputes (sumWeights, sumWeightedResponse, sumWeightedResponseSq) each sweep
-from the current weights (chain.hpp:1469); the vector-leaf crossproduct cache
-drops when workingWeightsVaryPerSweep() is true (chain.hpp:1540). Both were
+from the current weights ([[src/bartcore/tree.hpp#Tree::setNodeAverages]]); the vector-leaf crossproduct cache
+drops when workingWeightsVaryPerSweep() is true ([[src/bartcore/chain.hpp#Chain::run]]). Both were
 built for logistic's per-sweep omega, so this is a pure ResponseModel addition.
 
 ## 2. Composition, families, scope
@@ -40,18 +40,19 @@ built for logistic's per-sweep omega, so this is a pure ResponseModel addition.
 User weights compose multiplicatively into c_i = w_i lambda_i -- the rule
 logistic uses spelled differently: it folds its integer trial-count weight INTO
 omega by drawing PG(w_i, psi) as a sum of w_i PG(1, psi) variates
-(model.hpp:4063-4066), so workingWeights() returns count * latent
-(model.hpp:4063). For continuous Gaussian weights the product is a plain
+([[src/bartcore/model.hpp#LogisticResponse::refreshLatents]]), so workingWeights() returns count * latent
+([[src/bartcore/model.hpp#LogisticResponse::workingWeights]]). For continuous Gaussian weights the product is a plain
 multiply and the working RESPONSE stays z_i (unlike logistic's kappa/omega,
-model.hpp:4067). Offsets need no handling: rescale() subtracts the offset before
-min/max (model.hpp:3009), so r_i is already offset-adjusted.
+[[src/bartcore/model.hpp#LogisticResponse::refreshLatents]]). Offsets need no handling: rescale() subtracts the offset before
+min/max ([[src/bartcore/model.hpp#GaussianResponse::rescale]]), so r_i is already offset-adjusted.
 
 Recommended construction: a decorator TResponse holding a GaussianResponse plus
 lambda_ and a composite buffer; refreshLatents draws lambda then calls
-gaussian_->setWeights(composite) (model.hpp:4134) so BOTH workingWeights() and
+gaussian_->setWeights(composite) ([[src/bartcore/model.hpp#TResponse::refreshLatents]]) so BOTH workingWeights() and
 drawSigma() see c_i unedited, with workingWeightsVaryPerSweep() true. This is the
 AFTResponse pattern (a contained GaussianResponse over a mutable buffer, latents
-redrawn each sweep, sigma delegated; model.hpp:4074, 4105) -- a closer precedent
+redrawn each sweep, sigma delegated;
+[[src/bartcore/model.hpp#TResponse::refreshLatents, TResponse::drawSigma]]) -- a closer precedent
 than the plan's "grouped decorator." Only computeLogLikelihood needs a real
 override (report dt, not the conditional dnorm); latents() exposes lambda_ for
 the state block as probit exposes omega; setResponse/setData cold-init lambda_ to
@@ -60,7 +61,7 @@ the state block as probit exposes omega; setResponse/setData cold-init lambda_ t
 Scope answer: **gaussian-only for v1;** probit/logistic have a fixed unit scale
 and are untouched. A t-latent probit (robit; Liu 2004) is a legitimate
 follow-up, NOT a trap: the same augmentation applies to the truncated latent and
-ProbitResponse's null workingWeights (model.hpp:3074) would carry lambda. Caveat
+ProbitResponse's null workingWeights ([[src/bartcore/model.hpp#ProbitResponse::workingWeights]]) would carry lambda. Caveat
 -- a t_nu latent changes the LINK (t-cdf, not probit) and confounds latent scale
 with nu under the sigma=1 identification, so robit needs its own default nu and
 calibration, a separate design pass.
@@ -100,12 +101,12 @@ enumerates the laws, so adding one fails the build.
 ## 3. sigma^2 under the mixture
 
 The sigma draw is the scaled-inverse-chi-square
-ChiSquaredScalePrior::drawSigmaSqFromPosterior (model.hpp:2540): posterior
+[[src/bartcore/model.hpp#ChiSquaredScalePrior::drawSigmaSqFromPosterior]]: posterior
 scale = df0 s0 + weighted SSR, df = df0 + numPositiveWeights, weighted
 SSR = sum_i weights_i (z_i - f_i)^2 (misc_computeWeightedSumOfSquaredResiduals,
-model.hpp:2545). Feed it c_i and it computes exactly the mixture draw:
+[[src/bartcore/model.hpp#ChiSquaredScalePrior::drawSigmaSqFromPosterior]]). Feed it c_i and it computes exactly the mixture draw:
 SSR = sum c_i r_i^2, df = df0 + n (lambda_i > 0 always, so the positive count is
-the positive-user-weight count, model.hpp:3000). **The existing weighted sigma
+the positive-user-weight count, [[src/bartcore/model.hpp#GaussianResponse::countPositiveWeights]]). **The existing weighted sigma
 path already does exactly this**, given c_i (item 2's setWeights delegation).
 sigma is now the CONDITIONAL scale; the marginal residual variance is
 sigma^2 nu/(nu-2) (item 6; a reporting trap in item 7).
@@ -121,8 +122,9 @@ kurtosis is infinite for nu <= 4, so a finite fourth moment wants nu > 4 (nu = 5
 good points and inflates sigma; too large loses robustness), zero mixing cost,
 no extra state.
 
-Sampled nu on a grid. The DartPrior alpha-grid pattern (model.hpp:2433-2444
-precompute, 2487-2489 discrete draw): a fixed nu grid, per-point lgamma constants
+Sampled nu on a grid. The DartPrior alpha-grid pattern
+([[src/bartcore/model.hpp#DartPrior::initialize, DartPrior::update]]
+precompute and discrete draw): a fixed nu grid, per-point lgamma constants
 of Gamma(nu/2, nu/2) precomputed once, then per-iteration the log full conditional
   sum_i [(nu/2) log(nu/2) - lgamma(nu/2) + (nu/2) log lambda_i - (nu/2) lambda_i]
       + log p(nu)
@@ -134,21 +136,21 @@ the grid is its natural home.
 ## 5. R surface: candidates (recommendation per option; no global pick)
 
 (a) A family value, family = "t". Precedent: family already resolves
-gaussian/probit/logistic/aft (dbarts.R:375-380, bart.R:697). Cost: a scalar
+gaussian/probit/logistic/aft ([[R/dbarts.R#dbarts]], [[R/bart.R#bart2]]). Cost: a scalar
 match.arg cannot carry nu, so it needs a companion resid.df arg, splitting one
 concept in two. Recommend only paired with (b)/(c) for the df.
 
 (b) A residual-distribution constructor, resid.dist = student(df = 4), default
 gaussian(). Precedent: the priors-as-objects vocabulary (tree.prior = cgm,
-node.prior = normal, resid.prior = chisq; dbarts.R:362-364) resolved by
-parsePriors (model.R:92) from dbartsPriors (model.R:1767). student() composes df
+node.prior = normal, resid.prior = chisq; [[R/dbarts.R#dbarts]]) resolved by
+[[R/model.R#parsePriors]] from [[R/model.R#dbartsPriors]]. student() composes df
 now and a sampled-nu spec later with no new top-level argument. Do NOT overload
-resid.prior -- that is the sigma^2 PRIOR (chisq/fixed, model.R:1773-1774),
+resid.prior -- that is the sigma^2 PRIOR (chisq/fixed, [[R/model.R#dbartsPriors]]),
 orthogonal to the error law. Recommend: cleanest and most future-proof, a new
 resid.dist slot.
 
 (c) A bart2 scalar, resid.df = Inf (Inf = gaussian, finite = t). Precedent:
-bart2's bare scalars sigdf/sigquant/k (bart.R:433-435). Cost: bart2-only
+bart2's bare scalars sigdf/sigquant/k ([[R/bart.R#bart2]]). Cost: bart2-only
 (dbarts() still needs the object form) and no room for sampled-nu without an
 overload. Recommend as the convenience alias over (b), not the primitive.
 
@@ -156,8 +158,8 @@ overload. Recommend as the convenience alias over (b), not the primitive.
 
 Range scaling's outlier sensitivity (the motivation). rescale() keys the
 [-0.5, 0.5] map off the raw min/max of the offset-adjusted response
-(model.hpp:3009-3038) and initialSigma = sigmaEstimate / range_
-(model.hpp:2794). One extreme point inflates range_, compressing the bulk into a
+([[src/bartcore/model.hpp#GaussianResponse::rescale]]) and initialSigma = sigmaEstimate / range_
+([[src/bartcore/model.hpp#GaussianResponse::GaussianResponse]]). One extreme point inflates range_, compressing the bulk into a
 sliver and mis-anchoring both the leaf prior (scale/k on the compressed scale)
 and the sigma prior. Robust errors let the model attribute that point to the tail
 (lambda_i small) so it stops dragging f and inflating sigma. HONEST CAVEAT / plan
@@ -187,7 +189,7 @@ Equivalence fixture. A NEW scenario in benchmarks/R/equivalence.R (t- or
 contaminated-normal data, resid.dist = student). Existing anchors untouched: the
 frozen classic baselines cannot be re-recorded, and the t path adds no draws to
 the gaussian stream (GaussianResponse::refreshLatents stays a no-op,
-model.hpp:2802), so the nine z-stats and every RNG-locked snapshot stay stable.
+[[src/bartcore/model.hpp#GaussianResponse::refreshLatents]]), so the nine z-stats and every RNG-locked snapshot stay stable.
 
 ## 7. Costs and risks
 
@@ -206,7 +208,7 @@ model.hpp:2802), so the nine z-stats and every RNG-locked snapshot stay stable.
   marginal residual variance (nu/(nu-2) sigma^2). Consumers (stan4bart, rbart)
   may misread it -- document, or expose the marginal.
 - Zero user weights compose cleanly: c_i = 0, lambda_i draws from its prior, and
-  numPositiveWeights excludes the row (model.hpp:3000), so the sigma df is right.
+  numPositiveWeights excludes the row ([[src/bartcore/model.hpp#GaussianResponse::countPositiveWeights]]), so the sigma df is right.
 
 ## 8. Resolution (VD, 2026-07-18)
 
