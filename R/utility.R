@@ -538,7 +538,18 @@ makeCategoricalModelMatrix <- function(x) {
       }
       columnNames[[j]] <- slices$names
     } else if (is.factor(column)) {
-      if (!is.ordered(column) && nlevels(column) > 65535L) {
+      # the two ceilings differ by one because an ordered factor spends a code
+      # on the upper bin of its K - 1 cut grid and an unordered one does not
+      if (is.ordered(column)) {
+        if (nlevels(column) > 65534L) {
+          stop(
+            "ordered factor '",
+            name,
+            "' has more than 65534 levels, the most an ",
+            "ordered factor predictor supports"
+          )
+        }
+      } else if (nlevels(column) > 65535L) {
         stop(
           "factor '",
           name,

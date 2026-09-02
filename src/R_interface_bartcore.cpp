@@ -1654,6 +1654,8 @@ const char* const orderedFactorTrainingMessage =
   "ordered factor predictors must hold integer level codes in [0, 65535)";
 const char* const categoricalTestMessage =
   "categorical test predictors must hold existing category codes";
+const char* const orderedFactorTestMessage =
+  "ordered factor test predictors must hold existing level codes";
 
 // The stored codes of a CSC-backed column of a parsed container, found through
 // its engine-convention source (the complement of a sparse column's position).
@@ -1719,9 +1721,11 @@ double trainingCategoryBound(const ParsedData& data, size_t j) {
 // representable (the count is then inferred from them). Each test view is then
 // bounded by that count - the x.test matrix, a container's dense slice, a
 // container's CSC slice, or the reference code its implicit rows read - for a
-// categorical column, whose codes are its identity; an ordered factor's test
-// values quantize against a threshold grid and are bounded like any other
-// threshold column's. An unbounded training code would mis-bin, shift past a
+// factor column of EITHER kind: a column the caller declared a factor is a
+// factor on both sides of the fit, so a test value that is not an existing
+// level code is refused rather than quantized onto the nearest boundary (a
+// caller wanting a value between two levels has the numeric column, where it
+// is unambiguous). An unbounded training code would mis-bin, shift past a
 // tree's category mask, or over-read a pooled bitmap.
 void validateCategoricalPredictors(const ParsedData& data) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -1749,25 +1753,28 @@ void validateCategoricalPredictors(const ParsedData& data) {
     refuseInvalidCategoryCodes(rawViewColumn(data.predictors, j),
                                data.numObservations, bound, message);
   }
-  if (!data.anyCategorical || data.numTestObservations == 0) return;
+  if (!data.anyFactor || data.numTestObservations == 0) return;
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (data.columnTypes[j] != bartcore::ColumnKind::categorical) continue;
+    if (data.columnTypes[j] == bartcore::ColumnKind::numeric) continue;
+    const char* testMessage =
+      data.columnTypes[j] == bartcore::ColumnKind::categorical
+        ? categoricalTestMessage : orderedFactorTestMessage;
     double bound = trainingCategoryBound(data, j);
     if (data.testPredictors.sourceOf(j) < 0) {
       ParsedCscCodes stored = parsedCscCodes(
         data.testPredictors.cscColumnPointers, data.testPredictors.cscValues,
         data.testPredictors.sourceOf(j));
       refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
-                                 categoricalTestMessage);
+                                 testMessage);
       double reference =
         static_cast<double>(data.testPredictors.referenceCodeOf(j));
-      refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
+      refuseInvalidCategoryCodes(&reference, 1, bound, testMessage);
       continue;
     }
     const double* testColumn = rawViewColumn(data.testPredictors, j);
     if (testColumn == NULL) continue;  // no test view of this column
     refuseInvalidCategoryCodes(testColumn, data.numTestObservations, bound,
-                               categoricalTestMessage);
+                               testMessage);
   }
 }
 
@@ -2990,10 +2997,16 @@ void refuseNonBinaryMask(const double* active, size_t numObservations) {
 
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
                           const double* values, size_t numValues) {
-  if (store.types[column] != bartcore::ColumnKind::categorical) return;
+  if (!store.isFactor(column)) return;
+  // the store's own transaction refuses either kind's off-table value; this
+  // fires first so the message names the kind rather than the cut grid
+  const char* message =
+    store.splitsBySubset(column)
+      ? "categorical predictor values must be existing category codes"
+      : "ordered factor predictor values must be existing level codes";
   for (size_t i = 0; i < numValues; ++i) {
     if (!store.categoricalValueIsValid(column, values[i]))
-      Rf_error("categorical predictor values must be existing category codes");
+      Rf_error("%s", message);
   }
 }
 
@@ -3036,8 +3049,9 @@ void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
                "supply it as a dense test column");
 }
 
-// Bound a parsed test view's categorical codes against the STORE's fixed
-// category counts - the training-side bound the view's author cannot see,
+// Bound a parsed test view's factor codes, over BOTH kinds, against the
+// STORE's fixed level counts - the training-side bound the view's author
+// cannot see,
 // since its own declared K is the caller's, not the sampler's. Covers a
 // dense-backed column's slice, a CSC-backed column's stored codes, and the
 // reference code its implicit rows read. The container mutation entrances run
@@ -3051,19 +3065,21 @@ void validateTestContainerAgainstStore(
     const bartcore::ColumnStore& store,
     const bartcore::PredictorSource& view) {
   for (size_t j = 0; j < store.numPredictors; ++j) {
-    if (store.types[j] != bartcore::ColumnKind::categorical) continue;
+    if (!store.isFactor(j)) continue;
+    const char* testMessage = store.splitsBySubset(j)
+      ? categoricalTestMessage : orderedFactorTestMessage;
     double bound = static_cast<double>(store.categoryCounts[j]);
     if (view.sourceOf(j) >= 0) {
       refuseInvalidCategoryCodes(rawViewColumn(view, j), view.numRows, bound,
-                                 categoricalTestMessage);
+                                 testMessage);
       continue;
     }
     ParsedCscCodes stored = parsedCscCodes(view.cscColumnPointers,
                                            view.cscValues, view.sourceOf(j));
     refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
-                               categoricalTestMessage);
+                               testMessage);
     double reference = static_cast<double>(view.referenceCodeOf(j));
-    refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
+    refuseInvalidCategoryCodes(&reference, 1, bound, testMessage);
   }
 }
 
@@ -4760,21 +4776,23 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
       // different design rather than new values for this one
       if (data.columnTypes[j] != sampler.data().types[j])
         Rf_error("bartcore setData requires the same predictor types");
-      if (!sampler.data().splitsBySubset(j)) continue;
-      // category counts are fixed at creation; new values must be existing
-      // codes, in the training and test data both
+      if (!sampler.data().isFactor(j)) continue;
+      // level counts are fixed at creation on either factor kind; new values
+      // must be existing codes, in the training and test data both
+      const char* message =
+        sampler.data().splitsBySubset(j)
+          ? "categorical predictor values must be existing category codes"
+          : "ordered factor predictor values must be existing level codes";
       for (size_t i = 0; i < data.numObservations; ++i)
         if (!sampler.data().categoricalValueIsValid(
               j, data.predictors.denseValues[i + j * data.numObservations]))
-          Rf_error("categorical predictor values must be existing category "
-                   "codes");
+          Rf_error("%s", message);
       for (size_t i = 0; i < data.numTestObservations; ++i)
         if (!sampler.data().categoricalValueIsValid(
               j,
               data.testPredictors.denseValues[i +
                                               j * data.numTestObservations]))
-          Rf_error("categorical predictor values must be existing category "
-                   "codes");
+          Rf_error("%s", message);
     }
 
     sampler.setData(data.predictors.denseValues, data.y, data.numObservations,
