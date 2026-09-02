@@ -129,7 +129,7 @@ Gauss-Seidel over trees; the variance forest runs the identical kernel
   over the descendant-valid set. **The entire skeleton below the node is
   held fixed** ([[src/bartcore/moves.hpp#changeMove]]) and every observation is rerouted
   through it, with a hard veto if any descendant leaf empties
-  ([[src/bartcore/moves.hpp#BranchScore]]).
+  ([[src/bartcore/moves.hpp#resolveVetoRank]]).
 
 Three consequences.
 
@@ -148,7 +148,8 @@ Three consequences.
    redraws the variable, so a pure cut-point move happens only when the
    redraw lands back on the incumbent variable: probability `~1/p_avail`
    per change proposal (about 2% at p = 50 under the default
-   `split.probs = 1/num.vars`, [[R/model.R#resolveSplitProbabilities]]). The machinery for such a
+   `split.probs = NULL`, uniform over the available variables,
+   [[src/bartcore/model.hpp#CGMTreePrior::drawSplitVariable]]). The machinery for such a
    move already exists and is already gated (section 5.1).
 
 Adjacent machinery already landed, relevant to cost:

@@ -436,9 +436,9 @@ follow-up, not v1 scope.
   ([[src/bartcore/model.hpp#MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams]])
   reads frozen neighbor mu from muByTree and scores the conditional truncated
   joint marginal of the touched leaves (section 4), and
-  `MonotoneConstantGaussianLeaf::drawParametersForTree`
-  ([[src/bartcore/model.hpp#MonotoneConstantGaussianLeaf::drawParametersForTree]])
-  writes the accepted eq.-4.17 redraw back (section 3, change 3).
+  `MonotoneConstantGaussianLeaf::redrawAfterBirth` and `redrawAfterDeath`
+  ([[src/bartcore/model.hpp#MonotoneConstantGaussianLeaf::redrawAfterBirth, MonotoneConstantGaussianLeaf::redrawAfterDeath]])
+  write the accepted eq.-4.17 redraw back (section 3, change 3).
 
 ## 8. Bitwise neutrality for unconstrained fits
 

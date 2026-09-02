@@ -374,7 +374,7 @@ the constructor ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner]]).
 else is left to apply - the index, `numColumns >= 1`, a non-null pointer, and
 finiteness ([[src/bartcore/combiner.hpp#installForestBasis]]). It wins by
 being the only operation there is, which is why no ordering between two
-mutators has to be specified ([[src/bartcore/combiner.hpp#installForestBasis]]).
+mutators has to be specified ([[src/bartcore/combiner.hpp#setForestBasis]]).
 
 Ordering is LAST INSTALL WINS, per forest, and both orderings of a widen and a
 swap collapse to it because `rebuildAmplitudeLayout` derives the offsets as a
@@ -496,7 +496,7 @@ instance bitwise.
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
 is capped at one forest, for any K: `resolveForests`
 ([[R/model.R#resolveForests]], refusal also in
-[[R/model.R#resolveForests]]) requires every forest past the first to carry a
+[[R/model.R#"needs a 'basis': the amplitudes multiplying it"]]) requires every forest past the first to carry a
 basis, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
 whenever a basis is present ([[R/model.R#forestParams]]), from which the
 bridge derives `forest.ridge = false`

@@ -466,7 +466,7 @@ section 6.
 
 **Where expansion happens (settled: an R helper at ingest).** The
 person-period expander is a pure R transform invoked during ingestion,
-exactly where extractSurvivalResponse is ([[R/dbarts.R#dbarts]]), BEFORE
+exactly where extractSurvivalResponse is ([[R/dbarts.R#extractSurvivalResponse]]), BEFORE
 dbartsData builds the model matrix. It consumes (x, time, status, grid) and
 emits an ordinary (X', y') binary problem: X' is x replicated down each
 subject's at-risk periods with the ordinal period column appended, y' the

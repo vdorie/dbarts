@@ -303,7 +303,7 @@ resolves the response shape on its own.
 
 [f6] `family = "hazard"` / `"hazard.probit"` / `"hazard.logistic"` is
 person-period ingestion sugar: [[dbarts.R#expandDiscreteTimeHazard]] expands the
-design and [[dbarts.R#hazardTokens]] remaps the token to `"probit"` or
+design and [[dbarts.R#"the remap: the engine-facing family is now an ordinary binary link"]] remaps the token to `"probit"` or
 `"logistic"` before any model is built. The resulting sampler *is* an ordinary
 binary one, so its whole row equals the probit (or logistic) row, and the fit
 records `family = "probit"`. No engine code, hence no C-API token and no SBC
