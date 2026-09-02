@@ -132,7 +132,7 @@ compare loop only when `crossHost` is set ([[benchmarks/R/equivalence.R:793@a16d
 
 ### 2.1 Why one |z| bar cannot be the gate
 
-equivalence.R's z is over 20 INDEPENDENT SEEDS ([[equivalence.R:1812@a16d703c]]:
+equivalence.R's z is over 20 INDEPENDENT SEEDS ([[equivalence.R:1433@a16d703c]]:
 `colMeans` of a seeds x summaries matrix). bcf's `drawSummary`
 ([[equivalence.R:118-123@a16d703c]]) reduces over 40 AUTOCORRELATED draws of a single chain, and
 `n` in the Welch denominator ([[equivalence.R:514@a16d703c]]) is that 40. Measured on the recorded
@@ -529,15 +529,15 @@ applies unchanged.
 
 Residues:
 
-- `benchmarks/README.md`[[equivalence.R:52-54@5a3bc276]] says "Baselines are RNG- and
+- [[benchmarks/README.md:55-56@5a3bc276]] says "Baselines are RNG- and
   build-dependent; regenerate them rather than reusing across machines",
   which `--cross-host` now contradicts. Rewrite those three lines to
   state the cross-host mode (a baseline IS reusable off-host under the
   flag, with the snapshot channels exempt and the two-tier verdict), and
-  extend the [[equivalence.R:44-66@5a3bc276]] statistical paragraph with the tier-2 weakness in one
+  extend the [[benchmarks/README.md:59-66@5a3bc276]] statistical paragraph with the tier-2 weakness in one
   sentence.
-- The Welch z at [[bcf-equivalence.R:833-838@5a3bc276]] (and
-  [[multinomial-equivalence.R:918-923@5a3bc276]]) does `sa$mean - sb$mean` with no
+- The Welch z at [[bcf-equivalence.R:508-513@5a3bc276]] (and
+  [[multinomial-equivalence.R:600-605@5a3bc276]]) does `sa$mean - sb$mean` with no
   length check, so a channel SHAPE change silently recycles into a
   garbage z rather than erroring. That has already happened once - the
   `varcount` forest-axis widening (a16d703c). Add
