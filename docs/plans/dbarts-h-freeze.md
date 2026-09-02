@@ -37,7 +37,7 @@ new entry appended LAST in `DBARTS_C_API_LIST` (48 after, 47 today) - `X(int, db
 `kIsSampled`/`usesDart` ([[dbarts.h:980-981@f162d075]]), returned by value and so carrying no `get` (section 2). Admission is narrower per entry, every refusal naming entry and family: create
 takes AUTO, GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL, NBINOM and refuses STUDENT, MULTINOMIAL and anything outside [0, 8]; drawLatents/workingResponse take PROBIT,
 LOGISTIC, ORDINAL, AFT, NBINOM, STUDENT and refuse AUTO, GAUSSIAN, MULTINOMIAL (today's behaviour). Implement as two int -> family mappings in src/C_interface.cpp beside
-`dbarts_sampler_create` ([[dbarts.h:478-484@f162d075]]) and `augmentationArguments` ([[dbarts.h:1295@f162d075]]); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
+`dbarts_sampler_create` ([[dbarts.h:478-484@f162d075]]) and `augmentationArguments` ([[src/C_interface.cpp:1086@f162d075]]); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
 ([[R/dbarts.R:926@f162d075]], [[R/dbarts.R:1832@f162d075]] call `C_dbarts_bartcore_create`), so nothing below C_interface.cpp changes. `dbarts_sampler_family` is total over what the engine builds:
 `shape().supportsCountsMutation` -> MULTINOMIAL ([[facade.hpp:110-114@f162d075]]; dead until multinomial creation opens, the point being the ENUMERATOR existing pre-freeze), else
 `shape().family` one-to-one. Never AUTO (creation resolved it), never STUDENT (a Student-t sampler's family IS gaussian - [[facade.hpp:107@f162d075]], [[dbarts.h:790-793@f162d075]]). Hash:
@@ -76,7 +76,7 @@ four.
 [[src/C_interface.cpp:830-861@f162d075]]. Plumbing mirrors `bartcore_bridge::getTrees` ([[src/R_interface_bartcore.cpp:7700-7714@f162d075]]): `useSaved = shape.savedTreeCapacity > 0 &&
 !useLiveTrees`, with `refuseEmptyTreeStore` ([[C_interface.cpp:844@f162d075]]) and the `sampleIndices` range check ([[C_interface.cpp:850-853@f162d075]]) running ONLY when `useSaved`. The engine picks live vs
 saved on `options_.keepTrees` ([[src/bartcore/sampler.hpp:1301-1334@f162d075]]), so add a trailing `bool useLiveTrees` there and on the facade virtual and override
-([[src/bartcore/facade.hpp:321-327@f162d075]], [[src/bartcore/facade.hpp:604-613@f162d075]]) and change [[sampler.hpp:1312@f162d075]] to `if (useLiveTrees || !options_.keepTrees)`. The R bridge ([[sampler.hpp:6095@f162d075]]) passes `false`, so
+([[src/bartcore/facade.hpp:321-327@f162d075]], [[src/bartcore/facade.hpp:604-613@f162d075]]) and change [[sampler.hpp:1312@f162d075]] to `if (useLiveTrees || !options_.keepTrees)`. The R bridge ([[src/R_interface_bartcore.cpp:6095@f162d075]]) passes `false`, so
 `$printTrees` is unchanged. A facade virtual moves: `--preclean` MANDATORY. `const int*` -> `const int32_t*`, one spelling per role - index and enum arrays `int32_t`,
 boolean flags `int`: [[dbarts.h:295@f162d075]] `cscColumnPointers` and [[dbarts.h:296@f162d075]] `cscRowIndices` (siblings at [[dbarts.h:298-302@f162d075]] are already `int32_t*`), with locals [[src/C_interface.cpp:134-135@f162d075]]
 following, and [[src/C_interface.cpp:353@f162d075]] `leafModel` `int*` -> `int32_t*` (the ABI's other enum-carrying array, `columnTypes`, is `int32_t*`) while `kHasHyperprior` ([[src/C_interface.cpp:349@f162d075]]) is a FLAG and stays
@@ -134,25 +134,25 @@ statements about the live code"; the docs/plans mentions are not anchor-checked,
 Both consumers keep lockstep by opting in: define `DBARTS_REQUIRE_EXACT_ABI` beside `DBARTS_USE_STUBS`, with the one-line comment "pre-release lockstep guard: MAJOR/MINOR
 do not move before 1.0-0, so only the token catches a stale binary; dropped at the coordinated 1.0 merge". Both then DROP their hand-rolled `dbarts_apiHash() !=
 DBARTS_C_API_HASH` clauses. Add to the dbarts RELEASE procedure entry in TODO: "drop DBARTS_REQUIRE_EXACT_ABI from stan4bart and treatSens Makevars". stan4bart,
-/Users/vdorie/Repositories/stan4bart branch `bartcore`, 24 entries, 4 edits. (1) [[src/init.cpp:146-153@f162d075]] `getBARTFamily` returns `int`, not `const char*`: `""`/`"auto"` ->
-`DBARTS_FAMILY_AUTO`, `"gaussian"` -> `DBARTS_FAMILY_GAUSSIAN`, probit/logistic/aft/ordinal/nbinom to theirs. [[src/init.cpp:151-152@f162d075]] returns whatever string sits on the attribute, and
+/Users/vdorie/Repositories/stan4bart branch `bartcore`, 24 entries, 4 edits. (1) stan4bart's `src/init.cpp` lines 146-153 `getBARTFamily` returns `int`, not `const char*`: `""`/`"auto"` ->
+`DBARTS_FAMILY_AUTO`, `"gaussian"` -> `DBARTS_FAMILY_GAUSSIAN`, probit/logistic/aft/ordinal/nbinom to theirs. stan4bart's `src/init.cpp` lines 151-152 returns whatever string sits on the attribute, and
 `dbartsModel@family` admits 8 tokens including `"multinomial"` ([[R/A_class.R:453-462@f162d075]]), so the default branch MUST `Rf_error` naming the token, never fall through to AUTO.
-Its call sites ([[R/A_class.R:197-199@f162d075]], [[R/A_class.R:366-367@f162d075]]) need no text change. (2) [[src/init.cpp:432@f162d075]] `dbarts_sampler_printTrees`: insert `0` for `useLiveTrees` before the trailing `0` forest;
-:495-497 already passes `useLiveTrees` to `getTrees`. (3) [[src/init.cpp:971-972@f162d075]]: drop the hash clause and the stale comment at [[src/init.cpp:966-970@f162d075]] scheduling its removal. (4)
-`-DDBARTS_REQUIRE_EXACT_ABI` appended to `PKG_CPPFLAGS` in BOTH [[src/Makevars.in:1@f162d075]] and [[src/Makevars.win:1@f162d075]]. No `printEvery` edit - the `100` literals at [[src/Makevars.win:200@f162d075]], [[src/Makevars.win:368@f162d075]] widen;
-no `dbarts_results` edit ([[src/bart_util.hpp:27@f162d075]], [[src/bart_util.hpp:47@f162d075]]); no renamed reader called. treatSens, in a private worktree on branch
-`dbarts-1.0`, 11 entries, 4 edits: [[src/bartTreatmentModel.cpp:62@f162d075]] `"probit"` -> `DBARTS_FAMILY_PROBIT`; [[src/sensitivityAnalysis.cpp:259@f162d075]] `""` -> `DBARTS_FAMILY_AUTO`;
-[[src/R_interface.cpp:452-453@f162d075]] drop the hash clause; and `#define DBARTS_REQUIRE_EXACT_ABI` immediately above each `#define DBARTS_USE_STUBS`, since this repo defines the
-macro per translation unit rather than in Makevars - [[src/R_interface.cpp:27@f162d075]], [[src/bartTreatmentModel.cpp:10@f162d075]], [[src/sensitivityAnalysis.cpp:32@f162d075]], three sites with the comment
-on the first. No `printEvery` edit ([[src/sensitivityAnalysis.cpp:64@f162d075]], [[src/sensitivityAnalysis.cpp:261@f162d075]]); no printTrees, getTrees or renamed-reader call sites. Gate: `R CMD INSTALL . --preclean` in dbarts then each consumer,
+Its call sites ([[R/A_class.R:197-199@f162d075]], [[R/A_class.R:366-367@f162d075]]) need no text change. (2) stan4bart's `src/init.cpp` line 432 `dbarts_sampler_printTrees`: insert `0` for `useLiveTrees` before the trailing `0` forest;
+:495-497 already passes `useLiveTrees` to `getTrees`. (3) stan4bart's `src/init.cpp` lines 971-972: drop the hash clause and the stale comment at stan4bart's `src/init.cpp` lines 966-970 scheduling its removal. (4)
+`-DDBARTS_REQUIRE_EXACT_ABI` appended to `PKG_CPPFLAGS` in BOTH stan4bart's `src/Makevars.in` line 1 and stan4bart's `src/Makevars.win` line 1. No `printEvery` edit - the `100` literals at stan4bart's `src/Makevars.win` lines 200 and 368 widen;
+no `dbarts_results` edit (stan4bart's `src/bart_util.hpp` lines 27 and 47); no renamed reader called. treatSens, in a private worktree on branch
+`dbarts-1.0`, 11 entries, 4 edits: treatSens's `src/bartTreatmentModel.cpp` line 62 `"probit"` -> `DBARTS_FAMILY_PROBIT`; treatSens's `src/sensitivityAnalysis.cpp` line 259 `""` -> `DBARTS_FAMILY_AUTO`;
+treatSens's `src/R_interface.cpp` lines 452-453 drop the hash clause; and `#define DBARTS_REQUIRE_EXACT_ABI` immediately above each `#define DBARTS_USE_STUBS`, since this repo defines the
+macro per translation unit rather than in Makevars - treatSens's `src/R_interface.cpp` line 27, `src/bartTreatmentModel.cpp` line 10, `src/sensitivityAnalysis.cpp` line 32, three sites with the comment
+on the first. No `printEvery` edit (treatSens's `src/sensitivityAnalysis.cpp` lines 64 and 261); no printTrees, getTrees or renamed-reader call sites. Gate: `R CMD INSTALL . --preclean` in dbarts then each consumer,
 then `tinytest::test_package("stan4bart")` and treatSens `testthat::test_local()` (runner tests/testthat.R), both green before this slice is landed.
 
 ## 7. Tests, NEWS and re-anchoring inside dbarts
 
-consumer.c: `capi_create` ([[src/sensitivityAnalysis.cpp:130-139@f162d075]]) takes the enum through a static string -> enum table, so test-capi.R's 46 `capi_create` call sites keep their string arguments; add
-`capi_create_raw_family(control, model, data, familyInt)` passing an unmapped `int` for the refusal probes; the same table serves `capi_draw_latents` ([[src/sensitivityAnalysis.cpp:623-636@f162d075]]) and
-`capi_working_response` ([[src/sensitivityAnalysis.cpp:638-648@f162d075]]), whose 3 call sites keep their strings; add `capi_family_constants()` (named integer vector of all nine) and
-`capi_sampler_family(ptr)`; `capi_print_trees` ([[src/sensitivityAnalysis.cpp:471-479@f162d075]]) gains `useLiveTrees`; apply the four renames and the `(int32_t*)` cast at [[src/sensitivityAnalysis.cpp:972@f162d075]]. tests/cpp: the facade
+consumer.c: `capi_create` (treatSens's `src/sensitivityAnalysis.cpp` lines 130-139) takes the enum through a static string -> enum table, so test-capi.R's 46 `capi_create` call sites keep their string arguments; add
+`capi_create_raw_family(control, model, data, familyInt)` passing an unmapped `int` for the refusal probes; the same table serves `capi_draw_latents` (treatSens's `src/sensitivityAnalysis.cpp` lines 623-636) and
+`capi_working_response` (treatSens's `src/sensitivityAnalysis.cpp` lines 638-648), whose 3 call sites keep their strings; add `capi_family_constants()` (named integer vector of all nine) and
+`capi_sampler_family(ptr)`; `capi_print_trees` (treatSens's `src/sensitivityAnalysis.cpp` lines 471-479) gains `useLiveTrees`; apply the four renames and the `(int32_t*)` cast at treatSens's `src/sensitivityAnalysis.cpp` line 972. tests/cpp: the facade
 `printTrees` virtual gains a parameter, so [[test_facade.cpp:184-188@f162d075]] (its `SPY_VOID` declaration) takes it while [[test_facade.cpp:496@f162d075]] and [[test_sampler.cpp:6345@f162d075]] (direct
 calls) pass `false`; separately [[test_facade.cpp:179@f162d075]]'s `SPY_VOID(setVerbose, (bool v, std::uint32_t e), (v, e))` must widen `e` to `std::size_t` or the spy stays abstract.
 test-capi.R additions. Enum round trip: `capi_family_constants()` equals 0:8 in header order, and `capi_sampler_family()` gives the matching enumerator on the gaussian,
