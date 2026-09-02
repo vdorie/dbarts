@@ -148,15 +148,15 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   `__cpuidex`) computes state no branch reads. One-time cost; inherited from pre-bartcore misc
   (main carries simd.c at 9b0ae65b) but 125 of its lines changed here. `extension-point` if an
   AVX512 kernel is planned, else `sediment`.
-- U6. [[src/misc/partition_body.c:106@9b0ae65b]], [[src/misc/partition_body.c:123@9b0ae65b]], [[src/misc/partition_body.c:149@9b0ae65b]] - a commented-out PARTITION_RANGE if/else/endif
-  triple wrapping two abandoned NEON load strategies ([[src/misc/partition_body.c:107-123@9b0ae65b]], inside a block comment): ~18 dead
+- U6. [[src/misc/partition_body.c:106@b102e17c]], [[src/misc/partition_body.c:123@b102e17c]], [[src/misc/partition_body.c:149@b102e17c]] - a commented-out PARTITION_RANGE if/else/endif
+  triple wrapping two abandoned NEON load strategies ([[src/misc/partition_body.c:107-123@b102e17c]], inside a block comment): ~18 dead
   lines, the same shape as `#if 0`, which the memo's sec 1.0 reported as zero occurrences.
 - U7. `XINT_TYPE` width generality has no user and a wrong-answer failure mode.
   [[kernel-vocabulary.md:24-27@b102e17c]] says the code type is "configure-selected via `--with-xint-size`";
-  [[configure.ac:21@9b0ae65b]] hard-wires `uint16_t` with no such option and no width-suffixed kernel exists.
+  [[configure.ac:21@b102e17c]] hard-wires `uint16_t` with no such option and no width-suffixed kernel exists.
   The `#ifndef XINT_TYPE` guard (src/include/misc/types.h.in:6) still lets a CPPFLAGS define
-  override it, and every SIMD partition kernel hard-codes `epi16`/`u16` ([[partition_body.c:11@9b0ae65b]], [[partition_body.c:73@9b0ae65b]],
-  [[partition_body.c:151@9b0ae65b]]) with no `static_assert(sizeof(misc_xint_t) == 2)` anywhere. `sediment`, high.
+  override it, and every SIMD partition kernel hard-codes `epi16`/`u16` ([[partition_body.c:11@b102e17c]], [[partition_body.c:73@b102e17c]],
+  [[partition_body.c:151@b102e17c]]) with no `static_assert(sizeof(misc_xint_t) == 2)` anywhere. `sediment`, high.
 
 ## 4. DEFENSIVE CODE WITH NO REACHABLE TRIGGER (bridge)
 - V1. The state-format compatibility window is empty by construction: `stateFormatVersion` and
@@ -182,8 +182,8 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   sites docs/plans/release-candidate-review.md's rchk note ([[R_interface_bartcore.cpp:1138-1173@b102e17c]], [[R_interface_bartcore.cpp:1300-1330@b102e17c]]) records, and
   all are distinct from the two `setState` rchk BAILOUTS the note calls already-balanced. The
   finding is the inconsistency, not the PROTECTs. Medium.
-- V5. `rbart_getFitted`'s two PROTECTs ([[R_interface_rbart.cpp:16-17@9b0ae65b]]): both dims are reduced to raw
-  `int*` at [[R_interface_rbart.cpp:19-20@9b0ae65b]] and last read at [[R_interface_rbart.cpp:40-42@9b0ae65b]], and the only allocation is `rc_newReal(n)` at [[R_interface_rbart.cpp:44@9b0ae65b]].
+- V5. `rbart_getFitted`'s two PROTECTs ([[R_interface_rbart.cpp:16-17@b102e17c]]): both dims are reduced to raw
+  `int*` at [[R_interface_rbart.cpp:19-20@b102e17c]] and last read at [[R_interface_rbart.cpp:40-42@b102e17c]], and the only allocation is `rc_newReal(n)` at [[R_interface_rbart.cpp:44@b102e17c]].
   Untouched by the rchk commit. Medium - defensible only if `rc_getDims` can itself allocate.
 - V6. NOT dead, keep. `setState`'s three "already-non-null" guards ([[R_interface_bartcore.cpp:6799@b102e17c]], [[R_interface_bartcore.cpp:6813@b102e17c]], [[R_interface_bartcore.cpp:6830@b102e17c]]) make the
   null branch in `readFunctionTreeParams` ([[R_interface_bartcore.cpp:5490@b102e17c]]), `readTreeParams` ([[R_interface_bartcore.cpp:5469@b102e17c]]) and `readTreeMasks`
@@ -191,7 +191,7 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   `readWarmStartState` ([[R_interface_bartcore.cpp:7144-7164@b102e17c]]).
 - V7. NOT dead, keep - this closes the "R already refused it" class. No C-side check on the .Call
   path is provably unreachable: every `dbarts_bartcore_*` symbol is an ordinary DL_FUNC in
-  `R_callMethods[]` ([[R_interface.cpp:180-259@9b0ae65b]]), reachable by any R code holding the internal `C_`
+  `R_callMethods[]` ([[R_interface.cpp:180-259@b102e17c]]), reachable by any R code holding the internal `C_`
   name; two sites say so themselves ([[R_interface_bartcore.cpp:3987-3993@b102e17c]], [[R_interface_bartcore.cpp:4878-4882@b102e17c]]). The S4 route confirms it:
   `dbartsControl`'s `setValidity` ([[R/A_class.R:272-383@b102e17c]]) is not re-run on plain `@<-` mutation and
   `setControl` ([[R/dbarts.R:1155-1206@b102e17c]]) never calls `validObject()`. ~13 more sites carry the same
@@ -207,7 +207,7 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
 
 ## 5. COMMENTS
 - C1. THREE `stale` "Not yet exposed through the R surface" claims - all three features ARE
-  reachable from R today: [[chain.hpp:88@b102e17c]] (monotone) vs [[R/model.R:99@9b0ae65b]], [[R/model.R:526-531@b102e17c]]; [[chain.hpp:141@b102e17c]]
+  reachable from R today: [[chain.hpp:88@b102e17c]] (monotone) vs [[R/model.R:99@b102e17c]], [[R/model.R:526-531@b102e17c]]; [[chain.hpp:141@b102e17c]]
   (interaction constraints) vs [[R/spec.R:415-416@b102e17c]] and [[R_interface_bartcore.cpp:1254@b102e17c]]; [[chain.hpp:166@b102e17c]]
   (variance forest) vs [[R/spec.R:532@b102e17c]], [[R/dbarts.R:816@b102e17c]], [[R_interface_bartcore.cpp:2017@b102e17c]]. A reader who
   trusts these will not look for the R-side refusals that guard them. High. Best comment finding
@@ -221,13 +221,13 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   longer exists and cannot be seen), most-useless first - [[chain.hpp:1041@b102e17c]] ("the family conjunct
   that used to stand beside it was there because setResponse handed forest 0's bare totals as
   though combined"); [[R/generics.R:1154@b102e17c]] and [[R/generics.R:1287@b102e17c]] ("the same keepTrees gate a deleted `$bc` field
-  used to"); [[R/utility.R:119@9b0ae65b]] ("gone now that the rename has landed"); [[R/utility.R:49@9b0ae65b]] ("silent
+  used to"); [[R/utility.R:119@b102e17c]] ("gone now that the rename has landed"); [[R/utility.R:49@b102e17c]] ("silent
   before bart2 could forward a resid.prior object at all"); [[R_interface_bartcore.cpp:2766@b102e17c]] (quotes
   an old, replaced error message); [[C_interface.cpp:624@b102e17c]] ("which this entry used to drop on the
   floor"); [[R/data.R:453@b102e17c]] (three appeals to an invisible prior implementation in one comment);
-  [[R/data.R:342@9b0ae65b]] ("this used to be a function evaluated in the caller's frame"); [[R/spec.R:490@b102e17c]],
+  [[R/data.R:342@b102e17c]] ("this used to be a function evaluated in the caller's frame"); [[R/spec.R:490@b102e17c]],
   [[R/model.R:1759@b102e17c]] and [[R/spec.R:652@b102e17c]] (removed flat formals and a vanished literal); [[R/bart.R:769@b102e17c]] and
-  [[R/dbarts.R:627@9b0ae65b]] (fixed-bug narration). 20 sites total, 14 in R/ and 6 in C++; src/misc,
+  [[R/dbarts.R:627@b102e17c]] (fixed-bug narration). 20 sites total, 14 in R/ and 6 in C++; src/misc,
   src/external, src/rc and src/include are narration-free.
 - C4. Forward-looking PLAN narration (a plan is not a constraint): [[model.hpp:2589-2594@b102e17c]] ("v1 ships
   the exact integer envelope... A later real-shape mode routes a fractional b"), [[model.hpp:2774@b102e17c]],
