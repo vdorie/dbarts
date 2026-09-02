@@ -1815,9 +1815,10 @@ private:
                                                 bool updateCutPoints) {
     for (size_t k = 0; k < strategy.numColumns(); ++k) {
       size_t j = strategy.columns ? strategy.columns[k] : k;
-      // categorical columns must hold representable codes whether or not cut
-      // points refresh
-      if ((updateCutPoints || data_.splitsBySubset(j)) &&
+      // a factor column of either kind must hold representable level codes
+      // whether or not cut points refresh: its grid is its level table, so a
+      // value outside the table has no position on it
+      if ((updateCutPoints || data_.isFactor(j)) &&
           !data_.cutsWouldRemainValid(
             j, strategy.values + k * data_.numObservations))
         return PredictorUpdateResult::invalidCutPoints;

@@ -1333,10 +1333,73 @@ void testOrderedFactorGrid() {
   printf("ok: ordered factor midpoint grid\n");
 }
 
+// The grid survives mutation. An ordered factor's cuts follow its level
+// table, not its values, so a refresh keeps them whatever the store's
+// quantile flag says, and the feasibility check is level membership rather
+// than an induced-cut count - which is what stops an updateCuts mutation
+// from replacing the midpoints with a grid over the replacement's own range.
+void testOrderedFactorGridSurvivesMutation() {
+  const size_t n = 90;
+  const std::uint32_t numLevels = 12;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i)
+    x[i] = static_cast<double>(static_cast<std::uint32_t>(i) % numLevels);
+  const ColumnKind kinds[1] = { ColumnKind::orderedFactor };
+  const std::uint32_t declared[1] = { numLevels };
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore store;
+    store.build(x.data(), n, 1, 100u, useQuantiles, kinds, nullptr, 0,
+                declared);
+    std::vector<double> originalCuts(store.cutPoints[0]);
+
+    // a replacement spanning only the bottom half of the level table: a
+    // uniform or quantile refresh would re-cut over that range and merge
+    // every level above it
+    std::vector<double> narrowed(n);
+    for (size_t i = 0; i < n; ++i)
+      narrowed[i] = static_cast<double>(static_cast<std::uint32_t>(i) % 4u);
+    size_t column = 0;
+    check(store.cutsWouldRemainValid(0, narrowed.data()),
+          "level codes inside the table stay feasible");
+    store.setColumns(narrowed.data(), &column, 1, true);
+    check(store.cutPoints[0] == originalCuts &&
+            store.numCuts[0] == numLevels - 1,
+          "an updateCuts mutation keeps the level midpoints");
+    bool codesAreLevels = true;
+    for (size_t i = 0; i < n; ++i)
+      codesAreLevels &= store.codeAt(0, i) == static_cast<xint_t>(narrowed[i]);
+    check(codesAreLevels, "the mutated codes are still level indices");
+
+    // and a value off the level table is refused rather than quantized onto
+    // the nearest boundary
+    std::vector<double> offTable(narrowed);
+    offTable[3] = 7.5;
+    check(!store.cutsWouldRemainValid(0, offTable.data()),
+          "a between-levels value is not a level code");
+    offTable[3] = static_cast<double>(numLevels);
+    check(!store.cutsWouldRemainValid(0, offTable.data()),
+          "a code past the last level is not a level code");
+  }
+
+  // a whole-data replacement rebuilds the same grid from the pinned count
+  ColumnStore replaced;
+  replaced.build(x.data(), n, 1, 100u, false, kinds, nullptr, 0, declared);
+  std::vector<double> originalCuts(replaced.cutPoints[0]);
+  std::vector<double> shorter(n / 2, 0.0);
+  replaced.setData(shorter.data(), n / 2);
+  check(replaced.categoryCounts[0] == numLevels &&
+          replaced.cutPoints[0] == originalCuts,
+        "setData keeps the level count and rebuilds the same midpoints");
+
+  printf("ok: ordered factor grid survives mutation\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnKindAxis();
   testOrderedFactorGrid();
+  testOrderedFactorGridSurvivesMutation();
   testColumnStoreView();
   testColumnStoreColumnSubset();
   testColumnStoreLeafGather();

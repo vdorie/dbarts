@@ -765,8 +765,9 @@ struct ColumnStore {
       std::lower_bound(first, first + numCuts[variable], value) - first);
   }
 
-  /// A categorical value is representable when it is an integral code of an
-  /// existing category or missing; the category count is fixed once built.
+  /// A factor value of either kind is representable when it is an integral
+  /// code of an existing level or missing; the level count is fixed once
+  /// built.
   bool categoricalValueIsValid(size_t variable, double value) const {
     if (isNA(value)) return true;
     return value >= 0.0 &&
@@ -987,9 +988,15 @@ struct ColumnStore {
   /// range under two or more uniform cuts
   /// (a re-cut there would repeat a value). A forced update then routes the
   /// new values through the retained grid and collapses what empties.
-  /// Categorical columns have nothing to refresh; the caller pre-checked.
+  /// A factor column of either kind has nothing to refresh: its grid follows
+  /// its level table rather than its values, so re-deriving one from a
+  /// replacement column would make the grid depend on call history - and for
+  /// an ordered factor would replace the level midpoints with a uniform or
+  /// quantile grid over the replacement's observed range, merging every level
+  /// that range does not separate. The caller pre-checked the values against
+  /// the table.
   bool refreshCutsForColumn(size_t j, const double* column) {
-    if (splitsBySubset(j)) return true;
+    if (isFactor(j)) return true;
     if (useQuantiles) {
       QuantileGrid grid = quantileGridForColumn(j, column);
       if (grid.inducedNumCuts < numCuts[j]) return false;
@@ -1002,10 +1009,11 @@ struct ColumnStore {
   }
 
   /// Non-mutating feasibility check for values not yet installed: quantile
-  /// refresh feasibility for ordinal columns, category-code validity for
-  /// categorical ones.
+  /// refresh feasibility for numeric columns, level-code validity for factor
+  /// columns of either kind - whose grid is fixed by the level table, so the
+  /// question is membership in it rather than an induced-cut-count comparison.
   bool cutsWouldRemainValid(size_t j, const double* values) const {
-    if (splitsBySubset(j)) {
+    if (isFactor(j)) {
       for (size_t i = 0; i < numObservations; ++i)
         if (!categoricalValueIsValid(j, values[i])) return false;
       return true;
@@ -1666,14 +1674,14 @@ struct ColumnStore {
   /// (O(n / 64 + nnz)). The owned slice repoints at the new nonzeros so later
   /// re-quantizes (setCutPoints, state restore) read them. The storage tier
   /// (rank vs densified) is fixed at build and never flips. updateCuts
-  /// refreshes the ordinal cut grid from the dense column exactly as the dense
+  /// refreshes the numeric cut grid from the dense column exactly as the dense
   /// path does (the CSC cut builders fold the same implicit zeros the dense
-  /// column carries explicitly, so the grids match); a categorical column has
-  /// no grid to refresh and keeps its creation-pinned category count. The
-  /// caller snapshots for rollback first.
+  /// column carries explicitly, so the grids match); a factor column of either
+  /// kind has no grid to refresh and keeps its creation-pinned level count.
+  /// The caller snapshots for rollback first.
   void mutateCscColumnFromDense(size_t j, const double* column,
                                 bool updateCuts) {
-    if (updateCuts && splitsByThreshold(j)) refreshCutsForColumn(j, column);
+    if (updateCuts) refreshCutsForColumn(j, column);
 
     const double implicitValue = splitsBySubset(j)
       ? static_cast<double>(train.sources[j].refCode) : 0.0;

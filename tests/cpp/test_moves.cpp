@@ -858,6 +858,72 @@ static void testCategoricalMutation(ext_rng* rng) {
   printf("ok: categorical mutation\n");
 }
 
+// An ordered factor's grid is its level table, so the mutation surface holds
+// it to that table on BOTH cut-refresh settings: a value off the table is
+// refused whether or not the caller asked for a refresh, and a refresh that
+// is asked for leaves the midpoints in place rather than re-cutting over the
+// replacement's own range.
+static void testOrderedFactorMutation(ext_rng* rng) {
+  const size_t n = 200;
+  const std::uint32_t numLevels = 8;
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    std::uint32_t level = static_cast<std::uint32_t>(i) % numLevels;
+    x[i] = static_cast<double>(level);
+    x[i + n] = runif01();
+    y[i] = 0.4 * static_cast<double>(level) + 2.0 * x[i + n] +
+           0.3 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  ColumnKind types[] = {ColumnKind::orderedFactor, ColumnKind::numeric};
+  options.predictors.columnTypes = types;
+  options.maxNumCutsPerVariable = nullptr;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(100, 0, empty);
+  std::vector<double> originalCuts(sampler.data().cutPoints[0]);
+  check(sampler.data().numCuts[0] == numLevels - 1,
+        "the ordered factor carries one cut per level boundary");
+
+  // a value off the level table is refused on both settings, mutating nothing
+  std::vector<double> xBad(x);
+  xBad[3] = static_cast<double>(numLevels);
+  std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
+  check(sampler.setPredictor(xBad.data(), false, false) ==
+          PredictorUpdateResult::invalidCutPoints &&
+        sampler.setPredictor(xBad.data(), false, true) ==
+          PredictorUpdateResult::invalidCutPoints,
+        "an off-table level code is refused with and without cut refresh");
+  check(storageDigest(sampler.data()) == codesBefore,
+        "the refusal mutates nothing");
+
+  // a refresh over a replacement spanning half the table keeps the midpoints
+  std::vector<double> narrowed(x);
+  for (size_t i = 0; i < n; ++i)
+    narrowed[i] = static_cast<double>(static_cast<std::uint32_t>(i) % 3u);
+  PredictorUpdateResult result =
+    sampler.setPredictor(narrowed.data(), true, true);
+  check(result == PredictorUpdateResult::accepted,
+        "a forced update over a subset of the levels is accepted");
+  check(sampler.data().cutPoints[0] == originalCuts &&
+          sampler.data().numCuts[0] == numLevels - 1,
+        "the refresh keeps the level midpoints rather than re-cutting");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after ordered-factor mutation");
+
+  printf("ok: ordered factor mutation\n");
+}
+
 // ---------------------------------------------------------------------------
 // The empty-leaf veto counts POSITIVE-WEIGHT members, not members. A leaf all
 // of whose rows carry weight zero enters no likelihood term, so a branch
@@ -1757,6 +1823,7 @@ void runMovesTests(ext_rng* rng) {
   testMultiChainMutation();
   testLogisticMutation(rng);
   testCategoricalMutation(rng);
+  testOrderedFactorMutation(rng);
   testLinearLeafMutation(rng);
   testEmptyLeafVetoCountsWeight();
   testVetoRankUnfreezesStrandedTree();

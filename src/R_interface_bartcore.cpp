@@ -5258,8 +5258,12 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
         Rf_error("bartcore_setCutPoints: column out of range");
       columns[k] = static_cast<size_t>(column - 1);
-      if (holder.sampler->data().splitsBySubset(columns[k]))
-        Rf_error("cannot set cut points for a categorical predictor");
+      // a factor column's grid follows its level table, so an externally
+      // chosen one would strand its codes off their own levels
+      if (holder.sampler->data().isFactor(columns[k]))
+        Rf_error("cannot set cut points for a %s predictor",
+                 holder.sampler->data().splitsBySubset(columns[k])
+                   ? "categorical" : "ordered factor");
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
