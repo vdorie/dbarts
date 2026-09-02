@@ -840,6 +840,20 @@ static void testCategoricalMutation(ext_rng* rng) {
     y2[i] = categoryMeans[category] + 2.0 * x2[i + n2] +
             0.3 * (runif01() - 0.5);
   }
+  // a test matrix carrying a value that is not an existing level code refuses
+  // the WHOLE call: the alternative it replaces was new training values beside
+  // a silently dropped test set, which no caller can detect
+  std::vector<double> badTest(4);
+  badTest[0] = 4.0;  // one level past the column's table
+  badTest[1] = 0.0;
+  badTest[2] = 0.5;
+  badTest[3] = 0.5;
+  size_t oldObservations = sampler.numObservations();
+  check(!sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr,
+                         badTest.data(), 2),
+        "setData refuses a test matrix outside the level table");
+  check(sampler.numObservations() == oldObservations,
+        "a refused setData leaves the sampler's own data in place");
   check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr,
                         0),
         "categorical setData ingests the replacement");

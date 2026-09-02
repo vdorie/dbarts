@@ -1166,6 +1166,35 @@ static void testMaterializePredictorSource() {
     if (i != 0 && i != 5) readerTypeKeyed &= ordinalColumns.column(1).at(i) == 0.0;
   check(readerTypeKeyed, "the reader's implicit rule keys on the store's type");
 
+  // the same view with predictor 3 arriving as int32 codes: a CSC column's
+  // implicit rows must read the same reference beside a coded dense column as
+  // beside a double one - the rule lives in one place, and a typed variant
+  // that applied it anywhere else would diverge from the store
+  std::vector<std::int32_t> codes(n);
+  for (size_t i = 0; i < n; ++i)
+    codes[i] = i == 4 ? naDenseCode : static_cast<std::int32_t>(i % 5);
+  const std::int32_t codedChannels[p] = { 0, 0, 0, ~0 };
+  PredictorSource codedSource = source;
+  codedSource.denseCodes = codes.data();
+  codedSource.denseChannels = codedChannels;
+  std::vector<double> codedBlock(n * p);
+  materializePredictorSource(codedSource, types, 0, n, codedBlock.data());
+
+  bool implicitHolds = true;
+  for (size_t j = 0; j < 3; ++j)
+    for (size_t i = 0; i < n; ++i) {
+      double expected = block[j * n + i], got = codedBlock[j * n + i];
+      implicitHolds &= std::isnan(expected) ? std::isnan(got) : got == expected;
+    }
+  check(implicitHolds,
+        "the CSC columns materialize identically beside a coded one");
+  bool codedHolds = std::isnan(codedBlock[3 * n + 4]);
+  for (size_t i = 0; i < n; ++i)
+    if (i != 4)
+      codedHolds &= codedBlock[3 * n + i] == static_cast<double>(i % 5);
+  check(codedHolds,
+        "a coded dense column widens, its missing marker becoming a NaN");
+
   printf("ok: predictor source materialization\n");
 }
 
@@ -1579,6 +1608,140 @@ void testIngestionRefusals() {
   printf("ok: ingestion refusals\n");
 }
 
+// The code channel must build the SAME store the double channel does: the same
+// codes, the same level counts, and - the one that moves draws rather than
+// values - the same missing flags. A column that goes from flagged to
+// unflagged consumes no missing-direction draw, so a divergence there shifts
+// every draw after it rather than showing up as a wrong number.
+static void testCodeChannelIngestion() {
+  const size_t n = 200, p = 5;
+  const std::uint32_t numCategories = 6, numLevels = 5, numWide = 70;
+  const ColumnKind kinds[p] = { ColumnKind::categorical,
+                                ColumnKind::orderedFactor,
+                                ColumnKind::numeric,
+                                ColumnKind::categorical,
+                                ColumnKind::numeric };
+  // column 2 is the only one the double channel serves; the other four cross
+  // as codes, including column 4, whose KIND is numeric - a host may code a
+  // column the store reads as real-valued, and the build widens it back
+  const std::int32_t channels[p] = { ~0, ~1, 0, ~2, ~3 };
+
+  std::vector<double> values(n * p);
+  std::vector<double> valueBlock(n);
+  std::vector<std::int32_t> codeBlock(4 * n);
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  for (size_t i = 0; i < n; ++i) {
+    bool missingCategory = i % 17 == 0, missingLevel = i % 23 == 0;
+    bool missingNumeric = i % 29 == 0;
+    values[i] = missingCategory
+      ? nan : static_cast<double>(i % numCategories);
+    values[n + i] = missingLevel ? nan : static_cast<double>(i % numLevels);
+    // deterministic, so this test draws nothing: the suites after it read the
+    // same rng stream
+    values[2 * n + i] = 0.125 * static_cast<double>(i % 37);
+    values[3 * n + i] = static_cast<double>(i % numWide);
+    values[4 * n + i] = missingNumeric ? nan : static_cast<double>(i % 11);
+
+    codeBlock[i] = missingCategory
+      ? naDenseCode : static_cast<std::int32_t>(i % numCategories);
+    codeBlock[n + i] = missingLevel
+      ? naDenseCode : static_cast<std::int32_t>(i % numLevels);
+    valueBlock[i] = values[2 * n + i];
+    codeBlock[2 * n + i] = static_cast<std::int32_t>(i % numWide);
+    codeBlock[3 * n + i] = missingNumeric
+      ? naDenseCode : static_cast<std::int32_t>(i % 11);
+  }
+
+  ColumnStore reference;
+  built(reference.build(values.data(), n, p, 100u, false, kinds));
+
+  PredictorSource coded;
+  coded.numRows = n;
+  coded.numColumns = p;
+  coded.denseValues = valueBlock.data();
+  coded.denseCodes = codeBlock.data();
+  coded.denseChannels = channels;
+  coded.columnTypes = kinds;
+  ColumnStore fromCodes;
+  built(fromCodes.build(coded, nullptr, 100u, false));
+
+  check(fromCodes.types == reference.types &&
+          fromCodes.numCuts == reference.numCuts &&
+          fromCodes.categoryCounts == reference.categoryCounts &&
+          fromCodes.cutPoints == reference.cutPoints,
+        "the code channel builds the same grid the double channel does");
+  check(fromCodes.train.codes == reference.train.codes,
+        "the code channel quantizes to the same codes");
+  check(fromCodes.hasMissing == reference.hasMissing,
+        "the code channel records the same missingness");
+
+  // the counts are not inflated by the missing marker: read as unsigned it
+  // would be the largest value in the column and would move the mask tier
+  check(fromCodes.categoryCounts[0] == numCategories &&
+          fromCodes.categoryCounts[1] == numLevels &&
+          fromCodes.categoryCounts[3] == numWide,
+        "the missing marker does not enter the inferred level count");
+  check(fromCodes.hasMissing[0] == 1 && fromCodes.hasMissing[1] == 1 &&
+          fromCodes.hasMissing[2] == 0 && fromCodes.hasMissing[3] == 0 &&
+          fromCodes.hasMissing[4] == 1,
+        "a coded column's missing cells flag the column");
+  // and the marker takes the reserved code its kind spends, not a level
+  check(fromCodes.codeAt(0, 0) == missingCategoryCode(numCategories) &&
+          fromCodes.codeAt(1, 0) == naCode,
+        "a coded missing cell takes the reserved code, not a category");
+  check(fromCodes.codeAt(3, 0) == static_cast<xint_t>(0) &&
+          maskWordsForCount(numWide) > 1,
+        "a pooled coded column keeps its own codes");
+
+  // a leaf covariate reads raw doubles, so a coded column gathers a widened
+  // copy rather than none at all
+  const size_t gather[1] = { 1 };
+  ColumnStore gathered;
+  built(gathered.build(coded, nullptr, 100u, false, gather, 1));
+  const double* raw = gathered.rawColumn(1);
+  check(raw != nullptr, "a coded leaf-covariate column is gathered");
+  bool widened = raw != nullptr && std::isnan(raw[0]);
+  for (size_t i = 1; raw != nullptr && i < n; ++i)
+    if (i % 23 != 0) widened &= raw[i] == values[n + i];
+  check(widened, "the gathered copy widens the codes, missing included");
+
+  printf("ok: code channel ingestion\n");
+}
+
+// Both whole-data entrances used to trust their caller. The store's own now
+// checks membership in each factor column's fixed level table before it writes
+// a code, and the sampler's checks BOTH sides before anything moves, so a test
+// matrix it cannot ingest refuses the call rather than leaving new training
+// values beside no test set.
+static void testSetDataRefusals() {
+  const size_t n = 40, p = 2;
+  const std::uint32_t numCategories = 4;
+  const ColumnKind kinds[p] = { ColumnKind::categorical,
+                                ColumnKind::numeric };
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % numCategories);
+    x[n + i] = 0.25 * static_cast<double>(i % 7);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 10u, false, kinds));
+  std::vector<xint_t> original(store.train.codes);
+
+  std::vector<double> replacement(x);
+  replacement[0] = static_cast<double>(numCategories);  // one level past
+  check(!store.setData(replacement.data(), n),
+        "setData refuses a code outside the column's level table");
+  check(store.train.codes == original,
+        "a refused setData leaves the codes untouched");
+  replacement[0] = 0.0;
+  check(store.setData(replacement.data(), n),
+        "setData takes a replacement whose codes are all levels");
+  check(store.categoryCounts[0] == numCategories,
+        "setData keeps the level count fixed");
+
+  printf("ok: setData refusals\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnKindAxis();
@@ -1600,4 +1763,6 @@ void runDataTests() {
   testSparseCategoricalTestColumnStore();
   testPredictorViewEquivalence();
   testMaterializePredictorSource();
+  testCodeChannelIngestion();
+  testSetDataRefusals();
 }
