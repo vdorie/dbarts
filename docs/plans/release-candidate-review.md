@@ -537,6 +537,89 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S4b, typed predictor sources (17c7d419, e83c5665, 04e2a222, 0b16acd9, 829cc1ff, a091ca33, 1940821a, 2026-09-02)
+
+Slice S4b of docs/plans/column-kind-consolidation.md lands as seven
+commits, and closes the arc. A factor column's stored representation is
+now the one its values actually have: the test store and the mixed
+store's own block keep real-valued doubles only, packed per predictor
+over the columns they serve, and a factor column takes the new
+denseCodesOnly source kind rather than a null a reader must expect. Its
+codes were already the raw - a factor column never re-quantizes, its
+grid follows the level table rather than its values - so build's mapped
+arm and buildTest now CONSUME the code channel instead of refusing it,
+each reading a column off whichever channel holds it.
+
+Removing the double block cost the ordered-factor leaf covariate its two
+servers, so this slice adds the gather machinery Decision 2 needed: the
+training gather extends to the mapped arm over exactly its designated
+dense-backed factor columns, and buildTest gathers the test-side twin
+under its own column list. Between them, an ordered factor stays
+admissible as a leaf covariate on every container shape, train side and
+test side.
+
+rawColumn and rawTestColumn now answer null in one more case - a factor
+column the build was not asked to gather - stated beside the cases they
+already had, together with what makes the null safe: the designation is
+refused upstream, at the factory that admits a leaf covariate, so the
+null never reaches a leaf model.
+
+MEASURED, peak RSS in paired runs at n = 1e6 with 20 five-level factor
+columns: a test set drops about 160 MB, a mixed container beside a
+sparse column drops about 240 MB, and an all-dense container is
+unchanged - the all-dense path has been unmapped since before S4a, so
+the retained 8 bytes a cell this slice removes was always the mixed
+flavour's alone. New fields: sizeof(ColumnStore) 680 -> 704 bytes for
+gatheredRawTestColumns's own vector header, present on every store and
+fold view whether or not it gathers, plus 8 bytes per gathered test
+column; nothing else widens.
+
+The state format does not move: version 3 reads and writes exactly as
+before, no raw is ever serialized, and a state written at either build
+is byte-identical. The one behavioural change is that restore no longer
+re-installs a factor column's grid from the state, which is not a change
+over the same design - the level count is pinned by the data object the
+store is rebuilt from - and is refused over a different one; cross-build
+restore was verified in all four directions (base-to-base, base-to-tip,
+tip-to-base, tip-to-tip).
+
+Draws bitwise throughout: equivalence-d4bca4ce 51/51, no max |z| line.
+The gate is non-vacuous in both directions the corpus can show: removing
+buildTest's test-side gather alone fires leaffactor and leaffactormixed
+on their fhat.test legs - the all-dense container lost the same block as
+the mixed one, so both scenarios earn their place, not leaffactormixed
+alone.
+
+Reviewer fixes folded: build's MAPPED-arm contract comment and
+PredictorSource's Ownership paragraph are rewritten to say what the body
+does rather than what it did before the shrink (829cc1ff, a091ca33), and
+feature-matrix.md's three setData refusal anchors are re-pinned against
+the P5 tip (1940821a); the rebase hazard the review raised is moot here
+since this slice lands directly on 40e4b892 rather than by cherry-pick
+reconciliation.
+
+Docs brought current in-slice: docs/design/data-store.md and
+docs/architecture.md.
+
+Gates (implementer-run; independent battery pending): tests/cpp 280 ok,
+all tests passed, 69 ok (sampler), ASAN+UBSAN clean; tinytest 7669 / 0
+fail; equivalence-d4bca4ce 51/51, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z|
+line; check-doc-freshness 0 FAIL, 62 warning(s); NEWS.Rd 340 entries;
+R CMD check --as-cran OK; stan4bart 455/455 under the exact-ABI
+handshake.
+
+ARC CLOSURE. The column-kind consolidation arc (S0, S1, S2, S3, S4a,
+S4c, S4b; docs/plans/column-kind-consolidation.md) is fully landed as
+of this commit. Ordered factors now split between every adjacent pair
+of declared levels under an exact-posterior oracle instead of a
+heuristic grid, and factor predictors ingest and replay as integer
+codes end to end - through training, test, view, xbart and predict -
+at the memory savings measured across the arc's slices and a coded
+predict about a fifth faster than the double path, with the bridge's
+own validation sweep now reading whichever channel a column lies in
+rather than materializing doubles first to check them.
+
 ### D4 - the augmentation dispatch enum, splitting ResponseFamily's two meanings (e35e271d, e15122ad, 4e514aa4, 0cb94a39, 8d80ab01, 2026-09-02)
 
 docs/plans/review-2026-08-24/reading-engine-list.md's D4 named one
