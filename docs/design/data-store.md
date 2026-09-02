@@ -1,7 +1,5 @@
 # Data store
 
-Code citations are at d477a46b; they are not live.
-
 The standing reference for the C++ predictor data layer: `ColumnStore` in
 `src/bartcore/data.hpp` and the sampler transaction that mutates it
 (`src/bartcore/sampler.hpp`). Required reading before any data-adjacent
@@ -91,7 +89,7 @@ What stays store-level, not block-level, and why:
   partition kernel; the test side gates no draws, so `quantizeTestColumn`
   passes a null `hasMissingOut` and tracks nothing.
 - `gathered*` (raw copies, means, sds) is store-level: the leaf-covariate
-  raw is a training-and-test-subset pair keyed by column, not a per-block
+  raw spans both sides, each with its own column list, not a per-block
   code concern.
 - `ownedTestValues`, `ownedTestCscValues`, `ownedTestCscRows`,
   `testOffset` are store-level: the test store owns every raw it keeps
@@ -120,11 +118,11 @@ is a kind, not a null a reader must know to expect.
   `denseCallSupplied` until a builder overwrites it.
 - `denseResident` - dense codes in `codes[]`; re-quantizes from the
   `residentRaw` pointer the descriptor holds (a mixed build's store-owned
-  dense slice - the dense block is copied into `ownedDenseValues` at build,
-  not borrowed - or a test build's owned slice into `ownedTestValues`).
-  `residentRaw` is the only kind that serves `rawColumn`/`rawTestColumn` a
-  raw pointer directly, and the only one a mutation's write-through and
-  rollback touch.
+  dense slice - the REAL-VALUED dense columns are copied into
+  `ownedDenseValues` at build, not borrowed - or a test build's owned slice
+  into `ownedTestValues`). `residentRaw` is the only kind that serves
+  `rawColumn`/`rawTestColumn` a raw pointer directly, and the only one a
+  mutation's write-through and rollback touch.
 - `denseCodesOnly` - dense codes in `codes[]` and NO raw anywhere. What a
   FACTOR column of either kind takes wherever its storage is dense: its
   cells are level codes, which the codes already carry, and its grid
@@ -202,10 +200,10 @@ which their kernels index column-major, and they lay their own out.
 
 The flat replay reads either channel too.
 `PredictorSourceColumnReader` - the reader `predict`, the saved-tree replay
-and the test-side refusals all take a borrowed view through - serves a
-dense-backed column from whichever channel holds it, widening a code the way
-the ingestion arm does, so a factor test set routes rows off its own codes
-without a block built to hold them widened.
+and the test-side refusals all take a borrowed view through - has three arms:
+the double channel, the code channel, and a CSC rank lookup. The descent asks
+`codes()` once per NODE and routes a coded column off its int32 cells against
+the largest code the cut admits, so a factor test set costs no per-row widen.
 
 Two conventions are NOT the same and must not be confused. The channel's
 missing marker is `naDenseCode`; the code a missing value takes IN THE
@@ -314,16 +312,17 @@ The transaction sequence (`sampler.hpp:1850`):
    `invalidCutPoints`, nothing mutated.
 2. `forceUpdate`: apply, `forceRefreshTrees` (every forest, collapsing
    emptied leaves), requantize the test columns, accept.
-3. Otherwise snapshot-apply, then `revalidateAllChains`. The gathered
-   leaf-covariate raw that leaf models re-read is snapshotted HERE, in the
-   transaction (`oldGatheredRaw`), because the store's re-quantize touches
-   it in place. On success requantize test and accept; on failure restore
-   the gathered raw, `strategy.restore`, repartition every chain, and
-   return `rolledBack`.
+3. Otherwise snapshot-apply, then `revalidateAllChains`. The raw a reject
+   must put back is snapshotted HERE, in the transaction: the gathered
+   leaf-covariate copies (`oldGatheredRaw`) and, on a mixed store, the owned
+   dense block of the touched columns (`oldOwnedDense`), both of which the
+   store's re-quantize writes in place. On success requantize test and
+   accept; on failure restore both, `strategy.restore`, repartition every
+   chain, and return `rolledBack`.
 
-Snapshot ownership: the strategy owns the codes, missing flags, and cut
-grids it moves; the transaction owns the gathered-raw snapshot. This is
-the whole rollback record - there is no store-resident undo log.
+Snapshot ownership: the strategy owns the codes, missing flags, cut grids
+and CSC storage it moves; the transaction owns the two raw snapshots. This
+is the whole rollback record - there is no store-resident undo log.
 
 Refusal contract: `refuseMutationOnView` guards these paths -
 `setPredictor`, `updatePredictor`, the per-observation entries, cut
@@ -459,8 +458,9 @@ metadata (`cscReferenceMeta`/`cscCategoryCountMeta`, resolved per
 predictor through `resolveCscCategoricalReferences`). The bridge also
 assembles the mixed container's source map; the engine's builders assume
 all of that holds. Use the composed helpers - `parseCscMatrix`, `parseMixedContainerBlock`
-(`mapColumnSources` + `codeDenseColumn`), `resolveCscCategoricalReferences`
-- which serve both the training and test container parses from one body.
+(`mapColumnSources` + `codeDenseColumn`/`codeDenseCodeColumn`),
+`resolveCscCategoricalReferences` - which serve both the training and test
+container parses from one body.
 
 State blocks are read BY NAME and defaulted when absent
 (`R_interface_bartcore.cpp:6927`): a newer release's additive blocks load

@@ -13,11 +13,13 @@ Summary: the engine now owns predictor data as a typed, quantized,
 XGBoost-DMatrix-style container (mixed categorical/ordinal, dense/sparse
 columns) ingested directly from a data.frame, replacing the old borrow of
 REAL(x) for the sampler's lifetime plus PROT_* pinning and const_cast
-write-through. By default a column owns only its quantized codes; the R
+write-through. A matrix-built column owns only its quantized codes; the R
 layer supplies raw values as call-time arguments (from the data.frame or
 matrix it already holds) wherever the engine still needs them - re-cutting,
-setData, and getTrees replay - so no engine-side raw retention, versioning,
-or lifetime pin is needed for those paths. Two more elaborate mechanisms for
+setData, and getTrees replay. A container or test build keeps the store's
+own copy of its REAL-VALUED columns instead, a factor column keeping only
+the codes it already is; no path needs versioning or a lifetime pin. Two
+more elaborate mechanisms for
 the same problem were designed and then designed OUT once call-time supply
 proved sufficient: a re-cuttable creation-time flag plus cut-grid "epoch"
 versioning (replaced by call-time supply directly), and an engine-owned raw
@@ -33,8 +35,8 @@ through PROT_* pinning plus const_cast write-through into R memory. The
 replacement: an owned, typed, quantized container (XGBoost-DMatrix-style;
 mixed categorical/ordinal, dense/sparse columns), ingested directly from a
 data.frame so the loosely packed R-side double matrix need never exist. At
-n = 1e6, p = 50 with default n.cuts = 100: ~50 MB of owned u8 codes versus a
-400 MB double borrow.
+n = 1e6, p = 50 with default n.cuts = 100: ~100 MB of owned u16 codes
+versus a 400 MB double borrow.
 
 Three independent panel reviews (verified in code) converged on one
 unanimous default: the engine owns quantized data only, with no implicit
@@ -71,10 +73,10 @@ rejected."
 One owned BartData replaces ColumnStore's borrow (container design,
 2026-07-07). The container crosses kind {ordinal, categorical, ordered factor}
 with storage {dense, CSC} as orthogonal per-column properties; per column it
-carries a code width chosen by cardinality (u8 for <= 255 cuts - the
-default n.cuts = 100 fits - u16 above; hot-layer-u8's per-column widths
-land here, not as a separate retrofit), a cut table or level table, and an
-NA policy.
+carries a cut table or level table and an NA policy. Codes are u16
+throughout (data.hpp:22): the per-column width chosen by cardinality (u8 for
+<= 255 cuts, u16 above) was designed here and never built, and stays open
+work rather than a property of the shipped container.
 
 Coverage of the kind x storage cells is now complete. Three shipped
 before this design (data.hpp:102 ColumnKind; buildMixed per-column dispatch,
@@ -128,8 +130,10 @@ columns, so the model.matrix double detour goes away).
 Matrix input keeps a READ-ONLY borrow of REAL(x), but only during
 CONSTRUCTION (VD, 2026-07-11): the borrow serves quantization and the
 gathering of flagged columns, then releases - no lifetime pin anywhere. The
-R data object holding the matrix or frame is what keeps it GC-alive; the
-C++ side retains nothing that was not explicitly flagged. That data object
+R data object holding the matrix or frame is what keeps it GC-alive; a
+matrix build retains nothing that was not explicitly flagged, while a
+container build copies its real-valued dense columns into the store's own
+block and leaves its factor columns as codes. That data object
 also HOLDS the ingested frame (or matrix), which makes it both the GC
 anchor and the call-time raw source the rest of this design draws on.
 
@@ -197,15 +201,15 @@ BCF's prognostic/treatment forests, and sum-of-BART families with
 per-model column subsets, need one container shared by several samplers.
 The shipped design: a standalone data handle (core-generalization.md:
 181-185) owns the container once; samplers and forests attach through
-COLUMN-SUBSET views. Kernels already consume one column at a time
-(codes.data() + j*n), so a view is just a column-index list - no
-contiguous block per model is required. Cut tables and codes are shared
-when grids match (the default); a per-model grid override allocates only
-the diverging column. Mutation under sharing follows the single-writer
+COLUMN-SUBSET views. Kernels consume one column at a time through the
+store's per-column code offsets, so a view is named by a row and column
+list rather than by a block per model. What a view SHARES is the parent's
+cut structure: buildFromParent (data.hpp:1972) copies that and gathers the
+subset's own codes. Mutation under sharing follows the single-writer
 rule; a shared column updated once is visible to every attached model,
 which collapses bairrtt's two-copy setPredictorJointly workaround into a
 single update. Aggressive quantization caps the worst case too: a fallback
-private copy of codes is ~8x smaller than the double matrix it replaces.
+private copy of codes is ~4x smaller than the double matrix it replaces.
 
 This landed as plan 4 (data-ownership-4-views.md), with two items left
 open rather than resolved: shared MUTABLE codes were deferred (sharing
@@ -224,9 +228,10 @@ served.
 
 dbarts.h's freeze was LIFTED for this program specifically (VD): stan4bart
 is the only ABI consumer and dbarts owns it, so the two update in
-lockstep rather than the C API being held rigid. Concretely: getTrees
-gains an explicit training-replay data parameter (NULL means the retained
-creation spec), and setState may take raw values for cross-grid restores.
+lockstep rather than the C API being held rigid. As shipped the flat API
+needed neither door: getTrees replays the retained creation spec with no
+data parameter (dbarts.h:1057), and setState installs a state with no raw
+values (dbarts.h:1112); the replay matrix is an R-surface argument only.
 PROT_DATA itself stays, as the creation contract and the flat-C GC anchor.
 
 The state format changes too: the container serializes per-column
@@ -325,14 +330,16 @@ Five plans, landed sequentially:
    reference level by level order too. Test-side sparse was satisfied by
    densification over training levels at the time, not resident sparse
    testCodes; the mixed flavor's resident dense block (deferred here
-   explicitly at plan 2) was also retired, ownership moving to the bridge
-   holder/handle. That densification interim is now SUPERSEDED: LANDED
-   through 14bef56..22d7116 (docs/plans/archive/test-data-parity.md), the test
-   store gained its own per-column typed fields sharing the training cut
-   grid, a sparse/frame x.test stays rank-bitmap or densified per column
-   (the training tier rule) resident end to end through creation and
-   setTestPredictor, and only predict/getTrees(newdata) materialize a
-   dense matrix at the R boundary - superseding plan-5 decision 2 / Q4.
+   explicitly at plan 2) was retired at the time, ownership moving to the
+   bridge holder/handle. Both interims are SUPERSEDED: LANDED through
+   14bef56..22d7116 (docs/plans/archive/test-data-parity.md), the test store
+   gained its own per-column typed fields sharing the training cut grid, a
+   sparse/frame x.test stays rank-bitmap or densified per column (the
+   training tier rule) resident end to end through creation and
+   setTestPredictor, and a sparse or mixed source replays resident at
+   predict and getTrees(newdata) too - superseding plan-5 decision 2 / Q4.
+   The store owns a dense block again on both sides, holding its
+   REAL-VALUED dense-backed columns only; a factor column keeps its codes.
 
 Two operational notes from the close of the program (VD, 2026-07-11
 evening):

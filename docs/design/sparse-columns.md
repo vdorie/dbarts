@@ -149,8 +149,8 @@ with missing values take the missing-aware arm of the engine-side
 Tree::partitionIndicesScalar, over the rank accessor rather than a dense
 column. Tree descent (findBottomNodeForObservation) and state-restore
 partition checks (setPartitionsFromOrderedIndices) go through a
-storage-aware codeAt(j, i). Test codes stay dense row-major and x.test
-stays a dense matrix: quantization only reads cut points.
+storage-aware codeAt(j, i). Test codes stayed dense and x.test a dense
+matrix in v1: quantization only reads cut points.
 
 Views densify (the sketch's recommendation): buildFromParent gathers
 parent codes through codeAt into a fully dense child store, so the
@@ -252,11 +252,13 @@ Landed per the plan; deltas and specifics:
   paths are layout-refactored only); speed at baseline; R CMD check
   --as-cran Status OK.
 
-Still open, by design: sparse x.test, rbart_vi and linear-leaf
-support, per-column u8 code widths, a streaming range kernel for
-root-sized segments, and any public exposure of the density threshold.
-(In-place nonzero-value mutation and pattern rebuilds LANDED as extension
-(i), 2026-07-22 - see the section below.)
+Still open, by design: rbart_vi and linear-leaf support, per-column u8
+code widths, a streaming range kernel for root-sized segments, and any
+public exposure of the density threshold. (In-place nonzero-value mutation
+and pattern rebuilds LANDED as extension (i), 2026-07-22 - see the section
+below. Sparse x.test LANDED later still: the test store carries its own
+per-column typed fields over the training grid, and a sparse or mixed test
+source stays resident through creation, setTestPredictor and predict.)
 
 ## Planned: mixed dense and sparse predictors (Vincent, 2026-07-04)
 
@@ -291,15 +293,17 @@ where the source allows:
   builders but model.frame's handling of S4 columns needs validation
   during implementation.
 - Container: dbartsData@x (already ANY) holds an internal mixed
-  container - the dense columns as one numeric matrix, the sparse
-  columns cbound into one dgCMatrix, plus a source map and dimnames,
-  with ncol/colnames/nrow served so the R-side consumers (varcount
-  naming, plotTree, partialDependence) keep working. A plain R object,
-  so getPointer() re-creation and save/load work unchanged.
-- Bridge: parseData recognizes the container and passes the dense
-  pointer, the CSC slots, and the per-column source map through
-  SamplerOptions (internal, freely extensible); validation as v1 plus
-  map consistency.
+  container - the dense columns as a per-column list, a factor keeping
+  its integer codes, the sparse columns cbound into one dgCMatrix, plus a
+  source map and dimnames, with ncol/colnames/nrow served so the R-side
+  consumers (varcount naming, plotTree, partialDependence) keep working.
+  A plain R object, so getPointer() re-creation and save/load work
+  unchanged.
+- Bridge: parseData recognizes the container and assembles a transient
+  SPLIT block - real values in one channel, int32 level codes in the
+  other, each packed per predictor - passing it with the CSC slots and the
+  per-column source map as one borrowed view (SamplerOptions::predictors);
+  validation as v1 plus map consistency.
 - Test data: stays dense in v1 of mixed too - a test data frame
   expands through the same builders to a dense matrix over all
   columns, which validateXTest already produces.
@@ -322,16 +326,18 @@ Implemented per the plan above; deltas and specifics:
   ...) with columnSources per column: nonnegative names a dense-slice
   column, negative the complement (~) of a CSC column. buildFromCsc is
   now a thin wrapper (an all-complement map), so the pure-CSC path runs
-  the same code. Per-column raw access went through a new
-  denseSourceColumn(j) (the x matrix on dense builds, mixedRawColumns[j]
-  on mixed builds, null otherwise) and the quantize/cut dispatch through
-  columnIsCscBacked(j); every reader of x + j*n in data.hpp rewired.
-  rawColumn(j) serves dense-backed mixed columns, which gives linear
-  leaves and view raw-gather for free; buildFromParent now gathers
-  through parent.rawColumn per column, skipping columns the parent
-  cannot serve (the facade then refuses those designations), and
-  inherits parent standardization constants when the parent is itself a
-  view. SamplerOptions grew mixedDenseValues/columnSources; the facade
+  the same code. Per-column raw access goes through the column's own
+  source descriptor (ColumnSource, data.hpp:273) and the quantize/cut
+  dispatch through columnIsCscBacked(j); every reader of x + j*n in
+  data.hpp was rewired. rawColumn(j) serves a mixed store's REAL-VALUED
+  dense-backed columns out of the store's own block, which gives linear
+  leaves and view raw-gather for free; a dense-backed FACTOR column keeps
+  codes and no doubles, and a designated one is served by the build's
+  gather instead (data.hpp:923). buildFromParent gathers through
+  parent.rawColumn per column, skipping columns the parent cannot serve
+  (the facade then refuses those designations), and inherits parent
+  standardization constants when the parent is itself a view. The whole
+  source rides SamplerOptions::predictors; the facade
   refuses linear leaves per designated CSC-backed column instead of
   store-wide.
 - I() does not survive on S4 objects and data.frame(...) rejects
@@ -340,13 +346,14 @@ Implemented per the plan above; deltas and specifics:
   columns outright, so - like the v1 dgCMatrix - mixed input enters
   through the x/y interface only. Documented in dbarts.Rd/bart.Rd.
 - Container: class "dbartsMixedMatrix" (R/mixedMatrix.R), a plain list
-  of dense matrix (NULL when the frame is all-sparse), one cbound
-  dgCMatrix, a 1-based signed map (+k dense, -k sparse; R's -k IS the
-  engine's ~(k-1), so the bridge maps almost verbatim), and the column
-  names. S3 dim/dimnames/[/as.matrix registered; [ keeps the container
-  (and builder attributes) on row subsetting, densifies on column
-  selection with matrix drop semantics. as.matrix makes validateXTest
-  work unchanged (its !is.matrix coercion densifies containers).
+  of a per-column dense list (NULL when the frame is all-sparse, a factor
+  keeping its integer codes), one cbound dgCMatrix, a 1-based signed map
+  (+k dense, -k sparse; R's -k IS the engine's ~(k-1), so the bridge maps
+  almost verbatim), and the column names. S3 dim/dimnames/[/as.matrix
+  registered; [ keeps the container (and builder attributes) on row
+  subsetting, densifies on column selection with matrix drop semantics.
+  as.matrix serves the R-side consumers that want a matrix; validateXTest
+  keeps a container whose columns are sparse rather than densifying it.
 - Builders: makeCategoricalModelMatrix passes sparse columns through as
   ordinal (sparseVector one column, dgCMatrix its columns).
   makeModelMatrixFromDataFrame expands dense input columns ONE AT A

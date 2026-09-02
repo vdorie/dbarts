@@ -308,7 +308,7 @@ is as the primitive the block-fused approach needs (section 6).
 
 ### 6.1 Scope boundary (clean, different axis)
 
-Plan-1's ColumnStore owns predictor CODES (u8/u16), indexed by column and
+Plan-1's ColumnStore owns predictor CODES (u16), indexed by column and
 consumed by the PARTITION. This redesign is about the RESPONSE-axis
 per-observation arrays (treeY/treeFits/y/weights), owned by the Forest and
 the response family, indexed by observation and permuted per-tree. The two
@@ -344,7 +344,7 @@ fights the first.
    partition untouched and gathers into scratch (strategy 1b -- which
    does NOT touch partitionChildren at all, a strong reason to prefer
    1b: it decouples entirely from the data-ownership partition rework).
-4. Memory interaction: plan-1's u8 codes shrink predictor memory (~8x),
+4. Memory interaction: plan-1's u16 codes shrink predictor memory (~4x),
    but strategy 1a's leaf-order residual copy ADDS n*m doubles (160 MB
    at n=1e5,m=200), dwarfing that saving. Strategy 1b adds only O(n).
    Another vote for 1b.

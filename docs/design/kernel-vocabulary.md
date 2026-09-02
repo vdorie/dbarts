@@ -27,16 +27,19 @@ where the engine calls into this vocabulary, see docs/architecture.md.
   no configure switch to change it. The generalized data model moves this to
   a per-column property (u8/u16); kernels gain width-suffixed variants
   selected through the same tables.
-- `misc_size_t` (misc/stddef.h): `size_t`; observation indices.
+- `misc_size_t` (misc/stddef.h): `size_t`; lengths and counts.
+- `misc_index_t` (misc/stddef.h): `uint32_t`; the per-observation gather
+  index every indexed kernel takes, narrowed from `size_t` to halve the hot
+  index buffers. Matches the engine's `index_t`.
 
 ## Current vocabulary
 
 ### Partition (misc/partition.h, src/misc/partition_body.c)
 
     size_t misc_partitionRange  (const misc_xint_t* x, misc_xint_t cut,
-                                 size_t* indices, size_t length);
+                                 misc_index_t* indices, size_t length);
     size_t misc_partitionIndices(const misc_xint_t* x, misc_xint_t cut,
-                                 size_t* indices, size_t length);
+                                 misc_index_t* indices, size_t length);
 
 Contract:
 
@@ -62,7 +65,7 @@ Sparse sibling (landed 2026-07-04, docs/design/sparse-columns.md):
                                        const uint32_t* wordRanks,
                                        const misc_xint_t* nzCodes,
                                        misc_xint_t zeroCode, misc_xint_t cut,
-                                       size_t* indices, size_t length);
+                                       misc_index_t* indices, size_t length);
 
 Same contract as misc_partitionIndices over the rank-bitmap column layout:
 code(i) is zeroCode when bit i is clear, else nzCodes[rank(i)] with rank(i)
@@ -70,6 +73,18 @@ code(i) is zeroCode when bit i is clear, else nzCodes[rank(i)] with rank(i)
 plain function (no dispatch pointer until a SIMD variant justifies one);
 missing-value columns use an engine-side MIA sibling instead, matching the
 dense split.
+
+Flat-descent sibling (engine-side, src/bartcore/tree.hpp): the saved-tree
+replay partitions rows over a flattened node rather than a store column, so
+it reads cells from whichever channel a borrowed predictor source holds them
+in. partitionFlatIndicesOver (tree.hpp:1801) is templated over a Cells
+policy - DoubleCells (:1764) over the double channel, CodeCells (:1781) over
+int32 level codes, whose ordinal cut is the largest code the threshold
+admits (codeThresholdBelow, data.hpp:54) - and partitionFlatIndices
+(tree.hpp:1863) picks the channel ONCE per node from the column reader's
+codes(), whose three arms are dense values, dense codes, and a CSC-backed
+column's rank lookup (data.hpp:594-607). A coded column pays one 4-byte load
+per row and no per-row conversion.
 
 ### Sufficient statistics / moments (misc/stats.h, src/misc/moments.c)
 
@@ -153,11 +168,12 @@ SIMD specializations only when profiling justifies them.
 ## Invariants
 
 - No kernel allocates, throws, or calls back into generic code.
-- Index arrays are `size_t`; kernels never reorder anything but their own
-  `indices` argument.
-- Reduction order may differ between ISA variants and thread counts; exact
-  cross-variant equality is not part of the contract (only tolerance-level
-  agreement), which is consistent with the no-bit-parity decision.
+- Index arrays are `misc_index_t`; kernels never reorder anything but their
+  own `indices` argument.
+- Reduction order may differ between thread counts. The only dispatched
+  kernels are permutations and elementwise passes, and no draw-path
+  reduction is dispatched, so a fit is BITWISE identical across instruction
+  sets (inst/tinytest/test-simd.R gates it).
 - Instruction-set switching is a test/bench facility only; production
   installs once at load.
 - misc.a is R-free: output goes through the `misc_printf`/`misc_flushOutput`
