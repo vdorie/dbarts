@@ -43,23 +43,23 @@ unanimous default: the engine owns quantized data only, with no implicit
 raw retention. That default only works because every residual consumer of
 stored raw values was tracked down and given an explicit, narrow home:
 
-- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:1090)
-  and quantile refresh (data.hpp:1058). Not recoverable from codes (bin
+- Re-cutting an UNCHANGED column: setCutPoints re-quantization ([[data.hpp#setCutPointsForColumn]])
+  and quantile refresh ([[data.hpp#refreshCutsForColumn]]). Not recoverable from codes (bin
   counts do not locate new quantile values).
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
-  (model.hpp:998,1013,1362,1381); no per-draw raw reads. Leaves can own a raw
+  ([[model.hpp#LinearGaussianLeaf::initialize, LinearGaussianLeaf::reinitialize, GPGaussianLeaf::initialize, GPGaussianLeaf::reinitialize]]); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
-- getTrees saved-tree replay (bartcore_getTrees,
-  R_interface_bartcore.cpp:6080) read store.x; it was routable from codes
+- getTrees saved-tree replay ([[R_interface_bartcore.cpp#bartcore_getTrees]])
+  read store.x; it was routable from codes
   while the cut grid was unchanged since save. As shipped it needs neither:
   the replay reads the training predictors the R method supplies (data@x)
-  and the engine keeps no matrix (R_interface_bartcore.cpp:6148-6149).
+  and the engine keeps no matrix ([[R_interface_bartcore.cpp#bartcore_getTrees]]).
 - dbarts.h exposes no raw-x getter; the C ABI is unaffected.
 
 The panel's proposed resolutions, from that same 2026-07-06 synthesis:
 re-cuttability as an explicit creation-time column flag (default off), so
 refusals reflect a column's declared state rather than a policy surprise -
-the sparse-column precedent (facade.hpp:840-843); and, on a split panel call
+the sparse-column precedent ([[facade.hpp#leafCovariateDesignationIsValid]]); and, on a split panel call
 (2/3), keeping a READ-ONLY borrow of REAL(x) as the pure-continuous matrix
 fast path, with write-through dying regardless of that split. The read-only
 borrow survived into the shipped design, narrowed to construction only (see
@@ -74,12 +74,12 @@ One owned BartData replaces ColumnStore's borrow (container design,
 2026-07-07). The container crosses kind {ordinal, categorical, ordered factor}
 with storage {dense, CSC} as orthogonal per-column properties; per column it
 carries a cut table or level table and an NA policy. Codes are u16
-throughout (data.hpp:22): the per-column width chosen by cardinality (u8 for
+throughout ([[data.hpp#xint_t]]): the per-column width chosen by cardinality (u8 for
 <= 255 cuts, u16 above) was designed here and never built, and stays open
 work rather than a property of the shipped container.
 
 Coverage of the kind x storage cells is now complete. Three shipped
-before this design (data.hpp:102 ColumnKind; buildMixed per-column dispatch,
+before this design ([[data.hpp#ColumnKind]]; buildMixed per-column dispatch,
 sparse-columns.md mixed landing notes): dense ordinal (numerics), dense
 categorical (unordered factors, membership splits, <= 65535 levels), and
 sparse ordinal (CSC, rank bitmap or densified codes). Sparse
@@ -110,7 +110,7 @@ storage on updatable columns; that flag was designed, then killed before
 being built - see "Considered and rejected." Mutation instead works by
 reference-install, below.) With no flag set, a column owns codes only;
 undeclared capabilities refuse at the call with a declared-state error -
-the same precedent already used for sparse columns (facade.hpp:840-843), so
+the same precedent already used for sparse columns ([[facade.hpp#leafCovariateDesignationIsValid]]), so
 refusals reflect a column's declared state rather than being a policy
 surprise.
 
@@ -204,7 +204,7 @@ The shipped design: a standalone data handle (core-generalization.md:
 COLUMN-SUBSET views. Kernels consume one column at a time through the
 store's per-column code offsets, so a view is named by a row and column
 list rather than by a block per model. What a view SHARES is the parent's
-cut structure: buildFromParent (data.hpp:1972) copies that and gathers the
+cut structure: buildFromParent ([[data.hpp#buildFromParent]]) copies that and gathers the
 subset's own codes. Mutation under sharing follows the single-writer
 rule; a shared column updated once is visible to every attached model,
 which collapses bairrtt's two-copy setPredictorJointly workaround into a
@@ -230,8 +230,8 @@ dbarts.h's freeze was LIFTED for this program specifically (VD): stan4bart
 is the only ABI consumer and dbarts owns it, so the two update in
 lockstep rather than the C API being held rigid. As shipped the flat API
 needed neither door: getTrees replays the retained creation spec with no
-data parameter (dbarts.h:1057), and setState installs a state with no raw
-values (dbarts.h:1112); the replay matrix is an R-surface argument only.
+data parameter ([[dbarts.h#dbarts_sampler_getTrees]]), and setState installs a state with no raw
+values ([[dbarts.h#dbarts_sampler_setState]]); the replay matrix is an R-surface argument only.
 PROT_DATA itself stays, as the creation contract and the flat-C GC anchor.
 
 The state format changes too: the container serializes per-column
