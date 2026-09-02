@@ -28,15 +28,15 @@ rng: **D3 is the arc's ONLY engine-touching slice, and it carries the arc's only
   draws, so the gaussian (`equivalence-8b047f8b`) and multinomial
   (`multinomial-equivalence-1027be5`) baselines must stay BITWISE and are the
   leak detectors; the bcf baseline needs a SHAPE-ONLY re-record because
-  `benchmarks/R/bcf-equivalence.R`:100 records `varcount = result$varcount` and
-  compares with `identical()` (:449), which a new dimension fails structurally.
+  [[benchmarks/R/bcf-equivalence.R:100@4c018187]] records `varcount = result$varcount` and
+  compares with `identical()` ([[benchmarks/R/bcf-equivalence.R:449@4c018187]]), which a new dimension fails structurally.
   That re-record is gated on its own falsifier (FB16) proving the added
   dimension is the only difference.
 window: inside the pre-release window; sister packages migrate in lockstep.
   Nothing here moves `DBARTS_C_API_HASH`, and that is MADE true rather than
   assumed: D3 gives `storeSample` the caller's declared forest count, so every
   caller-owned varcount buffer - the flat C API's and rbart_vi's - keeps today's
-  exact single-slab bytes and `dbarts.h`:147's documented shape stays correct,
+  exact single-slab bytes and [[dbarts.h:147@4c018187]]'s documented shape stays correct,
   while the R run bridge opts into the widened channel (D3 item 5). The only
   `dbarts.h` edit is one doc COMMENT, which the hash does not cover; no X-list
   entry is added, re-signed or removed, and no other slice adds a C entry.
@@ -78,14 +78,14 @@ branch of fork A" is withdrawn.
 
 1. **Home: bartCause, dbarts-1.0.** Fork 4 RESOLVED (VD 2026-08-11).
 2. **The moderator EXCLUSION for the propensity-score column is part of that
-   cost, not a separate decision** (:4326-4328; bcf-public-surface.md:617-622).
+   cost, not a separate decision** ([[dbarts.h:4326-4328@4c018187]]; [[bcf-public-surface.md:617-622@4c018187]]).
 3. **The contract survives verbatim** - per-draw mu, tau, glue, sigma,
    per-forest varcount and both counterfactual surfaces, forest-INDEXED, under
-   the option-A element names (bcf-public-surface.md:493-501; the element list
-   at :261-262). **As of VD's 2026-08-15 fork C resolution this now holds
+   the option-A element names ([[bcf-public-surface.md:493-501@4c018187]]; the element list
+   at [[bcf-public-surface.md:261-262@4c018187]]). **As of VD's 2026-08-15 fork C resolution this now holds
    LITERALLY: the per-forest varcount channel is BUILT (D3), not dropped.**
 4. **`predict` on new rows is COMPONENTS only; the blended test surface stays
-   refused; per-forest saved-tree replay stays a DOOR** (:512-514, :660-662).
+   refused; per-forest saved-tree replay stays a DOOR** ([[bcf-public-surface.md:512-514@4c018187]], [[bcf-public-surface.md:660-662@4c018187]]).
 5. **`bcf(formula|x, y, treatment, ...)` vocabulary is bartCause-LOCAL.**
 6. **No backwards-compatibility constraint.** Nothing is released; costs to
    consumers are enumerated, never design inputs.
@@ -96,19 +96,19 @@ Every item verified live at the anchors given; MEASURED items come from
 read-only probes run against a private library at this tip.
 
 - **The engine refuses a test surface on a multi-forest sampler, at creation.**
-  `R/spec.R`:509 (`"test predictors" = !is.null(data@x.test)`) inside the
-  `!is.null(data@bases)` branch at :413; `Chain::testFitsAreDefined` false for
-  the amplitude coupling (`src/bartcore/combiner.hpp`:980; true for softmax at
-  :1542); `refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp`:2858; sites
-  :4701, :4749, :4779, :5731; `src/C_interface.cpp`:728, :775). So bartCause's
-  counterfactual machinery (`R/responseFit.R`:180-193, :245) is UNAVAILABLE, and
+  [[R/spec.R:509@4c018187]] (`"test predictors" = !is.null(data@x.test)`) inside the
+  `!is.null(data@bases)` branch at [[R/spec.R:413@4c018187]]; `Chain::testFitsAreDefined` false for
+  the amplitude coupling ([[src/bartcore/combiner.hpp:980@4c018187]]; true for softmax at
+  [[src/bartcore/combiner.hpp:1542@4c018187]]); `refuseUndefinedTestFits` ([[src/R_interface_bartcore.cpp:2858@4c018187]]; sites
+  [[src/R_interface_bartcore.cpp:4701@4c018187]], [[src/R_interface_bartcore.cpp:4749@4c018187]], [[src/R_interface_bartcore.cpp:4779@4c018187]], [[src/R_interface_bartcore.cpp:5731@4c018187]]; [[src/C_interface.cpp:728@4c018187]], [[src/C_interface.cpp:775@4c018187]]). So bartCause's
+  counterfactual machinery ([[R/responseFit.R:180-193@4c018187]], [[R/responseFit.R:245@4c018187]]) is UNAVAILABLE, and
   so is the missing-response bookkeeping riding it. Under BCF the counterfactual
   is free instead.
 - **The basis must be PRE-SUBSET on the formula path.** `validateForestBases`
-  subsets only when handed an index (`R/data.R`:659-661); the x/y branches hand
-  it one (dense :1041 under :993-995; sparse :975 under :937), the formula
-  branch does not, deliberately (:890-893, comment :891-892), so a full-length
-  basis fails the row check at :656-657. MEASURED:
+  subsets only when handed an index ([[R/data.R:659-661@4c018187]]); the x/y branches hand
+  it one (dense [[R/data.R:1041@4c018187]] under [[R/data.R:993-995@4c018187]]; sparse [[R/data.R:975@4c018187]] under [[R/data.R:937@4c018187]]), the formula
+  branch does not, deliberately ([[R/data.R:890-893@4c018187]], comment [[R/data.R:891-892@4c018187]]), so a full-length
+  basis fails the row check at [[R/data.R:656-657@4c018187]]. MEASURED:
 
       formula, full-length bases, no subset  -> data 20 x 3, OK
       formula, full-length bases, subset     -> "length of 'bases' must equal length of 'y'"
@@ -118,20 +118,20 @@ read-only probes run against a private library at this tip.
 
 - **The supported construction composition is: bases on the DATA OBJECT,
   knob-only `forests`.** `resolveSamplerSpec` reads `data@bases` when the call
-  supplies none (`R/spec.R`:206, branch :413); `dbarts()` passes `bases = NULL`
-  from a pre-built object (`R/dbarts.R`:602-604). MEASURED end to end at a
+  supplies none ([[R/spec.R:206@4c018187]], branch [[R/spec.R:413@4c018187]]); `dbarts()` passes `bases = NULL`
+  from a pre-built object ([[R/dbarts.R:602-604@4c018187]]). MEASURED end to end at a
   50-row integer subset of 60 rows, two chains: `bartcore.bcf` present,
   `forestFits` 50x2x12x2, `glue` 3x12x2, live varcounts forest 1 `0 5 3 8`,
   forest 2 `0 2 3 0` over `(z, x1, x2, ps)`. A logical subset works identically.
 - **`dbarts()` and `dbartsSpec()` take OPPOSITE sources when both a data object
   and a declaration carry a basis.** MEASURED (2-column basis on the object,
   3-column declaration): `dbartsSpec()` -> ncol 3 (the DECLARATION's, installed
-  at `R/spec.R`:405-411 from `bases = basis` at :714, expanded :682-695) and
+  at [[R/spec.R:405-411@4c018187]] from `bases = basis` at [[R/spec.R:714@4c018187]], expanded [[R/spec.R:682-695@4c018187]]) and
   `dbarts()` -> ncol 2 (the DATA OBJECT's, its expansion dropped by
-  `R/data.R`:742-751 with no warning). The `dbartsSpec()` direction is
+  [[R/data.R:742-751@4c018187]] with no warning). The `dbartsSpec()` direction is
   deliberate and pinned by four live assertions
-  (`inst/tinytest/test-bcf-creation.R`:312-325 with intent at :310-311,
-  :350-357, :751-758, :762-769 with semantics at :759-761). D2 makes the silent
+  ([[inst/tinytest/test-bcf-creation.R:312-325@4c018187]] with intent at [[inst/tinytest/test-bcf-creation.R:310-311@4c018187]],
+  [[inst/tinytest/test-bcf-creation.R:350-357@4c018187]], [[inst/tinytest/test-bcf-creation.R:751-758@4c018187]], [[inst/tinytest/test-bcf-creation.R:762-769@4c018187]] with semantics at [[inst/tinytest/test-bcf-creation.R:759-761@4c018187]]). D2 makes the silent
   side loud and states the contract; `dbartsSpec()` is not touched.
 - **The counterfactual identity, and the offset.** MEASURED on an
   offset-bearing gaussian BCF:
@@ -147,7 +147,7 @@ read-only probes run against a private library at this tip.
   MEASURED to move the surface by up to 2.772 on that fixture. `b_0` multiplies
   the `(1-z)` indicator and `b_1` the `z` indicator, matching
   `model.matrix(~ factor(z) - 1)` order and the `(a, b_0, b_1)` stacking
-  (`man/dbartsSampler-class.Rd`:366).
+  ([[man/dbartsSampler-class.Rd:366@4c018187]]).
 - **`$getCalibration()` returns one row per chain** (MEASURED 2 x 12;
   `response.scale`/`response.shift` identical across chains).
 - **Chain dimensions drop at one chain** (MEASURED: `train` 60x20 vs 60x20x2,
@@ -157,44 +157,44 @@ read-only probes run against a private library at this tip.
 - **`run()$sigma` exists under probit** (MEASURED, all 1s), so the binary arm's
   deletion is ACTIVE. `run()$tau` is a pre-existing channel unrelated to BCF's
   tau.
-- **`crossvalidate` cannot work for BCF on any branch** (`R/model.R`:470;
-  `R/spec.R`:486-491; `R/bayesOpt.R`:18, :20, :56; `R/xbart.R`:1-29 has no
+- **`crossvalidate` cannot work for BCF on any branch** ([[R/model.R:470@4c018187]];
+  [[R/spec.R:486-491@4c018187]]; [[R/bayesOpt.R:18@4c018187]], [[R/bayesOpt.R:20@4c018187]], [[R/bayesOpt.R:56@4c018187]]; [[R/xbart.R:1-29@4c018187]] has no
   `forests`).
-- **Missing responses cannot be served in v1** (`R/responseFit.R`:157-193,
-  :262 rides the refused test surface).
+- **Missing responses cannot be served in v1** ([[R/responseFit.R:157-193@4c018187]],
+  [[R/responseFit.R:262@4c018187]] rides the refused test surface).
 - **The moderator exclusion reaches the engine on EVERY forest, including forest
-  1** (`R/spec.R`:555-558, masks parked :559-564; MEASURED live varcounts
+  1** ([[R/spec.R:555-558@4c018187]], masks parked [[R/spec.R:559-564@4c018187]]; MEASURED live varcounts
   `0 5 3 8` / `0 2 3 0`, batched `run()$varcount` sums `0 180 142 233`).
 - **The two ingestion paths order `colnames(data@x)` differently** (MEASURED:
   `x1,x2,ps,z` vs `z,x1,x2,ps`) and nothing depends on it - `setdiff` preserves
-  order, `resolveModerators`'s `match` (`R/model.R`:705-713) is name-keyed.
+  order, `resolveModerators`'s `match` ([[R/model.R:705-713@4c018187]]) is name-keyed.
 - **`blocks` is asymmetric under a column mask; `interactions` is not.**
   MEASURED: the top-level `blocks` (and `forest(1, blocks = )`, which
-  `R/spec.R`:224-226 hoists onto it) is resolved at :341 with no
+  [[R/spec.R:224-226@4c018187]] hoists onto it) is resolved at [[R/spec.R:341@4c018187]] with no
   `availableColumns` and demands a total partition including masked columns;
   forest 2's own `blocks` does not; `interactions(max.order = 1L)` is accepted.
 - **The varcount forest axis EXISTS end to end and is exercised by the softmax
   coupling.** `numVariableCountForests()` returns 1 and `variableCountForest(j)`
-  returns `reportedForest()` (`combiner.hpp`:651-653, doc :641-650), which is 0
-  (:619), unoverridden by `BCFForestCombiner` (:713); the softmax coupling
-  overrides both (:1536-1537). `storeSample` loops the writes over the count
-  (`chain.hpp`:5005-5019); the bridge sizes the array off
-  `shape.numVariableCountForests` (`R_interface_bartcore.cpp`:4219) and ALREADY
-  allocates a forest dimension when it exceeds 1 (:4293-4300,
+  returns `reportedForest()` ([[combiner.hpp:651-653@4c018187]], doc [[combiner.hpp:641-650@4c018187]]), which is 0
+  ([[combiner.hpp:619@4c018187]]), unoverridden by `BCFForestCombiner` ([[combiner.hpp:713@4c018187]]); the softmax coupling
+  overrides both ([[combiner.hpp:1536-1537@4c018187]]). `storeSample` loops the writes over the count
+  ([[chain.hpp:5005-5019@4c018187]]); the bridge sizes the array off
+  `shape.numVariableCountForests` ([[R_interface_bartcore.cpp:4219@4c018187]]) and ALREADY
+  allocates a forest dimension when it exceeds 1 ([[R_interface_bartcore.cpp:4293-4300@4c018187]],
   `allocChannelArray(INTSXP, numPredictors, numVCForests)`), with the seam
-  comment at :4216-4218 ("inserting a forest dimension between the predictors
+  comment at [[R_interface_bartcore.cpp:4216-4218@4c018187]] ("inserting a forest dimension between the predictors
   and the samples exactly as the fits seam inserts locations"). R has the
-  matching reshape (`shapeMultinomialChannel`, `R/bart.R`:1363, used for
-  varcount at :1440-1446) and the matching documentation (`man/bart.Rd`:445).
+  matching reshape (`shapeMultinomialChannel`, [[R/bart.R:1363@4c018187]], used for
+  varcount at [[R/bart.R:1440-1446@4c018187]]) and the matching documentation ([[man/bart.Rd:445@4c018187]]).
   This is what makes D3 six engine lines rather than a channel build.
 - **A BCF is creatable through `bart2` today and reports nothing** (MEASURED: no
-  `forestFits`, no `glue` in the fit; `packageBartResults`, `R/bart.R`:158-320).
+  `forestFits`, no `glue` in the fit; `packageBartResults`, [[R/bart.R:158-320@4c018187]]).
 - **`amplitude.prior.variance` is refused on the supported route** (MEASURED);
-  `R/model.R`:875-882 tests `spec$basis` where its sibling at :883-891 honours
-  `excused`, contradicting the doc at :855-856. D2 item 3.
+  [[R/model.R:875-882@4c018187]] tests `spec$basis` where its sibling at [[R/model.R:883-891@4c018187]] honours
+  `excused`, contradicting the doc at [[R/model.R:855-856@4c018187]]. D2 item 3.
 - **bartCause's flat-sigma reshape has the wrong `byrow`** (MEASURED three ways,
   including a first-principles autocorrelation test), and **the suite MIRRORS
-  the defect** (`tests/testthat/test-12-plot.R`:54-55, `test-05-generics.R`:46).
+  the defect** ([[tests/testthat/test-12-plot.R:54-55@4c018187]], [[test-05-generics.R:46@4c018187]]).
   B0b.
 - **The `fit.rsp` element contract is four elements** - `$sigma`, `$first.sigma`,
   `$y`, `$fit` - and the census is COMPLETE (full scan; everything else is
@@ -203,17 +203,17 @@ read-only probes run against a private library at this tip.
 - **The propensity-score name cannot be re-derived from `colnames(data@x)`**
   (MEASURED: with a `"psps"` confounder the ladder answers `psps` where the
   score is `ps`), and taking it from the builders is bart-path-neutral because
-  `massign`'s unnamed loop (`R/multipleAssignment.R`:84-98) consumes
+  `massign`'s unnamed loop ([[R/multipleAssignment.R:84-98@4c018187]]) consumes
   positionally and never touches extras.
 - **Every subset kind works on the bart path today** (MEASURED: integer,
   logical, negative, character), and a basis built from a bare vector carries
   POSITIONAL row names, so character subsets need normalization.
 - **The R/C division puts the outer loop on R's side**
-  (`docs/design/r-c-division.md`:84-95, :104-107).
+  ([[docs/design/r-c-division.md:84-95@4c018187]], [[docs/design/r-c-division.md:104-107@4c018187]]).
 - **`setControl` is not refused on a BCF sampler**, so the driver may mirror
   `bart2`'s two-phase burn (`refuseBCFMutation`'s five sites are
-  `R/bartcore.R`:289, :310, :387 and `R/dbarts.R`:1067, :1522;
-  `runWithBurnIn`'s test-surface calls are gated at `R/bart.R`:445).
+  [[R/bartcore.R:289@4c018187]], [[R/bartcore.R:310@4c018187]], [[R/bartcore.R:387@4c018187]] and [[R/dbarts.R:1067@4c018187]], [[R/dbarts.R:1522@4c018187]];
+  `runWithBurnIn`'s test-surface calls are gated at [[R/bart.R:445@4c018187]]).
 - **The default user library is NOT HEAD**; every bartCause measurement runs
   against a private library built from the dbarts tip under test.
 
@@ -225,19 +225,19 @@ Six slices. D0 has LANDED. D2 -> D3 -> B0 -> B0b -> B1.
 
 Landed 2026-08-15, TODO-only (52 insertions, 26 deletions), firing no workflow.
 It closed `dbartsdata-treatment-slot-debt` against 9c63e9d8 with the four
-receipts and the 533-assertion measurement (now `TODO`:259-284, which also
-corrects the "tinytest" error at :283-284 and records B0's pending literal at
+receipts and the 533-assertion measurement (now [[TODO:259-284@4c018187]], which also
+corrects the "tinytest" error at [[TODO:283-284@4c018187]] and records B0's pending literal at
 :275-278); resolved the contradiction with the `bcf-public-surface` entry
-(:279-282); repinned `calibrationMapName` to `R_interface_bartcore.cpp`
-:4052-4055, literal :4054, call site :4144 (now `TODO`:336-337); completed
+([[TODO:279-282@4c018187]]); repinned `calibrationMapName` to `R_interface_bartcore.cpp`
+:4052-4055, literal [[TODO:4054@4c018187]], call site [[TODO:4144@4c018187]] (now [[TODO:336-337@4c018187]]); completed
 `bcf-naming-generalization`'s symbol list with `BCFSpecStorage` and the R-side
-`isBCFSampler`/`refuseBCFMutation` pair (:146, :151-159); and split the dead
-init-capture into its own entry, `dead-bcf-init-capture` (:285-294), whose text
+`isBCFSampler`/`refuseBCFMutation` pair ([[TODO:146@4c018187]], [[TODO:151-159@4c018187]]); and split the dead
+init-capture into its own entry, `dead-bcf-init-capture` ([[TODO:285-294@4c018187]]), whose text
 states it "rides the next engine-adjacent slice rather than a records-only
 commit" - **that slice is D3, which carries the deletion.**
 
 Remaining, after B1 lands: update the `bcf-public-surface` entry
-(`TODO`:174-192) to record S5 RELOCATED AND LANDED at bartCause dbarts-1.0
+([[TODO:174-192@4c018187]]) to record S5 RELOCATED AND LANDED at bartCause dbarts-1.0
 @ <hash>. A records touch, not a slice.
 
 ### D2 (dbarts, three R-surface guards on the construction seam)
@@ -249,31 +249,31 @@ R-only, no src/, no `dbarts.h`, RNG-neutral by construction.
    `formula` is already a `dbartsData`, error by name: the declaration cannot
    reach a pre-built data object through `dbarts()`; use `dbartsSpec()`, or put
    the bases on the object with `dbartsData(bases = )`. **`dbartsSpec()` is NOT
-   touched** - its first argument must be a `dbartsData` (`R/spec.R`:634-636),
+   touched** - its first argument must be a `dbartsData` ([[R/spec.R:634-636@4c018187]]),
    so the predicate is unconditionally true there, and it does not discard the
-   declaration but installs it (:682-695, :714, :405-411), a route four live
+   declaration but installs it ([[R/spec.R:682-695@4c018187]], [[R/spec.R:714@4c018187]], [[R/spec.R:405-411@4c018187]]), a route four live
    assertions pin. The refusal must also not fire on the supported composition
    (a pre-built object carrying `@bases` plus a knob-only `forests` list), which
    is what B1 uses.
 1b. **State the contract in prose**, since the two surfaces genuinely differ:
    `dbartsSpec()` takes the DECLARATION as the source of truth and replaces
    whatever the data object carried (the pinned semantics at
-   `test-bcf-creation.R`:759-761); `dbarts()` requires the bases to reach the
+   [[test-bcf-creation.R:759-761@4c018187]]); `dbarts()` requires the bases to reach the
    data object it builds, and now refuses rather than dropping the declaration.
    One sentence each in `man/dbarts.Rd`, `man/dbartsSpec.Rd` and
    `man/forest.Rd`'s `basis` item. With item 1 in place no silent combination
    remains on either exported surface, so this closes the asymmetry without a
    door.
-2. **Warn on the silently-ignored `bases` argument.** `R/data.R`:743-750's
+2. **Warn on the silently-ignored `bases` argument.** [[R/data.R:743-750@4c018187]]'s
    ignored-argument warning tests data/test/offset/offset.test only; add
    `bases`. (`dbartsSpec()` does not route through it.)
-3. **Honour `hasBasis` in the amplitude-prior check.** `R/model.R`:875-882 tests
-   `spec$basis` where its sibling at :883-891 tests `excused`. MOVE line 883
+3. **Honour `hasBasis` in the amplitude-prior check.** [[R/model.R:875-882@4c018187]] tests
+   `spec$basis` where its sibling at [[R/model.R:883-891@4c018187]] tests `excused`. MOVE line 883
    above 875 - do not duplicate the expression. Forest 1's own refusal survives
    (its `bases[[1]]` is NULL, so `excused` is FALSE there), verified.
 
 Consumer note: item 1 is the dbarts-side twin of stan4bart's
-`bart-args-forests-guard` (stan4bart `TODO`:11-18), where a forwarded `forests`
+`bart-args-forests-guard` (stan4bart [[TODO:11-18@4c018187]]), where a forwarded `forests`
 builds a two-forest sampler and dies at the first `setOffset`; here it dies
 never. Cross-reference both TODOs.
 
@@ -286,7 +286,7 @@ fresh private library; `tests/cpp` from clean (plain only; no src/ delta); full
 tinytest with NO snapshot regenerated; the trio BITWISE
 (`equivalence-8b047f8b`, `bcf-equivalence-8b047f8b`,
 `multinomial-equivalence-1027be5`, pinned at
-`.github/workflows/equivalence.yaml`:61, :87, :113); `air format --check .`;
+[[.github/workflows/equivalence.yaml:61@4c018187]], [[.github/workflows/equivalence.yaml:87@4c018187]], [[.github/workflows/equivalence.yaml:113@4c018187]]); `air format --check .`;
 `lintr::lint`; full local `R CMD check`; CI six-green.
 rng: NEUTRAL - two refusal/warning paths and one predicate widening that only
 ADMITS a previously-impossible call.
@@ -308,14 +308,14 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
   happens. The two are easy to conflate and are distinguished throughout below.)
   Four independent facts make widening the coherent answer rather than a
   preference: the mechanism is documented as the varcount channel's own forest
-  axis (`combiner.hpp`:641-650, "how many forests the per-sample split-usage
+  axis ([[combiner.hpp:641-650@4c018187]], "how many forests the per-sample split-usage
   channel records"); the bridge already allocates that dimension when the count
-  exceeds 1 (`R_interface_bartcore.cpp`:4293-4300) and its seam comment says so
-  (:4216-4218); the softmax coupling already ships the raw shape
-  (`combiner.hpp`:1536-1537) with an R reshape helper
-  (`shapeMultinomialChannel`, `R/bart.R`:1363, varcount at :1440-1446) and
-  documented fit-side dimnames (`man/bart.Rd`:445); and
-  `$getForestVariableCounts` (`R/dbarts.R`:1485) already reports per forest,
+  exceeds 1 ([[R_interface_bartcore.cpp:4293-4300@4c018187]]) and its seam comment says so
+  ([[R_interface_bartcore.cpp:4216-4218@4c018187]]); the softmax coupling already ships the raw shape
+  ([[combiner.hpp:1536-1537@4c018187]]) with an R reshape helper
+  (`shapeMultinomialChannel`, [[R/bart.R:1363@4c018187]], varcount at [[R/bart.R:1440-1446@4c018187]]) and
+  documented fit-side dimnames ([[man/bart.Rd:445@4c018187]]); and
+  `$getForestVariableCounts` ([[R/dbarts.R:1485@4c018187]]) already reports per forest,
   1-based, so the per-draw channel and the live read finally address the same
   thing.
 - (rejected) **An ADDITIVE per-forest channel** beside `varcount`, on the
@@ -334,38 +334,38 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
 **Contents.**
 
 1. **Engine, two overrides** (~6 lines) in `BCFForestCombiner`
-   (`combiner.hpp`:713; the member `numForests_` is initialized in its
-   constructor at :730-731), mirroring the softmax pair at :1536-1537:
+   ([[combiner.hpp:713@4c018187]]; the member `numForests_` is initialized in its
+   constructor at [[combiner.hpp:730-731@4c018187]]), mirroring the softmax pair at [[combiner.hpp:1536-1537@4c018187]]:
    `numVariableCountForests()` returns `numForests_`, `variableCountForest(j)`
-   returns `j`. `storeSample` (`chain.hpp`:5005-5019) already loops the writes
+   returns `j`. `storeSample` ([[chain.hpp:5005-5019@4c018187]]) already loops the writes
    over a count and indexes through `variableCountForest(j)`; item 5 changes
    WHICH count it loops over. **One guard the override owes:** the
    constructor CLAMPS `numForests_(numForests < 2 ? 2 : numForests)`
-   (`combiner.hpp`:731) while `Chain` passes `forests_.size()`
-   (`chain.hpp`:816-818), and `storeSample` feeds the reported count to
+   ([[combiner.hpp:731@4c018187]]) while `Chain` passes `forests_.size()`
+   ([[chain.hpp:816-818@4c018187]]), and `storeSample` feeds the reported count to
    `forestVariableCounts(f, ...)`, which indexes `forests_[f]`
-   (`chain.hpp`:1237-1238). A combiner constructed standalone with fewer than
+   ([[chain.hpp:1237-1238@4c018187]]). A combiner constructed standalone with fewer than
    two forests would therefore report two and read out of range. Unreachable
-   from R (`R/spec.R`:428-443 refuses K < 2) and there is no flat-C
-   `createBCFSampler` (`combiner.hpp`:316), but `tests/cpp/test_sampler.cpp`:3724
+   from R ([[R/spec.R:428-443@4c018187]] refuses K < 2) and there is no flat-C
+   `createBCFSampler` ([[combiner.hpp:316@4c018187]]), but [[tests/cpp/test_sampler.cpp:3724@4c018187]]
    already constructs `BCFForestCombiner<...>(data, spec, 3)` standalone, i.e.
    the mismatch is constructible in the very build D3's new assertions live in.
    The new `tests/cpp` arm asserts the reported count against the chain's own
    forest count.
 2. **Bridge: nothing structural** (~4 lines, comments plus item 5's one-line
    pin). Re-verified at the tip: `numVCForests` is read from the shape at
-   `R_interface_bartcore.cpp`:4219, drives the allocation at :4293-4300, the
-   buffer sizing at :4387 and the copy loop at :4431, and is set on the results
-   at :4405. Comment edits: :4403-4404 and :4216-4218 say "1 for every additive
+   [[R_interface_bartcore.cpp:4219@4c018187]], drives the allocation at [[R_interface_bartcore.cpp:4293-4300@4c018187]], the
+   buffer sizing at [[R_interface_bartcore.cpp:4387@4c018187]] and the copy loop at [[R_interface_bartcore.cpp:4431@4c018187]], and is set on the results
+   at [[R_interface_bartcore.cpp:4405@4c018187]]. Comment edits: [[R_interface_bartcore.cpp:4403-4404@4c018187]] and [[R_interface_bartcore.cpp:4216-4218@4c018187]] say "1 for every additive
    model, K for multinomial" and become "K for multinomial and for a
    multi-forest amplitude model".
 3. **R packaging: the break is the RESHAPE, not the naming - REDIAGNOSED.**
    `bart2(<a dbartsData carrying bases>)` runs today (MEASURED) and packages the
-   channel through `nameVarcount` (`R/bart.R`:146-156), whose FIRST act is
+   channel through `nameVarcount` ([[R/bart.R:146-156@4c018187]]), whose FIRST act is
    `convertSamplesFromDbartsToBart(raw, n.chains, combineChains)`
-   (`R/bart.R`:147, body :8-38). That helper dispatches on
+   ([[R/bart.R:147@4c018187]], body :8-38). That helper dispatches on
    `length(dim(samples)) == 2L` and otherwise does `aperm(samples, c(3L, 2L,
-   1L))` (:20, uncombined) or `t(matrix(samples, x[1L], prod(x[-1L])))` (:30,
+   1L))` ([[R/bart.R:20@4c018187]], uncombined) or `t(matrix(samples, x[1L], prod(x[-1L])))` ([[R/bart.R:30@4c018187]],
    combined). Neither is 4-D-aware. MEASURED on a p=3, K=2, S=4, C=2 raw array
    against the 3-D control:
 
@@ -381,19 +381,19 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    predictor margin" alternative is DEAD: naming happens after the damage.
 
    **The fix, three parts.** (a) Route a multi-forest varcount through
-   `shapeMultinomialChannel` (`R/bart.R`:1363), which is already the K-margin
+   `shapeMultinomialChannel` ([[R/bart.R:1363@4c018187]]), which is already the K-margin
    reshape and handles all three cases - MEASURED on the same raw array: 8 x 3 x
    2 combined, 2 x 4 x 3 x 2 uncombined, 4 x 3 x 2 at one chain, with the
    trailing margin named. The forest count comes from the sampler, not from the
    array's rank (a single-forest multi-chain raw channel is 3-D too):
    `numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L`,
-   the same `data@bases` probe `isBCFSampler` uses (`R/bartcore.R`:24-26). The
+   the same `data@bases` probe `isBCFSampler` uses ([[R/bartcore.R:24-26@4c018187]]). The
    K-margin names are ENGINE vocabulary - `paste0("forest", seq_len(K))`, never
    causal names; bartCause's `bartBCF` maps them onto `mu`/`tau` in B1.2.
    (b) Record the forest count on the fit as `n.forests` (present only when
    greater than 1, so every existing fit is byte-identical), mirroring the
-   multinomial packager's `K` (`R/bart.R`:1433). (c) Teach `fitSynopsis`
-   (`R/generics.R`:1746-1757) that count. It derives "kept draws (per chain)"
+   multinomial packager's `K` ([[R/bart.R:1433@4c018187]]). (c) Teach `fitSynopsis`
+   ([[R/generics.R:1746-1757@4c018187]]) that count. It derives "kept draws (per chain)"
    from `dim(x[["varcount"]])` whenever no sampler was kept, via
    `length(varcountDims) == 3L -> varcountDims[2L]` else
    `varcountDims[1L] %/% n.chains`. MEASURED today on a `bart2` BCF fit
@@ -403,7 +403,7 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    combined or single-chain and 4 when uncombined, so RANK ALONE IS AMBIGUOUS
    (a single-forest uncombined varcount is also rank 3) - which is why (b)
    exists. The arm mirrors `print.bartMultinomial`'s arithmetic verbatim
-   (`R/generics.R`:533): `if (length(d) == 4L) d[2L] else d[1L] %/%
+   ([[R/generics.R:533@4c018187]]): `if (length(d) == 4L) d[2L] else d[1L] %/%
    n.chains`, taken when `n.forests > 1`. `print.bartMultinomial` is why
    multinomial never exposed this: a BCF fit is class `"bart"` (MEASURED) and
    goes through `fitSynopsis`.
@@ -427,27 +427,27 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    correct array when the correct array is eleven lines and already has a
    helper. Recorded so it is not re-proposed as a shortcut.
 4. **The live read is unchanged.** `$getForestVariableCounts(forest)`
-   (`R/dbarts.R`:1485) stays the current-state, 1-based per-forest read; D3 adds
+   ([[R/dbarts.R:1485@4c018187]]) stays the current-state, 1-based per-forest read; D3 adds
    the DRAW HISTORY it never was, and FB14 pins their relation.
 5. **The flat C API keeps TODAY'S EXACT BYTES, and it takes one engine line to
    make that true rather than assumed.** The flat surface is NOT untouched by
    the override alone: `dbarts_sampler_create`
-   (`src/C_interface.cpp`:369-376) routes through the same
+   ([[src/C_interface.cpp:369-376@4c018187]]) routes through the same
    `bartcore_bridge::createHolder` the R bridge uses, so the flat API CREATES
-   BCF samplers (`dbarts.h`:770-773 says so); `dbarts_sampler_run` sets only
-   `engineResults.numReportedLocations` (`src/C_interface.cpp`:386-390) and
+   BCF samplers ([[dbarts.h:770-773@4c018187]] says so); `dbarts_sampler_run` sets only
+   `engineResults.numReportedLocations` ([[src/C_interface.cpp:386-390@4c018187]]) and
    never the forest count, leaving `bartcore::Results::numVariableCountForests`
-   at its default 1 (`chain.hpp`:366); and that default is INERT today because
+   at its default 1 ([[chain.hpp:366@4c018187]]); and that default is INERT today because
    `storeSample` derives the count from the COMBINER instead
-   (`chain.hpp`:5010-5011) - whose own field comment (:363-365) says exactly
+   ([[chain.hpp:5010-5011@4c018187]]) - whose own field comment ([[chain.hpp:363-365@4c018187]]) says exactly
    that: "The run bridge sizes variableCounts by it and Sampler strides per
    chain by it; storeSample reads the count from the combiner directly." After
    item 1's override that split becomes a heap overflow: `Sampler::run` strides
-   per chain by the CALLER's count (`sampler.hpp`:279, :287, :297-299) while
+   per chain by the CALLER's count ([[sampler.hpp:279@4c018187]], [[sampler.hpp:287@4c018187]], [[sampler.hpp:297-299@4c018187]]) while
    `storeSample` writes K slabs per sample into a buffer the caller sized for
    one. The repo ships the consumer and the test: `inst/tinytest/capi/
-   consumer.c`:186-190 allocates `p * numSamples * chains`, and
-   `inst/tinytest/test-capi.R`:1236-1250 builds a two-forest spec through
+   consumer.c`[[sampler.hpp:186-190@4c018187]] allocates `p * numSamples * chains`, and
+   [[inst/tinytest/test-capi.R:1236-1250@4c018187]] builds a two-forest spec through
    `dbartsSpec`, hands it to `capi_create` and runs it at `n.chains = 2L`,
    `n.samples = 3L` - a 2x overflow of an `R_alloc` block, on the per-push
    sanitizers workflow's own path.
@@ -456,9 +456,9 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    `results.numVariableCountForests` instead of asking the combiner. **The clamp
    to the combiner's count happens ONCE, upstream, where the stride is already
    computed**: `Sampler::run` writes the per-chain `Results` at
-   `sampler.hpp`:287 (`r.numVariableCountForests = numVarCountForests;`), so
+   [[sampler.hpp:287@4c018187]] (`r.numVariableCountForests = numVarCountForests;`), so
    clamping `numVarCountForests` to the combiner's count there makes the stride
-   (`sampler.hpp`:279, :297-299) and the write agree BY CONSTRUCTION and
+   ([[sampler.hpp:279@4c018187]], [[sampler.hpp:297-299@4c018187]]) and the write agree BY CONSTRUCTION and
    `storeSample` needs no clamp of its own. Clamping only in `storeSample` would
    leave a caller who declares MORE than the combiner's count striding per chain
    by the declared count while the writes pack at the clamped one - misaligned
@@ -467,11 +467,11 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    loops `j = 0` only and writes `variableCountForest(0)` = 0 = **the
    PROGNOSTIC forest** - byte-identical to today, and identical before and after
    item 1's override (the base returns `reportedForest()` = 0,
-   `combiner.hpp`:619; the override returns `j` = 0) - so `dbarts.h`:147's
+   [[combiner.hpp:619@4c018187]]; the override returns `j` = 0) - so [[dbarts.h:147@4c018187]]'s
    documented `numPredictors x numSamples x numChains` stays TRUE, no X-list
    entry moves and `dbarts_apiHash` does not move. The R run bridge already sets
-   the field from the shape (`R_interface_bartcore.cpp`:4405), so it opts in.
-   `bartcore_runWithCallback` (:4512) sets it from the shape too and is PINNED
+   the field from the shape ([[R_interface_bartcore.cpp:4405@4c018187]]), so it opts in.
+   `bartcore_runWithCallback` ([[R_interface_bartcore.cpp:4512@4c018187]]) sets it from the shape too and is PINNED
    TO 1 here, which is also MAJOR 3's enforcement (see the gates).
 
    **Silent prognostic-only is acceptable ONLY documented, so it is documented
@@ -488,67 +488,67 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    mechanism S3's re-bake documented.
 6. **The bcf-equivalence baseline is RE-RECORDED, shape-only - and a re-record
    touches FOUR PLACES, all in the SAME COMMIT as the new `.rds`.**
-   `benchmarks/R/bcf-equivalence.R`:100 records `varcount = result$varcount` and
-   the harness compares with `identical()` (:449), so a new dimension fails
+   [[benchmarks/R/bcf-equivalence.R:100@4c018187]] records `varcount = result$varcount` and
+   the harness compares with `identical()` ([[benchmarks/R/bcf-equivalence.R:449@4c018187]]), so a new dimension fails
    structurally even though no draw moved. The re-record lands in this slice,
    gated on FB16, and it is the arc's ONLY re-record. The standing obligation is
-   `docs/plans/archive/multiforest-extension-surface.md`:3378-3391 ("**A re-record
+   [[docs/plans/archive/multiforest-extension-surface.md:3378-3391@4c018187]] ("**A re-record
    touches FOUR places, not one, and all of them land IN THE SAME COMMIT as the
    new `.rds` files** - a workflow pointing at a deleted baseline is a red gate
    that looks like a regression, and a ledger naming a deleted file lies about
    which baseline is current"), whose four legs, re-derived live at this tip:
 
-   (1) **`.github/workflows/equivalence.yaml`:87**, which today names
-   `benchmarks/baselines/bcf-equivalence-8b047f8b.rds`; :61 and :113 do NOT move
+   (1) **[[.github/workflows/equivalence.yaml:87@4c018187]]**, which today names
+   `benchmarks/baselines/bcf-equivalence-8b047f8b.rds`; [[.github/workflows/equivalence.yaml:61@4c018187]] and [[.github/workflows/equivalence.yaml:113@4c018187]] do NOT move
    (those baselines are unchanged).
-   (2) **`benchmarks/baselines/MANIFEST`:42**, today
+   (2) **`benchmarks/baselines/MANIFEST`[[.github/workflows/equivalence.yaml:42@4c018187]]**, today
    `bcf-equivalence-8b047f8b.rds  current  8b047f8b`, which flips to
    `historical` with a new `current` row above it in the existing narrative
    format - scenario count, the neutrality PARTITION (all 12 scenarios' draw
    channels bitwise; `varcount` gains a forest axis whose slab 1 is identical to
-   the old array), and the superseding hash. :16 and :48 stay as they are (the
+   the old array), and the superseding hash. [[.github/workflows/equivalence.yaml:16@4c018187]] and [[.github/workflows/equivalence.yaml:48@4c018187]] stay as they are (the
    sibling `current` rows for the two unmoved baselines).
    (3) **The arc's TODO ledger entry**, in the `LANDED <hash> + baselines
-   <hash>` idiom the multiforest-predictor-mutation entry uses (`TODO`:535,
-   :538, :540). The obligation's own citation (`TODO:258`, `:387`, `:389`) is
+   <hash>` idiom the multiforest-predictor-mutation entry uses ([[TODO:535@4c018187]],
+   [[TODO:538@4c018187]], [[TODO:540@4c018187]]). The obligation's own citation (`[[TODO:258@4c018187]]`, `[[TODO:387@4c018187]]`, `[[TODO:389@4c018187]]`) is
    stale at this tip - grep finds no baseline hash in `TODO` at those lines -
-   so the live target is this arc's entry: `bcf-public-surface` (`TODO`:174-192)
+   so the live target is this arc's entry: `bcf-public-surface` ([[TODO:174-192@4c018187]])
    today, or the bcf-s5-relocation entry the spec commit creates, whichever is
    current when D3 lands.
-   (4) **`docs/design/feature-matrix.md`:719-721**, the `[f39] Current
+   (4) **[[docs/design/feature-matrix.md:719-721@4c018187]]**, the `[f39] Current
    baselines` line, which names all three baselines and cites
    `MANIFEST:16, 42, 48`.
 
    Why this is not optional: the equivalence workflow is `schedule` +
-   `workflow_dispatch` only (`.github/workflows/equivalence.yaml`:20-23), so a
+   `workflow_dispatch` only ([[.github/workflows/equivalence.yaml:20-23@4c018187]]), so a
    missed yaml bump does not fail the landing commit - it fails the next cron,
    detached from its cause, and reads exactly like the regression FB16 exists to
-   rule out. The harness header also needs its own edit: :19-22 says
+   rule out. The harness header also needs its own edit: [[.github/workflows/equivalence.yaml:19-22@4c018187]] says
    `result$varcount` "for a BCF sampler is the PROGNOSTIC forest alone, so
    varcount.tau is the only guard on the treatment forest's counts", which the
-   widening falsifies; keep the `varcount.tau` channel (:101) as the live-read
+   widening falsifies; keep the `varcount.tau` channel ([[.github/workflows/equivalence.yaml:101@4c018187]]) as the live-read
    cross-check against the widened channel.
 7. **The dead init-capture rides here.** `dead-bcf-init-capture`
-   (`TODO`:285-294) says it "rides the next engine-adjacent slice"; delete
-   `treatment = std::vector<double>{}` at `src/R_interface_bartcore.cpp`:2954
+   ([[TODO:285-294@4c018187]]) says it "rides the next engine-adjacent slice"; delete
+   `treatment = std::vector<double>{}` at [[src/R_interface_bartcore.cpp:2954@4c018187]]
    and close the entry at landing. One line, no behavior.
-8. **Docs and stale prose.** `man/dbartsSampler-class.Rd`:366's `varcount`
-   sentence gains the forest axis, in the language `man/bart.Rd`:445 already
+8. **Docs and stale prose.** [[man/dbartsSampler-class.Rd:366@4c018187]]'s `varcount`
+   sentence gains the forest axis, in the language [[man/bart.Rd:445@4c018187]] already
    uses for multinomial (distinguishing the RAW run shape from the packaged fit
    shape); `inst/NEWS.Rd` gains one bullet; `docs/design/bcf.md` and
    `docs/design/multiplier-combiner.md` record that the amplitude coupling now
    reports per-forest split counts; `dbarts.h`'s `varcount` doc gains item 5's
    sentence. **Four in-tree comments are FALSIFIED by this slice and must be
    corrected in the same commit**, three of them in the file the fix lands in:
-   `chain.hpp`:316-318 (the `variableCounts` field: "the forest dimension is 1
+   [[chain.hpp:316-318@4c018187]] (the `variableCounts` field: "the forest dimension is 1
    for every additive model [...] numCategories for multinomial");
-   `chain.hpp`:362-365 ("The run bridge sizes variableCounts by it and Sampler
+   [[chain.hpp:362-365@4c018187]] ("The run bridge sizes variableCounts by it and Sampler
    strides per chain by it; storeSample reads the count from the combiner
    directly" - the sentence item 5 makes false, and the one this plan quotes as
-   its own evidence); `chain.hpp`:5006-5009 ("count 1 (single forest and BCF) is
+   its own evidence); [[chain.hpp:5006-5009@4c018187]] ("count 1 (single forest and BCF) is
    the exact current byte layout; a multi-forest combiner (multinomial) records
    each category forest's splits"), falsified twice over and sitting inside the
-   block item 5 edits; and `tests/cpp/test_shape.cpp`:293-294 ("Multinomial: the
+   block item 5 edits; and [[tests/cpp/test_shape.cpp:293-294@4c018187]] ("Multinomial: the
    only path that widens the reported-location and variable-count-forest
    channels past 1"), in the file the new assertions live in.
 
@@ -560,7 +560,7 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
   `run()$varcount[, f, n.samples, chain] == sampler$getForestVariableCounts(f)[, chain]`
   for f = 1, 2 (1-based at the R5 surface; the internal
   `bartcoreForestVariableCounts` is 0-based - the existing single-forest version
-  of this oracle is `inst/tinytest/test-multi-forest-seam.R`:365-370). NEGATIVE
+  of this oracle is [[inst/tinytest/test-multi-forest-seam.R:365-370@4c018187]]). NEGATIVE
   HALF: run one more sweep and the equality must break, so the test proves the
   channel is a draw history rather than a repeated live read.
 - **FB15 (mask structural zeros).** On a BCF whose treatment forest is
@@ -571,7 +571,7 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
 - **FB16 (the re-record's own gate).** The widened channel's forest-1 slab is
   `identical()` to the pre-D3 recorded array, element for element, on every
   bcf-equivalence scenario. **Every scenario is SINGLE-CHAIN** (`makeControl()`
-  fixes `n.chains = 1L` at `benchmarks/R/bcf-equivalence.R`:85 and all twelve
+  fixes `n.chains = 1L` at [[benchmarks/R/bcf-equivalence.R:85@4c018187]] and all twelve
   scenarios call it), so the recorded array is a 2-D `numPredictors x n.samples`
   matrix and the post-D3 channel is 3-D `p x K x n.samples`: the oracle is
   `identical(new[, 1L, ], old)`, with no chain margin to slice. This is what
@@ -581,7 +581,7 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
   `varcount` is unchanged in shape, dimnames and values (bitwise, via
   `multinomial-equivalence-1027be5`, whose harness records both the live
   per-forest reads and `runVarcount = result$varcount`,
-  `benchmarks/R/multinomial-equivalence.R`:91, :95 - so it is a real detector);
+  [[benchmarks/R/multinomial-equivalence.R:91@4c018187]], [[benchmarks/R/multinomial-equivalence.R:95@4c018187]] - so it is a real detector);
   and an ordinary sampler's `varcount` keeps its current rank and is bitwise
   (`equivalence-8b047f8b`, whose harness has no multi-forest scenario).
 - **FB18 (D3, the `bart2` packaging path - NEW, and nothing else covers it).**
@@ -600,9 +600,9 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
   1 against a K-forest combiner, exactly `numPredictors` are written per sample
   and the bytes are the prognostic forest's - the buffer is a
   `std::vector<std::uint32_t>` sized `p * numSamples`, the idiom
-  `tests/cpp/rshim.cpp`:107 already uses. (ii) `tests/cpp`: the reported count
+  [[tests/cpp/rshim.cpp:107@4c018187]] already uses. (ii) `tests/cpp`: the reported count
   never exceeds the chain's own forest count (item 1's clamp guard). (iii)
-  `test-capi.R`:1236-1250's existing BCF leg gains a VALUE assertion - the
+  [[test-capi.R:1236-1250@4c018187]]'s existing BCF leg gains a VALUE assertion - the
   returned counts equal the prognostic forest's live
   `$getForestVariableCounts(1L)` at the same seed - beside
   `expect_equal(length(rBCF$varcount), p * n.samples * n.chains)`; a length
@@ -610,13 +610,13 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
   from p, samples and chains.
   **NEGATIVE HALF, and it must be leg (i), not leg (iii):** revert `storeSample`
   to consult the combiner and leg (i) must abort under ASAN. Leg (iii) is NOT a
-  reliable detector at the shipped fixture size - `consumer.c`:189-190 allocates
+  reliable detector at the shipped fixture size - [[consumer.c:189-190@4c018187]] allocates
   through `R_alloc(p * numSamples * chains, sizeof(uint32_t))`, which at p = 3,
   numSamples = 3, chains = 2 is 72 bytes served from R's own small-vector pages
   rather than an individually malloc'd block, so it carries no ASAN redzone and
   a 2x overrun lands inside a page R already mapped. Leg (i)'s `std::vector` is
   malloc'd, redzoned and container-annotated, so the same overrun aborts
-  deterministically. Leg (iii) also has a skip mouth: `test-capi.R`:36-38 calls
+  deterministically. Leg (iii) also has a skip mouth: [[test-capi.R:36-38@4c018187]] calls
   `exit_file("could not compile the C API consumer")` when `R CMD SHLIB` fails,
   so "runs clean" can mean "did not run" - **the capi legs must be confirmed RUN,
   not skipped, for the gate to count.**
@@ -634,17 +634,17 @@ item 6's ledger work.
 cannot see the flat-C failure mode item 5 closes):
 
 - **No tinytest assertion is expected to move.** Every BCF varcount assertion in
-  the suite is self-relative (`test-bcf-creation.R`:68 compares two BCF
-  samplers; `test-multi-forest-seam.R`:207, :220 compares two BCF arms;
-  `test-bcf-reporting.R`:135 asserts the run NAME list) and every
+  the suite is self-relative ([[test-bcf-creation.R:68@4c018187]] compares two BCF
+  samplers; [[test-multi-forest-seam.R:207@4c018187]], [[test-multi-forest-seam.R:220@4c018187]] compares two BCF arms;
+  [[test-bcf-reporting.R:135@4c018187]] asserts the run NAME list) and every
   positionally-indexed varcount assertion is on a single-forest or multinomial
-  fit (`test-convergence-diagnostics.R`:34, `test-multithreaded.R`:50-51, the
-  three `test-reproducibility-*` files, `test-multi-forest-seam.R`:370). The
-  `tests/cpp` side is general too (`test_shape.cpp`:86-88 sizes its buffer by
-  `numVariableCountForests`, :97 declares it). If one moves anyway, stop.
+  fit ([[test-convergence-diagnostics.R:34@4c018187]], [[test-multithreaded.R:50-51@4c018187]], the
+  three `test-reproducibility-*` files, [[test-multi-forest-seam.R:370@4c018187]]). The
+  `tests/cpp` side is general too ([[test_shape.cpp:86-88@4c018187]] sizes its buffer by
+  `numVariableCountForests`, [[test_shape.cpp:97@4c018187]] declares it). If one moves anyway, stop.
 - **No caller-owned varcount buffer may be reached by a multi-forest sampler.**
-  There are exactly two: `inst/tinytest/capi/consumer.c`:186-190 (driven by
-  `test-capi.R`:1250) and `R/rbart.R`:599, :618. Both must stay clean with their
+  There are exactly two: [[inst/tinytest/capi/consumer.c:186-190@4c018187]] (driven by
+  [[test-capi.R:1250@4c018187]]) and [[R/rbart.R:599@4c018187]], [[R/rbart.R:618@4c018187]]. Both must stay clean with their
   sizing UNCHANGED. The DETECTOR for a botched fix is FB19 leg (i) in
   `tests/cpp`, whose `std::vector` buffer is redzoned; the capi leg is a
   contract pin, not an overflow detector, because `R_alloc` serves its 72 bytes
@@ -660,19 +660,19 @@ local `R CMD check`; CI six-green.
 
 - **Addition 1: the caller-owned-buffer audit, aimed at the invariant that can
   actually break.** The obvious proposition - that no grouped sampler reaches a
-  count above 1, by `R/spec.R`:505 - is VACUOUS at the buffer: `bartcore.groups`
-  is set at exactly one place, `R/rbart.R`:367, inside the IN-CORE fast path
-  (`builtinTauPrior && is.null(callback)`, :363), which runs through
+  count above 1, by [[R/spec.R:505@4c018187]] - is VACUOUS at the buffer: `bartcore.groups`
+  is set at exactly one place, [[R/rbart.R:367@4c018187]], inside the IN-CORE fast path
+  (`builtinTauPrior && is.null(callback)`, [[R/rbart.R:363@4c018187]]), which runs through
   `sampler$run` and never touches `bartcore_runWithCallback`; the path that DOES
-  own a buffer is the R-loop path (`R/rbart.R`:736-739, buffers at :599 and
-  :618), where no `bartcore.groups` attribute is ever set, so `R/spec.R`:505
+  own a buffer is the R-loop path ([[R/rbart.R:736-739@4c018187]], buffers at [[R/rbart.R:599@4c018187]] and
+  [[R/rbart.R:618@4c018187]]), where no `bartcore.groups` attribute is ever set, so [[R/spec.R:505@4c018187]]
   cannot fire there. MEASURED: a two-forest `dbartsData` handed to `rbart_vi`
   dies on the R-loop path at `setOffset(updateScale = TRUE) does not support a
   BCF sampler` (`refuseBCFMutation` in `bartcoreSamplerSetOffset`,
-  `R/bartcore.R`:308-316, fired from the pre-run rescale at `R/rbart.R`:924-926
-  and again at :961-964), and on the in-core path at the grouped refusal. So the
+  [[R/bartcore.R:308-316@4c018187]], fired from the pre-run rescale at [[R/rbart.R:924-926@4c018187]]
+  and again at [[R/rbart.R:961-964@4c018187]]), and on the in-core path at the grouped refusal. So the
   audit becomes: (i) record BOTH guards by name at the buffer site, the real one
-  being `setOffset`'s BCF refusal rather than `R/spec.R`:505; (ii) make the site
+  being `setOffset`'s BCF refusal rather than [[R/spec.R:505@4c018187]]; (ii) make the site
   self-enforcing rather than dependent on a guarantee three files away -
   `bartcore_runWithCallback` pins `results.numVariableCountForests = 1`
   (item 5), so the buffer's `p * n.samples` layout is true at the site whatever
@@ -686,7 +686,7 @@ local `R CMD check`; CI six-green.
   `storeSample` writes, never what it draws (the varcount block calls only
   `forestVariableCounts` -> `countVariableUses`, a pure tree walk; the bridge's
   extra allocation is outside the `GetRNGstate`/`PutRNGstate` bracket at
-  `R_interface_bartcore.cpp`:4421-4424), so the two untouched baselines must be
+  [[R_interface_bartcore.cpp:4421-4424@4c018187]]), so the two untouched baselines must be
   bitwise; a divergence on either is a LEAK and aborts the slice.
 
 ### B0 (bartCause, restore green against dbarts HEAD) - MEASURED
@@ -700,8 +700,8 @@ PASS 533`.
 
 **Content: exactly one numeric literal** - `tests/testthat/test-06-regression.R`
 :52, `0.50402744431802` -> `0.44963899452561451`, inside the
-`tmle_version >= "2.1"` branch (:48) behind `skip_on_cran()` (:38) and
-`skip_if_not_installed("tmle")`, at `n.chains = 1L` (:45). Lines :10, :20, :30
+`tmle_version >= "2.1"` branch ([[R_interface_bartcore.cpp:48@4c018187]]) behind `skip_on_cran()` ([[R_interface_bartcore.cpp:38@4c018187]]) and
+`skip_if_not_installed("tmle")`, at `n.chains = 1L` ([[R_interface_bartcore.cpp:45@4c018187]]). Lines [[R_interface_bartcore.cpp:10@4c018187]], [[R_interface_bartcore.cpp:20@4c018187]], [[R_interface_bartcore.cpp:30@4c018187]]
 already carry refreshed values and PASS.
 
 **Gate mechanics.** Plain `Rscript tests/testthat.R` and `R CMD check` do NOT
@@ -709,7 +709,7 @@ set `NOT_CRAN`, so the block that consumes the literal is SKIPPED under both;
 the gate must set `NOT_CRAN=true` explicitly. Regenerate IN SUITE (whole file),
 never from an isolated replication, because the draws depend on the file's
 execution history (`set.seed(22)` plus `bartc()`'s own `sample.int` seeding at
-`R/bartc.R`:94-95, :167-168).
+[[R/bartc.R:94-95@4c018187]], [[R/bartc.R:167-168@4c018187]]).
 
 Gates: full testthat under the private library with `NOT_CRAN=true`;
 `R CMD check --as-cran` on a tarball staged from a clean copy outside the tree.
@@ -727,12 +727,12 @@ consumers.
 Not two tokens: the suite MIRRORS the defect, so the fix moves two existing
 oracles and changes one shipped output.
 
-1. Three `byrow = TRUE` tokens dropped: `R/generics.R`:332, `R/plot.R`:19, :20
+1. Three `byrow = TRUE` tokens dropped: [[R/generics.R:332@4c018187]], [[R/plot.R:19@4c018187]], [[R/plot.R:20@4c018187]]
    (MEASURED: the only three in the package's `R/`).
-2. Two comments asserting the false layout rewritten: `R/plot.R`:14-17,
-   `R/generics.R`:328-330.
-3. Two existing test oracles re-derived: `tests/testthat/test-12-plot.R`:54-55
-   (plus its false comment at :31-35) and `test-05-generics.R`:46, the latter
+2. Two comments asserting the false layout rewritten: [[R/plot.R:14-17@4c018187]],
+   [[R/generics.R:328-330@4c018187]].
+3. Two existing test oracles re-derived: [[tests/testthat/test-12-plot.R:54-55@4c018187]]
+   (plus its false comment at [[tests/testthat/test-12-plot.R:31-35@4c018187]]) and [[test-05-generics.R:46@4c018187]], the latter
    becoming `expect_equal(sigma, as.vector(t(matrix(fit$fit.rsp$sigma, nrow =
    n.chains))))`.
 4. **A user-visible output change with its own NEWS line:** `extract(fit,
@@ -747,7 +747,7 @@ oracles and changes one shipped output.
 5. A new pin (FB12).
 
 STOP CONDITION: no test outside `test-12-plot.R` and `test-05-generics.R` may
-move. B0/B0b non-interference: `test-06-regression.R`:45 runs at
+move. B0/B0b non-interference: [[test-06-regression.R:45@4c018187]] runs at
 `n.chains = 1L` and both reshape sites are gated on `n.chains > 1L`. B1
 non-interference: B1.2a stores matrices, so neither reshape fires for a bcf fit
 either way.
@@ -772,37 +772,37 @@ burn    <- sampler$run(0L, ctl@n.burn,    updateState = FALSE)
 samples <- sampler$run(0L, ctl@n.samples, updateState = FALSE)
 ```
 
-mirroring `bart2`'s standard path (`R/bart.R`:1019, :1022; the two-phase form
+mirroring `bart2`'s standard path ([[R/bart.R:1019@4c018187]], [[R/bart.R:1022@4c018187]]; the two-phase form
 :435-475, including the draw-neutral `keepTrainingFits = FALSE`/
 `verbose = FALSE` during burn, available on a BCF). `n.chains`, `n.threads`,
 `n.burn`, `n.samples`, `keepTrees`, `rngSeed` and `verbose` are `dbartsControl`
-slots (`R/dbarts.R`:214-231). The per-draw channels arrive BATCHED from the
+slots ([[R/dbarts.R:214-231@4c018187]]). The per-draw channels arrive BATCHED from the
 second `run()` - `forestFits`, `glue`, and (after D3) the per-forest `varcount`;
-the burn run's `$sigma` becomes `first.sigma` (`R/bart.R`:452-455, packaged
-:245-251, :268). At `n.burn == 0` there is no burn run at all (`run(0L, 0L)`
+the burn run's `$sigma` becomes `first.sigma` ([[R/bart.R:452-455@4c018187]], packaged
+:245-251, [[R/bart.R:268@4c018187]]). At `n.burn == 0` there is no burn run at all (`run(0L, 0L)`
 returns NULL, MEASURED) - see B1.2a.
 
-Forest declaration, defaults from `forestParams` (`R/model.R`:964-984), with NO
+Forest declaration, defaults from `forestParams` ([[R/model.R:964-984@4c018187]]), with NO
 `basis` field on either forest (the bases ride the data object, B1.1a):
 
 - forest 1, prognostic: `forest(vars = muVars, sd = sd.control,
   update.amplitude = update.a, interactions = mu.interactions)`. No basis, so
   its amplitude is the scalar `a` under a half-Cauchy mixture whose median is
-  `sd` (`R/model.R`:980). Tree count and structure prior are the fit's own
-  (`R/spec.R`:217-226). `mu.blocks` is REFUSED - B1.3.
+  `sd` ([[R/model.R:980@4c018187]]). Tree count and structure prior are the fit's own
+  ([[R/spec.R:217-226@4c018187]]). `mu.blocks` is REFUSED - B1.3.
 - forest 2, treatment: `forest(vars = tauVars, n.trees = n.trees.treatment,
   base = treatment.base, power = treatment.power, sd = sd.moderate,
   amplitude.prior.variance = b.prior.variance, update.amplitude = update.b,
   interactions = tau.interactions, blocks = tau.blocks)`. With a basis reaching
   it from `data@bases`, `sd` multiplies the node scale through 0.674
-  (`R/model.R`:977-978) and `amplitude.prior.variance` is the fixed-variance
-  channel (:979); it needs D2 item 3.
+  ([[R/model.R:977-978@4c018187]]) and `amplitude.prior.variance` is the fixed-variance
+  channel ([[R/model.R:979@4c018187]]); it needs D2 item 3.
 
-**Response family:** `gaussian`, `probit`, `logistic` (`R/spec.R`:449-471). For
+**Response family:** `gaussian`, `probit`, `logistic` ([[R/spec.R:449-471@4c018187]]). For
 a binary fit the combination is on the LATENT scale and the link is applied LAST
-to both surfaces, as `extract.bart` does (`R/generics.R`:303-305); the `sigma`
+to both surfaces, as `extract.bart` does ([[R/generics.R:303-305@4c018187]]); the `sigma`
 element is then DELETED, since `run()` supplies 1s (MEASURED) and
-`responseIsBinary` (`R/bartc.R`:211-217) keys on its absence.
+`responseIsBinary` ([[R/bartc.R:211-217@4c018187]]) keys on its absence.
 
 **The response transform:** read `cal <- sampler$getCalibration(1L)` before the
 sampler goes out of scope, take `cal[1L, "response.scale"]`, and assert the rows
@@ -813,16 +813,16 @@ agree.
 - **(i) CHOSEN: the fitter normalizes the subset and pre-subsets the basis**,
   then uses the bases-on-the-data-object composition. bartCause already resolves
   the subset expression one line before it builds the data object
-  (`R/responseFit.R`:161); the bcf fitter does the same, NORMALIZES to positive
+  ([[R/responseFit.R:161@4c018187]]); the bcf fitter does the same, NORMALIZES to positive
   integer positions, builds the basis from the FULL-length treatment vector,
   subsets it, binds it as a symbol and passes `dbartsDataCall$bases <- <symbol>`
-  - the idiom `bartc()` uses for the propensity score (`R/bartc.R`:148-153).
-- (ii) Refuse `subset` for bcf. REJECTED: breaks `man/bartc.Rd`:397's canonical
-  workflow (a LOGICAL subset) and `tests/testthat/test-04-bartc.R`:252-256 (an
+  - the idiom `bartc()` uses for the propensity score ([[R/bartc.R:148-153@4c018187]]).
+- (ii) Refuse `subset` for bcf. REJECTED: breaks [[man/bartc.Rd:397@4c018187]]'s canonical
+  workflow (a LOGICAL subset) and [[tests/testthat/test-04-bartc.R:252-256@4c018187]] (an
   INTEGER one), for a mechanism measured to work.
 - (iii) Make the formula branch subset the bases. REJECTED for this arc: it
   makes a shipped argument's contract ambiguous at equal row counts, and the
-  asymmetry is deliberate (`R/data.R`:630-632, :891-892). A door.
+  asymmetry is deliberate ([[R/data.R:630-632@4c018187]], [[R/data.R:891-892@4c018187]]). A door.
 
 **The normalization is TOTAL, because all four kinds reach the bart path today
 (MEASURED, `n.obs = 20` each):**
@@ -879,36 +879,36 @@ is the mask, not a finding about the data.
 
 | element | read by | required shape |
 |---|---|---|
-| `$sigma` | `R/plot.R`:13, `R/generics.R`:331, `R/bartc.R`:215 | `[n.chains, n.samples]`, absent when binary |
-| `$first.sigma` | `R/plot.R`:12 | `[n.chains, n.burn]`, `[n.chains, 0]` at `n.burn == 0`, absent when binary |
-| `$y` | `R/generics.R`:371 | length n.obs |
-| `$fit` | `R/generics.R`:107, :191 | only under `keepSampler`; predict refuses anyway |
+| `$sigma` | [[R/plot.R:13@4c018187]], [[R/generics.R:331@4c018187]], [[R/bartc.R:215@4c018187]] | `[n.chains, n.samples]`, absent when binary |
+| `$first.sigma` | [[R/plot.R:12@4c018187]] | `[n.chains, n.burn]`, `[n.chains, 0]` at `n.burn == 0`, absent when binary |
+| `$y` | [[R/generics.R:371@4c018187]] | length n.obs |
+| `$fit` | [[R/generics.R:107@4c018187]], [[R/generics.R:191@4c018187]] | only under `keepSampler`; predict refuses anyway |
 
 The census is complete (full scan; everything else stan4bart- or
 predict-gated). **Why matrices and not `bart2`'s flat vectors:** both bartCause
 readers try to un-flatten with the wrong `byrow` (B0b); storing
-`[n.chains, n.samples]` means `is.null(dim(s))` is FALSE at `R/plot.R`:18 and
-`R/generics.R`:332, neither reshape fires, and every consumer is correct on its
+`[n.chains, n.samples]` means `is.null(dim(s))` is FALSE at [[R/plot.R:18@4c018187]] and
+[[R/generics.R:332@4c018187]], neither reshape fires, and every consumer is correct on its
 own terms - `plot_sigma` takes `cbind(warmup, sample)` with chain ROWS
-(:29-31, :39-41), `extract.bartcFit` returns the matrix and combines through
-bartCause's own helper (:334, `R/generics.R`:1-13), and `sampleFromPPD` gets a
+([[R/generics.R:29-31@4c018187]], [[R/generics.R:39-41@4c018187]]), `extract.bartcFit` returns the matrix and combines through
+bartCause's own helper ([[R/generics.R:334@4c018187]], [[R/generics.R:1-13@4c018187]]), and `sampleFromPPD` gets a
 chain-fastest flatten aligned with `ev`'s `[chain, sample, obs]` layout. It is
 exactly what `bart2(combineChains = FALSE)` produces (MEASURED).
 
 **Accepted inconsistency, stated:** at `n.chains == 1`, `combineChains(m, 1L)`
 returns the matrix (`R/generics.R`:4), so `extract(fit, "sigma")` yields a
 `1 x n.samples` MATRIX where a bart fit yields a vector (MEASURED). Harmless -
-`fitted.bartcFit` has no `"sigma"` type (`R/generics.R`:252-253) and `summary`
-consumes it as `mean(sigma^2)` (`R/summary.R`:98-99, :128-129) - and
+`fitted.bartcFit` has no `"sigma"` type ([[R/generics.R:252-253@4c018187]]) and `summary`
+consumes it as `mean(sigma^2)` ([[R/summary.R:98-99@4c018187]], [[R/summary.R:128-129@4c018187]]) - and
 `man/bcf.Rd` says so.
 
 **`combineChains` and `n.chains`, settled at the `fitBCF` seam:** `fitBCF`
 always returns per-chain arrays and takes no `combineChains`;
 `getBCFResponseFit` hands the namedList UNCOMBINED 3-D surfaces, matching
 `getBartResponseFit`'s `combineChains = FALSE` extracts
-(`R/responseFit.R`:243-245); `bcf()` exposes `combineChains = TRUE` and applies
+([[R/responseFit.R:243-245@4c018187]]); `bcf()` exposes `combineChains = TRUE` and applies
 it at the ACCESSORS; `n.chains` defaults to 4 in `bcf()` (bart2's) and 10 on the
-bartc arm (`R/responseFit.R`:221), one per front door.
+bartc arm ([[R/responseFit.R:221@4c018187]]), one per front door.
 
 #### B1.3 The signature
 
@@ -930,38 +930,38 @@ bcf(formula, data, subset, weights, offset,          # or (x, y) as bart2 does
     keepSampler = FALSE, verbose = TRUE, seed = NA_integer_, ...)
 ```
 
-Flat arguments built into the spec internally (bcf-public-surface.md:277-280),
-in `bartcoreBCFSampler`'s vocabulary (`R/bartcore.R`:637-653).
+Flat arguments built into the spec internally ([[bcf-public-surface.md:277-280@4c018187]]),
+in `bartcoreBCFSampler`'s vocabulary ([[R/bartcore.R:637-653@4c018187]]).
 
 **`mu.blocks` is deliberately ABSENT.** MEASURED: a first-forest `blocks` - by
-either spelling, since `R/spec.R`:224-226 hoists `forest(1, blocks = )` onto the
-top-level argument - is resolved at `R/spec.R`:341 with no `availableColumns`
-(doc :340: "The partition covers the full design") and demands a total partition
+either spelling, since [[R/spec.R:224-226@4c018187]] hoists `forest(1, blocks = )` onto the
+top-level argument - is resolved at [[R/spec.R:341@4c018187]] with no `availableColumns`
+(doc [[R/spec.R:340@4c018187]]: "The partition covers the full design") and demands a total partition
 including the masked treatment column. Auto-repair is worse: `blocks()` carries
-`trees.per.group` and NULL distributes trees evenly (`R/model.R`:1514-1515,
-definition :1518, work in `resolveBlocks`), so a block of only masked columns
+`trees.per.group` and NULL distributes trees evenly ([[R/model.R:1514-1515@4c018187]],
+definition [[R/model.R:1518@4c018187]], work in `resolveBlocks`), so a block of only masked columns
 produces trees that can never split. v1 refuses by name, points at `tau.blocks`
 (MEASURED to work) and at the door. `mu.interactions` is unaffected (MEASURED).
 
 #### B1.4 The moderator EXCLUSION, and z
 
 - **pihat out of TAU.** `p.scoreAsCovariate` (default TRUE) injects the score
-  (`R/bartc.R`:146-159; builders splice at `R/argParse.R`:155-171 decisive :162,
-  and :326-337 with the RHS at :346-348). Under BCF it belongs to mu only
-  (`R/bartcore.R`:628-630). Its own alignment under `subset` is already correct
-  on the literal path (`R/argParse.R`:331-336 scatters into subset POSITIONS).
+  ([[R/bartc.R:146-159@4c018187]]; builders splice at [[R/argParse.R:155-171@4c018187]] decisive [[R/argParse.R:162@4c018187]],
+  and [[R/argParse.R:326-337@4c018187]] with the RHS at [[R/argParse.R:346-348@4c018187]]). Under BCF it belongs to mu only
+  ([[R/bartcore.R:628-630@4c018187]]). Its own alignment under `subset` is already correct
+  on the literal path ([[R/argParse.R:331-336@4c018187]] scatters into subset POSITIONS).
 - **z out of BOTH.** The treatment enters through tau's BASIS; a mu forest free
   to split on z could absorb the effect. bartCause's builders always put the
-  treatment in the design (`R/argParse.R`:112, :323-324) and the bookkeeping
-  reads it there (`R/responseFit.R`:235), so keep z in the design and mask it
+  treatment in the design ([[R/argParse.R:112@4c018187]], [[R/argParse.R:323-324@4c018187]]) and the bookkeeping
+  reads it there ([[R/responseFit.R:235@4c018187]]), so keep z in the design and mask it
   out of both forests' `vars` - MEASURED to work.
 
 **The propensity column's name is RETURNED, never re-derived.** The builders
-already compute it (`R/argParse.R`:141-143, :327-329); append it to the lists
-they return (:216, :408) and consume it in the fitter. Bart-path-neutral:
-`massign`'s unnamed loop (`R/multipleAssignment.R`:84-98) consumes positionally
+already compute it ([[R/argParse.R:141-143@4c018187]], [[R/argParse.R:327-329@4c018187]]); append it to the lists
+they return ([[R/argParse.R:216@4c018187]], [[R/argParse.R:408@4c018187]]) and consume it in the fitter. Bart-path-neutral:
+`massign`'s unnamed loop ([[R/multipleAssignment.R:84-98@4c018187]]) consumes positionally
 and never touches extras, and both existing sites take exactly four unnamed
-targets (`R/responseFit.R`:144, :152), as does the stan4bart fitter's (:35,
+targets ([[R/responseFit.R:144@4c018187]], [[R/responseFit.R:152@4c018187]]), as does the stan4bart fitter's ([[R/responseFit.R:35@4c018187]],
 :45). Re-deriving from `colnames(data@x)` is not an option: MEASURED, with a
 confounder named `"psps"` the ladder answers `psps` while the score is `ps`, so
 `setdiff` would drop the confounder from tau and leave the score in it - the
@@ -977,33 +977,33 @@ caller's `moderators` with those names removed and a refusal - not a silent drop
 
 `getBCFResponseFit` mirrors `getBartResponseFit`'s assembly half and skips its
 test half, reusing the data/literal branch and the two argParse calls
-(`R/responseFit.R`:140-155) **with `getBCFResponseFit` substituted at :143 and
+([[R/responseFit.R:140-155@4c018187]]) **with `getBCFResponseFit` substituted at [[R/responseFit.R:143@4c018187]] and
 :148** - those lines are `addCallDefaults(<call>,
 eval(quoteInNamespace(getBartResponseFit)))` and `addCallDefaults`
-(`R/utility.R`:112-130) fills from `fn`'s formals, so a verbatim copy would take
-the bart fitter's defaults. It also reuses the subset resolution (:161), `trt`
-(:235), the common-support computation (:279-282) and the `y` backfill (:284),
-and DROPS the counterfactual `x.test` construction (:177-193), the test extract
-(:245) and the missing-row recombination (:247-277). Its return is the namedList
-contract at `R/responseFit.R`:286, consumed by `assignAll` (`R/bartc.R`
+([[R/utility.R:112-130@4c018187]]) fills from `fn`'s formals, so a verbatim copy would take
+the bart fitter's defaults. It also reuses the subset resolution ([[R/utility.R:161@4c018187]]), `trt`
+([[R/utility.R:235@4c018187]]), the common-support computation ([[R/utility.R:279-282@4c018187]]) and the `y` backfill ([[R/utility.R:284@4c018187]]),
+and DROPS the counterfactual `x.test` construction ([[R/utility.R:177-193@4c018187]]), the test extract
+([[R/utility.R:245@4c018187]]) and the missing-row recombination ([[R/utility.R:247-277@4c018187]]). Its return is the namedList
+contract at [[R/responseFit.R:286@4c018187]], consumed by `assignAll` (`R/bartc.R`
 :172-174).
 
 **Four sites need attention:**
 
-1. **`R/plot.R`:12** - a missing `first.sigma`, closed by B1.2a.
-2. `refit.bartcFit` (`R/generics.R`:506): widen to `%in% c("bart", "bcf")`.
+1. **[[R/plot.R:12@4c018187]]** - a missing `first.sigma`, closed by B1.2a.
+2. `refit.bartcFit` ([[R/generics.R:506@4c018187]]): widen to `%in% c("bart", "bcf")`.
    SEVERITY: `object$est` is read only under the `p.weight`/`tmle` gate
-   (`R/generics.R`:339 -> :346; `R/summary.R`:184 -> :231) and the bart path
-   returns `est = NULL` (`R/responseFit.R`:286), so post-refit numbers are
+   ([[R/generics.R:339@4c018187]] -> [[R/generics.R:346@4c018187]]; [[R/summary.R:184@4c018187]] -> [[R/summary.R:231@4c018187]]) and the bart path
+   returns `est = NULL` ([[R/responseFit.R:286@4c018187]]), so post-refit numbers are
    correct either way; the widening stops a user-reachable element being NULL.
-3. `summary`'s group-effects total row (`R/summary.R`:301, `%in% "bart"`).
-4. `predict.bartcFit`'s refusal message (`R/generics.R`:102-103), false for bcf.
+3. `summary`'s group-effects total row ([[R/summary.R:301@4c018187]], `%in% "bart"`).
+4. `predict.bartcFit`'s refusal message ([[R/generics.R:102-103@4c018187]]), false for bcf.
 
-Plus two `bartc()` guards: `R/bartc.R`:107-112 needs a bcf reading of
-`p.scoreAsCovariate`/`method.trt`, and :164-165 must refuse `crossvalidate`.
+Plus two `bartc()` guards: [[R/bartc.R:107-112@4c018187]] needs a bcf reading of
+`p.scoreAsCovariate`/`method.trt`, and [[R/bartc.R:164-165@4c018187]] must refuse `crossvalidate`.
 `method.rsp` gains `"bcf"` in the FORMAL at `R/bartc.R`:3 (the validity loop at
-:42-47 reads it); the reserved line :123 becomes
-`bcf = redirectCall(matchedCall, quoteInNamespace(getBCFResponseFit))`; :128-130
+:42-47 reads it); the reserved line [[R/bartc.R:123@4c018187]] becomes
+`bcf = redirectCall(matchedCall, quoteInNamespace(getBCFResponseFit))`; [[R/bartc.R:128-130@4c018187]]
 matches `formals(getBartResponseFit)`, so give `getBCFResponseFit` the same
 leading formals or widen that line.
 
@@ -1020,9 +1020,9 @@ leading formals or widen that line.
   INTERNAL scale, named so in the Rd (which also notes `run()$tau` is an
   unrelated dbarts channel); `"icate"` returns
   `response.scale * (b_1 - b_0) * tau`. Calls
-  `issueWarningForUnknownArguments()` first (`R/utility.R`:294-319).
+  `issueWarningForUnknownArguments()` first ([[R/utility.R:294-319@4c018187]]).
 - `residuals.bartBCF(object, ...)` - `y - fitted(object, "mu.obs")`;
-  `NAMESPACE`:17 imports `fitted, predict, sd` but not `residuals`, so B1 adds
+  `NAMESPACE`[[R/utility.R:17@4c018187]] imports `fitted, predict, sd` but not `residuals`, so B1 adds
   it.
 - `predict.bartBCF(object, newdata, type = c("mu", "tau"), ...)` - **defined and
   REFUSING in v1**, naming the door.
@@ -1036,15 +1036,15 @@ residuals on `bartBCF`; `importFrom(stats, residuals)`.
 exclusion, the per-forest `varcount` container WITH the structural-zero rider,
 the `n.chains == 1` sigma shape, and every refusal: missing responses,
 `crossvalidate`, `group.by` with `use.ranef = TRUE`, `parametric`, `mu.blocks`,
-`predict`); `man/bartc.Rd` gains `"bcf"` at :9-10, :57-66, :174-190;
+`predict`); `man/bartc.Rd` gains `"bcf"` at :9-10, [[R/utility.R:57-66@4c018187]], [[R/utility.R:174-190@4c018187]];
 `man/generics.Rd` gains the bartBCF methods if it is the right home - read it
 first. `inst/NEWS.Rd` gains a NEW FEATURES subsection folded into the unreleased
 1.0-10 section (:4-12), since 1.0-10 awaits submission after dbarts is accepted
-(dbarts `TODO`:892-895); if VD has already shipped it, bump to 1.0-11.
+(dbarts [[TODO:892-895@4c018187]]); if VD has already shipped it, bump to 1.0-11.
 
 Gates: full testthat under the private library with `NOT_CRAN=true`;
 `R CMD check --as-cran` on a tarball staged outside the tree (the S5 mandate
-names `--as-cran`, bcf-public-surface.md:515);
+names `--as-cran`, [[bcf-public-surface.md:515@4c018187]]);
 `tools:::.build_news_db_from_package_NEWS_Rd` parses `inst/NEWS.Rd`.
 rng: NEUTRAL for dbarts.
 
@@ -1058,11 +1058,11 @@ rng: NEUTRAL for dbarts.
 The alternative, (b) - dbarts grows `bart2`'s output channels first and bcf()
 becomes one more `redirectCall(matchedCall, dbarts::bart2)` arm - does NOT buy
 what it appeared to: missing-row handling, keepTrees prediction and xbart
-crossvalidation are unavailable for a BCF under BOTH branches (`R/spec.R`:509,
+crossvalidation are unavailable for a BCF under BOTH branches ([[R/spec.R:509@4c018187]],
 :486-491; `refuseUndefinedTestFits`; `R/xbart.R`:1-29). Revision 1's memory
 argument for (a) is withdrawn (the batched array is materialized in R either
 way); the recommendation stands on the R/C division putting the outer loop on
-R's side (`docs/design/r-c-division.md`:84-95, :104-107) and on (b)'s
+R's side ([[docs/design/r-c-division.md:84-95@4c018187]], [[docs/design/r-c-division.md:104-107@4c018187]]) and on (b)'s
 inheritance claims being refuted. Both critiques CONCURRED.
 
 **The (b) content is DOORED, not scheduled** - see "The K-forest batched front
@@ -1071,10 +1071,10 @@ door" under Doors held.
 ## Fork B. Standalone `bcf()`, a `bartc()` arm, or both? - RESOLVED
 
 **RESOLVED (VD 2026-08-15): (a), both front doors. As drafted.** Exported
-`bcf()` plus internal `getBCFResponseFit`, with `R/bartc.R`:123 re-spelled, over
+`bcf()` plus internal `getBCFResponseFit`, with [[R/bartc.R:123@4c018187]] re-spelled, over
 ONE engine-facing core (`fitBCF`) and ONE output class; `getBCFResponseFit`
 reshapes into the namedList exactly as `getPWeightResponseFit`
-(`R/responseFit.R`:399-403) and `getTMLEResponseFit` (:682-686) wrap and reshape
+([[R/responseFit.R:399-403@4c018187]]) and `getTMLEResponseFit` ([[R/responseFit.R:682-686@4c018187]]) wrap and reshape
 `getBartResponseFit`. (b) - the bartc arm alone - orphans the five S3 methods
 the S5 contract names; (c) - the standalone alone - leaves bartCause's headline
 estimator unreachable through its own front door. The two riders are settled in
@@ -1104,11 +1104,11 @@ and took (c) directly. Consequences, all worked through above:
 
 ## Fork D (NOT a fork - recorded settled)
 
-`bcf-naming-generalization` (dbarts `TODO`:144-173) does not interact: the
+`bcf-naming-generalization` (dbarts [[TODO:144-173@4c018187]]) does not interact: the
 rename surface is internal and the one user-visible leg, `calibrationMapName`
-(`R_interface_bartcore.cpp`:4052-4055, call site :4144), returns "two-forest
+([[R_interface_bartcore.cpp:4052-4055@4c018187]], call site [[R_interface_bartcore.cpp:4144@4c018187]]), returns "two-forest
 calibration map", correct at K = 2 - the case `bcf()` fits. D0 completed that
-ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
+ticket's symbol list ([[TODO:146@4c018187]], [[TODO:151-159@4c018187]]); that was the only contact.
 
 ## Pre-registered falsifiers
 
@@ -1133,7 +1133,7 @@ ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
 - **FB3 (B1).** `crossvalidate = TRUE` with `method.rsp = "bcf"` refuses, naming
   the pinned k; the identical call at `"bart"` succeeds.
 - **FB4 (B1).** An `NA` response refuses under bcf, naming the door; the same
-  data under `"bart"` fits (`tests/testthat/test-03-responseFit.R`:127).
+  data under `"bart"` fits ([[tests/testthat/test-03-responseFit.R:127@4c018187]]).
 - **FB5 (B1).** `predict` refuses on a `bartBCF` and on a bcf `bartcFit`, each
   naming the replay door.
 - **FB6 (B1, integration).** `bartc(y, z, x, method.rsp = "bcf")` then
@@ -1143,7 +1143,7 @@ ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
 - **FB7 (B1, binary).** A probit bcf fit reports both surfaces in (0, 1), has NO
   `sigma`/`first.sigma`, `responseIsBinary` is TRUE, and
   `extract(type = "sigma")` errors with the existing binary message
-  (`R/generics.R`:322-323). At `n.chains = 2L`.
+  ([[R/generics.R:322-323@4c018187]]). At `n.chains = 2L`.
 - **FB8 (B1, refit).** `refit(fit, commonSup.rule = "sd")` moves
   `commonSup.sub` and populates `est`; the negative half rides a comment.
 - **FB9 - RETIRED.** It gated D1, which is now a door (below). If the door is
@@ -1156,7 +1156,7 @@ ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
 - **FB11 (B1, four legs plus a negative).** `bartc(..., subset = s,
   method.rsp = "bcf")` fits for `s` as an INTEGER index, a LOGICAL mask, a
   NEGATIVE index and a CHARACTER row-name vector, `n.obs` equal to the subset
-  size each time; and `man/bartc.Rd`:397's workflow runs end to end. NEGATIVE
+  size each time; and [[man/bartc.Rd:397@4c018187]]'s workflow runs end to end. NEGATIVE
   HALF: a full-length basis produces dbarts' loud row-count refusal, asserted by
   message; plus the empty-arm guard refusing by name.
 - **FB12 (B0b, both halves).** `extract(fit, "sigma", combineChains = FALSE)`
@@ -1180,7 +1180,7 @@ ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
 - **FB16 (D3, the re-record's gate).** The widened channel's forest-1 slab is
   `identical()` to the pre-D3 recorded array on every bcf-equivalence scenario -
   a 2-D `p x n.samples` matrix, since every scenario is single-chain
-  (`bcf-equivalence.R`:85), so the oracle is `identical(new[, 1L, ], old)`. The
+  ([[bcf-equivalence.R:85@4c018187]]), so the oracle is `identical(new[, 1L, ], old)`. The
   re-record does not land until this passes.
 - **FB17 (D3, regression guards).** A multinomial fit's `varcount` is unchanged
   in shape, dimnames and values (`multinomial-equivalence-1027be5` bitwise), and
@@ -1195,7 +1195,7 @@ ticket's symbol list (`TODO`:146, :151-159); that was the only contact.
 - **FB19 (D3, the flat-C legacy contract - the BLOCKER-1 detector).** A
   caller-declared count of 1 against a K-forest combiner writes exactly
   `numPredictors` per sample, the prognostic forest's; the reported count never
-  exceeds the chain's forest count; and `test-capi.R`:1236-1250 runs clean under
+  exceeds the chain's forest count; and [[test-capi.R:1236-1250@4c018187]] runs clean under
   the ASAN/UBSAN battery with `consumer.c`'s buffer sizing UNCHANGED. NEGATIVE
   HALF: consult the combiner again and the sanitizer leg must abort. Full
   statement in D3.
@@ -1213,8 +1213,8 @@ DENSE-EQUIVALENT (one assertion per line).
   tinytest assertion is expected to move (every BCF varcount assertion is
   self-relative and every positionally-indexed one is single-forest or
   multinomial), AND no caller-owned varcount buffer may be reached by a
-  multi-forest sampler - `consumer.c`:186-190 via `test-capi.R`:1250, and
-  `R/rbart.R`:599/:618. A sanitizer abort in `test-capi.R` is THIS slice.
+  multi-forest sampler - [[consumer.c:186-190@4c018187]] via [[test-capi.R:1250@4c018187]], and
+  [[R/rbart.R:599@4c018187]]/[[R/rbart.R:618@4c018187]]. A sanitizer abort in `test-capi.R` is THIS slice.
 - **B0: one literal.** STOP: if the regenerated value differs, stop.
 - **B0b: ~10 new assertions** plus two re-derived oracles. STOP: no test outside
   `test-12-plot.R` and `test-05-generics.R` may move.
@@ -1237,15 +1237,15 @@ DENSE-EQUIVALENT (one assertion per line).
 - **dbarts**: D0 (landed), D2 (three R-surface guards), D3 (the engine channel
   plus one dead-capture deletion). **None touches `dbarts.h`'s DECLARED
   surface** - D3 edits one doc comment inside `dbarts_results_t`, which the
-  token cannot see (`dbarts.h`:95-100: it "covers the entry-point SIGNATURES
+  token cannot see ([[dbarts.h:95-100@4c018187]]: it "covers the entry-point SIGNATURES
   [...] and NOT the layout of the structs those signatures name", pinned by
-  `test-capi.R`:56-60) - so the hash does not move and no sister package
+  [[test-capi.R:56-60@4c018187]]) - so the hash does not move and no sister package
   rebuilds. D3's only cross-package surface is the BCF `run()$varcount` shape,
   which no sister package reads (stan4bart drives the flat C API; treatSens and
   bairrtt are single-forest) - and it stays that way BECAUSE of item 5's
   caller-authority pin, which is the fact to check before anyone relaxes it.
 - **stan4bart / treatSens / bairrtt**: zero. One cross-reference: stan4bart's
-  `bart-args-forests-guard` (`TODO`:11-18) is D2 item 1's twin.
+  `bart-args-forests-guard` ([[TODO:11-18@4c018187]]) is D2 item 1's twin.
 
 ## Doors held (recorded, priced, not scheduled)
 
@@ -1255,9 +1255,9 @@ DENSE-EQUIVALENT (one assertion per line).
   object, the response transform parked there, and an `extract()` per-forest
   selector) or through formula-level term syntax (`y ~ bart(...)`, stan4bart's
   shape) is UNDECIDED (VD 2026-08-15). The question rides the
-  `bart2-argument-consolidation` review (dbarts `TODO`:80-143, which names this
-  interaction at :118-125 and records that bart2 carries 52 formals with no
-  `control =` among them, :83-84, :98-108). Not scheduled here; if taken, it
+  `bart2-argument-consolidation` review (dbarts [[TODO:80-143@4c018187]], which names this
+  interaction at [[TODO:118-125@4c018187]] and records that bart2 carries 52 formals with no
+  `control =` among them, [[TODO:83-84@4c018187]], [[TODO:98-108@4c018187]]). Not scheduled here; if taken, it
   needs its own plan and re-registers its own falsifier. Creation through
   `bart2` already works via `dbartsData(bases = )` (MEASURED); what is missing
   is the OUTPUT channel, so the door is an output slice whatever spelling wins.
@@ -1265,15 +1265,15 @@ DENSE-EQUIVALENT (one assertion per line).
   packaged `varcount` shape for a multi-forest fit, in the shape multinomial
   already ships - because the alternative was a silently wrong array; the door
   inherits it as a fact, and `forestFits`/`glue` remain entirely undecided.
-  (ii) The reciprocal pointer needs repointing: `TODO`:119-121 still cites
+  (ii) The reciprocal pointer needs repointing: [[TODO:119-121@4c018187]] still cites
   "bcf-s5-relocation's D1" plus design-draft anchors that no longer exist; they
   are repointed at this file and this door section.
 - **Per-forest saved-tree replay** (out-of-sample mu(x), tau(x)), needed by
-  `predict.bartBCF` and by bairrtt (bcf-public-surface.md:660-662). Engine
+  `predict.bartBCF` and by bairrtt ([[bcf-public-surface.md:660-662@4c018187]]). Engine
   slice, unpriced here. LANDED 2026-08-20 at dbarts 63df524e - see the
   landing note at the end of this file.
 - **A test treatment vector / test basis**, which would retire
-  `refuseUndefinedTestFits` (:666) and is the only thing that would restore
+  `refuseUndefinedTestFits` ([[bcf-public-surface.md:666@63df524e]]) and is the only thing that would restore
   missing-response handling to bcf(). A modelling decision first. The
   PREDICT-TIME half - the combined blend at new rows for an already-fit
   amplitude coupling - LANDED 2026-08-24 at dbarts 139a1976 (`bases =`, or
@@ -1281,17 +1281,17 @@ DENSE-EQUIVALENT (one assertion per line).
   this file. What is still doored is the FIT-TIME channel: a resident test
   basis, `yhat.test`, NA-y rows - the modelling decision above.
 - **First-forest `blocks` against its own column mask.** `forestColumns` is
-  computed at `R/spec.R`:555-558 inside the `data@bases` branch while
-  `blockSpec` is resolved at :341 outside it; the door is hoisting the forest-1
-  mask above :341 and passing `availableColumns` when the fit is multi-forest,
-  plus the doc sentence at :340. ~10 R + ~8 test. Ships `mu.blocks`.
+  computed at [[R/spec.R:555-558@139a1976]] inside the `data@bases` branch while
+  `blockSpec` is resolved at [[R/spec.R:341@139a1976]] outside it; the door is hoisting the forest-1
+  mask above [[R/spec.R:341@139a1976]] and passing `availableColumns` when the fit is multi-forest,
+  plus the doc sentence at [[R/spec.R:340@139a1976]]. ~10 R + ~8 test. Ships `mu.blocks`.
 - **Formula-path bases subsetting in dbarts** (B1.1a route iii). ~15 R + ~15
   test, and it makes a shipped argument's contract ambiguous at equal row
   counts.
-- **`bcf()` over a data handle / row-subset view** (bcf-public-surface.md:683).
+- **`bcf()` over a data handle / row-subset view** ([[bcf-public-surface.md:683@139a1976]]).
 - **Joint x/y/z `setData` on a BCF sampler.** Stays VD-TIMED AND UNDESIGNED per
-  `TODO`:497-500; not designed, priced or used here.
-- **Grouped x BCF** (refused at `R/spec.R`:505), which is why bcf() refuses
+  [[TODO:497-500@139a1976]]; not designed, priced or used here.
+- **Grouped x BCF** (refused at [[R/spec.R:505@139a1976]]), which is why bcf() refuses
   `group.by` under `use.ranef = TRUE`.
 - **`update.a`/`update.b` mutable mid-chain**; bcf() exposes them at creation.
 
@@ -1303,7 +1303,7 @@ Recorded so nothing is re-litigated. All eight items settled.
 2. **D1 = DOORED, not scheduled:** "K-forest batched front door - spelling
    undecided (`forests =` argument vs formula-level term syntax a la
    stan4bart's `y ~ bart(...)`)", riding the `bart2-argument-consolidation`
-   review (`TODO`:80-143, interaction at :118-125). (Doors held, first entry.)
+   review ([[TODO:80-143@139a1976]], interaction at [[TODO:118-125@139a1976]]). (Doors held, first entry.)
 3. **Fork B = (a), both front doors.** As drafted. (Fork B section.)
 4. **Fork C = BUILD THE CHANNEL NOW**, reversing the drop-and-ticket
    recommendation: the per-draw per-forest varcount channel is the durable
@@ -1313,10 +1313,10 @@ Recorded so nothing is re-litigated. All eight items settled.
 6. **B0b kept in-arc, immediately after B0.** (Sequence line; B0b section.)
 7. **The `predict.bartcFit` propensity-column collision is TICKETED and fixed
    right after B1.** MEASURED live: with a confounder named `"psps"` the ladder
-   (`R/generics.R`:110-112) resolves the wrong column and :183 overwrites it
+   ([[R/generics.R:110-112@139a1976]]) resolves the wrong column and [[R/generics.R:183@139a1976]] overwrites it
    with predicted scores. The fix records the resolved name on the `bartcFit` -
-   a namedList widening at `R/responseFit.R`:286 touching all four fitters plus
-   `R/bartc.R`:172-181, ~12 lines across five sites - and is mechanical once
+   a namedList widening at [[R/responseFit.R:286@139a1976]] touching all four fitters plus
+   [[R/bartc.R:172-181@139a1976]], ~12 lines across five sites - and is mechanical once
    B1's builder-return change has supplied the name; folding it into B1 would
    put a bart-path contract change inside a bcf slice.
 8. **`mu.blocks` refused in v1, door held.** (B1.3; Doors held.)
@@ -1328,8 +1328,8 @@ what CHANGED under them, kept because each correction is a fact a reader would
 otherwise re-derive wrongly.
 
 - The bartCause anchors this arc was scoped from were shifted by up to ten lines
-  (the response-fitter contract is `R/responseFit.R`:286); the regression
-  snapshots are at `test-06-regression.R`:10, :20, :30, :52.
+  (the response-fitter contract is [[R/responseFit.R:286@139a1976]]); the regression
+  snapshots are at [[test-06-regression.R:10@139a1976]], [[test-06-regression.R:20@139a1976]], [[test-06-regression.R:30@139a1976]], [[test-06-regression.R:52@139a1976]].
 - Creation of a BCF through `bart2` is OPEN (via `dbartsData(bases = )`); what
   is closed is the OUTPUT channel. The reverse was assumed at first.
 - Fork A(b)'s "inherits missing-row handling, keepTrees prediction and xbart
@@ -1349,7 +1349,7 @@ otherwise re-derive wrongly.
 - D3's consumer census twice stopped short: the flat C API creates BCF samplers
   and owns a varcount buffer (item 5), and `bart2`'s packager breaks in its
   RESHAPE rather than its naming (item 3). The rbart_vi audit was first aimed at
-  `R/spec.R`:505, which cannot fire on the path that owns the buffer.
+  [[R/spec.R:505@139a1976]], which cannot fire on the path that owns the buffer.
 - The re-record carries the standing four-place obligation (item 6), FB16's
   baseline is 2-D because every bcf-equivalence scenario is single-chain, and
   FB19's overflow detector is its `tests/cpp` leg, not its capi leg.
@@ -1363,7 +1363,7 @@ harness records varcount and would detect a leak); the RNG-neutrality argument
 is sound (the varcount block is a pure tree walk); FB16 catches a transposed axis
 or a swapped forest mapping; no tinytest or `tests/cpp` assertion moves; no
 bartCause reader trips (its only `varcount` token is
-`tests/testthat/test-04-bartc.R`:232-234, on the single-forest propensity fit);
+[[tests/testthat/test-04-bartc.R:232-234@139a1976]], on the single-forest propensity fit);
 and common support does NOT degenerate under BCF (measured at n = 300, 2 chains,
 200 draws against a matched BART fit: the two `(sd.cf/sd.obs)^2` distributions
 are indistinguishable).
@@ -1472,9 +1472,9 @@ tokens: the suite MIRRORED it). Three `byrow = TRUE` drops
 (`extract.bartcFit`'s sigma reshape, `R/generics.R`; `plot_sigma`'s
 sigma + first.sigma, `R/plot.R`); two comments corrected from
 chain-major to sample-major; two shipped test oracles re-derived
-(`test-05-generics.R`:46 now `expect_equal(sigma,
+([[test-05-generics.R:46@4c018187]] now `expect_equal(sigma,
 as.vector(t(matrix(fit$fit.rsp$sigma, nrow = n.chains))))`;
-`test-12-plot.R`:54-55 with its comment at :31-35). FB12 added: a
+[[test-12-plot.R:54-55@4c018187]] with its comment at [[test-12-plot.R:31-35@4c018187]]). FB12 added: a
 cross-check against a `bart2(combineChains = FALSE)` refit that never
 round-trips combine/uncombine - proven both halves, reverting `byrow`
 breaks it. NEWS BUG-FIXES bullet: `extract(type = "sigma")` now returns
@@ -1490,7 +1490,7 @@ untouched).
 
 B0 LANDED d7c855f4 (bartCause, restore green against dbarts e8404d93).
 Pre-edit receipt: [FAIL 1 | WARN 9 | SKIP 10] default env, the NOT_CRAN
-set isolating the single failure - `test-06-regression.R`:52 expected
+set isolating the single failure - [[test-06-regression.R:52@4c018187]] expected
 0.50402744431802, actual 0.44963899452561451, identical to the
 231744a0-era measurement and proving D2/D3 draw-neutrality end to end (no
 leak). One literal changed, regenerated in-suite (a temporary `%.17g`
@@ -1505,7 +1505,7 @@ included. The arc's one ENGINE slice: `BCFForestCombiner` overrides
 amplitude spec up to two); `storeSample` reads
 `results.numVariableCountForests`; a single caller-count clamp in
 `Sampler::run`'s stride computation is exported into the shape at
-`facade.hpp`:382 so the R bridge sizes off it. Flat C NEVER sets the
+[[facade.hpp:382@4c018187]] so the R bridge sizes off it. Flat C NEVER sets the
 field (default 1), so it keeps byte-identical legacy prognostic-only
 bytes; `dbarts.h` gains one doc COMMENT only (token-stream proven, 2870
 identical tokens); `apiHash` UNMOVED at 0x85bd1ef04beb3848
@@ -1518,9 +1518,9 @@ UNTOUCHED (legacy `nameVarcount`). Riders: the dead init-capture
 (`treatment = std::vector<double>{}`) is deleted, closing
 `dead-bcf-init-capture`; `bartcore_runWithCallback` is pinned to 1 with
 an audit comment (the real guard is `setOffset`'s BCF refusal -
-`R/spec.R`:505 never reaches the buffer path, measured); six falsified
+[[R/spec.R:505@4c018187]] never reaches the buffer path, measured); six falsified
 comments corrected (the plan named four; the implementer found
-`chain.hpp`:305-312, the gate-runner found `combiner.hpp`:641-651, the
+[[chain.hpp:305-312@4c018187]], the gate-runner found [[combiner.hpp:641-651@4c018187]], the
 latter fixed in e8404d93 along with two stale doc baseline pointers,
 line counts preserved - `feature-matrix.md` 882,
 `multiforest-extension-surface.md` 5324).
@@ -1528,15 +1528,15 @@ line counts preserved - `feature-matrix.md` 882,
 Battery: 5318 tinytest FAILURES 0 (+34, additions only); `tests/cpp` 245
 ok from clean; ASAN negative half = the designed FB19 abort
 (heap-buffer-overflow WRITE of 16 at 0 bytes after a 64-byte region,
-`Chain::forestVariableCounts` `chain.hpp`:1256 via `storeSample` :5036);
+`Chain::forestVariableCounts` [[chain.hpp:1256@4c018187]] via `storeSample` [[chain.hpp:5036@4c018187]]);
 ASAN positive clean. equivalence 37/37 + multinomial 10/10 BITWISE (the
 leak detectors, unmoved). FB16: the old 2-D `varcount` (4x40) vs the new
 4x2x40 - forest-1 slab `identical()` on all 12 scenarios, slab 2's last
 draw equals the recorded live `varcount.tau`; the harness-vs-old-baseline
 mismatch set is EXACTLY the `varcount` channel, 12/12. SHAPE-ONLY
 re-record: `bcf-equivalence-6e3b9fb8.rds` (766813 bytes) with the
-four-place same-commit bookkeeping - `equivalence.yaml`:87; MANIFEST new
-current row :42, old row historical :43, multinomial row shifted :48 ->
+four-place same-commit bookkeeping - [[equivalence.yaml:87@4c018187]]; MANIFEST new
+current row [[equivalence.yaml:42@4c018187]], old row historical [[equivalence.yaml:43@4c018187]], multinomial row shifted [[equivalence.yaml:48@4c018187]] ->
 :49; TODO ledger "D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8";
 `feature-matrix.md` [f39] renamed and repinned to MANIFEST:16,42,49.
 Gate-runner CONFIRMED with two independent probes: K=1 A/B
@@ -1553,7 +1553,7 @@ half pins p (the unarmed 3-D branch reads the predictor count, not a
 doubled draw count); a fifth and sixth falsified comment found beyond
 the plan's four; the two stale doc pointers fixed in e8404d93. Residue
 found in gate-running, ticketed rather than folded in:
-`$getForestVariableCounts` (`R/dbarts.R`:1508) returns an UNNAMED matrix
+`$getForestVariableCounts` ([[R/dbarts.R:1508@4c018187]]) returns an UNNAMED matrix
 while the packaged channel it mirrors carries predictor names -
 `getforestvariablecounts-dimnames` (`TODO`).
 
@@ -1581,8 +1581,8 @@ treatment-slot ticket CLOSED against `dbartsdata-treatment-slot-debt`'s
 `dead-bcf-init-capture` ticket (closed by D3 above); completed
 `bcf-naming-generalization`'s symbol list (`BCFSpecStorage` plus uses,
 `isBCFSampler`/`refuseBCFMutation` plus five call sites); re-pinned
-`calibrationMapName` (definition `R_interface_bartcore.cpp`:4052-4055,
-the literal at :4054, the call site at :4144); corrected a
+`calibrationMapName` (definition [[R_interface_bartcore.cpp:4052-4055@4c018187]],
+the literal at [[R_interface_bartcore.cpp:4054@4c018187]], the call site at [[R_interface_bartcore.cpp:4144@4c018187]]); corrected a
 tinytest-vs-testthat mislabel.
 
 2026-08-16, post-arc: the bartcause-subset-pscore residue landed at
@@ -1670,7 +1670,7 @@ refuse the z = 0 counterfactual. `validateForestBases` gains a `rows` noun:
 predict names 'newdata', not 'y'. Both amplitude arms now gate on `keepTrees`;
 `type = "forest"` lacked it, silently returning one draw before. `offset` is
 accepted on the blend, validated after the `type = "forest"` early return, keeping
-the C-side `refuseUndefinedTestFits` pin reachable. man/bart.Rd:297's "term's own
+the C-side `refuseUndefinedTestFits` pin reachable. [[man/bart.Rd:297@139a1976]]'s "term's own
 text" labels claim is fixed: labels are NULL on the term route. Critique blocker:
 bart2's `z:forest(x)` yields a ONE-column basis, not (1-z, z); tests use each
 route's own shape. Oracle: in-sample identity vs `yhat.train` at 1e-12, gaussian
