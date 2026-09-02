@@ -146,31 +146,35 @@ struct CscColumnSlice {
   size_t numNonzero = 0;
 };
 
-/// Where one column's codes live and what re-quantization reads.
+/// Where one column's codes live and what re-quantization reads. The
+/// discriminator is where the RAW a re-quantize reads lives, not who owns the
+/// codes: every kind's codes are the store's.
 enum class ColumnSourceKind : std::uint8_t {
-  denseOwned,     // dense codes in codes[]; re-quantize from the side's owned
-                  // dense source (train: the call-time x; test: ownedTestValues)
-  denseBorrowed,  // dense codes in codes[]; re-quantize from denseRaw, a slice
-                  // of the side's owned dense block
-  cscRank,        // rank-bitmap in the side's sparseColumns[rankSlot]; from slice
-  cscDensified    // dense codes in codes[]; re-quantize from slice
+  denseCallSupplied,  // dense codes in codes[]; the raw arrives with the call
+                      // (train: the call-time x; test: ownedTestValues)
+  denseResident,      // dense codes in codes[]; the raw lives in the store, at
+                      // residentRaw, a slice of the side's owned dense block
+  cscRank,            // rank-bitmap in the side's sparseColumns[rankSlot];
+                      // re-quantize from slice
+  cscDensified        // dense codes in codes[]; re-quantize from slice
 };
 
 /// A per-column source descriptor: one instance per column of a row set,
 /// carried in a vector sized to numPredictors on every built store. The
 /// discriminated fields are read only for the kinds that own them (rankSlot for
-/// cscRank; denseRaw for denseBorrowed; slice for the two CSC kinds;
-/// declaredCategoryCount for any categorical column whose host declared a level
+/// cscRank; residentRaw for denseResident; slice for the two CSC kinds;
+/// declaredCategoryCount for any factor column whose host declared a level
 /// table, train-side only, and refCode for CSC-backed categorical columns on
-/// both sides). denseOwned has a side-specific raw source the accessor supplies.
+/// both sides). denseCallSupplied has a side-specific raw source the accessor
+/// supplies.
 struct ColumnSource {
-  ColumnSourceKind kind = ColumnSourceKind::denseOwned;
+  ColumnSourceKind kind = ColumnSourceKind::denseCallSupplied;
   std::int32_t rankSlot = -1;          // cscRank: slot into the side's sparseColumns
-  // denseBorrowed: the store's own dense column (train: ownedDenseValues,
+  // denseResident: the store's own dense column (train: ownedDenseValues,
   // test: ownedTestValues), writable so a mutation keeps the raw current
-  double* denseRaw = nullptr;
+  double* residentRaw = nullptr;
   CscColumnSlice slice;                // cscRank/cscDensified: retained nonzeros
-  std::uint32_t declaredCategoryCount = 0;  // categorical: host's level count K (train only)
+  std::uint32_t declaredCategoryCount = 0;  // factor: declared K (train only)
   xint_t refCode = 0;                  // CSC categorical: reference-level code
 
   bool isCscBacked() const {
@@ -516,13 +520,13 @@ struct CodeBlock {
                              : codes[codeOffsets[j] + i];
   }
 
-  /// A dense-backed column's raw source for re-quantization: the borrowed dense
-  /// raw when denseBorrowed, else the side's owned dense fallback at column j
-  /// (the call-time x for train, ownedTestValues for test).
-  const double* denseRawForColumn(size_t j, size_t numRows,
+  /// A dense-backed column's raw source for re-quantization: the store's
+  /// resident raw when denseResident, else the side's call-supplied fallback
+  /// at column j (the call-time x for train, ownedTestValues for test).
+  const double* residentRawForColumn(size_t j, size_t numRows,
                                   const double* ownedFallback) const {
-    return sources[j].kind == ColumnSourceKind::denseBorrowed
-      ? sources[j].denseRaw : ownedFallback + j * numRows;
+    return sources[j].kind == ColumnSourceKind::denseResident
+      ? sources[j].residentRaw : ownedFallback + j * numRows;
   }
 };
 
@@ -535,7 +539,7 @@ struct CodeBlock {
 /// its (fixed) category count in categoryCounts, and codes the values
 /// themselves.
 struct ColumnStore {
-  // Move-only: a denseBorrowed source points into this store's own
+  // Move-only: a denseResident source points into this store's own
   // ownedDenseValues/ownedTestValues, so a copy would leave the duplicate's
   // sources aliasing the original's buffers. Moves keep the heap buffers at
   // their addresses, which is all a cached slice needs, and are all production
@@ -609,15 +613,15 @@ struct ColumnStore {
   // cutPoints), the training-side layout mirrored for the test rows. testCodeAt
   // reads whichever storage a column takes, so descent routes a test row
   // without materializing it. Views hold dense codes only (every test.sources
-  // entry denseOwned).
+  // entry denseCallSupplied).
   CodeBlock test;
   // Owned raw of a mixed/CSC test build (the test store owns its raw, so no
   // borrowed pointer survives the build): ownedTestCscValues/ownedTestCscRows
   // pack every CSC-backed test column's nonzeros, which each test.sources entry's
   // slice points into. A dense-backed column's entry instead borrows into
-  // ownedTestValues via denseRaw, and a CSC-backed categorical column's carries
-  // the reference level's code. Both owned CSC buffers are empty on the dense
-  // buildTest path and on views.
+  // ownedTestValues via residentRaw, and a CSC-backed categorical column's
+  // entry carries the reference level's code. Both owned CSC buffers are empty
+  // on the dense buildTest path and on views.
   std::vector<double> ownedTestCscValues;
   std::vector<int> ownedTestCscRows;
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
@@ -638,9 +642,9 @@ struct ColumnStore {
 
   // Owned dense block of a mixed build, in the host's dense-source layout
   // (numObservations x the number of dense sources the map indexes), which
-  // every denseBorrowed train source points into. The store owns its raw on
+  // every denseResident train source points into. The store owns its raw on
   // both sides: the host assembles the block transiently and the build copies
-  // it, so a mutation writes the new values through denseRaw and every later
+  // it, so a mutation writes the new values through residentRaw and every later
   // reader - setCutPoints, state restore, a linear/GP leaf's regather - sees
   // the live column rather than the creation-time one. Empty on dense builds
   // and views.
@@ -692,8 +696,8 @@ struct ColumnStore {
   /// CSC-backed columns (which re-quantize from their retained slices instead).
   const double* rawColumnForRequantize(size_t j, const double* x) const {
     if (train.sources[j].isCscBacked()) return nullptr;
-    if (train.sources[j].kind == ColumnSourceKind::denseBorrowed)
-      return train.sources[j].denseRaw;
+    if (train.sources[j].kind == ColumnSourceKind::denseResident)
+      return train.sources[j].residentRaw;
     return x != nullptr ? x + j * numObservations : nullptr;
   }
 
@@ -705,8 +709,8 @@ struct ColumnStore {
     if (slot >= 0)
       return gatheredRawValues.data() +
              static_cast<size_t>(slot) * numObservations;
-    return train.sources[j].kind == ColumnSourceKind::denseBorrowed
-      ? train.sources[j].denseRaw : nullptr;
+    return train.sources[j].kind == ColumnSourceKind::denseResident
+      ? train.sources[j].residentRaw : nullptr;
   }
 
   /// Raw test values of column j: the mixed build's owned dense slice (null for
@@ -715,7 +719,8 @@ struct ColumnStore {
   const double* rawTestColumn(size_t j) const {
     if (!test.sources.empty()) {
       const ColumnSource& source = test.sources[j];
-      if (source.kind == ColumnSourceKind::denseBorrowed) return source.denseRaw;
+      if (source.kind == ColumnSourceKind::denseResident)
+        return source.residentRaw;
       if (source.isCscBacked()) return nullptr;
     }
     if (!ownedTestValues.empty())
@@ -1102,7 +1107,7 @@ struct ColumnStore {
       return;
     }
     const double* raw =
-      test.denseRawForColumn(j, numTestObservations, ownedTestValues.data());
+      test.residentRawForColumn(j, numTestObservations, ownedTestValues.data());
     quantizeDenseInto(test, numTestObservations, j, raw, nullptr);
   }
 
@@ -1120,13 +1125,13 @@ struct ColumnStore {
   }
 
   /// Reset the per-column source storage to the dense-empty baseline: every
-  /// column denseOwned, no CSC or rank backing, no gathered raw, no recorded
-  /// missingness. Every train builder resets through here, then overwrites the
-  /// per-column source descriptors the view's storage kinds own (a mapped
-  /// build the CSC slices, counts, and reference codes; an unmapped one the
-  /// gathered raw via setupGatheredColumns). numPredictors must already hold
-  /// the new column
-  /// count; codes/codeOffsets and the cut grid are sized by each builder.
+  /// column denseCallSupplied, no CSC or rank backing, no gathered raw, no
+  /// recorded missingness. Every train builder resets through here, then
+  /// overwrites the per-column source descriptors the view's storage kinds own
+  /// (a mapped build the CSC slices, counts, and reference codes; an unmapped
+  /// one the gathered raw via setupGatheredColumns). numPredictors must
+  /// already hold the new column count; codes/codeOffsets and the cut grid are
+  /// sized by each builder.
   void resetTrainStorage() {
     train.sources.assign(numPredictors, ColumnSource{});
     train.sparseColumns.clear();
@@ -1242,8 +1247,8 @@ struct ColumnStore {
         continue;
       }
       if (columnSource >= 0) {
-        desc.kind = ColumnSourceKind::denseBorrowed;
-        desc.denseRaw =
+        desc.kind = ColumnSourceKind::denseResident;
+        desc.residentRaw =
           ownedDenseValues.data() + static_cast<size_t>(columnSource) * n;
         train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
@@ -1275,7 +1280,7 @@ struct ColumnStore {
       // the raw a column quantizes from: the store's own dense slice for a
       // mapped dense-backed column, the call's block for an unmapped one, and
       // null for a CSC-backed column (which reads its retained slice)
-      const double* column = mapped ? train.sources[j].denseRaw
+      const double* column = mapped ? train.sources[j].residentRaw
                                     : source.denseValues + j * n;
       buildCutsForColumn(j, column);
       quantizeColumn(j, column);
@@ -1380,8 +1385,8 @@ struct ColumnStore {
       ColumnSource& desc = test.sources[j];
       std::int32_t columnSource = source.sourceOf(j);
       if (columnSource >= 0) {
-        desc.kind = ColumnSourceKind::denseBorrowed;
-        desc.denseRaw = ownedTestValues.data() +
+        desc.kind = ColumnSourceKind::denseResident;
+        desc.residentRaw = ownedTestValues.data() +
           static_cast<size_t>(columnSource) * numTest;
         test.codeOffsets[j] = numDenseCodes;
         numDenseCodes += numTest;
@@ -1551,8 +1556,8 @@ struct ColumnStore {
   /// The self-write guard covers the builders and re-quantizes that pass the
   /// owned column back in.
   void writeOwnedDenseColumn(size_t j, const double* column) {
-    double* raw = train.sources[j].denseRaw;
-    if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+    double* raw = train.sources[j].residentRaw;
+    if (train.sources[j].kind != ColumnSourceKind::denseResident ||
         raw == nullptr || raw == column)
       return;
     std::memcpy(raw, column, numObservations * sizeof(double));
@@ -1560,8 +1565,8 @@ struct ColumnStore {
 
   /// The one-cell analogue, for the per-observation update session.
   void writeOwnedDenseCell(size_t i, size_t j, double value) {
-    double* raw = train.sources[j].denseRaw;
-    if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+    double* raw = train.sources[j].residentRaw;
+    if (train.sources[j].kind != ColumnSourceKind::denseResident ||
         raw == nullptr)
       return;
     raw[i] = value;
@@ -1729,8 +1734,8 @@ struct ColumnStore {
     if (ownedDenseValues.empty()) return;
     for (size_t k = 0; k < numColumns; ++k) {
       size_t j = columns != nullptr ? columns[k] : k;
-      const double* raw = train.sources[j].denseRaw;
-      if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+      const double* raw = train.sources[j].residentRaw;
+      if (train.sources[j].kind != ColumnSourceKind::denseResident ||
           raw == nullptr)
         continue;
       rollback.columns.push_back(j);
@@ -1740,11 +1745,11 @@ struct ColumnStore {
 
   /// Undo the raw writes of a rejected transaction, restoring each snapshotted
   /// column in place. The copy is a memcpy, never a buffer swap: every
-  /// denseBorrowed source caches a pointer into ownedDenseValues, so relocating
+  /// denseResident source caches a pointer into ownedDenseValues, so relocating
   /// it would dangle them all.
   void restoreOwnedDenseColumns(const OwnedDenseRollback& rollback) {
     for (size_t k = 0; k < rollback.columns.size(); ++k)
-      std::memcpy(train.sources[rollback.columns[k]].denseRaw,
+      std::memcpy(train.sources[rollback.columns[k]].residentRaw,
                   rollback.values.data() + k * numObservations,
                   numObservations * sizeof(double));
   }

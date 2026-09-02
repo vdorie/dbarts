@@ -219,12 +219,13 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   layer computes or caches its own cut grid.
 - **Raw values**: per-column storage and re-quantize source is one
   descriptor, `ColumnSource` (carried in `sources[j]` on each `CodeBlock`),
-  discriminated by `ColumnSourceKind`: `denseOwned` (the build-reset
-  default; re-quantizes from the side's own dense block - the call-time `x`
-  on the train side, `ownedTestValues` on test), `denseBorrowed`
-  (re-quantizes from the descriptor's `denseRaw`, which despite the name
-  points into store-owned memory - `ownedDenseValues` on the train side of
-  a mixed build, `ownedTestValues` on test - not a live host pointer), and
+  discriminated by `ColumnSourceKind` - which names where the raw a
+  re-quantize reads LIVES, not who owns the codes: `denseCallSupplied` (the
+  build-reset default; the raw arrives with the call - the call-time `x` on
+  the train side, `ownedTestValues` on test), `denseResident`
+  (re-quantizes from the descriptor's `residentRaw`, a slice of store-owned
+  memory - `ownedDenseValues` on the train side of a mixed build,
+  `ownedTestValues` on test - never a live host pointer), and
   `cscRank`/`cscDensified` (both re-quantize from the descriptor's retained
   `slice`, a genuinely borrowed CSC values/rows pair that a mutation
   repoints at store-owned `ownedCscValues`/`ownedCscRows` (train side) on

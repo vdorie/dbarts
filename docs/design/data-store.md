@@ -103,16 +103,19 @@ test whenever `numTestObservations > 0`; both empty on a reset test
 store). `ColumnSourceKind` (`data.hpp:119`) discriminates four kinds; each
 reads only the descriptor fields it owns:
 
-- `denseOwned` - dense codes in `codes[]`; re-quantizes from the side's
-  OWNED dense fallback (train: the call-time `x`; test: `ownedTestValues`).
-  The build-reset baseline: every column is `denseOwned` until a builder
-  overwrites it.
-- `denseBorrowed` - dense codes in `codes[]`; re-quantizes from the
-  `denseRaw` pointer the descriptor holds (a mixed build's store-owned
+The discriminator is WHERE THE RE-QUANTIZE SOURCE LIVES, not who owns the
+codes: every kind's codes are the store's.
+
+- `denseCallSupplied` - dense codes in `codes[]`; the raw arrives with the
+  call (train: the call-time `x`; test: `ownedTestValues`). The build-reset
+  baseline: every column is `denseCallSupplied` until a builder overwrites
+  it.
+- `denseResident` - dense codes in `codes[]`; re-quantizes from the
+  `residentRaw` pointer the descriptor holds (a mixed build's store-owned
   dense slice - the dense block is copied into `ownedDenseValues` at build,
   not borrowed - or a test build's owned slice into `ownedTestValues`).
-  `denseRaw` is the only kind that serves `rawColumn`/`rawTestColumn` a raw
-  pointer directly.
+  `residentRaw` is the only kind that serves `rawColumn`/`rawTestColumn` a
+  raw pointer directly.
 - `cscRank` - rank-bitmap storage in `sparseColumns[rankSlot]`;
   re-quantizes from the retained `slice`. Below the
   `sparseDensityThreshold` (0.2) nonzero fraction.
@@ -140,13 +143,13 @@ Re-quantization resolves the raw source per kind through three accessors
 whose fallback orders are the contract:
 
 - `rawColumnForRequantize(j, x)` (`data.hpp:300`): CSC-backed -> null (the
-  slice serves it); `denseBorrowed` -> `denseRaw`; else `x + j*n` (or null
+  slice serves it); `denseResident` -> `residentRaw`; else `x + j*n` (or null
   if `x` is null). This is the mutation/setCutPoints path.
 - `rawColumn(j)` (`data.hpp:310`, owned training raw for leaf models):
-  gathered slot -> `gatheredRawValues`; `denseBorrowed` -> `denseRaw`;
+  gathered slot -> `gatheredRawValues`; `denseResident` -> `residentRaw`;
   else null.
 - `rawTestColumn(j)` (`data.hpp:322`): if `test.sources` is populated,
-  `denseBorrowed` -> `denseRaw` and CSC-backed -> null (sparse storage
+  `denseResident` -> `residentRaw` and CSC-backed -> null (sparse storage
   serves no dense test covariate); else `ownedTestValues`; else the
   view-gathered `gatheredRawTestValues`; else null.
 
@@ -182,7 +185,8 @@ a built parent store, used by xbart folds and the data-handle path. It:
   identically by construction;
 - DENSIFIES: gathered train and test codes are fully dense whatever the
   parent's per-column storage, so the sparse-specific paths never run in a
-  fold (every `sources` entry stays `denseOwned`, `sparseColumns` empty);
+  fold (every `sources` entry stays `denseCallSupplied`, `sparseColumns`
+  empty);
 - gathers raw only for designated leaf-covariate columns the parent can
   serve (`parent.rawColumn(...) != null`), inheriting the parent's
   standardization constants (`suppliedStandardization`) so a full-rows
@@ -266,7 +270,7 @@ Owned by the store (survive the borrow):
 
 - all `codes`, `sparseColumns`, cut grids, `gatheredRaw*`;
 - a mixed build's dense block (`ownedDenseValues`, which
-  `denseBorrowed.denseRaw` points into): copied at build, not borrowed;
+  `denseResident.residentRaw` points into): copied at build, not borrowed;
 - the entire test store's raw: `ownedTestValues` (dense) and
   `ownedTestCscValues`/`ownedTestCscRows` (a mixed/CSC test build packs
   every CSC-backed test column's nonzeros so each slice points into
