@@ -115,6 +115,17 @@ constexpr bool kindSplitsBySubset(ColumnKind kind) {
 
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
+/// The most levels a factor column of a kind can carry. A categorical column
+/// spends codes 0..K-1 plus a missing position above them, which xint_t holds
+/// while K reaches maxCategories. An ordered factor spends one more: the
+/// upper bin of its K - 1 midpoint grid, so that grid must fit
+/// maxNumCutsRepresentable and the kind's ceiling stops one lower. Read only
+/// for a factor column.
+constexpr std::uint32_t maxLevelsForKind(ColumnKind kind) {
+  return kindSplitsBySubset(kind) ? maxCategories
+                                  : maxNumCutsRepresentable + 1u;
+}
+
 /// The count a factor column's level-code sweep reports when some cell is not
 /// a representable level code. Above every real count, which maxCategories
 /// bounds.
@@ -872,7 +883,9 @@ struct ColumnStore {
   /// externally determined grid does; n.cuts therefore does not apply to the
   /// column, exactly as it does not to a categorical one. Fewer than two
   /// levels admit no interior split and take the single degenerate cut a
-  /// column with no cut at all cannot be.
+  /// column with no cut at all cannot be. The raise needs no representability
+  /// clamp of its own: the level count is bounded by maxLevelsForKind before
+  /// the grid is built, so K - 1 never passes maxNumCutsRepresentable.
   void fillCutsAtLevelMidpoints(size_t j) {
     std::uint32_t numLevels = categoryCounts[j];
     numCuts[j] = numLevels >= 2u ? numLevels - 1u : 1u;
@@ -983,6 +996,10 @@ struct ColumnStore {
       if (inferred == invalidCategoryCount) return false;
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
       categoryCounts[j] = declared > inferred ? declared : inferred;
+      // the count itself must be representable, not merely each code: a
+      // declared count reaches the store without passing the sweep, and the
+      // midpoint grid is sized from it
+      if (categoryCounts[j] > maxLevelsForKind(types[j])) return false;
     }
     if (splitsBySubset(j)) {
       numCuts[j] = 0;
