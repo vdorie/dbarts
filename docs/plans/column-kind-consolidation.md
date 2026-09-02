@@ -149,7 +149,7 @@ disagreement. See section 4 - this one is less redundant than it looks.
 ## Two premises worth settling before the sections
 
 **The flat C API is not an unvalidated back door.** `dbarts_sampler_create`
-takes SEXPs (`inst/include/dbarts/dbarts.h:520`; the header states
+takes SEXPs (`inst/include/dbarts/dbarts.h:523`; the header states
 "control/model/data/state cross as SEXP" at `:199-200`) and forwards to the
 same `bartcore_bridge::createHolder` the R entry uses
 (`src/C_interface.cpp:598`), so it inherits `validateCategoricalPredictors`

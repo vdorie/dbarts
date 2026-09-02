@@ -9,7 +9,7 @@ rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8
 ## 1. The family enum
 
 Taken from code. Create (dbarts.h:421-423, :706-707 -> `resolveFamily`, src/R_interface_bartcore.cpp:1580-1618): `""` (dispatch on the response shape), `"gaussian"`,
-`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` (:638) and `dbarts_workingResponse` (:542-546) -> the augmentation
+`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` (:641) and `dbarts_workingResponse` (:542-546) -> the augmentation
 laws (`AugmentationLaw`, src/R_interface_bartcore_common.hpp): `"probit"`, `"logistic"`, `"ordinal"`, `"aft"`, `"nbinom"`, `"student"`; `""` and `"gaussian"` are REFUSED there, and
 `"student"` names a law no `ResponseFamily` value carries - a Student-t sampler's family IS gaussian - so it needs its own enumerator. Engine `ResponseFamily` has six values
 (src/bartcore/model.hpp:2580) and `SamplerShape::family` (src/bartcore/facade.hpp:76) is not total: multinomial pins `logistic` (src/bartcore/sampler.hpp:221), Student-t
