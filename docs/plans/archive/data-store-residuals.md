@@ -34,7 +34,7 @@ docs/design/data-store.md is the spec. Anchors re-verified 2026-07-18:
   and test)" and "View semantics (buildFromParent)".
 - Handle gather-all: [[R_interface_bartcore.cpp:2026-2034@4a521760]] in
   bartcore_createDataHandle ([[R_interface_bartcore.cpp:1997@4a521760]]). The sampler ctor
-  ([[sampler.hpp:100-127@4a521760]]) and per-fold views (createFromHandle [[sampler.hpp:2145-2169@4a521760]]
+  ([[sampler.hpp:100-127@4a521760]]) and per-fold views (createFromHandle [[src/R_interface_bartcore.cpp:2145-2169@4a521760]]
   -> buildFromParent [[data.hpp:995@4a521760]]) already gather conditionally on
   options.leafCovariateColumns; the handle is the last unconditional
   site. buildFromParent already refuses designating ungathered columns.
