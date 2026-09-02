@@ -21,7 +21,7 @@ static void testTreeMechanics() {
   }
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 100);
+  built(store.build(x.data(), n, 1, 100));
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -76,7 +76,7 @@ static void testTreePriorMath() {
   for (size_t i = 0; i < n; ++i) x[i] = (double) i / (double) (n - 1);
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 100);
+  built(store.build(x.data(), n, 1, 100));
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -118,7 +118,7 @@ static void testCategoricalMechanics() {
 
   ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
   ColumnStore store;
-  store.build(x.data(), n, 2, 10, false, types);
+  built(store.build(x.data(), n, 2, 10, false, types));
 
   check(store.categoryCounts[0] == 4,
         "categorical column counts its categories");
@@ -202,7 +202,7 @@ static void testCategoricalPriorMath(ext_rng* rng) {
 
   ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 1, 10, false, types);
+  built(store.build(x.data(), n, 1, 10, false, types));
 
   std::vector<index_t> indices(n);
   Tree tree;
@@ -282,7 +282,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
 
   ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 1, 10, false, types);
+  built(store.build(x.data(), n, 1, 10, false, types));
   check(store.categoryCounts[0] == K, "pooled column counts its categories");
   check(store.columnIsPooled(0) && store.hasPooledCategorical,
         "pooled tier predicates");
@@ -426,7 +426,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   xMissing[0] = std::nan("");
   xMissing[7] = std::nan("");
   ColumnStore storeMissing;
-  storeMissing.build(xMissing.data(), n, 1, 10, false, types);
+  built(storeMissing.build(xMissing.data(), n, 1, 10, false, types));
   check(storeMissing.categoryCounts[0] == K &&
           storeMissing.hasMissing[0] == 1 &&
           storeMissing.train.codes[0] == 70,
@@ -454,7 +454,7 @@ static void testMissingMechanics() {
   }
   ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 2, 10, false, types);
+  built(store.build(x.data(), n, 2, 10, false, types));
 
   // an ordinal rule routes the reserved code by its missing direction
   std::vector<index_t> indices(n);
@@ -547,7 +547,7 @@ static void testMissingMechanics() {
   // its rules tag ordinal and round-trip through the ordinal payload arm
   ColumnKind orderedTypes[] = {ColumnKind::numeric, ColumnKind::orderedFactor};
   ColumnStore orderedStore;
-  orderedStore.build(x.data(), n, 2, 10, false, orderedTypes);
+  built(orderedStore.build(x.data(), n, 2, 10, false, orderedTypes));
   std::vector<index_t> indices5(n);
   Tree orderedTree;
   orderedTree.initialize(indices5.data(), n);
@@ -783,7 +783,7 @@ static void testRuleMassByColumnKind() {
   for (size_t i = 0; i < 8; ++i) x[i * 8] = std::nan("");
 
   ColumnStore store;
-  store.build(x.data(), n, p, 8);
+  built(store.build(x.data(), n, p, 8));
   check(store.hasMissing[0] == 1 && store.hasMissing[1] == 0,
         "one column of the rule-mass fixture carries missing values");
   check(store.numCuts[0] == store.numCuts[1],

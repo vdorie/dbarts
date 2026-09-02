@@ -23,7 +23,7 @@ static void testViewSamplerMatchesFull() {
                       0.37804942330213542, options, &rngA);
 
   ColumnStore parent;
-  parent.build(x.data(), n, p, options.maxNumCuts);
+  built(parent.build(x.data(), n, p, options.maxNumCuts));
   std::vector<size_t> rows(n);
   for (size_t i = 0; i < n; ++i) rows[i] = i;
   ColumnStore store;
@@ -1374,7 +1374,7 @@ static void testWideCategorical(ext_rng* rng) {
 
   ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 1, 10, false, types);
+  built(store.build(x.data(), n, 1, 10, false, types));
   check(store.categoryCounts[0] == K,
         "wide categorical column counts its categories");
   check(store.categoricalValueIsValid(0, 52.0) &&
@@ -1514,7 +1514,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical};
   {
     ColumnStore probe;
-    probe.build(x.data(), n, 2, 10, false, types);
+    built(probe.build(x.data(), n, 2, 10, false, types));
     check(!probe.columnIsPooled(1) && probe.columnIsPooled(0),
           "60 categories stay inline, 70 pool");
   }
@@ -3080,7 +3080,7 @@ static void testBCFZeroMultiplierSnap() {
   const size_t n = 8;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::vector<double> z(n), y(n), w(n), muFits(n), tauFits(n);
   for (size_t i = 0; i < n; ++i) {
@@ -3226,7 +3226,7 @@ static void testBCFCombinerSeam() {
     const size_t n = 6;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
 
     std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
@@ -3320,7 +3320,7 @@ static void testBCFCombinerSeam() {
     const size_t n = 4;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
     std::vector<double> z = {0.0, 1.0, 0.0, 1.0};
     std::vector<double> y = {0.5, -0.25, 1.0, 0.75};
     std::vector<double> zeros(n, 0.0);
@@ -3412,7 +3412,7 @@ static void testBCFCombinerSeam() {
     const size_t n = 4;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
     std::vector<double> z = {0.0, 1.0, 0.0, 1.0};
     std::vector<double> muFits = {0.75, -0.5, 1.25, 0.5};
     std::vector<double> tauFits = {1.0, -0.25, 0.5, 2.0};
@@ -3588,7 +3588,7 @@ static void testCombinedFitsAssociation() {
   const size_t n = 64;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::uint64_t state = 20260813u;
   auto unif = [&]() {
@@ -3681,7 +3681,7 @@ static void testForestBasisOrdering() {
   const size_t n = 6;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
   // the COMPLEMENT, so a stale basis is wrong on all six rows rather than some
@@ -3924,7 +3924,7 @@ static void testGeneralAmplitudeConditional() {
   const size_t n = 40;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::uint64_t state = 20260814u;
   auto unif = [&]() {
@@ -4180,7 +4180,7 @@ static void testGeneralAmplitudeRidge() {
   const size_t n = 8, numTrees = 3;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::vector<double> z(n), mu(n), tau(n);
   for (size_t i = 0; i < n; ++i) {
@@ -4310,7 +4310,7 @@ static void testAmplitudeOffsetIndexing() {
   const size_t n = 6;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
   std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
@@ -4429,7 +4429,7 @@ static void testForestWeights() {
     }
 
     ColumnStore store;
-    store.build(xs.data(), m, 1, 20);
+    built(store.build(xs.data(), m, 1, 20));
     AmplitudeSpec spec;
     spec.z = zs.data();
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(store, spec);
@@ -4629,7 +4629,7 @@ static void testMultinomial(ext_rng* rng) {
     const size_t n = 6;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
 
     // K = 2: the margin C_i0 is exactly forest 1's fit, so category 0's
     // one-vs-rest is binary logistic with eta = f0 - f1 - the reduction pinned.
@@ -4689,7 +4689,7 @@ static void testMultinomial(ext_rng* rng) {
     // to the train totalFits, softmax(f0, f1)_1 = logistic(f1 - f0) and the two
     // channels sum to one per row
     std::vector<double> xTestDummy(n, 0.0);
-    data.buildTest(xTestDummy.data(), n);
+    built(data.buildTest(xTestDummy.data(), n));
     forests[0].totalTestFits = f0;
     forests[1].totalTestFits = f1;
     const double* testProbs = combiner.combinedTestFits(forests);
@@ -4707,7 +4707,7 @@ static void testMultinomial(ext_rng* rng) {
     const size_t n = 4;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
     std::vector<int> labels = {0, 1, 2, 1};
     std::vector<int> counts, trials;
     oneHotCounts(labels, 3, counts, trials);
@@ -4791,7 +4791,7 @@ static void testMultinomial(ext_rng* rng) {
     // the softmax-invariance fact that lets afterCombine leave totalTestFits
     // untouched (the level shift c is common to all K forests)
     std::vector<double> xTestDummy(n, 0.0);
-    data.buildTest(xTestDummy.data(), n);
+    built(data.buildTest(xTestDummy.data(), n));
     for (size_t k = 0; k < 3; ++k) forests[k].totalTestFits = f[k];
     const double* testProbs = combiner.combinedTestFits(forests);
     bool testSimplex = true, testMatches = true;
@@ -4816,7 +4816,7 @@ static void testMultinomial(ext_rng* rng) {
     const size_t n = 5;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
 
     // K = 2 grouped counts: category 0's one-vs-rest is binomial(n_i, .) with
     // margin exactly forest 1's fit (eta = f0 - f1). Category-major counts.
@@ -4884,7 +4884,7 @@ static void testMultinomial(ext_rng* rng) {
     const size_t n = 8, K = 3;
     std::vector<double> xDummy(n, 0.0);
     ColumnStore data;
-    data.build(xDummy.data(), n, 1, 100);
+    built(data.build(xDummy.data(), n, 1, 100));
     std::vector<int> labels = {0, 2, 1, 0, 2, 1, 0, 1};
     std::vector<int> counts, trials;
     oneHotCounts(labels, K, counts, trials);
@@ -5169,7 +5169,7 @@ static void testMultinomialCombinerSeam() {
   const size_t n = 4, K = 3;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
   std::vector<int> labels = {0, 1, 2, 1};
   std::vector<int> counts, trials;
   oneHotCounts(labels, K, counts, trials);
@@ -5454,7 +5454,7 @@ static void testMultinomialSetCounts() {
   const size_t n = 7, K = 3;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   // two count matrices over the same rows, differing in successes AND in row
   // totals, category-major (column k at k*n)
@@ -5610,7 +5610,7 @@ static void testMultinomialCategoryOffset() {
   const size_t n = 6, K = 3;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
-  data.build(xDummy.data(), n, 1, 100);
+  built(data.build(xDummy.data(), n, 1, 100));
 
   std::vector<int> trials = {1, 2, 1, 3, 2, 1};
   std::vector<int> counts(n * K, 0);
@@ -5783,7 +5783,7 @@ static void testMultinomialCategoryOffset() {
   {
     const size_t nTest = 5;
     std::vector<double> xTestDummy(nTest, 0.0);
-    data.buildTest(xTestDummy.data(), nTest);
+    built(data.buildTest(xTestDummy.data(), nTest));
     std::vector<double> testOffset(nTest * K), testZeros(nTest * K, 0.0);
     for (size_t k = 0; k < K; ++k)
       for (size_t i = 0; i < nTest; ++i) {
@@ -5915,7 +5915,7 @@ static void testActiveRowsMultinomialKernel() {
                   std::vector<double>& xDummy,
                   std::vector<Forest<ConstantGaussianLeaf>>& forests) {
     xDummy.assign(rows, 0.0);
-    data.build(xDummy.data(), rows, 1, 100);
+    built(data.build(xDummy.data(), rows, 1, 100));
     forests.resize(categories);
     for (size_t k = 0; k < categories; ++k) {
       forests[k].numTrees = 1;

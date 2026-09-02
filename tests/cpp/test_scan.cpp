@@ -106,7 +106,7 @@ void testScanAgreement() {
     w[i] = 0.5 + runif01();
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 20);
+  built(store.build(x.data(), n, 1, 20));
 
   std::vector<index_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
@@ -171,7 +171,7 @@ void testHistogramTotals() {
     w[i] = 0.5 + runif01();
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 100);
+  built(store.build(x.data(), n, 1, 100));
 
   std::vector<index_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
@@ -216,7 +216,7 @@ void testCountWeightSplit() {
     w[i] = (i < n / 4) ? 0.0 : 1.0;  // the low quarter carries no weight
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 10);
+  built(store.build(x.data(), n, 1, 10));
   size_t numCuts = store.numCuts[0];
 
   std::vector<index_t> members(n);
@@ -275,7 +275,7 @@ void testOccupancySentinel() {
     y[i] = runif01() - 0.5;
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 10);
+  built(store.build(x.data(), n, 1, 10));
   size_t numCuts = store.numCuts[0];
 
   // gather only the members whose code is in the interior band [3, 6], so every
@@ -347,7 +347,7 @@ void testMissingRouted() {
     y[i] = runif01() - 0.5 + (isMissing ? 1.5 : 0.0);
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 15);
+  built(store.build(x.data(), n, 1, 15));
   check(store.hasMissing[0] == 1, "column reports missing values");
 
   std::vector<index_t> members(n);
@@ -499,7 +499,7 @@ void testOrdinalCategoricalScanAgreement() {
   }
   ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 2, numLevels, false, types);
+  built(store.build(x.data(), n, 2, numLevels, false, types));
   check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1,
         "both columns of the agreement fixture carry missing values");
   size_t numCuts = store.numCuts[0];
@@ -676,7 +676,7 @@ void testCategoricalScan() {
   x[3] = std::nan("");  // one missing value: a real category, not a skip
   ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 2, 20, false, types);
+  built(store.build(x.data(), n, 2, 20, false, types));
   check(store.hasMissing[0] == 1 && store.categoryCounts[0] == numLevels,
         "the categorical fixture declares six levels and carries a missing one");
 

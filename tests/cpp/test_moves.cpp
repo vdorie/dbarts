@@ -944,7 +944,7 @@ static void testEmptyLeafVetoCountsWeight() {
     y[i] = 2.0 * x[i] - x[i + n] + 0.1 * static_cast<double>(i % 3);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 7);
+  built(store.build(x.data(), n, p, 7));
 
   // the lowest cut of x0 isolates the code-0 rows; weight zero exactly there
   std::vector<double> zeroed(n, 1.0), positive(n, 1.0);
@@ -1084,7 +1084,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     y[i] = 2.0 * x[i] - x[i + n] + 0.1 * ext_rng_simulateStandardNormal(rng);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 40);
+  built(store.build(x.data(), n, p, 40));
 
   CGMTreePrior prior;
   prior.base = 0.95;
@@ -1235,7 +1235,7 @@ static void testEqualRankOneComparison() {
   // the store owns a raw copy of column 0, which the linear leaf below reads
   // as its covariate through rawColumn
   size_t leafGather[] = {0};
-  store.build(x.data(), n, p, 1, false, nullptr, leafGather, 1);
+  built(store.build(x.data(), n, p, 1, false, nullptr, leafGather, 1));
   check(store.numCuts[0] == 1,
         "equal-rank fixture: the split column carries exactly one cut");
 
@@ -1714,7 +1714,7 @@ static void testMoveValidityPredicates() {
   }
 
   ColumnStore ordinalStore;
-  ordinalStore.build(xOrdinal.data(), n, 1, 100);
+  built(ordinalStore.build(xOrdinal.data(), n, 1, 100));
   check(ordinalStore.numCuts[0] == 100, "the ordinal fixture has 100 cuts");
 
   std::vector<index_t> indexBuffer(n);
@@ -1764,7 +1764,7 @@ static void testMoveValidityPredicates() {
   ColumnStore categoricalStore;
   PredictorSource source =
     densePredictorSource(xCategorical.data(), n, 1, &type);
-  categoricalStore.build(source, nullptr, 100, false);
+  built(categoricalStore.build(source, nullptr, 100, false));
   check(categoricalStore.categoryCounts[0] == 4,
         "the categorical fixture has four levels");
 

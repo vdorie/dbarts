@@ -10,7 +10,7 @@ static void testFlattenRoundTrip() {
   ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
 
   ColumnStore store;
-  store.build(x.data(), n, 2, 10, false, types);
+  built(store.build(x.data(), n, 2, 10, false, types));
 
   std::vector<index_t> indices(n);
   Tree tree;
@@ -131,7 +131,7 @@ static void testCategoricalFlattenBoundaries() {
     for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % K);
     ColumnKind types[] = {ColumnKind::categorical};
     ColumnStore store;
-    store.build(x.data(), n, 1, 10, false, types);
+    built(store.build(x.data(), n, 1, 10, false, types));
     check(store.categoryCounts[0] == K &&
             store.columnIsPooled(0) == (K >= 64),
           "the pooling boundary is 64 categories");
@@ -783,7 +783,7 @@ static void testInteractionContainment() {
   // by-hand proof the donor really is infeasible under max.order = 1: build
   // each donor tree against an independent store carrying a K = 1 constraint
   ColumnStore store;
-  store.build(x.data(), n, p, 100);  // the sampler's default cut grid
+  built(store.build(x.data(), n, p, 100));  // the sampler's default cut grid
   InteractionConstraint k1;
   k1.build(p, 1, nullptr, 0);
   std::vector<index_t> idx(n);
@@ -890,7 +890,7 @@ static void testBlockAdditiveConfinement() {
   };
 
   ColumnStore store;
-  store.build(x.data(), n, p, 100);  // the sampler's default cut grid
+  built(store.build(x.data(), n, p, 100));  // the sampler's default cut grid
   std::vector<index_t> idx(n);
   std::vector<double> params;
   Tree scratch;

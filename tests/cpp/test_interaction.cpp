@@ -69,7 +69,7 @@ void testAvailabilityOracle() {
   for (size_t i = 0; i < n; ++i) y[i] = static_cast<double>(i % 3);
 
   ColumnStore store;
-  store.build(x.data(), n, p, 10);  // ~10 cuts/column: cuts do not exhaust
+  built(store.build(x.data(), n, p, 10));  // ~10 cuts/column: cuts do not exhaust
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -164,7 +164,7 @@ void testSwapSiblingStrand(ext_rng* rng) {
     y[i] = static_cast<double>((i % 2) + (i / 4) % 2);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 1);  // 2 values/column -> 1 cut each
+  built(store.build(x.data(), n, p, 1));  // 2 values/column -> 1 cut each
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -237,7 +237,7 @@ void testChangeStrandInvariant(ext_rng* rng) {
     y[i] = static_cast<double>(i % 4) + 0.3 * static_cast<double>((i / 4) % 4);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 3);
+  built(store.build(x.data(), n, p, 3));
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -323,7 +323,7 @@ void testExactPosterior(ext_rng* rng) {
            0.04 * (static_cast<double>(i % 7) - 3.0);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 1);
+  built(store.build(x.data(), n, p, 1));
   check(store.numCuts[0] == 1 && store.numCuts[1] == 1,
         "exact posterior: one cut per predictor");
 

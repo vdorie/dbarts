@@ -17,7 +17,7 @@ static void testColumnStoreCodes() {
   for (double& v : x) v = runif01();
 
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
 
   // reference: linear scan against uniformly spaced cuts
   for (size_t j = 0; j < p; ++j) {
@@ -57,7 +57,7 @@ static void testColumnStoreView() {
   std::vector<ColumnKind> types = {ColumnKind::numeric, ColumnKind::numeric,
                                    ColumnKind::categorical};
   ColumnStore parent;
-  parent.build(x.data(), n, p, 25, false, types.data());
+  built(parent.build(x.data(), n, p, 25, false, types.data()));
 
   std::vector<size_t> rows, testRows;
   for (size_t i = 2; i < n; i += 2) rows.push_back(i);
@@ -104,7 +104,7 @@ static void testColumnStoreView() {
     for (size_t i = 0; i < rows.size(); ++i)
       subsetX[i + j * rows.size()] = x[rows[i] + j * n];
   ColumnStore rebuilt;
-  rebuilt.build(subsetX.data(), rows.size(), p, 25, false, types.data());
+  built(rebuilt.build(subsetX.data(), rows.size(), p, 25, false, types.data()));
   bool anyDiffer = false;
   for (size_t i = 0; i < rows.size() && !anyDiffer; ++i)
     anyDiffer = rebuilt.train.codes[i] != view.train.codes[i];
@@ -134,7 +134,7 @@ static void testColumnStoreColumnSubset() {
                                    ColumnKind::categorical};
   size_t covariate[] = {1};
   ColumnStore parent;
-  parent.build(x.data(), n, p, 25, false, types.data(), covariate, 1);
+  built(parent.build(x.data(), n, p, 25, false, types.data(), covariate, 1));
 
   std::vector<size_t> rows, testRows;
   for (size_t i = 2; i < n; i += 2) rows.push_back(i);
@@ -227,7 +227,7 @@ static void testColumnStoreLeafGather() {
 
   size_t gather[] = {1, 3};
   ColumnStore store;
-  store.build(x.data(), n, p, 100, false, nullptr, gather, 2);
+  built(store.build(x.data(), n, p, 100, false, nullptr, gather, 2));
 
   bool gatheredMatch = true;
   const double* c1 = store.rawColumn(1);
@@ -265,7 +265,7 @@ static void testColumnStoreLeafGather() {
   const size_t numTest = 20;
   std::vector<double> xTest(numTest * p);
   for (double& v : xTest) v = runif01();
-  store.buildTest(xTest.data(), numTest);
+  built(store.buildTest(xTest.data(), numTest));
   bool testOwned = store.rawTestColumn(1) != nullptr;
   const double* t1 = store.rawTestColumn(1);
   for (size_t i = 0; i < numTest && testOwned; ++i)
@@ -290,7 +290,7 @@ static void testColumnStoreMutation() {
   for (double& v : x) v = runif01();
 
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
   std::vector<xint_t> originalCodes(store.train.codes);
   std::vector<double> originalCuts0(store.cutPoints[0]);
 
@@ -342,7 +342,7 @@ static void testCodeForOrdinalBoundaries() {
   std::vector<double> x(n);
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i);  // 0..39
   ColumnStore store;
-  store.build(x.data(), n, 1, 8);  // ordinal, eight uniform cuts
+  built(store.build(x.data(), n, 1, 8));  // ordinal, eight uniform cuts
 
   const std::vector<double>& cuts = store.cutPoints[0];
   const uint32_t numCuts = store.numCuts[0];
@@ -383,7 +383,7 @@ static void testSetCutPointsOrphan() {
   for (size_t i = 8; i < n; ++i) x[i] = std::nan("");
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 7, true);  // quantile cuts {1.5, ..., 7.5}
+  built(store.build(x.data(), n, 1, 7, true));  // quantile cuts {1.5, ..., 7.5}
   check(store.hasMissing[0], "column carries missing values");
 
   std::vector<index_t> indices(n);
@@ -431,7 +431,7 @@ static void testQuantileCutPoints() {
   }
 
   ColumnStore store;
-  store.build(x.data(), n, 2, 20, true);
+  built(store.build(x.data(), n, 2, 20, true));
 
   check(store.numCuts[0] == 20, "quantile cuts capped at maxNumCuts");
   check(store.numCuts[1] == 9, "few uniques induce numUnique - 1 cuts");
@@ -476,7 +476,7 @@ static void testMapOldCutPointsOntoNew() {
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i + 1);
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 7, true);
+  built(store.build(x.data(), n, 1, 7, true));
   std::vector<std::vector<double>> oldCuts(store.cutPoints);
 
   // root splits at index 3 (cut 4.5), its left child at index 1 (cut 2.5)
@@ -533,7 +533,7 @@ static void testMapOldCutPointsStarvedWeightedMerge() {
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i + 1);
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 7, true);
+  built(store.build(x.data(), n, 1, 7, true));
   std::vector<std::vector<double>> oldCuts(store.cutPoints);
 
   std::vector<index_t> indices(n);
@@ -593,7 +593,7 @@ static void testMissingIngestion() {
   ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical,
                         ColumnKind::numeric};
   ColumnStore store;
-  store.build(x.data(), n, 3, 10, false, types);
+  built(store.build(x.data(), n, 3, 10, false, types));
 
   check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1 &&
           store.hasMissing[2] == 0,
@@ -620,7 +620,7 @@ static void testMissingIngestion() {
         "uniform cuts span the observed range only");
 
   ColumnStore quantileStore;
-  quantileStore.build(x.data(), n, 3, 10, true, types);
+  built(quantileStore.build(x.data(), n, 3, 10, true, types));
   check(quantileStore.numCuts[0] == 10 && quantileStore.hasMissing[0] == 1,
         "quantile grids skip NaN and keep the requested count");
 
@@ -672,8 +672,8 @@ static void testTransientBlockAssembly() {
                                    ColumnKind::categorical,
                                    ColumnKind::numeric};
   ColumnStore fromReference, fromAssembled;
-  fromReference.build(reference.data(), n, p, 100, false, types.data());
-  fromAssembled.build(assembled.data(), n, p, 100, false, types.data());
+  built(fromReference.build(reference.data(), n, p, 100, false, types.data()));
+  built(fromAssembled.build(assembled.data(), n, p, 100, false, types.data()));
 
   bool assembledMatches = true;
   for (size_t j = 0; j < p; ++j)
@@ -701,7 +701,7 @@ static void testSparseTestColumnStore() {
   std::vector<double> xTrain(nTrain * p);
   for (double& v : xTrain) v = runif01();
   ColumnStore store;
-  store.build(xTrain.data(), nTrain, p, 25);
+  built(store.build(xTrain.data(), nTrain, p, 25));
 
   // test columns: 0 and 3 dense-backed, 1 a rank-tier CSC column (~8% stored),
   // 2 a densified-tier CSC column (~60% stored)
@@ -753,7 +753,7 @@ static void testSparseTestColumnStore() {
     params[node] = static_cast<double>(node) + 0.5;
 
   // dense test first: snapshot its codes, leaf indices, and recorded fits
-  store.buildTest(denseTest.data(), numTest);
+  built(store.buildTest(denseTest.data(), numTest));
   std::vector<xint_t> denseCodes(p * numTest);
   for (size_t j = 0; j < p; ++j)
     for (size_t i = 0; i < numTest; ++i)
@@ -780,7 +780,7 @@ static void testSparseTestColumnStore() {
   testSource.cscRowIndices = rows.data();
   testSource.cscValues = values.data();
   testSource.columnSources = columnSources.data();
-  store.buildTest(testSource);
+  built(store.buildTest(testSource));
 
   check(store.testColumnIsSparseForTesting(1) &&
           !store.testColumnIsSparseForTesting(0) &&
@@ -828,7 +828,7 @@ static void testSparseCategoricalTestColumnStore() {
     xTrain[i] = static_cast<double>(i % K);
   ColumnKind type = ColumnKind::categorical;
   ColumnStore store;
-  store.build(xTrain.data(), nTrain, 1, 100, false, &type);
+  built(store.build(xTrain.data(), nTrain, 1, 100, false, &type));
   check(store.categoryCounts[0] == K && store.numCuts[0] == 0,
         "training counts the categorical levels");
 
@@ -849,7 +849,7 @@ static void testSparseCategoricalTestColumnStore() {
   }
   pointers[1] = static_cast<int>(rows.size());
 
-  store.buildTest(denseTest.data(), numTest);
+  built(store.buildTest(denseTest.data(), numTest));
   std::vector<xint_t> denseCodes(numTest);
   for (size_t i = 0; i < numTest; ++i) denseCodes[i] = store.testCodeAt(0, i);
 
@@ -862,7 +862,7 @@ static void testSparseCategoricalTestColumnStore() {
   testSource.cscValues = values.data();
   testSource.columnSources = &source;
   testSource.referenceCodes = &reference;
-  store.buildTest(testSource);
+  built(store.buildTest(testSource));
 
   check(store.testColumnIsSparseForTesting(0),
         "the sparse categorical test column is rank-tier");
@@ -935,8 +935,8 @@ static void testPredictorViewEquivalence() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore dense;
-    dense.build(x.data(), n, p, maxCuts.data(), useQuantiles, types, nullptr, 0,
-                counts);
+    built(dense.build(x.data(), n, p, maxCuts.data(), useQuantiles, types, nullptr, 0,
+                counts));
     check(dense.categoryCounts[2] == declaredK,
           "the declared level count reaches the dense build");
 
@@ -947,7 +947,7 @@ static void testPredictorViewEquivalence() {
     nullMap.columnTypes = types;
     nullMap.categoryCounts = counts;
     ColumnStore viaView;
-    viaView.build(nullMap, maxCuts.data(), 0, useQuantiles);
+    built(viaView.build(nullMap, maxCuts.data(), 0, useQuantiles));
     check(gridsAgree(dense, viaView) && trainCodesAgree(dense, viaView) &&
           !viaView.builtFromCsc && viaView.ownedDenseValues.empty(),
           "a null-map view builds the dense store, retaining no raw");
@@ -955,22 +955,22 @@ static void testPredictorViewEquivalence() {
     PredictorSource mapped = nullMap;
     mapped.columnSources = identity.data();
     ColumnStore viaMap;
-    viaMap.build(mapped, maxCuts.data(), 0, useQuantiles);
+    built(viaMap.build(mapped, maxCuts.data(), 0, useQuantiles));
     check(gridsAgree(dense, viaMap) && trainCodesAgree(dense, viaMap),
           "an identity-mapped view bins exactly as the dense build");
     check(viaMap.ownedDenseValues.size() == n * p &&
           viaMap.rawColumn(1) == viaMap.ownedDenseValues.data() + n,
           "an identity-mapped build owns its dense block");
 
-    dense.buildTest(xTest.data(), numTest);
+    built(dense.buildTest(xTest.data(), numTest));
     PredictorSource testMap;
     testMap.numRows = numTest;
     testMap.numColumns = p;
     testMap.denseValues = xTest.data();
     testMap.columnSources = identity.data();
     ColumnStore denseTestViaMap;
-    denseTestViaMap.build(nullMap, maxCuts.data(), 0, useQuantiles);
-    denseTestViaMap.buildTest(testMap);
+    built(denseTestViaMap.build(nullMap, maxCuts.data(), 0, useQuantiles));
+    built(denseTestViaMap.buildTest(testMap));
     check(testCodesAgree(dense, denseTestViaMap),
           "an identity-mapped test view bins exactly as the dense test build");
     bool rawAgrees = true;
@@ -1028,10 +1028,10 @@ static void testPredictorViewEquivalence() {
     cscView.categoryCounts = cscCounts;
     cscView.referenceCodes = cscReferences;
     ColumnStore fromCsc;
-    fromCsc.build(cscView, nullptr, 20, useQuantiles);
+    built(fromCsc.build(cscView, nullptr, 20, useQuantiles));
     ColumnStore fromDense;
-    fromDense.build(cscDense.data(), n, q, 20, useQuantiles, cscTypes, nullptr,
-                    0, cscCounts);
+    built(fromDense.build(cscDense.data(), n, q, 20, useQuantiles, cscTypes, nullptr,
+                    0, cscCounts));
     check(fromCsc.columnIsSparse(0) && !fromCsc.columnIsSparse(1),
           "the all-negative map splits the two storage tiers");
     check(fromCsc.categoryCounts[1] == cscDeclaredK,
@@ -1190,7 +1190,7 @@ void testColumnKindAxis() {
   // none on the ordered one, so both the declared and the inferred arm run
   const std::uint32_t declared[p] = { 0, declaredCategories, 0 };
   ColumnStore store;
-  store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+  built(store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared));
 
   check(store.types[0] == ColumnKind::numeric &&
           store.types[1] == ColumnKind::categorical &&
@@ -1255,7 +1255,7 @@ void testColumnKindAxis() {
     narrowed[2 * n + i] = 0.0;
   }
   ColumnStore replaced;
-  replaced.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+  built(replaced.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared));
   replaced.setData(narrowed.data(), n);
   check(replaced.categoryCounts[1] == declaredCategories &&
           replaced.categoryCounts[2] == numLevels,
@@ -1284,7 +1284,7 @@ void testOrderedFactorGrid() {
   const std::uint32_t declared[1] = { numLevels };
 
   ColumnStore store;
-  store.build(x.data(), n, 1, cutCap, false, kinds, nullptr, 0, declared);
+  built(store.build(x.data(), n, 1, cutCap, false, kinds, nullptr, 0, declared));
   check(store.categoryCounts[0] == numLevels &&
           store.numCuts[0] == numLevels - 1,
         "a declared K-level ordered factor takes K - 1 cuts past the cut cap");
@@ -1308,15 +1308,15 @@ void testOrderedFactorGrid() {
 
   // the kind decides the grid before the store's quantile flag does
   ColumnStore quantileStore;
-  quantileStore.build(x.data(), n, 1, cutCap, true, kinds, nullptr, 0,
-                      declared);
+  built(quantileStore.build(x.data(), n, 1, cutCap, true, kinds, nullptr, 0,
+                      declared));
   check(quantileStore.numCuts[0] == store.numCuts[0] &&
           quantileStore.cutPoints[0] == store.cutPoints[0],
         "the grid is the same in quantile mode");
 
   // a cap already above K - 1 is left alone
   ColumnStore wideCap;
-  wideCap.build(x.data(), n, 1, 1000u, false, kinds, nullptr, 0, declared);
+  built(wideCap.build(x.data(), n, 1, 1000u, false, kinds, nullptr, 0, declared));
   check(wideCap.numCuts[0] == numLevels - 1 && wideCap.maxNumCuts[0] == 1000,
         "a cap wider than the grid is not lowered to it");
 
@@ -1325,8 +1325,8 @@ void testOrderedFactorGrid() {
   std::vector<double> constant(n, 0.0);
   const std::uint32_t oneLevel[1] = { 1 };
   ColumnStore degenerate;
-  degenerate.build(constant.data(), n, 1, cutCap, false, kinds, nullptr, 0,
-                   oneLevel);
+  built(degenerate.build(constant.data(), n, 1, cutCap, false, kinds, nullptr, 0,
+                   oneLevel));
   check(degenerate.categoryCounts[0] == 1 && degenerate.numCuts[0] == 1,
         "a one-level ordered factor carries one degenerate cut");
 
@@ -1349,8 +1349,8 @@ void testOrderedFactorGridSurvivesMutation() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore store;
-    store.build(x.data(), n, 1, 100u, useQuantiles, kinds, nullptr, 0,
-                declared);
+    built(store.build(x.data(), n, 1, 100u, useQuantiles, kinds, nullptr, 0,
+                declared));
     std::vector<double> originalCuts(store.cutPoints[0]);
 
     // a replacement spanning only the bottom half of the level table: a
@@ -1384,7 +1384,7 @@ void testOrderedFactorGridSurvivesMutation() {
 
   // a whole-data replacement rebuilds the same grid from the pinned count
   ColumnStore replaced;
-  replaced.build(x.data(), n, 1, 100u, false, kinds, nullptr, 0, declared);
+  built(replaced.build(x.data(), n, 1, 100u, false, kinds, nullptr, 0, declared));
   std::vector<double> originalCuts(replaced.cutPoints[0]);
   std::vector<double> shorter(n / 2, 0.0);
   replaced.setData(shorter.data(), n / 2);
@@ -1520,7 +1520,7 @@ void testIngestionRefusals() {
   // test store exactly as it was
   {
     ColumnStore store;
-    store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+    built(store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared));
     const size_t numTest = 4;
     std::vector<double> xTest(numTest * p);
     for (size_t i = 0; i < numTest; ++i) {
@@ -1528,8 +1528,10 @@ void testIngestionRefusals() {
       xTest[numTest + i] = static_cast<double>(i % 4);
     }
     check(store.buildTest(xTest.data(), numTest), "level codes test-build");
-    std::vector<xint_t> codes(numTest);
-    for (size_t i = 0; i < numTest; ++i) codes[i] = store.testCodeAt(0, i);
+    std::vector<xint_t> codes(numTest * p);
+    for (size_t j = 0; j < p; ++j)
+      for (size_t i = 0; i < numTest; ++i)
+        codes[j * numTest + i] = store.testCodeAt(j, i);
 
     for (size_t j = 0; j < p; ++j) {
       std::vector<double> badTest(xTest);
@@ -1540,9 +1542,19 @@ void testIngestionRefusals() {
       check(!store.buildTest(badTest.data(), numTest),
             "a between-levels test value is refused rather than quantized");
     }
+    // a refused view of a DIFFERENT length, so a partial write would move the
+    // row count as well as the codes, and every column is compared - the last
+    // refusal above touches column p - 1, so comparing column 0 alone would
+    // hold whether or not the sweep ran
+    const size_t otherTest = numTest + 3;
+    std::vector<double> wrongLength(otherTest * p, 0.0);
+    wrongLength[1] = 1.5;
+    check(!store.buildTest(wrongLength.data(), otherTest),
+          "a refused view of another length does not resize the test store");
     bool untouched = store.numTestObservations == numTest;
-    for (size_t i = 0; i < numTest; ++i)
-      untouched &= store.testCodeAt(0, i) == codes[i];
+    for (size_t j = 0; j < p; ++j)
+      for (size_t i = 0; i < numTest; ++i)
+        untouched &= store.testCodeAt(j, i) == codes[j * numTest + i];
     check(untouched, "a refused test view leaves the test store untouched");
 
     // a CSC-backed test column's implicit rows read its reference code, so
@@ -1557,7 +1569,7 @@ void testIngestionRefusals() {
     testView.columnSources = &source;
     testView.referenceCodes = &badReference;
     ColumnStore single;
-    single.build(x.data(), n, 1, 10u, false, kinds, nullptr, 0, declared);
+    built(single.build(x.data(), n, 1, 10u, false, kinds, nullptr, 0, declared));
     check(!single.buildTest(testView),
           "a CSC test reference code past the training table is refused");
   }

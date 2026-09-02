@@ -132,12 +132,16 @@ constexpr std::uint32_t maxLevelsForKind(ColumnKind kind) {
 constexpr std::uint32_t invalidCategoryCount = 0xFFFFFFFFu;
 
 /// Whether a factor cell is a level code the store can hold: a whole number
-/// in [0, maxCategories), or missing. The quantize narrows a factor cell to
-/// xint_t with a bare cast, which is undefined outside that range, and a code
-/// past its column's count shifts past an inline category mask or over-reads
-/// a pooled one. The R bridge refuses both before the store is touched, so
-/// this exists for the header-only engine - bartcore driven without that
-/// bridge - which has no other check between a host's values and the cast.
+/// in [0, maxCategories), or missing. The two kinds need it for different
+/// reasons. A CATEGORICAL cell is narrowed to xint_t by a bare cast, which is
+/// undefined outside that range, and a code past its column's count shifts
+/// past an inline category mask or over-reads a pooled one. An ORDERED FACTOR
+/// cell takes the ordinal arm instead, where the cast is safe and the reason
+/// is the model: a value that is not one of the declared levels has no
+/// position on a grid built from the level table. The R bridge refuses both
+/// before the store is touched, so this exists for the header-only engine -
+/// bartcore driven without that bridge - which has no other check between a
+/// host's values and the store.
 inline bool levelCodeIsRepresentable(double value) {
   return isNA(value) ||
          (value >= 0.0 && value < static_cast<double>(maxCategories) &&
@@ -954,13 +958,18 @@ struct ColumnStore {
   }
 
   /// The same over a CSC-backed column's logical values: its retained
-  /// nonzeros, plus the reference code the implicit rows read when it has any.
-  /// The reference code is an xint_t and so is representable by construction;
-  /// the stored values carry the same check the dense sweep applies.
+  /// nonzeros, plus - for a subset-splitting column only - the reference code
+  /// its implicit rows read. An ordered factor's implicit rows quantize a
+  /// structural zero rather than the reference, so folding the reference into
+  /// its count would inflate the grid and, at the ceiling, refuse a column
+  /// nothing is wrong with. The reference is an xint_t and so needs no code
+  /// check of its own; a reference at the top of the type is caught by the
+  /// count ceiling instead, since the count it induces is one higher.
   std::uint32_t inferredCategoryCountCsc(size_t j) const {
     const ColumnSource& source = train.sources[j];
-    double maxValue = source.slice.numNonzero < numObservations
-      ? static_cast<double>(source.refCode) : -1.0;
+    double maxValue =
+      splitsBySubset(j) && source.slice.numNonzero < numObservations
+        ? static_cast<double>(source.refCode) : -1.0;
     for (size_t k = 0; k < source.slice.numNonzero; ++k) {
       double value = source.slice.values[k];
       if (!levelCodeIsRepresentable(value)) return invalidCategoryCount;
@@ -1277,11 +1286,11 @@ struct ColumnStore {
   /// discards it - a creation build has nothing to preserve - and the refusal
   /// travels out as a status rather than an exception, since the hosts that
   /// raise on it cross a C boundary.
-  bool build(const PredictorSource& source,
-             const std::uint32_t* maxNumCutsPerColumn,
-             std::uint32_t maxNumCutsScalar, bool useQuantiles_,
-             const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0) {
+  [[nodiscard]] bool build(const PredictorSource& source,
+                           const std::uint32_t* maxNumCutsPerColumn,
+                           std::uint32_t maxNumCutsScalar, bool useQuantiles_,
+                           const size_t* gatherColumns = nullptr,
+                           size_t numGatherColumns = 0) {
     size_t n = source.numRows, p = source.numColumns;
     bool mapped = source.isMapped();
     isView = false;
@@ -1395,23 +1404,24 @@ struct ColumnStore {
   /// Dense convenience spelling: a plain column-major matrix, no map.
   /// columnTypes may be null for all-ordinal; categoryCounts_, when supplied,
   /// is the host's declared level count per column (0 = infer from the codes).
-  bool build(const double* x_, size_t n, size_t p,
-             const std::uint32_t* maxNumCuts_, bool useQuantiles_,
-             const ColumnKind* columnTypes = nullptr,
-             const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0,
-             const std::uint32_t* categoryCounts_ = nullptr) {
+  [[nodiscard]] bool build(const double* x_, size_t n, size_t p,
+                           const std::uint32_t* maxNumCuts_, bool useQuantiles_,
+                           const ColumnKind* columnTypes = nullptr,
+                           const size_t* gatherColumns = nullptr,
+                           size_t numGatherColumns = 0,
+                           const std::uint32_t* categoryCounts_ = nullptr) {
     return build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
                  maxNumCuts_, 0, useQuantiles_, gatherColumns,
                  numGatherColumns);
   }
 
-  bool build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
-             bool useQuantiles_ = false,
-             const ColumnKind* columnTypes = nullptr,
-             const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0,
-             const std::uint32_t* categoryCounts_ = nullptr) {
+  [[nodiscard]] bool build(const double* x_, size_t n, size_t p,
+                           std::uint32_t maxNumCuts_,
+                           bool useQuantiles_ = false,
+                           const ColumnKind* columnTypes = nullptr,
+                           const size_t* gatherColumns = nullptr,
+                           size_t numGatherColumns = 0,
+                           const std::uint32_t* categoryCounts_ = nullptr) {
     return build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
                  nullptr, maxNumCuts_, useQuantiles_, gatherColumns,
                  numGatherColumns);
@@ -1451,7 +1461,8 @@ struct ColumnStore {
       if (!isFactor(j)) continue;
       std::int32_t columnSource = source.sourceOf(j);
       if (columnSource >= 0) {
-        if (source.denseValues == nullptr) continue;
+        // buildTest would read through the same null to copy the block
+        if (source.denseValues == nullptr) return false;
         const double* column = source.denseValues +
           static_cast<size_t>(columnSource) * source.numRows;
         for (size_t i = 0; i < source.numRows; ++i)
@@ -1491,7 +1502,7 @@ struct ColumnStore {
   /// table is the training one, fixed at build, so the check runs before
   /// anything is written rather than riding the quantize as the training
   /// side's does.
-  bool buildTest(const PredictorSource& source) {
+  [[nodiscard]] bool buildTest(const PredictorSource& source) {
     if (!testSourceLevelCodesAreValid(source)) return false;
     size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;
@@ -1570,7 +1581,7 @@ struct ColumnStore {
 
   /// Dense convenience spelling: own a copy of a plain column-major test
   /// matrix and quantize it against the current cuts.
-  bool buildTest(const double* x_test_, size_t numTest) {
+  [[nodiscard]] bool buildTest(const double* x_test_, size_t numTest) {
     return buildTest(densePredictorSource(x_test_, numTest, numPredictors));
   }
 

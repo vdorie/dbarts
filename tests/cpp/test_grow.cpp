@@ -64,7 +64,7 @@ void testDeterminismAndDrawCount() {
   std::vector<double> x, y;
   makeStepData(x, y, n);
   ColumnStore store;
-  store.build(x.data(), n, 1, 50);
+  built(store.build(x.data(), n, 1, 50));
   check(store.hasMissing[0] == 0 && store.types[0] == ColumnKind::numeric,
         "no-missing, all-ordinal build for the draw-count census");
 
@@ -118,7 +118,7 @@ void testVetoDrawsNothing() {
   std::vector<double> x(n), y(n);
   for (size_t i = 0; i < n; ++i) { x[i] = runif01(); y[i] = runif01(); }
   ColumnStore store;
-  store.build(x.data(), n, 1, 20);
+  built(store.build(x.data(), n, 1, 20));
 
   // base 0 -> growthProbability is zero at every node, so the root draws
   // nothing and stays a single leaf
@@ -154,7 +154,7 @@ void testGrownTreeWellFormed() {
   std::vector<double> x, y;
   makeStepData(x, y, n);
   ColumnStore store;
-  store.build(x.data(), n, 1, 40);
+  built(store.build(x.data(), n, 1, 40));
 
   CGMTreePrior prior;
   ConstantGaussianLeaf leaf{0.5};
@@ -218,7 +218,7 @@ void testDeepGrowWithMissing() {
     numMissing += isMissing ? 1 : 0;
   }
   ColumnStore store;
-  store.build(x.data(), n, 1, 50);
+  built(store.build(x.data(), n, 1, 50));
   check(store.hasMissing[0] == 1 && numMissing > 0,
         "the deep-grow fixture's only column carries missing values");
 
@@ -291,7 +291,7 @@ void testCategoricalSplits() {
   // so A = 1 at the root and the absent-position coin runs
   uint32_t categoryCounts[] = {numLevels, 0};
   ColumnStore store;
-  store.build(x.data(), n, 2, 20, false, types, nullptr, 0, categoryCounts);
+  built(store.build(x.data(), n, 2, 20, false, types, nullptr, 0, categoryCounts));
   check(store.categoryCounts[0] == numLevels && !store.columnIsPooled(0),
         "the categorical fixture declares five inline levels");
 
@@ -364,7 +364,7 @@ void testPooledCategoricalGrow() {
   // are reachable but absent at every node and their coins really run
   uint32_t categoryCounts[] = {numLevels};
   ColumnStore store;
-  store.build(x.data(), n, 1, 10, false, types, nullptr, 0, categoryCounts);
+  built(store.build(x.data(), n, 1, 10, false, types, nullptr, 0, categoryCounts));
   check(store.columnIsPooled(0) && store.hasMissing[0] == 1 &&
           store.categoryCounts[0] == numLevels,
         "the wide fixture pools its mask and carries a missing value");
@@ -486,7 +486,7 @@ void testGrowHonorsInteraction() {
            (x[i + 2 * n] > 0.5 ? 0.5 : -0.5) + 0.1 * (runif01() - 0.5);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 12);
+  built(store.build(x.data(), n, p, 12));
 
   size_t forbiddenPair[] = {0, 1};       // x0 and x1 may not co-occur
   InteractionConstraint constraint;
@@ -666,7 +666,7 @@ double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
   }
 
   ColumnStore store;
-  store.build(x.data(), n, 1, 4);
+  built(store.build(x.data(), n, 1, 4));
   size_t numCuts = store.numCuts[0];
   check(store.hasMissing[0] == 1,
         "the measured fixture's only splittable column carries missing values");
@@ -882,7 +882,7 @@ void testCategoricalExactDrawLaw() {
   }
   ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 1, 10, false, types);
+  built(store.build(x.data(), n, 1, 10, false, types));
   check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
           !store.columnIsPooled(0),
         "the exact-branch fixture is one inline four-level column, no missing");
@@ -1001,7 +1001,7 @@ void testCategoricalPrefixDrawLaw() {
   }
   ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
-  store.build(x.data(), n, 1, 20, false, types);
+  built(store.build(x.data(), n, 1, 20, false, types));
   check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
           numLevels > categoricalExhaustiveCap,
         "the prefix-branch fixture declares twelve levels, past the cap");
@@ -1191,7 +1191,7 @@ void testCategoricalGroupMassClosedForm() {
       x[code] = static_cast<double>(code);
     ColumnKind types[] = {ColumnKind::categorical};
     ColumnStore store;
-    store.build(x.data(), numReachable, 1, 10, false, types);
+    built(store.build(x.data(), numReachable, 1, 10, false, types));
     check(store.categoryCounts[0] == numReachable &&
             store.columnIsPooled(0) == (numReachable > 63),
           "the cross-check store declares every category at its own tier");
@@ -1365,7 +1365,7 @@ void testCategoricalGrowGaugeAndCoins() {
     ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
     std::uint32_t categoryCounts[] = {fixture.numLevels, 0};
     ColumnStore store;
-    store.build(x.data(), n, 2, 10, false, types, nullptr, 0, categoryCounts);
+    built(store.build(x.data(), n, 2, 10, false, types, nullptr, 0, categoryCounts));
     check(store.categoryCounts[0] == fixture.numLevels &&
             (store.hasMissing[0] != 0) == fixture.missing &&
             store.hasMissing[1] == 0 &&
@@ -1513,7 +1513,7 @@ void testCategoricalGrowHonorsInteraction() {
   ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical,
                         ColumnKind::numeric};
   ColumnStore store;
-  store.build(x.data(), n, p, 12, false, types);
+  built(store.build(x.data(), n, p, 12, false, types));
 
   size_t forbiddenPair[] = {0, 1};  // the two categorical columns
   InteractionConstraint constraint;
@@ -1586,7 +1586,7 @@ void testConditionalLawBelowRoot() {
   }
 
   ColumnStore store;
-  store.build(x.data(), n, 2, 4);  // a four-cut grid, so every cell is measurable
+  built(store.build(x.data(), n, 2, 4));  // a four-cut grid, so every cell is measurable
   check(store.numCuts[0] == 4 && store.numCuts[1] == 4,
         "the conditional fixture carries four cuts per column");
 

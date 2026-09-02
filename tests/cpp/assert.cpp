@@ -12,6 +12,8 @@ void check(bool condition, const char* what) {
   }
 }
 
+void built(bool ok) { check(ok, "the fixture store built"); }
+
 void checkNear(double actual, double expected, double tolerance,
                const char* what) {
   if (!(std::fabs(actual - expected) <= tolerance)) {

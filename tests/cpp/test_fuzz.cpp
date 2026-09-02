@@ -1283,7 +1283,7 @@ static void testSnapshotSeesSparseCodes() {
   source.cscValues = fixture.values.data();
   source.columnSources = fixture.allCscSources.data();
   ColumnStore store;
-  store.build(source, nullptr, 20, false);
+  built(store.build(source, nullptr, 20, false));
   check(store.columnIsSparse(0) && !store.train.codes.empty(),
         "the fixture mixes a rank-stored column with a dense-stored one");
 

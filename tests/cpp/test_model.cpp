@@ -140,7 +140,7 @@ static void testConstantLeafSuffstatEquivalence() {
   std::vector<double> x(n);
   for (size_t i = 0; i < n; ++i) x[i] = (double) i;
   ColumnStore store;
-  store.build(x.data(), n, 1, 100);
+  built(store.build(x.data(), n, 1, 100));
   std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
@@ -354,7 +354,7 @@ static void testChiKEmptyLeafAccounting(ext_rng* rng) {
   ColumnStore store;
   // column 1 is the linear-leaf covariate the vector chain below reads
   size_t leafGather[] = {1};
-  store.build(x.data(), n, p, 100, false, nullptr, leafGather, 1);
+  built(store.build(x.data(), n, p, 100, false, nullptr, leafGather, 1));
 
   // splitIndex 50 keeps the left child populated; the hook strands the right
   const int32_t splitVar = 0, splitIndex = 50;
@@ -498,7 +498,7 @@ static void testVarianceLeafMarginal() {
   std::vector<double> x(n);
   for (size_t i = 0; i < n; ++i) x[i] = (double) i;
   ColumnStore store;
-  store.build(x.data(), n, 1, 100);
+  built(store.build(x.data(), n, 1, 100));
   std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
@@ -698,7 +698,7 @@ static void testVarianceForestRecovery() {
     y[i] = (xi < 0.5 ? sLow : sHigh) * ext_rng_simulateStandardNormal(rng);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
 
   SamplerOptions options;
   options.numTrees = 20;
@@ -844,7 +844,7 @@ static void testVarianceForestRefusal() {
   // build a composition the full-data factory declines
   {
     ColumnStore parent;
-    parent.build(x.data(), n, p, options.maxNumCuts, false);
+    built(parent.build(x.data(), n, p, options.maxNumCuts, false));
     std::vector<size_t> rows(n);
     for (size_t i = 0; i < n; ++i) rows[i] = i;
     SamplerOptions viewOptions = options;
@@ -917,7 +917,7 @@ static void testVarianceSavedPredict() {
     y[i] = (x0 < 0.5 ? 0.4 : 1.6) * ext_rng_simulateStandardNormal(rng);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
 
   SamplerOptions options;
   options.numTrees = 20;
@@ -967,8 +967,8 @@ static void testVarianceReportingStatePredict() {
   for (size_t i = 0; i < nTest; ++i) xTest[i] = (double) i / (double) nTest;
 
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
-  store.buildTest(xTest.data(), nTest);
+  built(store.build(x.data(), n, p, 100));
+  built(store.buildTest(xTest.data(), nTest));
 
   SamplerOptions options;
   options.numTrees = 20;
@@ -1067,7 +1067,7 @@ static void testVarianceEmptyBottomStateRoundTrip() {
     y[i] = ext_rng_simulateStandardNormal(rng);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 50);
+  built(store.build(x.data(), n, p, 50));
 
   SamplerOptions options;
   options.numTrees = 10;
@@ -1126,7 +1126,7 @@ static void testVarianceM1Reduction() {
       y[i] = muTrue + sigmaTrue * ext_rng_simulateStandardNormal(dataRng);
     ext_rng_destroy(dataRng);
     ColumnStore store;
-    store.build(x.data(), n, p, 100);
+    built(store.build(x.data(), n, p, 100));
     SamplerOptions options;
     options.numTrees = 20;
     if (heteroscedastic) options.numVarianceTrees = 1;
@@ -1269,7 +1269,7 @@ struct LinearLeafFixture {
     // the store owns raw copies of the leaf-covariate columns (1, 2), as a
     // production build does, so a leaf reading rawColumn is served
     size_t leafGather[] = {1, 2};
-    store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2);
+    built(store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2));
     tree.initialize(indexBuffer.data(), n);
   }
 };
@@ -1433,8 +1433,8 @@ static void testLinearLeafStatisticsCache() {
   size_t columns[] = {1};
 
   ColumnStore storeV0, storeV1;
-  storeV0.build(xV0.data(), n, p, 100, false, nullptr, columns, 1);
-  storeV1.build(xV1.data(), n, p, 100, false, nullptr, columns, 1);
+  built(storeV0.build(xV0.data(), n, p, 100, false, nullptr, columns, 1));
+  built(storeV1.build(xV1.data(), n, p, 100, false, nullptr, columns, 1));
   std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
@@ -1758,8 +1758,8 @@ static void testLinearLeafViews() {
   // a data handle owns raw for the columns its views gather (here covariate 1),
   // so buildFromParent can copy them; a dense build serves rawColumn only for
   // gathered columns
-  parent.build(x.data(), n, p, options.maxNumCuts, false, nullptr, covariates,
-               1);
+  built(parent.build(x.data(), n, p, options.maxNumCuts, false, nullptr, covariates,
+               1));
 
   // view gather mechanics: subset raw values and parent-derived constants
   {
@@ -2527,14 +2527,14 @@ static void testSparseColumnStore() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore fromCsc;
-    fromCsc.build(mixedPredictorSource(n, fixture.p, nullptr,
+    built(fromCsc.build(mixedPredictorSource(n, fixture.p, nullptr,
                                        fixture.pointers.data(),
                                        fixture.rows.data(),
                                        fixture.values.data(),
                                        fixture.allCscSources.data()),
-                  nullptr, 100, useQuantiles);
+                  nullptr, 100, useQuantiles));
     ColumnStore fromDense;
-    fromDense.build(fixture.dense.data(), n, fixture.p, 100, useQuantiles);
+    built(fromDense.build(fixture.dense.data(), n, fixture.p, 100, useQuantiles));
 
     check(fromCsc.builtFromCsc && fromCsc.hasSparse,
           "CSC store flags itself");
@@ -3077,10 +3077,10 @@ struct CscCategoricalFixture {
 
   ColumnStore buildStore(bool useQuantiles) {
     ColumnStore store;
-    store.build(mixedPredictorSource(n, 1, nullptr, pointers.data(),
+    built(store.build(mixedPredictorSource(n, 1, nullptr, pointers.data(),
                                      rows.data(), values.data(), &sources,
                                      types.data(), &K, &reference),
-                nullptr, 100, useQuantiles);
+                nullptr, 100, useQuantiles));
     return store;
   }
 };
@@ -3104,8 +3104,8 @@ static void testSparseCategoricalColumnStore() {
     CscCategoricalFixture fixture;
     fixture.build(n, config.K, config.probReference);
     ColumnStore denseStore;
-    denseStore.build(fixture.dense.data(), n, 1, 100, false,
-                     fixture.types.data());
+    built(denseStore.build(fixture.dense.data(), n, 1, 100, false,
+                     fixture.types.data()));
     ColumnStore sparseStore = fixture.buildStore(false);
 
     allOk &= sparseStore.columnIsSparse(0) == config.expectSparse;
@@ -3268,8 +3268,8 @@ static void testSparseCategoricalMutation() {
     ColumnStore mutated = fixture.buildStore(false);
     mutated.mutateCscColumnFromDense(0, newCodes.data(), false);
     ColumnStore denseStore;
-    denseStore.build(newCodes.data(), n, 1, 100u, false, fixture.types.data(),
-                     nullptr, 0, &fixture.K);
+    built(denseStore.build(newCodes.data(), n, 1, 100u, false, fixture.types.data(),
+                     nullptr, 0, &fixture.K));
     bool matches = mutated.categoryCounts[0] == denseStore.categoryCounts[0] &&
                    mutated.hasMissing[0] == denseStore.hasMissing[0];
     for (size_t i = 0; i < n; ++i)
@@ -3300,11 +3300,11 @@ static void testSparseCategoricalMutation() {
     int pointers[2] = { 0, static_cast<int>(rows.size()) };
     std::int32_t sources = ~0;
     ColumnStore store;
-    store.build(mixedPredictorSource(n, 1, nullptr, pointers, rows.data(),
+    built(store.build(mixedPredictorSource(n, 1, nullptr, pointers, rows.data(),
                                      values.data(), &sources,
                                      fixture.types.data(), &fixture.K,
                                      &fixture.reference),
-                nullptr, 100u, false);
+                nullptr, 100u, false));
     check(store.columnIsSparse(0), "non-canonical fixture stays on the rank tier");
 
     std::vector<xint_t> before(n);
@@ -3383,15 +3383,15 @@ static void testMixedColumnStore() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore mixed;
-    mixed.build(mixedPredictorSource(
+    built(mixed.build(mixedPredictorSource(
                   n, fixture.p, fixture.denseSource.data(),
                   fixture.csc.pointers.data(), fixture.csc.rows.data(),
                   fixture.csc.values.data(), fixture.sources.data(),
                   fixture.types.data()),
-                nullptr, 100, useQuantiles);
+                nullptr, 100, useQuantiles));
     ColumnStore reference;
-    reference.build(fixture.full.data(), n, fixture.p, 100, useQuantiles,
-                    fixture.types.data());
+    built(reference.build(fixture.full.data(), n, fixture.p, 100, useQuantiles,
+                    fixture.types.data()));
 
     check(mixed.builtFromCsc && mixed.hasSparse, "mixed store flags itself");
     check(!mixed.columnIsCscBacked(0) && mixed.columnIsCscBacked(1) &&
@@ -3623,12 +3623,12 @@ static void testMixedDenseOwnership() {
     MixedFixture fixture;
     fixture.build(n, {0.05, 0.5, 0.6}, false);
     ColumnStore mixed;
-    mixed.build(mixedPredictorSource(
+    built(mixed.build(mixedPredictorSource(
                   n, fixture.p, fixture.denseSource.data(),
                   fixture.csc.pointers.data(), fixture.csc.rows.data(),
                   fixture.csc.values.data(), fixture.sources.data(),
                   fixture.types.data()),
-                nullptr, 100, false);
+                nullptr, 100, false));
 
     std::vector<double> newColumn(n);
     for (size_t i = 0; i < n; ++i)
@@ -3875,7 +3875,7 @@ struct GPLeafFixture {
     // the store owns raw copies of the leaf-covariate columns (1, 2), as a
     // production build does, so a leaf reading rawColumn is served
     size_t leafGather[] = {1, 2};
-    store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2);
+    built(store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2));
     tree.initialize(indexBuffer.data(), n);
   }
 };
@@ -4028,7 +4028,7 @@ static void testGPLeafZeroWeights(ext_rng* rng) {
   std::vector<double> wd = {1.0, 1.0, 2.0, 0.0, 1.5};
   ColumnStore dupStore;
   size_t dupGather[] = {1};
-  dupStore.build(xd.data(), nd, 2, 100, false, nullptr, dupGather, 1);
+  built(dupStore.build(xd.data(), nd, 2, 100, false, nullptr, dupGather, 1));
   std::vector<index_t> dupIndices(nd);
   Tree dupTree;
   dupTree.initialize(dupIndices.data(), nd);
@@ -4142,7 +4142,7 @@ static void testGPLeafDraw(ext_rng* rng) {
   for (size_t j = 0; j < 3; ++j)
     for (size_t i = 0; i < numTest; ++i)
       xTest[i + j * numTest] = f.x[i + j * f.n];
-  f.store.buildTest(xTest.data(), numTest);
+  built(f.store.buildTest(xTest.data(), numTest));
   leaf.rebuildTestCovariates(f.store);
   leaf.beginTreeDraw(f.tree);
   leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), f.k,
@@ -4531,7 +4531,7 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   // share buffers and compare bitwise irrespective of allocation layout.
   ColumnStore leafStore;
   size_t leafGather[] = {0};
-  leafStore.build(x.data(), n, p, 100, false, nullptr, leafGather, 1);
+  built(leafStore.build(x.data(), n, p, 100, false, nullptr, leafGather, 1));
   std::vector<index_t> leafIndices(n);
   Tree leafTree;
   leafTree.initialize(leafIndices.data(), n);
@@ -6496,7 +6496,7 @@ static void testMonotoneNeighborGeometry() {
   std::vector<double> x(n * p);
   for (double& v : x) v = runif01();
   ColumnStore store;
-  store.build(x.data(), n, p, 24);
+  built(store.build(x.data(), n, p, 24));
   std::vector<double> y(n, 0.0);
   std::vector<std::int8_t> dir[3] = {{1, 0, 0}, {1, -1, 0}, {1, -1, 1}};
 
@@ -6587,7 +6587,7 @@ static void testMonotoneFeasibility() {
   std::vector<double> xg(m);
   for (size_t i = 0; i < m; ++i) xg[i] = static_cast<double>(i) / (m - 1);
   ColumnStore store;
-  store.build(xg.data(), m, 1, 60);
+  built(store.build(xg.data(), m, 1, 60));
   std::vector<double> yg(m, 0.0);
   std::vector<index_t> idx(m);
   Tree tree;
@@ -6707,7 +6707,7 @@ static void testMonotoneInteractionCoexistence() {
   SamplerStateData state;
   sampler.getState(state);
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
   InteractionConstraint constraint;
   constraint.build(p, 2, forbiddenPair, 1);
   std::vector<index_t> idx(n);
@@ -6847,7 +6847,7 @@ static void testMonotoneMarginal() {
   std::vector<double> x(n);
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / (n - 1);
   ColumnStore store;
-  store.build(x.data(), n, 1, 40);
+  built(store.build(x.data(), n, 1, 40));
   std::vector<double> y(n);
   for (size_t i = 0; i < n; ++i) y[i] = 0.5 * x[i] - 0.1;
   std::vector<index_t> idx(n);
@@ -6955,7 +6955,7 @@ static void testMonotoneCInflation() {
   std::vector<double> x(n);
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / (n - 1);
   ColumnStore store;
-  store.build(x.data(), n, 1, 20);
+  built(store.build(x.data(), n, 1, 20));
   std::vector<double> y(n, 0.0);  // zero response -> posterior mean 0
   std::vector<index_t> idx(n);
   Tree tree;
@@ -7194,7 +7194,7 @@ static void testVarianceForestNonConstantMean() {
            (xi < 0.5 ? sLow : sHigh) * ext_rng_simulateStandardNormal(rng);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  built(store.build(x.data(), n, p, 100));
 
   SamplerOptions options;
   options.numTrees = 20;
