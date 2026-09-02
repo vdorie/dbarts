@@ -409,7 +409,7 @@ contract:
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
    tau, glue, sigma and train (combiner.hpp:921-926; M4.1 landing note, plan
    :4798-4808). `testCombinedFitsAssociation`
-   (tests/cpp/test_sampler.cpp:3585) is the ONLY in-process guard - the M4.0
+   (tests/cpp/test_sampler.cpp:3596) is the ONLY in-process guard - the M4.0
    seam pin structurally CANNOT see association, its reference expression
    inheriting the test compiler's own contraction.
 2. `formForestResponse`'s residual accumulates FORWARD, subtracting the other
@@ -549,11 +549,11 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 `resolveForestIndex` (R/bartcore.R:1051). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_getForestAmplitudes`, ragged and ROW-major
-(inst/include/dbarts/dbarts.h:1137-1165).
+(inst/include/dbarts/dbarts.h:1152-1180).
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1108-1109,
+that rule in two independent places (src/C_interface.cpp:1132-1133,
 src/R_interface_bartcore.cpp:4110-4112).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the

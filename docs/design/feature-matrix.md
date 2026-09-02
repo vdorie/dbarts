@@ -256,9 +256,9 @@ every non-gaussian family R-side at spec.R:390-396. The engine family stays
 
 [f3] Reachable through `dbarts_sampler_create` but not discoverable from the
 shipped header: ordinal needs the `bartcore.n.categories` control attribute
-(RIB:473), nbinom `bartcore.dispersion` (RIB:480), grouped `bartcore.groups`
+(RIB:473), nbinom `bartcore.dispersion` (RIB:487), grouped `bartcore.groups`
 (RIB:2020), heteroscedastic `bartcore.variance` (RIB:2110). The header's
-`family` documentation (CAPI:761-771, on `dbarts_sampler_create`; NOT
+`family` documentation (CAPI:776-786, on `dbarts_sampler_create`; NOT
 CAPI:510-529, which is the `DBARTS_C_API_LIST` X-macro body and never carried
 it) names only probit, logistic, gaussian and aft. The K-forest paragraph
 beside it (CAPI:770-792) now names gaussian, probit and logistic, M4.4 having
@@ -423,7 +423,7 @@ per-observation channel, `bartcore_setForestWeights` (RIB:4142-4145) - see
 longer names multinomial: the old per-family `activeRowsFamilyName` helper is
 deleted, and the message is now family-generic, reached only by a future
 family that does not override the base refusal. Oracles: the kernel-level
-`testActiveRowsMultinomialKernel` (tests/cpp/test_sampler.cpp:5883) pins the
+`testActiveRowsMultinomialKernel` (tests/cpp/test_sampler.cpp:5894) pins the
 SKIP semantics and the zeroed composed precision bitwise against a compacted
 combiner, in both value and Polya-Gamma stream; the shape probe flips in
 `testMultinomial` (tests/cpp/test_shape.cpp:379); and
@@ -439,7 +439,7 @@ still reporting a simplex) and the `setForestWeights` model-grounds refusal
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
 bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). The
 flat-C entry, `dbarts_sampler_setActiveRows`, LANDED at dbarts-h-reshape
-S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:1233-1246`): the
+S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:1257-1270`): the
 capability probe on `shape.supportsActiveRows` runs first and never
 switches on family, so a probit sampler is reachable from C too - an
 amend over this section's own proposed probit refusal, since every
@@ -860,7 +860,7 @@ combiner's own opt-in (COM:1025) is unchanged. `setSigma` is REFUSED for probit
 and logistic; `setWeights` is refused for probit and OPEN for logistic, whose
 counts are its Polya-Gamma shape - both through the ORDINARY single-forest
 guards now that the sampler answers `shape.family` for itself
-(`refuseBinaryWeightChange` RIB:2854, `refusePinnedSigmaChange` RIB:3049). The
+(`refuseBinaryWeightChange` RIB:2912, `refusePinnedSigmaChange` RIB:3049). The
 shared `enforceBinaryWeightPolicy` (RIB:2870) refuses a probit weight outright
 and holds a logistic one to positive integer counts, at creation and on every
 mutation conduit alike, which is what makes the zero-weight-subset cell
@@ -1034,7 +1034,7 @@ its own over the state's variance trees (CH:3387-3402), `rebuildVarianceForest`
 holds every restored variance tree to the forest's mask (CH:4322), and both
 install entries gate on the predicate - `setState` at SAM:964 and
 `installForests` at SAM:1152 - each surfacing the one refusal by name
-(RIB:7242, RIB:7615).
+(RIB:7317, RIB:7615).
 
 **Cross-cutting.** `nameable-calibration` is ARC COMPLETE, all four slices
 LANDED (S0 4c866286, S1 c2a7e89b, S2 d809b944 + 7da36dc3, S3 at

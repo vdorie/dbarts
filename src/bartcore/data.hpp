@@ -437,7 +437,10 @@ inline PredictorSource creationPredictorSource(const PredictorSource& source,
 
 /// The dense-only creation view: the host's typing channel over the
 /// constructor's dense block, any mapped or CSC storage dropped. The BCF and
-/// multinomial samplers offer no sparse ingestion path.
+/// multinomial samplers offer no sparse ingestion path. \p x is the block
+/// only while the host kept ONE: a host that split its dense storage across
+/// the two channels addresses both through denseChannels, and both ride from
+/// \p source instead.
 inline PredictorSource denseCreationPredictorSource(
     const PredictorSource& source, const double* x, size_t numRows,
     size_t numColumns) {

@@ -352,8 +352,10 @@ typedef struct dbarts_predictor_source_t {
   /// columns by numRows rows, holding the int32 level codes of the dense
   /// columns the SAMPLER holds as factors, with INT_MIN (R's NA_INTEGER)
   /// marking a missing code. It saves a caller whose factor columns are
-  /// already integers the widening loop and the double block that loop needs;
-  /// the library still narrows each code to its own storage, as it does a
+  /// already integers the widening loop and the double block that loop needs.
+  /// It does NOT save a conversion: the entries below read a view through a
+  /// double-typed reader, so the library widens the block once itself, and
+  /// then narrows each value to the store's own code exactly as it does a
   /// double.
   ///
   /// ONE rule decides which channel a column reads, and it is the SAME index

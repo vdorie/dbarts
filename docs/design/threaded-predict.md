@@ -77,7 +77,7 @@ synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
 on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:1019-1021) both store
+`dbarts_sampler_setNumThreads` (C_interface.cpp:1043-1045) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
@@ -103,7 +103,7 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:584, then
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:608, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:531) and prints the new layout hash to paste over
