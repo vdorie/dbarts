@@ -885,8 +885,10 @@
             unordered factor: a factor's grid follows its level table, and a
             column wanting a fixed number of cut points over a range is a
             numeric one. An ordered factor is limited to 65534 levels, one
-            below the unordered limit below, and a wider one is an error
-            naming the column.
+            below the unordered limit below, and a wider one is an error at
+            every entrance that can declare a level table: naming the column
+            for a factor, and naming the kind and its limit for a
+            \code{sparseFactor} or a \code{varTypes} declaration.
       \item Categorical predictors support up to 65535 levels, where a
             0.9-x categorical rule held its directions in a single 32-bit
             word: a rule's mask lives inline up to 63 levels and is pooled
