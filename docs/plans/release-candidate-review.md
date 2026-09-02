@@ -537,6 +537,59 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### D4 - the augmentation dispatch enum, splitting ResponseFamily's two meanings (e35e271d, e15122ad, 4e514aa4, 0cb94a39, 8d80ab01, 2026-09-02)
+
+docs/plans/review-2026-08-24/reading-engine-list.md's D4 named one
+enumerator carrying two opposite meanings in the same file:
+augmentationFamily mapped "student" onto ResponseFamily::gaussian, and
+the draw and working-response switches read that arm as the Student-t
+scale mixer - a family value standing for a law, one arm away from a
+plain gaussian response, which draws no augmentation variable at all.
+The bridge's augmentation helpers dispatch on a total AugmentationLaw
+enum now: probit, logistic, ordinal, aft, nbinom, studentT, generated
+from one X-macro list (BARTCORE_AUGMENTATION_LAW_LIST) so no enumerator
+can be added outside it, backing a numAugmentationLaws that a
+static_assert checks in both translation units - verified to hard-error
+in each on a seventh member. The flat API's DBARTS_FAMILY_* tokens map
+straight onto the laws now; dbarts_drawLatents and
+dbarts_workingResponse used to turn their int family into a family
+string only to hand it to the R-side string resolver, and that round
+trip (int -> string -> family) is gone. ResponseFamily survives on the
+augmentation path at exactly one point, supportFamily, which states the
+response support a law constrains rather than standing for the law
+itself.
+
+inst/include/dbarts/dbarts.h is untouched - its documented contract
+already named STUDENT as the augmentation-entry token - and
+DBARTS_C_API_HASH holds at 0xca7b56a64c812b8d. No R file changed.
+
+A/B against the prior build is bitwise identical for all six laws on
+both surfaces: latent draw, working response and every attribute,
+including every refusal message (unrecognized family names on the R
+surface, out-of-range flat tokens by both enumerator name and raw int).
+
+Reviewer fixes folded: augmentationArguments's doc comment lost the
+"resolves the family" clause it no longer earns and regained contact
+with the function it documents, and the docs re-pin was recomputed
+against this integration tip rather than patched onto its
+pre-integration line numbers.
+
+The docs re-pin is content-checked against the tip, not accepted on the
+freshness guard's say-so, which is loose enough to pass a stale number
+when some nearby identifier still sits in its window; three anchors
+that had passed the guard while stale are corrected here -
+refusePinnedSigmaChange, the two bartcore_setForestWeights cites, and
+setData's clauses, whose grouped and aft halves had named lines that
+were neither refusal. No NEWS entry: no message, token or documented
+behaviour changed.
+
+Gates (implementer-run; independent battery pending): tests/cpp 277 ok,
+all tests passed, 69 ok (sampler); tinytest 7662 / 0 fail;
+equivalence-d4bca4ce 51/51, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise identical, no
+statistical fallback; check-doc-freshness 0 FAIL, 63 warning(s);
+R CMD check --as-cran OK.
+
 ### Kind-axis slice S4c, the int-backed replay reader (84416304, 3b73ce32, d35b53de, c97897de, d4bca4ce, 5553802a, b8dc63a3, a76831a0, 2026-09-02)
 
 Slice S4c of docs/plans/column-kind-consolidation.md lands as eight
