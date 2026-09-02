@@ -495,8 +495,8 @@ weights = omega, resid.prior = fixed(1), sigma = 1)`; the loop draws
 `omega ~ PG(y + xi, eta)`, forms `z = (y - xi) / (2 omega)`, then
 `setResponse(z)` / `setWeights(omega)` / `run(0L, 1L)` (same file).
 `spanbbart` builds its sampler with NO offset argument (`spanbbart.R`), residualizing
-spatial and fixed effects out of the response instead, and mutates at
-the same file. *Counterfactual:* **(A)**, demonstrated - and it would have run on
+spatial and fixed effects out of the response instead, and mutates through
+the same three calls. *Counterfactual:* **(A)**, demonstrated - and it would have run on
 CRAN 0.9-33 unchanged. Two free observations. (i) `R/soft_spanbbart.R` is the
 SAME outer loop written against SoftBart's `MakeForest` (same file), with
 `G <- forest$do_gibbs_weighted(x2, r, omega, x2, 1)[1,]` standing
@@ -504,7 +504,7 @@ line for line where `spanbbart.R` puts `setResponse` / `setWeights` /
 `run` - one author ported one model across both embeddable engines, differing
 only in the forest call, so the surfaces are substitutable for this model
 class. (ii) `nbbart` appears to carry a live instance of r-c-division
-defect 5: `offset` is passed and `eta <- offset + G` computes
+defect 5: `offset` is passed to the sampler and `eta <- offset + G` is formed
 from `G <- samples$train` (`R/nbbart.R`), while `run()$train` already carries the
 offset - the CRAN 0.9-33 gaussian branch adds it at
 `src/dbarts/bartFit.cpp` (the binary branch does the same).
