@@ -27,34 +27,34 @@ Taken from code, formals in declaration order. Registration is NAMESPACE:31-98 (
 `fitted` on six, `extract` on seven).
 
 predict, R/generics.R:
-- `predict.bart` [[R/dbarts.R:257-268@b46add06]] `(object, newdata, offset, weights, type = c("ev","ppd","bart","forest"), combineChains = TRUE,
+- `predict.bart` [[R/generics.R:257-268@b46add06]] `(object, newdata, offset, weights, type = c("ev","ppd","bart","forest"), combineChains = TRUE,
   ci.level = NULL, forest = NULL, bases = NULL, n.threads = object$fit$control@n.threads, ...)`. `offset`/`weights` carry no
-  default; [[R/dbarts.R:270-275@b46add06]] fills NULL through `missing()`.
-- `predict.rbart` [[R/dbarts.R:2150-2161@b46add06]] `(object, newdata, group.by, offset, weights, type = c("ev","ppd","bart","ranef"), combineChains =
+  default; [[R/generics.R:270-275@b46add06]] fills NULL through `missing()`.
+- `predict.rbart` [[R/generics.R:2150-2161@b46add06]] `(object, newdata, group.by, offset, weights, type = c("ev","ppd","bart","ranef"), combineChains =
   TRUE, ci.level = NULL, n.threads = object$fit[[1L]]$control@n.threads, ...)`. `group.by` is positional THREE and has no
-  default; `as.factor(group.by)` at [[R/dbarts.R:2199@b46add06]] is what raises when it is absent.
-- `predict.bartMultinomial` [[R/dbarts.R:1181-1190@b46add06]] `(object, newdata, type = c("ev","ppd","bart","forest"), offset = NULL, combineChains =
+  default; `as.factor(group.by)` at [[R/generics.R:2199@b46add06]] is what raises when it is absent.
+- `predict.bartMultinomial` [[R/generics.R:1181-1190@b46add06]] `(object, newdata, type = c("ev","ppd","bart","forest"), offset = NULL, combineChains =
   TRUE, ci.level = NULL, n.threads = object$fit$control@n.threads, ...)`.
-- `predict.bartOrdinal` [[R/dbarts.R:1473-1481@b46add06]] `(object, newdata, type = c("ev","ppd","bart"), combineChains = TRUE, ci.level = NULL,
+- `predict.bartOrdinal` [[R/generics.R:1473-1481@b46add06]] `(object, newdata, type = c("ev","ppd","bart"), combineChains = TRUE, ci.level = NULL,
   n.threads = object$fit$control@n.threads, ...)` - no offset formal at all.
-- `predict.bartNegbin` [[R/dbarts.R:1711-1720@b46add06]] `(object, newdata, type = c("ev","ppd","bart"), offset.test = NULL, combineChains = TRUE,
-  ci.level = NULL, n.threads = object$fit$control@n.threads, ...)` - the one `offset.test` spelling; consumed at [[R/dbarts.R:1746-1751@b46add06]] as
+- `predict.bartNegbin` [[R/generics.R:1711-1720@b46add06]] `(object, newdata, type = c("ev","ppd","bart"), offset.test = NULL, combineChains = TRUE,
+  ci.level = NULL, n.threads = object$fit$control@n.threads, ...)` - the one `offset.test` spelling; consumed at [[R/generics.R:1746-1751@b46add06]] as
   `bartcorePredict(list(ptr = ...), newdata, offset.test, n.threads)`.
-- `predict.bartHurdle` [[R/dbarts.R:2107-2115@b46add06]] `(object, newdata, type = c("ev","ppd","prob","bart"), combineChains = TRUE, ci.level = NULL,
+- `predict.bartHurdle` [[R/generics.R:2107-2115@b46add06]] `(object, newdata, type = c("ev","ppd","prob","bart"), combineChains = TRUE, ci.level = NULL,
   n.threads = object$occupancy$fit$control@n.threads, ...)` - no offset formal; composes two `predict.bart` calls through
-  `hurdleParts` ([[R/dbarts.R:1950-1986@b46add06]]), which forwards only `newdata`, `type` and `n.threads`, all by name ([[R/dbarts.R:1965-1979@b46add06]]), and no offset or
+  `hurdleParts` ([[R/generics.R:1950-1986@b46add06]]), which forwards only `newdata`, `type` and `n.threads`, all by name ([[R/generics.R:1965-1979@b46add06]]), and no offset or
   weights at all.
 
-fitted, R/generics.R: `.bart` [[R/dbarts.R:859-864@b46add06]], `.rbart` [[R/dbarts.R:2551-2556@b46add06]], `.bartMultinomial` [[R/dbarts.R:1092-1097@b46add06]], `.bartOrdinal` [[R/dbarts.R:1401-1406@b46add06]],
-`.bartNegbin` [[R/dbarts.R:1665-1670@b46add06]], `.bartHurdle` [[R/dbarts.R:2073-2078@b46add06]]. None takes an offset or a `newdata`; all are `(object, type, [sample,]
+fitted, R/generics.R: `.bart` [[R/generics.R:859-864@b46add06]], `.rbart` [[R/generics.R:2551-2556@b46add06]], `.bartMultinomial` [[R/generics.R:1092-1097@b46add06]], `.bartOrdinal` [[R/generics.R:1401-1406@b46add06]],
+`.bartNegbin` [[R/generics.R:1665-1670@b46add06]], `.bartHurdle` [[R/generics.R:2073-2078@b46add06]]. None takes an offset or a `newdata`; all are `(object, type, [sample,]
 [ci.level,] ...)`. `fitted.bartHurdle`'s `sample = "train"` is a bare string where every sibling uses a choice vector (lens 1 B8,
 not in this slice).
 
-extract, R/generics.R: `.bart` [[R/dbarts.R:434-442@b46add06]] is `(object, type, sample, combineChains, forest = NULL, contribution = FALSE, ...)` -
-the only one with the per-forest pair. `.rbart` [[R/dbarts.R:2389-2394@b46add06]], `.bartMultinomial` [[R/dbarts.R:975-980@b46add06]], `.bartOrdinal` [[R/dbarts.R:1306-1311@b46add06]],
-`.bartNegbin` [[R/dbarts.R:1585-1590@b46add06]] and `.bartHurdle` [[R/dbarts.R:2010-2015@b46add06]] are all `(object, type, sample, combineChains, ...)`.
-`.dbartsSampler` [[R/dbarts.R:2543@b46add06]] is `(object, type = "predictors", ...)` - no `sample`, no `combineChains`, no `refuseUnusedGenericArgs`,
-its own one-token validation at [[R/dbarts.R:2544-2546@b46add06]]; it documents the SAMPLER-class read (man/extract.dbartsSampler.Rd), not a fit's
+extract, R/generics.R: `.bart` [[R/generics.R:434-442@b46add06]] is `(object, type, sample, combineChains, forest = NULL, contribution = FALSE, ...)` -
+the only one with the per-forest pair. `.rbart` [[R/generics.R:2389-2394@b46add06]], `.bartMultinomial` [[R/generics.R:975-980@b46add06]], `.bartOrdinal` [[R/generics.R:1306-1311@b46add06]],
+`.bartNegbin` [[R/generics.R:1585-1590@b46add06]] and `.bartHurdle` [[R/generics.R:2010-2015@b46add06]] are all `(object, type, sample, combineChains, ...)`.
+`.dbartsSampler` [[R/generics.R:2543@b46add06]] is `(object, type = "predictors", ...)` - no `sample`, no `combineChains`, no `refuseUnusedGenericArgs`,
+its own one-token validation at [[R/generics.R:2544-2546@b46add06]]; it documents the SAMPLER-class read (man/extract.dbartsSampler.Rd), not a fit's
 channels, and is OUT of D1's scope. D1 changes no `extract` signature at all.
 
 Offset spellings, package-wide: `offset` (predict.bart, predict.rbart, predict.bartMultinomial; the multinomial one is an
@@ -62,7 +62,7 @@ Offset spellings, package-wide: `offset` (predict.bart, predict.rbart, predict.b
 fit-time channel, all out of scope), `binaryOffset` (bart()'s creation formal, out of scope). Two spellings on the S3 predict
 surface, one after D1.
 
-`group.by` appears in exactly one predict signature (predict.rbart [[man/bart2.Rd:2153@b46add06]]) and CAN be matched positionally today - and is, at 21
+`group.by` appears in exactly one predict signature (predict.rbart [[R/generics.R:2153@b46add06]]) and CAN be matched positionally today - and is, at 21
 in-repo test call sites and one consumer site (section 12). It appears once more on the S3 surface, positional FOURTH on
 `survivalProbabilities.rbart` ([[R/bart.R:2551-2557@b46add06]]), which forwards it to predict.rbart at [[R/bart.R:2581-2587@b46add06]]; that method takes the same
 named-only treatment (section 3), since it is the same argument on the same class.
@@ -251,8 +251,8 @@ their current bodies untouched, which is the smaller and more testable change:
         static_cast<int>(holder.sampler->shape().numForests));
     }
 
-Placed beside `bartcore_getForestAmplitudes` ([[R/bartcore.R:4052-4077@74e2e050]]), declared in src/R_interface_bartcore.hpp beside [[R/bartcore.R:26@74e2e050]]
-(`SEXP bartcore_numForests(SEXP ptr);`) and registered in src/R_interface.cpp beside [[R/bartcore.R:192-193@74e2e050]] as
+Placed beside `bartcore_getForestAmplitudes` ([[src/R_interface_bartcore.cpp:4052-4077@b46add06]]), declared in src/R_interface_bartcore.hpp beside [[src/R_interface_bartcore.hpp:26@b46add06]]
+(`SEXP bartcore_numForests(SEXP ptr);`) and registered in src/R_interface.cpp beside [[src/R_interface.cpp:192-193@b46add06]] as
 `DEF_FUNC("dbarts_bartcore_numForests", bartcore_numForests, 1)`. It stays an INTERNAL read - a package helper in R/bartcore.R,
 not a new R5 method, so D9 adds no public surface the freeze would then lock:
 
@@ -440,19 +440,19 @@ Every site that refuses a fit without stored trees, R/generics.R unless noted:
 - [[inst/NEWS.Rd:277-283@74e2e050]] predict.bart, two arms: `"predict requires bart2 to be called with 'keepTrees' == TRUE"` and
   `"predict requires bart to be called with 'keeptrees' == TRUE"`, selected by `callName(object$call) == "bart2"`
   (`callName`, [[R/utility.R:187-189@74e2e050]]).
-- [[R/utility.R:296-306@74e2e050]] predict.bart's amplitude-coupled arm: `"predict on an amplitude-coupled fit requires 'keeptrees'/'keepTrees' == TRUE:
+- [[R/generics.R:296-306@b46add06]] predict.bart's amplitude-coupled arm: `"predict on an amplitude-coupled fit requires 'keeptrees'/'keepTrees' == TRUE:
   ..."`.
-- [[R/utility.R:1199-1204@74e2e050]] predict.bartMultinomial, [[R/utility.R:1489-1494@74e2e050]] predict.bartOrdinal, [[R/utility.R:1728-1733@74e2e050]] predict.bartNegbin, [[R/utility.R:2123-2128@74e2e050]]
+- [[R/generics.R:1199-1204@b46add06]] predict.bartMultinomial, [[R/generics.R:1489-1494@b46add06]] predict.bartOrdinal, [[R/generics.R:1728-1733@b46add06]] predict.bartNegbin, [[R/generics.R:2123-2128@b46add06]]
   predict.bartHurdle: `"predict requires bart2(family = \"...\") to be called with 'keepTrees' == TRUE"`.
-- [[R/utility.R:2162-2164@74e2e050]] predict.rbart: `"predict requires rbart to be called with 'keepTrees' == TRUE"` - which also names the wrong
+- [[R/generics.R:2162-2164@b46add06]] predict.rbart: `"predict requires rbart to be called with 'keepTrees' == TRUE"` - which also names the wrong
   function, since the entry point is `rbart_vi`.
 On the same path and rewritten with them, because each is the same fact with the same cure:
-- [[R/utility.R:445-455@74e2e050]] extract.bart type = "trees", both arms; [[R/utility.R:2405-2409@74e2e050]] extract.rbart type = "trees".
-- [[R/utility.R:2648-2652@74e2e050]] plotTree.bart (`"plotTree requires the trees to be kept: fit with keeptrees/keepTrees = TRUE"`) and [[R/utility.R:2672-2676@74e2e050]]
+- [[R/generics.R:445-455@b46add06]] extract.bart type = "trees", both arms; [[R/generics.R:2405-2409@b46add06]] extract.rbart type = "trees".
+- [[R/generics.R:2648-2652@b46add06]] plotTree.bart (`"plotTree requires the trees to be kept: fit with keeptrees/keepTrees = TRUE"`) and [[R/generics.R:2672-2676@b46add06]]
   plotTree.rbart (`"... fit rbart_vi with keepTrees = TRUE"`). These two already name the cure in `= TRUE` form but on a third
   stem; folding them in is what leaves ONE message form for the fact across the whole surface, and plotTree.bart stops offering
   both spellings at once in favour of the one its own fit used.
-Deliberately NOT rewritten: the `keepTrainingFits` refusals ([[R/utility.R:490@74e2e050]], [[R/utility.R:2484@74e2e050]], [[R/utility.R:2563@74e2e050]]; [[R/plot.R:61@74e2e050]], [[R/plot.R:130@74e2e050]]) name a different argument and
+Deliberately NOT rewritten: the `keepTrainingFits` refusals ([[R/generics.R:490@b46add06]], [[R/generics.R:2484@b46add06]], [[R/generics.R:2563@b46add06]]; [[R/plot.R:61@74e2e050]], [[R/plot.R:130@74e2e050]]) name a different argument and
 a different fact, and the general error-message pass is lens 1 B9 / slice L's business. `[[R/bart.R:2415-2420@74e2e050]]`
 (`hazardSurvivalProbabilities`) already says "requires the trees; refit with keepTrees = TRUE" and is the wording model; it stays
 as written. `[[R/partialDependence.R:67@74e2e050]]`, [[R/partialDependence.R:73@74e2e050]] refuse on `keepSampler`, a different argument again.
@@ -488,8 +488,8 @@ The four own-class arms drop the `bart2(family = "...")` naming: every one of th
 the spelling is fixed, and the family is not in doubt to whoever holds the fit. `predict.rbart`'s stops naming `rbart`.
 
 A test that pinned the OLD `'keepTrees' == TRUE` text would break; in-repo none does (every pin is the bare word, section 11).
-Downstream, bartCause's [[tests/testthat/test-08-predict.R:208@74e2e050]] pins `"keepTrees == TRUE"`, but against bartCause's OWN message
-(bartCause [[R/generics.R:110@74e2e050]]), raised before the call ever reaches dbarts - unaffected.
+Downstream, bartCause's `tests/testthat/test-08-predict.R` line 208 pins `"keepTrees == TRUE"`, but against bartCause's OWN message
+(bartCause's `R/generics.R` line 110), raised before the call ever reaches dbarts - unaffected.
 
 ## 10. Rd plan
 
@@ -688,23 +688,23 @@ regression tests in those files hardcode values that depend on the file's full e
 ## 12. Consumer sweep (read-only, `git -C <repo> grep`)
 
 - stan4bart, /Users/vdorie/Repositories/stan4bart branch `bartcore` (33b4aa8): ZERO hits. It calls no dbarts S3 predict/fitted/
-  extract method and no forest reader; its own `predict.stan4bartFit` ([[R/generics.R:906-914@74e2e050]]) already has the
-  `(object, newdata, type, ...)` shape and its comment at [[R/generics.R:907-908@74e2e050]] records why offset must stay behind the defaulted
-  arguments - independent confirmation of D1's ordering. Its `offset.test` hits ([[R/mvbart.R:38@74e2e050]], [[R/mvbart.R:135@74e2e050]], [[R/mvbart.R:150@74e2e050]], [[R/mvbart.R:195@74e2e050]];
-  [[src/init.cpp:327@74e2e050]], [[src/init.cpp:329@74e2e050]]) are all the dbartsData/creation channel, which keeps the name. No migration cost.
+  extract method and no forest reader; its own `predict.stan4bartFit` (stan4bart's `R/generics.R` lines 906-914) already has the
+  `(object, newdata, type, ...)` shape and its comment at `R/generics.R` lines 907-908 records why offset must stay behind the defaulted
+  arguments - independent confirmation of D1's ordering. Its `offset.test` hits (stan4bart's `R/mvbart.R` lines 38, 135, 150 and 195;
+  `src/init.cpp` lines 327 and 329) are all the dbartsData/creation channel, which keeps the name. No migration cost.
 - bartCause, /Users/vdorie/Repositories/bartCause branch `dbarts-1.0` (7ae6e83): ONE breaking site.
-  [[R/generics.R:162@74e2e050]] `p.score <- predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)` on an rbart treatment fit
-  becomes `group.by = group.by`. Its other dbarts reads are safe: `sampler$getCalibration(1L)` ([[R/bcf.R:244@74e2e050]]) and
-  `fit$fit$getForestVariableCounts(1L|2L)` ([[tests/testthat/test-14-bcf.R:162-164@74e2e050]]) all pass the index explicitly, so the new NULL
-  default never fires; every `predict(fit, x, type = ...)` in [[R/generics.R:143-176@74e2e050]] and tests/testthat/test-08-predict.R passes
-  `type` and `group.by` by name; and its `"keepTrees == TRUE"` pin at [[tests/testthat/test-08-predict.R:208@74e2e050]] is against its own
-  message ([[R/generics.R:110@74e2e050]]), not dbarts's. Separately - not a cost, an observation - bartCause's own `predict.bartcFit`
-  ([[R/generics.R:87-91@74e2e050]]) has the same `(object, newdata, group.by, type, ...)` shape D1 removes from dbarts; whether it follows is
+  bartCause's `R/generics.R` line 162 `p.score <- predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)` on an rbart treatment fit
+  becomes `group.by = group.by`. Its other dbarts reads are safe: `sampler$getCalibration(1L)` (bartCause's `R/bcf.R` line 244) and
+  `fit$fit$getForestVariableCounts(1L|2L)` (bartCause's `tests/testthat/test-14-bcf.R` lines 162-164) all pass the index explicitly, so the new NULL
+  default never fires; every `predict(fit, x, type = ...)` in bartCause's `R/generics.R` lines 143-176 and `tests/testthat/test-08-predict.R` passes
+  `type` and `group.by` by name; and its `"keepTrees == TRUE"` pin at `tests/testthat/test-08-predict.R` line 208 is against its own
+  message (bartCause's `R/generics.R` line 110), not dbarts's. Separately - not a cost, an observation - bartCause's own `predict.bartcFit`
+  (bartCause's `R/generics.R` lines 87-91) has the same `(object, newdata, group.by, type, ...)` shape D1 removes from dbarts; whether it follows is
   its maintainer's call and not this slice's.
 - treatSens, branch `dbarts-1.0` (1db3d89): ZERO hits. No
   `offset.test`, no `predict(`, no forest reader, no keepTrees text - it is a flat-C consumer only.
 - bairrtt, /Users/vdorie/Repositories/bairrtt branch `main` (6167423): ZERO breaking hits. Its six predict calls
-  ([[R/irt_causal_bart.R:568@74e2e050]], [[R/irt_causal_bart.R:571@74e2e050]], [[R/irt_causal_bart.R:636@74e2e050]], [[R/irt_causal_bart.R:637@74e2e050]], [[R/irt_causal_bart.R:709@74e2e050]], [[R/irt_causal_bart.R:713@74e2e050]]) are all `model$predict(frame)` on the reference class, whose signature
+  (bairrtt's `R/irt_causal_bart.R` lines 568, 571, 636, 637, 709 and 713) are all `model$predict(frame)` on the reference class, whose signature
   this slice does not touch.
 Total lockstep migration cost: one line, in bartCause.
 
@@ -716,7 +716,7 @@ guarantee is the first three arguments and no further (section 3). (2) Those two
 rather than composing `predictOffsetUnusedArgs`, since `refuseUnusedGenericArgs` reports the first name in `names(reasons)` and
 the composed list would point at an argument they do not have (section 3). (3) D5 deletes both shims AND refuses `value` by name;
 a refusal is not a shim (section 8). (4) `fitted` does not gain `"forest"`: a forest-margined value has no per-observation
-posterior mean, and `fitted.bart` [[R/irt_causal_bart.R:877-881@74e2e050]] reduces the last margin, which for that value is the forest (section 6). (5) D9's
+posterior mean, and `fitted.bart` [[R/generics.R:877-881@b46add06]] reduces the last margin, which for that value is the forest (section 6). (5) D9's
 `forest = NULL` is implemented by ONE new bridge entry (`bartcore_numForests`) plus R-side stacking, not by teaching three
 existing bridge entries a NULL branch; the three per-forest readers are not edited at all (section 5).
 
@@ -729,7 +729,7 @@ commit 1 also edits.
 
 1. D1, `predict-signature-unification`. R/generics.R (three predict signatures actually move - bart, rbart and negbin's rename;
    multinomial, ordinal and hurdle already carry the target prefix and change only in the body - plus two `missing()` blocks
-   deleted, the `group.by` by-name refusal, the negbin rename's one use, the [[R/irt_causal_bart.R:227-233@74e2e050]] comment, `predictOffsetUnusedArgs`'s
+   deleted, the `group.by` by-name refusal, the negbin rename's one use, the [[R/generics.R:227-233@b46add06]] comment, `predictOffsetUnusedArgs`'s
    comment, two new reason lists, four call-site list compositions); [[R/bart.R:2551-2557@74e2e050]] and [[R/bart.R:2576-2578@74e2e050]]
    (survivalProbabilities.rbart); [[man/bart.Rd:45-53@74e2e050]], [[man/bart.Rd:187-189@74e2e050]]; [[man/rbart.Rd:56-62@74e2e050]], [[man/rbart.Rd:67-69@74e2e050]];
    [[man/survivalProbabilities.Rd:35-42@74e2e050]], [[man/survivalProbabilities.Rd:71@74e2e050]]; [[man/bart2.Rd:338@74e2e050]]; the 22 test call sites in six files; one NEWS UPGRADING item.
