@@ -9,7 +9,7 @@ rng: SL, S0, S4 NEUTRAL. S1, S2, S3 NEUTRAL on every path that exists today -
   baseline. A trio deviation is a LEAK and aborts the slice; it is never a
   re-record. S3 is additionally NEUTRAL on the heteroscedastic FORCED and
   setData paths, which the refactor must recompose byte-for-byte.
-window: bcf-public-surface goes FIRST. VD 2026-08-09, recorded in TODO:72-73:
+window: bcf-public-surface goes FIRST. VD 2026-08-09, recorded in [[TODO:72-73@4c018187]]:
   "goes FIRST, ahead of multiforest-predictor-mutation." Not reopened here; the
   only interleave is SL, a ~155-line guard commit that must precede
   bcf-public-surface S1 (see "The live defect, and the stop-loss"). S0-S4 run
@@ -37,7 +37,7 @@ entries. No `dbarts.h` symbol is added or changed and no API hash moves.
 
 ## Binding decisions inherited (do not reopen)
 
-1. **Sequencing.** bcf-public-surface first (VD 2026-08-09, TODO:72-73).
+1. **Sequencing.** bcf-public-surface first (VD 2026-08-09, [[TODO:72-73@4c018187]]).
 2. **Authorization.** `docs/plans/multiforest-veto-rate-falsifier.md` ran
    2026-08-09, verdict YELLOW on both column types, final. The widening costs at
    most +0.0369 pp of install rate against a 2 pp GREEN line; the frozen-
@@ -91,16 +91,16 @@ architecture holds, the gate battery did not. Six blocking findings, adjudicated
 2. **The mask oracle was not constructible. UPHELD.** The install mask is
    scan-order dependent (`commitObservation` mutates `leafCounts_`, which
    `observationWouldRemainValid` reads) and the order is drawn inside the engine
-   by `ext_rng_drawPermutation(chains_[0]->rng(), ...)` (`sampler.hpp:1066`); no
+   by `ext_rng_drawPermutation(chains_[0]->rng(), ...)` (`[[sampler.hpp:1066@4c018187]]`); no
    R oracle can reproduce it. The falsifier's own mask gate was distributional
    for exactly this reason. Replaced by an in-`tests/cpp` oracle driven through
    the public session API at a CALLER-CHOSEN scan order
-   (`Sampler::beginPredictorUpdate`, `sampler.hpp:1077`, which the fuzzer already
-   drives row by row at `test_fuzz.cpp:355-362`). This is exact, deterministic,
+   (`Sampler::beginPredictorUpdate`, `[[sampler.hpp:1077@4c018187]]`, which the fuzzer already
+   drives row by row at `[[test_fuzz.cpp:355-362@4c018187]]`). This is exact, deterministic,
    and drops the arc's dependency on the gitignored falsifier harness entirely.
 3. **The rollback and session-abandon gates were weak. UPHELD, closed
-   structurally.** `FuzzSnapshot` (`test_fuzz.cpp:33-38`) carries codes, cuts,
-   sigma and `Chain::treeFits()`, which is forest 0 only (`chain.hpp:2795-2797`).
+   structurally.** `FuzzSnapshot` (`[[test_fuzz.cpp:33-38@4c018187]]`) carries codes, cuts,
+   sigma and `Chain::treeFits()`, which is forest 0 only (`[[chain.hpp:2795-2797@4c018187]]`).
    A rollback that restored mu and left tau routed by the proposal passes it
    green. Rather than adding tau and variance fields by hand - the
    statesAgree-omits-a-field pattern that has bitten this program before - S1
@@ -108,22 +108,22 @@ architecture holds, the gate battery did not. Six blocking findings, adjudicated
    closed structurally".
 4. **E4's strict dominance is false for the variance forest. UPHELD, and it cuts
    the other way.** `Chain::stateIsValid`'s variance branch
-   (`chain.hpp:2369-2380` at fed324e) checks tree count, flat well-formedness and
+   (`[[chain.hpp:2369-2380@4c018187]]` at fed324e) checks tree count, flat well-formedness and
    strict leaf positivity and NOT occupancy; `setState` installs through
-   `rebuildVarianceForest` (`:3269-3296`), which repartitions and scatters with
-   no occupancy test. The occupancy check at `:2704` lives in
+   `rebuildVarianceForest` (`[[chain.hpp:3269-3296@4c018187]]`), which repartitions and scatters with
+   no occupancy test. The occupancy check at `[[chain.hpp:2704@4c018187]]` lives in
    `installVarianceForest`, which `setState` does not use. So for a
    heteroscedastic sampler the storeState / new sampler / setState route is not
    the same criterion at higher cost: it is a WEAKER criterion that admits
    variance states the veto refuses, and `refreshVarianceForest`'s occupancy
-   assertion (`:3352`) is compiled out in a release build. That makes the refusal
+   assertion (`[[chain.hpp:3352@4c018187]]`) is compiled out in a release build. That makes the refusal
    message's current advice ("make a new sampler instead") a pointer at an
    unchecked route, which strengthens the case for lifting the variance forest
    rather than weakening it. S3 closes the gap (item 5) so the dominance claim
    becomes true before the message retires.
 5. **The window contradicted a settled ruling. UPHELD.** Not reopened; see
    "window" above. The critique's second half is also upheld: bcf-public-surface
-   S0 (`docs/plans/archive/bcf-public-surface.md:286-289`) pins the BCF refusals this
+   S0 (`[[docs/plans/archive/bcf-public-surface.md:286-289@4c018187]]`) pins the BCF refusals this
    arc's S1/S2 retire. Ownership is settled in S0 item 1.
 6. **Fork 2's closure rested on a mis-stated premise. UPHELD.** Restated in
    "Fork 2". The conclusion (per-sampler veto) survives; the argument changes.
@@ -137,15 +137,15 @@ trees, a fresh sampler regrows them - different kernels, so Q1's 0.488 sd prices
 neither); "the session alone is not constructible" overstates (it requires the
 whole-matrix slice's engine change - say that); the pruned session cache needs an
 explicit survivor table, not offset arithmetic; the pruned multinomial tree count
-is ~105, not ~115; `test_model.cpp:718-733` already asserts the E = 3 factory
+is ~105, not ~115; `[[test_model.cpp:718-733@4c018187]]` already asserts the E = 3 factory
 refusals, so that is a standing assertion and not new work; the falsifier harness
 is untracked and is not a repository artifact.
 
 Advisory OVERTURNED: the claimed `dropStaleMissingDirections` ordering hazard is
-not a hazard. `Tree::dropStaleMissingDirectionsBelow` (`tree.hpp:1213-1223`)
+not a hazard. `Tree::dropStaleMissingDirectionsBelow` (`[[tree.hpp:1213-1223@4c018187]]`)
 clears the bit only when `!data.hasMissing[j] && !data.columnIsPooled(j)`, i.e.
 only when no observation is missing on that column, so the bit routes nothing and
-clearing it moves no observation. The comment at `tree.hpp:1062-1067` states this
+clearing it moves no observation. The comment at `[[tree.hpp:1062-1067@4c018187]]` states this
 and the code confirms it. The drop may therefore sit on either side of the
 validate phase's repartition; it matters only to `buildFromFlat`'s gauge check.
 F10's negative half does not need to cover it.
@@ -153,44 +153,44 @@ F10's negative half does not need to cover it.
 ## Verified seams (read at fed324e)
 
 **The refusals.** `refuseVarianceForestPredictorMutation`
-(`src/R_interface_bartcore.cpp:2118-2124`) keys on `shape().hasVarianceForest`;
-`refuseMultiForestTransactionalUpdate` (`:2136-2144`) calls it when
+(`[[src/R_interface_bartcore.cpp:2118-2124@4c018187]]`) keys on `shape().hasVarianceForest`;
+`refuseMultiForestTransactionalUpdate` (`[[src/R_interface_bartcore.cpp:2136-2144@4c018187]]`) calls it when
 `!forcedUpdate`, then errors on `numForests >= 2` when `!forcedUpdate`. Both live
-in that file's ANONYMOUS namespace (`:35-2222`), unlike `refuseMultiForestMutation`
-(`:2245`) and `refusePinnedSigmaChange`, which sit in `bartcore_bridge` and are
-declared in `R_interface_bartcore_common.hpp:115,122`. Four call sites:
-`bartcore_setPredictor` (`:3945`, forwards force), `bartcore_updatePredictor`
-(`:3991`, forwards force), `bartcore_updatePredictorPerObservation` (`:4099`, NO
-force argument), `bartcore_updatePredictorPerObservationJointly` (`:4164`, per
+in that file's ANONYMOUS namespace (`[[src/R_interface_bartcore.cpp:35-2222@4c018187]]`), unlike `refuseMultiForestMutation`
+(`[[src/R_interface_bartcore.cpp:2245@4c018187]]`) and `refusePinnedSigmaChange`, which sit in `bartcore_bridge` and are
+declared in `[[R_interface_bartcore_common.hpp:115@4c018187]], [[R_interface_bartcore_common.hpp:122@4c018187]]`. Four call sites:
+`bartcore_setPredictor` (`[[R_interface_bartcore_common.hpp:3945@4c018187]]`, forwards force), `bartcore_updatePredictor`
+(`[[R_interface_bartcore_common.hpp:3991@4c018187]]`, forwards force), `bartcore_updatePredictorPerObservation` (`[[R_interface_bartcore_common.hpp:4099@4c018187]]`, NO
+force argument), `bartcore_updatePredictorPerObservationJointly` (`[[R_interface_bartcore_common.hpp:4164@4c018187]]`, per
 sampler). `Chain::numForests` is `forests_.size()`; a heteroscedastic sampler
 reports `numForests == 1` and holds its variance trees in `varianceForest_`. The
 unit of study is `E = numForests + (hasVarianceForest ? 1 : 0)`.
 
 **The two-phase transaction.** `Sampler::runPredictorTransaction`
-(`sampler.hpp:1334-1368`): cut-validity precheck; then either `applyForced` plus
+(`[[sampler.hpp:1334-1368@4c018187]]`): cut-validity precheck; then either `applyForced` plus
 `chain->forceRefreshTrees()`, or snapshot-apply plus `revalidateAllChains()`,
 restoring and calling `chain->repartitionTrees()` on failure.
-`Sampler::revalidateAllChains` (`:1195-1207`) validates every chain, then rebuilds
+`Sampler::revalidateAllChains` (`[[sampler.hpp:1195-1207@4c018187]]`) validates every chain, then rebuilds
 every chain, so a late chain's rejection never leaves an early chain's fits
-overwritten. `Chain::revalidateTrees` (`chain.hpp:1571-1581`) opens
+overwritten. `Chain::revalidateTrees` (`[[chain.hpp:1571-1581@4c018187]]`) opens
 `Forest& forest = forests_[0]`, recovers leaf parameters, `repartitionSubtree`,
 AND-folds `bottomNodesAreOccupied()` with early exit.
-`Chain::rebuildFitsFromParameters` (`:1589-1612`) is forest 0 only:
-`dropStaleMissingDirections()` (which DOES loop all forests, `:1733-1740`), then
+`Chain::rebuildFitsFromParameters` (`[[chain.hpp:1589-1612@4c018187]]`) is forest 0 only:
+`dropStaleMissingDirections()` (which DOES loop all forests, `[[chain.hpp:1733-1740@4c018187]]`), then
 per tree `subtractTreeFitsFromTotal` / `setTreeFits` /
-`installLeafOfAndAddToTotal`. `Chain::repartitionTrees` (`:1616-1624`), the
+`installLeafOfAndAddToTotal`. `Chain::repartitionTrees` (`[[chain.hpp:1616-1624@4c018187]]`), the
 rollback re-route, ALREADY loops every forest; it does not touch
-`varianceForest_`. `Chain::forceRefreshTrees` (`:1743-1789`) loops every forest,
+`varianceForest_`. `Chain::forceRefreshTrees` (`[[chain.hpp:1743-1789@4c018187]]`) loops every forest,
 repartitions AND collapses, then calls `refreshVarianceForest(nullptr)` at
-`:1789`.
+`[[chain.hpp:1789@4c018187]]`.
 
 **`totalFits` is per forest**, not per chain: `addTreeFitsToTotal` and
-`subtractTreeFitsFromTotal` (`chain.hpp:3666-3691`) read and write
+`subtractTreeFitsFromTotal` (`[[chain.hpp:3666-3691@4c018187]]`) read and write
 `forest.totalFits`, and for the constant leaf they gather `mu[leafOf[i]]`. The
 BCF combiner consumes each forest's total separately. Widening the rebuild loop
 is therefore a clean per-forest operation with no cross-forest arithmetic.
 
-**`refreshVarianceForest`** (`chain.hpp:3337-3383`): per tree, recover
+**`refreshVarianceForest`** (`[[chain.hpp:3337-3383@4c018187]]`): per tree, recover
 node-indexed factors through the LIVE partition (or take them from a caller's
 earlier recovery), drop stale missing directions, optionally remap onto a new cut
 grid, optionally re-point at a resized index buffer, repartition,
@@ -199,46 +199,46 @@ partition; then recompute `combinedVariance` as the per-row product. It has no
 validate/rebuild split and it collapses rather than reporting. Its comment
 records that recover-before-repartition is load-bearing.
 
-**The session.** `Sampler::UpdateSessionImpl` (`sampler.hpp:1382-1459`):
+**The session.** `Sampler::UpdateSessionImpl` (`[[sampler.hpp:1382-1459@4c018187]]`):
 `totalNumTrees = options_.numTrees * chains_.size()`; `observationLeaf_` is
 `totalNumTrees * n` int32; `leafCounts_` is per tree, arena-id indexed;
-`treeAt(t)` is `chains_[t / numTrees]->tree(t % numTrees)` (`:1446-1449`) and
-`Chain::tree` is `forests_[0].trees[t]` (`chain.hpp:2792`). For a BCF,
+`treeAt(t)` is `chains_[t / numTrees]->tree(t % numTrees)` (`[[sampler.hpp:1446-1449@4c018187]]`) and
+`Chain::tree` is `forests_[0].trees[t]` (`[[chain.hpp:2792@4c018187]]`). For a BCF,
 `options_.numTrees` is mu's count alone and tau's differs.
 `observationWouldRemainValid` iterates `leafCounts_.size()` with early exit and
 descends with the candidate code overriding `column_`; `commitObservation` writes
 exactly one cell (`data_.setCell`) plus count bookkeeping. There is no journal and
-no abandon-rollback. `Sampler::updatePredictorPerObservation` (`:1060-1075`) draws
+no abandon-rollback. `Sampler::updatePredictorPerObservation` (`[[chain.hpp:1060-1075@4c018187]]`) draws
 the scan permutation from `chains_[0]->rng()`, and `finalize()` IS
-`revalidateAllChains()` (`:1443`). `updatePredictorPerObservationJointly`
-(`facade.hpp:482`) runs one session per sampler on one shared permutation from
+`revalidateAllChains()` (`[[chain.hpp:1443@4c018187]]`). `updatePredictorPerObservationJointly`
+(`[[facade.hpp:482@4c018187]]`) runs one session per sampler on one shared permutation from
 `samplers[0]->rng()` and installs in every sampler or none.
 
 **The pruning primitives.** `Forest::columnMask` is per forest and pushed onto
 every tree; `VarianceForest::columnMask` likewise.
-`Tree::countVariableUses(uint32_t*)` (`tree.hpp:1072-1074`, recursive helper at
-`:1213`) is an O(nodes) per-tree variable-use census. That is the j-split test and
+`Tree::countVariableUses(uint32_t*)` (`[[tree.hpp:1072-1074@4c018187]]`, recursive helper at
+`[[tree.hpp:1213@4c018187]]`) is an O(nodes) per-tree variable-use census. That is the j-split test and
 it already exists.
 
 **The criterion is not new.** `Chain::stateIsValid` loops every MEAN forest,
 builds a scratch tree per stored tree, repartitions, and returns false unless
-`bottomNodesAreOccupied()` (`chain.hpp:2324`). So "no leaf empties in any tree of
+`bottomNodesAreOccupied()` (`[[chain.hpp:2324@4c018187]]`). So "no leaf empties in any tree of
 any mean forest of this chain, against the current store" is ALREADY the shipped
 acceptance criterion of `setState` and `installForests`. This arc makes the
 transactional path agree with the restore path; it does not invent a criterion.
-The VARIANCE branch (`:2369-2380`) is the exception adjudication 4 turns on.
+The VARIANCE branch (`[[chain.hpp:2369-2380@4c018187]]`) is the exception adjudication 4 turns on.
 
 **Accessors that already exist** and this arc reuses: `Chain::numTreesInForest`
-(`chain.hpp:719`), `Chain::numVarianceTrees` (`:733`), `Chain::forestTreeFits(f,
-out)` (`:885`), `Chain::treeInForestForTesting(f, t)` (`:2830`),
-`Chain::varianceTreeForTesting(j)` (`:2838`), `Chain::varianceFactorsForTesting`
-(`:2841`), `Sampler::numTreesInForest(f)` (`sampler.hpp:1163`),
-`Sampler::numForests()` (`:1118`), `Sampler::getState(SamplerStateData&)`
-(`:588`). Only `Chain::totalFits()` (`chain.hpp:2800`) is forest-0 pinned and
+(`[[chain.hpp:719@4c018187]]`), `Chain::numVarianceTrees` (`[[chain.hpp:733@4c018187]]`), `Chain::forestTreeFits(f,
+out)` (`[[chain.hpp:885@4c018187]]`), `Chain::treeInForestForTesting(f, t)` (`[[chain.hpp:2830@4c018187]]`),
+`Chain::varianceTreeForTesting(j)` (`[[chain.hpp:2838@4c018187]]`), `Chain::varianceFactorsForTesting`
+(`[[chain.hpp:2841@4c018187]]`), `Sampler::numTreesInForest(f)` (`[[sampler.hpp:1163@4c018187]]`),
+`Sampler::numForests()` (`[[sampler.hpp:1118@4c018187]]`), `Sampler::getState(SamplerStateData&)`
+(`[[sampler.hpp:588@4c018187]]`). Only `Chain::totalFits()` (`[[chain.hpp:2800@4c018187]]`) is forest-0 pinned and
 needs a per-forest sibling.
 
 **Factories.** `createBCFSampler` returns nullptr on `numVarianceTrees > 0` at
-`facade.hpp:667`; `createMultinomialSampler` at `:680`. (The memo cited 631/644,
+`[[facade.hpp:667@4c018187]]`; `createMultinomialSampler` at `[[facade.hpp:680@4c018187]]`. (The memo cited 631/644,
 the critique corrected to 651/664; both are stale at fed324e - the weight channel
 moved them again.) E = 3 stays unconstructible.
 
@@ -246,7 +246,7 @@ moved them again.) E = 3 stays unconstructible.
 predictor mutation: `equivalence.R`, `multinomial-equivalence.R` and
 `bcf-equivalence.R` all return zero hits for
 `setPredictor|updatePredictor|PerObservation`. `equivalence.R`'s only mutation
-surfaces are `setData`, `setWeights` and `setTestOffset` (`:646-665`). The trio as
+surfaces are `setData`, `setWeights` and `setTestOffset` (`[[facade.hpp:646-665@4c018187]]`). The trio as
 it stands is necessary and NOT sufficient for this arc, on all three baselines.
 S0 fixes that before any engine change; see "The harness this arc needs".
 `bench-sampler.R` has `setPredictor` accept and reject arms and NO creation arm,
@@ -281,10 +281,10 @@ Two consequences the design must respect:
 
 ## The live defect, and the stop-loss
 
-`dbarts_sampler_setPredictor` (`src/C_interface.cpp:239-254`) and
-`dbarts_sampler_updatePredictor` (`:256-275`) carry NO multi-forest and no
-variance-forest guard. Their siblings `setResponse` (`:199`), `setOffset` (`:208`),
-`setWeights` (`:215`) and `setTestOffset` (`:295`) all carry
+`dbarts_sampler_setPredictor` (`[[src/C_interface.cpp:239-254@4c018187]]`) and
+`dbarts_sampler_updatePredictor` (`[[src/C_interface.cpp:256-275@4c018187]]`) carry NO multi-forest and no
+variance-forest guard. Their siblings `setResponse` (`[[src/C_interface.cpp:199@4c018187]]`), `setOffset` (`[[src/C_interface.cpp:208@4c018187]]`),
+`setWeights` (`[[src/C_interface.cpp:215@4c018187]]`) and `setTestOffset` (`[[src/C_interface.cpp:295@4c018187]]`) all carry
 `refuseMultiForestMutation`. This is reachable TODAY: `dbarts_sampler_create`
 routes to `createHolder`, which calls `applyVarianceAttributes`, so a
 heteroscedastic sampler is flat-creatable from a `dbartsSpec(variance = ...)`
@@ -313,13 +313,13 @@ self-consistent and merely wrong.
 Scope: heteroscedastic ONLY at fed324e. `resolveFamily` has no multinomial branch
 and `createHolder` never reaches `createBCFHolder`, so neither multi-forest shape
 is flat-creatable yet. **bcf-public-surface S1 changes that**
-(`bcf-public-surface.md:296-318`: `createHolder` reads the treatment slot and
+(`[[bcf-public-surface.md:296-318@4c018187]]`: `createHolder` reads the treatment slot and
 routes to `createBCFSampler`), at which point the same hole strands tau on every
 flat BCF.
 
 R5 wrinkle worth recording, because a reader checking this by hand gets a false
 negative: `sampler$setPredictor(x)` with `forceUpdate` MISSING defaults to TRUE
-for a whole matrix (`R/bartcore.R:118-122`, `forceUpdate <- is.null(column)`), so
+for a whole matrix (`[[R/bartcore.R:118-122@4c018187]]`, `forceUpdate <- is.null(column)`), so
 the transactional path must be requested explicitly.
 
 **Disposition: a standalone guard commit (SL), landing out of band, BEFORE
@@ -390,7 +390,7 @@ three. Reject on the BENEFIT and the EVIDENCE, not on the description: the
 benefit is at most 0.037 pp of install rate, the only evidence is one surrogate
 that gates nothing, and there is no reversibility argument for the resulting
 kernel while the one recorded consumer treats the install mask as an MH accept
-mask (`bairrtt/R/irt_causal_bart.R:614`, rejected rows reverted as rejected MH
+mask (`[[bairrtt/R/irt_causal_bart.R:614@4c018187]]`, rejected rows reverted as rejected MH
 moves). A collapse is not an involution: it accepts the move AND changes tree
 structure irreversibly, in scan order, and neither mandated BCF oracle
 (`bcf-exact.R`, `bcf-exact-restricted.R`) can see it. The strongest form - E2
@@ -519,7 +519,7 @@ field" stops being expressible:
       LiveGeometry geom;        // the live structures getState does not carry
     };
 
-- `state` is compared with `statesAgree` (`tests/cpp/common.cpp:25`), which
+- `state` is compared with `statesAgree` (`[[tests/cpp/common.cpp:25@4c018187]]`), which
   already compares every persisted field per chain and per forest and which the
   state round-trip fuzz keeps honest.
 - `geom` is built by INDEX LOOPS ONLY, with no forest literal anywhere: for each
@@ -537,16 +537,16 @@ field" stops being expressible:
   honest but not airtight - a small field can hide in padding - which is why F4
   exists beside it.
 - One engine addition: a per-forest `Chain::totalFitsInForest(f)` beside the
-  forest-0 `totalFits()` (`chain.hpp:2800`).
+  forest-0 `totalFits()` (`[[chain.hpp:2800@4c018187]]`).
 
 Related, and a real gap neither design document names:
 `fuzzInvariantViolation`'s "totalFits != tree-order sum" check
-(`test_fuzz.cpp:118-123`) sums forest 0's fits against forest 0's total. It is
+(`[[test_fuzz.cpp:118-123@4c018187]]`) sums forest 0's fits against forest 0's total. It is
 self-consistent, so it will not misfire on a BCF - it simply does not cover forest
 1. S1 generalizes it to loop forests. The rest of `fuzzInvariantViolation` is
-already forest-generic (routing agreement over `ch.numForests()` at `:126-130`, the
+already forest-generic (routing agreement over `ch.numForests()` at `[[test_fuzz.cpp:126-130@4c018187]]`, the
 variance forest and the `combinedVariance == prod(factors)` identity at
-`:131-151`), which is why the BCF fuzz config is scheduled in S1, beside the code
+`[[test_fuzz.cpp:131-151@4c018187]]`), which is why the BCF fuzz config is scheduled in S1, beside the code
 it gates, and not in S4.
 
 ## The harness this arc needs
@@ -556,7 +556,7 @@ that BEFORE any engine change, so the recorded baseline is a true pre-change
 baseline and every later slice compares against a harness that can see the paths
 it moves.
 
-`equivalence.R`: `fitViaSamplerApi`'s `scenario$mutate` block (`:654-662`) gains
+`equivalence.R`: `fitViaSamplerApi`'s `scenario$mutate` block (`[[test_fuzz.cpp:654-662@4c018187]]`) gains
 predictor keys beside `weights` and `offset.test`. New scenarios, each burning in,
 mutating, then running a short second leg so carried-over tree state matters:
 
@@ -584,7 +584,7 @@ both shapes.
 
 Baseline procedure, which the harness already supports: a scenario absent from a
 baseline is reported SKIPPED, not failed, and "the anchor re-records at landing"
-is the established pattern (`equivalence.R:427-428, 457-458, 482-483`). So S0
+is the established pattern (`[[equivalence.R:427-428@4c018187]], 457-458, 482-483`). So S0
 records all three baselines at its own tip - `equivalence-<S0>.rds`,
 `multinomial-equivalence-<S0>.rds`, `bcf-equivalence-<S0>.rds` - and the S0 commit
 must first show every PRE-EXISTING scenario bitwise identical to
@@ -608,8 +608,8 @@ floor for later work.
    one-shared-helper mechanism bcf-public-surface S3 prescribes, so the two
    surfaces cannot diverge.
 2. Call `refuseMultiForestTransactionalUpdate(engine, "dbarts_sampler_setPredictor",
-   forceUpdate != 0)` at `C_interface.cpp:239`, and the same at
-   `dbarts_sampler_updatePredictor` (`:256`), before the column validation.
+   forceUpdate != 0)` at `[[C_interface.cpp:239@4c018187]]`, and the same at
+   `dbarts_sampler_updatePredictor` (`[[C_interface.cpp:256@4c018187]]`), before the column validation.
 3. `inst/tinytest/capi/consumer.c` drives a heteroscedastic sampler built through
    `dbarts_sampler_create` and asserts the refusal at `forceUpdate = 0` and the
    success at `forceUpdate = 1`, for both entries.
@@ -628,7 +628,7 @@ ABORT: any trio divergence.
 1. Pins for the refusals this arc will retire, so a later slice cannot open one
    silently. **Ownership, settled here:** bcf-public-surface S0 already pins the
    BCF transactional `setPredictor` and the per-observation session
-   (`bcf-public-surface.md:286-289`) and lands FIRST, so it OWNS the BCF pins.
+   (`[[bcf-public-surface.md:286-289@4c018187]]`) and lands FIRST, so it OWNS the BCF pins.
    This slice writes only the pins that arc does not: on a MULTINOMIAL and on a
    HETEROSCEDASTIC sampler, transactional `setPredictor` / `updatePredictor` and
    both per-observation entries REFUSE with their current messages, while forced
@@ -665,7 +665,7 @@ Lifts the whole-matrix and subset transaction for BCF and multinomial.
    per-forest `totalFitsInForest` accessor and the generalized totalFits invariant
    check.
 5. A BCF `ConfigSpec` and a `fuzzRunBCF` sibling of `fuzzRunConstant`
-   (`test_fuzz.cpp:506-546`) constructing `Sampler<ConstantGaussianLeaf>` with a
+   (`[[test_fuzz.cpp:506-546@4c018187]]`) constructing `Sampler<ConstantGaussianLeaf>` with a
    `BCFSpec` and a treatment vector; op mask covering `OP_SET_PREDICTOR`,
    `OP_UPDATE_COLUMNS`, `OP_SET_CUTS`, `OP_RUN`, `OP_STATE` and EXCLUDING
    `OP_SET_DATA`, `OP_SET_RESPONSE`, `OP_SET_WEIGHTS`, `OP_SET_OFFSET` (refused
@@ -737,8 +737,8 @@ ABORT: any trio divergence.
    `Chain::varianceTree(j)`; the survivor table gains a variance arm (there is no
    `numTreesInForest` entry for it - use `numVarianceTrees()`).
 5. **Close `stateIsValid`'s variance occupancy gap** (adjudication 4): the variance
-   branch (`chain.hpp:2369-2380`) gains the scratch build, the repartition and the
-   `bottomNodesAreOccupied()` test its mean sibling has at `:2324`. Without this
+   branch (`[[chain.hpp:2369-2380@4c018187]]`) gains the scratch build, the repartition and the
+   `bottomNodesAreOccupied()` test its mean sibling has at `[[chain.hpp:2324@4c018187]]`. Without this
    the arc retires a refusal message that points users at a route WEAKER than the
    veto it is giving them. This CHANGES `setState` behavior - a variance state with
    an unoccupied bottom stops installing - so it carries its own tinytest and the
@@ -750,7 +750,7 @@ ABORT: any trio divergence.
    rather than leave it dead by accident.
 7. The heteroscedastic config in `test_fuzz.cpp` re-admits `OP_SET_PREDICTOR |
    OP_UPDATE_COLUMNS | OP_PER_OBS | OP_SESSION_ABANDON`; the "for the whole arc"
-   comment at `:643-648` is EDITED, not silently flipped.
+   comment at `[[chain.hpp:643-648@4c018187]]` is EDITED, not silently flipped.
 8. The heteroscedastic transactional and per-observation equivalence scenarios,
    recorded at this tip.
 
@@ -838,11 +838,11 @@ rng: NEUTRAL. Gates: `tests/cpp` from clean plus ASAN; full tinytest; trio bitwi
   the recovery after the repartition and it must fail (it then reads the new
   partition's members out of the old leaves' slots). It need NOT cover the
   missing-direction drop, which is routing-neutral by construction
-  (`tree.hpp:1062-1067`, `:1213-1223`).
+  (`[[tree.hpp:1062-1067@4c018187]]`, `[[tree.hpp:1213-1223@4c018187]]`).
 - **F11 (S3), forced-path invariance.** `hetforce` and the heteroscedastic
   `setData` path are bitwise across the `refreshVarianceForest` split. Divergence
   aborts S3; it is never a re-record.
-- **F12 (standing, not new work).** `tests/cpp/test_model.cpp:718-733` already
+- **F12 (standing, not new work).** `[[tests/cpp/test_model.cpp:718-733@4c018187]]` already
   asserts that `createBCFSampler` and `createMultinomialSampler` return nullptr on
   `numVarianceTrees > 0`. E = 3 stays unconstructible; no slice may make it
   reachable as a side effect.
@@ -961,16 +961,16 @@ LANDED (see Landing notes).
 ## Migration costs per consumer (enumerated, never constraining)
 
 - **bairrtt** (`/Users/vdorie/Repositories/bairrtt`, live R5 driver: two
-  `dbarts::dbarts` samplers at `irt_causal_bart.R:446, 458`,
-  `updatePredictorPerObservationJointly` at `:609`,
-  `setPredictor(forceUpdate = TRUE)` during burn at `:619, 624`, rejected rows
-  reverted as rejected MH moves at `:614`). Existing code: ZERO change - it is
+  `dbarts::dbarts` samplers at `[[irt_causal_bart.R:446@4c018187]], 458`,
+  `updatePredictorPerObservationJointly` at `[[irt_causal_bart.R:609@4c018187]]`,
+  `setPredictor(forceUpdate = TRUE)` during burn at `[[irt_causal_bart.R:619@4c018187]], 624`, rejected rows
+  reverted as rejected MH moves at `[[irt_causal_bart.R:614@4c018187]]`). Existing code: ZERO change - it is
   homoscedastic single-forest and every path it uses is untouched and gated bitwise
   from S0 on. What it GAINS: the ability to make its outcome model a two-forest
   causal forest with the latent ability as a treatment moderator, the motivating
   class. What it still needs BEYOND this arc: the BCF test surface - its MH filter
-  calls `$predict` (`:568, 571, 636, 637, 709, 713`), which
-  `refuseUndefinedTestFits` refuses (`R_interface_bartcore.cpp:2858`). This
+  calls `$predict` (`[[irt_causal_bart.R:568@4c018187]], 571, 636, 637, 709, 713`), which
+  `refuseUndefinedTestFits` refuses (`[[R_interface_bartcore.cpp:2858@4c018187]]`). This
   arc removes ONE of its two blockers; stated plainly so no reader over-reads
   "the named consumer is unblocked". Its measured price for the widening at
   its own shape: 0.043% (continuous) / 0.226% (binary) of moves rejected at
@@ -1005,7 +1005,7 @@ LANDED (see Landing notes).
   captured op, the fuzz configs must not pair a pooled categorical with a variance
   forest until that is fixed; today's heteroscedastic config uses three ordinal
   columns and does not.
-- **Occupancy-aware proposals** (`docs/design/empty-leaf-veto.md:115`, a 250-400
+- **Occupancy-aware proposals** (`[[docs/design/empty-leaf-veto.md:115@4c018187]]`, a 250-400
   line posterior-changing rewrite). Not needed - that was the KILL branch and no
   KILL clause fired.
 
@@ -1028,9 +1028,9 @@ LANDED (see Landing notes).
 ## TODO edits at landing
 
 - `multiforest-predictor-mutation`: replace the entry with the landing record.
-  Correct its two stale anchors - `R_interface_bartcore.cpp:1909-1923` ->
-  `refuseMultiForestTransactionalUpdate` (`:2136-2144` at fed324e); `chain.hpp:1484`
-  -> `Chain::revalidateTrees` (`:1571` at fed324e) - and strike "The BCF half is
+  Correct its two stale anchors - `[[R_interface_bartcore.cpp:1909-1923@4c018187]]` ->
+  `refuseMultiForestTransactionalUpdate` (`[[R_interface_bartcore.cpp:2136-2144@4c018187]]` at fed324e); `[[chain.hpp:1484@4c018187]]`
+  -> `Chain::revalidateTrees` (`[[chain.hpp:1571@4c018187]]` at fed324e) - and strike "The BCF half is
   only consumable behind bcf-public-surface", which bcf-public-surface's landing
   retires. Record fork 2 as settled: the veto is per sampler.
 - `variance-forest-mutation-routing`: close its transactional door, or record it as
@@ -1057,7 +1057,7 @@ LANDED (see Landing notes).
    beside it. Reason: the omitted-field pattern had to be closed structurally, not
    per test.
 4. **The `dropStaleMissingDirections` ordering advisory is OVERTURNED**, with the
-   receipt at `tree.hpp:1213-1223`.
+   receipt at `[[tree.hpp:1213-1223@4c018187]]`.
 5. **Two findings neither document has:** `fuzzInvariantViolation`'s totalFits check
    covers forest 0 only and must be generalized for the BCF config; and
    `Chain::totalFits()` is forest-0 pinned and needs a per-forest sibling for the
@@ -1117,7 +1117,7 @@ partial-matches list keys (the new mutate keys are read with [[ ]]
 and named prefix-free); the bcf/multinomial compare loops print no
 line for a run-only scenario (uncovered additions were verified by
 hand at recording); the refuse* helpers now live at
-R_interface_bartcore.cpp:2605/2625 after SL's promotion. Gates
+[[R_interface_bartcore.cpp:2605@4c018187]]/2625 after SL's promotion. Gates
 double-run (implementer + independent verifier): install, tinytest
 3982/0, the neutrality and self-reproduction partitions above, air 0,
 lintr no new findings.
@@ -1261,7 +1261,7 @@ refuseVarianceForestPredictorMutation deleted AND
 refuseMultiForestTransactionalUpdate deleted with it - the variance
 clause was its whole body - so the flat C entries are unguarded
 again BY DESIGN: the path SL's stop-loss protected is now legal, the
-SL/F13 pins inverted in place at test-capi.R:167-215, and the flat
+SL/F13 pins inverted in place at [[test-capi.R:167-215@4c018187]], and the flat
 decline arm is reachable and pinned through a new test-support
 capi_update_predictor_fixed_cuts wrapper in the tinytest consumer.c
 (dbarts.h zero diff). Fuzz: the heteroscedastic config re-admits

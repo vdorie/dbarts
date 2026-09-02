@@ -16,9 +16,9 @@ its reported vocabulary (value + directions).
 
 ## Context
 
-- FlatNode {variable, value(double), flags}: src/bartcore/tree.hpp:129-135;
-  mask bit-cast at :1177, pool-offset-in-double at :1166;
-  maxValueEncodableCategories = 53 (src/bartcore/data.hpp:119-120).
+- FlatNode {variable, value(double), flags}: [[src/bartcore/tree.hpp:129-135@6669dfe0]];
+  mask bit-cast at [[src/bartcore/tree.hpp:1177@6669dfe0]], pool-offset-in-double at [[src/bartcore/tree.hpp:1166@6669dfe0]];
+  maxValueEncodableCategories = 53 ([[src/bartcore/data.hpp:119-120@6669dfe0]]).
 - Machinery that exists only for double-compatibility (from the
   pooled-masks audit): the flat two-tier split at 53 vs the engine's
   real 63/64 tier, the side channel for 54-63 where the engine mask is

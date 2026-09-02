@@ -115,14 +115,14 @@ item below.
 
 ### Code (F1-F11)
 
-F1. generics.R:198 object$weigths typo: train-sample PPD ignores
+F1. [[generics.R:198@c44fcbc5]] object$weigths typo: train-sample PPD ignores
     case weights silently (verified live: weighted halves both draw
     at unweighted sigma). Landed: fixed, with a new weighted-PPD
     variance-contrast regression test
     (test-generics-posteriorPredictiveDistribution.R).
 
 F2. extract(rbartFit, type = "trees") crashes for single-chain fits
-    (generics.R:571-577 selects an absent chain column; the
+    ([[generics.R:571-577@c44fcbc5]] selects an absent chain column; the
     package's own rbart example configuration). Landed: the trees
     data.frame's column selection previously used a fixed varOrder
     match, which for fits with directions/missing/beta.* columns
@@ -172,7 +172,7 @@ F6. validateXTest's commented-out warning branch (data.R ~102)
     replacement) rather than turning into a naming test.
 
 F7. xbart n.test error prints the literal placeholder "[2, N]"
-    (xbart.R:271). Landed: fixed, as specified.
+    ([[xbart.R:271@c44fcbc5]]). Landed: fixed, as specified.
 
 F8. bart()'s legacy coercions bypass coerceOrError: bad ndpost/
     nskip/ntree first emit a generic NAs-introduced warning, then

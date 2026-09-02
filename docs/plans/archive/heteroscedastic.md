@@ -24,13 +24,13 @@ channel, nullable variance forest; two riders in section 2). Anchors, re-verifie
 - Chain<L> holds vector<Forest<L>> with one shared leaf type (chain.hpp ~286); the
   variance leaf differs -> a nullable distinctly-typed member (design section 6).
 - Conjugate move + per-leaf marginal reused across leaf types: moves.hpp ~61-78;
-  metropolisJumpForTree chain.hpp:702. Additive roll rollTreeResidual chain.hpp:713
+  metropolisJumpForTree [[chain.hpp:702@bd098397]]. Additive roll rollTreeResidual [[chain.hpp:713@bd098397]]
   is NOT reused (the variance roll is multiplicative, divide by s^2_{-j}).
-- Weight channel: response_->workingWeights(), pulled at chain.hpp:783 (latent
+- Weight channel: response_->workingWeights(), pulled at [[chain.hpp:783@bd098397]] (latent
   families own it -> gaussian-only refusal). LinearGaussianLeaf own-span suffstat
-  accumulation (model.hpp:828-855) is the scale-leaf precedent.
-- chi^-2 prior + draw: ChiSquaredScalePrior (model.hpp:2287-2307; posteriorScale =
-  df*scale + weighted SSR at :2304); ext_rng_simulateChiSquared random.h:137.
+  accumulation ([[model.hpp:828-855@bd098397]]) is the scale-leaf precedent.
+- chi^-2 prior + draw: ChiSquaredScalePrior ([[model.hpp:2287-2307@bd098397]]; posteriorScale =
+  df*scale + weighted SSR at [[model.hpp:2304@bd098397]]); ext_rng_simulateChiSquared [[random.h:137@bd098397]].
 
 ## Constraints
 

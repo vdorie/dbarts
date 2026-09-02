@@ -12,7 +12,7 @@ bridge on a schedule, and its current findings are fixed or annotated.
 ## Context
 
 - The bridge hand-manages a protection scheme (the PROT_* fixed slots
-  in src/R_interface_bartcore.cpp:35-50, retain/release around
+  in [[src/R_interface_bartcore.cpp:35-50@1530ed7c]], retain/release around
   transactional setters) - exactly rchk's bug class, and
   data-ownership will churn this code.
 - Available harness: the kalibera/rchk docker image; community actions

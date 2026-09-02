@@ -13,7 +13,7 @@ count.
 ## Context
 
 - Serial today: findBottomNodeForRow per row per tree
-  (src/bartcore/chain.hpp; tree.hpp:808). Rows are independent and
+  (src/bartcore/chain.hpp; [[tree.hpp:808@13e6154c]]). Rows are independent and
   writes are disjoint (each row owns its output slot), so partitioning
   rows across the existing chain worker threads preserves order and
   values exactly.

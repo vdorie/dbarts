@@ -109,7 +109,7 @@ regression on the default path, not to gain speed; the memory win
   write-back deletes); R side already re-assigns data@x.
 - updatePredictor column-subset / per-observation partial: codes
   update from supplied values; write-through
-  (sampler.hpp:858/861/1059, data.hpp:784/801 const_cast) DIES;
+  ([[sampler.hpp:858@915dfdde]]/861/1059, [[data.hpp:784@915dfdde]]/801 const_cast) DIES;
   the R helper keeps data@x current per the Q2 interim; the
   installed-mask contract unchanged.
 - setCutPoints: R method passes current data@x; bridge re-quantizes

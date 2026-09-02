@@ -42,7 +42,7 @@ were already correct and are untouched.
 ## Context
 
 - src/bartcore/model.hpp ChiKHyperprior (shape line).
-- R/bart.R:269 .kDefault; R/model.R:347 resolveNodeHyperprior, :451 chi().
+- [[R/bart.R:269@14bd6b52]] .kDefault; [[R/model.R:347@14bd6b52]] resolveNodeHyperprior, [[R/model.R:451@14bd6b52]] chi().
 - correctness-audit.md Block 3 ADJUDICATED FINDING.
 
 ## Test

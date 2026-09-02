@@ -19,10 +19,10 @@ sanitizers workflow's valgrind leg (its first run, 2026-07-07, run id
   those buffers. setState already handles this with an error
   accumulator (see its comment); the parsers and setters do not.
 - Valgrind-confirmed sites (first leg run): parseData columnTypes
-  (R_interface_bartcore.cpp:368) and maxNumCuts (:440) reached from
-  createHolder (:1087), createFromHandle (:1208), and setData (:1514);
-  scratch vectors in createFromHandle (:1224) and setCutPoints
-  (:1865). 15 error contexts, 31 blocks, 1457 bytes definitely lost.
+  ([[R_interface_bartcore.cpp:368@04cd67a9]]) and maxNumCuts ([[R_interface_bartcore.cpp:440@04cd67a9]]) reached from
+  createHolder ([[R_interface_bartcore.cpp:1087@04cd67a9]]), createFromHandle ([[R_interface_bartcore.cpp:1208@04cd67a9]]), and setData ([[R_interface_bartcore.cpp:1514@04cd67a9]]);
+  scratch vectors in createFromHandle ([[R_interface_bartcore.cpp:1224@04cd67a9]]) and setCutPoints
+  ([[R_interface_bartcore.cpp:1865@04cd67a9]]). 15 error contexts, 31 blocks, 1457 bytes definitely lost.
   Treat the listed sites as examples of the class, not the whole of
   it: audit every extern "C" entry point that mixes owning C++ locals
   with Rf_error-capable calls.

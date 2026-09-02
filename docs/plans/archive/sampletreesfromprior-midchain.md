@@ -9,7 +9,7 @@ rng: neutral for every current call site in the repo and all four
 ## Defect
 
 Found 2026-08-07 by the fused-suffstat design pass (recorded 6a94ec2).
-Mid-chain sampleTreesFromPrior (chain.hpp:1203) zeroed muByTree to the
+Mid-chain sampleTreesFromPrior ([[chain.hpp:1203@4c018187]]) zeroed muByTree to the
 new arena while totalFits kept the pre-reset fits, so every later
 sweep's residual rolled displaced - permanently, since
 finalizeTotalFits overwrites from a residual that carries the term
@@ -67,7 +67,7 @@ nodes.size(), never mu). New inst/tinytest/test-sampler-prior-midchain.R
 reset, and probit arms, each with its no-reset ulp control. Falsifier
 discipline held: every behavioral test failed on the unpatched engine
 (gaussian 4.24, growFromRoot 4.32, probit 0.277 vs ~1e-15 controls);
-T0 plus the pre-existing fused-decline check (test_moves.cpp:1021-1022,
+T0 plus the pre-existing fused-decline check ([[test_moves.cpp:1021-1022@4c018187]],
 the trap detector) failed on the rebuildLeafOf trapped variant.
 Gates, implementer and orchestrator independently: tests/cpp plain and
 ASAN/UBSAN from make clean all-pass; tinytest 3665/0 (3659 + 6), no

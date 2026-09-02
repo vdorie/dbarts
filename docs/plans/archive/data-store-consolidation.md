@@ -31,7 +31,7 @@ builds and transactions is written once.
    one per-column source descriptor (dense-owned | dense-borrowed |
    csc-rank | csc-densified, + slice + refCode).
 3. Build-reset boilerplate restated per builder (~20 field resets x3
-   at data.hpp:646-674, 702-739, 974-1021; test resets x4): 
+   at [[data.hpp:646-674@ff958921]], 702-739, 974-1021; test resets x4): 
    resetTrainStorage()/resetTestStorage() helpers.
 4. Sampler transaction scaffolding duplicated (sampler.hpp
    setPredictor vs updatePredictor: precheck loop, snapshot set, and
@@ -39,14 +39,14 @@ builds and transactions is written once.
    column list; fold the store-owned rollback record here (the review
    found rollback invariants maintained by convention across layers).
 5. isView conflates provenance with capability (view == no-raw ==
-   refuse-mutation, data.hpp:129-133); split before any aliased
+   refuse-mutation, [[data.hpp:129-133@ff958921]]); split before any aliased
    sharing (data-ownership open plan 4) lands.
 6. DataHandle gathers ALL raw columns unconditionally
-   (R_interface_bartcore.cpp:1891-1896): ~400MB at n=1e6 p=50 that a
+   ([[R_interface_bartcore.cpp:1891-1896@ff958921]]): ~400MB at n=1e6 p=50 that a
    constant-leaf consumer never reads. Gate the gather on the
    prospective leaf actually reading raw.
 7. Linear-leaf u_ is column-major against per-member row access
-   (model.hpp:389,408): row-major fits the gather; linear leaf only.
+   ([[model.hpp:389@ff958921]], [[model.hpp:408@ff958921]]): row-major fits the gather; linear leaf only.
 8. Honesty: quantizeColumn vs setColumnJournaled share their body -
    an observer-parameterized quantize core serves both (deferred from
    the remediation arc); the design docs' u8 memory claim is 2x

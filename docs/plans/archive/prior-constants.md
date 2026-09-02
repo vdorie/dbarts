@@ -15,15 +15,15 @@ dedicated argument.
 
 - Unargued defaults on the new surface (audit, 2026-07-06): k = 2,
   power = 2, base = 0.95 (CGM/BayesTree), sigdf = 3 / sigquant = 0.9
-  (CGM 2010; src/bartcore/model.hpp:1613-1615 attributes to "the
+  (CGM 2010; [[src/bartcore/model.hpp:1613-1615@7d43dc5c]] attributes to "the
   classic engine"), node.scale 3.0 probit (bare anchor; logistic
-  pi*sqrt(3) is derived FROM it, R/dbarts.R:295-302), n.trees 200
+  pi*sqrt(3) is derived FROM it, [[R/dbarts.R:295-302@7d43dc5c]]), n.trees 200
   (BayesTree) / 75 (dbarts historical), dart update delay = half
-  burn-in (BART package startdart convention, R/model.R:123-127).
+  burn-in (BART package startdart convention, [[R/model.R:123-127@7d43dc5c]]).
 - Grouped tau slice sampling takes exactly n.thin steps because the
   rbart_vi R loop did (docs/design/grouped-random-effects.md, "the R
   loop's coupling").
-- man/bart.Rd:336-345 cites CGM 2006/2009 generically, tying no
+- [[man/bart.Rd:336-345@7d43dc5c]] cites CGM 2006/2009 generically, tying no
   constant to a source.
 
 ## Constraints

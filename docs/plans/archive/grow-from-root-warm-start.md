@@ -69,7 +69,7 @@ never a standalone posterior sampler (memo NO-GO stands).
    updateState = FALSE) mirroring sampleTreesFromPrior. tinytest:
    grow/continue/well-formed; cross-sampler donor$growFromRoot ->
    target$installTrees(donor) round trip (no new install code).
-4. bart2 surface at the bart.R:453 init fork + Rd + end-to-end
+4. bart2 surface at the [[bart.R:453@a03839d7]] init fork + Rd + end-to-end
    tests (grow-initialized fit converges and beats prior-init on
    early-iteration train RMSE; seeded reproducibility) + landing
    note in docs/design/grow-from-root.md. DECIDED (VD 2026-07-10,

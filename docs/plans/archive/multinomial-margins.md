@@ -14,10 +14,10 @@ a running prefix merge, two-term LSE per (i, f).
 
 ## Context
 
-- drawForestGlue(f) (combiner.hpp:645-659) forms C_if =
+- drawForestGlue(f) ([[combiner.hpp:645-659@23fff839]]) forms C_if =
   log sum_{j != f} exp(f_ij) via otherCategoryMargin
-  (combiner.hpp:775-784), O(K) exps per call -> O(nK^2) per sweep.
-- The interleaving contract (comment at combiner.hpp:638-644): when
+  ([[combiner.hpp:775-784@23fff839]]), O(K) exps per call -> O(nK^2) per sweep.
+- The interleaving contract (comment at [[combiner.hpp:638-644@23fff839]]): when
   category f draws, forests[j].totalFits for j < f hold THIS sweep's
   fits, j > f hold LAST sweep's. Any restructure must reproduce
   exactly that mix - a whole-sweep precompute over one snapshot is

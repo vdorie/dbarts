@@ -15,23 +15,23 @@ review proposed are recorded as TODO entries, not taken here.
 ## Findings addressed
 
 - B1 (two reviewers independently): UpdateSessionImpl::commitObservation
-  (sampler.hpp:1180-1188) re-inlines ColumnStore::setCell
-  (data.hpp:1173-1180) minus its `hasMissing[j] = 1` line, and bridge
-  validateColumnValues (R_interface_bartcore.cpp:1505-1512) checks
+  ([[sampler.hpp:1180-1188@bd5279a1]]) re-inlines ColumnStore::setCell
+  ([[data.hpp:1173-1180@bd5279a1]]) minus its `hasMissing[j] = 1` line, and bridge
+  validateColumnValues ([[R_interface_bartcore.cpp:1505-1512@bd5279a1]]) checks
   categoricals only - an ordinal NA committed per-observation leaves the
   MIA gauge stale: descent routes naCode by a missing bit that
   dropStaleMissingDirections clears, while the NA-free partition kernel
   routes it always-right. Verified by direct read.
-- B2: setColumnJournaled's CSC branch (data.hpp:1124-1130) is dead
+- B2: setColumnJournaled's CSC branch ([[data.hpp:1124-1130@bd5279a1]]) is dead
   (refuseViewSampler blocks all mutation on CSC stores,
-  R_interface_bartcore.cpp:1381-1387) and wrong if ever live (snapshots
+  [[R_interface_bartcore.cpp:1381-1387@bd5279a1]]) and wrong if ever live (snapshots
   through codeOffsets[j], unused by rank columns). Verified.
-- B3: bartcore_setResponse (R_interface_bartcore.cpp:2508-2525) checks
+- B3: bartcore_setResponse ([[R_interface_bartcore.cpp:2508-2525@bd5279a1]]) checks
   type/length only - NA response reaches the sampler though
-  construction rejects anyNA(y) (data.R:899-901); setWeights skips the
-  R-side checks dbartsData's validity enforces (A_class.R:465-478)
+  construction rejects anyNA(y) ([[data.R:899-901@bd5279a1]]); setWeights skips the
+  R-side checks dbartsData's validity enforces ([[A_class.R:465-478@bd5279a1]])
   while setPredictor/setOffset validate. Verified.
-- P1: codeFor's ordinal path (data.hpp:300-309) walks cuts linearly;
+- P1: codeFor's ordinal path ([[data.hpp:300-309@bd5279a1]]) walks cuts linearly;
   a full predictor swap is O(n*C*p) ~ 5e9 comparisons at n=1e6, more
   than a sweep. The loop counts cuts strictly below value, exactly
   std::lower_bound over the same sorted doubles with the same
@@ -51,7 +51,7 @@ C1 (Opus, C++): B1 - commitObservation routes through setCell (delete
   partition agreement check); a codeFor tie-and-boundary check vs the
   old linear scan transcribed in-test.
 C2 (Sonnet, R + bridge): B3 - setResponse rejects NA (R side, matching
-  the setPredictor precedent in bartcore.R:111-121; keep the C length
+  the setPredictor precedent in [[bartcore.R:111-121@bd5279a1]]; keep the C length
   check); setWeights gains the length/non-negativity/NA checks the
   class validity states; setSigma/setOffset audited for the same gap
   and aligned. One shared R helper if it falls out naturally; do not

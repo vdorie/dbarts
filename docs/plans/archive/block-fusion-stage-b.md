@@ -37,7 +37,7 @@ bench: VD grants the quiet machine (MEMORY: bench-sampler on dbarts-bench, x86
 ## 0. What Stage B is, in one screen
 
 Stage A funnels every constant-leaf per-leaf suffstat through the b=1 atom path
-(AtomMap::buildAggregateWrite, chain.hpp:798-806): an atom is one leaf, its
+(AtomMap::buildAggregateWrite, [[chain.hpp:798-806@3137e17a]]): an atom is one leaf, its
 members alias tree.indices, and its (A, G, Q) are the node cache computed
 BITWISE by the same misc kernel. Stage B lifts this to a BLOCK of b consecutive
 trees. An atom becomes a cell of the joint partition of the b trees (design 2.1);
@@ -64,15 +64,15 @@ default until commit (iv) flips it on.
 
 b is a runtime knob. It replaces the role the compile-time `BARTCORE_BLOCK_FUSION`
 flag played in Stage A (which only chose atom-path-vs-legacy). Keep the compile
-flag as the master enable of `useAtomSuffstatSource` (chain.hpp:379-382); add a
-runtime `std::size_t blockSize` per Forest (next to `numTrees`, chain.hpp:261),
+flag as the master enable of `useAtomSuffstatSource` ([[chain.hpp:379-382@3137e17a]]); add a
+runtime `std::size_t blockSize` per Forest (next to `numTrees`, [[chain.hpp:261@3137e17a]]),
 defaulted at Chain construction by the n-adaptive rule (section 8, decision 1).
 `blockSize == 1` is EXACTLY Stage A's path (bitwise); `blockSize > 1` engages
 fusion. The atom path only exists when `useAtomSuffstatSource` is true
 (constant-leaf + compile flag), so a linear/GP forest ignores blockSize entirely.
 
 run()'s tree loop `for (size_t t = 0; t < forest.numTrees; ++t)`
-(chain.hpp:771) becomes a block loop over `ceil(numTrees / blockSize)` blocks,
+([[chain.hpp:771@3137e17a]]) becomes a block loop over `ceil(numTrees / blockSize)` blocks,
 block `[t0, min(t0+blockSize, numTrees))`. At blockSize == 1 each block is one
 tree and the body is byte-for-byte today's per-tree sequence (roll ->
 buildAggregateWrite -> metropolisJumpForTree -> sampleParametersAndSetFits ->
@@ -83,14 +83,14 @@ draw -> S-carry roll, section 4) -> block-exit fit scatter + total update
 math is agnostic to b, so a short final block just fuses fewer trees.
 
 The Stage-A run() wiring that parks the Stage-B bookkeeping at b=1
-(`aCacheBypass = true`, `trackAtomOf = false`, chain.hpp:754-755, and the inert
-S carry note chain.hpp:821-825) becomes conditional on blockSize: OFF at
+(`aCacheBypass = true`, `trackAtomOf = false`, [[chain.hpp:754-755@3137e17a]], and the inert
+S carry note [[chain.hpp:821-825@3137e17a]]) becomes conditional on blockSize: OFF at
 blockSize == 1 (Stage A), ON at blockSize > 1.
 
 ## 2. The owned per-block atom map (design 2.3, 2.4)
 
 Stage A resolved DESIGN A: at b=1 `members` aliases tree.indices and no owned
-buffer exists (atoms.hpp:53-56, 74-75). b>1 needs the owned atom-ordered buffer:
+buffer exists ([[atoms.hpp:53-56@3137e17a]], 74-75). b>1 needs the owned atom-ordered buffer:
 one `atomMembers` per block (a permutation of 0..n-1 grouped by atom, design
 2.3), NOT b per-tree buffers. Add it to AtomMap as an owned `std::vector<size_t>`
 alongside the aliased `members` pointer; at blockSize == 1 keep aliasing
@@ -100,27 +100,27 @@ at the owned buffer.
 Re-enable the three Stage-A-parked mechanisms for b>1 (they are Stage B's, kept
 default-on for the component tests, disabled only on the shipped b=1 path):
 
-- `atomOf` (obs -> atom, atoms.hpp:61, `trackAtomOf`): the move bookkeeping that
+- `atomOf` (obs -> atom, [[atoms.hpp:61@3137e17a]], `trackAtomOf`): the move bookkeeping that
   lets a split/merge find an observation's atom in O(1). Required at b>1.
-- the cross-sweep A cache (atoms.hpp:98-142, `aCacheBypass`): at b>1 the joint
+- the cross-sweep A cache ([[atoms.hpp:98-142@3137e17a]], `aCacheBypass`): at b>1 the joint
   map is PATCHED not rebuilt each sweep (design 4.5, persistence), so A(c) served
   from the memcmp-validated cache saves the O(n) re-scan the b=1 monolithic
   kernel could not. Re-enable it (aCacheBypass = false at b>1).
-- the S carry (atoms.hpp:72, `setInBlockFits`): S(c) = sum over block trees of
+- the S carry ([[atoms.hpp:72@3137e17a]], `setInBlockFits`): S(c) = sum over block trees of
   their fit on c, the Gauss-Seidel coupling carried per atom.
 
 Joint-map build (buildForBlock, new): route each observation through the b block
 trees, form its leaf b-tuple, and bucket it into an atom. This is the O(bn)
 block-init / block-composition-change / periodic-rebuild path (design 4.5); the
 steady-state map PERSISTS and is patched by moves. The b>1 move maintenance
-generalizes the landed b=1 kernels: splitAtom (atoms.hpp:479-565), mergeAtoms
+generalizes the landed b=1 kernels: splitAtom ([[atoms.hpp:479-565@3137e17a]]), mergeAtoms
 (631-657), refreshSubtree (766-792), undoSplit (573-588), snapshotSubtree/
 restoreSubtree (680-725) each currently touch a single leaf slot; at b>1 a move
 in block tree t_j slices only the t_j coordinate of the leaf-tuple, so an atom
 splits/merges against the OTHER b-1 coordinates held fixed (design 4.1-4.3). The
-leafTuple SoA (atoms.hpp:66) widens from one int per atom to b ints per atom.
+leafTuple SoA ([[atoms.hpp:66@3137e17a]]) widens from one int per atom to b ints per atom.
 The atom member partition still reuses the tree's OWN partitionChildren over the
-owned buffer (design 5.2, atoms.hpp:497, 772); no second partitioner is forked.
+owned buffer (design 5.2, [[atoms.hpp:497@3137e17a]], 772); no second partitioner is forked.
 
 ## 3. Block boundaries: the two O(n) passes (design 2.1, 3.5) -- EXACT
 
@@ -128,7 +128,7 @@ Block ENTRY builds the block-static field, all EXACT (no reduction-order change)
 
 - O_i = F_i - sum_{t in block} treeFits[t*n + i], where F is the running
   full-forest fit (maintain F across blocks; it is today's `totalFits` kept
-  current per block instead of rebuilt once per sweep at chain.hpp:843-851).
+  current per block instead of rebuilt once per sweep at [[chain.hpp:843-851@3137e17a]]).
 - g_i = w_i(y_i - O_i) (unweighted: g_i = y_i - O_i). One O(n) scatter into the
   per-atom G(c) = sum_{i in c} g_i and A(c) = sum_{i in c} w_i.
 - S(c) = sum over block trees of the tree's OLD fit on c (from treeFits), so the
@@ -137,18 +137,18 @@ Block ENTRY builds the block-static field, all EXACT (no reduction-order change)
 Block EXIT is the one O(n) scatter per block (design 3.5): for each block tree
 and leaf, write the drawn mu into treeFits[t*n + i] over the atom's members (one
 walk of atomMembers writes all b trees' fits, cache-friendly; or call the
-existing setTreeFitsFromParameters chain.hpp:2105 b times). Maintain a running
+existing setTreeFitsFromParameters [[chain.hpp:2105@3137e17a]] b times). Maintain a running
 full fit F incrementally (F += new block fits - old block fits) so the NEXT
 block's O is available without an O(bn) rescan. Do NOT feed incremental F to the
 sweep-end stages: keep today's once-per-sweep fresh totalFits rebuild
-(chain.hpp:843-851) so the sigma/SSR draw (chain.hpp:865-866) and refreshLatents
-(chain.hpp:856) read the residual materialized EXACTLY from treeFits (design 3.7),
+([[chain.hpp:843-851@3137e17a]]) so the sigma/SSR draw ([[chain.hpp:865-866@3137e17a]]) and refreshLatents
+([[chain.hpp:856@3137e17a]]) read the residual materialized EXACTLY from treeFits (design 3.7),
 never an incrementally-accumulated sum that can drift over sweeps. Incremental F
 is a block-local O accelerator only; if its drift ever matters, recompute a
 block's O exactly as (fresh totalFits - the block trees' fits).
 
 At blockSize == 1 this section is BYPASSED: keep the existing per-tree fused roll
-(chain.hpp:774-787) and the post-loop total rebuild (chain.hpp:843-851). The b=1
+([[chain.hpp:774-787@3137e17a]]) and the post-loop total rebuild ([[chain.hpp:843-851@3137e17a]]). The b=1
 residual path is untouched, so Stage A stays bitwise. The block-boundary g/O/S
 build engages only at blockSize > 1 and is component-tested for exact equality
 against a reference per-tree computation.
@@ -162,20 +162,20 @@ This is the sole floating-point change. For block tree t_j and its leaf L:
   D(L) = sum_{c in atoms(L)} r(c), r(c) = G(c) - A(c)*S(c); then W(L) = sum A(c)
   and sumWeightedResponse(L) = D(L) + mu_{t_j}(L)*W(L). Write (W(L),
   sumWeightedResponse(L)) into the node suffstat cache -- the SAME seam every
-  constant-leaf consumer reads (atoms.hpp:365-382, writeNodeCaches). Feed the
-  UNCHANGED model.hpp math: logIntegratedLikelihood (model.hpp:109-122) and
-  drawFromPosterior (model.hpp:128-143) are byte-for-byte the same functions of
+  constant-leaf consumer reads ([[atoms.hpp:365-382@3137e17a]], writeNodeCaches). Feed the
+  UNCHANGED model.hpp math: logIntegratedLikelihood ([[model.hpp:109-122@3137e17a]]) and
+  drawFromPosterior ([[model.hpp:128-143@3137e17a]]) are byte-for-byte the same functions of
   the suffstat.
 - DROP Q (fact 1.2): sumWeightedResponseSq cancels in every move ratio and is
   unused by drawFromPosterior, so the b>1 atom carries only (A, G, S). The node
   cache's sumWeightedResponseSq is fed 0; logIntegratedLikelihoodForNode still
-  reads it (model.hpp:146-153) but the centeredSumOfSquares term is additive over
+  reads it ([[model.hpp:146-153@3137e17a]]) but the centeredSumOfSquares term is additive over
   any partition, so it cancels identically in logLikelihoodForBranch's
   new-minus-old difference whether Q is the true raw sum (Stage A) or 0 (b>1).
   Dropping Q is itself draw-NEUTRAL; it rides in this commit only because it is a
   b>1-only change (Stage A keeps Q for the b=1 bitwise anchor).
 - DRAW (3.2): drawFromPosteriorForNode reads the node cache, so
-  sampleParametersAndSetFits (chain.hpp:2146-2206) is UNCHANGED -- one standard
+  sampleParametersAndSetFits ([[chain.hpp:2146-2206@3137e17a]]) is UNCHANGED -- one standard
   normal per non-empty leaf, in fillBottom leaf order, same RNG consumption.
 - ROLL (3.3, replaces the O(n) treeY roll): after tree t_j's draw, for each leaf
   L and each atom c in atoms(L), S(c) += (mu_new(L) - mu_old(L)). O(atoms) total;
@@ -196,9 +196,9 @@ the sole re-record trigger. Clean abort: set the default back to 1.
 
 The invariant (MEMORY: dbarts simd reproducibility): same seed => same draws on
 ANY CPU. It holds because the draw-path reductions are SCALAR fixed-order:
-misc_computeIndexedSufficientStatisticsFast (moments.c:334) is a plain mod-5 +
+misc_computeIndexedSufficientStatisticsFast ([[moments.c:334@3137e17a]]) is a plain mod-5 +
 stride-5 loop, NOT SIMD-dispatched (only the mean/variance helpers dispatch,
-moments.c:1330+). The per-atom (A, G) already come from that scalar kernel, so
+[[moments.c:1330@3137e17a]]+). The per-atom (A, G) already come from that scalar kernel, so
 they are byte-identical across ISAs.
 
 Stage B adds ONE new reduction that feeds the draw: the tree-level sum
@@ -217,7 +217,7 @@ D(L) = sum_{c in atoms(L)} r(c). It MUST be a scalar, fixed-order accumulation:
   keep it scalar so FMA/vector-tree reassociation cannot reorder it.
 
 Gate: a tests/cpp component test forces each instruction set via
-misc_stat_setSIMDInstructionSet (moments.c:1330) -- scalar / SSE2 / AVX2 / NEON
+misc_stat_setSIMDInstructionSet ([[moments.c:1330@3137e17a]]) -- scalar / SSE2 / AVX2 / NEON
 as available -- runs a b>1 sweep from a fixed seed, and asserts the drawn
 parameters are byte-identical across all forced ISAs. This is the invariant the
 whole no-backwards-compat reproducibility contract protects.
@@ -233,10 +233,10 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
 
 ### (i) Block driver + runtime blockSize knob. NEUTRAL. ~200 lines.
 - Add `std::size_t blockSize = 1` to Forest; the n-adaptive default rule (returns
-  1 for now, so nothing changes yet). Rewrite run()'s tree loop (chain.hpp:771)
+  1 for now, so nothing changes yet). Rewrite run()'s tree loop ([[chain.hpp:771@3137e17a]])
   as a block loop; at blockSize == 1 the body is byte-for-byte today's per-tree
   sequence. Make the Stage-A b=1 parking (aCacheBypass, trackAtomOf,
-  chain.hpp:754-755) conditional on blockSize.
+  [[chain.hpp:754-755@3137e17a]]) conditional on blockSize.
 - GATE: NEUTRAL -- equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds,
   tinytest full pass NO snapshot regen, tests/cpp clean. Confirmatory bench
   (harness/machine pin). The block loop is a pure refactor of the tree loop.
@@ -261,7 +261,7 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
 ### (iii) Block-boundary g/O/S build + fit scatter-back + running total. EXACT; NEUTRAL at default. ~300 lines.
 - Block-entry O/g/G/A/S seed and block-exit scatter + F update (section 3),
   engaged only at blockSize > 1; blockSize == 1 keeps the per-tree roll
-  (chain.hpp:774-787) and post-loop rebuild (chain.hpp:843-851).
+  ([[chain.hpp:774-787@3137e17a]]) and post-loop rebuild ([[chain.hpp:843-851@3137e17a]]).
 - GATE: NEUTRAL at default. tests/cpp: at b>1, assert g/G/A/S seeds and the
   block-exit treeFits + running total equal a reference per-tree computation in
   EXACT arithmetic (these steps are exact, not a reduction-order change).
@@ -410,7 +410,7 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
 
 NEW (not covered by the five above). The headline gate needs a grid the current
 harness does not have: bench-sampler.R caps at n = 10000, m in {75, 200}, no b
-axis (benchmarks/R/bench-sampler.R:67-69), and the current speed baseline
+axis ([[benchmarks/R/bench-sampler.R:67-69@3137e17a]]), and the current speed baseline
 bench-sampler-32fc7c8.csv has no large-n or b>1 rows to compare against.
 
 Question: how to gate the ~6x headline claim.

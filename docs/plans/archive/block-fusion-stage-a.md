@@ -46,16 +46,16 @@ with ZERO re-record before any floating-point regrouping happens in Stage B.
 The insight that makes it clean and safe: the engine already funnels ALL
 constant-leaf statistics through ONE seam - the node suffstat cache
 `Node::{sumWeights, sumWeightedResponse, sumWeightedResponseSq}`
-(tree.hpp:175-177). Every consumer reads ONLY that cache:
+([[tree.hpp:175-177@3137e17a]]). Every consumer reads ONLY that cache:
 - move scoring: `logLikelihoodForBranch` -> `logIntegratedLikelihoodForNode`
-  reads the node cache (moves.hpp:47-65, model.hpp:146-154);
-- leaf draw: `drawFromPosteriorForNode` reads the node cache (model.hpp:156-162);
+  reads the node cache ([[moves.hpp:47-65@3137e17a]], [[model.hpp:146-154@3137e17a]]);
+- leaf draw: `drawFromPosteriorForNode` reads the node cache ([[model.hpp:156-162@3137e17a]]);
 - k accumulation + fit scatter: `sampleParametersAndSetFits` reads the drawn
-  param (chain.hpp:2105-2136).
+  param ([[chain.hpp:2105-2136@3137e17a]]).
 Only FOUR sites WRITE that cache: `setNodeAverages`/`computeLeafStats`
-(tree.hpp:492-521), `birth`'s two child `computeLeafStats` (tree.hpp:780-781),
-`refreshSubtree`'s leaf `computeLeafStats` (tree.hpp:760), and
-`orphanChildren`'s additive merge (tree.hpp:796-800).
+([[tree.hpp:492-521@3137e17a]]), `birth`'s two child `computeLeafStats` ([[tree.hpp:780-781@3137e17a]]),
+`refreshSubtree`'s leaf `computeLeafStats` ([[tree.hpp:760@3137e17a]]), and
+`orphanChildren`'s additive merge ([[tree.hpp:796-800@3137e17a]]).
 
 Stage A introduces an atom path that PRODUCES those same cache values from an
 atom SoA, behind a flag, and proves - per tree, bitwise - that it equals the
@@ -117,9 +117,9 @@ same member slice." Bitwise equality is by construction (see 1.3), not by luck.
 
 The single most important bitwise rule: the atom aggregation must invoke the
 EXISTING misc suffstat kernels over the EXISTING member order, NOT a hand-rolled
-loop. `misc_computeIndexedSufficientStatisticsFast` (moments.c:334) and its
+loop. `misc_computeIndexedSufficientStatisticsFast` ([[moments.c:334@3137e17a]]) and its
 weighted/non-indexed siblings use a specific mod-5 remainder + stride-5
-horizontal-sum accumulation tree (moments.c:315-332, 387-416). Any different
+horizontal-sum accumulation tree ([[moments.c:315-332@3137e17a]], 387-416). Any different
 loop (even a mathematically identical sum) rounds differently and breaks the
 anchor. So `AtomMap::aggregateAtom(leaf)` calls exactly the kernel
 `computeLeafStats` would call, over the same slice.
@@ -134,14 +134,14 @@ Concretely, at b=1, for an atom c mapped to leaf L with member slice
   suffstat and does not enter the cache.
 
 Note Q(c) (= sum w g^2) is carried at b=1 because `logIntegratedLikelihood`
-(model.hpp:117-118) needs `sumWeightedResponseSq`. Stage B DROPS Q (fact 1.2:
+([[model.hpp:117-118@3137e17a]]) needs `sumWeightedResponseSq`. Stage B DROPS Q (fact 1.2:
 it cancels in every move ratio), but Stage A keeps it so the anchor is
 bitwise. Keeping Q at b=1 is what makes the aggregation literally the
 unchanged kernel.
 
 ### 1.4 The draw, roll, and merge stay byte-identical
 
-- DRAW. The draw loop stays `sampleParametersAndSetFits` (chain.hpp:2105-2136)
+- DRAW. The draw loop stays `sampleParametersAndSetFits` ([[chain.hpp:2105-2136@3137e17a]])
   UNCHANGED: it iterates leaves via `fillBottom(0, bottoms)`, draws one normal
   per NON-EMPTY leaf from the node cache, forces 0.0 (no draw) for empty
   leaves, accumulates k over non-empty leaves, and scatters via
@@ -151,12 +151,12 @@ unchanged kernel.
   (so Stage B's S carry is exercised and testable), which does NOT touch RNG or
   the cache.
 - ROLL. At b=1 the residual roll is the existing per-tree fused O(n) pass
-  (chain.hpp:731-744) and the block-exit `totalFits` rebuild (chain.hpp:779-787)
+  ([[chain.hpp:731-744@3137e17a]]) and the block-exit `totalFits` rebuild ([[chain.hpp:779-787@3137e17a]])
   - both UNCHANGED. g=treeY is used directly; NO separate g field is
   materialized at b=1 (design 4.4: "the block-entry g build is the current
   per-tree roll, unchanged"). Introducing a g scatter at b=1 would be a
   gratuitous FP-order risk; do not.
-- MERGE (death). `orphanChildren` (tree.hpp:796-800) already forms the parent
+- MERGE (death). `orphanChildren` ([[tree.hpp:796-800@3137e17a]]) already forms the parent
   cache as left+right of the child caches, in that order. If the child caches
   hold atom-correct values, the parent cache is atom-correct with NO change to
   `orphanChildren`. The atom path's `mergeAtoms` only updates the atom SoA
@@ -170,7 +170,7 @@ Enumerate and pin all of these - each is a way to silently break the anchor:
 
 1. LEAF / RNG DRAW ORDER. Both `setNodeAverages` and the draw iterate leaves
    via `fillBottom(0, out)` - a DFS, left child (`leftChild`) before right
-   (`leftChild+1`), arena order (tree.hpp:282-286). The draw consumes one
+   (`leftChild+1`), arena order ([[tree.hpp:282-286@3137e17a]]). The draw consumes one
    normal per non-empty leaf in this order. PIN: the atom path drives
    aggregation and draw off `fillBottom`, NEVER off an atom-id iteration order.
    At b=1 atom-id can equal leaf node id, but iterate the LEAF list.
@@ -181,23 +181,23 @@ Enumerate and pin all of these - each is a way to silently break the anchor:
    to the identical one `computeLeafStats` picks.
 3. ROOT SPECIAL CASE. `computeLeafStats` uses the NON-indexed kernel
    (`misc_compute[Weighted]SufficientStatisticsFast`) when `node.parent ==
-   invalidNode` (tree.hpp:494-508), i.e. a stump/root leaf, reading y[0..n)
+   invalidNode` ([[tree.hpp:494-508@3137e17a]]), i.e. a stump/root leaf, reading y[0..n)
    directly. For identity indices the non-indexed and indexed kernels are
    bitwise-equal (verified: identical mod-5+stride-5 structure, and a root leaf
    never had its indices permuted, so they are identity), but PIN the branch
    anyway: `aggregateAtom` replicates the `isRoot` dispatch. Zero-risk and
    future-proof against a kernel divergence.
 4. BIRTH CHILD ORDER. `birth` calls `partitionChildren` then
-   `computeLeafStats(left)` then `computeLeafStats(right)` (tree.hpp:779-781),
+   `computeLeafStats(left)` then `computeLeafStats(right)` ([[tree.hpp:779-781@3137e17a]]),
    children over their post-partition slices (always non-root -> indexed
    kernel). PIN: `splitAtom` aggregates left child then right child via the
    indexed kernel over the same slices.
-5. DEATH MERGE ORDER. `orphanChildren`: parent = left + right (tree.hpp:796-800).
+5. DEATH MERGE ORDER. `orphanChildren`: parent = left + right ([[tree.hpp:796-800@3137e17a]]).
    PIN: SoA merge adds A/G/Q left-then-right; cache merge unchanged.
 6. CHANGE / SWAP REFRESH ORDER. `refreshSubtree` does `partitionChildren` then
-   recurses left, right, computing leaf stats in DFS order (tree.hpp:757-766).
+   recurses left, right, computing leaf stats in DFS order ([[tree.hpp:757-766@3137e17a]]).
    PIN: `AtomMap::refreshSubtree` mirrors the identical recursion order.
-7. PARTITION PERMUTATION. `partitionChildren` (tree.hpp:672-739) is the
+7. PARTITION PERMUTATION. `partitionChildren` ([[tree.hpp:672-739@3137e17a]]) is the
    width-templated two-pointer (u16 misc kernels; u8 scalar
    `partitionIndicesScalar`/`partitionRangeScalar`; categorical mask; sparse;
    MIA). Its permutation is integer-exact and ISA-stable. PIN: the atom split's
@@ -205,21 +205,21 @@ Enumerate and pin all of these - each is a way to silently break the anchor:
    a second partitioner. (At b=1, if members alias tree.indices, the tree's own
    `partitionChildren` IS the atom split; see 2.4.)
 8. EMPTY-LEAF HANDLING. Empty leaf => param forced 0.0, NO draw consumed, NOT
-   counted toward k (chain.hpp:2109-2120). An empty leaf has zero atoms. PIN:
+   counted toward k ([[chain.hpp:2109-2120@3137e17a]]). An empty leaf has zero atoms. PIN:
    the draw still visits it via `fillBottom` and forces 0.0 without drawing;
    the atom path must not skip the leaf list nor draw for empties.
 9. k ACCUMULATION. `kSumSquaredParams += param*param` and `kNumLeaves += 1`
-   over non-empty leaves in `fillBottom` order (chain.hpp:2117-2119). PIN:
+   over non-empty leaves in `fillBottom` order ([[chain.hpp:2117-2119@3137e17a]]). PIN:
    draw loop unchanged, so this is automatic; do not move it into the atom path.
 10. SIGMA / SSR / LATENTS. `misc_computeSumOfSquaredResiduals` over totalFits
-    (chain.hpp:908-910), `refreshLatents`, `drawSigma` - all once/sweep,
+    ([[chain.hpp:908-910@3137e17a]]), `refreshLatents`, `drawSigma` - all once/sweep,
     OUTSIDE the block, over the totalFits rebuilt at block exit. PIN: untouched;
-    the block-exit totalFits rebuild stays chain.hpp:779-787.
+    the block-exit totalFits rebuild stays [[chain.hpp:779-787@3137e17a]].
 11. BCF / GROUPED-RE FOREST RESPONSE. `formForestResponse` builds each forest's
-    residual (chain.hpp:700-704). PIN: at b=1 the block is per tree within the
+    residual ([[chain.hpp:700-704@3137e17a]]). PIN: at b=1 the block is per tree within the
     already-formed forest residual; nothing changes. (Blocks are per-forest in
     Stage B; irrelevant at b=1.)
-12. GROW-FROM-ROOT WARM START (chain.hpp:938-1048) stays on the per-tree path
+12. GROW-FROM-ROOT WARM START ([[chain.hpp:938-1048@3137e17a]]) stays on the per-tree path
     (design 5.3): a fixed init few-sweeps, not hot. PIN: the flag engages only
     in the steady-state `run()` loop, never in the warm-start loop.
 
@@ -234,11 +234,11 @@ own header mirrors the layering and keeps chain.hpp's diff small.
 
 ### 2.2 Owned as a Forest member
 
-One `AtomMap` per `Forest` (chain.hpp:257-307), added next to `treeFits`,
+One `AtomMap` per `Forest` ([[chain.hpp:257-307@3137e17a]]), added next to `treeFits`,
 `treeY`, `scratch`. The Forest is the natural owner: it already holds the
-per-tree index buffers (`indexBuffer`, sliced n per tree, chain.hpp:452-455),
+per-tree index buffers (`indexBuffer`, sliced n per tree, [[chain.hpp:452-455@3137e17a]]),
 `treeFits`, and `MoveScratch`. Sized once at forest init (the `initialize`
-site, chain.hpp:452-459) and reused across sweeps (persistence, design 4.5).
+site, [[chain.hpp:452-459@3137e17a]]) and reused across sweeps (persistence, design 4.5).
 For BCF/grouped, each Forest owns its own map (blocks are per-forest).
 
 ### 2.3 The struct (constant-leaf, b=1-capable, Stage-B-shaped)
@@ -310,12 +310,12 @@ Record this as a resolved implementer decision in the landing note.
 ### 2.5 Persistence via the U'WU-cache template (design 4.5)
 
 Model the residual-INDEPENDENT persistence exactly on `LinearGaussianLeaf`'s
-crossproduct cache (model.hpp:458-539): cache A(c) + the atom topology, keyed by
+crossproduct cache ([[model.hpp:458-539@3137e17a]]): cache A(c) + the atom topology, keyed by
 the atom's ordered member list, and re-validate on lookup by `std::memcmp`
-against `tree.indices[begin..end)` (model.hpp:509-511). A structural move or a
+against `tree.indices[begin..end)` ([[model.hpp:509-511@3137e17a]]). A structural move or a
 rejected-move rollback that alters membership fails the compare and rebuilds A;
 an unchanged leaf serves the cached A bitwise. This is "rollback-stable with no
-per-move hook" (model.hpp:459-462) - the hardest part (4.5) inherits a landed,
+per-move hook" ([[model.hpp:459-462@3137e17a]]) - the hardest part (4.5) inherits a landed,
 proven pattern. G/Q/S are residual-DEPENDENT and always recomputed at block
 entry from the current treeY (the block-entry aggregation), exactly as the U'WU
 cache always rescans U'Wz / z'Wz. At b=1, A recompute is cheap, but exercising
@@ -400,7 +400,7 @@ byte-for-byte today's. Budgets are rough.
   `undoBirth` already restores tree state; the atom path discards the child
   atoms and restores the parent SoA entry (A served from the U'WU-style cache;
   G/Q recomputed or snapshot-restored). Mirror `snapshotSubtree`/`restoreSubtree`
-  (tree.hpp:827-842) for change/swap prep in commit (v).
+  ([[tree.hpp:827-842@3137e17a]]) for change/swap prep in commit (v).
 - ORACLE: extend the mutation-fuzzer pattern (docs/plans/archive/mutation-fuzzing.md,
   testMutationFuzzer): drive long seeded random move sequences; after EVERY
   move (accepted or rejected), assert the atom SoA matches a from-scratch

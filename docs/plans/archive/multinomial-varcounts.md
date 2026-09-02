@@ -44,28 +44,28 @@ the follow-up the multinomial C7 landing note filed as omitted (multinomial.md
 - The loss point: storeSample writes results.variableCounts (numPredictors x
   numSamples) for the ONE reportedIndex forest only -
   forestVariableCounts(reportedIndex, results.variableCounts + sampleNum *
-  numPredictors) (chain.hpp:2282-2284); reportedIndex = reportedForest()
-  (chain.hpp:2211), which is 0 for both BCF and multinomial (combiner.hpp:287,
+  numPredictors) ([[chain.hpp:2282-2284@6a48351b]]); reportedIndex = reportedForest()
+  ([[chain.hpp:2211@6a48351b]]), which is 0 for both BCF and multinomial ([[combiner.hpp:287@6a48351b]],
   not overridden). So a multinomial run's per-sample varcount channel is
   CATEGORY 0's forest only - the "addresses category 0 only" the design note
   cites (multinomial.md). Unlike trainingFits/testFits, the varcount
   channel was NOT widened by the C2 location seam.
 - Where per-category counts live TODAY: forestVariableCounts(f, out)
-  (chain.hpp:469-474) -> SamplerBase (facade.hpp:160,359) ->
-  bartcoreForestVariableCounts (R/bartcore.R:604) reports forest f's CURRENT
+  ([[chain.hpp:469-474@6a48351b]]) -> SamplerBase ([[facade.hpp:160@6a48351b]], [[facade.hpp:359@6a48351b]]) ->
+  bartcoreForestVariableCounts ([[R/bartcore.R:604@6a48351b]]) reports forest f's CURRENT
   (final-state) cumulative counts - a query, not a per-sample channel; the fit
   keeps it only under keepTrees. The multinomial fixture records this final-state
-  query as its "varcount" channel (multinomial-equivalence.R:81-85), NOT the
+  query as its "varcount" channel ([[multinomial-equivalence.R:81-85@6a48351b]]), NOT the
   per-sample run channel.
 - The stride/alloc plumbing to widen, mirroring numReportedLocations exactly:
-  Results.variableCounts doc + a new count field (chain.hpp:199,214); the
-  per-chain varcount stride (sampler.hpp:314-316, no location factor today); the
+  Results.variableCounts doc + a new count field ([[chain.hpp:199@6a48351b]], [[chain.hpp:214@6a48351b]]); the
+  per-chain varcount stride ([[sampler.hpp:314-316@6a48351b]], no location factor today); the
   bridge varcountExpr alloc as p x numSamples (x numChains) + scratch + uint32
-  copy (R_interface_bartcore.cpp:2177-2182,2216-2217,2242-2244); the callback
+  copy ([[R_interface_bartcore.cpp:2177-2182@6a48351b]], [[R_interface_bartcore.cpp:2216-2217@6a48351b]], [[R_interface_bartcore.cpp:2242-2244@6a48351b]]); the callback
   path aliases a per-sweep p buffer (single-forest, 2300-2306).
 - Combiner reporting map: numReportedLocations() = K for multinomial (=
-  numCategories_, combiner.hpp:589), 1 for BCF/base (297). packageMultinomialResults
-  OMITS varcount by name (R/bart.R:743-778); shapeMultinomialChannel reshapes a
+  numCategories_, [[combiner.hpp:589@6a48351b]]), 1 for BCF/base (297). packageMultinomialResults
+  OMITS varcount by name ([[R/bart.R:743-778@6a48351b]]); shapeMultinomialChannel reshapes a
   p-leading K-trailing raw array to (n.chains x) n.samples x lead x K (713-732) -
   reusable verbatim for varcount (predictors in the lead slot).
 
@@ -80,7 +80,7 @@ k = forest k). storeSample loops j, writing forestVariableCounts(f, base +
 Forests (default 1) drives the bridge alloc (p x numVCForests x numSamples x
 chains, an allocFitsArray-style INTSXP) and the chain stride. At numVCForests =
 1 every offset collapses to sampleNum * numPredictors - single-forest and BCF
-byte-identical, BCF staying prognostic-only by intent (chain.hpp:190-191), not
+byte-identical, BCF staying prognostic-only by intent ([[chain.hpp:190-191@6a48351b]]), not
 coincidence.
 
 ALTERNATIVE (reuse numReportedLocations for the count): saves the one count
@@ -94,7 +94,7 @@ existing forestVariableCounts query; the extra virtual is 3 lines.
 R surface: packageMultinomialResults reshapes samples$varcount (p x K x
 n.samples x chains) through shapeMultinomialChannel to (n.chains x) n.samples x
 p x K, levels(y) on the K margin, colnames(x) threaded onto the p margin (pass
-predictor names in, as standard bart varcount does, R/bart.R:184-189); drop the
+predictor names in, as standard bart varcount does, [[R/bart.R:184-189@6a48351b]]); drop the
 "deliberately omitted" comment. No extract type, no fitted change (varcount is a
 fit field). Single-forest/BCF fits UNCHANGED (numVCForests = 1: the R varcount
 path is untouched).

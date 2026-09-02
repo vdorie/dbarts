@@ -14,7 +14,7 @@ within a sweep. Neither lands without numbers showing they matter.
 
 - Crossproduct reuse needs a persistent per-node stats cache the design
   deliberately avoids ("move rollbacks need no cache invalidation",
-  src/bartcore/model.hpp:162-165) - the old "free win" note was wrong.
+  [[src/bartcore/model.hpp:162-165@04cd67a9]]) - the old "free win" note was wrong.
 - chol(V) reuse was measured second-order after the kernel cache
   (docs/design/gp-leaves.md kernel-cache landing, 5.85s -> 4.58s).
 

@@ -46,14 +46,14 @@ order; the factor-only fallback is noted at C1.
 ## Context (seams, read in code)
 
 - The current refusal: the multinomial branch rejects a formula or dbartsData
-  outright (bart.R:466-470, "supports the matrix interface only this arc") and
+  outright ([[bart.R:466-470@6a48351b]], "supports the matrix interface only this arc") and
   reads the response from the `data` positional as a factor (472-499), then calls
   bart2Multinomial (501-513). bart2Multinomial (654-718) takes the validated
   factor y, derives labels = as.integer(y) - 1L and K = nlevels(y) (667-668),
   builds the host sampler with the LABEL VECTOR as its response (686-696), and
   runs bartcoreMultinomialSampler + bartcoreRun. Nothing below the ingestion
   needs to change - the labels and the coded design x are the only inputs.
-- The standard formula parse (data.R:454-522): model.frame -> `model.response(
+- The standard formula parse ([[data.R:454-522@6a48351b]]): model.frame -> `model.response(
   modelFrame, "numeric")` (464) COERCES the response to numeric, discarding
   factor levels - so the multinomial path CANNOT reuse dbartsData for its
   response; it must run its own model.frame/terms extraction that KEEPS the
@@ -61,31 +61,31 @@ order; the factor-only fallback is noted at C1.
   the predictor matrix to reuse; the `test` term is pulled from the formula data
   the same way (511-522).
 - Family is NEVER auto-detected for multinomial: dbarts() resolves "auto" ->
-  probit for a 0/1 response (dbarts.R:285-294) and multinomial is not in its
+  probit for a 0/1 response ([[dbarts.R:285-294@6a48351b]]) and multinomial is not in its
   family list; bart2 dispatches multinomial only on the EXPLICIT family =
-  "multinomial" (bart.R:429). A multi-level factor LHS under "auto" stays
+  "multinomial" ([[bart.R:429@6a48351b]]). A multi-level factor LHS under "auto" stays
   gaussian/probit as today - Q1.
-- predict.bartMultinomial (generics.R:467-492) codes newdata through
+- predict.bartMultinomial ([[generics.R:467-492@6a48351b]]) codes newdata through
   validateXTest(newdata, object$fit$data@x) (482) - correct for a MATRIX newdata,
   but a data.frame newdata from a formula fit needs the terms to build the model
   matrix (expand factors against the fit's xlevels) BEFORE coding. The fit must
   retain terms + xlevels; predict builds the model matrix from a data.frame
   newdata first. This mirrors predict.bart's formula handling.
-- packageMultinomialResults (bart.R:770-814) and shapeMultinomialChannel
+- packageMultinomialResults ([[bart.R:770-814@6a48351b]]) and shapeMultinomialChannel
   (728-...) thread levels(y) onto the K margin and predictor names onto the p
   varcount margin; the formula path supplies the same levels (factor levels or
   count-matrix colnames) and colnames(model.matrix) as predictor names.
 
 ## Design
 
-Extend the multinomial branch (bart.R:429) to accept a formula:
+Extend the multinomial branch ([[bart.R:429@6a48351b]]) to accept a formula:
 
 1. Remove the 466-470 refusal. When `formula` is a formula (or a one-sided
    response is given), run a self-contained model.frame/terms extraction (NOT
    dbartsData, which numeric-coerces the response): build the model frame from
    formula + data + subset + na.action, pull the response with model.response(mf)
    (NO type coercion), and the RHS predictor matrix with makeModelMatrix on the
-   term labels (the data.R:498-509 recipe).
+   term labels (the [[data.R:498-509@6a48351b]] recipe).
 2. Branch on the response type:
    - a FACTOR (or character coerced to factor) LHS -> the existing factor path
      (labels, K, levels), unchanged below the extraction.
@@ -155,7 +155,7 @@ on return, before release.
 
 - Q1 (auto-detect a multi-level factor LHS as multinomial?). RECOMMEND NO - keep
   family = "multinomial" EXPLICIT, never auto. A 2-level factor already resolves
-  to probit under the binary path (dbarts.R:285-294), and silently routing a
+  to probit under the binary path ([[dbarts.R:285-294@6a48351b]]), and silently routing a
   multi-level factor LHS to multinomial would collide with that idiom and
   surprise a user who expected an error or a different coding. AGAINST: some
   ecosystems infer multinomial from a factor response; but dbarts' "auto" is

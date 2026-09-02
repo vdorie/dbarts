@@ -34,11 +34,11 @@ the non-identifiability the a-move fixed on the prognostic forest.
 ### 1.1 Treatment (tau) forest leaf prior (constant Gaussian leaf)
 
 The tau forest is `forests_[1]`, built by `buildBCFForest(spec.tau,
-sdModerate * s / 0.674)` (chain.hpp:475). buildBCFForest sets `k = 1`,
+sdModerate * s / 0.674)` ([[chain.hpp:475@9cebb352]]). buildBCFForest sets `k = 1`,
 `updateK = false`, `useDart = false`, and
-`leaf.scale = nodeScale / sqrt(numTrees)` (chain.hpp:2079-2083). So with
+`leaf.scale = nodeScale / sqrt(numTrees)` ([[chain.hpp:2079-2083@9cebb352]]). So with
 `nodeScale_tau = sdModerate * s / 0.674` (s = scaledResponseSd,
-chain.hpp:473; sdModerate default 1, kHalfNormalMedian = 0.674):
+[[chain.hpp:473@9cebb352]]; sdModerate default 1, kHalfNormalMedian = 0.674):
 
     tau_l ~ N(0, leafVar_tau)  iid across occupied leaves,
     leafVar_tau := (leaf.scale_tau / k)^2 = leaf.scale_tau^2   (k = 1)
@@ -46,11 +46,11 @@ chain.hpp:473; sdModerate default 1, kHalfNormalMedian = 0.674):
 
 Define the tau-leaf precision `P_tau := (k / leaf.scale_tau)^2 =
 1/leafVar_tau` (exactly the a-move's `(forest.k/forest.leaf.scale)^2`,
-chain.hpp:558, but on forests_[1]). Keep the general `(k/scale)^2` form in
+[[chain.hpp:558@9cebb352]], but on forests_[1]). Keep the general `(k/scale)^2` form in
 code so the move stays correct if k ever varies; for shipped BCF k = 1.
 
 Empty tau leaves are forced to value 0 and are NOT prior draws
-(chain.hpp:2024, same rule as mu). So the free tau parameters are the
+([[chain.hpp:2024@9cebb352]], same rule as mu). So the free tau parameters are the
 OCCUPIED bottom nodes only. Define
 
     Lt = # occupied tau bottom nodes (over all T_tau trees),
@@ -58,24 +58,24 @@ OCCUPIED bottom nodes only. Define
 
 The tau totals are `forests_[1].totalFits`; per-tree leaf-value fits live in
 `forests_[1].treeFits` (n * T_tau). Recover a leaf's value exactly as the
-a-move does: `treeFits[t][indices[node.begin]]` (chain.hpp:549).
+a-move does: `treeFits[t][indices[node.begin]]` ([[chain.hpp:549@9cebb352]]).
 
 ### 1.2 The b prior -- a PLAIN Gaussian, NO auxiliary (contrast a)
 
-drawGlue, chain.hpp:2162-2175. Unlike a (half-Cauchy via the inverse-gamma
+drawGlue, [[chain.hpp:2162-2175@9cebb352]]. Unlike a (half-Cauchy via the inverse-gamma
 auxiliary aVariance), the treatment coefficients have a fixed-variance normal
 prior with NO scale-mixture auxiliary:
 
     b0 ~ N(0, bPriorVariance),  b1 ~ N(0, bPriorVariance),  independent,
-    bPriorVariance = 0.5  (fixed; BCFState chain.hpp:313,327; spec 480).
+    bPriorVariance = 0.5  (fixed; BCFState [[chain.hpp:313@9cebb352]], [[chain.hpp:327@9cebb352]]; spec 480).
 
 They are drawn JOINTLY in drawGlue (one `if (bcf_->updateB)` block,
-chain.hpp:2162): each is an independent conjugate normal from its own arm's
+[[chain.hpp:2162@9cebb352]]): each is an independent conjugate normal from its own arm's
 rows -- b0 from control rows (z=0), b1 from treated rows (z=1):
 
     b0 ~ N(n0/p0, 1/p0),  p0 = 1/bPriorVariance + sum_{z_i=0} w_i tau_i^2/sigma^2,
                           n0 = sum_{z_i=0} w_i tau_i (y_i - a mu_i)/sigma^2;
-    b1 ~ N(n1/p1, 1/p1),  same over treated rows (chain.hpp:2163-2174).
+    b1 ~ N(n1/p1, 1/p1),  same over treated rows ([[chain.hpp:2163-2174@9cebb352]]).
 
 Because bPriorVariance is a FIXED constant, there is NO auxiliary to condition
 on and no aVariance-style one-sweep lag: the b-move's conditional is exact and
@@ -86,7 +86,7 @@ structural difference between the two derivations.
 
     y_i = a*mu(x_i) + b_{z_i}*tau(x_i) + eps_i,  eps ~ N(0, sigma^2/w_i)
 
-(chain.hpp:2127-2128 combinedFits, 2136-2140 drawGlue; bcf.md). The mu forest
+([[chain.hpp:2127-2128@9cebb352]] combinedFits, 2136-2140 drawGlue; bcf.md). The mu forest
 and a are NOT touched by the b-move.
 
 ### 1.4 Sweep placement
@@ -188,7 +188,7 @@ correctness argument.]
   there is no propriety worry at small Lt.
 - **All-treated or all-control data**: if every z=1 (no control rows), b0 has
   NO likelihood term; drawGlue draws it from its prior `N(0, sB2)`
-  (p0=1/sB2, n0=0, chain.hpp:2173). b0 then multiplies tau only over control
+  (p0=1/sB2, n0=0, [[chain.hpp:2173@9cebb352]]). b0 then multiplies tau only over control
   rows -- of which there are none -- so it does NOT appear in the likelihood,
   and the move `b0 -> b0/c` is STILL likelihood-invariant (only `b1 tau`
   matters, `-> (b1/c)(c tau) = b1 tau`). The derivation never assumed both arms
@@ -206,7 +206,7 @@ correctness argument.]
   convention copied from the a-move, not a propriety requirement here (B>0
   makes every Lt proper); `Lt>=1` would also be safe. Keep `Lt>=2` for
   symmetry with interweaveGlueRidge.]
-- **1e-9 multiplier floor** (formForestResponse, chain.hpp:2114): floors
+- **1e-9 multiplier floor** (formForestResponse, [[chain.hpp:2114@9cebb352]]): floors
   `|b0|`, `|b1|` only when forming the tau backfit response `resid/m`, `w m^2`.
   It does NOT enter the move (which uses exact b0,b1,tau; no division by m). If
   the move drove `|b|<1e-9`, the next sweep's tau backfit floors it -- benign,
@@ -217,7 +217,7 @@ correctness argument.]
   ONLY on `Mt, leafVar_tau, b0, b1, bPriorVariance`. Weighted and unweighted
   BCF use the identical move.
 - **updateB gating**: the move CHANGES b0, b1; gate on `bcf_->updateB` (the
-  drawGlue-B guard, chain.hpp:2162). If b is pinned the ridge is absent and the
+  drawGlue-B guard, [[chain.hpp:2162@9cebb352]]). If b is pinned the ridge is absent and the
   move must not run. `updateA` is irrelevant to the b-move (they act on
   disjoint blocks -- section 3a).
 
@@ -249,11 +249,11 @@ Enumerated against chain.hpp, exactly mirroring interweaveGlueRidge but on
 `forests_[1]` and both b scalars. After drawing c (b0_0,b1_0 = pre-move):
 
 Required:
-- `bcf_->b0 *= 1.0/c;  bcf_->b1 *= 1.0/c`         (chain.hpp:324)
+- `bcf_->b0 *= 1.0/c;  bcf_->b1 *= 1.0/c`         ([[chain.hpp:324@9cebb352]])
 - `forests_[1].treeFits *= c` over all `n*T_tau` entries -- MANDATORY: next
   sweep's residual roll reads each treeFits slab once before overwriting; a
   stale slab desyncs the roll. One `misc_scalarMultiplyVectorInPlace` over
-  `forests_[1].treeFits.data()`, length `n*T_tau` (chain.hpp:572 analogue).
+  `forests_[1].treeFits.data()`, length `n*T_tau` ([[chain.hpp:572@9cebb352]] analogue).
 - `forests_[1].totalFits *= c` over `n` (read by the roll and combinedFits).
 
 Required when recorded AND test data present:
@@ -264,7 +264,7 @@ Required when recorded AND test data present:
 Required when recorded AND keepTrees on (THE SHARP EDGE, identical to a-move):
 - this sweep's saved TAU tree slot was flattened with PRE-move leaf values; after
   the move multiply every FlatNode leaf value in the slot's T_tau saved tau
-  trees by c (chain.hpp:588-597 analogue, `node.variable == invalidVariable`),
+  trees by c ([[chain.hpp:588-597@9cebb352]] analogue, `node.variable == invalidVariable`),
   so `b_saved * tau_saved` keeps the identified product. Verify with a keepTrees
   BCF round-trip: predicted `b_z*tau` from saved trees must track the live fit.
 
@@ -277,10 +277,10 @@ Computing Lt and Mt: iterate `forests_[1]`'s trees; for each occupied bottom
 node take `treeFits[t][indices[node.begin]]`, accumulate `Mt += v*v; ++Lt`,
 skipping empty nodes -- run UNCONDITIONALLY (not gated on updateK, which BCF
 leaves false), exactly as interweaveGlueRidge does for the mu forest
-(chain.hpp:541-553). Cost O(Lt + total tau nodes).
+([[chain.hpp:541-553@9cebb352]]). Cost O(Lt + total tau nodes).
 
 Recording note: storeSample records `scale*(a mu + b_z tau)+shift`
-(chain.hpp:2195-2197) which is INVARIANT -> trainingFits unaffected.
+([[chain.hpp:2195-2197@9cebb352]]) which is INVARIANT -> trainingFits unaffected.
 
 The implementation is interweaveGlueRidge with forests_[0] -> forests_[1],
 the a-block -> the (b0,b1)-block, aVariance -> (dropped), gigP (L-1)/2 ->
@@ -303,7 +303,7 @@ block, and the KS 1.6e-21 rejection of the off-by-one exponent that CONFIRMS
 
 - `bcf-exact.R`, `bcf-exact-weak.R` MUST STAY EXACT: they match posterior
   EXPECTATIONS (E[a mu], E[tau], E[(b1-b0)tau]) which a posterior-preserving
-  move leaves unchanged. The three modes (bcf-exact.R:16-18, 379-413) are the
+  move leaves unchanged. The three modes ([[bcf-exact.R:16-18@9cebb352]], 379-413) are the
   clean gate:
     mode 1  (updateA=F, updateB=F): BOTH moves gated off -- unchanged.
     mode 2a (updateA=T, updateB=F): a-move active, b-move gated off -- unchanged
@@ -312,7 +312,7 @@ block, and the KS 1.6e-21 rejection of the off-by-one exponent that CONFIRMS
             must keep E[mu] and E[(b1-b0)tau] exact. It will (posterior-
             preserving); mode 2b is exactly to the b-move what mode 2a is to the
             a-move. The landing note that mode 2b "mixes poorly / b trades off
-            with tau scale" (bcf-exact.R:34) is the very ridge this move
+            with tau scale" ([[bcf-exact.R:34@9cebb352]]) is the very ridge this move
             collapses -- expect mode 2b to match AND mix better.
 - `equivalence.R`: no BCF scenario and the move is bcf_-gated -> every existing
   baseline stays BITWISE identical, NO re-record. Confirm with a compare
@@ -437,7 +437,7 @@ b-move for the sigma flag.
 
   2. The b-move itself: KEEP the derivation on the shelf as a SEPARATE,
      independently-justified mixing improvement for the treatment ridge
-     (exactly what the a-move is for the prognostic ridge; bcf-exact.R:34 notes
+     (exactly what the a-move is for the prognostic ridge; [[bcf-exact.R:34@9cebb352]] notes
      mode-2b "mixes poorly, b trades off with tau scale" -- that IS this
      ridge). If implemented, judge it on its OWN IACT payoff (e.g. |b1-b0| or
      tau-amplitude IACT on a strong-treatment-signal DGP, mirroring the a-move's

@@ -105,7 +105,7 @@ Landed on wt/tau-exact-ig off bartcore 57bbdb5.
 
 - IMPORTANT correction to the front matter's RNG prediction: BOTH
   equivalence grouped scenarios (grouped, grouped_aft) were recorded
-  with prior = gamma (equivalence.R:556,577; gate-hardening chose gamma
+  with prior = gamma ([[equivalence.R:556@c6601616]], [[equivalence.R:577@c6601616]]; gate-hardening chose gamma
   because the half-Cauchy tail can stall the slice sampler). NO
   equivalence scenario exercises the cauchy grouped path, so the whole
   suite stays BIT-IDENTICAL vs equivalence-ac6ec2c.rds (22/22 identical

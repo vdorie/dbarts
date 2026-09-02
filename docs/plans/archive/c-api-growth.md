@@ -78,14 +78,14 @@ saved fit on the next feature).
 
 ### The frozen surface, precisely
 
-`dbarts_results` (inst/include/dbarts/dbarts.h:63-72) is eight caller-owned
+`dbarts_results` ([[inst/include/dbarts/dbarts.h:63-72@5eae79d3]]) is eight caller-owned
 output pointers, NULL-means-skip. It is an OUTPUT struct only. There is no
-size or version field. `dbarts_sampler_run` (dbarts.h:89-90) takes a
+size or version field. `dbarts_sampler_run` ([[dbarts.h:89-90@5eae79d3]]) takes a
 `dbarts_results*`.
 
 The freeze is real and demonstrable: the shipped C consumer stack-allocates
 `dbarts_results results = {0};` and fills fields
-(inst/tinytest/capi/consumer.c:204-210, :282-290, :335-343). `sizeof(dbarts_results)`
+([[inst/tinytest/capi/consumer.c:204-210@5eae79d3]], [[inst/tinytest/capi/consumer.c:282-290@5eae79d3]], [[inst/tinytest/capi/consumer.c:335-343@5eae79d3]]). `sizeof(dbarts_results)`
 is baked into stan4bart's compiled object; if the library appended a ninth
 field and wrote through it on a stan4bart-sized struct, it would scribble
 past the caller's stack allocation. This is exactly why tau/groupEffects
@@ -94,9 +94,9 @@ reinstall (TODO release note L447-449) - and that was the LAST field the
 frozen struct can absorb for free, because those consumers were rebuilt in
 lockstep. After 1.0-0 there is no lockstep rebuild for a CRAN release.
 
-The mapping run does today (src/C_interface.cpp:60-92): it copies the eight
+The mapping run does today ([[src/C_interface.cpp:60-92@5eae79d3]]): it copies the eight
 `dbarts_results` pointers into a stack `bartcore::Results` (the engine struct,
-src/bartcore/chain.hpp:169-181, whose members are `sigma`, `trainingFits`,
+[[src/bartcore/chain.hpp:169-181@5eae79d3]], whose members are `sigma`, `trainingFits`,
 `testFits`, `variableCounts`, `k`, `splitProbabilities`, `tau`,
 `groupEffects` - same eight, engine names), brackets `GetRNGstate`/`run`/
 `PutRNGstate`, and wires the optional per-sweep callback. The engine
@@ -106,58 +106,58 @@ ABI wall is only the public `dbarts_results`.
 Entry points register two ways in src/R_interface.cpp: the `.Call` table
 (R-facing `bartcore_*`) and the CCallable table (dbarts.h symbols, resolved
 by consumers through `R_GetCCallable`). `dbarts_sampler_run` is at
-R_interface.cpp:301; the CCallable block runs :295-345, registered in
-`R_init_dbarts` :349-357. `DBARTS_C_API_VERSION` is 1 (dbarts.h:48), returned
-by `dbarts_apiVersion()` (C_interface.cpp:43); the header instructs consumers
-to check it before using the rest (dbarts.h:9-13).
+[[R_interface.cpp:301@5eae79d3]]; the CCallable block runs [[R_interface.cpp:295-345@5eae79d3]], registered in
+`R_init_dbarts` [[R_interface.cpp:349-357@5eae79d3]]. `DBARTS_C_API_VERSION` is 1 ([[dbarts.h:48@5eae79d3]]), returned
+by `dbarts_apiVersion()` ([[C_interface.cpp:43@5eae79d3]]); the header instructs consumers
+to check it before using the rest ([[dbarts.h:9-13@5eae79d3]]).
 
 ### The state format, precisely
 
-`storeState` (R_interface_bartcore.cpp:2787-2948) marshals a
-`bartcore::SamplerStateData` (src/bartcore/sampler.hpp:63,
-chain.hpp:196-235) into an R list, one element per chain, plus top-level
-attributes. `setState` (R_interface_bartcore.cpp:2950-3181) reverses it.
+`storeState` ([[R_interface_bartcore.cpp:2787-2948@5eae79d3]]) marshals a
+`bartcore::SamplerStateData` ([[src/bartcore/sampler.hpp:63@5eae79d3]],
+[[chain.hpp:196-235@5eae79d3]]) into an R list, one element per chain, plus top-level
+attributes. `setState` ([[R_interface_bartcore.cpp:2950-3181@5eae79d3]]) reverses it.
 
 Top-level attributes on the state list:
-- `cutPoints` (REQUIRED; :2936, read :2981-2998, refuses if absent/wrong-length)
-- `currentSampleNum` (REQUIRED; :2937, read :3000-3008)
-- `formatVersion` (:2939, integer, currently == 3)
-- `packageVersion` (:2941, provenance string, PACKAGE_VERSION "1.0-0",
-  src/config.hpp:97)
-- `class` = "bartcoreState" (:2943)
+- `cutPoints` (REQUIRED; [[R_interface_bartcore.cpp:2936@5eae79d3]], read [[R_interface_bartcore.cpp:2981-2998@5eae79d3]], refuses if absent/wrong-length)
+- `currentSampleNum` (REQUIRED; [[R_interface_bartcore.cpp:2937@5eae79d3]], read [[R_interface_bartcore.cpp:3000-3008@5eae79d3]])
+- `formatVersion` ([[R_interface_bartcore.cpp:2939@5eae79d3]], integer, currently == 3)
+- `packageVersion` ([[R_interface_bartcore.cpp:2941@5eae79d3]], provenance string, PACKAGE_VERSION "1.0-0",
+  [[src/config.hpp:97@5eae79d3]])
+- `class` = "bartcoreState" ([[src/config.hpp:2943@5eae79d3]])
 
 The KEY fact for this job: `setState` already reads every per-chain slot BY
-NAME through `getListElement` (R_interface_bartcore.cpp:83-90, a linear
+NAME through `getListElement` ([[R_interface_bartcore.cpp:83-90@5eae79d3]], a linear
 names scan), NOT by positional index, and already defaults absent OPTIONAL
 slots. The write side names slots via a fixed enum only for its own
-convenience (:2810-2821); the read side is name-driven and enum-free.
+convenience ([[R_interface_bartcore.cpp:2810-2821@5eae79d3]]); the read side is name-driven and enum-free.
 
 Per-chain slots, classified as the reader treats them today:
-- `forests` (REQUIRED; :3015-3019 refuses if null/non-list). Each forest:
+- `forests` (REQUIRED; [[R_interface_bartcore.cpp:3015-3019@5eae79d3]] refuses if null/non-list). Each forest:
   - `tree.vars`/`tree.values`/`tree.sizes`/`tree.flags` (REQUIRED via
-    readFlatTrees, :3029-3034)
+    readFlatTrees, [[R_interface_bartcore.cpp:3029-3034@5eae79d3]])
   - `tree.params` (CONDITIONALLY REQUIRED: iff `usesFunctionLeaves()` or
-    `numLeafCovariates() > 0`, :3046-3066)
+    `numLeafCovariates() > 0`, [[R_interface_bartcore.cpp:3046-3066@5eae79d3]])
   - `tree.masks` (CONDITIONALLY REQUIRED: iff `data().hasPooledCategorical`,
-    :3069-3078)
-  - `saved.*` (OPTIONAL: `saved.sizes` presence gates the block, :3035-3042;
+    [[R_interface_bartcore.cpp:3069-3078@5eae79d3]])
+  - `saved.*` (OPTIONAL: `saved.sizes` presence gates the block, [[R_interface_bartcore.cpp:3035-3042@5eae79d3]];
     present iff tree storage was on)
-  - `k` (REQUIRED, :3080-3085)
-- `sigma` (REQUIRED, :3089-3094)
-- `fit.scale` (REQUIRED, length 2, :3096-3102)
-- `latents` (OPTIONAL: `if (!Rf_isNull(...))`, :3104-3112; present iff binary)
-- `ranef` + `tau` (OPTIONAL pair: gated on `ranef` non-null, :3114-3125)
+  - `k` (REQUIRED, [[R_interface_bartcore.cpp:3080-3085@5eae79d3]])
+- `sigma` (REQUIRED, [[R_interface_bartcore.cpp:3089-3094@5eae79d3]])
+- `fit.scale` (REQUIRED, length 2, [[R_interface_bartcore.cpp:3096-3102@5eae79d3]])
+- `latents` (OPTIONAL: `if (!Rf_isNull(...))`, [[R_interface_bartcore.cpp:3104-3112@5eae79d3]]; present iff binary)
+- `ranef` + `tau` (OPTIONAL pair: gated on `ranef` non-null, [[R_interface_bartcore.cpp:3114-3125@5eae79d3]])
 - `dart.probabilities` + `dart.alpha` + `dart.updates.skipped` (OPTIONAL
-  triple, :3127-3145)
-- `rng.state` (OPTIONAL, :3147-3157; absence forfeits bitwise continuation
-  only - dbarts.h:194-196 already documents cross-kind unrestored streams)
-- `bcf` (OPTIONAL, :3159-3170; present iff BCF)
+  triple, [[R_interface_bartcore.cpp:3127-3145@5eae79d3]])
+- `rng.state` (OPTIONAL, [[R_interface_bartcore.cpp:3147-3157@5eae79d3]]; absence forfeits bitwise continuation
+  only - [[dbarts.h:194-196@5eae79d3]] already documents cross-kind unrestored streams)
+- `bcf` (OPTIONAL, [[dbarts.h:3159-3170@5eae79d3]]; present iff BCF)
 
 So the additive-by-name reader is ~90% already built. The ONE thing that
 orphans states across releases is the strict-equality gate at the top of
-`setState` (:2959-2969) and `installForests` (:3337-3340):
+`setState` ([[dbarts.h:2959-2969@5eae79d3]]) and `installForests` ([[dbarts.h:3337-3340@5eae79d3]]):
 `if (formatVersion != stateFormatVersion) Rf_error(...)`. Every past feature
-bumped `stateFormatVersion` (now 3; history at :2773-2785:
+bumped `stateFormatVersion` (now 3; history at [[dbarts.h:2773-2785@5eae79d3]]:
 v2 = flat-node tagging + dropped-slots ENCODING change, v3 = trees-into-
 forests + bcf slot STRUCTURAL change) and thereby invalidated every state a
 prior release wrote. public-surface.md records this gate as the "one
@@ -191,7 +191,7 @@ engine can produce it now":
   Future append.
 - per-forest fits (forest-combiner/multi-forest, TODO L60-71, L122-130):
   BCF per-forest fits already ship via SEPARATE R-level entry points
-  `bartcore_getForestFits`/`bartcore_getBCFGlue` (R_interface.cpp:229-230),
+  `bartcore_getForestFits`/`bartcore_getBCFGlue` ([[R_interface.cpp:229-230@5eae79d3]]),
   not through `dbarts_results`. forest-combiner landed 2026-07-14
   (docs/design/forest-combiner.md), so folding them into `dbarts_results` is
   unblocked; do it when a consumer pulls. Future append.
@@ -303,12 +303,12 @@ per-field offsets are padding/ABI-dependent and add churn without extra
 safety once order + total size are pinned.
 
 Thread-safety / ABI notes: main R thread only (RNG bracket internal),
-callback refused while chains run on worker threads (C_interface.cpp:74-87).
+callback refused while chains run on worker threads ([[C_interface.cpp:74-87@5eae79d3]]).
 No new global state. The struct is caller-owned and single-threaded per
 call.
 
 Registration: `dbarts_sampler_run`'s existing CCallable entry
-(R_interface.cpp near :301) needs no new registration line - only its
+(R_interface.cpp near [[C_interface.cpp:301@5eae79d3]]) needs no new registration line - only its
 signature (the now size-first `dbarts_results*`) changed.
 
 **Originally proposed, and superseded: a parallel dbarts_sampler_run2 /
@@ -333,9 +333,9 @@ then guards off. `run2` would share `run`'s contract verbatim: main R
 thread only, callback refused on worker threads, no new global state.
 `DBARTS_C_API_VERSION` would bump 1 -> 2 so a consumer could gate
 `dbarts_apiVersion() >= 2` before resolving `run2` (the header already
-mandates the apiVersion check, dbarts.h:9-13); `run2` would need its own
+mandates the apiVersion check, [[dbarts.h:9-13@5eae79d3]]); `run2` would need its own
 CCallable registration line (`DEF_FUNC("dbarts_sampler_run2",
-dbarts_sampler_run2)`, R_interface.cpp near :301).
+dbarts_sampler_run2)`, R_interface.cpp near [[dbarts.h:301@5eae79d3]]).
 
 Changed because: nothing on CRAN links the unreleased 1.0-0 header, so
 `dbarts_results` had no installed base to protect with a shim - it could
@@ -361,7 +361,7 @@ gate, (b) name the missing block on refusal, (c) write down the registry
 rule that keeps the relaxation safe.
 
 (a) Version gate -> encoding floor + provenance. Introduce alongside
-`stateFormatVersion` (R_interface_bartcore.cpp:2785):
+`stateFormatVersion` ([[R_interface_bartcore.cpp:2785@5eae79d3]]):
 ```cpp
 // The oldest ENCODING this reader still understands. Additive block
 // additions do NOT raise it (they are read by name and defaulted when
@@ -370,7 +370,7 @@ rule that keeps the relaxation safe.
 // not a compat target.
 static const int minReadableStateFormatVersion = 3;
 ```
-Replace the two `!= stateFormatVersion` gates (setState :2959, installForests
+Replace the two `!= stateFormatVersion` gates (setState [[R_interface_bartcore.cpp:2959@5eae79d3]], installForests
 :3337) with `< minReadableStateFormatVersion`, keeping the packageVersion in
 the message:
 ```cpp
@@ -399,8 +399,8 @@ incompatible encoding" half; the by-name reader IS the "additive evolution
 is free" half.
 
 (b) Name the missing REQUIRED block on refusal. Today required-absence gives
-generic messages ("malformed forests in bartcore state", :3017; "malformed
-parameters", :3082/:3091). Add a two-message convention distinguishing absent
+generic messages ("malformed forests in bartcore state", [[R_interface_bartcore.cpp:3017@5eae79d3]]; "malformed
+parameters", [[R_interface_bartcore.cpp:3082@5eae79d3]]/[[R_interface_bartcore.cpp:3091@5eae79d3]]). Add a two-message convention distinguishing absent
 from malformed, and use the block name:
 ```
 "bartcore state is missing required block '%s'"        // getListElement null
@@ -411,7 +411,7 @@ channels, `k`, `sigma`, `fit.scale`, and - conditioned on sampler config -
 `tree.params`/`tree.masks`, and `latents` for binary if you promote it; see
 worked example). OPTIONAL slots keep their silent-default behavior unchanged.
 
-(c) Registry convention (document in the storeState comment block at :2773
+(c) Registry convention (document in the storeState comment block at [[R_interface_bartcore.cpp:2773@5eae79d3]]
 and in a new short section of docs/design/public-surface.md section 2 or a
 state-format design note):
 - Block names are APPEND-ONLY. Once a release ships a block under a name,
@@ -444,7 +444,7 @@ Reader behavior across versions:
   against the NB-aware library, just without the trace.
 - New consumer, non-NB sampler: `rTrace` non-null but the engine's NB
   producer is inactive -> the channel is simply never written (existing
-  null-skip-by-model convention, dbarts.h:59-62). Consumer value-init leaves
+  null-skip-by-model convention, [[dbarts.h:59-62@5eae79d3]]). Consumer value-init leaves
   it 0; it must gate on `dbarts_sampler_...` model queries as with k/varprobs.
 - New consumer, NB sampler: filled. `sizeof(dbarts_results)` EXPECTED assert
   bumped; `DBARTS_C_API_VERSION` bumped to 2 (the first bump after the
@@ -456,7 +456,7 @@ optional per-chain slot:
 if (chainState.hasNB)
   SET_VECTOR_ELT(chainExpr, SLOT_NB, Rf_ScalarReal(chainState.r));
 ```
-named `"nb"` (append the enum + name at :2810-2821; no floor bump - it is
+named `"nb"` (append the enum + name at [[dbarts.h:2810-2821@5eae79d3]]; no floor bump - it is
 additive). Reader:
 ```cpp
 SEXP nbExpr = getListElement(chainExpr, "nb");
@@ -478,7 +478,7 @@ Cross-version behavior:
 - NB state loaded by a NEW reader on an NB sampler: required, present,
   restored bitwise.
 This is exactly the latents/tree.params/tree.masks conditional-required
-pattern already in setState (:3046-3078, :3104-3112), so NB adds no new
+pattern already in setState ([[dbarts.h:3046-3078@5eae79d3]], [[dbarts.h:3104-3112@5eae79d3]]), so NB adds no new
 machinery - it instantiates the registry rule.
 
 ### Landed: dbarts_sampler_setForestWeights (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
@@ -489,7 +489,7 @@ reserved 2026-08-10 (docs/plans/archive/zero-weight-exactness.md S2 adding the
 `bartcore_setForestWeights`, with no `dbarts.h` symbol because the flat API
 then had no BCF creation entry point to reach it from). The flat entry
 shipped exactly to the reserved signature, appended at the END of the
-X-list (`dbarts.h`), body at `C_interface.cpp:837-854`: the capability probe
+X-list (`dbarts.h`), body at `[[C_interface.cpp:837-854@5eae79d3]]`: the capability probe
 on `shape.supportsForestWeights` runs FIRST, never a forest count, so a
 multinomial cannot slip through; `weights == NULL` clears. No version
 constant moved (`DBARTS_C_API_MAJOR`/`MINOR` stayed 1/0). The three
@@ -515,10 +515,10 @@ constraints recorded at reservation time all held, unrelitigated:
 ### Landed: the BCF flat surface (bcf-public-surface S3, 1622eb9, 2026-08-10)
 
 S3 appended four entries at the END of the X-list - `dbarts_sampler_numForests`,
-`setTreatment`, `forestFits`, `bcfGlue` (inst/include/dbarts/dbarts.h:264-271)
+`setTreatment`, `forestFits`, `bcfGlue` ([[inst/include/dbarts/dbarts.h:264-271@5eae79d3]])
 - and widened `dbarts_sampler_setResponse` to take `updateScale`, re-baking
 `DBARTS_C_API_HASH` from `0xf760898d116cb3a3ULL` to `0x1a911c00bb26dcd7ULL`
-(dbarts.h:83); both version constants stayed at 1 and 0 (no bartcore release
+([[dbarts.h:83@5eae79d3]]); both version constants stayed at 1 and 0 (no bartcore release
 has shipped). The three `int` entries return 1 = accepted, 0 = refused,
 matching `dbarts_sampler_setPredictor` and this reservation's own convention.
 
@@ -528,8 +528,8 @@ forest-blind, ambiguous on a two-forest sampler (bcf-public-surface.md S3,
 "Coordination with the queued dbarts.h reshape"; that section also named
 `setTreeStorage`, whose forest-indexed form the reshape plan CLOSED BY FACT -
 storage is per sampler). `dbarts-h-reshape.md` S1 item 3 built the three
-forest-indexed tree queries (`getTrees` C_interface.cpp:640-658, `printTrees`
-:660-690, `numTrees` :734-741), each carrying its own bridge range check;
+forest-indexed tree queries (`getTrees` [[C_interface.cpp:640-658@5eae79d3]], `printTrees`
+:660-690, `numTrees` [[C_interface.cpp:734-741@5eae79d3]]), each carrying its own bridge range check;
 forest-indexed `predict` stays a recorded door there, unbuilt.
 That plan's S1 item 5b's carve-out RESOLVED unconditionally (fork 3 answered
 2026-08-11, multiforest-extension-surface.md): `setTreatment`/`bcfGlue`
@@ -595,7 +595,7 @@ per-observation 0/1 active-row mask to the engine, the `dbarts:::` bridge
 `bartcore_setActiveRows`, and a `dbartsSampler$setActiveRows` R5 method, all
 landed through that arc's S4, `dbarts:::`-only until this slice). The flat
 entry shipped exactly to the reserved signature, appended at the END of the
-X-list, body at `C_interface.cpp:901-910`. Two constraints recorded at
+X-list, body at `[[C_interface.cpp:901-910@5eae79d3]]`. Two constraints recorded at
 reservation time both held:
 
 1. **Ownership: the entry RETAINS NOTHING.** `active`'s values are consumed
@@ -634,18 +634,18 @@ enum, both size-first and both consumer-side-only (they keep the
 one-member `DBARTS_FOREST_CALIBRATION_INIT` form, unlike
 `DBARTS_PREDICTOR_SOURCE_INIT` above, which the library itself constructs
 through `dbarts_dense_predictor_source` - see dbarts-h-reshape.md's fixed
-item-1 note). Bodies at `C_interface.cpp:856-887` (getter) and `:889-899`
+item-1 note). Bodies at `[[C_interface.cpp:856-887@5eae79d3]]` (getter) and `[[C_interface.cpp:889-899@5eae79d3]]`
 (setter): TWO error channels throughout, a capability answer (an
 out-of-range forest, or a combiner-owned calibration on BCF/multinomial)
 returns 0 touching nothing, a malformed `priorScale` raises. The engine
 bounds check this arc's own S2 landing note carried forward (`Chain::
 forestCalibration` reading past the last forest) shipped alongside, at
-`chain.hpp:985`. No version constant moved.
+`[[chain.hpp:985@5eae79d3]]`. No version constant moved.
 
 ### Reservations closed and opened at the reshape (dbarts-h-reshape S1 ab3aa2fa, S2)
 
 - **Forest-indexed `setTreeStorage`** - CLOSED BY FACT, not reserved: storage
-  is per sampler (`chain.hpp:2209-2232`), so its only legal per-forest value
+  is per sampler (`[[chain.hpp:2209-2232@5eae79d3]]`), so its only legal per-forest value
   would be "all forests" (recorded above, "Landed: the BCF flat surface").
 - **Forest-indexed `predict`** - a DOOR, not built. Blocker: per-forest
   saved-tree replay - `Chain::predictFromSavedSample`/
@@ -687,7 +687,7 @@ forestCalibration` reading past the last forest) shipped alongside, at
 - **`dbarts_apiHash()` is blind to struct layout, measured**: three headers
   differing only in `dbarts_results`' layout (including a hard ABI-breaking
   field retype) all hash identically. `structSize` plus the exact-offset
-  `static_assert` locks on `dbarts_results` (`C_interface.cpp:264-276`) are
+  `static_assert` locks on `dbarts_results` (`[[C_interface.cpp:264-276@5eae79d3]]`) are
   the layout contract; a layout change is NOT self-detecting and must be
   announced to the sister packages by hand.
 
@@ -707,17 +707,17 @@ by construction).
 **Decision: reserve now, build post-RC.** Cost of opening, corrected against
 an earlier "one hash cell edit" estimate: appending to `DBARTS_C_API_DECLS`
 moves the signature half too, so opening this door is TWO literal re-bakes -
-`DBARTS_C_API_HASH` (`dbarts.h:142`, today `0x66d33f1613892406ULL`) AND
-`dbarts_apiSignatureToken` (`C_interface.cpp:461`, today
-`0xcb83367ee0c4175bULL`) - plus `inst/tinytest/test-capi.R:84`'s
+`DBARTS_C_API_HASH` (`[[dbarts.h:142@5eae79d3]]`, today `0x66d33f1613892406ULL`) AND
+`dbarts_apiSignatureToken` (`[[C_interface.cpp:461@5eae79d3]]`, today
+`0xcb83367ee0c4175bULL`) - plus `[[inst/tinytest/test-capi.R:84@5eae79d3]]`'s
 `expect_identical(hashes$text, "0x66d33f1613892406")`, which must change,
 and a new `expect_false` for the superseded literal alongside the existing
-ones at `:73-74`, `:78`, `:81`. Priced at ~260 non-test / ~200 test
+ones at `[[inst/tinytest/test-capi.R:73-74@5eae79d3]]`, `[[inst/tinytest/test-capi.R:78@5eae79d3]]`, `[[inst/tinytest/test-capi.R:81@5eae79d3]]`. Priced at ~260 non-test / ~200 test
 (multinomial-mutation-arc.md Door 2). Not spent now: the named consumer is
 stan4bart, on its own branch with its own release, so nothing is blocked by
 deferring; multinomial stays R-only in the meantime, exactly as it is
 today. `DBARTS_C_API_MAJOR`/`MINOR` stay 1/0 either way, per the
-pre-release carve-out (`dbarts.h:100-104`). Open this door when stan4bart
+pre-release carve-out (`[[dbarts.h:100-104@5eae79d3]]`). Open this door when stan4bart
 asks, not on spec.
 
 ## Verification
@@ -753,7 +753,7 @@ bridge; delete tests/cpp + capi binaries so no stale-header link).
    - `dbarts_apiVersion()` stays 1 (the struct is born size-first
      pre-release, so there is nothing to bump here - unlike the
      originally-proposed run2 duality, which would have moved this to 2).
-   - Self-gates on toolchain availability exactly as today (test-capi.R:13-38).
+   - Self-gates on toolchain availability exactly as today ([[test-capi.R:13-38@5eae79d3]]).
 
 3. State additive-load tinytest (new file, e.g.
    inst/tinytest/test-sampler-state-format.R): fit, `storeState`, then

@@ -18,7 +18,7 @@ bitwise-continuation contract that required them.
 Question: keep bitwise-exact restore? Recommendation: drop to semantic
 restore. Classic never promised it (rebuildScratchFromState recomputed
 totalFits and partitions on load); the contract is self-imposed
-(src/bartcore/chain.hpp:175-206 documents the fields and why), costs
+([[src/bartcore/chain.hpp:175-206@8e98f56f]] documents the fields and why), costs
 O(n * numTrees) state size, and stan4bart's splice-and-predict workflow
 needs the same trees and sigma, not the same accumulation history.
 Evidence that would change it: a consumer whose correctness (not

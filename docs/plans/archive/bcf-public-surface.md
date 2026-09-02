@@ -313,8 +313,8 @@ replacement creation route is `forests = list(forest(basis = ...), ...)` on
 slice rather than deprecated, since nothing is released and bartCause has not
 adopted them. The rename surface is THREE things, not two: this block names
 `setTreatment` and `bcfGlue`, and misses the creation contract documented at
-`dbarts.h:348-357` ("dbartsSpec(data, control, treatment = z)") plus the
-ownership sentence at `:43`. The conflict between this block and
+`[[dbarts.h:348-357@4c018187]]` ("dbartsSpec(data, control, treatment = z)") plus the
+ownership sentence at `[[dbarts.h:43@4c018187]]`. The conflict between this block and
 dbarts-h-reshape's binding decision 3 is adjudicated in favour of this block:
 that decision now carries a conditional carve-out for the two BCF-specific
 names and the creation contract.
@@ -404,7 +404,7 @@ forces a lockstep consumer recompile.
    `bartcore_setTestPredictor`, `bartcore_setTestOffset`,
    `bartcore_setTestPredictorAndOffset`); of the flat siblings only
    `setTestOffset` is guarded, and only incidentally, by
-   `refuseMultiForestMutation` (C_interface.cpp:306). This is NOT two lines.
+   `refuseMultiForestMutation` ([[C_interface.cpp:306@4c018187]]). This is NOT two lines.
    `refuseBCFTestSurface` is defined INSIDE the anonymous namespace of
    `R_interface_bartcore.cpp`: not declared in
    `R_interface_bartcore_common.hpp` and not reachable from `C_interface.cpp`.
@@ -701,15 +701,15 @@ all four.
 
 - `bcf-public-surface`: replace the entry with the landing record - plan doc
   path, the slices landed,
-  and the naming VD chose. Correct its own stale anchor `R/bartcore.R:536` to
+  and the naming VD chose. Correct its own stale anchor `[[R/bartcore.R:536@4c018187]]` to
   `bartcoreBCFSampler (R/bartcore.R)`, and drop the "Shape fork at design time"
   sentence, which is answered.
 - `multiforest-predictor-mutation`: its two anchors are STALE -
-  `R_interface_bartcore.cpp:1909-1923` is now
-  `refuseMultiForestTransactionalUpdate`, and `chain.hpp:1484` is now
+  `[[R_interface_bartcore.cpp:1909-1923@4c018187]]` is now
+  `refuseMultiForestTransactionalUpdate`, and `[[chain.hpp:1484@4c018187]]` is now
   `Chain::revalidateTrees`. Also strike "The BCF half is only consumable behind
   bcf-public-surface" once this arc lands.
-- `docs/design/model-space-survey.md` D3: same stale `R/bartcore.R:536`; mark
+- `docs/design/model-space-survey.md` D3: same stale `[[R/bartcore.R:536@4c018187]]`; mark
   the prerequisite CLOSED.
 - The dbarts.h reshape entry: record that this arc already widened
   `dbarts_sampler_setResponse` and appended four BCF entries, that the reshape
@@ -751,7 +751,7 @@ all four.
    direction too - the house convention is 1 = accepted, 0 = refused, the
    inverse of what the memo wrote.
 5. **The critique's A8 first item is OVERTURNED.** It reported citation drift on
-   `combiner.hpp:636/445/250` -> "live 637/446/251". At b374d9e those three
+   `[[combiner.hpp:636@4c018187]]/445/250` -> "live 637/446/251". At b374d9e those three
    constructs are at 636, 445 and 250 exactly; the memo's numbers were right.
 6. **B1's consequence is SHARPENED, not adopted verbatim.** The critique wrote
    that treatSens and stan4bart "would ERROR". No existing consumer code errors:
@@ -786,7 +786,7 @@ public) and "bartCause ... driving from R over the sampler mutation API"
 (verified by grep at bartCause dbarts-1.0@695c603: zero sampler-mutation
 calls anywhere in R/, every response-method sibling dispatching to
 bart2/rbart_vi). docs/design/model-space-survey.md marks door D3 CLOSED with
-the landing commits and corrects its stale R/bartcore.R:536 anchor to :629
+the landing commits and corrects its stale [[R/bartcore.R:536@4c018187]] anchor to [[R/bartcore.R:629@4c018187]]
 (bartcoreBCFSampler moved position during S1). docs/design/public-surface.md
 gains a new section 8 recording the same creation/mutation/reporting surface
 for a reader who starts there. docs/plans/archive/c-api-growth.md gains a

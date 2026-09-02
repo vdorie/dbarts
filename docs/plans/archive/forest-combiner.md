@@ -39,11 +39,11 @@ lands without touching Chain.
 
 - dbarts.h FROZEN; the internal .Call + facade BCF surface UNCHANGED. This is an
   engine-header reorg only: SamplerBase's numForests/setTreatment/bcfGlue/
-  forestTotalFits (facade.hpp:139-147) and Sampler's fan-out (sampler.hpp:1000-
+  forestTotalFits ([[facade.hpp:139-147@4a521760]]) and Sampler's fan-out ([[sampler.hpp:1000@4a521760]]-
   1010) forward to Chain exactly as today; Chain forwards to combiner_.
 - The Forest split already shipped (forest-split-bcf.md): Chain holds
   std::vector<Forest<L>>, size 1 off BCF; Forest owns trees/fits/residual/leaf/
-  selector/keepTrees/columnMask (chain.hpp:271-326). The combiner does NOT touch
+  selector/keepTrees/columnMask ([[chain.hpp:271-326@4a521760]]). The combiner does NOT touch
   the Forest split; it only relocates the coupling that combines forests.
 - Per-forest tree-query addressing is already plumbed: savedTree/savedTreeSlopes/
   savedTreeMasks/flattenTree carry a defaulted forestIndex, numTreesInForest is
@@ -57,9 +57,9 @@ lands without touching Chain.
 
 ## Context (seams, read in code)
 
-- Chain members to reparent (chain.hpp:2472-2476): forests_ stays; bcf_
+- Chain members to reparent ([[chain.hpp:2472-2476@4a521760]]): forests_ stays; bcf_
   (std::unique_ptr<BCFState>) becomes combiner_ (std::unique_ptr<ForestCombiner
-  <L>>). BCFState (chain.hpp:361-369: z, a/b0/b1, aVariance, priors, updateA/B,
+  <L>>). BCFState ([[chain.hpp:361-369@4a521760]]: z, a/b0/b1, aVariance, priors, updateA/B,
   the combined/forestResponse/forestWeights scratch) moves into BCFForestCombiner.
 - The combining math, all Chain private methods today, all keyed on forest 0 = mu
   / forest 1 = tau (chain.hpp): forestMultiplier (2283), formForestResponse (2293
@@ -68,25 +68,25 @@ lands without touching Chain.
   IG, then b0, then b1), interweaveGlueRidge (594 - the post-glue GIG rescale
   reaching forest 0's treeFits/totalFits/test fits/saved-tree FlatNodes).
 - Two sweep call sites duplicate the BCF branch and MUST both route through the
-  combiner: run() (chain.hpp:733-847: per-forest formForestResponse at 740,
+  combiner: run() ([[chain.hpp:733-847@4a521760]]: per-forest formForestResponse at 740,
   combinedFits at 831, drawGlue+interweave at 844-847) and growForestFromRoot()
-  (chain.hpp:995-1064, the same branch). The default single-forest body of each
+  ([[chain.hpp:995-1064@4a521760]], the same branch). The default single-forest body of each
   is the byte-identity anchor.
 - The sweep's per-sweep draw order to preserve exactly: per-forest tree draws;
   refreshLatents; drawSigma; drawGlue (a, aVariance, b0, b1); interweaveGlueRidge
   (v); per-forest k draw; DART. combiner_->drawGlue and ->afterCombine are called
   at the drawGlue/interweave points, same sequence.
-- Per-forest reporting addressing (storeSample, chain.hpp:2366-2456): trainingFits
+- Per-forest reporting addressing (storeSample, [[chain.hpp:2366-2456@4a521760]]): trainingFits
   is the a*mu+b_z*tau blend under BCF (2379) else forest 0 (2387); testFits (2398)
   and logLikelihood (2445) NaN-flag under BCF (no test treatment vector);
   variableCounts/k/splitProbabilities read forest 0 (2375, 2415-2428). getState/
-  setState glue (2/(de)serialize a/aVariance/b0/b1, chain.hpp:1695-1701, 1863-
+  setState glue (2/(de)serialize a/aVariance/b0/b1, [[chain.hpp:1695-1701@4a521760]], 1863-
   1867, 1915-1919; ChainStateData.hasBCF at 261-262).
 - BCF-construction helpers stay in the Chain BCF constructor (not the combiner):
   scaledResponseSd (2226), buildBCFForest (2244), the calibration map
-  (chain.hpp:528-546). Construction wires combiner_ = a BCFForestCombiner built
+  ([[chain.hpp:528-546@4a521760]]). Construction wires combiner_ = a BCFForestCombiner built
   from BCFSpec; the combiner holds the borrowed z and the glue state thereafter.
-- GroupedResponse (model.hpp:2639) is a ResponseModel decorator: it subtracts
+- GroupedResponse ([[model.hpp:2639@4a521760]]) is a ResponseModel decorator: it subtracts
   group effects from workingResponse() BELOW the combining step. The sweep feeds
   the combiner y = response_->workingResponse() (group-adjusted already), so a
   combiner and a grouped decorator compose without either knowing the other -
@@ -167,7 +167,7 @@ only via the internal bartcoreBCFSampler. So equivalence-ac6ec2c.rds guards the
 single-forest paths and says NOTHING about BCF. bcf-exact.R runs the BCF sampler
 but matches a closed-form posterior to MC error - statistical, not bitwise. A
 neutral refactor of the BCF path therefore has no existing bitwise guard.
-test-bcf.R's "default neutrality" echo (test-bcf.R:222) is a within-session pair,
+test-bcf.R's "default neutrality" echo ([[test-bcf.R:222@4a521760]]) is a within-session pair,
 not a before/after-refactor gate. Step 1 establishes the missing guard.
 
 ## Steps
@@ -249,7 +249,7 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
    IDENTICAL). storeSample asks combiner_ for the combined training fit and for
    channel definedness (BCF: testFits/logLikelihood undefined -> NaN; forest-0
    varcount/k/splitProbs the combiner's reported-forest map); getState/setState
-   AND installForest (the warm-start glue restore, chain.hpp:1863-1867 - the
+   AND installForest (the warm-start glue restore, [[chain.hpp:1863-1867@4a521760]] - the
    third glue site, review finding) delegate glue (de)serialization to
    combiner_->serialize/restore (ChainStateData glue fields stay the wire
    format, filled by the combiner); setTreatment and bcfGlue route through

@@ -19,27 +19,27 @@ whose IACT scales to thousands of sweeps at large `|a0|` (A4e).
 
 ### 1.1 Prognostic leaf prior (constant Gaussian leaf)
 
-model.hpp:95-138. Each occupied bottom node value:
+[[model.hpp:95-138@4c018187]]. Each occupied bottom node value:
 
-    mu_l ~ N(0, (scale/k)^2)   iid across leaves,     (model.hpp:95,137-138)
+    mu_l ~ N(0, (scale/k)^2)   iid across leaves,     ([[model.hpp:95@4c018187]], [[model.hpp:137-138@4c018187]])
 
 with `scale = nodeScale/sqrt(numTrees)`. For the BCF prognostic forest
 `buildBCFForest` sets `nodeScale = s = scaledResponseSd()`
-(chain.hpp:474, 1958-1969), `k = 1`, `updateK = false`
-(chain.hpp:1987,1985), so
+([[chain.hpp:474@4c018187]], 1958-1969), `k = 1`, `updateK = false`
+([[chain.hpp:1987@4c018187]], [[chain.hpp:1985@4c018187]]), so
 
     leafVar := (scale/k)^2 = s^2 / T_mu,   T_mu = # prognostic trees.
 
 Define the leaf prior precision `P_leaf := (k/scale)^2 = 1/leafVar`
-(model.hpp:112,129). Keep the general `(k/scale)^2` form in code so the
+([[model.hpp:112@4c018187]], [[model.hpp:129@4c018187]]). Keep the general `(k/scale)^2` form in code so the
 move stays correct if k ever varies; for shipped BCF `k = 1`.
 
 The prognostic total is `mu(x_i) = sum_l mu_l 1[i in leaf l]`, stored as
-`forests_[0].totalFits` (chain.hpp:2030,505-508); each tree's per-obs
-leaf-value fits live in `forests_[0].treeFits` (chain.hpp:270,615).
+`forests_[0].totalFits` ([[chain.hpp:2030@4c018187]], [[chain.hpp:505-508@4c018187]]); each tree's per-obs
+leaf-value fits live in `forests_[0].treeFits` ([[chain.hpp:270@4c018187]], [[chain.hpp:615@4c018187]]).
 
 Empty leaves are forced to value 0 and are NOT prior draws
-(chain.hpp:1884-1895, "a forced-zero empty leaf is not a draw from the
+([[chain.hpp:1884-1895@4c018187]], "a forced-zero empty leaf is not a draw from the
 k-scaled prior"). So the free leaf parameters are the OCCUPIED bottom
 nodes only. Define
 
@@ -47,24 +47,24 @@ nodes only. Define
     M = sum over occupied prognostic leaves of (leaf value)^2.
 
 These are exactly what `kSumSquaredParams`/`kNumLeaves` accumulate
-(chain.hpp:1892-1894) -- but that accumulation is gated on
+([[chain.hpp:1892-1894@4c018187]]) -- but that accumulation is gated on
 `forest.updateK`, which is false for BCF, so the implementer must
 recompute L and M unconditionally (see section 4).
 
 ### 1.2 The a prior via the inverse-gamma auxiliary
 
-drawGlue, chain.hpp:2042-2066; audit block 6, correctness-audit.md.
+drawGlue, [[chain.hpp:2042-2066@4c018187]]; audit block 6, correctness-audit.md.
 Scale-mixture representation of the half-Cauchy:
 
     aVariance ~ IG(1/2, aPriorScale^2/2)      (prior on the auxiliary)
-    a | aVariance ~ N(0, aVariance)            (chain.hpp:2049 uses 1/aVariance as the a-prior precision)
+    a | aVariance ~ N(0, aVariance)            ([[chain.hpp:2049@4c018187]] uses 1/aVariance as the a-prior precision)
     => marginally a ~ Cauchy(0, aPriorScale)   (Monte-Carlo verified, audit:348-350)
 
-Conditional refresh after the a-draw (chain.hpp:2060-2065):
+Conditional refresh after the a-draw ([[chain.hpp:2060-2065@4c018187]]):
 
     aVariance | a ~ IG(1, (a^2 + aPriorScale^2)/2).
 
-The conjugate a-draw itself (mu held fixed, chain.hpp:2048-2058):
+The conjugate a-draw itself (mu held fixed, [[chain.hpp:2048-2058@4c018187]]):
 `a ~ N(aNum/aPrec, 1/aPrec)`, `aPrec = 1/aVariance + sum_i w_i mu_i^2/sigma^2`,
 `aNum = sum_i w_i mu_i (y_i - b_{z_i} tau_i)/sigma^2`.
 
@@ -72,13 +72,13 @@ The conjugate a-draw itself (mu held fixed, chain.hpp:2048-2058):
 
     y_i = a*mu(x_i) + b_{z_i}*tau(x_i) + eps_i,  eps ~ N(0, sigma^2/w_i)
 
-(chain.hpp:2026-2036 combined fit; bcf.md). `b0,b1 ~ N(0, bPriorVariance)`
-(default 1/2, chain.hpp:2068-2080). The tau forest and b0/b1 are NOT
+([[chain.hpp:2026-2036@4c018187]] combined fit; bcf.md). `b0,b1 ~ N(0, bPriorVariance)`
+(default 1/2, [[chain.hpp:2068-2080@4c018187]]). The tau forest and b0/b1 are NOT
 touched by the move.
 
 ### 1.4 Sweep placement
 
-run() loop chain.hpp:579-709: forest loop (mu backfit, then tau backfit)
+run() loop [[chain.hpp:579-709@4c018187]]: forest loop (mu backfit, then tau backfit)
 -> refreshLatents (678) -> drawSigma (688, on the OLD combined fit) ->
 `drawGlue(y, weights)` (690) -> k/DART (692-706) -> `storeSample` (708).
 Inside the forest loop, `storeSavedTreeRecord` (651) flattens each mu tree
@@ -213,7 +213,7 @@ integrated form. Use the GIG (condition on aVariance).
   improper. BCF T_mu default is 200, so `L >= ~200`; theoretical only.
   [FLAG] Guard `L >= 2 && M > 0`; else skip the move that sweep (rare,
   harmless -- the missed move only forgoes mixing, never corrupts state).
-- **1e-9 multiplier floor** (formForestResponse, chain.hpp:2020): floors
+- **1e-9 multiplier floor** (formForestResponse, [[chain.hpp:2020@4c018187]]): floors
   `|a|` only when forming the mu backfit response `resid/m`, `w*m^2`. It
   does NOT enter the move (the move uses exact a, mu, aVariance; no division
   by m). If the move ever drove `|a| < 1e-9`, the NEXT sweep's mu backfit
@@ -229,7 +229,7 @@ integrated form. Use the GIG (condition on aVariance).
 - **updateA gating**: the move CHANGES a; if `bcf_->updateA == false` (a
   pinned, e.g. the bcf-exact mode-1 control a=1), the move must NOT run
   (it would break the pin, and with a fixed the ridge is absent). Gate the
-  move on `bcf_->updateA` (chain.hpp:2048's own guard). updateB is
+  move on `bcf_->updateA` ([[chain.hpp:2048@4c018187]]'s own guard). updateB is
   irrelevant to the move.
 
 ---
@@ -240,29 +240,29 @@ Enumerated against chain.hpp data structures. After drawing c (a0 = pre-move
 `bcf_->a`):
 
 Required:
-- `bcf_->a *= 1.0/c`                        (chain.hpp:234,324)
-- `forests_[0].treeFits *= c`  over all `n*T_mu` entries (chain.hpp:270).
+- `bcf_->a *= 1.0/c`                        ([[chain.hpp:234@4c018187]], [[chain.hpp:324@4c018187]])
+- `forests_[0].treeFits *= c`  over all `n*T_mu` entries ([[chain.hpp:270@4c018187]]).
   MANDATORY: the next sweep's residual roll reads each `treeFits[t]` slab
-  once (chain.hpp:617-630, `oldFits`) before overwriting it; a stale
+  once ([[chain.hpp:617-630@4c018187]], `oldFits`) before overwriting it; a stale
   unscaled slab desyncs the roll. One contiguous `misc_scalarMultiply` /
   scal over `forests_[0].treeFits.data()`, length `n*forest.numTrees`.
-- `forests_[0].totalFits *= c`  over `n` (chain.hpp:271). Read by the roll
-  (chain.hpp:619) and by combinedFits/storeSample.
+- `forests_[0].totalFits *= c`  over `n` ([[chain.hpp:271@4c018187]]). Read by the roll
+  ([[chain.hpp:619@4c018187]]) and by combinedFits/storeSample.
 
 Required when this sweep is recorded AND test data present:
 - `forests_[0].totalTestFits *= c` and `forests_[0].currTestFits *= c`
-  (n_test each, chain.hpp:271-272). [FLAG] Under BCF the testFits results
+  (n_test each, [[chain.hpp:271-272@4c018187]]). [FLAG] Under BCF the testFits results
   channel is NaN'd / the test surface refused (bcf-testfits-guard, LANDED
-  2026-07-08, TODO:180-189), so these arrays are diagnostically dead, but
+  2026-07-08, [[TODO:180-189@4c018187]]), so these arrays are diagnostically dead, but
   scale them anyway to keep STATE self-consistent (cheap, O(n_test)).
 
 Required when this sweep is recorded AND keepTrees is on:
 - The mu-forest SAVED tree records for this sweep's slot were flattened at
-  chain.hpp:651 with the PRE-move leaf values. After the move, the reported
+  [[chain.hpp:651@4c018187]] with the PRE-move leaf values. After the move, the reported
   `bcf_->a` is `a0/c` while the saved mu leaves are unscaled -> a stored *
   mu_saved = (a0/c)*mu0 desyncs the identified product. [FLAG -- the sharp
   edge.] FIX (choose one): (i) after the move, multiply every FlatNode value
-  in this slot's T_mu saved mu trees by c (chain.hpp:1127-1156 slot layout;
+  in this slot's T_mu saved mu trees by c ([[chain.hpp:1127-1156@4c018187]] slot layout;
   O(L)); or (ii) restructure so storeSavedTreeRecord for the mu forest runs
   AFTER drawGlue. Option (i) is the smaller change. Verify with a keepTrees
   BCF round-trip: predicted `a*mu` from saved trees must match the live
@@ -270,7 +270,7 @@ Required when this sweep is recorded AND keepTrees is on:
 
 Held FIXED (not rescaled):
 - `bcf_->aVariance`: the move conditions on it; it stays. It was drawn
-  `| a0` at chain.hpp:2065; leaving it conditioned on the pre-move a is a
+  `| a0` at [[chain.hpp:2065@4c018187]]; leaving it conditioned on the pre-move a is a
   one-sweep lag, not an error (next sweep's drawGlue refreshes it `| a_new`).
   [Optional, not required] redraw `aVariance | a_new ~ IG(1, (a_new^2 +
   aPriorScale^2)/2)` right after the move to erase the lag -- one gamma draw.
@@ -280,12 +280,12 @@ Held FIXED (not rescaled):
 Computing L and M (the move's only new reduction): iterate
 `forests_[0]`'s trees; for each occupied bottom node take its value
 `treeFits[t][indices[node.begin]]` (exactly recoverParametersFromFits,
-chain.hpp:1774-1788) and accumulate `M += v*v; L += 1`, skipping empty
-nodes -- mirroring the k-accumulator (chain.hpp:1892-1894) but run
+[[chain.hpp:1774-1788@4c018187]]) and accumulate `M += v*v; L += 1`, skipping empty
+nodes -- mirroring the k-accumulator ([[chain.hpp:1892-1894@4c018187]]) but run
 UNCONDITIONALLY (not gated on updateK). Cost O(L + total nodes).
 
 Recording note: `storeSample` records `scale*(a*mu + b_z*tau)+shift`
-(chain.hpp:2100-2103) which is INVARIANT -> trainingFits, and results.k /
+([[chain.hpp:2100-2103@4c018187]]) which is INVARIANT -> trainingFits, and results.k /
 variableCounts (mu-forest diagnostics) are unaffected by the move.
 
 ---
@@ -323,18 +323,18 @@ the memo's adversarial self-check and it PASSES.
 
 - `benchmarks/R/bcf-exact.R`, `bcf-exact-weak.R` MUST STAY EXACT. They match
   posterior EXPECTATIONS to MC tolerance (E[a*mu], E[tau], E[(b1-b0)tau];
-  bcf-exact.R:16-18,33-38), all of which the posterior-preserving move
+  [[bcf-exact.R:16-18@4c018187]], [[bcf-exact.R:33-38@4c018187]]), all of which the posterior-preserving move
   leaves unchanged -- it only mixes better. Mode 1 (a=1 fixed) has the move
   gated OFF (updateA=false). Mode 2a (a free) matches the IDENTIFIED E[a*mu]
   (not bare E[mu]), still exact. Expect PASS (possibly tighter, since mode 2a
-  "mixes well" already, bcf-exact.R:34).
+  "mixes well" already, [[bcf-exact.R:34@4c018187]]).
 - `benchmarks/R/equivalence.R`: its scenarios (makeScenarios, lines 60-285:
   friedman/probit/weighted/splitprobs/chik/chains/setdata/wtoffset/quants/
   categorical/missing/dart/linear/gp/logistic) include NO BCF scenario, and
   the move only fires under `bcf_`. So every existing equivalence baseline
   stays BITWISE identical -- NO re-record needed. (Confirm with an
   equivalence compare against the current anchor; expect identical.) The
-  TODO "anchor re-record" (TODO:174) bites only a BCF-specific snapshot: if a
+  TODO "anchor re-record" ([[TODO:174@4c018187]]) bites only a BCF-specific snapshot: if a
   BCF scenario is ever added to equivalence it will shift and must be
   recorded fresh. `inst/tinytest/test-bcf.R` uses structural/finiteness
   checks and a save/restore glue round-trip (no hardcoded draw values), so it
@@ -351,7 +351,7 @@ After the move this must PASS: sigma ecdf inside the ~0.092 band and rank
 mean ~= 75 (uniform). Repro: `Rscript benchmarks/R/sbc.R bcf 200 150 120`
 (runSbcBCF, burn=150 thinned units). Secondary: on long unthinned chains the
 strong-signal (|a0| ~ 7-13) sigma IACT should drop 1-2 orders of magnitude
-(A4e measured ~2500-6600 sweeps pre-move; TODO:178). Controls (abs.a,
+(A4e measured ~2500-6600 sweeps pre-move; [[TODO:178@4c018187]]). Controls (abs.a,
 prog1-5, eff1-5) already pass and must remain passing; raw a and (b1-b0) stay
 sign-ill-posed by design (A4b) -- the move does not and should not fix those.
 
@@ -377,7 +377,7 @@ move is on the order of a few percent (~5-15%) of a BCF sweep at these sizes
 To recover ~<1%: FUSE the `c` multiply into the residual roll that already
 streams the slab next sweep -- scale only `totalFits` (O(n)) at move time,
 carry `c` as a pending factor, and apply it to `oldFits` inside the existing
-roll (chain.hpp:617-630) which reads each `treeFits[t]` once before
+roll ([[chain.hpp:617-630@4c018187]]) which reads each `treeFits[t]` once before
 overwriting it. That adds one multiply per element to a pass already paid
 for, dropping the move's marginal cost to O(n + L) + one GIG draw. The
 fusion is delicate (the incremental roll for t>=1 mixes an old, c-needing
@@ -420,7 +420,7 @@ Net compute for a target accuracy drops sharply.
   re-record is needed; the naive treeFits rescale costs ~5-15% of a
   sweep, recovered to <1% by fusing the c multiply into the residual
   roll. Sharp edge: keepTrees flattens saved mu leaves BEFORE
-  drawGlue (chain.hpp:651) - the saved slot must be rescaled or the
+  drawGlue ([[chain.hpp:651@4c018187]]) - the saved slot must be rescaled or the
   ordering changed. VD approved the remedy in principle 2026-07-10;
   sequencing (orchestrator's call): after c-api-growth.
   NOT YET IMPLEMENTED.

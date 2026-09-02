@@ -63,9 +63,9 @@ records the fork; VD picks the routing order, neither plan is internally blocked
 
 - PG(n_i, psi) for INTEGER n_i is the sum of n_i iid PG(1, psi) draws; the only
   shipped sampler is ext_rng_simulatePolyaGamma(rng, psi) = PG(1, psi)
-  (src/include/external/random.h:126; src/external/random.c:581). There is NO
+  ([[src/include/external/random.h:126@6a48351b]]; [[src/external/random.c:581@6a48351b]]). There is NO
   direct PG(n, .) sampler. LogisticResponse already sums a weight's worth of
-  PG(1, psi) draws (model.hpp:2236-2242, `reps = lround(weights_[i])`); the count
+  PG(1, psi) draws ([[model.hpp:2236-2242@6a48351b]], `reps = lround(weights_[i])`); the count
   combiner does the same per (i, f) with reps = n_i. Cost is O(n_i) draws per
   (i, f) per sweep - linear in TOTAL counts (the accepted weighted-logistic cost,
   weighted-binary.md), never in the per-observation kernels.
@@ -95,26 +95,26 @@ records the fork; VD picks the routing order, neither plan is internally blocked
   combinedTestFits (676-689), afterCombine (710-743), and the margin (748-757)
   are count-INDEPENDENT (they read forest fits, so the softmax output, test
   blend, and level-centering are unchanged):
-  - drawForestGlue(f) (combiner.hpp:620-630): today one PG(1, .) draw per
+  - drawForestGlue(f) ([[combiner.hpp:620-630@6a48351b]]): today one PG(1, .) draw per
     observation, `omega[i] = ext_rng_simulatePolyaGamma(rng, fFits[i] - margin)`.
     Becomes the LogisticResponse summing loop with reps = trials_[i].
-  - formForestResponse(f) (combiner.hpp:635-647): today
+  - formForestResponse(f) ([[combiner.hpp:635-647@6a48351b]]): today
     `yif = labels_[i] == f ? 1.0 : 0.0; forestResponse_[i] = (yif - 0.5)/omega
     + margins_[i]`. Becomes `yif = counts_[f*n + i]; (yif - trials_[i]*0.5)/omega
     + margins_[i]`.
-- MultinomialSpec (combiner.hpp:181-191) carries `const int* labels`; the ctor
+- MultinomialSpec ([[combiner.hpp:181-191@6a48351b]]) carries `const int* labels`; the ctor
   (591-602) stores labels_, cold-starts omega_ at 1/4, sizes n x K scratch.
   Combiner members at 760-766.
-- MultinomialResponse (model.hpp:2339-2382) is unchanged - it owns no labels and
+- MultinomialResponse ([[model.hpp:2339-2382@6a48351b]]) is unchanged - it owns no labels and
   no counts (the combiner does), and its seams are already vestigial no-ops.
-- Chain multinomial ctor (chain.hpp:413-434) builds K forests + the combiner
-  from the spec; createMultinomialSampler (facade.hpp:545-551) is the single
+- Chain multinomial ctor ([[chain.hpp:413-434@6a48351b]]) builds K forests + the combiner
+  from the spec; createMultinomialSampler ([[facade.hpp:545-551@6a48351b]]) is the single
   ConstantGaussianLeaf instantiation.
-- createMultinomialHolder (R_interface_bartcore.cpp:1670-1748): parses labelsExpr
+- createMultinomialHolder ([[R_interface_bartcore.cpp:1670-1748@6a48351b]]): parses labelsExpr
   (integer code per observation, validated 0..K-1 at 1699-1708), builds
   MultinomialSpec, moves the buffer into holder->ownedLabels (1744). The .Call is
   bartcore_createMultinomial (2012-2016). bartcoreMultinomialSampler
-  (R/bartcore.R:559-583) is the internal wrapper.
+  ([[R/bartcore.R:559-583@6a48351b]]) is the internal wrapper.
 - The fixture (benchmarks/R/multinomial-equivalence.R) drives the internal
   surface at two SINGLE-TRIAL scenarios (k3 covariate 104-132, k2 logistic
   135-151), recording 5 channels; the exact gate (multinomial-exact.R) has three
@@ -207,7 +207,7 @@ C1. The count-matrix likelihood, one gated commit (the arc's C4 discipline: the
 C2. Public matrix interface (RNG-neutral surface). bart2(family = "multinomial")
    accepts a count matrix as the response (the y.train positional): detect Y with
    is.matrix(Y) && integer/numeric && ncol(Y) >= 2 in the multinomial branch
-   (bart.R:472-499, beside the factor path); levels from colnames(Y) (or
+   ([[bart.R:472-499@6a48351b]], beside the factor path); levels from colnames(Y) (or
    seq_len(K); Q4); validate nonneg integers + n_i >= 1; route through a
    count analog of bart2Multinomial to bartcoreMultinomialCountSampler.
    packageMultinomialResults threads colnames(Y) as levels on the K margin; the

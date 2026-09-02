@@ -16,8 +16,8 @@ amended.
 ## Context
 
 - Full-matrix setPredictor snapshots the entire n x p codes array for
-  rollback (src/bartcore/sampler.hpp:573 `oldCodes(data_.codes)`, the
-  second copy site at :882-908) - the copy equals the operation's own
+  rollback ([[src/bartcore/sampler.hpp:573@96161906]] `oldCodes(data_.codes)`, the
+  second copy site at [[src/bartcore/sampler.hpp:882-908@96161906]]) - the copy equals the operation's own
   cost, but build-new-and-swap gets rollback for free and halves peak
   traffic. Anchors re-verified 2026-07-17; locate the design doc's
   mutation-contract paragraph by grep, its line numbers drifted.

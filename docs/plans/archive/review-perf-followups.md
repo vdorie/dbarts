@@ -17,16 +17,16 @@ parked NT-store question with a real large-n profile.
 
 - C1 (P2): the leaf marginals carry sum wz^2 (z'Wz), a model-free data
   constant that is additive over any partition of a fixed member set and
-  so cancels in every MH comparison; scan.hpp:23-27,68-70 already omits
+  so cancels in every MH comparison; [[scan.hpp:23-27@fc40a08a]], [[scan.hpp:68-70@fc40a08a]] already omits
   it. Drop it from ALL THREE marginals - constant
-  (model.hpp:109-126,146-154, concept at :42), linear (model.hpp:299,
-  318, computeProjection output :371-412), and GP (:336-338) - because
+  ([[model.hpp:109-126@fc40a08a]], [[model.hpp:146-154@fc40a08a]], concept at [[model.hpp:42@fc40a08a]]), linear ([[model.hpp:299@fc40a08a]],
+  318, computeProjection output [[model.hpp:371-412@fc40a08a]]), and GP ([[model.hpp:336-338@fc40a08a]]) - because
   the GP leaf delegates oversized nodes to the constant marginal
-  (model.hpp:693-698): a constant-only drop would mix z'Wz-free and
+  ([[model.hpp:693-698@fc40a08a]]): a constant-only drop would mix z'Wz-free and
   z'Wz-carrying marginals across the maxLeafSize_ boundary and change
-  the GP posterior. Also: tree.hpp:177,497-523,800-801; moves.hpp:
-  215-216; the four kernel signatures moments.c:311-410 /
-  include/misc/stats.h:42-45 (internal, scalar, undispatched). The
+  the GP posterior. Also: [[tree.hpp:177@fc40a08a]], [[tree.hpp:497-523@fc40a08a]], [[tree.hpp:800-801@fc40a08a]]; moves.hpp:
+  215-216; the four kernel signatures [[moments.c:311-410@fc40a08a]] /
+  [[include/misc/stats.h:42-45@fc40a08a]] (internal, scalar, undispatched). The
   cross-model marginal tests (test_model.cpp) must pass UNEDITED once
   all marginals agree; an edit there means the drop is inconsistent.
   No serialization field carries it.
@@ -34,13 +34,13 @@ parked NT-store question with a real large-n profile.
   per-tree n-vector scatter (treeFits slab ~8x smaller; kills the
   recorded ~18.5% setIndexedVectorToConstant share). Sub-plan first.
 - C3 (P4): birth-move child-by-subtraction and partition/suffstat gather
-  fusion, tree.hpp:757-783. Order-careful; rng-neutral.
-- C4 (Tier 4): E3 route combinedFits (combiner.hpp:668-682) through
-  softmaxLocationMajor (combiner.hpp:561), bitwise-neutral only if the
+  fusion, [[tree.hpp:757-783@fc40a08a]]. Order-careful; rng-neutral.
+- C4 (Tier 4): E3 route combinedFits ([[combiner.hpp:668-682@fc40a08a]]) through
+  softmaxLocationMajor ([[combiner.hpp:561@fc40a08a]]), bitwise-neutral only if the
   arithmetic is identical - verify; E5 guard the n==0 OOB read at
-  model.hpp:2074-2079 (or prove the upstream reject); E1 confirm the
+  [[model.hpp:2074-2079@fc40a08a]] (or prove the upstream reject); E1 confirm the
   exact gate exercises unequal per-forest shrinkage in the
-  level-centering conditional (combiner.hpp:729-748) - investigation,
+  level-centering conditional ([[combiner.hpp:729-748@fc40a08a]]) - investigation,
   change only on evidence.
 - C5 (P3): multinomial margins O(nK^2) -> O(nK) via prefix/suffix
   log-sum-exp (NOT subtract-exp: cancellation when the excluded category
@@ -56,7 +56,7 @@ parked NT-store question with a real large-n profile.
 - Sequence C1 -> C2 -> C3 -> C4 -> C5 -> C6; one implementer at a time.
 - C1's neutrality is a review claim, not structural: the sum wz^2
   rounding sits inside each node's marginal and cancels only
-  algebraically in the branch-sum ratio (moves.hpp:47-63,507-517). If
+  algebraically in the branch-sum ratio ([[moves.hpp:47-63@fc40a08a]], [[moves.hpp:507-517@fc40a08a]]). If
   any anchor moves: STOP and report. Reclassification to shifting
   (posterior unchanged by the algebra) and any re-record are the
   orchestrator's call, never the implementer's.
@@ -119,7 +119,7 @@ marginal off by the FP reorder; parent - left is not the direct
 reduction) and was reverted at first divergence per protocol - it
 also couples birth() to a live parent-stats invariant several tests
 do not satisfy. Pass fusion audited as structurally non-neutral: the
-suffstat kernels (moments.c:331-405) reduce remainder-first in 5-way
+suffstat kernels ([[moments.c:331-405@fc40a08a]]) reduce remainder-first in 5-way
 groups over FINAL ascending buffer positions, while every partition
 variant (SIMD/scalar two-pointer, mask, wide-mask, sparse, MIA) is
 swap-based and does not finalize elements in that order, so in-loop

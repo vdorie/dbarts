@@ -96,7 +96,7 @@ the 5s limit, so no example was shrunk or moved to \donttest.
 ### Findings and dispositions
 
 1. R NOTE "no visible global function definition for 'dbinom'"
-   (pointwiseLogLikelihood, R/generics.R:54). dbinom sits beside dnorm
+   (pointwiseLogLikelihood, [[R/generics.R:54@4c018187]]). dbinom sits beside dnorm
    (already imported); it was the one missing stats import and would
    fail in a clean session where stats is not attached.
    -> FIXED in 10ee74c: added dbinom to the stats importFrom in
@@ -105,7 +105,7 @@ the 5s limit, so no example was shrunk or moved to \donttest.
 2. Compiled-code NOTE "Found '___stderrp', possibly from 'stderr'"
    in misc.a. Source: src/misc/io.c default hooks printToStderr /
    flushStderr, the documented R-independent fallback (io.h). In an R
-   session R_init_dbarts (src/R_interface.cpp:362-363) UNCONDITIONALLY
+   session R_init_dbarts ([[src/R_interface.cpp:362-363@4c018187]]) UNCONDITIONALLY
    repoints misc_printf -> Rprintf and misc_flushOutput ->
    R_FlushConsole at DLL load, before any .Call, so no stderr write is
    reachable from R; the symbol persists only because the fallback is
@@ -135,23 +135,23 @@ Full src/ rebuild with the sanitizer-free strict flags injected via a
 scratch CPPFLAGS (not committed to the build system). Our-code
 warnings, all cleared in 16d00c7, behavior-neutral:
 
-- R_interface_bartcore.cpp:1237,1294,1470 missing field
+- [[R_interface_bartcore.cpp:1237@4c018187]], [[R_interface_bartcore.cpp:1294@4c018187]], [[R_interface_bartcore.cpp:1470@4c018187]] missing field
   'ownedTreatment' initializer [-Wmissing-field-initializers]. The
   BartcoreHolder aggregate has 8 members; the three sites listed 7,
   leaving ownedTreatment implicitly value-initialized. FIX: added the
   explicit trailing {} (identical value-initialization).
-- misc/moments.c:1330 unused parameter 'i' [-Wunused-parameter].
+- [[misc/moments.c:1330@4c018187]] unused parameter 'i' [-Wunused-parameter].
   The whole body of misc_stat_setSIMDInstructionSet is under
   #ifdef COMPILER_SUPPORTS_SSE2; on arm64 (no NEON moments kernel) i is
   unused. FIX: (void) i; (emits no code).
 
 Remaining warnings are NOT our code and are left untouched:
 
-- R_ext/Boolean.h:66 "enumeration types with a fixed underlying type
+- [[R_ext/Boolean.h:66@4c018187]] "enumeration types with a fixed underlying type
   are a C23 extension" [-Wc23-extensions] x6 - inside R's own installed
   header, triggered by -pedantic on C TUs that include R. Unfixable by
   us; disappears without -pedantic.
-- tests/cpp/test_scan.cpp:34 'lwz2'/'rwz2' set but not used
+- [[tests/cpp/test_scan.cpp:34@4c018187]] 'lwz2'/'rwz2' set but not used
   [-Wunused-but-set-variable] x2 - test-harness only (never compiled
   into the package), pre-existing, out of CRAN scope.
 
@@ -360,7 +360,7 @@ pass. Three results need a decision:
 1. `lorax` - 2 ERRORs, GENUINE 1.0-0 BREAK. It calls
    `dbarts::bart()` with a 3-level factor response. 0.9-x coerced any
    factor response with `as.double(as.integer(data) - 1L)` (old
-   R/data.R:255), i.e. silently fit levels as the numbers 0/1/2; 1.0-0's
+   [[R/data.R:255@4c018187]]), i.e. silently fit levels as the numbers 0/1/2; 1.0-0's
    `resolveClassificationFamily` refuses and points at
    `bart2(family = "multinomial")`. The refusal is right - the old
    behavior was a silent miscoding - but lorax's examples and tests fail
@@ -368,8 +368,8 @@ pass. Three results need a decision:
 2. `insight` - 1 ERROR, GENUINE 1.0-0 BREAK. Its tests call
    `dbartsData(bill_len ~ ., penguins)`, and palmerpenguins has NA
    responses. 0.9-x set `na.action = stats::na.omit` on the model frame
-   (old R/data.R:202) and silently dropped those rows; 1.0-0 passes NAs
-   through (R/data.R:766, deliberate, comment records the change) and
+   (old [[R/data.R:202@4c018187]]) and silently dropped those rows; 1.0-0 passes NAs
+   through ([[R/data.R:766@4c018187]], deliberate, comment records the change) and
    then errors "response contains missing values".
 3. `bartCause` - 1 NOTE, not a dbarts issue: the tarball built from the
    local working copy carried a `.claude` directory, which its `.Rbuildignore` did

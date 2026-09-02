@@ -132,22 +132,22 @@ variable's total realized split mass is continuous in its level count. The v1
 unmoved, and `grow.hpp`, `scan.hpp`, `tree.hpp` and the three `tests/cpp` files
 this arc edits are byte-identical):
 
-- `Chain::growForestFromRoot` is chain.hpp:1444, and its SHAPE changed: it now
+- `Chain::growForestFromRoot` is [[chain.hpp:1444@4c018187]], and its SHAPE changed: it now
   loops `forests_` and, under a combiner, calls `drawForestGlue` then
-  `formForestResponse` then `composeForestWeights` (chain.hpp:1467-1477), so
+  `formForestResponse` then `composeForestWeights` ([[chain.hpp:1467-1477@4c018187]]), so
   `growTreeFromRoot` receives an already-composed `forestY`/`forestWeights`.
-  The multinomial CATEGORY OFFSET therefore enters UPSTREAM, at chain.hpp:1473;
+  The multinomial CATEGORY OFFSET therefore enters UPSTREAM, at [[chain.hpp:1473@4c018187]];
   the categorical kernel sees opaque arrays exactly as the ordinal branch does.
   **No new coupling, and this arc adds none** - do not reach for the offset,
   the combiner, `ForestRevalidation`/the survivor tables, or `repartitionTrees`
   (grow rebuilds from the root and never sweeps the variance forest).
-- `compactMaskPoolIfNeeded` is chain.hpp:1494-1495 on the grow path (and
-  chain.hpp:1139-1140 on run's); still guarded by `data_.hasPooledCategorical`,
+- `compactMaskPoolIfNeeded` is [[chain.hpp:1494-1495@4c018187]] on the grow path (and
+  [[chain.hpp:1139-1140@4c018187]] on run's); still guarded by `data_.hasPooledCategorical`,
   so "Post-draw rule assembly" step 4's no-mark/no-truncate claim stands.
-- The per-forest DART close-of-sweep block is chain.hpp:1518-1530, the shape
+- The per-forest DART close-of-sweep block is [[chain.hpp:1518-1530@4c018187]], the shape
   "The DART consumer" already describes.
-- `CGMTreePrior::ruleForVariableLogProbability` is model.hpp:2093;
-  `drawCategoryPattern` model.hpp:2197, `drawCategoryPatternWide` model.hpp:2213.
+- `CGMTreePrior::ruleForVariableLogProbability` is [[model.hpp:2093@4c018187]];
+  `drawCategoryPattern` [[model.hpp:2197@4c018187]], `drawCategoryPatternWide` [[model.hpp:2213@4c018187]].
 - `test_fuzz.cpp`'s `FuzzOp` grew four mutation ops and a per-config allowed-op
   mask. S2's `OP_GROW` must extend `fuzzOpName` and `fuzzOpWeight` alongside the
   enum; it then auto-enables on exactly the four `(1u << OP_COUNT) - 1` gaussian
@@ -155,7 +155,7 @@ this arc edits are byte-identical):
   is the coverage S2 wants - and NOT on the BCF/multinomial/multiforest configs,
   which carry the explicit `fuzzMultiForestMask`. **Leave them out**: grow under
   a combiner is a different question and this arc does not open it.
-- `$growFromRoot` (R/dbarts.R:841) now opens with
+- `$growFromRoot` ([[R/dbarts.R:841@4c018187]]) now opens with
   `refuseHostMutation("$growFromRoot")`. S3's plain `dbarts()` sampler is not a
   host, so the surface S3 tests is unchanged.
 
@@ -353,7 +353,7 @@ Runs ONLY after VD signs the Open-items fork with S0a's result in hand, and
 only if S0a CONFIRMED. If S0a refuted, or VD pins the shipped weight, this
 slice does not exist and S1 proceeds against the convention S0a pinned.
 
-1. Delete the `logCut -= std::log(2.0)` line (grow.hpp:114). Keep the
+1. Delete the `logCut -= std::log(2.0)` line ([[grow.hpp:114@4c018187]]). Keep the
    falsifier, re-pointed so arm A is the new code and now agrees with arm B.
 2. Re-point S0a's pinned sentence in `growTreeFromRoot`'s draw-discipline
    comment and in docs/design/grow-from-root.md to the settled convention.
@@ -693,8 +693,8 @@ root (grow must still terminate and produce a legal forest).
   out of this arc, worth its own ticket - an outside reader otherwise concludes
   dbarts dummy-expands.
 - Pre-existing hazard found in the census, unrelated and unreached here:
-  `storeVarianceSavedTrees` and `rebuildVarianceForest` (chain.hpp:3577 and
-  :3612 at 9f92074a, where the census's finding was re-confirmed live) call
+  `storeVarianceSavedTrees` and `rebuildVarianceForest` ([[chain.hpp:3577@4c018187]] and
+  [[chain.hpp:3612@4c018187]] at 9f92074a, where the census's finding was re-confirmed live) call
   `flatten`/`buildFromFlat` with `masks == nullptr`, which would null-deref if a
   variance-forest tree ever held a pooled categorical rule. Grow does not sweep
   the variance forest, so this arc does not reach it. Its own ticket.

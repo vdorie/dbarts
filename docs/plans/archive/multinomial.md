@@ -165,10 +165,10 @@ finding, Q4 at step C5, Q5 at step C7.
 ## Context (seams, read in code)
 
 - The combiner landed in chain.hpp beside Forest<L>: ForestCombiner<L> base
-  (chain.hpp:394-439) and BCFForestCombiner<L> (447-...). The virtuals a second
+  ([[chain.hpp:394-439@6fa909e7]]) and BCFForestCombiner<L> (447-...). The virtuals a second
   combiner needs already exist: formForestResponse (per-forest (response,
   weights) over the whole forest vector, called per forest INSIDE the sweep loop
-  at chain.hpp:963 with the partially-updated forests_), combinedFits (405),
+  at [[chain.hpp:963@6fa909e7]] with the partially-updated forests_), combinedFits (405),
   drawGlue (421) + afterCombine (423, called post-loop at 1067-1069), the
   reporting map reportedForest/testFitsAreDefined/logLikelihoodIsDefined
   (431-433), serializeGlue/restoreGlue (437-438), setTreatment/bcfGlue (410-415).
@@ -177,41 +177,41 @@ finding, Q4 at step C5, Q5 at step C7.
   (docs/design/forest-combiner.md "Header location").
 - The single n-vector combined output, the seam the design note flags
   (docs/design/forest-combiner.md "What still re-carves"): Chain::combinedFits()
-  returns const double* (chain.hpp:2498, single-forest arm 2499-2500 returns the
+  returns const double* ([[chain.hpp:2498@6fa909e7]], single-forest arm 2499-2500 returns the
   bare forests_[0].totalFits.data() pointer); storeSample writes ONE trainingFits
   and ONE testFits channel (2518-2554); the run bridge allocates trainFits as
-  n x numSamples (R_interface_bartcore.cpp:1987) and testFits as nTest x numSamples
-  (1996). refreshLatents/drawSigma take one location (chain.hpp:1054-1065) - but
+  n x numSamples ([[R_interface_bartcore.cpp:1987@6fa909e7]]) and testFits as nTest x numSamples
+  (1996). refreshLatents/drawSigma take one location ([[chain.hpp:1054-1065@6fa909e7]]) - but
   see the finding below: multinomial does NOT widen those.
 - Per-forest fits already reach K forests generically: getForestFits(forest) ->
   forestTotalFits(chain, forestIndex, out) validates forestIndex <
-  numForests() (R_interface_bartcore.cpp:1924-1938; facade.hpp:146). The
+  numForests() ([[R_interface_bartcore.cpp:1924-1938@6fa909e7]]; [[facade.hpp:146@6fa909e7]]). The
   BCF-shaped reporting (NaN-flag the scalar train/test channels, expose per-forest
-  fits) is the precedent multinomial reuses (chain.hpp:2537-2554,
+  fits) is the precedent multinomial reuses ([[chain.hpp:2537-2554@6fa909e7]],
   bcf-testfits-guard).
 - The PG sampler: ext_rng_simulatePolyaGamma(rng, psi) draws PG(1, psi)
-  (Devroye, src/external/random.c:581); LogisticResponse::refreshLatents sums
+  (Devroye, [[src/external/random.c:581@6fa909e7]]); LogisticResponse::refreshLatents sums
   lround(w_i) draws and forms working response (y-0.5)/omega - offset
-  (model.hpp:2231-2244). MultinomialForestCombiner's per-category draw is this,
+  ([[model.hpp:2231-2244@6fa909e7]]). MultinomialForestCombiner's per-category draw is this,
   with the log-sum-exp margin C_ik as the per-category "offset" - but drawn
   INTERLEAVED, one category at a time against the current margins immediately
   before that category's forest update (M1; Q1 above), never batched post-loop.
-- Creation mirrors BCF: R/bartcore.R:482 bartcoreBCFSampler packs a params vector
-  + moderators, calls C_dbarts_bartcore_createBCF (R_interface_bartcore.cpp:1879),
-  which builds a BCFSpec (chain.hpp:348) and calls createBCFSampler
-  (facade.hpp:499, single ConstantGaussianLeaf instantiation). The multinomial
+- Creation mirrors BCF: [[R/bartcore.R:482@6fa909e7]] bartcoreBCFSampler packs a params vector
+  + moderators, calls C_dbarts_bartcore_createBCF ([[R_interface_bartcore.cpp:1879@6fa909e7]]),
+  which builds a BCFSpec ([[chain.hpp:348@6fa909e7]]) and calls createBCFSampler
+  ([[facade.hpp:499@6fa909e7]], single ConstantGaussianLeaf instantiation). The multinomial
   analog: bartcoreMultinomialSampler + C_dbarts_bartcore_createMultinomial +
   MultinomialSpec + createMultinomialSampler.
-- ResponseModel is per-observation-single-location (model.hpp:1788); multinomial
+- ResponseModel is per-observation-single-location ([[model.hpp:1788@6fa909e7]]); multinomial
   has no sigma (fixed, like the binary families) and K latent channels, so its
   response family is thin (Q3, discussed below): a MultinomialResponse whose
   single-location seams are vestigial (no-op refreshLatents/drawSigma) and whose
   log-likelihood channel is NaN-flagged - storeSample scores one forest's fits via
-  computeLogLikelihood (chain.hpp:2586-2593) and cannot see the K-blend, so
-  logLikelihoodIsDefined() = false is BCF's exact choice (chain.hpp:638). The
+  computeLogLikelihood ([[chain.hpp:2586-2593@6fa909e7]]) and cannot see the K-blend, so
+  logLikelihoodIsDefined() = false is BCF's exact choice ([[chain.hpp:638@6fa909e7]]). The
   combiner owns the K interleaved PG draws, the per-forest working responses, and
   the level-centering move.
-- State: the by-name block reader (R_interface_bartcore.cpp:3317
+- State: the by-name block reader ([[R_interface_bartcore.cpp:3317@6fa909e7]]
   stateFormatVersion = 3, minReadable = 3) already serializes a per-forest tree
   list of any length (SLOT_FORESTS), so K forests serialize with no format work;
   only combiner-specific scalar/latent state would need a block (Q4, resolved
@@ -272,7 +272,7 @@ the softmax is O(nK) per stored sample.
 - Single-forest AND BCF hot paths pay nothing new. The location-count is 1 for
   every existing model, combiner_ stays null off multi-forest; every Phase-A
   touchpoint keeps its `if (combiner_)` shape, and Chain::combinedFits()'s
-  single-forest arm (chain.hpp:2498-2501) stays the bare forests_[0].totalFits
+  single-forest arm ([[chain.hpp:2498-2501@6fa909e7]]) stays the bare forests_[0].totalFits
   pointer (no scratch write, no memcpy - the widening is the combiner VIRTUAL
   only, G8). Equivalence 22/22 IDENTICAL and the BCF fixture IDENTICAL are the
   per-step proof, both anchors, every commit.
@@ -301,7 +301,7 @@ C1. Extract combiner.hpp (pure motion; NEUTRAL). Move Forest<L>, ForestResponse,
    ForestCombiner<L>, and BCFForestCombiner<L> from chain.hpp into a new
    src/bartcore/combiner.hpp; chain.hpp includes it. The move set is BIGGER than a
    naive read suggests (size it honestly): ForestCombiner::serializeGlue/
-   restoreGlue take ChainStateData& (chain.hpp:247), BCFForestCombiner holds
+   restoreGlue take ChainStateData& ([[chain.hpp:247@6fa909e7]]), BCFForestCombiner holds
    BCFState (361) and is built from BCFSpec (348), and ForestStateData (224) and
    BCFForestSpec (333) are the other co-movers - name them or resolve the ordering
    with a mid-file include so combiner.hpp sees the state/spec structs. Pure
@@ -328,7 +328,7 @@ C2. Location-count on the combined-output/reporting seam + the multi-forest
    collapses at L = 1. Add C_interface.cpp (dbarts_sampler_run, the Results
    consumer, the stan4bart path - covered by test-capi.R) to the file list.
    MUTATION GUARD (G5): add refuseMultiForestMutation to bartcore_setData
-   (R_interface_bartcore.cpp:2218, which guards only refuseViewSampler at 2221),
+   ([[R_interface_bartcore.cpp:2218@6fa909e7]], which guards only refuseViewSampler at 2221),
    bartcore_setPredictor (2557/2560), setResponse, and setWeights (setTreatment
    stays allowed) - applyNewData/revalidateTrees/rebuildFitsFromParameters rebuild
    forests_[0] ONLY, so whole-data mutation on a numForests >= 2 sampler silently
@@ -401,11 +401,11 @@ C4. The multinomial model, one gated commit. Sub-parts:
    K-channel combined scratch. THE INTERLEAVED PG DRAW (M1; Q1): omega_k is drawn
    against the CURRENT margins C_ik = log sum_{j != k} exp(f_ij) immediately BEFORE
    forest k's tree update - via a per-forest pre-update hook (either add ext_rng*
-   to formForestResponse, called at forest k's turn chain.hpp:963 with the
+   to formForestResponse, called at forest k's turn [[chain.hpp:963@6fa909e7]] with the
    partially-updated forests_, OR a new virtual drawForestGlue(f, rng, forests)
    fired just before each forest's update; base no-op, BCF unchanged - BCF's glue
    draw stays post-loop in drawGlue, and BCF's a/aVariance one-sweep lag is the
-   benign recorded exception, chain.hpp:610). formForestResponse(k, ...) then forms
+   benign recorded exception, [[chain.hpp:610@6fa909e7]]). formForestResponse(k, ...) then forms
    category k's PG working response (y_ik - 1/2)/omega_ik + C_ik under weight
    omega_ik, IGNORING the passed y (the combiner owns the labels). The hook
    addition is BITWISE-NEUTRAL (both anchors prove it - default no-op). drawGlue's
@@ -420,7 +420,7 @@ C4. The multinomial model, one gated commit. Sub-parts:
    (sigmaIsFixed), no-op refreshLatents/drawSigma (its single-location seams are
    vestigial - the combiner owns the K PG draws), and logLikelihoodIsDefined() =
    false (G6, BCF's exact choice: storeSample scores via
-   response_->computeLogLikelihood(forest.totalFits..., chain.hpp:2586-2593) - ONE
+   response_->computeLogLikelihood(forest.totalFits..., [[chain.hpp:2586-2593@6fa909e7]]) - ONE
    forest's fits, which cannot see the K-blend; the earlier "carries the labels for
    computeLogLikelihood" claim is DROPPED as self-contradictory with the NaN-flag).
    Carry the M6 guard note on the K x n buffer.
@@ -435,8 +435,8 @@ C4. The multinomial model, one gated commit. Sub-parts:
    channels (Q3-primary) or NaN-flags them and relies on getForestFits (Q3-minimal);
    refuse the single-forest test surface as refuseBCFTestSurface does.
    LEAF-SCALE CALIBRATION (M2): the logistic precedent is node.scale =
-   pi*sqrt(3) ~ 5.44 (dbarts.R:401, xbart.R:262; pi/sqrt(3) ~ 1.81 is the WIDENING
-   FACTOR over probit's 3.0, dbarts.R:394-395; negative-binomial.md confirms
+   pi*sqrt(3) ~ 5.44 ([[dbarts.R:401@6fa909e7]], [[xbart.R:262@6fa909e7]]; pi/sqrt(3) ~ 1.81 is the WIDENING
+   FACTOR over probit's 3.0, [[dbarts.R:394-395@6fa909e7]]; negative-binomial.md confirms
    "the logistic pi*sqrt(3) precedent"). The IDENTIFIED quantity is a DIFFERENCE of
    forests (a pairwise log-odds f_ik - f_ij has SD s*sqrt(2) for per-forest SD s),
    so the K = 2 anchor is s = pi*sqrt(3)/sqrt(2) ~ 3.85, and C_ik's variance is
@@ -452,7 +452,7 @@ C4. The multinomial model, one gated commit. Sub-parts:
    response/weights construction); PG-moment tests at the trial counts used
    (mean/variance of PG(n, psi), following weighted-logistic's component test); a
    state round-trip. MANDATORY growForestFromRoot case (G4): the multinomial
-   combiner branch (formForestResponse chain.hpp:1222-1227, drawGlue/afterCombine
+   combiner branch (formForestResponse [[chain.hpp:1222-1227@6fa909e7]], drawGlue/afterCombine
    1285-1287) is UNREACHABLE from R - the BCF lesson (testBCFGrowForestFromRoot)
    verbatim.
 

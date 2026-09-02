@@ -416,8 +416,8 @@ a semantic question into a clamp.
 - **setState column-mask check for variance trees** (found at S5,
   pre-existing, unlisted). CLOSED: built at c95a5e83, "Hold variance-forest
   trees to the column mask on setState"; the check is live in
-  `stateIsValid`'s variance branch (src/bartcore/chain.hpp:3341) and as
-  `rebuildVarianceForest`'s backstop (src/bartcore/chain.hpp:4377).
+  `stateIsValid`'s variance branch ([[src/bartcore/chain.hpp:3341@c95a5e83]]) and as
+  `rebuildVarianceForest`'s backstop ([[src/bartcore/chain.hpp:4377@c95a5e83]]).
   The variance branch now checks the column mask on both install
   routes (setState and installForests), matching the mean path, and the
   bridge refuses a violating state by name (feature-matrix.md's setState

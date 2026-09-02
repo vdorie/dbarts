@@ -27,7 +27,7 @@ Against: outlier sensitivity (two extreme y values compress the
 effective prior on everything else); it is the root cause of the
 internal-scale bookkeeping (sigma stored internal-scale,
 sigmaPriorScale, the restoreScale round-trips -
-src/bartcore/model.hpp:1841-1889, chain.hpp:203-206), though
+[[src/bartcore/model.hpp:1841-1889@af933d5b]], [[chain.hpp:203-206@af933d5b]]), though
 state-continuation removes most of that cost independently.
 
 Recommendation: keep; document the choice and the outlier caveat in
@@ -55,7 +55,7 @@ bartMachine's one-liner (workaround: log/winsorize y). bcf is the
 clearest reasoned departure, argument implicit.
 
 Code finding: setResponse re-anchors the internal scale on EVERY call
-(model.hpp:1764-1775 rescale(); classic did the same, bartFit.cpp
+([[model.hpp:1764-1775@af933d5b]] rescale(); classic did the same, bartFit.cpp
 setResponse - bartcore inherited it faithfully), holding sigma and
 the variance prior
 fixed on the original scale but letting the leaf prior's
@@ -82,7 +82,7 @@ prior-constants; the switch is the remaining implementation:
 agent: opus; rng: shifting (mid-run setResponse tests only)
 
 1. Engine: ResponseModel::setResponse gains updateScale; FALSE path
-   mirrors setOffset's reuse-existing-scale branch (model.hpp:1814).
+   mirrors setOffset's reuse-existing-scale branch ([[model.hpp:1814@af933d5b]]).
 2. Bridge + R5 setResponse(y, updateScale = FALSE); dbarts.h stays
    (additive change only if a C consumer needs it - none known).
 3. man/dbartsSampler-class.Rd documents both switches and the

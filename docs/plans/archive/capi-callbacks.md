@@ -15,9 +15,9 @@ the same additive API bump.
 ## Context
 
 - The per-sweep dispatch point already exists: Sampler::run's
-  pollInterrupt std::function (src/bartcore/sampler.hpp:180-186);
-  dbarts_sampler_run does not forward it (src/C_interface.cpp:58-72).
-- Worker threads must never call into R (sampler.hpp:253-278; the
+  pollInterrupt std::function ([[src/bartcore/sampler.hpp:180-186@a36687ad]]);
+  dbarts_sampler_run does not forward it ([[src/C_interface.cpp:58-72@a36687ad]]).
+- Worker threads must never call into R ([[sampler.hpp:253-278@a36687ad]]; the
   ProgressSink queue exists for this reason).
 - dbarts_results lacks tau/groupEffects, which bartcore::Results
   carries (src/bartcore/chain.hpp); public-surface.md section 6
@@ -29,7 +29,7 @@ the same additive API bump.
 
 1. dbarts_results extension. The struct is caller-owned, so growing it
    is safe only while nothing is released: stan4bart's
-   IterableBartResults (bart_util.hpp:27) holds it as an uninitialized
+   IterableBartResults ([[bart_util.hpp:27@a36687ad]]) holds it as an uninitialized
    member and assigns the six fields by name - new fields would be
    garbage pointers without a one-line fix (value-initialize
    `current`). Post-release, growth is never safe: old-compiled

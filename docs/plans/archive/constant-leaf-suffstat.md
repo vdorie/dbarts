@@ -16,13 +16,13 @@ buffers.
 ## Context
 
 - Current consumer: ConstantGaussianLeaf::logIntegratedLikelihood
-  (src/bartcore/model.hpp:102-145) fed by computeNodeStatistics /
-  computeVariance (src/bartcore/tree.hpp:471-513) via
+  ([[src/bartcore/model.hpp:102-145@e4c845c3]]) fed by computeNodeStatistics /
+  computeVariance ([[src/bartcore/tree.hpp:471-513@e4c845c3]]) via
   misc_htm_computeMean / computeVarianceForKnownMean.
 - Design target: docs/design/core-generalization.md, the constant-leaf
   suffstat "(sum w, sum wz, sum wz^2), delegating to existing moment kernels".
   LinearGaussianLeaf already uses the crossproduct moment form
-  (model.hpp:348-377).
+  ([[model.hpp:348-377@e4c845c3]]).
 - The two forms are algebraically equivalent for the marginal
   likelihood and posterior draw; only rounding differs.
 

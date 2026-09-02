@@ -294,7 +294,7 @@ VERDICT: **CHANGE, at all three layers.**
 Verified: `bartcore_getCalibration` (`src/R_interface_bartcore.cpp`) emits
 exactly seven columns - `prior.scale`, `prior.sd`, `prior.mean`, `k`,
 `k.has.hyperprior`, `response.scale`, `response.shift` - plus a `leaf.model`
-attribute. `$getForestAmplitudes` (`R/dbarts.R:1450`) returns DRAWS.
+attribute. `$getForestAmplitudes` (`[[R/dbarts.R:1450@4c018187]]`) returns DRAWS.
 `ForestCalibration` (`src/bartcore/chain.hpp`) carries the same seven fields.
 `v_f` reaches no reader; `c_f` is computed inside `Chain::basisRowNorm` at
 construction and again inside `Chain::setForestBasis`, and STORED NOWHERE.
@@ -318,12 +318,12 @@ wrong, and after leg (b) it is what makes a K-aware default legible: the
 VERDICT: **CHANGE (tests only), and it lands FIRST.**
 
 Verified exhaustively: every `forest(sd = )` occurrence in `inst/tinytest` is
-under a gaussian response (`test-bcf-creation.R:51`, `:103`, `:321`, `:400`,
-`:713`, `:836`; `test-forest-basis-r5.R:199`), and every latent-family
+under a gaussian response (`[[test-bcf-creation.R:51@4c018187]]`, `[[test-bcf-creation.R:103@4c018187]]`, `[[test-bcf-creation.R:321@4c018187]]`, `[[test-bcf-creation.R:400@4c018187]]`,
+`[[test-bcf-creation.R:713@4c018187]]`, `[[test-bcf-creation.R:836@4c018187]]`; `[[test-forest-basis-r5.R:199@4c018187]]`), and every latent-family
 K-forest fixture omits `sd` - `test-bcf-family.R`'s `basisSampler` passes no
 `forests =` at all, and `test-forest-basis-r5.R`'s `probitForests()` uses bare
 `forest()`. So `nodeScaleFactor` is 1 in every anchor assertion the arc has,
-and `test-bcf-family.R:109-113` pins `1.0 * s / (0.674 * c)` with the `1.0`
+and `[[test-bcf-family.R:109-113@4c018187]]` pins `1.0 * s / (0.674 * c)` with the `1.0`
 written as a literal. `tests/cpp` has NO calibration-map coverage of any kind:
 no `0.674`, no `basisRowNorm`, no `latentScaleAnchor`, no non-unit
 `nodeScaleFactor` anywhere in `tests/cpp/*.cpp`; its BCF fixtures set
@@ -370,7 +370,7 @@ Alternatives:
 - **(1b) Move to 1 in EVERY family.** Cost: re-records
   `bcf-equivalence-8b047f8b` (12 scenarios), moves the gaussian bcf default
   away from Hahn/Murray/Carvalho's `use_muscale` convention that
-  `docs/design/bcf.md:272-274` states dbarts reproduces, and turns
+  `[[docs/design/bcf.md:272-274@4c018187]]` states dbarts reproduces, and turns
   `test-bcf-creation.R`'s public-vs-internal draw-for-draw oracle red until
   both spellings move together. Rejected: the gaussian case has a DRAWN sigma
   and a response-sd anchor, so the coverage argument does not reach it, and
@@ -541,16 +541,16 @@ Alternatives:
 
   **A spec echo is a LIE after a state install, and the fix is a truthfulness
   bit, not a smaller promise.** Verified by opening both paths:
-  `installForest` (`src/bartcore/chain.hpp:3235`) and the restore path
-  (`:3323`) each execute `if (fs.leafScale > 0.0) forest.leaf.scale =
+  `installForest` (`[[src/bartcore/chain.hpp:3235@4c018187]]`) and the restore path
+  (`[[src/bartcore/chain.hpp:3323@4c018187]]`) each execute `if (fs.leafScale > 0.0) forest.leaf.scale =
   fs.leafScale`, by design - `ForestStateData::leafScale`'s own doc block says
   a continuation restoring `k` without it "would pair a donor's trees with the
   destination's calibration" - and each then calls `combiner_->restoreGlue`
-  (`:3246`, `:3355`), which overwrites `glue_.prior[f].variance` from
-  `state.amplitudeVariances[f]` (`src/bartcore/combiner.hpp:1044-1045`).
-  Neither `$setState` (`R/dbarts.R:1580`, `refuseHostMutation` only) nor
-  `$installTrees` (`R/dbarts.R:1612`) carries a BCF refusal, `glueIsValid`
-  checks widths and totals only, and `inst/tinytest/test-forest-basis-r5.R:110-136`
+  (`[[src/bartcore/chain.hpp:3246@4c018187]]`, `[[src/bartcore/chain.hpp:3355@4c018187]]`), which overwrites `glue_.prior[f].variance` from
+  `state.amplitudeVariances[f]` (`[[src/bartcore/combiner.hpp:1044-1045@4c018187]]`).
+  Neither `$setState` (`[[R/dbarts.R:1580@4c018187]]`, `refuseHostMutation` only) nor
+  `$installTrees` (`[[R/dbarts.R:1612@4c018187]]`) carries a BCF refusal, `glueIsValid`
+  checks widths and totals only, and `[[inst/tinytest/test-forest-basis-r5.R:110-136@4c018187]]`
   already drives `setState` on a K-forest sampler. So a pure echo would report
   the RECIPIENT's decomposition beside a `prior.scale` derived from the
   DONOR's - the map identity false inside one returned matrix, which is
@@ -561,8 +561,8 @@ Alternatives:
      `amplitudePriorVariances_[f]` from `state.amplitudeVariances[f]`, under
      the same guard `restoreGlue` uses to reach that loop (`state.hasBCF`,
      non-empty `state.amplitudeWidths`, and `combiner_->glueIsValid(state)` -
-     an EXISTING base virtual, `combiner.hpp:693`, already called from
-     `chain.hpp:2809`, so no new virtual and Fork 3b's whole reason survives).
+     an EXISTING base virtual, `[[combiner.hpp:693@4c018187]]`, already called from
+     `[[chain.hpp:2809@4c018187]]`, so no new virtual and Fork 3b's whole reason survives).
      `amplitudePriorScale` is not serialized at all, so it needs nothing.
   2. **The two map-decomposition columns carry a truthfulness bit.**
      `Chain` gains `nodeScaleIsMapDerived_`, one flag per forest, set false at
@@ -571,7 +571,7 @@ Alternatives:
      (bitwise-identical scale) keeps its columns and only a genuinely foreign
      calibration loses them - and set true again by `$setForestBasis`, which is
      the call that re-imposes the map from the stored factor and divisor
-     (`chain.hpp:934-945`). `node.scale.factor` and `node.scale.divisor` report
+     (`[[chain.hpp:934-945@4c018187]]`). `node.scale.factor` and `node.scale.divisor` report
      NaN while the flag is false. The stored values are NOT cleared: they are
      what `setForestBasis` re-derives from.
   3. **`basis.row.norm` needs no rule.** Bases are not state, and
@@ -639,7 +639,7 @@ Sub-decisions inside (3b), all recommended:
 - **No `DBARTS_C_API_MINOR` bump and no hash re-bake.** `dbarts_apiHash()` is
   FNV-1a over the stringized `DBARTS_C_API_LIST` (function signatures), which
   does not move; the header's own append rule conditions the MINOR bump on
-  "after 1.0-0" and we are before it. `test-capi.R:59`'s literal hash pin
+  "after 1.0-0" and we are before it. `[[test-capi.R:59@4c018187]]`'s literal hash pin
   stays. `sizeof(dbarts_forest_calibration)` DOES move, so a `LinkingTo`
   consumer recompiles - the sixth of the recorded consumer gotchas, and the
   reason `DBARTS_HAS_FIELD` exists.
@@ -700,20 +700,20 @@ forest does not.
 things - neither of which is the single behaviour the first draft assumed.**
 
 - **The data route.** `dbartsData(x, y, bases = list(b))` - `validateForestBases`
-  (`R/data.R:635-668`) imposes no length floor, `R/spec.R`'s
+  (`[[R/data.R:635-668@4c018187]]`) imposes no length floor, `R/spec.R`'s
   `if (!is.null(data@bases))` block computes `numForests <- length(data@bases)`
   = 1 with no floor of its own, `forestParams` returns a length-1 list, and
   `applyBCFSpec` (`src/R_interface_bartcore.cpp`) errors with "bcf parameters
   must be a list of at least two per-forest parameter vectors". Internal
   vocabulary, as the census records.
 - **The forests route.** `dbarts(x, y, forests = list(forest(basis = ~z)))`
-  does NOT reach that error. `forestBasisDeclarations` (`R/model.R:689-692`)
-  returns NULL on `length(forests) < 2L`, so `R/dbarts.R:542-561` never sets
+  does NOT reach that error. `forestBasisDeclarations` (`[[R/model.R:689-692@4c018187]]`)
+  returns NULL on `length(forests) < 2L`, so `[[R/dbarts.R:542-561@4c018187]]` never sets
   `dataCall$bases`, `data@bases` stays NULL, `R/spec.R`'s bcf block never runs,
   and `resolveForests` returns a length-1 spec whose only surviving effect is
-  `firstForest$n.trees`/`interactions`/`blocks` (`R/spec.R:217-226`). **The
+  `firstForest$n.trees`/`interactions`/`blocks` (`[[R/spec.R:217-226@4c018187]]`). **The
   declared basis is SILENTLY DROPPED and an ordinary single-forest model is
-  fit.** Same on `dbartsSpec` (`R/spec.R:653-664`, the same helper).
+  fit.** Same on `dbartsSpec` (`[[R/spec.R:653-664@4c018187]]`, the same helper).
 
 That second finding is not in the census, not in the TODO and not in the
 critique that raised this fork; it is a silent-wrong-model defect on a public
@@ -735,7 +735,7 @@ corrected two-part form:**
    `data@bases` like every other one. Verified safe: a length-1 list declaring
    NO basis still expands to `list(NULL)`, still trips the
    `any(!vapply(expanded, is.null, ...))` gate, and still falls through to
-   `resolveForests`' existing refusal - so `test-bcf-creation.R:713`
+   `resolveForests`' existing refusal - so `[[test-bcf-creation.R:713@4c018187]]`
    (`forests = list(forest(sd = 1.5))` -> "single-forest 'forests' has none")
    stays green. **Three behaviours move, not one, and all three are
    enumerated** (none is pinned by a fixture - no test anywhere declares a
@@ -743,10 +743,10 @@ corrected two-part form:**
    designed refusal, which is the point; (ii) `forests = list(forest(basis =
    ..., sd = ...))` today answers "'sd' configures the amplitudes ... a
    single-forest 'forests' has none" because `hasBasis` is `logical(0)`, and
-   afterwards `hasBasis` is TRUE so `R/model.R:849`'s branch is skipped and the
+   afterwards `hasBasis` is TRUE so `[[R/model.R:849@4c018187]]`'s branch is skipped and the
    new K = 1 refusal answers instead - a message change, not an acceptance
    change; (iii) a length-1 `forests` declaring a basis OVER a data object that
-   already carries K >= 2 bases: `R/spec.R:405-410` replaces `data@bases` with
+   already carries K >= 2 bases: `[[R/spec.R:405-410@4c018187]]` replaces `data@bases` with
    the declaration, so the count drops to 1 and the new refusal fires on a call
    that named two bases. Today that call fits K = 2 with the declaration
    silently dropped, so both behaviours are wrong; the refusal text must
@@ -885,13 +885,13 @@ Expected verdicts, per baseline, at each slice:
   becomes the budget statement), the "Surfaces" list, and a landing note per
   slice.
 - `docs/design/bcf.md`: the two "median 2 sd(y)" statements
-  (`:94`, `:272-274`) gain the latent-family qualifier; `sd.control` /
+  (`[[R/spec.R:94@4c018187]]`, `[[R/spec.R:272-274@4c018187]]`) gain the latent-family qualifier; `sd.control` /
   `sd.moderate` prose likewise.
 - `docs/design/nameable-calibration.md`: the calibration-reader rows.
 - `docs/design/feature-matrix.md`: per-landing check, and it is NOT vacuous at
   both slices. At S2 a default is not a capability, so no cell moves - record
   the check. At S1 the `nameable calibration` capability's own footnote
-  `[f16]` (body from `:368` at tip `ffb9959c`) enumerates what
+  `[f16]` (body from `[[R/spec.R:368@4c018187]]` at tip `ffb9959c`) enumerates what
   `$getCalibration` reports and which tests carry it, so its PROSE moves while
   its cells do not. Do not bump the Status stamp; `feature-matrix-anchor-refresh`
   still owns the full pass, and `5277cd54` re-anchored the file wholesale, so
@@ -935,7 +935,7 @@ under-priced test work against a mandated oracle twice (M4.4 348 against a
    added to `ForestCombiner` and nothing calls into the combiner except the
    EXISTING `glueIsValid` - see Fork 3b for why that is the load-bearing
    choice. Plus Fork 3b's three truthfulness rules, which are engine work at
-   the two state-install sites (`chain.hpp:3235` and `:3323`): the
+   the two state-install sites (`[[chain.hpp:3235@4c018187]]` and `[[chain.hpp:3323@4c018187]]`): the
    `nodeScaleIsMapDerived_` flag written there and cleared/restored as
    specified, and the `amplitudePriorVariances_` update from
    `state.amplitudeVariances` under `restoreGlue`'s own guard. Both sites are
@@ -948,7 +948,7 @@ under-priced test work against a mandated oracle twice (M4.4 348 against a
 3. `src/C_interface.cpp` and `inst/include/dbarts/dbarts.h`: five fields, five
    `offsetof` asserts, the `sizeof` assert, five `FILL` lines.
 4. `R/dbarts.R`: `$getCalibration`'s docstring.
-5. **`inst/tinytest/test-calibration-midchain.R:41-58`**: the shipped pins
+5. **`[[inst/tinytest/test-calibration-midchain.R:41-58@4c018187]]`**: the shipped pins
    `expect_equal(dim(calibration), c(2L, 7L))` and the exact-set
    `expect_identical(colnames(calibration), c(...))` go RED under S1's own
    full-tinytest gate and MUST move in the same commit - to `c(2L, 12L)` and
@@ -956,14 +956,14 @@ under-priced test work against a mandated oracle twice (M4.4 348 against a
    to a subset, since that pin is what makes an accidental column reordering
    visible.
 6. **`inst/tinytest/capi/consumer.c` plus `inst/tinytest/test-capi.R`**: a NEW
-   partial-`structSize` leg. The existing one (`consumer.c:807`) sets
+   partial-`structSize` leg. The existing one (`[[consumer.c:807@4c018187]]`) sets
    `structSize = offsetof(dbarts_forest_calibration, leafModel)`, which
    simulates a pre-`leafModel` caller, not a pre-S1 one; falsifier F6 needs
    `offsetof(..., amplitudePriorVariance)` - the S1 boundary - with the
    `test-capi.R` assertion that the five new buffers are left untouched and the
    original eight are filled.
 7. **`docs/design/feature-matrix.md` `[f16]`**, the `nameable calibration`
-   footnote, whose body begins at `:368` at tip `ffb9959c` (re-derived at the
+   footnote, whose body begins at `[[consumer.c:368@4c018187]]` at tip `ffb9959c` (re-derived at the
    new tip by opening the file, since `5277cd54` re-anchored it wholesale). It
    enumerates what `$getCalibration` reports and which tests carry it -
    including `test-calibration-midchain.R`, which item 5 moves - so its PROSE
@@ -1071,11 +1071,11 @@ The mutations each assertion catches, and the one it cannot:
 1. `inst/tinytest/test-bcf-family.R`, beside the existing anchor block (it
    already carries `medianRowNorm`, the per-family loop and the non-unit-norm
    `scaledBases` cell): the fixture above, both families, at 1e-12. This
-   EXTENDS the `1.0 * s / (0.674 * ...)` assertion at `:109-113` whose literal
+   EXTENDS the `1.0 * s / (0.674 * ...)` assertion at `[[consumer.c:109-113@4c018187]]` whose literal
    `1.0` is the hole - keep that cell too, since it pins the DEFAULT while the
    new one pins the DECLARED value.
 2. `inst/tinytest/test-forest-basis-r5.R`, in the `probitForests()` block
-   (`:335-372`): the same fixture, then `$setForestBasis(2, 7 * zBasis)`, then
+   (`[[consumer.c:335-372@4c018187]]`): the same fixture, then `$setForestBasis(2, 7 * zBasis)`, then
    `prior.scale_2 == 0.4 * s / (0.674 * 7)` = 0.084781687156 under probit.
    This is the only test of `Chain::setForestBasis`'s leaf-scale re-derivation
    and today it runs at `nodeScaleFactor = 1`, so it cannot see the stored
@@ -1083,7 +1083,7 @@ The mutations each assertion catches, and the one it cannot:
 3. `tests/cpp`, a new `testBCFCalibrationMap` (natural home:
    `tests/cpp/test_sampler.cpp`, beside the BCF combiner cases; `test_state.cpp`
    already carries the "BCF's two forests calibrate differently" leaf-scale
-   block, and `test_sampler.cpp:5982-6009` a BCF calibration READER block that
+   block, and `[[test_sampler.cpp:5982-6009@4c018187]]` a BCF calibration READER block that
    asserts positivity, `k == 1` and the tree-count factor but pins no map
    value, as the nearest neighbours). Build through `createBCFSampler`
    (`src/bartcore/facade.hpp`) with `spec.forests` of length THREE - factors
@@ -1115,13 +1115,13 @@ The mutations each assertion catches, and the one it cannot:
 5. `inst/tinytest/test-bcf-creation.R`: transport pins that
    `params[[f]][4]` carries the declared `sd` for a basis forest and
    `params[[1]][7]` the declared `sd` for a basis-free one - extending
-   `test-bcf-creation.R:400` (`forest(sd = 3.5)` into `params[[1]][7]`) and
-   `test-forest-basis-r5.R:196-205` (the `params[[f]][6:7]` ridge derivation),
+   `[[test-bcf-creation.R:400@4c018187]]` (`forest(sd = 3.5)` into `params[[1]][7]`) and
+   `[[test-forest-basis-r5.R:196-205@4c018187]]` (the `params[[f]][6:7]` ridge derivation),
    both of which are gaussian - under a latent family for the first time.
 
 ### What S2 adds on top
 
-- The K-invariance assertion. `test-bcf-family.R:118-125` currently asserts
+- The K-invariance assertion. `[[test-bcf-family.R:118-125@4c018187]]` currently asserts
   `sqrt(sum(scales^2 * 0.5)) == 1.04912 * sqrt(K) * s` at K = 2 and 3. Under
   the law it becomes `== 1.04912 * sqrt(2) * s` - a CONSTANT - at K = 2, 3 and
   4, which is strictly stronger and is the design statement itself.
@@ -1183,7 +1183,7 @@ The mutations each assertion catches, and the one it cannot:
 - **F6 (S1).** A flat-C caller with a PRE-S1 `structSize` - set to
   `offsetof(dbarts_forest_calibration, amplitudePriorVariance)`, the S1
   boundary, in a NEW `inst/tinytest/capi/consumer.c` leg beside the existing
-  pre-`leafModel` one at `:807` - still reads the EIGHT original fields and
+  pre-`leafModel` one at `[[test-bcf-family.R:807@4c018187]]` - still reads the EIGHT original fields and
   leaves the five new buffers untouched (poison them and assert they survive,
   as the existing leg does). `DBARTS_HAS_FIELD`'s contract, asserted rather
   than assumed.
@@ -1302,8 +1302,8 @@ consequence.
 6. **The census's K = 1 statement is right about one route and wrong about the
    other.** It says `dbarts(x, y, forests = list(forest(basis = ~z)))` "reaches
    a bridge-level error message rather than a designed refusal". Re-traced by
-   opening `forestBasisDeclarations` (`R/model.R:689-692`, floor
-   `length(forests) < 2L`), `R/dbarts.R:542-561` and `R/spec.R:206-226`: that
+   opening `forestBasisDeclarations` (`[[R/model.R:689-692@4c018187]]`, floor
+   `length(forests) < 2L`), `[[R/dbarts.R:542-561@4c018187]]` and `[[R/spec.R:206-226@4c018187]]`: that
    call reaches NO error. The basis never reaches `data@bases`, the bcf block
    never runs, and an ordinary single-forest model is fit with the declared
    basis SILENTLY DROPPED. The bridge error belongs to the DATA route
@@ -1397,28 +1397,28 @@ stands between the two branches.
 
 **M3 (refusal site unreachable from one route) - ADOPTED, and the finding's own
 trace is CORRECTED in the adopting direction.** The critique is right that
-`resolveForests` returns at `R/model.R:811` on `forests = NULL` and so cannot
+`resolveForests` returns at `[[R/model.R:811@4c018187]]` on `forests = NULL` and so cannot
 see the `dbartsData(bases = )` route. Re-tracing the OTHER route by opening
-`forestBasisDeclarations` (`R/model.R:689-692`) shows it does not reach the
+`forestBasisDeclarations` (`[[R/model.R:689-692@4c018187]]`) shows it does not reach the
 bridge error either: its `length(forests) < 2L` floor means
 `dbarts(x, y, forests = list(forest(basis = ~z)))` never puts the basis on the
 data object, never enters the bcf block, and fits an ordinary single-forest
 model with the declared basis SILENTLY DROPPED - a silent-wrong-model defect
 on a public route, worse than the error the fork was about, and in neither the
 census nor the critique. Fork 6c is therefore two parts: drop the floor to
-`< 1L` (verified not to disturb `test-bcf-creation.R:713`'s existing refusal,
+`< 1L` (verified not to disturb `[[test-bcf-creation.R:713@4c018187]]`'s existing refusal,
 since a length-1 list declaring no basis still expands to `list(NULL)` and
 still falls through), then one designed refusal in `R/spec.R`'s
 `!is.null(data@bases)` block where `numForests` is computed - the site both
 routes now reach, verified by opening both traces.
 
 **M4 (two missing S1 edit sites) - ADOPTED in full.**
-`inst/tinytest/test-calibration-midchain.R:41-58`'s `c(2L, 7L)` and exact
+`[[inst/tinytest/test-calibration-midchain.R:41-58@4c018187]]`'s `c(2L, 7L)` and exact
 `colnames` pins are now S1 item 5, moving to `c(2L, 12L)` in the same commit
 and keeping the exact-set form; `inst/tinytest/capi/consumer.c` plus
 `test-capi.R` are S1 item 6, with F6 restated to name the S1 boundary
 (`offsetof(..., amplitudePriorVariance)`) rather than the existing
-pre-`leafModel` leg at `:807`. Both are listed in "Shipped-surface deltas" as
+pre-`leafModel` leg at `[[inst/tinytest/test-calibration-midchain.R:807@4c018187]]`. Both are listed in "Shipped-surface deltas" as
 mandatory same-commit edits.
 
 **m1 (latent basis-free params all-ones) - ADOPTED.** The gaussian arm of the
@@ -1462,7 +1462,7 @@ effect on the slice: five columns rather than four, and one fewer risk.
 
 **m6 (feature-matrix justification covers only S2) - ADOPTED.** The
 per-landing check is now stated per slice: vacuous at S2, prose-moving at S1
-through `[f16]`, whose body was re-derived at tip `ffb9959c` (`:368`) rather
+through `[f16]`, whose body was re-derived at tip `ffb9959c` (`[[inst/tinytest/test-calibration-midchain.R:368@4c018187]]`) rather
 than carried over from `55cc1756`.
 
 **m7 (numeric slips) - ADOPTED in full, none changing a verdict.** `sqrt(2/16)`
@@ -1502,12 +1502,12 @@ M1's four sites survived, and Fork 3b's draw-neutrality survived as structural.
 
 **R2-M1 (the spec echo is not truthful after `$setState` or `$installTrees`) -
 ADOPTED; this is the round's real design change.** Verified by opening both
-paths: `installForest` (`chain.hpp:3235`) and the restore path (`:3323`) each
+paths: `installForest` (`[[chain.hpp:3235@4c018187]]`) and the restore path (`[[chain.hpp:3323@4c018187]]`) each
 install a donor `leaf.scale` BY DESIGN - `ForestStateData::leafScale`'s doc
 block states the rationale - and each then calls `restoreGlue`, which
-overwrites `glue_.prior[f].variance` (`combiner.hpp:1044-1045`); neither
-mutator carries a BCF refusal (`R/dbarts.R:1580`, `:1612`) and
-`test-forest-basis-r5.R:110-136` already drives `setState` on a K-forest
+overwrites `glue_.prior[f].variance` (`[[combiner.hpp:1044-1045@4c018187]]`); neither
+mutator carries a BCF refusal (`[[R/dbarts.R:1580@4c018187]]`, `[[R/dbarts.R:1612@4c018187]]`) and
+`[[test-forest-basis-r5.R:110-136@4c018187]]` already drives `setState` on a K-forest
 sampler. A pure echo would therefore print the recipient's decomposition beside
 a donor-derived `prior.scale` - Fork 3a's own failure mode, one call deeper.
 The fix is Fork 3b's three rules: the amplitude columns FOLLOW the state
@@ -1636,7 +1636,7 @@ unmoved, sizeof moved. R: the $getCalibration docstring and
 bartcoreForestCalibration's. Both mandatory same-commit edits landed:
 test-calibration-midchain's dim/colnames pins moved to c(2L, 12L) and
 the twelve-name exact set (two further shape pins in the same file, the
-BCF c(2L, 7L) at :375 and the multinomial c(1L, 7L) at :391, moved with
+BCF c(2L, 7L) at [[test-forest-basis-r5.R:375@4c018187]] and the multinomial c(1L, 7L) at [[test-forest-basis-r5.R:391@4c018187]], moved with
 them - not in the plan's list, found by the gate), and consumer.c's new
 PRE-APPEND leg.
 
@@ -1677,16 +1677,16 @@ _pkgdown.yml entry was owed.
 
 Mutation proof (fresh mutated --preclean install per arm; the tree
 restored and byte-verified after each): F8(a) foreign calibration, flag
-never cleared -> test-forest-basis-r5 :453, :454, :456-461 move (the
+never cleared -> test-forest-basis-r5 [[test-forest-basis-r5.R:453@4c018187]], [[test-forest-basis-r5.R:454@4c018187]], [[test-forest-basis-r5.R:456-461@4c018187]] move (the
 two NaN columns and the non-computable anchor); F8(b) cleared on ANY
-install, the bitwise comparison dropped -> :468, :469 (forest 1's
-columns surviving a foreign install) and :508, :509, :511-518 (the
+install, the bitwise comparison dropped -> [[test-forest-basis-r5.R:468@4c018187]], [[test-forest-basis-r5.R:469@4c018187]] (forest 1's
+columns surviving a foreign install) and [[test-forest-basis-r5.R:508@4c018187]], [[test-forest-basis-r5.R:509@4c018187]], [[test-forest-basis-r5.R:511-518@4c018187]] (the
 self-restore arm) move; F8(c) setForestBasis's re-imposition removed ->
-:484, :485, :487-494 move; F8(d) adoptInstalledAmplitudePriors made a
-no-op -> :475 moves, the donor's 0.125 read back as the recipient's
+:484, [[test-forest-basis-r5.R:485@4c018187]], [[test-forest-basis-r5.R:487-494@4c018187]] move; F8(d) adoptInstalledAmplitudePriors made a
+no-op -> [[test-forest-basis-r5.R:475@4c018187]] moves, the donor's 0.125 read back as the recipient's
 0.5. F6 in two arms, since its two halves fail differently: (i)
 DBARTS_HAS_FIELD's >= weakened to > inside the calibration FILL ->
-test-capi :963-965, :1001 and the flat-C BCF leg at :1123-1125 move;
+test-capi [[test-forest-basis-r5.R:963-965@4c018187]], [[test-forest-basis-r5.R:1001@4c018187]] and the flat-C BCF leg at [[test-forest-basis-r5.R:1123-1125@4c018187]] move;
 (ii) the size guard dropped from the five appended FILLs -> the
 poisoned pointers are dereferenced and R aborts (SIGSEGV, exit 139) at
 the omitting-caller leg. No arm stayed green.

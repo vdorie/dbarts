@@ -30,17 +30,17 @@ source. Every internal data@x consumer is routed or retained by verdict.
 ## Baseline (what already holds at plan 1)
 
 - build/buildMixed/buildFromCsc take raw as CALL arguments, quantize into
-  owned codes, retain nothing unflagged (data.hpp:550,601,702).
+  owned codes, retain nothing unflagged ([[data.hpp:550@7842e2f2]], [[data.hpp:601@7842e2f2]], [[data.hpp:702@7842e2f2]]).
 - @x is a matrix, dgCMatrix, or dbartsMixedMatrix; @varTypes carries
-  ORDINAL/CATEGORICAL (A_class.R:394; data.hpp ColumnType). Dense
+  ORDINAL/CATEGORICAL ([[A_class.R:394@7842e2f2]]; data.hpp ColumnType). Dense
   categorical already rides buildMixed's per-column dispatch.
 - factors = "categorical" is ALREADY the default in dbartsData / dbarts /
-  bart2 / rbart (data.R:273, dbarts.R:188, bart.R:377, rbart.R:47). The
+  bart2 / rbart ([[data.R:273@7842e2f2]], [[dbarts.R:188@7842e2f2]], [[bart.R:377@7842e2f2]], [[rbart.R:47@7842e2f2]]). The
   dummy -> single-categorical model change landed with the categorical
   engine, NOT here; plan 2 preserves it bitwise. "indicators" remains the
   opt-out. No new posterior decision.
 - getTrees replay, setState cross-grid, decodeCategoricalSplits already read
-  data@x as their raw/metadata source (dbarts.R:1085,1104,1233,1238).
+  data@x as their raw/metadata source ([[dbarts.R:1085@7842e2f2]], [[dbarts.R:1104@7842e2f2]], [[dbarts.R:1233@7842e2f2]], [[dbarts.R:1238@7842e2f2]]).
 - PROT_DATA is the GC anchor and the call-time raw source (design, resolved).
 
 ## Ingestion type mapping (end to end)
@@ -64,14 +64,14 @@ dense block moves from a retained R cbind to a transient bridge assembly.
 sparseFactor() lands as R SURFACE ONLY: the class, its export, Rd, print, and
 dbartsData recognition. CSC-categorical CODE STORAGE and the membership
 kernel are plan 5 (the container has no CSC-categorical path; parseData's
-all-ordinal-sparse guard, R_interface_bartcore.cpp:414,419, already refuses
+all-ordinal-sparse guard, [[R_interface_bartcore.cpp:414@7842e2f2]], [[R_interface_bartcore.cpp:419@7842e2f2]], already refuses
 it). A sampler/data built on a sparseFactor column REFUSES at construction
 with an explicit "sparse categorical predictors are not yet supported"
 message. I() sparse ORDINAL is unaffected and keeps working.
 
 ## Formula-path rework
 
-makeModelMatrix (data.R:286) stops producing a retained cbound matrix.
+makeModelMatrix ([[data.R:286@7842e2f2]]) stops producing a retained cbound matrix.
 makeCategoricalModelMatrix returns the columnar container (below) instead of
 do.call(cbind, columns); makeModelMatrixFromDataFrame ("indicators", makeind,
 the dummy path) is UNCHANGED - it still returns a plain matrix. The
@@ -85,7 +85,7 @@ untouched.
 
 Reuse dbartsMixedMatrix (mixedMatrix.R): it already carries dim/dimnames/
 [/as.matrix + the term.labels/varTypes/factor.levels/drop attributes and
-satisfies the inherits(@x, "dbartsMixedMatrix") guards (model.R:167,210).
+satisfies the inherits(@x, "dbartsMixedMatrix") guards ([[model.R:167@7842e2f2]], [[model.R:210@7842e2f2]]).
 Extend it to keep DENSE columns as a per-column list (not cbound) with a
 categorical-capable map; as.matrix materializes on demand (the getTrees /
 partialDependence path). Pure-dense frames now yield a container, not a
@@ -96,7 +96,7 @@ then dispatches to build/buildMixed exactly as today - byte-identical codes.
 ## extract(sampler, "predictors")
 
 New extract.dbartsSampler(object, type = "predictors"); S3method(extract,
-dbartsSampler) (extract is already the S3 generic, generics.R:3 - no new
+dbartsSampler) (extract is already the S3 generic, [[generics.R:3@7842e2f2]] - no new
 generic). Returns the NUMERIC code matrix (factors as integer codes),
 matching the historical @x contract and the getTrees-replay source; pure R
 over @x (as.matrix of the container, or the matrix itself), no engine call in
@@ -109,7 +109,7 @@ plotTree.R, bart.R, rbart.R, model.R, utility.R, updatePredictorPerObserv...).
 Kinds: metadata (ncol/nrow/colnames/factor.levels - served by the container's
 dim/dimnames/attrs), value reads (partialDependence quantiles, plotTree,
 getTrees replay, setState raw, estimateSigmaFromLinearModel), and the
-plan-1 mutation interim write-back (bartcore.R:94,171; updatePredictor...:87).
+plan-1 mutation interim write-back ([[bartcore.R:94@7842e2f2]], [[bartcore.R:171@7842e2f2]]; updatePredictor...:87).
 
 VERDICT: @x is RETAINED, its role narrowed to "the ingested source". Dropping
 it does NOT close cleanly - it is the PROT_DATA GC anchor, the call-time raw
@@ -127,7 +127,7 @@ S4 class: slots i (0-based rows), values (integer level codes), levels
 (character), reference (implicit-zero level), length. Constructor
 sparseFactor(x, levels, reference) validates reference %in% levels, codes in
 1..K, i in range. print shows levels/reference/nnz. Rd (man/sparseFactor.Rd),
-NAMESPACE export. isSparseDataFrameColumn (mixedMatrix.R:10) recognizes it;
+NAMESPACE export. isSparseDataFrameColumn ([[mixedMatrix.R:10@7842e2f2]]) recognizes it;
 dbartsData refuses per S-CAT.
 
 ## Commits

@@ -38,7 +38,7 @@ bench: CORRECTED AT COMMIT 1 - the original success criterion (recover
 ## Goal
 
 Replace the plan-1/2 interim - the R layer copy-modifies data@x on every
-accepted predictor mutation (assignIntoPredictorSource, mixedMatrix.R:273) -
+accepted predictor mutation (assignIntoPredictorSource, [[mixedMatrix.R:273@f7efebf4]]) -
 with reference-install: the accepted column vector is installed into the
 container's per-column list BY REFERENCE, no extra copy on top of R's own
 copy-on-write. Settle the design's one recorded OPEN item (the engine-owned
@@ -47,32 +47,32 @@ mutable-raw flag) and reconcile what data@x means. Draw-neutral throughout.
 ## Baseline (what holds at plan 2)
 
 - The engine keeps NO predictor matrix. The only owned raw is the
-  leaf-covariate gather (data.hpp:193 gatheredRawColumns, populated by
+  leaf-covariate gather ([[data.hpp:193@f7efebf4]] gatheredRawColumns, populated by
   setupGatheredColumns:536 for linear/GP leaves, or every column of a data
   handle). No `mutable` designation exists in the engine - the design's
   proposed mutable-raw flag was NEVER BUILT; plan 1 shipped the gather only.
 - Off-hot-path raw consumers take raw AT CALL TIME from the live R slot:
-  setCutPoints (bartcore.R:318), setState (dbarts.R:1089,1113), getTrees
-  saved-tree replay (dbarts.R:1243), all via rawPredictorMatrix(data@x)
-  (utility.R:371). PROT_DATA is the create-time GC anchor for the flat-C
+  setCutPoints ([[bartcore.R:318@f7efebf4]]), setState ([[dbarts.R:1089@f7efebf4]], [[dbarts.R:1113@f7efebf4]]), getTrees
+  saved-tree replay ([[dbarts.R:1243@f7efebf4]]), all via rawPredictorMatrix(data@x)
+  ([[utility.R:371@f7efebf4]]). PROT_DATA is the create-time GC anchor for the flat-C
   path; the R5 path passes current data@x fresh, so a data@x reassignment
   never staleness-traps the engine.
 - data@x for a frame fit is a dbartsMixedMatrix dense flavor: a per-column
-  list (mixedMatrix.R:1-20). Accepted mutations keep it CURRENT via
+  list ([[mixedMatrix.R:1-20@f7efebf4]]). Accepted mutations keep it CURRENT via
   assignIntoPredictorSource. extract(sampler, "predictors") reads it
-  (generics.R:823) - already container-authoritative, already current.
+  ([[generics.R:823@f7efebf4]]) - already container-authoritative, already current.
 - The interim copy, per site:
-  - full-column updatePredictor (bartcore.R:176): assignIntoPredictorSource
+  - full-column updatePredictor ([[bartcore.R:176@f7efebf4]]): assignIntoPredictorSource
     with rows = NULL does `matrix(as.double(values), ...)` (O(n) coercion) +
     `column[] <- values[,k]` (O(n) copy-on-modify of the shared column) +
     the list/S4 reassembly. Two O(n) touches the engine did not need. THIS
     is the setPredictor-accept regression.
-  - per-observation partial (bartcore.R:94) and jointly
-    (updatePredictorPerObservationJointly.R:88): the inherent O(n) merge
+  - per-observation partial ([[bartcore.R:94@f7efebf4]]) and jointly
+    ([[updatePredictorPerObservationJointly.R:88@f7efebf4]]): the inherent O(n) merge
     (old-at-!installed, new-at-installed) - no EXTRA copy beyond it.
-  - full-MATRIX setPredictor (bartcore.R:123-129): already a pointer swap
+  - full-MATRIX setPredictor ([[bartcore.R:123-129@f7efebf4]]): already a pointer swap
     (`sampler$data@x <- x`), essentially reference-install already.
-  - test predictor column update (bartcore.R:353): copy-modifies the x.test
+  - test predictor column update ([[bartcore.R:353@f7efebf4]]): copy-modifies the x.test
     matrix to assemble the engine's whole-matrix argument.
 
 ## THE decision: the engine-owned mutable-raw flag does NOT survive
@@ -138,7 +138,7 @@ accepted column j on the dense-flavor container:
   container that shares every unchanged column vector BY REFERENCE and whose
   slot j points at the newly supplied vector. The prior container is
   untouched (copy-on-write preserved: a shallow copy holding it diverges -
-  test-sampler-predictors.R:61-67 stays green, no assertion change).
+  [[test-sampler-predictors.R:61-67@f7efebf4]] stays green, no assertion change).
 - WHO allocates: the caller (R's `as.double(x)`, or the user's own vector).
   The helper allocates only the O(p) list spine of the shallow container
   duplicate. The engine allocates nothing (it re-quantizes into its existing
@@ -181,13 +181,13 @@ New helper (mixedMatrix.R), replacing assignIntoPredictorSource:
 Preserved EXACTLY - reference-install touches only the data@x write-back
 after the engine returns, never the engine transaction:
 
-- The engine's per-observation session (sampler.hpp:912
+- The engine's per-observation session ([[sampler.hpp:912@f7efebf4]]
   updatePredictorPerObservation -> UpdateSessionImpl:1023,
   observationWouldRemainValid:1051, commitObservation:1072, finalize:1089)
   installs one column in random scan order and rolls back exactly the
   observations whose move would empty a leaf in any tree of any chain. The
-  bridge (R_interface_bartcore.cpp:2296) returns the `installed` LGLSXP mask
-  unchanged; the R5 partial path returns it (bartcore.R:100). Plan 3 keeps
+  bridge ([[R_interface_bartcore.cpp:2296@f7efebf4]]) returns the `installed` LGLSXP mask
+  unchanged; the R5 partial path returns it ([[bartcore.R:100@f7efebf4]]). Plan 3 keeps
   this return value byte-for-byte - callers (IRT-style Metropolis samplers)
   depend on it to know which observations moved so a rejected proposal rolls
   back only the affected rows.
@@ -196,9 +196,9 @@ after the engine returns, never the engine transaction:
   the installed rows, so the non-installed rows keep the old values the
   engine kept (matching the engine codes). Semantics identical to the
   interim; only the copy discipline changes.
-- The jointly path (facade.hpp:325 updatePredictorPerObservationJointly, one
+- The jointly path ([[facade.hpp:325@f7efebf4]] updatePredictorPerObservationJointly, one
   shared column across samplers, index-aligned) keeps its per-sampler
-  write-back loop (updatePredictorPerObservationJointly.R:87); each sampler
+  write-back loop ([[updatePredictorPerObservationJointly.R:87@f7efebf4]]); each sampler
   reference-installs its own slice of the shared installed mask.
 
 ## Test-predictor (x.test) symmetry
@@ -206,7 +206,7 @@ after the engine returns, never the engine transaction:
 Deliberate asymmetry, documented: the engine has NO per-column test entry
 point - bartcore_setTestPredictor re-quantizes the WHOLE test matrix, so a
 single-column x.test update must assemble the full matrix R-side to pass it
-(bartcore.R:353). There is no reference-install win to take: x.test stays a
+([[bartcore.R:353@f7efebf4]]). There is no reference-install win to take: x.test stays a
 plain matrix, the column update stays a copy-modify (it is building the
 engine's argument, not maintaining a live snapshot). No bench metric covers
 it; leave it. (Containerizing x.test for a columnar per-column path is
@@ -215,7 +215,7 @@ plan-4/5 scope if it ever earns its keep.)
 ## extract() authority
 
 No change beyond a comment/Rd clarification: extract(sampler, "predictors")
-stays pure R over the container (generics.R:823) and is already current for
+stays pure R over the container ([[generics.R:823@f7efebf4]]) and is already current for
 every column, because the container IS the current raw store. The design's
 plan-3 note "reroute extract to owned engine raw for mutable columns" is
 DROPPED - there is no engine raw to reroute to, and the container is
@@ -226,7 +226,7 @@ after mutation.
 
 1. Reference-install helper + full-column and full-matrix rewire (R).
    installPredictorColumns replaces assignIntoPredictorSource; bartcore.R's
-   updatePredictor column branch (:176) and the full-matrix branch (:123)
+   updatePredictor column branch ([[generics.R:176@f7efebf4]]) and the full-matrix branch ([[generics.R:123@f7efebf4]])
    install by reference. Gate: equivalence 22/22 IDENTICAL vs
    equivalence-ac6ec2c.rds; full tinytest (test-sampler-predictors,
    test-sampler-setData, no snapshot regen); the revised bench criteria
@@ -238,16 +238,16 @@ after mutation.
    plan-1 structural, not the interim. Full-matrix setPredictor stayed a
    pointer swap (routing it through the helper would add cost; the
    plan's costs-nothing clause was not met).
-2. Per-observation partial + jointly rewire (R). bartcore.R:94 and
-   updatePredictorPerObservationJointly.R:87 install by reference; the
+2. Per-observation partial + jointly rewire (R). [[bartcore.R:94@f7efebf4]] and
+   [[updatePredictorPerObservationJointly.R:87@f7efebf4]] install by reference; the
    installed-row-only merge is preserved. Gate: equivalence 22/22;
    test-sampler-setPredictorPerObservation,
    test-sampler-updatePredictorPerObservationJointly, test-mutate-then-
    serialize pass unregenerated (the installed mask is unchanged). Abort:
    the installed mask or a rolled-back row's value differs from the interim.
 3. Comments + extract Rd + data@x contract (R + docs). Strike the "interim
-   of design plans 1-2 / until plan 3" comments (bartcore.R:92,172,
-   updatePredictorPerObservationJointly.R:84, mixedMatrix.R:265) for the
+   of design plans 1-2 / until plan 3" comments ([[bartcore.R:92@f7efebf4]], [[bartcore.R:172@f7efebf4]],
+   [[updatePredictorPerObservationJointly.R:84@f7efebf4]], [[mixedMatrix.R:265@f7efebf4]]) for the
    reference-install final model; extract Rd + dbarts.Rd note data@x is the
    live current source; a small tinytest asserting extract == current after
    a column and a per-observation mutation, and that a shallow copy still

@@ -29,7 +29,7 @@ the mechanism-portability question (below) is reasoned, not measured.
 R 4.3.3. Package builds at R's default -O2 (baseline ISA = x86-64 == SSE2,
 no -mavx); per-file wide-ISA flags reach only src/{misc,external,rc} via
 misc/Makefile (SSE2_FLAG/AVX_FLAG/AVX2_FLAG). Note: the worktree tip already
-carries the AVX2-detection fix (simd.c:107 __get_cpuid_count(leaf,0,...)),
+carries the AVX2-detection fix ([[simd.c:107@4a521760]] __get_cpuid_count(leaf,0,...)),
 so AVX2 dispatch is live on this box.
 
 Microbenches: faithful copies of the scalar unrolled moment bodies
@@ -170,7 +170,7 @@ wanted.
 - Unrolled Mean/Variance/WeightedMean/WeightedVariance (the named target):
   NO-GO. `git grep` finds ZERO callers in src/R/inst outside moments.c /
   stats.h - the sampler's live reduction is the SEPARATE scalar undispatched
-  SufficientStatisticsFast family (tree.hpp:505-518), not these. A flag-AVX2
+  SufficientStatisticsFast family ([[tree.hpp:505-518@4a521760]]), not these. A flag-AVX2
   variant is a measured 1.1-2x over SSE2 on code the sampler never runs =
   ~0% end-to-end. Do not add it. If a standalone/utility consumer ever
   profiles hot, the drop-in is a moments_avx2.c compiled

@@ -19,27 +19,27 @@ leaf's u_ matches its row access. data-store.md reflects each pass.
 
 docs/design/data-store.md is the spec. Anchors re-verified 2026-07-18:
 
-- Quantize twin: quantizeColumn (data.hpp:644-655) rides
-  quantizeDenseInto; setColumnJournaled (data.hpp:1134-1162)
+- Quantize twin: quantizeColumn ([[data.hpp:644-655@4a521760]]) rides
+  quantizeDenseInto; setColumnJournaled ([[data.hpp:1134-1162@4a521760]])
   re-implements the same per-cell loop inline with journal bookkeeping.
-  Sole caller sampler.hpp:1096 (SubsetUpdate), reached once per external
+  Sole caller [[sampler.hpp:1096@4a521760]] (SubsetUpdate), reached once per external
   iteration via updatePredictor/updatePredictorPerObservationJointly.
-- isView: field data.hpp:214; set at :720, :768, :1001 (buildFromParent);
-  provenance reader suppliedStandardization (data.hpp:342, plus the
+- isView: field [[data.hpp:214@4a521760]]; set at [[data.hpp:720@4a521760]], [[data.hpp:768@4a521760]], [[data.hpp:1001@4a521760]] (buildFromParent);
+  provenance reader suppliedStandardization ([[data.hpp:342@4a521760]], plus the
   linear/GP reinitialize in model.hpp); capability readers
-  refuseViewSampler (R_interface_bartcore.cpp:1479-1487, ORs
+  refuseViewSampler ([[R_interface_bartcore.cpp:1479-1487@4a521760]], ORs
   builtFromCsc, 5 mutation entry points) and refuseViewSamplerOnly
-  (:1491-1496; setCutPoints/setState/installForests);
-  tests/cpp/test_data.cpp:72. Doc language: data-store.md "CodeBlock (train
+  ([[R_interface_bartcore.cpp:1491-1496@4a521760]]; setCutPoints/setState/installForests);
+  [[tests/cpp/test_data.cpp:72@4a521760]]. Doc language: data-store.md "CodeBlock (train
   and test)" and "View semantics (buildFromParent)".
-- Handle gather-all: R_interface_bartcore.cpp:2026-2034 in
-  bartcore_createDataHandle (:1997). The sampler ctor
-  (sampler.hpp:100-127) and per-fold views (createFromHandle :2145-2169
-  -> buildFromParent data.hpp:995) already gather conditionally on
+- Handle gather-all: [[R_interface_bartcore.cpp:2026-2034@4a521760]] in
+  bartcore_createDataHandle ([[R_interface_bartcore.cpp:1997@4a521760]]). The sampler ctor
+  ([[sampler.hpp:100-127@4a521760]]) and per-fold views (createFromHandle [[sampler.hpp:2145-2169@4a521760]]
+  -> buildFromParent [[data.hpp:995@4a521760]]) already gather conditionally on
   options.leafCovariateColumns; the handle is the last unconditional
   site. buildFromParent already refuses designating ungathered columns.
-- u_: column-major (model.hpp:218 resize; layout comment :538);
-  per-member row gather at :384 and :401 strides numObservations_.
+- u_: column-major ([[model.hpp:218@4a521760]] resize; layout comment [[model.hpp:538@4a521760]]);
+  per-member row gather at [[model.hpp:384@4a521760]] and [[model.hpp:401@4a521760]] strides numObservations_.
   Linear leaf only; GP leaf out of scope.
 
 ## Decision (handle gather)
@@ -59,8 +59,8 @@ constant-leaf case.
   (the u_ flip reorders storage, not the row fill arithmetic).
 - The quantize core's observer is a template parameter, inlined; no
   std::function or virtual on the cell loop.
-- data-store.md updated with each pass it describes (:84-85 and
-  :181-189 for isView; the handle/view sections; the :358-361 residuals
+- data-store.md updated with each pass it describes ([[model.hpp:84-85@4a521760]] and
+  [[model.hpp:181-189@4a521760]] for isView; the handle/view sections; the [[model.hpp:358-361@4a521760]] residuals
   list shrinks per pass).
 - No dbarts.h change. Pass order as in Steps (model.hpp last).
 
@@ -72,7 +72,7 @@ constant-leaf case.
 2. isView split: isView becomes pure provenance; capability predicates
    match the two refusal granularities (no raw at all vs retains a
    re-quantize source); rewire both helpers, their call sites,
-   test_data.cpp:72, and the doc language.
+   [[test_data.cpp:72@4a521760]], and the doc language.
 3. Conditional handle gather per the Decision block; a tinytest covers
    default-empty refusal and declared-column success.
 4. u_ row-major flip: storage and both gathers (model.hpp).

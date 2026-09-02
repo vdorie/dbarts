@@ -73,7 +73,7 @@ SBC targeting from the uncovered combinations.
   (each becomes an SBC-review target and/or a gate item):
   1. Linear/GP leaf x missing (NA) leaf-covariate values. The
      imputation "NAs enter at the standardized mean (zero)"
-     (model.hpp:57,77,92,173-179) is live deliberate code no gate
+     ([[model.hpp:57@7496d571]], [[model.hpp:77@7496d571]], [[model.hpp:92@7496d571]], [[model.hpp:173-179@7496d571]]) is live deliberate code no gate
      anywhere executes, sitting directly behind the just-landed
      linear crossproduct cache and the GP kernel cache (both
      cache-invalidation sensitive). HIGHEST priority.
@@ -117,7 +117,7 @@ SBC targeting from the uncovered combinations.
   Columns: cpp = tests/cpp, tt = tinytest, equiv = equivalence
   statistical verdict, exact = the relevant exact-posterior gate;
   F = caught, P = passed-blind.
-    1 bd depth off-by-one (model.hpp:1398)        cpp F tt F equiv F  exact change/cat F
+    1 bd depth off-by-one ([[model.hpp:1398@7496d571]])        cpp F tt F equiv F  exact change/cat F
     2 bd reverse count wrong tree (moves ~245)    cpp P tt F equiv weak(8/18) change PASS cat F
     3 change FORWARD corr dropped (moves:459)     cpp P tt F equiv P   change F(MIXED arm) cat P
     4 change REVERSE corr dropped (moves:474)     cpp P tt F equiv P   change F(MAIN arm)  cat P
@@ -136,7 +136,7 @@ SBC targeting from the uncovered combinations.
 
   SURVIVORS / single-point-of-failure (the findings):
   - Poison 13 BCF a-glue PRIOR PRECISION (1/aVariance) - TRUE
-    SURVIVOR, ZERO gates. Verified by orchestrator: chain.hpp:2049
+    SURVIVOR, ZERO gates. Verified by orchestrator: [[chain.hpp:2049@7496d571]]
     correctly carries the term (block-6 CONFIRMED); at bcf-exact's
     data size the data precision swamps the prior so dropping it
     shifts E[a*mu] by 0.0001. Needs a prior-dominated bcf-exact mode

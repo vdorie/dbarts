@@ -99,11 +99,11 @@ classification; do not restate it elsewhere.
 | `monotoneIntegrate` (model.hpp) | `tol = 1e-12` | quadrature convergence criterion, not an equality test; halved down the recursion | OUT OF SCOPE |
 | `sign * DBL_EPSILON` latent fallbacks (model.hpp, probit and ordinal) | DBL_EPSILON | sentinel value for a NaN draw, not a comparison | OUT OF SCOPE |
 | GP kernel `nugget` (model.hpp) | 1e-6 | regularizer, not a comparison | OUT OF SCOPE |
-| split-probability and proposal-probability sum-to-one checks (`R_interface_bartcore.cpp:1158`, `:1330`, `R/A_class.R:402`) | 1e-10 | IS an almost-equal predicate at unit scale, hand-picked | UNIFY at S3 (VD 2026-08-10) |
+| split-probability and proposal-probability sum-to-one checks (`[[R_interface_bartcore.cpp:1158@4c018187]]`, `[[R_interface_bartcore.cpp:1330@4c018187]]`, `[[R/A_class.R:402@4c018187]]`) | 1e-10 | IS an almost-equal predicate at unit scale, hand-picked | UNIFY at S3 (VD 2026-08-10) |
 
 ## Binding decisions inherited (do not reopen)
 
-1. **`model.hpp:166` hardening**: `logIntegratedLikelihood`'s guard becomes
+1. **`[[model.hpp:166@4c018187]]` hardening**: `logIntegratedLikelihood`'s guard becomes
    `!(sumWeights > 0.0)`. Verified bitwise-neutral by the critique (the two
    predicates agree on `+0.0` and `-0.0` and differ only on NaN and negatives,
    both unreachable under the bridge's `>= 0` validation and `w m^2 >= 0`).
@@ -472,8 +472,8 @@ step, three CI-red incidents); rchk on the next scheduled run.
    shapes are therefore not interchangeable implementations of one semantic.
 5. **Sum-to-one unification (VD 2026-08-10: unify).** The three hand-picked
    1e-10 almost-equal checks on user-supplied probability vectors -
-   `R_interface_bartcore.cpp:1158` (rule proposal probabilities), `:1330`
-   (split probabilities), `R/A_class.R:402` (validity) - move to the
+   `[[R_interface_bartcore.cpp:1158@4c018187]]` (rule proposal probabilities), `[[R_interface_bartcore.cpp:1330@4c018187]]`
+   (split probabilities), `[[R/A_class.R:402@4c018187]]` (validity) - move to the
    conventional tolerance. C-side: the same named `0x1p-26` constant as the
    combiner snap, sharing its derivation comment. R-side:
    `sqrt(.Machine$double.eps)` (all.equal's default), matching `R/spec.R`'s
@@ -684,8 +684,8 @@ snap), model-space-survey.md door 2 (shape (2) SHIPPED; the
 non-interchangeability fact recorded), TODO, c-api-growth.md (the
 dbarts_sampler_setForestWeights reservation with its three constraints),
 NEWS. Sum-to-one unification landed on all three sites (verified live at
-R_interface_bartcore.cpp:1158/:1330 pre-edit, R/A_class.R:402; the
-shared constant sumToOneTolerance = 0x1p-26 lands at :63) with band-edge
+[[R_interface_bartcore.cpp:1158@4c018187]]/[[R_interface_bartcore.cpp:1330@4c018187]] pre-edit, [[R/A_class.R:402@4c018187]]; the
+shared constant sumToOneTolerance = 0x1p-26 lands at [[R/A_class.R:63@4c018187]]) with band-edge
 tests per surface (1e-9 accepted, 1e-7 refused) in
 test-sum-to-one-tolerance.R, isolating each site by direct slot mutation
 past unrelated R-side gates. Gates double-run (implementer +

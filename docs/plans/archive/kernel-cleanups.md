@@ -14,7 +14,7 @@ kernel-vocabulary.md records.
 ## Context
 
 - bartcore calls misc_htm_compute* with (nullptr, 0) everywhere
-  (src/bartcore/tree.hpp:471-513, chain.hpp:548, model.hpp:1622-1624):
+  ([[src/bartcore/tree.hpp:471-513@4a521760]], [[chain.hpp:548@4a521760]], [[model.hpp:1622-1624@4a521760]]):
   the htm entry points with a null manager ARE the fast path
   (docs/design/kernel-vocabulary.md); the plain misc_compute*
   variants are several times slower.

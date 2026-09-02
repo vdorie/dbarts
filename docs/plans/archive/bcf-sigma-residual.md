@@ -22,11 +22,11 @@ engine change (separate item), NOT another glue move.
 ## 1. Anatomy of the transient -- where the time goes
 
 Init path (cited): BCFState starts a=1, b0=0, b1=1, aVariance=1
-(chain.hpp:329-330); both forests start all-zero fits (buildBCFForest,
-chain.hpp:2095-2096); sigma_ = initialSigma() = sigest/range (chain.hpp:468,
-model.hpp:1908). Across SBC reps the sampler is reused: sampleTreesFromPrior /
-sampleNodeParametersFromPrior redraw only the forests (chain.hpp:899-957) and
-setResponse(updateScale=FALSE) reuses the fixed build scale (model.hpp:1936-1946)
+([[chain.hpp:329-330@7e5b46a0]]); both forests start all-zero fits (buildBCFForest,
+[[chain.hpp:2095-2096@7e5b46a0]]); sigma_ = initialSigma() = sigest/range ([[chain.hpp:468@7e5b46a0]],
+[[model.hpp:1908@7e5b46a0]]). Across SBC reps the sampler is reused: sampleTreesFromPrior /
+sampleNodeParametersFromPrior redraw only the forests ([[chain.hpp:899-957@7e5b46a0]]) and
+setResponse(updateScale=FALSE) reuses the fixed build scale ([[model.hpp:1936-1946@7e5b46a0]])
 -- so a, aVariance, b0, b1 and sigma CARRY OVER between reps; only the mu/tau
 forests are re-drawn shallow-from-prior each rep.
 
@@ -35,7 +35,7 @@ sweeps on strong-|a0| reps (characterize.R, characterize2.R):
 
 - a*mu AMPLITUDE is correct by sweep ~10 for every a0 (a0=6: amuSd 1.13@sw10 vs
   target 1.20; a0=14: 1.93 vs 1.98; a0=100: 12.3 vs 13.2). The scalar a jumps to
-  ~a0 in one conjugate drawGlue (chain.hpp:2147-2157); the a-ridge move then just
+  ~a0 in one conjugate drawGlue ([[chain.hpp:2147-2157@7e5b46a0]]); the a-ridge move then just
   trades a<->||mu|| at fixed product. So glue and leaf MAGNITUDE are FAST.
 - SIGMA is the slow variable: it starts high (unexplained signal) and decays over
   tens of thousands of sweeps. sigFirst ~= sigLast within an 18k window
@@ -106,9 +106,9 @@ exactly that.
 Per-candidate draw-change class and smallest diff (for the record; (a),(b)
 rejected on measurement):
 - (a) a-init: opt-in possible (default a=1 preserved). Smallest diff: BCFSpec
-  gains aInit (chain.hpp:314), BCFState init reads it (chain.hpp:482-487),
-  bridge bcfParams grows to 9 (R_interface_bartcore.cpp:1202,1228-1241),
-  bartcoreBCFSampler gains a.init (R/bartcore.R:419). Data-dependent init is
+  gains aInit ([[chain.hpp:314@7e5b46a0]]), BCFState init reads it ([[chain.hpp:482-487@7e5b46a0]]),
+  bridge bcfParams grows to 9 ([[R_interface_bartcore.cpp:1202@7e5b46a0]], [[R_interface_bartcore.cpp:1228-1241@7e5b46a0]]),
+  bartcoreBCFSampler gains a.init ([[R/bartcore.R:419@7e5b46a0]]). Data-dependent init is
   MCMC-legal; reproducibility rides the existing seed (estimator sd(y)/sd
   (yBuild) is deterministic). All existing draws unchanged if default a=1.
   Prototyped read-only via storeState/setState (bcf slot, probe2.R).
@@ -120,7 +120,7 @@ rejected on measurement):
   diff: benchmarks/R/sbc.R -- runSbcBCF's burn default (line 938, currently
   50L) and/or the isBCF CLI branch (line 1382, which passes no burn); pin
   ABSOLUTE sweeps, e.g. burn = ceiling(72000 / thin), since burn units are
-  thinned (chain.hpp:642 totalIterations = (burn + samples) * thin). Plus a
+  thinned ([[chain.hpp:642@7e5b46a0]] totalIterations = (burn + samples) * thin). Plus a
   burn-guidance note in docs/design/bcf.md. ZERO engine change.
 
 ## 3. Acceptance (winner = longer burn), n=200 glue-on, thin=120, L=150

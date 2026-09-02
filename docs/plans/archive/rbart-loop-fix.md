@@ -15,15 +15,15 @@ operations in the identical order.
 
 ## Context
 
-- The loop: R/rbart.R:490-529 (one run(0L, 1L) per kept sample at
-  :505, ranef/tau draws between, offset reinstalled through the
-  mutation surface); the warm-up sweeps at :775 and :809 stay as-is.
+- The loop: [[R/rbart.R:490-529@5274c685]] (one run(0L, 1L) per kept sample at
+  [[R/rbart.R:505@5274c685]], ranef/tau draws between, offset reinstalled through the
+  mutation surface); the warm-up sweeps at [[R/rbart.R:775@5274c685]] and [[R/rbart.R:809@5274c685]] stay as-is.
 - The hook: SweepCallback (src/bartcore/chain.hpp, landed e7fc71a)
   fires on the calling thread before every sweep, true stops. The C
   API's dbarts_sampler_setCallback is for C consumers; rbart needs a
   bridge-internal trampoline that evaluates an R closure.
 - Bridge RNG sync: bartcore_run wraps GetRNGstate/PutRNGstate
-  (src/R_interface_bartcore.cpp:975-982). An R closure drawing from
+  ([[src/R_interface_bartcore.cpp:975-982@5274c685]]). An R closure drawing from
   R's stream mid-run must see a consistent .Random.seed, so the
   trampoline entry point must PutRNGstate before each callback and
   GetRNGstate after (or skip the outer pair entirely - the engine
@@ -40,7 +40,7 @@ operations in the identical order.
   (keep the old loop reachable internally until the test pins it,
   then delete it - no dead code lands).
 - The per-sample bookkeeping the loop does R-side (assignInPlace
-  slices at :529 and kin) moves into the closure unchanged.
+  slices at [[src/R_interface_bartcore.cpp:529@5274c685]] and kin) moves into the closure unchanged.
 - Out of scope: exposing R-level callbacks publicly; the grouped
   (non-custom) rbart_vi path, which already runs in-core.
 

@@ -7,7 +7,7 @@ agent: opus (the typed test store, the descent-through-codeAt change, the
 rng: neutral, EVERY step. Test data never enters a draw: tree proposals and
   suffstats read training data only (chain.hpp draw loop), test rows are
   routed down already-grown trees and their fits RECORDED after the draws
-  (chain.hpp:2396-2410). Storage and codes may move; no draw can. Gate:
+  ([[chain.hpp:2396-2410@4a521760]]). Storage and codes may move; no draw can. Gate:
   equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds (guards training
   draws) + the test-fit BITWISE oracle below (guards test values) + full
   tinytest 2803 from a preclean install, new tests ADD, no snapshot regen.
@@ -36,46 +36,46 @@ test sides share ONE data model.
 ## Binding contracts inherited (plans 1-5 + dbarts.h freeze; do not reopen)
 
 - dbarts.h is FROZEN and its test entries are DENSE double* by signature:
-  dbarts_sampler_setTestPredictors (dbarts.h:185), _predict (197),
+  dbarts_sampler_setTestPredictors ([[dbarts.h:185@4a521760]]), _predict (197),
   _numTestObservations (257), the results `test` slab (87). The dense test
   path MUST keep accepting a dense matrix and produce byte-identical codes /
   fits; the sparse/frame test path is a NEW INTERNAL .Call + facade entry,
   exactly as the training dbartsMixedMatrix container is internal while
   dbarts.h create stays dense. stan4bart (dense test only) is unaffected.
 - The engine keeps test raw only where a leaf model reads it. Linear/gp leaves
-  gather standardized test covariates (uTest_, model.hpp:266,669) via
-  rawTestColumn (data.hpp:247); a sparse-BACKED test column REFUSES the leaf
+  gather standardized test covariates (uTest_, [[model.hpp:266@4a521760]], [[model.hpp:669@4a521760]]) via
+  rawTestColumn ([[data.hpp:247@4a521760]]); a sparse-BACKED test column REFUSES the leaf
   designation, the plan-4/5 precedent (R_interface_bartcore.cpp leaf-covariate
   refusal on sparse-backed columns).
 - Views DENSIFY. buildFromParent gathers a fold's test rows through the
-  storage-aware codeAt (data.hpp:859-864) into dense codes; a fold has no
-  external x.test (createFromParent, R_interface_bartcore.cpp:1532-1690, takes
+  storage-aware codeAt ([[data.hpp:859-864@4a521760]]) into dense codes; a fold has no
+  external x.test (createFromParent, [[R_interface_bartcore.cpp:1532-1690@4a521760]], takes
   testRows indexing the parent). So the fold test surface needs the
   descent/storage refactor but NO new ingestion.
 - Codes are identical across storage. A dense factor and a sparseFactor of the
   same values code each row in level order; the CSC column's zeroCode is the
-  reference level's ACTUAL level-order code (quantizeCscColumn, data.hpp:514,
+  reference level's ACTUAL level-order code (quantizeCscColumn, [[data.hpp:514@4a521760]],
   the plan-5 refinement), so codeAt(j,i) == the densified code at every row.
   This is why a resident sparse test store fits BITWISE-identically to today's
   densified test store - the densified path IS the oracle.
 
 ## Context (seams, read in code)
 
-- Test storage today (data.hpp:184-193): numTestObservations, ownedTestValues
+- Test storage today ([[data.hpp:184-193@4a521760]]): numTestObservations, ownedTestValues
   (owned col-major raw copy, all columns), testCodes (owned ROW-major, all
   columns), testOffset (borrowed). No per-column type, no sparse tier - the
   classic dense pair the training container already replaced.
-- buildTest (data.hpp:750) copies the dense raw and quantizes every column into
+- buildTest ([[data.hpp:750@4a521760]]) copies the dense raw and quantizes every column into
   row-major testCodes; quantizeTestColumn (541) re-quantizes one column on a
   cut change (setCutPointsForColumn, 481); testRow(i) (940) hands descent a
   materialized row.
 - Descent reads a materialized row: findBottomNodeForRow(data, xt) indexes
-  xt[rule.variableIndex] (tree.hpp:846); its six call sites pass data_.testRow(i)
-  (chain.hpp:1107,1120,1137,2144,2176,2216). A sparse test column has no
+  xt[rule.variableIndex] ([[tree.hpp:846@4a521760]]); its six call sites pass data_.testRow(i)
+  ([[chain.hpp:1107@4a521760]], [[chain.hpp:1120@4a521760]], [[chain.hpp:1137@4a521760]], [[chain.hpp:2144@4a521760]], [[chain.hpp:2176@4a521760]], [[chain.hpp:2216@4a521760]]). A sparse test column has no
   contiguous row, so descent must move to codeAt(var,i) - the change that lets
   test hold typed columns.
 - Training container the test side mirrors: ColumnStore per-column dense codes,
-  SparseColumnData rank bitmap (data.hpp:95-108), cscSlices for re-quantize
+  SparseColumnData rank bitmap ([[data.hpp:95-108@4a521760]]), cscSlices for re-quantize
   (144), codeAt storage-aware (951), quantizeCscColumn (510). buildMixed /
   buildFromCsc build it against COMPUTED cuts; test must build against the
   training cut grid (types, numCuts, cutPoints already shared).
@@ -86,13 +86,13 @@ test sides share ONE data model.
   (461-471). Categorical test codes are validated against training counts
   (969-988). bartcore_setTestPredictor (2094) / _setTestOffset (2123) are
   whole-object and dense; bartcore_predict (raw-double FlatNode) holds nothing.
-- R: @x.test is matrixOrNULL (A_class.R:402), validity ncol==ncol(x)
-  (469-487). validateXTest (data.R:38-126) densifies sparse-factor test columns
-  (densifySparseFactorColumns, utility.R:420 - the interim this plan retires)
+- R: @x.test is matrixOrNULL ([[A_class.R:402@4a521760]]), validity ncol==ncol(x)
+  (469-487). validateXTest ([[data.R:38-126@4a521760]]) densifies sparse-factor test columns
+  (densifySparseFactorColumns, [[utility.R:420@4a521760]] - the interim this plan retires)
   then builds a dense code matrix over the TRAINING levels
-  (mapFactorColumnsToTrainingLevels utility.R:437, makeCategoricalModelMatrix
+  (mapFactorColumnsToTrainingLevels [[utility.R:437@4a521760]], makeCategoricalModelMatrix
   274). The training container is assembled by assembleMixedMatrix
-  (mixedMatrix.R:115: dense list + dgCMatrix + map + sparse metadata);
+  ([[mixedMatrix.R:115@4a521760]]: dense list + dgCMatrix + map + sparse metadata);
   as.matrix (296) reconstructs, filling implicit rows with the reference code.
 
 ## Constraints
@@ -139,7 +139,7 @@ test sides share ONE data model.
    BYTE-IDENTICAL refactor). Replace ownedTestValues + row-major testCodes with
    the per-column test store (scope decision 1): dense codes per column, a
    SparseColumnData slot per sparse column, storage-aware testCodeAt(var,i).
-   Change findBottomNodeForRow to descend via testCodeAt (tree.hpp:846) and its
+   Change findBottomNodeForRow to descend via testCodeAt ([[tree.hpp:846@4a521760]]) and its
    six chain.hpp sites; buildFromParent writes the typed store's dense codes
    (folds unchanged, still densified). buildTest still takes a dense matrix and
    fills dense per-column codes - all sparseSlot=-1, so codes and fits are
@@ -147,7 +147,7 @@ test sides share ONE data model.
    Files: data.hpp, tree.hpp, chain.hpp, sampler.hpp, model.hpp (rawTestColumn
    unchanged interface). Tests: tests/cpp - testCodeAt equals the old
    row-major code at every (var,i) for a dense build; view test codes
-   unchanged; buildTest/rawTestColumn contracts updated (test_data.cpp:258-267,
+   unchanged; buildTest/rawTestColumn contracts updated ([[test_data.cpp:258-267@4a521760]],
    testColumnStoreView:88-93). Gate class: RNG-neutral - equivalence 22/22 +
    tinytest 2803 no regen + tests/cpp. Size: L. Abort: any dense-x.test fit
    moves.
@@ -174,7 +174,7 @@ test sides share ONE data model.
    CSC slices, reference/K through the internal setTestData); category
    validation reads the container. Files: R/A_class.R, R/data.R, R/utility.R,
    R/mixedMatrix.R, R_interface_bartcore.cpp. Tests: the existing plan-5
-   test-side gate (test-sparse-factor.R:282-322, sparse-cat x.test ==
+   test-side gate ([[test-sparse-factor.R:282-322@4a521760]], sparse-cat x.test ==
    densified) now runs RESIDENT-sparse and must stay identical(); NEW tinytest
    for a mixed/ordinal-sparse x.test ingest + fit; refusal messages narrowed.
    Gate class: RNG-neutral - equivalence 22/22 + tinytest (grows) + the
@@ -183,10 +183,10 @@ test sides share ONE data model.
 4. setTestPredictor / setTestOffset container mutation (R + bridge).
    bartcore_setTestPredictor (2094) gains a container branch: validate +
    rebuild the typed test store via setTestData; the R method
-   (bartcore.R:326,602) routes a frame/sparse test set through the step-3
+   ([[bartcore.R:326@4a521760]], [[bartcore.R:602@4a521760]]) routes a frame/sparse test set through the step-3
    builder and installs @x.test as the container. The EXISTING per-column
    update surface (setTestPredictor(x.test, column), index or name, dense
-   values, bartcore.R:326-359) stays unchanged on a dense-matrix x.test:
+   values, [[bartcore.R:326-359@4a521760]]) stays unchanged on a dense-matrix x.test:
    copy-modify R-side, whole-object engine call, today's semantics exactly
    (Q2 resolution). A container-backed x.test takes whole-object replacement
    only - the training-side creation-fixed rule for sparse sources; no
@@ -221,7 +221,7 @@ test sides share ONE data model.
   test path, so identity here is necessary, not sufficient).
 - THE TEST-FIT ORACLE (sufficiency): for any dataset expressible both ways, the
   recorded test fits of a resident-sparse / frame x.test are BITWISE-identical
-  to the dense-matrix / densified x.test - test-sparse-factor.R:282-322 extended
+  to the dense-matrix / densified x.test - [[test-sparse-factor.R:282-322@4a521760]] extended
   to resident storage, plus the tests/cpp store-level check (step 2). If a new
   cpp test draws from the shared rngState, snapshot/restore around its draws
   (the plan-4 finding).
@@ -355,7 +355,7 @@ by skipping CSC-backed training columns explicitly and by routing test
 reads through the new rawParsedTestColumn helper, which returns null
 (skip) for a CSC-backed test column instead of indexing data.x_test. Gate:
 equivalence 22/22 + tinytest (grows) + the test-fit oracle
-(test-sparse-factor.R:282-322 extended to resident storage, plus new
+([[test-sparse-factor.R:282-322@4a521760]] extended to resident storage, plus new
 mixed-container and leaf-covariate-refusal cases).
 
 Commit 4 = 7d781a8. Take mixed containers through the test mutation

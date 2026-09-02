@@ -11,23 +11,23 @@ or all gates.
 
 ## Defect list (poison numbers from the audit matrix)
 
-1. Poison 13 - BCF a-glue prior precision (chain.hpp:2049 drops
+1. Poison 13 - BCF a-glue prior precision ([[chain.hpp:2049@c01447ae]] drops
    1/aVariance): TRUE survivor, zero gates. DESIGN ONLY this turn (an
    SBC experiment, bcf-weak, decides between the two designs below).
-2. Poison 16 - GP nugget drops /w_i (model.hpp:721): caught only by
+2. Poison 16 - GP nugget drops /w_i ([[model.hpp:721@c01447ae]]): caught only by
    tests/cpp; the gp equivalence scenario is unweighted. Gate: new
    `wtgp` equivalence scenario (GP leaves x non-unit weights).
 3. Poison 12 - grouped precision count (model.hpp, drawGroupEffects
    weight accumulation `weightScratch[j] += w` -> `+= 1.0`): cpp-only;
    tinytest's "catch" was a CI hang. Gate: new `grouped` equivalence
    scenario (rbart_vi in-core, gamma tau prior, non-unit weights).
-4. Poison 15 - linear ridge drops sigma^2 (model.hpp:304, score side
+4. Poison 15 - linear ridge drops sigma^2 ([[model.hpp:304@c01447ae]], score side
    only): no exact gate. Gate: benchmarks/R/linear-exact.R.
 5. Poison 2 - birth/death reverse node-selection count on the wrong
    tree (moves.hpp ~245): slipped cpp AND change-balance. Gate:
    benchmarks/R/bd-balance.R (exact-enumeration birth/death
    detailed-balance arm).
-6. Poison 8 - chi-k shape mislabel (model.hpp:1729, shape
+6. Poison 8 - chi-k shape mislabel ([[model.hpp:1729@c01447ae]], shape
    0.5(M + 2nu - 1) instead of 0.5(M + nu)): cpp-only; chik's nu = 1.5
    shifts the shape by only +0.5. Gate: new `chik2` equivalence
    scenario with a df chosen so the shape error is separable.
@@ -73,7 +73,7 @@ which stays untouched):
 - linear-exact derivation validated against the clean sampler
   (max gap 0.0012 at 20k draws, K=4 well-separated cells).
 - Poison-15 sensitivity tuning (marginal-side ridge poison only; the
-  draw at model.hpp:341 stays clean): the poison mostly reweights tree
+  draw at [[model.hpp:341@c01447ae]] stays clean): the poison mostly reweights tree
   sizes, so the gate checks the leaf-count distribution (exact
   enumeration gives it) as well as E[fit]. Config nPer=10, base=0.8,
   sd=0.6 gives clean size dist {1: .47, 2: .45, 3: .08} and
@@ -95,7 +95,7 @@ Clean run (full, 200k draws): all |z| <= 1.5, exit 0.
   E[f(x=1..4)] z +0.9 -1.5 -1.3 -0.3
   OK: linear-leaf sampler matches the exact posterior
 
-Fail-on-poisoned proof (poison 15: model.hpp:304
+Fail-on-poisoned proof (poison 15: [[model.hpp:304@c01447ae]]
 `ridge = (k/scale)^2 * residualVariance` -> `(k/scale)^2`, score side
 only; R CMD INSTALL --preclean into the private .Rlib):
   P(1 leaves)      0.3579     0.4674    0.00225    -48.5 <- FAIL
@@ -176,12 +176,12 @@ the private .Rlib -> targeted compare vs a clean-build full local
 baseline (/tmp/new-scen-full.rds, NOT recorded into benchmarks/) ->
 revert -> reinstall):
 
-Poison 16 (model.hpp:721 `noise = residualVariance / w` -> drops / w):
+Poison 16 ([[model.hpp:721@c01447ae]] `noise = residualVariance / w` -> drops / w):
   wtgp 39 summaries, max |z| = 24.93, 29 with |z| > 3,
   26 with |z| > 4 <- FAIL (worst: vprop.2 z=24.93, k.mean z=-20.31,
   fhat.test.5 z=-18.52, ...) exit 1
 
-Poison 12 (model.hpp:2334 `weightScratch[j] += w` -> `+= 1.0`):
+Poison 12 ([[model.hpp:2334@c01447ae]] `weightScratch[j] += w` -> `+= 1.0`):
   grouped 47 summaries, max |z| = 1266.61, 14 with |z| > 4 <- FAIL
   (worst: sigma.mean z=-1266.61, tau.mean z=-584.5, sigma.sd
   z=-158.41, tau.sd z=-110.59, vprop.2 z=51.75, ...) exit 1
@@ -189,7 +189,7 @@ Poison 12 (model.hpp:2334 `weightScratch[j] += w` -> `+= 1.0`):
   prior the gate z-fails in ~2 s instead of hanging (the tinytest
   half-Cauchy hang the sweep recorded).
 
-Poison 8 (model.hpp:1729 shape `0.5 (M + nu)` -> `0.5 (M + 2 nu - 1)`):
+Poison 8 ([[model.hpp:1729@c01447ae]] shape `0.5 (M + nu)` -> `0.5 (M + 2 nu - 1)`):
   chik2 39 summaries, max |z| = 3.27, 1 with |z| > 3,
   1 with disjoint seed ranges <- FAIL
     disjoint ranges: k.mean (4.14 vs 8.07e+151)  exit 1
@@ -217,7 +217,7 @@ budget holds; under the poison it rises to 0.4-0.7). Full mode < 1 s.
 Clean run (full): E[a mu] gap 0.0009, E[tau] gap 0.0010,
 P(|a|<=q) gap 0.0041; exit 0.
 
-Fail-on-poisoned proof (poison 13: chain.hpp:2049
+Fail-on-poisoned proof (poison 13: [[chain.hpp:2049@c01447ae]]
 `double aPrec = 1.0 / bcf_->aVariance` -> `double aPrec = 0.0`;
 --preclean into the private .Rlib):
   |a| lag-1 autocorrelation of thinned draws, per seed: 0.41 0.73

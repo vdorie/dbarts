@@ -20,17 +20,17 @@ Unconstrained fits stay byte-identical at every commit.
 
 docs/design/monotone.md is the spec (all VD resolutions inline; B', monotone-
 first, base-speed a non-issue). Load-bearing anchors, re-verified 2026-07-18:
-- Draw: `sampleParametersAndSetFits` constant branch, chain.hpp:2299-2319; `mu`
+- Draw: `sampleParametersAndSetFits` constant branch, [[chain.hpp:2299-2319@bd098397]]; `mu`
   is a reference into the persistent `forest.muByTree[t]`, zeroed+refilled AFTER
-  the moves (chain.hpp:2303-2304), so it survives the prior sweep into this
+  the moves ([[chain.hpp:2303-2304@bd098397]]), so it survives the prior sweep into this
   sweep's moves - the new work is keeping it valid THROUGH in-sweep births/deaths.
-- Move seam: `metropolisJumpForTree` chain.hpp:702; `logLikelihoodForBranch`
-  moves.hpp:47-66 reads node suffstats and ZERO leaf params; birth/death score at
-  moves.hpp:172-191, ratio shape moves.hpp:198-204/258-264.
-- Leaf concept: `ScalarLeafModel` per-node draw only, model.hpp:47-55; posterior
-  N(m_k,s_k^2) at model.hpp:127; factory/instantiation seam facade.hpp:469.
-- Neighbor bounds: `Tree::splitInterval` tree.hpp:313. Truncated-normal primitive
-  `ext_rng_simulateTruncatedNormalScale1` already exists, random.h:111 (REUSE).
+- Move seam: `metropolisJumpForTree` [[chain.hpp:702@bd098397]]; `logLikelihoodForBranch`
+  [[moves.hpp:47-66@bd098397]] reads node suffstats and ZERO leaf params; birth/death score at
+  [[moves.hpp:172-191@bd098397]], ratio shape [[moves.hpp:198-204@bd098397]]/258-264.
+- Leaf concept: `ScalarLeafModel` per-node draw only, [[model.hpp:47-55@bd098397]]; posterior
+  N(m_k,s_k^2) at [[model.hpp:127@bd098397]]; factory/instantiation seam [[facade.hpp:469@bd098397]].
+- Neighbor bounds: `Tree::splitInterval` [[tree.hpp:313@bd098397]]. Truncated-normal primitive
+  `ext_rng_simulateTruncatedNormalScale1` already exists, [[random.h:111@bd098397]] (REUSE).
 
 ## Constraints
 

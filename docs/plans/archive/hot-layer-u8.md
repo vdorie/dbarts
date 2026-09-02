@@ -15,10 +15,10 @@ design doc's own per-column-width hot layer
 
 ## Context
 
-- Global width today: src/bartcore/data.hpp:19 (uint16_t, "matches the
-  classic engine"), one flat codes vector (data.hpp:139); kernels typed
-  on the single misc_xint_t (src/include/misc/partition.h:14-15).
-- Default n.cuts = 100 (R/dbarts.R:17); u8 with reserved NA 0xFF caps
+- Global width today: [[src/bartcore/data.hpp:19@4a521760]] (uint16_t, "matches the
+  classic engine"), one flat codes vector ([[data.hpp:139@4a521760]]); kernels typed
+  on the single misc_xint_t ([[src/include/misc/partition.h:14-15@4a521760]]).
+- Default n.cuts = 100 ([[R/dbarts.R:17@4a521760]]); u8 with reserved NA 0xFF caps
   at 254 cuts. Pooled categorical columns carry codes to 65535 - u16
   stays for them, hence per-column.
 - kernel-vocabulary.md already plans the (op, width) table; SSE2 has
@@ -50,7 +50,7 @@ Phase 2 (land):
 4. ColumnStore: per-column width tag + byte-strided storage; accessors
    return typed pointers; tree.hpp partition dispatch switches once per
    node op on (type, width). NA code 0xFF for u8 columns; cut caps
-   already leave the reserved code free (data.hpp:24 pattern).
+   already leave the reserved code free ([[data.hpp:24@4a521760]] pattern).
 5. Mutation paths (snapshots, setCell, sessions) go width-generic.
 
 ## Verification
