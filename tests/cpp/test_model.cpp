@@ -725,6 +725,78 @@ static void testVarianceForestRecovery() {
   printf("ok: variance forest recovery (s2 ratio %.2f)\n", highMean / lowMean);
 }
 
+// The store's ingestion refusal reaches a host through the null the sampler
+// factories already answer a refused composition with. Every shipping host
+// bounds predictor codes before this point, so the path exists for the
+// header-only engine - which has no such host - and the factories are where
+// it hands one back.
+static void testFactoryIngestionRefusal() {
+  const size_t n = 40, p = 1;
+  std::vector<double> x(n), y(n), z(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 4);
+    y[i] = i < n / 2 ? 0.0 : 1.0;
+    if (i >= n / 2) z[i] = 1.0;
+  }
+  const ColumnKind kind = ColumnKind::categorical;
+  const std::uint32_t declared[p] = { 4 };
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 11u);
+  ext_rng* rngs[1] = {rng};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.predictors.columnTypes = &kind;
+  options.predictors.categoryCounts = declared;
+
+  check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          != nullptr,
+        "level codes build a sampler");
+
+  std::vector<double> bad(x);
+  bad[n / 2] = 2.5;
+  check(createSampler(bad.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          == nullptr,
+        "a factor cell the store cannot represent refuses at the factory");
+
+  // the linear-leaf arm mints its facade through the same path
+  size_t covariate[] = {0};
+  SamplerOptions leafOptions = options;
+  leafOptions.leafCovariateColumns = covariate;
+  leafOptions.numLeafCovariates = 1;
+  const ColumnKind ordered = ColumnKind::orderedFactor;
+  leafOptions.predictors.columnTypes = &ordered;
+  check(createSampler(bad.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, leafOptions,
+                      rngs) == nullptr,
+        "the linear-leaf factory refuses the same cell");
+
+  AmplitudeSpec bcfSpec;
+  bcfSpec.mu.numTrees = 5;
+  bcfSpec.tau.numTrees = 5;
+  bcfSpec.z = z.data();
+  check(createAmplitudeSampler(bad.data(), y.data(), n, p, nullptr, nullptr,
+                               1.0, 3.0, 0.378, options, bcfSpec, rngs)
+          == nullptr,
+        "the bcf factory refuses the same cell");
+
+  const size_t K = 2;
+  std::vector<int> counts(n * K, 0), trials(n, 1);
+  for (size_t i = 0; i < n; ++i) counts[i + (i % K) * n] = 1;
+  MultinomialSpec multinomialSpec;
+  multinomialSpec.numCategories = K;
+  multinomialSpec.counts = counts.data();
+  multinomialSpec.trials = trials.data();
+  multinomialSpec.forest.numTrees = 5;
+  check(createMultinomialSampler(bad.data(), n, p, options, multinomialSpec,
+                                 rngs) == nullptr,
+        "the multinomial factory refuses the same cell");
+
+  ext_rng_destroy(rng);
+  printf("ok: factory ingestion refusal\n");
+}
+
 // Construction-time refusal (design section 5): the variance forest routes
 // through the weight channel the latent families already own, so the factory
 // accepts it only for the plain-constant-leaf gaussian family.
@@ -7339,6 +7411,7 @@ void runModelTests(ext_rng* rng) {
   // under the sanitizer's allocator.
   testVarianceForestRecovery();
   testVarianceForestRefusal();
+  testFactoryIngestionRefusal();
   testVarianceReportingStatePredict();
   testVarianceEmptyBottomStateRoundTrip();
   testVarianceSavedPredict();

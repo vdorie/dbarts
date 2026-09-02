@@ -1395,11 +1395,182 @@ void testOrderedFactorGridSurvivesMutation() {
   printf("ok: ordered factor grid survives mutation\n");
 }
 
+// What the store refuses at its OWN build entrances. Every shipping host
+// sweeps predictor codes before the store is touched, so these refusals are
+// reachable only from the header-only engine - which is the entrance they
+// exist for: the quantize narrows a factor cell to xint_t with a bare cast,
+// undefined outside the code range, and a code past its column's count shifts
+// past an inline category mask or over-reads a pooled one.
+void testIngestionRefusals() {
+  const size_t n = 40, p = 2;
+  const ColumnKind kinds[p] = { ColumnKind::categorical,
+                                ColumnKind::orderedFactor };
+  const std::uint32_t declared[p] = { 5, 4 };
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 5);
+    x[n + i] = static_cast<double>(i % 4);
+  }
+
+  {
+    ColumnStore accepted;
+    check(accepted.build(x.data(), n, p, 10u, false, kinds, nullptr, 0,
+                         declared),
+          "a build of level codes is accepted");
+  }
+
+  // each refusal, on each factor kind, through the dense (unmapped) entrance
+  const double offTable[] = { 2.5, -1.0, static_cast<double>(maxCategories),
+                              static_cast<double>(maxCategories) + 1.0 };
+  const char* const offTableNames[] = {
+    "a fractional cell is refused",
+    "a negative cell is refused",
+    "a cell at the top of the code range is refused",
+    "a cell past the code range is refused"
+  };
+  for (size_t j = 0; j < p; ++j)
+    for (size_t k = 0; k < sizeof offTable / sizeof *offTable; ++k) {
+      std::vector<double> bad(x);
+      bad[j * n + n / 2] = offTable[k];
+      ColumnStore store;
+      check(!store.build(bad.data(), n, p, 10u, false, kinds, nullptr, 0,
+                         declared),
+            offTableNames[k]);
+    }
+
+  // a cell inside the code range but past a DECLARED count is refused too:
+  // the count is the level table, not the observed maximum
+  {
+    std::vector<double> bad(x);
+    bad[n / 2] = static_cast<double>(declared[0]);
+    ColumnStore store;
+    check(store.build(bad.data(), n, p, 10u, false, kinds, nullptr, 0,
+                      declared),
+          "a code past the declared count widens an inferred count instead");
+    check(store.categoryCounts[0] == declared[0] + 1,
+          "the widened count still covers every code");
+  }
+
+  // the level COUNT has its own ceiling, one apart between the kinds: a
+  // categorical column spends codes 0..K-1 plus a missing position, an ordered
+  // factor spends one more on the upper bin of its K - 1 midpoint grid
+  {
+    std::vector<double> narrow(n, 0.0);
+    for (size_t i = 0; i < n; ++i) narrow[i] = static_cast<double>(i % 3);
+    for (size_t j = 0; j < p; ++j) {
+      const std::uint32_t ceiling = maxLevelsForKind(kinds[j]);
+      const std::uint32_t atCeiling[1] = { ceiling };
+      const std::uint32_t pastCeiling[1] = { ceiling + 1 };
+      ColumnStore fits, refused;
+      check(fits.build(narrow.data(), n, 1, 10u, false, &kinds[j], nullptr, 0,
+                       atCeiling),
+            "a level count at the kind's ceiling is accepted");
+      check(!refused.build(narrow.data(), n, 1, 10u, false, &kinds[j], nullptr,
+                           0, pastCeiling),
+            "a level count past the kind's ceiling is refused");
+      if (kinds[j] == ColumnKind::orderedFactor)
+        check(fits.numCuts[0] == ceiling - 1 &&
+                fits.maxNumCuts[0] == maxNumCutsRepresentable,
+              "the widest midpoint grid is exactly what the cut index holds");
+    }
+    check(maxLevelsForKind(ColumnKind::categorical) ==
+            maxLevelsForKind(ColumnKind::orderedFactor) + 1,
+          "the two ceilings are one apart");
+  }
+
+  // the mapped entrance: a CSC-backed factor column's stored nonzeros carry
+  // the same check, and its reference code rides the count it implies
+  {
+    const xint_t reference = 1;
+    std::vector<int> pointers(2, 0), rows;
+    std::vector<double> values;
+    for (size_t i = 0; i < n; i += 2) {
+      rows.push_back(static_cast<int>(i));
+      values.push_back(static_cast<double>(i % 4));
+    }
+    pointers[1] = static_cast<int>(rows.size());
+    const std::int32_t sources[1] = { ~static_cast<std::int32_t>(0) };
+    const std::uint32_t cscDeclared[1] = { 4 };
+    const xint_t references[1] = { reference };
+    for (size_t j = 0; j < p; ++j) {
+      PredictorSource view;
+      view.numRows = n;
+      view.numColumns = 1;
+      view.cscColumnPointers = pointers.data();
+      view.cscRowIndices = rows.data();
+      view.cscValues = values.data();
+      view.columnSources = sources;
+      view.columnTypes = &kinds[j];
+      view.categoryCounts = cscDeclared;
+      view.referenceCodes = references;
+      ColumnStore accepted;
+      check(accepted.build(view, nullptr, 10u, false),
+            "a CSC-backed factor column of level codes is accepted");
+      std::vector<double> badValues(values);
+      badValues[1] = 2.5;
+      view.cscValues = badValues.data();
+      ColumnStore store;
+      check(!store.build(view, nullptr, 10u, false),
+            "a CSC-backed factor column's stored cell is checked too");
+    }
+  }
+
+  // the TEST entrance checks against the training level table, which is fixed
+  // rather than inferred, so it sweeps the view first and a refusal leaves the
+  // test store exactly as it was
+  {
+    ColumnStore store;
+    store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+    const size_t numTest = 4;
+    std::vector<double> xTest(numTest * p);
+    for (size_t i = 0; i < numTest; ++i) {
+      xTest[i] = static_cast<double>(i % 5);
+      xTest[numTest + i] = static_cast<double>(i % 4);
+    }
+    check(store.buildTest(xTest.data(), numTest), "level codes test-build");
+    std::vector<xint_t> codes(numTest);
+    for (size_t i = 0; i < numTest; ++i) codes[i] = store.testCodeAt(0, i);
+
+    for (size_t j = 0; j < p; ++j) {
+      std::vector<double> badTest(xTest);
+      badTest[j * numTest + 1] = static_cast<double>(declared[j]);
+      check(!store.buildTest(badTest.data(), numTest),
+            "a test code past the training table is refused");
+      badTest[j * numTest + 1] = 1.5;
+      check(!store.buildTest(badTest.data(), numTest),
+            "a between-levels test value is refused rather than quantized");
+    }
+    bool untouched = store.numTestObservations == numTest;
+    for (size_t i = 0; i < numTest; ++i)
+      untouched &= store.testCodeAt(0, i) == codes[i];
+    check(untouched, "a refused test view leaves the test store untouched");
+
+    // a CSC-backed test column's implicit rows read its reference code, so
+    // that code is a cell like any other
+    std::vector<int> pointers(2, 0);
+    const std::int32_t source = ~static_cast<std::int32_t>(0);
+    const xint_t badReference = static_cast<xint_t>(declared[0]);
+    PredictorSource testView;
+    testView.numRows = numTest;
+    testView.numColumns = 1;
+    testView.cscColumnPointers = pointers.data();
+    testView.columnSources = &source;
+    testView.referenceCodes = &badReference;
+    ColumnStore single;
+    single.build(x.data(), n, 1, 10u, false, kinds, nullptr, 0, declared);
+    check(!single.buildTest(testView),
+          "a CSC test reference code past the training table is refused");
+  }
+
+  printf("ok: ingestion refusals\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnKindAxis();
   testOrderedFactorGrid();
   testOrderedFactorGridSurvivesMutation();
+  testIngestionRefusals();
   testColumnStoreView();
   testColumnStoreColumnSubset();
   testColumnStoreLeafGather();
