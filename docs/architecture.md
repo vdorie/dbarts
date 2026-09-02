@@ -102,9 +102,13 @@ Selection of `L` happens exactly once, in the free factory functions at the
 bottom of facade.hpp - `createSampler`, `createSamplerOverStore`,
 `createConstantLeafSampler`, `createAmplitudeSampler` - called from the bridge
 at sampler creation (`src/R_interface_bartcore.cpp`,
-`bartcore::createSampler(...)` and siblings). `createSampler` refuses a
-variance-forest request (`options.numVarianceTrees > 0`) for anything but a
-gaussian response with a plain constant leaf, picks
+`bartcore::createSampler(...)` and siblings). Every factory that can build a
+variance forest asks one shared predicate, `varianceForestIsRefused`, so the
+two cannot drift: a variance-forest request (`options.numVarianceTrees > 0`)
+is refused under a non-gaussian family, designated leaf covariates, a finite
+`residualDf` (the Student-t augmentation shares the weight channel while
+reporting the gaussian family, so it is its own term rather than a family
+test), or an active monotone constraint. The factories then pick
 `MonotoneConstantGaussianLeaf` when a monotone constraint is active without
 leaf covariates, `ConstantGaussianLeaf` when no leaf covariates are designated,
 `GPGaussianLeaf` when covariates are designated and `options.gpLeaves` is
@@ -208,12 +212,15 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   DERIVED predicate `splitsBySubset(j)` rather than on the kind, so the
   mechanic (subset mask vs. threshold) is stated once.
 - **Cut points**: `std::vector<std::vector<double>> cutPoints` plus
-  `numCuts`/`categoryCounts`/`maxNumCuts` per column. `numCuts[j]` holds
-  the ordinal cut count and is 0 for a categorical column, whose fixed
-  category count K lives in `categoryCounts[j]` and whose `cutPoints[j]`
-  stays empty. ColumnStore
-  is the sole owner of cut construction and re-quantization -
-  uniform-over-range or quantile mode, selected by `useQuantiles`. Every
+  `numCuts`/`categoryCounts`/`maxNumCuts` per column. `numCuts[j]` is the
+  threshold count - 0 for a categorical column, whose `cutPoints[j]` stays
+  empty, and K - 1 for an ordered factor; `categoryCounts[j]` is the fixed
+  level count K of a factor column of EITHER kind, 0 for a numeric one.
+  ColumnStore is the sole owner of cut construction and re-quantization, in
+  three modes: uniform-over-range or quantile for a numeric column, selected
+  by `useQuantiles`, and the K - 1 midpoints between consecutive declared
+  level codes for an ordered factor, selected by the kind - so `n.cuts`
+  bounds a numeric column's grid and applies to neither factor kind. Every
   other layer (moves, the tree prior) reads cuts through
   `ColumnStore::codeFor`/`column()`/`cutPoints`; nothing above the data
   layer computes or caches its own cut grid.

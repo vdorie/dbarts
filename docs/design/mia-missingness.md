@@ -35,8 +35,9 @@ response, weights, or offset stay rejected.
 
 - Ordinal codes: NA quantizes to the reserved code 0xFFFF (xint_t max).
   Enforce numCuts <= 0xFFFE - 1 at build so real codes (which reach
-  numCuts) never collide. Cut construction (uniform ranges, quantile
-  grids) skips NaN; a column must retain at least one observed value.
+  numCuts) never collide. The value-derived grids (uniform ranges and
+  quantile grids) skip NaN and need one observed value; an ordered
+  factor's level-midpoint grid reads the level table, not the values.
 - Categorical codes: NA takes the fixed category position 63, i.e. code
   63 and mask bit 63. It deliberately does NOT take position K: the
   reachable-mask machinery (Tree::reachableCategories,

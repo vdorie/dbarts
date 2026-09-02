@@ -215,8 +215,10 @@ Landed per the plan; deltas and specifics:
   tree descent, restore validation, and view gathering. The bitmap
   build scatters, so sorted rows are not assumed by the engine - but
   the bridge validates rows strictly increasing, unique, and in range
-  ("malformed sparse predictor matrix") because the engine trusts its
-  input beyond that.
+  ("malformed sparse predictor matrix"), a CSC structural check the
+  engine's own build entrances do not make. Those entrances now check
+  what they DO see: a factor cell's code and a declared level count
+  against the code type's capacity, refusing rather than trusting.
 - Cut construction: fillCutsUniformlyCsc folds an implicit zero into
   the min/max seed; quantileGridForCscColumn collects stored non-NA
   values plus one zero when implicit zeros exist. Both reproduce the
@@ -429,8 +431,8 @@ columns themselves).
 - SUPERSEDED 2026-08-06 by typed-ingestion.md slice 2a (mutation-shape lift):
   mixed-container mutation and CSC-backed CATEGORICAL mutation are now
   supported at every level. The engine keys a replacement's nonzero pattern on
-  the column's KIND - ordinal {i : value != 0}, categorical {i : code !=
-  refCode} - and installPredictorColumns maintains the container's sparse block
+  the column's split MECHANIC - threshold {i : value != 0}, subset mask {i :
+  code != refCode} - and installPredictorColumns maintains the container's sparse block
   by direct slot surgery on @i/@p/@x (Matrix's [<- is disqualified: its drop0
   is matrix-wide and strips every other column's explicit zeros, which a
   reference level past levels[1] requires). The reference code and declared

@@ -52,7 +52,8 @@ Contract:
   candidate consumer of a stable variant (sparse columns) was prototyped
   and rejected in favor of a rank-bitmap layout that keeps this contract
   (docs/design/sparse-columns.md).
-- Codes are assumed valid (no NA sentinel yet; see planned additions).
+- Codes may carry the reserved NA sentinel, which this compare orders
+  right; a rule sending missing LEFT takes the engine-side arm instead.
 - ISA variants: C, SSE2, SSE4.1, AVX2, NEON.
 
 Sparse sibling (landed 2026-07-04, docs/design/sparse-columns.md):
@@ -134,9 +135,10 @@ SIMD specializations only when profiling justifies them.
    partitionChildren instantiates the arm for the column's storage tier and
    the rule's kind, scalar throughout - no table-lookup/shuffle SIMD variant
    was built.
-3. **NA-aware variants**: a reserved per-column NA code plus a
-   goes-left/right flag folded into the rule encoding; kernels take the
-   encoded rule rather than a bare cut once missingness lands (phase 4).
+3. **NA-aware variants**: LANDED 2026-07-04, but not as a misc.a kernel -
+   the reserved code sorts right under the plain compare; a rule sending
+   missing left takes Tree::partitionIndicesScalar's missingAware arm
+   (src/bartcore/tree.hpp). See docs/design/mia-missingness.md.
 4. **Sparse partition**: LANDED 2026-07-04 as misc_partitionIndicesSparse
    (see the partition section above); a streaming range variant for
    root-sized segments remains headroom.

@@ -240,7 +240,7 @@ bart2(
      Logical; if \code{TRUE}, samples are returned collapsed across chains rather than in a chains-by-samples array. Default \code{TRUE}, as for \code{\link{bart}} and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
    }
    \item{n.cuts}{
-     The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bart}}'s \sQuote{Decision Rules} details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values.
+     The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bart}}'s \sQuote{Decision Rules} details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.
    }
    \item{useQuantiles}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable. See \code{\link{bart}}'s \sQuote{Decision Rules} details.
@@ -334,7 +334,7 @@ bart2(
      Passed through to \code{\link{dbartsControl}}. A logical setting the default behavior for many \code{\link[=dbartsSampler-class]{sampler}} methods with regards to the immediate updating of the cached state of the object; see \code{dbartsControl}'s \code{updateState}.
    }
    \item{\dots}{
-     Unused; present on the \code{bartMultinomial}/\code{bartOrdinal}/\code{bartNegbin}/\code{bartHurdle} methods below only for S3 generic compatibility.
+     Present on the \code{bartMultinomial}/\code{bartOrdinal}/\code{bartNegbin}/\code{bartHurdle} methods below for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns (class \code{dbartsUnusedArgsWarning}). See \code{\link{bart}}'s own \code{\dots} item.
    }
    \item{object}{
      An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart2} under the corresponding \code{family}.

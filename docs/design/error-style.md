@@ -279,6 +279,13 @@ the same sites:
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole
   pre-built message rather than a caller prefix.
 
+A helper reached from both the .Call bridge and the flat C API takes the
+dynamic prefix and is handed the flat entry's own name, since that route
+has no R call frame at all; the factor level-code refusals
+(src/R_interface_bartcore.cpp:1653-1660) are the outstanding exception -
+raised from validateCategoricalPredictors and
+validateTestContainerAgainstStore, both shared, and prefixed by neither.
+
 **External evidence.** WRE's C-API chapter has a section titled "Error
 signaling" in its table of contents, but the fetched manual text did not
 include that section's body, and the surrounding chapters that *were*
@@ -510,6 +517,14 @@ Violation, since reworded to exactly this rule's proposal: `"sample =
 \"test\" is not available for type = \"forest\": an ..."` is now
 `"type = \"forest\" does not support sample = \"test\": no test-sample
 per-forest channel is stored, ..."` (`R/generics.R:633-638`).
+
+Sub-shape, foreign-argument refusal: an argument a method does not take,
+refused because a sibling method of the same surface does take it, reads
+"'<name>' is not used by <generic> on a <class> fit: <reason>" - the
+subject is the argument, not the method, so the caller reads the
+offending name first (R/generics.R:2062-2075). Where the refusal has no
+single offending name, the plain R13 shape stands: "predict on a bart fit
+does not support unnamed arguments: ..." (R/generics.R:2086-2095).
 
 **External evidence.** Checked hard, because this looked like a plausible
 override going in. Neither tidyverse nor rlang address "unsupported feature"

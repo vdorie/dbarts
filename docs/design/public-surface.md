@@ -111,19 +111,22 @@ mechanics tests pin `engine = "classic"` until step 3 removes them.
 
 ## 2. Data ingestion: factors as categorical columns
 
-Current behavior: data.frame and formula inputs pass through
-`makeModelMatrixFromDataFrame`, which dummy-expands factors; `dbartsData`
-types every column ordinal. The engine's categorical rules (canonical-gauge
-subset splits, up to 53 levels) are reachable only by flipping
-`data@varTypes` by hand.
+Behavior at proposal time: data.frame and formula inputs passed through
+`makeModelMatrixFromDataFrame`, which dummy-expands factors, and
+`dbartsData` typed every column ordinal. The engine's categorical rules
+(canonical-gauge subset splits, then capped at 53 levels) were reachable
+only by flipping `data@varTypes` by hand.
 
 Proposed (landed 2026-07-03 behind `factors = "categorical"` on `dbarts` and
-`dbartsData`; the default remains `"indicators"` until cutover flips it):
+`dbartsData`; the cutover flipped the default to `"categorical"` the same
+day):
 
 - Unordered factor columns ingest as categorical: codes 0..K-1 in the column,
   `varTypes` set, level names retained on the data object for reporting.
-  Ordered factors ingest as ordinal on their integer codes (their order is
-  meaningful; threshold splits are the right vocabulary).
+  Ordered factors ingest as their own kind on their integer level codes
+  (their order is meaningful; threshold splits are the right vocabulary),
+  on a grid of K - 1 cuts at the level midpoints that `n.cuts` does not
+  apply to, exactly as it does not to a categorical column.
 - Matrix input stays all-ordinal - no change for the most common call.
 - This changes fitted models for data.frame inputs with factors, which is the
   point: subset splits search 2^(K-1) - 1 partitions instead of K indicator
@@ -131,7 +134,8 @@ Proposed (landed 2026-07-03 behind `factors = "categorical"` on `dbarts` and
   an escape argument on `dbartsData` (and threaded through bart2/xbart
   formulas), tentatively `factors = c("categorical", "indicators")`, keeps
   the old expansion reachable for comparisons.
-- Factors with more than 53 levels: error, naming the cap. No silent
+- Factors with more than 53 levels: error, naming the cap - since raised to
+  65535 unordered and 65534 ordered (section 7). No silent
   fallback to dummy expansion (that silently changes the model class).
   Lifting the cap needs pooled mask storage plus a wide-mask story for the
   flat tree format; see section 7.

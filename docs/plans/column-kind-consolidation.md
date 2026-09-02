@@ -1,11 +1,10 @@
 # Consolidating the predictor store's semantic-type axis
 
-Status: DESIGNED AND RULED 2026-09-01, implementation pending. Every
-alternative below has been weighed and every open question ruled (see
-"Decisions"); nothing has landed yet. Slices land in the ruled order S0,
-S1, S2, S3, S4a, S4c, S4b (see "Slice decomposition and sizing"); each
-appends its own note under "Landing" at EOF as it lands. TODO:
-column-kind-consolidation.
+Status: PARTLY LANDED. S0, S1, S2 and S3 have landed and carry their
+notes under "Landing" at EOF; S4a, S4c and S4b remain, landing in that
+ruled order (see "Slice decomposition and sizing"). Every alternative
+below has been weighed and every open question ruled (see "Decisions").
+TODO: column-kind-consolidation.
 
 rng: draw-preserving (NEUTRAL) on S0, S1, S3, S4a, S4c and S4b, subject to
 the four hazards enumerated in section 6's hot-path subsection.
@@ -15,10 +14,11 @@ stationary distribution over trees for any fit that has one - which
 needs its own baseline re-record plus the exact-posterior gates
 (.github/workflows/exact-gates.yaml) beside the usual equivalence trio.
 
-Scheduled pre-release-candidate. Everything below is measured against the
-bartcore branch at 2da4f101 and verified current through 48219484 (the
-commits between are docs-only; three anchors into docs/design/data-store.md
-moved and are corrected in place below).
+Scheduled pre-release-candidate. The proposal below was written against
+the bartcore branch at 2da4f101; its code anchors have since been
+re-pinned by content, with the deliberate exceptions the S2 landing note
+names - the cites inside the pre-S1 enumerations stay pinned to the tree
+they enumerate, since that code no longer exists.
 
 Two things are settled going in and are treated as scope rather than as
 questions: the **ordered-factor cut-grid fix lands pre-RC** (section 1, with its

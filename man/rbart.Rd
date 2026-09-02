@@ -117,7 +117,7 @@ rbart_vi(
     Same as in \code{\link{plot.bart}}.
   }
   \item{\dots}{
-    Unused; present on \code{plot}/\code{fitted}/\code{extract}/\code{predict}/\code{residuals} only for S3 generic compatibility.
+    Present on \code{plot}/\code{fitted}/\code{extract}/\code{predict}/\code{residuals} for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns (class \code{dbartsUnusedArgsWarning}). See \code{\link{bart}}'s own \code{\dots} item.
   }
 }
 \details{

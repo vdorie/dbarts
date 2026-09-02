@@ -34,7 +34,7 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at 70b30c18 - the cited line
+Anchors are verified BY CONTENT against the tree at 30a53dbf - the cited line
 holds the construct the cell names, never an offset from another anchor - and a
 cell's VALUE is adjudicated separately from its anchor.
 
@@ -194,7 +194,7 @@ reads "constant leaf" in that column.
 
 | model | equivalence baseline [f39] | SBC verdict [f40] | dedicated tinytest files |
 |---|---|---|---|
-| gaussian | 21 scenarios (friedman, weighted, splitprobs, chains, setdata, wtoffset, quants, categorical, missing, dart, linear, gp, zeroweights, sparse, wtgp, chik2, pred*) | PASS 7/7 | ~20 (test-sampler-*.R, test-bart-bart2.R, test-zero-weights.R) |
+| gaussian | 24 scenarios (friedman, weighted, splitprobs, chains, setdata, wtoffset, quants, categorical, missing, dart, linear, gp, zeroweights, sparse, wtgp, chik2, pred*, ordfactor, nafactor, sparsefactor) | PASS 7/7 | ~20 (test-sampler-*.R, test-bart-bart2.R, test-zero-weights.R) |
 | student | `student` | PASS 4/4 | test-robust-errors.R only |
 | probit | `probit`, `chik` | PASS | test-binaryResponse-hyperprior.R, test-family.R, test-weighted-binary-ppd.R |
 | logistic | `logistic`, `wtlogistic` | PASS 6/6 | test-weighted-logistic.R, test-family.R |
@@ -208,7 +208,17 @@ reads "constant leaf" in that column.
 | grouped | `grouped`, `grouped_aft` | PASS (tier A) | 14 (test-rbart-*.R) |
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
-Flat-C test coverage is thinner than family reach: inst/tinytest/test-capi.R
+The rows are keyed by response model; predictor SHAPE cuts across them.
+Three gaussian scenarios carry the factor shapes: `ordfactor` (an ordered
+factor at K = 150, three interior levels absent from training),
+`nafactor` (two NA-bearing factor columns, the MIA-on-a-factor-column
+anchor) and `sparsefactor` (a CSC-backed `sparseFactor`, its count from
+the container's declared level table). `ordfactor` is the only scenario
+in any harness with an ordered-factor predictor, so the ordered-factor
+cut grid rests on it plus `benchmarks/R/categorical-exact.R`'s
+ordered-factor arm.
+
+Flat-C test coverage is thinner than family reach: `inst/tinytest/test-capi.R`
 drives only the `""`/`"probit"` tokens plus grouped (:785) and heteroscedastic
 (:803) by control attribute, and BCF (:1475) through `forests =
 list(forest(basis = ...))`. logistic, aft, ordinal and nbinom are reachable

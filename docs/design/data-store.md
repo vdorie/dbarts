@@ -1,6 +1,6 @@
 # Data store
 
-Code citations are at 8693c5af; they are not live.
+Code citations are at d477a46b; they are not live.
 
 The standing reference for the C++ predictor data layer: `ColumnStore` in
 `src/bartcore/data.hpp` and the sampler transaction that mutates it
@@ -24,7 +24,7 @@ transaction, the R-protection story - follows from that.
 directly on the store as parallel vectors, one entry per predictor:
 
 - `types` - `ColumnKind::numeric`, `categorical`, or `orderedFactor`
-  (`data.hpp:248`). Splitting keys on the DERIVED predicate
+  (`data.hpp:595`). Splitting keys on the DERIVED predicate
   `splitsBySubset(j)`, not on the kind: only grid construction, ingestion
   validation and reporting read the kind itself.
 - `numCuts[j]` - the threshold count: `n.cuts` (or the quantile-induced
@@ -58,7 +58,7 @@ code blocks quantize against it by identity - a view or a test block bins
 identically to its parent by construction because it copies these fields,
 not because any code re-derives them.
 
-`codeFor(j, value)` (`data.hpp:386`) is the one quantizer: ordinal values
+`codeFor(j, value)` (`data.hpp:790`) is the one quantizer: ordinal values
 map by `lower_bound` over `cutPoints[j]` (a value above every cut takes
 code `numCuts[j]`, always right of any split); categorical values are
 their own integer code; missing values take `naCode` (ordinal) or
@@ -67,7 +67,7 @@ or K pooled).
 
 ## CodeBlock (train and test)
 
-A `CodeBlock` (`data.hpp:186`) holds one row set's codes over the store's
+A `CodeBlock` (`data.hpp:510`) holds one row set's codes over the store's
 grid. `ColumnStore` instantiates two: `train` and `test`. Each owns:
 
 - `codes` - the packed dense codes, a single contiguous `xint_t` vector.
@@ -104,10 +104,10 @@ What stays store-level, not block-level, and why:
 ## ColumnSource and its four kinds
 
 Per-column storage is one explicit descriptor, `ColumnSource`
-(`data.hpp:166`), carried in `CodeBlock::sources` and sized to
+(`data.hpp:203`), carried in `CodeBlock::sources` and sized to
 `numPredictors` on any side that has rows (train always after a build;
 test whenever `numTestObservations > 0`; both empty on a reset test
-store). `ColumnSourceKind` (`data.hpp:152`) discriminates four kinds; each
+store). `ColumnSourceKind` (`data.hpp:185`) discriminates four kinds; each
 reads only the descriptor fields it owns:
 
 The discriminator is WHERE THE RE-QUANTIZE SOURCE LIVES, not who owns the
@@ -139,7 +139,7 @@ dense-backed factor inside a mixed container declares a level table the
 same way a CSC-backed one does. `refCode` is read on BOTH sides: its
 test-side value comes from the test view's `referenceCodes`
 (`PredictorSource`, `data.hpp`), and `quantizeCscColumnInto` reads it
-block-parametrically for the implicit rows (`data.hpp:623`). It holds the
+block-parametrically for the implicit rows (`data.hpp:1133`). It holds the
 reference level's level-order code - not the sparse storage's structural
 zero; it may be any valid code, including 0. A dense factor codes its
 reference level by level order too, which the bitwise-vs-dense gate
@@ -149,13 +149,13 @@ their code; an ordinal one's take the quantized zero.
 Re-quantization resolves the raw source per kind through three accessors
 whose fallback orders are the contract:
 
-- `rawColumnForRequantize(j, x)` (`data.hpp:333`): CSC-backed -> null (the
+- `rawColumnForRequantize(j, x)` (`data.hpp:736`): CSC-backed -> null (the
   slice serves it); `denseResident` -> `residentRaw`; else `x + j*n` (or null
   if `x` is null). This is the mutation/setCutPoints path.
-- `rawColumn(j)` (`data.hpp:343`, owned training raw for leaf models):
+- `rawColumn(j)` (`data.hpp:746`, owned training raw for leaf models):
   gathered slot -> `gatheredRawValues`; `denseResident` -> `residentRaw`;
   else null.
-- `rawTestColumn(j)` (`data.hpp:355`): if `test.sources` is populated,
+- `rawTestColumn(j)` (`data.hpp:758`): if `test.sources` is populated,
   `denseResident` -> `residentRaw` and CSC-backed -> null (sparse storage
   serves no dense test covariate); else `ownedTestValues`; else the
   view-gathered `gatheredRawTestValues`; else null.
@@ -174,7 +174,7 @@ sampler's designated leaf covariates - or, for a data handle, the
 leaf-covariate columns declared at its creation (empty for a
 constant-leaf consumer) - into `gatheredRawValues`
 (column-major, `numObservations x q`), refreshed in the same pass as each
-column quantizes (`quantizeColumn`, `data.hpp:676`). `rawColumn` then
+column quantizes (`quantizeColumn`, `data.hpp:1190`). `rawColumn` then
 serves owned memory for the store's lifetime, borrow long since released.
 Few columns are gathered, so the slot lookup is a linear scan
 (`gatheredSlotForColumn`).
@@ -184,7 +184,7 @@ The test-side twin `gatheredRawTestValues` is populated only by a view
 
 ## View semantics (buildFromParent)
 
-A view (`buildFromParent`, `data.hpp:1054`) is a row- and column-subset of
+A view (`buildFromParent`, `data.hpp:1601`) is a row- and column-subset of
 a built parent store, used by xbart folds and the data-handle path. It:
 
 - copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
@@ -218,15 +218,15 @@ no re-quantize source at all - the bridge's `refuseMutationOnView`).
 
 Mutation is transactional and lives in the sampler, not the store: the
 store exposes primitive re-quantize/rollback methods, and
-`runPredictorTransaction` (`sampler.hpp:1533`) sequences them. Two
+`runPredictorTransaction` (`sampler.hpp:1834`) sequences them. Two
 strategies parameterize it:
 
-- `WholeMatrixUpdate` (`sampler.hpp:1413`), driving `setPredictor`: moves
+- `WholeMatrixUpdate` (`sampler.hpp:1714`), driving `setPredictor`: moves
   the whole live `train.codes` aside into `oldCodes`, rebuilds into fresh
   storage, snapshots `hasMissing` and (if cuts refresh) `cutPoints`. A
   reject swaps the codes back by move; an accept drops them. No
   whole-matrix copy survives.
-- `SubsetUpdate` (`sampler.hpp:1469`), driving `updatePredictor`:
+- `SubsetUpdate` (`sampler.hpp:1770`), driving `updatePredictor`:
   journals each touched column cell-by-cell via `setColumnJournaled`,
   recording each changed cell's old code into a `ColumnCodeRollback`
   (`data.hpp:1915`). Past a quarter of the column changed, the journal
@@ -299,8 +299,9 @@ valid while `dataExpr` stays protected.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
 non-R host. The `python-bindings` TODO entry records it: host-side
-ingestion validation (CSC structure, categorical bounds, sparse metadata
-assembly) lives in the R bridge and would need reimplementing, and
+ingestion validation (CSC structure, sparse metadata assembly, and the
+level-table bounds the store's own entrance checks do not cover) lives in
+the R bridge and would need reimplementing, and
 mixed/CSC stores hold lifetime borrows anchored by R protection that
 another host must reproduce. Do not assume the store keeps a mixed/CSC
 predictor alive on its own.
@@ -345,8 +346,16 @@ response/weights the family maintains, the latents it draws, and the
 
 ### Host/bridge implementer
 
-You own ingestion validation and container assembly; the engine trusts its
-input beyond what you check. The split: the R bridge validates CSC
+You own container assembly and the ingestion checks the engine cannot
+make, but the store now guards its own entrances: `ColumnStore::build`
+refuses a factor column whose codes are fractional or out of range, or
+whose level count passes the code type's capacity (65535 categorical,
+65534 ordered - one lower, since an ordered factor spends a code on the
+upper bin of its K - 1 cut grid), and `buildTest` refuses a test code
+outside the training level table, leaving the test store untouched. Both
+answer `false`, the factories answer null, and the host raises. `setData`
+stays a trusted entrance by contract: it pins the level count and so runs
+no sweep. The split: the R bridge validates CSC
 structure (rows strictly increasing, unique, in range - "malformed sparse
 predictor matrix") and categorical placement - a fully-sparse dgCMatrix x
 refuses categoricals outright ("sparse predictor matrices must be

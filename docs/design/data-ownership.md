@@ -41,23 +41,23 @@ unanimous default: the engine owns quantized data only, with no implicit
 raw retention. That default only works because every residual consumer of
 stored raw values was tracked down and given an explicit, narrow home:
 
-- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:978)
-  and quantile refresh (data.hpp:932). Not recoverable from codes (bin
+- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:1090)
+  and quantile refresh (data.hpp:1058). Not recoverable from codes (bin
   counts do not locate new quantile values).
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
   (model.hpp:998,1013,1362,1381); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
 - getTrees saved-tree replay (bartcore_getTrees,
-  R_interface_bartcore.cpp:6049) read store.x; it was routable from codes
+  R_interface_bartcore.cpp:6080) read store.x; it was routable from codes
   while the cut grid was unchanged since save. As shipped it needs neither:
   the replay reads the training predictors the R method supplies (data@x)
-  and the engine keeps no matrix (R_interface_bartcore.cpp:6117-6119).
+  and the engine keeps no matrix (R_interface_bartcore.cpp:6148-6149).
 - dbarts.h exposes no raw-x getter; the C ABI is unaffected.
 
 The panel's proposed resolutions, from that same 2026-07-06 synthesis:
 re-cuttability as an explicit creation-time column flag (default off), so
 refusals reflect a column's declared state rather than a policy surprise -
-the sparse-column precedent (facade.hpp:827-831); and, on a split panel call
+the sparse-column precedent (facade.hpp:840-843); and, on a split panel call
 (2/3), keeping a READ-ONLY borrow of REAL(x) as the pure-continuous matrix
 fast path, with write-through dying regardless of that split. The read-only
 borrow survived into the shipped design, narrowed to construction only (see
@@ -69,18 +69,18 @@ rejected."
 ### Container and columns
 
 One owned BartData replaces ColumnStore's borrow (container design,
-2026-07-07). The container crosses kind {ordinal, categorical} with storage
-{dense, CSC} as orthogonal per-column properties; per column it also
+2026-07-07). The container crosses kind {ordinal, categorical, ordered factor}
+with storage {dense, CSC} as orthogonal per-column properties; per column it
 carries a code width chosen by cardinality (u8 for <= 255 cuts - the
 default n.cuts = 100 fits - u16 above; hot-layer-u8's per-column widths
 land here, not as a separate retrofit), a cut table or level table, and an
 NA policy.
 
-Coverage of the four kind x storage cells is now complete. Three shipped
+Coverage of the kind x storage cells is now complete. Three shipped
 before this design (data.hpp:102 ColumnKind; buildMixed per-column dispatch,
-sparse-columns.md mixed landing notes): dense ordinal (numerics and ordered
-factors), dense categorical (unordered factors, membership splits, <= 65535
-levels), and sparse ordinal (CSC, rank bitmap or densified codes). Sparse
+sparse-columns.md mixed landing notes): dense ordinal (numerics), dense
+categorical (unordered factors, membership splits, <= 65535 levels), and
+sparse ordinal (CSC, rank bitmap or densified codes). Sparse
 categorical was the gap this design closed (plan 5, landed - see
 "Implementation record"): CSC over level codes, with the reference level
 implicit and membership masks deciding the implicit rows by whether they
@@ -94,6 +94,12 @@ predated this design (mutation refused while any CSC column exists; test
 data densified) are now per-source facts the owned container relaxes per
 column instead.
 
+An ordered factor is a THIRD kind rather than a numeric column carrying
+codes: it splits by threshold like a numeric one, but its grid is the K - 1
+midpoints of its declared level table, so n.cuts does not reach it and a
+value off the table is malformed rather than merely extreme. Only the dense
+cell ships - no ingestion path builds a CSC ordered factor.
+
 Exactly one creation-time column flag survives into the shipped design:
 leaf-covariate, which lets linear/gp leaves gather their own raw values and
 working buffers at designation, as they always have. (The container-design
@@ -102,14 +108,14 @@ storage on updatable columns; that flag was designed, then killed before
 being built - see "Considered and rejected." Mutation instead works by
 reference-install, below.) With no flag set, a column owns codes only;
 undeclared capabilities refuse at the call with a declared-state error -
-the same precedent already used for sparse columns (facade.hpp:827-831), so
+the same precedent already used for sparse columns (facade.hpp:840-843), so
 refusals reflect a column's declared state rather than being a policy
 surprise.
 
 ### Ingestion
 
 dbartsData ingests a data.frame directly: numeric -> dense ordinal,
-unordered factor -> dense categorical, ordered factor -> ordinal codes,
+unordered factor -> dense categorical, ordered factor -> its own kind,
 I()-wrapped sparseVector / dgCMatrix columns -> CSC ordinal, and
 sparseFactor() - a small wrapper class carrying levels plus a reference
 level (proposed VD, 2026-07-06) - -> CSC categorical. It ships EXPORTED,

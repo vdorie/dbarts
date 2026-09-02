@@ -44,7 +44,7 @@ The facade already resolves runtime choices into monomorphic instantiations:
 ServesRawValues / leaf-covariate axes and dispatches ONCE to build a concrete
 `SamplerFacade<L>` (facade.hpp:413), handing the R bridge a type-erased
 `SamplerBase*`; every later call is "one virtual hop into fully typed code"
-(facade.hpp:413). The sweep is fully monomorphic - no per-element dispatch.
+(facade.hpp:134). The sweep is fully monomorphic - no per-element dispatch.
 
 Storage precision/width is ONE MORE axis on that factory. Thread a `Storage`
 policy through `SamplerFacade<L, Storage>` and the Chain; the factory gains
@@ -77,7 +77,7 @@ heavily rewritten. Budget for source churn, not just extra binary size.
 
 Grounded in the storage inventory (2026-07-20 sweep of combiner.hpp/chain.hpp/
 tree.hpp/data.hpp/model.hpp). KEY INVENTORY FACTS: (a) the predictor store is
-ALREADY uint16 cutpoint codes (xint_t, data.hpp:20/452) - splits run on
+ALREADY uint16 cutpoint codes (xint_t, data.hpp:21/514) - splits run on
 integer codes, raw doubles are quantized ONCE at setup, so the "fp32
 predictor flips a split" hazard does NOT exist on the hot path and the
 biggest n*p prize is already spent; (b) the LARGEST hot array is the gather
@@ -90,8 +90,8 @@ by the equivalence trio staying identical). DEFAULT-ON - a separate,
 lower-risk TRACK 1 that lands first and independently of the fp32 work.
 
 - **Index narrowing size_t -> uint32** (Forest::indexBuffer combiner.hpp:190,
-  its Tree::indices alias tree.hpp:260, and VarianceForest::indexBuffer
-  chain.hpp:411). THE TOP LEVER: footprint n*trees*8B (the single biggest hot
+  its Tree::indices alias tree.hpp:272, and VarianceForest::indexBuffer
+  chain.hpp:398). THE TOP LEVER: footprint n*trees*8B (the single biggest hot
   array; ~1.6 GB at n=1e6/200 trees) -> halves to 4B, and it halves the
   streamed-index bytes inside the DOMINANT gather (microbench: index
   narrowing alone gives ~1.21x on the gather at n=1e6, g64->g32, and lifts the
@@ -116,16 +116,16 @@ lower-risk TRACK 1 that lands first and independently of the fp32 work.
   scalar body), misc_partitionIndicesSparse, the 16 misc_computeIndexed*
   suffstat/mean/variance kernels AND their misc_mt_ variants,
   misc_sumIndexedVectorElements, misc_setIndexedVectorToConstant; plus
-  Tree::indices (tree.hpp:260), the 8 scalar C++ partition kernels, and
+  Tree::indices (tree.hpp:272), the 8 scalar C++ partition kernels, and
   SubtreeSnapshot.indexSegment (std::vector<size_t> + a sizeof(size_t) memcpy,
-  tree.hpp:1002,1019). THE TRAP: preservation holds ONLY if each SIMD kernel is
+  tree.hpp:1040,1058). THE TRAP: preservation holds ONLY if each SIMD kernel is
   RETYPED, not REWRITTEN - a fresh uint32 SIMD partition with a different swap
   sequence changes the permutation and silently turns a "preserving" lever
   into a draw-changing one. GUARD: static_assert(sizeof(index_t) ==
   sizeof(misc_index_t)) pinning the C++ buffer type to the C kernel param
   (mirroring the existing static_assert on misc_xint_t == uint16 at
-  tree.hpp:828); that guard shipped with the lever and is live at
-  tree.hpp:834, one line below the misc_xint_t assert it mirrors.
+  tree.hpp:869); that guard shipped with the lever and is live at
+  tree.hpp:875, six lines below the misc_xint_t assert it mirrors.
   ACCEPTANCE: the cross-ISA tests/cpp gate AND the bitwise
   equivalence trio must both stay identical - any drift means a kernel was
   rewritten, not retyped.
@@ -163,9 +163,9 @@ one re-record; OPT-IN only). The primary target.
   misc_compute*SufficientStatisticsFast kernels get float-input variants
   (load float, accumulate double).
 
-  WHY FORK B IS DEAD (chain.hpp:1457-1530): treeY is a running residual updated
+  WHY FORK B IS DEAD (chain.hpp:1436-1443): treeY is a running residual updated
   PER-TREE inside the backfit loop - `rollTreeResidual(forest, t, ...)` at
-  :1465 rewrites it, then the gather at :1469 reads tree t's freshly-rolled
+  :1437 rewrites it, then the gather at :1441 reads tree t's freshly-rolled
   residual. A fp64-master + fp32-shadow scheme would have to refresh the
   shadow after every roll = a per-tree O(n) downcast, the same order as the
   gather it feeds -> no amortization, strictly worse than rolling fp32
@@ -173,7 +173,7 @@ one re-record; OPT-IN only). The primary target.
   why memory-wall-frontier.md's initial recommendation to prototype Fork B
   first did not survive detailed design (see that doc's section 8c).
 
-  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:4500: t=0 recomputes
+  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:4468: t=0 recomputes
   resid = y - total + mu[leaf]; t>0 does resid += mu[leaf] - muPrev[leafPrev]),
   so fp32 rounding ACCUMULATES across trees (~200 updates/sweep/element) and,
   because it is never independently re-summed, across sweeps. This is the
@@ -182,7 +182,7 @@ one re-record; OPT-IN only). The primary target.
 
   DRIFT CONTROL: an earlier claim that finalizeTotalFits gives a free
   per-sweep re-anchor turned out to be WRONG. finalizeTotalFits (chain.hpp:
-  4730) computes total = y - resid + mu[leaf] - i.e. FROM the drifted resid -
+  4698) computes total = y - resid + mu[leaf] - i.e. FROM the drifted resid -
   so it PROPAGATES the fp32 drift into totalFits, not resets it; next sweep's
   t=0 roll re-derives resid from that drifted total. Nothing in the existing
   per-sweep machinery re-anchors. A genuine re-anchor needs an INDEPENDENT
@@ -247,7 +247,7 @@ one re-record; OPT-IN only). The primary target.
   non-constant-leaf treeFits slab (n*trees, dense-leaf models only), the
   variance-forest arrays for HBART (factorByTree n*treesVar,
   combinedVariance/meanResidual/divisor/treeResidual n each, chain.hpp:
-  414-419), and the gaussian working response yRescaled_ (model.hpp, n).
+  401-406), and the gaussian working response yRescaled_ (model.hpp, n).
   LATENT-family working buffers (probit/logistic/ordinal/multinomial) stay
   fp64 by design (little value, more instantiations). This would extend the
   fp32 win to the streaming passes and the HBART weight channel; each piece
@@ -259,14 +259,14 @@ one re-record; OPT-IN only). The primary target.
 EXCLUDED from every track - flagged so no one bundles them as a transparent
 memory tier.
 
-- Predictor codes uint16 -> uint8 (data.hpp:485): the largest n*p array but
+- Predictor codes uint16 -> uint8 (data.hpp:514): the largest n*p array but
   ALREADY uint16; narrowing further lowers maxNumCutsRepresentable (~254),
   capping cutpoints and silently changing which splits exist -> different
   tree structure, pathological on high-cardinality columns. Only ever an
   explicit low-resolution MODELING option with its own arc, never a
   transparent tier.
-- fp32 cutpoints (data.hpp:560, tiny footprint) and fp32 ownedTestValues
-  (data.hpp:592, cold re-quantize source): fp32 flips near-tie quantization ->
+- fp32 cutpoints (data.hpp:600, tiny footprint) and fp32 ownedTestValues
+  (data.hpp:650, cold re-quantize source): fp32 flips near-tie quantization ->
   correctness-sensitive; not worth the risk, and cutpoints are not n-scaled.
 
 Also out of scope, decided at design time rather than by later measurement:

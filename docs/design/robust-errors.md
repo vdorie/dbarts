@@ -65,6 +65,19 @@ ProbitResponse's null workingWeights (model.hpp:3074) would carry lambda. Caveat
 with nu under the sigma=1 identification, so robit needs its own default nu and
 calibration, a separate design pass.
 
+**Heteroscedasticity is refused.** A Student-t sampler cannot also carry a
+heteroscedastic variance forest: the variance forest routes through the same
+per-observation weight channel the scale mixture already owns, so the two
+would multiply into one another. The refusal is one predicate,
+`varianceForestIsRefused` (src/bartcore/facade.hpp), asked by both sampler
+factories so the full-data and view paths cannot drift; a finite
+`residualDf` is its own term there rather than a family test, since the t
+augmentation reports the gaussian family. The host message names every term
+at once: "invalid sampler specification: either the leaf covariate
+designation is not one the leaf models can take, or a variance forest is
+combined with a non-gaussian family, Student-t residuals, leaf covariates,
+or a monotone constraint".
+
 ## 3. sigma^2 under the mixture
 
 The sigma draw is the scaled-inverse-chi-square

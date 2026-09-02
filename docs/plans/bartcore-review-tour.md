@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 8e8a63ad (bartcore); the INDEX manifests it points at are
+Current at d477a46b (bartcore); the INDEX manifests it points at are
 machine-checked, this file is not.
 
 Regenerate: re-derive every claim against the new tip, print counts as
@@ -69,12 +69,24 @@ authority where this table is terser.
 | `predict.bart`/`predict.rbart` take `(object, newdata, type, offset, ...)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 19; `docs/plans/predict-surface.md` s3 |
 | `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 20; `docs/plans/surface-refusals.md` s8 |
 | `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 21 |
-| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded | UPGRADING item 22; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); surface-refusals.md s4 |
-| A fractional double is refused, naming the argument, on the listed count arguments (`dbarts()`'s own `n.samples` still truncates); `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 23; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
+| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded, and any OTHER unknown name warns rather than vanishing (class `dbartsUnusedArgsWarning`; a warning, not an error, so a subclass forwarding through `NextMethod()` is not refused) | UPGRADING item 22; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); `warnUnusedDots` (R/utility.R); surface-refusals.md s4 |
+| A fractional double is refused, naming the argument, on every count argument, index and column/group selector a caller can write; `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 23; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
 
 Decided since: an ordinal fit's R-visible spelling was renamed to
 `thresholds`, aligning it with the engine and C API's `ordinalThresholds`.
 Section 5.
+
+Also since: an ordered-factor predictor is now its own column kind rather
+than a bare ordinal column, and its split grid is the K - 1 midpoints
+between consecutive DECLARED levels rather than `n.cuts` uniform cuts over
+the observed codes - posterior-changing for any fit with such a predictor,
+re-recorded as `equivalence-02d41365.rds` against
+`benchmarks/R/categorical-exact.R`'s ordered-factor arm. `n.cuts` no
+longer applies to a factor column of either kind, `setCutPoints` refuses
+one, and a value that is not an existing level code is refused on both
+kinds at every entrance.
+`docs/plans/column-kind-consolidation.md`, sections 1 and 6 and its
+Landing notes.
 
 ---
 
@@ -108,9 +120,10 @@ lives. `wc -l inst/include/dbarts/dbarts.h src/C_interface.cpp`
 - `dbarts.h` no longer defines `USE_FC_LEN_T` nor includes `<Rversion.h>`; a
   consumer relying on that pull-in must include it itself.
 - `DBARTS_C_API_MAJOR 1` / `DBARTS_C_API_MINOR 0` do not move. The exact-ABI
-  token is currently `DBARTS_C_API_HASH 0xb6c0e97dc0688991ULL` and **re-bakes
-  at every header change** - several times since `capi-shape.md` recorded its
-  own value, so read it from the header at the merge tip, never from a doc.
+  token `DBARTS_C_API_HASH` **re-bakes at every header change** - several
+  times since `capi-shape.md` recorded its own value, and again when the
+  ordered-factor column type was appended - so read it from the header at
+  the merge tip, never from a doc.
 
 Migration, from `docs/plans/capi-shape.md` s11 (lockstep, after dbarts
 installs clean):
@@ -138,7 +151,7 @@ less than they look like they prove.
 | `exact-gates` cross-host step | push/PR | bcf and multinomial equivalence under `--cross-host` tier 1 LOCKED: `rtol = 1e-8`, `atol = rtol * max|a|` continuous, `identical()` combinatorial | CI |
 | `lint` | push/PR | `air format --check`, lintr, `tools/check-rc-codoc.R` | CI |
 | `doc-freshness` | push/PR, own workflow, no `paths-ignore` | `docs/design` anchor identity and both INDEX manifests. Split out of `lint.yaml`, whose `paths-ignore` excluded this check's own inputs | CI |
-| `equivalence.R` gaussian | schedule + dispatch | 43 scenarios bitwise same-host | dormant |
+| `equivalence.R` gaussian | schedule + dispatch | 46 scenarios bitwise same-host | dormant |
 | `sbc.R` | schedule + dispatch | 83 functionals, Bonferroni band | dormant |
 | `rchk` | schedule + dispatch | PROTECT balance | dormant |
 | `valgrind` | schedule + dispatch | leaks, OOB reads | dormant |
@@ -266,9 +279,13 @@ is the answer, one row per `SamplerBase` virtual driven through the base.
 
 **Moves and data** - `moves.hpp`, `tree.hpp`, `scan.hpp`, `grow.hpp`,
 `data.hpp`: `metropolisJumpForTree`; `Tree`, `columnMaskSubtreeIsValid`;
-`scanOrdinalCuts`, `growTreeFromRoot`; `ColumnStore`, `ScopedCutGrid`.
+`scanOrdinalCuts`, `growTreeFromRoot`; `ColumnStore`, `ScopedCutGrid`,
+`ColumnKind` and the derived `kindSplitsBySubset`.
 *Judge*: change-move detailed balance, the empty-leaf veto at `-HUGE_VAL`,
-and the doubled entry layout `scanOrdinalCuts` uses when a node holds missing
+whether the semantic kind axis and the mechanic `splitsBySubset` axis stay
+separate at every site (only grid construction, ingestion validation and
+reporting may read the kind), and the doubled entry layout `scanOrdinalCuts`
+uses when a node holds missing
 members. Build sediment (`configure`, `tools`, `src/misc`, `src/external`) is
 skim-only; `simd.c`'s AVX2-misdetected-as-AVX fix is the one thing in it
 worth a look.

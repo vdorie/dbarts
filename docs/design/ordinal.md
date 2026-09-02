@@ -310,10 +310,11 @@ classifyResponse tags "ordered factor" as its own response type
 (R/data.R:498-510).
 
 LIVE: the split is made on the disjoint is.ordered() key (stated at
-R/bart.R:1344-1346). detectAutoMultinomial (R/bart.R:1391) matches unordered
-factors and characters only; detectAutoOrdinal (R/bart.R:1405-1421) catches the
-3+-level ordered factor and selects family = "ordinal". The single-forest
-entries still refuse, and R/data.R:619-621 names ordinal as the reason.
+R/bart.R:730 and :1327). detectAutoMultinomial (R/bart.R:1384) matches
+unordered factors and characters only; detectAutoOrdinal (R/bart.R:1402-1414)
+catches the 3+-level ordered factor and selects family = "ordinal". The
+single-forest entries still refuse, and R/data.R:619-621 names ordinal as
+the reason.
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:
@@ -350,18 +351,21 @@ internal-consistency argument dominates, and the announcement keeps the dispatch
 visible. Whichever wins, family = "ordinal" is the primitive and ordinal never
 overlaps unordered multinomial: the disjoint key is is.ordered().
 
-**Prediction semantics.** fitted()/predict(type = "ev"/"response") return the
-n x K category-probability array (x n.chains x n.samples where extract does),
-P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by the
-ordered levels - the multinomial K-column shape (R/generics.R:1584-1598), computed
-through the cutpoints rather than a softmax. type = "bart"/"link" returns the
-single-column latent eta = f (probit returns its latent likewise,
-R/generics.R:400-404). A class-prediction convenience maps the argmax category
-back to the ordered level (multinomial's max.col + levels idiom). The K-1 threshold
+**Prediction semantics.** fitted()/predict(type = "ev") return the n x K
+category-probability array (x n.chains x n.samples where extract does),
+P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by
+the ordered levels - the multinomial K-column shape, computed through the
+cutpoints rather than a softmax. type = "bart" returns the single-column
+latent eta = f, as probit returns its latent.
+
+type = "class" maps the argmax category back to the ordered level
+(multinomial's max.col + levels idiom) and refuses 'ci.level', a label
+carrying no credible band. The K-1 threshold
 draws are posterior output too: expose an n.samples x (K-1) "thresholds" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
-predict.bart guard, R/generics.R:302-304). This K-column path deliberately
+predict.bart guard, R/generics.R:334-336; ordinal's own gate on the stored
+thresholds, R/generics.R:1647-1649). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
 (docs/plans/archive/ordinal-outcomes.md step 1): probabilityFromLatents
 (R/generics.R:12-19) is a scalar link-inverse of a single latent column and

@@ -49,7 +49,7 @@ with exactly two steps per tree that the constraint touches:
 2. a draw of the leaf parameters given the structure.
 
 Our chain runs these as `metropolisJumpForTree` (chain.hpp:1453) then
-`sampleParametersAndSetFits` (chain.hpp:4896). The constraint modifies each: the
+`sampleParametersAndSetFits` (chain.hpp:4864). The constraint modifies each: the
 move's branch score becomes a constrained (truncated) local marginal (section 4),
 and the parameter draw becomes a sequential truncated-normal Gibbs sweep coupling
 neighboring leaves (section 4). No new sweep structure is introduced; the two
@@ -72,10 +72,10 @@ new piece of tree geometry and the component-test target of section 9.
 **Per-column sign flag on the model spec.** Resolve `monotone` into a borrowed
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
-(`leafCovariateColumns` chain.hpp:81; `columnTypes` is per-column too but
+(`leafCovariateColumns` chain.hpp:74; `columnTypes` is per-column too but
 rides `PredictorSource` at data.hpp:255, reaching the options through
-`SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
-As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
+`SamplerOptions::predictors` chain.hpp:69) and consumed once at construction.
+As shipped the field is `monotoneDirections` (chain.hpp:82). A nonzero
 entry on any column selects the constrained
 instantiation at the factory (`createSampler`, facade.hpp:823-834); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
@@ -113,8 +113,8 @@ not matching dbarts's `lower.case.dotted` R style.
 **Categorical predictors refuse.** Monotonicity is undefined on an unordered
 factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
-defensively, at the factory (the subset-splitting refusal already guarding
-leaf covariates, facade.hpp:789). ORDERED factors are their own `ColumnKind`
+defensively, at the factory (its own subset-splitting refusal in the
+monotone scan, facade.hpp:789). ORDERED factors are their own `ColumnKind`
 and, like numeric columns, split by THRESHOLD, so both accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
@@ -144,8 +144,8 @@ fixed order mixes poorly.
 provision (core-generalization.md) reads as though a tree-granularity leaf
 draw seam already exists; it does NOT. Today the draw is a hardcoded per-node
 loop that rebuilds mu from zero every sweep (`mu.assign(tree.nodes.size(), 0.0)`,
-chain.hpp:4940, then an independent `drawFromPosteriorForNode` per bottom node,
-chain.hpp:4941-4955), the leaf-model concept exposes ONLY that per-node scalar
+chain.hpp:4908, then an independent `drawFromPosteriorForNode` per bottom node,
+chain.hpp:4909-4923), the leaf-model concept exposes ONLY that per-node scalar
 draw (`ScalarLeafModel`, model.hpp:50-58), and the moves are leaf-templated free
 functions that read the node sufficient statistics and ZERO leaf parameters
 (`logLikelihoodForBranch`, moves.hpp:67-95). Three real changes follow, none a
@@ -154,13 +154,13 @@ mere re-pointing:
 1. A new concept method - a tree-granularity draw
    `drawParametersForTree(rng, tree, k, sigma2, muOut)` the constant monotone leaf
    provides and `sampleParametersAndSetFits` calls once per tree, in place of the
-   per-node loop at chain.hpp:4941, when the leaf model declares it. Independent
+   per-node loop at chain.hpp:4909, when the leaf model declares it. Independent
    per-leaf stays the default for every other model, byte-identical (section 8).
 2. Leaf values must stay VALID through the move phase. The move score needs
    mu_same, the frozen neighbor values, DURING `metropolisJumpForTree`
    (chain.hpp:1453). Those values already survive there: `sampleParametersAndSetFits`
    runs AFTER the moves and only then zeroes and refills `muByTree[t]`
-   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4929-4940 - `mu` is a reference
+   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4897-4908 - `mu` is a reference
    INTO the persistent `forest.muByTree[t]`), so during the moves the vector still
    holds the previous sweep's draw. The new work is keeping it consistent ACROSS
    in-sweep structural changes: an accepted birth adds two nodes and a death removes
@@ -180,7 +180,7 @@ mere re-pointing:
 
 The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:83-88)
 and carrying mu as a degenerate function leaf - is rejected: it drags the
-function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4876-4898)
+function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4871-4892)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
 
 **Budget.** The plan front-matter's "~500 lines" (docs/plans/archive/monotone-bart.md) no
@@ -271,7 +271,7 @@ options, and what mBART actually does:
       birth draws (mu_R, then mu_L | mu_R) as two sequential 1-D truncated normals
       honoring mu_L <= mu_R; every other case is independent 1-D truncated
       normals. No mesh, no grid artifacts.
-  Honest d keeps the DEFAULT tree prior (base=0.95, power=2, chain.hpp:58)
+  Honest d keeps the DEFAULT tree prior (base=0.95, power=2, chain.hpp:51)
   unchanged, so the constraint does not smuggle a different structural prior, and
   the sampler targets the exact posterior up to 1-D quadrature error.
 
@@ -341,7 +341,7 @@ the structure makes the answer clean, and it differs by move:
 plus the single-site leaf Gibbs - exactly mBART's examples ("in all our examples
 we use birth/death moves and draws of a single mu component," paper Section 4.3).
 Set the constrained forest's move mix to birth/death only
-(birthOrDeathProbability = 1, chain.hpp:59), a legitimate difference from the
+(birthOrDeathProbability = 1, chain.hpp:52), a legitimate difference from the
 unconstrained default mix (0.5/0.4/0.1 birth-death/change/swap). This overrides
 the user-facing `proposal.probs` (default c(birth_death = 0.5, swap = 0.1,
 change = 0.4, birth = 0.5), R/dbarts.R:359): resolve the clash by ERRORING at spec
@@ -361,7 +361,7 @@ change move is the recorded v2 extension (still 1-2 D, so B' covers it).
 mBART keeps the CGM10 leaf prior mu ~ N(0, sigma_mu^2) with
 sigma_mu = 0.5/(k sqrt(m)) (Y scaled to [-0.5, 0.5], k=2 default, m trees) - which
 is EXACTLY dbarts's constant-leaf prior sd = scale/k with scale =
-nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:159, chain.hpp:50,650). The
+nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:159, chain.hpp:43,635). The
 one change (paper Section 3.3, eq. 3.6): a leaf that IS constrained uses an
 inflated variance c^2 sigma_mu^2 with
 
@@ -388,13 +388,13 @@ correction is second-order (Section 3.3). Both the constrained marginal (section
 
 **Sub-decision - the chi-k hyperprior.** dbarts optionally samples k from the
 accumulated sum of standardized squared leaf values (`forest.updateK`,
-chain.hpp:4913,4951). Under truncation and a per-leaf-variable prior scale, the
+chain.hpp:4919,4951). Under truncation and a per-leaf-variable prior scale, the
 "standardized" square is no longer param/(scale/k), so feeding truncated draws
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
 default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
-chi(1.5, 2.0) for binary, R/model.R:530; .kDefault unresolved - no such object
-ships; bart2's own k=NULL, R/bart.R:660, resolves the same), so a plain
+chi(1.5, 2.0) for binary, R/model.R:519-520; .kDefault unresolved - no such object
+ships; bart2's own k=NULL, R/bart.R:649, resolves the same), so a plain
 bart2(..., monotone=..., family="probit") supplies a chi hyperprior by default.
 Resolution: under `monotone`, an UNSUPPLIED k resolves to fixed k = 2 (the
 continuous default and mBART's value) for BOTH continuous and binary responses -
@@ -414,13 +414,13 @@ follow-up, not v1 scope.
   at construction like `columnTypes`. No dbarts.h / ABI change in v1 (the
   robust-errors/ordinal precedent) - monotone is reachable only through the R
   surface and internal bridge, so no LinkingTo consumer sees it.
-- **Factory (facade.hpp:815-818):** any nonzero direction selects the monotone
+- **Factory (facade.hpp:830-834):** any nonzero direction selects the monotone
   constant-leaf instantiation (`MonotoneConstantGaussianLeaf` +
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).
 - **Leaf store (chain.hpp):** muByTree must PERSIST across the move phase - stop
-  the zero-rebuild at chain.hpp:4940 so the moves can read frozen neighbors - and
-  the tree-granularity draw replaces the per-node loop at chain.hpp:4941-4955
+  the zero-rebuild at chain.hpp:4908 so the moves can read frozen neighbors - and
+  the tree-granularity draw replaces the per-node loop at chain.hpp:4909-4923
   (section 3, changes 1-2). This is the widest mechanical change and the reason
   for the re-budget.
 - **Leaf model (model.hpp):** a constant leaf with a tree-granularity Gibbs draw
@@ -541,6 +541,11 @@ the posterior-changing baseline for this arc.
   slope has the right sign - a coefficient constraint, not a neighbor-ordering
   one; linear-leaves.md, gp-leaves.md). Refused at spec time when `monotone`
   meets a leaf-covariate designation.
+- **Heteroscedastic variance forest.** v1 keeps the mean leaf plain constant, so
+  a variance forest and a monotone constraint are refused together at both
+  sampler factories; the host reports the pair in its widened specification
+  error. The refusal short-circuits off numVarianceTrees, so an unconstrained
+  variance forest never runs the monotone scan.
 - **Convexity / general shape constraints.** Out of scope; monotonicity is a
   first-difference sign constraint, convexity a second-difference one, needing a
   different neighbor calculus. Not provisioned here.

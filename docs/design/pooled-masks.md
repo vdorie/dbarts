@@ -54,9 +54,10 @@ double encoding holds 53. They are lifted separately.
   (naCategory's 63 would collide with a real category), assigned
   per-column by codeFor and buildFromParent.
 
-A column is pooled iff maskWordsForColumn(categoryCounts[j]) > 1, i.e.
-ceil((K + 1) / 64) > 1. Everything keys off that predicate; ordinal
-columns and narrow categorical columns never touch the pool.
+A column is pooled iff it splits by subset and maskWordsForCount(
+categoryCounts[j]) > 1, i.e. ceil((K + 1) / 64) > 1. Everything keys off
+that predicate; threshold-splitting columns - a wide ordered factor
+included - and narrow categorical columns never touch the pool.
 
 ## Pool ownership and lifetime
 
@@ -115,7 +116,7 @@ independent of the engine tier:
   double-exact, and self-describing, so replay indexes the channel
   directly with no cursor threading through the pre-order recursion (the
   slopes side array needs (numOnLeft + 1) / 2 bookkeeping; masks do
-  not). Each such rule contributes maskWordsForColumn(K) words holding
+  not). Each such rule contributes maskWordsForCount(K) words holding
   category bits only, the missing-direction bit cleared: the missing
   direction stays in flags for every rule kind, single source of truth,
   and the getTrees missing column is untouched. flatten emits offsets
@@ -148,15 +149,15 @@ Absent slots mean no wide rules; states holding wide rules require them
 
 ## Reporting
 
-- getTrees: a narrow categorical rule's value stays the raw mask
-  (documented, unchanged). A wide rule's value is NA and the bridge
-  emits a directions string for it C-side - one L/R per *observed*
-  category, from the store's count - in a directions column added
-  whenever the store has wide categorical columns. The R decode then
-  only fills narrow rules from value (today's math, byte-identical) and
-  right-pads every string with L to the declared level count
-  (unobserved trailing levels are canonically left under the gauge -
-  exactly what the narrow decode already yields for them).
+- getTrees: every categorical rule's value is NA and the bridge emits a
+  directions string for it C-side - one L/R per level of the store's
+  count (the host's declared level table where it supplied one), read
+  from the pooled words for a wide rule and from the inline mask word
+  for a narrow one - in a directions column added whenever the store has
+  any categorical column. The R decode only right-pads each string with
+  L to the declared level count (unobserved trailing levels are
+  canonically left under the gauge - exactly what a full-width decode
+  already yields for them).
 - plotTree reads the directions column and needs no change; printTrees
   and the live print dump read pooled words where they read the rule
   word.

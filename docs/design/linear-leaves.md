@@ -22,9 +22,10 @@ marginal over the parameters stays closed-form and the existing
 conjugate MH moves apply unchanged. The constant leaf is the q = 0
 special case and keeps its own code path untouched.
 
-- Leaf covariates are ordinal (continuous) columns only; a categorical
-  column in the set is an error (its codes are unordered - interact via
-  splits instead). Leaf models consume raw column values, never codes.
+- Leaf covariates are threshold-splitting columns only - numeric or
+  ordered factor; a categorical column in the set is an error (its codes
+  are unordered - interact via splits instead). Leaf models consume raw
+  column values, never codes.
 - Internally the leaf covariates are standardized (training mean and sd,
   stored on the store) so the prior is expressed on a comparable scale;
   reported parameters stay on the internal standardized scale like leaf
@@ -41,8 +42,9 @@ Stage-4 (R surface) notes:
 - node.prior = linear(columns, k) on dbarts(): a dbartsLinearPrior
   whose raw designation (names or indices) resolves against the model
   matrix in parsePriors (resolveLeafCovariates: exact column names or
-  1-based indices, duplicates and factor columns rejected via
-  data@varTypes, at most 8). An unresolved designation cannot enter
+  1-based indices, duplicates and categorical columns rejected via
+  data@varTypes - an ordered factor is eligible, its codes being ordered -
+  at most 8). An unresolved designation cannot enter
   dbartsModel directly, mirroring the split.probs guard. bart2 and
   rbart_vi construct node.prior = normal(k) internally and do not
   reach linear; xbart had no node.prior and the data-handle creation
@@ -226,9 +228,9 @@ Original proposal follows.
   linear(columns, k = 2), accepted by node.prior everywhere normal(k)
   is; bart2 and rbart_vi reach it through their existing prior-object
   plumbing. columns is a character or integer vector naming predictor
-  columns; with factors as categorical a factor column is a single
-  (rejected) column, while under indicators its dummies are ordinary
-  ordinal columns and legal.
+  columns; with factors as categorical an unordered factor column is a
+  single (rejected) column and an ordered one a single accepted column,
+  while under indicators its dummies are ordinary ordinal columns and legal.
 - xbart: linear leaves arrive through node.prior once views gather raw
   leaf columns; until then xbart rejects them with a clear error.
 - Weights, probit, and logistic compose automatically: the working

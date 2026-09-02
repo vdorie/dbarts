@@ -602,6 +602,8 @@ equivalence-02d41365 46/46, bcf-equivalence-00cfa108 12/12,
 multinomial-equivalence-4d9a3337 11/11, all bitwise identical, no
 statistical fallback.
 
+Docs brought current with this slice: f0a82c98.
+
 ### Kind-axis slice S2, the ordered-factor midpoint grid (9486f561, 625c6550, 038d5441, 02d41365, 1ed31cf8, f2485641, 33afc29e, 2026-09-01)
 
 Slice S2 of docs/plans/column-kind-consolidation.md lands as seven

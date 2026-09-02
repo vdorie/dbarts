@@ -501,9 +501,10 @@ partitioning entirely; a different library sharing only the tree structure).
    usual directions decode; see docs/design/pooled-masks.md.
    Data.frame ingestion (DONE 2026-07-03): `dbarts` and `dbartsData` take
    `factors = "categorical"`, coding unordered factors as single
-   categorical columns (codes 0..K-1, K <= 53), ordered factors as
-   ordinal, with per-column level tables retained on the model matrix so
-   test data recode against the training levels (unseen levels error).
+   categorical columns (codes 0..K-1, K <= 53) and ordered factors as
+   threshold-split columns of their own kind, with per-column level tables
+   retained on the model matrix so test data recode against the training
+   levels (unseen levels error).
    The default `"indicators"` path is unchanged, and the classic engine
    refuses categorical columns at sampler creation (its categorical
    machinery is unreachable, untested code). The default flips at
@@ -677,9 +678,10 @@ partitioning entirely; a different library sharing only the tree structure).
    benchmarks/R/categorical-exact.R (tree-space enumeration + quadrature
    under the probit link; the sampler matches the exact posterior
    predictive to MC error) plus component tests over the mechanics,
-   prior math, recovery, and mutation surface. Not yet exposed publicly:
-   dbartsData still types every column ordinal, so tests flip varTypes by
-   hand; factor ingestion without dummy expansion is public-surface work.
+   prior math, recovery, and mutation surface. Not exposed publicly at the
+   time: dbartsData typed every column ordinal, so tests flipped varTypes
+   by hand; factor ingestion without dummy expansion landed the next day
+   (above), and ordered factors gained their own kind later.
 
    Tree storage + serialization (DONE 2026-07-02; cutover-parity work for
    phase 7): one flattened representation serves everything - pre-order

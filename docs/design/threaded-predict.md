@@ -89,27 +89,28 @@ spawning threads.
 
 ## 5. Header and ABI
 
-The prototype, as shipped (inst/include/dbarts/dbarts.h:899, X-macro in
-lockstep at :449-452):
+The prototype, as shipped (inst/include/dbarts/dbarts.h:995, X-macro in
+lockstep at :530-533), returning a capability status:
 
 ```c
 /// numThreads is a PER-CALL override that does not persist: 0 means the
 /// sampler's own count; a resolved count below 1 is treated as 1. The
 /// replay is bitwise identical at every value.
-void dbarts_sampler_predict(dbarts_sampler* sampler,
+int dbarts_sampler_predict(dbarts_sampler* sampler,
                             const dbarts_predictor_source* xTest,
                             const double* offsetTest, size_t numThreads,
                             double* out);
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:525, then
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:527, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
-DBARTS_C_API_HASH` (:467) and prints the new layout hash to paste over
-`DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed - live,
-C_interface.cpp:525 asserts `0x0b33edcf638a3cd3ULL` and dbarts.h:189
-bakes `0xb6c0e97dc0688991ULL`. This section also called for
+DBARTS_C_API_HASH` (:531) and prints the new layout hash to paste over
+`DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed; the signature
+token still reads `0x0b33edcf638a3cd3ULL`, while the layout hash has
+been re-baked by later header changes and no longer carries this
+landing's value. This section also called for
 `DBARTS_C_API_MINOR` (dbarts.h:138) to bump from 0 to 1; it did not, on
 the header's own pre-release rule - see section 11.
 `facade.hpp` took the parameter on all three predict virtuals -
@@ -148,6 +149,16 @@ formal and before `...`, on all six generics: bartCause's
 `predict.bartcFit` calls `predict.rbart` positionally, ending in
 `group.by, combineChains = FALSE, ...`, so inserting `n.threads`
 before `group.by` would pass a factor as a thread count.
+
+The formal is appended last, before `...`, and `...` is no longer inert:
+every predict method refuses by name the arguments belonging to a
+sibling method of this surface ("'group.by' is not used by predict on a
+bart fit: ...") along with any unnamed extra, then warns once, under
+condition class `dbartsUnusedArgsWarning`, on every other unknown name
+rather than discarding it. A warning rather than a refusal there is
+what lets a subclass method forward its own formals through
+`NextMethod()`'s `...`. `n.threads` is a formal on all six, so it
+reaches neither path.
 
 | generic | R/generics.R | default expression |
 |---|---|---|
@@ -272,7 +283,8 @@ parameter is not additive anyway - it is source- and ABI-breaking, so
 a minor bump would misdescribe it. Both baked literals were re-signed;
 they live in `DBARTS_C_API_HASH` (inst/include/dbarts/dbarts.h) and
 `src/C_interface.cpp`, re-baked at every header change, and section 5
-has them live. inst/tinytest/test-capi.R pins the current hash, keeps
+records which of the pair later re-bakes have moved.
+inst/tinytest/test-capi.R pins the current hash, keeps
 the superseded ones as negative assertions, and asserts `c(1L, 0L)`.
 
 **partialDependence.R was not touched.** Section 6 listed its five
