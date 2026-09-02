@@ -129,7 +129,7 @@ no-op".
 The bridge took the argument on both `.Call` entries -
 `dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
 (`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:225-226) - and on
-`predictFromSource` (R_interface_bartcore.cpp:5928), `bartcore_predict`
+`predictFromSource` (R_interface_bartcore.cpp:5931), `bartcore_predict`
 (:5971), `predictPerForestFromSource` (:5955), and
 `bartcore_predictPerForest` (:5995), validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
@@ -223,7 +223,7 @@ representative `predict.bart` call.
 The serial work predict's threaded region does **not** cover - the
 flat-offset add over the whole output (R_interface_bartcore.cpp:5831-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:6019) - is one pass over the output
+the second (variance) fan-out (:6022) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

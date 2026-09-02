@@ -135,7 +135,7 @@ unchecked `static_cast<xint_t>(value)` for a categorical (`data.hpp:828-831`),
 and the flat replay reads the raw double and casts it to a category index
 (`tree.hpp:1768-1769` pooled, `:1783-1784` inline). The bridge widens R's
 `INTEGER` factor codes to doubles a cell at a time
-(`R_interface_bartcore.cpp:550-562`) so that the engine can narrow them back.
+(`R_interface_bartcore.cpp:553-565`) so that the engine can narrow them back.
 
 **4. `FlatKind` duplicates type-plus-pooled** (`tree.hpp:171-176`), and both
 `buildFromFlatBelow` (`tree.hpp:1530-1574`) and `flatSubtreeIsWellFormed`

@@ -128,7 +128,7 @@ one. ONE hash re-bake, NO version bump, ONE consumer migration.
    adds nothing to them.
 5. **The house return convention is 1 = accepted, 0 = refused.** Measured, not
    asserted: `dbarts_sampler_setPredictor` ends `return result ==
-   bartcore::PredictorUpdateResult::accepted ? 1 : 0` (C_interface.cpp:283;
+   bartcore::PredictorUpdateResult::accepted ? 1 : 0` (C_interface.cpp:284;
    `dbarts_sampler_updatePredictor` ends identically at :305).
    bcf-public-surface S3 item 3 states the same ("1 on success, 0 on refusal -
    the shipped convention, not the inverse"). The `size_t` probes carry no error
@@ -179,7 +179,7 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   `ParsedMutationSource::referenceMeta` (R_interface_bartcore.cpp:211), "R
   INTEGER, NA_INTEGER == undeclared", which is exactly what the promoted helper
   keys on (`refuseCscReferenceAgainstStore`, now in `bartcore_bridge` after S0,
-  R_interface_bartcore.cpp:2699-2712). **Resolution:** the POD
+  R_interface_bartcore.cpp:2702-2715). **Resolution:** the POD
   field becomes `const int32_t*`, `< 0` = column declared none, `>= 0` = the
   code, refused above `bartcore::maxCategories` (0xFFFF, data.hpp:95). This
   keeps the memo's decoupling goal (it still does not spell `xint_t`) and

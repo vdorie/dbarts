@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3756`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3722`) - the dedicated
+(`src/R_interface_bartcore.cpp:3759`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3725`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -131,15 +131,15 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3561` -> `createMultinomialDataHolder` `:3527` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4499` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:4044` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:4119` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:4152` | `:125` | S, unexported |
+| run | `bartcore_run` `:4502` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:4047` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:4122` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:4155` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5194`, `:5146`, `:5307`, `:5361` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5432` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:5001` | `:558` | S (`refuseUndefinedTestFits` `:3089` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5435` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:5004` | `:558` | S (`refuseUndefinedTestFits` `:3092` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4101` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:6048` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:6051` | `:1085` | S |
 | per-category fits / varcounts | `:4174`, `:4307` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4232` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5711`, `:5716` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
@@ -341,7 +341,7 @@ the plan doc). Multinomial has no flat creation path
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:189`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:599`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
+(`src/C_interface.cpp:600`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
 change, and one `expect_false` for the superseded literal should be added
@@ -567,7 +567,7 @@ the counts channel" - one string, right on both surfaces, and what
 S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2696-2697`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2834-2849` tested only
+then fell through to the RESPONSE message (`:2837-2852` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights

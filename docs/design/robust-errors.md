@@ -78,6 +78,25 @@ designation is not one the leaf models can take, or a variance forest is
 combined with a non-gaussian family, Student-t residuals, leaf covariates,
 or a monotone constraint".
 
+**The exported augmentation helpers dispatch on a law, not a family.**
+`dbartsDrawLatents`/`dbartsWorkingResponse` and their flat twins
+`dbarts_drawLatents`/`dbarts_workingResponse` draw the same six per-sweep
+augmentation variables the engine draws, at a caller's fit. Keying that on
+`ResponseFamily` would put the Student-t mixture on the `gaussian` arm - the
+family a t sampler genuinely reports - where it is indistinguishable from a
+plain gaussian response, which draws no augmentation variable at all.
+`AugmentationLaw` (`src/R_interface_bartcore_common.hpp`) is a separate enum,
+total over probit, logistic, ordinal, aft, nbinom and studentT, and is the
+only thing either surface dispatches on. The family survives on that path at
+exactly one point, `supportFamily`, which states the response support a law
+constrains: studentT answers gaussian there because a t response is
+unconstrained, not because the two share a law. Each surface maps into the
+enum at its own boundary - a family name for the R helpers, whose argument is
+a name, and `DBARTS_FAMILY_STUDENT` for the flat entries, the family list
+being that surface's vocabulary for its create AND augmentation entries. A
+list-derived law count backs a `static_assert` in each translation unit that
+enumerates the laws, so adding one fails the build.
+
 ## 3. sigma^2 under the mixture
 
 The sigma draw is the scaled-inverse-chi-square

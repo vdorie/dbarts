@@ -84,7 +84,7 @@ following, and :353 `leafModel` `int*` -> `int32_t*` (the ABI's other enum-carry
 `bartcore::PredictorSource` (src/bartcore/data.hpp:188-189) stays `const int*` (`int32_t` is `int` on every supported platform), so C_interface.cpp:212-213 compiles
 unchanged. `printEvery` `uint32_t` -> `size_t`: dbarts.h:489 (list), :959-960 (prototype), src/C_interface.cpp:885-888, widening the engine with it -
 src/bartcore/facade.hpp:313, :591; sampler.hpp:1211; chain.hpp:212 (the `SamplerOptions` field), :1717. R side unchanged: `ParsedControl`
-(src/R_interface_bartcore.cpp:178, :435) stays `uint32_t` and widens on assignment (:1846, :4920). This DOES move the hash (parameter types stringize -
+(src/R_interface_bartcore.cpp:181, :435) stays `uint32_t` and widens on assignment (:1846, :4920). This DOES move the hash (parameter types stringize -
 src/C_interface.cpp:450-451, dbarts.h:551). Out of scope: the flat entry does not guard `printEvery == 0` (chain.hpp:1393 divides by it); the `>= 1` floor is the C++
 bridge's slot read (src/R_interface_bartcore.cpp:431-433), and R/bart.R:811, R/rbart.R:100 compute `printEvery %/% n.thin`, which can reach 0 there.
 

@@ -273,7 +273,7 @@ the same sites:
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
   `bartcore_setModel`, `src/R_interface_bartcore.cpp:4900`/`:5206`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
-  date (38 of 69 vs 31 without), e.g. `:2807`. Reword the no-colon
+  date (38 of 69 vs 31 without), e.g. `:2810`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
   reads `"%s: requires a numeric matrix with matching columns"`, and the
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole
@@ -477,7 +477,7 @@ Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
 '", value, "'; use -1, 0, or +1"` (`R/model.R:558`) - reword to `"'direction'
 must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
 site). `"unrecognized response family for a binary response"`
-(`src/R_interface_bartcore.cpp:1592`) - names no choices at all.
+(`src/R_interface_bartcore.cpp:1595`) - names no choices at all.
 
 **External evidence.** The `"must be one of"` shape itself is directly
 attested in base R: `stop("'origin' must be one of 'start', 'current' or

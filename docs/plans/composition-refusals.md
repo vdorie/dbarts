@@ -389,7 +389,7 @@ introduces, and an `anyNA` short-circuit is cheap enough to leave alone rather t
 
 (b) C++: `validateTestSource` (src/C_interface.cpp:253-257) is called at exactly two sites, :788
 (`dbarts_sampler_setTestPredictors`) and :831 (`dbarts_sampler_predict`), and by NO R-bridge entry - the R bridge
-validates through `validatePredictorMatrix` (src/R_interface_bartcore.cpp:127-139) and
+validates through `validatePredictorMatrix` (src/R_interface_bartcore.cpp:130-142) and
 `validateTestContainerAgainstStore` (:2970) instead. So a check placed inside it covers both flat test entrances and
 never runs for an R caller. About ten lines, using the reader the replay itself builds (`PredictorSourceColumns`,
 src/bartcore/data.hpp:401-440), naming the column by INDEX since the flat caller supplies no names:

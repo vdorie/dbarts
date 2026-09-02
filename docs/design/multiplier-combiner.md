@@ -312,7 +312,7 @@ with the `equivalence.yaml` bump in the same commit.
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis (`R/model.R:1153`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
-`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2366) and
+`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2369) and
 derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2368). So every
 basis-carrying forest gets `ridge = false`, and the combiner's own
 `halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
@@ -461,7 +461,7 @@ is capped at one forest, for any K: `resolveForests` (R/model.R:1030-1100,
 refusal :1059-1065) requires every forest past the first to carry a basis, and
 `forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
 basis is present (R/model.R:1126), from which the bridge derives
-`forest.ridge = false` (R_interface_bartcore.cpp:2368) - forests 2..K are
+`forest.ridge = false` (R_interface_bartcore.cpp:2371) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
 as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
@@ -554,7 +554,7 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
 that rule in two independent places (src/C_interface.cpp:1132-1133,
-src/R_interface_bartcore.cpp:4188-4190).
+src/R_interface_bartcore.cpp:4191-4193).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
