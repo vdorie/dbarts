@@ -19,7 +19,7 @@ constraint was the SWEEP's 47% parallel fraction. That no-go does not transfer.
 ## 1. Archaeology
 
 **93f354a8b763000df66d166a7fd50fb74b06949e**, Vincent Dorie, 2025-03-03, "Add native predict
-multithreading", 18 files +249/-27. Its NEWS entry is still in the tree at [[inst/NEWS.Rd:1914-1919@93f354a8b763000df66d166a7fd50fb74b06949e]]:
+multithreading", 18 files +249/-27. Its NEWS entry is still in the tree at [[inst/NEWS.Rd:1914-1919@0045507c]]:
 "`predict` now accepts a `n.threads` argument and will use native threads to parallelize across chains."
 
 What it added (all reachable on branch `main`):
@@ -59,7 +59,7 @@ per-call override."
 
 **Two doc defects this exposes.** [[man/bart.Rd:149-151@658869ac]]'s shared `\item{nthread, n.threads}` still reads
 "Integer specifying how many threads to use" with no caveat, and predict.bart's usage block
-([[man/bart.Rd:49@658869ac]]) lists `n.threads` under it. And [[inst/NEWS.Rd:1914-1919@658869ac]] stands unretracted while 1.0-0's
+([[man/bart.Rd:49@658869ac]]) lists `n.threads` under it. And [[inst/NEWS.Rd:1914-1919@0045507c]] stands unretracted while 1.0-0's
 UPGRADING section (:5-20) never mentions the regression.
 
 **Not related:** origin/archive/within-chain-threading (54a60aa8) and
@@ -119,9 +119,9 @@ strictly inside `predictColumns` touches no R API.
 `softmaxLocationMajor` per row; same slab structure, wider slab. Amplitude/BCF: plain predict is REFUSED
 (`refuseUndefinedTestFits` [[R_interface_bartcore.cpp:2858@658869ac]], called [[R_interface_bartcore.cpp:5768@658869ac]] and [[C_interface.cpp:780@658869ac]]), so
 those take `predictPerForestColumns` [[sampler.hpp:619-637@658869ac]] - the same slab loop with a forest margin.
-Heteroscedastic adds `predictVarianceColumns` [[sampler.hpp:674-680@658869ac]]. Ordinal ([[generics.R:1221@658869ac]]) and negbin ([[generics.R:1354@658869ac]])
-reach the same .Call via `bartcorePredict` ([[R/bartcore.R:1457-1473@658869ac]]); hurdle via two nested `predict()`
-at [[R/bartcore.R:1531@658869ac]]; rbart at [[R/bartcore.R:1706@658869ac]], [[R/bartcore.R:1712@658869ac]], [[R/bartcore.R:1722@658869ac]]; partial dependence at [[partialDependence.R:242-365@658869ac]]. And
+Heteroscedastic adds `predictVarianceColumns` [[sampler.hpp:674-680@658869ac]]. Ordinal ([[generics.R:1221@0045507c]]) and negbin ([[generics.R:1354@0045507c]])
+reach the same .Call via `bartcorePredict` ([[R/bartcore.R:1457-1473@0045507c]]); hurdle via two nested `predict()`
+at [[R/generics.R:1531@0045507c]]; rbart at [[R/generics.R:1706@0045507c]], [[R/generics.R:1712@0045507c]], [[R/generics.R:1722@0045507c]]; partial dependence at [[partialDependence.R:242-365@658869ac]]. And
 [[R/dbarts.R:849@658869ac]] `draw$predict(xt, offset.test, n.threads)` is a SECOND site already forwarding a thread
 count into the void.
 
@@ -199,12 +199,12 @@ fails loudly until it is. Bump DBARTS_C_API_MINOR alongside.
 ### 4.2 Consumers
 
 **stan4bart** (branch bartcore, tip 54e157b), `LinkingTo: dbarts (>= 1.0-0)` DESCRIPTION:41, built
-`-DDBARTS_USE_STUBS`. ONE C call site, [[src/init.cpp:342@658869ac]]: `dbarts_sampler_predict(fit, &x_test,
-testOffset, REAL(result));` inside `predictBART` ([[src/init.cpp:294@658869ac]]). Minimal migration is one token, `0`; it builds
-its samplers with `n.threads = 1L` ([[R/stan4bart_fit.R:515@658869ac]], [[R/mvbart.R:119@658869ac]]) anyway. It hard-equality
-checks `dbarts_apiHash()` at [[src/init.cpp:962-977@658869ac]], so every installed binary errors at load until
+`-DDBARTS_USE_STUBS`. ONE C call site, its `src/init.cpp` line 342: `dbarts_sampler_predict(fit, &x_test,
+testOffset, REAL(result));` inside `predictBART` (`src/init.cpp` line 294). Minimal migration is one token, `0`; it builds
+its samplers with `n.threads = 1L` (`R/stan4bart_fit.R` line 515, `R/mvbart.R` line 119) anyway. It hard-equality
+checks `dbarts_apiHash()` at `src/init.cpp` lines 962-977, so every installed binary errors at load until
 rebuilt: intended lockstep pre-1.0-0. A full version - a 4th SEXP on `predictBART` - additionally
-touches [[src/init.cpp:1056@658869ac]] and [[R/generics.R:205@658869ac]], [[R/generics.R:275@658869ac]], [[R/generics.R:965@658869ac]]: 1 line minimum, ~8 at most.
+touches `src/init.cpp` line 1056 and [[R/generics.R:205@658869ac]], [[R/generics.R:275@658869ac]], [[R/generics.R:965@658869ac]]: 1 line minimum, ~8 at most.
 
 **bartCause** (branch dbarts-1.0, tip 7ae6e83), `Imports: dbarts (>= 1.0-0)`, `NeedsCompilation: no`, no
 LinkingTo, no src/. ZERO lines: it reaches predict only by S3 dispatch, forwarding `...` at
@@ -213,9 +213,9 @@ it and will simply start working. tests/testthat/test-08-predict.R would catch a
 
 ### 4.3 Bridge and R
 
-`DEF_FUNC(..., bartcore_predict, 3)` -> 4 ([[R_interface.cpp:224@658869ac]]); `bartcore_predict` ([[R_interface.cpp:5760@658869ac]]) and
-`predictFromSource` ([[R_interface.cpp:5641@658869ac]]) gain the argument, validated with the rc idiom of section 1;
-`bartcore_predictPerForest` ([[R_interface.cpp:5851@658869ac]], DEF_FUNC [[R_interface.cpp:225@658869ac]]) and `predictPerForestFromSource` ([[R_interface.cpp:5813@658869ac]]) should take
+`DEF_FUNC(..., bartcore_predict, 3)` -> 4 ([[R_interface.cpp:224@658869ac]]); `bartcore_predict` ([[R_interface_bartcore.cpp:5760@0045507c]]) and
+`predictFromSource` ([[R_interface_bartcore.cpp:5641@0045507c]]) gain the argument, validated with the rc idiom of section 1;
+`bartcore_predictPerForest` ([[R_interface_bartcore.cpp:5851@0045507c]], DEF_FUNC [[R_interface.cpp:225@658869ac]]) and `predictPerForestFromSource` ([[R_interface_bartcore.cpp:5813@0045507c]]) should take
 it too, being the amplitude family's only replay path.
 
 R5 `predict` ([[R/dbarts.R:1079@658869ac]]): the formal exists; pass it at [[R/dbarts.R:1140@658869ac]]. Default `control@n.threads`: KEEP,
@@ -230,8 +230,8 @@ negatives. Replace with the house pattern ([[R/rbart.R:82-85@658869ac]], [[R/xba
 coerceOrError(n.threads, "integer")[1L]; if (is.na(n.threads) || n.threads < 1L) stop("'n.threads' must
 be a positive integer")`.
 
-Family generics `predict.bartMultinomial` ([[R/xbart.R:1013@658869ac]]), `predict.bartOrdinal` ([[R/xbart.R:1197@658869ac]]), `predict.bartNegbin`
-([[R/xbart.R:1330@658869ac]]), `predict.bartHurdle` ([[R/xbart.R:1614@658869ac]]) and `predict.rbart` ([[R/xbart.R:1647@658869ac]]) all take `...` and none names
+Family generics `predict.bartMultinomial` ([[R/generics.R:1013@0045507c]]), `predict.bartOrdinal` ([[R/generics.R:1197@0045507c]]), `predict.bartNegbin`
+([[R/generics.R:1330@0045507c]]), `predict.bartHurdle` ([[R/generics.R:1614@0045507c]]) and `predict.rbart` ([[R/generics.R:1647@0045507c]]) all take `...` and none names
 `n.threads`. Add the formal to each and forward it, at the sites listed in section 2, plus
 `predictForest` ([[R/xbart.R:603@658869ac]]), `samplePriorPredictive` ([[R/dbarts.R:849@658869ac]], already carrying it) and the five
 partialDependence sites - partial dependence is predict-in-a-loop and the natural beneficiary.
@@ -309,12 +309,12 @@ Dense lines, excluding comments (house style roughly doubles the engine):
 |---|---|---|
 | engine | ~60 | slab partition + std::thread fan-out + sigmask in `predictColumns` ([[sampler.hpp:565@658869ac]]), shared with `predictPerForestColumns` ([[sampler.hpp:621@658869ac]]) and `predictVarianceColumns` ([[sampler.hpp:674@658869ac]]) via one helper; `numThreads` on 3 facade virtuals ([[facade.hpp:258@658869ac]], [[facade.hpp:267@658869ac]], [[facade.hpp:272@658869ac]]) and 3 forwarders ([[facade.hpp:545@658869ac]], [[facade.hpp:549@658869ac]], [[facade.hpp:554@658869ac]]); `const` on [[chain.hpp:904@658869ac]] |
 | flat API | ~10 | [[C_interface.cpp:773@658869ac]] signature + pass-through; [[dbarts.h:449@658869ac]], [[dbarts.h:853@658869ac]] + doc; re-bake DBARTS_C_API_HASH ([[dbarts.h:142@658869ac]]), bump minor |
-| bridge | ~20 | [[R_interface.cpp:224-225@658869ac]] arity; [[R_interface_bartcore.cpp:5641@658869ac]], [[R_interface_bartcore.cpp:5760@658869ac]], [[R_interface_bartcore.cpp:5813@658869ac]], [[R_interface_bartcore.cpp:5851@658869ac]] + one rc_getInt block |
-| R | ~45 | [[dbarts.R:1140@658869ac]] (+ [[dbarts.R:1153@658869ac]]); 6 generics gain a formal and forward it; bartcorePredict ([[bartcore.R:1457@658869ac]]); predictForest ([[bartcore.R:603@658869ac]]); 5 partialDependence sites; one validation block |
+| bridge | ~20 | [[R_interface.cpp:224-225@658869ac]] arity; [[R_interface_bartcore.cpp:5641@0045507c]], [[R_interface_bartcore.cpp:5760@0045507c]], [[R_interface_bartcore.cpp:5813@0045507c]], [[R_interface_bartcore.cpp:5851@0045507c]] + one rc_getInt block |
+| R | ~45 | [[dbarts.R:1140@658869ac]] (+ [[dbarts.R:1153@658869ac]]); 6 generics gain a formal and forward it; bartcorePredict ([[bartcore.R:1457@0045507c]]); predictForest ([[generics.R:603@0045507c]]); 5 partialDependence sites; one validation block |
 | Rd | ~20 | [[dbartsSampler-class.Rd:152-157@658869ac]], [[bart.Rd:149-151@658869ac]], 6 usage blocks, NEWS |
 | tests | ~180 | rewritten test-generics-multithreaded.R (~120) + tests/cpp partition test (~60) |
 | bench | ~90 | benchmarks/R/bench-predict.R + baseline |
-| consumers | 1-8 | stan4bart [[src/init.cpp:342@658869ac]] (+7 optional); bartCause 0 |
+| consumers | 1-8 | stan4bart `src/init.cpp` line 342 (+7 optional); bartCause 0 |
 
 Risks. (1) The facade vtable change forces a full rebuild of every consumer of the header-only engine;
 CLAUDE.local.md's `--preclean` rule applies and benchmarks/kernels binaries must be deleted by hand (no
@@ -345,7 +345,7 @@ parallelism ships a lie in the doc block and burns the consumer rebuild for noth
 4. **Does `predictPerForest` / R5 `predictForests` take it in S1?** RECOMMEND yes: it is the amplitude
    family's ONLY out-of-sample path (plain predict is refused there), so leaving it serial leaves BCF
    users with no threaded predict at all. ~6 lines.
-5. **[[inst/NEWS.Rd:1914-1919@658869ac]], the unretracted 0.9-31 entry.** RECOMMEND leave it and say nothing: once
+5. **[[inst/NEWS.Rd:1914-1919@0045507c]], the unretracted 0.9-31 entry.** RECOMMEND leave it and say nothing: once
    this slice lands the statement is true again, and retracting a regression that never shipped in a
    release is noise.
 6. **Cutoff predicate.** RECOMMEND total traversals (numChains * numDraws * numTrees * numTest >= 1e7)
