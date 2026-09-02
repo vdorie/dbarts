@@ -151,7 +151,7 @@ predicates) and `[[multinomial-mutation-arc.md:654@bfc4571d]]`
 
 ### 8. A landing record written today whose own anchors are all wrong. 4 tokens.
 
-`[[docs/plans/bcf-cross-host.md:38@bfc4571d]]`, `[[docs/plans/bcf-cross-host.md:126@bfc4571d]]`, `[[docs/plans/bcf-cross-host.md:536-537@bfc4571d]]` cite the
+`[[docs/plans/bcf-cross-host.md:38@de67cf07]]`, `[[docs/plans/bcf-cross-host.md:126@de67cf07]]`, `[[docs/plans/bcf-cross-host.md:536-537@de67cf07]]` cite the
 *pre-implementation* file and were never re-targeted by `de67cf07`. Concretely:
 `[[bcf-equivalence.R:128-140@de67cf07]]` is now the `statChannels`/`snapshotChannels` vectors
 (`recordChannels` moved to `[[bcf-equivalence.R:412@de67cf07]]`); the "Welch z at `[[bcf-equivalence.R:511-518@de67cf07]]`
@@ -250,7 +250,7 @@ requested `vars`.
 
 ## NOTE
 
-- `[[docs-site/reference/bart.md:84-89@de67cf07]]` still shows the pre-today `fitted` order.
+- unresolved: [[docs-site/reference/bart.md:84-89@de67cf07]] still shows the pre-today `fitted` order.
   Untracked and `.Rbuildignore`d (line 23), so it ships nowhere - but the whole
   `docs-site/` tree predates today and must be rebuilt before any publish.
 - 8 of 11 hash-pinned files in `benchmarks/baselines/` name commits reachable from
@@ -264,7 +264,7 @@ requested `vars`.
   `feature-matrix.md`), so today's two closures are real; but 116 of 299 cells are
   never probed and `CONSTRUCTS` means only "threw nothing".
 - A tier-1 FAIL adjudicated by tier 2 exits 0
-  (`[[bcf-equivalence.R:896-899@23b9cde7]]`), and nothing in `exact-gates.yaml` greps for
+  (`[[benchmarks/R/bcf-equivalence.R:896-899@3f532af2]]`), and nothing in `exact-gates.yaml` greps for
   `decoupled:` although `[[docs/plans/bcf-cross-host.md:252-253@23b9cde7]]` calls such a line
   "a finding to report". Enforced only by a human opening a collapsed group.
 - `[[inst/tinytest/test-capi.R:73-89@23b9cde7]]`'s six retired-token `expect_false`s are

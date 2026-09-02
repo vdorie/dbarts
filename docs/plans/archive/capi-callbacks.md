@@ -29,7 +29,7 @@ the same additive API bump.
 
 1. dbarts_results extension. The struct is caller-owned, so growing it
    is safe only while nothing is released: stan4bart's
-   IterableBartResults ([[bart_util.hpp:27@a36687ad]]) holds it as an uninitialized
+   IterableBartResults (`bart_util.hpp` line 27) holds it as an uninitialized
    member and assigns the six fields by name - new fields would be
    garbage pointers without a one-line fix (value-initialize
    `current`). Post-release, growth is never safe: old-compiled

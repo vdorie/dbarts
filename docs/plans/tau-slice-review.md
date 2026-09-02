@@ -50,7 +50,7 @@ Model (design/grouped-random-effects.md, confirmed in code):
 
 The R loop (custom-prior path) and the in-core path are DIFFERENT samplers of
 the same target (statistically equivalent, not bit-identical, by design):
-- R sliceSample ([[sliceSample.R:46-312@4a521760]]): adaptive - L-BFGS-B mode-find + numeric
+- R sliceSample ([[sliceSample.R:46-312@8ee812dc]]): adaptive - L-BFGS-B mode-find + numeric
   Hessian EACH call, width from a Gaussian curvature approx, works on the
   linear (exp) density scale, rejection-sampling fallback if the start density
   is tiny. Expensive (an optim per MCMC iteration); that R-loop cost is exactly

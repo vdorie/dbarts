@@ -12,7 +12,7 @@ pinned and asserted at the bartcore/misc boundary.
 
 ## Context
 
-- Knob: [[configure.ac:22-45@9351574f]]. bartcore pins the width independently
+- Knob: [[configure.ac:22-45@418cc6cc]]. bartcore pins the width independently
   ([[src/bartcore/data.hpp:19@9351574f]] `using xint_t = std::uint16_t;`) and passes
   `const xint_t*` uncast into `misc_partitionRange`/`Indices`
   ([[src/bartcore/tree.hpp:658-660@9351574f]]), so non-16 widths fail to compile;
@@ -23,7 +23,7 @@ pinned and asserted at the bartcore/misc boundary.
   SIZEOF_SIZE_T and memalign.h consumer; only user is string.c),
   string.c (zero callers). Dead since before the rewrite.
 - Unreachable/orphaned configure machinery: the solaris* block
-  ([[configure.ac:78-132@9351574f]]; Oracle Studio has no C++20, CRAN dropped
+  ([[configure.ac:78-132@418cc6cc]]; Oracle Studio has no C++20, CRAN dropped
   Solaris) with ax_ext_solaris.m4, ax_gcc_x86_cpuid.m4,
   ax_gcc_x86_avx_xgetbv.m4; ax_ext.m4 is never m4_included at all.
 - Consumerless checks: HAVE_CSTDINT + stdint fallback, HAVE_SYS_TIME_H,

@@ -970,7 +970,7 @@ fails, 24; P-D drop trials_=trials -> NOT caught here; caught by
 the R identity pin (test-multinomial-counts-mutation.R) - honest
 non-catch; P-E setCategoryOffset ignores a clear -> I1 fails, 12,
 SEQUENCE-ONLY (install, clear, run) - the only tinytest offset
-clear ([[test-multinomial-r5-surface.R:296@8afd6eac]]) never sweeps after.
+clear ([[test-multinomial-r5-surface.R:296@5a3bc276]]) never sweeps after.
 Single-forest streams unchanged (opt-in DBARTS_FUZZ_TRACE FNV-1a
 digest, 108 lines, 9 configs x 12 seeds, diffed pre/post). Gates:
 tests/cpp full green 15.7s; fuzz 0.270s -> 0.281s (3 seeds), 0.604s

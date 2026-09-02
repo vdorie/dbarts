@@ -113,7 +113,7 @@ CANDIDATE RULINGS.
 (a) Apply the same loop at `[[sampler.hpp:891@658869ac]]` that `[[sampler.hpp:919-923@658869ac]]` already carries. ~5 engine
     lines, and the existing `WarmStartResult::varianceMismatch` code is already wired to a
     named R error. All four paths then answer the same way.
-(b) Check in the donor parser (`R_interface_bartcore.cpp` around [[sampler.hpp:7237@658869ac]]) so both arms and
+(b) Check in the donor parser (`R_interface_bartcore.cpp` around [[src/R_interface_bartcore.cpp:7237@658869ac]]) so both arms and
     any future reader inherit it. ~8 lines, better message, but puts a model law in the
     bridge rather than the engine.
 (c) Leave it and document that `installTrees` trusts its donor. Free, and wrong: the
