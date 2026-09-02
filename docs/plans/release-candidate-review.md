@@ -537,6 +537,64 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S4c, the int-backed replay reader (84416304, 3b73ce32, d35b53de, c97897de, d4bca4ce, 5553802a, b8dc63a3, a76831a0, 2026-09-02)
+
+Slice S4c of docs/plans/column-kind-consolidation.md lands as eight
+commits. The flat replay's reader carries the view's own three-arm
+DenseColumnValues now rather than a bare double pointer, and the
+descent is kind-aware instead of widening: partitionFlatIndicesOver
+takes a Cells policy answering the three questions a split asks -
+missing, category, at or under the cut - so both channels share one
+body. CodeCells reads int32, treats a category as the code it already
+is, and compares the ordinal arm against codeThresholdBelow(cut), the
+largest code the cut admits; the transform is exact because every
+int32 converts to a double without rounding.
+
+MEASURED, predict over n.test = 1e6 with 20 five-level dense factor
+columns beside a sparseFactor, one thread, medians of 7: the coded
+replay comes out about a fifth faster than the double path across
+5-200 trees, with the double path itself unmoved.
+
+The widen translateSource used to do for every entry moves to
+widenCodedDenseColumns and fires only where the consumer addresses the
+dense raw as one block - the test-store build. setTestPredictors still
+widens, after its refusals; dbarts_sampler_predict and the saved-tree
+replay behind getTrees route rows straight off the codes instead.
+buildTest's split-channel refusal stays unreachable by construction of
+the funnels that reach it, which is S4b's rework to consume. On the R
+side parseMixedContainerBlock gains the same split layout, and
+parseTestSource - the read-only funnel predict, predictPerForest and
+getTrees share - asks for it, so a resident test container's factor
+columns cross as codes at all three. No R product code changed:
+validateXTest already kept a sparse-backed container resident and
+densified everything else, so the entrances that can reach the channel
+were already resident. No shipped header changed and
+DBARTS_C_API_HASH holds at 0xca7b56a64c812b8d.
+
+Peak RSS on the test side falls by the same 4 bytes per factor cell
+S4a gave the training side.
+
+Reviewer fixes folded: the cost model, which had called the coded arm
+one predicted branch test slower, is corrected to name the
+int-to-double conversion a per-row widen was paying instead, and fixed
+by specializing the descent's loop per channel rather than by caveat;
+the reader's tests/cpp pin now reads two coded columns of different
+content against the slice pointer the descent takes, discriminating a
+reader that resolved every coded column to one slice or dropped the
+missing-marker map, and the flat entrances that reach a coded source
+without the reader - the test-store install, the two predictor
+mutations - each gained a coded-against-double agreement pin; the
+moved nbinom control-attribute cite in feature-matrix.md, which had
+landed on the comment introducing bartcore.dispersion rather than the
+attribute read, now names the read.
+
+Docs brought current in-slice: docs/design/data-store.md,
+docs/architecture.md and inst/NEWS.Rd.
+
+Gates (implementer-run; independent battery pending): equivalence-02d41365
+46/46, bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337
+11/11, all bitwise with no max |z| line.
+
 ### Kind-axis slice S4a, the code channel through the bridge's validation (e36fccbe, 6b597efb, 01cf9f4c, d89994d0, 070afd92, dec670bb, 7976ebff, 0e8830e9, a93c44ea, fd2af7c5, 3a676bc3, 1db47e89, 2026-09-02)
 
 Slice S4a of docs/plans/column-kind-consolidation.md lands as twelve
