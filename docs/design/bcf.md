@@ -344,7 +344,7 @@ restated here. bcf's TREATMENT forest now has its own move available
 in that same code (the b-move, docs/plans/archive/bcf-b-ridge.md), but it
 ships OFF: `AmplitudeSpec::ridgeB = false`, because enabling it consumes a
 GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
-own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
+own acceptance gate ([[docs/plans/archive/bcf-b-ridge.md:438-449@9cebb352]]) has not been run.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
@@ -353,14 +353,14 @@ BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@bases` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.forests")` (R/spec.R:740-772, the `bartcore.variance`
+`attr(control, "bartcore.forests")` ([[spec.R#resolveSamplerSpec]], the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:3244-3261). `$setForestBasis`, `$getForestFits`,
+([[R_interface_bartcore.cpp#createHolder]]). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; R/dbarts.R:1475, 1724-1772). `dbarts_sampler_create` reaches
+339aeb0; [[dbarts.R#setForestBasis, getForestFits, getForestAmplitudes, getForestVariableCounts]]). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
-entries (inst/include/dbarts/dbarts.h:1115-1166), and `setResponse` takes an
+entries ([[dbarts.h#dbarts_sampler_numForests, dbarts_sampler_setForestBasis, dbarts_sampler_getForestFits, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]), and `setResponse` takes an
 explicit `updateScale` argument. The flat surface carries no `setTreatment`
 and no `bcfGlue`: the first was re-signed as `setForestBasis(sampler, forest,
 basis, numColumns)` and the second replaced by the ragged
@@ -388,11 +388,11 @@ public. **"bartCause is the intended consumer, driving from R over the
 sampler mutation API"** (opening paragraph) overstated the mechanism -
 bartCause never calls a mutation method. Verified by grep at bartCause
 dbarts-1.0@695c603 (no `LinkingTo`, no `src/`): every sibling in its
-response-method switch (`R/bartc.R:123-126` - `bart`, `p.weight`, `tmle`, and
+response-method switch (bartCause's `R/bartc.R` - `bart`, `p.weight`, `tmle`, and
 the still-commented `bcf`) dispatches to a FIT FUNCTION (`getBartResponseFit`
-calls `dbarts::bart2`/`rbart_vi`, R/responseFit.R:91,112,121;
+calls `dbarts::bart2`/`rbart_vi`, bartCause's `R/responseFit.R`;
 `getPWeightResponseFit`/`getTMLEResponseFit` both redirect through it,
-R/responseFit.R:399,682), never a `dbartsSampler` method. BCF is expected to
+same file), never a `dbartsSampler` method. BCF is expected to
 arrive in bartCause the same way, through a `bcf()` fit function.
 
 **The causal argument names are GONE from the fitting surface (M2,
