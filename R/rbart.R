@@ -477,12 +477,20 @@ rbart_vi <- function(
     }
 
     if (inherits(tryResult, "error")) {
+      # a cluster that cannot be started or that fails mid-run leaves the
+      # results unchanged and only the execution serial, so it narrows
+      # dbartsFallbackWarning rather than sharing it with the fallbacks that
+      # substitute for an input the caller supplied
       warning(warningCondition(
         paste0(
           "unable to multithread, defaulting to single: ",
           tryResult$message
         ),
-        class = c("dbartsFallbackWarning", "dbartsWarning")
+        class = c(
+          "dbartsThreadFallbackWarning",
+          "dbartsFallbackWarning",
+          "dbartsWarning"
+        )
       ))
       runSingleThreaded <- TRUE
     } else {
@@ -520,7 +528,11 @@ rbart_vi <- function(
             "error running multithreaded, defaulting to single: ",
             tryResult$message
           ),
-          class = c("dbartsFallbackWarning", "dbartsWarning")
+          class = c(
+            "dbartsThreadFallbackWarning",
+            "dbartsFallbackWarning",
+            "dbartsWarning"
+          )
         ))
         runSingleThreaded <- TRUE
       }

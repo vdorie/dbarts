@@ -85,7 +85,7 @@ xbart(
      An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance.
    }
    \item{sigest}{
-     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}, \code{\link{rbart_vi}}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}.
+     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}, \code{\link{rbart_vi}}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Results are reproducible for a fixed pair of \code{seed} and \code{n.threads}; the caller's random stream is left untouched when a seed is given. Without one, \code{\link{set.seed}} beforehand suffices.

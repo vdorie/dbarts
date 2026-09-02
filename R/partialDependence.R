@@ -50,8 +50,9 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
     fit <- list()
     if (!sampler$control@keepTrees) {
       # shared with the bart-fit-object branch below and with rbart_vi's
-      # multithread and grouping fallbacks: the intended input is
-      # unavailable, so the call substitutes or regenerates one instead
+      # group.by.test recycle: the input the caller supplied cannot serve
+      # the call as given, so one is substituted or regenerated. The thread
+      # and draw fallbacks narrow this class instead of sharing it
       warning(warningCondition(
         paste0(
           "calling ",

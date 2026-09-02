@@ -39,7 +39,8 @@ that originates there is adopted only when it stands on its own
 demonstrated merits under scrutiny (each such adoption below states that
 merit case explicitly); where all of that is silent or conflicting, the
 in-repo majority stands. Each rule below is tagged **CONFIRMED**,
-**OVERRIDDEN**, or **SILENT-KEPT**.
+**OVERRIDDEN**, or **SILENT-KEPT**; **RULED** marks a rule the project
+lead set directly rather than one measured against the existing corpus.
 
 ## R1. Argument/formal-name quoting: single quotes — CONFIRMED
 
@@ -599,7 +600,7 @@ wording needed no change to already match the more common external idiom for
 this family of refusal. **R14 is CONFIRMED unchanged**, reinforced by the
 same data set that left R13 SILENT-KEPT.
 
-## R15. Warning classes — every `warning()` carries a class under `dbartsWarning`
+## R15. Warning classes — every `warning()` carries a class under `dbartsWarning` — RULED
 
 Ruled by the project lead 2026-09-02: every warning the package raises is
 signaled as `warning(warningCondition(<message>, class = c("dbarts<Thing>Warning",
@@ -610,13 +611,22 @@ unused-`...`-argument, and sigma-fallback warnings
 is a defect under this rule wherever `R/` can reach it. `<Thing>` names the
 CONDITION being reported, not the call site: two sites that report the same
 condition through different messages share one class, the way a sampler
-that is not keeping trees and a `bart` fit that was not kept both report
-"the intended state is unavailable, a substitute was used instead" under
-one `dbartsFallbackWarning`
-([[R/partialDependence.R#pdbart.prologue]],
-[[R/rbart.R#rbart_vi_fit_bartcore]]). A subclass is for a condition that is
-honestly a narrower case of its parent's, as `dbartsSparseSigmaFallbackWarning`
-already narrows `dbartsSigmaFallbackWarning`
+that is not keeping trees, a `bart` fit that was not kept, and a test set
+given without its own grouping factor all report "the input supplied
+cannot serve this call as given, so one was substituted" under one
+`dbartsFallbackWarning`
+([[R/partialDependence.R#pdbart.prologue]], [[R/rbart.R#rbart_vi]]).
+Conversely, sites a caller would want to catch apart do not share a class
+however similar their prose: a cluster that will not start leaves the
+results untouched and only the execution serial
+(`dbartsThreadFallbackWarning`), and an exhausted rejection loop returns
+the starting value as the draw, so the chain does not move
+(`dbartsDrawFallbackWarning`) - neither is the input problem the two
+`pdbart` sites report, and promoting one to an error with
+`options(warn = 2)` should not promote the others. A subclass is for a
+condition that is honestly a narrower case of its parent's: both of those
+are fallbacks and are signaled under `dbartsFallbackWarning` as well, the
+way `dbartsSparseSigmaFallbackWarning` narrows `dbartsSigmaFallbackWarning`
 ([[R/utility.R#estimateSigmaFromLinearModel]]).
 
 The message body is unaffected by this rule and keeps following R1-R6
@@ -660,8 +670,10 @@ over unchanged):
 | `dbartsIgnoredArgWarning` | [[R/dbarts.R#dbartsSampler$printTrees]] |
 | `dbartsUnmeasuredLevelsWarning` | [[R/rbart.R#packageRbartResults]] |
 | `dbartsFallbackWarning` | [[R/partialDependence.R#pdbart.prologue]] |
+| `dbartsThreadFallbackWarning` | [[R/rbart.R#rbart_vi]] |
+| `dbartsDrawFallbackWarning` | [[R/sliceSample.R#sliceSample]] |
 | `dbartsDegenerateResponseWarning` | [[R/data.R#dbartsData]] |
-| `dbartsDuplicateNameWarning` | [[R/multipleAssignment.R#"present multiple times in right-hand-side of assignment"]] |
+| `dbartsDuplicateNameWarning` | [[R/multipleAssignment.R#"[<-.lval"]] |
 
 ---
 

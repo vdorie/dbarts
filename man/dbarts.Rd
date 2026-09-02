@@ -87,7 +87,7 @@ dbarts(
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
   }
   \item{sigma}{
-    A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2}, \code{\link{xbart}}, and \code{\link{rbart_vi}}.
+    A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2}, \code{\link{xbart}}, and \code{\link{rbart_vi}}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
   }
   \item{seed}{
     Optional integer seed for the random number generator, a convenience mirror of \code{dbartsControl(seed = )}. When not \code{NA} it overrides the seed in \code{control}; the fitting-function wrappers (\code{\link{bart2}}, \code{\link{xbart}}) accept the same argument.

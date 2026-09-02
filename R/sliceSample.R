@@ -251,15 +251,21 @@ sliceSample <- function(
       error = function(e) e
     )
     if (inherits(tryResult, "error")) {
-      # shares dbartsFallbackWarning with rbart_vi's own fallbacks: the
-      # intended draw is unavailable, so a substitute value is used instead
+      # an exhausted rejection loop returns the starting value as the draw,
+      # so the chain does not move: a failure of the draw itself rather than
+      # of an input the caller supplied, and a narrower condition than the
+      # dbartsFallbackWarning it is signaled under
       warning(warningCondition(
         paste0(
           "rejection sample failed after ",
           maxIter,
           " iterations; dominating function may require hand-tuning"
         ),
-        class = c("dbartsFallbackWarning", "dbartsWarning")
+        class = c(
+          "dbartsDrawFallbackWarning",
+          "dbartsFallbackWarning",
+          "dbartsWarning"
+        )
       ))
       x <- start
     } else {
