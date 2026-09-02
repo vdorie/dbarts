@@ -204,6 +204,15 @@ items
     the first arm the constrained prior draw unblocks; the
     heteroscedastic setState lift, liftable R-side; and the full-R
     ladder re-runs, whose commands the plan records.
+  sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
+    PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
+    midpoint cut grid's posterior shift is adjudicated only at the four-
+    level, single-tree shape the exact gate enumerates
+    (benchmarks/R/categorical-exact.R's ordered arm) and by the coherence
+    of the equivalence corpus's variable-selection reallocation. An arm
+    over an ordered-factor design at a level count above n.cuts, with an
+    interior level absent from training, would calibrate the grid at the
+    shape a user actually hits.
   second-review-followups: three doors the second whole-branch review
     recorded, none with a decision yet - a negbin rootogram panel,
     ordinal log_diff_exp tail precision, and a negbin burn-in

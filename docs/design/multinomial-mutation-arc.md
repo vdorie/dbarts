@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3584`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3550`) - the dedicated
+(`src/R_interface_bartcore.cpp:3600`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3566`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -131,15 +131,15 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4325` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3865` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:3940` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:3979` | `:125` | S, unexported |
+| run | `bartcore_run` `:4336` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:3881` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:3956` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:3989` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5237` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4806` | `:558` | S (`refuseUndefinedTestFits` `:2926` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5252` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:4821` | `:558` | S (`refuseUndefinedTestFits` `:2933` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4074` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5850` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5868` | `:1085` | S |
 | per-category fits / varcounts | `:4147`, `:4280` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4205` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5684`, `:5689` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
@@ -148,8 +148,8 @@ except where it names another file:
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, `:2647-2674`), `setWeights`
 (`:2694-2698`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2634`), `setCalibration` (`:4264-4272`),
-`setForestWeights` (`:4044-4047`, permanent, model grounds), `getLatents`
+(`refuseMultiForestMutation` `:2634`), `setCalibration` (`:4289-4305`),
+`setForestWeights` (`:4064-4076`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2080`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:2103`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the

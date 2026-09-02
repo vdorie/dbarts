@@ -27,18 +27,25 @@ directly on the store as parallel vectors, one entry per predictor:
   (`data.hpp:215`). Splitting keys on the DERIVED predicate
   `splitsBySubset(j)`, not on the kind: only grid construction, ingestion
   validation and reporting read the kind itself.
-- `numCuts[j]` - the ordinal cut count, and 0 for a categorical column
-  (which has no cut grid at all). `refreshCutsForColumn` (the mutation
-  re-cut) keeps the count fixed, and only `setCutPointsForColumn` (the
-  setCutPoints surface) changes it.
+- `numCuts[j]` - the threshold count: `n.cuts` (or the quantile-induced
+  count) for a numeric column, K - 1 for an ordered factor, and 0 for a
+  categorical column (which has no cut grid at all).
+  `refreshCutsForColumn` (the mutation re-cut) keeps a numeric column's
+  count fixed and leaves a factor column of either kind alone, and only
+  `setCutPointsForColumn` (the setCutPoints surface, refused on a factor
+  column) changes it.
 - `categoryCounts[j]` - the fixed level count K of a factor column of
   either kind, 0 for a numeric one. Fixed at build: every mask tier,
   reserved missing code and category histogram width derives from it.
-- `cutPoints[j]` - the ascending ordinal thresholds (empty for
-  categoricals).
+- `cutPoints[j]` - the ascending thresholds (empty for categoricals). An
+  ordered factor's are the K - 1 midpoints between consecutive declared
+  level codes, so its code is its own level index and every adjacent
+  level pair is separable.
 - `maxNumCuts[j]` - the cap on quantile-induced counts, itself capped at
   `maxNumCutsRepresentable` so the reserved missing code `naCode` (0xFFFF)
-  never collides with a real code.
+  never collides with a real code. An ordered factor RAISES it to K - 1
+  where the level table asks for more, keeping
+  `numCuts[j] <= maxNumCuts[j]` while the grid follows the levels.
 - `useQuantiles` - grid mode (store-wide).
 - `hasMissing[j]`, `hasPooledCategorical` - derived flags gating the
   NA-aware partition kernel and the pooled-mask machinery.
@@ -222,16 +229,17 @@ strategies parameterize it:
 - `SubsetUpdate` (`sampler.hpp:1448`), driving `updatePredictor`:
   journals each touched column cell-by-cell via `setColumnJournaled`,
   recording each changed cell's old code into a `ColumnCodeRollback`
-  (`data.hpp:1705`). Past a quarter of the column changed, the journal
+  (`data.hpp:1804`). Past a quarter of the column changed, the journal
   falls back to a whole pre-change column copy and stops journaling. Per
   column it also snapshots `hasMissing[j]` and (if cuts refresh)
   `cutPoints[j]`.
 
-The transaction sequence (`sampler.hpp:1512`):
+The transaction sequence (`sampler.hpp:1813`):
 
 1. Precheck every column with `cutsWouldRemainValid` - quantile
-   feasibility for ordinals when cuts refresh, categorical code validity
-   always. A failure returns `invalidCutPoints`, nothing mutated.
+   feasibility for numeric columns when cuts refresh, level-code validity
+   always for a factor column of either kind. A failure returns
+   `invalidCutPoints`, nothing mutated.
 2. `forceUpdate`: apply, `forceRefreshTrees` (every forest, collapsing
    emptied leaves), requantize the test columns, accept.
 3. Otherwise snapshot-apply, then `revalidateAllChains`. The gathered

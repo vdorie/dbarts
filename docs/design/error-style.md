@@ -271,9 +271,9 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4723`/`:5008`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4737`/`:5026`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
-  date (38 of 69 vs 31 without), e.g. `:2644`. Reword the no-colon
+  date (38 of 69 vs 31 without), e.g. `:2651`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
   reads `"%s: requires a numeric matrix with matching columns"`, and the
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole
