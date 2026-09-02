@@ -10,7 +10,7 @@ superseded; the critique's 35 findings are dispositioned in section 1.
 |---|-----|-------------|----------------------|
 | 1 | ok | ACK | Archaeology stands as written; no change. |
 | 2 | MAJ | **ACCEPTED** | Verified: `main:DESCRIPTION` = 0.9-34 (2026-08-20); 93f354a8 bumped to 0.9-31; `main:src/dbarts/bartFit.cpp` still carries the numThreads overload (7 hits). 0.9-31 SHIPPED and 1.0-0 is a live regression against four releases. Precedent f04e8686 (2026-08-20) edits NEWS in place. Decision 5 REVERSED - the entry is corrected in place (4.6). |
-| 3 | min | **ACCEPTED** | docs/plans/archive/interface-review.md F10 ([[docs/plans/archive/interface-review.md:198-205@658869ac]]) records both formals "fully inert, not merely serial"; [[docs/plans/archive/interface-review.md:543@658869ac]] lists "threaded prediction" on the 2.0-WISHLIST. Both cited; the wishlist line is struck by this slice. |
+| 3 | min | **ACCEPTED** | docs/plans/archive/interface-review.md F10 ([[docs/plans/interface-review.md:198-205@658869ac]]) records both formals "fully inert, not merely serial"; [[docs/plans/interface-review.md:543@658869ac]] lists "threaded prediction" on the 2.0-WISHLIST. Both cited; the wishlist line is struck by this slice. |
 | 4 | ok | ACK | Independent `mutable` / SIMD-dispatch audit strengthens the no-shared-state claim; folded into 2.1. |
 | 5 | ok | ACK | Bitwise-identity-by-construction survives an adversarial read. Unchanged. |
 | 6 | MAJ | **ACCEPTED** | Scratch is per-SLAB, not per-task ([[chain.hpp:2805-2825@f04e8686]] constructs `indices`/`blockOffsets`/`raw` on every call). Design now hoists scratch per WORKER before the spawn, and wraps each worker body in try/catch with a rethrow after the join (2.2). |
@@ -26,8 +26,8 @@ superseded; the critique's 35 findings are dispositioned in section 1.
 | 16 | min | **ACCEPTED** | TWO literals: [[C_interface.cpp:461@f04e8686]] `dbarts_apiSignatureToken == 0x85bd1ef04beb3848ULL` and [[dbarts.h:142@f04e8686]] `DBARTS_C_API_HASH 0x6c9776ae1197e8f5ULL`. Both in the budget (4.1). |
 | 17 | min | **ACCEPTED** | No default argument on any facade virtual (static-type binding). The dense convenience spellings ([[facade.hpp:277@f04e8686]], [[facade.hpp:283@f04e8686]]) take the parameter too, or the dbarts.h-shaped calls stay serial. |
 | 18 | MAJ | **ACCEPTED** | tests/cpp/test_facade.cpp is an edit site at three places (FacadeVirtual list [[facade.hpp:40-41@f04e8686]], SPY_VOID [[facade.hpp:140-146@f04e8686]], conformance [[facade.hpp:752-785@f04e8686]]). The spy now RECORDS the forwarded numThreads and asserts pass-through. |
-| 19 | MAJ | **ACCEPTED** | Four direct 3-argument `.Call` sites verified: [[test-predict-sparse.R:164@f04e8686]], [[test-multinomial-test-offset.R:406@f04e8686]] and [[test-multinomial-test-offset.R:415@f04e8686]], [[test-multinomial-category-offset.R:431@f04e8686]]. Plus [[R/bartcore.R:1472@f04e8686]], [[R/bartcore.R:1490@f04e8686]] and [[R/dbarts.R:1140@f04e8686]], [[R/dbarts.R:1153@f04e8686]]. All budgeted. |
-| 20 | MAJ | **ACCEPTED** | bartCause [[R/generics.R:162@f04e8686]] calls `predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)` POSITIONALLY. The formal is APPENDED LAST on all six generics, and each gets its own default expression (4.5). |
+| 19 | MAJ | **ACCEPTED** | Four direct 3-argument `.Call` sites verified: [[test-predict-sparse.R:164@f04e8686]], [[test-multinomial-test-offset.R:406@f04e8686]] and [[test-multinomial-test-offset.R:415@f04e8686]], [[test-multinomial-category-offset.R:431@f04e8686]]. Plus [[R/bartcore.R:1472@42b12ac7]], [[R/bartcore.R:1490@42b12ac7]] and [[R/dbarts.R:1140@f04e8686]], [[R/dbarts.R:1153@f04e8686]]. All budgeted. |
+| 20 | MAJ | **ACCEPTED** | bartCause's `R/generics.R` line 162 calls `predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)` POSITIONALLY. The formal is APPENDED LAST on all six generics, and each gets its own default expression (4.5). |
 | 21 | MAJ | **ACCEPTED** | `return(predictForest(...))` at [[R/generics.R:265@f04e8686]] and `return(predictBlend(...))` at [[R/generics.R:272@f04e8686]] both precede the coercion at [[R/generics.R:294@f04e8686]]. Validation moves ABOVE both; predictBlend ([[R/generics.R:727-738@f04e8686]]) joins the site list. |
 | 22 | MAJ | **ACCEPTED** | Measurement re-taken paired, alternating, per-round, loadavg stamped (section 3). No share above 100% is reported. |
 | 23 | MAJ | **ACCEPTED** | The offset add ([[R_interface_bartcore.cpp:5736-5739@f04e8686]]) and `Rf_duplicate` ([[R_interface_bartcore.cpp:5745@f04e8686]]) are serial work inside the `.Call` the partition never touches. Section 3 now measures the offset and heteroscedastic configurations and gives the structural O(1/numTrees) bound. |
@@ -42,7 +42,7 @@ superseded; the critique's 35 findings are dispositioned in section 1.
 | 32 | min | **ACCEPTED** | `git show --stat 63df524e`: +651/-18 across 15 files (202 test lines + 112 tests/cpp), with no ABI change. Budget re-cast as diff lines (4.7). |
 | 33 | MAJ | **ACCEPTED** | The timing ratio is gone. The observable is deterministic: resolved worker count and slab->worker coverage, surfaced through a test-only channel. |
 | 34 | min | **ACCEPTED** | [[sanitizers.yaml:72-82@63df524e]] runs `tinytest::test_package("dbarts")` - the whole suite - so there is nothing to "run instead", and ASAN/UBSAN detect no races. A `-fsanitize=thread` arm over tests/cpp replaces "no TSAN". |
-| 35 | min | **DISPUTED (as stated), remedy ACCEPTED** | At the memo's stated anchor 0045507c the cited numbers are EXACT: `git show 0045507c:src/R_interface_bartcore.cpp` gives predictFromSource [[sanitizers.yaml:5641@0045507c]], refuseUndefinedTestFits [[sanitizers.yaml:2858@0045507c]], bartcore_predict [[sanitizers.yaml:5760@0045507c]] - the memo's values. The +13 drift is 42b12ac7 and 33837351 landing during review (+35/-10 in that file). The critique measured against a moved tree. Remedy accepted regardless: R2 is anchored at 33837351 ([[sanitizers.yaml:5654@42b12ac7]], [[sanitizers.yaml:2871@42b12ac7]], [[sanitizers.yaml:5773@42b12ac7]]). |
+| 35 | min | **DISPUTED (as stated), remedy ACCEPTED** | At the memo's stated anchor 0045507c the cited numbers are EXACT: `git show 0045507c:src/R_interface_bartcore.cpp` gives predictFromSource [[src/R_interface_bartcore.cpp:5641@0045507c]], refuseUndefinedTestFits [[src/R_interface_bartcore.cpp:2858@0045507c]], bartcore_predict [[src/R_interface_bartcore.cpp:5760@0045507c]] - the memo's values. The +13 drift is 42b12ac7 and 33837351 landing during review (+35/-10 in that file). The critique measured against a moved tree. Remedy accepted regardless: R2 is anchored at 33837351 ([[src/R_interface_bartcore.cpp:5654@42b12ac7]], [[src/R_interface_bartcore.cpp:2871@42b12ac7]], [[src/R_interface_bartcore.cpp:5773@42b12ac7]]). |
 
 **Score: 33 accepted, 1 split (26), 1 disputed as stated with the remedy accepted (35).**
 
@@ -222,7 +222,7 @@ with instructions, so the sequence is self-correcting.
 ### 4.5 The six generics
 
 The formal is **APPENDED LAST**, after every existing positional formal and before `...`, on all
-six. bartCause [[R/generics.R:162@42b12ac7]] calls `predict(object$fit.trt, x.new, group.by, combineChains =
+six. bartCause's `R/generics.R` line 162 calls `predict(object$fit.trt, x.new, group.by, combineChains =
 FALSE, ...)` positionally, so inserting `n.threads` before `group.by` in predict.rbart would pass a
 factor as a thread count. Each gets its own default expression:
 
@@ -270,14 +270,14 @@ flag it either way. The NEW tests pass explicit values <= 2.
 - The 1.0-0 entry states that predict threading is BACK and that it partitions **per (chain,
   draw)**, not "across chains" - the 0.9-31 axis is not this one, so the old wording would stay
   false after the slice.
-- [[docs/plans/archive/interface-review.md:543@f04e8686]] - strike "threaded prediction" from the 2.0-WISHLIST; F10
-  ([[docs/plans/archive/interface-review.md:198-205@f04e8686]]) gets a landed note.
+- [[docs/plans/interface-review.md:543@f04e8686]] - strike "threaded prediction" from the 2.0-WISHLIST; F10
+  ([[docs/plans/interface-review.md:198-205@f04e8686]]) gets a landed note.
 
 ### 4.7 Tests, with the mutation each proves
 
 | test | file | mutation it fails on |
 |---|---|---|
-| forwarded-numThreads spy | tests/cpp/test_facade.cpp (FacadeVirtual list [[docs/plans/archive/interface-review.md:40-41@f04e8686]], `SPY_VOID` [[docs/plans/archive/interface-review.md:140-146@f04e8686]], conformance [[docs/plans/archive/interface-review.md:752-785@f04e8686]]) | a forwarder at [[facade.hpp:545@f04e8686]]/[[facade.hpp:549@f04e8686]]/[[facade.hpp:554@f04e8686]] that drops the argument - "the wiring is a no-op" |
+| forwarded-numThreads spy | tests/cpp/test_facade.cpp (FacadeVirtual list [[tests/cpp/test_facade.cpp:40-41@42b12ac7]], `SPY_VOID` [[tests/cpp/test_facade.cpp:140-146@42b12ac7]], conformance [[tests/cpp/test_facade.cpp:752-785@42b12ac7]]) | a forwarder at [[facade.hpp:545@f04e8686]]/[[facade.hpp:549@f04e8686]]/[[facade.hpp:554@f04e8686]] that drops the argument - "the wiring is a no-op" |
 | worker-count / coverage | tests/cpp, new case | resolution not `min(requested, slabs)`; a partition that skips or double-covers a slab, at counts 1, 2, 3, 7 |
 | `setNumThreads(0)` then predict | tests/cpp | zero workers returning an uninitialized buffer (finding 7) |
 | bitwise identity | inst/tinytest/test-generics-multithreaded.R (rewritten) | any partition-dependent result. `identical()`, not `expect_equal`: 1L vs 2L/3L/4L across gaussian at 1 and 4 chains, probit `type = "bart"`, multinomial, heteroscedastic (both list legs), BCF via `predictForests` AND plain predict through predictBlend, per-forest replay, dgCMatrix and dbartsMixedMatrix sources, and one test set each side of the cutoff. Thread counts that do not divide the slab count (3L against 4 x 20). |
@@ -314,7 +314,7 @@ files with NO ABI change; this one adds the ABI, the generic fan-out and a bench
 | Rd + NEWS + docket | ~70 | Rd item split, six usage blocks, 0.9-31 correction, 1.0-0 entry, wishlist strike |
 | tests | ~280 | rewritten tinytest file ~170, tests/cpp ~90, four arity repairs ~20 |
 | bench | ~100 | benchmarks/R/bench-predict.R + baseline |
-| stan4bart | 1 | [[src/init.cpp:342@63df524e]]: `dbarts_sampler_predict(fit, &x_test, testOffset, 0, REAL(result));` plus a rebuild (it pins the hash by equality at [[src/init.cpp:972@63df524e]]) |
+| stan4bart | 1 | stan4bart's `src/init.cpp` line 342: `dbarts_sampler_predict(fit, &x_test, testOffset, 0, REAL(result));` plus a rebuild (it pins the hash by equality at stan4bart's `src/init.cpp` line 972) |
 | bartCause | 0 | S3 `...` forwarding only - but ONLY under the append-last rule (4.5) |
 
 **S2** (after S1): bench-predict.R's scaling curve on a quiet box, the tuned cutoff constant, and

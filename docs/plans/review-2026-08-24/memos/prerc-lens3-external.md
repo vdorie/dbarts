@@ -40,13 +40,13 @@ only), so it is a truthfulness issue. Raise to `R (>= 4.2.0)`, or `4.3.0` for ma
 
 **B3. Compat branches - all three bartCause failures are the consumer's.**
 - **bartCause** (`dbarts-1.0`, `7ae6e83`, clean/pushed): the `alignForestBasisToSubset` failures at
-  `[[tests/testthat/test-04-bartc.R:301@7a8c7286]]`, `[[test-14-bcf.R:187@7a8c7286]]`, `[[test-15-subset-pscore.R:38@7a8c7286]]` are **consumer's to fix**. dbarts
+  bartCause's `tests/testthat/test-04-bartc.R` line 301, `test-14-bcf.R` line 187, `test-15-subset-pscore.R` line 38 are **consumer's to fix**. dbarts
   deliberately inverted the basis/subset contract *after* bartCause's tip - `4aa52288` (08-20), `47cdb96a` (08-24), both in
   NEWS.Rd - and `[[R/model.R:955-978@47cdb96a]]` now refuses a basis whose row count matches the subset rather than the full data;
-  `bartCause [[R/bcf.R:144@47cdb96a]]` still pre-subsets on the formula path. **Two edits the recorded count misses**:
-  `[[test-14-bcf.R:220-224@47cdb96a]]` asserts the *old* direction, and the oracle at `[[test-14-bcf.R:16-17@47cdb96a]]` pre-subsets its basis.
+  bartCause's `R/bcf.R` line 144 still pre-subsets on the formula path. **Two edits the recorded count misses**:
+  bartCause's `test-14-bcf.R` lines 220-224 asserts the *old* direction, and the oracle at bartCause's `test-14-bcf.R` lines 16-17 pre-subsets its basis.
   **`[[TODO:306-309@47cdb96a]]` still calls bartCause "ready and PUSHED ... Status OK"** - stale, contradicted by
-  `[[docs/plans/bartcore-review-tour.md:463-467@47cdb96a]]`. Correcting it is pre-RC.
+  `[[docs/plans/bartcore-review-tour.md:463-467@7a8c7286]]`. Correcting it is pre-RC.
 - **treatSens** (`1d7c697`): no recorded failure; needs only a `--preclean` rebuild (compile-time hash predates the re-bake).
 - **stan4bart** (`bartcore`, `2185866`): **no signature mismatch** - all 28 `dbarts_*` symbols match, every `dbarts_results`
   field it writes is above the 1.0-0 boundary. The live risk closed itself: dbarts `c44fcbc5` added `numThreads` to
@@ -91,7 +91,7 @@ standard-sensitive. Latent on R 4.3-4.5, and a trap the first time a C++20-sensi
   `LinkingTo` never appears there. `news(package=)` drops the lead-in at 6-7, so CRAN's news view shows UPGRADING with no
   statement of what it is. **Minimum fix: repair UPGRADING, ~40 lines, pre-RC.** Full restructure to ~360 lines with overflow
   moved to a migration vignette is ~400 lines + ~250 of prose, roughly a day - the largest discretionary item in this report.
-- **README never shows how to fit a model**, and documents priors that are not reachable - pre-RC (surface). `[[README.md:12-27@c44fcbc5]]`
+- **README never shows how to fit a model**, and documents priors that are not reachable - pre-RC (surface). `[[./README.md:12-27@c44fcbc5]]`
   is a bare feature list; the only R is `install.packages`/`install_github` (38-46), and `bart()`/`bart2()`/`xbart()`/
   `rbart_vi()` are never named (line 27 points at `inst/NEWS.Rd`, a source path). Worse, `resid.dist = student(3)`,
   `tree.prior = dart()`, `node.prior = linear(...)`/`gp(...)` (20-21) work only typed literally inline (resolved by
@@ -134,7 +134,7 @@ standard-sensitive. Latent on R 4.3-4.5, and a trap the first time a C++20-sensi
   `[[src/Makevars.in:33@c44fcbc5]]` **and** `[[src/Makevars.win:23@c44fcbc5]]`; they agree, and check reports `specified C++20` with no mismatch. The
   premise that current advice is "SystemRequirements only, no CXX_STD" is outdated - that was C++11/14-era guidance.
 - **Portability + Windows + registration**: zero `#pragma` in `src/`; 5 `__builtin_*`, all behind configure/compiler guards
-  (`[[misc/partition.c:28@c44fcbc5]]`, `[[include/misc/intrinsic.h:36@c44fcbc5]], [[include/misc/intrinsic.h:37@c44fcbc5]], [[include/misc/intrinsic.h:60@c44fcbc5]]`, `[[include/misc/alloca.h:19@c44fcbc5]]`); no `-O3`, `-march`, `-mtune`,
+  (`[[src/misc/partition.c:28@c44fcbc5]]`, `[[src/include/misc/intrinsic.h:36@c44fcbc5]], [[src/include/misc/intrinsic.h:37@c44fcbc5]], [[src/include/misc/intrinsic.h:60@c44fcbc5]]`, `[[src/include/misc/alloca.h:19@c44fcbc5]]`); no `-O3`, `-march`, `-mtune`,
   `-flto`, `-ffast-math`, `-funroll` anywhere; no OpenMP; Windows pthreads via `$(SHLIB_PTHREAD_FLAGS)`.
   `tools/check-win-drift.R` OK (6 version literals, 4 config headers, 38 expected-absent entries, 0 UNKNOWN) - it checks
   `PACKAGE_*` literals in the `*.win` config headers against DESCRIPTION and each `*.win` macro nameset against its `*.in`
