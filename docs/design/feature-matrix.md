@@ -195,7 +195,7 @@ reads "constant leaf" in that column.
 
 | model | equivalence baseline [f39] | SBC verdict [f40] | dedicated tinytest files |
 |---|---|---|---|
-| gaussian | 24 scenarios (friedman, weighted, splitprobs, chains, setdata, wtoffset, quants, categorical, missing, dart, linear, gp, zeroweights, sparse, wtgp, chik2, pred*, ordfactor, nafactor, sparsefactor) | PASS 7/7 | ~20 (test-sampler-*.R, test-bart-bart2.R, test-zero-weights.R) |
+| gaussian | 29 scenarios (friedman, weighted, splitprobs, chains, setdata, wtoffset, quants, categorical, missing, dart, linear, gp, zeroweights, sparse, wtgp, chik2, pred*, ordfactor, nafactor, sparsefactor, testswap, leaffactor, leaffactormixed, factorpartial, xbartmixed) | PASS 7/7 | ~20 (test-sampler-*.R, test-bart-bart2.R, test-zero-weights.R) |
 | student | `student` | PASS 4/4 | test-robust-errors.R only |
 | probit | `probit`, `chik` | PASS | test-binaryResponse-hyperprior.R, test-family.R, test-weighted-binary-ppd.R |
 | logistic | `logistic`, `wtlogistic` | PASS 6/6 | test-weighted-logistic.R, test-family.R |
@@ -210,13 +210,15 @@ reads "constant leaf" in that column.
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
 The rows are keyed by response model; predictor SHAPE cuts across them.
-Three gaussian scenarios carry the factor shapes: `ordfactor` (an ordered
+Eight gaussian scenarios carry the factor shapes: `ordfactor` (an ordered
 factor at K = 150, three interior levels absent from training),
 `nafactor` (two NA-bearing factor columns, the MIA-on-a-factor-column
-anchor) and `sparsefactor` (a CSC-backed `sparseFactor`, its count from
-the container's declared level table). `ordfactor` is the only scenario
-in any harness with an ordered-factor predictor, so the ordered-factor
-cut grid rests on it plus `benchmarks/R/categorical-exact.R`'s
+anchor), `sparsefactor` (a CSC-backed `sparseFactor`, its count from the
+container's declared level table), and the five store-path scenarios
+`testswap`, `leaffactor`, `leaffactormixed`, `factorpartial` and
+`xbartmixed`. Four of them - `ordfactor`, `leaffactor`, `leaffactormixed`
+and `xbartmixed` - carry an ordered-factor predictor, so the ordered-factor
+cut grid rests on those plus `benchmarks/R/categorical-exact.R`'s
 ordered-factor arm.
 
 Flat-C test coverage is thinner than family reach: `inst/tinytest/test-capi.R`
