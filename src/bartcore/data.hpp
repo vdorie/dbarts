@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <type_traits>
 #include <vector>
 
@@ -34,6 +35,15 @@ using index_t = std::uint32_t;
 constexpr xint_t naCode = 0xFFFFu;
 constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFDu;
 
+/// The missing marker of a HOST's int32 code channel (PredictorSource's
+/// denseCodes), which is a different reservation from naCode: the minimum
+/// int32, so every other value is a candidate level code and no real code is
+/// spent. Distinct again from the code a missing value takes in the store,
+/// missingCategoryCode below - the channel is what a host hands over, the
+/// store's code is what quantization writes.
+constexpr std::int32_t naDenseCode =
+  std::numeric_limits<std::int32_t>::min();
+
 /// Missing categorical values take a category position above the real ones
 /// so the reachable-mask machinery routes them like any other category: the
 /// fixed position 63 (the top of the rule word) for columns whose mask is
@@ -54,6 +64,33 @@ constexpr xint_t missingCategoryCode(std::uint32_t numCategories) {
 }
 
 inline bool isNA(double value) { return value != value; }
+
+/// One dense column's raw as ingestion reads it: the host's doubles, or its
+/// int32 level codes. Exactly one channel is present, so isCoded discriminates
+/// and at() serves either - a code widens, and naDenseCode becomes the NaN
+/// every double-typed consumer already tests for. The code channel exists so a
+/// host whose factor columns are integers hands them over as integers: the
+/// widen-then-narrow round trip through a transient double block is what it
+/// removes, and the codes it carries are the same integers that block held.
+struct DenseColumnValues {
+  const double* values = nullptr;
+  const std::int32_t* codes = nullptr;
+
+  DenseColumnValues() = default;
+  // implicit from either channel, so a caller that has only one spells only
+  // that one
+  DenseColumnValues(const double* values_) : values(values_) {}
+  DenseColumnValues(const std::int32_t* codes_) : codes(codes_) {}
+
+  bool isCoded() const { return codes != nullptr; }
+  bool isPresent() const { return values != nullptr || codes != nullptr; }
+  double at(size_t i) const {
+    if (codes == nullptr) return values[i];
+    return codes[i] == naDenseCode
+      ? std::numeric_limits<double>::quiet_NaN()
+      : static_cast<double>(codes[i]);
+  }
+};
 
 /// Mean and sample sd of the observed (non-missing) values of a raw column:
 /// the leaf-covariate standardization constants. A constant (or all-missing)
@@ -146,6 +183,15 @@ inline bool levelCodeIsRepresentable(double value) {
   return isNA(value) ||
          (value >= 0.0 && value < static_cast<double>(maxCategories) &&
           value == static_cast<double>(static_cast<std::uint32_t>(value)));
+}
+
+/// The same over the int32 code channel, where integrality is free and the
+/// missing marker is naDenseCode rather than a NaN. Signed throughout: reading
+/// naDenseCode as unsigned would make it the largest count in the column and
+/// inflate K past the tier the mask machinery sizes from it.
+inline bool levelCodeIsRepresentable(std::int32_t code) {
+  return code == naDenseCode ||
+         (code >= 0 && code < static_cast<std::int32_t>(maxCategories));
 }
 
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
@@ -243,6 +289,19 @@ struct PredictorSource {
   size_t numColumns = 0;
 
   const double* denseValues = nullptr;  // column-major, numRows x its columns
+  // the code channel: a second column-major block holding int32 level codes,
+  // naDenseCode for missing, for the dense columns a host stores as integers.
+  // Read only for a FACTOR column - a numeric column's values are real numbers
+  // whatever the host holds them in, and build widens a coded one back before
+  // it cuts a grid over them.
+  const std::int32_t* denseCodes = nullptr;
+  // per column, where a dense-backed column's slice lives when the host splits
+  // its dense storage across the two channels: k >= 0 names double column k of
+  // denseValues, k < 0 code column ~k of denseCodes. The two channels index
+  // independently, so each is packed over the columns it serves. Null leaves
+  // every dense-backed column at column sourceOf(j) of denseValues, the single
+  // block every entrance took before the code channel existed.
+  const std::int32_t* denseChannels = nullptr;
   const int* cscColumnPointers = nullptr;  // length of the CSC source + 1
   const int* cscRowIndices = nullptr;
   const double* cscValues = nullptr;
@@ -283,6 +342,37 @@ struct PredictorSource {
     return referenceCodes != nullptr ? referenceCodes[j] : xint_t{0};
   }
 
+  /// Whether the host split its dense storage across the two channels, so a
+  /// dense-backed column's slice is addressed through denseChannels rather
+  /// than as column sourceOf(j) of denseValues.
+  bool hasSplitDenseChannels() const { return denseChannels != nullptr; }
+
+  /// Whether column j's dense values arrive as int32 codes.
+  bool denseColumnIsCoded(size_t j) const {
+    return denseChannels != nullptr && sourceOf(j) >= 0 && denseChannels[j] < 0;
+  }
+
+  /// Column j's dense raw, in whichever channel holds it; both pointers null
+  /// for a CSC-backed column and for a view carrying no values at all.
+  DenseColumnValues denseColumn(size_t j) const {
+    if (sourceOf(j) < 0) return {};
+    if (denseChannels != nullptr) {
+      std::int32_t which = denseChannels[j];
+      if (which < 0)
+        return denseCodes == nullptr
+          ? DenseColumnValues{}
+          : DenseColumnValues(denseCodes +
+                              static_cast<size_t>(~which) * numRows);
+      return denseValues == nullptr
+        ? DenseColumnValues{}
+        : DenseColumnValues(denseValues +
+                            static_cast<size_t>(which) * numRows);
+    }
+    if (denseValues == nullptr) return {};
+    return DenseColumnValues(denseValues +
+                             static_cast<size_t>(sourceOf(j)) * numRows);
+  }
+
   /// Whether the view is a plain column-major dense block every consumer can
   /// index as denseValues + j * numRows: values present, no CSC storage, and
   /// either no map or the identity one. A MAPPED dense view fails this - its
@@ -290,8 +380,18 @@ struct PredictorSource {
   /// mutation entrances test the block rather than merely the absence of CSC
   /// values.
   bool isDenseBlock() const {
-    if (denseValues == nullptr || cscColumnPointers != nullptr ||
-        cscRowIndices != nullptr || cscValues != nullptr)
+    if (denseValues == nullptr || denseChannels != nullptr) return false;
+    return isDenseColumnar();
+  }
+
+  /// The weaker question the entrances that consume a view COLUMN BY COLUMN
+  /// ask: every column dense-backed, no CSC storage, no reordering map -
+  /// whichever channel each column's values sit in. isDenseBlock is the
+  /// stricter one, and only the kernels that index denseValues as a single
+  /// block may ask it.
+  bool isDenseColumnar() const {
+    if (cscColumnPointers != nullptr || cscRowIndices != nullptr ||
+        cscValues != nullptr)
       return false;
     for (size_t j = 0; columnSources != nullptr && j < numColumns; ++j)
       if (columnSources[j] != static_cast<std::int32_t>(j)) return false;
@@ -328,7 +428,10 @@ inline PredictorSource creationPredictorSource(const PredictorSource& source,
   PredictorSource view = source;
   view.numRows = numRows;
   view.numColumns = numColumns;
-  if (!view.isMapped()) view.denseValues = x;
+  // a host that split its dense storage across the two channels addresses
+  // both through denseChannels, so the constructor's block is already the
+  // double half of it rather than a replacement for the whole
+  if (!view.isMapped() && !view.hasSplitDenseChannels()) view.denseValues = x;
   return view;
 }
 
@@ -338,8 +441,14 @@ inline PredictorSource creationPredictorSource(const PredictorSource& source,
 inline PredictorSource denseCreationPredictorSource(
     const PredictorSource& source, const double* x, size_t numRows,
     size_t numColumns) {
-  return densePredictorSource(x, numRows, numColumns, source.columnTypes,
-                              source.categoryCounts);
+  PredictorSource view = densePredictorSource(
+    x, numRows, numColumns, source.columnTypes, source.categoryCounts);
+  // the code channel is dense storage, so it rides: dropping it would leave
+  // the double half addressed as though it held every column
+  view.denseCodes = source.denseCodes;
+  view.denseChannels = source.denseChannels;
+  if (view.hasSplitDenseChannels()) view.denseValues = source.denseValues;
+  return view;
 }
 
 /// Whether every column of a source is CSC-backed - the bare-dgCMatrix design,
@@ -372,9 +481,15 @@ inline void materializePredictorSource(const PredictorSource& source,
     double* target = out + j * numRows;
     std::int32_t which = source.sourceOf(j);
     if (which >= 0) {
-      std::memcpy(target,
-                  source.denseValues + static_cast<size_t>(which) *
-                                         source.numRows + rowBegin,
+      DenseColumnValues column = source.denseColumn(j);
+      if (column.isCoded()) {
+        // the one place the code channel meets a double-typed consumer: the
+        // widen is total, naDenseCode becoming the NaN the reader tests for
+        for (size_t i = 0; i < numRows; ++i)
+          target[i] = column.at(rowBegin + i);
+        continue;
+      }
+      std::memcpy(target, column.values + rowBegin,
                   numRows * sizeof(double));
       continue;
     }
@@ -957,6 +1072,20 @@ struct ColumnStore {
     return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
   }
 
+  /// The same over the int32 code channel: naDenseCode is the missing marker
+  /// rather than a NaN, and the running maximum stays SIGNED so the marker
+  /// cannot become the largest code and inflate K past the mask tier sized
+  /// from it.
+  std::uint32_t inferredCategoryCount(const std::int32_t* column) const {
+    std::int32_t maxCode = -1;
+    for (size_t i = 0; i < numObservations; ++i) {
+      std::int32_t code = column[i];
+      if (!levelCodeIsRepresentable(code)) return invalidCategoryCount;
+      if (code != naDenseCode && code > maxCode) maxCode = code;
+    }
+    return maxCode < 0 ? 0u : static_cast<std::uint32_t>(maxCode) + 1u;
+  }
+
   /// The same over a CSC-backed column's logical values: its retained
   /// nonzeros, plus - for a subset-splitting column only - the reference code
   /// its implicit rows read. An ordered factor's implicit rows quantize a
@@ -997,11 +1126,13 @@ struct ColumnStore {
   /// False refuses the column: some cell of a factor column is not a
   /// representable level code. keepCategoryCount takes the count as already
   /// checked, since it was checked when the column was built.
-  bool buildCutsForColumn(size_t j, const double* column,
+  bool buildCutsForColumn(size_t j, DenseColumnValues column,
                           bool keepCategoryCount = false) {
     if (isFactor(j) && !keepCategoryCount) {
       std::uint32_t inferred = columnIsCscBacked(j)
-        ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
+        ? inferredCategoryCountCsc(j)
+        : (column.isCoded() ? inferredCategoryCount(column.codes)
+                            : inferredCategoryCount(column.values));
       if (inferred == invalidCategoryCount) return false;
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
       categoryCounts[j] = declared > inferred ? declared : inferred;
@@ -1016,15 +1147,17 @@ struct ColumnStore {
     } else if (types[j] == ColumnKind::orderedFactor) {
       fillCutsAtLevelMidpoints(j);
     } else if (useQuantiles) {
+      // a numeric column's grid is over its real values, which build widens a
+      // coded column back to before it gets here
       QuantileGrid grid = columnIsCscBacked(j)
         ? quantileGridForCscColumn(j)
-        : quantileGridForColumn(j, column);
+        : quantileGridForColumn(j, column.values);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
       numCuts[j] = maxNumCuts[j];
       if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
-      else fillCutsUniformly(j, column);
+      else fillCutsUniformly(j, column.values);
     }
     return true;
   }
@@ -1123,6 +1256,31 @@ struct ColumnStore {
                           [](size_t, const xint_t*, xint_t) {});
   }
 
+  /// The code channel's sibling: the same codes the double arm would write,
+  /// reached without the widen. Two things must match it cell for cell. The
+  /// missing marker is naDenseCode rather than a NaN, and it takes the SAME
+  /// reserved code a NaN takes - narrowing it as though it were a level would
+  /// make it a legal-looking category. And it must set hasMissingOut, since a
+  /// column that goes from flagged to unflagged consumes no missing-direction
+  /// draw and shifts every draw after it.
+  void quantizeDenseCodesInto(CodeBlock& block, size_t numRows, size_t j,
+                              const std::int32_t* raw,
+                              std::uint8_t* hasMissingOut) {
+    xint_t* column = block.codes.data() + block.codeOffsets[j];
+    xint_t missingCode = splitsBySubset(j)
+      ? missingCategoryCode(categoryCounts[j]) : naCode;
+    std::uint8_t anyMissing = 0;
+    for (size_t i = 0; i < numRows; ++i) {
+      if (raw[i] == naDenseCode) {
+        column[i] = missingCode;
+        anyMissing = 1;
+        continue;
+      }
+      column[i] = codeFor(j, static_cast<double>(raw[i]));
+    }
+    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+  }
+
   /// Quantize a CSC-backed column j into block against its current cuts: rank
   /// columns rewrite their packed codes and zero code in place (the pattern is
   /// fixed at build), densified ones fill with the zero code and scatter the
@@ -1187,17 +1345,28 @@ struct ColumnStore {
   /// Re-quantize column j's codes from column (the dense raw, or null for a
   /// CSC-backed column, which reads its retained slice), refreshing the
   /// gathered raw copy of a leaf-covariate column in the same pass.
-  void quantizeColumn(size_t j, const double* column) {
+  void quantizeColumn(size_t j, DenseColumnValues column) {
     if (columnIsCscBacked(j)) {
       quantizeCscColumnInto(train, numObservations, j, hasMissing.data());
       return;
     }
-    quantizeDenseInto(train, numObservations, j, column, hasMissing.data());
+    if (column.isCoded())
+      quantizeDenseCodesInto(train, numObservations, j, column.codes,
+                             hasMissing.data());
+    else
+      quantizeDenseInto(train, numObservations, j, column.values,
+                        hasMissing.data());
     std::int32_t slot = gatheredSlotForColumn(j);
-    if (slot >= 0)
-      std::memcpy(gatheredRawValues.data() +
-                    static_cast<size_t>(slot) * numObservations,
-                  column, numObservations * sizeof(double));
+    if (slot < 0) return;
+    // a leaf covariate reads raw doubles whatever channel the column arrived
+    // in, so a coded one widens here rather than losing its gathered copy
+    double* gathered =
+      gatheredRawValues.data() + static_cast<size_t>(slot) * numObservations;
+    if (!column.isCoded()) {
+      std::memcpy(gathered, column.values, numObservations * sizeof(double));
+      return;
+    }
+    for (size_t i = 0; i < numObservations; ++i) gathered[i] = column.at(i);
   }
 
   /// Re-quantize test column j against the current cuts. A CSC-backed column
@@ -1293,6 +1462,10 @@ struct ColumnStore {
                            size_t numGatherColumns = 0) {
     size_t n = source.numRows, p = source.numColumns;
     bool mapped = source.isMapped();
+    // the mapped arm copies denseValues as one block sized by the largest
+    // dense source, which a split-channel view does not lay out; only the
+    // dense build consumes the code channel
+    if (mapped && source.hasSplitDenseChannels()) return false;
     isView = false;
     numObservations = n;
     numPredictors = p;
@@ -1385,13 +1558,24 @@ struct ColumnStore {
     train.codes.resize(numDenseCodes);
     hasSparse = !train.sparseColumns.empty();
 
+    // scratch for a coded column of NUMERIC kind, whose grid is over real
+    // values: one column at a time, and only for a host that codes a column
+    // the store does not read as a factor
+    std::vector<double> widened;
     for (size_t j = 0; j < p; ++j) {
       buildRankStorageInto(train, n, j);
       // the raw a column quantizes from: the store's own dense slice for a
-      // mapped dense-backed column, the call's block for an unmapped one, and
-      // null for a CSC-backed column (which reads its retained slice)
-      const double* column = mapped ? train.sources[j].residentRaw
-                                    : source.denseValues + j * n;
+      // mapped dense-backed column, the call's own channel for an unmapped
+      // one, and neither for a CSC-backed column (which reads its retained
+      // slice)
+      DenseColumnValues column = mapped
+        ? DenseColumnValues(train.sources[j].residentRaw)
+        : source.denseColumn(j);
+      if (column.isCoded() && !isFactor(j)) {
+        widened.resize(n);
+        for (size_t i = 0; i < n; ++i) widened[i] = column.at(i);
+        column = DenseColumnValues(widened.data());
+      }
       if (!buildCutsForColumn(j, column)) return false;
       quantizeColumn(j, column);
     }
@@ -1461,12 +1645,11 @@ struct ColumnStore {
       if (!isFactor(j)) continue;
       std::int32_t columnSource = source.sourceOf(j);
       if (columnSource >= 0) {
-        // buildTest would read through the same null to copy the block
-        if (source.denseValues == nullptr) return false;
-        const double* column = source.denseValues +
-          static_cast<size_t>(columnSource) * source.numRows;
+        DenseColumnValues column = source.denseColumn(j);
+        // buildTest would read through the same absence to copy the block
+        if (!column.isPresent()) return false;
         for (size_t i = 0; i < source.numRows; ++i)
-          if (!categoricalValueIsValid(j, column[i])) return false;
+          if (!categoricalValueIsValid(j, column.at(i))) return false;
         continue;
       }
       size_t cscColumn = static_cast<size_t>(~columnSource);
@@ -1503,6 +1686,9 @@ struct ColumnStore {
   /// anything is written rather than riding the quantize as the training
   /// side's does.
   [[nodiscard]] bool buildTest(const PredictorSource& source) {
+    // the test store owns its raw as one dense block sized by the largest
+    // dense source, which a split-channel view does not lay out
+    if (source.hasSplitDenseChannels()) return false;
     if (!testSourceLevelCodesAreValid(source)) return false;
     size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;
