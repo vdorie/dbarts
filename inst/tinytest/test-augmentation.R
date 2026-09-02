@@ -172,6 +172,58 @@ expect_identical(
   c(logistic = "precision", nbinom = "precision", student = "precision")
 )
 
+# every law in the exported vocabulary, one block: each draws through the same
+# helper and each working response is the quantity its OWN law names, less the
+# offset. "student" is the one no family value can carry - a Student-t response
+# IS gaussian - so a dispatch that lost it would answer here as a location law
+lawN <- 40L
+set.seed(20260901L)
+lawFit <- rnorm(lawN, 0, 0.5)
+lawOffset <- rep_len(c(-0.25, 0.15), lawN)
+lawWeights <- as.double(1L + seq_len(lawN) %% 3L)
+lawY <- list(
+  probit = as.double(rbinom(lawN, 1L, 0.5)),
+  logistic = as.double(rbinom(lawN, 1L, 0.5)),
+  ordinal = as.double(1L + seq_len(lawN) %% 3L),
+  aft = rnorm(lawN),
+  nbinom = as.double(rpois(lawN, 3)),
+  student = rnorm(lawN)
+)
+expect_identical(names(lawY), dbarts:::augFamilies)
+for (law in names(lawY)) {
+  yLaw <- lawY[[law]]
+  latent <- dbartsDrawLatents(
+    law,
+    lawFit,
+    yLaw,
+    weights = if (law == "logistic") lawWeights,
+    offset = lawOffset,
+    sigma = if (law %in% c("aft", "student")) 1.2,
+    dispersion = if (law == "nbinom") 3,
+    thresholds = if (law == "ordinal") c(-0.5, 0.7),
+    df = if (law == "student") 5
+  )
+  expect_true(all(is.finite(latent)))
+  working <- dbartsWorkingResponse(
+    law,
+    as.vector(latent),
+    yLaw,
+    weights = if (law == "logistic") lawWeights,
+    offset = lawOffset,
+    dispersion = if (law == "nbinom") 3
+  )
+  expected <- switch(
+    law,
+    logistic = lawWeights * (yLaw - 0.5) / as.vector(latent),
+    nbinom = 0.5 * (yLaw - 3) / as.vector(latent),
+    student = yLaw,
+    as.vector(latent)
+  )
+  expect_equal(working, expected - lawOffset)
+}
+rm(lawN, lawFit, lawOffset, lawWeights, lawY, law, yLaw, latent, working)
+rm(expected)
+
 # --- oracle 2: a composed Gibbs loop reproduces the engine's own posterior
 
 set.seed(20260815L)

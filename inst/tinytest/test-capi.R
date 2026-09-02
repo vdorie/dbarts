@@ -650,6 +650,91 @@ rOrdinal <- dbartsDrawLatents("ordinal", augFit, yOrdinal, thresholds = cuts)
 expect_equal(flatCount, as.vector(rCount))
 expect_equal(flatOrdinal, as.vector(rOrdinal))
 
+# the two laws that reach neither surface through a shape test - aft, whose
+# family is its own, and student, whose family is gaussian and which is the
+# only law a family value cannot name. Both surfaces are handed the same
+# arguments and must agree bit for bit, the student leg being the one that
+# would silently draw nothing (or a gaussian nothing) if the token collapsed
+set.seed(15)
+flatAft <- drawFlat("aft", augFit, y)
+set.seed(15)
+rAft <- dbartsDrawLatents("aft", augFit, y, sigma = 1)
+expect_identical(flatAft, as.vector(rAft))
+
+set.seed(16)
+flatStudent <- CALL(
+  "capi_draw_latents",
+  "student",
+  augFit,
+  y,
+  NULL,
+  augOffset,
+  1,
+  NULL,
+  NULL,
+  4
+)
+set.seed(16)
+rStudent <- dbartsDrawLatents(
+  "student",
+  augFit,
+  y,
+  offset = augOffset,
+  sigma = 1,
+  df = 4
+)
+expect_identical(flatStudent, as.vector(rStudent))
+expect_true(all(flatStudent > 0))
+
+# the student working response is the response itself less the offset, which
+# is what separates it from every location law; the flat form agrees
+expect_identical(
+  workFlat("student", flatStudent, y, offset = augOffset),
+  as.vector(dbartsWorkingResponse(
+    "student",
+    flatStudent,
+    y,
+    offset = augOffset
+  ))
+)
+expect_equal(
+  workFlat("student", flatStudent, y, offset = augOffset),
+  y - augOffset
+)
+
+# each law's required scalar has no default on the flat surface, the two the
+# R helper leaves optional included
+expect_error(
+  CALL(
+    "capi_draw_latents",
+    "student",
+    augFit,
+    y,
+    NULL,
+    NULL,
+    1,
+    NULL,
+    NULL,
+    NA_real_
+  ),
+  "requires positive 'df'"
+)
+expect_error(
+  CALL(
+    "capi_draw_latents",
+    "student",
+    augFit,
+    y,
+    NULL,
+    NULL,
+    NA_real_,
+    NULL,
+    NULL,
+    4
+  ),
+  "require a positive 'sigma'"
+)
+
 # the offset convention is load-bearing and the flat form carries it: 'fit' is
 # the location WITHOUT the offset, so drawing at (fit, offset) must reproduce
 # drawing at (fit + offset, none) - an entry that dropped the argument would
@@ -697,6 +782,7 @@ expect_error(
 
 assign(".Random.seed", augSeed, envir = globalenv())
 rm(augFit, augOffset, yDouble, yOrdinal, cuts, omega, augSeed)
+rm(flatAft, rAft, flatStudent, rStudent)
 rm(drawFlat, workFlat)
 
 # tree storage, prediction, and the state round trip stan4bart's
