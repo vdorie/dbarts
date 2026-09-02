@@ -5,9 +5,9 @@ machine-checked, this file is not.
 
 Regenerate: re-derive every claim against the new tip, print counts as
 commands rather than numbers, then `Rscript tools/check-doc-freshness.R .` -
-which certifies `docs/design` anchors and both INDEX manifests. `docs/plans`
-anchors, this file's included, are NOT machine-checked, which is why code is
-cited by symbol here and docs by section.
+which certifies both INDEX manifests and checks every cite under `docs/`: a
+current-state cite by symbol existence, a history cite by commit ancestry.
+Code is cited by symbol here and docs by section.
 
 Sections 0-5 are the decision; section 6 is optional. Nothing is inlined from
 a document that is the authority on it.

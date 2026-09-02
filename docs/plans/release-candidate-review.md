@@ -66,7 +66,7 @@ corrected by the critique):
   fit is indistinguishable from a gaussian one in the fit object and
   R/generics.R's dnorm branch runs (the fit carries neither
   resid.dist nor the estimated df); student/grouped + variance =
-  constructs unrefused and untested (R/spec.R:369-377).
+  constructs unrefused and untested ([[R/spec.R:369-377@bf503e27]]).
 - The tinytest suite is ~2% math-vs-code (~80 of 4204 assertions),
   62% structural, 14% dbarts-vs-dbarts. 225 equality assertions pass
   when the compared field is NULL on both sides; the shared helper
@@ -124,7 +124,7 @@ Family 2 census, headline facts:
   evaluates to a chi hyperprior object, kIsGrid comes out FALSE, the
   cross-validation axis collapses to ONE cell, and k is then sampled
   within it - the k cross-validation the function exists to perform
-  does not happen, and the comment at R/xbart.R:311-312 asserts the
+  does not happen, and the comment at [[R/xbart.R:311-312@bf503e27]] asserts the
   opposite (Fork 1).
 
 New review kinds this derivation adds to the seeds, both families:
@@ -540,7 +540,7 @@ All six forks answered the day the plan landed:
 ### UBSAN null-source memcpy in the test-store build and the tree-column emit (05207e5e, 76936292, 2d254700, 2026-09-02)
 
 The sanitizer workflow went red on d28b087b with every test passing:
-`data.hpp:1883: runtime error: null pointer passed as argument 2, which
+`[[data.hpp:1883@d28b087b]]: runtime error: null pointer passed as argument 2, which
 is declared to never be null`, one finding on each of the gcc and clang
 legs, raised during test-argument-surface.R.
 
@@ -586,7 +586,7 @@ build (so the owned buffers hold capacity, the shape that leaves a live
 destination beside an absent source), then the rowless dense build, then
 a rowless mapped view whose CSC column stores no nonzeros, and finally
 the mapped TRAINING build over that same view. Under ASAN+UBSAN before
-the fix it raises seven findings - the CI one at data.hpp:1883, four at
+the fix it raises seven findings - the CI one at [[data.hpp:1883@d28b087b]], four at
 the two CSC copies, and two at the build arm's copy, whose destination is
 null as well on a store that owns no block yet; after it, clean. Three of
 the six guards stay uncovered by design: `materializePredictorSource` and
@@ -1255,7 +1255,7 @@ rewrite, four VD-ruled R-surface fixes, and four anchor re-pin passes.
   symbol exists somewhere in the file, not at the cited line. Also
   re-pinned in that sweep: the nameable-calibration dbarts.R cite (9
   rows), the S2 setActiveRows cites, the bcf row's updateScale and DART
-  cites, the multinomial pointwise-loglik cite, and a leftover RIB:6180
+  cites, the multinomial pointwise-loglik cite, and a leftover [[RIB:6180@8e0b0e9e]]
   anchor that never matched its getLatents R_NilValue return. Every other
   docs/design line the seven commits touched checked correct by content.
 
@@ -1532,7 +1532,7 @@ tool-verified; its 714-site figure counted the creators, the true scope is 559).
 tinytest 7040 -> 7181. Baselines UNCHANGED; no re-record; dbarts.h untouched.
 
 CI fire-and-cure: the clang-asan sanitizer job went RED on fdcbabe5 - a PRE-EXISTING
-pin (dbarts() on a constant response, test-multinomial-r5-surface.R:91) hit the
+pin (dbarts() on a constant response, [[test-multinomial-r5-surface.R:91@fdcbabe5]]) hit the
 bridge's "sigma estimate must be greater than 0" - and GREEN on a rerun of the same
 commit and image. Diagnosed in the r-hub clang-asan container (OPENBLAS_CORETYPE
 sweep, fresh processes, allocator offsets): the starting estimate
@@ -1684,7 +1684,7 @@ The review-tour refresh and VD's human review follow.
 Lessons. The spot-check rule paid off: replanting a handful of leg C/D zero-killers
 whole-suite, instead of trusting the touched/half-suite score, found survivors the
 narrower scope had missed - why the consolidator widened to all 31 and replanted 32
-more. Assertions that cannot fail keep recurring: test-plot-generics.R:103-104's
+more. Assertions that cannot fail keep recurring: [[test-plot-generics.R:103-104@07ad73e4]]'s
 expect_true(is.character(capture.output(...))) literally cannot fail, and print.bart's
 family label was wrong under it. The facade is a sentinel-pattern gap like the
 ordinal deep-grow segfault the last cycle found: every other test drove the engine
@@ -2133,8 +2133,8 @@ rides data@bases - there is no treatment slot. Bitwise driver-loop
 identity was verified twice (implementer, then the gate-runner's own
 independent probe, all identical() TRUE with the n.thin-mismatch
 negative half discriminating). Residue for the error-style slice:
-two stale comments found in existing files (R/bartcore.R:167;
-src/R_interface_bartcore_common.hpp:105-108 predicate listing).
+two stale comments found in existing files ([[R/bartcore.R:167@bf503e27]];
+[[src/R_interface_bartcore_common.hpp:105-108@bf503e27]] predicate listing).
 
 CI FIRE AND CURE: cf4a290c went red on the three ubuntu R-CMD-check
 jobs and both sanitizer jobs - one site, test-boundary-inputs.R's
@@ -2333,7 +2333,7 @@ fallback, stock R 4.3.3, the r-hub amd64 image crashes under
 emulation; VALGRIND_OPTS matching the workflow): zero invalid
 reads/writes, zero uninitialised uses, but ONE definite leak (2464
 bytes in 7 blocks) allocated at applyBCFSpec
-(R_interface_bartcore.cpp:2173, spec.forests.assign) via
+([[R_interface_bartcore.cpp:2173@bf503e27]], spec.forests.assign) via
 createHolder's unwindProtect lambda on the BCF creation path - fix
 slice in flight; and on that R 4.3.3 the test-bart-bart2.R
 extra-factor-level expect_error did not fire, halting tinytest partway
@@ -2393,11 +2393,11 @@ prediction confirmed in practice; R CMD check --as-cran from a
 clean-copy tarball Status OK; air/lintr clean; NEWS parses at 280.
 
 RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
-full-namespace resync missed them): data-store.md:198/201/206/214
+full-namespace resync missed them): [[data-store.md:198@bf503e27]]/201/206/214
 (constructs sit ~320 lines below the cited sampler.hpp lines),
-grow-from-root-default.md:141, model-space-survey.md:71 (quoted text
-absent from the cited file), within-chain-threading.md:204's :675-702
-half, data-ownership.md:213 (names deleted code) - ledgered below.
+[[grow-from-root-default.md:141@bf503e27]], [[model-space-survey.md:71@bf503e27]] (quoted text
+absent from the cited file), [[within-chain-threading.md:204@bf503e27]]'s [[within-chain-threading.md:675-702@bf503e27]]
+half, [[data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
 
 ### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
 
@@ -2962,10 +2962,10 @@ RIB 12+ distinct deltas in both signs, data.R correctly unmoved, MOD
 uniformly -1 past its single small edit - and ~40 anchors were
 opened by content across every alias class. The sampling caught two
 defect families the implementer's own two "converged" passes both
-missed, fixed before landing: COM:723 cited BCFForestCombiner's doc
+missed, fixed before landing: [[COM:723@bf503e27]] cited BCFForestCombiner's doc
 comment rather than the declaration (true line 731), and the seven
 loglik M-cell refusal anchors plus both ranges were one line short
-(generics.R:120 -> 121, 120-125 -> 121-126; the file's own
+([[generics.R:120@bf503e27]] -> 121, 120-125 -> 121-126; the file's own
 convention cites the stop() refusal site, not the enclosing else,
 while the S-cells of the same dispatch chain cite the branch-guard
 lines). Process note for the runbook: the implementer spawned a
@@ -3534,10 +3534,10 @@ disagreement with the matrix's claim. First run: 175 confirmations,
 ZERO disagreements, five ? resolutions - four match their footnotes'
 expectations (the two silently-wrong pointwiseLoglik cells per
 f19/f28, both grouped/hetero constructions per f30) and ONE
-corrected stale doc prose: student + variance REFUSES at spec.R:423
+corrected stale doc prose: student + variance REFUSES at [[spec.R:423@bf503e27]]
 (the wave-0 FX2 refusal) where footnote f30 still claimed
 "constructs today with no refusal site". This records commit
-updates the cell to R spec.R:423, rewrites f30 to the measured
+updates the cell to R [[spec.R:423@bf503e27]], rewrites f30 to the measured
 split verdict, and fixes the student-section prose - the runner's
 Rd-vs-behavior coherence role exercised on its first run. Gates:
 runner end-to-end clean from a fresh Rscript; air/lintr clean; diff
@@ -4106,7 +4106,7 @@ tarball.
 
 ### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
 
-The bridge's packaging region (live :4188-4462, 161 lines of channel
+The bridge's packaging region (live [[spec.R:4188-4462@bf503e27]], 161 lines of channel
 assembly) becomes 87: thirteen hand-rolled chain-ternary allocations
 collapse onto one allocChannel(type, {leading dims}) lambda (a
 single-chain per-draw scalar stays a bare dim-less vector - the
@@ -4450,7 +4450,7 @@ executed on x64 Windows for the first time in the leg's history.
 
 f6c8979d's first CI outing turned P4's hard-fail into a finding: the
 windows-latest (x64) R-CMD-check leg ERRORS in test-capi.R -
-"consumer.c:10:10: fatal error: dbarts/dbarts.h: No such file or
+"[[consumer.c:10@bf503e27]] col 10: fatal error: dbarts/dbarts.h: No such file or
 directory" - while windows-11-arm compiles and runs all the C API
 assertions. The mechanism: test-capi.R passes PKG_CPPFLAGS via
 system2(env = ...), whose child-environment handling is
@@ -4566,14 +4566,14 @@ merge-time shim design. Full report untracked.
 The hurdle docs promised natural-scale predictions consume the
 positive part's per-observation sigma(x) under a heteroscedastic
 variance surface - a state no bart2 call reaches (the occupancy
-probit's variance refusal, live at R/spec.R:392, fires before either
+probit's variance refusal, live at [[R/spec.R:392@bf503e27]], fires before either
 component fits) and one the code documents as DELIBERATE
-(hurdleSigmaVec's comment, R/generics.R:989-996). Doc-side fix, both
+(hurdleSigmaVec's comment, [[R/generics.R:989-996@bf503e27]]). Doc-side fix, both
 copies: man/bart2.Rd's hurdle \item and the independent copy in
 man/dbarts.Rd now state the always-homoscedastic contract (one sigma
 per draw, recycled), with the heteroscedastic positive part kept in
 the recorded-limitation list as a follow-up, not a promise.
-feature-matrix hurdle/variance cell ? -> R spec.R:392, [f34]
+feature-matrix hurdle/variance cell ? -> R [[spec.R:392@bf503e27]], [f34]
 rewritten as resolved, the Gaps bullet updated. One NEWS BUG FIXES
 item (implementer found live precedent for recording doc-only
 corrections - the offset.test entry - overriding the no-NEWS
@@ -4582,8 +4582,8 @@ a clean-staged tarball; built package differs from base only in
 NEWS.Rd + the two Rd files; NEWS parses at 262 entries
 (re-verified independently); no R code touched so no
 equivalence/lintr legs. Orchestrator note: the interleavables
-re-verification's spec.R:370 anchor was loose - the live stop is
-:392; other feature-matrix rows citing :370 for the same shared
+re-verification's [[spec.R:370@bf503e27]] anchor was loose - the live stop is
+:392; other feature-matrix rows citing [[spec.R:370@bf503e27]] for the same shared
 refusal are stale by the same delta and ride the wave-4 full-
 namespace resync. Prior-slice CI: five green on a39da5d9 plus
 exact-gates green on the build-identical d60057b1 (the records push
@@ -4604,10 +4604,10 @@ rewrite reached the engine while the direction constraints did not,
 so draws moved). One refusal block in R/bart.R's multinomial branch
 ahead of the factor/count-matrix dispatch; one man/bart2.Rd
 sentence; feature-matrix multinom DART and variance cells re-pointed
-at the refusal (the variance cell's R FAC:833 was a recorded value
+at the refusal (the variance cell's R [[FAC:833@bf503e27]] was a recorded value
 fault - dropped at the R seam, never refused at the factory) with
 [f33] rewritten past-tense and its stale engine anchors corrected
-during orchestrator review (CH:4878/4813 live); a
+during orchestrator review ([[CH:4878@bf503e27]]/4813 live); a
 docs/design/multinomial.md limitation sentence; one NEWS item; seven
 tinytest assertions via a multinomialRefuses helper, dart covered on
 both entry shapes, variance probed at K = 3 (the K = 2 host
