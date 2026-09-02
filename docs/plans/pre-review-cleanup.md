@@ -102,7 +102,7 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   transactions, 3 with variance partitions to restore)"). The underlying
   rollback mechanism is unchanged; the test's discriminating power over it is
   narrower.
-- **A stale in-test cite, left as residue**: `inst/tinytest/test-blocks.R:311-313`'s
+- **A stale in-test cite, left as residue**: `[[inst/tinytest/test-blocks.R:311-313@c0ddd93e]]`'s
   comment ("the same mechanism and error text as the BCF columnMask refusal
   test in test-interactions.R") points at a test that
   `inst/tinytest/test-interactions.R` no longer carries under that

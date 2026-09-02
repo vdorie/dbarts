@@ -1057,12 +1057,12 @@ precisions `LogisticResponse::omega_`, `NBResponse::omega_`,
 `TResponse::lambda_`; `GaussianResponse` and `MultinomialResponse` declare
 none). The fit-surface table and the boundary sentence went into a new
 `\subsection{Reading the fit}` of the Rd's `\details`. The BINDING INSTRUCTION
-was discharged: `extract.bart` (R/generics.R:211) reads `object$yhat.train` /
+was discharged: `extract.bart` ([[R/generics.R:211@70b30c18]]) reads `object$yhat.train` /
 `object$yhat.test` directly and NO `type` arm removes the offset - "bart"
 returns those stored draws as they stand, "ev" maps them through
 `probabilityFromLatents`, "ppd" samples from them, "loglik" evaluates against
 them - so every arm is offset-INCLUSIVE; `extract.dbartsSampler`
-(R/generics.R:1449) takes `type = "predictors"` only and returns the design
+([[R/generics.R:1449@70b30c18]]) takes `type = "predictors"` only and returns the design
 matrix, not a fitted value. Both stale-doc corrections landed: the
 `\item{active}` veto clause is now conditional (count-based accounting is
 `numObservations`, the scan count and leaf collapsing; the veto counts
@@ -1128,7 +1128,7 @@ Deviations and carried obligations.
   UNQUALIFIED `expect_*` inside a helper is an `object_usage_linter` finding
   under `lintr::lint_package()`. The helper therefore gathers and the three
   assertions sit at top level. Note for later slices: the shipped
-  `tinytest::expect_identical` in `test-mutate-sparse-valued.R:48` is
+  `tinytest::expect_identical` in `[[test-mutate-sparse-valued.R:48@70b30c18]]` is
   unregistered for the same reason.
 - The `tests/cpp` cell carries one assertion beyond the plan's - the recorded
   training write equals the accessor plus the offset - which is what makes
@@ -1242,7 +1242,7 @@ Mutation proof, each applied, run, reverted and byte-verified by `cmp`.
   dispersion at all are in this battery.
 - (4) Drop both guards so a gaussian run writes through the unallocated
   channel: under `-fsanitize=address,undefined` UBSAN names it precisely -
-  "runtime error: store to null pointer of type 'double'" at `chain.hpp:5054` -
+  "runtime error: store to null pointer of type 'double'" at `[[chain.hpp:5054@70b30c18]]` -
   and ASAN follows with `SEGV on unknown address 0x0` after 35 ok lines.
   **Deviation from the plan's wording:** it is not sanitizer-ONLY. The plain
   binary also dies (exit 139) at the same write; the sanitizer leg adds the

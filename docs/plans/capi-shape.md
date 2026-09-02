@@ -25,8 +25,8 @@ classes do not share a rule:
   matter here because they are `int`-returning and NOT statuses.
 - **TRANSACTION** (2): `setPredictor`, `updatePredictor`. 0 means the mutation
   was attempted and ROLLED BACK - every tree could not keep non-empty leaves -
-  and a different argument would have worked (src/C_interface.cpp:753, :786;
-  CAPI:869-870). This is the class the earlier draft's universal sentence would
+  and a different argument would have worked ([[src/C_interface.cpp:753@9d0ee10f]], [[src/C_interface.cpp:786@9d0ee10f]];
+  [[CAPI:869-870@9d0ee10f]]). This is the class the earlier draft's universal sentence would
   have contradicted.
 - **CAPABILITY STATUS** (9 today, 16 after this slice): `getLatents`,
   `getDispersion`, `setForestBasis`, `getForestFits`, `getForestAmplitudes`,
@@ -59,7 +59,7 @@ of `int` as such.
 The five `void` setters refuse on a MIX of both classes today, so "unify" has to
 say which refusal moves to which channel, not just which type the entry returns.
 Taken from src/C_interface.cpp and the shared guards at
-src/R_interface_bartcore.cpp:2613-2925:
+[[src/R_interface_bartcore.cpp:2613-2925@9d0ee10f]]:
 
 | entry | capability refusals (-> 0) | call-is-wrong refusals (stay raise) |
 | --- | --- | --- |
@@ -73,12 +73,12 @@ src/R_interface_bartcore.cpp:2613-2925:
 
 FLAT-UNREACHABLE means exactly this: the capability arm of
 `refuseMultiForestResponseMutation` needs `numForests >= 2 &&
-!supportsResponseMutation` (src/R_interface_bartcore.cpp:2641-2642), and the only
+!supportsResponseMutation` ([[src/R_interface_bartcore.cpp:2641-2642@9d0ee10f]]), and the only
 combiner answering false is `MultinomialForestCombiner` (default
-src/bartcore/combiner.hpp:693, overridden true for `AmplitudeForestCombiner` at
-:1059), which has no flat creation path (src/C_interface.cpp:304-330). The BCF
+[[src/bartcore/combiner.hpp:693@9d0ee10f]], overridden true for `AmplitudeForestCombiner` at
+:1059), which has no flat creation path ([[src/C_interface.cpp:304-330@9d0ee10f]]). The BCF
 legs confirm it empirically: `LEG_RESPONSE_PINNED`, `LEG_OFFSET_PINNED` and
-`LEG_WEIGHTS` all ACCEPT (inst/tinytest/capi/consumer.c:1231, :1237, :1243). So
+`LEG_WEIGHTS` all ACCEPT ([[inst/tinytest/capi/consumer.c:1231@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1237@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1243@9d0ee10f]]). So
 `setResponse` and `setOffset` gain a 0 arm no sampler this header can build will
 fire, and `setWeights`' multi-forest arm is likewise dead while its family arm is
 live. Kept anyway, on the precedent `DBARTS_FAMILY_MULTINOMIAL` set at the
@@ -88,11 +88,11 @@ section 13.
 
 The `updateScale` arms stay raises deliberately, and the consumer sweep shows
 why: stan4bart drives `dbarts_sampler_setOffset(..., isWarmup && iter %
-update_scale_mod == 0)` once per iteration (src/init.cpp:647) and discards the
+update_scale_mod == 0)` once per iteration ([[src/init.cpp:647@9d0ee10f]]) and discards the
 return. Its own TODO `bart-args-forests-guard` records that a two-forest sampler
 "dies at the first setOffset with a loud dbarts-side refusal" - that loudness is
 the guard. `AmplitudeForestCombiner::supportsResponseMutation()` is true
-(src/bartcore/combiner.hpp:1059), so a BCF sampler reaches only the `updateScale`
+([[src/bartcore/combiner.hpp:1059@9d0ee10f]]), so a BCF sampler reaches only the `updateScale`
 arm, and stan4bart's first call passes `updateScale = 1`. The guard survives this
 slice unchanged. Verified, not assumed.
 
@@ -143,10 +143,10 @@ appended it.
 - **B. Move it to argument 2 on both.** RECOMMENDED. It is not only symmetry: the
   forest qualifies arguments that follow it, since `treeIndices` are read against
   THAT forest's tree count - `printTrees` checks it inline
-  (src/C_interface.cpp:925-928) and `getTrees` delegates
-  (src/C_interface.cpp:885-889) to the check at
-  src/R_interface_bartcore.cpp:7734-7735. The R5 twins (`$getTrees`,
-  `$printTrees`, R/dbarts.R:1968, :1999) carry no forest selector at all, so
+  ([[src/C_interface.cpp:925-928@9d0ee10f]]) and `getTrees` delegates
+  ([[src/C_interface.cpp:885-889@9d0ee10f]]) to the check at
+  [[src/R_interface_bartcore.cpp:7734-7735@9d0ee10f]]. The R5 twins (`$getTrees`,
+  `$printTrees`, [[R/dbarts.R:1968@9d0ee10f]], [[R/dbarts.R:1999@9d0ee10f]]) carry no forest selector at all, so
   there is no R argument order to mirror and nothing pulls the other way.
 
 Compile-visibility caveat: position 2 goes from `const size_t*` to `size_t`,
@@ -161,11 +161,11 @@ that names a forest lands in the right place.
 
 ## 3. `setActiveRows`' two zeros
 
-`Chain::setActiveRows` (src/bartcore/chain.hpp:1666) returns false both when the
+`Chain::setActiveRows` ([[src/bartcore/chain.hpp:1666@9d0ee10f]]) returns false both when the
 family implements no mask and when an element is not exactly 0 or 1; the flat
 entry maps both to 0. The R bridge already splits them: a capability raise first
-(src/R_interface_bartcore.cpp:4038), then a post-hoc test of the engine's bool
-with its own message (:4049-4052). By section 0's capability rule the value
+([[src/R_interface_bartcore.cpp:4038@9d0ee10f]]), then a post-hoc test of the engine's bool
+with its own message ([[src/R_interface_bartcore.cpp:4049-4052@9d0ee10f]]). By section 0's capability rule the value
 refusal is recoverable and must raise.
 
 Align. Write a shared `refuseNonBinaryMask` helper carrying the exact-{0,1} scan
@@ -176,10 +176,10 @@ bool contract alone. The R bridge's post-hoc test then becomes defense in depth.
 ## 4. `setForestBasis` and the column-major rule
 
 Verified: the engine really is row-major (`SamplerBase::setForestBasis`,
-src/bartcore/sampler.hpp:1528-38) and the R bridge transposes an R matrix on the
-way in (src/R_interface_bartcore.cpp:3954-3968); the flat entry documents and
-reads row-major (src/C_interface.cpp:1036-1042). The header is correct and the
-global rule at CAPI:81 has an unnamed exception.
+[[src/bartcore/sampler.hpp:1528-38@9d0ee10f]]) and the R bridge transposes an R matrix on the
+way in ([[src/R_interface_bartcore.cpp:3954-3968@9d0ee10f]]); the flat entry documents and
+reads row-major ([[src/C_interface.cpp:1036-1042@9d0ee10f]]). The header is correct and the
+global rule at [[CAPI:81@9d0ee10f]] has an unnamed exception.
 
 - **A. Transpose the flat contract to column-major.** Restores one rule, and the
   copy would absorb the transpose. Costs: a SILENT semantic break (same
@@ -197,9 +197,9 @@ global rule at CAPI:81 has an unnamed exception.
 
 Consumer impact of B: none - no consumer calls it. In-repo: the live C test legs
 already lay their bases row-major and correctly
-(inst/tinytest/capi/consumer.c:1265-70, :1310-14, :1325-30); the R-facing wrapper
-`capi_set_forest_basis` (:948-957) is the file's only orphan (no `.R` caller;
-test-capi.R:57 resolves by name), its comment says "column-major", and it hands
+([[inst/tinytest/capi/consumer.c:1265-70@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1310-14@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1325-30@9d0ee10f]]); the R-facing wrapper
+`capi_set_forest_basis` ([[inst/tinytest/capi/consumer.c:948-957@9d0ee10f]]) is the file's only orphan (no `.R` caller;
+[[test-capi.R:57@9d0ee10f]] resolves by name), its comment says "column-major", and it hands
 `REAL(basisExpr)` through untransposed. RULING: FIX it, do not delete it -
 consumer.c is a complete-coverage exemplar at 48/48 entries, `setForestBasis` is
 otherwise covered only through the BCF legs, and fixing restores an R-facing leg.
@@ -210,12 +210,12 @@ match `basisRowMajor`.
 
 VD ruling: KEEP, rationale in the header. Verified inert on every path a flat
 entry takes: `translateSource` publishes `categoryCounts` into the engine view
-(src/C_interface.cpp:217), but the only reader is
-`ColumnSource::declaredCategoryCount` (src/bartcore/data.hpp:1186), set in the
+([[src/C_interface.cpp:217@9d0ee10f]]), but the only reader is
+`ColumnSource::declaredCategoryCount` ([[src/bartcore/data.hpp:1186@9d0ee10f]]), set in the
 TRAINING build, which no flat entry reaches; `buildTest` does not read it.
 `columnTypes` is never published at all - the store's own types are gathered
-instead. Both are checked for well-formedness (:144-152). The struct comment at
-CAPI:290-297 stands; add, after it:
+instead. Both are checked for well-formedness ([[src/bartcore/data.hpp:144-152@9d0ee10f]]). The struct comment at
+[[CAPI:290-297@9d0ee10f]] stands; add, after it:
 
 ```
 /// Both stay ABOVE the boundary rather than being dropped. They are the only
@@ -235,42 +235,42 @@ checked; no entry reads it" (same length, no offset moves).
 The earlier draft proposed a symmetric push/pop. That remedy was built on a
 mechanism that does not exist, and the real leak runs the other way.
 
-Corrected facts. R's headers never read `USE_FC_LEN_T`; `R_ext/BLAS.h:38` gates
-on `FC_LEN_T`, which `Rconfig.h:20` defines (R >= 4.3) unless
+Corrected facts. R's headers never read `USE_FC_LEN_T`; `[[R_ext/BLAS.h:38@9d0ee10f]]` gates
+on `FC_LEN_T`, which `[[Rconfig.h:20@9d0ee10f]]` defines (R >= 4.3) unless
 `DONT_USE_FC_LEN_T`. Measured on R 4.6.1: preprocessing `#include
 <dbarts/dbarts.h>` then `<R_ext/BLAS.h>` yields `FC_LEN_T` DEFINED despite
-CAPI:107, so the `#undef` strips nothing. In the only window where the macro
-mattered (R 3.6.2-4.2), `Rconfig.h` is reached through CAPI:102's own
-`<Rinternals.h>` and is include-guarded, so `FC_LEN_T` is frozen before :107
+[[CAPI:107@9d0ee10f]], so the `#undef` strips nothing. In the only window where the macro
+mattered (R 3.6.2-4.2), `Rconfig.h` is reached through [[CAPI:102@9d0ee10f]]'s own
+`<Rinternals.h>` and is include-guarded, so `FC_LEN_T` is frozen before [[CAPI:107@9d0ee10f]]
 runs. The `#undef` closes nothing in either window.
 
 What the DEFINE does is real and unwanted: when this header's `<Rinternals.h>` is
-the translation unit's first, CAPI:96 turns `FC_LEN_T` ON for the consumer's
+the translation unit's first, [[CAPI:96@9d0ee10f]] turns `FC_LEN_T` ON for the consumer's
 whole TU through `Rconfig.h`, and no restore of `USE_FC_LEN_T` undoes it -
 `FC_LEN_T` is what `BLAS.h` reads and is not undoable. dbarts.h declares no
 Fortran routine, so it has no business setting it.
 
-REMEDY: delete CAPI:95-97 (the `<Rversion.h>` include and the `R_VERSION`-gated
-`#define`) and CAPI:107 (the `#undef`) outright. The `R_NO_REMAP` dance at
+REMEDY: delete [[CAPI:95-97@9d0ee10f]] (the `<Rversion.h>` include and the `R_VERSION`-gated
+`#define`) and [[CAPI:107@9d0ee10f]] (the `#undef`) outright. The `R_NO_REMAP` dance at
 :98-106 and its comment stay untouched. Hash-invisible.
 
 In-repo verification that nothing relies on dbarts.h supplying the define: only
-two TUs under `src/` include `<dbarts/dbarts.h>` (src/R_interface.cpp:17,
-src/C_interface.cpp:7), and `src/` contains ZERO occurrences of `R_ext/BLAS.h`,
+two TUs under `src/` include `<dbarts/dbarts.h>` ([[src/R_interface.cpp:17@9d0ee10f]],
+[[src/C_interface.cpp:7@9d0ee10f]]), and `src/` contains ZERO occurrences of `R_ext/BLAS.h`,
 `R_ext/Lapack.h`, `FCONE`, `F77_CALL`, `dgemm`, `dpotrf` or `LAPACK` - no file
 under `src/` declares or calls a Fortran routine at all. Both TUs additionally
 obtain the macro from their own `external/*.h` headers, which carry the same
-define/undef dance (src/include/external/R.h:9/:36,
-src/include/external/Rinternals.h:9/:41). A future dbarts TU that does call
+define/undef dance ([[src/include/external/R.h:9@9d0ee10f]]/[[src/include/external/R.h:36@9d0ee10f]],
+[[src/include/external/Rinternals.h:9@9d0ee10f]]/[[src/include/external/Rinternals.h:41@9d0ee10f]]). A future dbarts TU that does call
 Fortran defines the macro itself, as every existing `external/*.h` already does.
 Same for consumers: treatSens already defines its own
-(src/R_interface.cpp:16-23), stan4bart never needs it. One migration note to
+([[src/R_interface.cpp:16-23@9d0ee10f]]), stan4bart never needs it. One migration note to
 carry: a consumer that was relying on dbarts.h to pull `<Rversion.h>` in for it
 now includes it itself.
 
 ## 7. Signature diff (inst/include/dbarts/dbarts.h)
 
-Entry count stays 48. `DBARTS_C_API_MAJOR`/`MINOR` DO NOT MOVE (CAPI:114-118: no
+Entry count stays 48. `DBARTS_C_API_MAJOR`/`MINOR` DO NOT MOVE ([[CAPI:114-118@9d0ee10f]]: no
 version constant increments before 1.0-0). Ten `DBARTS_C_API_LIST` entries:
 
 ```
@@ -314,12 +314,12 @@ version constant increments before 1.0-0). Ten `DBARTS_C_API_LIST` entries:
     (sampler, forest, basisRowMajor, numColumns))
 ```
 
-The readable prototypes at :807, :815, :826, :839, :905, :910, :933, :964, :974,
+The readable prototypes at [[CAPI:807@9d0ee10f]], [[CAPI:815@9d0ee10f]], [[CAPI:826@9d0ee10f]], [[CAPI:839@9d0ee10f]], [[CAPI:905@9d0ee10f]], [[CAPI:910@9d0ee10f]], [[CAPI:933@9d0ee10f]], [[CAPI:964@9d0ee10f]], [[CAPI:974@9d0ee10f]],
 :1075 follow, each with its own doc gaining one sentence naming its return class
 and, for the capability seven, what its 0 means. `printTrees` stays `void`: it
 refuses only on out-of-range indices and the empty store, both recoverable.
 
-Contracts block (CAPI:44-82), three edits:
+Contracts block ([[CAPI:44-82@9d0ee10f]]), three edits:
 
 - Replace the last sentence of the first bullet ("Where an entry does refuse...")
   with the three-class paragraph of section 0: a non-void return is a VALUE
@@ -350,14 +350,14 @@ Contracts block (CAPI:44-82), three edits:
   takes `basisRowMajor`, row i at `basisRowMajor + i * numColumns`, that
   contraction being the engine's only read of a basis.
 
-Include block: delete CAPI:95-97 and CAPI:107 (section 6). Nothing replaces them.
+Include block: delete [[CAPI:95-97@9d0ee10f]] and [[CAPI:107@9d0ee10f]] (section 6). Nothing replaces them.
 
 ## 8. Bridge changes (src/C_interface.cpp, and the shared guards)
 
 The refusal texts live in `bartcore_bridge` so the two surfaces cannot state
 different rules; a flat entry must therefore PREDICT a refusal, never restate it.
 Declarations in src/R_interface_bartcore_common.hpp, bodies at
-src/R_interface_bartcore.cpp:2613-2925.
+[[src/R_interface_bartcore.cpp:2613-2925@9d0ee10f]].
 
 FOUR whole-function guards take the mechanical form - a predicate stating the
 condition, and the raiser rewritten as `if (!predicate(...)) return;` above its
@@ -374,7 +374,7 @@ existing message:
 and predicating the whole function would short-circuit exactly the BCF samplers
 whose `updateScale` arm must fire, silently deleting the decalibration guard
 stan4bart depends on. Only the capability block at
-src/R_interface_bartcore.cpp:2642-2675 may be predicated. Exact restructure:
+[[src/R_interface_bartcore.cpp:2642-2675@9d0ee10f]] may be predicated. Exact restructure:
 
 ```
 bool responseConduitIsFixed(const bartcore::SamplerShape& shape) {
@@ -392,14 +392,14 @@ void refuseMultiForestResponseMutation(...) {
 }
 ```
 
-The `numForests >= 2` test moves from the deleted early return at :2641 onto the
+The `numForests >= 2` test moves from the deleted early return at [[src/R_interface_bartcore.cpp:2641@9d0ee10f]] onto the
 `updateScale` arm, which is where it was doing its work; the R bridge's behaviour
 is bit-for-bit what it is today.
 
 Entry bodies: each of the seven gains its predicate test returning 0 ahead of the
 guards it keeps, and `return 1;` at the end - including
 `dbarts_sampler_setTestPredictors`' EARLY return on the null-`xTest` removal path
-(src/C_interface.cpp:803), which becomes `return 1;`, and `predict`'s return
+([[src/C_interface.cpp:803@9d0ee10f]]), which becomes `return 1;`, and `predict`'s return
 after the offset add. `setForestBasis` renames its parameter;
 `getTrees`/`printTrees` reorder theirs, bodies otherwise unchanged.
 `setActiveRows` calls the new `refuseNonBinaryMask` after the
@@ -415,22 +415,22 @@ for creation.
 
 Items 1, 2 and 4 all move the stringized signature list; items 3, 5 and 6 are
 invisible to it. Two literals move together in the code commit:
-`DBARTS_C_API_HASH` (CAPI:166, currently `0x0939c0224353505bULL`) and
-`dbarts_apiSignatureToken` (src/C_interface.cpp:523, currently
+`DBARTS_C_API_HASH` ([[CAPI:166@9d0ee10f]], currently `0x0939c0224353505bULL`) and
+`dbarts_apiSignatureToken` ([[src/C_interface.cpp:523@9d0ee10f]], currently
 `0x32e5b15aa6c88c69ULL`). No struct layout, enumerator or callback parameter
-moves, so the layout fold is unchanged (src/C_interface.cpp:527 uses the macro,
+moves, so the layout fold is unchanged ([[src/C_interface.cpp:527@9d0ee10f]] uses the macro,
 not a literal). Derive both with the temporary `DbartsShowToken` probe procedure
 recorded at dbarts-h-freeze.md section 5, including its `printf '0x%016xULL\n'`
 gotcha.
 
-Live-literal pin sites, complete: CAPI:166; src/C_interface.cpp:523;
-inst/tinytest/test-capi.R:87; docs/design/threaded-predict.md:111 (signature
-token) and :112 (ABI hash). Add the outgoing `"0x0939c0224353505b"` to
-test-capi.R's stale-token block at :73-84 - FIVE `expect_false` lines, :73, :74,
-:78, :81, :84 - and set :87 to the new literal.
+Live-literal pin sites, complete: [[CAPI:166@9d0ee10f]]; [[src/C_interface.cpp:523@9d0ee10f]];
+[[inst/tinytest/test-capi.R:87@9d0ee10f]]; [[docs/design/threaded-predict.md:111@9d0ee10f]] (signature
+token) and [[docs/design/threaded-predict.md:112@9d0ee10f]] (ABI hash). Add the outgoing `"0x0939c0224353505b"` to
+test-capi.R's stale-token block at [[docs/design/threaded-predict.md:73-84@9d0ee10f]] - FIVE `expect_false` lines, [[docs/design/threaded-predict.md:73@9d0ee10f]], [[docs/design/threaded-predict.md:74@9d0ee10f]],
+:78, [[docs/design/threaded-predict.md:81@9d0ee10f]], [[docs/design/threaded-predict.md:84@9d0ee10f]] - and set [[docs/design/threaded-predict.md:87@9d0ee10f]] to the new literal.
 `expect_equal(versions, c(1L, 0L))` is unchanged.
 
-docs/plans/dbarts-h-freeze.md:188 records the transition `0x66d33f1613892406 ->
+[[docs/plans/dbarts-h-freeze.md:188@9d0ee10f]] records the transition `0x66d33f1613892406 ->
 0x0939c0224353505b` and STAYS AS WRITTEN: it is that slice's history, true of the
 commit it describes, not a claim about the live header. Decided explicitly, not
 by omission.
@@ -439,42 +439,42 @@ by omission.
 
 `inst/tinytest/capi/consumer.c`:
 
-- Return the status instead of `R_NilValue`: `capi_set_response` (:509),
-  `capi_set_weights` (:515), `capi_set_test_offset` (:520), `capi_set_offset`
-  (:560), `capi_set_sigma` (:567).
-- `setTestPredictors` has THREE call sites in two wrappers - :764 and :767
-  (null-clear and install) and :794 - all of which must propagate the status.
-- `predict` has FOUR call sites - :807, :836, :860-862, :879-880 - each of which
-  returns `R_NilValue` on a 0, the shape `capi_get_latents` (:571-579) already
+- Return the status instead of `R_NilValue`: `capi_set_response` ([[docs/plans/dbarts-h-freeze.md:509@9d0ee10f]]),
+  `capi_set_weights` ([[docs/plans/dbarts-h-freeze.md:515@9d0ee10f]]), `capi_set_test_offset` ([[docs/plans/dbarts-h-freeze.md:520@9d0ee10f]]), `capi_set_offset`
+  ([[docs/plans/dbarts-h-freeze.md:560@9d0ee10f]]), `capi_set_sigma` ([[docs/plans/dbarts-h-freeze.md:567@9d0ee10f]]).
+- `setTestPredictors` has THREE call sites in two wrappers - [[docs/plans/dbarts-h-freeze.md:764@9d0ee10f]] and [[docs/plans/dbarts-h-freeze.md:767@9d0ee10f]]
+  (null-clear and install) and [[docs/plans/dbarts-h-freeze.md:794@9d0ee10f]] - all of which must propagate the status.
+- `predict` has FOUR call sites - [[docs/plans/dbarts-h-freeze.md:807@9d0ee10f]], [[docs/plans/dbarts-h-freeze.md:836@9d0ee10f]], [[docs/plans/dbarts-h-freeze.md:860-862@9d0ee10f]], [[docs/plans/dbarts-h-freeze.md:879-880@9d0ee10f]] - each of which
+  returns `R_NilValue` on a 0, the shape `capi_get_latents` ([[docs/plans/dbarts-h-freeze.md:571-579@9d0ee10f]]) already
   has.
-- `sweepCallback` calls `setSigma` at :355 INSIDE a `dbarts_sampler_callback`:
+- `sweepCallback` calls `setSigma` at [[docs/plans/dbarts-h-freeze.md:355@9d0ee10f]] INSIDE a `dbarts_sampler_callback`:
   the status must not be discarded there, and it must not `Rf_error` out of a
   callback either - test it and return 0 from the callback to stop the run.
-- `capi_print_trees` (:529) and `capi_get_trees` (:888, call at :917-919) pass
+- `capi_print_trees` ([[docs/plans/dbarts-h-freeze.md:529@9d0ee10f]]) and `capi_get_trees` ([[docs/plans/dbarts-h-freeze.md:888@9d0ee10f]], call at [[docs/plans/dbarts-h-freeze.md:917-919@9d0ee10f]]) pass
   `forest` second.
-- `capi_set_forest_basis` (:948-957): correct the comment to row-major, transpose
+- `capi_set_forest_basis` ([[docs/plans/dbarts-h-freeze.md:948-957@9d0ee10f]]): correct the comment to row-major, transpose
   the R matrix, rename the local to match `basisRowMajor`, and give it a
   test-capi.R caller so the restored leg is exercised.
-- BCF legs (:1222-): `LEG_TEST_OFFSET`, `LEG_TEST_PREDICTORS` and `LEG_PREDICT`
+- BCF legs ([[docs/plans/dbarts-h-freeze.md:1222@9d0ee10f]]-): `LEG_TEST_OFFSET`, `LEG_TEST_PREDICTORS` and `LEG_PREDICT`
   flip from raising to returning 0 - each sets `legs->accepted = (entry(...) ==
   0)` and its `legRefusals[]` entry becomes NULL. `LEG_RESPONSE_RESCALED` and
   `LEG_OFFSET_RESCALED` keep their refusal strings: that pair is the
   discriminating half of the split.
 
 `inst/tinytest/test-capi.R`, expectation flips (each currently `expect_error`):
-:467 setSigma on probit -> `0L`; :480 setWeights on probit -> `0L`; :517
+:467 setSigma on probit -> `0L`; [[docs/plans/dbarts-h-freeze.md:480@9d0ee10f]] setWeights on probit -> `0L`; [[docs/plans/dbarts-h-freeze.md:517@9d0ee10f]]
 setWeights on nbinom -> `0L`. New: setSigma on the heteroscedastic sampler built
-at :222-228 -> `0L`. Unchanged, and named in the file as the half that proves the
-gate discriminates: :512 setResponse over the count bound still raises; :1703 and
+at [[docs/plans/dbarts-h-freeze.md:222-228@9d0ee10f]] -> `0L`. Unchanged, and named in the file as the half that proves the
+gate discriminates: [[docs/plans/dbarts-h-freeze.md:512@9d0ee10f]] setResponse over the count bound still raises; [[docs/plans/dbarts-h-freeze.md:1703@9d0ee10f]] and
 :1707 logistic fractional/zero counts still raise; the `updateScale` refusals
-still raise. :1409 `capi_set_active_rows(ptrMaskA, rep(0.5, n))` changes from
-`expect_equal(..., 0L)` to `expect_error(..., "exactly 0 or 1")`; :1407 and :1410
+still raise. [[docs/plans/dbarts-h-freeze.md:1409@9d0ee10f]] `capi_set_active_rows(ptrMaskA, rep(0.5, n))` changes from
+`expect_equal(..., 0L)` to `expect_error(..., "exactly 0 or 1")`; [[docs/plans/dbarts-h-freeze.md:1407@9d0ee10f]] and [[docs/plans/dbarts-h-freeze.md:1410@9d0ee10f]]
 are unchanged. Plus the hash pins of section 9.
 
 `tests/cpp`: no facade virtual changes shape, so `test_facade.cpp` needs no edit
 and the "always `--preclean` after changing virtuals in facade.hpp" bus-error
 rule is NOT triggered (`--preclean` is still mandatory - a shipped header
-changes). `test_facade.cpp:1035-1053` (`SPY_RET(bool, setActiveRows, ...)`)
+changes). `[[test_facade.cpp:1035-1053@9d0ee10f]]` (`SPY_RET(bool, setActiveRows, ...)`)
 already pins the facade's non-binary refusal and stays as written. One case is
 worth adding, and it is the invariant the item-3 split rests on:
 `test_sampler.cpp` gains a case asserting that a chain reporting
@@ -491,39 +491,39 @@ call site.
 
 **stan4bart**, /Users/vdorie/Repositories/stan4bart branch `bartcore`. No
 vendored header (LinkingTo only); `DBARTS_USE_STUBS -DDBARTS_REQUIRE_EXACT_ABI`
-in src/Makevars.in:3 and src/Makevars.win:3; includes at src/init.cpp:24 and
-src/bart_util.hpp:10. Two MANDATORY edits:
+in [[src/Makevars.in:3@9d0ee10f]] and [[src/Makevars.win:3@9d0ee10f]]; includes at [[src/init.cpp:24@9d0ee10f]] and
+[[src/bart_util.hpp:10@9d0ee10f]]. Two MANDATORY edits:
 
-- src/init.cpp:439 `dbarts_sampler_printTrees(fit, 0, chainIndices,
+- [[src/init.cpp:439@9d0ee10f]] `dbarts_sampler_printTrees(fit, 0, chainIndices,
   numChainIndices, sampleIndices, numSampleIndices, treeIndices, numTreeIndices,
   0);`
-- src/init.cpp:502-504 `dbarts_sampler_getTrees(fit, 0, chainIndices,
+- [[src/init.cpp:502-504@9d0ee10f]] `dbarts_sampler_getTrees(fit, 0, chainIndices,
   numChainIndices, sampleIndices, numSampleIndices, treeIndices, numTreeIndices,
   useLiveTrees ? 1 : 0)`
 
 Recommended, one check each at SETUP (the answer cannot change over the sampler's
-life, so the per-sweep call sites stay bare): src/init.cpp:240 `setOffset` covers
-:647 (:646 computes `update_scale_mod`; :648 is a commented-out duplicate); :242
-`setSigma` covers :629; :268 `getLatents` covers :676; :349 `predict` now returns
+life, so the per-sweep call sites stay bare): [[src/init.cpp:240@9d0ee10f]] `setOffset` covers
+:647 ([[src/init.cpp:646@9d0ee10f]] computes `update_scale_mod`; [[src/init.cpp:648@9d0ee10f]] is a commented-out duplicate); [[src/init.cpp:242@9d0ee10f]]
+`setSigma` covers [[src/init.cpp:629@9d0ee10f]]; [[src/init.cpp:268@9d0ee10f]] `getLatents` covers [[src/init.cpp:676@9d0ee10f]]; [[src/init.cpp:349@9d0ee10f]] `predict` now returns
 int. No `setWeights`, `setResponse`, `setTestPredictors`, `setTestOffset`,
 `setForestBasis` or `setActiveRows` call site exists. Its hand-rolled
-major/minor check (:969-978) is unaffected. Its CI reinstall step
+major/minor check ([[src/init.cpp:969-978@9d0ee10f]]) is unaffected. Its CI reinstall step
 (feb8c29/f9bca65) is what keeps the runner from using a cached pre-re-bake
 dbarts; keep it.
 
 **treatSens**, the treatSens dbarts-1.0 branch
 branch `dbarts-1.0` at 1db3d89. `DBARTS_REQUIRE_EXACT_ABI` + `DBARTS_USE_STUBS`
-per translation unit (src/R_interface.cpp:29-30, src/bartTreatmentModel.cpp:10-11,
-src/sensitivityAnalysis.cpp:32-33). NO mandatory edit - it calls no reordered
+per translation unit ([[src/R_interface.cpp:29-30@9d0ee10f]], [[src/bartTreatmentModel.cpp:10-11@9d0ee10f]],
+[[src/sensitivityAnalysis.cpp:32-33@9d0ee10f]]). NO mandatory edit - it calls no reordered
 entry - so a rebuild alone compiles. Recommended setup checks:
-src/sensitivityAnalysis.cpp:278 `setSigma`, :279 `setResponse` (covering :174,
-:185, :292), src/bartTreatmentModel.cpp:85 `setOffset`. The
+[[src/sensitivityAnalysis.cpp:278@9d0ee10f]] `setSigma`, [[src/sensitivityAnalysis.cpp:279@9d0ee10f]] `setResponse` (covering [[src/sensitivityAnalysis.cpp:174@9d0ee10f]],
+:185, [[src/sensitivityAnalysis.cpp:292@9d0ee10f]]), [[src/bartTreatmentModel.cpp:85@9d0ee10f]] `setOffset`. The
 sensitivityAnalysis.cpp sampler is gaussian; the bartTreatmentModel.cpp one is
-DBARTS_FAMILY_PROBIT (created at :63), and its `setOffset` still answers 1 -
+DBARTS_FAMILY_PROBIT (created at [[src/bartTreatmentModel.cpp:63@9d0ee10f]]), and its `setOffset` still answers 1 -
 `setOffset` has no family-keyed capability arm. Carry the hazard explicitly: a
 probit sampler answers 0 to `setSigma`, so if that file ever gains one, an
 unchecked call is a silent no-op. Its own `USE_FC_LEN_T` dance
-(src/R_interface.cpp:16-23) is unaffected by item 6.
+([[src/R_interface.cpp:16-23@9d0ee10f]]) is unaffected by item 6.
 
 **R-API-only, confirmed by grep, not asserted**: bartCause (no `src/` at all;
 DESCRIPTION has no `LinkingTo` field; zero `dbarts_` symbols repo-wide; uses
@@ -536,7 +536,7 @@ RcppEigen`; uses `dbartsControl`, `dbarts`, `updatePredictorPerObservationJointl
 CORRECTION to the task premise: treatSens is NOT R-API-only. Its MAIN worktree
 still carries `LinkingTo: dbarts (>= 0.9-21)` against the deleted C++ header ABI
 (`dbarts/bartFit.hpp` plus 14 `R_GetCCallable` lookups at
-src/sensitivityAnalysis.cpp:734-747) - which is why the compat branch above
+[[src/sensitivityAnalysis.cpp:734-747@9d0ee10f]]) - which is why the compat branch above
 exists and why treatSens migrates in lockstep with stan4bart, not with bartCause.
 
 ## 12. Expected gate outcomes
@@ -563,21 +563,21 @@ Anchor budget, `tools/check-doc-freshness.R .`, re-aligned in the SAME commit
 with each file's line count invariant. THREE files shift, not two:
 
 - inst/include/dbarts/dbarts.h: 22 bare `dbarts.h:N` anchors plus 8 `CAPI:N`
-  alias anchors (the alias is declared at tools/check-doc-freshness.R:147) = 30
-  in docs/design, plus docs/plans/archive/multiforest-extension-surface.md:3289.
+  alias anchors (the alias is declared at [[tools/check-doc-freshness.R:147@be7af096]]) = 30
+  in docs/design, plus [[docs/plans/archive/multiforest-extension-surface.md:3289@be7af096]].
 - src/C_interface.cpp: 17 anchors.
 - src/R_interface_bartcore.cpp: the predicates of section 8 insert into
-  :2613-2925, shifting 90 `RIB:` anchors plus 26 bare
-  `R_interface_bartcore.cpp:` anchors that sit at or below :2613. This is the
+  [[docs/plans/archive/multiforest-extension-surface.md:2613-2925@be7af096]], shifting 90 `RIB:` anchors plus 26 bare
+  `R_interface_bartcore.cpp:` anchors that sit at or below [[docs/plans/archive/multiforest-extension-surface.md:2613@be7af096]]. This is the
   largest of the three and the earlier draft omitted it.
 
 Cross-slice coordination, since this slice is not file-disjoint from a
 concurrently landing one: `inst/NEWS.Rd` takes an append under the same 1.0-0
-`\subsection{C API}` (:1006) that any other pre-RC slice also appends to -
+`\subsection{C API}` ([[docs/plans/archive/multiforest-extension-surface.md:1006@be7af096]]) that any other pre-RC slice also appends to -
 conflicts are expected at integration stacking and are resolved THERE, by the
 practiced append-point resolution, not by pre-negotiating the text.
 `src/R_interface_bartcore.cpp` is likewise shared: this slice touches the guard
-block :2613-2925 and `bartcore_setActiveRows` :4030-4054, neither of which is
+block [[docs/plans/archive/multiforest-extension-surface.md:2613-2925@be7af096]] and `bartcore_setActiveRows` [[docs/plans/archive/multiforest-extension-surface.md:4030-4054@be7af096]], neither of which is
 R-surface-disjoint. The `RIB:` anchor realignment therefore runs LAST, ONCE, over
 the stacked tree - never concurrently with another slice re-anchoring the same
 file, which would produce two line maps neither of which is true.
@@ -591,10 +591,10 @@ file, which would produce two line maps neither of which is true.
   `DBARTS_FAMILY_MULTINOMIAL` precedent.
 - `setActiveRows` can only ever return 1 after this slice. Every buildable family
   implements the mask (`ResponseModel::supportsActiveRows` default false at
-  src/bartcore/model.hpp:2678, overridden true by all nine concrete families;
+  [[src/bartcore/model.hpp:2678@be7af096]], overridden true by all nine concrete families;
   GroupedResponse and AFTResponse forward), and every concrete `setActiveRows`
-  returns true unconditionally, so src/bartcore/chain.hpp:1667 and :1677 are both
-  dead and only the non-binary scan at :1672 can refuse - which this slice moves
+  returns true unconditionally, so [[src/bartcore/chain.hpp:1667@be7af096]] and [[src/bartcore/chain.hpp:1677@be7af096]] are both
+  dead and only the non-binary scan at [[src/bartcore/chain.hpp:1672@be7af096]] can refuse - which this slice moves
   to a raise. The 0 arm stands as the declared capability channel.
 - A heteroscedastic sampler answers `DBARTS_FAMILY_GAUSSIAN` while `setSigma`
   refuses it; the accessor still does not predict the refusal, but the probe now
@@ -612,9 +612,9 @@ file, which would produce two line maps neither of which is true.
   forest other than 0 is reachable only from the flat API.
 - The flat `printEvery` entry still does not guard 0 (carried from the freeze).
 - `setActiveRows` scans its mask twice after this slice, entry and engine.
-- Pre-existing stale anchor found in passing: docs/design/feature-matrix.md:437
-  cites test-capi.R:1286-1319 for the active-rows block, which lives at
-  :1392-1433. The fix rides this slice's anchor pass.
+- Pre-existing stale anchor found in passing: [[docs/design/feature-matrix.md:437@be7af096]]
+  cites [[test-capi.R:1286-1319@be7af096]] for the active-rows block, which lives at
+  [[test-capi.R:1392-1433@be7af096]]. The fix rides this slice's anchor pass.
 
 ## 14. Doors
 
@@ -650,7 +650,7 @@ re-bake: dbarts_apiSignatureToken 0x32e5b15aa6c88c69 ->
 stale-token block as a sixth expect_false (the five existing lines
 already held correctly retired values, so none changed). Implementation
 deviations, all recorded at review: section 10's "heteroscedastic
-sampler built at :222-228" cite was ptrFixed (gaussian, fixed resid
+sampler built at [[test-capi.R:222-228@9d0ee10f]]" cite was ptrFixed (gaussian, fixed resid
 prior) - the setSigma -> 0 pin sits beside ptrVar's family assertion
 and the accepting 1 rides ptrFixed's existing call; where a predicate
 now answers a refusal the flat entry drops the superseded raiser

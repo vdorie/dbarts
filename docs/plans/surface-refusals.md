@@ -38,58 +38,58 @@ man/dbarts.Rd, which this slice does not touch at all (section 15).
 
 ## 2. Census: where a name goes today
 
-Read off the code at 9d0ee10f. `refuseUnusedGenericArgs` (R/generics.R:1908-1923) is the whole mechanism:
+Read off the code at 9d0ee10f. `refuseUnusedGenericArgs` ([[R/generics.R:1908-1923@9d0ee10f]]) is the whole mechanism:
 `intersect(names(reasons), names(dots))`, stop on `supplied[1L]` with
 `"'<x>' is not used by <generic> on a <class> fit: <reason>"`. Under R6 that main clause plus the reason is
 already the full budget, so a reason clause may contain no further `:` or `;`. Coverage is hand-listed per
-class (`multinomialUnusedArgs` :1006, `ordinalUnusedArgs` :1337, `negbinUnusedArgs` :1614, `hurdleUnusedArgs`
-:2045) composed with three per-generic lists (`predictOffsetUnusedArgs` :254, `predictWeightsUnusedArgs`
-:281, `predictNoOffsetUnusedArgs` :291).
+class (`multinomialUnusedArgs` [[R/generics.R:1006@9d0ee10f]], `ordinalUnusedArgs` [[R/generics.R:1337@9d0ee10f]], `negbinUnusedArgs` [[R/generics.R:1614@9d0ee10f]], `hurdleUnusedArgs`
+:2045) composed with three per-generic lists (`predictOffsetUnusedArgs` [[R/generics.R:254@9d0ee10f]], `predictWeightsUnusedArgs`
+:281, `predictNoOffsetUnusedArgs` [[R/generics.R:291@9d0ee10f]]).
 
-Methods with NO refusal call at all: `extract.bart` (:463-575; only the `trees` arm is guarded, by
-`refuseTreesArguments` at :482), `extract.rbart` (:2426), `extract.dbartsSampler` (:2578), `fitted.bart`
-(:883), `fitted.rbart` (:2586), `residuals.bart` (:923, `sample` only), `residuals.rbart` (:2643, `sample`
-only), `survivalProbabilities.bart` (R/bart.R:2547), `survivalProbabilities.rbart` (R/bart.R:2598),
-`plotTree.dbartsSampler` (:2654).
+Methods with NO refusal call at all: `extract.bart` ([[R/generics.R:463-575@9d0ee10f]]; only the `trees` arm is guarded, by
+`refuseTreesArguments` at [[R/generics.R:482@9d0ee10f]]), `extract.rbart` ([[R/generics.R:2426@9d0ee10f]]), `extract.dbartsSampler` ([[R/generics.R:2578@9d0ee10f]]), `fitted.bart`
+([[R/generics.R:883@9d0ee10f]]), `fitted.rbart` ([[R/generics.R:2586@9d0ee10f]]), `residuals.bart` ([[R/generics.R:923@9d0ee10f]], `sample` only), `residuals.rbart` ([[R/generics.R:2643@9d0ee10f]], `sample`
+only), `survivalProbabilities.bart` ([[R/bart.R:2547@9d0ee10f]]), `survivalProbabilities.rbart` ([[R/bart.R:2598@9d0ee10f]]),
+`plotTree.dbartsSampler` ([[R/bart.R:2654@9d0ee10f]]).
 
 The individual holes, each verified by reading the control flow:
 
 | # | site | what is discarded |
 |---|---|---|
-| N1 | `predict.bart` :340-356 | `ci.level`: `type = "forest"` returns at :348, above the `ci.level` block at :427 |
-| N2 | `predict.bart` :361-373, :386 | `forest`: read only inside the `"forest"` arm; `predictBlend` (:808-818) and the plain path take it nowhere |
-| N3 | `extract.bart` :496-497 | `forest`, `contribution`: read only by `extractForest`; on `"ev"/"ppd"/"bart"/"loglik"` both are dropped |
-| N4 | five `predict` methods :1216, :1502, :1754, :2147, :2194 | `bases`: a formal only on `predict.bart` (:305) |
+| N1 | `predict.bart` [[R/bart.R:340-356@9d0ee10f]] | `ci.level`: `type = "forest"` returns at [[R/bart.R:348@9d0ee10f]], above the `ci.level` block at [[R/bart.R:427@9d0ee10f]] |
+| N2 | `predict.bart` [[R/bart.R:361-373@9d0ee10f]], [[R/bart.R:386@9d0ee10f]] | `forest`: read only inside the `"forest"` arm; `predictBlend` ([[R/bart.R:808-818@9d0ee10f]]) and the plain path take it nowhere |
+| N3 | `extract.bart` [[R/bart.R:496-497@9d0ee10f]] | `forest`, `contribution`: read only by `extractForest`; on `"ev"/"ppd"/"bart"/"loglik"` both are dropped |
+| N4 | five `predict` methods [[R/bart.R:1216@9d0ee10f]], [[R/bart.R:1502@9d0ee10f]], [[R/bart.R:1754@9d0ee10f]], [[R/bart.R:2147@9d0ee10f]], [[R/bart.R:2194@9d0ee10f]] | `bases`: a formal only on `predict.bart` ([[R/bart.R:305@9d0ee10f]]) |
 | N5 | all six `predict` methods | `sample`: never a predict formal, never refused |
-| N6 | all six `predict` methods | `group.by`: a formal only on `predict.rbart` (:2204) |
-| N7 | `residuals` on multinomial/ordinal/negbin (:1174, :1478, :1734) | `sample`: `refuseResidualsSample` (:913) is called only at :926, :2133, :2646 |
+| N6 | all six `predict` methods | `group.by`: a formal only on `predict.rbart` ([[R/bart.R:2204@9d0ee10f]]) |
+| N7 | `residuals` on multinomial/ordinal/negbin ([[R/bart.R:1174@9d0ee10f]], [[R/bart.R:1478@9d0ee10f]], [[R/bart.R:1734@9d0ee10f]]) | `sample`: `refuseResidualsSample` ([[R/bart.R:913@9d0ee10f]]) is called only at [[R/bart.R:926@9d0ee10f]], [[R/bart.R:2133@9d0ee10f]], [[R/bart.R:2646@9d0ee10f]] |
 | N8 | `residuals`, all six | `ci.level`: LIVE on bart/rbart/hurdle (forwarded through `...` into `fitted`, so `y` minus a 3-column band recycles into a 3-column object), dropped on the other three - the one live-and-working behavior this slice removes, argued as a fork in section 7 |
-| N9 | all six `fitted` methods | `combineChains`: no `fitted.*` declares it; multinomial/ordinal/negbin/hurdle discard it outright, bart/rbart forward it into `extract` where it is provably value-neutral (both terminal reductions - `apply(result, length(dim(result)), mean)` :902 and `posteriorInterval` :176-214 - pool every margin but the last) |
-| N10 | `survivalProbabilities.bart` R/bart.R:2547-2553 | `group.by`, and every other fit-surface name; on the `.rbart` sibling `group.by` is a mandatory named formal (R/bart.R:2604, enforced :2623-2625) |
-| N11 | `plotTree.dbartsSampler` :2654-2656 | `sample`/`chain` PARTIAL-MATCH onto the R5 method's `sampleNum`/`chainNum` (R/dbarts.R:2097-2102), where `plotTree.bart`/`.rbart` refuse them via `refusePlotTreeArgs` (:2664-2678, called :2681, :2702) |
-| N12 | `extract.dbartsSampler` :2578-2584 | everything but `type` |
-| N13 | `fitted.bartHurdle` :2113-2122 | `sample` is a bare `"train"` string (every sibling uses a choice vector) passed unvalidated into `extract`, which then validates it and answers in `extract`'s own voice |
+| N9 | all six `fitted` methods | `combineChains`: no `fitted.*` declares it; multinomial/ordinal/negbin/hurdle discard it outright, bart/rbart forward it into `extract` where it is provably value-neutral (both terminal reductions - `apply(result, length(dim(result)), mean)` [[R/bart.R:902@9d0ee10f]] and `posteriorInterval` [[R/bart.R:176-214@9d0ee10f]] - pool every margin but the last) |
+| N10 | `survivalProbabilities.bart` [[R/bart.R:2547-2553@9d0ee10f]] | `group.by`, and every other fit-surface name; on the `.rbart` sibling `group.by` is a mandatory named formal ([[R/bart.R:2604@9d0ee10f]], enforced [[R/bart.R:2623-2625@9d0ee10f]]) |
+| N11 | `plotTree.dbartsSampler` [[R/bart.R:2654-2656@9d0ee10f]] | `sample`/`chain` PARTIAL-MATCH onto the R5 method's `sampleNum`/`chainNum` ([[R/dbarts.R:2097-2102@9d0ee10f]]), where `plotTree.bart`/`.rbart` refuse them via `refusePlotTreeArgs` ([[R/dbarts.R:2664-2678@9d0ee10f]], called [[R/dbarts.R:2681@9d0ee10f]], [[R/dbarts.R:2702@9d0ee10f]]) |
+| N12 | `extract.dbartsSampler` [[R/dbarts.R:2578-2584@9d0ee10f]] | everything but `type` |
+| N13 | `fitted.bartHurdle` [[R/dbarts.R:2113-2122@9d0ee10f]] | `sample` is a bare `"train"` string (every sibling uses a choice vector) passed unvalidated into `extract`, which then validates it and answers in `extract`'s own voice |
 | N14 | `fitted`/`extract`/`residuals`, all classes | `offset`, `weights`, `n.threads`, `newdata`: never formals there, never refused |
 
-Shape defect S1: `predict.bartMultinomial` :1277-1287, `predict.bartOrdinal` :1572-1583,
-`fitted.bartMultinomial` :1149-1156 and `fitted.bartOrdinal` :1458-1465 each take the `ci.level` return
+Shape defect S1: `predict.bartMultinomial` [[R/dbarts.R:1277-1287@9d0ee10f]], `predict.bartOrdinal` [[R/dbarts.R:1572-1583@9d0ee10f]],
+`fitted.bartMultinomial` [[R/dbarts.R:1149-1156@9d0ee10f]] and `fitted.bartOrdinal` [[R/dbarts.R:1458-1465@9d0ee10f]] each take the `ci.level` return
 BEFORE the class reduction, so `type = "class", ci.level = 0.9` silently returns the `type = "ev"` band. This
-is currently DOCUMENTED (man/bart2.Rd:387, :391 - the only two Rd promises of it) and PINNED
-(inst/tinytest/test-multinomial-generics.R:239-242, test-ordinal.R:109-112), which is why section 5 argues it
+is currently DOCUMENTED ([[man/bart2.Rd:387@9d0ee10f]], [[man/bart2.Rd:391@9d0ee10f]] - the only two Rd promises of it) and PINNED
+([[inst/tinytest/test-multinomial-generics.R:239-242@9d0ee10f]], [[test-ordinal.R:109-112@9d0ee10f]]), which is why section 5 argues it
 rather than asserting it.
 
-Order defects. `plot.bartMultinomial` is `(x, cols, plquants, ...)` (R/plot.R:226-231). The six sibling plot
-methods that put `plquants` second are `plot.bart` (:53), `plot.rbart` (:123), `plot.bartOrdinal` (:308),
-`plot.bartNegbin` (:368), `plot.bartHurdle` (:417) and `plot.pd2bart` (:505, which carries no `cols` at all).
-`plot.pdbart` is NOT one of them - it is `(x, xind, plquants, cols, ...)` (R/plot.R:476-482), a different
+Order defects. `plot.bartMultinomial` is `(x, cols, plquants, ...)` ([[R/plot.R:226-231@9d0ee10f]]). The six sibling plot
+methods that put `plquants` second are `plot.bart` ([[R/plot.R:53@9d0ee10f]]), `plot.rbart` ([[R/plot.R:123@9d0ee10f]]), `plot.bartOrdinal` ([[R/plot.R:308@9d0ee10f]]),
+`plot.bartNegbin` ([[R/plot.R:368@9d0ee10f]]), `plot.bartHurdle` ([[R/plot.R:417@9d0ee10f]]) and `plot.pd2bart` ([[R/plot.R:505@9d0ee10f]], which carries no `cols` at all).
+`plot.pdbart` is NOT one of them - it is `(x, xind, plquants, cols, ...)` ([[R/plot.R:476-482@9d0ee10f]]), a different
 shape for a different object, and this slice does not touch it. And `fitted`'s positional slot 3 is `sample`
-on bart (:883), hurdle (:2113) and rbart (:2586) but `ci.level` on multinomial (:1134), ordinal (:1437) and
-negbin (:1700).
+on bart ([[R/plot.R:883@9d0ee10f]]), hurdle ([[R/plot.R:2113@9d0ee10f]]) and rbart ([[R/plot.R:2586@9d0ee10f]]) but `ci.level` on multinomial ([[R/plot.R:1134@9d0ee10f]]), ordinal ([[R/plot.R:1437@9d0ee10f]]) and
+negbin ([[R/plot.R:1700@9d0ee10f]]).
 
-Input validation: `validatePredictThreads` (:234-248) refuses `n.threads != round(n.threads)`, while
-`dbartsControl` coerces through `coerceOrError(n.threads, "integer")` (R/dbarts.R:244), whose `as.integer`
-(R/utility.R:167-178) truncates 2.7 to 2 without a warning; the S4 validity checks only length, NA and
-positivity (R/A_class.R:295-296, :349-350). The legacy path pre-coerces the same way (R/bart.R:2780-2788).
+Input validation: `validatePredictThreads` ([[R/plot.R:234-248@9d0ee10f]]) refuses `n.threads != round(n.threads)`, while
+`dbartsControl` coerces through `coerceOrError(n.threads, "integer")` ([[R/dbarts.R:244@9d0ee10f]]), whose `as.integer`
+([[R/utility.R:167-178@9d0ee10f]]) truncates 2.7 to 2 without a warning; the S4 validity checks only length, NA and
+positivity ([[R/A_class.R:295-296@9d0ee10f]], [[R/A_class.R:349-350@9d0ee10f]]). The legacy path pre-coerces the same way ([[R/bart.R:2780-2788@9d0ee10f]]).
 Every other integer count in `dbartsControl` truncates identically - this is not an `n.threads` fact.
 
 ## 3. Mechanism: derived coverage, not longer hand-lists
@@ -103,7 +103,7 @@ one reason per (generic, name); a method's refusal list is that generic's table 
 formals, composed AFTER its class-specific list so the specific fact still wins.
 `refuseUnusedGenericArgs` reports `names(reasons)`'s first hit, so composition order IS priority order,
 exactly as the four existing call sites already rely on (`c(multinomialUnusedArgs, predictOffsetUnusedArgs,
-predictWeightsUnusedArgs)` at :1232).
+predictWeightsUnusedArgs)` at [[R/bart.R:1232@9d0ee10f]]).
 
     # A name that is a formal on one method of this surface and not on another
     # is a caller mistake wherever it is foreign, not an argument to discard.
@@ -128,10 +128,10 @@ Cost: five reason tables (17 entries), one 3-line helper, 27 one-line call sites
   do not stay complete is that they did not.
 - A catch-all: refuse ANY unmatched name in `...`. Strictly stronger (it catches typos too), but it closes
   a DOCUMENTED forwarding path: `extract(type = "trees")` rewrites its own call onto the sampler's `getTrees`
-  (:481-491), whose formals include `newdata` (R/dbarts.R:1999-2004); `refuseTreesArguments`'s own message
-  advertises it verbatim (:456, "'newdata' instead (see 'Extracting Trees' in ?bart)"), it is pinned at
-  inst/tinytest/test-sampler-trees.R:60-70 and documented at man/bart.Rd:221-223. It also closes
-  `fitted` -> `extract` (:893) and `residuals` -> `fitted` (:927), so a catch-all at `extract` would fire
+  ([[R/bart.R:481-491@9d0ee10f]]), whose formals include `newdata` ([[R/dbarts.R:1999-2004@9d0ee10f]]); `refuseTreesArguments`'s own message
+  advertises it verbatim ([[R/dbarts.R:456@9d0ee10f]], "'newdata' instead (see 'Extracting Trees' in ?bart)"), it is pinned at
+  [[inst/tinytest/test-sampler-trees.R:60-70@9d0ee10f]] and documented at [[man/bart.Rd:221-223@9d0ee10f]]. It also closes
+  `fitted` -> `extract` ([[man/bart.Rd:893@9d0ee10f]]) and `residuals` -> `fitted` ([[man/bart.Rd:927@9d0ee10f]]), so a catch-all at `extract` would fire
   with `extract` in the message on a call the user made to `residuals`. Since this slice does close every
   link and delete those three forwards (section 4), a terminal catch-all becomes a cheap ADDITIVE follow-on
   and is recorded as residue rather than taken here, where it would add a second message shape to a surface
@@ -145,20 +145,20 @@ The `newdata`/`getTrees` collision is the reason section 4 states PLACEMENT, not
 
 Wording family, unchanged: `refuseUnusedGenericArgs`'s `"'<x>' is not used by <generic> on a <class> fit:
 <reason>"`. Under R6 that is main clause plus ONE explanatory clause, so every NEW reason below is a single
-clause carrying no `:` and no `;`. `refuseResidualsSample` (:913-921), `refusePlotTreeArgs` (:2664-2678) and
-`singleForestReason` (:997-1000) keep their strings VERBATIM - they are existing corpus, pinned by seven
+clause carrying no `:` and no `;`. `refuseResidualsSample` ([[man/bart.Rd:913-921@9d0ee10f]]), `refusePlotTreeArgs` ([[man/bart.Rd:2664-2678@9d0ee10f]]) and
+`singleForestReason` ([[man/bart.Rd:997-1000@9d0ee10f]]) keep their strings VERBATIM - they are existing corpus, pinned by seven
 tests between them, and error-style.md's slice L rewrites the corpus in one sweep so nothing is reworded
 twice.
 
 ### 4a. Class lists, composed first
 
-Existing and unchanged: `multinomialUnusedArgs` (:1006), `ordinalUnusedArgs` (:1337), `negbinUnusedArgs`
-(:1614), `hurdleUnusedArgs` (:2045), each holding `forest`/`contribution`.
+Existing and unchanged: `multinomialUnusedArgs` ([[man/bart.Rd:1006@9d0ee10f]]), `ordinalUnusedArgs` ([[man/bart.Rd:1337@9d0ee10f]]), `negbinUnusedArgs`
+([[man/bart.Rd:1614@9d0ee10f]]), `hurdleUnusedArgs` ([[man/bart.Rd:2045@9d0ee10f]]), each holding `forest`/`contribution`.
 
 Existing and unchanged, and the reason they cannot fold into a name-keyed table: the two offset lists are
-CLASS-dependent, not generic-dependent. `predictOffsetUnusedArgs` (:254-256, "this fit's out-of-sample offset
-argument is named 'offset'") is right where `offset` IS a formal (predict.bart :300, .bartMultinomial :1220,
-.bartNegbin :1758) and only `offset.test` is foreign; `predictNoOffsetUnusedArgs` (:291-294) is right where
+CLASS-dependent, not generic-dependent. `predictOffsetUnusedArgs` ([[man/bart.Rd:254-256@9d0ee10f]], "this fit's out-of-sample offset
+argument is named 'offset'") is right where `offset` IS a formal (predict.bart [[man/bart.Rd:300@9d0ee10f]], .bartMultinomial [[man/bart.Rd:1220@9d0ee10f]],
+.bartNegbin [[man/bart.Rd:1758@9d0ee10f]]) and only `offset.test` is foreign; `predictNoOffsetUnusedArgs` ([[man/bart.Rd:291-294@9d0ee10f]]) is right where
 neither is (predict.bartOrdinal, predict.bartHurdle). One name-keyed entry cannot hold both, so both lists
 SURVIVE as composed-first class lists at their five existing call sites, and `offset`/`offset.test` appear in
 no derived table.
@@ -205,7 +205,7 @@ fit is always single-forest - and is composed on all four rbart methods.
 - `combineChains`: `"the per-chain draws are extract(object, combineChains = FALSE)"`
 - `sample`: `"fitted values are always the fit's training rows"` - fires on `bartHurdle` alone, since
   `foreignArgsFor` removes it on bart and rbart (a formal there) and the three own-class
-  `<class>FittedSampleReason` lists (:1121, :1425, :1688) are composed first
+  `<class>FittedSampleReason` lists ([[man/bart.Rd:1121@9d0ee10f]], [[man/bart.Rd:1425@9d0ee10f]], [[man/bart.Rd:1688@9d0ee10f]]) are composed first
 - `newdata`, `offset`, `weights`, `n.threads`, `bases`: `"fitted summarizes stored channels and replays
   nothing"`
 - `group.by`: `"the stored channels already carry the fit's own grouping"`
@@ -230,34 +230,34 @@ sits at the method head beside the existing validation.
 
 | method | added | placement |
 |---|---|---|
-| `predict.bart` :296 | `sample`, `contribution`, `group.by` | head (:313, extend the existing call) |
-| `predict.rbart` :2194 | `sample`, `bases`, + `forest`/`contribution` via `rbartUnusedArgs` | head (:2219) |
-| `predict.bartMultinomial` :1216 | `sample`, `bases`, `group.by` | head (:1228) |
-| `predict.bartOrdinal` :1502 | `sample`, `bases`, `group.by` | head (:1512) |
-| `predict.bartNegbin` :1754 | `sample`, `bases`, `group.by` | head (:1765) |
-| `predict.bartHurdle` :2147 | `sample`, `bases`, `group.by` | head (:2157) |
-| `extract.bart` :463 | NEW call: `ci.level`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | BELOW the `type == "trees"` branch (after :492), so `newdata` still forwards to `getTrees` |
-| `extract.rbart` :2426 | NEW call: the same seven, + `forest`/`contribution` via `rbartUnusedArgs` | BELOW the trees branch (after :2485), same reason |
-| `extract.bartMultinomial` :1017 | `ci.level`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | head (:1030) - no trees arm |
-| `extract.bartOrdinal` :1342 | the same seven | head (:1351) |
-| `extract.bartNegbin` :1619 | the same seven | head (:1628) |
-| `extract.bartHurdle` :2050 | the same seven | head (:2059) |
-| `extract.dbartsSampler` :2578 | NEW call, its own catch-all (below) | head |
-| `fitted.bart` :883 | NEW call: `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by`, + `forest`/`contribution` via `bartUnusedArgs` | head |
-| `fitted.rbart` :2586 | NEW call: the same seven, + `forest`/`contribution` via `rbartUnusedArgs` | head |
-| `fitted.bartMultinomial` :1134 | `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | head (:1142) |
-| `fitted.bartOrdinal` :1437 | the same seven | head (:1444) |
-| `fitted.bartNegbin` :1700 | the same seven | head (:1707) |
-| `fitted.bartHurdle` :2113 | the same seven, plus `sample` (its formal is dropped - section 8) | head (:2121) |
-| `residuals.bart` :923 | `ci.level`, `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, + `forest`/`contribution` via `bartUnusedArgs` | after `refuseResidualsSample` (:926) |
-| `residuals.rbart` :2643 | the same, `bartUnusedArgs` replaced by `rbartUnusedArgs` | after :2646 |
-| `residuals.bartHurdle` :2129 | `ci.level`, `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases` | extend the existing call (:2134) |
-| `residuals.bartMultinomial` :1174 | `sample` (NEW `refuseResidualsSample` call), plus the seven above | `refuseResidualsSample` first, then extend :1175 |
-| `residuals.bartOrdinal` :1478 | the same eight | same shape (:1479) |
-| `residuals.bartNegbin` :1734 | the same eight | same shape (:1735) |
-| `survivalProbabilities.bart` R/bart.R:2547 | NEW call: `group.by`, `type`, `sample`, `ci.level`, `offset`, `weights`, `n.threads`, `forest`, `contribution`, `bases` | head, above the family check |
-| `survivalProbabilities.rbart` R/bart.R:2598 | NEW call: the same minus `group.by` | head |
-| `plotTree.dbartsSampler` :2654 | `refusePlotTreeArgs(sys.call())`, one line, the string the fit methods already raise | head |
+| `predict.bart` [[man/bart.Rd:296@9d0ee10f]] | `sample`, `contribution`, `group.by` | head ([[man/bart.Rd:313@9d0ee10f]], extend the existing call) |
+| `predict.rbart` [[man/bart.Rd:2194@9d0ee10f]] | `sample`, `bases`, + `forest`/`contribution` via `rbartUnusedArgs` | head ([[man/bart.Rd:2219@9d0ee10f]]) |
+| `predict.bartMultinomial` [[man/bart.Rd:1216@9d0ee10f]] | `sample`, `bases`, `group.by` | head ([[man/bart.Rd:1228@9d0ee10f]]) |
+| `predict.bartOrdinal` [[man/bart.Rd:1502@9d0ee10f]] | `sample`, `bases`, `group.by` | head ([[man/bart.Rd:1512@9d0ee10f]]) |
+| `predict.bartNegbin` [[man/bart.Rd:1754@9d0ee10f]] | `sample`, `bases`, `group.by` | head ([[man/bart.Rd:1765@9d0ee10f]]) |
+| `predict.bartHurdle` [[man/bart.Rd:2147@9d0ee10f]] | `sample`, `bases`, `group.by` | head ([[man/bart.Rd:2157@9d0ee10f]]) |
+| `extract.bart` [[man/bart.Rd:463@9d0ee10f]] | NEW call: `ci.level`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | BELOW the `type == "trees"` branch (after [[man/bart.Rd:492@9d0ee10f]]), so `newdata` still forwards to `getTrees` |
+| `extract.rbart` [[man/bart.Rd:2426@9d0ee10f]] | NEW call: the same seven, + `forest`/`contribution` via `rbartUnusedArgs` | BELOW the trees branch (after [[man/bart.Rd:2485@9d0ee10f]]), same reason |
+| `extract.bartMultinomial` [[man/bart.Rd:1017@9d0ee10f]] | `ci.level`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | head ([[man/bart.Rd:1030@9d0ee10f]]) - no trees arm |
+| `extract.bartOrdinal` [[man/bart.Rd:1342@9d0ee10f]] | the same seven | head ([[man/bart.Rd:1351@9d0ee10f]]) |
+| `extract.bartNegbin` [[man/bart.Rd:1619@9d0ee10f]] | the same seven | head ([[man/bart.Rd:1628@9d0ee10f]]) |
+| `extract.bartHurdle` [[man/bart.Rd:2050@9d0ee10f]] | the same seven | head ([[man/bart.Rd:2059@9d0ee10f]]) |
+| `extract.dbartsSampler` [[man/bart.Rd:2578@9d0ee10f]] | NEW call, its own catch-all (below) | head |
+| `fitted.bart` [[man/bart.Rd:883@9d0ee10f]] | NEW call: `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by`, + `forest`/`contribution` via `bartUnusedArgs` | head |
+| `fitted.rbart` [[man/bart.Rd:2586@9d0ee10f]] | NEW call: the same seven, + `forest`/`contribution` via `rbartUnusedArgs` | head |
+| `fitted.bartMultinomial` [[man/bart.Rd:1134@9d0ee10f]] | `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, `group.by` | head ([[man/bart.Rd:1142@9d0ee10f]]) |
+| `fitted.bartOrdinal` [[man/bart.Rd:1437@9d0ee10f]] | the same seven | head ([[man/bart.Rd:1444@9d0ee10f]]) |
+| `fitted.bartNegbin` [[man/bart.Rd:1700@9d0ee10f]] | the same seven | head ([[man/bart.Rd:1707@9d0ee10f]]) |
+| `fitted.bartHurdle` [[man/bart.Rd:2113@9d0ee10f]] | the same seven, plus `sample` (its formal is dropped - section 8) | head ([[man/bart.Rd:2121@9d0ee10f]]) |
+| `residuals.bart` [[man/bart.Rd:923@9d0ee10f]] | `ci.level`, `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases`, + `forest`/`contribution` via `bartUnusedArgs` | after `refuseResidualsSample` ([[man/bart.Rd:926@9d0ee10f]]) |
+| `residuals.rbart` [[man/bart.Rd:2643@9d0ee10f]] | the same, `bartUnusedArgs` replaced by `rbartUnusedArgs` | after [[man/bart.Rd:2646@9d0ee10f]] |
+| `residuals.bartHurdle` [[man/bart.Rd:2129@9d0ee10f]] | `ci.level`, `combineChains`, `newdata`, `offset`, `weights`, `n.threads`, `bases` | extend the existing call ([[man/bart.Rd:2134@9d0ee10f]]) |
+| `residuals.bartMultinomial` [[man/bart.Rd:1174@9d0ee10f]] | `sample` (NEW `refuseResidualsSample` call), plus the seven above | `refuseResidualsSample` first, then extend [[man/bart.Rd:1175@9d0ee10f]] |
+| `residuals.bartOrdinal` [[man/bart.Rd:1478@9d0ee10f]] | the same eight | same shape ([[man/bart.Rd:1479@9d0ee10f]]) |
+| `residuals.bartNegbin` [[man/bart.Rd:1734@9d0ee10f]] | the same eight | same shape ([[man/bart.Rd:1735@9d0ee10f]]) |
+| `survivalProbabilities.bart` [[R/bart.R:2547@9d0ee10f]] | NEW call: `group.by`, `type`, `sample`, `ci.level`, `offset`, `weights`, `n.threads`, `forest`, `contribution`, `bases` | head, above the family check |
+| `survivalProbabilities.rbart` [[R/bart.R:2598@9d0ee10f]] | NEW call: the same minus `group.by` | head |
+| `plotTree.dbartsSampler` [[R/bart.R:2654@9d0ee10f]] | `refusePlotTreeArgs(sys.call())`, one line, the string the fit methods already raise | head |
 
 `extract.dbartsSampler` gets the one catch-all this slice takes, because `refuseUnusedGenericArgs`'s "on a
 `<class>` fit" noun is wrong for a sampler, its `...` forwards nowhere, and nothing delegates through it:
@@ -285,7 +285,7 @@ explanatory clause:
       )
     }
 
-in `predict.bart` (above the `"forest"` arm at :340) and `extract.bart` (above :496), and in `extract.bart`
+in `predict.bart` (above the `"forest"` arm at [[R/bart.R:340@9d0ee10f]]) and `extract.bart` (above [[R/bart.R:496@9d0ee10f]]), and in `extract.bart`
 for `contribution` under `type != "forest" && isTRUE(contribution)`:
 
     stop(
@@ -295,8 +295,8 @@ for `contribution` under `type != "forest" && isTRUE(contribution)`:
 
 Because every foreign name is refused at each link, three internal `...` forwards become dead and are
 DELETED, which also removes the wrong-generic-name hazard the catch-all alternative fails on:
-`fitted.bart` :893 becomes `extract(object, type, sample)`, `fitted.rbart` :2605 and :2631 the same, and
-`residuals.bart` :927 / `residuals.rbart` :2647 / `residuals.bartHurdle` :2140 call `fitted.*` without `...`.
+`fitted.bart` [[R/bart.R:893@9d0ee10f]] becomes `extract(object, type, sample)`, `fitted.rbart` [[R/bart.R:2605@9d0ee10f]] and [[R/bart.R:2631@9d0ee10f]] the same, and
+`residuals.bart` [[R/bart.R:927@9d0ee10f]] / `residuals.rbart` [[R/bart.R:2647@9d0ee10f]] / `residuals.bartHurdle` [[R/bart.R:2140@9d0ee10f]] call `fitted.*` without `...`.
 
 ## 5. Fork: `type = "class"` with `ci.level`
 
@@ -311,13 +311,13 @@ posterior distribution of the argmax (a per-observation probability vector over 
 channel, not a band, and would need its own name, its own shape and its own Rd. Additive, and post-1.0 by
 rule.
 
-(c) KEEP and document. It is already documented (man/bart2.Rd:387, :391) and pinned
-(test-multinomial-generics.R:239-242, test-ordinal.R:109-112), so this is the zero-cost option.
+(c) KEEP and document. It is already documented ([[man/bart2.Rd:387@9d0ee10f]], [[man/bart2.Rd:391@9d0ee10f]]) and pinned
+([[test-multinomial-generics.R:239-242@9d0ee10f]], [[test-ordinal.R:109-112@9d0ee10f]]), so this is the zero-cost option.
 
 RECOMMEND (a). The rule the package already enforces everywhere else is that a supplied argument is honored
 or refused, never inert; here `type = "class"` is inert, and the documentation of an inert argument is what
 the sweep is closing on `fitted(combineChains = )` and on `bases`. (c)'s own consistency argument cuts the
-other way: `fitted(type = "class")`'s class reduction ALREADY fires only at `ci.level = NULL` (:1152-1156,
+other way: `fitted(type = "class")`'s class reduction ALREADY fires only at `ci.level = NULL` ([[test-ordinal.R:1152-1156@9d0ee10f]],
 :1461-1465), so (a) states at `predict` the rule `fitted` follows in fact. And the direction is the
 reversible one - refusing now leaves (b) additive later, while shipping (c) makes the ev-band-under-a-class-
 request an interface promise that (b) would have to break.
@@ -334,14 +334,14 @@ block) as an implementation invariant, not the combination's meaning as an adjud
 
 ## 6. Fork: `ci.level` on `type = "forest"`
 
-`predict.bart(type = "forest")` returns at :348 with a trailing forest margin (`predictForest` :690-696), so
+`predict.bart(type = "forest")` returns at [[test-ordinal.R:348@9d0ee10f]] with a trailing forest margin (`predictForest` [[test-ordinal.R:690-696@9d0ee10f]]), so
 a band is computable in two lines - `posteriorInterval(result, ci.level, trailing = 2L)` gives (obs x forest
-x 3), the same widening the multinomial K margin already gets (:1150, :1459).
+x 3), the same widening the multinomial K margin already gets ([[test-ordinal.R:1150@9d0ee10f]], [[test-ordinal.R:1459@9d0ee10f]]).
 
-Options: (a) REFUSE by name, in the shape of the `bases` refusal that already sits on this arm (:341-347);
+Options: (a) REFUSE by name, in the shape of the `bases` refusal that already sits on this arm ([[test-ordinal.R:341-347@9d0ee10f]]);
 (b) IMPLEMENT the (obs x forest x 3) band.
 
-RECOMMEND (a). The arm's contract is stated in its own comment (:337-339) and in man/bart.Rd:204 - it
+RECOMMEND (a). The arm's contract is stated in its own comment ([[test-ordinal.R:337-339@9d0ee10f]]) and in [[man/bart.Rd:204@9d0ee10f]] - it
 "reports the raw per-forest total BEFORE any basis, which is what leaves the recombination to the caller".
 Every other `ci.level` band summarizes the quantity the model reports; this one would summarize an
 intermediate whose scale the amplitudes still carry, and a per-forest band read as a component's uncertainty
@@ -349,7 +349,7 @@ is exactly the misreading the arm's own `bases` refusal exists to prevent. Cost 
 way), so the tie-breaker is direction: (a) leaves (b) additive, (b) does not leave (a) available.
 
 Message, in R13's verb and in the exact shape of the sibling refusal ten lines above it in the same file
-(`"type = \"forest\" does not support sample = \"test\": ..."`, :606-611):
+(`"type = \"forest\" does not support sample = \"test\": ..."`, [[man/bart.Rd:606-611@9d0ee10f]]):
 
     stop(
       "type = \"forest\" does not support 'ci.level': that arm reports each ",
@@ -359,7 +359,7 @@ Message, in R13's verb and in the exact shape of the sibling refusal ten lines a
 ## 7. Fork: `ci.level` on `residuals`
 
 The one live, working behavior this slice removes, so it is argued rather than assumed. Today
-`residuals(fit, ci.level = 0.9)` on bart, rbart and hurdle forwards through `...` into `fitted` (:893, :2605,
+`residuals(fit, ci.level = 0.9)` on bart, rbart and hurdle forwards through `...` into `fitted` ([[man/bart.Rd:893@9d0ee10f]], [[man/bart.Rd:2605@9d0ee10f]],
 :2140) and returns `y` minus a 3-column `est`/`ci.lower`/`ci.upper` matrix, recycled down the columns; on
 multinomial, ordinal and negbin the same call silently drops it (N8). No test and no Rd pins it anywhere
 (verified zero hits).
@@ -404,25 +404,25 @@ machinery without a collision to justify it.
 (d) Keep the split, document it. Rejected: it is the defect.
 
 `fitted.bartHurdle` loses its `sample` formal outright (N13). A hurdle fit has no separate test channel at
-all - `extract.bartHurdle` :2060-2065 refuses `sample = "test"` unconditionally - so the argument has exactly
+all - `extract.bartHurdle` [[man/bart.Rd:2060-2065@9d0ee10f]] refuses `sample = "test"` unconditionally - so the argument has exactly
 one legal value, and the three own-class siblings already refuse `sample` by name for the same reason. Its
-body's `extract(object, type = type, sample = sample, ...)` (:2122) becomes `sample = "train"` literally,
-`residuals.bartHurdle` :2140 drops its `sample = "train"` pass, and `fittedForeignReasons$sample` (4b) is
+body's `extract(object, type = type, sample = sample, ...)` ([[man/bart.Rd:2122@9d0ee10f]]) becomes `sample = "train"` literally,
+`residuals.bartHurdle` [[man/bart.Rd:2140@9d0ee10f]] drops its `sample = "train"` pass, and `fittedForeignReasons$sample` (4b) is
 what refuses a supplied one afterwards.
 
 What breaks: `fitted(fit, "ev", "train")` now binds `"train"` to `ci.level` and raises `posteriorInterval`'s
-`"'ci.level' must be a single number in (0, 1)"` (:184) - loud, not silent. Positional slot-3 `fitted` call
+`"'ci.level' must be a single number in (0, 1)"` ([[man/bart.Rd:184@9d0ee10f]]) - loud, not silent. Positional slot-3 `fitted` call
 sites in the repo: ZERO (section 13's parse). Every in-repo `fitted(..., sample = )` names it:
-test-generics-correctValues.R:53, test-generics-posteriorPredictiveDistribution.R:125,
-test-rbart-generics.R:137, test-rbart-groupby.R:184, :192, :242, :250, :292, and the three refusal probes at
-test-multinomial-generics.R:445, test-ordinal.R:488, test-nbinom.R:469.
+[[test-generics-correctValues.R:53@9d0ee10f]], [[test-generics-posteriorPredictiveDistribution.R:125@9d0ee10f]],
+[[test-rbart-generics.R:137@9d0ee10f]], [[test-rbart-groupby.R:184@9d0ee10f]], [[test-rbart-groupby.R:192@9d0ee10f]], [[test-rbart-groupby.R:242@9d0ee10f]], [[test-rbart-groupby.R:250@9d0ee10f]], [[test-rbart-groupby.R:292@9d0ee10f]], and the three refusal probes at
+[[test-multinomial-generics.R:445@9d0ee10f]], [[test-ordinal.R:488@9d0ee10f]], [[test-nbinom.R:469@9d0ee10f]].
 
 ## 9. `plot.bartMultinomial`'s argument order
 
 `(x, cols, plquants, ...)` -> `(x, plquants, cols, ...)`, matching the six sibling methods enumerated in
 section 2 (`plot.pdbart` is a different shape and is not touched). Body unchanged. Zero in-repo positional
-callers: test-multinomial-generics.R calls `plot(fitCombined)` bare at :132, :133, :481, :483, and the man
-examples call `plot(bartFit)` bare (man/bart.Rd:397). One `\usage` line, man/bart2.Rd:147. This is the whole
+callers: test-multinomial-generics.R calls `plot(fitCombined)` bare at [[test-nbinom.R:132@9d0ee10f]], [[test-nbinom.R:133@9d0ee10f]], [[test-nbinom.R:481@9d0ee10f]], [[test-nbinom.R:483@9d0ee10f]], and the man
+examples call `plot(bartFit)` bare ([[man/bart.Rd:397@9d0ee10f]]). One `\usage` line, [[man/bart2.Rd:147@9d0ee10f]]. This is the whole
 item.
 
 ## 10. Fractional counts at construction
@@ -430,11 +430,11 @@ item.
 The asymmetry is one argument name with two behaviors one level apart, so the fix belongs where the
 truncation is, not at `n.threads` alone: every `coerceOrError(x, "integer")` truncates.
 
-RECOMMENDED: refuse a non-integral double inside `coerceOrError`'s integer branch (R/utility.R:160-179) -
+RECOMMENDED: refuse a non-integral double inside `coerceOrError`'s integer branch ([[R/utility.R:160-179@9d0ee10f]]) -
 one edit, no call-site changes, and `coerceOrError(x, "numeric")` (xbart's proportional `n.test`,
-R/xbart.R:385) is untouched by construction.
+[[R/xbart.R:385@9d0ee10f]]) is untouched by construction.
 
-The message's subject cannot be `mc[[2L]]` unguarded: at R/spec.R:544-548 the argument is
+The message's subject cannot be `mc[[2L]]` unguarded: at [[R/spec.R:544-548@9d0ee10f]] the argument is
 `if (is.null(varianceNTrees)) 40L else varianceNTrees`, and deparsing a call into a quoted name renders
 garbage. Guard it:
 
@@ -456,12 +456,12 @@ which names no wrong argument. The predicate falls through correctly at the edge
 not `is.finite() & x != trunc(x)` or are caught by the existing coercion error; `200` passes; `200.5`
 refuses; `is.double` excludes integer and logical inputs.
 
-Coverage acquired at a stroke - 32 integer call sites: `dbartsControl`'s ten counts (R/dbarts.R:239-248),
-`dbarts()`'s own `seed` mirror (R/dbarts.R:611), `bart()`'s nine legacy spellings (R/bart.R:2780-2788, which
+Coverage acquired at a stroke - 32 integer call sites: `dbartsControl`'s ten counts ([[R/dbarts.R:239-248@9d0ee10f]]),
+`dbarts()`'s own `seed` mirror ([[R/dbarts.R:611@9d0ee10f]]), `bart()`'s nine legacy spellings ([[R/bart.R:2780-2788@9d0ee10f]], which
 pre-coerce precisely so the message names the caller's own argument), `rbart_vi`'s `n.chains`/`n.threads`
-(R/rbart.R:74, :79), `xbart`'s SEVEN (R/xbart.R:43 `n.cuts`, :51 `n.thin`, :197 `n.trees`, :370 `n.test`,
-:401 `n.reps`, :405 `n.burn`, :409 `n.threads`), `dbartsSpec`'s `n.trees` (R/spec.R:545) and `seed` (:841),
-and `max.leaf.size` (R/model.R:1475).
+([[R/rbart.R:74@9d0ee10f]], [[R/rbart.R:79@9d0ee10f]]), `xbart`'s SEVEN ([[R/xbart.R:43@9d0ee10f]] `n.cuts`, [[R/xbart.R:51@9d0ee10f]] `n.thin`, [[R/xbart.R:197@9d0ee10f]] `n.trees`, [[R/xbart.R:370@9d0ee10f]] `n.test`,
+:401 `n.reps`, [[R/xbart.R:405@9d0ee10f]] `n.burn`, [[R/xbart.R:409@9d0ee10f]] `n.threads`), `dbartsSpec`'s `n.trees` ([[R/spec.R:545@9d0ee10f]]) and `seed` ([[R/spec.R:841@9d0ee10f]]),
+and `max.leaf.size` ([[R/model.R:1475@9d0ee10f]]).
 
 Alternative rejected: an `n.threads`-only check in `dbartsControl` reusing `validatePredictThreads`'s exact
 sentence. Cheaper by nothing, and it leaves `n.trees = 200.7` truncating next to `n.threads = 2.7`
@@ -469,13 +469,13 @@ refusing - recreating one level down the very asymmetry being fixed.
 
 Wording: `validatePredictThreads` keeps its richer `"'n.threads' must be a single positive integer, not
 2.7"` (it also owns length and positivity). Same R11/R12 family - subject named, constraint stated, offending
-value echoed after a `, not` - and the S4 validity (R/A_class.R:295-296, :349-350) already owns length, NA
+value echoed after a `, not` - and the S4 validity ([[R/A_class.R:295-296@9d0ee10f]], [[R/A_class.R:349-350@9d0ee10f]]) already owns length, NA
 and positivity at construction, so the constructor's message must not claim them.
 
 ## 11. The two R5 readers with a vestigial `result`
 
-VD ruling: refuse `result` by name on `$getSigmas` and `$getSumsOfSquaredResiduals` (R/dbarts.R:1675, :1686;
-man/dbartsSampler-class.Rd:290-291 "Accepted but not used"). It holds positional slot 1, and honoring it
+VD ruling: refuse `result` by name on `$getSigmas` and `$getSumsOfSquaredResiduals` ([[R/dbarts.R:1675@9d0ee10f]], [[R/dbarts.R:1686@9d0ee10f]];
+[[man/dbartsSampler-class.Rd:290-291@9d0ee10f]] "Accepted but not used"). It holds positional slot 1, and honoring it
 later would write into a caller's buffer.
 
 Implementation: keep the formal, refuse when supplied.
@@ -493,9 +493,9 @@ Implementation: keep the formal, refuse when supplied.
 and the same with `getSumsOfSquaredResiduals` in place of `getSigmas`. Main clause plus one explanatory
 clause; the cure (`getLatents`) is one clause too many under R6 and lives in the Rd instead.
 
-Alternative rejected: making both nullary (`function()`), matching `getDispersion` (:1681). Shorter, but R's
+Alternative rejected: making both nullary (`function()`), matching `getDispersion` ([[man/dbartsSampler-class.Rd:1681@9d0ee10f]]). Shorter, but R's
 own "unused argument" wall carries no reason and no stable string to pin, and the Rd usage lines
-(man/dbartsSampler-class.Rd:89, :92) would have to lose an argument the `\item{result}` block still
+([[man/dbartsSampler-class.Rd:89@9d0ee10f]], [[man/dbartsSampler-class.Rd:92@9d0ee10f]]) would have to lose an argument the `\item{result}` block still
 describes for `getLatents`.
 
 In-repo callers passing an argument to either: none. 46 call sites across R/, inst/tinytest/, benchmarks/ and
@@ -503,29 +503,29 @@ vignettes/, all nullary.
 
 ## 12. Rd plan
 
-- man/bart.Rd:45-53 (`predict.bart` usage) unchanged; :55-70 (`extract`/`fitted` usage) - `fitted.bart`'s
-  `sample`/`ci.level` swap, section 8. :206 `\item{sample}` gains a sentence: it is `extract`'s and
-  `fitted`'s only, and is refused by name on `predict`. :209 `\item{forest}` gains the conditional refusal (a
-  selection outside `type = "forest"`). :218 `\item{ci.level}` gains the `type = "forest"` refusal (section
-  6) and the `residuals` refusal (section 7). :221-223 `\item{\dots}` currently says "Not used in
+- [[man/bart.Rd:45-53@9d0ee10f]] (`predict.bart` usage) unchanged; [[man/bart.Rd:55-70@9d0ee10f]] (`extract`/`fitted` usage) - `fitted.bart`'s
+  `sample`/`ci.level` swap, section 8. [[man/bart.Rd:206@9d0ee10f]] `\item{sample}` gains a sentence: it is `extract`'s and
+  `fitted`'s only, and is refused by name on `predict`. [[man/bart.Rd:209@9d0ee10f]] `\item{forest}` gains the conditional refusal (a
+  selection outside `type = "forest"`). [[man/bart.Rd:218@9d0ee10f]] `\item{ci.level}` gains the `type = "forest"` refusal (section
+  6) and the `residuals` refusal (section 7). [[man/bart.Rd:221-223@9d0ee10f]] `\item{\dots}` currently says "Not used in
   `predict`" - restate as: not used by `predict`, `fitted` or `residuals`, and a name belonging to a sibling
   method is refused rather than ignored; the `type = "trees"` forwarding to `getTrees` (which is where
-  `newdata` remains legal) is the one exception. :247 `\item{residuals}` prose gains the `ci.level`/`sample`
+  `newdata` remains legal) is the one exception. [[man/bart.Rd:247@9d0ee10f]] `\item{residuals}` prose gains the `ci.level`/`sample`
   refusal. One sentence on the legacy count items (`ntree`, `nskip`, `ndpost`, `numcut`, `keepevery`,
   `printevery`, `nthread`, `nchain`, `printcutoffs`): a fractional value is refused, not truncated.
-- man/bart2.Rd:72-145 - the six own-class `\usage` blocks: `fitted.bartHurdle` loses `sample`, all six
-  `fitted` blocks carry `ci.level` third. :147 `plot.bartMultinomial` reordered. :344 `\item{sample}` and
-  :359 `\item{ci.level}` gain the refusals. The four "Generics for a X fit" paragraphs (:387, :391, :395,
-  :397) each lose the sentence promising an ev band under `type = "class"` (only :387 and :391 carry it) and
+- [[man/bart2.Rd:72-145@9d0ee10f]] - the six own-class `\usage` blocks: `fitted.bartHurdle` loses `sample`, all six
+  `fitted` blocks carry `ci.level` third. [[man/bart2.Rd:147@9d0ee10f]] `plot.bartMultinomial` reordered. [[man/bart2.Rd:344@9d0ee10f]] `\item{sample}` and
+  [[man/bart2.Rd:359@9d0ee10f]] `\item{ci.level}` gain the refusals. The four "Generics for a X fit" paragraphs ([[man/bart2.Rd:387@9d0ee10f]], [[man/bart2.Rd:391@9d0ee10f]], [[man/bart2.Rd:395@9d0ee10f]],
+  [[man/bart2.Rd:397@9d0ee10f]]) each lose the sentence promising an ev band under `type = "class"` (only [[man/bart2.Rd:387@9d0ee10f]] and [[man/bart2.Rd:391@9d0ee10f]] carry it) and
   gain the `combineChains`-on-`fitted` and `ci.level`-on-`residuals` refusals in the sentence that already
   enumerates that class's refused names.
-- man/rbart.Rd:53-62 - `fitted.rbart`'s usage swap; :107 `\item{sample}`, :110 `\item{ci.level}` as bart's.
-- man/survivalProbabilities.Rd:83-85 `\item{...}` currently reads "Not used; for compatibility with the
-  generic" - restate as refused by name; :71 `\item{group.by}` gains "refused by name on the `bart` method,
+- [[man/rbart.Rd:53-62@9d0ee10f]] - `fitted.rbart`'s usage swap; [[man/rbart.Rd:107@9d0ee10f]] `\item{sample}`, [[man/rbart.Rd:110@9d0ee10f]] `\item{ci.level}` as bart's.
+- [[man/survivalProbabilities.Rd:83-85@9d0ee10f]] `\item{...}` currently reads "Not used; for compatibility with the
+  generic" - restate as refused by name; [[man/survivalProbabilities.Rd:71@9d0ee10f]] `\item{group.by}` gains "refused by name on the `bart` method,
   which has no grouping".
-- man/plotTree.Rd:63 `\item{\dots}` gains the `sample`/`chain` refusal, now that it holds on the sampler
-  method too. Its `\usage` at :33 (`plotTree.dbartsSampler(object, \dots)`) is unchanged.
-- man/dbartsSampler-class.Rd:284-291 `\item{result}` - "Accepted but not used by `getSigmas` and
+- [[man/plotTree.Rd:63@9d0ee10f]] `\item{\dots}` gains the `sample`/`chain` refusal, now that it holds on the sampler
+  method too. Its `\usage` at [[man/plotTree.Rd:33@9d0ee10f]] (`plotTree.dbartsSampler(object, \dots)`) is unchanged.
+- [[man/dbartsSampler-class.Rd:284-291@9d0ee10f]] `\item{result}` - "Accepted but not used by `getSigmas` and
   `getSumsOfSquaredResiduals`" becomes "Refused by name by ...", naming `getLatents` as the reader that fills
   a buffer in place (the clause R6 kept out of the message).
 - man/dbartsControl.Rd - one sentence on the count items, the SHARED home for the whole-number rule; the
@@ -548,24 +548,24 @@ House battery per commit: `R CMD INSTALL .`, `tinytest::test_package("dbarts")`,
 
 Verification scope for every "no call site does X" claim below: R/, inst/tinytest/, tests/, benchmarks/,
 tools/, AND vignettes/ and the `\examples` in man/ - the last two because `R CMD check` executes them. Swept
-clean: the only affected-surface calls there are `plot(bartFit)` (man/bart.Rd:397), `plot(pdb1, ylim = )`
-(man/pdbart.Rd:159), `plotTree(fit, treeNum = , sampleNum = )` (man/plotTree.Rd:97), a nullary `$getSigmas()`
+clean: the only affected-surface calls there are `plot(bartFit)` ([[man/bart.Rd:397@9d0ee10f]]), `plot(pdb1, ylim = )`
+([[man/pdbart.Rd:159@9d0ee10f]]), `plotTree(fit, treeNum = , sampleNum = )` ([[man/plotTree.Rd:97@9d0ee10f]]), a nullary `$getSigmas()`
 (vignettes/dbarts-as-a-component.Rmd) and a named-only `$plotTree` (vignettes/working_with_saved_trees.Rmd).
 
 Existing tests that MUST change:
 
-- inst/tinytest/test-multinomial-generics.R:239-242 and inst/tinytest/test-ordinal.R:109-112 - the two
+- [[inst/tinytest/test-multinomial-generics.R:239-242@9d0ee10f]] and [[inst/tinytest/test-ordinal.R:109-112@9d0ee10f]] - the two
   blocks asserting `predict(fit, x, type = "class", ci.level = 0.9)` EQUALS the `type = "ev"` band. Under
   section 5 they become `expect_error(..., "does not support 'ci.level'")`, and the comment above each
-  (:229-230, :103) is rewritten to state the rule rather than the arm order.
-- inst/tinytest/test-hurdle.R:80-82 - `residuals(h, sample = "train")` already expects the
+  ([[inst/tinytest/test-ordinal.R:229-230@9d0ee10f]], [[inst/tinytest/test-ordinal.R:103@9d0ee10f]]) is rewritten to state the rule rather than the arm order.
+- [[inst/tinytest/test-hurdle.R:80-82@9d0ee10f]] - `residuals(h, sample = "train")` already expects the
   `refuseResidualsSample` message; unchanged, but verify it still fires FIRST now that
   `residualsForeignReasons` is composed behind it.
 - No other existing assertion changes. Verified by reading: every `fitted(..., sample = )` names the
   argument (section 8's list); no test passes `combineChains` or `ci.level` to `fitted` or `residuals`; no
   test calls `plot` on a multinomial fit with a positional second argument; no test passes an argument to
   `$getSigmas` or `$getSumsOfSquaredResiduals` (46 call sites, all nullary); and the ONLY fractional count
-  anywhere in the repo is inst/tinytest/test-generics-multithreaded.R:313's
+  anywhere in the repo is [[inst/tinytest/test-generics-multithreaded.R:313@9d0ee10f]]'s
   `predict(gaussianFit, friedman$x, n.threads = 2.7)`, whose message section 10 leaves unchanged. The
   implementer must still run the full suite - this is a reading, and several files hardcode values that
   depend on their full execution history.
@@ -574,7 +574,7 @@ New tests, all `expect_error(..., fixed = TRUE)` on the full message where it is
 on a short stem otherwise (`"is not used by"`, `"does not support"`, `"must be a whole number"`) - the
 discipline the four existing refusal files already use.
 
-- inst/tinytest/test-generics-errors.R, extending its per-class blocks (:110-300). Count-exact: 6 methods x
+- inst/tinytest/test-generics-errors.R, extending its per-class blocks ([[inst/tinytest/test-generics-multithreaded.R:110-300@9d0ee10f]]). Count-exact: 6 methods x
   `sample` = 6; 5 methods x `bases` = 5; 6 methods x `group.by` (5 refused, 1 accepted on rbart) = 6; the
   `predict.bart` `contribution` and `predict.rbart` `forest`/`contribution` = 3. **20 new assertions.**
 - inst/tinytest/test-generics-errors.R, extract arm: `ci.level`, `newdata`, `n.threads` refused on
@@ -589,7 +589,7 @@ discipline the four existing refusal files already use.
 - inst/tinytest/test-rbart-aft.R (or test-generics-errors.R): `survivalProbabilities(bartAftFit, times,
   newdata = x, group.by = g)` refused naming `group.by`; the same call on the rbart fit still works; one
   foreign name (`type`) refused on each of the two methods. **4 assertions.**
-- inst/tinytest/test-plot-generics.R, beside :127-142: `plotTree(sampler, sample = 5L)` and
+- inst/tinytest/test-plot-generics.R, beside [[inst/tinytest/test-generics-multithreaded.R:127-142@9d0ee10f]]: `plotTree(sampler, sample = 5L)` and
   `plotTree(sampler, chain = 2L)` raise the same two strings the fit methods raise, and
   `plotTree(sampler, sampleNum = 5L)` still draws. **3 assertions.**
 - inst/tinytest/test-multinomial-generics.R and test-ordinal.R: the two rewritten blocks (above) plus, on
@@ -604,8 +604,8 @@ discipline the four existing refusal files already use.
   `fitted(fit, type = "ev", ci.level = 0.9)` on all six classes, plus `fitted(fit, "ev", "train")` raising
   the `ci.level` validity message. **7 assertions**, and their power is ASYMMETRIC, stated so nobody reads
   them as six equal guards: on bart, rbart and hurdle they genuinely discriminate (before the swap the
-  positional `0.9` reached `validateSample` :1893-1898, which refuses a non-character), while on
-  bartMultinomial, bartOrdinal and bartNegbin `ci.level` is ALREADY third (:1136, :1439, :1702), so those
+  positional `0.9` reached `validateSample` [[inst/tinytest/test-generics-multithreaded.R:1893-1898@9d0ee10f]], which refuses a non-character), while on
+  bartMultinomial, bartOrdinal and bartNegbin `ci.level` is ALREADY third ([[inst/tinytest/test-generics-multithreaded.R:1136@9d0ee10f]], [[inst/tinytest/test-generics-multithreaded.R:1439@9d0ee10f]], [[inst/tinytest/test-generics-multithreaded.R:1702@9d0ee10f]]), so those
   three assert nothing this slice could break and are kept as plain regression guards.
 - inst/tinytest/test-plot-generics.R: `plot(multinomialFit, c(0.1, 0.9))` runs (a `plquants` in slot 2), one
   `expect_silent`. **1 assertion.**
@@ -631,33 +631,33 @@ Four repos, swept for every affected surface INCLUDING `do.call` and args-list c
 previous sweep missed - docs/plans/predict-surface.md's landing note).
 
 - bartCause, /Users/vdorie/Repositories/bartCause branch `dbarts-1.0` (d825cfc). R API only, no `src/`.
-  `predict` on a dbarts fit at R/generics.R:162, :169, :176: object and `newdata` positional, everything
-  after named (`group.by =`, `combineChains =`). The `do.call` path is R/generics.R:193, :199, :202, which
+  `predict` on a dbarts fit at [[R/generics.R:162@9d0ee10f]], [[R/generics.R:169@9d0ee10f]], [[R/generics.R:176@9d0ee10f]]: object and `newdata` positional, everything
+  after named (`group.by =`, `combineChains =`). The `do.call` path is [[R/generics.R:193@9d0ee10f]], [[R/generics.R:199@9d0ee10f]], [[R/generics.R:202@9d0ee10f]], which
   build `list(object$fit.rsp, x.new, group.by = , combineChains = FALSE, ...)`, mutate positional slot 2 at
-  :222 and :229, and splat at :212, :223, :230 - again positional only through slot 2, which this slice does
-  not move. `extract` at R/responseFit.R:244, :245 and R/treatmentFit.R:189 (and
-  tests/testthat/test-05-generics.R:28, :29) SKIPS `type` and names `sample`/`combineChains` - `extract`'s
+  [[R/generics.R:222@9d0ee10f]] and [[R/generics.R:229@9d0ee10f]], and splat at [[R/generics.R:212@9d0ee10f]], [[R/generics.R:223@9d0ee10f]], [[R/generics.R:230@9d0ee10f]] - again positional only through slot 2, which this slice does
+  not move. `extract` at [[R/responseFit.R:244@9d0ee10f]], [[R/responseFit.R:245@9d0ee10f]] and [[R/treatmentFit.R:189@9d0ee10f]] (and
+  [[tests/testthat/test-05-generics.R:28@9d0ee10f]], [[tests/testthat/test-05-generics.R:29@9d0ee10f]]) SKIPS `type` and names `sample`/`combineChains` - `extract`'s
   signature is unchanged here, so those hold. No `fitted`, `residuals`, `plot`, `plotTree` or
   `survivalProbabilities` on a dbarts fit at all; no argument to `$getSigmas`/`$getSumsOfSquaredResiduals`.
   MIGRATION LINES: ZERO.
 - stan4bart, /Users/vdorie/Repositories/stan4bart branch `bartcore` (f9bca65). R API plus `LinkingTo`.
   Exactly two hits on the whole affected surface, both `fitted` on a dbarts fit and both NAMED with `type`
-  skipped: inst/tinytest/test-02-binary.R:60 `fitted(base_bart_fit, sample = "test")` and :68
+  skipped: [[inst/tinytest/test-02-binary.R:60@9d0ee10f]] `fitted(base_bart_fit, sample = "test")` and [[inst/tinytest/test-02-binary.R:68@9d0ee10f]]
   `fitted(rbart_fit, sample = "test")`. Under section 8 `sample` stays a formal (slot 4) and stays named, so
   both hold. Nothing else: no `predict`/`extract`/`residuals`/`plot`/`plotTree`/`survivalProbabilities` on a
   dbarts fit, no argument to either reader, no `do.call` into any dbarts entry.
-  `makeTestModelMatrix(object$bartData, mf.bart)` (R/new_data.R:135) is positional but that function's
+  `makeTestModelMatrix(object$bartData, mf.bart)` ([[R/new_data.R:135@9d0ee10f]]) is positional but that function's
   signature is untouched. MIGRATION LINES: ZERO.
 - treatSens. The `master` branch (d1da1dd) still targets the DELETED pre-1.0 C++ ABI
-  (`R_GetCCallable` on `dbarts::BARTFit`, src/bartTreatmentModel.cpp:38-52), so it is not a 1.0 consumer and
+  (`R_GetCCallable` on `dbarts::BARTFit`, [[src/bartTreatmentModel.cpp:38-52@9d0ee10f]]), so it is not a 1.0 consumer and
   is out of scope; the `dbarts-1.0` branch (1db3d89) is the one that matters and is on the flat C API
-  (src/R_interface.cpp:31). Zero hits on every affected R surface: no `predict`/`fitted`/`extract`/
+  ([[src/R_interface.cpp:31@9d0ee10f]]). Zero hits on every affected R surface: no `predict`/`fitted`/`extract`/
   `residuals`/`plot`/`plotTree`/`survivalProbabilities` on a dbarts object, no argument to either reader, no
   `do.call` into any dbarts entry. MIGRATION LINES: ZERO.
 - bairrtt, /Users/vdorie/Repositories/bairrtt branch `main` (6167423). R API only. Its six predict calls
-  (R/irt_causal_bart.R:568, :571, :636, :637, :709, :713) are `model$predict(frame)` on the reference class,
+  ([[R/irt_causal_bart.R:568@9d0ee10f]], [[R/irt_causal_bart.R:571@9d0ee10f]], [[R/irt_causal_bart.R:636@9d0ee10f]], [[R/irt_causal_bart.R:637@9d0ee10f]], [[R/irt_causal_bart.R:709@9d0ee10f]], [[R/irt_causal_bart.R:713@9d0ee10f]]) are `model$predict(frame)` on the reference class,
   which this slice does not touch, and it passes no other argument to any of them. It re-exports
-  `dbarts::extract` (R/diagnostics.R:69-71, NAMESPACE:18) but every `extract` call targets its own
+  `dbarts::extract` ([[R/diagnostics.R:69-71@9d0ee10f]], NAMESPACE:18) but every `extract` call targets its own
   `irt_causal_fit` method. No argument to either reader. MIGRATION LINES: ZERO.
 
 Total lockstep migration cost: zero lines in any consumer.
@@ -666,19 +666,19 @@ Section 10's whole-number rule is a different matter from migration LINES: it co
 an error on every unlaundered pass-through, and three consumers have them. Full exposure list, all four
 verified by reading:
 
-- bartCause carries its OWN verbatim copy of the pre-change `coerceOrError` (bartCause R/utility.R:1-12), so
+- bartCause carries its OWN verbatim copy of the pre-change `coerceOrError` (bartCause [[R/utility.R:1-12@9d0ee10f]]), so
   the counts it launders itself (`n.samples`, `n.burn`, `n.chains`, `n.threads`, `n.trees`, `seed`,
-  R/bcf.R:102-105, :210-212) keep TRUNCATING after this slice - its behavior drifts from dbarts's, and that
+  [[R/bcf.R:102-105@9d0ee10f]], [[R/bcf.R:210-212@9d0ee10f]]) keep TRUNCATING after this slice - its behavior drifts from dbarts's, and that
   is its maintainer's fix, not ours. What is NOT laundered is `extraControl`
-  (R/bcf.R:210-212) and the `samplerCall` fill loop (R/bcf.R:232-238), both splatted into
+  ([[R/bcf.R:210-212@9d0ee10f]]) and the `samplerCall` fill loop ([[R/bcf.R:232-238@9d0ee10f]]), both splatted into
   `dbarts::dbartsControl`/`dbarts::dbarts`, so `bcf(n.cuts = 100.5)` moves from truncate to error.
-- stan4bart fills `bart_args` names into the control call (R/stan4bart_fit.R:517-520) and the spec call
-  (:554-560) without coercion, so `stan4bart(bart_args = list(n.trees = 75.5))` moves to error; the same for
-  `mvbart(n.trees = 75.5)` (R/mvbart.R:120, `n.trees` uncoerced).
-- treatSens `dbarts-1.0` passes `nburn` straight to `pdbart`'s `nskip` (R/treatSensBART.R:155, :159), so
-  `treatSens.BART(nburn = 200.5)` moves to error. Its own `nthreads` validation (R/treatSensBART.R:90-97)
+- stan4bart fills `bart_args` names into the control call ([[R/stan4bart_fit.R:517-520@9d0ee10f]]) and the spec call
+  ([[R/stan4bart_fit.R:554-560@9d0ee10f]]) without coercion, so `stan4bart(bart_args = list(n.trees = 75.5))` moves to error; the same for
+  `mvbart(n.trees = 75.5)` ([[R/mvbart.R:120@9d0ee10f]], `n.trees` uncoerced).
+- treatSens `dbarts-1.0` passes `nburn` straight to `pdbart`'s `nskip` ([[R/treatSensBART.R:155@9d0ee10f]], [[R/treatSensBART.R:159@9d0ee10f]]), so
+  `treatSens.BART(nburn = 200.5)` moves to error. Its own `nthreads` validation ([[R/treatSensBART.R:90-97@9d0ee10f]])
   warns and truncates before dbarts sees it, so that one argument is unaffected.
-- bairrtt truncates `n_threads` with its own `as.integer` (R/irt_causal_bart.R:433) before `dbartsControl`,
+- bairrtt truncates `n_threads` with its own `as.integer` ([[R/irt_causal_bart.R:433@9d0ee10f]]) before `dbartsControl`,
   so it is unaffected.
 
 None of those is a mistyped-count regression a suite would hit by accident (every in-repo consumer test
@@ -691,17 +691,17 @@ count rule); treatSens `dbarts-1.0` and bairrtt need only the branch's habitual 
 Two observations, neither a dbarts change:
 
 - bartCause's own generics carry the same positional-split defect this slice fixes in dbarts:
-  `extract.bartcFit`'s slot 3 is `sample`, matched positionally at R/summary.R:232, :235, :236, :238, :239
-  and tests/testthat/test-05-generics.R:287, :320, while `extract.bartBCF` (R/bcf.R:500) puts `forest` in
+  `extract.bartcFit`'s slot 3 is `sample`, matched positionally at [[R/summary.R:232@9d0ee10f]], [[R/summary.R:235@9d0ee10f]], [[R/summary.R:236@9d0ee10f]], [[R/summary.R:238@9d0ee10f]], [[R/summary.R:239@9d0ee10f]]
+  and [[tests/testthat/test-05-generics.R:287@9d0ee10f]], [[tests/testthat/test-05-generics.R:320@9d0ee10f]], while `extract.bartBCF` ([[R/bcf.R:500@9d0ee10f]]) puts `forest` in
   that slot. Its maintainer's call, exactly as `predict.bartcFit`'s shape was at D1.
 - treatSens `dbarts-1.0` reaches two UNEXPORTED dbarts internals through `asNamespace("dbarts")`:
-  `estimateSigmaFromLinearModel` (R/cibart.R:64) and `parsePriors` (R/cibart.R:76-80, called with two
+  `estimateSigmaFromLinearModel` ([[R/cibart.R:64@9d0ee10f]]) and `parsePriors` ([[R/cibart.R:76-80@9d0ee10f]], called with two
   positional arguments). Neither is touched here, but neither is a contract; recorded so the next slice that
   moves either knows it has a caller.
 
 ## 15. Relation to the two parallel slices
 
-- capi-shape.md is effectively DISJOINT from this one: its only R-side citation is R/dbarts.R:1968,
+- capi-shape.md is effectively DISJOINT from this one: its only R-side citation is [[R/dbarts.R:1968@9d0ee10f]],
   which this slice does not move. The two share exactly two artifacts, and both are integration-time rather
   than authoring-time: the docs/design anchor re-alignment (run LAST, ONCE, over the stacked tree rather than
   per slice, since two independent line maps cannot be applied twice to the same anchors) and the
@@ -724,25 +724,25 @@ Four commits.
 1. `surface-refusal-coverage`. R/generics.R (the `foreignArgsFor` helper, five reason tables, the two new
    class lists, 27 call sites with the two BELOW-the-trees-branch placements, the three conditional
    `forest`/`contribution` refusals, the three dead `...` forwards deleted, `plotTree.dbartsSampler`'s one
-   line, `refuseSamplerExtractArgs`); R/bart.R:2547, :2598 (`survivalProbabilities`); man/bart.Rd,
+   line, `refuseSamplerExtractArgs`); [[R/bart.R:2547@9d0ee10f]], [[R/bart.R:2598@9d0ee10f]] (`survivalProbabilities`); man/bart.Rd,
    man/bart2.Rd, man/rbart.Rd, man/survivalProbabilities.Rd, man/plotTree.Rd; one NEWS UPGRADING item; the 57
    new assertions from section 13's first five bullets.
 2. `surface-shape-refusals`. R/generics.R (sections 5 and 6: four `class`/`ci.level` checks, one
-   `forest`/`ci.level` check); man/bart.Rd:218, man/bart2.Rd:359, :387, :391; one NEWS item;
+   `forest`/`ci.level` check); [[man/bart.Rd:218@9d0ee10f]], [[man/bart2.Rd:359@9d0ee10f]], [[man/bart2.Rd:387@9d0ee10f]], [[man/bart2.Rd:391@9d0ee10f]]; one NEWS item;
    test-multinomial-generics.R and test-ordinal.R rewritten blocks, test-predict-blend.R's new block.
 3. `surface-argument-order`. R/generics.R (six `fitted` signatures, `fitted.bartHurdle`'s `sample` formal
-   dropped and its two body uses, `residuals.bartHurdle`'s pass); R/plot.R:226-231; man/bart.Rd,
+   dropped and its two body uses, `residuals.bartHurdle`'s pass); [[R/plot.R:226-231@9d0ee10f]]; man/bart.Rd,
    man/bart2.Rd, man/rbart.Rd `\usage`; one NEWS item; test-generics-intervals.R and test-plot-generics.R
    additions. This is the codoc-sensitive commit: a formal and its `\usage` line move together.
-4. `construction-whole-numbers`. R/utility.R:160-179; R/dbarts.R:1675, :1686; man/dbartsControl.Rd and
-   man/bart.Rd's legacy count items; man/dbartsSampler-class.Rd:284-291; one NEWS item;
+4. `construction-whole-numbers`. [[R/utility.R:160-179@9d0ee10f]]; [[R/dbarts.R:1675@9d0ee10f]], [[R/dbarts.R:1686@9d0ee10f]]; man/dbartsControl.Rd and
+   man/bart.Rd's legacy count items; [[man/dbartsSampler-class.Rd:284-291@9d0ee10f]]; one NEWS item;
    test-control-errors.R, test-sampler-residuals.R, test-bartcore.R additions.
 
 Doc-freshness re-anchoring: per section 15 the anchor pass runs LAST and ONCE over the stacked tree, not per
 commit - re-align every strict miss from the stacked `git diff -U0` line map by editing the docs/design
 anchors in place so each file's line count is invariant. Anchor exposure from this slice alone: 21 anchors
-into R/generics.R (15 past :230, so effectively all of them move on commit 1), 41 into R/dbarts.R (6 past
-:1675), 34 into R/bart.R (2 past :2547), 6 into R/A_class.R, 1 into R/utility.R, 0 into R/plot.R, plus 41 into
+into R/generics.R (15 past [[man/dbartsSampler-class.Rd:230@9d0ee10f]], so effectively all of them move on commit 1), 41 into R/dbarts.R (6 past
+:1675), 34 into R/bart.R (2 past [[man/dbartsSampler-class.Rd:2547@9d0ee10f]]), 6 into R/A_class.R, 1 into R/utility.R, 0 into R/plot.R, plus 41 into
 the man pages this slice edits (bart.Rd 6, bart2.Rd 9, rbart.Rd 3, survivalProbabilities.Rd 1, plotTree.Rd 1,
 dbartsSampler-class.Rd 21). Take the live `Rscript tools/check-doc-freshness.R .` count as the baseline
 before commit 1 rather than quoting an earlier slice's.
@@ -768,18 +768,18 @@ Observed, out of scope, recorded so it is not rediscovered.
 - The terminal catch-all (section 3): landed 74e2e050 (the pre-review defect
   slice: "positional foreign arguments"), not post-1.0 residue - the
   integration tip this doc's landing was branched from.
-- `coerceOrError`'s two EXISTING messages (R/utility.R:164, :175) interpolate `mc[[2L]]` unguarded and have
-  the same latent defect section 10 fixes for the new one - at R/spec.R:544-548 both would render an
+- `coerceOrError`'s two EXISTING messages ([[R/utility.R:164@74e2e050]], [[R/utility.R:175@74e2e050]]) interpolate `mc[[2L]]` unguarded and have
+  the same latent defect section 10 fixes for the new one - at [[R/spec.R:544-548@74e2e050]] both would render an
   expression as a quoted name. Left alone here: they are existing corpus, and error-style.md's slice L
   rewrites the corpus in one sweep.
 - `extract(type = "trees")` forwards its whole call to the sampler's `getTrees`, which declares no `...`
-  (R/dbarts.R:1999-2004), so an unknown name there raises R's own "unused argument" rather than a package
+  ([[R/dbarts.R:1999-2004@74e2e050]]), so an unknown name there raises R's own "unused argument" rather than a package
   message. Left: the two mechanisms disagree in voice, not in outcome, and closing it means rewriting the
-  call-rewrite at :481-491.
+  call-rewrite at [[R/dbarts.R:481-491@74e2e050]].
 - `fitted(type = "ppd")` on bart is a Monte Carlo mean over a fresh draw, so it consumes RNG where
   `type = "ev"` does not. Unchanged here; noted because section 13's new `fitted` assertions must not sit
   above an RNG-locked block for that reason as well.
-- `as_draws_array`/`as_draws_df.bartMultinomial`'s `vars` (R/diagnostics.R:226, :229) stays a formal and
+- `as_draws_array`/`as_draws_df.bartMultinomial`'s `vars` ([[R/diagnostics.R:226@74e2e050]], [[R/diagnostics.R:229@74e2e050]]) stays a formal and
   stays inert, documented rather than refused (VD). It is the one place on the S3 surface where an inert
   argument survives this slice, and it survives because the `posterior` generics fix the signature.
 - `makeind(all = )` keeps its BayesTree signature (VD). `run(n.threads)` keeps its documented-reserved
@@ -788,7 +788,7 @@ Observed, out of scope, recorded so it is not rediscovered.
   deferred post-1.0 (VD). Neither is an R-surface fact and neither is touched here.
 - `fitted.bartHurdle`'s `type` vocabulary includes `"prob"`, which no other `fitted` carries; that is a real
   channel, not drift, and stays.
-- `plot.pdbart` (R/plot.R:476-482) is `(x, xind, plquants, cols, ...)` - a fourth shape on the plot surface,
+- `plot.pdbart` ([[R/plot.R:476-482@74e2e050]]) is `(x, xind, plquants, cols, ...)` - a fourth shape on the plot surface,
   correct for an object whose panels are indexed. Not aligned, not touched, recorded so section 9's "six
   siblings" is not later read as "seven".
 - No `plot` method gains a refusal: every one of them forwards `...` to `graphics::plot` deliberately.
