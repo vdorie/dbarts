@@ -24,18 +24,41 @@
 #                          the target's markdown headings.
 #   [[path:line@sha]]      HISTORY. "line" or "a-b"; the sha is at least
 #   [[path:a-b@sha]]       8 hex digits and must be an ancestor of HEAD.
-#                          Ancestry is all that is checked - the file
-#                          and the line belong to that commit, not to
-#                          the working tree. This is the ONLY form in
-#                          which a line number may appear, and it is
+#                          The claim is read AT THAT COMMIT, not against
+#                          the working tree: the path must exist in that
+#                          commit's tree and the cited line must be
+#                          within the file's length there. A file
+#                          deleted since therefore still cites cleanly,
+#                          while a line number that never existed at the
+#                          named commit does not. This is the ONLY form
+#                          in which a line number may appear, and it is
 #                          what landing notes and a plan's "Landing"
 #                          section use.
-#   retired: [[...]]       SKIPPED. The cite names something that is
-#                          gone; the surrounding prose must say so.
+#   retired: [[...]]       The named CONSTRUCT is gone; its content
+#                          check is skipped. The location must still be
+#                          real - the path resolves, and a history
+#                          cite's sha, path and line are checked as
+#                          usual. The surrounding prose must say the
+#                          thing is gone.
+#   unresolved: [[p:l@sha]] The LOCATION cannot be established: a
+#                          history cite in a frozen record whose target
+#                          could not be placed at any candidate commit.
+#                          The bracket must still parse and the sha must
+#                          still be an ancestor; the path and line are
+#                          not checked. History cites only.
 #
-# Backticks around a cite are optional and accepted either way. Fenced
-# code blocks are skipped whole: they quote commands and output, not
-# citations.
+# Backticks around a cite are optional and accepted either way. A marker
+# binds only when it sits immediately before the cite, so "un-retired:"
+# and any other word ending in "retired:" does not disarm one.
+#
+# TWO STANDING LIMITS, both deliberate. Fenced code blocks are skipped
+# whole, for the cite check as well as the residue scan: a fence is a
+# code sample or a transcript, not a citation, so a cite parked inside
+# one is never checked. And a symbol's presence is a token search over
+# the whole file, so a name occurring only in a comment or a string
+# literal satisfies its cite; qualify a name the target file defines
+# more than once ("Class::method") so the token that answers is the one
+# the sentence means.
 #
 # RESIDUE SELF-CHECK. Every covered line is re-scanned, with the cites
 # masked out, for a path-shaped token followed by ":digits", for a bare
@@ -44,7 +67,15 @@
 # unparsed by being written in a shape the cite regex does not see. A
 # "[[" left unclosed on its own line fails for the same reason - the
 # cite regex is per-line, so a cite hard-wrapped across a line break
-# would otherwise be invisible to every check here.
+# would otherwise be invisible to every check here. A "[[...]]" span
+# carrying neither "#" nor ":line@sha", whose first token resolves to a
+# tracked file, fails too: it looks like a cite and is checked by
+# nothing.
+#
+# GIT HISTORY IS REQUIRED. Ancestry, the path-at-commit check and the
+# commit-hash check all read history, so a shallow or absent checkout
+# fails rather than skipping: a skip reads as coverage in the summary
+# while checking nothing.
 #
 # COVERAGE. Everything under docs/, the top-level README.md, man/*.Rd
 # and vignettes/*.Rmd. The last two carry no cites today and are guarded
@@ -70,9 +101,8 @@
 #    "0x..." API hash literal, a hash tagged nearby as pre-rebase, a
 #    hash whose own paragraph or table row names another repository
 #    (stan4bart, bartCause, pymc-bart, the dbarts-1.0 compat branch and
-#    the rest), and (locally only - CI's checkout is shallow, so this
-#    whole check is skipped there) anything unresolvable simply because
-#    history was not fetched.
+#    the rest). A shallow checkout cannot resolve any hash, so one is
+#    refused outright rather than silently passing this check.
 #
 # 4. INDEX STATUS: for every docs/design/*.md carrying a literal
 #    "Status:" line in its first 12 lines, the leading status phrase
@@ -324,7 +354,10 @@ nQuoteCites <- 0L
 nDocCites <- 0L
 nHistoryCites <- 0L
 nRetiredCites <- 0L
-historySha <- character(0L)
+nUnresolvedCites <- 0L
+# One record per history cite; verified against the named commits after
+# the whole corpus is scanned, so the git calls batch.
+histRec <- list()
 
 # Residue scanners. The path shape is deliberately looser than the cite
 # grammar's: a token that merely LOOKS like a path followed by a line
@@ -342,11 +375,39 @@ RESIDUE_PAREN_RE <- paste0(
 )
 KNOWN_EXT_RE <- "\\.(?:R|Rd|Rmd|md|hpp|cpp|cc|c|h|py|in|ac|yaml|yml|csv|rds)$"
 
+# Bracketed spans left after the cites are masked out: flagged only when
+# the first token resolves to a tracked file, which no R or C++ bracket
+# idiom does.
+payloadlessSpans <- function(line) {
+  if (!grepl("[[", line, fixed = TRUE)) {
+    return(character(0L))
+  }
+  m <- regmatches(line, gregexpr("\\[\\[[^][]*\\]\\]", line, perl = TRUE))[[1L]]
+  m <- m[nzchar(m)]
+  if (length(m) == 0L) {
+    return(character(0L))
+  }
+  inner <- substr(m, 3L, nchar(m) - 2L)
+  tok <- trimws(sub("[[:space:]#:].*$", "", inner))
+  keep <- vapply(
+    tok,
+    function(t) {
+      nzchar(t) && !(resolvePath(t) %in% c(UNRESOLVED, AMBIGUOUS))
+    },
+    logical(1L)
+  )
+  unique(m[keep])
+}
+
 residueHits <- function(line) {
   out <- character(0L)
   # An opener with no closer on the same line: a cite wrapped over a line
   # break, which the per-line cite regex would never see.
-  openers <- gregexpr("\\[\\[", line, perl = TRUE)[[1L]]
+  openers <- if (grepl("[[", line, fixed = TRUE)) {
+    gregexpr("\\[\\[", line, perl = TRUE)[[1L]]
+  } else {
+    -1L
+  }
   if (openers[1L] != -1L) {
     closers <- gregexpr("\\]\\]", line, perl = TRUE)[[1L]]
     lastClose <- if (closers[1L] == -1L) -1L else max(as.integer(closers))
@@ -408,21 +469,53 @@ for (relDoc in docsRel) {
         substr(line, capStart[k, g], capStart[k, g] + capLen[k, g] - 1L)
       }
       for (k in seq_along(starts)) {
-        # `retired:` immediately before the cite (one optional backtick
-        # and any spaces between) marks it as deliberately dead.
-        lead <- sub("[` ]*$", "", substr(line, 1L, starts[k] - 1L))
-        if (grepl("retired:$", lead)) {
-          nRetiredCites <- nRetiredCites + 1L
-          next
-        }
         pathTok <- trimws(grab(k, 1L))
         payload <- grab(k, 2L)
         cite <- substr(line, starts[k], starts[k] + lens[k] - 1L)
+        # A marker binds only immediately before the cite (one optional
+        # backtick and any spaces between) and only as a whole word, so
+        # a hyphenated "un-retired:" disarms nothing.
+        lead <- sub("[` ]*$", "", substr(line, 1L, starts[k] - 1L))
+        markerRe <- "(?:^|[^A-Za-z0-9_-])%s:$"
+        isRetired <- grepl(sprintf(markerRe, "retired"), lead, perl = TRUE)
+        isUnresolved <- grepl(
+          sprintf(markerRe, "unresolved"),
+          lead,
+          perl = TRUE
+        )
 
         if (is.na(payload)) {
-          # History cite: ancestry, and nothing else.
           nHistoryCites <- nHistoryCites + 1L
-          historySha <- c(historySha, tolower(grab(k, 5L)))
+          if (isRetired) {
+            nRetiredCites <- nRetiredCites + 1L
+          }
+          if (isUnresolved) {
+            nUnresolvedCites <- nUnresolvedCites + 1L
+          }
+          hiTok <- grab(k, 4L)
+          histRec[[length(histRec) + 1L]] <- list(
+            doc = relDoc,
+            line = ln,
+            cite = cite,
+            path = pathTok,
+            lo = as.integer(grab(k, 3L)),
+            hi = as.integer(if (is.na(hiTok)) grab(k, 3L) else hiTok),
+            sha = tolower(grab(k, 5L)),
+            skipPath = isUnresolved
+          )
+          next
+        }
+
+        if (isUnresolved) {
+          report(
+            relDoc,
+            sprintf(
+              "%s:%d: %s - `unresolved:` marks a history cite only",
+              relDoc,
+              ln,
+              cite
+            )
+          )
           next
         }
 
@@ -445,6 +538,12 @@ for (relDoc in docsRel) {
               cite
             )
           )
+          next
+        }
+        if (isRetired) {
+          # The construct is gone, so its content is not checked; the
+          # location it names still has to be real.
+          nRetiredCites <- nRetiredCites + 1L
           next
         }
         content <- getContent(relPath)
@@ -534,12 +633,60 @@ for (relDoc in docsRel) {
         )
       )
     }
+    # A bracketed span the cite regex did not match, whose first token
+    # nonetheless names a tracked file: it reads as a cite and is
+    # checked by nothing. R and C++ syntax ("[[1L]]", "[[nodiscard]]")
+    # never names one.
+    for (span in payloadlessSpans(masked)) {
+      report(
+        relDoc,
+        sprintf(
+          "%s:%d: %s names a file but no symbol, fragment or :line@sha",
+          relDoc,
+          ln,
+          span
+        )
+      )
+    }
   }
 }
 
-# History-cite ancestry, batched over the distinct shas. A shallow
-# checkout (CI) has no history to walk, so the check is skipped there.
-isShallow <- tryCatch(
+# ---------------------------------------------------------------------
+# History-cite verification
+# ---------------------------------------------------------------------
+#
+# Three questions per cite, batched over the distinct shas and the
+# distinct (sha, path) pairs so the whole corpus costs two git calls
+# plus one per distinct sha:
+#
+#   a. is the sha an ancestor of HEAD?
+#   b. does the path exist in that commit's tree?
+#   c. is the cited line within that blob's length there?
+#
+# (b) and (c) are what make the history form a claim rather than an
+# assertion: without them a line number that never existed at the named
+# commit passes, and a converter that guessed the wrong file for a bare
+# ":NNN" leaves no trace. An `unresolved:` cite answers (a) only.
+#
+# A path is resolved the way a symbol cite's is - alias, repo path, or a
+# unique basename - except that a basename naming no file in the CURRENT
+# tree is passed through verbatim, since a history cite may legitimately
+# name a path that has since been deleted; git at that commit is then
+# the judge.
+
+haveGit <- tryCatch(
+  identical(
+    as.integer(suppressWarnings(system2(
+      "git",
+      c("-C", root, "rev-parse", "--git-dir"),
+      stdout = FALSE,
+      stderr = FALSE
+    ))),
+    0L
+  ),
+  error = function(e) FALSE
+)
+isShallow <- haveGit &&
   identical(
     trimws(suppressWarnings(system2(
       "git",
@@ -548,50 +695,196 @@ isShallow <- tryCatch(
       stderr = FALSE
     ))),
     "true"
-  ),
-  error = function(e) FALSE
-)
+  )
+historyUsable <- haveGit && !isShallow
+if (!historyUsable) {
+  report(
+    "tools/check-doc-freshness.R",
+    paste0(
+      if (haveGit) {
+        "HISTORY: the checkout is shallow"
+      } else {
+        "HISTORY: this is not a git checkout"
+      },
+      " - commit ancestry, the path-at-commit check and the ",
+      "commit-hash check all need full history. Check out with ",
+      "fetch-depth: 0 (actions/checkout) or run `git fetch --unshallow`."
+    )
+  )
+}
 
 nShaChecked <- 0L
-if (length(historySha) > 0L && !isShallow) {
-  uniqueSha <- unique(historySha)
-  nShaChecked <- length(uniqueSha)
-  bad <- uniqueSha[
-    !vapply(
-      uniqueSha,
-      function(sha) {
-        status <- suppressWarnings(system2(
-          "git",
-          c("-C", root, "merge-base", "--is-ancestor", sha, "HEAD"),
-          stdout = FALSE,
-          stderr = FALSE
-        ))
-        identical(as.integer(status), 0L)
-      },
-      logical(1L)
-    )
-  ]
-  for (sha in bad) {
-    where <- character(0L)
-    for (relDoc in docsRel) {
-      lines <- getContent(relDoc)
-      if (identical(lines, NA)) {
-        next
-      }
-      hitLines <- grep(sha, lines, ignore.case = TRUE)
-      if (length(hitLines) > 0L) {
-        where <- c(where, sprintf("%s:%d", relDoc, hitLines[1L]))
-      }
+nHistoryPairs <- 0L
+
+# The line count of every distinct (sha, path), from one `git cat-file
+# --batch` stream read as bytes: the header names the blob size, so each
+# body is sliced out exactly and its newlines counted. A body whose last
+# byte is not a newline still ends a line, matching readLines().
+blobLineCounts <- function(specs) {
+  outFile <- tempfile("blobs")
+  on.exit(unlink(outFile), add = TRUE)
+  suppressWarnings(system2(
+    "git",
+    c("-C", root, "cat-file", "--batch"),
+    input = specs,
+    stdout = outFile,
+    stderr = FALSE
+  ))
+  found <- rep(FALSE, length(specs))
+  lineCount <- rep(NA_integer_, length(specs))
+  names(found) <- specs
+  names(lineCount) <- specs
+  if (!file.exists(outFile) || file.size(outFile) == 0) {
+    return(list(found = found, lineCount = lineCount))
+  }
+  bytes <- readBin(outFile, "raw", file.size(outFile))
+  NL <- as.raw(10L)
+  pos <- 1L
+  for (i in seq_along(specs)) {
+    if (pos > length(bytes)) {
+      break
     }
-    target <- if (length(where) > 0L) where[1L] else "docs"
+    window <- bytes[pos:min(pos + 512L, length(bytes))]
+    nl <- which(window == NL)[1L]
+    if (is.na(nl)) {
+      break
+    }
+    header <- rawToChar(window[seq_len(nl - 1L)])
+    pos <- pos + nl
+    if (grepl(" (missing|ambiguous)$", header)) {
+      next
+    }
+    size <- suppressWarnings(as.integer(sub("^[0-9a-f]+ [a-z]+ ", "", header)))
+    if (is.na(size)) {
+      break
+    }
+    found[i] <- TRUE
+    if (size == 0L) {
+      lineCount[i] <- 0L
+    } else {
+      body <- bytes[pos:(pos + size - 1L)]
+      n <- sum(body == NL)
+      if (body[length(body)] != NL) {
+        n <- n + 1L
+      }
+      lineCount[i] <- n
+    }
+    pos <- pos + size + 1L
+  }
+  list(found = found, lineCount = lineCount)
+}
+
+if (length(histRec) > 0L && historyUsable) {
+  fieldOf <- function(name, mode) {
+    vapply(histRec, function(r) r[[name]], vector(mode, 1L))
+  }
+  hDoc <- fieldOf("doc", "character")
+  hLine <- fieldOf("line", "integer")
+  hCite <- fieldOf("cite", "character")
+  hTok <- fieldOf("path", "character")
+  hLo <- fieldOf("lo", "integer")
+  hHi <- fieldOf("hi", "integer")
+  hSha <- fieldOf("sha", "character")
+  hSkip <- fieldOf("skipPath", "logical")
+
+  # --- (a) ancestry, over the distinct shas ---
+  # Two git calls, not one per sha: expand every abbreviation to its full
+  # oid, then test membership in the set of commits reachable from HEAD,
+  # which is exactly "is an ancestor of HEAD".
+  uniqueSha <- unique(hSha)
+  nShaChecked <- length(uniqueSha)
+  expanded <- suppressWarnings(system2(
+    "git",
+    c("-C", root, "cat-file", "--batch-check"),
+    input = paste0(uniqueSha, "^{commit}"),
+    stdout = TRUE,
+    stderr = FALSE
+  ))
+  fullOid <- ifelse(
+    grepl("^[0-9a-f]{40} commit [0-9]+$", expanded),
+    sub(" .*$", "", expanded),
+    NA_character_
+  )
+  reachable <- suppressWarnings(system2(
+    "git",
+    c("-C", root, "rev-list", "HEAD"),
+    stdout = TRUE,
+    stderr = FALSE
+  ))
+  ancestor <- !is.na(fullOid) & fullOid %in% reachable
+  if (length(ancestor) != length(uniqueSha)) {
+    ancestor <- rep(FALSE, length(uniqueSha))
+  }
+  names(ancestor) <- uniqueSha
+  for (i in which(!ancestor[hSha])) {
     report(
-      sub(":[0-9]+$", "", target),
+      hDoc[i],
       sprintf(
-        "%s: history cite sha '%s' is not an ancestor of HEAD",
-        target,
-        sha
+        "%s:%d: %s - sha '%s' is not an ancestor of HEAD",
+        hDoc[i],
+        hLine[i],
+        hCite[i],
+        hSha[i]
       )
     )
+  }
+
+  # --- (b) and (c), over the distinct (sha, path) pairs ---
+  hPath <- vapply(
+    hTok,
+    function(tok) {
+      rp <- resolvePath(tok)
+      if (identical(rp, UNRESOLVED)) tok else rp
+    },
+    character(1L)
+  )
+  checkable <- unname(ancestor[hSha]) & !hSkip & hPath != AMBIGUOUS
+  for (i in which(!hSkip & hPath == AMBIGUOUS)) {
+    report(
+      hDoc[i],
+      sprintf(
+        "%s:%d: %s - '%s' is an ambiguous basename, spell the path",
+        hDoc[i],
+        hLine[i],
+        hCite[i],
+        hTok[i]
+      )
+    )
+  }
+  if (any(checkable)) {
+    specs <- unique(paste0(hSha[checkable], ":", hPath[checkable]))
+    nHistoryPairs <- length(specs)
+    blobs <- blobLineCounts(specs)
+    key <- paste0(hSha, ":", hPath)
+    for (i in which(checkable)) {
+      k <- key[i]
+      if (!blobs$found[[k]]) {
+        report(
+          hDoc[i],
+          sprintf(
+            "%s:%d: %s - %s does not exist at %s",
+            hDoc[i],
+            hLine[i],
+            hCite[i],
+            hPath[i],
+            hSha[i]
+          )
+        )
+      } else if (hHi[i] > blobs$lineCount[[k]]) {
+        report(
+          hDoc[i],
+          sprintf(
+            "%s:%d: %s - %s has %d lines at %s",
+            hDoc[i],
+            hLine[i],
+            hCite[i],
+            hPath[i],
+            blobs$lineCount[[k]],
+            hSha[i]
+          )
+        )
+      }
+    }
   }
 }
 
@@ -723,8 +1016,8 @@ if (!restricted) {
 # pymc-bart/bartrs, bart-playground, bart-comp-efficiency, or the
 # dbarts-1.0 compat branch - is a citation into that repository's
 # history, which this clone cannot resolve and should not try to.
-# Because CI checks out shallow, the whole check is skipped there - a
-# shallow clone cannot resolve any hash.
+# A shallow checkout cannot resolve any hash; that is refused above,
+# with the rest of the history checks, rather than skipped here.
 
 nHashChecked <- 0L
 designFilesRel <- if (dir.exists(p("docs/design"))) {
@@ -733,10 +1026,8 @@ designFilesRel <- if (dir.exists(p("docs/design"))) {
   character(0L)
 }
 
-if (restricted) {
+if (restricted || !historyUsable) {
   nHashChecked <- 0L
-} else if (isShallow) {
-  cat("hash check skipped (shallow clone)\n")
 } else {
   hashRel <- c(
     file.path("docs/design", designFilesRel),
@@ -979,7 +1270,8 @@ cat(sprintf(
   paste0(
     "check-doc-freshness: OK (%d design docs, %d plan docs indexed; ",
     "%d documents scanned; %d symbol, %d verbatim, %d doc-to-doc, ",
-    "%d history (%d distinct sha), %d retired cites; ",
+    "%d history (%d distinct sha, %d distinct sha:path), ",
+    "%d retired, %d unresolved cites; ",
     "%d scenario-count claims, %d commit hashes, %d status labels)\n"
   ),
   nDesign,
@@ -990,7 +1282,9 @@ cat(sprintf(
   nDocCites,
   nHistoryCites,
   nShaChecked,
+  nHistoryPairs,
   nRetiredCites,
+  nUnresolvedCites,
   nCounts,
   nHashChecked,
   nStatusChecked
