@@ -76,7 +76,7 @@ posterior sd of f by 4.6x with no error or warning; correctness is
 recovered only near one lucky range. stan4bart's mvbart() routes around
 the response channel deliberately - the response is fixed and only the
 offset moves - and warns when the per-sweep offset drift threatens the
-anchor (`stan4bart/R/mvbart.R:40-44`, `:262-266`). The composed model's
+anchor (stan4bart's `R/mvbart.R`). The composed model's
 BLOCKING ports to R; its PRIOR does not, unless it can be named.
 
 ## The principle (ACCEPTED AS AMENDED, VD 2026-08-11)
@@ -181,7 +181,7 @@ including an independent re-check of Sun and Song)
   attribution are corrected and withdrawn: re-verified first-hand at
   princeBART 0.2.0, no such distinct artifact was found.) CRITIQUE:
   REFUTED as an unmet affordance - Gaussian row subsetting already
-  ships from R via zero weights (`dbartsSampler-class.Rd:178`); the
+  ships from R via zero weights ([[dbartsSampler-class.Rd#"a weight of zero excludes an observation from the likelihood while keeping its fitted values"]]); the
   real gaps are the empty-leaf veto counting zero-weight rows as
   occupied, the latent-family refusal on sigma/weight mutation
   (clause 1's identification parenthetical), and a missing
@@ -223,7 +223,7 @@ budgets)
   `setData` block with `if (sum(<stratum>) > 0)`, so a stratum that
   emptied was SKIPPED and that sampler silently kept the previous
   iteration's data; and `dbarts_binary` widens dbarts's binary detection
-  to admit an all-0/all-1 stratum (R/utils.R:191-200, comment "can happen
+  to admit an all-0/all-1 stratum ([[spec.R#responseIsBinary]], comment "can happen
   in principal stratification") because a constant all-1 response is NOT
   detected as binary today. Both were defects the mask removes by
   construction - an all-zeros mask is accepted and runs rather than
@@ -290,7 +290,7 @@ recommendation, and one other justification changes:
    decisive arm is K GAUSSIAN samplers with host-drawn latents against
    the combined fit, which measurement predicts will AGREE.
 3. Flat rename: ADOPTED and DONE - the dbarts.h reshape re-bake landed
-   setForestBasis/numForestAmplitudes/forestAmplitudes (dbarts.h:528-541),
+   setForestBasis/numForestAmplitudes/forestAmplitudes ([[dbarts.h#dbarts_sampler_setForestBasis, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]),
    + KEPT setForestWeights; stakes were low (the flat C surface has
    exactly one consumer and it is in-house - 1 reverse LinkingTo vs 23
    R-level consumers).
@@ -320,7 +320,7 @@ confirmed)
    note - a derived nbinom magnitude cap of 1e6 inside
    `validateResponseSupport`'s nbinom arm, so one edit covers creation and
    every y-swapping conduit on both surfaces
-   (src/R_interface_bartcore_common.hpp:212).
+   ([[R_interface_bartcore_common.hpp#validateResponseSupport]]).
 2. SILENTLY WRONG: probit/ordinal setResponse accept out-of-support
    responses (non-0/1 y gives latents in the hundreds; constant 0.5
    collapses every latent to zero). setTreatment already shows the
@@ -374,9 +374,12 @@ commit does not close.
 
 - docs/plans/archive/multiforest-extension-surface.md's anchor-refresh pass is
   DONE, this commit (31 corrections applied; three stale line numbers
-  its own header claimed were verified - :146, :360, :970 - plus the
-  chain.hpp/combiner.hpp anchors drifted by the S4 landing, incl.
-  fact 12's latent draw, live at chain.hpp:1534-1535).
+  its own header claimed were verified -
+  [[docs/plans/archive/multiforest-extension-surface.md:146@be931ec7]],
+  [[docs/plans/archive/multiforest-extension-surface.md:360@be931ec7]],
+  [[docs/plans/archive/multiforest-extension-surface.md:970@be931ec7]] -
+  plus the chain.hpp/combiner.hpp anchors drifted by the S4 landing, incl.
+  fact 12's latent draw, live at [[chain.hpp#refreshLatents]]).
 - The census memo's tier (iii).1, its fork-1/fork-2 "strengthened"
   justifications, its two-sampler latent probe, and its "nbinom
   dispersion unreachable" gap are superseded per the critique
