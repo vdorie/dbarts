@@ -13,16 +13,15 @@ needs its own baseline re-record plus the exact-posterior gates
 (.github/workflows/exact-gates.yaml) beside the usual equivalence trio.
 
 Landed pre-release-candidate. The proposal below was written against the
-bartcore branch at 2da4f101; its code anchors have since been re-pinned by
-content through the whole arc, S4a, S4c and S4b included, with the deliberate
-exceptions the S2 landing note names - the cites inside the pre-S1
-enumerations stay pinned to the tree they enumerate, since that code no
-longer exists. Section 5's `denseBorrowed`/`denseOwned` naming question is
-one further exception: `ColumnSourceKind` now enumerates `denseCallSupplied`,
-`denseResident`, `denseCodesOnly`, `cscRank` and `cscDensified`
-([[data.hpp:246-259@2da4f101]]), so the renaming that section proposes was itself
-superseded rather than landed or rejected, and its cites are read as history
-alongside the pre-S1 enumerations.
+bartcore branch at 2da4f101. The cites below are pinned at 3c81d6df, the
+tree they were verified against, except the pre-S1 enumerations the S2
+landing note names (the ColumnType cite and the twenty-seven
+numCuts-as-category-count reads), which stay at the tree they enumerate,
+since that code no longer exists. Section 5's `denseBorrowed`/`denseOwned`
+naming question is a separate matter: `ColumnSourceKind` now enumerates
+`denseCallSupplied`, `denseResident`, `denseCodesOnly`, `cscRank` and
+`cscDensified` ([[data.hpp:246-259@3c81d6df]]), so the renaming that section
+proposes was itself superseded rather than landed or rejected.
 
 Two things are settled going in and are treated as scope rather than as
 questions: the **ordered-factor cut-grid fix lands pre-RC** (section 1, with its
@@ -37,47 +36,47 @@ they have different fixes and very different risk.
 
 **1. There is no ordered-factor marker anywhere below R's model-matrix
 builder.** `makeCategoricalModelMatrix` collapses `is.ordered()` into
-`ORDINAL_VARIABLE` (`[[R/utility.R:510-514@2da4f101]]`), which is `0L`
-(`[[R/data.R:1@2da4f101]]`), the same value a numeric column gets (`[[R/utility.R:530-532@2da4f101]]`).
+`ORDINAL_VARIABLE` (`[[R/utility.R:510-514@3c81d6df]]`), which is `0L`
+(`[[R/data.R:1@3c81d6df]]`), the same value a numeric column gets (`[[R/utility.R:530-532@3c81d6df]]`).
 The bridge states the consequence in as many words: "an ordered factor carries
 a level table too, but enters as an ordinal column, whose grid is cut points
-rather than categories" (`[[src/R_interface_bartcore.cpp:903-905@2da4f101]]`). The engine's
+rather than categories" (`[[src/R_interface_bartcore.cpp:903-905@3c81d6df]]`). The engine's
 `ColumnType` has two values (`[[src/bartcore/data.hpp:93@2da4f101]]`), so nothing below the
 bridge can tell an ordered factor from a numeric column.
 
 This is exactly the gap the response side closed with `response.type`
-(`[[R/A_class.R:500-505@2da4f101]]`), whose comment gives the reason verbatim: "0/1/2 codes
+(`[[R/A_class.R:500-505@3c81d6df]]`), whose comment gives the reason verbatim: "0/1/2 codes
 are indistinguishable from integer data".
 
 The splitting *mechanic* is deliberate and correct -
-`[[docs/design/public-surface.md:123-126@2da4f101]]` rules that ordered factors ingest as
+`[[docs/design/public-surface.md:123-126@3c81d6df]]` rules that ordered factors ingest as
 ordinal on their integer codes "because their order is meaningful; threshold
 splits are the right vocabulary" - and nothing here changes it. What the
 missing marker costs is four concrete things:
 
   - *A silent data defect.* An ordered factor's grid is built by
-    `fillCutsUniformly` -> `fillCutsOverRange` (`[[data.hpp:987-1005@2da4f101]]`) with
-    `numCuts[j] = maxNumCuts[j]` (`[[data.hpp:1100@2da4f101]]`), over the observed range
+    `fillCutsUniformly` -> `fillCutsOverRange` (`[[data.hpp:987-1005@3c81d6df]]`) with
+    `numCuts[j] = maxNumCuts[j]` (`[[data.hpp:1100@3c81d6df]]`), over the observed range
     `[0, K-1]`. That cap is `n.cuts`, default `100L`
-    (`[[R/A_class.R:258@2da4f101]]`, `[[R/data.R:15@2da4f101]]`), recycled per column with no
-    cardinality clamp (`[[R/data.R:38@2da4f101]]`, `[[R/dbarts.R:684@2da4f101]]`), passed through
-    `options.maxNumCutsPerVariable` (`[[R_interface_bartcore.cpp:1832@2da4f101]]`) into
-    `maxNumCuts` (`[[data.hpp:1417-1419@2da4f101]]`) and reduced only by the
-    representability cap (`[[data.hpp:1248-1250@2da4f101]]`). Codes come from `lower_bound` over
-    those cuts (`[[data.hpp:882-885@2da4f101]]`). With K distinct level codes and only
+    (`[[R/A_class.R:258@3c81d6df]]`, `[[R/data.R:15@3c81d6df]]`), recycled per column with no
+    cardinality clamp (`[[R/data.R:38@3c81d6df]]`, `[[R/dbarts.R:684@3c81d6df]]`), passed through
+    `options.maxNumCutsPerVariable` (`[[R_interface_bartcore.cpp:1832@3c81d6df]]`) into
+    `maxNumCuts` (`[[data.hpp:1417-1419@3c81d6df]]`) and reduced only by the
+    representability cap (`[[data.hpp:1248-1250@3c81d6df]]`). Codes come from `lower_bound` over
+    those cuts (`[[data.hpp:882-885@3c81d6df]]`). With K distinct level codes and only
     `numCuts + 1` reachable code values, K > 101 guarantees by pigeonhole that
     two adjacent levels share a code and can never be separated by any rule.
     Nothing warns. An *un*ordered factor with too many levels errors and names
-    the cap (`[[R/utility.R:540-558@2da4f101]]`); the ordered one does not, because the cap
+    the cap (`[[R/utility.R:540-558@3c81d6df]]`); the ordered one does not, because the cap
     check is gated on `!is.ordered(column)`.
 
   - *A split-prior distortion, not merely wasted work.* Below that threshold
     the column carries `n.cuts` cut points where K-1 are distinct.
-    `scanOrdinalCuts` scores every candidate (`[[src/bartcore/scan.hpp:89-98@2da4f101]]`),
+    `scanOrdinalCuts` scores every candidate (`[[src/bartcore/scan.hpp:89-98@3c81d6df]]`),
     and grow-from-root pushes every non-sentinel entry with weight
     `splitBase + logLikelihood`, where `splitBase` carries
     `logCut = -log(right - left + 1)` normalized over the *inflated* index
-    range (`[[src/bartcore/grow.hpp:270@2da4f101]]`, `[[src/bartcore/grow.hpp:283-296@2da4f101]]`). Each distinct partition
+    range (`[[src/bartcore/grow.hpp:270@3c81d6df]]`, `[[src/bartcore/grow.hpp:283-296@3c81d6df]]`). Each distinct partition
     therefore appears with multiplicity equal to the number of index slots that
     map to it, and the induced prior over distinct thresholds is proportional
     to that multiplicity. The multiplicities are equal only when `K-1` divides
@@ -91,9 +90,9 @@ missing marker costs is four concrete things:
     spends most of its node visits.
 
   - *No test-side level check.* `validateCategoricalPredictors` gates on
-    `columnTypes[j] != categorical` (`[[R_interface_bartcore.cpp:1761@2da4f101]]`,
-    `[[R_interface_bartcore.cpp:1728@2da4f101]]`), and `validateTestContainerAgainstStore` on
-    `store.types[j] != categorical` (`[[R_interface_bartcore.cpp:3028@2da4f101]]`), so an ordered-factor test column
+    `columnTypes[j] != categorical` (`[[R_interface_bartcore.cpp:1761@3c81d6df]]`,
+    `[[R_interface_bartcore.cpp:1728@3c81d6df]]`), and `validateTestContainerAgainstStore` on
+    `store.types[j] != categorical` (`[[R_interface_bartcore.cpp:3028@3c81d6df]]`), so an ordered-factor test column
     is never checked against the training level table. A test value of `7.5`,
     or code `40` on a 5-level factor, is quantized against the grid and routed
     without complaint. **Disposition: fixed, by decision 5 - strict refusal
@@ -103,8 +102,8 @@ missing marker costs is four concrete things:
     the reasoning is recorded with the decision.
 
   - *Degraded reporting.* `decodeCategoricalSplits` maps split values back to
-    level names only for categorical columns (`[[R/plotTree.R:7-25@2da4f101]]`), which it
-    selects via `which(varTypes == CATEGORICAL_VARIABLE)` (`[[R/plotTree.R:10@2da4f101]]`, `[[R/plotTree.R:25@2da4f101]]`). A
+    level names only for categorical columns (`[[R/plotTree.R:7-25@3c81d6df]]`), which it
+    selects via `which(varTypes == CATEGORICAL_VARIABLE)` (`[[R/plotTree.R:10@3c81d6df]]`, `[[R/plotTree.R:25@3c81d6df]]`). A
     split on an ordered factor reports a numeric threshold like `2.0198` where
     it could report the level boundary. **Disposition: deferred, not in any
     slice.** It is pure R, touches no engine surface, and is cosmetic; under
@@ -114,17 +113,17 @@ missing marker costs is four concrete things:
 
 **2. `numCuts` is overloaded.** The declaration says so: "For categorical
 columns numCuts holds the (fixed) category count, cutPoints stays empty"
-(`[[data.hpp:508-510@2da4f101]]`, field at `[[data.hpp:538@2da4f101]]`, written at `[[data.hpp:872@2da4f101]]`). There are exactly 62
+(`[[data.hpp:508-510@3c81d6df]]`, field at `[[data.hpp:538@3c81d6df]]`, written at `[[data.hpp:872@3c81d6df]]`). There are exactly 62
 `numCuts[...]` references in `src/bartcore/*.hpp` and
 `src/R_interface_bartcore.cpp`; TWENTY-SEVEN of them read it as a category
 count: `[[data.hpp:555@2da4f101]]`, `[[data.hpp:710@2da4f101]]`, `[[data.hpp:723@2da4f101]]`, `[[data.hpp:1466@2da4f101]]`; `[[tree.hpp:320@2da4f101]]`, `[[tree.hpp:330@2da4f101]]`,
 `[[tree.hpp:445@2da4f101]]`, `[[tree.hpp:473@2da4f101]]`, `[[tree.hpp:503@2da4f101]]`, `[[tree.hpp:650@2da4f101]]`, `[[tree.hpp:1178@2da4f101]]`, `[[tree.hpp:1181@2da4f101]]`, `[[tree.hpp:1475@2da4f101]]`, `[[tree.hpp:1536@2da4f101]]`, `[[tree.hpp:1561@2da4f101]]`,
 `[[tree.hpp:1611@2da4f101]]`, `[[tree.hpp:2069@2da4f101]]`, `[[tree.hpp:2083@2da4f101]]`, `[[tree.hpp:2148@2da4f101]]`; `[[scan.hpp:303@2da4f101]]`, `[[scan.hpp:304@2da4f101]]`;
 `[[R_interface_bartcore.cpp:1521@2da4f101]]`, `[[R_interface_bartcore.cpp:3029@2da4f101]]`, `[[R_interface_bartcore.cpp:5483@2da4f101]]`, `[[R_interface_bartcore.cpp:5663@2da4f101]]`, `[[R_interface_bartcore.cpp:7620@2da4f101]]`, `[[R_interface_bartcore.cpp:7624@2da4f101]]`,
-plus the WRITE at `[[data.hpp:872@2da4f101]]` and one test-side read,
-`[[tests/cpp/test_grow.cpp:860@2da4f101]]`, which sizes a category histogram from it and
-so must move with them. (An earlier draft of this list named `[[moves.hpp:404@2da4f101]]`,
-`[[moves.hpp:708@2da4f101]]`, `[[model.hpp:2158@2da4f101]]`, `[[model.hpp:2349@2da4f101]]`, `[[grow.hpp:84@2da4f101]]` and `[[grow.hpp:230@2da4f101]]`; those lines hold
+plus the WRITE at `[[data.hpp:872@3c81d6df]]` and one test-side read,
+`[[tests/cpp/test_grow.cpp:860@3c81d6df]]`, which sizes a category histogram from it and
+so must move with them. (An earlier draft of this list named `[[moves.hpp:404@3c81d6df]]`,
+`[[moves.hpp:708@3c81d6df]]`, `[[model.hpp:2158@3c81d6df]]`, `[[model.hpp:2349@3c81d6df]]`, `[[grow.hpp:84@3c81d6df]]` and `[[grow.hpp:230@3c81d6df]]`; those lines hold
 no `numCuts[` at all - they are `types[j] == categorical` comparisons, which
 the `splitsBySubset` sweep carries instead. Corrected against the tree at
 S1's implementation.) Every read is already inside a `types[j] ==
@@ -135,47 +134,47 @@ returns to, and `[[R_interface_bartcore.cpp:1521@2da4f101]]` is the verbose prin
 untyped line, which the recommendation below makes kind-aware.
 
 **3. A categorical column's raw double IS its code.** `codeFor` does an
-unchecked `static_cast<xint_t>(value)` for a categorical (`[[data.hpp:828-831@2da4f101]]`),
+unchecked `static_cast<xint_t>(value)` for a categorical (`[[data.hpp:828-831@3c81d6df]]`),
 and the flat replay reads the raw double and casts it to a category index
-(`[[tree.hpp:1768-1769@2da4f101]]` pooled, `[[tree.hpp:1783-1784@2da4f101]]` inline). The bridge widens R's
+(`[[tree.hpp:1768-1769@3c81d6df]]` pooled, `[[tree.hpp:1783-1784@3c81d6df]]` inline). The bridge widens R's
 `INTEGER` factor codes to doubles a cell at a time
-(`[[R_interface_bartcore.cpp:553-565@2da4f101]]`) so that the engine can narrow them back.
+(`[[R_interface_bartcore.cpp:553-565@3c81d6df]]`) so that the engine can narrow them back.
 
-**4. `FlatKind` duplicates type-plus-pooled** (`[[tree.hpp:171-176@2da4f101]]`), and both
-`buildFromFlatBelow` (`[[tree.hpp:1530-1574@2da4f101]]`) and `flatSubtreeIsWellFormed`
-(`[[tree.hpp:2065-2088@2da4f101]]`) re-derive the same thing from the store and refuse a
+**4. `FlatKind` duplicates type-plus-pooled** (`[[tree.hpp:171-176@3c81d6df]]`), and both
+`buildFromFlatBelow` (`[[tree.hpp:1530-1574@3c81d6df]]`) and `flatSubtreeIsWellFormed`
+(`[[tree.hpp:2065-2088@3c81d6df]]`) re-derive the same thing from the store and refuse a
 disagreement. See section 4 - this one is less redundant than it looks.
 
 ## Two premises worth settling before the sections
 
 **The flat C API is not an unvalidated back door.** `dbarts_sampler_create`
-takes SEXPs (`[[inst/include/dbarts/dbarts.h:523@2da4f101]]`; the header states
-"control/model/data/state cross as SEXP" at `[[inst/include/dbarts/dbarts.h:199-200@2da4f101]]`) and forwards to the
+takes SEXPs (`[[inst/include/dbarts/dbarts.h:523@3c81d6df]]`; the header states
+"control/model/data/state cross as SEXP" at `[[inst/include/dbarts/dbarts.h:199-200@3c81d6df]]`) and forwards to the
 same `bartcore_bridge::createHolder` the R entry uses
-(`[[src/C_interface.cpp:598@2da4f101]]`), so it inherits `validateCategoricalPredictors`
+(`[[src/C_interface.cpp:598@3c81d6df]]`), so it inherits `validateCategoricalPredictors`
 in full. Every other flat entrance that can deliver predictor values validates
 before `codeFor` casts: `dbarts_sampler_setPredictor` and
 `dbarts_sampler_updatePredictor` sweep every cell through
-`validateColumnValues` (`[[C_interface.cpp:810-812@2da4f101]]`, `[[C_interface.cpp:843-845@2da4f101]]`, the function defined at
-`[[R_interface_bartcore.cpp:3163@2da4f101]]`); `setTestPredictors` and `predict` go
-through `validateTestSource` (`[[C_interface.cpp:324@2da4f101]]`); `setState`
+`validateColumnValues` (`[[C_interface.cpp:810-812@3c81d6df]]`, `[[C_interface.cpp:843-845@3c81d6df]]`, the function defined at
+`[[R_interface_bartcore.cpp:3163@3c81d6df]]`); `setTestPredictors` and `predict` go
+through `validateTestSource` (`[[C_interface.cpp:324@3c81d6df]]`); `setState`
 re-quantizes only creation-validated values; the `getTrees` replay clamps
-defensively (`[[tree.hpp:1808-1815@2da4f101]]`); and `translateSource` bounds any declared
-`categoryCounts` and `referenceCodes` (`[[C_interface.cpp:166-176@2da4f101]]`). The residual
+defensively (`[[tree.hpp:1808-1815@3c81d6df]]`); and `translateSource` bounds any declared
+`categoryCounts` and `referenceCodes` (`[[C_interface.cpp:166-176@3c81d6df]]`). The residual
 unvalidated surface is the header-only engine used directly - `tests/cpp`, and
 any future non-R host. That is a real but much narrower exposure than "the flat
 C API", and section 3 is scoped to it.
 
 **The column kind does not need to be in the serialized state.**
 `SamplerStateData` carries chains, cut points, a sample cursor and a
-recorded-draw count, and nothing else (`[[sampler.hpp:89-97@2da4f101]]`); neither `types` nor
-`numCuts` is ever written. `[[docs/design/data-store.md:465-467@2da4f101]]` states why:
+recorded-draw count, and nothing else (`[[sampler.hpp:89-97@3c81d6df]]`); neither `types` nor
+`numCuts` is ever written. `[[docs/design/data-store.md:465-467@3c81d6df]]` states why:
 "Predictors are not serialized in state; `getPointer()` re-creation rebuilds the
 store from the stored data object". Every restore entrance re-creates from a
-data object first - R's `getPointer`/`setState` (`[[R/dbarts.R:1927-1948@2da4f101]]`,
-`[[R/dbarts.R:1959-1973@2da4f101]]`), the flat C `dbarts_sampler_setState` (`[[C_interface.cpp:1009@2da4f101]]`),
-and stan4bart's own re-creation (`~/[[Repositories/stan4bart/src/init.cpp:373-376@2da4f101]]`)
-- so the kind rides `dbartsData@varTypes` (`[[R/A_class.R:487@2da4f101]]`), an S4 slot R
+data object first - R's `getPointer`/`setState` (`[[R/dbarts.R:1927-1948@3c81d6df]]`,
+`[[R/dbarts.R:1959-1973@3c81d6df]]`), the flat C `dbarts_sampler_setState` (`[[C_interface.cpp:1009@3c81d6df]]`),
+and stan4bart's own re-creation (`~/[[Repositories/stan4bart/src/init.cpp:373-376@3c81d6df]]`)
+- so the kind rides `dbartsData@varTypes` (`[[R/A_class.R:487@3c81d6df]]`), an S4 slot R
 serializes with the object, and reaches the rebuilt store through the ordinary
 creation parse. Section 1 develops this, including the two bridge sites that
 currently prevent the kind from surviving that parse.
@@ -203,14 +202,14 @@ the comparisons are `== categorical` or `!= categorical` and translate
 mechanically. The ones that need reading are the `else` arms that today mean
 "ordinal" and would come to mean "numeric or orderedFactor" - which is the
 correct meaning in every one inspected, because all of them are about threshold
-splitting (`[[tree.hpp:648-658@2da4f101]]`, `[[tree.hpp:1573-1583@2da4f101]]`, `[[tree.hpp:2086-2088@2da4f101]]`;
-`[[grow.hpp:267-296@2da4f101]]`; `[[sampler.hpp:903-909@2da4f101]]`, `[[sampler.hpp:924-933@2da4f101]]`).
+splitting (`[[tree.hpp:648-658@3c81d6df]]`, `[[tree.hpp:1573-1583@3c81d6df]]`, `[[tree.hpp:2086-2088@3c81d6df]]`;
+`[[grow.hpp:267-296@3c81d6df]]`; `[[sampler.hpp:903-909@3c81d6df]]`, `[[sampler.hpp:924-933@3c81d6df]]`).
 
 **C. A richer per-column descriptor** - one `ColumnSpec` struct absorbing
 kind, category count, cut count, cut cap and missingness. ~16 bytes per column,
 replacing four vectors; it touches all 45 comparison sites, all 62 `numCuts`
 sites, and the `CodeBlock`/`ColumnSource` split that the data-store
-consolidation already settled - `[[docs/design/data-store.md:482@2da4f101]]` records
+consolidation already settled - `[[docs/design/data-store.md:482@3c81d6df]]` records
 "why there is no nested `CutGrid` type". This relitigates a landed decision for
 no gain the other two do not give.
 
@@ -233,17 +232,17 @@ should have been.
 
 **One admissibility decision this makes silently, and which must be stated
 rather than absorbed.** Three refusal predicates key on `categorical`:
-monotone directions (`[[facade.hpp:775-778@2da4f101]]`), leaf-covariate designation from a
-predictor source (`[[facade.hpp:832-836@2da4f101]]`), and the same from a pre-built store
-(`[[facade.hpp:872-873@2da4f101]]`). Under `splitsBySubset(j)` all three keep an
+monotone directions (`[[facade.hpp:775-778@3c81d6df]]`), leaf-covariate designation from a
+predictor source (`[[facade.hpp:832-836@3c81d6df]]`), and the same from a pre-built store
+(`[[facade.hpp:872-873@3c81d6df]]`). Under `splitsBySubset(j)` all three keep an
 **orderedFactor column admissible**, exactly as today. For monotonicity that is
-right and already ruled: `[[docs/design/monotone.md:117-121@2da4f101]]` says in as many
+right and already ruled: `[[docs/design/monotone.md:117-121@3c81d6df]]` says in as many
 words that "ORDERED factors and numeric columns ... DO accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are
 meaningful." For **leaf covariates** it is a modelling choice rather than a
 settled ruling: an ordered factor designated as a linear- or GP-leaf covariate
 enters as its integer level codes standardized by
-`standardizationMomentsForColumn` (`[[data.hpp:100-121@2da4f101]]`), i.e. treated as
+`standardizationMomentsForColumn` (`[[data.hpp:100-121@3c81d6df]]`), i.e. treated as
 equally-spaced interval data. That is defensible and is what happens today, but
 today it happens because nothing can tell the column apart; after this change it
 happens because we decided so. **Decision 2 keeps all three admissible,
@@ -262,22 +261,22 @@ cuts). +4 bytes per column; on a 1000-predictor problem, 4 KB. The twenty-two
 K-reads listed above change spelling; all are already type-guarded, so none
 needs new logic. Three sites need more than a rename:
 
-  - `[[data.hpp:785@2da4f101]]` (`columnIsPooled`), which must read the category count to
+  - `[[data.hpp:785@3c81d6df]]` (`columnIsPooled`), which must read the category count to
     decide the mask tier.
-  - `[[R_interface_bartcore.cpp:1671@2da4f101]]`, `[[R_interface_bartcore.cpp:1677@2da4f101]]`, the verbose printer's "Number of
+  - `[[R_interface_bartcore.cpp:1671@3c81d6df]]`, `[[R_interface_bartcore.cpp:1677@3c81d6df]]`, the verbose printer's "Number of
     cutoffs" line, which prints `store.numCuts[j]` for **every** column with no
     type guard and would start reporting 0 for categoricals. (The cut-point
-    listing further down is already safe: `[[R_interface_bartcore.cpp:1684@2da4f101]]` skips categoricals before
-    `[[R_interface_bartcore.cpp:1688@2da4f101]]` tests `numCuts[j] == 0`.) The printer needs a kind-aware line -
+    listing further down is already safe: `[[R_interface_bartcore.cpp:1684@3c81d6df]]` skips categoricals before
+    `[[R_interface_bartcore.cpp:1688@3c81d6df]]` tests `numCuts[j] == 0`.) The printer needs a kind-aware line -
     reporting the category count for a categorical column is better output than
     it produces today, so this is an improvement to make deliberately rather
     than a regression to avoid.
-  - `ColumnStore::buildFromParent` (`[[data.hpp:1972@2da4f101]]`), which copies
+  - `ColumnStore::buildFromParent` (`[[data.hpp:1972@3c81d6df]]`), which copies
     `types`, `cutPoints`, `numCuts` and `maxNumCuts` explicitly in both its
     column-subset and whole-store arms. `categoryCounts` **must** join that copy
     list. Two things break immediately otherwise: `refreshCategoricalTiers()` at
-    `[[data.hpp:789@2da4f101]]` reads the count to set the pooled tier, and the gather loop at
-    `[[data.hpp:2045-2053@2da4f101]]` computes `missingCategoryCode(numCuts[j])` per column. A view
+    `[[data.hpp:789@3c81d6df]]` reads the count to set the pooled tier, and the gather loop at
+    `[[data.hpp:2045-2053@3c81d6df]]` computes `missingCategoryCode(numCuts[j])` per column. A view
     with an empty or zeroed count vector gets the wrong mask tier and an
     out-of-range read, and every xbart fold view is built this way.
 
@@ -292,13 +291,13 @@ midpoints**, replacing the `n.cuts` uniform cuts over `[0, K-1]` it gets today.
 
 The midpoint placement itself is what quantile mode already produces: K unique
 values under a cap of **at least K-1** induce exactly K-1 cuts
-(`[[data.hpp:997@2da4f101]]`) at consecutive midpoints (`[[data.hpp:992@2da4f101]]`). So
-`buildCutsForColumn` (`[[data.hpp:1192@2da4f101]]`) gains a third arm that runs the
+(`[[data.hpp:997@3c81d6df]]`) at consecutive midpoints (`[[data.hpp:992@3c81d6df]]`). So
+`buildCutsForColumn` (`[[data.hpp:1192@3c81d6df]]`) gains a third arm that runs the
 quantile path for an `orderedFactor` column regardless of the store's
 `useQuantiles` flag.
 
 **That is not sufficient on its own, and the cap is the whole difficulty.**
-`finishQuantileGrid` has a third arm (`[[data.hpp:1014-1024@2da4f101]]`) that fires when
+`finishQuantileGrid` has a third arm (`[[data.hpp:1014-1024@3c81d6df]]`) that fires when
 `numUnique > maxNumCuts[j] + 1` and **thins** the grid to `maxNumCuts[j]`
 cuts. `maxNumCuts[j]` is `n.cuts`, default 100. So routing a 150-level ordered
 factor through the quantile path unchanged gives 100 cuts at `k + 0.5` for
@@ -313,30 +312,30 @@ in the `orderedFactor` arm of `buildCutsForColumn`, before the grid is built:
 `if (maxNumCuts[j] < K - 1) maxNumCuts[j] = K - 1;`. The in-tree precedent for
 mutating the cap to fit an externally determined grid is
 `setCutPointsForColumn`, which does exactly `if (maxNumCuts[j] < numCutPoints)
-maxNumCuts[j] = numCutPoints;` (`[[data.hpp:1295@2da4f101]]`). Raising the cap rather than
+maxNumCuts[j] = numCutPoints;` (`[[data.hpp:1295@3c81d6df]]`). Raising the cap rather than
 bypassing the thinning arm is the better of the two for one reason: it keeps
 `numCuts[j] <= maxNumCuts[j]`. A bypass would leave a column carrying K-1 cuts
 under a recorded cap of `n.cuts` - a cut count exceeding the column's own stated
-ceiling, which is the invariant `build`'s clamp (`[[data.hpp:1564-1565@2da4f101]]`)
+ceiling, which is the invariant `build`'s clamp (`[[data.hpp:1564-1565@3c81d6df]]`)
 establishes and which `setCutPointsForColumn` preserves whenever an externally
 chosen grid is wider than the cap.
 
 **The cap raise is necessary but not sufficient: the mutation path must
-dispatch on kind too.** Neither `refreshCutsForColumn` (`[[data.hpp:1254@2da4f101]]`) nor
-`cutsWouldRemainValid` (`[[data.hpp:1271@2da4f101]]`) reads `maxNumCuts[j]` at all. Both branch on
+dispatch on kind too.** Neither `refreshCutsForColumn` (`[[data.hpp:1254@3c81d6df]]`) nor
+`cutsWouldRemainValid` (`[[data.hpp:1271@3c81d6df]]`) reads `maxNumCuts[j]` at all. Both branch on
 the **store-wide** `useQuantiles` flag after a single `categorical` early
 return, so an `orderedFactor` column falls straight through to the ordinal arms.
 On a default `useQuantiles = FALSE` store an `updateCuts` mutation therefore
-reaches `fillCutsUniformly` (`[[data.hpp:1087@2da4f101]]`) and replaces the midpoint grid with K-1
+reaches `fillCutsUniformly` (`[[data.hpp:1087@3c81d6df]]`) and replaces the midpoint grid with K-1
 uniform cuts over the **observed** range. Three things follow, and the third is
 the serious one:
 
   - The cut *values* change - midpoints at `k + 0.5` become
     `(k+1)(max-min)/K` - and the flat tree format matches a saved cut value
-    **exactly** (`cuts[k] != flat.value` refuses, `[[tree.hpp:1578-1580@2da4f101]]`), so a
+    **exactly** (`cuts[k] != flat.value` refuses, `[[tree.hpp:1578-1580@3c81d6df]]`), so a
     state saved before such a mutation no longer restores onto the column.
   - On a `useQuantiles = TRUE` store the other arm rebuilds from observed
-    uniques (`[[tree.hpp:927@2da4f101]]`), silently degrading a declared-level grid to an
+    uniques (`[[tree.hpp:927@3c81d6df]]`), silently degrading a declared-level grid to an
     observed-level one - the sub-decision above, undone by a mutation.
   - When the mutation's observed range does not span every declared level, the
     uniform grid's codes stop being level indices and levels outside that range
@@ -348,17 +347,17 @@ The fix is the same dispatch in the same place: an `orderedFactor` column joins
 `categorical` in the early arm of both functions. For both kinds the grid is a
 property of the level table rather than of the values, so a refresh is a no-op
 that keeps the existing grid, and the feasibility check is level membership -
-the categorical arm's `categoricalValueIsValid` sweep (`[[data.hpp:982@2da4f101]]`) - rather than
+the categorical arm's `categoricalValueIsValid` sweep (`[[data.hpp:982@3c81d6df]]`) - rather than
 an induced-cut-count comparison. So S2 is three small edits, not one, and
 omitting either of the latter two would make the grid fix conditional on the
 sampler never being mutated.
 
 The ceiling is the code type's, not `n.cuts`: `build` clamps `maxNumCuts[j]` to
-`maxNumCutsRepresentable = 0xFFFD` = 65533 (`[[data.hpp:36@2da4f101]]`, applied at
-`[[data.hpp:1564-1565@2da4f101]]`), so a grid of K-1 cuts is representable exactly while
+`maxNumCutsRepresentable = 0xFFFD` = 65533 (`[[data.hpp:36@3c81d6df]]`, applied at
+`[[data.hpp:1564-1565@3c81d6df]]`), so a grid of K-1 cuts is representable exactly while
 K <= 65534. **An ordered factor with more than 65534 levels is refused at
 ingestion, naming the cap** - the ordered-side counterpart of the unordered
-factor's refusal above 65535 levels (`[[R/utility.R:540-558@2da4f101]]`), which is where the
+factor's refusal above 65535 levels (`[[R/utility.R:540-558@3c81d6df]]`), which is where the
 R-side check belongs so the message names the column. The two ceilings are one
 apart (65534 against 65535) because the ordered side spends a code on the
 grid's upper bin and the unordered side does not; the two ceilings are
@@ -366,7 +365,7 @@ stated as the numbers they are rather than claimed to cap identically.
 
 **The cost this accepts.** A K-level ordered factor now carries K-1 cut points:
 `8 * (K - 1)` bytes of `cutPoints[j]`, `2 * (K - 1) * 8` bytes of grow-from-root
-scratch (`[[grow.hpp:276@2da4f101]]`), and an O(K) scoring tail per (node, variable) in
+scratch (`[[grow.hpp:276@3c81d6df]]`), and an O(K) scoring tail per (node, variable) in
 `scanOrdinalCuts`. At the ceiling that is roughly 524 KB of cuts and 1 MB of
 scratch for one column, and a scan tail that will dominate deep-node cost. This
 is expensive, and it is the honest expense: a K-level ordered factor genuinely
@@ -375,8 +374,8 @@ restricted model rather than a cheaper one. A user who wants 100 cuts over a
 high-cardinality ordinal encoding should pass the column as numeric, where
 `n.cuts` means what it says. The comparison worth noting is that a
 high-cardinality *unordered* factor is already expensive in the same way -
-pooled masks cost `maskWordsForCount(K)` words per rule (`[[data.hpp:70@2da4f101]]`) and
-the category histogram is O(K) per node (`[[scan.hpp:301-304@2da4f101]]`) - so this does not
+pooled masks cost `maskWordsForCount(K)` words per rule (`[[data.hpp:70@3c81d6df]]`) and
+the category histogram is O(K) per node (`[[scan.hpp:301-304@3c81d6df]]`) - so this does not
 introduce a cliff the store did not already have for wide factors.
 
 The rejected alternative is to keep thinning and warn. It preserves today's
@@ -386,26 +385,26 @@ rather than a fix.
 
 **One sub-decision inside that: observed levels or declared levels?**
 `finishQuantileGrid` builds its grid from `sortedUnique`, the **observed**
-values only (`[[data.hpp:992@2da4f101]]`). So a level that appears in the training data
+values only (`[[data.hpp:992@3c81d6df]]`). So a level that appears in the training data
 zero times contributes no cut, its neighbours merge, and the column's codes
 become ranks among observed levels rather than level indices. Two consequences:
 a level absent from training but present in test data cannot be separated from
 its neighbour, and the code-to-level correspondence is not stable under
 subsetting. The alternative is to place K-1 cuts from the **declared** level
 count, which the factor's own level table already carries - `factor.levels`
-(`[[R/utility.R:567@2da4f101]]`, filled for ordered factors too). That table does not reach
+(`[[R/utility.R:567@3c81d6df]]`, filled for ordered factors too). That table does not reach
 the store today for exactly the reason this proposal exists:
 `readDeclaredCategoryCounts` skipped any column the bridge did not consider
 categorical, so an ordered factor's declared count was dropped. Decision 4
 below is what extends the function past that: the type gate now continues
-only on `numeric` (`[[R_interface_bartcore.cpp:1001@2da4f101]]`), so an ordered factor's
+only on `numeric` (`[[R_interface_bartcore.cpp:1001@3c81d6df]]`), so an ordered factor's
 declared count is read same as a categorical one's.
 
-That function has a **second** early-continue worth naming: `[[R_interface_bartcore.cpp:1002@2da4f101]]` skips any
+That function has a **second** early-continue worth naming: `[[R_interface_bartcore.cpp:1002@3c81d6df]]` skips any
 column whose count a container already declared, because a container
 declares its own K for those. An ordered factor cannot reach that path from R -
 `makeCategoricalModelMatrix` only ever produces a `sparseFactor` as a
-*categorical* column (`[[R/utility.R:531-533@2da4f101]]`) - but the flat C API and
+*categorical* column (`[[R/utility.R:531-533@3c81d6df]]`) - but the flat C API and
 `tests/cpp` can construct one, and under a declared-levels grid such a column
 would fall through to an inferred count. Whichever way the sub-decision goes,
 the CSC-backed ordered factor needs a stated answer rather than an inherited
@@ -435,7 +434,7 @@ declared count becomes the grid:
     declares both a `factor.levels` entry and a `sparseCategoryCount` for the
     same column. R cannot construct one - `makeCategoricalModelMatrix` types
     every `sparseFactor` categorical whether or not it is ordered
-    (`[[R/utility.R:531-533@2da4f101]]`) - so for anything R produces the two are the same
+    (`[[R/utility.R:531-533@3c81d6df]]`) - so for anything R produces the two are the same
     number; a hand-built container or a header-only host can disagree.
   - **Such a column's implicit rows read the quantized zero, not its declared
     reference level.** `resolveCscCategoricalReferences` skips a
@@ -453,23 +452,23 @@ With the cap treatment specified, three consequences follow:
     Above the ceiling the column is refused rather than silently merged, which
     is the point: no configuration ends in a quiet collapse.
   - **The prior-multiplicity tilt disappears.** Each distinct threshold gets
-    exactly one index slot, so `logCut` (`[[grow.hpp:270@2da4f101]]`) normalizes over the
+    exactly one index slot, so `logCut` (`[[grow.hpp:270@3c81d6df]]`) normalizes over the
     real partition set and the induced prior over level boundaries is uniform.
   - **`n.cuts` no longer applies to an ordered factor** - it is overridden, not
     merely inapplicable, since `maxNumCuts[j]` is actively raised past it. That
     is the consistent completion rather than a new exception: `n.cuts` already
     does not apply to unordered categoricals, where `numCuts[j]` holds K and no
-    cut grid exists at all (`[[data.hpp:1192@2da4f101]]`). A factor's grid is determined
+    cut grid exists at all (`[[data.hpp:1192@3c81d6df]]`). A factor's grid is determined
     by its levels; a numeric column's by `n.cuts`.
 
 **What this does to the "never cap" test invariant.**
-`[[inst/tinytest/test-data-categorical.R:40-41@2da4f101]]` carries the comment "ordered
+`[[inst/tinytest/test-data-categorical.R:40-41@3c81d6df]]` carries the comment "ordered
 factors are ordinal and never cap" over a 54-level ordered-factor case at
-`[[inst/tinytest/test-data-categorical.R:47-51@2da4f101]]`. The **assertion survives**, but not for the arithmetic reason: it
+`[[inst/tinytest/test-data-categorical.R:47-51@3c81d6df]]`. The **assertion survives**, but not for the arithmetic reason: it
 survives because `dbartsData` is pure R construction and never reaches
 `buildCutsForColumn` at all, so no grid is built and no cap is consulted at the
 point the test measures. What the new refusal changes is the *R-side* level
-check that would sit beside `[[R/utility.R:540-558@2da4f101]]`, and 54 levels is far below
+check that would sit beside `[[R/utility.R:540-558@3c81d6df]]`, and 54 levels is far below
 the 65534 ceiling, so that case passes too. The comment should be rewritten to
 say what is now true - an ordered factor caps at 65534 levels rather than never
 - and the file wants two additions: a case above `n.cuts` (say 150 levels)
@@ -483,35 +482,35 @@ cannot express, and a case above the ceiling asserting the new refusal.
 
 The state's one bit of per-column typing is carried by absence: the writer skips
 a categorical column's cut vector, leaving `R_NilValue`
-(`[[R_interface_bartcore.cpp:6960-6962@2da4f101]]`), and both readers test emptiness against
-the live store's type (`[[sampler.hpp:912@2da4f101]]` in `setState`, `[[sampler.hpp:995@2da4f101]]` in
+(`[[R_interface_bartcore.cpp:6960-6962@3c81d6df]]`), and both readers test emptiness against
+the live store's type (`[[sampler.hpp:912@3c81d6df]]` in `setState`, `[[sampler.hpp:995@3c81d6df]]` in
 `installForests`). Under `ColumnKind` that bit still discriminates exactly what
 it must - subset-mask rules versus threshold rules - because an `orderedFactor`
 column keeps a non-empty cut grid, exactly as a numeric one does. Nothing about
 the encoding changes, and the grid fix does not change it either: a state
-carries its own cut vector and `setState` installs it (`[[sampler.hpp:943-947@2da4f101]]`),
+carries its own cut vector and `setState` installs it (`[[sampler.hpp:943-947@3c81d6df]]`),
 so a state written under either grid restores onto its own cuts.
 
-Therefore neither `stateFormatVersion` (`[[R_interface_bartcore.cpp:6706@2da4f101]]`) nor
-`minReadableStateFormatVersion` (`[[R_interface_bartcore.cpp:6715@2da4f101]]`) moves.
+Therefore neither `stateFormatVersion` (`[[R_interface_bartcore.cpp:6706@3c81d6df]]`) nor
+`minReadableStateFormatVersion` (`[[R_interface_bartcore.cpp:6715@3c81d6df]]`) moves.
 
 The silent-misread hazard is real but applies to a different move. The registry
-rule at `[[R_interface_bartcore.cpp:6687@2da4f101]]`, `[[R_interface_bartcore.cpp:6767@2da4f101]]` (restated at
-`[[docs/design/public-surface.md:169-188@2da4f101]]`) says a *new named* block or top-level
+rule at `[[R_interface_bartcore.cpp:6687@3c81d6df]]`, `[[R_interface_bartcore.cpp:6767@3c81d6df]]` (restated at
+`[[docs/design/public-surface.md:169-188@3c81d6df]]`) says a *new named* block or top-level
 attribute is additive - an old reader ignores it, a new reader defaults it - and
 bumps nothing. What is non-additive, and what bumps both constants, is
 re-encoding an *existing* slot. Writing a non-null `cutPoints` entry for a
 categorical column would be exactly that: an old reader would see a present cut
-vector for a categorical column and refuse at `[[sampler.hpp:902@2da4f101]]`, and a new
+vector for a categorical column and refuse at `[[sampler.hpp:902@3c81d6df]]`, and a new
 reader looking at an old state could not distinguish "categorical" from "some
 new kind with no cut grid". That is the same silent-rename hazard the
-`bcf` -> `glue` bump was for (`[[docs/design/multiplier-combiner.md:44-48@2da4f101]]`). So:
+`bcf` -> `glue` bump was for (`[[docs/design/multiplier-combiner.md:44-48@3c81d6df]]`). So:
 do not touch the `cutPoints` encoding.
 
 If a future capability genuinely needs the kind in state, the additive route is
 a new top-level `columnKinds` attribute, INTSXP of length `numPredictors`, read
 by name and defaulted when absent, with the current emptiness test kept as the
-fallback. That would bump nothing either. `[[docs/design/data-ownership.md:235@2da4f101]]`
+fallback. That would bump nothing either. `[[docs/design/data-ownership.md:235@3c81d6df]]`
 already anticipated this and recorded that the cutPoints-only encoding was kept
 "on simplicity". Keep it.
 
@@ -521,33 +520,33 @@ The kind must survive four hops, and two of them currently drop it. Both are in
 the bridge, not in R, and both are load-bearing enough that omitting either
 makes the feature silently wrong rather than merely absent.
 
-  - `[[R/data.R:1-2@2da4f101]]` gains a third constant.
-  - `[[R/A_class.R:579-583@2da4f101]]` currently refuses any `varTypes` value that is not 0
+  - `[[R/data.R:1-2@3c81d6df]]` gains a third constant.
+  - `[[R/A_class.R:579-583@3c81d6df]]` currently refuses any `varTypes` value that is not 0
     or 1; it must admit the third.
-  - **`[[R_interface_bartcore.cpp:1208-1219@2da4f101]]` parses `varTypes` as "zero is
+  - **`[[R_interface_bartcore.cpp:1208-1219@3c81d6df]]` parses `varTypes` as "zero is
     ordinal, anything else is categorical"** (`if (variableTypes[j] == 0)
     continue; data.columnTypes[j] = categorical;`). Admitting `2L` on the R side
     without rewriting this loop makes every ordered factor enter the store as
     **categorical** - subset splits over identity codes - which is the exact
-    opposite of the settled ruling at `[[public-surface.md:123-126@2da4f101]]`, and it is a
+    opposite of the settled ruling at `[[public-surface.md:123-126@3c81d6df]]`, and it is a
     silent draw change rather than an error. This is the single highest-risk
     edit in the proposal.
-  - **`[[R_interface_bartcore.cpp:1220-1221@2da4f101]]` publishes the typing channel only
+  - **`[[R_interface_bartcore.cpp:1220-1221@3c81d6df]]` publishes the typing channel only
     when something is categorical**: `data.predictors.columnTypes =
     data.anyCategorical ? data.columnTypes.data() : NULL`. A data frame with an
     ordered factor and no unordered factor sets `anyCategorical` false, so the
-    channel is null, `build` falls back to all-ordinal (`[[data.hpp:1408-1412@2da4f101]]`),
+    channel is null, `build` falls back to all-ordinal (`[[data.hpp:1408-1412@3c81d6df]]`),
     and the kind dies at the store boundary. That is the *headline* case for
     this feature - an ordered factor on its own - so the gate must become "any
     column is not numeric", not "any column is categorical".
-  - `[[inst/tinytest/test-data-categorical.R:25@2da4f101]]` asserts
+  - `[[inst/tinytest/test-data-categorical.R:25@3c81d6df]]` asserts
     `varTypes == c(1L, 0L, 0L, 0L, 1L)` where the second column is the ordered
     factor `o` (`:8-12`); it becomes `c(1L, 2L, 0L, 0L, 1L)`.
 
 **Provenance divergence, and why it cannot be repaired.** A `dbartsData` saved
 by an older build carries `varTypes` 0 for an ordered factor, and 0 is ambiguous
 - it also means numeric. There is no upgrade path: nothing in the stored object
-distinguishes the two. (`factor.levels` is *nearly* a marker - `[[R/utility.R:567@2da4f101]]`
+distinguishes the two. (`factor.levels` is *nearly* a marker - `[[R/utility.R:567@3c81d6df]]`
 fills it for ordered factors too - but it is an attribute of `@x`, not a slot,
 and it is equally present for unordered factors, so it identifies "was a factor"
 rather than "was an ordered factor".) With the grid fix landing, the consequence
@@ -569,14 +568,14 @@ movement; the two bridge sites above rewritten in the same commit as the R-side
 widening, never after it.
 
 **On the ABI, and on what an enumerator costs.** `DBARTS_COLUMN_TYPE_LIST`
-(`[[dbarts.h:286-288@2da4f101]]`) is a list macro built for exactly this - its comment at
-`[[dbarts.h:281-285@2da4f101]]` explains that enumerators are added to the list rather than the enum
+(`[[dbarts.h:286-288@3c81d6df]]`) is a list macro built for exactly this - its comment at
+`[[dbarts.h:281-285@3c81d6df]]` explains that enumerators are added to the list rather than the enum
 body so the compile-time token cannot miss them. Appending
 `DBARTS_COLUMN_ORDERED_FACTOR = 2` keeps both existing values, and forces
-`[[C_interface.cpp:158-163@2da4f101]]`, which rejects any `columnTypes[j]` that is neither
+`[[C_interface.cpp:158-163@3c81d6df]]`, which rejects any `columnTypes[j]` that is neither
 `DBARTS_COLUMN_ORDINAL` nor `DBARTS_COLUMN_CATEGORICAL` by name in its error
 text, to be extended. The enumerator list is folded into `DBARTS_C_API_HASH`
-(`[[C_interface.cpp:572@2da4f101]]`, alongside the struct layouts at `[[C_interface.cpp:535-560@2da4f101]]`), so the
+(`[[C_interface.cpp:572@3c81d6df]]`, alongside the struct layouts at `[[C_interface.cpp:535-560@3c81d6df]]`), so the
 append re-bakes the token, and stan4bart compiles with
 `-DDBARTS_REQUIRE_EXACT_ABI` (`~/Repositories/stan4bart/src/Makevars:3`), which
 turns token movement into a hard failure at first stub resolution. That is a
@@ -611,13 +610,13 @@ state is:
 
   - **No double representation anywhere in the store.** The authoritative
     per-cell datum is the quantized code already in `train.codes` /
-    `test.codes` (`xint_t`, 2 bytes, `[[data.hpp:22@2da4f101]]`). For a `categorical` column
+    `test.codes` (`xint_t`, 2 bytes, `[[data.hpp:22@3c81d6df]]`). For a `categorical` column
     that code *is* the level index by construction, unconditionally: `codeFor`
-    is the identity cast (`[[data.hpp:968-978@2da4f101]]`). For an `orderedFactor` column
+    is the identity cast (`[[data.hpp:968-978@3c81d6df]]`). For an `orderedFactor` column
     under the midpoint grid the code equals the level index only when the grid
     is built from **declared** levels, or from observed ones with every level
     present - K-1 cuts at `k + 0.5` send level `v` to code `v` under
-    `lower_bound` (`[[data.hpp:882-885@2da4f101]]`) - and it degrades to a rank among
+    `lower_bound` (`[[data.hpp:882-885@3c81d6df]]`) - and it degrades to a rank among
     observed levels otherwise, per the sub-decision in section 1.
 
     **The rework does not depend on that identity.** What it depends on is the
@@ -629,64 +628,64 @@ state is:
     `tests/cpp` assertion anyway, because it is the property a reader will
     assume when they encounter the storage.
   - **`ColumnSource` carries a typed source, not a `double*`.** Today
-    `denseRaw` is a bare `double*` (`[[data.hpp:201-203@2da4f101]]`). In the end state the
+    `denseRaw` is a bare `double*` (`[[data.hpp:201-203@3c81d6df]]`). In the end state the
     descriptor names which pool the column's raw lives in - the double pool, the
     code pool, or neither - so that "this column has no double" is representable
     rather than being a null a reader must know to expect.
   - **`ownedDenseValues` shrinks to the real-valued columns.** Today it is a
     single contiguous double block sized by the largest dense *source* index and
-    copied wholesale from the caller (`[[data.hpp:854@2da4f101]]`), covering factor and
+    copied wholesale from the caller (`[[data.hpp:854@3c81d6df]]`), covering factor and
     numeric columns alike. In the end state it holds only columns whose values
     are genuinely real-valued, addressed through a per-column offset table
     rather than by source index. The same applies to `ownedTestValues`
-    (`[[data.hpp:805@2da4f101]]`), which today owns every dense test column as doubles
+    (`[[data.hpp:805@3c81d6df]]`), which today owns every dense test column as doubles
     including the factors.
   - **`rawColumn` / `rawTestColumn` return null for factor columns, by
     design rather than by accident.** This is already safe: their only consumers
-    are the linear- and GP-leaf covariate gathers (`[[model.hpp:1017@2da4f101]]`, `[[model.hpp:1039@2da4f101]]`,
-    `[[model.hpp:1059@2da4f101]]`, `[[model.hpp:1384@2da4f101]]`, `[[model.hpp:1409@2da4f101]]`, `[[model.hpp:1423@2da4f101]]`), the view gather
-    (`[[data.hpp:1769@2da4f101]]`), and the designation validity check (`[[facade.hpp:768-780@2da4f101]]`) -
+    are the linear- and GP-leaf covariate gathers (`[[model.hpp:1017@3c81d6df]]`, `[[model.hpp:1039@3c81d6df]]`,
+    `[[model.hpp:1059@3c81d6df]]`, `[[model.hpp:1384@3c81d6df]]`, `[[model.hpp:1409@3c81d6df]]`, `[[model.hpp:1423@3c81d6df]]`), the view gather
+    (`[[data.hpp:1769@3c81d6df]]`), and the designation validity check (`[[facade.hpp:768-780@3c81d6df]]`) -
     and a categorical column is refused as a leaf covariate at the factory
-    (`[[facade.hpp:768-780@2da4f101]]`). The one live question the grid fix
+    (`[[facade.hpp:768-780@3c81d6df]]`). The one live question the grid fix
     raises is settled by decision 2: an `orderedFactor` **stays admissible** as
     a leaf covariate, making it the single column kind that needs a double for
     a reason other than splitting. It is served the way every other leaf
-    covariate is - gathered into `gatheredRawValues` (`[[data.hpp:832@2da4f101]]`) by
+    covariate is - gathered into `gatheredRawValues` (`[[data.hpp:832@3c81d6df]]`) by
     designation - and never from a retained pool, so the no-factor-pool shape
     below holds without exception.
   - **`rawColumnForRequantize` returns null for factor columns.** Also already
     correct: a factor column never re-quantizes. `codeFor` for a categorical is
     grid-independent, `setCutPointsForColumn` skips categoricals
-    (`[[sampler.hpp:943-947@2da4f101]]`), `buildCutsForColumn` clears their cuts
-    (`[[data.hpp:1207-1209@2da4f101]]`), and `refreshCutsForColumn` returns immediately
-    (`[[data.hpp:1254@2da4f101]]`). Under the midpoint grid an `orderedFactor`'s cuts are a
+    (`[[sampler.hpp:943-947@3c81d6df]]`), `buildCutsForColumn` clears their cuts
+    (`[[data.hpp:1207-1209@3c81d6df]]`), and `refreshCutsForColumn` returns immediately
+    (`[[data.hpp:1254@3c81d6df]]`). Under the midpoint grid an `orderedFactor`'s cuts are a
     function of its level count alone, so it does not re-quantize either.
   - **The double-typed ingestion paths gain code-typed arms**, and the arms are
     selected by kind, not by a nullness accident:
       * `build`'s per-column loop selects `const double* column` and hands it to
-        both `buildCutsForColumn` and `quantizeColumn` (`[[data.hpp:1610-1690@2da4f101]]`).
+        both `buildCutsForColumn` and `quantizeColumn` (`[[data.hpp:1610-1690@3c81d6df]]`).
         This becomes a kind-dispatched pair.
-      * `inferredCategoryCount` scans doubles for a max (`[[data.hpp:1128@2da4f101]]`);
+      * `inferredCategoryCount` scans doubles for a max (`[[data.hpp:1128@3c81d6df]]`);
         its code-typed sibling scans `int32_t` skipping `NA_INTEGER`.
       * `quantizeDenseObserved` takes `const double* raw` and detects
-        missingness with `isNA` on a NaN (`[[data.hpp:1306-1320@2da4f101]]`); its code-typed
+        missingness with `isNA` on a NaN (`[[data.hpp:1306-1320@3c81d6df]]`); its code-typed
         sibling narrows `int32_t` to `xint_t` and detects `NA_INTEGER`.
-      * `buildCutsForColumn` (`[[data.hpp:1192@2da4f101]]`) needs no double at all for a
+      * `buildCutsForColumn` (`[[data.hpp:1192@3c81d6df]]`) needs no double at all for a
         factor column: the categorical arm needs only the observed maximum and
         the declared count, and the `orderedFactor` arm needs only the level
         count.
-      * `writeOwnedDenseColumn` / `writeOwnedDenseCell` (`[[data.hpp:2092@2da4f101]]`, `[[data.hpp:2100@2da4f101]]`),
+      * `writeOwnedDenseColumn` / `writeOwnedDenseCell` (`[[data.hpp:2092@3c81d6df]]`, `[[data.hpp:2100@3c81d6df]]`),
         the mutation write-through, become kind-aware: a factor column's
         mutation writes codes, or writes nothing at all if the codes are the
         only representation.
   - **CSC columns are the one place doubles survive for a factor.** A
     `dgCMatrix`'s `@x` slot is double by Matrix's own definition, and the train
-    side *borrows* it (`[[data.hpp:1482-1483@2da4f101]]`) rather than copying - the borrow is
+    side *borrows* it (`[[data.hpp:1482-1483@3c81d6df]]`) rather than copying - the borrow is
     the point of the CSC path. So a CSC-backed factor column keeps a double
     slice on the train side, and the code channel does not reach it. The
     **owned** copies can be typed: `ownedTestCscValues`
-    (`[[data.hpp:819@2da4f101]]`, `[[data.hpp:1861-1899@2da4f101]]`) and the post-mutation
-    `ownedCscValues` (`[[data.hpp:865@2da4f101]]`) are the store's own buffers, and a factor
+    (`[[data.hpp:819@3c81d6df]]`, `[[data.hpp:1861-1899@3c81d6df]]`) and the post-mutation
+    `ownedCscValues` (`[[data.hpp:865@3c81d6df]]`) are the store's own buffers, and a factor
     column's could hold `int32_t`. Whether that is worth a second typed CSC pool
     is a real question and the honest answer is probably not - see the byte
     table.
@@ -698,22 +697,22 @@ survive contact with a consumer that only knows how to read doubles.
 
 **What actually reads doubles per row, and what does not.** The training-side
 hot loops read **codes only** and are untouched by anything in this section:
-`partitionChildren` (`[[tree.hpp:878@2da4f101]]`) reads `data.column(variable)`, a
-`const xint_t*`, on every arm (`[[tree.hpp:900@2da4f101]]`, `[[tree.hpp:925@2da4f101]]`) or the `SparseColumnData` rank
-storage (`[[tree.hpp:891@2da4f101]]`, `[[tree.hpp:912@2da4f101]]`); `scanOrdinalCuts` and the categorical histogram scan
-read the same codes (`[[scan.hpp:310@2da4f101]]`). Recorded test fits during `run` route by
-the `test` code block (`[[data.hpp:811@2da4f101]]`), also codes. So the doubles this section
+`partitionChildren` (`[[tree.hpp:878@3c81d6df]]`) reads `data.column(variable)`, a
+`const xint_t*`, on every arm (`[[tree.hpp:900@3c81d6df]]`, `[[tree.hpp:925@3c81d6df]]`) or the `SparseColumnData` rank
+storage (`[[tree.hpp:891@3c81d6df]]`, `[[tree.hpp:912@3c81d6df]]`); `scanOrdinalCuts` and the categorical histogram scan
+read the same codes (`[[scan.hpp:310@3c81d6df]]`). Recorded test fits during `run` route by
+the `test` code block (`[[data.hpp:811@3c81d6df]]`), also codes. So the doubles this section
 removes are not on any sampling hot path - they are on the **replay** path only,
 which serves `dbarts_sampler_predict` and saved-tree replay against a
 caller-supplied matrix.
 
 **The reader seam is already the right shape.** The flat replay takes a
 `Columns` template parameter whose reader exposes `double at(size_t row)`
-(`[[tree.hpp:1734-1740@2da4f101]]`), and there are two implementations:
-`DenseColumns`/`DenseColumnReader` for a plain block (`[[tree.hpp:1734-1753@2da4f101]]`) and
+(`[[tree.hpp:1734-1740@3c81d6df]]`), and there are two implementations:
+`DenseColumns`/`DenseColumnReader` for a plain block (`[[tree.hpp:1734-1753@3c81d6df]]`) and
 `PredictorSourceColumns`/`PredictorSourceColumnReader` for a borrowed
 `PredictorSource`, which already dispatches per column between a dense double
-pointer and a sparse rank lookup (`[[data.hpp:594-607@2da4f101]]`, built at `[[data.hpp:623-641@2da4f101]]`). Its
+pointer and a sparse rank lookup (`[[data.hpp:594-607@3c81d6df]]`, built at `[[data.hpp:623-641@3c81d6df]]`). Its
 comment states the intent - "a source that maps store columns onto other storage
 substitutes here without a second code path." An int-backed source adds a third
 arm to that reader. `partitionFlatIndices` dispatches on the channel once per
@@ -728,18 +727,18 @@ conventions, and the distinction has to be explicit:
      carries) uses R's `NA_INTEGER`. Its reader maps `NA_INTEGER -> NA_REAL` and
      widens everything else straight across. The replay's own arms then behave
      exactly as they do today: `isNA(value)` routes the missing direction
-     (`[[tree.hpp:1766@2da4f101]]`, `[[tree.hpp:1781@2da4f101]]`, `[[tree.hpp:1796@2da4f101]]`) and the categorical arms cast to an
-     index (`[[tree.hpp:1768-1769@2da4f101]]`, `[[tree.hpp:1783-1784@2da4f101]]`). No knowledge of the column is needed,
+     (`[[tree.hpp:1766@3c81d6df]]`, `[[tree.hpp:1781@3c81d6df]]`, `[[tree.hpp:1796@3c81d6df]]`) and the categorical arms cast to an
+     index (`[[tree.hpp:1768-1769@3c81d6df]]`, `[[tree.hpp:1783-1784@3c81d6df]]`). No knowledge of the column is needed,
      and the mapping is total.
   2. **The store's own codes** use the reserved missing code, which is *not*
      `NA_INTEGER` and *not* a level index: `codeFor` sends NA to
-     `missingCategoryCode(numCuts[j])` (`[[data.hpp:970@2da4f101]]`), which is `K` for a
+     `missingCategoryCode(numCuts[j])` (`[[data.hpp:970@3c81d6df]]`), which is `K` for a
      pooled column (K >= 64) and the fixed position `63` otherwise
-     (`[[data.hpp:75@2da4f101]]`). The inverse is therefore
+     (`[[data.hpp:75@3c81d6df]]`). The inverse is therefore
      `code == missingCategoryCode(K) -> NA_REAL`, everything else
      `-> (double)code`, and **it requires the column's K** to know which code is
      the sentinel. It is unambiguous - an inline column has codes 0..K-1 <= 62
-     with 63 free, a pooled one has 0..K-1 with K free (`[[data.hpp:47-51@2da4f101]]`) - but
+     with 63 free, a pooled one has 0..K-1 with K free (`[[data.hpp:47-51@3c81d6df]]`) - but
      it is not a cast.
 
      The design consequence: **the store's codes are never served to a
@@ -753,8 +752,8 @@ conventions, and the distinction has to be explicit:
      apart, not a detail to paper over.
 
 **The test-side store.** `buildTest` owns every dense test column as doubles
-today (`[[data.hpp:805@2da4f101]]`) and points each column's `denseRaw` into that block
-(`[[data.hpp:1874-1875@2da4f101]]`), then quantizes into `test.codes`. In the end state a factor test
+today (`[[data.hpp:805@3c81d6df]]`) and points each column's `denseRaw` into that block
+(`[[data.hpp:1874-1875@3c81d6df]]`), then quantizes into `test.codes`. In the end state a factor test
 column keeps only its codes; the doubles it owned served re-quantization (which
 a factor never needs) and `rawTestColumn` for leaf covariates (which a
 categorical cannot be). That is where the test-side saving in the table below
@@ -778,10 +777,10 @@ allocated for the duration of one creation or mutation call.
 | CSC-backed, after first mutation | factor | 12*nnz owned (8 value + 4 row) | 8*nnz (4 code + 4 row) | -4*nnz |
 
 The dense (unmapped) row is 0 because the engine already retains no raw there
-(`build`'s unmapped arm packs code offsets and moves on, `[[data.hpp:1697-1730@2da4f101]]`);
+(`build`'s unmapped arm packs code offsets and moves on, `[[data.hpp:1697-1730@3c81d6df]]`);
 a later re-quantize reads whatever matrix the caller supplies
-(`rawColumnForRequantize`, `[[data.hpp:909@2da4f101]]`). **This is the common
-factor-data-frame path** (`[[R_interface_bartcore.cpp:1100-1180@2da4f101]]`), so the retained
+(`rawColumnForRequantize`, `[[data.hpp:909@3c81d6df]]`). **This is the common
+factor-data-frame path** (`[[R_interface_bartcore.cpp:1100-1180@3c81d6df]]`), so the retained
 saving does not apply to it. Its saving is transient instead.
 
 **Test side.**
@@ -793,13 +792,13 @@ saving does not apply to it. Its saving is transient instead.
 | CSC-backed test | factor | 2m + 12*nnz owned | 2m + 8*nnz | -4*nnz |
 
 **Transient, at creation.** The bridge assembles a `p x n` double block via
-`codeDenseColumn` (`[[R_interface_bartcore.cpp:564@2da4f101]]`). Per factor
+`codeDenseColumn` (`[[R_interface_bartcore.cpp:564@3c81d6df]]`). Per factor
 column that is 8n today and 4n with a code channel: **-4n transient per factor
 column**, plus one avoided widen-then-narrow per cell.
 
 **Views** (`buildFromParent`) already hold no factor raw: they gather codes for
-routing (`[[data.hpp:1782-1790@2da4f101]]`, `[[data.hpp:1579-1584@2da4f101]]`) and raw only for designated leaf
-covariates (`[[data.hpp:1543-1552@2da4f101]]`), which cannot be categorical. No change.
+routing (`[[data.hpp:1782-1790@3c81d6df]]`, `[[data.hpp:1579-1584@3c81d6df]]`) and raw only for designated leaf
+covariates (`[[data.hpp:1543-1552@3c81d6df]]`), which cannot be categorical. No change.
 
 **Worked total.** A mixed container with `n = 1e6` train rows, `m = 1e5` test
 rows and 20 dense-backed factor columns retains
@@ -818,18 +817,18 @@ retained numbers above are the mixed/CSC and test-side paths.
 **Loops that do not change type at all** - byte-identical machine code, no
 verification burden beyond recompiling:
 
-  - `partitionChildren`, every arm (`[[tree.hpp:878@2da4f101]]`): codes and rank
+  - `partitionChildren`, every arm (`[[tree.hpp:878@3c81d6df]]`): codes and rank
     storage only.
-  - `scanOrdinalCuts` and the categorical histogram (`[[scan.hpp:301-310@2da4f101]]`): codes
-    only. (`[[scan.hpp:301-304@2da4f101]]` reads the category count, so it changes *spelling*
+  - `scanOrdinalCuts` and the categorical histogram (`[[scan.hpp:301-310@3c81d6df]]`): codes
+    only. (`[[scan.hpp:301-304@3c81d6df]]` reads the category count, so it changes *spelling*
     under section 1's `categoryCounts` field, not type.)
-  - The leaf-covariate loads (`[[model.hpp:1017@2da4f101]]`, `[[model.hpp:1039@2da4f101]]`, `[[model.hpp:1059@2da4f101]]`, `[[model.hpp:1384@2da4f101]]`,
-    `[[model.hpp:1409@2da4f101]]`, `[[model.hpp:1423@2da4f101]]`): doubles, and never a factor column.
+  - The leaf-covariate loads (`[[model.hpp:1017@3c81d6df]]`, `[[model.hpp:1039@3c81d6df]]`, `[[model.hpp:1059@3c81d6df]]`, `[[model.hpp:1384@3c81d6df]]`,
+    `[[model.hpp:1409@3c81d6df]]`, `[[model.hpp:1423@3c81d6df]]`): doubles, and never a factor column.
   - Recorded test fits during `run`: `test.codes`, unchanged.
 
 **The one loop that changes type**: the flat replay's per-row read, on the
 replay path only. The test an int arm adds to
-`PredictorSourceColumnReader::at` (`[[data.hpp:594-607@2da4f101]]`) is free - the reader is
+`PredictorSourceColumnReader::at` (`[[data.hpp:594-607@3c81d6df]]`) is free - the reader is
 fetched once per node outside the row loop even though `at()` is called inside
 it, so the branch is perfectly predicted within a column. The WIDEN is not.
 Converting a code to a double inside the row loop is paid
@@ -847,9 +846,9 @@ predict arm moves.
 four of these produce correct-looking output and wrong draws:
 
   1. **`hasMissing[j]` flipping.** `quantizeDenseObserved` sets `anyMissing`
-     from `isNA(raw[i])` (`[[data.hpp:1313@2da4f101]]`). A code-typed arm must set it from
+     from `isNA(raw[i])` (`[[data.hpp:1313@3c81d6df]]`). A code-typed arm must set it from
      `raw[i] == NA_INTEGER`. If it does not, a column with missing values goes
-     from flagged to unflagged, and the invariant at `[[data.hpp:761-764@2da4f101]]` is
+     from flagged to unflagged, and the invariant at `[[data.hpp:761-764@3c81d6df]]` is
      explicit that an unflagged column "consumes no missing-direction draw from
      the rng" - so **every subsequent draw in the chain shifts**. This is the
      single most dangerous failure in the rework, and it is silent unless the
@@ -857,16 +856,16 @@ four of these produce correct-looking output and wrong draws:
   2. **The NA code itself.** `NA_INTEGER` is `INT_MIN`; narrowed without a
      guard it becomes some `xint_t` in range, which is a legal-looking category.
      The forward map must send it to `missingCategoryCode(K)`, matching what
-     `NA_REAL` produces today (`[[data.hpp:970@2da4f101]]`).
+     `NA_REAL` produces today (`[[data.hpp:970@3c81d6df]]`).
   3. **`inferredCategoryCount` on the code path.** The double version skips NaN
-     and takes a max (`[[data.hpp:1128@2da4f101]]`). A signed int version skipping
+     and takes a max (`[[data.hpp:1128@3c81d6df]]`). A signed int version skipping
      `NA_INTEGER` is correct; an unsigned one would let `INT_MIN` become a huge
      maximum and inflate K, which changes the mask tier
-     (`maskWordsForCount`, `[[data.hpp:70@2da4f101]]`) and therefore the rule encoding.
+     (`maskWordsForCount`, `[[data.hpp:70@3c81d6df]]`) and therefore the rule encoding.
   4. **The CSC implicit-row rule.** A CSC categorical column's absent rows read
-     the reference code (`[[data.hpp:1363@2da4f101]]`, mirrored in
-     `materializePredictorSource` at `[[data.hpp:505@2da4f101]]` and in the replay reader at
-     `[[data.hpp:615-621@2da4f101]]`). Any typed variant must apply the same rule in all
+     the reference code (`[[data.hpp:1363@3c81d6df]]`, mirrored in
+     `materializePredictorSource` at `[[data.hpp:505@3c81d6df]]` and in the replay reader at
+     `[[data.hpp:615-621@3c81d6df]]`). Any typed variant must apply the same rule in all
      three places or the implicit rows diverge between the store and the replay.
 
 The mitigation for all four is the same and is cheap: the gate corpus needs an
@@ -876,7 +875,7 @@ already requires for other reasons.
 ### Alternatives within the end state
 
 **int32 vs. int16 codes at the ABI and in `PredictorSource`.** `xint_t` is
-`uint16_t` and `maxCategories` is `0xFFFF` (`[[data.hpp:22@2da4f101]]`, `[[data.hpp:168@2da4f101]]`), so the store
+`uint16_t` and `maxCategories` is `0xFFFF` (`[[data.hpp:22@3c81d6df]]`, `[[data.hpp:168@3c81d6df]]`), so the store
 narrows to 16 bits regardless. Taking `int16_t` at the boundary would halve the
 transient block again. Against it: R integer vectors are int32 and `NA_INTEGER`
 is `INT_MIN`, so an int16 channel has no representation for R's NA and would
@@ -885,7 +884,7 @@ exactly the per-cell conversion the change removes. It would also couple the ABI
 to the store's internal code width, which the backlogged per-column width
 experiment (`docs/plans/archive/hot-layer-u8.md`) may make per-column. **int32
 at the boundary, narrowed once at ingestion**, with `int32_t` already the
-precedent at `[[dbarts.h:343@2da4f101]]`, `[[dbarts.h:346@2da4f101]]`.
+precedent at `[[dbarts.h:343@3c81d6df]]`, `[[dbarts.h:346@3c81d6df]]`.
 
 **One typed pool per kind vs. per-column buffers vs. no factor pool.** Three
 shapes for the retained raw:
@@ -939,11 +938,11 @@ Seven slices. S0-S3 are section 1, 3 and the gate work; S4a-c are this section.
     consumes it. **And** code-typed arms for the bridge's own pre-store
     validation sweep, which is double-typed throughout and reads the very block
     the slice is trying not to build: `rawViewColumn`
-    (`[[R_interface_bartcore.cpp:1784@2da4f101]]`) returned a `const double*` off
-    `view.denseValues`, and `trainingCategoryBound` (`[[R_interface_bartcore.cpp:1861@2da4f101]]`),
-    `validateCategoricalPredictors` (`[[R_interface_bartcore.cpp:1891@2da4f101]]`) and
-    `validateTestContainerAgainstStore` (`[[R_interface_bartcore.cpp:3229@2da4f101]]`) all scanned through it -
-    as does `materializePredictorSource` (`[[data.hpp:505@2da4f101]]`) for the non-dense
+    (`[[R_interface_bartcore.cpp:1784@3c81d6df]]`) returned a `const double*` off
+    `view.denseValues`, and `trainingCategoryBound` (`[[R_interface_bartcore.cpp:1861@3c81d6df]]`),
+    `validateCategoricalPredictors` (`[[R_interface_bartcore.cpp:1891@3c81d6df]]`) and
+    `validateTestContainerAgainstStore` (`[[R_interface_bartcore.cpp:3229@3c81d6df]]`) all scanned through it -
+    as does `materializePredictorSource` (`[[data.hpp:505@3c81d6df]]`) for the non-dense
     views. Draw-preserving subject to the four hazards above. **Medium-large**,
     once those arms are counted: the channel itself is small and the validation
     sweep is most of the work.
@@ -979,7 +978,7 @@ is the one to slip if anything must.
 
   - **The retained saving is narrower than the headline.** The common
     factor-data-frame path is the unmapped dense build, which retains no raw
-    today (`[[data.hpp:1697-1730@2da4f101]]`). S4b's `-8n` applies to mixed and CSC
+    today (`[[data.hpp:1697-1730@3c81d6df]]`). S4b's `-8n` applies to mixed and CSC
     containers and to the test side. A user fitting a plain data frame with
     factors and no test set gets the transient saving from S4a and nothing from
     S4b. If the argument for S4b were memory, that would be close to
@@ -994,7 +993,7 @@ is the one to slip if anything must.
 
     **Two exceptions where the failure is silent, and they are the two sites
     S4b rewrites.** `writeOwnedDenseColumn` and `writeOwnedDenseCell`
-    (`[[data.hpp:2092@2da4f101]]`, `[[data.hpp:2100@2da4f101]]`) both open with a guard that returns quietly when the
+    (`[[data.hpp:2092@3c81d6df]]`, `[[data.hpp:2100@3c81d6df]]`) both open with a guard that returns quietly when the
     column is not `denseBorrowed` or its `denseRaw` is null. Under S4b a factor
     column legitimately has neither, so a mutation that should have written
     codes instead writes nothing and returns success, leaving the store's codes
@@ -1015,14 +1014,14 @@ is the one to slip if anything must.
     freedom, and it is the strongest structural argument for the two-pool shape
     over the no-factor-pool one.
   - **Where it meets the backlogged dispatch reshape.**
-    `[[docs/design/data-layout.md:319-354@2da4f101]]` names `partitionChildren`
-    (`[[tree.hpp:878@2da4f101]]`) as "the one shared touchpoint" of the layout and dispatch
+    `[[docs/design/data-layout.md:319-354@3c81d6df]]` names `partitionChildren`
+    (`[[tree.hpp:878@3c81d6df]]`) as "the one shared touchpoint" of the layout and dispatch
     axes and warns that landing them independently means reworking it twice.
     The good news is concrete: **this section does not touch
     `partitionChildren` at all**, because that function reads only codes and
-    rank storage (`[[tree.hpp:900@2da4f101]]`, `[[tree.hpp:912@2da4f101]]`) and never a double. The
+    rank storage (`[[tree.hpp:900@3c81d6df]]`, `[[tree.hpp:912@3c81d6df]]`) and never a double. The
     contact point is elsewhere - `PredictorSourceColumnReader`
-    (`[[data.hpp:594-607@2da4f101]]`), where S4c adds a third arm and where a dispatch
+    (`[[data.hpp:594-607@3c81d6df]]`), where S4c adds a third arm and where a dispatch
     reshape would plausibly want to specialize the replay loop per column kind
     instead of branching per row. If that reshape lands first, S4c should
     express its int arm inside whatever tag mechanism the reshape introduces; if
@@ -1049,15 +1048,15 @@ medium-large, so "do the cheap half" is not what stopping here buys.
 
 ### Where the check is today
 
-`[[docs/design/data-store.md:435@2da4f101]]` assigns it to the host: "You own container
+`[[docs/design/data-store.md:435@3c81d6df]]` assigns it to the host: "You own container
 assembly and the ingestion checks the engine cannot." `ColumnStore::build`'s
-own comment restates it (`[[data.hpp:1501-1506@2da4f101]]`), and
+own comment restates it (`[[data.hpp:1501-1506@3c81d6df]]`), and
 `codeFor` acts on that trust with a bare `static_cast<xint_t>(value)`
-(`[[data.hpp:968-978@2da4f101]]`). An out-of-range double-to-integer conversion is undefined
+(`[[data.hpp:968-978@3c81d6df]]`). An out-of-range double-to-integer conversion is undefined
 behavior in C++, and a code past K shifts past an inline mask
-(`[[tree.hpp:153-155@2da4f101]]`) or over-reads a pooled one - the replay path clamps
-defensively (`[[tree.hpp:1808-1815@2da4f101]]`) but `ColumnStore::codeAt` does not
-(`[[data.hpp:2397@2da4f101]]`).
+(`[[tree.hpp:153-155@3c81d6df]]`) or over-reads a pooled one - the replay path clamps
+defensively (`[[tree.hpp:1808-1815@3c81d6df]]`) but `ColumnStore::codeAt` does not
+(`[[data.hpp:2397@3c81d6df]]`).
 
 As established above, every shipping host reaches `codeFor` through a validated
 entrance. The unvalidated surface is the header-only engine used directly:
@@ -1071,11 +1070,11 @@ unsound standing alone, which matters more once the kind axis makes the store's
 typing model something a non-R host would want to drive.
 
 **B. Per-cell check inside `codeFor`.** `codeFor` has exactly six callers
-(`[[data.hpp:1312@2da4f101]]`, `[[data.hpp:1347@2da4f101]]`, `[[data.hpp:1363@2da4f101]]`, `[[data.hpp:1375@2da4f101]]`, `[[data.hpp:1383@2da4f101]]`; `[[sampler.hpp:1887@2da4f101]]`), all on
+(`[[data.hpp:1312@3c81d6df]]`, `[[data.hpp:1347@3c81d6df]]`, `[[data.hpp:1363@3c81d6df]]`, `[[data.hpp:1375@3c81d6df]]`, `[[data.hpp:1383@3c81d6df]]`; `[[sampler.hpp:1887@3c81d6df]]`), all on
 O(n) ingestion or mutation paths and none in the MCMC hot loop, so the marginal
 cost is one compare-and-branch per cell on a cold path. The problem is not cost:
 it turns a total function into a partial one, so it needs a sentinel return or a
-throw, and `Rf_error` longjmps past destructors (`[[data.hpp:429-433@2da4f101]]` documents
+throw, and `Rf_error` longjmps past destructors (`[[data.hpp:429-433@3c81d6df]]` documents
 that constraint) - so the failure has to travel back to a bridge that can raise.
 That is a return-value protocol threaded through six call sites for a check
 better placed one layer up.
@@ -1083,11 +1082,11 @@ better placed one layer up.
 **C. Check once per column at the store's own ingestion entrances**, fused into
 a pass that already exists. `buildCutsForColumn` already calls
 `inferredCategoryCount`, which touches every cell of a categorical column
-(`[[data.hpp:1160@2da4f101]]`); making it refuse a negative, non-integral or
+(`[[data.hpp:1160@3c81d6df]]`); making it refuse a negative, non-integral or
 unrepresentable value costs nothing extra. On the mutation side
-`cutsWouldRemainValid` (`[[data.hpp:1271@2da4f101]]`) already runs the correct per-cell
-test via `categoricalValueIsValid` (`[[data.hpp:982@2da4f101]]`) and is already called by
-the mutation transaction (`[[sampler.hpp:1838@2da4f101]]`); the gap is that `build`,
+`cutsWouldRemainValid` (`[[data.hpp:1271@3c81d6df]]`) already runs the correct per-cell
+test via `categoricalValueIsValid` (`[[data.hpp:982@3c81d6df]]`) and is already called by
+the mutation transaction (`[[sampler.hpp:1838@3c81d6df]]`); the gap is that `build`,
 `buildTest` and the CSC quantize paths have no equivalent.
 
 **D. Make the invariant unrepresentable on the code path.** With section 2's
@@ -1102,9 +1101,9 @@ entrances and refuses by return value; the bridge keeps its checks unchanged.
 This is defense in depth rather than a relocation, and the ordering matters: the
 bridge's checks run *before* the store is touched, which is what preserves the
 nothing-mutated-on-refusal property that `setState`'s rollback
-(`[[sampler.hpp:945-955@2da4f101]]`) and the mutation transaction depend on. Message quality
+(`[[sampler.hpp:945-955@3c81d6df]]`) and the mutation transaction depend on. Message quality
 for R users does not change, because the bridge still fires first with its own
-wording (`[[R_interface_bartcore.cpp:1838@2da4f101]]`) - but only for CODES. **The
+wording (`[[R_interface_bartcore.cpp:1838@3c81d6df]]`) - but only for CODES. **The
 bridge did not bound the level COUNT at all**, and `R/utility.R`'s 65534/65535
 gate sits inside its `is.factor(column)` branch, so a `sparseFactor`'s declared
 table and a `varTypes` entry on a plain matrix both reach the store past it.
@@ -1113,10 +1112,10 @@ or those two entrances answer a documented R surface with the wrong cause;
 corrected at S3's implementation.
 
 S3 also carries the engine-side backstop for S2's level ceiling. The
-K > 65534 refusal specified in section 1 sits beside `[[R/utility.R:540-558@2da4f101]]`,
+K > 65534 refusal specified in section 1 sits beside `[[R/utility.R:540-558@3c81d6df]]`,
 which is R, so a header-only host reaches `build` with a wider ordered factor
 and gets a grid silently clamped by `maxNumCutsRepresentable`
-(`[[data.hpp:1564-1565@2da4f101]]`) - a merge, which is the defect S2 removes. `build` must
+(`[[data.hpp:1564-1565@3c81d6df]]`) - a merge, which is the defect S2 removes. `build` must
 refuse the column itself. This is precisely the residue class S3 exists for:
 the R message stays the one a user sees, and the engine stops being unsound
 standing alone.
@@ -1131,15 +1130,15 @@ data that passes today.
 ### Correcting the premise
 
 `FlatKind` is not a second copy of type-plus-pooled that exists by accident.
-Its declaration says why it exists (`[[tree.hpp:169-170@2da4f101]]`): "kept in flags so the
+Its declaration says why it exists (`[[tree.hpp:169-170@3c81d6df]]`): "kept in flags so the
 replay family routes raw predictors *without the store that typed the columns*",
 and the signature bears it out - `partitionFlatIndices` takes a `Columns` and a
-`FlatNode` and no `ColumnStore` (`[[tree.hpp:1863@2da4f101]]`). Storeless replay is a
+`FlatNode` and no `ColumnStore` (`[[tree.hpp:1863@3c81d6df]]`). Storeless replay is a
 shipped capability: `dbarts_sampler_getTrees` hands flat trees to consumers and
-stan4bart calls it (`~/[[Repositories/stan4bart/src/init.cpp:502@2da4f101]]`).
+stan4bart calls it (`~/[[Repositories/stan4bart/src/init.cpp:502@3c81d6df]]`).
 
 What *is* redundant is the **cross-check**: `buildFromFlatBelow`
-(`[[tree.hpp:1512@2da4f101]]`) and `flatSubtreeIsWellFormed` (`[[tree.hpp:2118@2da4f101]]`) each
+(`[[tree.hpp:1512@3c81d6df]]`) and `flatSubtreeIsWellFormed` (`[[tree.hpp:2118@3c81d6df]]`) each
 re-derive the expected kind from `data.types[variable]` and
 `data.columnIsPooled(variable)` and refuse a mismatch, in two separately
 written three-arm ladders.
@@ -1153,7 +1152,7 @@ stay in sync with the store at every write site.
 which is a shipped feature with a live consumer. Refuse.
 
 **C. Keep `FlatKind`, drop the cross-check, trust the tag.** `buildFromFlat`
-accepts hand-built states - `[[sampler.hpp:1003-1013@2da4f101]]` shows the codebase already
+accepts hand-built states - `[[sampler.hpp:1003-1013@3c81d6df]]` shows the codebase already
 reasoning about hand-buildable donors - so an untrusted tag against a store of
 a different type would mis-route silently. Refuse.
 
@@ -1169,30 +1168,30 @@ each of which keeps only its own payload validation.
 ### Recommendation
 
 **D.** Memory zero: the tag already rides bits 1-2 of an existing flags byte
-(`[[tree.hpp:202-203@2da4f101]]`), three of four values are used, and bits 3-7 are
+(`[[tree.hpp:202-203@3c81d6df]]`), three of four values are used, and bits 3-7 are
 free. Sites: two three-arm ladders become one predicate plus their payload arms.
 
 Headroom worth noting and not spending: if a future kind ever needed its own
 flat tag, the flags byte has one spare `FlatKind` value and five free bits, and
 the state's `tree.flags` block is a `RAWSXP` per node
-(`[[R_interface_bartcore.cpp:5650@2da4f101]]`), so widening the tag inside the byte
+(`[[R_interface_bartcore.cpp:5650@3c81d6df]]`), so widening the tag inside the byte
 would be additive and would not move the state version -
-`[[docs/design/public-surface.md:154-156@2da4f101]]` makes exactly that argument for the
+`[[docs/design/public-surface.md:154-156@3c81d6df]]` makes exactly that argument for the
 MIA flags field.
 
 ## 5. The denseBorrowed / denseOwned naming inversion
 
 ### The fact
 
-`ColumnSourceKind::denseBorrowed` (`[[data.hpp:201-203@2da4f101]]`) names the case where
+`ColumnSourceKind::denseBorrowed` (`[[data.hpp:201-203@3c81d6df]]`) names the case where
 `denseRaw` points into the store's **own** `ownedDenseValues`: the block is
-assigned by the store at `[[data.hpp:854@2da4f101]]` and the descriptor is pointed at
-it at `[[data.hpp:1293-1296@2da4f101]]` (and at `[[data.hpp:1431-1435@2da4f101]]` for the test side). The field comment
+assigned by the store at `[[data.hpp:854@3c81d6df]]` and the descriptor is pointed at
+it at `[[data.hpp:1293-1296@3c81d6df]]` (and at `[[data.hpp:1431-1435@3c81d6df]]` for the test side). The field comment
 already concedes it - "denseBorrowed: the store's own dense column ... writable
-so a mutation keeps the raw current" (`[[data.hpp:201-203@2da4f101]]`). `denseOwned`
-(`[[data.hpp:152-154@2da4f101]]`) names the opposite case, where the store owns nothing and
+so a mutation keeps the raw current" (`[[data.hpp:201-203@3c81d6df]]`). `denseOwned`
+(`[[data.hpp:152-154@3c81d6df]]`) names the opposite case, where the store owns nothing and
 re-quantizes from whatever matrix the caller supplies
-(`rawColumnForRequantize`, `[[data.hpp:909@2da4f101]]`). Twenty-one references across
+(`rawColumnForRequantize`, `[[data.hpp:909@3c81d6df]]`). Twenty-one references across
 `src/`.
 
 ### Alternatives
@@ -1210,8 +1209,8 @@ not ownership, it is *where the re-quantize source lives*:
 `denseCallSupplied` (was `denseOwned` - the raw arrives with the call) and
 `denseResident` (was `denseBorrowed` - the raw lives in the store), with
 `denseRaw` becoming `residentRaw`. This is exactly the question
-`rawColumnForRequantize` asks (`[[data.hpp:909@2da4f101]]`) and exactly what
-`hasRequantizeSource`/`acceptsNewRawPredictors` (`[[data.hpp:893@2da4f101]]`/`[[data.hpp:899@2da4f101]]`) are about. Neither
+`rawColumnForRequantize` asks (`[[data.hpp:909@3c81d6df]]`) and exactly what
+`hasRequantizeSource`/`acceptsNewRawPredictors` (`[[data.hpp:893@3c81d6df]]`/`[[data.hpp:899@3c81d6df]]`) are about. Neither
 new spelling collides with an existing identifier.
 
 **D. Rename ownership-honestly**: `denseUnowned` / `denseOwned`, so
@@ -1235,7 +1234,7 @@ in, exactly one slice changes draws, and the bill for it is itemized below.
 ### Draw-preserving by construction
 
   - **S1**, the kind axis, *provided* the bridge's `varTypes` parse
-    (`[[R_interface_bartcore.cpp:1208-1219@2da4f101]]`) is rewritten in the same commit as
+    (`[[R_interface_bartcore.cpp:1208-1219@3c81d6df]]`) is rewritten in the same commit as
     the R-side widening. If it is not, every ordered factor silently becomes
     categorical and every draw moves - the failure is loud in results and silent
     in review.
@@ -1255,8 +1254,8 @@ in, exactly one slice changes draws, and the bill for it is itemized below.
 ### Draw-changing: S2, the midpoint grid
 
 `numCuts[j]` changes for every ordered-factor column, so every code in the
-column changes, `splitInterval`'s range changes (`[[tree.hpp:429@2da4f101]]`),
-`logCut = -log(right - left + 1)` changes (`[[grow.hpp:270@2da4f101]]`), and
+column changes, `splitInterval`'s range changes (`[[tree.hpp:429@3c81d6df]]`),
+`logCut = -log(right - left + 1)` changes (`[[grow.hpp:270@3c81d6df]]`), and
 `scanOrdinalCuts` emits a different number of candidates into a
 different-sized discrete draw. Every draw after the first rule on such a column
 diverges. This is intended - it is the fix - and it is the only slice with this
@@ -1265,9 +1264,9 @@ property.
 ### The bill, and a gate that currently cannot see it
 
   - **`benchmarks/R/equivalence.R` did not move, and that was the problem.** Its
-    factor cases were all built with plain `factor(...)` (`[[grow.hpp:185-186@2da4f101]]`, `[[grow.hpp:195-204@2da4f101]]`,
-    `[[grow.hpp:871@2da4f101]]`, `[[grow.hpp:899@2da4f101]]`); the only `ordered` occurrences were `ordered_result = TRUE`
-    at `[[grow.hpp:351@2da4f101]]` and `[[grow.hpp:523@2da4f101]]`, which is the *response*. There was no ordered-factor
+    factor cases were all built with plain `factor(...)` (`[[grow.hpp:185-186@3c81d6df]]`, `[[grow.hpp:195-204@3c81d6df]]`,
+    `[[grow.hpp:871@3c81d6df]]`, `[[grow.hpp:899@3c81d6df]]`); the only `ordered` occurrences were `ordered_result = TRUE`
+    at `[[grow.hpp:351@3c81d6df]]` and `[[grow.hpp:523@3c81d6df]]`, which is the *response*. There was no ordered-factor
     **predictor** anywhere in the corpus, so a grid change would have left the
     gate green while changing user-visible fits, and the gate could not detect
     an ordered-factor regression at all. **S0 added one, and landed and
@@ -1281,28 +1280,28 @@ property.
     Sampling never advances R's stream: each chain gets its own Mersenne
     twister, seeded once at creation from `unif_rand` inside the only
     `GetRNGstate`/`PutRNGstate` bracket on the path
-    (`[[R_interface_bartcore.cpp:2080-2085@2da4f101]]`), and the comment there states it
-    outright - "sampling itself never advances R's stream" (`[[R_interface_bartcore.cpp:2060@2da4f101]]`), with
-    the run entry restating it at `[[R_interface_bartcore.cpp:4748@2da4f101]]`. The number of creation draws is one
+    (`[[R_interface_bartcore.cpp:2080-2085@3c81d6df]]`), and the comment there states it
+    outright - "sampling itself never advances R's stream" (`[[R_interface_bartcore.cpp:2060@3c81d6df]]`), with
+    the run entry restating it at `[[R_interface_bartcore.cpp:4748@3c81d6df]]`. The number of creation draws is one
     per chain regardless of any grid. So a file's seeded `rnorm()` sequence is
     **invariant** to S2.
       * `inst/tinytest/test-data-categorical.R` **does** need replaying. Not for
         stream reasons: the `o` column is an ordered factor in the `df` that
-        feeds the samplers at `[[R_interface_bartcore.cpp:165@2da4f101]]` and `[[R_interface_bartcore.cpp:193@2da4f101]]`, so the fits asserted after
-        `sampler$run(150L, 300L)` (`[[R_interface_bartcore.cpp:172@2da4f101]]`) and `sampler.keep$run(50L, 5L)`
-        (`[[R_interface_bartcore.cpp:199@2da4f101]]`) change because the model changes. S1 separately changes the
-        `varTypes` assertion at `[[R_interface_bartcore.cpp:25@2da4f101]]` to `c(1L, 2L, 0L, 0L, 1L)`, and S2's cap
-        rule changes the comment at `[[R_interface_bartcore.cpp:40-41@2da4f101]]` and wants two new cases beside the
-        54-level one at `[[R_interface_bartcore.cpp:47-51@2da4f101]]`.
+        feeds the samplers at `[[R_interface_bartcore.cpp:165@3c81d6df]]` and `[[R_interface_bartcore.cpp:193@3c81d6df]]`, so the fits asserted after
+        `sampler$run(150L, 300L)` (`[[R_interface_bartcore.cpp:172@3c81d6df]]`) and `sampler.keep$run(50L, 5L)`
+        (`[[R_interface_bartcore.cpp:199@3c81d6df]]`) change because the model changes. S1 separately changes the
+        `varTypes` assertion at `[[R_interface_bartcore.cpp:25@3c81d6df]]` to `c(1L, 2L, 0L, 0L, 1L)`, and S2's cap
+        rule changes the comment at `[[R_interface_bartcore.cpp:40-41@3c81d6df]]` and wants two new cases beside the
+        54-level one at `[[R_interface_bartcore.cpp:47-51@3c81d6df]]`.
       * `inst/tinytest/test-sparse-factor.R` does **not**. Its ordered-factor
-        block (`[[R_interface_bartcore.cpp:1043-1075@2da4f101]]`) runs `sampler.ord$run(50L, 1L)` but asserts only
+        block (`[[R_interface_bartcore.cpp:1043-1075@3c81d6df]]`) runs `sampler.ord$run(50L, 1L)` but asserts only
         error patterns from `predict`/`setTestPredictor`, never a fit. The
-        file's own comment at `[[R_interface_bartcore.cpp:1101-1103@2da4f101]]` - "a new `rnorm()` call here would
+        file's own comment at `[[R_interface_bartcore.cpp:1101-1103@3c81d6df]]` - "a new `rnorm()` call here would
         shift every seeded draw that follows it" - is about adding an `rnorm()`
         call, which does advance the stream; `run()` does not, so the comment
         does not extend to S2. Re-verify the file after S2, but do not budget a
         regeneration for it.
-      (`[[test-argument-surface.R:31@2da4f101]]` and `[[test-calibration-prior-draws.R:217@2da4f101]]` use
+      (`[[test-argument-surface.R:31@3c81d6df]]` and `[[test-calibration-prior-draws.R:217@3c81d6df]]` use
       ordered *responses*, not predictors, and are unaffected.)
   - **`tests/cpp`.** The C++ component tests build stores directly and assert
     against grids and codes; S1's `numCuts`-to-`categoryCounts` move and S2's
@@ -1337,18 +1336,18 @@ records itself as rng-neutral ("codes are comparison operands; identical
 comparisons, identical draws"), and nothing here disturbs that: the store's
 cells stay `xint_t` and the code channel is a *host* width, narrowed once at
 ingestion. `categoryCounts` helps the experiment - a width decision wants to
-read K, not "the cut count" - and `[[scan.hpp:301-304@2da4f101]]` sizes its histogram from
+read K, not "the cut count" - and `[[scan.hpp:301-304@3c81d6df]]` sizes its histogram from
 that same value on the hot path, so the two changes meet there. The one genuine
 tension is noted in section 2's risks: S4b's "the codes are the raw" makes a
 factor column's raw width follow the code width, which a per-column width
 experiment would then propagate further than it does today.
 
 **Hot-path dispatch reshape of `partitionChildren`/`scan`.**
-`[[docs/design/data-layout.md:319-354@2da4f101]]` names `partitionChildren` (`[[tree.hpp:878@2da4f101]]`)
+`[[docs/design/data-layout.md:319-354@3c81d6df]]` names `partitionChildren` (`[[tree.hpp:878@3c81d6df]]`)
 as the shared touchpoint of the layout and dispatch axes. **Nothing in this
-proposal touches it** - it reads codes and rank storage only (`[[tree.hpp:900@2da4f101]]`,
-`[[tree.hpp:912@2da4f101]]`). The contact point is the replay reader
-(`PredictorSourceColumnReader`, `[[data.hpp:594-607@2da4f101]]`), where S4c adds a third arm;
+proposal touches it** - it reads codes and rank storage only (`[[tree.hpp:900@3c81d6df]]`,
+`[[tree.hpp:912@3c81d6df]]`). The contact point is the replay reader
+(`PredictorSourceColumnReader`, `[[data.hpp:594-607@3c81d6df]]`), where S4c adds a third arm;
 see section 2's risks for how the two should be ordered. `splitsBySubset(j)`
 becomes the natural dispatch key if that reshape lands a per-kind
 specialization, and `ColumnKind` the natural tag parameter.
@@ -1372,15 +1371,15 @@ that reasoning, they do not replace it.
 2. **Ordered factors REMAIN ADMISSIBLE as leaf covariates and as monotone
    directions, deliberately.** DECIDED (2026-09-01, at orchestrator discretion
    under VD grant). Under the `splitsBySubset` predicate this is what
-   `[[facade.hpp:788-797@2da4f101]]`, `[[facade.hpp:768-780@2da4f101]]` already do; the ruling makes
+   `[[facade.hpp:788-797@3c81d6df]]`, `[[facade.hpp:768-780@3c81d6df]]` already do; the ruling makes
    it intentional rather than inherited. An ordered factor designated as a
    linear- or GP-leaf covariate enters as standardized integer level codes,
    i.e. treated as equally-spaced interval data, which is the same reading that
    makes threshold splits right for the kind. Monotonicity was already settled
-   in favour (`[[docs/design/monotone.md:117-121@2da4f101]]`). Consequence for section 2:
+   in favour (`[[docs/design/monotone.md:117-121@3c81d6df]]`). Consequence for section 2:
    an `orderedFactor` is the one factor kind that can need a double for a
    non-splitting reason, and it is served the way every other leaf covariate is
-   - gathered into `gatheredRawValues` (`[[data.hpp:832@2da4f101]]`) by designation - not
+   - gathered into `gatheredRawValues` (`[[data.hpp:832@3c81d6df]]`) by designation - not
    from a retained pool.
 
 3. **Retained-raw shape: NO FACTOR POOL.** DECIDED (2026-09-01, at orchestrator
@@ -1397,9 +1396,9 @@ that reasoning, they do not replace it.
    under VD grant). The grid is a property of the factor rather than of the
    sample, which is what the level table is for, and it keeps an unobserved
    interior level splittable for a test row that carries it.
-   `readDeclaredCategoryCounts` (`[[R_interface_bartcore.cpp:994@2da4f101]]`) is extended
-   past **both** of its gates - the type gate at `[[R_interface_bartcore.cpp:1001@2da4f101]]` and the
-   count-already-declared gate at `[[R_interface_bartcore.cpp:1002@2da4f101]]`, so a CSC-backed ordered factor takes its
+   `readDeclaredCategoryCounts` (`[[R_interface_bartcore.cpp:994@3c81d6df]]`) is extended
+   past **both** of its gates - the type gate at `[[R_interface_bartcore.cpp:1001@3c81d6df]]` and the
+   count-already-declared gate at `[[R_interface_bartcore.cpp:1002@3c81d6df]]`, so a CSC-backed ordered factor takes its
    container's declared K rather than an inferred count. `K` in the cap rule of
    section 1 means the **declared** K throughout.
 
@@ -1407,7 +1406,7 @@ that reasoning, they do not replace it.
    (2026-09-01, at orchestrator discretion under VD grant). An ordered-factor
    test value that is not an existing level code refuses, with the wording and
    at the sites the categorical check already uses
-   (`[[R_interface_bartcore.cpp:1797-1800@2da4f101]]`, gates at `[[R_interface_bartcore.cpp:1838@2da4f101]]`, `[[R_interface_bartcore.cpp:1891@2da4f101]]`, `[[R_interface_bartcore.cpp:3229@2da4f101]]`).
+   (`[[R_interface_bartcore.cpp:1797-1800@3c81d6df]]`, gates at `[[R_interface_bartcore.cpp:1838@3c81d6df]]`, `[[R_interface_bartcore.cpp:1891@3c81d6df]]`, `[[R_interface_bartcore.cpp:3229@3c81d6df]]`).
    The permissive reading - a between-levels value as interpolation on an
    ordered scale - is rejected: a column the user declared a factor is a factor
    on both sides of the fit, and a user who wants interpolation has the numeric
@@ -1417,8 +1416,8 @@ that reasoning, they do not replace it.
 6. **`numCuts` de-overload: YES.** DECIDED (2026-09-01, at orchestrator
    discretion under VD grant). `numCuts[j] = 0` for a categorical column, a real
    `categoryCounts` field at 4 bytes per column carrying K, copied in
-   `buildFromParent` (`[[data.hpp:1972@2da4f101]]`), and the verbose printer's "Number
-   of cutoffs" line (`[[R_interface_bartcore.cpp:1671@2da4f101]]`, `[[R_interface_bartcore.cpp:1677@2da4f101]]`) made kind-aware -
+   `buildFromParent` (`[[data.hpp:1972@3c81d6df]]`), and the verbose printer's "Number
+   of cutoffs" line (`[[R_interface_bartcore.cpp:1671@3c81d6df]]`, `[[R_interface_bartcore.cpp:1677@3c81d6df]]`) made kind-aware -
    reporting the category count for a factor column rather than 0.
 
 7. **Provenance divergence: one UPGRADING bullet**, folded into the scheduled
