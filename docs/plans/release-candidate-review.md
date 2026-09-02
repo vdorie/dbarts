@@ -537,7 +537,7 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
-### UBSAN null-source memcpy in the test-store build (2026-09-02)
+### UBSAN null-source memcpy in the test-store build and the tree-column emit (05207e5e, 76936292, 2d254700, 2026-09-02)
 
 The sanitizer workflow went red on d28b087b with every test passing:
 `data.hpp:1883: runtime error: null pointer passed as argument 2, which
@@ -567,31 +567,73 @@ shape: `buildTest`'s dense-resident copy (the reported one) and its two
 CSC nonzero copies, `build`'s mapped dense-resident copy,
 `materializePredictorSource`'s dense column copy, and `quantizeColumn`'s
 leaf-covariate regather. The copies over owned storage keyed on the
-training row count (the rollback restores, `writeOwnedDenseColumn`) take
-no guard: their source is owned or a caller column of that same length,
-and a store with no rows has no column to mutate. Weights and offsets
-are borrowed, never copied, so nothing there to guard.
+training row count take no guard, and not for the reason a store with no
+rows has no column - it can have columns and no rows.
+`restoreOwnedDenseColumns` and `restoreColumn` cannot run at zero rows at
+all: the first snapshots nothing when the owned block is empty, the
+second needs a changed cell to journal. The other three -
+`writeOwnedDenseColumn`, `restoreCscColumn` and `setColumnJournaled`'s
+regather - are reachable only on a store built with no rows, and
+`ColumnStore::build` and `ColumnStore::setData` both ACCEPT that; the
+refusal lives only in `dbartsData`, and the C entrances cannot get round
+it, offering no create-from-raw-counts and no `setData` of their own.
+That constraint is now stated at the mutation section in data.hpp.
+Weights and offsets are borrowed, never copied, so nothing there to
+guard.
 
 PIN, `testEmptyTestStore` in tests/cpp/test_data.cpp: a populated test
 build (so the owned buffers hold capacity, the shape that leaves a live
 destination beside an absent source), then the rowless dense build, then
-a rowless mapped view whose CSC column stores no nonzeros. Under
-ASAN+UBSAN before the fix it raises the CI finding at data.hpp:1883 plus
-four more at the CSC copies; after it, clean.
+a rowless mapped view whose CSC column stores no nonzeros, and finally
+the mapped TRAINING build over that same view. Under ASAN+UBSAN before
+the fix it raises seven findings - the CI one at data.hpp:1883, four at
+the two CSC copies, and two at the build arm's copy, whose destination is
+null as well on a store that owns no block yet; after it, clean. Three of
+the six guards stay uncovered by design: `materializePredictorSource` and
+`quantizeColumn`'s regather need a rowless TRAINING view no entrance
+produces, and they are defensive rather than fixes for live paths.
 
 GATES. Reproduced the workflow's UBSAN half locally on macOS - the SDK
 declares no `nonnull` on `memcpy`, so the leg was rebuilt with that
-declaration forced - and the pre-fix build raises the CI finding at the
-same file, line, column and stack from the same test; the fixed build
-runs the whole suite, 7669 / 0 fail, with no finding. The ASAN half is
-not reproducible on macOS against an uninstrumented R, so ASAN coverage
-came from the tests/cpp binary instead: ASAN+UBSAN, 281 ok, all tests
-passed, and 69 ok on the sampler arm. Uninstrumented: tests/cpp 281 ok
-(280 before the pin) and 69 ok; tinytest 7669 / 0 fail;
-equivalence-d4bca4ce 51/51, bcf-equivalence-00cfa108 12/12,
-multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z|
-line; check-doc-freshness 0 FAIL, 62 warning(s), output byte-identical
-to the base run.
+declaration forced - in both directions and for both defects: the
+pre-fix engine raises the CI finding at the same file, line, column and
+stack from the same test, and the pre-fix bridge raises the tree-column
+one from the new pin (four findings, since `INTEGER()` on a zero-length
+vector is also a misaligned store the guard removes with it). The fixed
+build runs the whole suite, 7671 / 0 fail, with no finding. The ASAN half
+is not reproducible on macOS against an uninstrumented R, so ASAN
+coverage came from the tests/cpp binary instead: ASAN+UBSAN, 281 ok, all
+tests passed, and 69 ok on the sampler arm. Uninstrumented: tests/cpp
+281 ok (280 before the pin) and 69 ok; tinytest 7671 / 0 fail (7669
+before the two new assertions); equivalence-d4bca4ce 51/51,
+bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337 11/11,
+all bitwise with no max |z| line; check-doc-freshness 0 FAIL, 62
+warning(s), output byte-identical to the base run; check-rc-codoc OK;
+air format --check and lintr clean.
+
+RECIPE CAVEAT for that local leg: the `nonnull` declaration must precede
+`<cstring>`. Declared after it the attribute lands on the AST, but clang
+lowers `std::memcpy` to `llvm.memcpy` and never emits the check -
+silently, so a pre-fix build looks green for the wrong reason, and
+`-fno-builtin-memcpy` does not restore it.
+
+REVIEW FOLLOW-UP, the same defect live in the bridge (2d254700).
+`emitTreeColumn` allocates each result column at the gathered length and
+copies into it; an empty index selection gathers nothing, so the result
+vector's pointer is live while the gather's is null. It is reachable and
+unrefused from `extract(fit, type = "trees", treeNums = integer(0))` and
+`sampler$getTrees(treeNums = integer(0))`, both of which answer a
+zero-row data frame - the documented answer - which is why nothing in the
+R suite had asked for an empty selection and why the sanitizer workflow
+was green on it. Guarded in both arms and pinned through both entrances
+in test-sampler-trees.R, so the workflow covers it from here. The C++ pin
+also stands the mapped TRAINING build up over the rowless view, so the
+build arm's dense-resident copy is covered beside buildTest's. Recorded
+and NOT fixed, neither observed firing under instrumentation over the
+whole suite: `Tree::restoreSubtree` copies an index segment that is null
+for an empty node range, and the bridge's rng-state restore copies into a
+buffer resized from a state's own length, which a hand-built state
+carrying `integer(0)` would leave null.
 
 ### Kind-axis slice S4b, typed predictor sources (17c7d419, e83c5665, 04e2a222, 0b16acd9, 829cc1ff, a091ca33, 1940821a, 2026-09-02)
 

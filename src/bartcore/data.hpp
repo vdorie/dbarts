@@ -2094,6 +2094,15 @@ struct ColumnStore {
   // assume the caller pre-checked quantile feasibility with
   // cutsWouldRemainValid. Views hold no raw source and are refused upstream;
   // dense, CSC, and mixed builds all reach here.
+  //
+  // The copies below carry no zero-length guard, unlike the ingestion ones.
+  // restoreOwnedDenseColumns and restoreColumn cannot run at zero rows at all:
+  // the first snapshots nothing when the owned block is empty, the second
+  // needs a changed cell to journal. The rest would copy zero bytes from a
+  // possibly-null pointer only on a store built with no rows, and build and
+  // setData both ACCEPT numObservations == 0 - dbartsData is the only thing
+  // that refuses it, and the C entrances offer no way round it, having no
+  // create-from-raw-counts and no setData of their own.
 
   /// Keep a column's owned raw current with the values a mutation installs, so
   /// the re-quantize sources (setCutPoints, state restore) and the
