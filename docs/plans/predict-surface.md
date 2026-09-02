@@ -6,8 +6,7 @@ Spec: docs/plans/prerc-surface-freeze.md D1, D9, D5, D2 and its Sequencing line 
 `predict-signature-unification`, `surface-smalls`, `deprecation-shim-removal`, `predict-refusal-names-cure` - four commits, one
 slice, since D9's fifteen new usage entries and D5's and D2's edits all land inside functions D1 reshapes. Evidence:
 review-2026-08-24/memos/prerc-lens1-surface.md B1, B2, B3, B5, B6, C1 and prerc-lens2-backlog.md P2, re-anchored live (the memos
-were written at 7a8c7286; every line number below is b46add06's). Revised 2026-08-25 after an independent critique and
-orchestrator rulings under the standing grant (sections 3, 5, 6, 7, 9, 11, 13). No sampling code moves, no RNG consumption
+were written at 7a8c7286; every line number below is b46add06's). No sampling code moves, no RNG consumption
 changes on any path an existing test walks; zero baseline re-records expected.
 
 ## 1. Scope, and what stays put
@@ -176,11 +175,11 @@ Two more lists beside it. The no-offset one carries BOTH spellings with the same
 
 Wiring, at the six call sites: bart [[R/generics.R:285@b46add06]] and rbart [[R/generics.R:2180@b46add06]] unchanged (`predictOffsetUnusedArgs`; `weights` is a live formal on
 both). multinomial [[R/generics.R:1193-1198@b46add06]] -> `c(multinomialUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)`; negbin
-:1722-1727 -> `c(negbinUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)`; ordinal [[R/generics.R:1483-1488@b46add06]] ->
+[[R/generics.R:1722-1727@b46add06]] -> `c(negbinUnusedArgs, predictOffsetUnusedArgs, predictWeightsUnusedArgs)`; ordinal [[R/generics.R:1483-1488@b46add06]] ->
 `c(ordinalUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)`; hurdle [[R/generics.R:2117-2122@b46add06]] ->
 `c(hurdleUnusedArgs, predictNoOffsetUnusedArgs, predictWeightsUnusedArgs)`. The predict-only names are combined AT the call site,
 never folded into the shared `*UnusedArgs` lists, because those same lists serve extract/fitted/residuals ([[R/generics.R:988-993@b46add06]], [[R/generics.R:1100-1105@b46add06]],
-:1140-1145, [[R/generics.R:1315-1320@b46add06]], [[R/generics.R:1408-1413@b46add06]], [[R/generics.R:1450-1455@b46add06]], [[R/generics.R:1594@b46add06]], [[R/generics.R:1672-1677@b46add06]], [[R/generics.R:1692-1697@b46add06]], [[R/generics.R:2019@b46add06]], [[R/generics.R:2081@b46add06]], [[R/generics.R:2094-2099@b46add06]]), which have no offset
+[[R/generics.R:1140-1145@b46add06]], [[R/generics.R:1315-1320@b46add06]], [[R/generics.R:1408-1413@b46add06]], [[R/generics.R:1450-1455@b46add06]], [[R/generics.R:1594@b46add06]], [[R/generics.R:1672-1677@b46add06]], [[R/generics.R:1692-1697@b46add06]], [[R/generics.R:2019@b46add06]], [[R/generics.R:2081@b46add06]], [[R/generics.R:2094-2099@b46add06]]), which have no offset
 or weights formal to protect.
 
 Landed 74e2e050 ("the last predict slot-4 collision"), not post-1.0 residue - the integration tip this doc's
@@ -203,9 +202,9 @@ call with three or more unnamed arguments; the complete result is section 11's l
 ## 5. D9a: one `forest` argument on the four readers
 
 The four are R5 methods on `dbartsSampler`, not the flat-C entries D4 renamed (`dbarts_sampler_getForestFits` and siblings) -
-those already agree and are not touched here. Live names and conventions, R/dbarts.R: `getForestFits(forest)` [[R/generics.R:1691-1695@74e2e050]], no
-default; `getForestVariableCounts(forest)` [[R/generics.R:1716-1729@74e2e050]], no default; `getForestAmplitudes(forest = NULL)` [[R/generics.R:1707-1715@74e2e050]], NULL = all
-stacked; `getCalibration(forest = 1L)` [[R/generics.R:1730-1734@74e2e050]]. `setCalibration(..., forest = 1L, ...)` [[R/generics.R:1735-1804@74e2e050]] is a fifth site and a
+those already agree and are not touched here. Live names and conventions, R/dbarts.R: `getForestFits(forest)` [[R/dbarts.R:1708@74e2e050]], no
+default; `getForestVariableCounts(forest)` [[R/dbarts.R:1756@74e2e050]], no default; `getForestAmplitudes(forest = NULL)` [[R/dbarts.R:1747@74e2e050]], NULL = all
+stacked; `getCalibration(forest = 1L)` [[R/dbarts.R:1792@74e2e050]]. `setCalibration(..., forest = 1L, ...)` [[R/dbarts.R:1819@74e2e050]] is a fifth site and a
 WRITER: it is refused on every multi-forest sampler ([[src/R_interface_bartcore.cpp:4205-4210@74e2e050]], because a calibration map owns those
 forests' scales), so `1L` is the only value that can succeed and NULL would name nothing writable. It keeps `forest = 1L`, and
 the Rd item that pairs it with `getCalibration` ([[man/dbartsSampler-class.Rd:201@74e2e050]]) is rewritten to say why.
@@ -389,7 +388,7 @@ entries at the OLD signatures would publish exactly the split the slice removes,
 
 ## 8. D5: the two rbart shims
 
-[[R/generics.R:2167-2178@74e2e050]], verbatim what is deleted:
+[[R/generics.R:2167-2178@b46add06]], verbatim what is deleted:
 
     dotsList <- list(...)
     if (!is.null(dotsList[["value"]])) {
@@ -404,7 +403,7 @@ entries at the OLD signatures would publish exactly the split the slice removes,
       type[1L] <- "ev"
     }
 
-:2179-2180 then become `type <- validateType(type, eval(formals(predict.rbart)$type))` and a
+[[R/generics.R:2544-2545@74e2e050]] then become `type <- validateType(type, eval(formals(predict.rbart)$type))` and a
 `refuseUnusedGenericArgs(list(...), "predict", "rbart", ...)` call - `dotsList` has no other reader, and `validateType` folds the
 response/link aliases itself ([[R/generics.R:1843@74e2e050]]), so the standalone `foldTypeAliases` call goes with the block. One comment moves: [[R/generics.R:1826@74e2e050]]
 ("some also reject length-0 input; predict.rbart interposes a post-mean alias") loses its second clause.
@@ -493,7 +492,7 @@ Downstream, bartCause's `tests/testthat/test-08-predict.R` line 208 pins `"keepT
 
 ## 10. Rd plan
 
-man/bart.Rd. [[R/generics.R:45-53@74e2e050]], predict.bart's usage, after:
+man/bart.Rd. [[man/bart.Rd:45-53@74e2e050]], predict.bart's usage, after:
 
     \method{predict}{bart}(
         object, newdata,
@@ -506,12 +505,12 @@ man/bart.Rd. [[R/generics.R:45-53@74e2e050]], predict.bart's usage, after:
         n.threads,
         \dots)
 
-:187-189 `\item{offset}` gains the sentence that it is the shift at the PREDICTED rows and that the fit-time channel is
-`offset.test`, so the two names are visibly different things rather than a typo. [[R/generics.R:202-204@74e2e050]] `\item{type}` gains the `"class"`
+[[man/bart.Rd:191-193@74e2e050]] `\item{offset}` gains the sentence that it is the shift at the PREDICTED rows and that the fit-time channel is
+`offset.test`, so the two names are visibly different things rather than a typo. [[man/bart.Rd:206-208@74e2e050]] `\item{type}` gains the `"class"`
 sentence for the two categorical families (it is the shared type item across the bart family pages) and states the four
-vocabulary exceptions of section 6. [[R/generics.R:208-210@74e2e050]] `\item{forest}` is untouched.
+vocabulary exceptions of section 6. [[man/bart.Rd:212-214@74e2e050]] `\item{forest}` is untouched.
 
-man/rbart.Rd. [[R/generics.R:56-62@74e2e050]], after (the file uses `\S3method`, keep it):
+man/rbart.Rd. [[man/rbart.Rd:57-64@74e2e050]], after (the file uses `\S3method`, keep it):
 
     \S3method{predict}{rbart}(
         object, newdata,
@@ -522,11 +521,11 @@ man/rbart.Rd. [[R/generics.R:56-62@74e2e050]], after (the file uses `\S3method`,
         n.threads,
         \dots, group.by)
 
-:67-69 `\item{group.by}` gains: "For \code{predict} and \code{\link{survivalProbabilities}}, supplied by name only - it follows
+[[man/rbart.Rd:71-73@74e2e050]] `\item{group.by}` gains: "For \code{predict} and \code{\link{survivalProbabilities}}, supplied by name only - it follows
 \code{\dots} in the signature, so it is never matched positionally; a missing one is refused, naming itself." The shared
-catch-all item at [[R/generics.R:85-87@74e2e050]] already covers `offset`, `offset.test` and `n.threads` and needs no edit.
+catch-all item at [[man/rbart.Rd:89-91@74e2e050]] already covers `offset`, `offset.test` and `n.threads` and needs no edit.
 
-man/survivalProbabilities.Rd. [[R/generics.R:35-42@74e2e050]], after:
+man/survivalProbabilities.Rd. [[man/survivalProbabilities.Rd:35-42@74e2e050]], after:
 
     \method{survivalProbabilities}{rbart}(
       object,
@@ -537,10 +536,10 @@ man/survivalProbabilities.Rd. [[R/generics.R:35-42@74e2e050]], after:
       group.by
     )
 
-with [[R/generics.R:71@74e2e050]]'s `\item{group.by}` gaining the same named-only sentence. [[R/generics.R:27-33@74e2e050]]'s `bart` entry and the four own-class entries are
+with [[man/survivalProbabilities.Rd:71@74e2e050]]'s `\item{group.by}` gaining the same named-only sentence. [[man/survivalProbabilities.Rd:27-33@74e2e050]]'s `bart` entry and the four own-class entries are
 unchanged.
 
-man/bart2.Rd. [[R/generics.R:82-86@74e2e050]] predict.bartMultinomial gains `"class"` in its type vector (commit 2, with the formal). Fifteen new
+man/bart2.Rd. [[man/bart2.Rd:82-86@74e2e050]] predict.bartMultinomial gains `"class"` in its type vector (commit 2, with the formal). Fifteen new
 `\method` entries (the file's own spelling) inserted so each class's five sit together, ordered as the aliases are:
 
     \method{extract}{bartOrdinal}(
@@ -598,20 +597,20 @@ man/bart2.Rd. [[R/generics.R:82-86@74e2e050]] predict.bartMultinomial gains `"cl
 
     \method{residuals}{bartHurdle}(object, type = "ev", \dots)
 
-Every argument these introduce already has an `\item`: object [[R/generics.R:278@74e2e050]], newdata [[R/generics.R:281@74e2e050]], type [[R/generics.R:284@74e2e050]], sample [[R/generics.R:287@74e2e050]], ci.level [[R/generics.R:302@74e2e050]],
-combineChains [[R/generics.R:178@74e2e050]], n.threads [[R/generics.R:173@74e2e050]], offset [[R/generics.R:126@74e2e050]], x [[R/generics.R:293@74e2e050]], `\dots` [[R/generics.R:275@74e2e050]] - so `checkDocFiles`'s undocumented-argument test is
-satisfied without a new item. Prose edits in the same file: [[R/generics.R:338@74e2e050]], which says predict.bartNegbin takes "an optional log-exposure
-\code{offset.test}", becomes `offset` (commit 1) and then gains fitted's `"ppd"` (commit 2); [[R/generics.R:330@74e2e050]] and [[R/generics.R:334@74e2e050]] gain the
-`type = "class"` sentence for predict (commit 2). [[R/generics.R:126@74e2e050]] `\item{offset}` gains a third paragraph for the negbin log-exposure shape
-(it already carries the multinomial matrix shape in its second). [[R/generics.R:131@74e2e050]] `\item{offset.test}` stays - it documents bart2's own
+Every argument these introduce already has an `\item`: object [[man/bart2.Rd:339@74e2e050]], newdata [[man/bart2.Rd:342@74e2e050]], type [[man/bart2.Rd:345@74e2e050]], sample [[man/bart2.Rd:348@74e2e050]], ci.level [[man/bart2.Rd:363@74e2e050]],
+combineChains [[man/bart2.Rd:239@74e2e050]], n.threads [[man/bart2.Rd:234@74e2e050]], offset [[man/bart2.Rd:183@74e2e050]], x [[man/bart2.Rd:354@74e2e050]], `\dots` [[man/bart2.Rd:336@74e2e050]] - so `checkDocFiles`'s undocumented-argument test is
+satisfied without a new item. Prose edits in the same file: [[man/bart2.Rd:399@74e2e050]], which says predict.bartNegbin takes "an optional log-exposure
+\code{offset.test}", becomes `offset` (commit 1) and then gains fitted's `"ppd"` (commit 2); [[man/bart2.Rd:391@74e2e050]] and [[man/bart2.Rd:395@74e2e050]] gain the
+`type = "class"` sentence for predict (commit 2). [[man/bart2.Rd:183@74e2e050]] `\item{offset}` gains a third paragraph for the negbin log-exposure shape
+(it already carries the multinomial matrix shape in its second). [[man/bart2.Rd:192@74e2e050]] `\item{offset.test}` stays - it documents bart2's own
 fit-time argument.
 
-man/dbartsSampler-class.Rd. Usage [[R/generics.R:94@74e2e050]], [[R/generics.R:96@74e2e050]], [[R/generics.R:97@74e2e050]] become `(forest = NULL)`; [[R/generics.R:95@74e2e050]] and [[R/generics.R:98-100@74e2e050]] unchanged. `\item{forest}` [[R/generics.R:201@74e2e050]] is
+man/dbartsSampler-class.Rd. Usage [[man/dbartsSampler-class.Rd:94@74e2e050]], [[man/dbartsSampler-class.Rd:96@74e2e050]], [[man/dbartsSampler-class.Rd:97@74e2e050]] become `(forest = NULL)`; [[man/dbartsSampler-class.Rd:95@74e2e050]] and [[man/dbartsSampler-class.Rd:98-100@74e2e050]] unchanged. `\item{forest}` [[man/dbartsSampler-class.Rd:201@74e2e050]] is
 rewritten: all four readers default to `NULL`, every forest, with the four stacked shapes named one by one (section 5) and the
 statement that a single-forest sampler's `NULL` read is exactly its forest-1 read; `setForestWeights`/`setForestBasis` keep no
-default (they are writers naming one target) and `setCalibration` keeps `1L` with the map refusal as its reason. `\value` [[R/generics.R:428@74e2e050]]
-restates getForestFits's and getForestVariableCounts's stacked shapes beside the amplitudes shape it already carries; [[R/generics.R:432@74e2e050]]
-restates getCalibration's. [[R/generics.R:210@74e2e050]]'s remedy text `setOffset(rep_len(-getCalibration()[1, "prior.mean"], n))` stays correct as
+default (they are writers naming one target) and `setCalibration` keeps `1L` with the map refusal as its reason. `\value` [[man/dbartsSampler-class.Rd:432@74e2e050]]
+restates getForestFits's and getForestVariableCounts's stacked shapes beside the amplitudes shape it already carries; [[man/dbartsSampler-class.Rd:436@74e2e050]]
+restates getCalibration's. [[man/dbartsSampler-class.Rd:210@74e2e050]]'s remedy text `setOffset(rep_len(-getCalibration()[1, "prior.mean"], n))` stays correct as
 written - single forest, matrix result.
 
 [[man/plotTree.Rd:48@74e2e050]] ("trees kept (\code{keeptrees}/\code{keepTrees} equal to \code{TRUE})") is prose about the requirement, not a
@@ -731,12 +730,12 @@ commit 1 also edits.
    multinomial, ordinal and hurdle already carry the target prefix and change only in the body - plus two `missing()` blocks
    deleted, the `group.by` by-name refusal, the negbin rename's one use, the [[R/generics.R:227-233@b46add06]] comment, `predictOffsetUnusedArgs`'s
    comment, two new reason lists, four call-site list compositions); [[R/bart.R:2551-2557@74e2e050]] and [[R/bart.R:2576-2578@74e2e050]]
-   (survivalProbabilities.rbart); [[man/bart.Rd:45-53@74e2e050]], [[man/bart.Rd:187-189@74e2e050]]; [[man/rbart.Rd:56-62@74e2e050]], [[man/rbart.Rd:67-69@74e2e050]];
-   [[man/survivalProbabilities.Rd:35-42@74e2e050]], [[man/survivalProbabilities.Rd:71@74e2e050]]; [[man/bart2.Rd:338@74e2e050]]; the 22 test call sites in six files; one NEWS UPGRADING item.
+   (survivalProbabilities.rbart); [[man/bart.Rd:45-53@74e2e050]], [[man/bart.Rd:191-193@74e2e050]]; [[man/rbart.Rd:57-64@74e2e050]], [[man/rbart.Rd:71-73@74e2e050]];
+   [[man/survivalProbabilities.Rd:35-42@74e2e050]], [[man/survivalProbabilities.Rd:71@74e2e050]]; [[man/bart2.Rd:399@74e2e050]]; the 22 test call sites in six files; one NEWS UPGRADING item.
 2. D9, `surface-smalls`. src/R_interface_bartcore.cpp (one new entry), src/R_interface_bartcore.hpp, src/R_interface.cpp
    (declaration and registration); R/bartcore.R (`bartcoreNumForests`); [[R/dbarts.R:1691@74e2e050]], [[R/dbarts.R:1716@74e2e050]], [[R/dbarts.R:1730@74e2e050]] and their docstrings;
    R/generics.R (four choice vectors, the negbin fitted switch, the two shared category helpers, two predict class arms, two
-   `trailing` selections); [[man/dbartsSampler-class.Rd:94@74e2e050]], [[man/dbartsSampler-class.Rd:96@74e2e050]], [[man/dbartsSampler-class.Rd:97@74e2e050]], [[man/dbartsSampler-class.Rd:201@74e2e050]], [[man/dbartsSampler-class.Rd:428@74e2e050]], [[man/dbartsSampler-class.Rd:432@74e2e050]]; [[man/bart2.Rd:82-86@74e2e050]], [[man/bart2.Rd:330@74e2e050]], [[man/bart2.Rd:334@74e2e050]], [[man/bart2.Rd:338@74e2e050]] and
+   `trailing` selections); [[man/dbartsSampler-class.Rd:94@74e2e050]], [[man/dbartsSampler-class.Rd:96@74e2e050]], [[man/dbartsSampler-class.Rd:97@74e2e050]], [[man/dbartsSampler-class.Rd:201@74e2e050]], [[man/dbartsSampler-class.Rd:432@74e2e050]], [[man/dbartsSampler-class.Rd:436@74e2e050]]; [[man/bart2.Rd:82-86@74e2e050]], [[man/bart2.Rd:391@74e2e050]], [[man/bart2.Rd:395@74e2e050]], [[man/bart2.Rd:399@74e2e050]] and
    the fifteen new usage entries; the new tests. This commit is the only one that compiles: `R CMD INSTALL .` suffices - no
    header, no facade virtual moves, so `--preclean` is not required, though it costs nothing.
 3. D5, `deprecation-shim-removal`. [[R/generics.R:1826@74e2e050]], [[R/generics.R:2167-2180@74e2e050]] plus the new `value` reasons list; one NEWS UPGRADING item.
@@ -755,7 +754,7 @@ Gate battery per commit (CLAUDE.local.md): `R CMD INSTALL .`; `tinytest::test_pa
 268 ok. Equivalence: `benchmarks/R/equivalence.R compare` against equivalence-736bfb05.rds, bcf-equivalence-6e3b9fb8.rds and
 multinomial-equivalence-4d9a3337.rds, ALL BITWISE IDENTICAL on every commit - the harness calls predict only with named
 arguments ([[equivalence.R:1229-1232@578ee440]]) and `getCalibration()` only on single-forest samplers ([[backfit-exact.R:143@578ee440]], [[geweke-mc.R:528@578ee440]],
-:531, [[geweke-mc.R:562@578ee440]]), so it needs no edit. `bench-sampler` is not required: no sampling path is touched and the slice adds one scalar
+[[geweke-mc.R:531@578ee440]], [[geweke-mc.R:562@578ee440]]), so it needs no edit. `bench-sampler` is not required: no sampling path is touched and the slice adds one scalar
 bridge read that no benchmark calls in a loop; run it once at the end of the slice on a quiet machine against
 bench-sampler-ab1dc52.csv if the RC tip wants a clean sheet. Zero baseline re-records expected; if any equivalence channel moves,
 something in this slice reached the sampler and the commit is wrong.

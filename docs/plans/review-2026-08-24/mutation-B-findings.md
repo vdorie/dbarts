@@ -120,12 +120,12 @@ R_interface:2268, [[chain.hpp:5014@9cebb352]].  Four `default:` ladders stayed s
   R_interface:2291 defaultNodeScale        gaussian/aft/new    -> 0.5 (gaussian's)
   R_interface:2812 validateResponseSupport gaussian/aft/new    -> NO validation
   R_interface:6254 computeWorkingResponse  if/else, no switch  -> latent[i]
-:756 and [[chain.hpp:5026@9cebb352]] take spec.family from the K-forest route, which [[chain.hpp:2268@9cebb352]] refuses for aft/ordinal/nbinom first, so
-those arms are gaussian-only today.  [[chain.hpp:2812@9cebb352]] is the worst door: its own comment enumerates the harm it prevents
+[[chain.hpp:756@9cebb352]] and [[chain.hpp:5026@9cebb352]] take spec.family from the K-forest route, which [[src/R_interface_bartcore.cpp:2268@9cebb352]] refuses for aft/ordinal/nbinom first, so
+those arms are gaussian-only today.  [[src/R_interface_bartcore.cpp:2812@9cebb352]] is the worst door: its own comment enumerates the harm it prevents
 (a negative nbinom count underflowing into a ~1.8e19 allocation, "an uncatchable crash"). The de-facto 7th
-family already exists - [[chain.hpp:862@9cebb352]] sets `family_ = logistic` for multinomial commenting "family() is not
-read on this path", yet SamplerShape::family ([[facade.hpp:432@9cebb352]]) reports it and the bridge branches on it at
-:2729,unresolved: [[facade.hpp:4611@9cebb352]],unresolved: [[facade.hpp:4662@9cebb352]],unresolved: [[facade.hpp:4702@9cebb352]],unresolved: [[facade.hpp:4877@9cebb352]],unresolved: [[facade.hpp:4949@9cebb352]], each unreachable only because a SEPARATE multi-forest refusal stands in
+family already exists - [[chain.hpp:854@9cebb352]] sets `family_ = logistic` for multinomial commenting "family() is not
+read on this path", yet SamplerShape::family ([[facade.hpp:437@9cebb352]]) reports it and the bridge branches on it at
+six sites (unresolved: [[src/R_interface_bartcore.cpp:2729@9cebb352]], unresolved: [[src/R_interface_bartcore.cpp:4611@9cebb352]], unresolved: [[src/R_interface_bartcore.cpp:4662@9cebb352]], unresolved: [[src/R_interface_bartcore.cpp:4702@9cebb352]], unresolved: [[src/R_interface_bartcore.cpp:4877@9cebb352]], unresolved: [[src/R_interface_bartcore.cpp:4949@9cebb352]] - the exact line within the bridge that each reference names could not be re-derived), each unreachable only because a SEPARATE multi-forest refusal stands in
 front.  VERDICT the doors are shut by refusals in another file, not by the type system, and one family already
 travels under another's name.
 

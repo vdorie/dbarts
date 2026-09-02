@@ -1,8 +1,7 @@
 # R-surface refusals, shapes and argument order (pre-RC)
 
-Status: LANDED 2026-08-26 at d48aef8a (design record 37ab6ea9; see the landing note); designed at 9d0ee10f, revised the same day against an independent blind critique (findings 1
-and 11 blocking; the adjudications are folded into sections 3, 4, 5, 6, 7, 9, 10, 11, 13, 14, 15 and 17
-rather than left as a change list). Every anchor below was read live at that tip.
+Status: LANDED 2026-08-26 at d48aef8a (design record 37ab6ea9; see the landing note); designed at 9d0ee10f.
+Every anchor below was read live at that tip.
 
 Spec: the R-surface half of "breaking-if-deferred lands before the RC is declared" (VD). It extends
 docs/plans/prerc-surface-freeze.md past its D1-D9 - the sweep that found these ran AFTER D1/D9/D5/D2 landed
@@ -43,8 +42,8 @@ Read off the code at 9d0ee10f. `refuseUnusedGenericArgs` ([[R/generics.R:1908-19
 `"'<x>' is not used by <generic> on a <class> fit: <reason>"`. Under R6 that main clause plus the reason is
 already the full budget, so a reason clause may contain no further `:` or `;`. Coverage is hand-listed per
 class (`multinomialUnusedArgs` [[R/generics.R:1006@9d0ee10f]], `ordinalUnusedArgs` [[R/generics.R:1337@9d0ee10f]], `negbinUnusedArgs` [[R/generics.R:1614@9d0ee10f]], `hurdleUnusedArgs`
-:2045) composed with three per-generic lists (`predictOffsetUnusedArgs` [[R/generics.R:254@9d0ee10f]], `predictWeightsUnusedArgs`
-:281, `predictNoOffsetUnusedArgs` [[R/generics.R:291@9d0ee10f]]).
+[[R/generics.R:2045@9d0ee10f]]) composed with three per-generic lists (`predictOffsetUnusedArgs` [[R/generics.R:254@9d0ee10f]], `predictWeightsUnusedArgs`
+[[R/generics.R:281@9d0ee10f]], `predictNoOffsetUnusedArgs` [[R/generics.R:291@9d0ee10f]]).
 
 Methods with NO refusal call at all: `extract.bart` ([[R/generics.R:463-575@9d0ee10f]]; only the `trees` arm is guarded, by
 `refuseTreesArguments` at [[R/generics.R:482@9d0ee10f]]), `extract.rbart` ([[R/generics.R:2426@9d0ee10f]]), `extract.dbartsSampler` ([[R/generics.R:2578@9d0ee10f]]), `fitted.bart`
@@ -318,7 +317,7 @@ RECOMMEND (a). The rule the package already enforces everywhere else is that a s
 or refused, never inert; here `type = "class"` is inert, and the documentation of an inert argument is what
 the sweep is closing on `fitted(combineChains = )` and on `bases`. (c)'s own consistency argument cuts the
 other way: `fitted(type = "class")`'s class reduction ALREADY fires only at `ci.level = NULL` ([[R/generics.R:1152-1156@9d0ee10f]],
-:1461-1465), so (a) states at `predict` the rule `fitted` follows in fact. And the direction is the
+[[R/generics.R:1461-1465@9d0ee10f]]), so (a) states at `predict` the rule `fitted` follows in fact. And the direction is the
 reversible one - refusing now leaves (b) additive later, while shipping (c) makes the ev-band-under-a-class-
 request an interface promise that (b) would have to break.
 
@@ -360,7 +359,7 @@ Message, in R13's verb and in the exact shape of the sibling refusal ten lines a
 
 The one live, working behavior this slice removes, so it is argued rather than assumed. Today
 `residuals(fit, ci.level = 0.9)` on bart, rbart and hurdle forwards through `...` into `fitted` ([[R/generics.R:893@9d0ee10f]], [[R/generics.R:2605@9d0ee10f]],
-:2140) and returns `y` minus a 3-column `est`/`ci.lower`/`ci.upper` matrix, recycled down the columns; on
+[[R/generics.R:2140@9d0ee10f]]) and returns `y` minus a 3-column `est`/`ci.lower`/`ci.upper` matrix, recycled down the columns; on
 multinomial, ordinal and negbin the same call silently drops it (N8). No test and no Rd pins it anywhere
 (verified zero hits).
 
@@ -421,7 +420,7 @@ sites in the repo: ZERO (section 13's parse). Every in-repo `fitted(..., sample 
 
 `(x, cols, plquants, ...)` -> `(x, plquants, cols, ...)`, matching the six sibling methods enumerated in
 section 2 (`plot.pdbart` is a different shape and is not touched). Body unchanged. Zero in-repo positional
-callers: test-multinomial-generics.R calls `plot(fitCombined)` bare at [[test-nbinom.R:132@9d0ee10f]], [[test-nbinom.R:133@9d0ee10f]], [[test-nbinom.R:481@9d0ee10f]], [[test-nbinom.R:483@9d0ee10f]], and the man
+callers: test-multinomial-generics.R calls `plot(fitCombined)` bare at [[test-multinomial-generics.R:132@9d0ee10f]], [[test-multinomial-generics.R:133@9d0ee10f]], [[test-multinomial-generics.R:481@9d0ee10f]], [[test-multinomial-generics.R:483@9d0ee10f]], and the man
 examples call `plot(bartFit)` bare ([[man/bart.Rd:397@9d0ee10f]]). One `\usage` line, [[man/bart2.Rd:147@9d0ee10f]]. This is the whole
 item.
 
@@ -460,7 +459,7 @@ Coverage acquired at a stroke - 32 integer call sites: `dbartsControl`'s ten cou
 `dbarts()`'s own `seed` mirror ([[R/dbarts.R:611@9d0ee10f]]), `bart()`'s nine legacy spellings ([[R/bart.R:2780-2788@9d0ee10f]], which
 pre-coerce precisely so the message names the caller's own argument), `rbart_vi`'s `n.chains`/`n.threads`
 ([[R/rbart.R:74@9d0ee10f]], [[R/rbart.R:79@9d0ee10f]]), `xbart`'s SEVEN ([[R/xbart.R:43@9d0ee10f]] `n.cuts`, [[R/xbart.R:51@9d0ee10f]] `n.thin`, [[R/xbart.R:197@9d0ee10f]] `n.trees`, [[R/xbart.R:370@9d0ee10f]] `n.test`,
-:401 `n.reps`, [[R/xbart.R:405@9d0ee10f]] `n.burn`, [[R/xbart.R:409@9d0ee10f]] `n.threads`), `dbartsSpec`'s `n.trees` ([[R/spec.R:545@9d0ee10f]]) and `seed` ([[R/spec.R:841@9d0ee10f]]),
+[[R/xbart.R:401@9d0ee10f]] `n.reps`, [[R/xbart.R:405@9d0ee10f]] `n.burn`, [[R/xbart.R:409@9d0ee10f]] `n.threads`), `dbartsSpec`'s `n.trees` ([[R/spec.R:545@9d0ee10f]]) and `seed` ([[R/spec.R:841@9d0ee10f]]),
 and `max.leaf.size` ([[R/model.R:1475@9d0ee10f]]).
 
 Alternative rejected: an `n.threads`-only check in `dbartsControl` reusing `validatePredictThreads`'s exact
@@ -533,7 +532,7 @@ vignettes/, all nullary.
   which `dbartsControl` does not name.
 - man/xbart.Rd, man/rbart.Rd, man/dbartsSpec.Rd - no count sentence: each already defers to
   `\link{dbartsControl}`/`\link{dbarts}` for the shared counts. man/dbarts.Rd is NOT touched (section 15).
-- inst/NEWS.Rd `\subsection{UPGRADING}` (:5) - four `\item`s, one per commit: the refusal coverage (naming
+- inst/NEWS.Rd `\subsection{UPGRADING}` ([[inst/NEWS.Rd:5@d48aef8a]]) - four `\item`s, one per commit: the refusal coverage (naming
   the classes of name now refused, and that `residuals(ci.level = )` is among them), the `type = "class"` and
   `type = "forest"` `ci.level` refusals, the `fitted` and `plot.bartMultinomial` argument-order changes, and
   the whole-number count rule plus the two sampler readers. The file holds 396 `\item` entries at this tip
@@ -574,7 +573,7 @@ New tests, all `expect_error(..., fixed = TRUE)` on the full message where it is
 on a short stem otherwise (`"is not used by"`, `"does not support"`, `"must be a whole number"`) - the
 discipline the four existing refusal files already use.
 
-- inst/tinytest/test-generics-errors.R, extending its per-class blocks ([[inst/tinytest/test-generics-multithreaded.R:110-300@9d0ee10f]]). Count-exact: 6 methods x
+- inst/tinytest/test-generics-errors.R, extending its per-class blocks ([[inst/tinytest/test-generics-errors.R:110-300@9d0ee10f]]). Count-exact: 6 methods x
   `sample` = 6; 5 methods x `bases` = 5; 6 methods x `group.by` (5 refused, 1 accepted on rbart) = 6; the
   `predict.bart` `contribution` and `predict.rbart` `forest`/`contribution` = 3. **20 new assertions.**
 - inst/tinytest/test-generics-errors.R, extract arm: `ci.level`, `newdata`, `n.threads` refused on
@@ -589,7 +588,7 @@ discipline the four existing refusal files already use.
 - inst/tinytest/test-rbart-aft.R (or test-generics-errors.R): `survivalProbabilities(bartAftFit, times,
   newdata = x, group.by = g)` refused naming `group.by`; the same call on the rbart fit still works; one
   foreign name (`type`) refused on each of the two methods. **4 assertions.**
-- inst/tinytest/test-plot-generics.R, beside [[inst/tinytest/test-generics-multithreaded.R:127-142@9d0ee10f]]: `plotTree(sampler, sample = 5L)` and
+- inst/tinytest/test-plot-generics.R, beside [[inst/tinytest/test-plot-generics.R:127-142@9d0ee10f]]: `plotTree(sampler, sample = 5L)` and
   `plotTree(sampler, chain = 2L)` raise the same two strings the fit methods raise, and
   `plotTree(sampler, sampleNum = 5L)` still draws. **3 assertions.**
 - inst/tinytest/test-multinomial-generics.R and test-ordinal.R: the two rewritten blocks (above) plus, on
@@ -741,8 +740,8 @@ Four commits.
 Doc-freshness re-anchoring: per section 15 the anchor pass runs LAST and ONCE over the stacked tree, not per
 commit - re-align every strict miss from the stacked `git diff -U0` line map by editing the docs/design
 anchors in place so each file's line count is invariant. Anchor exposure from this slice alone: 21 anchors
-into R/generics.R (15 past [[man/dbartsSampler-class.Rd:230@9d0ee10f]], so effectively all of them move on commit 1), 41 into R/dbarts.R (6 past
-:1675), 34 into R/bart.R (2 past [[R/bart.R:2547@9d0ee10f]]), 6 into R/A_class.R, 1 into R/utility.R, 0 into R/plot.R, plus 41 into
+into R/generics.R (15 past [[R/generics.R:230@9d0ee10f]], so effectively all of them move on commit 1), 41 into R/dbarts.R (6 past
+[[R/dbarts.R:1675@9d0ee10f]]), 34 into R/bart.R (2 past [[R/bart.R:2547@9d0ee10f]]), 6 into R/A_class.R, 1 into R/utility.R, 0 into R/plot.R, plus 41 into
 the man pages this slice edits (bart.Rd 6, bart2.Rd 9, rbart.Rd 3, survivalProbabilities.Rd 1, plotTree.Rd 1,
 dbartsSampler-class.Rd 21). Take the live `Rscript tools/check-doc-freshness.R .` count as the baseline
 before commit 1 rather than quoting an earlier slice's.
@@ -763,7 +762,7 @@ machine if the RC tip wants a clean sheet.
 
 ## 17. Residue
 
-Observed, out of scope, recorded so it is not rediscovered.
+Observed, out of scope.
 
 - The terminal catch-all (section 3): landed 74e2e050 (the pre-review defect
   slice: "positional foreign arguments"), not post-1.0 residue - the
@@ -789,8 +788,8 @@ Observed, out of scope, recorded so it is not rediscovered.
 - `fitted.bartHurdle`'s `type` vocabulary includes `"prob"`, which no other `fitted` carries; that is a real
   channel, not drift, and stays.
 - `plot.pdbart` ([[R/plot.R:476-482@74e2e050]]) is `(x, xind, plquants, cols, ...)` - a fourth shape on the plot surface,
-  correct for an object whose panels are indexed. Not aligned, not touched, recorded so section 9's "six
-  siblings" is not later read as "seven".
+  correct for an object whose panels are indexed. Not aligned, not touched - excluded from section 9's "six
+  siblings" count.
 - No `plot` method gains a refusal: every one of them forwards `...` to `graphics::plot` deliberately.
 
 ## Landing note (2026-08-26)

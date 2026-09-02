@@ -87,7 +87,7 @@ the worker may call `Rf_error`; the raise happens after the join, on the main th
 
 The capacity == 0 arm gets an assert: one slab per chain means no two workers touch one Chain,
 which is what makes the non-const `flattenTree` ([[chain.hpp:2683@42b12ac7]], reached from [[chain.hpp:2830@42b12ac7]], [[chain.hpp:2903@42b12ac7]],
-:2967) safe. The comment states that a row-axis partition would have to privatize the flatten
+[[chain.hpp:2967@42b12ac7]]) safe. The comment states that a row-axis partition would have to privatize the flatten
 buffers (finding 8).
 
 `numWorkers = min(resolvedThreads, numSlabs)`, so a 4-thread predict of a 1-chain no-keepTrees fit
@@ -246,7 +246,7 @@ if (is.na(n.threads) || n.threads < 1L)
 
 Forwarding sites: [[R/generics.R:265@42b12ac7]] predictForest, [[R/generics.R:272@42b12ac7]]/[[R/generics.R:727-738@42b12ac7]] **predictBlend** (a BCF fit's PLAIN predict
 reaches the replay here), [[R/generics.R:297@42b12ac7]], [[R/generics.R:603@42b12ac7]], [[R/generics.R:1056@42b12ac7]], [[R/generics.R:1221@42b12ac7]], [[R/generics.R:1354@42b12ac7]], [[R/generics.R:1531@42b12ac7]] (hurdle's two inner `predict()`),
-:1706, [[R/generics.R:1712@42b12ac7]], [[R/generics.R:1722@42b12ac7]].
+[[R/generics.R:1706@42b12ac7]], [[R/generics.R:1712@42b12ac7]], [[R/generics.R:1722@42b12ac7]].
 
 Rd. [[man/dbartsSampler-class.Rd:152-157@42b12ac7]] SPLITS - the joint "run and predict both execute serially"
 becomes half false the moment this lands. predict's item states the per-call override, the default,

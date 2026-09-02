@@ -168,8 +168,10 @@ roughly a day.
 ## Exact-gate census - checking the memo's "14 of 16 single-tree"
 
 The gates live in .github/workflows/exact-gates.yaml (push + PR on bartcore);
-there is no benchmarks/exact-gates.yaml. The workflow runs 20 scripts. The
-census's denominator of 16 is the 3 balance gates plus the 13 `-exact` gates.
+there is no benchmarks/exact-gates.yaml. At this pass the workflow ran 20 scripts; it now
+runs 21 (`backfit-exact.R` added at `8741e3cf`), 14 of them `-exact` gates. The
+census's denominator of 16 is the 3 balance gates plus the 13 `-exact` gates then present;
+the 16-of-16 conclusion is unaffected by the later addition.
 
     m = 1 (14): bd/change/swap-balance, aft-, bcf-, bcf-weak-, bcf-restricted-,
        categorical-, linear-, hazard-, hurdle-, negbin-, ordinal-, t-exact

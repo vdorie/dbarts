@@ -1806,9 +1806,9 @@ byte-identical to four-way-gated ab3aa2fa (every changed path is
 `.Rbuildignore`d), so S1's six-green stands as the gate evidence for both
 docs commits.
 
-stan4bart landed bartcore 9fb0305 (five sites in `src/init.cpp`: `predict`
-:340-342 via `dbarts_dense_predictor_source`, `numTrees` [[dbarts.R:390-392@8d80ab01]] and
-:453-455, `printTrees` [[dbarts.R:429@8d80ab01]], `getTrees` [[dbarts.R:494-496@8d80ab01]] with forest 0; the
+stan4bart landed bartcore 9fb0305 (five sites in stan4bart's `src/init.cpp`: `predict`
+lines 340-342 via `dbarts_dense_predictor_source`, `numTrees` [[dbarts.R:390-392@8d80ab01]] and
+lines 453-455, `printTrees` [[dbarts.R:429@8d80ab01]], `getTrees` [[dbarts.R:494-496@8d80ab01]] with forest 0; the
 handshake hash check [[dbarts.R:963-976@8d80ab01]], with the remove-at-freeze comment) plus
 7ce9a76 (a TODO ticket: a `bart_args` forests reserved-guard gap, found and
 empirically confirmed by the review). The census the S1 reviewer could not

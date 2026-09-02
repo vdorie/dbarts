@@ -120,10 +120,10 @@ doc, and zero consumers on any branch. If one thing here warrants a deliberate
 
 ## 5. The flat C API's forest/amplitude block - KEEP the block; MAINTAINER-CALL on two members
 
-`inst/include/dbarts/dbarts.h` X-macro entries [[R/model.R:573@3080a9c5]] `numForests`, [[R/model.R:575@3080a9c5]]
-`setForestBasis`, [[R/model.R:579@3080a9c5]] `getForestFits`, [[R/model.R:582@3080a9c5]] `numForestAmplitudes`, [[R/model.R:584@3080a9c5]]
-`getForestAmplitudes`, [[R/model.R:588@3080a9c5]] `setForestWeights`, [[R/model.R:591@3080a9c5]] `getForestCalibration`,
-:595 `setForestPriorScale`.
+`inst/include/dbarts/dbarts.h` X-macro entries [[CAPI:573@3080a9c5]] `numForests`, [[CAPI:575@3080a9c5]]
+`setForestBasis`, [[CAPI:579@3080a9c5]] `getForestFits`, [[CAPI:582@3080a9c5]] `numForestAmplitudes`, [[CAPI:584@3080a9c5]]
+`getForestAmplitudes`, [[CAPI:588@3080a9c5]] `setForestWeights`, [[CAPI:591@3080a9c5]] `getForestCalibration`,
+[[CAPI:595@3080a9c5]] `setForestPriorScale`.
 
 Zero calls across stan4bart (which uses 24 of 48 entries), treatSens dbarts-1.0
 (10), bartCause, bairrtt - and zero mentions in stan4bart's own docs/TODO. The

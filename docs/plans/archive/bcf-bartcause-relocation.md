@@ -58,8 +58,7 @@ budget (DENSE-EQUIVALENT lines: non-blank, non-comment, one statement per line;
 ## Goal
 
 `bcf()` and the `bartBCF` class ship in bartCause on its dbarts-1.0 branch, per
-fork 4 (RESOLVED VD 2026-08-11, `docs/plans/archive/multiforest-extension-surface.md`
-:4325-4328). A user writes `bcf(y ~ x1 + x2, data, treatment = z)` - or
+fork 4 (RESOLVED VD 2026-08-11, [[docs/plans/multiforest-extension-surface.md:4323-4326@4c018187]]). A user writes `bcf(y ~ x1 + x2, data, treatment = z)` - or
 `bartc(y, z, x, method.rsp = "bcf")` - and gets a Bayesian causal forest whose
 per-draw prognostic surface, treatment surface, glue, per-forest variable counts
 and both counterfactual surfaces are reported, computed with NO test matrix, and
@@ -227,9 +226,9 @@ Landed 2026-08-15, TODO-only (52 insertions, 26 deletions), firing no workflow.
 It closed `dbartsdata-treatment-slot-debt` against 9c63e9d8 with the four
 receipts and the 533-assertion measurement (now [[TODO:259-284@e54cd2a7]], which also
 corrects the "tinytest" error at [[TODO:283-284@e54cd2a7]] and records B0's pending literal at
-:275-278); resolved the contradiction with the `bcf-public-surface` entry
-([[TODO:279-282@e54cd2a7]]); repinned `calibrationMapName` to `R_interface_bartcore.cpp`
-:4052-4055, literal [[R_interface_bartcore.cpp:4054@e54cd2a7]], call site [[R_interface_bartcore.cpp:4144@e54cd2a7]] (now [[TODO:336-337@e54cd2a7]]); completed
+[[TODO:275-278@e54cd2a7]]); resolved the contradiction with the `bcf-public-surface` entry
+([[TODO:279-282@e54cd2a7]]); repinned `calibrationMapName` to
+[[R_interface_bartcore.cpp:4052-4055@e54cd2a7]], literal [[R_interface_bartcore.cpp:4054@e54cd2a7]], call site [[R_interface_bartcore.cpp:4144@e54cd2a7]] (now [[TODO:336-337@e54cd2a7]]); completed
 `bcf-naming-generalization`'s symbol list with `BCFSpecStorage` and the R-side
 `isBCFSampler`/`refuseBCFMutation` pair ([[TODO:146@4c018187]], [[TODO:151-159@4c018187]]); and split the dead
 init-capture into its own entry, `dead-bcf-init-capture` ([[TODO:285-294@4c018187]]), whose text
@@ -363,7 +362,7 @@ axis; do NOT add a second channel.** The alternatives and the reasons:
    `bart2(<a dbartsData carrying bases>)` runs today (MEASURED) and packages the
    channel through `nameVarcount` ([[R/bart.R:146-156@4c018187]]), whose FIRST act is
    `convertSamplesFromDbartsToBart(raw, n.chains, combineChains)`
-   ([[R/bart.R:147@4c018187]], body :8-38). That helper dispatches on
+   ([[R/bart.R:147@4c018187]], body [[R/bart.R:8-38@4c018187]]). That helper dispatches on
    `length(dim(samples)) == 2L` and otherwise does `aperm(samples, c(3L, 2L,
    1L))` ([[R/bart.R:20@4c018187]], uncombined) or `t(matrix(samples, x[1L], prod(x[-1L])))` ([[R/bart.R:30@4c018187]],
    combined). Neither is 4-D-aware. MEASURED on a p=3, K=2, S=4, C=2 raw array
@@ -697,8 +696,8 @@ resolved by rebuilding into the private lib with zero code changes, no action
 owed; run 2 (`NOT_CRAN=true`, stan4bart rebuilt) `FAIL 1 | WARN 9 | SKIP 0 |
 PASS 533`.
 
-**Content: exactly one numeric literal** - `tests/testthat/test-06-regression.R`
-:52, `0.50402744431802` -> `0.44963899452561451`, inside the
+**Content: exactly one numeric literal** - bartCause's `tests/testthat/test-06-regression.R`
+line 52, `0.50402744431802` -> `0.44963899452561451`, inside the
 `tmle_version >= "2.1"` branch (bartCause's `tests/testthat/test-06-regression.R` line 48) behind `skip_on_cran()` (line 38) and
 `skip_if_not_installed("tmle")`, at `n.chains = 1L` (line 45). Lines 10, 20 and 30 of that file
 already carry refreshed values and PASS.
@@ -738,7 +737,7 @@ oracles and changes one shipped output.
    "sigma")` at its default `combineChains = TRUE` currently returns the raw
    flat vector (sample-major) because `byrow = TRUE` makes `combineChains`'s
    `as.vector(t(.))` invert the reshape; after the fix it returns chain-major
-   order, matching every other extracted quantity (`R/generics.R`:9). NEWS:
+   order, matching every other extracted quantity (bartCause's `R/generics.R` line 9). NEWS:
    "`extract(type = \"sigma\")` now returns posterior draws in chain-major
    order, matching every other extracted quantity, and per-chain sigma is now
    correctly assigned to its own chain; previously multi-chain fits interleaved
@@ -772,13 +771,13 @@ samples <- sampler$run(0L, ctl@n.samples, updateState = FALSE)
 ```
 
 mirroring `bart2`'s standard path ([[R/bart.R:1019@4c018187]], [[R/bart.R:1022@4c018187]]; the two-phase form
-:435-475, including the draw-neutral `keepTrainingFits = FALSE`/
+[[R/bart.R:562-604@4c018187]], including the draw-neutral `keepTrainingFits = FALSE`/
 `verbose = FALSE` during burn, available on a BCF). `n.chains`, `n.threads`,
 `n.burn`, `n.samples`, `keepTrees`, `rngSeed` and `verbose` are `dbartsControl`
 slots ([[R/dbarts.R:214-231@4c018187]]). The per-draw channels arrive BATCHED from the
 second `run()` - `forestFits`, `glue`, and (after D3) the per-forest `varcount`;
 the burn run's `$sigma` becomes `first.sigma` ([[R/bart.R:452-455@4c018187]], packaged
-:245-251, [[R/bart.R:268@4c018187]]). At `n.burn == 0` there is no burn run at all (`run(0L, 0L)`
+[[R/bart.R:312-317@4c018187]], [[R/bart.R:268@4c018187]]). At `n.burn == 0` there is no burn run at all (`run(0L, 0L)`
 returns NULL, MEASURED) - see B1.2a.
 
 Forest declaration, defaults from `forestParams` ([[R/model.R:964-984@4c018187]]), with NO
@@ -895,7 +894,7 @@ chain-fastest flatten aligned with `ev`'s `[chain, sample, obs]` layout. It is
 exactly what `bart2(combineChains = FALSE)` produces (MEASURED).
 
 **Accepted inconsistency, stated:** at `n.chains == 1`, `combineChains(m, 1L)`
-returns the matrix (`R/generics.R`:4), so `extract(fit, "sigma")` yields a
+returns the matrix (bartCause's `R/generics.R` line 4), so `extract(fit, "sigma")` yields a
 `1 x n.samples` MATRIX where a bart fit yields a vector (MEASURED). Harmless -
 `fitted.bartcFit` has no `"sigma"` type (bartCause's `R/generics.R` lines 252-253) and `summary`
 consumes it as `mean(sigma^2)` (bartCause's `R/summary.R` lines 98-99 and 128-129) - and
@@ -977,15 +976,15 @@ caller's `moderators` with those names removed and a refusal - not a silent drop
 `getBCFResponseFit` mirrors `getBartResponseFit`'s assembly half and skips its
 test half, reusing the data/literal branch and the two argParse calls
 (bartCause's `R/responseFit.R` lines 140-155) **with `getBCFResponseFit` substituted at line 143 and
-:148** - those lines are `addCallDefaults(<call>,
+line 148** - those lines are `addCallDefaults(<call>,
 eval(quoteInNamespace(getBartResponseFit)))` and `addCallDefaults`
 (bartCause's `R/utility.R` lines 112-130) fills from `fn`'s formals, so a verbatim copy would take
 the bart fitter's defaults. It also reuses the subset resolution (line 161), `trt`
 (line 235), the common-support computation (lines 279-282) and the `y` backfill (line 284),
 and DROPS the counterfactual `x.test` construction (lines 177-193), the test extract
 (line 245) and the missing-row recombination (lines 247-277). Its return is the namedList
-contract at `R/responseFit.R` line 286, consumed by `assignAll` (`R/bartc.R`
-:172-174).
+contract at `R/responseFit.R` line 286, consumed by `assignAll` (bartCause's `R/bartc.R`
+lines 172-174).
 
 **Four sites need attention:**
 
@@ -1000,8 +999,8 @@ contract at `R/responseFit.R` line 286, consumed by `assignAll` (`R/bartc.R`
 
 Plus two `bartc()` guards: `R/bartc.R` lines 107-112 need a bcf reading of
 `p.scoreAsCovariate`/`method.trt`, and lines 164-165 must refuse `crossvalidate`.
-`method.rsp` gains `"bcf"` in the FORMAL at `R/bartc.R`:3 (the validity loop at
-:42-47 reads it); the reserved line at bartCause's `R/bartc.R` line 123 becomes
+`method.rsp` gains `"bcf"` in the FORMAL at bartCause's `R/bartc.R` line 3 (the validity loop at
+lines 42-47 reads it); the reserved line at bartCause's `R/bartc.R` line 123 becomes
 `bcf = redirectCall(matchedCall, quoteInNamespace(getBCFResponseFit))`; lines 128-130
 matches `formals(getBartResponseFit)`, so give `getBCFResponseFit` the same
 leading formals or widen that line.
@@ -1035,7 +1034,7 @@ residuals on `bartBCF`; `importFrom(stats, residuals)`.
 exclusion, the per-forest `varcount` container WITH the structural-zero rider,
 the `n.chains == 1` sigma shape, and every refusal: missing responses,
 `crossvalidate`, `group.by` with `use.ranef = TRUE`, `parametric`, `mu.blocks`,
-`predict`); `man/bartc.Rd` gains `"bcf"` at :9-10, bartCause's `R/utility.R` lines 57-66, 174-190;
+`predict`); bartCause's `man/bartc.Rd` gains `"bcf"` at lines 9-10, and its `R/utility.R` lines 57-66, 174-190;
 `man/generics.Rd` gains the bartBCF methods if it is the right home - read it
 first. `inst/NEWS.Rd` gains a NEW FEATURES subsection folded into the unreleased
 1.0-10 section (:4-12), since 1.0-10 awaits submission after dbarts is accepted
@@ -1058,7 +1057,7 @@ The alternative, (b) - dbarts grows `bart2`'s output channels first and bcf()
 becomes one more `redirectCall(matchedCall, dbarts::bart2)` arm - does NOT buy
 what it appeared to: missing-row handling, keepTrees prediction and xbart
 crossvalidation are unavailable for a BCF under BOTH branches ([[R/spec.R:509@4c018187]],
-:486-491; `refuseUndefinedTestFits`; `R/xbart.R`:1-29). Revision 1's memory
+[[R/spec.R:486-491@4c018187]]; `refuseUndefinedTestFits`; [[R/xbart.R:1-29@4c018187]]). Revision 1's memory
 argument for (a) is withdrawn (the batched array is materialized in R either
 way); the recommendation stands on the R/C division putting the outer loop on
 R's side ([[docs/design/r-c-division.md:84-95@4c018187]], [[docs/design/r-c-division.md:104-107@4c018187]]) and on (b)'s
@@ -1536,7 +1535,7 @@ mismatch set is EXACTLY the `varcount` channel, 12/12. SHAPE-ONLY
 re-record: `bcf-equivalence-6e3b9fb8.rds` (766813 bytes) with the
 four-place same-commit bookkeeping - [[equivalence.yaml:87@4c018187]]; MANIFEST new
 current row [[equivalence.yaml:42@4c018187]], old row historical [[equivalence.yaml:43@4c018187]], multinomial row shifted [[equivalence.yaml:48@4c018187]] ->
-:49; TODO ledger "D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8";
+line 49; TODO ledger "D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8";
 `feature-matrix.md` [f39] renamed and repinned to MANIFEST:16,42,49.
 Gate-runner CONFIRMED with two independent probes: K=1 A/B
 BYTE-IDENTITY vs a base-build library (`varcount`, dimnames, sigma,

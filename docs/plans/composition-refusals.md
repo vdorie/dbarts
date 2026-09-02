@@ -5,8 +5,7 @@ Status: LANDED 2026-08-25 at 936825d7 (design record 93f3155c; code tip de18ef2b
 Spec: docs/plans/prerc-surface-freeze.md D6, D8 and its Sequencing line ("then D1, D9, D5, D2, D6, D8, D7"). TODO
 `composition-refusals` ([[TODO:63-65@78f334c1]]) and `predict-na-refusal` ([[TODO:181-183@78f334c1]]) - two commits, one slice; they share only the
 gate battery and could land in either order. Evidence: review-2026-08-24/memos/prerc-lens2-backlog.md P5 and N1,
-re-anchored live (the memos were written at 7a8c7286). Revised 2026-08-25 after an independent critique and orchestrator
-rulings under the standing grant (sections 1, 3, 5, 6, 8, 9, 10, 12, 13). No sampling code moves, no RNG consumption
+re-anchored live (the memos were written at 7a8c7286). No sampling code moves, no RNG consumption
 changes on any path an existing test walks; the equivalence trio is expected bitwise identical and zero baselines
 re-record. Budget: ~65 R + ~20 C++ + 5 Rd/NEWS + ~95 test lines.
 
@@ -14,8 +13,8 @@ re-record. Budget: ~65 R + ~20 C++ + 5 Rd/NEWS + ~95 test lines.
 
 The two names in D6 - grouped + `variance =`, and heteroscedastic + `group.by` - are ONE model reached from its two ends:
 a chain whose response model is wrapped by the grouped decorator AND which carries a variance forest. They are separate
-cells in docs/design/feature-matrix.md's table 4 ([[TODO:186@7a8c7286]] `grouped` row x `variance forest` column, [[TODO:187@7a8c7286]] `hetero` row x
-`grouped ranef` column, both `?` with note [f30]:727-731) because the matrix is read along both axes, and the note says
+cells in docs/design/feature-matrix.md's table 4 ([[docs/design/feature-matrix.md:186@7a8c7286]] `grouped` row x `variance forest` column, [[docs/design/feature-matrix.md:187@7a8c7286]] `hetero` row x
+`grouped ranef` column, both `?` with note [f30] [[docs/design/feature-matrix.md:727-731@7a8c7286]]) because the matrix is read along both axes, and the note says
 what the code says: they "still CONSTRUCT ([[CH:641@7a8c7286]] decorates before [[CH:742@7a8c7286]] builds the variance forest)". Both anchors hold
 at this tip - [[src/bartcore/chain.hpp:641-646@7a8c7286]] wraps `response_` in `GroupedResponse`, [[chain.hpp:738-742@7a8c7286]] builds the variance
 forest afterwards.
@@ -188,7 +187,7 @@ Drafted text:
 > (deferred post-1.0, VD 2026-08-24). Either is additive.
 
 Records edited in the same commit, so no doc reads as if the cells were still open: [[feature-matrix.md:186@7a8c7286]] and [[feature-matrix.md:187@7a8c7286]] become
-`R spec.R:NNN` (the two `?` cells; NNN is the new stop's line), [f30]:727-731 loses its "still CONSTRUCT" sentence and
+`R spec.R:NNN` (the two `?` cells; NNN is the new stop's line), [f30] [[docs/design/feature-matrix.md:727-731@7a8c7286]] loses its "still CONSTRUCT" sentence and
 gains one naming the refusal and pointing at heteroscedastic.md section 17 by title, and [[feature-matrix.md:1010-1011@7a8c7286]]'s grouped narrative
 ("Composition with a variance forest constructs unrefused and untested ([f30])") is rewritten. benchmarks/R/
 composition-matrix.R needs no edit: it probes only `S` and `?` cells ([[feature-matrix.md:706@7a8c7286]], [[feature-matrix.md:715-731@7a8c7286]]), so the two drop out of the probe
@@ -267,7 +266,7 @@ Two routing paths reach a test NA, and both end LEFT for the same reason.
   ([[tree.hpp:479@7a8c7286]]).
 
 Either way the bit is 0, because it is drawn only where `data.hasMissing[variableIndex]` ([[tree.hpp:450@7a8c7286]], [[tree.hpp:609@7a8c7286]], [[tree.hpp:875@7a8c7286]],
-:889): on a training-complete column the row goes LEFT at every split on that column, in every tree, in every draw.
+[[tree.hpp:889@7a8c7286]]): on a training-complete column the row goes LEFT at every split on that column, in every tree, in every draw.
 `validateColumnValues` ([[src/R_interface_bartcore.cpp:2911-2917@7a8c7286]]) passes the value through - `categoricalValueIsValid`
 returns true for NA by construction ([[data.hpp:707-712@7a8c7286]]). So both surfaces return numbers, silently, from a route the model
 never learned. [[man/dbarts.Rd:117@7a8c7286]] promises the opposite ("in training and test data alike") and [[inst/NEWS.Rd:720-725@7a8c7286]]
@@ -534,7 +533,7 @@ Warning handling: none of these emits a warning, so no `expect_warning` count ch
   component draws the residual standard deviation"), and it never writes `bartcore.groups` (its only control attribute is
   `n.cuts`, stan4bart's `R/stan4bart_fit.R` line 524). D8: it calls the FLAT `dbarts_sampler_predict` (stan4bart's `src/init.cpp` line 349) with a dense source, so it is
   exactly the consumer the C++ backstop serves - but it forbids `na.action = na.pass` outright (stan4bart's `R/stan4bart.R` lines 41-42) and
-  defaults to `na.omit` (:6), so no NA reaches a model frame it hands to dbarts. No migration cost, no expected hit.
+  defaults to `na.omit` (stan4bart's `R/stan4bart.R` line 6), so no NA reaches a model frame it hands to dbarts. No migration cost, no expected hit.
 - bartCause, /Users/vdorie/Repositories/bartCause branch `dbarts-1.0` (d825cfc). D6: reaches the grouped surface only
   through `rbart_vi` (bartCause's `R/responseFit.R` lines 121 and 210; its `R/treatmentFit.R` line 107), which has no `variance` formal - unreachable.
   D8: its predict calls (bartCause's `R/generics.R` lines 143-176) pass `x.new` built from the user's confounders; it validates the treatment

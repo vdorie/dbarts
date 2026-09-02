@@ -1,8 +1,6 @@
 # Release-candidate review program
 
-Status: SPECCED 2026-08-17 (base 96ab54e0), amended per the blind
-critique of the same date (verdict: execute with amendments; all
-eleven applied). This file is the program's
+Status: SPECCED 2026-08-17 (base 96ab54e0). This file is the program's
 charter, its derived slate, and its record (the TODO entry that once
 pointed here is discharged). Landing notes go newest-first under the Landing notes heading.
 
@@ -17,17 +15,19 @@ accumulation: agent-written slices breed sediment, missed
 factorization, surface inconsistency, dialect drift, and
 over-complication. The charter's seed lists are a floor; this slate
 was re-derived from two fresh censuses (2026-08-17, both
-citation-dense against 96ab54e0; the blind critique re-verified six
-of six sampled load-bearing claims). Load-bearing ordering:
+citation-dense against 96ab54e0). Load-bearing ordering:
 accumulation cleanups land before the coverage/mutation/coherence
 passes; behavior-level oracles may run parallel to the code lanes,
 subject to the freeze protocol below. RC declaration is VD-held.
 
 Two standing facts every CI-touching item must respect:
 
-- GitHub registers workflows from the DEFAULT branch only. Ten of the
-  eleven workflow files exist only on bartcore, so they have never
-  been registered: schedule, workflow_dispatch, everything. Any item
+- GitHub registers workflows from the DEFAULT branch only. At this
+  census (2026-08-17), ten of the eleven workflow files existed only
+  on bartcore; `.github/workflows/` now holds twelve, eleven of which
+  exist only on bartcore (only check-standard.yaml is on main), so
+  they have never been registered: schedule, workflow_dispatch,
+  everything. Any item
   that wants a CI leg (P2, P11's full-mode schedule, P14, P15, P17's
   mechanized half, equivalence-statistical-mode) is gated on a
   default-branch commit, which is VD-held (nothing is ever pushed to
@@ -53,22 +53,31 @@ corrected by the critique):
   residual bookkeeping, totalFits accumulation, sigma conditional on
   the full ensemble - is gated by nothing at ensemble scale.
   gate-blindspot-audit.md reached this and it was never closed.
-- Five of the eleven CI workflow files have never executed anywhere
-  (default-branch registration, above): rchk, valgrind, sbc,
-  equivalence (the statistical equivalence gate) and revdep-smoke; the
-  other six run on every bartcore push. equivalence.yaml's YAML parses
-  but has never run.
-- Three recorded defects are live and ungated: multinomial silently
-  drops DART (chain.hpp hard-sets useDart = false while bart2
-  threads it); Student-t pointwise log-likelihood evaluates the
-  gaussian density - the packaged fit records family =
-  fit$model@family, and resid.dist is orthogonal to family, so a t
-  fit is indistinguishable from a gaussian one in the fit object and
-  R/generics.R's dnorm branch runs (the fit carries neither
-  resid.dist nor the estimated df); student/grouped + variance =
-  constructs unrefused and untested ([[R/spec.R:369-377@bf503e27]]).
-- The tinytest suite is ~2% math-vs-code (~80 of 4204 assertions),
-  62% structural, 14% dbarts-vs-dbarts. 225 equality assertions pass
+- At this census (2026-08-17), five of the eleven CI workflow files
+  had never executed anywhere (default-branch registration, above):
+  rchk, valgrind, sbc, equivalence (the statistical equivalence gate)
+  and revdep-smoke; the other six ran on every bartcore push.
+  equivalence.yaml's YAML parsed but had never run.
+- At this census (2026-08-17), three recorded defects were live and
+  ungated: multinomial silently dropped DART (chain.hpp hard-sets
+  useDart = false while bart2 threads it) (since repaired:
+  `resolveSamplerSpec` refuses a multinomial DART tree prior by
+  name); Student-t pointwise
+  log-likelihood evaluated the gaussian density - the packaged fit
+  records family = fit$model@family, and resid.dist is orthogonal to
+  family, so a t fit was indistinguishable from a gaussian one in the
+  fit object and R/generics.R's dnorm branch ran (the fit carried
+  neither resid.dist nor the estimated df) (since repaired:
+  `pointwiseLogLikelihood` now reads `object[["resid.dist"]]` and
+  branches on it, and `ChainStateData::residualDf` carries the
+  estimated df); student/grouped + variance = constructs were
+  unrefused and untested ([[R/spec.R:369-377@bf503e27]]) (since
+  repaired: `resolveSamplerSpec` refuses both - a variance forest with
+  Student-t residuals ([[R/spec.R:527@bf503e27]]) and a variance forest with
+  grouped random effects ([[R/spec.R:538@bf503e27]]) - each by name).
+- At the 2026-08-17 census the tinytest suite was ~2% math-vs-code
+  (~80 of 4204 assertions), 62% structural, 14% dbarts-vs-dbarts (the
+  suite has since grown to 5552 `expect_*` calls). 225 equality assertions pass
   when the compared field is NULL on both sides; the shared helper
   statesAgree() returns TRUE for two empty lists and carries 18
   assertions across 15 files. 405 assertions are
@@ -78,16 +87,19 @@ corrected by the critique):
   ignores nested expectations) is FALSE - measured: expectations
   nested in a helper are collected and attributed to the call site -
   so per-field inlining is available.
-- 12% of the suite can silently not run: test-capi.R (the whole
-  shipped-ABI contract, 201 assertions) vanishes if R CMD SHLIB
-  fails; test-simd.R is disabled by exactly the CPU-detection defect
-  class it exists to catch; test-aft.R's survival-gated assertions
-  never run (survival is not in Suggests); tests/tinytest.R passes
-  with zero tests; the six sparse/mixed test files exit_file on
-  Matrix.
-- xbart is the least-verified surface: zero equivalence scenarios,
-  no SBC, no exact gate, loss values never checked against a hand
-  computation, weighted-vs-unweighted indistinguishable in its tests.
+- At this census (2026-08-17), 12% of the suite could silently not
+  run: test-capi.R (the whole shipped-ABI contract, 201 assertions)
+  vanishes if R CMD SHLIB fails; test-simd.R is disabled by exactly
+  the CPU-detection defect class it exists to catch; test-aft.R's
+  survival-gated assertions never ran (survival was not in Suggests;
+  since repaired: DESCRIPTION's Suggests now lists `survival`);
+  tests/tinytest.R passes with zero tests; the sparse/mixed test
+  files exit_file on Matrix (seven files at this tip, not six).
+- At this census (2026-08-17), xbart was the least-verified surface:
+  zero equivalence scenarios (since repaired: `benchmarks/R/equivalence.R`
+  carries `xbart` and `xbartmixed` scenarios), no SBC, no exact gate,
+  loss values never checked against a hand computation,
+  weighted-vs-unweighted indistinguishable in its tests.
 - Mutation testing is unrepeatable (the prior sweep's driver was
   never committed); no C/C++ coverage has ever been measured;
   vignettes are never built or executed in any CI leg; twelve
@@ -384,16 +396,21 @@ the program's premise and they precede the slices that gate on it.
 
 ### Riding items
 
+- M0 component-contract doc stays deferred at discretion (RULING; since
+  landed as `docs/design/bart-as-a-component.md`, Soak wave 2, c4971bbb +
+  cf4a290c, 2026-08-19 - see the landing notes below).
 - binary-kforest-k1-reachability: still decision-gated on acceptance
   evidence; the re-verification (2026-08-16) found four count-keyed
   bridge guards beyond the ticketed floor. An evidence memo may be
   commissioned during waves 1-3; the open/keep-refusing call is VD's.
-- M0 component-contract doc stays deferred at discretion.
 - The baseline re-record carrying the xbart scenario (P16, f009eff8)
   and the bart2 gaussian/probit/two-forest and mixed-matrix (B2)
   scenarios (wave-4 batch, 4a42620a; equivalence-4a42620a.rds, 42
   scenarios) LANDED, under P17's oracle-naming rule as spec'd; see
-  the landing notes below.
+  the landing notes below. That baseline has since been superseded
+  and deleted - the current gaussian baseline is
+  `equivalence-d4bca4ce.rds` (51 scenarios, per
+  `benchmarks/baselines/MANIFEST`).
 
 ## 4. Forks for VD (batched; recommendations attached)
 
@@ -2427,8 +2444,10 @@ RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
 full-namespace resync missed them): [[data-store.md:198@bf503e27]]/201/206/214
 (constructs sit ~320 lines below the cited sampler.hpp lines),
 [[grow-from-root-default.md:141@bf503e27]], [[model-space-survey.md:71@bf503e27]] (quoted text
-absent from the cited file), [[docs/design/within-chain-threading.md:204@bf503e27]]'s unresolved: [[docs/design/within-chain-threading.md:675-702@bf503e27]]
-half, [[docs/design/data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
+absent from the cited file), [[docs/design/within-chain-threading.md:204@bf503e27]]'s other
+half, whose location could not be placed at bf503e27 (the file is
+only 511 lines there; unresolved: [[docs/design/within-chain-threading.md:675-702@bf503e27]]),
+[[docs/design/data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
 
 ### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
 
@@ -4137,7 +4156,8 @@ tarball.
 
 ### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
 
-The bridge's packaging region (live unresolved: [[spec.R:4188-4462@bf503e27]], 161 lines of channel
+The bridge's (`src/R_interface_bartcore.cpp`, not `spec.R`) packaging region -
+its exact span could not be placed at bf503e27 (unresolved: [[src/R_interface_bartcore.cpp:4188-4462@bf503e27]]), 161 lines of channel
 assembly) becomes 87: thirteen hand-rolled chain-ternary allocations
 collapse onto one allocChannel(type, {leading dims}) lambda (a
 single-chain per-draw scalar stays a bare dim-less vector - the
@@ -4614,7 +4634,7 @@ NEWS.Rd + the two Rd files; NEWS parses at 262 entries
 (re-verified independently); no R code touched so no
 equivalence/lintr legs. Orchestrator note: the interleavables
 re-verification's [[spec.R:370@bf503e27]] anchor was loose - the live stop is
-:392; other feature-matrix rows citing [[spec.R:370@bf503e27]] for the same shared
+[[R/spec.R:392@bf503e27]]; other feature-matrix rows citing [[spec.R:370@bf503e27]] for the same shared
 refusal are stale by the same delta and ride the wave-4 full-
 namespace resync. Prior-slice CI: five green on a39da5d9 plus
 exact-gates green on the build-identical d60057b1 (the records push

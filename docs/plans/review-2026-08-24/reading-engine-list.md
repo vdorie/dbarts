@@ -200,7 +200,7 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   `rc_getBool` carrying RC_LENGTH or RC_VALUE, 7 `rc_assert*Constraints`, 0 bare `rc_get*0`)
   against 111 unconstrained `rc_getListElement` fetches and 168 open-coded `Rf_is<Type>` checks in
   R_interface_bartcore.cpp (3 in C_interface.cpp, deliberately
-  - :3-5). The memo's "7" counted only `rc_assert*Constraints`. Of 50 `dbarts_bartcore_*` .Call
+  - [[src/C_interface.cpp:3-5@b102e17c]]). The memo's "7" counted only `rc_assert*Constraints`. Of 50 `dbarts_bartcore_*` .Call
     entries (59 rows total), 20 call one of the 14 shared `refuse*`/`validate*` helpers directly;
     the rest go through `createHolder`/`parseData`/`parseModel`. 304 `Rf_error` sites in the
     bridge, 42 in the C API.

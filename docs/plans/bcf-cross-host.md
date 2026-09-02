@@ -1,14 +1,12 @@
 # BCF equivalence baseline: cross-host mode (D7)
 
 Status: LANDED 2026-08-26 at 3f532af2 (design record cbb1cb97; see the
-landing note). Read-only; no repo edits. Revised after an independent
-blind critique and the coordinator's adjudications - sections 1, 2, 4, 5,
-7 and 8 carry the rulings.
+landing note). Read-only; no repo edits.
 
 Spec: docs/plans/prerc-surface-freeze.md D7 ([[docs/plans/prerc-surface-freeze.md:72-80@cbb1cb97]]) and its Sequencing
 line ([[docs/plans/prerc-surface-freeze.md:100@cbb1cb97]]). TODO `bcf-baseline-cross-host` ([[TODO:33-34@cbb1cb97]]), which absorbs
 the cross-host half of `equivalence-harness-statistical-mode`
-([[TODO:66-73@cbb1cb97]]). D7 is the last open pre-RC item (`rc-gate`, [[TODO:164-165@cbb1cb97]]).
+([[TODO:66-73@cbb1cb97]]). D7 is the last open pre-RC item (`rc-gate`, [[TODO:188@cbb1cb97]]).
 
 Three facts settled by reading, each of which changes the shape of the
 work:
@@ -16,11 +14,11 @@ work:
 - D7's seven-name exemption list is WRONG on two names (section 1). The
   correct list is SIX, and one of D7's names (`varcount`) is a DRAWS-axis
   channel - exempting it would gut the gate.
-- The current `bcf-equivalence-6e3b9fb8.rds` DOES carry enough to gate
-  cross-host (section 3): it stores every raw draws-axis channel, and the
-  absent `summaries` field is a pure function of what is stored. The
-  RC-tip re-record is a refresh, and the box validation runs this week
-  against the file in the tree.
+- The then-current `bcf-equivalence-6e3b9fb8.rds` (since deleted; see
+  MANIFEST) carried enough to gate cross-host (section 3): it stored every
+  raw draws-axis channel, and the absent `summaries` field is a pure
+  function of what is stored. The RC-tip re-record was a refresh, and the
+  box validation ran that week against the file then in the tree.
 - A single |z| bar cannot be the cross-host gate (section 2). bcf's z is
   over 40 AUTOCORRELATED draws of ONE chain, not over independent seeds
   as equivalence.R's is, and at the measured autocorrelation the |z| = 4
@@ -292,7 +290,7 @@ retires the derive path for this file - not a prerequisite. Interim
 validation runs against `bcf-equivalence-6e3b9fb8.rds` as it sits in the
 tree.
 
-## 4. Validation on the x86 box, this week
+## 4. Validation on the x86 box (run 2026-08-26; the box has since retired)
 
 Box facts, verified: Linux x86_64, Ubuntu 24.04, AMD Ryzen 7 3700X, R
 4.3.3 at /usr/bin/R, gcc 13.3.0, loadavg ~0.2, `~/libshim/libtirpc.so`
@@ -417,7 +415,7 @@ and give equivalence.yaml the same tokens for when it goes live.
   20-seed grid is what equivalence.yaml allots 120 minutes and
   `EQUIVALENCE_CORES` fork-parallelism to, and it would exhaust
   exact-gates' budget. The gaussian harness stays on equivalence.yaml.
-- `equivalence.yaml`: add `--cross-host` at [[R/bartcore.R:88-89@736bfb05]] and [[R/bartcore.R:115-116@736bfb05]]. Zero
+- `equivalence.yaml`: add `--cross-host` at [[.github/workflows/equivalence.yaml:88-89@736bfb05]] and [[.github/workflows/equivalence.yaml:115-116@736bfb05]]. Zero
   runtime, zero new yaml, and the weekly cron starts firing at the
   merge - at which point equivalence.yaml carries the gaussian arm and
   exact-gates carries the per-push half.
@@ -453,9 +451,18 @@ tau, glue, sigma, train, varcount, varcount.tau)` (8 channels on the five
 verdict-carrying scenarios). Same for multinomial (11/11) and gaussian
 (43/43 `--strict-coverage`). No baseline re-records at this slice.
 
-## 7. RC-tip re-record: pending checklist
+## 7. RC-tip re-record: checklist (discharged)
 
-Mechanical, same-host, at the RC tip; nothing here can be done early.
+Discharged. `bcf-equivalence-3c81d6df.rds` is the recorded RC-tip baseline
+(`benchmarks/baselines/MANIFEST`, `current` row); step 5's cross-host confirm
+did not run against the box, which had by then retired - the standing gate,
+`exact-gates.yaml`'s `--cross-host` compare on every push, stood in for it.
+Step 9 also did not run as written: `bcf-equivalence-6e3b9fb8.rds` was
+deleted rather than kept as `historical` (MANIFEST: "the engine that
+produced it no longer exists").
+The steps below are kept as the record of what ran; numbering is unchanged
+because `benchmarks/baselines/MANIFEST` cites "sec 7 step 5" in prose.
+Mechanical, same-host, at the RC tip.
 
 1. Recording host only (arm64/macOS, the host every `current` MANIFEST
    row names). `R CMD INSTALL --preclean .` at the RC tip.
@@ -481,11 +488,11 @@ Mechanical, same-host, at the RC tip; nothing here can be done early.
    - `.github/workflows/equivalence.yaml`[[equivalence.R:89@23b9cde7]] AND the new exact-gates step
      from section 5 - the re-record now has TWO workflow pins, not one.
    - `TODO` ledger line.
-   - FORWARD-facing docs pins only: `docs/design/feature-matrix.md`[[equivalence.R:647@23b9cde7]]
-     (the `masked` scenario pin) and [f39] at [[equivalence.R:786-789@23b9cde7]]. Leave the
+   - FORWARD-facing docs pins only: `docs/design/feature-matrix.md`[[docs/design/feature-matrix.md:647@23b9cde7]]
+     (the `masked` scenario pin) and [f39] at [[docs/design/feature-matrix.md:786-789@23b9cde7]]. Leave the
      historical landing records that name 6e3b9fb8 as a fact about a past
-     tip - `docs/design/empty-leaf-veto.md`[[equivalence.R:329@23b9cde7]],
-     `docs/design/multinomial-mutation-arc.md`[[equivalence.R:648@23b9cde7]] and [[equivalence.R:1066@23b9cde7]] - check each
+     tip - `docs/design/empty-leaf-veto.md`[[docs/design/empty-leaf-veto.md:329@23b9cde7]],
+     `docs/design/multinomial-mutation-arc.md`[[docs/design/multinomial-mutation-arc.md:648@23b9cde7]] and [[docs/design/multinomial-mutation-arc.md:1066@23b9cde7]] - check each
      cite's tense before touching it.
 7. ANCHOR SHIFT, easy to miss: inserting a MANIFEST row moves every line
    below it, and `docs/design` cites `MANIFEST:<n>` by line, checked by
@@ -493,10 +500,12 @@ Mechanical, same-host, at the RC tip; nothing here can be done early.
    repinned [f39] to `MANIFEST:16,42,49`; re-derive those numbers from
    the `git diff -U0` line map, not by a content pass. [f39] also carries
    per-baseline SCENARIO COUNTS - recompute them.
-8. ALSO STALE and outside the four places:
-   `docs/plans/review-2026-08-24/gate-ledger.md`[[equivalence.R:111@23b9cde7]] ("Current rows")
-   still names `equivalence-5a3bc276.rds`. Fix it in the same commit.
-9. Keep the old .rds as `historical`; nothing is deleted.
+8. Outside the four places: `docs/plans/review-2026-08-24/gate-ledger.md`
+   ("Current rows") named `equivalence-5a3bc276.rds`
+   ([[docs/plans/review-2026-08-24/gate-ledger.md:111@23b9cde7]]) at the time this checklist was
+   written; it now names `bcf-equivalence-3c81d6df.rds`, current per MANIFEST.
+9. Did not run as written: the old .rds, `bcf-equivalence-6e3b9fb8.rds`, was
+   deleted rather than kept as `historical`, per MANIFEST.
 
 ## 8. CI/consumer impact, residues, forks
 
@@ -507,20 +516,21 @@ benchmarks, so a benchmarks-only push fires it. One correction to
 "path-ignored except by exact-gates": lint.yaml ignores only
 `benchmarks/baselines/**`, so `benchmarks/R/*.R` IS linted - the new code
 must pass `air format --check .` and `lintr::lint()` against the slice's
-own lib. Touching `.github/` fires all six push workflows, and a
+own lib. Touching `.github/` fires all seven push workflows (check-standard,
+cpp-tests, doc-freshness, exact-gates, lint, pkgdown, sanitizers), and a
 benchmarks-touching push right after a slice push cancels the slice's
 in-flight exact-gates run (`cancel-in-progress`): space the pushes.
 
-Consumer impact: NONE. `benchmarks/` is `.Rbuildignore`d ([[equivalence.R:18@5a3bc276]]) and ships
+Consumer impact: NONE. `benchmarks/` is `.Rbuildignore`d ([[.Rbuildignore:18@5a3bc276]]) and ships
 nothing; no `R/`, `src/`, `inst/`, `man/`, `NAMESPACE` or
 `inst/include/dbarts/dbarts.h` file is touched; no ABI, no hash re-bake,
 no lockstep rebuild.
 
 SCOPE, ruled: the flag lands in `multinomial-equivalence.R` in the SAME
 slice, under the same two-tier verdict - `train`, `test`, `runVarcount`
-gated ([[equivalence.R:103@5a3bc276]]), `forestFits`, `varcount`, `accepted`, `installed` exempt
-([[equivalence.R:119-126@5a3bc276]] plus the call-site appends), same compare-loop shape
-([[equivalence.R:595-646@5a3bc276]]), and its baseline already carries `summaries`. `equivalence.R`
+gated ([[multinomial-equivalence.R:98@5a3bc276]]), `forestFits`, `varcount`, `accepted`, `installed` exempt
+([[multinomial-equivalence.R:96-97@5a3bc276]] plus the call-site appends), same compare-loop shape
+([[multinomial-equivalence.R:595-646@5a3bc276]]), and its baseline already carries `summaries`. `equivalence.R`
 needs NOTHING: its scenarios record a single seeds x summaries matrix and
 its verdicts ride into that matrix (`recordVerdict`, [[equivalence.R:1057-1058@5a3bc276]], [[equivalence.R:1665@5a3bc276]]),
 which is why it already exits 0 cross-host. `train`/`test` are
@@ -543,24 +553,20 @@ Residues:
   `varcount` forest-axis widening (a16d703c). Add
   `stopifnot(length(sa$mean) == length(sb$mean))` inside the `Map`; two
   lines, fold it in here.
-- `TODO`: close `equivalence-harness-statistical-mode` ([[multinomial-equivalence.R:71-90@a16d703c]]) at this
+- `TODO`: close `equivalence-harness-statistical-mode` ([[TODO:308@a16d703c]]) at this
   landing - both REMAINING clauses are discharged - and reduce
-  `bcf-baseline-cross-host` ([[multinomial-equivalence.R:33-36@a16d703c]]) to the RC-tip re-record. `rc-gate`
-  ([[multinomial-equivalence.R:188-189@a16d703c]]) follows.
+  `bcf-baseline-cross-host` ([[TODO:33-34@cbb1cb97]]) to the RC-tip re-record. `rc-gate`
+  ([[TODO:188@cbb1cb97]]) follows.
 - The plan doc this becomes needs a `docs/plans/INDEX.md` row, or
   `tools/check-doc-freshness.R` fails lint.yaml.
 
-Open fork (one, and it is genuinely open):
-
-F1. `rtol` for tier 1. (a) Ship `1e-8` as designed and widen only if the
-box run's observed ratio exceeds 0.01 - risks a second pass if the
-observed deviation is larger than expected. (b) Set `rtol` from the box
-measurement in the first place, leaving the constant blank until section
-4 reports - costs a serialization point between the box run and the
-final patch. RECOMMEND (a) with the calibration clause: 1e-8 is far
-looser than a locked stream needs and far tighter than any defect class
-survives, so the expected outcome is that no widening is needed and the
-box number becomes the doc's evidence rather than its input.
+F1 (resolved). `rtol` for tier 1. (a) Ship `1e-8` as designed and widen only
+if the box run's observed ratio exceeds 0.01. (b) Set `rtol` from the box
+measurement in the first place, leaving the constant blank until section 4
+reports. Decided (a) with the calibration clause: 1e-8 is far looser than a
+locked stream needs and far tighter than any defect class survives. Per the
+landing note, `rtol` stayed at 1e-8 - the widening clause (section 2.2) did
+not fire.
 
 ## Landing note (2026-08-26)
 
@@ -618,7 +624,8 @@ scripts are independent and duplicate the tier/guard helpers rather
 than sharing them. The ubuntu-latest CI compare (`exact-gates.yaml`)
 is now the standing cross-host gate, the box having retired.
 
-Pending: the RC-tip same-host re-record of bcf-equivalence remains - a
-refresh, not a prerequisite; checklist in section 7 of this doc,
-including the MANIFEST anchor shift and `[[gate-ledger.md:111@2518a0b5]]`. Door: a
-seeds-axis re-record, post-RC.
+Done: the RC-tip same-host re-record of bcf-equivalence is
+`bcf-equivalence-3c81d6df.rds` (`benchmarks/baselines/MANIFEST`, `current`
+row), recorded per the section 7 checklist, including the MANIFEST anchor
+shift and `[[gate-ledger.md:111@2518a0b5]]`. Door: a seeds-axis re-record,
+post-RC.

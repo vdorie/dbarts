@@ -47,7 +47,8 @@ rename is non-additive in the opposite direction: a reader looking up an absent
 name defaults an OPTIONAL block in silence, leaving the amplitudes at their
 construction values. So `stateFormatVersion` and
 `minReadableStateFormatVersion` both went 1 -> 2, and a state carrying the old
-key is refused by version before any block is read. No baseline was
+key is refused by version before any block is read (both have since moved to
+3; see docs/architecture.md). No baseline was
 re-recorded and all three equivalence suites stayed bitwise. The mitigation
 that made the debt survivable in the meantime, and still holds, is that no
 consumer-facing PROBE is keyed on the name or on a forest count: capability is
@@ -75,8 +76,8 @@ costs one stream per forest ([[src/bartcore/combiner.hpp#forestMultiplier]]).
 The plan's "The channel, specified" section said COLUMN-major and was wrong
 about the shipped code; M4.3 item 5 resolved the transpose IN THE DOC
 DIRECTION, the header agrees
-([[inst/include/dbarts/dbarts.h#dbarts_sampler_setTreeStorage]],
-[[src/C_interface.cpp#dbarts_sampler_printTrees]]), and M4.5 corrected the
+([[CAPI#dbarts_sampler_setForestBasis, basisRowMajor]],
+[[src/C_interface.cpp#dbarts_sampler_setForestBasis]]), and M4.5 corrected the
 plan line itself
 ([[docs/plans/multiforest-extension-surface.md:557-561@4c018187]]).
 
@@ -325,12 +326,14 @@ bcf-exact mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork:
 it flips only on a named measured mixing case, plus that gate, plus a re-record
 with the `equivalence.yaml` bump in the same commit.
 
-**No silent enablement is possible** (resolved at M4.3 review,
-[[docs/plans/multiforest-extension-surface.md:4967-4975@4c018187]]).
+**No silent enablement is possible**
+([[docs/plans/multiforest-extension-surface.md:4967-4975@4c018187]]).
 On every creation route the scale mixture holds if and only if a
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis ([[R/model.R#forestParams]],
-`if (withBasis) 0 else declared(spec$sd, 2)`); the bridge
+`if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault)`, the
+family's own default scale - 2 under gaussian and aft, 1 otherwise); the
+bridge
 reads it into `ForestSpec::amplitudePriorScale`
 ([[src/R_interface_bartcore.cpp#applyAmplitudeSpec]]) and derives
 `forest.ridge = forest.amplitudePriorScale > 0.0`
@@ -457,9 +460,9 @@ contract:
 
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values
-silently vacate pins (M4.0's required fix,
-[[docs/plans/multiforest-extension-surface.md:4745-4753@4c018187]];
-recurred at M4.3's Arm 5(iii) dead pin,
+silently vacate pins
+([[docs/plans/multiforest-extension-surface.md:4745-4753@4c018187]];
+recurred later,
 [[docs/plans/multiforest-extension-surface.md:4957-4960@4c018187]]).
 
 ## The calibration map, general in K
@@ -545,8 +548,7 @@ one-basis-free shape the fixed-variance channel is BOUNDED by it, rising from
 its per-forest reading at every K. (5) At the shipped defaults a K = 2 binary
 K-forest prior puts `P(p < 0.01 or p > 0.99)` at 0.2468 under probit, against
 0.2387 for the shipped single-forest binary default (`chi(1.5, 2)`), where
-before `binary-kforest-prior-default` S2 it was 0.3764 - M4.4's documentation
-mandate, discharged here in its successor form.
+before `binary-kforest-prior-default` S2 it was 0.3764.
 
 ## bcf as the K = 2 instance
 
@@ -646,11 +648,10 @@ mediation, and the multiplier half of principal stratification with BCF.
 **M4.0, eb340f4f (pins).** Component pins over BOTH `afterCombine` overrides -
 BCF's GIG rescale with its three reachable 1.0 skips inert on the rng stream,
 and the multinomial additive shift with its returns-1.0-having-moved
-convention, whose pin is the SOLE guard on that convention. The review's
-required fix became the slice's lesson: the fixture originally set
-`numTrees = 1` on every forest, collapsing each per-tree factor to 1 and
-leaving four sites undiscriminated, with the reviewer MEASURING a wrong
-implementation staying green. Fixed with unequal per-forest tree counts. ~348
+convention, whose pin is the SOLE guard on that convention. The fixture
+originally set `numTrees = 1` on every forest, collapsing each per-tree factor
+to 1 and leaving four sites undiscriminated, with a wrong implementation
+staying green under it. Fixed with unequal per-forest tree counts. ~348
 dense-equivalent of the TESTS band - the slice added no engine code at all, so
 this figure is not comparable with the engine nets quoted for M4.1-M4.3 below.
 
@@ -659,8 +660,8 @@ this figure is not comparable with the engine nets quoted for M4.1-M4.3 below.
 no K = 2 special case. The defining event was a 12/12 `bcf-equivalence`
 divergence root-caused to FMA CONTRACTION ASSOCIATION, fixed by accumulating
 from the last forest down (see "Bitwise contracts"). Engine +48 net
-dense-equivalent, tests +98. The reviewer's trap note, standing: a perturbed
-install WITHOUT `--preclean` reported bitwise identical, so every re-check must
+dense-equivalent, tests +98. A perturbed
+install WITHOUT `--preclean` once reported bitwise identical, so every re-check must
 `--preclean`. BENCH, on a granted quiet window: B/A per-sweep 1.0098 at
 n = 20000 and 1.0105 at n = 2000, flat across 100x in n - per-element compute
 in the combiner, not bandwidth - and the ~1% BCF-only cost was ACCEPTED as the

@@ -51,7 +51,7 @@ swap at all - `Chain::supportsResponseMutation` ([[chain.hpp#Chain::supportsResp
 the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
 true ([[combiner.hpp#AmplitudeForestCombiner::supportsResponseMutation]]); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
-that no flat conduit can carry, so its refusal names `bartcore_setCounts`
+that no flat conduit can carry, so its refusal names the counts channel
 instead. There is no `family_ == gaussian` conjunct: it was removed when
 `setResponse` began passing `combinedFits()` rather than forest 0's bare
 totals, so a latent family refreshes its latents against the combined location

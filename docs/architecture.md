@@ -50,16 +50,15 @@ construction consumes. `dbarts()` delegates to it, and it is exported as
 produce the same triple through supported surface
 (docs/design/consumer-spec-surface.md).
 
-Non-obvious conventions: `useDynLib(dbarts, .fixes = "C_")` (NAMESPACE)
-means every `.Call` bridge entry point is reached from R as `C_dbarts_*`
-(the engine-facing entries carry a `bartcore_` infix; a handful of
-utility entries - `assignInPlace`, `deepCopy`, `finalize`,
-`guessNumCores`, `makeModelMatrixFromDataFrame` - do not); `dbartsSampler`
+Non-obvious conventions: R reaches the bridge entries as `C_dbarts_*`
+(`C_rbart_fitted` is the one exception, `useDynLib(dbarts, .fixes = "C_")`
+in NAMESPACE); `dbartsSampler`
 is created and held C-side via an
 external pointer stored on the R5 object, targeting a
 `bartcore::SamplerBase`; `src/bartcore/` is header-only and compiles into
-whichever translation unit includes it (the two `R_interface_*` bridges and
-`tests/cpp`), so it is not itself a compiled library - unlike `misc.a`,
+whichever translation unit includes it - the R bridge
+(`src/R_interface_bartcore.cpp`), the C ABI (`src/C_interface.cpp`), and
+`tests/cpp` - so it is not itself a compiled library - unlike `misc.a`,
 which stays a compiled library because its SIMD kernels are compiled
 per-ISA in separate translation units that cannot move into a consumer's
 TU.
@@ -90,9 +89,14 @@ polymorphism costs nothing that matters; see "Model concepts" below.
 
 `src/bartcore/facade.hpp` defines `SamplerBase`, an abstract class exposing
 every operation a host needs (run, the setters, tree/state serialization,
-prediction, queries) and `SamplerFacade<L>`, a `final` class template that
-implements `SamplerBase` by forwarding each call to a `Sampler<L> impl_`.
-This exists because the leaf model is a compile-time parameter: without a
+prediction, queries) and `SamplerFacade<L, ResidT = double>`, a `final`
+class template that implements `SamplerBase` by forwarding each call to a
+`Sampler<L, ResidT> impl_`. The leaf model is the parameter that matters for
+dispatch; `ResidT` is a second compile-time parameter carrying the
+opt-in fp32 residual storage (`options.fp32Residual`, `storage = "single"`),
+which mints exactly one extra instantiation - the gaussian constant leaf
+with `ResidT = float` - alongside the default `double` path every other
+leaf model and family uses. This exists because the leaf model is a compile-time parameter: without a
 type-erasure layer, every caller of the engine (the R bridge, the C ABI,
 `tests/cpp`) would itself need to be templated on `L`. The facade collapses
 that back down to one concrete type the rest of the package can hold a
@@ -100,19 +104,23 @@ pointer to.
 
 Selection of `L` happens exactly once, in the free factory functions at the
 bottom of facade.hpp - `createSampler`, `createSamplerOverStore`,
-`createConstantLeafSampler`, `createAmplitudeSampler` - called from the bridge
-at sampler creation (`src/R_interface_bartcore.cpp`,
-`bartcore::createSampler(...)` and siblings). Every factory that can build a
-variance forest asks one shared predicate, `varianceForestIsRefused`, so the
-two cannot drift: a variance-forest request (`options.numVarianceTrees > 0`)
-is refused under a non-gaussian family, designated leaf covariates, a finite
-`residualDf` (the Student-t augmentation shares the weight channel while
-reporting the gaussian family, so it is its own term rather than a family
-test), or an active monotone constraint. The factories then pick
+`createConstantLeafSampler`, `createAmplitudeSampler`,
+`createMultinomialSampler` - called from the bridge at sampler creation
+(`src/R_interface_bartcore.cpp`, `bartcore::createSampler(...)` and
+siblings). Every factory that can build a variance forest asks one shared
+predicate, `varianceForestIsRefused`, so the two cannot drift: a
+variance-forest request (`options.numVarianceTrees > 0`) is refused under a
+non-gaussian family, designated leaf covariates, a finite `residualDf` (the
+Student-t augmentation shares the weight channel while reporting the
+gaussian family, so it is its own term rather than a family test), or an
+active monotone constraint. `createSampler` picks
 `MonotoneConstantGaussianLeaf` when a monotone constraint is active without
-leaf covariates, `ConstantGaussianLeaf` when no leaf covariates are designated,
-`GPGaussianLeaf` when covariates are designated and `options.gpLeaves` is
-set, otherwise `LinearGaussianLeaf`. Every call
+leaf covariates, `ConstantGaussianLeaf` when no leaf covariates are
+designated, `GPGaussianLeaf` when covariates are designated and
+`options.gpLeaves` is set, otherwise `LinearGaussianLeaf`;
+`createSamplerOverStore` (a store-backed variant used for row-subset views)
+never selects the monotone leaf - it goes straight to `ConstantGaussianLeaf`
+whenever no leaf covariates are designated. Every call
 after construction goes through the chosen `SamplerFacade<L>` and pays one
 virtual hop; nothing re-dispatches on `L` per call, per iteration, or per
 observation.
@@ -154,9 +162,8 @@ requested (`resid.dist`), and the K-forest multinomial model installs
 `MultinomialResponse` through its own construction path rather than the
 enum. When `options.numGroups > 0` the chosen response is
 wrapped in `GroupedResponse`, a decorator that Gibbs-samples per-group
-intercepts into the offset between tree sweeps (the in-core replacement for
-`rbart_vi`'s R-level loop) and forwards everything else to the wrapped
-model. This choice is made once per chain at construction; every chain in a
+intercepts into the offset between tree sweeps and forwards everything
+else to the wrapped model. This choice is made once per chain at construction; every chain in a
 sampler shares the same family.
 
 **Split-variable selection**: `CGMTreePrior` (model.hpp) owns the
@@ -178,11 +185,19 @@ templated on `MoveScorableLeafModel`. `metropolisJumpForTree` (a free
 function in moves.hpp, called from `Chain`) is the per-iteration, per-tree
 entry: it draws a step type
 (`StepType::birth/death/swap/change`) and dispatches to the corresponding
-move function. Every branch score vetoes any branch containing an empty
-leaf (`-HUGE_VAL`, an unconditional rejection, not a hard error -
-docs/design/empty-leaf-veto.md);
-this keeps empty leaves out of the chain state entirely rather than
-tolerating and later collapsing them.
+move function. Every branch's empty-leaf veto is RANKED, not a flat
+`-HUGE_VAL` (`Tree::leafVetoRank`, `moves.hpp#resolveVetoRank`,
+docs/design/empty-leaf-veto.md): rank 2 is a leaf with no member at all,
+rank 1 a leaf whose members all carry zero weight, rank 0 a leaf a
+likelihood term reaches. Comparing a (current, proposal) branch pair, the
+worse-ranked branch takes `-HUGE_VAL` outright; when both ranks are equal
+the comparison runs on the finite log-likelihoods as usual. Only rank 2 is
+absolute - no move may install a leaf with no member, from any state - so a
+chain whose CURRENT branch is rank-1 vetoed (weights installed after the
+tree was grown can strand a leaf this way) still mixes under the prior and
+transition kernel at constant likelihood, rather than freezing. This keeps
+member-empty leaves out of the chain state entirely, while a
+weight-emptied leaf is penalized rather than forbidden.
 
 Rules themselves are typed by column: ordinal rules compare a code against
 a threshold, categorical rules test a bit of a direction mask. Masks up to
@@ -199,9 +214,7 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
 
 - **Codes**: `std::vector<xint_t> codes`, per-column quantized integer codes
   against per-column cut points (ordinal) or the raw category value
-  (categorical). `xint_t` is `std::uint16_t` uniformly - there is no
-  per-column code-width selection (u8 for low-cardinality columns) in the
-  shipped store; every column pays the 16-bit width.
+  (categorical). `xint_t` is `std::uint16_t` for every column.
 - **Column kinds**: `std::vector<ColumnKind> types` marks each column
   `numeric`, `categorical`, or `orderedFactor` (`ColumnKind`, data.hpp). A
   categorical column's raw double IS its integer level index - `codeFor`
@@ -358,8 +371,7 @@ form below:
   `currentSampleNum` (the next saved-tree slot, wrapping circularly) and
   `recordedDraws` (slots written since the last reset, capped at capacity -
   required rather than inferred, since an unwritten slot holds a zero-leaf
-  tree that would read as a legitimate draw); adding `recordedDraws`
-  alongside the existing cursor is what moved `stateFormatVersion` to 3.
+  tree that would read as a legitimate draw). `stateFormatVersion` is 3.
   Restoring a chain rebuilds everything else canonically (partitions from
   tree structure and cut points, `totalFits` by summing tree fits, the
   variance-prior anchor by re-running the same transform construction does)
@@ -369,11 +381,14 @@ form below:
 - **Wire**: what actually leaves the process. `storeState`
   (`src/R_interface_bartcore.cpp`) flattens `SamplerStateData` into a
   struct-of-arrays SEXP that `setState` reads back, one list per chain. Each
-  tree block is four parallel R vectors - `tree.vars` (INTSXP), `tree.values`
+  tree block's core is four parallel R vectors, built by `storeFlatTrees` -
+  `tree.vars` (INTSXP), `tree.values`
   (RAWSXP, 8 bytes per node, so an inline categorical mask's bit pattern
   survives rather than being normalized by a REALSXP), `tree.sizes`
   (per-tree node counts), and `tree.flags` (the missing direction plus the
-  `FlatKind` tag) - built by `storeFlatTrees`.
+  `FlatKind` tag) - plus two optional side channels alongside them,
+  `tree.params` (vector-leaf slopes) and `tree.masks` (the wide-categorical
+  mask pool), present when the fit needs them.
 
 ## RNG architecture
 
@@ -391,11 +406,14 @@ determines them.
 
 After that one-time seeding, sampling itself never advances R's stream -
 `Chain::run` and everything it calls draws exclusively from the chain's own
-`ext_rng*`. The handful of `GetRNGstate()`/`PutRNGstate()` pairs elsewhere in
-the bridge (`R_interface_bartcore.cpp`) bracket unrelated R-stream draws:
-probit latent redraws issued directly from R-level code paths and
-scan-order permutations for the per-observation update session, not the
-per-sweep tree/parameter draws.
+`ext_rng*`. Nine further `GetRNGstate()`/`PutRNGstate()` pairs exist in the
+bridge (`R_interface_bartcore.cpp`): two bracket `bartcore_run`'s own calls
+into `sampler.run(...)`, even though nothing inside `sampler.run` touches
+R's stream; the other seven bracket genuine R-level draws - a probit latent
+redraw, two scan-order permutations for the per-observation update session,
+and four entry points that can run outside a chain's own sweep loop
+(`bartcore_sampleTreesFromPrior`, `bartcore_sampleNodeParametersFromPrior`,
+`bartcore_growFromRoot`, `bartcore_drawLatents`).
 
 ## Threading model
 
@@ -460,21 +478,6 @@ Changes are classified by RNG effect and gated accordingly:
 Any hot-path change, regardless of class, additionally needs
 `benchmarks/R/bench-sampler.R compare` against a saved baseline, run on an
 otherwise idle machine.
-
-Commands:
-
-- Component tests: `cd tests/cpp && make && ./test_bartcore` (the
-  Makefile tracks engine-header dependencies via `-MMD`, so incremental
-  rebuilds are safe).
-- tinytest: `tinytest::test_package("dbarts")` or
-  `tinytest::run_test_file("inst/tinytest/test-bartcore.R")`, against an
-  *installed* package (`R CMD INSTALL .` first; `--preclean` after editing
-  headers, `Makevars.in`, `configure.ac`, or any virtual in
-  `src/bartcore/facade.hpp`).
-- Equivalence: `Rscript benchmarks/R/equivalence.R compare
-  benchmarks/baselines/equivalence-<hash>.rds`.
-- Speed: `Rscript benchmarks/R/bench-sampler.R compare
-  benchmarks/baselines/bench-sampler-<hash>.csv`.
 
 ## Further reading
 

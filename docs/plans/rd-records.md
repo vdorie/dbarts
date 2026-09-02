@@ -2,8 +2,7 @@
 
 Read-only scope. Nine verified items plus a spot-check sweep. For each: file,
 exact current text, proposed replacement (verbatim), risk. CI note per item.
-Status: LANDED 2026-08-26 at 52c10e02 (design record 37ab6ea9; see the landing note); scoped at 9d0ee10f. Revised per an independent blind critique; all 15 adjudications
-below applied - see the per-item notes for what changed and why.
+Status: LANDED 2026-08-26 at 52c10e02 (design record 37ab6ea9; see the landing note); scoped at 9d0ee10f.
 
 ---
 
@@ -308,7 +307,7 @@ shape at all - only behavior. Traced shape rules, all confirmed directly
 against the source (`numSamples` at 5681-5682; multi-location branch
 5715-5730; saved-tree branch 5731-5737; live-tree branch 5738-5744;
 variance-list branch 5759-5772; `refuseEmptyTreeStore`,
-`src/bartcore/data.hpp` area 2877-2883, makes the "at least one recorded
+`src/R_interface_bartcore.cpp` area 2877-2883, makes the "at least one recorded
 draw" gloss below safe - `keepTrees` alone with nothing run yet is refused,
 not answered with an empty result):
 - An amplitude-coupled (multi-forest, including a Bayesian causal forest)

@@ -1338,7 +1338,7 @@ unreachable from every public route since S3). TODO block landed
 with the drift corrections (multiforest-mutation-gaps records the
 flat guards' SL-to-S2 lifetime and S3 retirement; fork 2 recorded
 settled per-sampler; bcf-public-surface pin citation verified to
-:326-327) plus the statesAgree-gap record. Residual coverage: the
+[[docs/plans/bcf-public-surface.md:326-327@4c018187]]) plus the statesAgree-gap record. Residual coverage: the
 CI equivalence net widened - bcf-equivalence and
 multinomial-equivalence jobs added parallel to the gaussian job in
 equivalence.yaml, pinned to the a825263 baselines, compare commands

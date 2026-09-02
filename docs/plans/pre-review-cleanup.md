@@ -36,7 +36,7 @@ no file).
 
 | # | fork | source | ruling | landed at |
 |---|---|---|---|---|
-| 1 | Archive the 118 landed plan docs with no present-facing reader | cruft H1, H3, H4 | YES | be931ec7 |
+| 1 | Archive the 132 landed plan docs with no present-facing reader | cruft H1, H3, H4 | YES | be931ec7 |
 | 2 | `src/misc`'s two thread managers + threaded moment wrappers (~2470 lines, zero callers) | yagni #1 | ARCHIVE (branch `archive/misc-thread-managers` at 3080a9c5), then CUT from bartcore | c0ddd93e |
 | 3 | Dead harness files (#2), the `engine=new` shim (#3), the `AmplitudeSpec` test fixture (#9), `sliceSample`'s `log = FALSE` arm (#10), `unpack`/named `massign` (#11), `SamplerOptions::forestColumns` (#15), `PredictorUpdateResult::unsupportedSource` (#18), `SamplerShape::varianceLeafPrior` (#19) | yagni | YES, cut | c0ddd93e, 89577d7d |
 | 4 | `makeind(x, all = )` - a formal that does nothing, worst of FINISH/CUT/as-is | yagni #12 | KEEP as documented no-op; neither implemented nor dropped this round | (none - residue, sec 6) |
@@ -52,7 +52,7 @@ no file).
 | 14 | Formal heredity (ensemble lattice prior) as an interaction-constraints door | TODO `interaction-constraints`, restated by yagni #? (settled call, not relitigated) | The first post-1.0 arc | (none - already TODO'd; unchanged by this stack) |
 
 Also ruled, as one block rather than one row each: the twelve PRE-REVIEW
-completeness defects (critic-pre-review.md, including the gaussian
+completeness defects (pre-review-critic.md, including the gaussian
 case-weight bug cruft E10 found independently) - FIX ALL NOW, before the
 manual review, not deferred as residue. Landed 74e2e050 (section 3).
 
@@ -63,7 +63,7 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
 | 2518a0b5 | doc-freshness.yaml split out of lint.yaml with no paths-ignore; tools/\*.R .Rbuildignore'd; equivalence.yaml's duplicate BCF/multinomial cross-host jobs dropped (exact-gates.yaml already runs them every push); master -> [main, bartcore] in six workflow files; valgrind.yaml installs survival+posterior; benchmarks/kernels/Makefile gains -MMD -MP dependency tracking; MANIFEST's 7 absent-file baselines annotated `(recording not retained)` | YAML/Makefile/text only, no R or C++ touched; no sampling code, no gate to run beyond the doc-freshness workflow itself firing on the next docs-only push |
 | 6fb008ba | Cut provenance/derivation prose from 8 R files (R/bartcore.R, data.R, dbarts.R, mixedMatrix.R, model.R, sliceSample.R, spec.R, xbart.R), -83 comment lines net across this and 0f5b7b0c, keeping every stated constraint | Comment-only; no code line changed; verified by inspection against cruft A2's five worst-block excerpts, all addressed |
 | 17b971e2 | docs/design/feature-matrix.md's anchors re-derived by content against 3080a9c5 (36 cells) | docs/design is out of this task's scope; landed by the design-side agent inside this stack |
-| 74e2e050 | The twelve critic-pre-review.md defects plus the independently-found gaussian-weight bug (cruft E10/Item 0): n.thin driving printEvery to 0 floored at 1 and dbartsControl's validity refusing printEvery = 0 directly; the extract/plotTree catch-alls fixed to also refuse positional extras; predict's slot-4 offset formal added to bartOrdinal/bartHurdle; fitted's ci.level/sample message now names the moved argument; dbarts_sampler_setVerbose refuses printEvery = 0 instead of dividing by it; enforceBinaryWeightPolicy validates gaussian weights (finite, non-negative) and is now the sole check at every entrance, including the flat dbarts_sampler_setWeights, which previously installed them unchecked; the two cross-host equivalence scripts' skip arm now sets anyFailure; test-plot-generics.R's vacuous plot.bartMultinomial pin replaced with one that fails under the old argument order; six error-style slips fixed; summary's empty-table message interpolates the requested vars; the dead GPGaussianLeaf::maxLeafSize() accessor and the stale sparseFactor.R header comment fixed; two stale doc anchors (docs/design/multinomial-mutation-arc.md, docs/plans/bcf-cross-host.md) corrected; two internal-linkage forwarders marked static | tinytest 7475/0 and tests/cpp all 265 ok (both re-run at the stack tip, section 4); the gaussian-weight fix is exercised by the new refusal, not an equivalence scenario (no scenario supplies a negative gaussian weight) |
+| 74e2e050 | The twelve pre-review-critic.md defects plus the independently-found gaussian-weight bug (cruft E10/Item 0): n.thin driving printEvery to 0 floored at 1 and dbartsControl's validity refusing printEvery = 0 directly; the extract/plotTree catch-alls fixed to also refuse positional extras; predict's slot-4 offset formal added to bartOrdinal/bartHurdle; fitted's ci.level/sample message now names the moved argument; dbarts_sampler_setVerbose refuses printEvery = 0 instead of dividing by it; enforceBinaryWeightPolicy validates gaussian weights (finite, non-negative) and is now the sole check at every entrance, including the flat dbarts_sampler_setWeights, which previously installed them unchecked; the two cross-host equivalence scripts' skip arm now sets anyFailure; test-plot-generics.R's vacuous plot.bartMultinomial pin replaced with one that fails under the old argument order; six error-style slips fixed; summary's empty-table message interpolates the requested vars; the dead GPGaussianLeaf::maxLeafSize() accessor and the stale sparseFactor.R header comment fixed; two stale doc anchors (docs/design/multinomial-mutation-arc.md, docs/plans/bcf-cross-host.md) corrected; two internal-linkage forwarders marked static | tinytest 7475/0 and tests/cpp all 265 ok (both re-run at the stack tip, section 4); the gaussian-weight fix is exercised by the new refusal, not an equivalence scenario (no scenario supplies a negative gaussian weight) |
 | c0ddd93e | -4821 net: src/misc's two thread managers (hierarchicalThreadManager.c, blockingThreadManager.c) and ~1850 lines of threaded moment wrappers in moments.c cut (preserved on branch archive/misc-thread-managers at 3080a9c5); the engine=new shim (bartcore-shim.R, rshim.cpp, the equivalence.R/bench-sampler.R flag); benchmarks/R/linear-leaf-xcheck.R + benchmarks/kernels/linear_leaf.cpp; ordinal-cutpoint-mixing.R, negbin-r-update-mixing.R; R/multipleAssignment.R's unpack; sliceSample.R's log = FALSE arm cut from R/sliceSample.R and pruned from test-slice-sample.R; SamplerOptions::forestColumns removed from chain.hpp/facade.hpp/sampler.hpp; tools/m4/ax_log1p_in_namespace_std.m4 and tools/build-aux/install-sh (0 bytes) deleted; DESCRIPTION's Authors@R credits pruned for code no longer present | tinytest 7475/0 and tests/cpp all 265 ok cover the surviving surface at the stack tip; the deleted tests/cpp instances are accounted for in section 4, not silently lost |
 | 754309f1 | bcf-equivalence.R and multinomial-equivalence.R's ~406 shared lines (drawMatrix, drawSummary, lag1Acf, toleranceRatio, essCompare, nonFiniteParts, and compareCrossHost - the 157-line two-tier gate itself, which differed between the two files by six sprintf column-width characters) collapsed into benchmarks/R/equivalence-common.R, sourced by both; runScenarios and settingsList (each file's own scenario grid) kept separate | Both harnesses' compare mode against their pinned baselines was not re-run in this pass (a >=90-minute gate per file, section 4); the merge touches no line any recorded draw passes through - the shared functions read the .rds, they do not produce it |
 | 0f5b7b0c | Cut provenance/defense prose from the remaining R comment blocks (R/bart.R, diagnostics.R, generics.R, rbart.R, utility.R) | Comment-only |
@@ -102,7 +102,7 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   transactions, 3 with variance partitions to restore)"). The underlying
   rollback mechanism is unchanged; the test's discriminating power over it is
   narrower.
-- **A stale in-test cite, left as residue**: `[[inst/tinytest/test-blocks.R:311-313@c0ddd93e]]`'s
+- **A stale in-test cite, left as residue**: `[[inst/tinytest/test-blocks.R:309-310@c0ddd93e]]`'s
   comment ("the same mechanism and error text as the BCF columnMask refusal
   test in test-interactions.R") points at a test that
   `inst/tinytest/test-interactions.R` no longer carries under that
@@ -110,12 +110,14 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
 - **The kernels header-dependency gotcha is obsolete.** CLAUDE.local.md's
   standing note - "The benchmark kernel shims (benchmarks/kernels) have no
   header dependency tracking - delete their binaries after header edits" - no
-  longer describes the tree: 2518a0b5 added `-MMD -MP` plus an `-include`
-  of the generated `.d` file to benchmarks/kernels/Makefile (matching
-  tests/cpp/Makefile's existing pattern), so a bartcore header edit is now
-  picked up automatically. The note lives outside this task's edit scope
-  (CLAUDE.local.md is untracked); recorded here so the next reader of that
-  file knows the gotcha it names is gone.
+  longer describes the tree, but not for the reason 2518a0b5 first gave: that
+  commit added `-MMD -MP` plus an `-include` of the generated `.d` file to
+  benchmarks/kernels/Makefile, but `c0ddd93e`, two commits later in this same
+  stack, deleted `linear_leaf.cpp` and with it the whole dependency-tracking
+  block. The gotcha is gone because no kernel shim includes an engine header
+  any more, not because header-dependency tracking was added. The note lives
+  outside this task's edit scope (CLAUDE.local.md is untracked); recorded
+  here so the next reader of that file knows the gotcha it names is gone.
 
 ## 5. Open doors
 
@@ -140,14 +142,18 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   re-recorded at 00cfa108 (9227f9be) against the three BCF exact-posterior
   scripts.
 - **The unwired gates yagni #7 lists as FINISH, beyond the three landed in
-  2518a0b5.** `benchmarks/R/backfit-exact.R` is the one `*-exact.R` script
-  omitted from exact-gates.yaml's 20-gate list; `composition-matrix.R` (766
+  2518a0b5.** `composition-matrix.R` (766
   lines, an executable oracle against feature-matrix.md) runs in no
   workflow; `tools/check-doc-freshness.R`'s Part 4 (baseline-hash
-  resolvability) self-skips under CI's shallow checkout; `mutation-battery.R`
-  pins a MANIFEST role=`historical` baseline; `bench-sampler.R`'s `biggrid`
-  is checked before mode dispatch; `sbc.R` accepts 26 `which` values and
-  `sbc.yaml` runs 6. None of these was wired or cut this round.
+  resolvability) self-skips under CI's shallow checkout; `sbc.R` accepts 26 `which` values and
+  `sbc.yaml` runs 6. None of these was wired or cut this round. Two items this
+  bullet once listed have since been fixed by `8741e3cf`, outside this stack:
+  `benchmarks/R/backfit-exact.R` is wired into exact-gates.yaml ([[.github/workflows/exact-gates.yaml:116@297ef69f]];
+  the list now runs 21 scripts, not 20), and `bench-sampler.R`'s `biggrid` is
+  now stripped before mode dispatch ([[benchmarks/R/bench-sampler.R:33-34@297ef69f]]).
+  `mutation-battery.R` pins `equivalence-d4bca4ce.rds`
+  ([[benchmarks/R/mutation-battery.R:41@297ef69f]]), whose MANIFEST role is `current`,
+  not `historical`.
 - **The English word "cutpoint"/"cut points" in prose is kept, deliberately
   narrower than the rename.** 89577d7d's scope was the two colliding
   *identifiers*; ordinary descriptive English (docs, Rd prose, comments using
@@ -170,5 +176,6 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   `setForestPriorScale` pair (yagni #5) were both explicitly KEPT rather than
   silently passed over - see rulings #10-11 for the value claims that held.
 - The tour restructuring (rulings #13) is executed:
-  `docs/plans/bartcore-review-tour.md` is now the 7-section merge document
-  (315 lines, stamped 8e8a63ad).
+  `docs/plans/bartcore-review-tour.md` is now the sectioned merge document
+  (line count and "Current at" stamp both move with every edit; see the file
+  itself rather than a pinned number here).

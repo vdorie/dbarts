@@ -1,6 +1,6 @@
 # Three maintainer decisions - substance
 
-Read-only against bartcore tip 0045507c. Every number is from a tool run in this pass:
+Read-only against bartcore tip 0045507c, 2026-08-24. Every number is from a tool run in this pass:
 file:line from the working tree, probe output from a staged `git archive HEAD` built with
 `R CMD INSTALL --preclean` into a private library. Probes are in `scratchpad/brief/`.
 
@@ -18,7 +18,10 @@ This is the BCF shape: forest 0 prognostic, implicit all-ones basis, one scalar 
 which the variance is a live inverse-gamma auxiliary redrawn after the block
 (`halfCauchyScale`, `[[combiner.hpp:441@0045507c]]`).
 
-THE DIVERGENCE. `drawGlue` (`[[combiner.hpp:986@0045507c]]`) picks between two implementations of the
+THE DIVERGENCE (since fixed: `drawShippedGlue`, `shippedShape()`, `basisIsCanonical`/
+`refreshCanonical` and the `generalAmplitudeDraw` flag were all cut at `00cfa108`; the
+general `drawAmplitudes` path is now the only amplitude draw - see
+pre-review-cleanup.md sec. 5). `drawGlue` (`[[combiner.hpp:986@0045507c]]`) picks between two implementations of the
 same conditional: `drawShippedGlue` (`[[combiner.hpp:1142@0045507c]]`) when `forests.size() == 2 &&
 shippedShape()`, otherwise the general q-variate sweep `drawAmplitudes` (`[[combiner.hpp:1205@0045507c]]`).
 `shippedShape()` (`[[combiner.hpp:1474@0045507c]]`) tests only basis widths and canonicality - it never reads the
@@ -92,7 +95,9 @@ check: `[[chain.hpp:3301@658869ac]]` (setState's live variance trees) and `[[cha
 buffer). The warm-start install has two arms and only one checks: the slot-sourced arm at
 `[[sampler.hpp:919-923@658869ac]]` applies the law with a comment naming exactly why ("the buffer is
 hand-buildable and a rebuild scatters the leaf straight into a divisor"); the live-sourced
-arm at `[[sampler.hpp:891@658869ac]]` is a bare `dst.varianceTrees = src.varianceTrees;` with nothing.
+arm at `[[sampler.hpp:891@658869ac]]` is a bare `dst.varianceTrees = src.varianceTrees;` with nothing
+(since fixed: [[src/bartcore/sampler.hpp:1099-1102@297ef69f]] now follows that assignment with
+`if (!scaleLeavesArePositive(dst.varianceTrees)) return WarmStartResult::varianceMismatch;`).
 Neither donor parser checks either (`[[R_interface_bartcore.cpp:7237-7251@658869ac]]`).
 
 WHAT A USER CAN DO. The review recorded this as "reachable from a .Call with a hand-built
@@ -136,7 +141,9 @@ WHAT THE TWO ROUTINES DO. They are the two phases of a whole-data replacement.
 CURRENT fits and partitions, before the store moves. `applyNewData` (`[[chain.hpp:2448@658869ac]]`)
 then swaps the response, resizes the per-observation storage, remaps split indices onto
 the rebuilt cut grid, and collapses whatever is left invalid. Both open with
-`Forest<L, ResidT>& forest = forests_[0];` (`[[chain.hpp:2421@658869ac]]`, `[[chain.hpp:2453@658869ac]]`) where the siblings around
+`Forest<L, ResidT>& forest = forests_[0];` (`[[chain.hpp:2421@658869ac]]`, `[[chain.hpp:2453@658869ac]]`; since fixed:
+[[src/bartcore/chain.hpp:2419@297ef69f]] and [[src/bartcore/chain.hpp:2453@297ef69f]] now open `assert(forests_.size() == 1);` before that
+line - recommendation (b) below has landed) where the siblings around
 them loop - `repartitionTrees` (`[[chain.hpp:2320@658869ac]]`), `revalidateTrees` (`[[chain.hpp:2269@658869ac]]`),
 `rebuildFitsFromParameters` (`[[chain.hpp:2328@658869ac]]`), `dropStaleMissingDirections` (`[[chain.hpp:2526@658869ac]]`),
 `forceRefreshTrees` (`[[chain.hpp:2540@658869ac]]`). On a K-forest chain, forests 1..K-1 would keep fits against
@@ -179,7 +186,8 @@ options the slice moves no draws, needs no re-record, and need not land last.
 
 ## DECISION 2 - the docs/ citation policy for shipped comments
 
-THE COUNT, at the tip. 316 lines under `R/`, `src/`, `inst/`, `man/` cite a `docs/` path,
+THE COUNT, at the tip (a snapshot: the citations were stripped after this record; at
+297ef69f `grep -rn 'docs/design\|docs/plans' R/ src/ inst/ man/` finds 0). 316 lines under `R/`, `src/`, `inst/`, `man/` cite a `docs/` path,
 across 80 files. Split: `R/` 109 (13 files), `src/` 151 (`src/bartcore` 102 in 11 files,
 top-level `src/*.cpp|hpp` 42, `src/include` 3, `src/misc` 1), `inst/include` 2,
 `inst/tinytest` 54 (46 files), `man/` 0. The review's "262 tree-wide" is exactly
@@ -237,8 +245,8 @@ That is a ~26-line deletion in one file, no draws, no tests.
 
 ## DECISION 3 - restore xbart's k-grid sort?
 
-WHAT 0.9-34 DID. `git show main:[[R/xbart.R:67-69@658869ac]]` computes `kOrder <- order(k, decreasing =
-TRUE)`, its inverse, and sorts `k` before the `.Call`; `[[R/xbart.R:127-132@658869ac]]` un-permutes the result
+WHAT 0.9-34 DID. `git show main:R/xbart.R` (main branch, not bartcore) computes `kOrder <- order(k, decreasing =
+TRUE)`, its inverse, and sorts `k` before the `.Call`; main's `R/xbart.R` lines 127-132 un-permute the result
 array and `k` afterwards, so the reported array is in the user's order. WHAT THE TIP DOES:
 `[[R/xbart.R:424-428@658869ac]]` builds `cells <- expand.grid(iBase, iPower, iK, iTrees)` and sweeps in
 that order; `[[R/xbart.R:689@658869ac]]` gives the first cell of each tree count a fresh sampler burned

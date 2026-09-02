@@ -80,6 +80,11 @@ mechanism against regularization-induced confounding.
 
 ## Per-forest defaults
 
+This section is the 2026-07-07 proposal's recommendation, not a statement of
+shipped defaults: every declared forest defaults to `n.trees = 50L`, `base =
+0.25`, `power = 3` ([[R/model.R#forestParams]]), not the bcf-scale counts and
+tree priors below.
+
 BCF calibrates the forests differently; the note adopts its conventions, since
 bartCause expects bcf-like behavior:
 
@@ -290,8 +295,9 @@ s the sd(y) magnitude in internal units.
 - Both forests fix k = 1; the map overrides the host model's node prior
   and k for mu, since the adaptive magnitude lives entirely in the glue.
 
-The R wrapper exposes sd.control and sd.moderate (the two magnitudes in
-sd(y) units) and converts internally; a NULL sd.control takes the family
+The internal `bartcoreBCFSampler` wrapper exposes sd.control and sd.moderate
+(the two magnitudes in sd(y) units) and converts internally; the public
+`forest()` spelling of both is `sd`. A NULL sd.control takes the family
 default above, and sd.moderate's 1 is the K-aware default's own K = 2
 value, sqrt(2/2), so this two-forest spelling states it as the literal it
 has always been. benchmarks/R/bcf-exact.R
@@ -382,11 +388,11 @@ whose `dbarts_results` has no such field, keeps the single prognostic slab it
 always got. `$getForestVariableCounts` is unchanged and is the live-state read
 the channel's last kept draw agrees with.
 
-Two corrections to this document as originally written: **"C exposure stays
-internal first"** (Mutation surface, above) was accurate then; S3 made it
-public. **"bartCause is the intended consumer, driving from R over the
-sampler mutation API"** (opening paragraph) overstated the mechanism -
-bartCause never calls a mutation method. Verified by grep at bartCause
+**"C exposure stays internal first"** (Mutation surface, above) was accurate
+when written; S3 made it public. **"bartCause is the intended consumer,
+driving from R over the sampler mutation API"** (opening paragraph)
+overstated the mechanism - bartCause never calls a mutation method. Verified
+by grep at bartCause
 dbarts-1.0@695c603 (no `LinkingTo`, no `src/`): every sibling in its
 response-method switch (bartCause's `R/bartc.R` - `bart`, `p.weight`, `tmle`, and
 the still-commented `bcf`) dispatches to a FIT FUNCTION (`getBartResponseFit`
@@ -404,7 +410,7 @@ arrive in bartCause the same way, through a `bcf()` fit function.
 `$setForestBasis(forest, basis)` and `$getBCFGlue` became
 `$getForestAmplitudes()`. The S1/S2 mechanism above survived the re-skinning
 unchanged, which is what let M2 gate itself bitwise against the internal
-constructor: a `forests =` fit resolves to exactly the `data@treatment` plus
+constructor: a `forests =` fit resolves to exactly the `data@bases` plus
 `attr(control, "bartcore.forests")` the removed arguments resolved to, with the
 factor basis expanded to its level indicators in R so the bridge sees what it
 always saw.

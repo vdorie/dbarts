@@ -1,7 +1,6 @@
 # dbarts.h shape freeze: the last breaking-if-deferred items
 
-Status: LANDED 2026-08-26 at 9df0cb50 (design record 37ab6ea9; see the landing note). Read at bartcore 9d0ee10f; revised after an independent blind
-critique (two blocking defects, several citation corrections, all folded). One
+Status: LANDED 2026-08-26 at 9df0cb50 (design record 37ab6ea9; see the landing note). Read at bartcore 9d0ee10f. One
 slice, one hash re-bake, one lockstep consumer rebuild - the shape of
 docs/plans/dbarts-h-freeze.md (D3/D4), which this continues and does not reopen.
 
@@ -76,7 +75,7 @@ FLAT-UNREACHABLE means exactly this: the capability arm of
 !supportsResponseMutation` ([[src/R_interface_bartcore.cpp:2641-2642@9d0ee10f]]), and the only
 combiner answering false is `MultinomialForestCombiner` (default
 [[src/bartcore/combiner.hpp:693@9d0ee10f]], overridden true for `AmplitudeForestCombiner` at
-:1059), which has no flat creation path ([[src/C_interface.cpp:304-330@9d0ee10f]]). The BCF
+[[src/bartcore/combiner.hpp:1059@9d0ee10f]]), which has no flat creation path ([[src/C_interface.cpp:304-330@9d0ee10f]]). The BCF
 legs confirm it empirically: `LEG_RESPONSE_PINNED`, `LEG_OFFSET_PINNED` and
 `LEG_WEIGHTS` all ACCEPT ([[inst/tinytest/capi/consumer.c:1231@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1237@9d0ee10f]], [[inst/tinytest/capi/consumer.c:1243@9d0ee10f]]). So
 `setResponse` and `setOffset` gain a 0 arm no sampler this header can build will
@@ -252,7 +251,7 @@ Fortran routine, so it has no business setting it.
 
 REMEDY: delete [[CAPI:95-97@9d0ee10f]] (the `<Rversion.h>` include and the `R_VERSION`-gated
 `#define`) and [[CAPI:107@9d0ee10f]] (the `#undef`) outright. The `R_NO_REMAP` dance at
-:98-106 and its comment stay untouched. Hash-invisible.
+[[CAPI:98-106@9d0ee10f]] and its comment stay untouched. Hash-invisible.
 
 In-repo verification that nothing relies on dbarts.h supplying the define: only
 two TUs under `src/` include `<dbarts/dbarts.h>` ([[src/R_interface.cpp:17@9d0ee10f]],
@@ -315,7 +314,7 @@ version constant increments before 1.0-0). Ten `DBARTS_C_API_LIST` entries:
 ```
 
 The readable prototypes at [[CAPI:807@9d0ee10f]], [[CAPI:815@9d0ee10f]], [[CAPI:826@9d0ee10f]], [[CAPI:839@9d0ee10f]], [[CAPI:905@9d0ee10f]], [[CAPI:910@9d0ee10f]], [[CAPI:933@9d0ee10f]], [[CAPI:964@9d0ee10f]], [[CAPI:974@9d0ee10f]],
-:1075 follow, each with its own doc gaining one sentence naming its return class
+[[CAPI:1075@9d0ee10f]] follow, each with its own doc gaining one sentence naming its return class
 and, for the capability seven, what its 0 means. `printTrees` stays `void`: it
 refuses only on out-of-range indices and the empty store, both recoverable.
 
@@ -426,8 +425,8 @@ gotcha.
 Live-literal pin sites, complete: [[CAPI:166@9d0ee10f]]; [[src/C_interface.cpp:523@9d0ee10f]];
 [[inst/tinytest/test-capi.R:87@9d0ee10f]]; [[docs/design/threaded-predict.md:111@9d0ee10f]] (signature
 token) and [[docs/design/threaded-predict.md:112@9d0ee10f]] (ABI hash). Add the outgoing `"0x0939c0224353505b"` to
-test-capi.R's stale-token block at [[docs/design/threaded-predict.md:73-84@9d0ee10f]] - FIVE `expect_false` lines, [[docs/design/threaded-predict.md:73@9d0ee10f]], [[docs/design/threaded-predict.md:74@9d0ee10f]],
-:78, [[docs/design/threaded-predict.md:81@9d0ee10f]], [[docs/design/threaded-predict.md:84@9d0ee10f]] - and set [[docs/design/threaded-predict.md:87@9d0ee10f]] to the new literal.
+test-capi.R's stale-token block at [[inst/tinytest/test-capi.R:73-84@9d0ee10f]] - FIVE `expect_false` lines, [[inst/tinytest/test-capi.R:73@9d0ee10f]], [[inst/tinytest/test-capi.R:74@9d0ee10f]],
+[[inst/tinytest/test-capi.R:78@9d0ee10f]], [[inst/tinytest/test-capi.R:81@9d0ee10f]], [[inst/tinytest/test-capi.R:84@9d0ee10f]] - and set [[inst/tinytest/test-capi.R:87@9d0ee10f]] to the new literal.
 `expect_equal(versions, c(1L, 0L))` is unchanged.
 
 [[docs/plans/dbarts-h-freeze.md:188@9d0ee10f]] records the transition `0x66d33f1613892406 ->
@@ -462,11 +461,11 @@ by omission.
   discriminating half of the split.
 
 `inst/tinytest/test-capi.R`, expectation flips (each currently `expect_error`):
-:467 setSigma on probit -> `0L`; [[test-capi.R:480@9d0ee10f]] setWeights on probit -> `0L`; [[test-capi.R:517@9d0ee10f]]
+[[test-capi.R:467@9d0ee10f]] setSigma on probit -> `0L`; [[test-capi.R:480@9d0ee10f]] setWeights on probit -> `0L`; [[test-capi.R:517@9d0ee10f]]
 setWeights on nbinom -> `0L`. New: setSigma on the heteroscedastic sampler built
 at [[test-capi.R:222-228@9d0ee10f]] -> `0L`. Unchanged, and named in the file as the half that proves the
 gate discriminates: [[test-capi.R:512@9d0ee10f]] setResponse over the count bound still raises; [[test-capi.R:1703@9d0ee10f]] and
-:1707 logistic fractional/zero counts still raise; the `updateScale` refusals
+[[test-capi.R:1707@9d0ee10f]] logistic fractional/zero counts still raise; the `updateScale` refusals
 still raise. [[test-capi.R:1409@9d0ee10f]] `capi_set_active_rows(ptrMaskA, rep(0.5, n))` changes from
 `expect_equal(..., 0L)` to `expect_error(..., "exactly 0 or 1")`; [[test-capi.R:1407@9d0ee10f]] and [[test-capi.R:1410@9d0ee10f]]
 are unchanged. Plus the hash pins of section 9.
@@ -612,9 +611,10 @@ file, which would produce two line maps neither of which is true.
   forest other than 0 is reachable only from the flat API.
 - The flat `printEvery` entry still does not guard 0 (carried from the freeze).
 - `setActiveRows` scans its mask twice after this slice, entry and engine.
-- Pre-existing stale anchor found in passing: [[docs/design/feature-matrix.md:437@be7af096]]
-  cites [[test-capi.R:1286-1319@be7af096]] for the active-rows block, which lives at
-  [[test-capi.R:1392-1433@be7af096]]. The fix rides this slice's anchor pass.
+- [[docs/design/feature-matrix.md:437@be7af096]]
+  cited [[test-capi.R:1286-1319@be7af096]] for the active-rows block, which
+  lives at [[test-capi.R:1392-1433@be7af096]]. The fix rode this slice's
+  anchor pass.
 
 ## 14. Doors
 
@@ -634,8 +634,14 @@ file, which would produce two line maps neither of which is true.
 ## 15. Open decisions (VD)
 
 1. Item 1 scope: seven entries (recommended) or the five named in the brief.
-2. Item 4: rename (recommended) or transpose the contract.
+   Decided: seven (C) - section 1's table ships `setTestOffset` and `predict`
+   alongside the five, both LIVE.
+2. Item 4: rename (recommended) or transpose the contract. Decided: rename
+   (B) - `dbarts_sampler_setForestBasis`'s parameter is `basisRowMajor`
+   ([[CAPI#dbarts_sampler_setForestBasis, basisRowMajor]]).
 3. Item 2: move `forest` (recommended) or state the rule and leave the order.
+   Decided: move (B) - `dbarts_sampler_getTrees` and `dbarts_sampler_printTrees`
+   both take `forest` as argument 2 ([[CAPI#dbarts_sampler_getTrees]]).
 
 ## Landing note (2026-08-26)
 

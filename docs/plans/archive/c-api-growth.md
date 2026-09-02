@@ -105,7 +105,7 @@ ABI wall is only the public `dbarts_results`.
 
 Entry points register two ways in src/R_interface.cpp: the `.Call` table
 (R-facing `bartcore_*`) and the CCallable table (dbarts.h symbols, resolved
-by consumers through `R_GetCCallable`). `dbarts_sampler_run` is at
+by consumers through `R_GetCCallable`). None of the three `R_interface.cpp` locations below could be placed at this sha - the file is only 300 lines there. `dbarts_sampler_run` is at
 unresolved: [[R_interface.cpp:301@5eae79d3]]; the CCallable block runs unresolved: [[R_interface.cpp:295-345@5eae79d3]], registered in
 `R_init_dbarts` unresolved: [[R_interface.cpp:349-357@5eae79d3]]. `DBARTS_C_API_VERSION` is 1 ([[dbarts.h:48@00e68586]]), returned
 by `dbarts_apiVersion()` ([[C_interface.cpp:43@00e68586]]); the header instructs consumers
@@ -371,7 +371,7 @@ rule that keeps the relaxation safe.
 static const int minReadableStateFormatVersion = 3;
 ```
 Replace the two `!= stateFormatVersion` gates (setState [[R_interface_bartcore.cpp:2959@5eae79d3]], installForests
-:3337) with `< minReadableStateFormatVersion`, keeping the packageVersion in
+unresolved: [[R_interface_bartcore.cpp:3337@5eae79d3]] - location not placeable at this sha) with `< minReadableStateFormatVersion`, keeping the packageVersion in
 the message:
 ```cpp
 if (formatVersion < minReadableStateFormatVersion)
@@ -528,8 +528,8 @@ forest-blind, ambiguous on a two-forest sampler (bcf-public-surface.md S3,
 "Coordination with the queued dbarts.h reshape"; that section also named
 `setTreeStorage`, whose forest-indexed form the reshape plan CLOSED BY FACT -
 storage is per sampler). `dbarts-h-reshape.md` S1 item 3 built the three
-forest-indexed tree queries (`getTrees` [[C_interface.cpp:640-658@5eae79d3]], `printTrees`
-:660-690, `numTrees` [[C_interface.cpp:734-741@5eae79d3]]), each carrying its own bridge range check;
+forest-indexed tree queries (`getTrees` [[C_interface.cpp:810@5eae79d3]], `printTrees`
+[[C_interface.cpp:830@5eae79d3]], `numTrees` [[C_interface.cpp:906@5eae79d3]]), each carrying its own bridge range check;
 forest-indexed `predict` stays a recorded door there, unbuilt.
 That plan's S1 item 5b's carve-out RESOLVED unconditionally (fork 3 answered
 2026-08-11, multiforest-extension-surface.md): `setTreatment`/`bcfGlue`

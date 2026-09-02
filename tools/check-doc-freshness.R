@@ -368,7 +368,17 @@ RESIDUE_PATH_RE <- paste0(
   "(?:[A-Za-z0-9_.+-]+/)*[A-Za-z0-9_+-]+\\.[A-Za-z]{1,4}:[0-9]+"
 )
 RESIDUE_ALIAS_RE <- "\\b(?:RIB|CAPI|MOD|CH|FAC|COM|MOV|SAM|TODO):[0-9]+"
-RESIDUE_BARE_RE <- "(?<=[\\s`(|/,]):[0-9]{2,}"
+# A wrapped citation can leave a bare ":NNN" as the very first thing on a
+# line, with no delimiter before it for the lookbehind to see. Match that
+# case too, but not a history-form ":NNN@sha" (wrapped or not - the sha
+# tail means a path is missing, not that the whole cite is bare) and not a
+# timestamp, which never starts a line at the colon itself. The digit and
+# range groups are possessive so a wrapped ":NNN-MMM@sha" tail cannot
+# satisfy the negative lookahead by backtracking off the end of the range.
+RESIDUE_BARE_RE <- paste0(
+  "(?:^|(?<=[\\s`(|/,])):[0-9]{2,}+(?:-[0-9]++)?+",
+  "(?!@[0-9a-fA-F]{8,})"
+)
 RESIDUE_PAREN_RE <- paste0(
   "((?:[A-Za-z0-9_.+-]+/)*[A-Za-z0-9_+-]+\\.[A-Za-z]{1,4}) ",
   "\\(([A-Za-z_.][A-Za-z0-9_.$]*(?:::[A-Za-z0-9_]+)*(?:\\(\\))?)\\)"

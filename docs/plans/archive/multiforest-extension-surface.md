@@ -603,7 +603,7 @@ re-bake:
 numForestAmplitudes(forest) x numChains; `1 = accepted, 0 = refused` (the house
 convention). A raw pointer plus a count, never a struct, because the FNV-1a
 token hashes signatures and is blind to struct layout
-(`unresolved: [[dbarts-h-reshape.md:198-207@4c018187]]`, measured). **Ownership is COPY**, matching the
+(location not placeable at this sha - unresolved: [[dbarts-h-reshape.md:198-207@4c018187]] - measured). **Ownership is COPY**, matching the
 shipped `setTreatment` ("setTreatment copies the 0/1 values it is handed",
 `[[dbarts.h:43@4c018187]]`) and the bridge's `ownedForestWeights` pattern, and it must be
 stated in the Doxygen: a continuous basis cannot be coerced-and-copied
@@ -2196,8 +2196,8 @@ in FA1 and FA5 below ARE the record.
   `[[chain.hpp:1018-1020@4c018187]]` -> `[[chain.hpp:1021-1023@4c018187]]`; the bridge's length-8 check #2
   `[[chain.hpp:2913-2914@4c018187]]` -> `[[chain.hpp:2915-2916@4c018187]]`; its cross-check `[[chain.hpp:2831-2836@4c018187]]` -> `[[chain.hpp:2833-2838@4c018187]]`;
   `amplitudes[3]` `[[chain.hpp:3673@4c018187]]` -> `[[chain.hpp:3675@4c018187]]` and the stride-3 alloc `[[chain.hpp:3769-3772@4c018187]]` ->
-  `[[chain.hpp:3771-3774@4c018187]]`; the state write `[[src/R_interface_bartcore.cpp:5812-5818@c85d6db6]]` -> `unresolved: [[chain.hpp:5814-5820@4c018187]]` and read
-  `[[src/R_interface_bartcore.cpp:6163-6167@c85d6db6]]` -> `unresolved: [[chain.hpp:6165-6169@4c018187]]`; `R/spec.R`'s control attribute `[[chain.hpp:466-486@4c018187]]` ->
+  `[[chain.hpp:3771-3774@4c018187]]`; the state write `[[src/R_interface_bartcore.cpp:5812-5818@c85d6db6]]` -> unresolved: [[src/R_interface_bartcore.cpp:5814-5820@4c018187]] and read
+  `[[src/R_interface_bartcore.cpp:6163-6167@c85d6db6]]` -> unresolved: [[src/R_interface_bartcore.cpp:6165-6169@4c018187]] (neither new-side line could be re-derived); `R/spec.R`'s control attribute `[[chain.hpp:466-486@4c018187]]` ->
   `[[chain.hpp:467-483@4c018187]]`. UNCHANGED **AT e7708b7c, WHICH IS ALL THIS LIST EVER CLAIMED** -
   M4.3 and M4.5 have landed since and moved several R-side entries (`R/data.R`'s
   `validateTreatment` is GONE outright), so read it as a stamp and not as
@@ -3383,7 +3383,7 @@ in FA1 and FA5 below ARE the record.
     `[[.github/workflows/equivalence.yaml:48@4c018187]]`) - the AUTHORITATIVE ledger, with a `current`/`historical` role
     column and a per-baseline narrative entry recording scenario counts, the
     neutrality partition and the superseding hash, in the format the existing
-    entries set; (3) `[[TODO:258@4c018187]]`, `unresolved: [[TODO:387@4c018187]]`, `unresolved: [[TODO:389@4c018187]]`; (4)
+    entries set; (3) `[[TODO:258@4c018187]]`, two more not placeable at this sha, TODO is only 329 lines there (unresolved: [[TODO:387@4c018187]], unresolved: [[TODO:389@4c018187]]); (4)
     `[[docs/design/feature-matrix.md:627-628@4c018187]]` (`[f39]`, "Current baselines"),
     plus `[[docs/design/feature-matrix.md:308@4c018187]]`, `[[docs/design/feature-matrix.md:441@4c018187]]`, `[[docs/design/feature-matrix.md:507@4c018187]]`, `[[docs/design/feature-matrix.md:755@4c018187]]`. **The same MANIFEST obligation
     attaches to F4's own stated payoff** - adding a probit `bcf-equivalence`

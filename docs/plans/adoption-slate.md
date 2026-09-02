@@ -1,8 +1,7 @@
 # adoption-slate
 
-Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2 LANDED da3c76f9,
-  S3-S8 pending;
-  landing notes at EOF). Two blind critique rounds and one
+Status: LANDED (S1-S8, ARC COMPLETE), 2026-08-15 (landing notes at EOF).
+  Two blind critique rounds and one
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
   adoptions resolved under the delegated grant; see "Decisions". Design evidence is GIT-IGNORED session material

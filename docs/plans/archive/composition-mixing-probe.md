@@ -978,7 +978,8 @@ placeholders and `check_sampler_diagnostics` is a documented no-op
 ### Reused from the grow-from-root harness
 
 The prior harness is **gitignored,
-so recoverable on this machine but not from git**;
+so recoverable on this machine but not from git** - which is why every
+`common.R` location below could not be placed at any candidate commit;
 `grow-from-root-default.md` sec 8 is correct that the supported path is
 reconstruction from the pre-registration. Read and confirmed portable:
 `friedman()` (`unresolved: [[common.R:56@4c018187]]`), the S5 / S6 constructors (`cells.R`),

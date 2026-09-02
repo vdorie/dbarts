@@ -1183,7 +1183,7 @@ The mutations each assertion catches, and the one it cannot:
 - **F6 (S1).** A flat-C caller with a PRE-S1 `structSize` - set to
   `offsetof(dbarts_forest_calibration, amplitudePriorVariance)`, the S1
   boundary, in a NEW `inst/tinytest/capi/consumer.c` leg beside the existing
-  pre-`leafModel` one at `unresolved: [[test-bcf-family.R:807@4c018187]]` - still reads the EIGHT original fields and
+  pre-`leafModel` one at [[inst/tinytest/capi/consumer.c:924-931@4c018187]] - still reads the EIGHT original fields and
   leaves the five new buffers untouched (poison them and assert they survive,
   as the existing leg does). `DBARTS_HAS_FIELD`'s contract, asserted rather
   than assumed.
@@ -1418,7 +1418,7 @@ routes now reach, verified by opening both traces.
 and keeping the exact-set form; `inst/tinytest/capi/consumer.c` plus
 `test-capi.R` are S1 item 6, with F6 restated to name the S1 boundary
 (`offsetof(..., amplitudePriorVariance)`) rather than the existing
-pre-`leafModel` leg at `unresolved: [[inst/tinytest/test-calibration-midchain.R:807@4c018187]]`. Both are listed in "Shipped-surface deltas" as
+pre-`leafModel` leg at [[inst/tinytest/capi/consumer.c:924-931@4c018187]]. Both are listed in "Shipped-surface deltas" as
 mandatory same-commit edits.
 
 **m1 (latent basis-free params all-ones) - ADOPTED.** The gaussian arm of the
@@ -1682,11 +1682,11 @@ two NaN columns and the non-computable anchor); F8(b) cleared on ANY
 install, the bitwise comparison dropped -> [[test-forest-basis-r5.R:468@4c018187]], [[test-forest-basis-r5.R:469@4c018187]] (forest 1's
 columns surviving a foreign install) and [[test-forest-basis-r5.R:508@4c018187]], [[test-forest-basis-r5.R:509@4c018187]], [[test-forest-basis-r5.R:511-518@4c018187]] (the
 self-restore arm) move; F8(c) setForestBasis's re-imposition removed ->
-:484, [[test-forest-basis-r5.R:485@4c018187]], [[test-forest-basis-r5.R:487-494@4c018187]] move; F8(d) adoptInstalledAmplitudePriors made a
+[[test-forest-basis-r5.R:484@4c018187]], [[test-forest-basis-r5.R:485@4c018187]], [[test-forest-basis-r5.R:487-494@4c018187]] move; F8(d) adoptInstalledAmplitudePriors made a
 no-op -> [[test-forest-basis-r5.R:475@4c018187]] moves, the donor's 0.125 read back as the recipient's
 0.5. F6 in two arms, since its two halves fail differently: (i)
 DBARTS_HAS_FIELD's >= weakened to > inside the calibration FILL ->
-test-capi unresolved: [[test-forest-basis-r5.R:963-965@4c018187]], unresolved: [[test-forest-basis-r5.R:1001@4c018187]] and the flat-C BCF leg at unresolved: [[test-forest-basis-r5.R:1123-1125@4c018187]] move;
+test-capi.R's own three sites - none placeable at this sha (unresolved: [[inst/tinytest/test-capi.R:963-965@4c018187]], unresolved: [[inst/tinytest/test-capi.R:1001@4c018187]] and the flat-C BCF leg, unresolved: [[inst/tinytest/test-capi.R:1123-1125@4c018187]]) - move;
 (ii) the size guard dropped from the five appended FILLs -> the
 poisoned pointers are dereferenced and R aborts (SIGSEGV, exit 139) at
 the omitting-caller leg. No arm stayed green.

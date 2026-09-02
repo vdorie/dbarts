@@ -275,7 +275,7 @@ ordinal/nbinom; and `resolveSamplerSpec`'s `matchedCall` is `dbarts()`'s
 **A standalone helper called at the six family-resolution sites**, keyed on the
 `matchedCall` snapshot at [[R/bart.R:655@4c018187]]. The snapshot precedes every family
 branch and the standard path; bart2's two `matchedCall` mutations ([[R/bart.R:724-738@4c018187]],
-:2025/[[R/bart.R:2033@4c018187]]) happen after it; and d1/S3's forwarding changes what bart2
+unresolved: [[R/bart.R:2025@4c018187]]/unresolved: [[R/bart.R:2033@4c018187]] - neither location could be placed at this sha) happen after it; and d1/S3's forwarding changes what bart2
 INSTALLS, never `matchedCall`. So S2 and S3 are independent.
 
 | path | site | family known as |
@@ -764,7 +764,7 @@ Why it matters (MEASURED(tip)): today
 tr)))` is refused - `length of 'basis' must equal length of 'y'` - because the
 basis is evaluated against the pre-subset `data` while the model frame owns row
 selection on the formula branch ([[R/data.R:895@4c018187]] validates without a subset;
-:977 and [[R/data.R:1043@4c018187]] are the two x/y sites that do pass one). Terms sidestep the
+unresolved: [[R/data.R:977@4c018187]] (location not placeable at this sha) and [[R/data.R:1043@4c018187]] are the two x/y sites that do pass one). Terms sidestep the
 ambiguity the recorded door names.
 
 **Extraction is an AST WALK over the formula, not `terms(specials =)`** (VD:
@@ -1176,7 +1176,7 @@ than reopened.
 ### 6.2 xbart
 
 [[R/xbart.R:23-24@4c018187]], [[R/xbart.R:36-47@4c018187]], [[R/xbart.R:49-57@4c018187]], [[R/xbart.R:71-72@4c018187]], [[R/xbart.R:93-95@4c018187]], [[R/xbart.R:138-141@4c018187]], [[R/xbart.R:168-173@4c018187]],
-:190-209; [[man/xbart.Rd:86-90@4c018187]]. bartCause's `R/bayesOpt.R` lines 30-47 becomes a DROP
+[[R/xbart.R:190-209@4c018187]]; [[man/xbart.Rd:86-90@4c018187]]. bartCause's `R/bayesOpt.R` lines 30-47 becomes a DROP
 filter (`keepTrainingFits`, `keepTrees`, `updateState`, `printEvery`,
 `printCutoffs` have no xbart formal and xbart has no dots); bartCause's `R/bayesOpt.R` lines 22, 27, and 28
 survive. Zero CRAN xbart consumers; `iiasa/ibis.iSDM` (non-CRAN) breaks loudly
@@ -1253,7 +1253,7 @@ Every slice is independently gateable and draw-neutrality-classified.
 **The equivalence harness cannot prove neutrality for most of these slices**:
 `benchmarks/R/equivalence.R` has zero `xbart` occurrences and reaches `bart2`
 only from the four alternate-family scenarios (calls at [[benchmarks/R/equivalence.R:1118@4c018187]], [[benchmarks/R/equivalence.R:1147@4c018187]], [[benchmarks/R/equivalence.R:1177@4c018187]],
-:1039 - anchor corrected from rev 4's scenario-definition lines).
+[[benchmarks/R/equivalence.R:1039@4c018187]] - anchor corrected from rev 4's scenario-definition lines).
 
 **The in-slice A/B pattern**, used wherever harness coverage is absent: a probe
 script fits a fixed matrix of configurations at pinned seeds on the PRE-slice

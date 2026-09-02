@@ -3,19 +3,18 @@
 Status: LANDED 2026-08-25 at 6446ddce (design record f162d075).
 
 Spec: docs/plans/prerc-surface-freeze.md D3, D4, Sequencing. TODO `dbarts-h-freeze-fixes` and `stub-version-check` are ONE slice - one hash re-bake, one lockstep consumer
-rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8, A9, A10, re-anchored live. Revised 2026-08-25 after an independent critique and two orchestrator rulings under the standing grant
-(sections 2, 6). No sampling code moves; zero baseline re-records expected.
+rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8, A9, A10, re-anchored live. No sampling code moves; zero baseline re-records expected.
 
 ## 1. The family enum
 
-Taken from code. Create ([[dbarts.h:421-423@f162d075]], [[dbarts.h:706-707@f162d075]] -> `resolveFamily`, [[src/R_interface_bartcore.cpp:1580-1618@f162d075]]): `""` (dispatch on the response shape), `"gaussian"`,
-`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` ([[src/R_interface_bartcore.cpp:641@f162d075]]) and `dbarts_workingResponse` ([[src/R_interface_bartcore.cpp:542-546@f162d075]]) -> the augmentation
+Taken from code. Create ([[dbarts.h:417-419@f162d075]], [[dbarts.h:702-703@f162d075]] -> `resolveFamily`, [[src/R_interface_bartcore.cpp:1580-1618@f162d075]]): `""` (dispatch on the response shape), `"gaussian"`,
+`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` ([[dbarts.h:535-541@f162d075]]) and `dbarts_workingResponse` ([[dbarts.h:542-546@f162d075]]) -> the augmentation
 laws (`AugmentationLaw`, src/R_interface_bartcore_common.hpp): `"probit"`, `"logistic"`, `"ordinal"`, `"aft"`, `"nbinom"`, `"student"`; `""` and `"gaussian"` are REFUSED there, and
 `"student"` names a law no `ResponseFamily` value carries - a Student-t sampler's family IS gaussian - so it needs its own enumerator. Engine `ResponseFamily` has six values
 ([[src/bartcore/model.hpp:2580@f162d075]]) and `SamplerShape::family` ([[src/bartcore/facade.hpp:76@f162d075]]) is not total: multinomial pins `logistic` ([[src/bartcore/sampler.hpp:221@f162d075]]), Student-t
 reports `gaussian` ([[facade.hpp:104-107@f162d075]]), heteroscedastic reports `gaussian` + `hasVarianceForest`. R's other tokens are not sampler families - `hazard*` remaps
 pre-creation ([[R/dbarts.R:538@f162d075]]), `twopart` aliases `hurdle.lognormal` ([[R/dbarts.R:409@f162d075]]), which composes TWO samplers ([[R/dbarts.R:442-452@f162d075]]), heteroscedastic is a variance forest on gaussian
-([[R/A_class.R:453-462@f162d075]]) - so `multinomial` is the only engine family flat create cannot reach. Add between the leaf-model list and `#undef DBARTS_ENUMERATOR`
+(the `variance` slot resolution, not the family whitelist) - so `multinomial` is the only engine family flat create cannot reach. Add between the leaf-model list and `#undef DBARTS_ENUMERATOR`
 ([[dbarts.h:326-332@f162d075]]); that `#undef` MUST move below the new list.
 
     #define DBARTS_FAMILY_LIST(X) \
@@ -34,18 +33,18 @@ Prefix follows `DBARTS_COLUMN_*`/`DBARTS_LEAF_*`. Order: 0 = AUTO (what `""` mea
 mapping switch reads down it, 7-8 are the two it lacks; values explicit, never renumbered, since they fold. Carried as `int`, the rule that no enum is ever a field or
 parameter type holding: `dbarts_sampler_create(SEXP, SEXP, SEXP, int family)`, `dbarts_drawLatents(int family, ...)`, `dbarts_workingResponse(int family, ...)`, plus a
 new entry appended LAST in `DBARTS_C_API_LIST` (48 after, 47 today) - `X(int, dbarts_sampler_family, (const dbarts_sampler* sampler), (sampler))`, prototype beside
-`kIsSampled`/`usesDart` ([[dbarts.h:980-981@f162d075]]), returned by value and so carrying no `get` (section 2). Admission is narrower per entry, every refusal naming entry and family: create
+`kIsSampled`/`usesDart` ([[dbarts.h:976-977@f162d075]]), returned by value and so carrying no `get` (section 2). Admission is narrower per entry, every refusal naming entry and family: create
 takes AUTO, GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL, NBINOM and refuses STUDENT, MULTINOMIAL and anything outside [0, 8]; drawLatents/workingResponse take PROBIT,
 LOGISTIC, ORDINAL, AFT, NBINOM, STUDENT and refuse AUTO, GAUSSIAN, MULTINOMIAL (today's behaviour). Implement as two int -> family mappings in src/C_interface.cpp beside
-`dbarts_sampler_create` ([[dbarts.h:478-484@f162d075]]) and `augmentationArguments` ([[src/C_interface.cpp:1086@f162d075]]); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
+`dbarts_sampler_create` ([[src/C_interface.cpp:478-484@f162d075]]) and `augmentationArguments` ([[src/C_interface.cpp:1086@f162d075]]); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
 ([[R/dbarts.R:926@f162d075]], [[R/dbarts.R:1832@f162d075]] call `C_dbarts_bartcore_create`), so nothing below C_interface.cpp changes. `dbarts_sampler_family` is total over what the engine builds:
 `shape().supportsCountsMutation` -> MULTINOMIAL ([[facade.hpp:110-114@f162d075]]; dead until multinomial creation opens, the point being the ENUMERATOR existing pre-freeze), else
-`shape().family` one-to-one. Never AUTO (creation resolved it), never STUDENT (a Student-t sampler's family IS gaussian - [[facade.hpp:107@f162d075]], [[dbarts.h:790-793@f162d075]]). Hash:
+`shape().family` one-to-one. Never AUTO (creation resolved it), never STUDENT (a Student-t sampler's family IS gaussian - [[facade.hpp:107@f162d075]], [[dbarts.h:788-789@f162d075]]). Hash:
 enumerator names AND values fold ([[src/C_interface.cpp:442@f162d075]], [[src/C_interface.cpp:455-457@f162d075]]), so add `hash = dbarts_fnv1a(hash, DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR_TEXT));` to
 `dbarts_apiToken()` ([[src/C_interface.cpp:453-459@f162d075]]) after [[src/C_interface.cpp:456@f162d075]]'s leaf-model fold, without which the enum is invisible to the token. No R twin: `model` is a public R5 field ([[R/dbarts.R:894@f162d075]])
 holding a `dbartsModel` whose `@family` slot carries the token ([[R/A_class.R:400@f162d075]], [[R/A_class.R:414@f162d075]]), so `sampler$model@family` is the read; residue, recorded not fixed, a hand-built
 model can read `"auto"` where the engine resolved a family. Doc rewrites, all in enum terms: [[dbarts.h:654-663@f162d075]] (create's family paragraph); [[dbarts.h:124@f162d075]] "the two ABI enums'" and
-:245 "Both ABI enums" become three; [[dbarts.h:1123-1124@f162d075]] and [[dbarts.h:1152-1156@f162d075]] name enumerators where they now spell quoted family strings. [[dbarts.h:774-775@f162d075]]'s "test the family before
+[[dbarts.h:245@f162d075]] "Both ABI enums" become three; [[dbarts.h:1123-1124@f162d075]] and [[dbarts.h:1152-1156@f162d075]] name enumerators where they now spell quoted family strings. [[dbarts.h:774-775@f162d075]]'s "test the family before
 calling" clause becomes "- read dbarts_sampler_family before calling on a sampler whose family the caller did not choose. A heteroscedastic sampler is flat-creatable (its
 variance forest rides a control attribute), answers DBARTS_FAMILY_GAUSSIAN, and is still refused here, so the accessor does not by itself predict this refusal."
 [[man/dbartsSpec.Rd:43@f162d075]], which documents `family` as the token for create's fourth argument and describes the empty string, names the `dbarts_family` enumerator instead,
@@ -58,16 +57,16 @@ carries `get`, while a scalar property returned by value (`numTrees`, `numForest
 and the R5 surface already carries `get` on every reader ([[R/dbarts.R:1663@f162d075]], 1681, 1691, 1707, 1730, 1932), so `get` is ADDED, not dropped. Four renames, old -> new
 (dbarts.h list / prototype; C_interface.cpp definition; R5 twin):
 
-- `dbarts_sampler_forestFits` -> `dbarts_sampler_getForestFits` ([[R/dbarts.R:512-514@f162d075]] / [[R/dbarts.R:1011@f162d075]]; [[R/dbarts.R:954@f162d075]]; `$getForestFits`, [[R/dbarts.R:1691@f162d075]])
-- `dbarts_sampler_forestAmplitudes` -> `dbarts_sampler_getForestAmplitudes` ([[R/dbarts.R:517-519@f162d075]] / [[R/dbarts.R:1030@f162d075]]; [[R/dbarts.R:975@f162d075]]; `$getForestAmplitudes`, [[R/dbarts.R:1707@f162d075]])
-- `dbarts_sampler_dispersion` -> `dbarts_sampler_getDispersion` ([[R/dbarts.R:533-534@f162d075]] / [[R/dbarts.R:800@f162d075]]; [[R/dbarts.R:655@f162d075]]; `$getDispersion`, [[R/dbarts.R:1681@f162d075]])
-- `dbarts_sampler_forestCalibration` -> `dbarts_sampler_getForestCalibration` ([[R/dbarts.R:524-527@f162d075]] / [[R/dbarts.R:1083@f162d075]]; [[R/dbarts.R:1015@f162d075]] plus the entry-naming error string at [[R/dbarts.R:1019@f162d075]]; `$getCalibration`,
+- `dbarts_sampler_forestFits` -> `dbarts_sampler_getForestFits` ([[inst/include/dbarts/dbarts.h:512-514@f162d075]] / [[inst/include/dbarts/dbarts.h:1011@f162d075]]; [[src/C_interface.cpp:954@f162d075]]; `$getForestFits`, [[R/dbarts.R:1691@f162d075]])
+- `dbarts_sampler_forestAmplitudes` -> `dbarts_sampler_getForestAmplitudes` ([[inst/include/dbarts/dbarts.h:517-519@f162d075]] / [[inst/include/dbarts/dbarts.h:1030@f162d075]]; [[src/C_interface.cpp:975@f162d075]]; `$getForestAmplitudes`, [[R/dbarts.R:1707@f162d075]])
+- `dbarts_sampler_dispersion` -> `dbarts_sampler_getDispersion` ([[inst/include/dbarts/dbarts.h:533-534@f162d075]] / [[inst/include/dbarts/dbarts.h:800@f162d075]]; [[src/C_interface.cpp:655@f162d075]]; `$getDispersion`, [[R/dbarts.R:1681@f162d075]])
+- `dbarts_sampler_forestCalibration` -> `dbarts_sampler_getForestCalibration` ([[inst/include/dbarts/dbarts.h:524-527@f162d075]] / [[inst/include/dbarts/dbarts.h:1083@f162d075]]; [[src/C_interface.cpp:1015@f162d075]] plus the entry-naming error string at [[src/C_interface.cpp:1019@f162d075]]; `$getCalibration`,
   [[R/dbarts.R:1730@f162d075]]). The `Forest` stem stays: the struct is `dbarts_forest_calibration`.
 
-`getLatents` ([[R/dbarts.R:443-444@f162d075]] / [[R/dbarts.R:790@f162d075]]) and `getTrees` ([[R/dbarts.R:467-473@f162d075]] / [[R/dbarts.R:901@f162d075]]) already comply. `dbarts_sampler_storeState` STAYS: its twin is `$storeState` ([[R/dbarts.R:1882@f162d075]]), the
+`getLatents` ([[inst/include/dbarts/dbarts.h:443-444@f162d075]] / [[inst/include/dbarts/dbarts.h:790@f162d075]]) and `getTrees` ([[inst/include/dbarts/dbarts.h:467-473@f162d075]] / [[inst/include/dbarts/dbarts.h:901@f162d075]]) already comply. `dbarts_sampler_storeState` STAYS: its twin is `$storeState` ([[R/dbarts.R:1882@f162d075]]), the
 store/set pair's own verb, not a `get` reader. Other sites: registration and the binding asserts are X-macro expansions needing NO edit ([[src/R_interface.cpp:272-278@f162d075]],
 [[src/C_interface.cpp:1169-1172@f162d075]]); no Rd site, man/ never naming a flat entry; [[inst/NEWS.Rd:971@f162d075]], [[inst/NEWS.Rd:973@f162d075]], [[inst/NEWS.Rd:998@f162d075]], [[inst/NEWS.Rd:1003@f162d075]]; [[inst/tinytest/capi/consumer.c:612@f162d075]], [[inst/tinytest/capi/consumer.c:909@f162d075]], [[inst/tinytest/capi/consumer.c:993@f162d075]], [[inst/tinytest/capi/consumer.c:1036@f162d075]],
-:1264, [[inst/tinytest/capi/consumer.c:1274-1276@f162d075]], [[inst/tinytest/capi/consumer.c:1287-1290@f162d075]], [[inst/tinytest/capi/consumer.c:1321@f162d075]], [[inst/tinytest/capi/consumer.c:1329@f162d075]], [[inst/tinytest/capi/consumer.c:1341@f162d075]] (the leg LABEL strings at [[inst/tinytest/capi/consumer.c:1092-1093@f162d075]], [[inst/tinytest/capi/consumer.c:1096@f162d075]] name channels, not entries - leave them). No consumer repo calls any of the
+[[inst/tinytest/capi/consumer.c:1264@f162d075]], [[inst/tinytest/capi/consumer.c:1274-1276@f162d075]], [[inst/tinytest/capi/consumer.c:1287-1290@f162d075]], [[inst/tinytest/capi/consumer.c:1321@f162d075]], [[inst/tinytest/capi/consumer.c:1329@f162d075]], [[inst/tinytest/capi/consumer.c:1341@f162d075]] (the leg LABEL strings at [[inst/tinytest/capi/consumer.c:1092-1093@f162d075]], [[inst/tinytest/capi/consumer.c:1096@f162d075]] name channels, not entries - leave them). No consumer repo calls any of the
 four.
 
 ## 3. Signature and type fixes
@@ -79,12 +78,12 @@ saved on `options_.keepTrees` ([[src/bartcore/sampler.hpp:1301-1334@f162d075]]),
 ([[src/bartcore/facade.hpp:321-327@f162d075]], [[src/bartcore/facade.hpp:604-613@f162d075]]) and change [[sampler.hpp:1312@f162d075]] to `if (useLiveTrees || !options_.keepTrees)`. The R bridge ([[src/R_interface_bartcore.cpp:6095@f162d075]]) passes `false`, so
 `$printTrees` is unchanged. A facade virtual moves: `--preclean` MANDATORY. `const int*` -> `const int32_t*`, one spelling per role - index and enum arrays `int32_t`,
 boolean flags `int`: [[dbarts.h:295@f162d075]] `cscColumnPointers` and [[dbarts.h:296@f162d075]] `cscRowIndices` (siblings at [[dbarts.h:298-302@f162d075]] are already `int32_t*`), with locals [[src/C_interface.cpp:134-135@f162d075]]
-following, and [[src/C_interface.cpp:353@f162d075]] `leafModel` `int*` -> `int32_t*` (the ABI's other enum-carrying array, `columnTypes`, is `int32_t*`) while `kHasHyperprior` ([[src/C_interface.cpp:349@f162d075]]) is a FLAG and stays
+following, and [[dbarts.h:353@f162d075]] `leafModel` `int*` -> `int32_t*` (the ABI's other enum-carrying array, `columnTypes`, is `int32_t*`) while `kHasHyperprior` ([[dbarts.h:349@f162d075]]) is a FLAG and stays
 `int*`; consumer cast [[consumer.c:972@f162d075]] `(int*)` -> `(int32_t*)`. All are hash-INVISIBLE (same width, offset, name - [[dbarts.h:132-135@f162d075]]), which is why they land pre-freeze.
 `bartcore::PredictorSource` ([[src/bartcore/data.hpp:188-189@f162d075]]) stays `const int*` (`int32_t` is `int` on every supported platform), so [[C_interface.cpp:212-213@f162d075]] compiles
 unchanged. `printEvery` `uint32_t` -> `size_t`: [[dbarts.h:489@f162d075]] (list), [[dbarts.h:959-960@f162d075]] (prototype), [[src/C_interface.cpp:885-888@f162d075]], widening the engine with it -
 [[src/bartcore/facade.hpp:313@f162d075]], [[src/bartcore/facade.hpp:591@f162d075]]; [[sampler.hpp:1211@f162d075]]; [[chain.hpp:212@f162d075]] (the `SamplerOptions` field), [[chain.hpp:1717@f162d075]]. R side unchanged: `ParsedControl`
-([[src/R_interface_bartcore.cpp:181@f162d075]], [[src/R_interface_bartcore.cpp:435@f162d075]]) stays `uint32_t` and widens on assignment ([[src/R_interface_bartcore.cpp:1846@f162d075]], [[src/R_interface_bartcore.cpp:4920@f162d075]]). This DOES move the hash (parameter types stringize -
+([[src/R_interface_bartcore.cpp:178@f162d075]], [[src/R_interface_bartcore.cpp:435@f162d075]]) stays `uint32_t` and widens on assignment ([[src/R_interface_bartcore.cpp:1846@f162d075]], [[src/R_interface_bartcore.cpp:4920@f162d075]]). This DOES move the hash (parameter types stringize -
 [[src/C_interface.cpp:450-451@f162d075]], [[dbarts.h:551@f162d075]]). Out of scope: the flat entry does not guard `printEvery == 0` ([[chain.hpp:1393@f162d075]] divides by it); the `>= 1` floor is the C++
 bridge's slot read ([[src/R_interface_bartcore.cpp:431-433@f162d075]]), and [[R/bart.R:811@f162d075]], [[R/rbart.R:100@f162d075]] compute `printEvery %/% n.thin`, which can reach 0 there.
 
@@ -112,7 +111,7 @@ resolve them raw through `R_GetCCallable` as the current one resolves `dbarts_ap
     }
 
 Rename the call at [[dbarts.h:614@f162d075]]. Wrap [[dbarts.h:114-115@f162d075]] in `#ifndef DBARTS_C_API_MAJOR`/`#ifndef DBARTS_C_API_MINOR` on the hash's own pattern ([[dbarts.h:152-154@f162d075]]), carrying the sentence at
-:150-151, so the handshake is testable. Header doc rewrites: [[dbarts.h:29-33@f162d075]] (the stubs enforce the two-component handshake, the hash is opt-in), [[dbarts.h:137-151@f162d075]], [[dbarts.h:563-571@f162d075]], [[dbarts.h:643-651@f162d075]] ("A
+[[dbarts.h:150-151@f162d075]], so the handshake is testable. Header doc rewrites: [[dbarts.h:29-33@f162d075]] (the stubs enforce the two-component handshake, the hash is opt-in), [[dbarts.h:137-151@f162d075]], [[dbarts.h:563-571@f162d075]], [[dbarts.h:643-651@f162d075]] ("A
 DBARTS_USE_STUBS consumer does not call it" -> "...unless it defines DBARTS_REQUIRE_EXACT_ABI"). Consumer docs: [[man/dbarts-package.Rd:43@f162d075]] and [[inst/NEWS.Rd:566-567@f162d075]] ("as an
 exact signature check") -> "as an opt-in exact-ABI check, which moves on additive releases as well"; [[inst/NEWS.Rd:994-995@f162d075]] ("an exact signature-lockstep check") -> "an
 opt-in exact-ABI lockstep check". Leave [[inst/NEWS.Rd:1020@f162d075]] (accurate as written).
@@ -124,9 +123,9 @@ combined assert is [[src/C_interface.cpp:465-470@f162d075]]. `DBARTS_C_API_MAJOR
 so derive both by temporarily adding, after `dbarts_apiToken()` ([[C_interface.cpp:459@f162d075]]), `template <std::uint64_t> struct DbartsShowToken;` and
 `DbartsShowToken<dbarts_apiSignatureToken> a; DbartsShowToken<dbarts_apiToken()> b;`; the compile diagnostic names both in decimal, convert with `printf '0x%016xULL\n'
 <decimal>` (NOT `%016llx`: zsh's builtin and /usr/bin/printf both reject it), bake, remove the probe. Pin: add the outgoing `"0x66d33f1613892406"` to test-capi.R's
-`expect_false` block ([[C_interface.cpp:73-81@f162d075]]), a comment naming what moved, and set [[C_interface.cpp:84@f162d075]] to the new literal; [[C_interface.cpp:90@f162d075]]'s `expect_equal(versions, c(1L, 0L))` is unchanged. The outgoing literal
-also appears at [[docs/design/threaded-predict.md:112@f162d075]], whose sentence says it is what [[dbarts.h:153@f162d075]] bakes LIVE - update that one. [[dbarts.h:274@f162d075]] records what the threaded-predict arc
-itself re-signed to and stays, as do [[docs/design/multinomial-mutation-arc.md:334@f162d075]], [[docs/design/multinomial-mutation-arc.md:350@f162d075]], in its sections 1-4, declared at :6-8 to be the pre-arc proposal and "not
+`expect_false` block ([[inst/tinytest/test-capi.R:73-81@f162d075]]), a comment naming what moved, and set [[inst/tinytest/test-capi.R:84@f162d075]] to the new literal; [[inst/tinytest/test-capi.R:90@f162d075]]'s `expect_equal(versions, c(1L, 0L))` is unchanged. The outgoing literal
+also appears at [[docs/design/threaded-predict.md:112@f162d075]], whose sentence says it is what [[dbarts.h:153@f162d075]] bakes LIVE - update that one. [[docs/design/threaded-predict.md:274@f162d075]] records what the threaded-predict arc
+itself re-signed to and stays, as do [[docs/design/multinomial-mutation-arc.md:334@f162d075]], [[docs/design/multinomial-mutation-arc.md:350@f162d075]], in its sections 1-4, declared at [[docs/design/multinomial-mutation-arc.md:6-8@f162d075]] to be the pre-arc proposal and "not
 statements about the live code"; the docs/plans mentions are not anchor-checked, leave them.
 
 ## 6. Consumer migration (lockstep, after dbarts installs clean)
@@ -138,7 +137,7 @@ DBARTS_C_API_HASH` clauses. Add to the dbarts RELEASE procedure entry in TODO: "
 `DBARTS_FAMILY_AUTO`, `"gaussian"` -> `DBARTS_FAMILY_GAUSSIAN`, probit/logistic/aft/ordinal/nbinom to theirs. stan4bart's `src/init.cpp` lines 151-152 returns whatever string sits on the attribute, and
 `dbartsModel@family` admits 8 tokens including `"multinomial"` ([[R/A_class.R:453-462@f162d075]]), so the default branch MUST `Rf_error` naming the token, never fall through to AUTO.
 Its call sites ([[R/A_class.R:197-199@f162d075]], [[R/A_class.R:366-367@f162d075]]) need no text change. (2) stan4bart's `src/init.cpp` line 432 `dbarts_sampler_printTrees`: insert `0` for `useLiveTrees` before the trailing `0` forest;
-:495-497 already passes `useLiveTrees` to `getTrees`. (3) stan4bart's `src/init.cpp` lines 971-972: drop the hash clause and the stale comment at stan4bart's `src/init.cpp` lines 966-970 scheduling its removal. (4)
+stan4bart's `src/init.cpp` lines 495-497 already pass `useLiveTrees` to `getTrees`. (3) stan4bart's `src/init.cpp` lines 971-972: drop the hash clause and the stale comment at stan4bart's `src/init.cpp` lines 966-970 scheduling its removal. (4)
 `-DDBARTS_REQUIRE_EXACT_ABI` appended to `PKG_CPPFLAGS` in BOTH stan4bart's `src/Makevars.in` line 1 and stan4bart's `src/Makevars.win` line 1. No `printEvery` edit - the `100` literals at stan4bart's `src/Makevars.win` lines 200 and 368 widen;
 no `dbarts_results` edit (stan4bart's `src/bart_util.hpp` lines 27 and 47); no renamed reader called. treatSens, in a private worktree on branch
 `dbarts-1.0`, 11 entries, 4 edits: treatSens's `src/bartTreatmentModel.cpp` line 62 `"probit"` -> `DBARTS_FAMILY_PROBIT`; treatSens's `src/sensitivityAnalysis.cpp` line 259 `""` -> `DBARTS_FAMILY_AUTO`;
@@ -149,17 +148,17 @@ then `tinytest::test_package("stan4bart")` and treatSens `testthat::test_local()
 
 ## 7. Tests, NEWS and re-anchoring inside dbarts
 
-consumer.c: `capi_create` (treatSens's `src/sensitivityAnalysis.cpp` lines 130-139) takes the enum through a static string -> enum table, so test-capi.R's 46 `capi_create` call sites keep their string arguments; add
-`capi_create_raw_family(control, model, data, familyInt)` passing an unmapped `int` for the refusal probes; the same table serves `capi_draw_latents` (treatSens's `src/sensitivityAnalysis.cpp` lines 623-636) and
-`capi_working_response` (treatSens's `src/sensitivityAnalysis.cpp` lines 638-648), whose 3 call sites keep their strings; add `capi_family_constants()` (named integer vector of all nine) and
-`capi_sampler_family(ptr)`; `capi_print_trees` (treatSens's `src/sensitivityAnalysis.cpp` lines 471-479) gains `useLiveTrees`; apply the four renames and the `(int32_t*)` cast at treatSens's `src/sensitivityAnalysis.cpp` line 972. tests/cpp: the facade
+consumer.c: `capi_create` (`inst/tinytest/capi/consumer.c` lines 130-139) takes the enum through a static string -> enum table, so test-capi.R's 46 `capi_create` call sites keep their string arguments; add
+`capi_create_raw_family(control, model, data, familyInt)` passing an unmapped `int` for the refusal probes; the same table serves `capi_draw_latents` (`inst/tinytest/capi/consumer.c` lines 623-636) and
+`capi_working_response` (`inst/tinytest/capi/consumer.c` lines 638-648), whose 3 call sites keep their strings; add `capi_family_constants()` (named integer vector of all nine) and
+`capi_sampler_family(ptr)`; `capi_print_trees` (`inst/tinytest/capi/consumer.c` lines 471-479) gains `useLiveTrees`; apply the four renames and the `(int32_t*)` cast at `inst/tinytest/capi/consumer.c` line 972. tests/cpp: the facade
 `printTrees` virtual gains a parameter, so [[test_facade.cpp:184-188@f162d075]] (its `SPY_VOID` declaration) takes it while [[test_facade.cpp:496@f162d075]] and [[test_sampler.cpp:6345@f162d075]] (direct
 calls) pass `false`; separately [[test_facade.cpp:179@f162d075]]'s `SPY_VOID(setVerbose, (bool v, std::uint32_t e), (v, e))` must widen `e` to `std::size_t` or the spy stays abstract.
 test-capi.R additions. Enum round trip: `capi_family_constants()` equals 0:8 in header order, and `capi_sampler_family()` gives the matching enumerator on the gaussian,
-probit, logistic, ordinal, nbinom and aft samplers the file already builds, with `resid.dist = student()` gaussian and the heteroscedastic sampler at [[test_facade.cpp:222-228@f162d075]] both
+probit, logistic, ordinal, nbinom and aft samplers the file already builds, with `resid.dist = student()` gaussian and the heteroscedastic sampler at [[inst/tinytest/test-capi.R:222-228@f162d075]] both
 GAUSSIAN. Refusals: `capi_create_raw_family(..., 999L)` and `..., -1L` on the range, `..., 7L` and `..., 8L` naming the family, `capi_draw_latents` at AUTO and at
 GAUSSIAN by name. `useLiveTrees`: on a `keepTrees` sampler TRUE and FALSE both print and differ; with storage on and nothing recorded TRUE prints while FALSE raises the
-empty-store refusal ([[test_facade.cpp:598-620@f162d075]] is the model). D3 probes are built by REWRITING the existing stale-token block at [[inst/tinytest/test-capi.R:1710-1759@f162d075]], NOT from the [[inst/tinytest/test-capi.R:29-56@f162d075]]
+empty-store refusal (location not re-derived - no such block exists at this sha). D3 probes are built by REWRITING the existing stale-token block at [[inst/tinytest/test-capi.R:1710-1759@f162d075]], NOT from the [[inst/tinytest/test-capi.R:29-56@f162d075]]
 harness: that block compiles the consumer with `-DDBARTS_C_API_HASH=0x0123456789abcdefULL` alone ([[inst/tinytest/test-capi.R:1721@f162d075]]) and expects "dbarts C ABI mismatch", which D3 makes pass
 silently. Rewrite it into four arms, each with its own temp dir and object name (the loader caches by path) and the block's CI guard (`stop` under CI, else skip): (a)
 that flag alone, now expecting NO error - the half proving the gate discriminates; (b) it plus `-DDBARTS_REQUIRE_EXACT_ABI` at [[inst/tinytest/test-capi.R:1721@f162d075]], expecting "dbarts C ABI mismatch";
@@ -185,7 +184,7 @@ LANDED 6446ddce (design record f162d075): TODO `dbarts-h-freeze-fixes` and `stub
 enum (AUTO..MULTINOMIAL = 0..8) on create/drawLatents/workingResponse plus a `dbarts_sampler_family` accessor; four get renames (getForestFits,
 getForestAmplitudes, getDispersion, getForestCalibration); `int32_t` on cscColumnPointers/cscRowIndices/leafModel; `printEvery` widened to `size_t` end to
 end; `printTrees` gains `useLiveTrees`; stubs check major == and minor >=, hash equality now opt-in behind `DBARTS_REQUIRE_EXACT_ABI`. `DBARTS_C_API_HASH`
-0x66d33f1613892406 -> 0x0939c0224353505b; entries 47 -> 48.
+0x66d33f1613892406 -> 0x0939c0224353505b at this landing (re-baked since; not the live constant); entries 47 -> 48.
 
 Rulings (orchestrator discretion, standing grant): forestCalibration folds into the get form (an entry mirrors its R5 twin; out-pointer readers carry get,
 storeState stays); consumers keep lockstep via `DBARTS_REQUIRE_EXACT_ABI`, dropped at the coordinated 1.0 merge.

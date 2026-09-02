@@ -145,7 +145,7 @@ measurement required to choose restore-vs-delete; maintainer-run.
    NOT recommended without an explicit VD decision.
 
 ### #C  Cut-scan histogram  (unresolved: [[scan.hpp:61-144@4a521760]], histogramDenseCutScan + scanOrdinalCuts)
-1. The scatter-reduce histogram: gather code=column[indices[i]] then SCATTER a
+1. This location could not be placed at this sha. The scatter-reduce histogram: gather code=column[indices[i]] then SCATTER a
    (count,sumW,sumWz) double triple into bins[code]; then a small prefix scan.
 2. Frequency: **COLD in the default sampler.** Only caller is growTreeFromRoot
    ([[grow.hpp:118@4a521760]]), i.e. the OPT-IN grow-from-root WARM START

@@ -1,5 +1,13 @@
 # Consolidated report - second whole-branch review, bartcore @ b102e17c
 
+This is a snapshot of the second whole-branch review's findings as they
+stood at b102e17c, 2026-08-24. Its numbered findings (B1-B8, M1-M13) were
+fixed by 297ef69f, except one minor: `setForestBasis` on an amplitude-free
+sampler still raises "forest index out of range" (`R/dbarts.R`). The
+remaining confirmed MAJORS and MINORS beyond that numbered subset are
+dispositioned in `docs/plans/release-candidate-review.md`'s landing notes,
+which record where each finding was resolved.
+
 Consolidator pass, 2026-08-24. Read-only against the checkout. Every behavioral claim was re-run by THIS
 pass against its own private library (`git archive HEAD` -> `R CMD INSTALL --preclean -l <d>/lib`, dbarts
 1.0.0) and, for C++ items, its own `tests/cpp` build in a staged copy. Baselines first: the full 167-file

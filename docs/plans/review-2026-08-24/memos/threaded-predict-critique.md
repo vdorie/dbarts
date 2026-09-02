@@ -175,7 +175,8 @@ list.** [[R/generics.R:207-300@f04e8686]]: `type == "forest"` returns through `p
 through `predictBlend` at [[R/generics.R:672@f04e8686]], both BEFORE `n.threads <- as.integer(n.threads)[1L]` at [[R/generics.R:294@f04e8686]]. Putting the
 house-pattern validation at [[R/generics.R:294@f04e8686]] leaves the amplitude family's n.threads unvalidated. And predictBlend ([[R/generics.R:727-738@f04e8686]]) is
 how a BCF fit's PLAIN predict reaches the replay - it calls `predictForest(object, newdata, NULL, TRUE, NULL)` at
-:738. The memo lists predictForest but not predictBlend. Amendment: move the validation above both early returns; give
+a line whose location could not be placed at this sha - `predictBlend` does not exist in
+R/generics.R at f04e8686 (unresolved: [[R/generics.R:738@f04e8686]]). The memo lists predictForest but not predictBlend. Amendment: move the validation above both early returns; give
 predictBlend the formal and forward it.
 
 ## E. Measurement
@@ -214,8 +215,8 @@ one-time output write with a streamed working set. Keep the scaling curve as the
 
 **26. Decision 2 (control@n.threads as predict's R default). REFUTED.** Both supporting facts are false (14, 15), so
 the argument has nothing under it. Substantive case for 1L: predict is routinely called on small newdata, and
-partialDependence calls `sampler$predict(x.test)` per grid level with NO n.threads ([[R/partialDependence.R:242@f04e8686]], [[R/partialDependence.R:244@f04e8686]],
-:346, [[R/partialDependence.R:363@f04e8686]], [[R/partialDependence.R:365@f04e8686]]), taking the R5 default silently once per level; the fit-time budget was sized for CHAIN parallelism
+partialDependence calls `sampler$predict(x.test)` per grid level with NO n.threads ([[R/partialDependence.R:340@f04e8686]], [[R/partialDependence.R:357@f04e8686]],
+[[R/partialDependence.R:359@f04e8686]]), taking the R5 default silently once per level; the fit-time budget was sized for CHAIN parallelism
 (the memo says so in 4.3); the house rule is "safe over fast in R". Recommend `n.threads = 1L` for 1.0-0, revisited in
 S2 against a real curve. If control@n.threads is kept, the memo must state that examples and tests are the exposure
 and that no check tooling will catch it.

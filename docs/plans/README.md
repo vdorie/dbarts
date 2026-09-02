@@ -12,9 +12,9 @@ One file per TODO item, `<item>.md`. A small decision-gated stub
 targets roughly 80 lines; a landed or multi-slice item's file commonly
 runs to several hundred lines (occasionally thousands) once Landing
 notes, amendments, and session logs accumulate - there is no enforced
-cap on the final file. Front block:
+cap on the final file. Front block, should carry:
 `agent:`, `rng:`, `window:` (if any), `budget:` (expected diff size).
-Sections:
+Sections, should carry:
 
 - Goal: two or three sentences; what is true after the item lands.
 - Context: durable references (a code symbol name, a doc section title
@@ -112,7 +112,7 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 
 ## Landing
 
-Append the plan's `## Landing` note, and bump the matching
+Append the plan's `## Landing` (or `## Landing note`) note, and bump the matching
 `docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`. The
 design Status line is the record most often missed; check it
 explicitly at every landing.

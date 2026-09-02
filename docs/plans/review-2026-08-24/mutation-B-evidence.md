@@ -5,7 +5,8 @@
 Probe: a 7th ResponseFamily enumerator in a staged copy; tests/cpp rebuilt and
 R_interface_bartcore.cpp compiled -fsyntax-only, -Wall -Wextra.  Exactly THREE
 sites warned (-Wswitch): [[chain.hpp:582@658869ac]] (single-forest response factory),
-R_interface:2268 (refusedAmplitudeFamilyReason), unresolved: [[chain.hpp:6181@658869ac]] (drawAugmentationLaws).
+R_interface:2268 (refusedAmplitudeFamilyReason), and a third,
+[[src/R_interface_bartcore.cpp:6244@658869ac]] (`drawAugmentationLaws`).
 Four `default:` ladders stayed silent, plus one open-coded chain no -Wswitch
 can reach.  (Only two of the four are in src/bartcore; the memo's list spans
 both files.)
@@ -16,13 +17,13 @@ both files.)
   R_interface:6254 computeWorkingResponse  if/else, no switch  -> latent[i]
 By call graph, [[chain.hpp:756@658869ac]] and [[chain.hpp:5026@658869ac]] take spec.family from the K-forest route, which
 R_interface:2268 refuses for aft/ordinal/nbinom BEFORE either runs, so those
-arms are gaussian-only today.  [[chain.hpp:2812@658869ac]] is the worst door - its own comment
+arms are gaussian-only today.  [[src/R_interface_bartcore.cpp:2812@658869ac]] is the worst door - its own comment
 enumerates the harm it prevents (a negative nbinom count underflowing into a
 ~1.8e19 allocation, "an uncatchable crash, not an error").  The de-facto 7th
-family already exists: [[chain.hpp:862@658869ac]] sets `family_ = logistic` for multinomial
+family already exists: [[chain.hpp:882@658869ac]] sets `family_ = logistic` for multinomial
 commenting "family() is not read on this path", yet SamplerShape::family
-([[facade.hpp:432@658869ac]]) reports logistic and the bridge branches on it at unresolved: [[facade.hpp:2729@658869ac]],
-:4611, unresolved: [[facade.hpp:4662@658869ac]], unresolved: [[facade.hpp:4702@658869ac]], unresolved: [[facade.hpp:4877@658869ac]], unresolved: [[facade.hpp:4949@658869ac]] - each unreachable only because a SEPARATE
+([[facade.hpp:438@658869ac]]) reports logistic and the bridge branches on it at six sites
+(unresolved: [[src/R_interface_bartcore.cpp:2729@658869ac]], unresolved: [[src/R_interface_bartcore.cpp:4611@658869ac]], unresolved: [[src/R_interface_bartcore.cpp:4662@658869ac]], unresolved: [[src/R_interface_bartcore.cpp:4702@658869ac]], unresolved: [[src/R_interface_bartcore.cpp:4877@658869ac]], unresolved: [[src/R_interface_bartcore.cpp:4949@658869ac]] - the exact line within the bridge that each reference names could not be re-derived) - each unreachable only because a SEPARATE
 multi-forest refusal stands in front, a coupling nothing asserts.
 VERDICT the doors are shut by refusals in another file, not by the type system,
 and one family already travels under another's name.

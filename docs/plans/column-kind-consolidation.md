@@ -1,8 +1,8 @@
 # Consolidating the predictor store's semantic-type axis
 
 Status: LANDED. All seven slices - S0, S1, S2, S3, S4a, S4c and S4b -
-carry their notes under "Landing" at EOF. Every alternative below has been
-weighed and every open question ruled (see "Decisions").
+carry their notes under "Landing" at EOF. See "Decisions" for the ruled
+open questions.
 
 rng: draw-preserving (NEUTRAL) on S0, S1, S3, S4a, S4c and S4b, subject to
 the four hazards enumerated in section 6's hot-path subsection.
@@ -541,7 +541,7 @@ makes the feature silently wrong rather than merely absent.
     column is not numeric", not "any column is categorical".
   - `[[inst/tinytest/test-data-categorical.R:25@3c81d6df]]` asserts
     `varTypes == c(1L, 0L, 0L, 0L, 1L)` where the second column is the ordered
-    factor `o` (`:8-12`); it becomes `c(1L, 2L, 0L, 0L, 1L)`.
+    factor `o` ([[inst/tinytest/test-data-categorical.R:8-12@3c81d6df]]); it becomes `c(1L, 2L, 0L, 0L, 1L)`.
 
 **Provenance divergence, and why it cannot be repaired.** A `dbartsData` saved
 by an older build carries `varTypes` 0 for an ordered factor, and 0 is ambiguous

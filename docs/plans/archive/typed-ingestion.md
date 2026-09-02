@@ -346,8 +346,8 @@ permits mixed containers and refuses only sparse-backed covariates.
 Reachable through setPredictor(column=), updatePredictor, and
 updatePredictorPerObservation on dense-backed columns; a THIRD
 entrance (critique): setState replays cut points through the same
-NULL-currentPredictors funnel ([[R/dbarts.R:1241@3d122466]]/1399 -> bridge
-:4146). NOT reachable before 2a. Pure dgCMatrix (ownedCsc*) and
+NULL-currentPredictors funnel ([[R/dbarts.R:1241@3d122466]]/[[R/dbarts.R:1399@3d122466]] -> the bridge,
+unresolved: [[R_interface_bartcore.cpp:4146@3d122466]]). NOT reachable before 2a. Pure dgCMatrix (ownedCsc*) and
 dense columnar containers unaffected.
 
 Decision (orchestrator, under the grant; slice-0 precedent): fix

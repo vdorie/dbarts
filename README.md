@@ -12,7 +12,7 @@ Pre-built binaries of the package are built by [CRAN](https://cran.r-project.org
 Features
 --------
 
-- Response families, via `family =`: `"gaussian"`, `"probit"`, `"logistic"`, accelerated-failure-time survival (`"aft"`), discrete-time survival hazard (`"hazard"`, `"hazard.logistic"`), multinomial (`"multinomial"`), ordered categorical (`"ordinal"`), negative-binomial counts (`"nbinom"`), and semicontinuous two-part (`"hurdle.lognormal"`)
+- Response families, via `family =` on `bart2()` and `dbarts()`: `"gaussian"`, `"probit"`, `"logistic"`, accelerated-failure-time survival (`"aft"`), discrete-time survival hazard (`"hazard"`, `"hazard.probit"`, `"hazard.logistic"`), multinomial (`"multinomial"`), ordered categorical (`"ordinal"`), negative-binomial counts (`"nbinom"`), and semicontinuous two-part (`"hurdle.lognormal"`)
 - Outlier-robust Student-t residuals (`resid.dist = student(...)`)
 - Heteroscedastic variance forest (`variance = ~ x1 + x2`)
 - Monotonicity (`monotone`), interaction (`interactions`), and block-additive (`blocks`) constraints

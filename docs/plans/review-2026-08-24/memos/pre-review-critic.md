@@ -250,7 +250,8 @@ requested `vars`.
 
 ## NOTE
 
-- unresolved: [[docs-site/reference/bart.md:84-89@de67cf07]] still shows the pre-today `fitted` order.
+- Location could not be placed - the file is untracked, so no commit carries it
+  (unresolved: [[docs-site/reference/bart.md:84-89@de67cf07]]) - but it still showed the pre-today `fitted` order.
   Untracked and `.Rbuildignore`d (line 23), so it ships nowhere - but the whole
   `docs-site/` tree predates today and must be rebuilt before any publish.
 - 8 of 11 hash-pinned files in `benchmarks/baselines/` name commits reachable from

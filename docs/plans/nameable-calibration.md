@@ -800,7 +800,7 @@ exactly to this section's spec: the `dbarts_forest_calibration` POD, the
 `dbarts_leaf_model` enum, the two X-list entries and the per-leaf-model
 Doxygen (dbarts.h); the `C_interface.cpp` bodies
 (`dbarts_sampler_forestCalibration` [[src/C_interface.cpp:856-887@c85d6db6]], `dbarts_sampler_setForestPriorScale`
-:889-899) plus the exact-`offsetof`/exact-`sizeof` asserts; the `consumer.c`
+[[src/C_interface.cpp:889-899@c85d6db6]]) plus the exact-`offsetof`/exact-`sizeof` asserts; the `consumer.c`
 + `test-capi.R` coverage, including the omitting-caller `structSize` canary
 (`[[test-capi.R:955-961@4c018187]]`: a caller whose `structSize` stops below `leafModel`
 gets that member skipped and poisoned, everything else still fills) and the
