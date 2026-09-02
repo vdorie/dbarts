@@ -115,6 +115,24 @@ constexpr bool kindSplitsBySubset(ColumnKind kind) {
 
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
+/// The count a factor column's level-code sweep reports when some cell is not
+/// a representable level code. Above every real count, which maxCategories
+/// bounds.
+constexpr std::uint32_t invalidCategoryCount = 0xFFFFFFFFu;
+
+/// Whether a factor cell is a level code the store can hold: a whole number
+/// in [0, maxCategories), or missing. The quantize narrows a factor cell to
+/// xint_t with a bare cast, which is undefined outside that range, and a code
+/// past its column's count shifts past an inline category mask or over-reads
+/// a pooled one. The R bridge refuses both before the store is touched, so
+/// this exists for the header-only engine - bartcore driven without that
+/// bridge - which has no other check between a host's values and the cast.
+inline bool levelCodeIsRepresentable(double value) {
+  return isNA(value) ||
+         (value >= 0.0 && value < static_cast<double>(maxCategories) &&
+          value == static_cast<double>(static_cast<std::uint32_t>(value)));
+}
+
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
 /// storage; denser ones densify their codes.
 constexpr double sparseDensityThreshold = 0.2;
@@ -908,23 +926,33 @@ struct ColumnStore {
   }
 
   /// The category count a dense column's own codes imply: the largest observed
-  /// code plus one, and 0 when every value is missing.
+  /// code plus one, and 0 when every value is missing. invalidCategoryCount
+  /// when a cell is not a representable level code - the ingestion check rides
+  /// this sweep, which already reads every cell of a factor column, so no cell
+  /// is read twice and no column that is not a factor pays for it.
   std::uint32_t inferredCategoryCount(const double* column) const {
     double maxValue = -1.0;
-    for (size_t i = 0; i < numObservations; ++i)
-      if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
+    for (size_t i = 0; i < numObservations; ++i) {
+      double value = column[i];
+      if (!levelCodeIsRepresentable(value)) return invalidCategoryCount;
+      if (!isNA(value) && value > maxValue) maxValue = value;
+    }
     return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
   }
 
   /// The same over a CSC-backed column's logical values: its retained
   /// nonzeros, plus the reference code the implicit rows read when it has any.
+  /// The reference code is an xint_t and so is representable by construction;
+  /// the stored values carry the same check the dense sweep applies.
   std::uint32_t inferredCategoryCountCsc(size_t j) const {
     const ColumnSource& source = train.sources[j];
     double maxValue = source.slice.numNonzero < numObservations
       ? static_cast<double>(source.refCode) : -1.0;
-    for (size_t k = 0; k < source.slice.numNonzero; ++k)
-      if (!isNA(source.slice.values[k]) && source.slice.values[k] > maxValue)
-        maxValue = source.slice.values[k];
+    for (size_t k = 0; k < source.slice.numNonzero; ++k) {
+      double value = source.slice.values[k];
+      if (!levelCodeIsRepresentable(value)) return invalidCategoryCount;
+      if (!isNA(value) && value > maxValue) maxValue = value;
+    }
     return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
   }
 
@@ -943,11 +971,16 @@ struct ColumnStore {
   /// the SAME factor: the level table is a property of the factor rather than
   /// of the sample, so re-deriving it from the replacement would make K
   /// depend on call history.
-  void buildCutsForColumn(size_t j, const double* column,
+  ///
+  /// False refuses the column: some cell of a factor column is not a
+  /// representable level code. keepCategoryCount takes the count as already
+  /// checked, since it was checked when the column was built.
+  bool buildCutsForColumn(size_t j, const double* column,
                           bool keepCategoryCount = false) {
     if (isFactor(j) && !keepCategoryCount) {
       std::uint32_t inferred = columnIsCscBacked(j)
         ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
+      if (inferred == invalidCategoryCount) return false;
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
       categoryCounts[j] = declared > inferred ? declared : inferred;
     }
@@ -967,6 +1000,7 @@ struct ColumnStore {
       if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
       else fillCutsUniformly(j, column);
     }
+    return true;
   }
 
   /// No two observed values differ, so a fixed-count uniform grid of two or
@@ -1198,9 +1232,9 @@ struct ColumnStore {
 
   /// Build the training store from a borrowed predictor view (PredictorSource)
   /// against a fresh cut grid. maxNumCutsPerColumn, when non-null, overrides
-  /// maxNumCutsScalar per column. The host validates structure - CSC row
-  /// indices unique and in range per column, categorical codes integral and
-  /// within their declared count - since the quantize trusts both.
+  /// maxNumCutsScalar per column. The host validates STRUCTURE - CSC row
+  /// indices unique and in range per column - since the quantize trusts it;
+  /// factor level codes the build checks itself, below.
   ///
   /// An UNMAPPED view is the dense build: column j quantizes from dense column
   /// j of source.denseValues, read for the call only, and the store retains no
@@ -1220,7 +1254,13 @@ struct ColumnStore {
   /// triple stays borrowed for the store's lifetime (until a column's first
   /// mutation repoints it at owned nonzeros). Its dense-backed columns serve
   /// raw from that block already, so gatherColumns does not apply.
-  void build(const PredictorSource& source,
+  ///
+  /// False REFUSES the build: some cell of a factor column is not a level code
+  /// the store can represent. The store is left partly built and the caller
+  /// discards it - a creation build has nothing to preserve - and the refusal
+  /// travels out as a status rather than an exception, since the hosts that
+  /// raise on it cross a C boundary.
+  bool build(const PredictorSource& source,
              const std::uint32_t* maxNumCutsPerColumn,
              std::uint32_t maxNumCutsScalar, bool useQuantiles_,
              const size_t* gatherColumns = nullptr,
@@ -1326,35 +1366,38 @@ struct ColumnStore {
       // null for a CSC-backed column (which reads its retained slice)
       const double* column = mapped ? train.sources[j].residentRaw
                                     : source.denseValues + j * n;
-      buildCutsForColumn(j, column);
+      if (!buildCutsForColumn(j, column)) return false;
       quantizeColumn(j, column);
     }
     refreshCategoricalTiers();
 
     resetTestStorage();
+    return true;
   }
 
   /// Dense convenience spelling: a plain column-major matrix, no map.
   /// columnTypes may be null for all-ordinal; categoryCounts_, when supplied,
   /// is the host's declared level count per column (0 = infer from the codes).
-  void build(const double* x_, size_t n, size_t p,
+  bool build(const double* x_, size_t n, size_t p,
              const std::uint32_t* maxNumCuts_, bool useQuantiles_,
              const ColumnKind* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
              size_t numGatherColumns = 0,
              const std::uint32_t* categoryCounts_ = nullptr) {
-    build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
-          maxNumCuts_, 0, useQuantiles_, gatherColumns, numGatherColumns);
+    return build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
+                 maxNumCuts_, 0, useQuantiles_, gatherColumns,
+                 numGatherColumns);
   }
 
-  void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
+  bool build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
              bool useQuantiles_ = false,
              const ColumnKind* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
              size_t numGatherColumns = 0,
              const std::uint32_t* categoryCounts_ = nullptr) {
-    build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_), nullptr,
-          maxNumCuts_, useQuantiles_, gatherColumns, numGatherColumns);
+    return build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
+                 nullptr, maxNumCuts_, useQuantiles_, gatherColumns,
+                 numGatherColumns);
   }
 
   /// Clear the owned-CSC test payload (the packed nonzeros); the per-column CSC
@@ -1379,6 +1422,38 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
+  /// Whether every factor cell a test view would ingest is a level code of its
+  /// column's table: each dense-backed column's slice, each CSC-backed
+  /// column's stored nonzeros, and - for a subset-splitting column, whose
+  /// implicit rows read it rather than a quantized zero - its reference code.
+  /// A column the host declared a factor is a factor on both sides of the fit,
+  /// so a value between two levels is refused rather than quantized onto the
+  /// nearest boundary.
+  bool testSourceLevelCodesAreValid(const PredictorSource& source) const {
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (!isFactor(j)) continue;
+      std::int32_t columnSource = source.sourceOf(j);
+      if (columnSource >= 0) {
+        if (source.denseValues == nullptr) continue;
+        const double* column = source.denseValues +
+          static_cast<size_t>(columnSource) * source.numRows;
+        for (size_t i = 0; i < source.numRows; ++i)
+          if (!categoricalValueIsValid(j, column[i])) return false;
+        continue;
+      }
+      size_t cscColumn = static_cast<size_t>(~columnSource);
+      size_t end = static_cast<size_t>(source.cscColumnPointers[cscColumn + 1]);
+      for (size_t k = static_cast<size_t>(source.cscColumnPointers[cscColumn]);
+           k < end; ++k)
+        if (!categoricalValueIsValid(j, source.cscValues[k])) return false;
+      if (splitsBySubset(j) &&
+          !categoricalValueIsValid(
+            j, static_cast<double>(source.referenceCodeOf(j))))
+        return false;
+    }
+    return true;
+  }
+
   /// Build the test store from a borrowed predictor view against the training
   /// cut grid (already built, shared by identity; numCuts and cutPoints are not
   /// rebuilt). Column j reads dense column sourceOf(j) of source.denseValues
@@ -1393,7 +1468,14 @@ struct ColumnStore {
   /// The test store owns ALL its raw whatever the view's shape: the dense block
   /// and the CSC nonzero values+rows are copied, so no borrowed pointer
   /// survives the call and a later cut change re-quantizes from the copies.
-  void buildTest(const PredictorSource& source) {
+  ///
+  /// False REFUSES the view, leaving the test store untouched: some factor
+  /// cell it would ingest is not a level code of that column's table. The
+  /// table is the training one, fixed at build, so the check runs before
+  /// anything is written rather than riding the quantize as the training
+  /// side's does.
+  bool buildTest(const PredictorSource& source) {
+    if (!testSourceLevelCodesAreValid(source)) return false;
     size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;
 
@@ -1466,12 +1548,13 @@ struct ColumnStore {
       buildRankStorageInto(test, numTest, j);
       quantizeTestColumn(j);
     }
+    return true;
   }
 
   /// Dense convenience spelling: own a copy of a plain column-major test
   /// matrix and quantize it against the current cuts.
-  void buildTest(const double* x_test_, size_t numTest) {
-    buildTest(densePredictorSource(x_test_, numTest, numPredictors));
+  bool buildTest(const double* x_test_, size_t numTest) {
+    return buildTest(densePredictorSource(x_test_, numTest, numPredictors));
   }
 
   /// A row- and column-subset view of a built parent store: copies the
@@ -1884,6 +1967,9 @@ struct ColumnStore {
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
       const double* column = x_ + j * n;
+      // the level count is pinned, so the count sweep - and with it the
+      // ingestion refusal - does not run: setData trusts its caller, as its
+      // contract above says
       if (splitsByThreshold(j)) buildCutsForColumn(j, column, true);
       quantizeColumn(j, column);
     }

@@ -136,11 +136,14 @@ public:
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
     : options_(options), family_(family) {
-    data_.build(creationPredictorSource(options.predictors, x,
-                                        numObservations, numPredictors),
-                options.maxNumCutsPerVariable, options.maxNumCuts,
-                options.useQuantiles, options.leafCovariateColumns,
-                options.numLeafCovariates);
+    if (!data_.build(creationPredictorSource(options.predictors, x,
+                                             numObservations, numPredictors),
+                     options.maxNumCutsPerVariable, options.maxNumCuts,
+                     options.useQuantiles, options.leafCovariateColumns,
+                     options.numLeafCovariates)) {
+      ingestionRefused_ = true;
+      return;
+    }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     // borrowed; consumed by build, which retains what the store needs (a
     // mapped build's CSC slices, its own copy of the dense block)
@@ -184,10 +187,14 @@ public:
           const SamplerOptions& options, const AmplitudeSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(spec.family) {
-    data_.build(denseCreationPredictorSource(options.predictors, x,
-                                             numObservations, numPredictors),
-                options.maxNumCutsPerVariable, options.maxNumCuts,
-                options.useQuantiles);
+    if (!data_.build(denseCreationPredictorSource(options.predictors, x,
+                                                 numObservations,
+                                                 numPredictors),
+                     options.maxNumCutsPerVariable, options.maxNumCuts,
+                     options.useQuantiles)) {
+      ingestionRefused_ = true;
+      return;
+    }
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0,
@@ -215,10 +222,14 @@ public:
           const SamplerOptions& options, const MultinomialSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(ResponseFamily::logistic) {
-    data_.build(denseCreationPredictorSource(options.predictors, x,
-                                             numObservations, numPredictors),
-                options.maxNumCutsPerVariable, options.maxNumCuts,
-                options.useQuantiles);
+    if (!data_.build(denseCreationPredictorSource(options.predictors, x,
+                                                 numObservations,
+                                                 numPredictors),
+                     options.maxNumCutsPerVariable, options.maxNumCuts,
+                     options.useQuantiles)) {
+      ingestionRefused_ = true;
+      return;
+    }
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0
@@ -244,20 +255,27 @@ public:
   Sampler(const Sampler&) = delete;
   Sampler& operator=(const Sampler&) = delete;
 
+  /// Whether the creation build refused a predictor cell the store cannot
+  /// represent. True leaves the sampler unusable - no chain was built - and
+  /// the factory answers its host with a null sampler rather than one over an
+  /// unchecked store.
+  bool ingestionRefused() const { return ingestionRefused_; }
+
   /// Replace the test predictors from a borrowed view, keeping any test offset:
   /// the caller guarantees the row count still matches it (the bridge refuses
   /// otherwise). Passing a new offset too goes through setTestOffset. The test
   /// store shares the training cut grid and owns its raw, so the view need not
   /// outlive the call. Refuses (returns false, test store untouched) a
   /// designated leaf covariate that would be CSC-backed, since leaf models
-  /// gather dense raw test covariates that sparse storage does not serve.
+  /// gather dense raw test covariates that sparse storage does not serve, and
+  /// a factor cell that is not a level code of the training table.
   bool setTestData(const PredictorSource& source) {
     size_t numCovariates = numLeafCovariates();
     const size_t* covariateColumns = leafCovariateColumns();
     for (size_t k = 0; k < numCovariates; ++k)
       if (source.sourceOf(covariateColumns[k]) < 0) return false;
     const double* testOffset = data_.testOffset;
-    data_.buildTest(source);
+    if (!data_.buildTest(source)) return false;
     data_.testOffset = testOffset;
     for (auto& chain : chains_) chain->resizeTestStorage();
     return true;
@@ -1353,8 +1371,11 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
 
     data_.setData(x, numObservations);
-    if (x_test != nullptr && numTestObservations > 0) {
-      data_.buildTest(x_test, numTestObservations);
+    // a refused test matrix leaves no test set rather than a mis-coded one:
+    // this entrance reports no status, and the store has already taken the
+    // replacement training values
+    if (x_test != nullptr && numTestObservations > 0 &&
+        data_.buildTest(x_test, numTestObservations)) {
       data_.testOffset = testOffset;
     } else {
       data_.resetTestStorage();
@@ -1984,6 +2005,9 @@ private:
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
   double runningTime_ = 0.0;     // seconds accumulated across runs
+  // set when the creation build refused a predictor cell; the sampler is then
+  // an empty shell its factory discards, so no chain is built over the store
+  bool ingestionRefused_ = false;
 };
 
 using ConstantLeafSampler = Sampler<ConstantGaussianLeaf>;

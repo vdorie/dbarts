@@ -718,6 +718,21 @@ inline bool updatePredictorPerObservationJointly(
   return allValid;
 }
 
+/// A facade over leaf model L, or null when its creation build refused a
+/// predictor cell the store cannot represent. Every factory that INGESTS
+/// values mints its facade here, so the engine's own ingestion check reaches a
+/// host through the null return the factories already use for a refusal - not
+/// through an exception, which the hosts that raise on it cannot carry across
+/// their C boundary. A factory over a pre-built store ingests nothing and
+/// constructs directly.
+template <IntegrableLeafModel L, typename ResidT = double, typename... Args>
+inline std::unique_ptr<SamplerBase> makeIngestingFacade(Args&&... args) {
+  auto sampler =
+    std::make_unique<SamplerFacade<L, ResidT>>(std::forward<Args>(args)...);
+  if (sampler->impl().ingestionRefused()) return nullptr;
+  return sampler;
+}
+
 /// The constant-leaf instantiation over the response families. rngs supplies
 /// one generator per chain (options.numChains of them).
 ///
@@ -732,10 +747,10 @@ inline std::unique_ptr<SamplerBase> createConstantLeafSampler(
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   if (options.fp32Residual && family == ResponseFamily::gaussian)
-    return std::make_unique<SamplerFacade<ConstantGaussianLeaf, float>>(
+    return makeIngestingFacade<ConstantGaussianLeaf, float>(
       x, y, numObservations, numPredictors, weights, offset, family,
       sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
-  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+  return makeIngestingFacade<ConstantGaussianLeaf>(
     x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
@@ -803,6 +818,8 @@ inline bool varianceForestIsRefused(const SamplerOptions& options,
 /// category codes are unordered; interact through splits instead) - which the
 /// host turns into its own error. An ordered factor is admissible, entering
 /// as its standardized level codes, i.e. as equally-spaced interval data.
+/// Null also on a refused ingestion: a factor cell the store cannot represent
+/// (see makeIngestingFacade).
 inline std::unique_ptr<SamplerBase> createSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
@@ -812,7 +829,7 @@ inline std::unique_ptr<SamplerBase> createSampler(
   if (varianceForestIsRefused(options, family, numPredictors)) return nullptr;
   if (options.numLeafCovariates == 0 &&
       monotoneConstraintIsActive(options, numPredictors))
-    return std::make_unique<SamplerFacade<MonotoneConstantGaussianLeaf>>(
+    return makeIngestingFacade<MonotoneConstantGaussianLeaf>(
       x, y, numObservations, numPredictors, weights, offset, family,
       sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
   if (options.numLeafCovariates == 0)
@@ -831,10 +848,10 @@ inline std::unique_ptr<SamplerBase> createSampler(
         [&](std::size_t j) { return options.predictors.sourceOf(j) >= 0; }))
     return nullptr;
   if (options.gpLeaves)
-    return std::make_unique<SamplerFacade<GPGaussianLeaf>>(
+    return makeIngestingFacade<GPGaussianLeaf>(
       x, y, numObservations, numPredictors, weights, offset, family,
       sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
-  return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
+  return makeIngestingFacade<LinearGaussianLeaf>(
     x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
@@ -898,7 +915,7 @@ inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
       spec.family != ResponseFamily::probit &&
       spec.family != ResponseFamily::logistic)
     return nullptr;
-  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+  return makeIngestingFacade<ConstantGaussianLeaf>(
     x, y, numObservations, numPredictors, weights, offset, sigmaEstimate,
     sigmaDf, sigmaRawScale, options, spec, rngs);
 }
@@ -912,7 +929,7 @@ inline std::unique_ptr<SamplerBase> createMultinomialSampler(
   ext_rng* const* rngs) {
   // as createAmplitudeSampler
   if (options.numVarianceTrees > 0) return nullptr;
-  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+  return makeIngestingFacade<ConstantGaussianLeaf>(
     x, numObservations, numPredictors, options, spec, rngs);
 }
 
