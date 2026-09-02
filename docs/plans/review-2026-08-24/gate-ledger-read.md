@@ -80,8 +80,8 @@ OVERSTATED:
   "instrumented counter build" measuring equal-rank realizations (2 maskprobit, 1 maskordinal, 0 elsewhere) - the
   MANIFEST's CITED ORACLE for the equivalence-d15a2bfb.rds re-record, unreproducible by anything in the tree (the
   qualitative law IS gated, by tests/cpp testEqualRankOneComparison and bd-balance.R's veto arm); (2)
-  [[monotone-prior-draw.md:73-98@658869ac]], instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
-  justifies the 1e6 retry cap; (3) [[setpredictor-leafof-rebuild.md:74-98@658869ac]], an rdtsc + md5 probe absent from the tree;
+  [[docs/plans/monotone-prior-draw.md:73-98@658869ac]], instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
+  justifies the 1e6 retry cap; (3) [[docs/plans/setpredictor-leafof-rebuild.md:74-98@658869ac]], an rdtsc + md5 probe absent from the tree;
   (4) bcf-bartcause-relocation.md, ~50 MEASURED tags from an untracked probe.
 - G. THE SPEED GATE IS 1225 COMMITS STALE, 327 IN src/ (`git rev-list --count ab1dc52..HEAD`). "16 days" understates
   it. The equivalence baseline 5a3bc276 is 24 commits / 7 src/ behind - healthy.
