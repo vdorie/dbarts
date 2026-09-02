@@ -105,7 +105,7 @@ the 5s limit, so no example was shrunk or moved to \donttest.
 2. Compiled-code NOTE "Found '___stderrp', possibly from 'stderr'"
    in misc.a. Source: src/misc/io.c default hooks printToStderr /
    flushStderr, the documented R-independent fallback (io.h). In an R
-   session R_init_dbarts ([[src/R_interface.cpp:362-363@4c018187]]) UNCONDITIONALLY
+   session R_init_dbarts ([[src/R_interface.cpp:297-298@4c018187]]) UNCONDITIONALLY
    repoints misc_printf -> Rprintf and misc_flushOutput ->
    R_FlushConsole at DLL load, before any .Call, so no stderr write is
    reachable from R; the symbol persists only because the fallback is
@@ -140,14 +140,14 @@ warnings, all cleared in 16d00c7, behavior-neutral:
   BartcoreHolder aggregate has 8 members; the three sites listed 7,
   leaving ownedTreatment implicitly value-initialized. FIX: added the
   explicit trailing {} (identical value-initialization).
-- [[misc/moments.c:1330@4c018187]] unused parameter 'i' [-Wunused-parameter].
+- [[src/misc/moments.c:1102@4c018187]] unused parameter 'i' [-Wunused-parameter].
   The whole body of misc_stat_setSIMDInstructionSet is under
   #ifdef COMPILER_SUPPORTS_SSE2; on arm64 (no NEON moments kernel) i is
   unused. FIX: (void) i; (emits no code).
 
 Remaining warnings are NOT our code and are left untouched:
 
-- [[R_ext/Boolean.h:66@4c018187]] "enumeration types with a fixed underlying type
+- R's own `R_ext/Boolean.h` line 66: "enumeration types with a fixed underlying type
   are a C23 extension" [-Wc23-extensions] x6 - inside R's own installed
   header, triggered by -pedantic on C TUs that include R. Unfixable by
   us; disappears without -pedantic.
