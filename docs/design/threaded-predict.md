@@ -77,7 +77,7 @@ synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
 on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:962-964) both store
+`dbarts_sampler_setNumThreads` (C_interface.cpp:998-1000) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
@@ -103,7 +103,7 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:527, then
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:563, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:531) and prints the new layout hash to paste over
@@ -114,7 +114,7 @@ landing's value. This section also called for
 `DBARTS_C_API_MINOR` (dbarts.h:138) to bump from 0 to 1; it did not, on
 the header's own pre-release rule - see section 11.
 `facade.hpp` took the parameter on all three predict virtuals -
-`predict` (:263), `predictPerForest` (:273), `predictVariance` (:278) -
+`predict` (:268), `predictPerForest` (:273), `predictVariance` (:278) -
 with no default argument (a default on a virtual binds from the static
 type, and every real call goes through `SamplerBase&`); the overrides
 (:553, :559, :564) and the dense convenience spellings (:285, :291) take
@@ -129,8 +129,8 @@ no-op".
 The bridge took the argument on both `.Call` entries -
 `dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
 (`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:225-226) - and on
-`predictFromSource` (R_interface_bartcore.cpp:5775), `bartcore_predict`
-(:5818), `predictPerForestFromSource` (:5877), and
+`predictFromSource` (R_interface_bartcore.cpp:5850), `bartcore_predict`
+(:5893), `predictPerForestFromSource` (:5877), and
 `bartcore_predictPerForest` (:5917), validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
 (test-predict-sparse.R:164, test-multinomial-test-offset.R:411 and
@@ -223,7 +223,7 @@ representative `predict.bart` call.
 The serial work predict's threaded region does **not** cover - the
 flat-offset add over the whole output (R_interface_bartcore.cpp:5831-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:5866) - is one pass over the output
+the second (variance) fan-out (:5941) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

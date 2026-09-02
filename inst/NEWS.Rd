@@ -889,6 +889,13 @@
             every entrance that can declare a level table: naming the column
             for a factor, and naming the kind and its limit for a
             \code{sparseFactor} or a \code{varTypes} declaration.
+      \item Creating a sampler over a data frame no longer widens its factor
+            columns to doubles on the way to the engine: a factor's integer
+            level codes cross as the integers they already are, so the
+            temporary a factor column costs at creation is 4 bytes a row
+            rather than 8, and no cell is converted twice. Nothing about the
+            fit changes - the same codes reach the same store - and a design
+            supplied as a numeric matrix is unaffected.
       \item Categorical predictors support up to 65535 levels, where a
             0.9-x categorical rule held its directions in a single 32-bit
             word: a rule's mask lives inline up to 63 levels and is pooled
@@ -1327,6 +1334,21 @@
             \code{DBARTS_C_API_HASH} is re-baked for the appended enumerator;
             every consumer checking \code{dbarts_apiHash()} against the header
             constant must be rebuilt.
+      \item \code{dbarts_predictor_source} gains a \code{denseCodes} field, so
+            a caller whose factor columns are already integer level codes
+            hands them over as \code{int32_t} rather than widening every cell
+            to a double the library narrows straight back;
+            \code{INT_MIN} (R's \code{NA_INTEGER}) marks a missing code. A
+            column the sampler holds as a factor reads its codes from that
+            block at \code{columnSources[j]}, every other dense-backed column
+            reads \code{denseValues} as before, and the two channels index
+            independently. A null \code{denseCodes} behaves exactly as every
+            caller written before the field did. The field is appended below
+            the struct's 1.0-0 boundary, so a consumer compiled against the
+            smaller struct is unaffected, but \code{DBARTS_C_API_HASH} is
+            re-baked for the appended field; every consumer checking
+            \code{dbarts_apiHash()} against the header constant must be
+            rebuilt.
     }
   }
   \subsection{BUG FIXES}{

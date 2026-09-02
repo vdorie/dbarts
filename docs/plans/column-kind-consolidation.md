@@ -1,7 +1,7 @@
 # Consolidating the predictor store's semantic-type axis
 
-Status: PARTLY LANDED. S0, S1, S2 and S3 have landed and carry their
-notes under "Landing" at EOF; S4a, S4c and S4b remain, landing in that
+Status: PARTLY LANDED. S0, S1, S2, S3 and S4a have landed and carry
+their notes under "Landing" at EOF; S4c and S4b remain, landing in that
 ruled order (see "Slice decomposition and sizing"). Every alternative
 below has been weighed and every open question ruled (see "Decisions").
 TODO: column-kind-consolidation.
@@ -1598,3 +1598,72 @@ Draw-preserving, as a refusal moves no draw: equivalence-02d41365 46/46,
 bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337 11/11,
 all bitwise. No hot-path file is touched. S4a next: the code channel and
 the bridge's code-typed validation sweep.
+
+### S4a - the code channel (e36fccbe, 6b597efb, 01cf9f4c, d89994d0, 070afd92)
+
+The borrowed predictor view carries two dense channels now: denseValues,
+column-major doubles, and denseCodes, column-major int32 level codes with
+naDenseCode (the minimum int32) for missing, with denseChannels naming
+which holds each column and where within it. The two index independently,
+so each is packed over the columns it serves and a factor column costs no
+double at all. The channel is a STORAGE fact rather than a typing one -
+ColumnKind still says how the store reads a column - so a coded column of
+numeric kind is widened once at the build rather than refused, which is
+what keeps a hand-built container that types a factor column 0 behaving
+as it did.
+
+The bridge fills the code channel from a dense columnar container's own
+factor columns, and its pre-store validation sweep reads whichever channel
+holds a column a cell at a time: rawViewColumn answers with the column
+rather than a double pointer, and refuseInvalidCategoryCodes,
+trainingCategoryBound, validateCategoricalPredictors and
+validateTestContainerAgainstStore take it as it lies. That half is the
+slice: a version that added the channel and left the sweep double-typed
+would still have to materialize the doubles the sweep reads, and would
+deliver no saving at all. MEASURED, n = 1e6 with 20 factor columns and a
+supplied sigma (so no linear-model estimate runs): peak RSS 476.5 MB
+before, 396.4 MB after - 80.1 MB, exactly 4 bytes x 1e6 rows x 20
+columns.
+
+Three dense-predictor gates (two BCF, one multinomial) now ask
+isDenseColumnar, the question they meant, since isDenseBlock is the
+stricter single-block question the mutation kernels ask and a
+split-channel view is not one block. build's mapped arm and buildTest
+refuse a split-channel view outright: both lay their dense raw out as one
+block sized by the largest dense source, which is S4b's rework.
+
+dbarts_predictor_source gains denseCodes below its 1.0-0 boundary, so a
+C consumer hands over the integers it already has; the translation
+resolves the channel against the SAMPLER's kinds and widens once, since
+the entries below read a view through a double-typed reader (S4c replaces
+that widen with the reader's own int arm). DBARTS_C_API_HASH re-bakes to
+0x37288e7c56449b34; the version constants do not move, per the header's
+pre-release rule. A lockstep stan4bart rebuild is owed.
+
+S3's two residues close. ColumnStore::setData checks that every factor
+cell of a replacement is a level code of the table its pinned count fixes
+before it writes a code, and Sampler::setData checks the test matrix
+against that same table before anything moves, refusing the whole call
+rather than leaving new training values beside a silently dropped test
+set. Both report a status; the bridge raises on it behind its own
+per-cell loop, which still fires first with the message naming the kind.
+
+The four hazards each carry a pin. tests/cpp builds the same five-column
+store through both channels and compares the grids, the codes and the
+MISSING FLAGS (hazard 1, the only one whose failure moves draws rather
+than values); asserts that an inferred count does not admit the missing
+marker (hazard 3, which would move the mask tier); asserts a coded
+missing cell takes the reserved code its kind spends rather than a level
+(hazard 2); and materializes a mixed view with a coded dense column
+beside a CSC categorical one, so the implicit-row reference rule is
+pinned to be the same on either channel (hazard 4). Above them,
+inst/tinytest/test-data-code-channel.R fits the same data twice - once as
+a data frame, once as the double matrix with varTypes and level tables
+that a data object saved before this slice stores - and requires the
+draws to be identical, NA-bearing factor columns and an unobserved
+declared level included.
+
+Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108
+12/12, multinomial-equivalence-4d9a3337 11/11, all bitwise with no
+max |z| line. S4c next: the int-backed replay reader, which gives the
+channel its second consumer through predict.

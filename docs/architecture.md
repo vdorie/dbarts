@@ -224,6 +224,15 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   other layer (moves, the tree prior) reads cuts through
   `ColumnStore::codeFor`/`column()`/`cutPoints`; nothing above the data
   layer computes or caches its own cut grid.
+- **Ingestion channels**: the borrowed view a host builds from
+  (`PredictorSource`) carries its dense values in two channels - doubles in
+  `denseValues` and int32 level codes in `denseCodes`, with `denseChannels`
+  naming which holds each column and where. A host whose factor columns are
+  integers (which is what an R factor is) hands them over as integers, so a
+  factor column's transient costs 4 bytes a cell rather than 8 and no cell
+  is widened and narrowed again. The channel is a storage fact and the kind
+  a reading one: the dense `build` arm consumes either, widening a coded
+  column the store reads as numeric.
 - **Raw values**: per-column storage and re-quantize source is one
   descriptor, `ColumnSource` (carried in `sources[j]` on each `CodeBlock`),
   discriminated by `ColumnSourceKind` - which names where the raw a
@@ -271,7 +280,11 @@ weights swappable between MCMC iterations) is implemented on
 - **Response-side** (`setResponse`, `setOffset`, `setWeights`, `setSigma`,
   `setData`): forwarded straight to `ResponseModel`; no tree structure is
   touched, so these either apply or, for length mismatches, fail before
-  touching state.
+  touching state. `setData` also replaces the predictors, and so answers a
+  status: it checks every factor cell of the replacement AND of any test
+  matrix against each column's fixed level table before anything moves, and
+  refuses the whole call rather than ingesting one side and dropping the
+  other.
 - **Predictor-side** (`setPredictor`, `updatePredictor`, and the
   per-observation session API): transactional. `Sampler` snapshots what it
   needs to restore (`oldCodes`, `oldHasMissing`, `oldCuts` when cut points

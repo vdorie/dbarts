@@ -160,6 +160,35 @@ whose fallback orders are the contract:
   serves no dense test covariate); else `ownedTestValues`; else the
   view-gathered `gatheredRawTestValues`; else null.
 
+## The borrowed view's two value channels
+
+A host hands the store its values through one borrowed view,
+`PredictorSource`, whose dense storage has two channels: `denseValues`,
+column-major doubles, and `denseCodes`, column-major int32 level codes with
+`naDenseCode` (the minimum int32) for missing. `denseChannels` says which
+channel each dense-backed column sits in and where within it - `k >= 0` is
+double column `k`, `k < 0` is code column `~k` - so the two index
+independently and each is packed over the columns it serves. A null
+`denseChannels` is the single-block layout every entrance took before the
+code channel existed, which is what a plain matrix (and a data object saved
+before it) still uses.
+
+The channel is a STORAGE fact, not a typing one: it says how a host holds a
+column, while `ColumnKind` says how the store reads it. A factor column
+whose host holds it as integers - which is what an R factor is - crosses as
+integers, so no cell is widened at the bridge and narrowed again at the
+quantize. The dense `build` arm consumes either channel; a coded column of
+NUMERIC kind is widened once, since a numeric column's grid is over real
+values. The mapped arm and `buildTest` lay their dense raw out as one block
+sized by the largest dense source and so refuse a split-channel view.
+
+Two conventions are NOT the same and must not be confused. The channel's
+missing marker is `naDenseCode`; the code a missing value takes IN THE
+STORE is `missingCategoryCode(K)` for a subset-splitting column and
+`naCode` otherwise. The forward map is total; the inverse needs the
+column's K, which is why the store's codes are never served to a
+double-typed reader.
+
 ## Codes vs raw: the gathered mechanism
 
 Quantized codes are what trees consume. Raw doubles exist for exactly two
@@ -294,7 +323,9 @@ lifetime special-casing here: the store COPIES its transiently assembled
 dense block (`ParsedData.denseAssembly`) into `ownedDenseValues` during
 `build`, so the assembly need only survive the call that builds the store,
 which it already does as an entrance-scoped local - no holder/handle field
-extends its lifetime. The CSC slots borrow R container memory instead,
+extends its lifetime. A dense columnar container assembles TWO transients
+instead, one per value channel (below), and a factor column costs 4 bytes a
+cell in the code one rather than 8 in the double one. The CSC slots borrow R container memory instead,
 valid while `dataExpr` stays protected.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
@@ -354,8 +385,12 @@ whose level count passes the code type's capacity (65535 categorical,
 upper bin of its K - 1 cut grid), and `buildTest` refuses a test code
 outside the training level table, leaving the test store untouched. Both
 answer `false`, the factories answer null, and the host raises. `setData`
-stays a trusted entrance by contract: it pins the level count and so runs
-no sweep. The split: the R bridge validates CSC
+guards its own entrance too, on both layers: the store's checks that every
+factor cell of a whole-data replacement is a level code of the table its
+pinned count fixes, before it writes a code, and the sampler's checks the
+test matrix against that same table before anything moves - so a test
+matrix it cannot ingest refuses the whole call rather than leaving new
+training values beside a silently dropped test set. The split: the R bridge validates CSC
 structure (rows strictly increasing, unique, in range - "malformed sparse
 predictor matrix") and categorical placement - a fully-sparse dgCMatrix x
 refuses categoricals outright ("sparse predictor matrices must be

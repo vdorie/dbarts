@@ -412,7 +412,7 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 - Additive evolution is free (name lookup), so deferred without cost:
   per-observation predictor updates and the joint session, setCutPoints,
   and setData - the per-iteration observer callback landed anyway, as
-  `dbarts_sampler_setCallback` (dbarts.h:823), ahead of classic
+  `dbarts_sampler_setCallback` (dbarts.h:837), ahead of classic
   `Control::callback`'s reachable consumer.
 - STRUCK: C++ headers shipping for `LinkingTo` use without ABI promises. Not
   implemented and not wanted - the flat C header is the shipped surface, by design.
