@@ -690,8 +690,9 @@ partitioning entirely; a different library sharing only the tree structure).
    leaves holding their parameter. Cut values map back to split indices
    exactly (cuts are unique doubles), so the same format serves keepTrees
    storage, getTrees, predict, and state serialization; replay against
-   raw predictors (x <= cut goes left, mask bit sends right) reproduces
-   the engine's code-based routing exactly. keepTrees mirrors the classic
+   raw predictors (x <= cut goes left, mask bit sends right), or against
+   a factor column's int32 codes, reproduces the engine's code-based
+   routing exactly. keepTrees mirrors the classic
    circular buffer: capacity = n.samples at creation, trees flattened
    inside the tree loop while the freshly drawn parameters are live,
    currentSampleNum advancing per run. Every read indexes FROM that

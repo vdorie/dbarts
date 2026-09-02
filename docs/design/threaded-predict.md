@@ -83,9 +83,9 @@ so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
 workers and hand R an uninitialized `Rf_allocVector(REALSXP, ...)`; a
 test pins this case. A named `constexpr`, sized from a measured ~2.6
-ns per (row x tree x slab) traversal, gates each entry point on its
-own traversal count, not forest 0's, so a small predict runs without
-spawning threads.
+ns per (row x tree x slab) traversal on the double channel (a coded
+column's is lower), gates each entry point on its own traversal count,
+not forest 0's, so a small predict runs without spawning threads.
 
 ## 5. Header and ABI
 
@@ -132,10 +132,11 @@ The bridge took the argument on both `.Call` entries -
 `predictFromSource` (R_interface_bartcore.cpp:5936), `bartcore_predict`
 (:5971), `predictPerForestFromSource` (:5955), and
 `bartcore_predictPerForest` (:5995), validated with
-`rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
-(test-predict-sparse.R:164, test-multinomial-test-offset.R:411 and
-:421, test-multinomial-category-offset.R:436) call these `.Call`s
-directly and needed the fourth argument; all four pass it.
+`rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Six inst/tinytest sites
+(test-predict-sparse.R:164, test-predict-code-channel.R:85,
+test-generics-multithreaded.R:330, test-multinomial-test-offset.R:430
+and :440, test-multinomial-category-offset.R:453) call these `.Call`s
+directly and needed the fourth argument; all six pass it.
 `dbartsSampler$predict`/`$predictForests` (R/dbarts.R:1084-1169) pass
 their formal through; `bartcorePredict` (R/bartcore.R:1085) and the
 test harness's `bartcorePredictPerForest` in `inst/common/bartcoreHandle.R`
@@ -213,7 +214,7 @@ misread an inserted argument as `group.by`.
 
 ## 8. Measurement, honestly stated
 
-Predict changes no draws, so the equivalence trio (43/12/11 scenarios)
+Predict changes no draws, so the equivalence trio (51/12/11 scenarios)
 stays bitwise unchanged. A naive ratio of `predict.bart` against its
 underlying `.Call`, two independently-timed series, is not reportable
 as a percentage on a loaded box; the one directly measured, always

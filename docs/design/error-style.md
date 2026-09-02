@@ -17,9 +17,10 @@ slices so nothing is reworded twice. Text only - no function is renamed, no
 predicate changes (predicate reconciliation, e.g. `any(w < 0)` vs
 `!(w >= 0.0)`, is slice K6, scheduled after this lands).
 
-Evidence: 549 `stop()` in `R/`, 348 `Rf_error()` in `src/R_interface_bartcore.cpp`
-+ `src/C_interface.cpp` + `src/R_interface.cpp`, 2 `ext_throwError` in
-`src/bartcore/chain.hpp:1917,2081`. Each rule states the majority it codifies, or
+Evidence: 610 `stop()` in `R/`, 365 `Rf_error()` in `src/R_interface_bartcore.cpp`
++ `src/C_interface.cpp` + `src/R_interface.cpp`, 3 `ext_throwError` in
+`src/bartcore/chain.hpp:1886,2050` and `src/bartcore/sampler.hpp:682`. Each
+rule states the majority it codifies, or
 says plainly that it invents (no majority existed). Frequencies in the
 appendix. Every rule below was additionally checked against: a direct
 source-level survey of `stop()` in base, stats, Matrix, survival, lme4,
@@ -103,11 +104,11 @@ natural casing rather than force `"bcf does not support"`.
 
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
-- Violation: `src/R_interface_bartcore.cpp:2481` ("Student-t residuals ...")
-  is a genuine outlier, not an acronym - reword under the sweep. `:7434`
-  (DART) is the acronym exception and stays as-is; the two BCF-initial
-  messages that sat beside it were reworded when the amplitude family took
-  amplitude-rooted names, leaving DART the only one.
+- Violation: none left on the C side. The prior outlier ("Student-t
+  residuals ...") went with its message; `:7753` (DART) is the acronym
+  exception and stays as-is; the two BCF-initial messages that sat beside it
+  were reworded when the amplitude family took amplitude-rooted names,
+  leaving DART the only one.
 
 **External evidence.** Published best practice (tidyverse): "Errors should be
 written in sentence case ... make sure to capitalise the first word (unless
@@ -281,10 +282,13 @@ the same sites:
 
 A helper reached from both the .Call bridge and the flat C API takes the
 dynamic prefix and is handed the flat entry's own name, since that route
-has no R call frame at all; the factor level-code refusals
-(src/R_interface_bartcore.cpp:1653-1660) are the outstanding exception -
-raised from validateCategoricalPredictors and
-validateTestContainerAgainstStore, both shared, and prefixed by neither.
+has no R call frame at all; three refusals are the outstanding exceptions,
+prefixed by none of them - the factor level-code texts and the level-count
+ceilings (src/R_interface_bartcore.cpp:1793-1800, :1826-1829), raised from
+the shared validateCategoricalPredictors and
+validateTestContainerAgainstStore, and the sparse leaf-covariate test
+refusal raised in dbarts_sampler_setTestPredictors' own body
+(src/C_interface.cpp:891).
 
 **External evidence.** WRE's C-API chapter has a section titled "Error
 signaling" in its table of contents, but the fetched manual text did not
@@ -354,8 +358,9 @@ NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
 Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1090`). **Argument omitted
 from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
 specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
-(`R/rbart.R:126`). Violation: `"'group.by' must be supplied when 'newdata' is
-given"` (`R/bart.R:2627`) - retired: already reworded to `specified`.
+(`R/rbart.R:127`). The former violation, `"'group.by' must be supplied when
+'newdata' is given"`, is retired: `R/bart.R:2605` now refuses a different
+predicate, `"'group.by' must be given by name when 'newdata' is given"`.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -473,11 +478,11 @@ is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (`R/generics.R:603-607`). Violation: `"invalid monotone direction
-'", value, "'; use -1, 0, or +1"` (`R/model.R:558`) - reword to `"'direction'
-must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
-site). `"unrecognized response family for a binary response"`
-(`src/R_interface_bartcore.cpp:1595`) - names no choices at all.
+"', '"), "'"` (`R/generics.R:645-649`). The monotone-direction violation is
+retired: `R/model.R:555` now reads `"'direction' must be one of -1, 0, 1"`,
+with no `got` value - this rule's shape exactly. Still open:
+`"unrecognized response family for a binary response"`
+(`src/R_interface_bartcore.cpp:1744`) - names no choices at all.
 
 **External evidence.** The `"must be one of"` shape itself is directly
 attested in base R: `stop("'origin' must be one of 'start', 'current' or
@@ -573,9 +578,11 @@ same data set that left R13 SILENT-KEPT.
 
 ## Measured current state (appendix)
 
-Corpus: 549 `stop()` (`R/`), 348 `Rf_error()` (`src/*.cpp`), 2
-`ext_throwError()` (`src/bartcore/chain.hpp:1917,2081`, the only user of that
-fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
+Corpus: 610 `stop()` (`R/`), 365 `Rf_error()` (`src/R_interface_bartcore.cpp`
++ `src/C_interface.cpp` + `src/R_interface.cpp`), 3 `ext_throwError()`
+(`src/bartcore/chain.hpp:1886,2050` and `src/bartcore/sampler.hpp:682`, the
+only users of that fourth mechanism, not part of this drift). 0 uses
+anywhere of `gettextf`,
 `sQuote`, `dQuote`, backtick-quoted argument names, or non-ASCII bytes.
 
 | dimension | finding |
