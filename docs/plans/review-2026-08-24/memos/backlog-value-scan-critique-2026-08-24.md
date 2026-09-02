@@ -15,7 +15,7 @@ Posture REFUTE. `git archive HEAD` staged under a private scratch prefix, `R CMD
     sd(ppd - ev): 8.043541   scalar sigma: 7.806093   mean s.train: 1.402687
     cor(colwise sd(ppd-ev), colwise mean s.train): 0.0206
 
-sigma is the fixed unit residual of parameterisation A ([[heteroscedastic.md:279-281@ee70e6f7]], `sigmaIsFixed_`)
+sigma is the fixed unit residual of parameterisation A ([[docs/design/heteroscedastic.md:279-281@ee70e6f7]], `sigmaIsFixed_`)
 rescaled by the y range - no posterior content at all. TWO CHANNELS THE MEMO MISSES, both live:
 
 - `predict(type = "ppd")` ([[generics.R:270-296@ee70e6f7]]) computes `s` into a local at [[generics.R:273-279@ee70e6f7]], attaches it as
@@ -122,10 +122,10 @@ argument. The memo should say so rather than let them outrank a wrong number.
   `setForestWeights` ([[latent-subset-mask.md:323-326@5a3bc276]], [[latent-subset-mask.md:488-492@5a3bc276]], arc COMPLETE). The memo drops the
   shipped arm and conflates mask with zero weight. Honest residue: PHYSICAL COMPACTION only, already
   deferred by VD with a named trigger ([[TODO:223-224@5a3bc276]]). As posed it reopens two settled arms.
-- D2 approximate-Polya-Gamma: correct and genuinely open ([[negative-binomial.md:105-108@5a3bc276]] resolved fork
-  A only; [[negative-binomial.md:646-654@5a3bc276]] holds fork B). Two fixes: "explicit opt-in" is the TODO's gloss, never
-  adjudicated - the record says a "project-level identity decision ... its own arc" ([[negative-binomial.md:309-313@5a3bc276]],
-  [[negative-binomial.md:648-651@5a3bc276]]); and [[TODO:498@5a3bc276]]'s FIRST half (integer-weight probit by replicated latents) is exact and
+- D2 approximate-Polya-Gamma: correct and genuinely open ([[docs/design/negative-binomial.md:105-108@5a3bc276]] resolved fork
+  A only; [[docs/design/negative-binomial.md:646-654@5a3bc276]] holds fork B). Two fixes: "explicit opt-in" is the TODO's gloss, never
+  adjudicated - the record says a "project-level identity decision ... its own arc" ([[docs/design/negative-binomial.md:309-313@5a3bc276]],
+  [[docs/design/negative-binomial.md:648-651@5a3bc276]]); and [[TODO:498@5a3bc276]]'s FIRST half (integer-weight probit by replicated latents) is exact and
   cost-gated, not part of this door ([[weighted-binary.md:18-32@5a3bc276]]).
 - D3 hurdle samplerOnly: correct and open ([[multinomial-mutation-arc.md:956-961@5a3bc276]] recommends defer;
   hurdle.md carries no ruling). Live-code fix: THREE families opt back in via `allow.samplerOnly` -
@@ -147,13 +147,13 @@ argument. The memo should say so rather than let them outrank a wrong number.
 - feature-matrix [f19] / [[bartcore.R:1039@e8fcf8be]]: CONFIRMED (4975c20b, c3af16a1 real and as described;
   [[generics.R:66-93@658869ac]] guards and scores the t marginal). Nit: [f19]'s "per-row lambda_i is not stored"
   clause is still true, so it is stale in its verdict only.
-- INDEX.md nameable-calibration row: CONFIRMED ([[INDEX.md:83@658869ac]] vs [[feature-matrix.md:1109-1113@658869ac]]; ab3aa2fa
-  real). MISSED: [[INDEX.md:74@658869ac]] still calls it one of "the two designed-but-unbuilt arcs".
-- bcf-bartcause-relocation anchors: MIXED. Path is docs/PLANS/, not docs/design/. Stale [[TODO:80-143@658869ac]]
-  and [[TODO:497-500@658869ac]] cites CONFIRMED; vanished bart2-argument-consolidation entry CONFIRMED (a dangling
-  ordering reference survives at [[TODO:405@658869ac]]); S13 172523e6 door stale CONFIRMED. "Two of its doors are
-  answered too" REFUTED - the per-forest replay door at [[TODO:1271-1274@658869ac]] ALREADY records "LANDED
-  2026-08-20 at dbarts 63df524e", landing note at [[TODO:1613@63df524e]]. One stale door, not two. [[generics.R:505@63df524e]] is
+- INDEX.md nameable-calibration row: CONFIRMED ([[docs/design/INDEX.md:82@658869ac]] vs [[docs/design/feature-matrix.md:1108-1112@7a42305e]]; ab3aa2fa
+  real). MISSED: [[docs/design/INDEX.md:73@658869ac]] still calls it one of "the two designed-but-unbuilt arcs".
+- bcf-bartcause-relocation anchors: MIXED. Path is docs/PLANS/, not docs/design/. Stale [[docs/plans/bcf-bartcause-relocation.md:80-143@658869ac]]
+  and [[docs/plans/bcf-bartcause-relocation.md:497-500@658869ac]] cites CONFIRMED; vanished bart2-argument-consolidation entry CONFIRMED (a dangling
+  ordering reference survives at [[docs/plans/bcf-bartcause-relocation.md:405@658869ac]]); S13 172523e6 door stale CONFIRMED. "Two of its doors are
+  answered too" REFUTED - the per-forest replay door at [[docs/plans/bcf-bartcause-relocation.md:1271-1274@658869ac]] ALREADY records "LANDED
+  2026-08-20 at dbarts 63df524e", landing note at [[docs/plans/bcf-bartcause-relocation.md:1613@004746064]]. One stale door, not two. [[generics.R:505@63df524e]] is
   the comment above `predictForest` ([[generics.R:516@63df524e]]).
 
 ## 5. New findings
