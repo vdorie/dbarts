@@ -913,7 +913,10 @@ struct ColumnStore {
 
   /// Owned raw training values of column j: a gathered copy (leaf covariates,
   /// or a data handle's declared columns), the mixed build's owned dense
-  /// slice, null when neither serves it.
+  /// slice, null when neither serves it - a CSC-backed column, and a factor
+  /// column the build was not asked to gather, which keeps only its codes.
+  /// The designation is refused upstream where this is null, so a leaf model
+  /// never reads one.
   const double* rawColumn(size_t j) const {
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot >= 0)

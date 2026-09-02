@@ -1057,6 +1057,10 @@ struct LinearGaussianLeaf {
     if (numTestObservations_ == 0) return;
     for (std::size_t j = 0; j < numCovariates_; ++j) {
       const double* column = data.rawTestColumn(columns_[j]);
+      // a designated column always serves test raw - dense-backed by the
+      // factory's own refusal, and gathered by buildTest where the test store
+      // keeps no slice of its own - so this is unreachable for a correctly
+      // wired leaf rather than a covariate silently entering at zero
       if (column == nullptr) continue;
       double* u = uTest_.data() + j * numTestObservations_;
       for (std::size_t i = 0; i < numTestObservations_; ++i)
@@ -1421,6 +1425,10 @@ struct GPGaussianLeaf {
     if (numTestObservations_ == 0) return;
     for (std::size_t j = 0; j < numCovariates_; ++j) {
       const double* column = data.rawTestColumn(columns_[j]);
+      // a designated column always serves test raw - dense-backed by the
+      // factory's own refusal, and gathered by buildTest where the test store
+      // keeps no slice of its own - so this is unreachable for a correctly
+      // wired leaf rather than a covariate silently entering at zero
       if (column == nullptr) continue;
       double* u = uTest_.data() + j * numTestObservations_;
       for (std::size_t i = 0; i < numTestObservations_; ++i)
