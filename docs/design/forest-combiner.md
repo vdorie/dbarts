@@ -51,7 +51,7 @@ the BCF constructor. The landed virtual surface:
   afterCombine's return is a REPORTING channel, not a record of whether it
   moved: each override states its own convention, 1.0 does NOT mean the state
   is unchanged, and no caller may read it that way (CORRECTED here; the base
-  Doxygen is authoritative, combiner.hpp:599-603). The per-forest amplitude
+  Doxygen is authoritative, [[src/bartcore/combiner.hpp#ForestCombiner::afterCombine]]). The per-forest amplitude
   rescale returns the scale applied to the forest it reports, 1.0 if that one
   held while another travelled; the multinomial level shift returns 1.0
   unconditionally, HAVING moved, an additive move having no scale to report.
@@ -129,7 +129,9 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:802, chain.hpp:1250-1256, facade.hpp:881-885). The SPELLING
+([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::bcfGlue]],
+[[src/bartcore/chain.hpp#Chain::Chain]],
+[[src/bartcore/facade.hpp#createAmplitudeSampler]]). The SPELLING
 followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
@@ -200,7 +202,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   per-observation sigma - a decision this plan explicitly deferred. RESOLVED,
   2026-07-20 (docs/design/heteroscedastic.md): the WEIGHT-channel route was the
   right one, and it landed as a Chain-side nullable `varianceForest_`
-  (chain.hpp:5457) rather than through a combiner at all. The Chain
+  ([[src/bartcore/chain.hpp#Chain::varianceForest_]]) rather than through a combiner at all. The Chain
   constraint itself stands unchanged; what is settled is the decision, not the
   constraint. The combiner's own weight-channel seam is therefore STILL the
   unused route a future combiner-HOSTED variance forest would take.
@@ -213,25 +215,28 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   by the multiplier family (M4.3): they are now `hasAmplitudes`,
   `amplitudeWidths`, `amplitudes` and `amplitudeVariances` - RAGGED, with the
   widths travelling because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2,
-  2)` both carrying four amplitudes (combiner.hpp:93-103) - and the four named
+  2)` both carrying four amplitudes ([[src/bartcore/combiner.hpp#ChainStateData::amplitudeWidths, ChainStateData::amplitudes]]) - and the four named
   scalars survive only as a hand-written K = 2 reading, non-authoritative
-  (:104-110). The bullet's CONCLUSION is what the arc vindicated and it stands:
+  ([[src/bartcore/combiner.hpp#ChainStateData::a, ChainStateData::aVariance, ChainStateData::b0, ChainStateData::b1]]). The bullet's CONCLUSION is what the arc vindicated and it stands:
   a non-BCF combiner overrides `serializeGlue`/`restoreGlue` rather than
   reaching for an accessor, so the interface point was already right. It need
   not always write anything: the multinomial combiner serializes NOTHING
   (docs/design/ multinomial.md), redrawing its per-sweep Polya-Gamma latents
   against the restored forests structurally, so restore is structural, not
   bitwise. The interface point did grow a THIRD virtual, `glueIsValid`
-  (combiner.hpp:1079, :1062-1078), the layout check `stateIsValid` routes
+  ([[src/bartcore/combiner.hpp#ForestCombiner::glueIsValid, AmplitudeForestCombiner::glueIsValid]]),
+  the layout check `stateIsValid`
+  ([[src/bartcore/chain.hpp#Chain::stateIsValid]]) routes
   through so a same-total different-layout state cannot be written through the
   live offsets.
 
 ### What the multiplier family closed, and what it opened
 
 The combiner API's own input side is now general in K AND in per-forest basis
-width: `setForestBasis` (combiner.hpp:780-782), the amplitude trio
-`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:592-594), and a ragged
-glue wire block (:706-715). The math is docs/design/multiplier-combiner.md's
+width: `setForestBasis` ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::setForestBasis]]), the amplitude trio
+`totalAmplitudes`/`numForestAmplitudes`/`amplitudes`
+([[src/bartcore/combiner.hpp#ForestCombiner::totalAmplitudes, ForestCombiner::numForestAmplitudes, ForestCombiner::amplitudes]]), and a ragged
+glue wire block ([[src/bartcore/combiner.hpp#ForestCombiner::serializeGlue, ForestCombiner::restoreGlue, ForestCombiner::glueIsValid]]). The math is docs/design/multiplier-combiner.md's
 and is not restated here.
 
 **What the virtual surface grew, and the general rule it grew under.** Since
@@ -240,24 +245,24 @@ and is not restated here.
 `setCategoryTestOffset`, the amplitude trio, `forestReportingIsDefined`,
 `numReportedLocations`, `numVariableCountForests`/`variableCountForest`,
 `supportsResponseMutation`, `supportsForestWeights`, `setActiveRows` and
-`glueIsValid` (combiner.hpp:510-715). Every one of them follows one rule, and
+`glueIsValid` ([[src/bartcore/combiner.hpp#ForestCombiner]]). Every one of them follows one rule, and
 it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
-it is audited** (combiner.hpp:562, :638, :687). And never a
+it is audited** ([[src/bartcore/combiner.hpp#ForestCombiner::supportsCountsMutation, ForestCombiner::forestReportingIsDefined, ForestCombiner::supportsForestWeights]]). And never a
 forest-count test, because a K-forest multinomial defeats one - which is why
-the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:972-975).
+the bridge probes `totalAmplitudes() != 0` instead ([[src/C_interface.cpp#dbarts_sampler_setForestBasis]]).
 
 What still does NOT generalize, after M4:
 
 - (i) The single-leaf-type forest vector, unchanged (third bullet above).
 - (ii) Non-Gaussian, PARTLY. The K-forest constructor no longer hardcodes the
   law: it carries gaussian, probit and logistic arms and records
-  `family_ = spec.family` (chain.hpp:774-792), so a binary amplitude coupling
+  `family_ = spec.family` ([[src/bartcore/chain.hpp#Chain::Chain]]), so a binary amplitude coupling
   is a shipped shape. What does not generalize is the rest: aft, ordinal and
-  nbinom are refused at the factory (facade.hpp:899-902), each wanting a block
+  nbinom are refused at the factory ([[src/bartcore/facade.hpp#createAmplitudeSampler]]), each wanting a block
   of its own interleaved with the amplitudes, and `createAmplitudeSampler`
   still carries a single `SamplerFacade<ConstantGaussianLeaf>` instantiation
-  (facade.hpp:903-905), so the leaf type is fixed whatever the family. That
+  ([[src/bartcore/facade.hpp#createAmplitudeSampler]]), so the leaf type is fixed whatever the family. That
   remainder is M4.4.
 - (iii) The NAMING. Was the debt: every layer read "BCF" where it meant
   "carries amplitudes". DISCHARGED - the family is spelled `AmplitudeSpec` /
@@ -315,7 +320,7 @@ warm-start's tree revalidation. Nothing about the combiner blocked widening
 them to loop over forests_; it was simply out of this plan's scope.
 
 CLOSED, 2026-08-10 to 2026-08-12, by the multiforest-predictor-mutation arc
-(S1-S4; recorded at docs/design/model-space-survey.md:386-403). Every one of
+(S1-S4; recorded at [[docs/design/model-space-survey.md#D1. Multi-forest transactional and per-observation predictor mutation, fixed n]]). Every one of
 those paths now loops the forests, including the heteroscedastic variance
 forest, and the acceptance rule resolved to PER-SAMPLER: a row installs only if
 it empties no leaf in any tree of any forest of any chain.
