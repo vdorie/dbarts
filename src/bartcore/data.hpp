@@ -558,12 +558,19 @@ struct SparseRawColumn {
 };
 
 /// The reader a borrowed view hands the flat replay: one indexed load off a
-/// dense-backed column, the rank lookup off a CSC-backed one.
+/// dense-backed column, the rank lookup off a CSC-backed one. A dense column
+/// is read through whichever channel holds it, so a host whose factor columns
+/// are int32 level codes routes its rows straight off them. The code arm is
+/// DenseColumnValues::at, the one widen in the header - naDenseCode becomes
+/// the NaN the missing arms below test for - so a coded column routes exactly
+/// as the same values laid out as doubles would, cell for cell.
 struct PredictorSourceColumnReader {
-  const double* dense;
+  DenseColumnValues dense;
   const SparseRawColumn* sparse;
   double at(size_t row) const {
-    return dense != nullptr ? dense[row] : sparse->at(row);
+    if (dense.values != nullptr) return dense.values[row];
+    if (dense.codes != nullptr) return dense.at(row);
+    return sparse->at(row);
   }
 };
 
@@ -574,18 +581,16 @@ struct PredictorSourceColumnReader {
 ///
 /// A CSC-backed column's implicit rows read \p storeTypes[j] == categorical ?
 /// referenceCodeOf(j) : 0, the same rule materializePredictorSource applies;
-/// a null \p storeTypes means all-ordinal. Everything is built in the
-/// constructor and freed with the object: the rank bitmaps cost O(numRows / 64)
-/// words per CSC-backed column against the O(numRows) doubles a densification
-/// would cost, and the values themselves stay borrowed.
+/// a null \p storeTypes means all-ordinal. A dense-backed column's slice is
+/// whichever channel holds it, so a view whose host split its dense storage
+/// across the two replays off the codes rather than off a block built to hold
+/// them widened. Everything is built in the constructor and freed with the
+/// object: the rank bitmaps cost O(numRows / 64) words per CSC-backed column
+/// against the O(numRows) doubles a densification would cost, and the values
+/// themselves stay borrowed.
 struct PredictorSourceColumns {
   PredictorSourceColumns(const PredictorSource& source,
                          const ColumnKind* storeTypes) {
-    // the reader is double-typed, so every dense column must sit in the double
-    // channel: the entrances that can be handed a coded view materialize it
-    // first. The assert is debug-only (R's build defines NDEBUG), so the
-    // replay pays nothing for it.
-    assert(!source.hasSplitDenseChannels());
     size_t numRows = source.numRows;
     size_t numColumns = source.numColumns;
     // sized once, before any reader points into it, so no build reallocates;
@@ -599,8 +604,7 @@ struct PredictorSourceColumns {
     for (size_t j = 0; j < numColumns; ++j) {
       std::int32_t which = source.sourceOf(j);
       if (which >= 0) {
-        readers_[j] = {
-          source.denseValues + static_cast<size_t>(which) * numRows, nullptr};
+        readers_[j] = { source.denseColumn(j), nullptr };
         continue;
       }
       size_t column = static_cast<size_t>(~which);
@@ -612,7 +616,7 @@ struct PredictorSourceColumns {
         source.cscRowIndices + begin, source.cscValues + begin,
         static_cast<size_t>(end - begin), numRows,
         categorical ? static_cast<double>(source.referenceCodeOf(j)) : 0.0);
-      readers_[j] = {nullptr, &sparseColumns_[numSparse++]};
+      readers_[j] = { DenseColumnValues{}, &sparseColumns_[numSparse++] };
     }
   }
 
