@@ -617,11 +617,11 @@ the bridge gate directly. These cells stay `R`.
 response is the expanded binary indicator.
 
 [f25] The composed hurdle fit has `family = "hurdle.lognormal"` and now
-supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2408)
+supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2411)
 combines the occupancy's `log(1 - pi)` / `log(pi)` with the positive part's
 lognormal density (a `-log(y)` Jacobian against the stored log-scale channel)
 at every row, reached from `extract.bartHurdle`'s `type == "loglik"` branch
-(generics.R:2356). This is NOT the sum of the two components' own loglik
+(generics.R:2359). This is NOT the sum of the two components' own loglik
 channels - the positive fit's own channel covers only its y > 0 rows and
 carries no Jacobian - but each component fit (`$occupancy` probit, `$positive`
 gaussian) still supports `extract(type = "loglik")` independently too.
@@ -989,7 +989,7 @@ dedicated tinytest file.
 `xbart()` or flat-C reach. No warm start / grow-from-root. A heteroscedastic
 positive part is REFUSED via the occupancy component's own gate, deliberately,
 not a partial feature ([f34]). Top-level pointwise loglik (`hurdleLogLik`,
-generics.R:2408) is no longer a gap.
+generics.R:2411) is no longer a gap.
 
 **bcf.** No `bart2()` surface for the NAMED `bcf()` causal verb, by the
 resolved fork that puts it in bartCause; the general K-forest amplitude

@@ -104,6 +104,46 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
   invisible(NULL)
 }
 
+# Diagnoses the names left in a method's '...' after its own by-name
+# refusals have run: everything still there is a name the method neither
+# takes nor recognizes, and would otherwise be discarded without a word
+# rather than pointing the caller at a typo. Warns exactly once per call,
+# naming every such argument and the method it reached, and never errors -
+# a subclass method forwarding its own extra formals through NextMethod()'s
+# '...' must not be refused for an argument its caller legitimately
+# supplied. Takes the dots already materialized as a list rather than
+# reading them itself, so the diagnosis names the method it was given and is
+# unaffected by how the dots were forwarded. Package-local, not base's
+# chkDots: before R 4.6 chkDots signals an unclassed warning and quotes with
+# the locale's fancy quotes, and this diagnosis must be catchable by class
+# and matchable by message on every R the package supports.
+warnUnusedDots <- function(dots, generic, class) {
+  supplied <- names(dots)
+  unused <- if (is.null(supplied)) {
+    character(0L)
+  } else {
+    supplied[nzchar(supplied)]
+  }
+  if (length(unused) == 0L) {
+    return(invisible(NULL))
+  }
+  warning(warningCondition(
+    paste0(
+      "extra argument",
+      if (length(unused) > 1L) "s" else "",
+      " ",
+      paste0("'", unused, "'", collapse = ", "),
+      " passed to ",
+      generic,
+      " on a ",
+      class,
+      " fit will be disregarded"
+    ),
+    class = c("dbartsUnusedArgsWarning", "dbartsWarning")
+  ))
+  invisible(NULL)
+}
+
 # dbarts()/dbartsControl() accept n.samples %/% n.thin == 0 - a sampler
 # meant to be driven by a host loop's own run() calls, never this entry
 # point's. bart2/xbart/rbart_vi all return posterior draws, so the same

@@ -344,7 +344,7 @@ predict.bart <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bart)))
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "bart")
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
@@ -1335,7 +1335,7 @@ predict.bartMultinomial <- function(
       )
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "bartMultinomial")
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
@@ -1641,7 +1641,7 @@ predict.bartOrdinal <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "bartOrdinal")
   refusePredictOffsetChannel(offset, "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["thresholds.raw"]])) {
@@ -1921,7 +1921,7 @@ predict.bartNegbin <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartNegbin)))
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "bartNegbin")
   if (is.null(object[["dispersion.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -2174,9 +2174,12 @@ predictForeignReasons <- list(
 # refuseUnusedGenericArgs above), so a name that survives the blocklist -
 # neither a foreign name from another method of this surface nor a
 # class-specific one - would otherwise be silently discarded rather than
-# pointing the caller at a typo. base's chkDots warns on it (never errors,
+# pointing the caller at a typo. warnUnusedDots warns on it (never errors,
 # so a subclass method forwarding its own extra formals through NextMethod's
-# '...' is not refused for arguments its caller legitimately supplied).
+# '...' is not refused for arguments its caller legitimately supplied). It is
+# package-local rather than base's chkDots because chkDots signals an
+# unclassed warning before R 4.6, and this diagnosis must be catchable by
+# class on every R the package supports.
 
 extractReplaysNothingReason <- "extract reads stored channels and replays nothing"
 extractForeignReasons <- list(
@@ -2494,7 +2497,7 @@ predict.bartHurdle <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartHurdle)))
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "bartHurdle")
   refusePredictOffsetChannel(offset, "bartHurdle")
   if (is.null(object$occupancy[["fit"]])) {
     refuseWithoutTrees("predict")
@@ -2555,7 +2558,7 @@ predict.rbart <- function(
       foreignArgsFor(predictForeignReasons, names(formals(predict.rbart)))
     )
   )
-  chkDots(...)
+  warnUnusedDots(list(...), "predict", "rbart")
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)

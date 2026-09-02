@@ -6,6 +6,10 @@ source(
   system.file("common", "countWarnings.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that predict fails if sampler not saved
 bartFit <- dbarts::bart(
@@ -158,10 +162,33 @@ expect_error(
 # otherwise inert in '...' - warn once rather than silently discard it
 warningCount.bogus <- countWarnings(
   predBogus <- predict(bart2FitKT, testData$x, bogus = 1),
-  "chkDotsWarning"
+  "dbartsUnusedArgsWarning"
 )
 expect_equal(warningCount.bogus, 1L)
 expect_true(!is.null(predBogus))
+# the warning names the offending argument and the method it reached, in
+# plain quotes on every locale
+warnings.bogus <- captureWarnings(
+  predict(bart2FitKT, testData$x, bogus = 1)
+)
+expect_equal(length(warnings.bogus), 1L)
+expect_identical(
+  conditionMessage(warnings.bogus[[1L]]),
+  "extra argument 'bogus' passed to predict on a bart fit will be disregarded"
+)
+expect_inherits(warnings.bogus[[1L]], "dbartsWarning")
+# every unknown name is named, in one warning
+warnings.twoBogus <- captureWarnings(
+  predict(bart2FitKT, testData$x, bogus = 1, alsoBogus = 2)
+)
+expect_equal(length(warnings.twoBogus), 1L)
+expect_identical(
+  conditionMessage(warnings.twoBogus[[1L]]),
+  paste0(
+    "extra arguments 'bogus', 'alsoBogus' passed to predict on a bart fit ",
+    "will be disregarded"
+  )
+)
 
 # a subclass method with its own formal that reaches predict.bart's '...'
 # through NextMethod() must warn, never refuse, on that formal's name: the
@@ -178,7 +205,7 @@ throwawayFit <- bart2FitKT
 class(throwawayFit) <- c("dbartsThrowawaySubclass", class(throwawayFit))
 warningCount.subclass <- countWarnings(
   predSubclass <- predict(throwawayFit, testData$x, extra = "unused"),
-  "chkDotsWarning"
+  "dbartsUnusedArgsWarning"
 )
 expect_equal(warningCount.subclass, 1L)
 expect_true(!is.null(predSubclass))
@@ -187,6 +214,8 @@ rm(
   throwawayFit,
   warningCount.bogus,
   predBogus,
+  warnings.bogus,
+  warnings.twoBogus,
   warningCount.subclass,
   predSubclass
 )
