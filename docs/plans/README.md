@@ -41,7 +41,8 @@ collides with the path:
     [[test-argument-surface.R#"hurdle.lognormal"]]  verbatim fragment
     [[docs/design/data-ownership.md#Implementation record]]  doc to doc, by heading
     [[src/bartcore/chain.hpp:2581@d477a46b]]        history, a line at a commit
-    retired: [[R/spec.R#refuseHostMutation]]        skipped; prose says it is gone
+    retired: [[R/spec.R#refuseHostMutation]]        the construct is gone
+    unresolved: [[inst/include/dbarts/R_C_interface.hpp:40@d477a46b]]  cannot be placed
 
 - A path is a repo path, a basename unique in the tracked inventory, or
   one of the aliases the head of feature-matrix.md defines. It must
@@ -58,12 +59,32 @@ collides with the path:
   citation names its test function instead.
 - A line number appears ONLY in the history form, `path:line@sha` or
   `path:a-b@sha`, whose sha is at least 8 hex digits and must be an
-  ancestor of HEAD. Ancestry is all that is checked, because the line
-  belongs to that commit rather than to the working tree. Landing notes
-  and a plan's Landing section cite this way, pinned to the commit the
-  note describes.
-- `retired:` immediately before a cite skips it, and the prose around it
-  must say the thing is gone.
+  ancestor of HEAD. The claim is read AT THAT COMMIT: the path must exist
+  in that commit's tree and the cited line must be within the file's
+  length there. A file deleted since therefore still cites cleanly, while
+  a line that never existed at the named commit does not - which is what
+  catches a bare `:NNN` whose file was guessed wrong. Landing notes and a
+  plan's Landing section cite this way, pinned to the commit the note
+  describes.
+- `retired:` before a cite says the named CONSTRUCT is gone, so its
+  content is not checked; the location must still be real - the path
+  resolves, and a history cite's sha, path and line are checked as usual.
+  The prose around it must say the thing is gone.
+- `unresolved:` before a HISTORY cite says the LOCATION itself cannot be
+  established: the target of a frozen record's line reference could not
+  be placed at any candidate commit. The bracket must still parse and the
+  sha must still be an ancestor; the path and the line are not checked.
+  It is the honest marker for a record that cannot be repaired, never a
+  way to quiet a cite that can be.
+- A marker binds only when it sits immediately before the cite, so
+  `un-retired:` and any other word ending in `retired:` disarms nothing.
+- A cite parked inside a fenced code block is not checked at all: a fence
+  is a code sample or a transcript. Do not put a live cite in one.
+- A symbol is found by token search over the whole file, so a name
+  occurring only in a comment or a string satisfies its cite. Qualify a
+  name the target file defines more than once - `ProbitResponse::computeLogLikelihood`,
+  not `computeLogLikelihood` - so the token that answers is the one the
+  sentence means.
 
 Backticks around a cite are optional. `tools/check-doc-freshness.R`
 checks every cite in everything under docs/, the top-level README.md,
