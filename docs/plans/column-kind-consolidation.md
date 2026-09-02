@@ -1425,3 +1425,37 @@ baseline, equivalence-ee5ffe74.rds, 46 scenarios. Draw-preserving: all 43
 predecessor scenarios reproduce equivalence-736bfb05.rds bitwise;
 bcf-equivalence-00cfa108 stays 12/12 and multinomial-equivalence-4d9a3337
 stays 11/11. No product code. S1 next.
+
+### S1 - the kind axis (e0298776, 210d8471, d532797c, a4fe6f5e, 7d7e30ea, 57e09c11)
+
+A real categoryCounts field, 4 bytes per column, takes over numCuts's
+category-count overload: a categorical column now carries numCuts 0 and
+its K in the new field, and every K read - mask tiers, reserved missing
+codes, reachable-category masks, the flat replay's payload checks, the
+category histogram width, the bridge's test-code bound and mask channel
+- moves there. Ordered factors get their own ColumnKind, varTypes 2,
+splitting by threshold under the same splitsBySubset predicate an
+unordered factor does not. flattenBelow, buildFromFlatBelow and
+flatSubtreeIsWellFormed's three separately written FlatKind ladders
+collapse onto one expectedFlatKind predicate. The denseBorrowed/
+denseOwned naming inversion is corrected to denseCallSupplied/
+denseResident/residentRaw, naming the source axis rather than its
+opposite - pure rename, no behavior change.
+
+Decision 4's declared-count routing - a container's own declared K always
+wins over an inferred one - is extended past both of
+readDeclaredCategoryCounts's gates, with its two residues stated rather
+than resolved: which channel wins for a hand-built CSC-backed ordered
+factor declaring both a factor.levels entry and a sparseCategoryCount,
+and such a column's implicit rows reading the quantized zero rather than
+a declared reference level. The out-of-range level-code refusal at
+creation now sweeps both factor kinds instead of categorical alone,
+naming the kind in the message; setData keeps either kind's level count
+fixed post-creation. DBARTS_COLUMN_ORDERED_FACTOR = 2 is appended to the
+C API's dbarts_column_type, re-baking DBARTS_C_API_HASH to
+0xe14b499a84f501d2 - stan4bart rebuild owed, its build verified 455/455
+under the exact-ABI handshake. State format unmoved.
+
+Draws bitwise: equivalence-ee5ffe74 46/46, bcf-equivalence-00cfa108
+12/12, multinomial-equivalence-4d9a3337 11/11. S2 next: the midpoint
+grid, draw-changing, own re-record.

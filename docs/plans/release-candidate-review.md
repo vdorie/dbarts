@@ -537,6 +537,36 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S1, and two fix-forward commits (e3ab4366, 4eb46434, e0298776..57e09c11, 2026-09-01)
+
+Two commits land on the mainline ahead of the kind-axis slice. e3ab4366
+replaces the six predict methods' use of base::chkDots with a
+package-local warnUnusedDots: R 4.6 signals chkDots's diagnosis as a
+classed condition, R 4.5 and earlier as a bare simpleWarning nothing
+downstream can catch by class, so the new helper warns once naming every
+unused argument and the method reached, catchable and matchable on every
+supported R. 4eb46434 strips 40 line-neutral scratch/session paths out of
+tracked docs.
+
+Slice S1 of docs/plans/column-kind-consolidation.md lands as six commits:
+a categoryCounts field de-overloads numCuts's category-count reuse;
+ordered factors get their own ColumnKind (varTypes 2); the flat split
+tag is derived from one shared predicate instead of three separately
+written ladders; the denseBorrowed/denseOwned naming inversion is
+corrected; declared-count routing is extended to CSC-backed ordered
+factors with its two residues recorded; and the out-of-range level-code
+refusal at creation now covers both factor kinds. DBARTS_COLUMN_ORDERED_FACTOR
+= 2 is appended to the C API, re-baking DBARTS_C_API_HASH to
+0xe14b499a84f501d2; stan4bart rebuild owed, its build verified 455/455
+under the exact-ABI handshake. Full detail and the per-commit sha list
+are in column-kind-consolidation.md's own Landing section.
+
+Gates (implementer-run; independent battery pending): R CMD INSTALL
+--preclean exit 0; tests/cpp 268 ok, all tests passed; check-doc-freshness
+0 FAIL; equivalence-ee5ffe74 46/46, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise identical, no
+statistical fallback.
+
 ### The R-surface rulings, the hot-path dispatch reshape, and the NEWS rewrite (dadf4c5b..8e0b0e9e, 2026-09-01)
 
 Nine slices land together: the WRE C++20 configure probe, an engine-level
