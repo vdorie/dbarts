@@ -344,9 +344,11 @@ struct AugmentationInputs {
   double df;
 };
 
-/// The law an augmentation helper's family name selects. The name is the
-/// caller's argument, which the R surface spells "probit", "logistic",
-/// "ordinal", "aft", "nbinom" or "student"; errors on any other, naming it.
+/// The R surface's boundary into the enum: the law a family name selects,
+/// one of "probit", "logistic", "ordinal", "aft", "nbinom" and "student".
+/// Errors on any other name, naming it. The flat C API has its own boundary,
+/// mapping its family tokens straight onto laws, so no surface reaches a
+/// dispatch through a family value.
 AugmentationLaw augmentationLaw(const char* name);
 
 /// The family arm validateResponseSupport states a law's response support

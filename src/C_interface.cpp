@@ -21,7 +21,6 @@
 
 using std::size_t;
 using bartcore_bridge::AugmentationInputs;
-using bartcore_bridge::augmentationLaw;
 using bartcore_bridge::AugmentationLaw;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
@@ -1288,19 +1287,22 @@ int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
   return engine.setActiveRows(active) ? 1 : 0;
 }
 
-// dbarts_drawLatents/dbarts_workingResponse's family admission: the six
-// augmentationFamily accepts, mapped from the enum so the string-keyed law
-// below them is untouched. Refuses AUTO, GAUSSIAN and MULTINOMIAL (which
-// augmentationFamily has no string form for in the first place) and anything
-// outside the enum, naming both the entry and the family.
-static const char* augmentationFamilyName(int family, const char* caller) {
+// dbarts_drawLatents/dbarts_workingResponse's family admission, and the one
+// place a header family token becomes an augmentation law. The map is
+// deliberately not one-to-one in either direction: DBARTS_FAMILY_STUDENT names
+// no sampler family (a Student-t sampler's family IS gaussian) yet is the only
+// token carrying the scale-mixture law, while AUTO, GAUSSIAN and MULTINOMIAL
+// name families that carry no augmentation law at all and are refused here,
+// as is anything outside the enum. Every refusal names both the entry and the
+// family.
+static AugmentationLaw augmentationLawOf(int family, const char* caller) {
   switch (family) {
-  case DBARTS_FAMILY_PROBIT: return "probit";
-  case DBARTS_FAMILY_LOGISTIC: return "logistic";
-  case DBARTS_FAMILY_ORDINAL: return "ordinal";
-  case DBARTS_FAMILY_AFT: return "aft";
-  case DBARTS_FAMILY_NBINOM: return "nbinom";
-  case DBARTS_FAMILY_STUDENT: return "student";
+  case DBARTS_FAMILY_PROBIT: return AugmentationLaw::probit;
+  case DBARTS_FAMILY_LOGISTIC: return AugmentationLaw::logistic;
+  case DBARTS_FAMILY_ORDINAL: return AugmentationLaw::ordinal;
+  case DBARTS_FAMILY_AFT: return AugmentationLaw::aft;
+  case DBARTS_FAMILY_NBINOM: return AugmentationLaw::nbinom;
+  case DBARTS_FAMILY_STUDENT: return AugmentationLaw::studentT;
   }
   {
     const char* name = familyEnumeratorName(family);
@@ -1310,7 +1312,7 @@ static const char* augmentationFamilyName(int family, const char* caller) {
   }
   Rf_error("%s: family %d is refused (accepts DBARTS_FAMILY_PROBIT, "
            "LOGISTIC, ORDINAL, AFT, NBINOM and STUDENT)", caller, family);
-  return NULL; // unreached: Rf_error longjmps
+  return AugmentationLaw::probit; // unreached: Rf_error longjmps
 }
 
 // Resolves the family and applies the rules R/augmentation.R applies ahead of
@@ -1323,10 +1325,10 @@ static const char* augmentationFamilyName(int family, const char* caller) {
 // out. drawing selects the draw's own scalars.
 // The per-law argument rules below are if-chains, not a switch, so -Wswitch
 // cannot see a law they omit; this assertion is the only tripwire. Update it
-// only together with the rules and with augmentationFamilyName's token map.
+// only together with the rules and with augmentationLawOf's token map.
 static_assert(bartcore_bridge::numAugmentationLaws == 6,
               "a law was added to AugmentationLaw: the argument rules below "
-              "and the family token map above each need an arm for it");
+              "and augmentationLawOf's token map each need an arm for it");
 
 static void augmentationArguments(AugmentationLaw law,
                                   const AugmentationInputs& in, bool drawing,
@@ -1371,8 +1373,7 @@ void dbarts_drawLatents(int family, size_t numObservations,
                         double sigma, double dispersion,
                         const double* ordinalThresholds,
                         size_t numOrdinalThresholds, double df, double* out) {
-  AugmentationLaw law =
-    augmentationLaw(augmentationFamilyName(family, "dbarts_drawLatents"));
+  AugmentationLaw law = augmentationLawOf(family, "dbarts_drawLatents");
   AugmentationInputs in{.numObservations = numObservations, .fit = fit, .y = y,
                         .weights = weights, .offset = offset,
                         .ordinalThresholds = ordinalThresholds,
@@ -1390,8 +1391,7 @@ void dbarts_workingResponse(int family, size_t numObservations,
                             const double* latent, const double* y,
                             const double* weights, const double* offset,
                             double dispersion, double* out) {
-  AugmentationLaw law =
-    augmentationLaw(augmentationFamilyName(family, "dbarts_workingResponse"));
+  AugmentationLaw law = augmentationLawOf(family, "dbarts_workingResponse");
   AugmentationInputs in{.numObservations = numObservations, .fit = latent,
                         .y = y, .weights = weights, .offset = offset,
                         .dispersion = dispersion};
