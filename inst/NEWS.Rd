@@ -898,6 +898,15 @@
             store. A frame carrying a sparse column, a test frame, and a
             design supplied as a numeric matrix are all unaffected and still
             assemble doubles.
+      \item Predicting over a resident test set - one the engine routes in
+            place rather than densifying, which is what a data frame
+            carrying a \code{sparseFactor} column gives - reads its factor
+            columns as the integer level codes they already are instead of
+            widening them first. The temporary those columns occupy halves:
+            a 4-byte level code in place of an 8-byte double for every
+            factor cell of the test set. The predictions are identical bit
+            for bit, and the saved-tree replay behind \code{getTrees} reads
+            the same way.
       \item Categorical predictors support up to 65535 levels, where a
             0.9-x categorical rule held its directions in a single 32-bit
             word: a rule's mask lives inline up to 63 levels and is pooled

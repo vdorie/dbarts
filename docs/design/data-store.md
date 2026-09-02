@@ -182,12 +182,23 @@ NUMERIC kind is widened once, since a numeric column's grid is over real
 values. The mapped arm and `buildTest` lay their dense raw out as one block
 sized by the largest dense source and so refuse a split-channel view.
 
+The flat replay reads either channel too.
+`PredictorSourceColumnReader` - the reader `predict`, the saved-tree replay
+and the test-side refusals all take a borrowed view through - serves a
+dense-backed column from whichever channel holds it, widening a code the way
+the ingestion arm does, so a factor test set routes rows off its own codes
+without a block built to hold them widened. The entrances that build a test
+store are the ones that still need that block, so a coded view is laid back
+out for them and for the mutation kernels; nothing that reads a view a
+column at a time does.
+
 Two conventions are NOT the same and must not be confused. The channel's
 missing marker is `naDenseCode`; the code a missing value takes IN THE
 STORE is `missingCategoryCode(K)` for a subset-splitting column and
 `naCode` otherwise. The forward map is total; the inverse needs the
-column's K, which is why the store's codes are never served to a
-double-typed reader.
+column's K, which is why the store's codes never cross the view's code
+channel: the channel's missing marker is not theirs, and a reader has no
+K to tell a reserved code from a level.
 
 ## Codes vs raw: the gathered mechanism
 
@@ -326,9 +337,12 @@ which it already does as an entrance-scoped local - no holder/handle field
 extends its lifetime. A dense columnar container assembles TWO transients
 instead, one per value channel (above), and a factor column costs 4 bytes
 a cell in the code one rather than 8 in the double one; a mixed container
-and every test container still assemble one block of doubles. The CSC
-slots borrow R container memory instead, valid while `dataExpr` stays
-protected.
+still assembles one block of doubles, and so does a test container bound
+for the test store. The READ-ONLY test funnel (`parseTestSource`, shared
+by `predict`, `predictPerForest` and the saved-tree replay) assembles the
+same pair instead, since its consumer reads the view a column at a time.
+The CSC slots borrow R container memory instead, valid while `dataExpr`
+stays protected.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
 non-R host. The `python-bindings` TODO entry records it: host-side

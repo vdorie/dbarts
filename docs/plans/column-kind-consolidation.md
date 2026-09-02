@@ -1,8 +1,8 @@
 # Consolidating the predictor store's semantic-type axis
 
-Status: PARTLY LANDED. S0, S1, S2, S3 and S4a have landed and carry
-their notes under "Landing" at EOF; S4c and S4b remain, landing in that
-ruled order (see "Slice decomposition and sizing"). Every alternative
+Status: PARTLY LANDED. S0, S1, S2, S3, S4a and S4c have landed and carry
+their notes under "Landing" at EOF; S4b alone remains (see "Slice
+decomposition and sizing"). Every alternative
 below has been weighed and every open question ruled (see "Decisions").
 TODO: column-kind-consolidation.
 
@@ -1698,3 +1698,57 @@ Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108
 max |z| line, independently reproduced at review. S4c next: the
 int-backed replay reader, which gives the channel its second consumer
 through predict and inherits the indexing rule above.
+
+### S4c - the int-backed replay reader (40e03a0d, 4c92b8c4, 02e8aa20, 5416e701)
+
+The flat replay's reader carries the view's own DenseColumnValues now
+rather than a bare double pointer, and PredictorSourceColumns builds each
+dense reader from denseColumn(j), so a coded column routes cell for cell as
+the same values laid out as doubles would - the widen is the header's one,
+naDenseCode becoming the NaN the missing arms already test for. The double
+arm stays a single test and the code arm costs one more, on the replay path
+only; nothing the sampler reads per sweep changes type.
+
+That answers translateSource. The widen it did for every entry moves to
+widenCodedDenseColumns and fires only where the consumer addresses the dense
+raw as one block, which is the test-store build; the two mutation entrances
+reach that block through mutationValues instead, one materialization rather
+than two, and dbarts_sampler_predict routes rows straight off the codes.
+S4c changes no shipped header and re-bakes nothing: the channel
+dbarts_predictor_source already carried is the one the reader reads.
+
+On the R side parseMixedContainerBlock gains the same split layout and
+parseTestSource - the read-only funnel predict, predictPerForest and
+getTrees share - asks for it, so a resident test container's dense factor
+columns cross as int32 codes. The three test-store funnels (creation,
+setTestPredictor, setTestPredictorAndOffset) keep the single block their
+build lays out, which is S4b's rework. NO R product code changed, and the
+reason is worth stating: validateXTest already keeps a sparse-backed
+container resident and hands its dense factor columns over unexpanded,
+while it densifies a dense-columnar one to a matrix, so the entrances that
+can reach the channel are exactly the ones that were already resident.
+
+Level checks are untouched. The test-side sweep reads whichever channel
+holds a column through rawViewColumn, so both factor kinds refuse a
+non-level value at the same sites with the same wording, and an unobserved
+declared level still routes through the midpoint grid.
+
+MEASURED, predict over n.test = 1e6 with 20 dense factor columns beside a
+sparseFactor: peak RSS 660.1 MB before, 584.1 MB after - 76.0 MB against
+the arithmetic 80 MB (4 bytes x 1e6 rows x 20 columns), the difference
+allocator granularity; a repeated pair gives 664.2 MB and 592.8 MB.
+
+Pins. tests/cpp reads a mixed view through the reader twice, once with a
+dense column coded, against the materialized block - the CSC columns beside
+it, so the implicit-row rule is the same on either channel - and replays a
+sampler's test set carrying both factor kinds, missing cells in each, and a
+declared level the training rows never showed, through a plain block, a
+channel map with every column in the double half, and the same map with the
+factors in the code half; all three agree bitwise.
+inst/tinytest/test-predict-code-channel.R does the same from R over a
+resident container, at predict and at the saved-tree replay's n column.
+
+Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108
+12/12, multinomial-equivalence-4d9a3337 11/11, all bitwise with no
+max |z| line. S4b next: typed sources and the retained saving, the one
+slice that cannot be made small.
