@@ -554,6 +554,41 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Review-path documentation sweep before the human review (b5b86152, 2026-09-02)
+
+Three read-only verifiers opened every cite and every checkable claim in
+the review tour, the feature matrix, docs/architecture.md, both INDEX
+files, the READMEs, the consolidated review report and the design and
+plan docs the tour links, against 297ef69f. They found 51 false, 27 stale
+and 31 imprecise claims; about 130 history cites whose bracket named a
+different file from the one the sentence means (the guard resolves a
+bracket at its sha, so it cannot see that); and 34 bare line references
+at the start of hard-wrapped lines that the guard's residue pattern
+missed. Two rewriters applied the corrections - one over the tour, the
+matrix, the architecture doc, the READMEs and the INDEX one-liners, for
+plain reading; one over the plan and design docs, the cites and the
+guard - and two critics then read the results as the maintainer would
+(71 and 36 findings), which the rewriters applied in turn.
+
+What changed for a reader: the tour's section 1 no longer restates
+NEWS.Rd's UPGRADING block, section 5 keeps the one open question, and
+section 7 lists the four design docs the code walk requires; every live
+INDEX one-liner is one plain sentence; docs/architecture.md describes the
+ranked empty-leaf veto and the bridge's nine further RNG brackets
+correctly; the feature matrix's flat-C coverage paragraph, its bart()
+family-token count and its [f3] header claims now match test-capi.R,
+`bartRedirectedFamilies` and dbarts.h. The consolidated report keeps its
+body as written at b102e17c under a header naming it a snapshot; the
+`setForestBasis` "forest index out of range" wording is the one numbered
+finding still live. [[tools/check-doc-freshness.R#RESIDUE_BARE_RE]] now
+catches a bare reference at line start without matching a wrapped
+history-cite tail.
+
+Gates: check-doc-freshness OK (48 unresolved and 17 retired cites, each
+with its clause), air clean, lintr clean on the tools file,
+check-rc-codoc OK. The tour and the plans INDEX are stamped current at
+18f47358, the tip the sweep verified against.
+
 ### Every warning classed under dbartsWarning, rule R15 (be6e372b, dbb58595, 2026-09-02)
 
 Rule R15 of [[docs/design/error-style.md#R15. Warning classes]], ruled
