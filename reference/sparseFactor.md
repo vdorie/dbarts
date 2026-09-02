@@ -23,8 +23,8 @@ The same holds for a test set (`test`/`x.test`): a `sparseFactor` test
 column is recoded over the training level table and stays resident -
 through creation and `setTestPredictor` - rather than densifying at
 ingestion. `predict` and `getTrees(newdata = )` code it the same way and
-then materialize it to a dense matrix at the call boundary, since those
-entry points evaluate already-built trees on resolved values.
+then route its rows through the trees off that storage, materializing no
+dense matrix of their own.
 
 Mixing a `sparseFactor` (or any sparse ordinal) column with ordinary
 dense columns changes how a default starting `sigma` is estimated,

@@ -8,7 +8,7 @@ same three questions, which are the ones a composition gets wrong:
 
 - **which channel** the outer block writes – response, offset, weights,
   sigma, or a predictor column;
-- **which fit** the outer block reads back, since the five reporting
+- **which fit** the outer block reads back, since the six reporting
   methods do not report the same quantity
   ([`?dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
   “Reading the fit”);

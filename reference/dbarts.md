@@ -52,9 +52,9 @@ dbarts(
   test column cannot serve a designated leaf covariate either). A sparse
   or data-frame test set stays resident (rank-bitmap or dense per
   column, the same rule as training) rather than densifying at
-  ingestion; only `predict` and `getTrees(newdata = )` materialize it to
-  a dense matrix, since those entry points evaluate already-built trees
-  on resolved values. A data frame may mix ordinary columns with
+  ingestion, and `predict` and `getTrees(newdata = )` route its rows
+  through the trees off that storage rather than densifying it either. A
+  data frame may mix ordinary columns with
   [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   or `dgCMatrix` columns (assign them into the frame; they do not
   survive `data.frame(...)` or
@@ -146,8 +146,8 @@ dbarts(
   `linear(columns, k)` instead fits each leaf with an intercept plus a
   linear term in the designated continuous predictor columns (character
   names or numeric indices into the model matrix), standardized
-  internally, all coefficients sharing the `normal(k)` prior; factor
-  columns cannot be designated.
+  internally, all coefficients sharing the `normal(k)` prior; unordered
+  factor columns cannot be designated.
   `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
   smooth Gaussian-process function of the designated columns under a
   squared-exponential kernel; leaves larger than `max.leaf.size` fall

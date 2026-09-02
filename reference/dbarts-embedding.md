@@ -61,8 +61,8 @@ calibration stated at creation - and each names its reason.
 
 ### Which fit to read back
 
-Five methods report a fitted quantity and no two report the same one;
-the table in ‘Reading the fit’,
+Six methods report a fitted quantity and no two report the same one; the
+table in ‘Reading the fit’,
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
 is authoritative. The rule an outer block needs: it conditions on
 \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back whatever

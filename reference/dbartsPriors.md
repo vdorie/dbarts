@@ -59,10 +59,11 @@ A list of functions:
   continuous predictor columns instead of a constant, so the forest
   models smoothly-varying coefficients. `columns` names model matrix
   columns (character) or indexes them (numeric) and is matched to the
-  data when a sampler is built; factor columns cannot be designated. The
-  covariates are standardized internally and every coefficient shares
-  the `normal(k)` prior. Reported leaf values keep the intercept;
-  `getTrees` adds one `beta.<column>` column per covariate.
+  data when a sampler is built; unordered factor columns cannot be
+  designated. The covariates are standardized internally and every
+  coefficient shares the `normal(k)` prior. Reported leaf values keep
+  the intercept; `getTrees` adds one `beta.<column>` column per
+  covariate.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specification through its own `node.prior` argument. `sd` and
   `scale` name the calibration as they do for `normal`.

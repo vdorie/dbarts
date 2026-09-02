@@ -131,9 +131,8 @@ A `sparseFactor` or sparse ordinal test column recodes over the training
 level table and stays resident - through creation and
 `setTestPredictor` - rather than densifying at ingestion, the same
 storage tier rule as training. `predict` and `getTrees(newdata = )` code
-a test set the same way and then materialize it to a dense matrix at the
-call boundary, since those entry points evaluate already-built trees on
-resolved values.
+a test set the same way and then route its rows through the trees off
+that storage, materializing no dense matrix of their own.
 
 Data frame input is stored columnar: no \\n \times p\\ double matrix is
 retained. Code that previously reached into the data object's `x` slot

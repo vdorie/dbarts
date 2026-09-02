@@ -177,7 +177,7 @@
 <dd><p>A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for <code>setTestPredictor</code>.</p></dd>
 
   <dt id="arg-x-test">x.test<a class="anchor" aria-label="anchor" href="#arg-x-test"></a></dt>
-<dd><p>A new matrix, data frame, or sparse-bearing test set (the column types accepted by <code><a href="dbartsData.html">dbartsData</a></code>), of the number of columns equal to that in the current model. A data-frame/sparse <code>x.test</code> is coded against the training levels; <code>setTestPredictor</code> and <code>setTestPredictorAndOffset</code> then install it as a resident, whole-object replacement of the test set (see <code>column</code>), while <code>predict</code> and <code>predictForests</code> materialize it to a numeric matrix before evaluating, retaining nothing.</p></dd>
+<dd><p>A new matrix, data frame, or sparse-bearing test set (the column types accepted by <code><a href="dbartsData.html">dbartsData</a></code>), of the number of columns equal to that in the current model. A data-frame/sparse <code>x.test</code> is coded against the training levels; <code>setTestPredictor</code> and <code>setTestPredictorAndOffset</code> then install it as a resident, whole-object replacement of the test set (see <code>column</code>), while <code>predict</code> and <code>predictForests</code> route its rows through the trees off that same storage, retaining nothing.</p></dd>
 
   <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
 <dd><p>A numeric vector of length equal to that with which the sampler was created, or <code>NULL</code>. If <code>offset.test</code> was set from <code>offset</code>, will attempt to update that as well.</p>
@@ -254,9 +254,9 @@
     is the cheaper spelling when only a few columns move. Note that replacing
     a sparse-backed column densifies its storage permanently: every row then
     differs from the column's implicit value, so it stores <code>n</code> entries
-    from that point on. For <code>setTestPredictor</code>, a per-column update is refused
-    when the current test set is a data frame or sparse container rather
-    than a plain matrix; replace the whole test set instead.</p></dd>
+    from that point on. For <code>setTestPredictor</code>, a per-column update
+    reaches a data-frame or sparse test container too: the replacement is
+    spliced into its storage rather than densifying the whole test set.</p></dd>
 
   <dt id="arg-forceupdate">forceUpdate<a class="anchor" aria-label="anchor" href="#arg-forceupdate"></a></dt>
 <dd><p>For <code>setPredictor</code>, controls how the trees respond to a new predictor

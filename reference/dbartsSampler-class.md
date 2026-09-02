@@ -203,8 +203,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   data-frame/sparse `x.test` is coded against the training levels;
   `setTestPredictor` and `setTestPredictorAndOffset` then install it as
   a resident, whole-object replacement of the test set (see `column`),
-  while `predict` and `predictForests` materialize it to a numeric
-  matrix before evaluating, retaining nothing.
+  while `predict` and `predictForests` route its rows through the trees
+  off that same storage, retaining nothing.
 
 - offset:
 
@@ -598,9 +598,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   few columns move. Note that replacing a sparse-backed column densifies
   its storage permanently: every row then differs from the column's
   implicit value, so it stores `n` entries from that point on. For
-  `setTestPredictor`, a per-column update is refused when the current
-  test set is a data frame or sparse container rather than a plain
-  matrix; replace the whole test set instead.
+  `setTestPredictor`, a per-column update reaches a data-frame or sparse
+  test container too: the replacement is spliced into its storage rather
+  than densifying the whole test set.
 
 - forceUpdate:
 
