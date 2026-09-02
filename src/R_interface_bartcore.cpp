@@ -1653,7 +1653,7 @@ const double* rawViewColumn(const bartcore::PredictorSource& view, size_t j) {
 const char* const categoricalTrainingMessage =
   "categorical predictors must hold integer category codes in [0, 65535)";
 const char* const orderedFactorTrainingMessage =
-  "ordered factor predictors must hold integer level codes in [0, 65535)";
+  "ordered factor predictors must hold integer level codes in [0, 65534)";
 const char* const categoricalTestMessage =
   "categorical test predictors must hold existing category codes";
 const char* const orderedFactorTestMessage =
@@ -1672,6 +1672,21 @@ ParsedCscCodes parsedCscCodes(const int* columnPointers, const double* values,
   size_t begin = static_cast<size_t>(columnPointers[k]);
   return { values + begin,
            static_cast<size_t>(columnPointers[k + 1]) - begin };
+}
+
+// Refuse a level count past what the column's kind can hold. The ceilings are
+// the store's own, read from it rather than restated, so the bridge fires with
+// a message wherever the build would answer a bare refusal status - a declared
+// count is the one channel that reaches the store without passing the code
+// sweep below, and a sparse container declares one for every factor column.
+void refuseLevelCountPastCeiling(bartcore::ColumnKind kind, double count) {
+  std::uint32_t ceiling = bartcore::maxLevelsForKind(kind);
+  if (count <= static_cast<double>(ceiling)) return;
+  if (kind == bartcore::ColumnKind::categorical)
+    Rf_error("a categorical predictor supports at most %u levels",
+             static_cast<unsigned int>(ceiling));
+  Rf_error("an ordered factor predictor supports at most %u levels",
+           static_cast<unsigned int>(ceiling));
 }
 
 // Refuse any code outside [0, bound): a code must be integral, and only the
@@ -1737,10 +1752,13 @@ void validateCategoricalPredictors(const ParsedData& data) {
     const char* message = categorical ? categoricalTrainingMessage
                                       : orderedFactorTrainingMessage;
     // a declared level table bounds the column outright; without one its own
-    // codes fix the count, so they need only be representable
+    // codes fix the count, so they need only fall under the kind's ceiling -
+    // the count they induce is the largest of them plus one
     double declared = declaredCategoryCount(data, j);
+    refuseLevelCountPastCeiling(data.columnTypes[j], declared);
     double bound = declared > 0.0
-      ? declared : static_cast<double>(bartcore::maxCategories);
+      ? declared
+      : static_cast<double>(bartcore::maxLevelsForKind(data.columnTypes[j]));
     if (data.predictors.sourceOf(j) < 0) {
       // a CSC-backed column stores only its non-reference codes; those must lie
       // in the K its container declared - the count the store will take - as
@@ -3656,10 +3674,17 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     // DENSE build; a mapped build's dense-backed columns already serve raw
     // from the store's own block, and its CSC-backed ones serve none
     if (data.predictors.isMapped()) gatherColumns.clear();
-    handle->build(data.predictors, data.maxNumCuts.data(), 0,
-                  control.useQuantiles,
-                  gatherColumns.empty() ? NULL : gatherColumns.data(),
-                  gatherColumns.size());
+    // validateCategoricalPredictors bounds every level code and count above,
+    // so this is the backstop rather than the gate; a discarded refusal would
+    // publish a store whose later columns carry no grid and no codes
+    if (!handle->build(data.predictors, data.maxNumCuts.data(), 0,
+                       control.useQuantiles,
+                       gatherColumns.empty() ? NULL : gatherColumns.data(),
+                       gatherColumns.size())) {
+      delete handle;
+      Rf_error("a predictor column holds a level code the store cannot "
+               "represent");
+    }
 
     SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
     R_RegisterCFinalizerEx(result, dataHandleFinalizer,

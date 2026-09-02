@@ -245,5 +245,40 @@ expect_error(
   "'sigest' argument to xbart must be coercible to numeric type"
 )
 
+# xbart builds the shared data handle directly rather than through a sampler,
+# so a level code the store cannot hold has to be refused on that path too:
+# it errors rather than cross-validating over a store whose later columns
+# never got a grid
+x.coded <- x
+x.coded[, 1L] <- as.double(rep_len(0:3, nrow(x.coded)))
+data.ok <- dbartsData(y ~ x.coded)
+data.ok@varTypes[1L] <- 2L
+expect_inherits(
+  dbarts::xbart(
+    data.ok,
+    n.samples = 2L,
+    n.reps = 1L,
+    n.trees = 3L,
+    n.burn = c(2L, 2L),
+    n.threads = 1L
+  ),
+  "numeric"
+)
+x.coded[1L, 1L] <- 65534
+data.over <- dbartsData(y ~ x.coded)
+data.over@varTypes[1L] <- 2L
+expect_error(
+  dbarts::xbart(
+    data.over,
+    n.samples = 2L,
+    n.reps = 1L,
+    n.trees = 3L,
+    n.burn = c(2L, 2L),
+    n.threads = 1L
+  ),
+  "codes in \\[0, 65534\\)"
+)
+rm(x.coded, data.ok, data.over)
+
 
 rm(testData)

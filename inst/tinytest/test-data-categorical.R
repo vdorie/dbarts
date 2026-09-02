@@ -68,6 +68,33 @@ expect_error(
   pattern = "more than 65534 levels"
 )
 
+# the two entrances that carry a level table past that gate - a sparseFactor,
+# whose levels never pass through the factor branch, and varTypes on a plain
+# matrix, which declares a kind with no level table at all - are refused when
+# the predictors are ingested, each naming the ceiling it passed rather than
+# reporting an unrelated cause
+sf.over <- sparseFactor(
+  c(2L, 3L),
+  levels = c(wide.levels, "l65536"),
+  i = c(1L, 3L),
+  length = 4L
+)
+df.sparse <- data.frame(z = c(0, 1, 0, 1))
+df.sparse$f <- sf.over
+expect_error(
+  dbarts(df.sparse, df.ceiling$y, control = dbartsControl(n.chains = 1L)),
+  pattern = "at most 65535 levels"
+)
+
+x.ord.over <- matrix(c(0, 1, 2, 65534), 4L)
+data.ord.over <- dbartsData(df.ceiling$y ~ x.ord.over)
+data.ord.over@varTypes[1L] <- 2L
+expect_error(
+  dbarts(data.ord.over, control = dbartsControl(n.chains = 1L)),
+  pattern = "codes in \\[0, 65534\\)"
+)
+rm(sf.over, df.sparse, x.ord.over, data.ord.over)
+
 # an ordered factor splits between EVERY adjacent level pair, whatever n.cuts
 # says: its grid is the midpoints of its declared levels, so the top pair
 # separates where a 100-cut grid over 150 levels gave them one code
