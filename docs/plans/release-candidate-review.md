@@ -537,6 +537,72 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S2, the ordered-factor midpoint grid (9486f561, 625c6550, 038d5441, 02d41365, 1ed31cf8, f2485641, 33afc29e, 2026-09-01)
+
+Slice S2 of docs/plans/column-kind-consolidation.md lands as seven
+commits. An ordered factor's cut grid is now the K - 1 midpoints
+between consecutive DECLARED level codes, built from categoryCounts
+rather than routed through the quantile path; maxNumCuts is raised to
+K - 1 wherever n.cuts sits below it, so the thinning arm cannot fire,
+and a column of fewer than two levels takes the one degenerate cut a
+grid cannot be without. refreshCutsForColumn and cutsWouldRemainValid
+now take the factor arm on either kind instead of falling through to
+the numeric arms - refresh is a no-op, feasibility is level
+membership - and the predictor transaction's gate is widened to
+consult that check on either kind whether or not cuts refresh, since
+the check is the level table rather than the grid; setCutPoints
+refuses an ordered factor as it already refused a categorical one.
+Decision 5's strict test-side refusal sweeps both factor kinds at the
+four sites the categorical check already guarded - the test loop, the
+test container, the predictor mutation sweep, and setData - and R
+refuses an ordered factor above 65534 levels.
+
+ORACLE (P17): benchmarks/R/categorical-exact.R gains an ordered-factor
+arm, the exact posterior over a 4-level ordered factor's tree space -
+15 trees inducing 8 distinct contiguous leaf partitions, each carrying
+its own CGM mass, against 1-D leaf quadrature. FULL mode matches to
+0.0010 against a 0.005 tolerance at both n.cuts = 100 and n.cuts = 2;
+the predecessor tip FAILS the same arm in the same mode at both caps,
+0.0071 and 0.1454. A blind independent re-derivation of the same exact
+posterior, by a different integration method, matches the script's
+own numbers to 4e-16, so the arm is confirmed correct rather than
+merely self-consistent.
+
+The re-record, equivalence-02d41365.rds: 45 of 46 scenarios reproduce
+equivalence-ee5ffe74 bitwise and ordfactor alone moves (30 summaries,
+max |z| = 3.38); bcf-equivalence-00cfa108 stays 12/12 and
+multinomial-equivalence-4d9a3337 stays 11/11. The coherence tell that
+the shift is the intended one and not a regression: the ordered
+factor's own variable-inclusion proportion falls while the two numeric
+columns absorb it, a coherent reallocation of split mass rather than
+noise on one channel.
+
+Four residues, stated rather than fixed. Which channel wins for a
+hand-built CSC-backed ordered factor declaring both a factor.levels
+entry and a sparseCategoryCount is still open (categoryCounts takes
+the larger of the two, so they do not compete unless a host declares
+them differently). fillCutsAtLevelMidpoints raises maxNumCuts with no
+representability clamp of its own, so a host declaring K = 65535
+without going through R reaches numCuts 65534, one past
+maxNumCutsRepresentable - benign today, closed by S3's engine-side
+refusal. No SBC arm carries an ordered-factor predictor, so the
+equivalence corpus's K = 150 ordfactor shift is adjudicated by the
+K = 4 exact oracle plus the coherence of its variable-proportion
+reallocation, not by a calibration check at its own shape. And the
+oracle's own conditions are worth naming since they are what make it
+exact rather than approximate: the split-variable term is omitted
+because the design has one predictor, the empty-leaf veto is
+unmodelled and is inert only because every available cut under the
+midpoint grid separates two occupied sides, and tau = 3 / k assumes
+the single tree and the numeric k the arm builds.
+
+Gates (implementer-run; independent battery pending): R CMD INSTALL
+--preclean exit 0; tests/cpp 271 ok, all tests passed, 68 ok (sampler);
+tinytest 7602 / 0 fail; check-doc-freshness 0 FAIL; equivalence-02d41365
+46/46 self, 45/46 bitwise vs equivalence-ee5ffe74 (ordfactor the only
+mover), bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337
+11/11, all otherwise bitwise identical, no statistical fallback.
+
 ### Kind-axis slice S1, and two fix-forward commits (e3ab4366, 4eb46434, e0298776..57e09c11, 2026-09-01)
 
 Two commits land on the mainline ahead of the kind-axis slice. e3ab4366

@@ -1460,7 +1460,7 @@ Draws bitwise: equivalence-ee5ffe74 46/46, bcf-equivalence-00cfa108
 12/12, multinomial-equivalence-4d9a3337 11/11. S2 next: the midpoint
 grid, draw-changing, own re-record.
 
-### S2 - the midpoint grid (9486f561, 625c6550, 038d5441, 02d41365, 1ed31cf8, f2485641)
+### S2 - the midpoint grid (9486f561, 625c6550, 038d5441, 02d41365, 1ed31cf8, f2485641, 33afc29e)
 
 An ordered factor's cut grid is now the K - 1 midpoints between
 consecutive DECLARED level codes, built from categoryCounts rather than
