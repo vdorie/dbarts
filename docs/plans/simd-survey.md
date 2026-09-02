@@ -14,19 +14,19 @@ SSE2, no AVX; arm64 baseline includes NEON).
 The MCMC draw path is deliberately built so that **every dispatched double
 kernel is elementwise or a permutation** - never a reduction:
 
-- Dispatched today (simd.c:212-417): partition (permutation, integer-exact),
+- Dispatched today ([[simd.c:212-417@4a521760]]): partition (permutation, integer-exact),
   and the linalg family add/subtract/AXPY/addScalar/setConstant/transpose - all
   ELEMENTWISE (each output element = fixed arithmetic on the same operands,
   independent of vector width).
 - Elementwise + permutation kernels are **bitwise-identical across ISAs** by
   construction. That is WHY the equivalence gate (equivalence-ac6ec2c.rds, 22
   scenarios, bitwise) is machine-independent: partition_*.c reproduce the scalar
-  two-pointer permutation exactly (tree.hpp:626-628 "bitwise identical to the
+  two-pointer permutation exactly ([[tree.hpp:626-628@4a521760]] "bitwise identical to the
   misc kernel"), and elementwise double ops don't reassociate.
 - The hot REDUCTIONS that determine draws - leaf sufficient statistics
-  (misc_compute*SufficientStatisticsFast, moments.c:311-416) and the sigma-draw
-  SSR (misc_computeSumOfSquaredResiduals, moments.c:2768/2789) - are kept
-  **SCALAR and UNDISPATCHED** on purpose. Comment moments.c:307-310 even
+  (misc_compute*SufficientStatisticsFast, [[moments.c:311-416@4a521760]]) and the sigma-draw
+  SSR (misc_computeSumOfSquaredResiduals, [[moments.c:2768@4a521760]]/2789) - are kept
+  **SCALAR and UNDISPATCHED** on purpose. Comment [[moments.c:307-310@4a521760]] even
   pre-marks a SIMD suffstat as future work ("raw sums are order-insensitive").
 - The dispatched moment reductions (Mean/Variance, moments_sse2.c) are NOT in
   the draw inner loop (see hotness table); they serve standalone/mt callers.
@@ -43,22 +43,22 @@ reductions (bitwise-blocked) and scatters (hard to SIMD).
 ## Hotness map (default constant-leaf BART, per MCMC sweep)
 
 Per tree, per sweep, the O(n) passes (n = numObservations) are:
-1. Residual roll (chain.hpp:728-786): 3 fused elementwise loops, HAND-WRITTEN in
+1. Residual roll ([[chain.hpp:728-786@4a521760]]): 3 fused elementwise loops, HAND-WRITTEN in
    the header (not misc). `resid[i]=y-total+oldFits` / `resid[i]+=oldFits-prevFits`
    / `total[i]=y-resid+lastFits`.
-2. setNodeAverages -> computeLeafStats over every leaf (tree.hpp:492-521): a full
+2. setNodeAverages -> computeLeafStats over every leaf ([[tree.hpp:492-521@4a521760]]): a full
    GATHER+REDUCE pass over all n (y[indices[i]]), because backfitting changes the
    residual every sweep so cached leaf sums are stale. leafTracksNodeAverages =
-   !hasVectorParams = TRUE for the constant leaf (chain.hpp:365,747).
-3. Fit scatter (sampleParametersAndSetFits, chain.hpp:2076-2129;
-   setTreeFitsFromParameters :2035): per leaf, misc_setVectorToConstant (root,
+   !hasVectorParams = TRUE for the constant leaf ([[chain.hpp:365@4a521760]], [[chain.hpp:747@4a521760]]).
+3. Fit scatter (sampleParametersAndSetFits, [[chain.hpp:2076-2129@4a521760]];
+   setTreeFitsFromParameters [[chain.hpp:2035@4a521760]]): per leaf, misc_setVectorToConstant (root,
    dispatched) or misc_setIndexedVectorToConstant (scatter of a constant, NOT
    dispatched).
 Per-MOVE costs (metropolisJumpForTree) are O(n_node): birth partitions one node
 (partition, dispatched u16 / scalar u8) + 2 child stats; death is incremental
-(orphanChildren, tree.hpp:792-802). So the O(n)-per-tree passes above dominate
+(orphanChildren, [[tree.hpp:792-802@4a521760]]). So the O(n)-per-tree passes above dominate
 for large n.
-Once per sweep (not per tree): SSR for sigma (chain.hpp:908), reduction, scalar.
+Once per sweep (not per tree): SSR for sigma ([[chain.hpp:908@4a521760]]), reduction, scalar.
 Recorded sweeps only: test-fit descent (findBottomNodeForRow) - branchy tree
 walk, not SIMD-able; accumulation already dispatched.
 
@@ -68,7 +68,7 @@ Cold in the default sampler: the cut-scan histogram (scan.hpp) - see #C.
 
 ## RANKED CANDIDATES
 
-### #1  Fused residual-roll kernel family  (chain.hpp:728-736, 748-750, 780-786; grow twin :976-984, 1008-1009)
+### #1  Fused residual-roll kernel family  ([[chain.hpp:728-736@4a521760]], 748-750, 780-786; grow twin [[chain.hpp:976-984@4a521760]], 1008-1009)
 1. Loop/file: the three hand-written fused elementwise loops in run()'s per-tree
    backfit (and the duplicated pair in growForestFromRoot).
 2. Frequency: **per tree, per sweep** - one of the two hottest O(n) passes.
@@ -79,7 +79,7 @@ Cold in the default sampler: the cut-scan histogram (scan.hpp) - see #C.
 5. Why CRAN can't get it: not the compiler's fault on shape - it vectorizes
    fine; the gap is purely the missing -mavx width on x86. The existing misc
    vocabulary has no fused 3-input op (only y+=x, y-=x, y+=a*x), so the code was
-   hand-fused to save a memory pass (comment chain.hpp:726 "One fused pass").
+   hand-fused to save a memory pass (comment [[chain.hpp:726@4a521760]] "One fused pass").
 6. Benefit: order-of-magnitude MODEST and x86-only. Cache-resident regime
    (n<=~1e4, treeFits slab ~80KB fits L2): SSE2->AVX2 ~up to 2x on this pass.
    DRAM-bound (n>=1e5): bandwidth-limited, width barely helps. Unmeasurable on
@@ -96,9 +96,9 @@ Cold in the default sampler: the cut-scan histogram (scan.hpp) - see #C.
 
 ### #2  Close the two known misc dispatch GAPS  (from docs/plans/archive/x86-simd.md)
 Two "already-dispatched-with-a-gap" items, both bitwise-safe:
-(a) misc_setIndexedVectorToConstant (linearAlgebra.c:168) - the fit SCATTER of a
+(a) misc_setIndexedVectorToConstant ([[linearAlgebra.c:168@4a521760]]) - the fit SCATTER of a
     constant to a leaf's member indices; used every sweep in the fit-scatter pass
-    (chain.hpp:2048,2125). **Never entered the dispatch table** (x86-simd.md).
+    ([[chain.hpp:2048@4a521760]], [[chain.hpp:2125@4a521760]]). **Never entered the dispatch table** (x86-simd.md).
     - Access: scatter-store of one broadcast constant to data-dependent indices.
     - Why CRAN can't: data-dependent scatter; no SSE2/NEON scatter instruction.
     - Benefit: modest. Only AVX512 has scatter; on AVX2/NEON/SSE2 the best is
@@ -115,7 +115,7 @@ Two "already-dispatched-with-a-gap" items, both bitwise-safe:
 Draw-neutrality: both bitwise-safe & ISA-independent. Effort: LOW-MED. x86
 measurement required to choose restore-vs-delete; maintainer-run.
 
-### #3  Leaf sufficient-statistic gather+reduce  (moments.c:311-416, via setNodeAverages/computeLeafStats)
+### #3  Leaf sufficient-statistic gather+reduce  ([[moments.c:311-416@4a521760]], via setNodeAverages/computeLeafStats)
 1. misc_compute[Indexed][Weighted]SufficientStatisticsFast: scalar unrolled-by-5,
    3 accumulators (sumW, sumWx, sumWx^2).
 2. Frequency: **per tree, per sweep** (setNodeAverages recomputes ALL leaves) -
@@ -144,11 +144,11 @@ measurement required to choose restore-vs-delete; maintainer-run.
 => Highest hotness, but blocked by draw-neutrality and gather-bound economics.
    NOT recommended without an explicit VD decision.
 
-### #C  Cut-scan histogram  (scan.hpp:61-144, histogramDenseCutScan + scanOrdinalCuts)
+### #C  Cut-scan histogram  ([[scan.hpp:61-144@4a521760]], histogramDenseCutScan + scanOrdinalCuts)
 1. The scatter-reduce histogram: gather code=column[indices[i]] then SCATTER a
    (count,sumW,sumWz) double triple into bins[code]; then a small prefix scan.
 2. Frequency: **COLD in the default sampler.** Only caller is growTreeFromRoot
-   (grow.hpp:118), i.e. the OPT-IN grow-from-root WARM START
+   ([[grow.hpp:118@4a521760]]), i.e. the OPT-IN grow-from-root WARM START
    (bartcore_growFromRoot; a fixed few sweeps at init), NOT the per-iteration MH
    kernel. Default init is prior-grown (growSubtreeFromPrior). Becomes
    per-iteration hot ONLY if informed-proposal birth/death lands
@@ -175,7 +175,7 @@ measurement required to choose restore-vs-delete; maintainer-run.
 => Defer until informed proposals make it per-iteration hot; then it is the
    prime target. Not a current win.
 
-### #D  SSR for the sigma draw  (moments.c:2768/2789, chain.hpp:908, model.hpp:1763)
+### #D  SSR for the sigma draw  ([[moments.c:2768@4a521760]]/2789, [[chain.hpp:908@4a521760]], [[model.hpp:1763@4a521760]])
 Reduction sum (y-yhat)^2, scalar, undispatched. **Once per sweep** (not per
 tree) -> ~1/numTrees the hotness of #1/#3. Contiguous (no gather), so it WOULD
 vectorize cleanly - but it is a reduction: bitwise-unsafe + ISA-dependence, same
@@ -187,7 +187,7 @@ regime as #3, for a fraction of the payoff. Low priority.
 
 moments_sse2.c ships **SSE2 only** for the Mean / VarianceForKnownMean family
 (no NEON, no AVX2); dispatched via misc_stat_setSIMDInstructionSet
-(moments.c:1330). BUT these dispatched Mean/Variance reductions are **NOT in the
+([[moments.c:1330@4a521760]]). BUT these dispatched Mean/Variance reductions are **NOT in the
 sampler draw inner loop** - bartcore's hot reductions are the SEPARATE scalar
 undispatched SufficientStatisticsFast family (#3) and SSR (#D). The Mean/Variance
 kernels serve standalone/mt/utility callers. So the SSE2-only gap is REAL but
@@ -209,7 +209,7 @@ win**, and it currently carries a partition REGRESSION:
   only consumer, and phase-1 (hot-layer-u8.md) found NO arm64 partition
   win for u8.
 - REGRESSION as shipped: misc has NO u8 SIMD partition kernel, so u8 dense
-  ordinal columns take the SCALAR partition (tree.hpp:713-722), while u16 columns
+  ordinal columns take the SCALAR partition ([[tree.hpp:713-722@4a521760]]), while u16 columns
   get the SIMD partition (partition_*.c). Step-4 (u8 SIMD partition family) was
   deferred. So landing step-3 u8 as-is trades u16's 8-lane SIMD partition for a
   scalar loop on eligible columns - the memory saving must outweigh that.

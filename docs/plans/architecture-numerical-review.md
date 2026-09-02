@@ -154,7 +154,7 @@ that blocked it is gone. Debts (2)-(6) are untouched by this item.
 
 READER B (numerical) verdicts, measured (scripts in session tmp):
 - REAL, high: grouped tau slice sampler step-out is UNCAPPED in
-  BOTH directions (model.hpp:2299-2301; only shrinkage has the
+  BOTH directions ([[model.hpp:2299-2301@efd1d24b]]; only shrinkage has the
   1000 cap; verified by orchestrator). Step-outs ~ tau/width:
   >1e5 iterations at tau > ~2.5e5, indefinite hang at tau > ~1e8.
   Reachable legally: empty groups draw effects ~N(0, tau^2) with
@@ -163,7 +163,7 @@ READER B (numerical) verdicts, measured (scripts in session tmp):
   directions (~1e4) - never engages in normal runs, bit-identical.
   Filed: tau-slice-stepout-cap.
 - REAL, high (headline): chi-k Gibbs runaway - chi()'s scale=Inf
-  DEFAULT (R/model.R:451, verified) is an improper prior; when
+  DEFAULT ([[R/model.R:451@efd1d24b]], verified) is an improper prior; when
   leaves are prior-dominated the fixed-point factor
   (1 + df/numLeaves) > 1 always. Legal chi(100, Inf) runs away
   deterministically (k -> 1e25; leaf sd -> 0; forest fits NOTHING;

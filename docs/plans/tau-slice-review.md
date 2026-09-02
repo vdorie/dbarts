@@ -26,62 +26,62 @@ Model (design/grouped-random-effects.md, confirmed in code):
     tau ~ built-in prior
 
 - tau is the standard deviation of the group intercepts. Confirmed: R preStep
-  uses prior precision 1/tau^2 (rbart.R:617, `1/state$tau^2`) and draws
+  uses prior precision 1/tau^2 ([[rbart.R:617@4a521760]], `1/state$tau^2`) and draws
   `rnorm(.., sqrt(post.var))`; C++ drawGroupEffects uses `1/(tau*tau)` as the
-  prior precision (model.hpp:2592). Reported draws de-scale by sigmaScale()
-  (chain.hpp:2375), i.e. original-scale SD.
+  prior precision ([[model.hpp:2592@4a521760]]). Reported draws de-scale by sigmaScale()
+  ([[chain.hpp:2375@4a521760]]), i.e. original-scale SD.
 
 - Built-in priors, on tau (the SD), original scale with rel.scale = sd(y)
-  continuous / 0.5 binary (rbart.R:1-6, model.hpp:2507-2514,
+  continuous / 0.5 binary ([[rbart.R:1-6@4a521760]], [[model.hpp:2507-2514@4a521760]],
   design doc:42-46):
     cauchy: dcauchy(tau; 0, 2.5*rel.scale)      -- half-Cauchy on the SD
     gamma:  dgamma(tau; shape 2.5, scale 2.5*rel.scale)  -- gamma on the SD
   The shape 2.5 and the 2.5 scale-multiplier are BOTH fixed constants. The
   cauchy is the default. Internal-scale conversion is one division of the scale
   by sigmaScale() (both are scale families): priorScale_ = 2.5*tauPriorScale/scale
-  (model.hpp:2626).
+  ([[model.hpp:2626@4a521760]]).
 
 - Conditional target p(tau | b) prop prior(tau) * prod_j N(b_j;0,tau^2):
       logTauPosterior = -J log(tau) - 0.5*sum(b^2)/tau^2 + log p(tau)
-  on (0, Inf) (model.hpp:2519-2525). Sampled DIRECTLY on tau (no transform),
+  on (0, Inf) ([[model.hpp:2519-2525@4a521760]]). Sampled DIRECTLY on tau (no transform),
   so no Jacobian is needed or present - correct. The R loop's posteriorClosure
-  is the identical expression (rbart.R:870-876), so the two paths target the
+  is the identical expression ([[rbart.R:870-876@4a521760]]), so the two paths target the
   same conditional.
 
 The R loop (custom-prior path) and the in-core path are DIFFERENT samplers of
 the same target (statistically equivalent, not bit-identical, by design):
-- R sliceSample (sliceSample.R:46-312): adaptive - L-BFGS-B mode-find + numeric
+- R sliceSample ([[sliceSample.R:46-312@4a521760]]): adaptive - L-BFGS-B mode-find + numeric
   Hessian EACH call, width from a Gaussian curvature approx, works on the
   linear (exp) density scale, rejection-sampling fallback if the start density
   is tiny. Expensive (an optim per MCMC iteration); that R-loop cost is exactly
   what the in-core path was built to avoid.
-- C++ sliceSampleOnce (model.hpp:2539-2563): fixed width = priorScale_, log
+- C++ sliceSampleOnce ([[model.hpp:2539-2563@4a521760]]): fixed width = priorScale_, log
   scale, Neal (2003) step-out + shrinkage, both step-outs capped at 1e4/side.
 
-Group-effect draw also differs: R uses the UNWEIGHTED group mean (rbart.R:619);
-C++ uses working-weight sums (model.hpp:2588-2593) so Polya-Gamma logistic
+Group-effect draw also differs: R uses the UNWEIGHTED group mean ([[rbart.R:619@4a521760]]);
+C++ uses working-weight sums ([[model.hpp:2588-2593@4a521760]]) so Polya-Gamma logistic
 weights compose. For unweighted gaussian data the two coincide (design doc:27-30).
 
 ---
 
 ## 1. CORRECTNESS WALK
 
-Target density (model.hpp:2519-2525): CORRECT.
+Target density ([[model.hpp:2519-2525@4a521760]]): CORRECT.
 - Normal likelihood prod_j (2pi tau^2)^{-1/2} exp(-b_j^2/2tau^2) contributes
   -J log tau - 0.5 SS/tau^2 (SS = sum b^2). Matches exactly. Prior added on
-  log scale. Support guard `tau<=0 || isinf(tau) -> -HUGE_VAL` (model.hpp:2522).
-- cauchy logTauPrior: -log(pi*scale) - log1p((tau/scale)^2) (model.hpp:2508-2510).
+  log scale. Support guard `tau<=0 || isinf(tau) -> -HUGE_VAL` ([[model.hpp:2522@4a521760]]).
+- cauchy logTauPrior: -log(pi*scale) - log1p((tau/scale)^2) ([[model.hpp:2508-2510@4a521760]]).
   This is the FULL Cauchy normalizer; the missing factor 2 for the half-Cauchy
   is a constant, irrelevant to slice sampling. log1p is the right numeric choice.
 - gamma logTauPrior: 1.5 log tau - tau/scale - 2.5 log scale - lgamma(2.5)
-  (model.hpp:2512-2513) = dgamma(tau; shape 2.5, scale), correct and normalized.
+  ([[model.hpp:2512-2513@4a521760]]) = dgamma(tau; shape 2.5, scale), correct and normalized.
 
 Edge cases:
 - K=1 (single group): J=1, SS=b_1^2. Target prop p(tau)/tau * exp(-b_1^2/2tau^2).
   Proper under either prior for any b_1 != 0. Fine.
 - Tiny K / empty groups: an empty group's b_j is drawn from its prior N(0,tau^2)
   in drawGroupEffects (weightScratch[j]=0 => precision=1/tau^2, mean=0;
-  model.hpp:2591-2595) - a legitimate latent, but it has NO mean reversion, so a
+  [[model.hpp:2591-2595@4a521760]]) - a legitimate latent, but it has NO mean reversion, so a
   mostly-empty grouping lets tau random-walk upward. This is the documented
   driver of the step-out hang (tau-slice-stepout-cap.md). It is a property
   of the *model/Gibbs kernel*, NOT a bug in the sampler; but it is exactly the
@@ -96,26 +96,26 @@ Edge cases:
   huge finite tau still evaluates finite densities; HUGE_VAL upper bound is only
   a clamp, never evaluated as a point. Fine.
 
-Slice mechanics vs Neal (2003) (model.hpp:2540-2563):
+Slice mechanics vs Neal (2003) ([[model.hpp:2540-2563@4a521760]]):
 - logHeight = logDensity(x) - Exp(1): correct (log of Uniform(0,f(x))).
 - Initial bracket left=x-u*width, right=left+width, u~U(0,1): correct random
   placement.
 - Step-out both sides with boundary clamp: correct; matches R getInterval
-  (sliceSample.R:169-196).
+  ([[sliceSample.R:169-196@4a521760]]).
 - Shrinkage: propose U(left,right), accept if in slice, else move the side the
-  proposal fell on *relative to x* (model.hpp:2560): correct Neal shrinkage.
-- Shrinkage cap 1000 iters returning x (model.hpp:2556-2562): a numeric safety
+  proposal fell on *relative to x* ([[model.hpp:2560@4a521760]]): correct Neal shrinkage.
+- Shrinkage cap 1000 iters returning x ([[model.hpp:2556-2562@4a521760]]): a numeric safety
   valve; in exact arithmetic shrinkage always terminates, and returning the
   current point on pathology is a valid (identity) kernel step. Benign.
 
 Step-out cap correctness (the 7c1c7c9 landing, tau-slice-stepout-cap.md):
 - The cap is `steps-- > 0 &&` PREPENDED to each while's condition
-  (model.hpp:2548,2552), short-circuiting before the FP comparison, so any run
+  ([[model.hpp:2548@4a521760]], [[model.hpp:2552@4a521760]]), short-circuiting before the FP comparison, so any run
   where the cap does not engage evaluates a bit-identical FP sequence. The
   equivalence gate (21/21 identical draws) confirms it never engages in the
   suite. Bias-freeness claim when it DOES engage: "a capped bracket still
   contains the current point, so shrinkage samples correctly inside it"
-  (model.hpp:2535-2536).
+  ([[model.hpp:2535-2536@4a521760]]).
   - NUANCE (worth recording, not a defect at the shipped cap): this is NOT
     exactly Neal's m-limited step-out. Neal (2003, Fig 3) splits a SINGLE budget
     m randomly across the two sides (J ~ U{0..m-1} left, m-1-J right) precisely
@@ -146,7 +146,7 @@ per-side cap vs Neal's randomized budget, which is immaterial at the shipped 1e4
   stream is fragile to any change here (the equivalence gate is bit-exact only
   because the arithmetic is untouched). A conjugate replacement would make the
   per-sweep RNG count a FIXED 2 draws - a real robustness win.
-- The fixed width = priorScale_ (model.hpp:2671) is the prior scale, a
+- The fixed width = priorScale_ ([[model.hpp:2671@4a521760]]) is the prior scale, a
   reasonable a-priori guess but NOT adaptive to the posterior sd of tau. When J
   is large the posterior concentrates far tighter than the prior scale, so each
   update pays several shrink steps; when tau has walked large, several step-outs.
@@ -247,15 +247,15 @@ fix. A drop-in tau-sampler swap changes mixing by ~0.
 
 ### (a) Half-Cauchy via inverse-gamma scale mixture (Makalic-Schmidt 2016) -- EXACT, drop-in for the CAUCHY prior
 Prior (default): tau ~ C+(0, A), A = priorScale_ = 2.5*tauPriorScale/sigmaScale
-(model.hpp:2626; the cauchy scale is exactly this priorScale_, model.hpp:2508-2510).
+([[model.hpp:2626@4a521760]]; the cauchy scale is exactly this priorScale_, [[model.hpp:2508-2510@4a521760]]).
 Auxiliary representation (derivation checked against quadrature in 3c):
     tau^2 | xi ~ IG(1/2, 1/xi),   xi ~ IG(1/2, 1/A^2)   ==>  tau ~ C+(0,A)
 Full conditionals (b_j ~ N(0,tau^2), SS = sum b^2, J groups):
     xi   | tau     ~ IG(1,       1/tau^2 + 1/A^2)
     tau^2| b, xi   ~ IG((J+1)/2, 0.5*SS + 1/xi)
 Both are exact iid draws via 1/Gamma, EXACTLY the codebase's existing idiom for
-the BCF `a` scalar (chain.hpp:2290: `1.0/ext_rng_simulateGamma(rng, shape, 1/rate)`).
-Engine sketch replacing model.hpp:2670-2672 (ext_rng_simulateGamma takes SCALE):
+the BCF `a` scalar ([[chain.hpp:2290@4a521760]]: `1.0/ext_rng_simulateGamma(rng, shape, 1/rate)`).
+Engine sketch replacing [[model.hpp:2670-2672@4a521760]] (ext_rng_simulateGamma takes SCALE):
     double A = priorScale_;                       // cauchy scale, internal
     double xi = 1.0/ext_rng_simulateGamma(rng, 1.0,
                     1.0/(1.0/(tau_*tau_) + 1.0/(A*A)));
@@ -271,7 +271,7 @@ with no state-format change. MIXING IMPACT: ~none (3b: exactIG ~ slice).
 
 ### (b) The gamma prior -- NO exact conjugate/GIG draw as parameterized
 The code's gamma prior is dgamma(tau; shape 2.5, scale) -- gamma on the SD tau
-(model.hpp:2512, rbart.R:3-4), NOT the variance, NOT the precision. Posterior:
+([[model.hpp:2512@4a521760]], [[rbart.R:3-4@4a521760]]), NOT the variance, NOT the precision. Posterior:
     p(tau|b) prop tau^{1.5-J} exp(-tau/scale - 0.5*SS/tau^2).
 This is NOT GIG: GIG(p,a,b) prop x^{p-1} exp(-0.5(a x + b/x)) needs a 1/x term;
 here the likelihood gives 1/tau^2, and substituting u=tau^2 turns -tau/scale into
@@ -287,7 +287,7 @@ Yu-Meng (2011) global interweaving, the bcf-ridge-interweaving.md precedent
 applied to the ranef scale. After the centered draws (b|tau conjugate, then the
 CP-sufficient tau|b draw), add a non-centered ANCILLARY draw: eta = b/tau (fixed,
 eta_j ~ N(0,1)); tau is then a coefficient with half-Cauchy prior via
-tau|v ~ N(0,v) trunc>0, v ~ IG(1/2, A^2/2) (the drawGlue mixture, chain.hpp:2285-2290):
+tau|v ~ N(0,v) trunc>0, v ~ IG(1/2, A^2/2) (the drawGlue mixture, [[chain.hpp:2285-2290@4a521760]]):
     v      | tau      ~ IG(1, (tau^2 + A^2)/2)
     tau    | eta,y,v  ~ N(m, 1/prec) truncated to (0,Inf),
         prec = sum_j n_j eta_j^2 / sigma^2 + 1/v,
@@ -324,9 +324,9 @@ Nothing more exotic is warranted for a 1-D conditional.
      design doc:210-219), NOT bitwise.
   4. Exact-posterior check: the 1-group / 2-group quadrature in exact_check.R
      (marginal tau posterior by 1-D integration) - a replacement must match it.
-  5. The custom-prior R loop (rbart.R:531-696) is untouched and must keep working
+  5. The custom-prior R loop ([[rbart.R:531-696@4a521760]]) is untouched and must keep working
      (a custom prior forcing the cauchy density is the cross-check the landing used).
-- (a) exact-IG: smallest surface (swap model.hpp:2670-2672; no state change; keep
+- (a) exact-IG: smallest surface (swap [[model.hpp:2670-2672@4a521760]]; no state change; keep
   slice for gamma via the existing priorKind_ switch). Draw-changing => gates 1-5.
 - (c) ASIS: larger (new ancillary draw needs group sums in the b/tau block, a
   truncated-normal helper, and it is draw-changing) + a PROTOTYPE mixing gate on
