@@ -821,16 +821,21 @@ verification burden beyond recompiling:
     `:1409`, `:1423`): doubles, and never a factor column.
   - Recorded test fits during `run`: `test.codes`, unchanged.
 
-**The one loop that changes type**: `PredictorSourceColumnReader::at`
-(`data.hpp:526-532`), on the replay path only. It already branches per row
-(`dense != nullptr ? dense[row] : sparse->at(row)`); an int arm makes that a
-two-test chain. The branch is perfectly predicted within a column - the reader
-is fetched once per node outside the row loop (`tree.hpp:1754`) even though
-`at()` is called inside it - so the cost is a predicted test per row on a path
-that already does one. It is not free and it is not measurable against the
-`isNA` test and the mask lookup in the same loop body. This is the only place a
-`bench-sampler` predict arm could move, and it is worth a measurement rather
-than an assumption.
+**The one loop that changes type**: the flat replay's per-row read, on the
+replay path only. The test an int arm adds to
+`PredictorSourceColumnReader::at` (`data.hpp:526-532`) is free - the reader is
+fetched once per node outside the row loop even though `at()` is called inside
+it, so the branch is perfectly predicted within a column. The WIDEN is not.
+Converting a code to a double inside the row loop is paid
+`numTrees x numDraws x numRows` times against a block's widen, which is paid
+`numRows` times, and that is enough to make a coded replay slower than the
+double one it replaces. So the loop must dispatch on the channel ONCE per node
+and compare in the type the column is stored in: the categorical arms cast a
+double straight back to a code anyway, and an ordinal threshold has an exact
+integer counterpart. That is the per-kind specialization the interaction note
+below reserves, and it makes the coded arm the faster of the two. Measured
+rather than assumed, either way - this is the one place a `bench-sampler`
+predict arm moves.
 
 **Where a pure representation change could silently stop being bitwise.** All
 four of these produce correct-looking output and wrong draws:
@@ -1699,56 +1704,100 @@ max |z| line, independently reproduced at review. S4c next: the
 int-backed replay reader, which gives the channel its second consumer
 through predict and inherits the indexing rule above.
 
-### S4c - the int-backed replay reader (40e03a0d, 4c92b8c4, 02e8aa20, 5416e701)
+### S4c - the int-backed replay reader (84416304, 3b73ce32, d35b53de, c97897de, d4bca4ce, 5553802a)
 
-The flat replay's reader carries the view's own DenseColumnValues now
-rather than a bare double pointer, and PredictorSourceColumns builds each
-dense reader from denseColumn(j), so a coded column routes cell for cell as
-the same values laid out as doubles would - the widen is the header's one,
-naDenseCode becoming the NaN the missing arms already test for. The double
-arm stays a single test and the code arm costs one more, on the replay path
-only; nothing the sampler reads per sweep changes type.
+The flat replay's reader carries the view's own DenseColumnValues now rather
+than a bare double pointer, and PredictorSourceColumns builds each dense
+reader from denseColumn(j), so a coded column routes cell for cell as the
+same values laid out as doubles would. The reader is at
+src/bartcore/data.hpp:582-595, built at :612-641 - the address the interaction
+note above reserves for a later dispatch reshape.
+
+The descent does not widen. partitionFlatIndices asks the column which
+channel it is stored in once per node and runs its row loop over that type:
+partitionFlatIndicesOver takes a Cells policy answering the three questions a
+split asks - missing, category, at or under the cut - so both channels share
+one body. CodeCells reads int32, treats a category as the code it already is,
+and compares the ordinal arm against codeThresholdBelow(cut), the largest code
+the cut admits; that transform is exact because every int32 converts to a
+double without rounding, and it is built on the ordinal arm alone since
+FlatNode's payload is a union the other arms fill with a mask. A per-row widen
+instead would have been paid numTrees x numDraws x numRows times and made the
+coded replay SLOWER than the double one - the cost model the proposal above
+carried, corrected there.
+
+MEASURED, predict over n.test = 1e6 with 20 five-level dense factor columns
+beside a sparseFactor, one thread, medians of 7 at the predict entry:
+
+| n.trees | double arm | coded arm | delta |
+| --- | --- | --- | --- |
+| 5 | 0.043 s | 0.033 s | -23.3% |
+| 25 | 0.124 s | 0.097 s | -21.8% |
+| 100 | 0.488 s | 0.388 s | -20.5% |
+| 200 | 0.953 s | 0.758 s | -20.5% |
+
+The double path does not move (0.961 s before, 0.953 s after at 200 trees),
+so the coded arm is about a fifth faster than the replay it replaces rather
+than a sixth slower, which is what a per-row widen would have cost.
+
+Peak RSS falls by 4 bytes per factor cell of the test set: the arithmetic is
+80.0 MB on that shape (4 bytes x 1e6 rows x 20 columns), and a paired
+/usr/bin/time -l measurement gives 660.1 MB before against 584.1 MB after.
+Absolute levels are host-dependent; the delta is the claim.
 
 That answers translateSource. The widen it did for every entry moves to
 widenCodedDenseColumns and fires only where the consumer addresses the dense
-raw as one block, which is the test-store build; the two mutation entrances
-reach that block through mutationValues instead, one materialization rather
-than two, and dbarts_sampler_predict routes rows straight off the codes.
-S4c changes no shipped header and re-bakes nothing: the channel
-dbarts_predictor_source already carried is the one the reader reads.
+raw as one block, which is the test-store build; dbarts_sampler_predict routes
+rows straight off the codes. The two mutation entrances reach their block
+through mutationValues instead, which is one materialization rather than two
+WHERE THE SOURCE ALSO CARRIES CSC COLUMNS - an all-dense coded source widened
+into an identity-mapped block and passed straight through before, so it was
+one either way. S4c changes no shipped header and re-bakes nothing: the
+channel dbarts_predictor_source already carried is the one the reader reads.
 
 On the R side parseMixedContainerBlock gains the same split layout and
-parseTestSource - the read-only funnel predict, predictPerForest and
-getTrees share - asks for it, so a resident test container's dense factor
-columns cross as int32 codes. The three test-store funnels (creation,
-setTestPredictor, setTestPredictorAndOffset) keep the single block their
-build lays out, which is S4b's rework. NO R product code changed, and the
-reason is worth stating: validateXTest already keeps a sparse-backed
-container resident and hands its dense factor columns over unexpanded,
-while it densifies a dense-columnar one to a matrix, so the entrances that
-can reach the channel are exactly the ones that were already resident.
+parseTestSource - the read-only funnel predict, predictPerForest and getTrees
+share - asks for it, so a resident test container's dense factor columns cross
+as int32 codes. The three test-store funnels (creation, setTestPredictor,
+setTestPredictorAndOffset) pass false and keep the single block their build
+lays out, which is S4b's rework; buildTest's split-channel refusal is
+therefore unreachable BY CONSTRUCTION of those funnels and of the flat entry's
+widen, not by accident. NO R product code changed, and the reason is worth
+stating: validateXTest already keeps a sparse-backed container resident and
+hands its dense factor columns over unexpanded, while it densifies a
+dense-columnar one to a matrix, so the entrances that can reach the channel
+are exactly the ones that were already resident.
 
-Level checks are untouched. The test-side sweep reads whichever channel
-holds a column through rawViewColumn, so both factor kinds refuse a
-non-level value at the same sites with the same wording, and an unobserved
-declared level still routes through the midpoint grid.
+Level checks are untouched. The test-side sweep reads whichever channel holds
+a column through rawViewColumn, so both factor kinds refuse a non-level value
+at the same sites with the same wording, and an unobserved declared level
+still routes through the midpoint grid. A coded source whose numeric dense
+column names no denseValues is refused before the reader can read it, by the
+per-column channel guard the code channel's own indexing rule brought in.
 
-MEASURED, predict over n.test = 1e6 with 20 dense factor columns beside a
-sparseFactor: peak RSS 660.1 MB before, 584.1 MB after - 76.0 MB against
-the arithmetic 80 MB (4 bytes x 1e6 rows x 20 columns), the difference
-allocator granularity; a repeated pair gives 664.2 MB and 592.8 MB.
+Pins. tests/cpp reads two coded columns of different content as the values
+they are - not against a block the same accessor filled - and checks the slice
+pointer the descent takes, so a reader resolving every coded column to one
+slice or dropping the missing marker's mapping fails it; the ordinal
+threshold's transform is pinned code for code against the double comparison
+across the midpoint grid, both ends of the int32 range and a NaN cut; and a
+sampler-level replay of a test set carrying both factor kinds, missing cells
+in each, and a declared level the training rows never showed agrees bitwise
+through a plain block, a channel map with every column in the double half, and
+the same map with the factors in the code half.
+inst/tinytest/test-predict-code-channel.R does the same from R over a resident
+container, at predict and at the saved-tree replay's n column, and test-capi.R
+now installs a coded source through the test store and through both predictor
+mutations and requires the sweeps that follow to agree.
 
-Pins. tests/cpp reads a mixed view through the reader twice, once with a
-dense column coded, against the materialized block - the CSC columns beside
-it, so the implicit-row rule is the same on either channel - and replays a
-sampler's test set carrying both factor kinds, missing cells in each, and a
-declared level the training rows never showed, through a plain block, a
-channel map with every column in the double half, and the same map with the
-factors in the code half; all three agree bitwise.
-inst/tinytest/test-predict-code-channel.R does the same from R over a
-resident container, at predict and at the saved-tree replay's n column.
+The gate corpus still exercises no coded replay: equivalence.R's sparsefactor
+scenario is the only resident test container in it, and its x.test carries no
+dense factor column, so the coded arm never runs under the trio. Closing that
+belongs with the gate-corpus work S4b carries; until then the coded path's
+draw-preservation evidence is the pins above plus a base-against-tip A/B over
+predict and getTrees.
 
-Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108
-12/12, multinomial-equivalence-4d9a3337 11/11, all bitwise with no
-max |z| line. S4b next: typed sources and the retained saving, the one
-slice that cannot be made small.
+Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z| line.
+S4b next: typed sources and the retained saving, the one slice that cannot be
+made small.
