@@ -35,11 +35,11 @@ reading current bartcore HEAD, converged on the same finding: the leafOf /
 muByTree constant-leaf-fits refactor (which post-dates data-layout.md and
 within-chain-threading.md) had ALREADY eliminated the old ~15% fit SCATTER, and
 turned the residual roll and the totalFits rebuild into STREAMING passes
-(resid[i] uses mu[leafOf[i]], an L1-resident table lookup; chain.hpp:4525-4527,
-4730-4750). What survives as the latency-bound hotspot is now a SINGLE shape:
+(resid[i] uses mu[leafOf[i]], an L1-resident table lookup;
+[[chain.hpp#rollTreeResidual, finalizeTotalFits]]). What survives as the latency-bound hotspot is now a SINGLE shape:
 the random suffstat GATHER treeY[indices[k]] over each tree's shuffled per-tree
-index buffer (misc_computeIndexedSufficientStatisticsFast, moments.c:271;
-tree.hpp:678; plus the two move-phase child-suffstat gathers). The docs' old
+index buffer ([[moments.c#misc_computeIndexedSufficientStatisticsFast]];
+[[tree.hpp#computeLeafStats]]; plus the two move-phase child-suffstat gathers). The docs' old
 32%-gather / 15%-scatter four-way split no longer describes reality - the
 gather now dominates. This made the cheapest decisive first action obvious:
 re-profile HEAD on the x86 quiet box (dbarts-bench) to re-baseline before
@@ -177,12 +177,12 @@ so it seemed at panel time. Section 8 below is the story of how this
   distribution. (The uint16 variant was later evaluated as a Track-1 follow-on
   in reduced-precision-storage.md and DECLINED by measurement - section 6 of
   that doc.)
-- Software prefetch the surviving shuffled gathers (moments.c:284):
+- Software prefetch the surviving shuffled gathers ([[moments.c#misc_computeIndexedSufficientStatisticsFast]]):
   __builtin_prefetch(&x[indices[i+D]]) D ahead. Bit-identical, no re-record.
   But the kernel already runs 5-wide MLP, so it only buys the latency the 5
   in-flight loads miss (~1.15-1.4x if the LFBs are not already saturated).
   Falsifier: sweep D.
-- Wider gather MLP (moments.c:284): 8-10-wide unroll + 2-4 accumulator banks to
+- Wider gather MLP ([[moments.c#misc_computeIndexedSufficientStatisticsFast]]): 8-10-wide unroll + 2-4 accumulator banks to
   push outstanding misses toward the ~10-12 LFB limit; single-core MLP via ILP
   (dodges the cross-CCX collapse that no-go'd threading). One microbench
   falsifies both this and prefetch (if 10-wide ~ 5-wide, the LFBs are
