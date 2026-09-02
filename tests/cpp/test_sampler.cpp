@@ -1506,6 +1506,102 @@ static void testWideCategorical(ext_rng* rng) {
   printf("ok: wide categorical\n");
 }
 
+// A test source whose factor columns arrive as int32 level codes replays
+// exactly as the same values laid out as doubles do. The store carries both
+// factor kinds - a categorical column whose declared level table names a level
+// the training rows never show, and an ordered factor - beside a numeric
+// column, and both factor columns carry missing values, so the trees learn
+// missing directions the replay has to route on. The three arms differ only
+// in how the test rows reach the reader: a plain block, a channel map with
+// every column in the double half, and the same map with the factor columns
+// in the code half.
+static void testCodedTestSourceReplay(ext_rng* rng) {
+  const size_t n = 400, p = 3, nTest = 64;
+  const std::uint32_t declaredCategories = 6, numLevels = 4;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    // level 5 of the categorical column is declared but never observed
+    double category = static_cast<double>((i * 7) % 5);
+    double level = static_cast<double>((i * 3) % numLevels);
+    x[i] = i % 23 == 0 ? std::numeric_limits<double>::quiet_NaN() : category;
+    x[i + n] = i % 31 == 0 ? std::numeric_limits<double>::quiet_NaN() : level;
+    x[i + 2 * n] = runif01();
+    y[i] = (static_cast<size_t>(category) % 2 == 0 ? 1.5 : -1.5) +
+           0.8 * level + 0.4 * (runif01() - 0.5);
+  }
+
+  const ColumnKind types[p] = { ColumnKind::categorical,
+                                ColumnKind::orderedFactor,
+                                ColumnKind::numeric };
+  const std::uint32_t counts[p] = { declaredCategories, numLevels, 0 };
+
+  const size_t numSamples = 3;
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.predictors.columnTypes = types;
+  options.predictors.categoryCounts = counts;
+  options.keepTrees = true;
+  options.numSamplesToStore = numSamples;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  std::vector<double> sigma(numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  sampler.run(60, numSamples, results);
+
+  // the test rows: the unobserved declared level appears here, as do NAs in
+  // both factor columns
+  std::vector<double> xTest(nTest * p);
+  std::vector<std::int32_t> codes(2 * nTest), channels(p);
+  std::vector<double> testValues(nTest);
+  for (size_t i = 0; i < nTest; ++i) {
+    double category = static_cast<double>(i % declaredCategories);
+    double level = static_cast<double>((i * 5) % numLevels);
+    bool categoryMissing = i % 11 == 0, levelMissing = i % 13 == 0;
+    xTest[i] = categoryMissing
+      ? std::numeric_limits<double>::quiet_NaN() : category;
+    xTest[i + nTest] = levelMissing
+      ? std::numeric_limits<double>::quiet_NaN() : level;
+    xTest[i + 2 * nTest] = runif01();
+    codes[i] = categoryMissing
+      ? naDenseCode : static_cast<std::int32_t>(category);
+    codes[i + nTest] = levelMissing
+      ? naDenseCode : static_cast<std::int32_t>(level);
+    testValues[i] = xTest[i + 2 * nTest];
+  }
+  channels[0] = ~0;
+  channels[1] = ~1;
+  channels[2] = 0;
+
+  size_t slab = nTest * numSamples;
+  std::vector<double> blockFits(slab), doubleFits(slab), codedFits(slab);
+  sampler.predict(xTest.data(), nTest, 1, blockFits.data());
+
+  // the same rows through the reader, every column in the double channel
+  std::vector<std::int32_t> doubleChannels{ 0, 1, 2 };
+  PredictorSource doubleSource;
+  doubleSource.numRows = nTest;
+  doubleSource.numColumns = p;
+  doubleSource.denseValues = xTest.data();
+  doubleSource.denseChannels = doubleChannels.data();
+  sampler.predict(doubleSource, nTest, nullptr, 1, doubleFits.data());
+  check(doubleFits == blockFits,
+        "a channel-mapped test source replays as the plain block does");
+
+  PredictorSource codedSource;
+  codedSource.numRows = nTest;
+  codedSource.numColumns = p;
+  codedSource.denseValues = testValues.data();
+  codedSource.denseCodes = codes.data();
+  codedSource.denseChannels = channels.data();
+  sampler.predict(codedSource, nTest, nullptr, 1, codedFits.data());
+  check(codedFits == blockFits,
+        "a coded test source replays bitwise as its double spelling does");
+
+  printf("ok: coded test source replay\n");
+}
+
 static void testPooledMaskSampler(ext_rng* rng) {
   // end to end over one pooled column (K = 70, side-channel masks) and one
   // inline column (K = 60, mask in the flat node), with keepTrees, saved-tree
@@ -6741,6 +6837,7 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);
+  testCodedTestSourceReplay(rng);
   testActiveRows();
   testActiveRowsOnGrownForest();
   testSetWeightsAndTestOffset();

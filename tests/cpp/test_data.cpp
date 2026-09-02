@@ -1207,6 +1207,21 @@ static void testMaterializePredictorSource() {
   check(codedHolds,
         "a coded dense column widens, its missing marker becoming a NaN");
 
+  // and the replay reader over the same view: the code arm answers cell for
+  // cell as the widened block does, so a coded test source routes rows
+  // exactly as its double spelling would - the CSC columns beside it included
+  PredictorSourceColumns codedColumns(codedSource, types);
+  bool codedReaderHolds = true;
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < n; ++i) {
+      double expected = codedBlock[j * n + i];
+      double read = codedColumns.column(j).at(i);
+      codedReaderHolds &=
+        std::isnan(expected) ? std::isnan(read) : read == expected;
+    }
+  check(codedReaderHolds,
+        "the replay reader answers a coded column as the widened block does");
+
   printf("ok: predictor source materialization\n");
 }
 
