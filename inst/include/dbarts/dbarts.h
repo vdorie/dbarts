@@ -307,12 +307,13 @@ typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 /// caller's matrix.
 ///
 /// Storage is dense, compressed-column (CSC), or a mix. Without a map
-/// (columnSources null) the view is the plain column-major block denseValues
-/// points at. With one, column j reads dense column columnSources[j] when that
-/// is >= 0 and CSC column ~columnSources[j] when it is < 0; the CSC triple is
-/// the usual (column pointers of length numCscColumns + 1, row indices,
-/// values), and a CSC column's absent rows read its declared reference code
-/// when the sampler holds that column categorical, 0 otherwise.
+/// (columnSources null) a dense-backed column sits at its own index in
+/// whichever channel its kind selects. With one, column j reads dense column
+/// columnSources[j] when that is >= 0 and CSC column ~columnSources[j] when
+/// it is < 0; the CSC triple is the usual (column pointers of length
+/// numCscColumns + 1, row indices, values), and a CSC column's absent rows
+/// read its declared reference code when the sampler holds that column
+/// categorical, 0 otherwise.
 ///
 /// columnTypes and categoryCounts describe the view's own typing, and every
 /// entry that takes this struct is a mutation or a test/replay path, where the
@@ -353,10 +354,13 @@ typedef struct dbarts_predictor_source_t {
   /// columns the SAMPLER holds as factors, with INT_MIN (R's NA_INTEGER)
   /// marking a missing code. It saves a caller whose factor columns are
   /// already integers the widening loop and the double block that loop needs.
-  /// It does NOT save a conversion: the entries below read a view through a
-  /// double-typed reader, so the library widens the block once itself, and
-  /// then narrows each value to the store's own code exactly as it does a
-  /// double.
+  /// The test-side entries save the conversion as well: they read the codes
+  /// where they lie and compare each against an integer threshold. A
+  /// mutation entry is the exception - its kernels index a column-major
+  /// double block, so a coded source is widened into one for that call.
+  /// A missing code is admitted only where the sampler's own training column
+  /// had missing values; a test source carrying one on a column complete in
+  /// training is refused, exactly as a NaN in the double channel is.
   ///
   /// ONE rule decides which channel a column reads, and it is the SAME index
   /// in either. A dense-backed column j (columnSources[j] >= 0, the identity
