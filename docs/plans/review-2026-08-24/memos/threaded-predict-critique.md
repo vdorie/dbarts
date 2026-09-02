@@ -22,9 +22,9 @@ slice lands the statement is true again" is wrong; (b) the repo DOES fix NEWS in
 the released 0.9-34 notes back out of 1.0-0's NEWS section".
 
 **3. MINOR - two records bearing on the serial choice, uncited.** No design doc records a reason (memo right). But
-[[docs/plans/archive/interface-review.md:200-205@f04e8686]] is the F10 item that renamed run's formal, with "(wiring threading itself is
+[[docs/plans/interface-review.md:200-205@f04e8686]] is the F10 item that renamed run's formal, with "(wiring threading itself is
 wishlist)" and "Verified alongside D1 that both run() and predict()'s thread-count formals are fully inert, not merely
-'serial'"; and [[docs/plans/archive/interface-review.md:543@f04e8686]] puts "threaded prediction" on the explicit 2.0-WISHLIST. Cite both - the item is already docketed,
+'serial'"; and [[docs/plans/interface-review.md:543@f04e8686]] puts "threaded prediction" on the explicit 2.0-WISHLIST. Cite both - the item is already docketed,
 and the wishlist line must be struck when this lands.
 
 ## B. The partition
@@ -44,7 +44,7 @@ partitionFlatIndices ([[chain.hpp:1723-1900@f04e8686]]).
 - `mutable` audit over src/bartcore: [[model.hpp:521@f04e8686]], [[model.hpp:1302-1303@f04e8686]], [[model.hpp:2093-2107@f04e8686]], [[model.hpp:2121-2127@f04e8686]] and [[tree.hpp:1604-1626@f04e8686]] are all
   sampling-path scratch (monotone neighbours, suffstat/GP kernel caches, pooled-mask and availability scratch); none
   is reachable from addFlatPredictions*, checked by reading the call graph, not by grep alone.
-- SIMD dispatch ([[misc/simd.c:193-350@f04e8686]]): `misc_setVectorToConstant` / `misc_addVectorsInPlace` are file-scope function
+- SIMD dispatch ([[src/misc/simd.c:193-350@f04e8686]]): `misc_setVectorToConstant` / `misc_addVectorsInPlace` are file-scope function
   POINTERS assigned once by `misc_simd_init`, read-only after. No race.
 
 **5. CONFIRMED-OK - bitwise identity at any thread count is structural.** The only accumulation is `fits[indices[k]]
@@ -87,7 +87,7 @@ THIS entry performs" and compute it per entry.
 ([[C_interface.cpp:773-802@f04e8686]]) and `predictFromSource` ([[R_interface_bartcore.cpp:5654-5758@f04e8686]]). Every refusal and every
 R_alloc is strictly BEFORE the engine call: refuseUndefinedTestFits ([[R_interface_bartcore.cpp:5781@f04e8686]] / [[C_interface.cpp:780@f04e8686]]),
 refuseEmptyTreeStore, translateSource ([[C_interface.cpp:185-241@f04e8686]] - the R_alloc the header's main-thread warning is
-about), validateTestSource, the offset-shape refusals ([[C_interface.cpp:5666-5686@f04e8686]]), and the result allocation. No ext_rng/unif_rand
+about), validateTestSource, the offset-shape refusals ([[src/R_interface_bartcore.cpp:5631-5645@f04e8686]]), and the result allocation. No ext_rng/unif_rand
 and no Rf_error/ext_printf/R_alloc under chain.hpp's replay block. [[dbarts.h:45-47@f04e8686]]'s main-R-thread-only contract is
 unaffected and must NOT be relaxed - translateSource still runs R_alloc.
 
@@ -104,7 +104,7 @@ so.
 twin [[sampler.hpp:1072-1099@f04e8686]]: std::thread, numWorkers = min(numThreads, numChains), pthread_sigmask(SIG_BLOCK, SIGINT) around the
 spawn under `#ifndef _WIN32`, mask restored immediately, join at the end. Portability is configure-provided
 ([[configure.ac:53@f04e8686]] AX_PTHREAD; [[src/Makevars.in:18-34@f04e8686]] threads the flags through), and Windows needs no mask because R's
-console Ctrl-C already lands on the main thread. testFitPool_ ([[chain.hpp:5466-5467@f04e8686]]) is per-Chain, budget
+console Ctrl-C already lands on the main thread. testFitPool_ ([[chain.hpp:5353-5354@f04e8686]]) is per-Chain, budget
 numThreads/numChains, 65536-ROW cutoff; a slab partition is cross-chain, so the rejection is right. Spawn cost (tens
 of microseconds x a few threads) against a 25 ms cutoff is under 1%.
 
@@ -118,7 +118,7 @@ that probes cores is exactly what `_R_CHECK_LIMIT_CORES_` exists to catch", and 
 `.check_ncores` - makeCluster/mclapply, not std::thread. The repo's own record proves it:
 [[docs/plans/release-candidate-review.md:2529-2531@f04e8686]] records the single trip as "xbart's auto n.threads trips CRAN's core
 limit" (xbart uses `parallel::makeCluster`, [[man/xbart.Rd:61@f04e8686]]) "fixed with an explicit n.threads = 1L and the
-as-cran-for-thread-spawning-tests lesson recorded in the runbook", and [[man/xbart.Rd:2533@f04e8686]] records the P8 battery running tinytest
+as-cran-for-thread-spawning-tests lesson recorded in the runbook", and [[docs/plans/release-candidate-review.md:2210-2211@f04e8686]] records the P8 battery running tinytest
 "with and without _R_CHECK_LIMIT_CORES_". The discipline exists; the mechanism does not protect dbarts's own threads.
 Any "skip the >2 arms when it is set" clause must read the env var by hand - nothing errors for you.
 
@@ -135,7 +135,7 @@ fails.
 **16. MINOR - the hash re-bake is TWO literals.** [[src/C_interface.cpp:461@f04e8686]] `static_assert(dbarts_apiSignatureToken ==
 0x85bd1ef04beb3848ULL, ...)` fires on any SIGNATURE change; [[dbarts.h:142@f04e8686]] DBARTS_C_API_HASH on signature-or-layout.
 Adding a parameter moves both. Both fail loudly with instructions, so it is self-correcting, but the flat-API cost
-line names only one. stan4bart pins the hash by hard equality ([[src/init.cpp:972@f04e8686]]), so the lockstep break is real and
+line names only one. stan4bart pins the hash by hard equality (its `src/init.cpp` line 972), so the lockstep break is real and
 intended.
 
 **17. MINOR - no default arguments on the facade virtuals.** [[facade.hpp:258@f04e8686]]/267/272 with overrides at [[facade.hpp:545@f04e8686]]/[[facade.hpp:549@f04e8686]]/[[facade.hpp:554@f04e8686]]
@@ -153,22 +153,22 @@ Amendment: extend the spy to RECORD the numThreads it was handed and assert the 
 deterministically disproves "the wiring is a no-op" for ~10 lines instead of a timing assertion.
 
 **19. MAJOR - the DEF_FUNC arity bump breaks four tinytest files the memo does not list.** Grepped every `.Call` of
-the symbol. Besides [[R/dbarts.R:1140@f04e8686]] and [[R/bartcore.R:1472@f04e8686]], four test files call the entry point DIRECTLY with three
+the symbol. Besides [[R/dbarts.R:1140@f04e8686]] and [[R/bartcore.R:1354@f04e8686]], four test files call the entry point DIRECTLY with three
 arguments: [[test-predict-sparse.R:163@f04e8686]] (inside `expect_identical` - a hard error), [[test-multinomial-test-offset.R:405@f04e8686]]
 and [[test-multinomial-test-offset.R:414@f04e8686]], and [[test-multinomial-category-offset.R:430@f04e8686]] (inside `expect_error` with message patterns - they fail on the
-arity message instead of the target refusal). Add [[R/bartcore.R:1490@f04e8686]] and [[R/dbarts.R:1153@f04e8686]] for the per-forest arity.
+arity message instead of the target refusal). Add [[R/bartcore.R:1490@0045507c]] and [[R/dbarts.R:1153@f04e8686]] for the per-forest arity.
 Loud, but unbudgeted.
 
 **20. MAJOR - bartCause is not "ZERO lines" without a placement rule.** bartCause dbarts-1.0 @7ae6e83
-[[R/generics.R:141-230@f04e8686]]: predict.bartcFit forwards `...` into FOUR different predicts - dbarts predict.bart,
+(its `R/generics.R` lines 141-230): predict.bartcFit forwards `...` into FOUR different predicts - dbarts predict.bart,
 predict.rbart, stan4bart's, and stats predict.glm/lm/merMod (`predict(object$fit.trt, x.new.g, type = "response",
 ...)`) - and it calls predict.rbart POSITIONALLY: `predict(object$fit.trt, x.new, group.by, combineChains = FALSE,
 ...)`. So the new formal MUST be appended AFTER every existing positional formal on each of the six generics;
 inserting `n.threads` before `group.by` in predict.rbart ([[R/generics.R:1647-1657@f04e8686]]) would pass a factor as a thread
 count. The migration is still zero LINES, but only under that constraint, and the memo says only "add the formal to
 each". Each generic also needs its own default expression: predict.bartHurdle ([[R/generics.R:1614@f04e8686]]) has no `object$fit` at all (it
-is `object$occupancy$fit`). stan4bart is exactly as described: one C site, [[src/init.cpp:342@f04e8686]] in predictBART ([[src/init.cpp:293@f04e8686]]),
-hash equality [[src/init.cpp:972@f04e8686]], `-DDBARTS_USE_STUBS` ([[src/Makevars.in:1@f04e8686]]).
+is `object$occupancy$fit`). stan4bart is exactly as described: one C site, stan4bart's `src/init.cpp` line 342 in predictBART (line 293),
+hash equality line 972, `-DDBARTS_USE_STUBS` (stan4bart's `src/Makevars.in` line 1).
 
 **21. MAJOR - predict.bart's validation sits BELOW two early returns, and predictBlend is missing from the site
 list.** [[R/generics.R:207-300@f04e8686]]: `type == "forest"` returns through `predictForest` at [[R/generics.R:660@f04e8686]] and an amplitude-coupled fit
@@ -232,7 +232,7 @@ fit's ORDINARY predict serial, not just `type = "forest"`.
 stated axis stays wrong after this slice, and f04e8686 shows the repo edits NEWS in place pre-release.
 
 **30. Decision 6 (total-traversal cutoff). AGREE** on the predicate class; amend per finding 9 and make it a named
-constexpr carrying the ns/traversal derivation, in the style of `testFitParallelCutoff` ([[chain.hpp:5467@f04e8686]]).
+constexpr carrying the ns/traversal derivation, in the style of `testFitParallelCutoff` ([[chain.hpp:5354@f04e8686]]).
 
 **31. Decision 7 (interrupt polling deferred). AGREE**, with finding 11's stronger reason.
 
@@ -261,8 +261,8 @@ over the predict partition test costs a make flag, not an r-hub container. Recom
 memo is right that the equivalence trio must be unchanged - predict touches no sampling code.)
 
 **35. MINOR - citation drift in one region.** Against 0045507c the memo's R_interface_bartcore.cpp numbers run ~13 low
-around the 2800/5600-5800 band: predictFromSource is [[sanitizers.yaml:5654@0045507c]] (memo [[sanitizers.yaml:5641@0045507c]]), refuseUndefinedTestFits defined [[sanitizers.yaml:2871@0045507c]] and
-called [[sanitizers.yaml:5781@0045507c]] (memo [[sanitizers.yaml:2858@0045507c]], [[sanitizers.yaml:5768@0045507c]]). Everything else spot-checked is exact - facade.hpp, sampler.hpp, chain.hpp,
+around the 2800/5600-5800 band: predictFromSource is [[src/R_interface_bartcore.cpp:5654@0045507c]] (memo [[src/R_interface_bartcore.cpp:5641@0045507c]]), refuseUndefinedTestFits defined [[src/R_interface_bartcore.cpp:2871@0045507c]] and
+called [[src/R_interface_bartcore.cpp:5781@0045507c]] (memo [[src/R_interface_bartcore.cpp:2858@0045507c]], [[src/R_interface_bartcore.cpp:5768@0045507c]]). Everything else spot-checked is exact - facade.hpp, sampler.hpp, chain.hpp,
 dbarts.h, man/bart.Rd, man/dbartsSampler-class.Rd, R/dbarts.R and R/generics.R all match.
 
 ## Verdict
