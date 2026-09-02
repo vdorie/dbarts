@@ -26,8 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # full history: Part 4's commit-hash check resolves hashes with
-          # git, which a shallow clone cannot do, and self-skips on one
+          # full history: the guard resolves every cited commit with git
+          # and fails outright on a shallow clone
           fetch-depth: 0
 
       - uses: r-lib/actions/setup-r@v2
