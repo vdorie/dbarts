@@ -77,7 +77,7 @@ synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
 on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:1052-1054) both store
+`dbarts_sampler_setNumThreads` (C_interface.cpp:1013-1015) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
@@ -103,10 +103,10 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:613, then
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:578, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
-DBARTS_C_API_HASH` (:536) and prints the new layout hash to paste over
+DBARTS_C_API_HASH` (:501) and prints the new layout hash to paste over
 `DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed; the signature
 token still reads `0x0b33edcf638a3cd3ULL`, while the layout hash has
 been re-baked by later header changes and no longer carries this
@@ -129,7 +129,7 @@ no-op".
 The bridge took the argument on both `.Call` entries -
 `dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
 (`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:225-226) - and on
-`predictFromSource` (R_interface_bartcore.cpp:5931), `bartcore_predict`
+`predictFromSource` (R_interface_bartcore.cpp:5936), `bartcore_predict`
 (:5971), `predictPerForestFromSource` (:5955), and
 `bartcore_predictPerForest` (:5995), validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
@@ -223,7 +223,7 @@ representative `predict.bart` call.
 The serial work predict's threaded region does **not** cover - the
 flat-offset add over the whole output (R_interface_bartcore.cpp:5831-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:6022) - is one pass over the output
+the second (variance) fan-out (:6027) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

@@ -231,33 +231,43 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   integers (which is what an R factor is) hands them over as integers, so a
   factor column's transient costs 4 bytes a cell rather than 8 and no cell
   is widened and narrowed again. The channel is a storage fact and the kind
-  a reading one: the dense `build` arm consumes either, widening a coded
-  column the store reads as numeric. So does the flat replay's reader
-  (`PredictorSourceColumnReader`), so `predict` and the saved-tree replay
-  route a factor test set off its own codes; the entrances that build a test
-  store still take one dense block, and a coded view is laid back out for
-  them.
+  a reading one: both `build` arms and `buildTest` consume either, widening
+  a coded column the store reads as numeric. So does the flat replay's
+  reader (`PredictorSourceColumnReader`), so `predict` and the saved-tree
+  replay route a factor test set off its own codes. Only the mutation
+  entrances still need one dense block, which their kernels index
+  column-major, and they materialize their own.
 - **Raw values**: per-column storage and re-quantize source is one
   descriptor, `ColumnSource` (carried in `sources[j]` on each `CodeBlock`),
-  discriminated by `ColumnSourceKind` - which names where the raw a
-  re-quantize reads LIVES, not who owns the codes: `denseCallSupplied` (the
-  build-reset default; the raw arrives with the call - the call-time `x` on
-  the train side, `ownedTestValues` on test), `denseResident`
-  (re-quantizes from the descriptor's `residentRaw`, a slice of store-owned
-  memory - `ownedDenseValues` on the train side of a mixed build,
-  `ownedTestValues` on test - never a live host pointer), and
-  `cscRank`/`cscDensified` (both re-quantize from the descriptor's retained
-  `slice`, a genuinely borrowed CSC values/rows pair that a mutation
-  repoints at store-owned `ownedCscValues`/`ownedCscRows` (train side) on
-  first write). A dense build retains no raw at all past the build call -
-  the store instead gathers and owns a copy of designated leaf-covariate
-  columns (`gatheredRawValues`) plus their standardization constants
-  (`gatheredMeans`/`gatheredSds`); a mixed build's dense block is likewise
-  copied into `ownedDenseValues`, not borrowed. The test side owns all of
-  its raw unconditionally: `ownedTestValues` (dense),
-  `ownedTestCscValues`/`ownedTestCscRows` (packed nonzeros of a mixed/CSC
-  test build), and, for a row-subset view, the gathered
-  `gatheredRawTestValues`.
+  discriminated by `ColumnSourceKind` - which names WHICH POOL the column's
+  raw lives in, not who owns the codes: `denseCallSupplied` (the build-reset
+  default; the raw arrives with the call - the call-time `x` on the train
+  side, nothing on test), `denseResident` (re-quantizes from the
+  descriptor's `residentRaw`, a slice of store-owned memory -
+  `ownedDenseValues` on the train side of a mixed build, `ownedTestValues`
+  on test - never a live host pointer), `denseCodesOnly` (no raw anywhere),
+  and `cscRank`/`cscDensified` (both re-quantize from the descriptor's
+  retained `slice`, a genuinely borrowed CSC values/rows pair that a
+  mutation repoints at store-owned `ownedCscValues`/`ownedCscRows` (train
+  side) on first write).
+
+  **A column's stored representation is the one its values actually have.**
+  A FACTOR column of either kind takes `denseCodesOnly` wherever its
+  storage is dense: its cells are level codes, which the codes already
+  carry, and its grid follows the level table rather than its values, so it
+  never re-quantizes and there is nothing a double would serve. Both owned
+  dense blocks therefore hold the REAL-VALUED columns alone, packed per
+  predictor over the columns they serve. A dense build retains no raw at
+  all past the build call. What a leaf model reads instead is gathered: the
+  store owns a copy of each designated leaf-covariate column
+  (`gatheredRawValues`) plus its standardization constants
+  (`gatheredMeans`/`gatheredSds`), and `buildTest` gathers the test-side
+  twin (`gatheredRawTestValues`, over its own column list) for the
+  designated columns its block no longer holds. A mixed build gathers what
+  its own block cannot serve on the same rule. The test side owns every raw
+  it keeps whatever the view's shape: `ownedTestValues` (real-valued dense)
+  and `ownedTestCscValues`/`ownedTestCscRows` (packed nonzeros of a
+  mixed/CSC test build), so no borrowed pointer survives the call.
 - **Sparse storage**: a CSC-built column at or below 20% nonzero density
   (`sparseDensityThreshold`) takes a rank-bitmap representation
   (`SparseColumnData`: a bitset, per-word popcount ranks, and packed

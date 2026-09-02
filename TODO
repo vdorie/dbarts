@@ -62,21 +62,6 @@ items
     owes its own, which is why
     docs/plans/archive/binary-kforest-prior-default.md refused rather
     than opened it.
-  column-kind-consolidation: closes four defects sharing one root in
-    the predictor store's semantic-type axis - no ordered-factor
-    marker below the model matrix (a silent split-prior distortion and
-    a level-collision risk above n.cuts levels), an overloaded
-    numCuts field, an unchecked double-to-code cast at the engine's
-    own ingestion entrances, and FlatKind's duplicated cross-check
-    against ColumnType - then reworks predictor storage so a factor
-    column's stored representation is its integer codes rather than a
-    codes-plus-double pair. Ruled:
-    docs/plans/column-kind-consolidation.md, slices S0-S4c landing in
-    the order S0, S1, S2, S3, S4a, S4c, S4b. S2 (the ordered-factor
-    midpoint cut grid) is posterior-changing and needs its own
-    baseline re-record plus the exact-posterior gates; the rest are
-    draw-preserving subject to four named hazards at the S4a-S4c
-    code-channel boundary.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
     the outer sampler (the rbart_vi pattern); EXACT pure-AR-1 errors

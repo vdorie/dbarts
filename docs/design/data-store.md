@@ -94,35 +94,42 @@ What stays store-level, not block-level, and why:
   raw is a training-and-test-subset pair keyed by column, not a per-block
   code concern.
 - `ownedTestValues`, `ownedTestCscValues`, `ownedTestCscRows`,
-  `testOffset` are store-level: the test store owns its raw (below), and
-  the offset is a fit concern, not a code concern.
+  `testOffset` are store-level: the test store owns every raw it keeps
+  (below), and the offset is a fit concern, not a code concern.
 - `isView` (provenance), `builtFromCsc`, `hasSparse` are store-level flags
   with external readers; the bridge's refusal helpers read the capability
   predicates `hasRequantizeSource` and `acceptsNewRawPredictors` derived
   from them, not the flags directly.
 
-## ColumnSource and its four kinds
+## ColumnSource and its five kinds
 
 Per-column storage is one explicit descriptor, `ColumnSource`
-(`data.hpp:249`), carried in `CodeBlock::sources` and sized to
+(`data.hpp:273`), carried in `CodeBlock::sources` and sized to
 `numPredictors` on any side that has rows (train always after a build;
 test whenever `numTestObservations > 0`; both empty on a reset test
-store). `ColumnSourceKind` (`data.hpp:231`) discriminates four kinds; each
+store). `ColumnSourceKind` (`data.hpp:246`) discriminates five kinds; each
 reads only the descriptor fields it owns:
 
-The discriminator is WHERE THE RE-QUANTIZE SOURCE LIVES, not who owns the
-codes: every kind's codes are the store's.
+The discriminator names WHICH POOL the column's raw lives in, not who owns
+the codes: every kind's codes are the store's. "This column has no double"
+is a kind, not a null a reader must know to expect.
 
 - `denseCallSupplied` - dense codes in `codes[]`; the raw arrives with the
-  call (train: the call-time `x`; test: `ownedTestValues`). The build-reset
-  baseline: every column is `denseCallSupplied` until a builder overwrites
-  it.
+  call (train: the call-time `x`; test: nothing - the test store owns every
+  raw it keeps). The build-reset baseline: every column is
+  `denseCallSupplied` until a builder overwrites it.
 - `denseResident` - dense codes in `codes[]`; re-quantizes from the
   `residentRaw` pointer the descriptor holds (a mixed build's store-owned
   dense slice - the dense block is copied into `ownedDenseValues` at build,
   not borrowed - or a test build's owned slice into `ownedTestValues`).
   `residentRaw` is the only kind that serves `rawColumn`/`rawTestColumn` a
-  raw pointer directly.
+  raw pointer directly, and the only one a mutation's write-through and
+  rollback touch.
+- `denseCodesOnly` - dense codes in `codes[]` and NO raw anywhere. What a
+  FACTOR column of either kind takes wherever its storage is dense: its
+  cells are level codes, which the codes already carry, and its grid
+  follows the level table rather than its values, so it never re-quantizes.
+  A designated leaf covariate among them is served by the gather below.
 - `cscRank` - rank-bitmap storage in `sparseColumns[rankSlot]`;
   re-quantizes from the retained `slice`. Below the
   `sparseDensityThreshold` (0.2) nonzero fraction.
@@ -149,16 +156,21 @@ their code; an ordinal one's take the quantized zero.
 Re-quantization resolves the raw source per kind through three accessors
 whose fallback orders are the contract:
 
-- `rawColumnForRequantize(j, x)` (`data.hpp:856`): CSC-backed -> null (the
-  slice serves it); `denseResident` -> `residentRaw`; else `x + j*n` (or null
-  if `x` is null). This is the mutation/setCutPoints path.
-- `rawColumn(j)` (`data.hpp:866`, owned training raw for leaf models):
+- `rawColumnForRequantize(j, x)` (`data.hpp:909`): factor -> null (it never
+  re-quantizes); CSC-backed -> null (the slice serves it); `denseResident`
+  -> `residentRaw`; else `x + j*n` (or null if `x` is null). This is the
+  mutation/setCutPoints path.
+- `rawColumn(j)` (`data.hpp:923`, owned training raw for leaf models):
   gathered slot -> `gatheredRawValues`; `denseResident` -> `residentRaw`;
   else null.
-- `rawTestColumn(j)` (`data.hpp:878`): if `test.sources` is populated,
+- `rawTestColumn(j)` (`data.hpp:938`): if `test.sources` is populated,
   `denseResident` -> `residentRaw` and CSC-backed -> null (sparse storage
-  serves no dense test covariate); else `ownedTestValues`; else the
-  view-gathered `gatheredRawTestValues`; else null.
+  serves no dense test covariate); else the gathered slot ->
+  `gatheredRawTestValues`; else null.
+
+A null from the latter two is not a case a reader handles: the factory that
+admits a leaf covariate refuses a designation the store cannot serve raw
+for, so a correctly wired leaf model never meets one.
 
 ## The borrowed view's two value channels
 
@@ -177,20 +189,19 @@ The channel is a STORAGE fact, not a typing one: it says how a host holds a
 column, while `ColumnKind` says how the store reads it. A factor column
 whose host holds it as integers - which is what an R factor is - crosses as
 integers, so no cell is widened at the bridge and narrowed again at the
-quantize. The dense `build` arm consumes either channel; a coded column of
-NUMERIC kind is widened once, since a numeric column's grid is over real
-values. The mapped arm and `buildTest` lay their dense raw out as one block
-sized by the largest dense source and so refuse a split-channel view.
+quantize. Both `build` arms and `buildTest` consume either channel, reading
+the view a column at a time: a real-valued column is copied (or widened
+once, since its grid is over real values) into the block the side keeps, and
+a factor column quantizes straight off its codes and keeps none. Only the
+MUTATION entrances still need the dense values as one block, which their
+kernels index column-major, and they lay their own out.
 
 The flat replay reads either channel too.
 `PredictorSourceColumnReader` - the reader `predict`, the saved-tree replay
 and the test-side refusals all take a borrowed view through - serves a
 dense-backed column from whichever channel holds it, widening a code the way
 the ingestion arm does, so a factor test set routes rows off its own codes
-without a block built to hold them widened. The entrances that build a test
-store are the ones that still need that block, so a coded view is laid back
-out for them and for the mutation kernels; nothing that reads a view a
-column at a time does.
+without a block built to hold them widened.
 
 Two conventions are NOT the same and must not be confused. The channel's
 missing marker is `naDenseCode`; the code a missing value takes IN THE
@@ -214,13 +225,27 @@ sampler's designated leaf covariates - or, for a data handle, the
 leaf-covariate columns declared at its creation (empty for a
 constant-leaf consumer) - into `gatheredRawValues`
 (column-major, `numObservations x q`), refreshed in the same pass as each
-column quantizes (`quantizeColumn`, `data.hpp:1353`). `rawColumn` then
+column quantizes (`quantizeColumn`, `data.hpp:1416`). `rawColumn` then
 serves owned memory for the store's lifetime, borrow long since released.
 Few columns are gathered, so the slot lookup is a linear scan
 (`gatheredSlotForColumn`).
 
-The test-side twin `gatheredRawTestValues` is populated only by a view
-(below); a top-level test store serves raw from `ownedTestValues` instead.
+**What a build gathers is what it cannot otherwise serve.** A dense build
+retains no raw at all, so it copies every designated column. A MAPPED build
+already serves its real-valued dense-backed columns from `ownedDenseValues`
+and takes only the FACTOR ones among the designation - never a CSC-backed
+column, which serves no dense raw at all and which the quantize would leave
+a slot of zeros; the view built from that store then finds `rawColumn` null
+there and its designation refused. That rule is what keeps an ordered factor
+admissible as a leaf covariate on a mixed store: the block has no slice for
+it, so the gather does.
+
+The test-side twin `gatheredRawTestValues` carries its OWN column list,
+`gatheredRawTestColumns`, because the two sides gather different subsets: a
+top-level test store owns every real-valued dense test column already and
+gathers only the designated FACTOR columns its block cannot serve, while a
+view gathers each side of the same designation. `buildTest` fills it; a
+reset test store drops it with the rest of the test store.
 
 ## View semantics (buildFromParent)
 
@@ -235,11 +260,14 @@ a built parent store, used by xbart folds and the data-handle path. It:
   fold (every `sources` entry stays `denseCallSupplied`, `sparseColumns`
   empty);
 - gathers raw only for designated leaf-covariate columns the parent can
-  serve (`parent.rawColumn(...) != null`), inheriting the parent's
-  standardization constants (`suppliedStandardization`) so a full-rows
-  view standardizes bit-identically to a sampler over the raw data.
-  Columns the parent cannot serve are left ungathered; the view's
-  `rawColumn` returns null there and the facade refuses the designation.
+  serve (`parent.rawColumn(...) != null`), on BOTH sides and into both
+  column lists, inheriting the parent's standardization constants
+  (`suppliedStandardization`) so a full-rows view standardizes
+  bit-identically to a sampler over the raw data. Columns the parent cannot
+  serve are left ungathered; the view's `rawColumn` returns null there and
+  the facade refuses the designation. A factor column is one the parent can
+  serve exactly when the parent gathered it, which is why a data handle
+  declares its leaf covariates whatever its container's shape.
 
 The view is self-contained: nothing references the parent after
 `buildFromParent` returns.
@@ -318,11 +346,20 @@ Owned by the store (survive the borrow):
 
 - all `codes`, `sparseColumns`, cut grids, `gatheredRaw*`;
 - a mixed build's dense block (`ownedDenseValues`, which
-  `denseResident.residentRaw` points into): copied at build, not borrowed;
-- the entire test store's raw: `ownedTestValues` (dense) and
+  `denseResident.residentRaw` points into): copied at build, not borrowed,
+  and holding the REAL-VALUED dense-backed columns alone, packed per
+  predictor over the columns it serves - a map naming one dense column
+  twice therefore gives it a slot per predictor;
+- the whole test store's raw: `ownedTestValues` (the real-valued dense
+  columns, packed the same way) and
   `ownedTestCscValues`/`ownedTestCscRows` (a mixed/CSC test build packs
   every CSC-backed test column's nonzeros so each slice points into
   storage that never reallocates). The engine borrows no test matrix.
+
+Owned by nobody, because it does not exist: a FACTOR column's doubles, on
+either side. What was retained per factor column - 8 bytes a cell in each
+owned block - is gone, and a designated leaf covariate among them costs the
+gather instead.
 
 R-protection lifetime anchoring (`R_interface_bartcore.cpp`): the external
 pointer carries a fixed set of protection slots (`PROT_DATA`,
@@ -330,19 +367,20 @@ pointer carries a fixed set of protection slots (`PROT_DATA`,
 engine owns its codes and the R data object (`PROT_DATA` at creation, plus
 the live `sampler$data` the R methods hold) is the sole predictor GC
 anchor - there is no `PROT_PREDICTORS`. The mixed container needs no
-lifetime special-casing here: the store COPIES its transiently assembled
-dense block (`ParsedData.denseAssembly`) into `ownedDenseValues` during
-`build`, so the assembly need only survive the call that builds the store,
-which it already does as an entrance-scoped local - no holder/handle field
-extends its lifetime. A dense columnar container assembles TWO transients
-instead, one per value channel (above), and a factor column costs 4 bytes
-a cell in the code one rather than 8 in the double one; a mixed container
-still assembles one block of doubles, and so does a test container bound
-for the test store. The READ-ONLY test funnel (`parseTestSource`, shared
-by `predict`, `predictPerForest` and the saved-tree replay) assembles the
-same pair instead, since its consumer reads the view a column at a time.
-The CSC slots borrow R container memory instead, valid while `dataExpr`
-stays protected.
+lifetime special-casing here: the store COPIES what it keeps of its
+transiently assembled dense values (`ParsedData.denseAssembly`) into
+`ownedDenseValues` during `build`, so the assembly need only survive the
+call that builds the store, which it already does as an entrance-scoped
+local - no holder/handle field extends its lifetime. Every container
+assembles TWO transients, one per value channel (above), and a factor
+column costs 4 bytes a cell in the code one rather than 8 in the double
+one: the dense columnar and mixed creation funnels, the three test-store
+funnels, and the READ-ONLY test funnel (`parseTestSource`, shared by
+`predict`, `predictPerForest` and the saved-tree replay) alike, since every
+consumer reads the view a column at a time. The mutation entrances are the
+exception and assemble one block of doubles, which their kernels index
+column-major. The CSC slots borrow R container memory instead, valid while
+`dataExpr` stays protected.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
 non-R host. The `python-bindings` TODO entry records it: host-side
@@ -366,10 +404,11 @@ what `LinearGaussianLeaf` (`model.hpp:220`, `242`, `262`) and
 `GPGaussianLeaf` (`model.hpp:620`) do.
 
 Guarantees: for a column your model designated as a covariate, `rawColumn`
-is non-null on a top-level store (it was gathered at build) and non-null
-on a view built WITH that designation; it is null when the parent could
-not serve raw, and the facade refuses the designation upstream in that
-case, so a null never reaches a correctly-wired leaf. Missing covariate
+and `rawTestColumn` are both non-null on a top-level store (the build
+gathers, or the store's own block serves, whichever the column's values
+call for) and non-null on a view built WITH that designation; they are null
+when the parent could not serve raw, and the facade refuses the designation
+upstream in that case, so a null never reaches a correctly-wired leaf. Missing covariate
 values enter at the standardized mean (zero); rules on the same column
 still route the missingness. You MUST NOT touch codes, `sources`, the cut
 grid, or any block internal - the store re-quantizes and rolls back

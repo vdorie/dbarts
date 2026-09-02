@@ -1820,7 +1820,7 @@ regime for an independence regrow.
 enumeration.**
 
 *The cap does not exist.* `CGMTreePrior::growthProbability`
-(`model.hpp:2129-2132`) returns 0 **only** when
+(`model.hpp:2137-2140`) returns 0 **only** when
 `!tree.hasAnyAvailableVariable(...)`; otherwise `base/(1+depth)^power`,
 strictly positive at every finite depth. The memo states this itself
 elsewhere and then assumes its negation.
@@ -2030,7 +2030,7 @@ fixed.
   splits on a variable in `used(T)`, which the reverse ban leaves alone and
   which is available at that node by construction, so `growthProbability`
   is positive at every internal node of `T` under the reverse ban
-  (`model.hpp:2129-2132`); and banning changes `numAvailable` and hence
+  (`model.hpp:2137-2140`); and banning changes `numAvailable` and hence
   `P(var)`, but both directions compute their own normalizer, which is all
   MH needs (`grow.hpp:207-222` mirrors `model.hpp:2135-2145`). **Condition
   one**: the ban does not relieve B4's gaps, it stacks on them, so the

@@ -109,12 +109,12 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3759`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3725`) - the dedicated
+(`src/R_interface_bartcore.cpp:3765`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3731`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
-(`src/C_interface.cpp:630`) routes to `createHolder`, never to the
+(`src/C_interface.cpp:595`) routes to `createHolder`, never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
@@ -131,15 +131,15 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3561` -> `createMultinomialDataHolder` `:3527` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4502` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:4047` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:4122` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:4155` | `:125` | S, unexported |
+| run | `bartcore_run` `:4507` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:4052` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:4127` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:4160` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5194`, `:5146`, `:5307`, `:5361` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5435` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:5004` | `:558` | S (`refuseUndefinedTestFits` `:3092` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5440` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:5009` | `:558` | S (`refuseUndefinedTestFits` `:3098` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4101` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:6051` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:6056` | `:1085` | S |
 | per-category fits / varcounts | `:4174`, `:4307` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4232` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5711`, `:5716` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
@@ -157,7 +157,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`TODO:138-144`) then said "The multinomial
+`multinomial-counts-mutation` entry (`TODO:123-129`) then said "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -341,7 +341,7 @@ the plan doc). Multinomial has no flat creation path
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:189`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:600`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
+(`src/C_interface.cpp:565`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
 change, and one `expect_false` for the superseded literal should be added
@@ -567,7 +567,7 @@ the counts channel" - one string, right on both surfaces, and what
 S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2696-2697`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2837-2852` tested only
+then fell through to the RESPONSE message (`:2843-2858` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
@@ -723,9 +723,9 @@ depend on the file's full execution history, not just the preceding
   `docs/design/multinomial.md:190-380`;
   `docs/design/bart-as-a-component.md` section 2.
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
-  `multinomial-counts-mutation` (`:138-144`) gains the surface note.
+  `multinomial-counts-mutation` (`:123-129`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2141`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:2157`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`inst/NEWS.Rd:2054` records the deletion).** `$bc` was a bare
+`inst/NEWS.Rd:2157` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,

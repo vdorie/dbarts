@@ -1,10 +1,8 @@
 # Consolidating the predictor store's semantic-type axis
 
-Status: PARTLY LANDED. S0, S1, S2, S3, S4a and S4c have landed and carry
-their notes under "Landing" at EOF; S4b alone remains (see "Slice
-decomposition and sizing"). Every alternative
-below has been weighed and every open question ruled (see "Decisions").
-TODO: column-kind-consolidation.
+Status: LANDED. All seven slices - S0, S1, S2, S3, S4a, S4c and S4b -
+carry their notes under "Landing" at EOF. Every alternative below has been
+weighed and every open question ruled (see "Decisions").
 
 rng: draw-preserving (NEUTRAL) on S0, S1, S3, S4a, S4c and S4b, subject to
 the four hazards enumerated in section 6's hot-path subsection.
@@ -1846,3 +1844,127 @@ the landed engine tip, so this slice carries no .rds and no MANIFEST row,
 and check-doc-freshness FAILS on [f39]'s scenario count until it happens;
 the commit hashes for both are recorded with the re-record, which is where
 this entry's heading gains them.
+
+### S4b - typed sources (17c7d419, e83c5665, 04e2a222, 0b16acd9, 829cc1ff, a091ca33)
+
+A column's stored representation is now the one its values actually have.
+A factor column of either kind takes a fifth ColumnSourceKind,
+denseCodesOnly - dense codes and no raw anywhere - wherever its storage is
+dense, and the two owned dense blocks shrink to the real-valued columns,
+packed per predictor over the columns they serve. The kind is what section
+2 asked ColumnSource to carry: "this column has no double" is a state the
+descriptor names rather than a null a reader must expect. Its justification
+is the weaker fact, not the code-equals-level identity: a factor column's
+cells ARE its codes, and its grid follows the level table rather than its
+values, so it never re-quantizes and no consumer needs a double back.
+
+buildTest and build's mapped arm therefore CONSUME the code channel instead
+of refusing it - each reads the view a column at a time, copying or
+widening a real-valued column into the block it keeps and quantizing a
+factor one straight off its codes - so the mixed creation funnel and the
+three test-store funnels hand their factor columns over as int32, as the
+read-only funnel already did, and the flat C test entry drops its widen.
+The mutation entrances are the one consumer still needing the dense values
+as a single block, which their kernels index column-major, and they lay
+their own out.
+
+MEASURED, peak RSS in paired runs. A test set of 1e6 rows with 20
+five-level factor columns: 898.5 MB before, 738.7 MB after - 159.9 MB
+against the 160.0 MB that 8 bytes x 1e6 x 20 predicts, reproduced at
+898.6 / 738.5. A mixed container of 1e6 rows with 20 such columns beside a
+sparse one: 1451.8 MB before, 1219.0 MB after - 232.9 MB, and 240.3 MB on a
+second pair (1457.8 / 1217.5), against the 240.0 MB that 12 bytes predicts
+(8 retained plus 4 of the host's assembly, which now crosses as codes).
+Section 2's byte table charged the mapped path 8n per factor column for the
+"mixed / all-dense container" both; the all-dense container has been
+unmapped since before S4a, so the retained 8n is the MIXED flavour's alone
+and the all-dense one banked its saving as S4a's transient.
+
+Decision 2's ordered-factor leaf covariate needed machinery the proposal
+assumed existed - not because anything was broken before, but because both
+of its servers were blocks this slice removes. build's mapped arm gathers
+nothing, so an ordered factor designated on a mixed store read its raw from
+ownedDenseValues; and no top-level path gathered test raw at all, so the
+same column's TEST covariates were served correctly too, from
+ownedTestValues through a denseResident residentRaw. Both were right at the
+base, which is why the corpus reads 51/51 rather than recording a fix; the
+zeroed uTest_ the leaf models fall back to is the failure the SHRINK
+creates, and the gathers are what stop it. The training gather extends to
+the mapped arm over exactly the designated columns that arm cannot
+otherwise serve - the dense-backed FACTOR ones, never a CSC-backed column,
+which serves no dense raw and whose quantize would leave a slot of zeros -
+and buildTest gathers the test-side twin under its own column list, since
+the two sides gather different subsets. The data handle a fold view is
+built from therefore declares its leaf covariates whatever its container's
+shape. The gate is non-vacuous: removing buildTest's gather alone fires
+leaffactor (max |z| = 20.49) and leaffactormixed (33.02) on their fhat.test
+legs, every other scenario and every train draw bitwise - the all-dense
+container lost the same block, so both scenarios earn their place.
+
+Two sites move with the pool. rawColumnForRequantize answers null for a
+factor column, and setCutPointsForColumn returns on one rather than
+quantizing from that null - one statement of the rule, at the store, where
+the cpp suite pins it; the state restore's own factor skip is left as it
+was, since with that guard in place widening its predicate would have
+changed nothing. Hazard 8 is therefore discharged at the store, and the
+STATE FORMAT does not move. Nothing serialized changes: an ordered factor's
+cut points are written as they always were, the K - 1 midpoints its pinned
+level count fixes, no raw is serialized on any path, and no block or
+attribute is added, removed or re-encoded, so version 3 reads and writes as
+before, and a state written at either build is byte-identical.
+
+What the restore no longer does is re-install a factor column's grid from
+the state. Over the same design that is no change at all - the level count
+is pinned by the data object the store is rebuilt from, so the state's grid
+IS the live one. Over a different level count the state is refused, but by
+the split-index check against the live cut count, under the generic "state
+is not consistent with this sampler": nothing names the level count, and
+the refusal site has no cheap way to distinguish it, since it is keyed on
+the splits rather than on the grid. That leaves one edge, unreachable from
+R and recorded rather than closed: a host driving the flat C API with a
+null categoryCounts can leave an ordered factor's level count INFERRED,
+and two such samplers over different observations can hold different grids;
+where the state's grid is the SMALLER, it passes the split-index check and
+its splits now resolve against the live thresholds instead of its own. R
+pins K through nlevels, and refreshCutsForColumn and setData keep it, so no
+R path reaches it.
+
+writeOwnedDenseColumn/Cell and the rollback snapshot dispatch on the source
+kind rather than returning quietly on a null: denseResident is the one kind
+that keeps a slice, so the dispatch is a tightening rather than a new
+failure mode - the kind is assigned at exactly two sites, both with a
+pointer into a block sized before the loop that assigns it, so the null it
+no longer tolerates cannot arise. The proposal's fear that a mutation would
+leave the codes stale does not arise either - every caller pairs the
+write-through with the quantize that writes them, and the gathered copy
+rides that same quantize - so what the write-through owns is the retained
+raw alone.
+
+New fields, with their budget, measured: one ColumnSourceKind enumerator
+(free - sizeof(ColumnSource) stays 48, the enum being a uint8_t inside a
+descriptor whose padding absorbs it), and gatheredRawTestColumns, a vector
+of size_t whose 24-byte header sits on EVERY store and every fold view
+whether or not it gathers - sizeof(ColumnStore) 680 -> 704 - plus 8 bytes
+per gathered TEST column, at most the leaf-covariate cap of 8. Nothing else
+was added anywhere under src/.
+
+Hazards each carry a pin. tests/cpp builds the same mixed store through
+both channels and compares grids, codes, level counts and MISSING FLAGS,
+asserts a coded missing cell takes the reserved code its kind spends, pins
+which columns each owned block holds and which serve raw and which serve
+none, pins that a mutation still reaches a raw-less column's codes and its
+gathered copy, that an externally chosen grid does not reach a factor
+column, that a split-channel test view bins cell for cell as the double one
+with a refused view leaving the store untouched, and - landed first, so the
+rest is observable - that a view built from a coded and from a mixed parent
+carries its parent's kinds, level counts, codes and gathered covariate.
+Above them inst/tinytest pins a mixed container with an ordered-factor
+linear-leaf covariate, where a test set repeating the training rows must
+reproduce the training fits exactly, the same design through xbart, and a
+state stored and restored on it continuing into the same draws.
+
+Draw-preserving: equivalence-d4bca4ce 51/51, bcf-equivalence-00cfa108
+12/12, multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z|
+line, at every sub-commit boundary. No surface moves - not R, not the C
+API (DBARTS_C_API_HASH stays 0xca7b56a64c812b8d), not the state format.
+This closes the arc.

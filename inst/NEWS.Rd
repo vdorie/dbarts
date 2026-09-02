@@ -889,15 +889,29 @@
             every entrance that can declare a level table: naming the column
             for a factor, and naming the kind and its limit for a
             \code{sparseFactor} or a \code{varTypes} declaration.
-      \item Creating a sampler over a data frame of ordinary columns - one
-            carrying no sparse column - no longer assembles its factor
-            columns into a temporary block of doubles: their integer level
-            codes cross to the engine as the integers they already are, so
-            each factor column's temporary is 4 bytes a row rather than 8.
-            Nothing about the fit changes; the same codes reach the same
-            store. A frame carrying a sparse column, a test frame, and a
-            design supplied as a numeric matrix are all unaffected and still
-            assemble doubles.
+      \item Creating a sampler over a data frame no longer assembles its
+            factor columns into a temporary block of doubles: their integer
+            level codes cross to the engine as the integers they already
+            are, so each factor column's temporary is 4 bytes a row rather
+            than 8. This covers a frame carrying a sparse column and a test
+            frame as well as one of ordinary columns; a design supplied as a
+            numeric matrix is unaffected. Nothing about the fit changes; the
+            same codes reach the same store.
+      \item The engine no longer keeps a factor column's values as doubles
+            at all. Such a column's cells are level codes, which the
+            quantized codes the engine already holds carry, and its cut grid
+            follows its level table rather than its values, so the doubles
+            duplicated information and served nothing. Two designs retained
+            them: a test set, and a design supplied as a data frame carrying
+            a sparse column. Both now hold 8 bytes a cell less per factor
+            column for the life of the sampler - measured as peak resident
+            memory, 160 MB on a test set of a million rows with twenty
+            factor columns, and 233 MB on a data frame of a million rows
+            with twenty factor columns beside a sparse one, where the
+            temporary above accounts for the rest. Results are identical bit
+            for bit, and a factor column designated as a linear- or
+            GP-leaf covariate keeps its own copy, so those fits are
+            unaffected too.
       \item Predicting over a resident test set - one the engine routes in
             place rather than densifying, which is what a data frame
             carrying a \code{sparseFactor} column gives - reads its factor
