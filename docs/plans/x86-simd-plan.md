@@ -24,11 +24,11 @@ No repo files modified. Microbenches are throwaway scratch on the box.
   - linalg family (add/sub/AXPY/addScalar/setConstant/transpose + Aligned):
     dispatched to *_avx (compiled -mavx). BUT the *_avx bodies are SCALAR
     unroll-by-8 loops with the _mm256 intrinsics COMMENTED OUT
-    (linearAlgebra_avx.c:158-526) -> rely on gcc autovec at -mavx = 4-wide,
+    ([[src/misc/linearAlgebra_avx.c#misc_addVectorsInPlace_avx,misc_subtractVectorsInPlace_avx,misc_addVectorsInPlaceWithMultiplier_avx,misc_addScalarToVectorInPlace_avx,misc_setVectorToConstant_avx]]) -> rely on gcc autovec at -mavx = 4-wide,
     and they DROPPED the non-temporal _mm256_stream_pd stores.
   - moments (Mean/Variance): dispatched to *_sse2 only (no avx/avx2/neon variant
     exists). moments_sse2.c.
-- The SSE2 linalg bodies (linearAlgebra_sse2.c:158-503) are ALSO scalar
+- The SSE2 linalg bodies ([[src/misc/linearAlgebra_sse2.c#misc_addVectorsInPlace_sse2,misc_subtractVectorsInPlace_sse2,misc_addVectorsInPlaceWithMultiplier_sse2,misc_addScalarToVectorInPlace_sse2,misc_setVectorToConstant_sse2]]) are ALSO scalar
   unroll-by-4, intrinsics + _mm_stream_pd commented out -> autovec at -msse2
   = 2-wide, no NT stores.
 - CRITICAL: the bartcore engine headers (chain.hpp etc.) compile into the
@@ -41,7 +41,7 @@ No repo files modified. Microbenches are throwaway scratch on the box.
 src/include/external/stats.h sets R_NO_REMAP_RMATH before <Rmath.h>, then
 hand-declares only Rf_pnorm5/Rf_pchisq/Rf_qchisq (lines 34-36). It OMITS
 Rf_dnorm4 and Rf_qnorm5, which the ext_densityOfNormal/ext_quantileOfNormal
-macros (lines 30,32) and model.hpp:2022,2470 use directly. Under R 4.3.3's
+macros (lines 30,32) and [[model.hpp:2022@9cebb352]], [[model.hpp:2470@9cebb352]] use directly. Under R 4.3.3's
 Rmath.h on Linux/gcc those symbols are then undeclared -> C_interface.cpp (first
 TU) fails: "Rf_dnorm4 was not declared in this scope". macOS clang/R headers
 still expose them so the maintainer never sees it. Confirmed both box (2e2b1c9)
@@ -60,9 +60,9 @@ CXXFLAGS = -g -O2 with NO -mavx/-march (box log line 63 confirms: baseline
 x86-64 = SSE2). So bartcore inline loops are 2-wide; misc kernels are 4-wide AVX.
 
 ## PIVOT (coordinator correction): suffstat kernel is the PRIORITY target
-misc_compute*SufficientStatisticsFast (moments.c:311/334/358/387; 4 variants
+misc_compute*SufficientStatisticsFast ([[src/misc/moments.c#misc_computeSufficientStatisticsFast,misc_computeIndexedSufficientStatisticsFast,misc_computeWeightedSufficientStatisticsFast,misc_computeIndexedWeightedSufficientStatisticsFast]]; 4 variants
 contig/indexed x unweighted/weighted) accumulate (Sw, Swz, Swz2) per constant-
-leaf node EVERY sweep (tree.hpp:497-513). SCALAR-ONLY, unroll-by-5, single
+leaf node EVERY sweep ([[src/bartcore/tree.hpp#computeLeafStats]]). SCALAR-ONLY, unroll-by-5, single
 accumulator, NOT in simd.c dispatch. This is the live hot reduction (NOT the
 Mean/Variance family, which is genuinely uncalled - both statements true).
 PIVOTAL DELIVERABLE:
@@ -235,8 +235,8 @@ full ILP. Do not ship FMA as a perf toggle for this kernel.
   about the SEPARATE SufficientStatisticsFast family, which IS hot).
 - SufficientStatisticsFast family: the live hot reduction (indexed 32%). Verdict
   above: gather-bound, SIMD ~1.1x, FMA 0. Contiguous variant 4x but 0.3%.
-- SumOfSquaredResiduals (SSR): DOES have callers (model.hpp:1763 sigma draw via
-  drawSigmaSqFromPosterior; chain.hpp:908). Contiguous, compute-bound, SIMD-able
+- SumOfSquaredResiduals (SSR): DOES have callers ([[src/bartcore/model.hpp#drawSigmaSqFromPosterior]] sigma draw via drawSigmaSqFromPosterior;
+  [[src/bartcore/chain.hpp#Chain::sumOfSquaredResiduals]]). Contiguous, compute-bound, SIMD-able
   ~4x, BUT once/sweep (1/ntree the suffstat frequency) -> below profile threshold
   (<0.3%). Negligible alone; trivially reuse a suffstat SIMD kernel if one is built.
 

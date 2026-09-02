@@ -310,7 +310,7 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 
 - multinomial raw f_ik. CLOSED: the pre-registered suspect was the cause, and
   the fix landed as ec2a3d0; the closure is recorded in
-  docs/plans/archive/multinomial-level-centering.md (Landing, :177-192, with the
+  [[docs/plans/archive/multinomial-level-centering.md:177-192@b9a9971c]] (Landing, with the
   re-run `sbc.R multinom 200 150 30` showing every functional PASS).
   The one result this pass could not discharge. Evidence:
   three cells, same U shape, chisqP 0.000, statistic 0.86-0.91 of the matrix
