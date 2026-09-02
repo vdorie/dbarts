@@ -77,7 +77,7 @@
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-x-train">x.train<a class="anchor" aria-label="anchor" href="#arg-x-train"></a></dt>
-<dd><p>Explanatory variables for training (in sample) data. Can be any valid input to <code><a href="bart.html">bart</a></code>, such as a matrix or a formula. Also accepted are fitted <code>bart</code> models or <code><a href="dbartsSampler-class.html">dbartsSampler</a></code> with <code>keepTrees</code> equal to <code>TRUE</code>.</p></dd>
+<dd><p>Explanatory variables for training (in sample) data. Can be any valid input to <code><a href="bart.html">bart</a></code>, such as a matrix or a formula. Also accepted are fitted <code>bart</code> models or <code><a href="dbartsSampler-class.html">dbartsSampler</a></code> with <code>keepTrees</code> equal to <code>TRUE</code>. A sampler passed without <code>keepTrees</code> is used anyway, but generates fresh samples and changes its state in the process, with a warning; a <code>bart</code> model without a kept sampler is instead refit from its saved call, also with a warning (both class <code>dbartsFallbackWarning</code>) - and is refused outright if no call was saved either.</p></dd>
 
   <dt id="arg-y-train">y.train<a class="anchor" aria-label="anchor" href="#arg-y-train"></a></dt>
 <dd><p>Dependent variable for training (in sample) data. Can be a numeric vector or, when passing <code>x.train</code> as a formula, a <code>data.frame</code> or other object used to find variables. Not required if <code>x.train</code> is a fitted model or sampler.</p></dd>

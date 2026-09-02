@@ -114,7 +114,7 @@
 <dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>. For <code>predict</code> and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code>, supplied by name only - it follows <code>...</code> in the signature, so it is never matched positionally; a missing one is refused, naming itself.</p></dd>
 
   <dt id="arg-group-by-test">group.by.test<a class="anchor" aria-label="anchor" href="#arg-group-by-test"></a></dt>
-<dd><p>Grouping factor for test data, of the same type as <code>group.by</code>. Can be missing.</p></dd>
+<dd><p>Grouping factor for test data, of the same type as <code>group.by</code>. Can be missing; when <code>test</code> is supplied without it, <code>group.by</code> is recycled for it instead, with a warning (class <code>dbartsFallbackWarning</code>).</p></dd>
 
   <dt id="arg-prior">prior<a class="anchor" aria-label="anchor" href="#arg-prior"></a></dt>
 <dd><p>A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, <code>x</code> - the standard deviation, and <code>rel.scale</code> - the standard deviation of the response variable before random effects are fit. Built in priors are <code>cauchy</code> with a scale of 2.5 times the relative scale and <code>gamma</code> with a shape of 2.5 and scale of 2.5 times the relative scale. With a built-in prior and no <code>callback</code>, the whole Gibbs sampler runs inside the engine on one multi-chain sampler; a custom prior function runs the random effect updates in R instead.</p></dd>
@@ -129,7 +129,7 @@
 <dd><p>Optional function of <code>trainFits</code>, <code>testFits</code>, <code>ranef</code>, <code>sigma</code>, and <code>tau</code>. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.</p></dd>
 
   <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-storage-updatestate">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, storage, updateState<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-storage-updatestate"></a></dt>
-<dd><p>Same as in <code><a href="bart2.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> offers a reduced <code>family</code> set (see below) with no logistic option, and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
+<dd><p>Same as in <code><a href="bart2.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> offers a reduced <code>family</code> set (see below) with no logistic option, and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors. <code>rbart_vi</code> runs its chains on a process cluster when both <code>n.chains</code> and <code>n.threads</code> exceed 1: <code>verbose</code> output is then disabled, with a warning (class <code>dbartsIgnoredArgWarning</code>), since chains print out of order across processes; and if the cluster cannot be started, or errors while running, chains instead run one at a time in this process, with a warning (class <code>dbartsThreadFallbackWarning</code>, a <code>dbartsFallbackWarning</code>).</p></dd>
 
   <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
 <dd><p>As in <code><a href="bart2.html">bart2</a></code>: <code>NULL</code> (the default) uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones; a supplied fixed value or hyperprior overrides that default.</p></dd>
@@ -167,10 +167,10 @@
     <p>Fits a BART model with additive random intercepts, one for each factor level of <code>group.by</code>. For continuous responses:</p>
 <ul><li><p>\(y_i \sim N(f(x_i) + \alpha_{g[i]}, \sigma^2)\)</p></li>
 <li><p>\(\alpha_j \sim N(0, \tau^2)\).</p></li>
-</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(\tau\) use an exact conjugate update for the built-in <code>cauchy</code> prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in <code>gamma</code> prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.</p>
+</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(\tau\) use an exact conjugate update for the built-in <code>cauchy</code> prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in <code>gamma</code> prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode. If that R implementation's rejection step cannot produce a sample within a fixed number of iterations, it falls back to the value it started from, so that draw does not move, with a warning (class <code>dbartsDrawFallbackWarning</code>, a <code>dbartsFallbackWarning</code>).</p>
 <div class="section">
 <h3 id="out-of-sample-groups">Out Of Sample Groups<a class="anchor" aria-label="anchor" href="#out-of-sample-groups"></a></h3>
-<p>Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \(p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\tau\). For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to <code>predict</code>, they cannot and may change for subsequent calls.</p>
+<p>Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \(p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\tau\). For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to <code>predict</code>, they cannot and may change for subsequent calls. Either way, a group level in <code>test</code>/<code>newdata</code> that <code>group.by</code> never took at fit time is warned about (class <code>dbartsUnmeasuredLevelsWarning</code>).</p>
 </div>
 
 <div class="section">
@@ -274,7 +274,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000416</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000290</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 </span>
@@ -287,7 +287,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002078</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001438</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 </span>
@@ -332,7 +332,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000576</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000418</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -345,7 +345,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002831</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002039</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

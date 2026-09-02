@@ -125,9 +125,14 @@ residuals(object, type = "ev", ...)
   For continuous response models, an estimate of the residual standard
   deviation (residual standard error), \\\sigma\\, used to calibrate an
   inverse-chi-squared prior on the error variance. If not supplied, the
-  least-squares estimate is derived instead. See `sigquant` for more
-  information. Not applicable when \\y\\ is binary. Same concept as
-  `sigma` in
+  least-squares estimate is derived instead. That estimate falls back to
+  the marginal standard deviation of the response when the linear
+  model's residual standard error comes out non-finite, warning as it
+  does so (class `dbartsSigmaFallbackWarning`); a design with
+  sparse-backed predictor columns skips the linear model altogether and
+  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
+  `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
+  Not applicable when \\y\\ is binary. Same concept as `sigma` in
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
   it `sigest` too.
@@ -1106,7 +1111,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.200625
+#> total seconds in loop: 0.214807
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

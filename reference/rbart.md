@@ -81,7 +81,8 @@ residuals(object, type = "ev", ...)
 - group.by.test:
 
   Grouping factor for test data, of the same type as `group.by`. Can be
-  missing.
+  missing; when `test` is supplied without it, `group.by` is recycled
+  for it instead, with a warning (class `dbartsFallbackWarning`).
 
 - prior:
 
@@ -125,7 +126,14 @@ residuals(object, type = "ev", ...)
   default is `FALSE`). With `dart`, split probability samples appear as
   `varprobs` on the fit. Unlike `bart2`, `rbart_vi` offers a reduced
   `family` set (see below) with no logistic option, and does not accept
-  sparse (`Matrix::dgCMatrix`) predictors.
+  sparse (`Matrix::dgCMatrix`) predictors. `rbart_vi` runs its chains on
+  a process cluster when both `n.chains` and `n.threads` exceed 1:
+  `verbose` output is then disabled, with a warning (class
+  `dbartsIgnoredArgWarning`), since chains print out of order across
+  processes; and if the cluster cannot be started, or errors while
+  running, chains instead run one at a time in this process, with a
+  warning (class `dbartsThreadFallbackWarning`, a
+  `dbartsFallbackWarning`).
 
 - k:
 
@@ -263,7 +271,10 @@ inverse-gamma draws per sweep) and a slice sampler otherwise; the
 in-engine slice sampler for the built-in `gamma` prior steps out with a
 width tied to the prior's scale, while the R implementation used with
 custom priors determines its width from the curvature of the posterior
-at its mode.
+at its mode. If that R implementation's rejection step cannot produce a
+sample within a fixed number of iterations, it falls back to the value
+it started from, so that draw does not move, with a warning (class
+`dbartsDrawFallbackWarning`, a `dbartsFallbackWarning`).
 
 ### Out Of Sample Groups
 
@@ -273,6 +284,8 @@ is a draw is taken from \\p(\alpha \mid y) = \int p(\alpha \mid
 \tau)p(\tau \mid y)d\tau\\. For out-of-sample groups in the test data,
 these random effect draws can be kept with the saved object. For those
 supplied to `predict`, they cannot and may change for subsequent calls.
+Either way, a group level in `test`/`newdata` that `group.by` never took
+at fit time is warned about (class `dbartsUnmeasuredLevelsWarning`).
 
 ### Generics
 
@@ -405,7 +418,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000416
+#> total seconds in loop: 0.000290
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -418,7 +431,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002078
+#> total seconds in loop: 0.001438
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -463,7 +476,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000576
+#> total seconds in loop: 0.000418
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -476,7 +489,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002831
+#> total seconds in loop: 0.002039
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

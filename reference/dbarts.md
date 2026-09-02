@@ -74,13 +74,19 @@ dbarts(
   An optional data frame, list, or environment containing predictors to
   be used with the model. For backwards compatibility, can also be the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) vector
-  `y.train`.
+  `y.train`. The response, however supplied, is checked for
+  near-degeneracy at double precision and warns when too few distinct
+  values remain to fit against (class
+  `dbartsDegenerateResponseWarning`).
 
 - test:
 
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backwards compatibility mode. If column names
-  are present, a matching algorithm is used.
+  are present, a matching algorithm is used; when `test`'s columns
+  cannot all be matched by name to `data`'s, they are matched by
+  position instead, with a warning (class
+  `dbartsPositionalArgsWarning`).
 
 - subset:
 
@@ -97,7 +103,11 @@ dbarts(
   weights identically 1 are treated as absent; a `"logistic"` model
   treats them as observation counts and so requires positive integers
   (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
-  draws).
+  draws). A weight of 0 is honored but adds no information while still
+  costing computation, and is warned about (class
+  `dbartsIgnoredArgWarning`); the same class covers `weights` going
+  unused for `test` - when the model is not specified as a formula, and
+  when `weights` names a column `test` does not carry.
 
 - offset:
 
@@ -348,7 +358,13 @@ dbarts(
   Same concept as `sigest` in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`,
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md). That
+  estimate falls back to the marginal standard deviation of the response
+  when the linear model's residual standard error comes out non-finite,
+  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
+  with sparse-backed predictor columns skips the linear model altogether
+  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
+  a `dbartsSigmaFallbackWarning`).
 
 - seed:
 

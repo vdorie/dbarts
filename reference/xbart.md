@@ -211,7 +211,13 @@ xbart(
   [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md))
   spell this `sigest`; sampler constructors
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  `dbartsSpec`) spell the same concept `sigma`.
+  `dbartsSpec`) spell the same concept `sigma`. That estimate falls back
+  to the marginal standard deviation of the response when the linear
+  model's residual standard error comes out non-finite, warning as it
+  does so (class `dbartsSigmaFallbackWarning`); a design with
+  sparse-backed predictor columns skips the linear model altogether and
+  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
+  `dbartsSigmaFallbackWarning`).
 
 - seed:
 

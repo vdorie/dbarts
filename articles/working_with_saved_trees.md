@@ -392,9 +392,9 @@ newData <- x[1:5,]
 newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
 ```
 
-    ## Warning in validateXTest(newdata, data@x): 'test' is unnamed but 'x' had named
-    ## predictors, matched to 'x' by position (column 1 = 'X1', column 2 = 'X2',
-    ## column 3 = 'X3', ...); supply 'test' with column names to match by name instead
+    ## Warning: 'test' is unnamed but 'x' had named predictors, matched to 'x' by
+    ## position (column 1 = 'X1', column 2 = 'X2', column 3 = 'X3', ...); supply
+    ## 'test' with column names to match by name instead
 
 ``` r
 

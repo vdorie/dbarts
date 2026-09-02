@@ -47,7 +47,12 @@ plot(
   such as a matrix or a formula. Also accepted are fitted `bart` models
   or
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  with `keepTrees` equal to `TRUE`.
+  with `keepTrees` equal to `TRUE`. A sampler passed without `keepTrees`
+  is used anyway, but generates fresh samples and changes its state in
+  the process, with a warning; a `bart` model without a kept sampler is
+  instead refit from its saved call, also with a warning (both class
+  `dbartsFallbackWarning`) - and is refused outright if no call was
+  saved either.
 
 - y.train:
 

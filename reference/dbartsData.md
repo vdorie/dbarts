@@ -31,6 +31,9 @@ dbartsData(
   numeric matrix installs the per-category shift described under
   `counts` below, and a flat vector is refused; without `counts`, only a
   flat vector (or single number) is accepted, and a matrix is refused.
+  `formula` may itself be a `dbartsData` object, in which case it is
+  returned as-is; any other argument supplied alongside it is then
+  ignored, with a warning (class `dbartsIgnoredArgWarning`).
 
 - bases:
 

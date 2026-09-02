@@ -251,9 +251,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `"probit"` or `"logistic"` the transform is the link's own and `TRUE`
   is accepted as the no-op it already is. On `setResponse`, supplying
   this argument positionally (`setResponse(y, TRUE)`) rather than by
-  name warns once per session - it is the second argument, where a
-  caller porting code written before this order had `updateState` there
-  instead.
+  name warns once per session (class `dbartsPositionalArgsWarning`) - it
+  is the second argument, where a caller porting code written before
+  this order had `updateState` there instead.
 
 - offset.test:
 
@@ -646,10 +646,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An integer vector listing the saved samples to return from `getTrees`
   or print from `printTrees`. Applies only when `keepTrees` is `TRUE`
   and `current` is `FALSE`; otherwise the live working trees have no
-  sample dimension and it is ignored. Sample numbers address recorded
-  DRAWS on the oldest-first axis `predict` reports - `1` to the number
-  of draws recorded, at most `control@n.samples` - and not the store's
-  internal slots.
+  sample dimension, and supplying it explicitly is ignored, with a
+  warning (class `dbartsIgnoredArgWarning`). Sample numbers address
+  recorded DRAWS on the oldest-first axis `predict` reports - `1` to the
+  number of draws recorded, at most `control@n.samples` - and not the
+  store's internal slots.
 
 - current:
 
