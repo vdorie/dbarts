@@ -13,9 +13,9 @@ validity errors stop leaking internal class names.
 
 ## Context
 
-- No-ops: [[R/dbarts.R:1012-1018@a2802563]]; callers all internal
-  ([[R/bart.R:469@a2802563]], [[R/bart.R:491@a2802563]], [[R/bart.R:494@a2802563]], [[R/bart.R:634@a2802563]], [[R/bart.R:656@a2802563]], [[R/bart.R:659@a2802563]]; [[R/partialDependence.R:17@a2802563]], [[R/partialDependence.R:208@a2802563]], [[R/partialDependence.R:439@a2802563]];
-  [[R/rbart.R:762@a2802563]], [[R/rbart.R:826@a2802563]]). No revdep dependency - dbarts controls both ends.
+- No-ops: [[R/dbarts.R:1012-1018@0fcea39b]]; callers all internal
+  ([[R/bart.R:469@0fcea39b]], [[R/bart.R:491@0fcea39b]], [[R/bart.R:494@0fcea39b]], [[R/bart.R:634@0fcea39b]], [[R/bart.R:656@0fcea39b]], [[R/bart.R:659@0fcea39b]]; [[R/partialDependence.R:17@0fcea39b]], [[R/partialDependence.R:208@0fcea39b]], [[R/partialDependence.R:439@0fcea39b]];
+  [[R/rbart.R:762@0fcea39b]], [[R/rbart.R:826@0fcea39b]]). No revdep dependency - dbarts controls both ends.
   Caveat: check whether any revdep calls the methods on the sampler
   object directly (grep the revdep sources during the sweep); if one
   does, keep the methods and delete only the internal calls.
