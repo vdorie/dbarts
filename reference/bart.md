@@ -592,20 +592,21 @@ residuals(object, type = "ev", ...)
 - ci.level:
 
   For `fitted` and `predict`, an optional single number in \\(0, 1)\\.
-  When `NULL` (the default) the posterior mean is returned as before.
-  When given, the result is instead a matrix with one row per
-  observation and columns `est` (the posterior mean), `ci.lower`, and
-  `ci.upper` giving a symmetric credible band at that level, pooled over
-  all samples and chains. The kind of interval follows `type`: `"ev"`
-  yields a credible interval for the conditional mean (a probability for
-  binary responses), `"ppd"` a prediction interval that additionally
-  carries the residual noise (and so is wider), and `"bart"` a credible
-  interval on the latent scale. Refused, by name, with
-  `type = "forest"` - that arm reports each forest's own total before
-  any basis - and on `residuals`, where it would band a constant minus
-  an increasing triple and so mislabel two of its three columns; take
-  `y - fitted(object, ci.level = )` instead, where the reversal is
-  visible at the call site.
+  When `NULL` (the default), each generic returns what it always has:
+  `fitted` the posterior mean, `predict` the full array of posterior
+  samples (see `type` above), unsummarized. When given, the result is
+  instead a matrix with one row per observation and columns `est` (the
+  posterior mean), `ci.lower`, and `ci.upper` giving a symmetric
+  credible band at that level, pooled over all samples and chains. The
+  kind of interval follows `type`: `"ev"` yields a credible interval for
+  the conditional mean (a probability for binary responses), `"ppd"` a
+  prediction interval that additionally carries the residual noise (and
+  so is wider), and `"bart"` a credible interval on the latent scale.
+  Refused, by name, with `type = "forest"` - that arm reports each
+  forest's own total before any basis - and on `residuals`, where it
+  would band a constant minus an increasing triple and so mislabel two
+  of its three columns; take `y - fitted(object, ci.level = )` instead,
+  where the reversal is visible at the call site.
 
 - ...:
 
@@ -1101,7 +1102,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218840
+#> total seconds in loop: 0.217135
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

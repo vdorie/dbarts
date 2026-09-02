@@ -153,7 +153,7 @@
 <dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or test samples respectively. It is <code>extract</code>'s and <code>fitted</code>'s own argument, and is refused by name on <code>predict</code>, whose stored train and test channels are <code>extract</code>'s <code>sample</code> instead.</p></dd>
 
   <dt id="arg-ci-level">ci.level<a class="anchor" aria-label="anchor" href="#arg-ci-level"></a></dt>
-<dd><p>For <code>fitted</code> and <code>predict</code>, an optional single number in \((0, 1)\). As in <code><a href="bart.html">bart</a></code>: <code>NULL</code> (the default) returns the posterior mean, while a level returns a matrix of <code>est</code>, <code>ci.lower</code>, and <code>ci.upper</code>, with the interval kind following <code>type</code>. Refused, by name, on <code>residuals</code> - see <code><a href="bart.html">bart</a></code>'s own <code>ci.level</code> item for why.</p></dd>
+<dd><p>For <code>fitted</code> and <code>predict</code>, an optional single number in \((0, 1)\). As in <code><a href="bart.html">bart</a></code>: <code>NULL</code> (the default) leaves each generic's own usual result alone - <code>fitted</code>'s posterior mean, <code>predict</code>'s full array of posterior samples - while a level returns a matrix of <code>est</code>, <code>ci.lower</code>, and <code>ci.upper</code>, with the interval kind following <code>type</code>. Refused, by name, on <code>residuals</code> - see <code><a href="bart.html">bart</a></code>'s own <code>ci.level</code> item for why.</p></dd>
 
   <dt id="arg-x-plquants-cols">x, plquants, cols<a class="anchor" aria-label="anchor" href="#arg-x-plquants-cols"></a></dt>
 <dd><p>Same as in <code><a href="bart.html">plot.bart</a></code>.</p></dd>
@@ -274,7 +274,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000298</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000283</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 </span>
@@ -287,7 +287,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001471</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001416</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 </span>
@@ -332,7 +332,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000435</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000428</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -345,7 +345,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002087</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001970</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

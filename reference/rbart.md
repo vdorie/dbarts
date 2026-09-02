@@ -221,9 +221,11 @@ residuals(object, type = "ev", ...)
 
   For `fitted` and `predict`, an optional single number in \\(0, 1)\\.
   As in [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
-  `NULL` (the default) returns the posterior mean, while a level returns
-  a matrix of `est`, `ci.lower`, and `ci.upper`, with the interval kind
-  following `type`. Refused, by name, on `residuals` - see
+  `NULL` (the default) leaves each generic's own usual result alone -
+  `fitted`'s posterior mean, `predict`'s full array of posterior
+  samples - while a level returns a matrix of `est`, `ci.lower`, and
+  `ci.upper`, with the interval kind following `type`. Refused, by name,
+  on `residuals` - see
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
   `ci.level` item for why.
 
@@ -399,7 +401,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000298
+#> total seconds in loop: 0.000283
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -412,7 +414,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001471
+#> total seconds in loop: 0.001416
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -457,7 +459,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000435
+#> total seconds in loop: 0.000428
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -470,7 +472,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002087
+#> total seconds in loop: 0.001970
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

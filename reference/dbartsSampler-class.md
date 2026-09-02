@@ -249,7 +249,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   creation and nothing converts them, so `TRUE` would silently restate
   both in response units while `sigma` moved with the scale; under
   `"probit"` or `"logistic"` the transform is the link's own and `TRUE`
-  is accepted as the no-op it already is.
+  is accepted as the no-op it already is. On `setResponse`, supplying
+  this argument positionally (`setResponse(y, TRUE)`) rather than by
+  name warns once per session - it is the second argument, where a
+  caller porting code written before this order had `updateState` there
+  instead.
 
 - offset.test:
 
@@ -1238,12 +1242,13 @@ one sweep at a time needs: an incremental scheme updates its outer block
 against \\f(x_i)\\, and taking `getLatents()` minus `run()$train`
 instead is BIASED, because the training channel carries the offset the
 latent scale does not. On a multi-forest (`forests`) sampler this is the
-only route from R to the combined fit at all - `getForestFits` gives one
-forest's internal-scale totals and `predict` is refused. It is refused,
-naming the reason, on a multinomial sampler, whose reported channels are
-per-category softmax probabilities rather than one additive location;
-`predict(x)` serves that read, but reports the SAVED samples rather than
-the current state when the sampler was built with `keepTrees`.
+only route, short of running the sampler, from R to the combined fit -
+`getForestFits` gives one forest's internal-scale totals and `predict`
+is refused. It is refused, naming the reason, on a multinomial sampler,
+whose reported channels are per-category softmax probabilities rather
+than one additive location; `predict(x)` serves that read, but reports
+the SAVED samples rather than the current state when the sampler was
+built with `keepTrees`.
 
 For `getForestFits`, a multi-forest sampler's requested forest's current
 internal-scale fitted values, an n.observations x n.chains matrix, or,
