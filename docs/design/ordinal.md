@@ -3,7 +3,7 @@
 Status: LANDED 2026-07-18 (e0c4982). Plan: docs/plans/archive/ordinal-outcomes.md (this is its
 step 1). Ordered categorical responses fit by a cumulative probit: the
 truncated-normal latent machinery ProbitResponse already carries
-(src/bartcore/model.hpp:3057), generalized from a single threshold at 0 to K-1
+([[src/bartcore/model.hpp#ProbitResponse]]), generalized from a single threshold at 0 to K-1
 ordered cutpoints, plus a cutpoint block sampled by a marginal Metropolis
 update. Surfaced as family = "ordinal". The unordered case is out of scope and
 stays with the multinomial forest (docs/design/multinomial.md); the dispatch key
@@ -26,12 +26,13 @@ category likelihood marginalizes the latent in closed form,
 
 the cumulative probit. This is exactly ProbitResponse with two changes: the
 truncation interval per observation is (gamma_{y_i-1}, gamma_{y_i}] instead of
-the fixed {(-inf, 0], (0, inf)} split (model.hpp:3085-3097), and the cutpoint
-vector gains sampled values - gamma_1 stays pinned at 0 (section 2), so of the
-K-1 finite cutpoints exactly K-2 are free. Everything else in the probit
-seam is unchanged: sigma is fixed at 1 (drawSigma returns sigma,
-model.hpp:3106), the tree stage sees working response z_i - o_i under unit
-weights (workingWeights() null, rebuildWorking model.hpp:3074,3166), and the
+the fixed {(-inf, 0], (0, inf)} split ([[src/bartcore/model.hpp#refreshLatents]]),
+and the cutpoint vector gains sampled values - gamma_1 stays pinned at 0
+(section 2), so of the K-1 finite cutpoints exactly K-2 are free. Everything
+else in the probit seam is unchanged: sigma is fixed at 1 (drawSigma returns
+sigma, [[src/bartcore/model.hpp#drawSigma]]), the tree stage sees working
+response z_i - o_i under unit weights (workingWeights() null, rebuildWorking
+[[src/bartcore/model.hpp#refreshLatents, workingWeights]]), and the
 log-likelihood channel is the Phi-difference above.
 
 At K = 2 there is one cutpoint, gamma_1, fixed at 0 (below): the free-cutpoint
@@ -55,8 +56,8 @@ invariant to (i) a common location shift of all gamma and eta and (ii) a common
 positive rescaling of all gamma, eta, and the latent sd sigma. A cumulative
 probit needs one anchor for each. The BART mean f is a flexible location that
 floats, softly shrunk toward the offset by the leaf prior (total-fit prior sd
-nodeScale/k; probit sets nodeScale = 3.0, R/model.R:405), so f carries the
-location that an explicit intercept would in a linear model.
+nodeScale/k; probit sets nodeScale = 3.0, [[R/model.R#defaultNodeScale]]), so
+f carries the location that an explicit intercept would in a linear model.
 
 **Scheme A (recommend): sigma = 1 fixed, gamma_1 = 0 fixed; free interior
 cutpoints gamma_2 < ... < gamma_{K-1} (K-2 of them).** The unit latent sd anchors
@@ -67,8 +68,9 @@ category probabilities, is identified at any leaf-prior scale. The prior on the
 latent mean is probit's: f ~ N(0, (nodeScale/k)^2) at the total-fit level
 (nodeScale = 3.0, k = 2 default -> sd 1.5), reused unchanged. This is the exact
 generalization of the shipped probit (K = 2 identical), keeps sigma fixed so
-sigmaIsFixed_ stays true (chain.hpp:666-668) with no sigma draw and no new sigma
-path, and confines all new machinery to the free cutpoints and their sampler.
+sigmaIsFixed_ stays true ([[src/bartcore/chain.hpp#Chain]]) with no sigma draw
+and no new sigma path, and confines all new machinery to the free cutpoints
+and their sampler.
 Cost: as K grows the free cutpoints must mix (section 3, the hard part); and
 two DISTINCT posterior correlations need naming. First, the Albert-Chib gamma-z
 coupling - cutpoints pinned between adjacent latent order statistics - which the
@@ -124,7 +126,7 @@ fixed count-derived proposal scale.
 
 **Draw order (decided): cutpoints, then latents.** The response family's
 refreshLatents fires once per sweep after every tree updates, with the current
-totalFits (chain.hpp:1535). Ordinal splits it into (1) a marginal Metropolis
+totalFits ([[src/bartcore/chain.hpp#run]]). Ordinal splits it into (1) a marginal Metropolis
 update of the free cutpoints against eta = totalFits + offset, with the latents
 integrated out (the Phi-difference likelihood of section 1), then (2) a fresh
 draw of z_i from the doubly-truncated N(eta_i, 1) on (gamma_{y_i-1}, gamma_{y_i}]
@@ -237,14 +239,16 @@ probit's rebuildWorking (working = latents - offset), workingWeights() = nullptr
 drawSigma() = sigma, initialSigma/fitScale/fitShift/sigmaScale = 1/1/0/1. The
 overrides are refreshLatents (the two-step cutpoints-then-latents draw of section
 3), computeLogLikelihood (the Phi-difference, generalizing probit's two-tail
-form at model.hpp:3148-3163), and the new cutpoint state hooks (section 6). Ordinal
-carries K on construction (levels count).
+form at [[src/bartcore/model.hpp#computeLogLikelihood]]), and the new cutpoint
+state hooks (section 6). Ordinal carries K on construction (levels count).
 
 **A doubly-truncated-normal primitive is required.** random.h shipped only
-one-sided truncations (ext_rng_simulateLowerTruncatedNormalScale1 /
-Upper..., random.h:86-107); probit uses the lower form at 0 (model.hpp:3092).
+one-sided truncations
+([[src/include/external/random.h#ext_rng_simulateLowerTruncatedNormalScale1, ext_rng_simulateUpperTruncatedNormalScale1]]);
+probit uses the lower form at 0 ([[src/bartcore/model.hpp#refreshLatents]]).
 That primitive has since been added, as specified here:
-ext_rng_simulateTruncatedNormalScale1 is declared at random.h:108-115.
+ext_rng_simulateTruncatedNormalScale1 is declared at
+[[src/include/external/random.h#ext_rng_simulateTruncatedNormalScale1]].
 Interior categories need z ~ N(eta, 1) on a finite interval (gamma_{k-1},
 gamma_k], so add ext_rng_simulateTruncatedNormalScale1(rng, mean, lower, upper):
 inverse-CDF (mean + qnorm(Phi(lower-mean) + u (Phi(upper-mean) - Phi(lower-mean))))
@@ -252,23 +256,26 @@ in the bulk, Robert (1995) rejection when the interval sits in a tail where the
 CDF gap underflows. Boundary categories (y = 1 and y = K) MUST keep the existing
 one-sided rejection primitives, never the new inverse-CDF one: the upper draw
 ext_rng_simulateUpperTruncatedNormalScale1(mean, bound) is
-mean - LowerTruncatedStandardNormal(mean - bound) (random.c:486-493), the same
-underlying primitive and argument folding as probit's sign-flipped draw
-(model.hpp:3092), and the NaN fallback must match probit's sign * DBL_EPSILON
-(model.hpp:3093). These two invariants are what make the K = 2 identity of
+mean - LowerTruncatedStandardNormal(mean - bound)
+([[src/external/random.c#ext_rng_simulateUpperTruncatedNormalScale1]]), the
+same underlying primitive and argument folding as probit's sign-flipped draw
+([[src/bartcore/model.hpp#refreshLatents]]), and the NaN fallback must match
+probit's sign * DBL_EPSILON ([[src/bartcore/model.hpp#refreshLatents]]).
+These two invariants are what make the K = 2 identity of
 section 1 BITWISE rather than merely distributional - a different primitive
 consumes a different rng stream - and the K = 2 component test (section 7) locks
 both. The doubly-truncated primitive itself is a self-contained external/
 addition with its own component test (section 7).
 
-**Family selection (chain.hpp:597-637, facade.hpp).** Add ResponseFamily::ordinal
-to the enum (model.hpp:2580) and a case to the chain's family switch constructing
-OrdinalResponse(y, offset, K, ...). No leaf-model change - ordinal is a
-ConstantGaussianLeaf single-forest model like probit, so it composes with the
-existing SamplerFacade instantiations (facade.hpp:413+) unchanged; K threads in
-through the same options struct the survival status and group indices use
-(chain.hpp:774-791). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1583-1621) branches on the boolean
+**Family selection ([[src/bartcore/chain.hpp#Chain]], facade.hpp).** Add
+ResponseFamily::ordinal to the enum ([[src/bartcore/model.hpp#ResponseFamily]])
+and a case to the chain's family switch constructing OrdinalResponse(y, offset,
+K, ...). No leaf-model change - ordinal is a ConstantGaussianLeaf single-forest
+model like probit, so it composes with the existing SamplerFacade instantiations
+([[src/bartcore/facade.hpp#SamplerBase]]) unchanged; K threads in through the
+same options struct the survival status and group indices use
+([[src/bartcore/chain.hpp#Chain]]). The bridge is NOT a string addition:
+resolveFamily ([[src/R_interface_bartcore.cpp#resolveFamily]]) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside
@@ -287,8 +294,9 @@ drew no objection.
 
 **Family surface (recommend family = "ordinal" as the primitive, with
 auto-dispatch on ordered factors, announced).** family = "ordinal" is added to the
-bart2 and dbarts family vectors (R/bart.R:699, R/dbarts.R:382) and routed through
-resolveClassificationFamily (R/data.R:588). The response must be an ordered
+bart2 and dbarts family vectors ([[R/bart.R#bart2]], [[R/dbarts.R#dbarts]]) and
+routed through resolveClassificationFamily
+([[R/data.R#resolveClassificationFamily]]). The response must be an ordered
 factor (is.ordered); the level ORDER defines the category order. An unordered
 factor or character under family = "ordinal" is accepted with an informational
 message that order is taken from the level order (factor default: alphabetical -
@@ -302,19 +310,20 @@ bart2(family = "auto") routed it through detectAutoMultinomial, whose type
 match included "ordered factor" at n.levels >= 3, and SILENTLY fit an unordered
 multinomial, discarding the ordering. The single-forest entries (dbarts, xbart,
 rbart_vi) errored in resolveClassificationFamily's K >= 3 refusal
-(R/data.R:619-673). So EVERY option below - explicit-only included - had to
-split ordered factors out of detectAutoMultinomial, and bart2's behavior on
-ordered responses changed whichever option won; there was no
-zero-behavior-change choice. The detection hook already existed:
+([[R/data.R#resolveClassificationFamily]]). So EVERY option below - explicit-only
+included - had to split ordered factors out of detectAutoMultinomial, and
+bart2's behavior on ordered responses changed whichever option won; there was
+no zero-behavior-change choice. The detection hook already existed:
 classifyResponse tags "ordered factor" as its own response type
-(R/data.R:498-510).
+([[R/data.R#classifyResponse]]).
 
 LIVE: the split is made on the disjoint is.ordered() key (stated at
-R/bart.R:730 and :1327). detectAutoMultinomial (R/bart.R:1384) matches
-unordered factors and characters only; detectAutoOrdinal (R/bart.R:1402-1414)
-catches the 3+-level ordered factor and selects family = "ordinal". The
-single-forest entries still refuse, and R/data.R:619-621 names ordinal as
-the reason.
+[[R/bart.R#bart2, extractMultinomialFormulaData]]). detectAutoMultinomial
+([[R/bart.R#detectAutoMultinomial]]) matches unordered factors and characters
+only; detectAutoOrdinal ([[R/bart.R#detectAutoOrdinal]]) catches the 3+-level
+ordered factor and selects family = "ordinal". The single-forest entries still
+refuse, and [[R/data.R#resolveClassificationFamily]] names ordinal as the
+reason.
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:
@@ -325,7 +334,7 @@ and external precedents on OPPOSITE sides:
   multinomial; explicit family = "ordinal" is the primitive and forces the model
   on any response. The INTERNAL precedent is squarely here: dbarts's own binary
   handling auto-dispatches probit from the unambiguous 2-level signal via
-  announceAutoFamily (R/utility.R:23-33), and bart2's auto already routes
+  announceAutoFamily ([[R/utility.R#announceAutoFamily]]), and bart2's auto already routes
   unordered K >= 3 factors to multinomial - under explicit-only, ordered factors
   would become the ONE factor response family = "auto" refuses, incoherent with
   the package's own auto concept. is.ordered(y) is an unambiguous type signal,
@@ -364,20 +373,22 @@ carrying no credible band. The K-1 threshold
 draws are posterior output too: expose an n.samples x (K-1) "thresholds" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
-predict.bart guard, R/generics.R:334-336; ordinal's own gate on the stored
-thresholds, R/generics.R:1647-1649). This K-column path deliberately
+predict.bart guard, [[R/generics.R#predict.bart]]; ordinal's own gate on the stored
+thresholds, [[R/generics.R#predict.bartOrdinal]]). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
 (docs/plans/archive/ordinal-outcomes.md step 1): probabilityFromLatents
-(R/generics.R:12-19) is a scalar link-inverse of a single latent column and
+([[R/generics.R#probabilityFromLatents]]) is a scalar link-inverse of a single latent column and
 stays binary-only; an ordinal probability is a Phi-DIFFERENCE against per-sample
 cutpoints, a two-argument transform that does not fit that seam, so ordinal gets
 its own transform beside it rather than a generalization of it.
 
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
-(codeResponse, R/data.R:552-566). Ordinal must persist the ordered levels on the
-fit object to label the K probability columns and map argmax back - as
-bartMultinomial persists $levels (R/bart.R:1710). Give ordinal its own S3
-class bartOrdinal (mirroring bartMultinomial, R/bart.R:1729) carrying $levels and
+(codeResponse, [[R/data.R#codeResponse]]). Ordinal must persist the ordered
+levels on the fit object to label the K probability columns and map argmax
+back - as bartMultinomial persists $levels
+([[R/bart.R#packageMultinomialResults]]). Give ordinal its own S3 class
+bartOrdinal (mirroring bartMultinomial, [[R/bart.R#packageOrdinalResults]])
+carrying $levels and
 $thresholds, so the bart generics do not misread the K-widened arrays as a
 single-forest fit.
 
@@ -386,36 +397,40 @@ single-forest fit.
 **Cutpoints in a new by-name state block - the resid.df / C2 pattern.** Add the
 virtual trio carriesCutpoints() / cutpoints() / restoreCutpoints() to ResponseModel
 (default false / nullptr / no-op), exactly as carriesResidualDf() /residualDf()/
-restoreResidualDf() was added for Student-t (model.hpp:4169). serializeState
-writes a "thresholds" slot only when carriesCutpoints()
-(the residualDf pattern at chain.hpp:3084-3086); the R<->C++ state list gains a
-named "thresholds" slot beside "resid.df" (slotNames, R_interface_bartcore.cpp:
-6457-6466), written only when present (the conditional write at 6612-6619) and
-read by name with absence tolerated (the getListElement decode at 7087-7095).
+restoreResidualDf() was added for Student-t ([[src/bartcore/model.hpp#TResponse]]).
+serializeState writes a "thresholds" slot only when carriesCutpoints()
+(the residualDf pattern at [[src/bartcore/chain.hpp#getState]]); the R<->C++
+state list gains a named "thresholds" slot beside "resid.df" (slotNames,
+[[src/R_interface_bartcore.cpp#storeState]]), written only when present (the
+conditional write also in [[src/R_interface_bartcore.cpp#storeState]]) and read
+by name with absence tolerated (the getListElement decode in
+[[src/R_interface_bartcore.cpp#setState]]).
 stateIsValid refuses an ordinal sampler whose state lacks a length-(K-1) cutpoint
-block (the residualDf check, chain.hpp:3262); setState restores it
-(chain.hpp:3753). **Old states (gaussian/probit/etc.) omit the slot and load
-unchanged** - the whole point of the by-name additive block. The per-observation
-latent z_i rides the EXISTING latents slot (probit's z already serializes there,
-model.hpp:3136-3141); restoreLatents rebuilds working from z. Choosing the
-count-derived FIXED proposal scale (section 3) means nothing else serializes; an
-adaptive scale would add a second scalar-vector block.
+block (the residualDf check, [[src/bartcore/chain.hpp#stateIsValid]]); setState
+restores it ([[src/bartcore/chain.hpp#setState]]). **Old states (gaussian/probit/etc.)
+omit the slot and load unchanged** - the whole point of the by-name additive
+block. The per-observation latent z_i rides the EXISTING latents slot (probit's
+z already serializes there, [[src/bartcore/model.hpp#computeLogLikelihood]]);
+restoreLatents rebuilds working from z. Choosing the count-derived FIXED
+proposal scale (section 3) means nothing else serializes; an adaptive scale
+would add a second scalar-vector block.
 
 **setResponse / setData cold-init.** setResponse (same n, new y - the embedded-
 Gibbs swap): KEEP the current cutpoints (a slow-moving global parameter the outer
 sampler wants persisted across a small y perturbation) and re-draw z from the
 current fits under the new y's intervals - probit's minimal-disruption re-draw
-(model.hpp:3110-3114), plus leaving gamma alone. setData (n changes, everything
-stale): cold-init the cutpoints to the default prior spacing AND re-draw z from
-scratch, matching probit/TResponse cold-init on a data swap (model.hpp:3121-3134,
-4122-4132). State this rule in the class doc as the probit convention plus a
-kept-cutpoint clause.
+([[src/bartcore/model.hpp#setData]]), plus leaving gamma alone. setData (n
+changes, everything stale): cold-init the cutpoints to the default prior
+spacing AND re-draw z from scratch, matching probit/TResponse cold-init on a
+data swap ([[src/bartcore/model.hpp#setData, TResponse]]). State this rule in
+the class doc as the probit convention plus a kept-cutpoint clause.
 
 **setSigma / weights.** sigma is fixed at 1 (scheme A), so sigmaIsFixed_ is true
 and the sigma prior/setSigmaPrior is a no-op, as for probit. Weights are
-unsupported for the same reason probit refuses them (model.hpp:3053-3056): there
-is no coherent weighted truncated-normal latent likelihood, so a weighted ordinal
-probit is not a real model. Refuse weights at ingestion, by name, like probit.
+unsupported for the same reason probit refuses them
+([[src/bartcore/model.hpp#ProbitResponse]]): there is no coherent weighted
+truncated-normal latent likelihood, so a weighted ordinal probit is not a real
+model. Refuse weights at ingestion, by name, like probit.
 
 ## 7. Gates
 
@@ -491,11 +506,12 @@ robust-errors precedent (docs/design/robust-errors.md section 6).
   single-forest cumulative probit and not a second multi-forest model.
 
 - **Grouped / mixed-model ordinal (rbart_vi + ordinal).** Refused cleanly at the
-  R layer, at the resolveClassificationFamily call in rbart_vi (R/rbart.R:338),
-  before the group attribute is built; rbart_vi's family vector (R/rbart.R:48)
-  omits "ordinal" for v1. The door is real: GroupedResponse is a base-response
-  decorator whose conjugate group update needs a Gaussian working response with
-  the group intercept on the latent scale (model.hpp:4668+, drawGroupEffects over
+  R layer, at the resolveClassificationFamily call in rbart_vi
+  ([[R/rbart.R#rbart_vi]]), before the group attribute is built; rbart_vi's
+  family vector ([[R/rbart.R#rbart_vi]]) omits "ordinal" for v1. The door is
+  real: GroupedResponse is a base-response decorator whose conjugate group
+  update needs a Gaussian working response with the group intercept on the
+  latent scale ([[src/bartcore/model.hpp#drawGroupEffects]] over
   base_->workingResponse()), and ordinal HAS exactly that - z is Gaussian given
   the cutpoints - so grouped ordinal is a coherent future once the cutpoint block
   and the group block are shown to interleave cleanly. v1 refuses; the composition
