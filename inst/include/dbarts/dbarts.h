@@ -354,10 +354,13 @@ typedef struct dbarts_predictor_source_t {
   /// columns the SAMPLER holds as factors, with INT_MIN (R's NA_INTEGER)
   /// marking a missing code. It saves a caller whose factor columns are
   /// already integers the widening loop and the double block that loop needs.
-  /// The test-side entries save the conversion as well: they read the codes
-  /// where they lie and compare each against an integer threshold. A
-  /// mutation entry is the exception - its kernels index a column-major
-  /// double block, so a coded source is widened into one for that call.
+  /// The test-side entries save the block as well: they read the codes where
+  /// they lie rather than widening one. dbarts_sampler_predict routes each
+  /// row by comparing its code against an integer threshold;
+  /// dbarts_sampler_setTestPredictors quantizes off the same cells one value
+  /// at a time. A mutation entry is the exception - its kernels index a
+  /// column-major double block, so a coded source is widened into one for
+  /// that call.
   /// A missing code is admitted only where the sampler's own training column
   /// had missing values; a test source carrying one on a column complete in
   /// training is refused, exactly as a NaN in the double channel is.
