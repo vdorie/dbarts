@@ -1308,11 +1308,19 @@ dbartsSampler <- setRefClass(
       }
       unnamedArgs <- sum(!nzchar(rawCallArgNames))
       if (unnamedArgs >= 2L && "updateScale" %not_in% rawCallArgNames) {
+        # warnOnce's session-scoped key is a separate mechanism from the
+        # class below - it dedupes repeated calls inside one loop, the class
+        # is what a caller catches; the two do not substitute for one another
         warnOnce(
           "setResponsePositionalUpdateScale",
-          "the second argument to $setResponse is 'updateScale' in dbarts ",
-          ">= 1.0-0, and 'updateState' has moved to third; pass both by ",
-          "name to avoid depending on this order"
+          warningCondition(
+            paste0(
+              "the second argument to $setResponse is 'updateScale' in dbarts ",
+              ">= 1.0-0, and 'updateState' has moved to third; pass both by ",
+              "name to avoid depending on this order"
+            ),
+            class = c("dbartsPositionalArgsWarning", "dbartsWarning")
+          )
         )
       }
       refuseCountsMutation(
@@ -2010,7 +2018,10 @@ dbartsSampler <- setRefClass(
         sampleNums <- NULL
       } else {
         if (!control@keepTrees) {
-          warning("sampleNums ignored if keepTrees is FALSE")
+          warning(warningCondition(
+            "sampleNums ignored if keepTrees is FALSE",
+            class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+          ))
           sampleNums <- NULL
         } else {
           sampleNums <- coerceOrError(sampleNums, "integer")
@@ -2051,13 +2062,14 @@ dbartsSampler <- setRefClass(
         sampleNums <- NULL
       } else {
         if (!useSaved) {
-          warning(
+          warning(warningCondition(
             if (current) {
               "sampleNums ignored if current is TRUE"
             } else {
               "sampleNums ignored if keepTrees is FALSE"
-            }
-          )
+            },
+            class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+          ))
           sampleNums <- NULL
         } else {
           sampleNums <- coerceOrError(sampleNums, "integer")

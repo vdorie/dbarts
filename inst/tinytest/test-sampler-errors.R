@@ -377,6 +377,18 @@ expect_match(
   conditionMessage(warnings.setResponsePositional[[1L]]),
   "second argument to \\$setResponse is 'updateScale'"
 )
+# class pin needs its own fresh firing - the once-per-session flag the
+# block above just set stays TRUE otherwise, and the class is orthogonal to
+# that flag regardless
+onceWarnState$setResponsePositionalUpdateScale <- NULL
+warnings.setResponsePositionalClass <- captureWarnings(
+  sampler$setResponse(yForResponse, TRUE)
+)
+expect_equal(length(warnings.setResponsePositionalClass), 1L)
+expect_inherits(
+  warnings.setResponsePositionalClass[[1L]],
+  "dbartsPositionalArgsWarning"
+)
 # a named call never warns, whichever name is used
 warnings.setResponseNamed <- captureWarnings(
   sampler$setResponse(yForResponse, updateScale = TRUE)
@@ -431,6 +443,7 @@ rm(
   onceWarnState,
   yForResponse,
   warnings.setResponsePositional,
+  warnings.setResponsePositionalClass,
   warnings.setResponseNamed,
   warnings.setResponseNamedState
 )

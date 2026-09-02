@@ -2637,11 +2637,18 @@ predict.rbart <- function(
     ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
 
     if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
-      warning(
-        "test includes random effect levels not present in training (",
-        paste0(ranefNames.test[!measuredLevels], collapse = ", "),
-        "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance, and may not be the same across future calls to 'predict'"
-      )
+      # shared with rbart_vi's own fit-time version of this condition
+      # (packageRbartResults): the response family and call site differ, but
+      # the reported condition - a test group.by level absent from training -
+      # is the same one
+      warning(warningCondition(
+        paste0(
+          "test includes random effect levels not present in training (",
+          paste0(ranefNames.test[!measuredLevels], collapse = ", "),
+          "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance, and may not be the same across future calls to 'predict'"
+        ),
+        class = c("dbartsUnmeasuredLevelsWarning", "dbartsWarning")
+      ))
       n.unmeasured <- sum(!measuredLevels)
       if (n.chains > 1L) {
         # object$tau may be stored combined (flat, chain-major) or split

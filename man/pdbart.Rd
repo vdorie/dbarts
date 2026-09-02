@@ -36,7 +36,7 @@ pd2bart(
 }
 \arguments{
   \item{x.train}{
-    Explanatory variables for training (in sample) data. Can be any valid input to \code{\link{bart}}, such as a matrix or a formula. Also accepted are fitted \code{bart} models or \code{\link[=dbartsSampler-class]{dbartsSampler}} with \code{keepTrees} equal to \code{TRUE}.
+    Explanatory variables for training (in sample) data. Can be any valid input to \code{\link{bart}}, such as a matrix or a formula. Also accepted are fitted \code{bart} models or \code{\link[=dbartsSampler-class]{dbartsSampler}} with \code{keepTrees} equal to \code{TRUE}. A sampler passed without \code{keepTrees} is used anyway, but generates fresh samples and changes its state in the process, with a warning; a \code{bart} model without a kept sampler is instead refit from its saved call, also with a warning (both class \code{dbartsFallbackWarning}) - and is refused outright if no call was saved either.
   }
   \item{y.train}{
     Dependent variable for training (in sample) data. Can be a numeric vector or, when passing \code{x.train} as a formula, a \code{data.frame} or other object used to find variables. Not required if \code{x.train} is a fitted model or sampler.

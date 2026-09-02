@@ -144,7 +144,8 @@
             \code{setResponse(y, TRUE)} now sets \code{updateScale} where it
             used to set \code{updateState} - pass \code{updateState} by name.
             Supplying the second argument positionally now also warns once
-            per session, naming the reorder.
+            per session, naming the reorder, classed
+            \code{dbartsPositionalArgsWarning}.
       \item An \code{rbart_vi} fit built with a built-in \code{prior} and no
             \code{callback} - the default - carries a length-one \code{$fit}
             list holding one multi-chain sampler, rather than one
@@ -1831,7 +1832,10 @@
             so a caller can catch, mute with
             \code{suppressWarnings(classes = )}, or promote it with
             \code{options(warn = 2)} without matching on message text.
-            \code{bart} never emits it.
+            \code{bart} never emits it. Every warning the package raises
+            now carries a class under \code{dbartsWarning} on this same
+            pattern; each is documented on the help page of the function
+            whose call raises it.
       \item \code{bart2}'s \code{factors}, \code{missing}, and
             \code{proposal.probs} formals are now genuinely live: each is
             resolved in \code{bart2}'s own frame and always forwarded to

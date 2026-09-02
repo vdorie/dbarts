@@ -313,6 +313,12 @@ expect_true(any(grepl(
   vapply(warnings.currentSample, conditionMessage, ""),
   fixed = TRUE
 )))
+expect_true(any(vapply(
+  warnings.currentSample,
+  inherits,
+  logical(1L),
+  "dbartsIgnoredArgWarning"
+)))
 expect_equal(currentFiltered, current)
 
 # a partial update keeps the live trees valid; getTrees(current = TRUE) sees it

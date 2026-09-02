@@ -598,7 +598,13 @@ methods::setValidity("dbartsData", function(object) {
       return("'weights' must all be non-negative")
     }
     if (any(object@weights == 0.0)) {
-      warning("'weights' of 0 will be ignored but increase computation time")
+      # a supplied value with no effect in the current context is the same
+      # condition wherever it recurs - shared with sampleNums/verbose/weights
+      # sites elsewhere that are likewise ignored rather than refused
+      warning(warningCondition(
+        "'weights' of 0 will be ignored but increase computation time",
+        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+      ))
     }
   }
   if (!is.null(object@offset) && length(object@offset) != numObservations) {

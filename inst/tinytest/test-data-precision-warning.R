@@ -21,6 +21,7 @@ y.huge <- 1e15 + runif(n) * 1e-3
 warnings.huge <- captureWarnings(dbarts::dbartsData(x, y.huge))
 expect_equal(length(warnings.huge), 1L)
 expect_match(conditionMessage(warnings.huge[[1L]]), "indistinguishable")
+expect_inherits(warnings.huge[[1L]], "dbartsDegenerateResponseWarning")
 expect_true(length(unique(y.huge)) < n)
 
 # the threshold itself, from below. A response whose range is 1e-14 of its

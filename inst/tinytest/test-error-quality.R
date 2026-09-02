@@ -89,6 +89,7 @@ warnings.unnamedTest <- captureWarnings(
 )
 expect_equal(length(warnings.unnamedTest), 1L)
 expect_match(conditionMessage(warnings.unnamedTest[[1L]]), "column 1 = 'aa'")
+expect_inherits(warnings.unnamedTest[[1L]], "dbartsPositionalArgsWarning")
 
 # (f) an offset naming the kind actually supplied: a matrix offset is only
 # ever a multinomial category shift (paired with 'counts'), and a flat

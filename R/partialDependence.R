@@ -49,11 +49,17 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
     sampler <- x.train
     fit <- list()
     if (!sampler$control@keepTrees) {
-      warning(
-        "calling ",
-        name,
-        " with a sampler that does not have keepTrees set to TRUE will cause new samples to be generated and the state to be changed"
-      )
+      # shared with the bart-fit-object branch below and with rbart_vi's
+      # multithread and grouping fallbacks: the intended input is
+      # unavailable, so the call substitutes or regenerates one instead
+      warning(warningCondition(
+        paste0(
+          "calling ",
+          name,
+          " with a sampler that does not have keepTrees set to TRUE will cause new samples to be generated and the state to be changed"
+        ),
+        class = c("dbartsFallbackWarning", "dbartsWarning")
+      ))
     }
   } else if (inherits(x.train, "bart")) {
     fit <- x.train
@@ -67,11 +73,14 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
           " with a bart fit object requires model to be fit with keepSampler == TRUE"
         )
       }
-      warning(
-        "calling ",
-        name,
-        " with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call"
-      )
+      warning(warningCondition(
+        paste0(
+          "calling ",
+          name,
+          " with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call"
+        ),
+        class = c("dbartsFallbackWarning", "dbartsWarning")
+      ))
       massign[sampler, fit] <- pdbart.getAndInitializeSampler(
         bartCall,
         callingEnv

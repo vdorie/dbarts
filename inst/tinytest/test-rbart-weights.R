@@ -40,6 +40,7 @@ expect_match(
   conditionMessage(warnings.trainOnlyWeights[[1L]]),
   "weights specified but not found in test data - ignoring"
 )
+expect_inherits(warnings.trainOnlyWeights[[1L]], "dbartsIgnoredArgWarning")
 expect_inherits(rbartFit, "rbart")
 
 # the aft arm has no weighted latent form in this version, so it refuses

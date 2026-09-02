@@ -1,4 +1,8 @@
 source(system.file("common", "pdData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that pdbart gives same results when run with different x.train argument types
 x <- testData$x
@@ -26,12 +30,20 @@ bartFit <- dbarts::bart(
   verbose = FALSE
 )
 set.seed(0L)
-pdb2 <- suppressWarnings(dbarts::pdbart(
-  bartFit,
-  xind = c(1, 2),
-  pl = FALSE,
-  levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2))
-))
+warnings.pdb2 <- captureWarnings(
+  pdb2 <- dbarts::pdbart(
+    bartFit,
+    xind = c(1, 2),
+    pl = FALSE,
+    levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2))
+  )
+)
+expect_true(any(vapply(
+  warnings.pdb2,
+  inherits,
+  logical(1L),
+  "dbartsFallbackWarning"
+)))
 
 set.seed(0)
 bartFit <- dbarts::bart(
@@ -132,7 +144,7 @@ expect_error(
   pattern = "set internally"
 )
 
-rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
+rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x, warnings.pdb2)
 
 
 # test that pd2bart gives same results when run with different x.train argument types

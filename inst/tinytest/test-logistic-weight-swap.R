@@ -200,6 +200,7 @@ zeroWarnings <- captureWarnings(
 # the data object only WARNS about a zero weight; the logistic sampler refuses
 expect_equal(length(zeroWarnings), 1L)
 expect_true(grepl("of 0 will be ignored", conditionMessage(zeroWarnings[[1L]])))
+expect_inherits(zeroWarnings[[1L]], "dbartsIgnoredArgWarning")
 expect_error(pinned$setWeights(replace(w2, 1L, 0)), countRefusal)
 expect_error(pinned$setData(zeroData), countRefusal)
 expect_error(pinned$setWeights(w2 + 0.5), countRefusal)

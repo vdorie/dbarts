@@ -315,7 +315,10 @@ rbart_vi <- function(
     }
     group.by.test <- droplevels(as.factor(group.by.test))
   } else if (!is.null(data@x.test)) {
-    warning("'test' supplied by 'group.by.test' missing; recycling 'group.by'")
+    warning(warningCondition(
+      "'test' supplied by 'group.by.test' missing; recycling 'group.by'",
+      class = c("dbartsFallbackWarning", "dbartsWarning")
+    ))
     group.by.test <- rep_len(group.by, nrow(data@x.test))
   } else {
     group.by.test <- NULL
@@ -437,7 +440,10 @@ rbart_vi <- function(
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
   if (n.chains > 1L && n.threads > 1L) {
     if (control@verbose) {
-      warning("verbose output disabled for multiple threads")
+      warning(warningCondition(
+        "verbose output disabled for multiple threads",
+        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+      ))
     }
     control@verbose <- FALSE
   }
@@ -471,10 +477,13 @@ rbart_vi <- function(
     }
 
     if (inherits(tryResult, "error")) {
-      warning(
-        "unable to multithread, defaulting to single: ",
-        tryResult$message
-      )
+      warning(warningCondition(
+        paste0(
+          "unable to multithread, defaulting to single: ",
+          tryResult$message
+        ),
+        class = c("dbartsFallbackWarning", "dbartsWarning")
+      ))
       runSingleThreaded <- TRUE
     } else {
       # We draw sequentially from the given seed, one for each thread. To be polite
@@ -506,10 +515,13 @@ rbart_vi <- function(
       stopCluster(cluster)
 
       if (inherits(tryResult, "error")) {
-        warning(
-          "error running multithreaded, defaulting to single: ",
-          tryResult$message
-        )
+        warning(warningCondition(
+          paste0(
+            "error running multithreaded, defaulting to single: ",
+            tryResult$message
+          ),
+          class = c("dbartsFallbackWarning", "dbartsWarning")
+        ))
         runSingleThreaded <- TRUE
       }
     }
@@ -1080,9 +1092,10 @@ packageRbartResults <- function(
       !is.null(group.by.test) &&
         any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))
     ) {
-      warning(
-        "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance"
-      )
+      warning(warningCondition(
+        "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance",
+        class = c("dbartsUnmeasuredLevelsWarning", "dbartsWarning")
+      ))
       n.samples <- dim(chainResults[[1L]]$ranef)[2L]
       n.unmeasured <- sum(unmeasuredLevels)
       totalRanef <- sapply(seq_along(chainResults), function(k) {
@@ -1224,9 +1237,10 @@ packageRbartResults <- function(
       !is.null(group.by.test) &&
         any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))
     ) {
-      warning(
-        "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance"
-      )
+      warning(warningCondition(
+        "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance",
+        class = c("dbartsUnmeasuredLevelsWarning", "dbartsWarning")
+      ))
       n.unmeasured <- sum(unmeasuredLevels)
       n.samples <- ncol(chainResults[[1L]]$ranef)
       unmeasuredRanef <-

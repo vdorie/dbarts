@@ -117,6 +117,7 @@ g.new[seq_len(5L)] <- 99L
 warnings.newLevel <- captureWarnings(predict(fit.t1a, df.t1a, group.by = g.new))
 expect_equal(length(warnings.newLevel), 1L)
 expect_match(conditionMessage(warnings.newLevel[[1L]]), "99")
+expect_inherits(warnings.newLevel[[1L]], "dbartsUnmeasuredLevelsWarning")
 pred.new <- suppressWarnings(predict(fit.t1a, df.t1a, group.by = g.new))
 expect_true(all(is.finite(pred.new)))
 
@@ -148,21 +149,29 @@ levels(g.test)[5L] <- "6"
 # check that predict works when we've fit with missing levels
 # combineChains = FALSE pinned deliberately: rbartFit$ranef is indexed as a
 # raw uncombined 3-d array below
-rbartFit <- suppressWarnings(dbarts::rbart_vi(
-  y ~ x,
-  group.by = g,
-  test = x.test,
-  group.by.test = g.test,
-  n.samples = 7L,
-  n.burn = 0L,
-  n.thin = 1L,
-  n.chains = 2L,
-  n.trees = 25L,
-  n.threads = 1L,
-  keepTrees = TRUE,
-  verbose = FALSE,
-  combineChains = FALSE
-))
+warnings.fitLevel <- captureWarnings(
+  rbartFit <- dbarts::rbart_vi(
+    y ~ x,
+    group.by = g,
+    test = x.test,
+    group.by.test = g.test,
+    n.samples = 7L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 2L,
+    n.trees = 25L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    combineChains = FALSE
+  )
+)
+expect_true(any(vapply(
+  warnings.fitLevel,
+  inherits,
+  logical(1L),
+  "dbartsUnmeasuredLevelsWarning"
+)))
 expect_equal(
   apply(predict(rbartFit, x.test, group.by = g.test), 2L, mean),
   fitted(rbartFit, sample = "test")
@@ -314,7 +323,7 @@ rbartFit <- suppressWarnings(dbarts::rbart_vi(
 ))
 expect_inherits(rbartFit, "rbart")
 
-rm(rbartFit, ranef.pred, g.test)
+rm(rbartFit, ranef.pred, g.test, warnings.fitLevel)
 
 rm(x.test, g, y, x, n.train)
 

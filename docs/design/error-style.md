@@ -599,6 +599,70 @@ wording needed no change to already match the more common external idiom for
 this family of refusal. **R14 is CONFIRMED unchanged**, reinforced by the
 same data set that left R13 SILENT-KEPT.
 
+## R15. Warning classes — every `warning()` carries a class under `dbartsWarning`
+
+Ruled by the project lead 2026-09-02: every warning the package raises is
+signaled as `warning(warningCondition(<message>, class = c("dbarts<Thing>Warning",
+"dbartsWarning")))`, the shape already in use for the family-gating,
+unused-`...`-argument, and sigma-fallback warnings
+([[R/utility.R#warnFamilyGatedArgs]], [[R/utility.R#warnUnusedDots]],
+[[R/utility.R#estimateSigmaFromLinearModel]]). A bare, unclassed `warning()`
+is a defect under this rule wherever `R/` can reach it. `<Thing>` names the
+CONDITION being reported, not the call site: two sites that report the same
+condition through different messages share one class, the way a sampler
+that is not keeping trees and a `bart` fit that was not kept both report
+"the intended state is unavailable, a substitute was used instead" under
+one `dbartsFallbackWarning`
+([[R/partialDependence.R#pdbart.prologue]],
+[[R/rbart.R#rbart_vi_fit_bartcore]]). A subclass is for a condition that is
+honestly a narrower case of its parent's, as `dbartsSparseSigmaFallbackWarning`
+already narrows `dbartsSigmaFallbackWarning`
+([[R/utility.R#estimateSigmaFromLinearModel]]).
+
+The message body is unaffected by this rule and keeps following R1-R6
+exactly as an unclassed message did - the class is metadata a caller can
+`tryCatch`/`withCallingHandlers` on by name, not a rewording. The R-side
+corpus drops R's own "In `f(...)`:" call prefix the way it always has;
+classing a warning changes neither that nor anything else about how the
+message prints.
+
+Each class is documented with one plain sentence on the help page of the
+exported function whose call raises it, placed where that page already
+discusses the behavior in question, following the precedent
+`dbartsFamilyGatedWarning` and `dbartsUnusedArgsWarning` set: "... warns
+(class `dbartsXWarning`)" folded into existing prose, no dedicated help
+topic. A warning raised inside an internal helper is documented on the
+exported function a user actually calls to reach it
+([[R/sliceSample.R#sliceSample]], reached through
+[[R/rbart.R#rbart_vi_run]] and documented on `rbart_vi`'s own help page);
+a helper no current call site can make an exported function reach is
+still classed, just left undocumented, rather than inventing help text
+for behavior no one can trigger.
+
+`warnOnce`'s session-scoped key ([[R/utility.R#onceWarnState]]) is a
+separate mechanism from the class, not a substitute for one: the key
+dedupes repeated firings of the same warning inside one session (a Gibbs
+loop calling `$setResponse` every sweep, say), while the class is what a
+caller matches on regardless of how many times, or how few, the warning
+actually fires. A `warnOnce` call site still passes a classed
+`warningCondition` object as its message.
+
+Inventory, one representative site per class (existing classes carried
+over unchanged):
+
+| class | represented by |
+| --- | --- |
+| `dbartsFamilyGatedWarning` | [[R/utility.R#warnFamilyGatedArgs]] |
+| `dbartsUnusedArgsWarning` | [[R/utility.R#warnUnusedDots]] |
+| `dbartsSigmaFallbackWarning` | [[R/utility.R#estimateSigmaFromLinearModel]] |
+| `dbartsSparseSigmaFallbackWarning` | [[R/utility.R#estimateSigmaFromLinearModel]] |
+| `dbartsPositionalArgsWarning` | [[R/dbarts.R#dbartsSampler$setResponse]] |
+| `dbartsIgnoredArgWarning` | [[R/dbarts.R#dbartsSampler$printTrees]] |
+| `dbartsUnmeasuredLevelsWarning` | [[R/rbart.R#packageRbartResults]] |
+| `dbartsFallbackWarning` | [[R/partialDependence.R#pdbart.prologue]] |
+| `dbartsDegenerateResponseWarning` | [[R/data.R#dbartsData]] |
+| `dbartsDuplicateNameWarning` | [[R/multipleAssignment.R#"present multiple times in right-hand-side of assignment"]] |
+
 ---
 
 ## Measured current state (appendix)

@@ -309,20 +309,28 @@ validateXTest <- function(x.test, x.train) {
         "'",
         collapse = ", "
       )
-      warning(
-        "'test' is unnamed but 'x' had named predictors, matched to 'x' by ",
-        "position (",
-        mapping,
-        if (numPredictors > shown) ", ..." else "",
-        "); supply 'test' with column names to match by name instead"
-      )
+      # shares dbartsPositionalArgsWarning with $setResponse's positional
+      # warning and the massign position-only site: all three report the
+      # same condition, columns/arguments matched by position rather than
+      # by name
+      warning(warningCondition(
+        paste0(
+          "'test' is unnamed but 'x' had named predictors, matched to 'x' by ",
+          "position (",
+          mapping,
+          if (numPredictors > shown) ", ..." else "",
+          "); supply 'test' with column names to match by name instead"
+        ),
+        class = c("dbartsPositionalArgsWarning", "dbartsWarning")
+      ))
     } else if (
       (!xIsNamed && testIsNamed) ||
         length(unique(predictorNames)) != length(predictorNames)
     ) {
-      warning(
-        "'x' and 'test' are not both named; columns of 'test' will be matched by position"
-      )
+      warning(warningCondition(
+        "'x' and 'test' are not both named; columns of 'test' will be matched by position",
+        class = c("dbartsPositionalArgsWarning", "dbartsWarning")
+      ))
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
       if (any(is.na(matchIndices))) {
@@ -1097,7 +1105,10 @@ dbartsData <- function(
         !basesIsMissing ||
         !countsIsMissing
     ) {
-      warning("if data supplied as dbartsData, remaining arguments are ignored")
+      warning(warningCondition(
+        "if data supplied as dbartsData, remaining arguments are ignored",
+        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+      ))
     }
     return(formula)
   }
@@ -1607,9 +1618,10 @@ dbartsData <- function(
   weights.test <- NULL
   if (!is.null(x.test) && !is.null(matchedCall$weights)) {
     if (!is.formula(formula)) {
-      warning(
-        "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data"
-      )
+      warning(warningCondition(
+        "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data",
+        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+      ))
     } else {
       testFormula <- formula
       lhs <- testFormula[[2L]]
@@ -1624,7 +1636,10 @@ dbartsData <- function(
         error = function(e) e
       )
       if (inherits(tryResult, "error")) {
-        warning("weights specified but not found in test data - ignoring")
+        warning(warningCondition(
+          "weights specified but not found in test data - ignoring",
+          class = c("dbartsIgnoredArgWarning", "dbartsWarning")
+        ))
       } else {
         weights.test <- testFrame[["(weights)"]]
       }
@@ -1705,14 +1720,17 @@ dbartsData <- function(
   yRange <- diff(range(y))
   yScale <- max(abs(y))
   if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {
-    warning(
-      "response values are indistinguishable, or nearly so, at double ",
-      "precision (",
-      length(unique(y)),
-      " distinct value(s) among ",
-      length(y),
-      " observations); center and/or rescale the response before fitting"
-    )
+    warning(warningCondition(
+      paste0(
+        "response values are indistinguishable, or nearly so, at double ",
+        "precision (",
+        length(unique(y)),
+        " distinct value(s) among ",
+        length(y),
+        " observations); center and/or rescale the response before fitting"
+      ),
+      class = c("dbartsDegenerateResponseWarning", "dbartsWarning")
+    ))
   }
 
   sparseAllMissingCheck <- function(x.sparse) {

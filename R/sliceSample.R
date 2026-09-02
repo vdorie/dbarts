@@ -251,11 +251,16 @@ sliceSample <- function(
       error = function(e) e
     )
     if (inherits(tryResult, "error")) {
-      warning(
-        "rejection sample failed after ",
-        maxIter,
-        " iterations; dominating function may require hand-tuning"
-      )
+      # shares dbartsFallbackWarning with rbart_vi's own fallbacks: the
+      # intended draw is unavailable, so a substitute value is used instead
+      warning(warningCondition(
+        paste0(
+          "rejection sample failed after ",
+          maxIter,
+          " iterations; dominating function may require hand-tuning"
+        ),
+        class = c("dbartsFallbackWarning", "dbartsWarning")
+      ))
       x <- start
     } else {
       f.x <- f(x)
