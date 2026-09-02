@@ -1125,6 +1125,276 @@ makeScenarios <- function() {
     )
   }
 
+  # --- typed-predictor-source scenarios: the store entrances that REBUILD or
+  # RE-READ a factor column's storage, none of which any scenario above
+  # records. The three column shapes just above enter the store once, at
+  # creation; these five drive the test store on a replacement, a leaf model
+  # reading a factor column's raw values, the per-observation write-through
+  # into a retained dense block, and a fold view over a parent holding codes.
+  # Sizes are small and the forests are this group's own literal nTrees: the
+  # corpus is a bitwise gate, not a fit. ---
+
+  # the test container REPLACED mid-chain. Every scenario above installs its
+  # test set once, at creation: setTestPredictor and setTestPredictorAndOffset
+  # were absent from the mutation vocabulary entirely, so the two bridge
+  # funnels that rebuild the test store - and the store's own test build,
+  # which re-reads the training cut grid and the training level tables against
+  # fresh test values - moved no recorded draw. The design is the widest shape
+  # the test side accepts: two numeric columns, a complete dense factor, an
+  # NA-bearing dense factor and a CSC-backed sparseFactor, so one replacement
+  # crosses the dense, the missing-code and the sparse arms of the test build
+  # at once. THREE legs, each drawing its own samples: the creation container
+  # (fhat.test.pre), the container setTestPredictor installs
+  # (fhat.test.mid), and the container-plus-offset setTestPredictorAndOffset
+  # installs (the standard fhat.test channel). A build that rebuilt one of the
+  # three differently moves the leg reading it and leaves the others alone.
+  # Skipped when Matrix is unavailable, as "sparsefactor" already is.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5143L)
+    n.ts <- 300L
+    levels.ts <- letters[1:4]
+    levelsNA.ts <- LETTERS[1:4]
+    levels.sp.ts <- paste0("v", seq_len(6L))
+    a.ts <- runif(n.ts)
+    b.ts <- runif(n.ts)
+    f.ts <- factor(sample(levels.ts, n.ts, replace = TRUE), levels = levels.ts)
+    g.ts <- factor(
+      sample(levelsNA.ts, n.ts, replace = TRUE),
+      levels = levelsNA.ts
+    )
+    gMissing.ts <- runif(n.ts) < 0.15
+    g.ts[gMissing.ts] <- NA
+    codes.sp.ts <- sample.int(6L, n.ts, replace = TRUE)
+    x.ts <- data.frame(a = a.ts, b = b.ts, f = f.ts, g = g.ts)
+    x.ts$s <- sparseFactor(
+      factor(levels.sp.ts[codes.sp.ts], levels = levels.sp.ts),
+      reference = "v1"
+    )
+    # one container per leg, same shape, independent values
+    testFrame.ts <- function() {
+      frame <- data.frame(
+        a = runif(n.test),
+        b = runif(n.test),
+        f = factor(
+          sample(levels.ts, n.test, replace = TRUE),
+          levels = levels.ts
+        ),
+        g = factor(
+          sample(levelsNA.ts, n.test, replace = TRUE),
+          levels = levelsNA.ts
+        )
+      )
+      frame$g[c(4L, 13L)] <- NA
+      frame$s <- sparseFactor(
+        factor(
+          levels.sp.ts[sample.int(6L, n.test, replace = TRUE)],
+          levels = levels.sp.ts
+        ),
+        reference = "v1"
+      )
+      frame
+    }
+    result$testswap <- list(
+      x = x.ts,
+      y = 10 *
+        sin(pi * a.ts * b.ts) +
+        2 * (f.ts == "b") +
+        1.5 * gMissing.ts +
+        1.2 * (codes.sp.ts == 3L) +
+        rnorm(n.ts),
+      x.test = testFrame.ts(),
+      binary = FALSE,
+      samplerApi = TRUE,
+      nTrees = 50L,
+      samplerArgs = list(missing = "incorporate"),
+      testSwap = list(
+        predictor = testFrame.ts(),
+        predictorAndOffset = testFrame.ts(),
+        offset.test = seq(-0.5, 0.5, length.out = n.test)
+      )
+    )
+  }
+
+  # an ORDERED FACTOR designated as a LINEAR-LEAF covariate, on an all-dense
+  # container. The linear and gp scenarios above designate plain numeric
+  # columns, so a leaf covariate that is a FACTOR - admissible, since only a
+  # categorical column is refused as a covariate - had no anchor at all: the
+  # leaf model reads the column's raw values, standardizes them by the store's
+  # own moments and solves the per-leaf ridge over them, on the training side
+  # from the columns the store gathers at build and on the test side from the
+  # test block. Two covariates, one numeric and one the ordered factor, so the
+  # block solve mixes the two scales.
+  set.seed(5144L)
+  n.lf <- 300L
+  K.lf <- 8L
+  levels.lf <- sprintf("O%d", seq_len(K.lf))
+  codes.lf <- sample.int(K.lf, n.lf, replace = TRUE)
+  x.lf <- data.frame(
+    a = runif(n.lf),
+    b = runif(n.lf),
+    o = factor(levels.lf[codes.lf], levels = levels.lf, ordered = TRUE)
+  )
+  x.test.lf <- data.frame(
+    a = runif(n.test),
+    b = runif(n.test),
+    o = factor(
+      levels.lf[sample.int(K.lf, n.test, replace = TRUE)],
+      levels = levels.lf,
+      ordered = TRUE
+    )
+  )
+  y.lf <- 10 *
+    sin(pi * x.lf$a * x.lf$b) +
+    0.8 * (codes.lf - K.lf / 2) +
+    rnorm(n.lf)
+  result$leaffactor <- list(
+    x = x.lf,
+    y = y.lf,
+    x.test = x.test.lf,
+    binary = FALSE,
+    samplerApi = TRUE,
+    nTrees = 50L,
+    samplerArgs = list(node.prior = dbarts:::linear(c(1L, 3L)))
+  )
+
+  # the SAME designation on a MIXED container - a two-column dgCMatrix beside
+  # the dense numeric and ordered-factor columns. The container decides where
+  # the leaf model's raw values come from: an all-dense container gathers the
+  # designated columns at build, a mixed one gathers nothing and serves them
+  # from the dense block it retains. Same covariates, same kinds, different
+  # storage, and only this arm has a retained copy to lose. Skipped when
+  # Matrix is unavailable, as "sparse" already is.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5145L)
+    sm.lf <- matrix(0, n.lf, 2L)
+    for (j in 1:2) {
+      nz <- runif(n.lf) < 0.1
+      sm.lf[nz, j] <- 0.5 + runif(sum(nz))
+    }
+    x.mlf <- x.lf
+    x.mlf$sm <- methods::as(sm.lf, "CsparseMatrix")
+    x.test.mlf <- x.test.lf
+    x.test.mlf$sm <- sm.lf[seq_len(n.test), , drop = FALSE]
+    result$leaffactormixed <- list(
+      x = x.mlf,
+      y = y.lf + rowSums(sm.lf),
+      x.test = x.test.mlf,
+      binary = FALSE,
+      samplerApi = TRUE,
+      nTrees = 50L,
+      samplerArgs = list(node.prior = dbarts:::linear(c(1L, 3L)))
+    )
+  }
+
+  # a PER-OBSERVATION predictor update on a dense FACTOR column of a mixed
+  # store. predpartial and hetpartial above drive the session on numeric
+  # columns of a plain matrix, where the store retains no raw values at all,
+  # so the write-through that installs an accepted row's value into the
+  # store's own dense block - and the snapshot/restore pair a vetoed row rolls
+  # back through - ran over no factor column anywhere in this file. A mixed
+  # store is what makes that write-through live, and the bridge deliberately
+  # keeps a mixed store's dense factor columns open to the session (the
+  # latent-in-a-sparse-design case). The replacement collapses the column onto
+  # two of its five levels, predreject's shape, which is what makes the VETO
+  # fire: a uniform redraw installs every row, while this one leaves a
+  # seed-dependent handful rolled back, so the snapshot/restore arm is
+  # recorded too. The install mask rides the verdict channel, so a moved
+  # row-level decision fails here rather than only downstream. Skipped when
+  # Matrix is unavailable.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5146L)
+    n.fp <- 300L
+    K.fp <- 5L
+    a.fp <- runif(n.fp)
+    b.fp <- runif(n.fp)
+    codes.fp <- sample.int(K.fp, n.fp, replace = TRUE)
+    sm.fp <- matrix(0, n.fp, 2L)
+    for (j in 1:2) {
+      nz <- runif(n.fp) < 0.1
+      sm.fp[nz, j] <- 0.5 + runif(sum(nz))
+    }
+    x.fp <- data.frame(
+      a = a.fp,
+      b = b.fp,
+      f = factor(letters[codes.fp], levels = letters[seq_len(K.fp)])
+    )
+    x.fp$sm <- methods::as(sm.fp, "CsparseMatrix")
+    x.test.fp <- data.frame(
+      a = runif(n.test),
+      b = runif(n.test),
+      f = factor(
+        letters[sample.int(K.fp, n.test, replace = TRUE)],
+        levels = letters[seq_len(K.fp)]
+      )
+    )
+    x.test.fp$sm <- sm.fp[seq_len(n.test), , drop = FALSE]
+    result$factorpartial <- list(
+      x = x.fp,
+      y = 10 *
+        sin(pi * a.fp * b.fp) +
+        2 * (codes.fp == 2L) +
+        rowSums(sm.fp) +
+        rnorm(n.fp),
+      x.test = x.test.fp,
+      binary = FALSE,
+      samplerApi = TRUE,
+      nTrees = 50L,
+      recordVerdict = TRUE,
+      mutate = list(
+        partial = list(
+          index = 3L,
+          values = as.double(seq_len(n.fp) %% 2L)
+        )
+      )
+    )
+  }
+
+  # xbart over a MIXED container carrying factors. The xbart scenario above is
+  # a plain numeric matrix and is this file's only driver of the fold VIEW - a
+  # store built from a parent store's rows rather than from a host's values -
+  # so a view over a parent holding factor codes, a CSC-backed block and a
+  # per-column source map had no anchor. Both factor kinds ride the parent, so
+  # the view's per-column copy is exercised on each. Its budget is LITERAL,
+  # the xbart scenario's own precedent, so settingsList() stays identical to
+  # the earlier baselines. Skipped when Matrix is unavailable.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5147L)
+    n.xm <- 150L
+    K.xm <- 4L
+    levels.ord.xm <- sprintf("O%d", seq_len(5L))
+    a.xm <- runif(n.xm)
+    b.xm <- runif(n.xm)
+    codes.xm <- sample.int(K.xm, n.xm, replace = TRUE)
+    ord.xm <- sample.int(5L, n.xm, replace = TRUE)
+    sm.xm <- matrix(0, n.xm, 2L)
+    for (j in 1:2) {
+      nz <- runif(n.xm) < 0.12
+      sm.xm[nz, j] <- 0.5 + runif(sum(nz))
+    }
+    x.xm <- data.frame(
+      a = a.xm,
+      b = b.xm,
+      f = factor(letters[codes.xm], levels = letters[seq_len(K.xm)]),
+      o = factor(
+        levels.ord.xm[ord.xm],
+        levels = levels.ord.xm,
+        ordered = TRUE
+      )
+    )
+    x.xm$sm <- methods::as(sm.xm, "CsparseMatrix")
+    result$xbartmixed <- list(
+      x = x.xm,
+      y = 10 *
+        sin(pi * a.xm * b.xm) +
+        2 * (codes.xm == 2L) +
+        0.8 * ord.xm +
+        rowSums(sm.xm) +
+        rnorm(n.xm),
+      binary = FALSE,
+      xbartFit = TRUE
+    )
+  }
+
   result
 }
 
@@ -1180,6 +1450,8 @@ fitViaSamplerApi <- function(scenario) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
   }
   verdict <- NULL
+  testPre <- NULL
+  testMid <- NULL
   r <- if (!is.null(scenario$setData)) {
     sampler$run(nskip, 0L)
     sampler$setData(dbartsData(
@@ -1187,6 +1459,21 @@ fitViaSamplerApi <- function(scenario) {
       scenario$setData$y,
       test = scenario$x.test
     ))
+    sampler$run(ceiling(nskip / 4), ndpost)
+  } else if (!is.null(scenario$testSwap)) {
+    # the test container is replaced mid-chain, once through each bridge
+    # funnel that rebuilds the test store: setTestPredictor takes the
+    # container alone, setTestPredictorAndOffset takes it with a test offset.
+    # Every leg draws its own samples, so each container's test store is
+    # recorded in its own channel rather than inferred from the last one.
+    swap <- scenario$testSwap
+    testPre <- poolChains(sampler$run(nskip, ndpost)$test)
+    sampler$setTestPredictor(swap$predictor)
+    testMid <- poolChains(sampler$run(ceiling(nskip / 4), ndpost)$test)
+    sampler$setTestPredictorAndOffset(
+      swap$predictorAndOffset,
+      swap$offset.test
+    )
     sampler$run(ceiling(nskip / 4), ndpost)
   } else if (!is.null(scenario$mutate)) {
     sampler$run(nskip, 0L)
@@ -1254,7 +1541,11 @@ fitViaSamplerApi <- function(scenario) {
     # existed.
     yhat.train = if (isTRUE(scenario$recordTrain) && !is.null(r$train)) {
       poolChains(r$train)
-    }
+    },
+    # the test fits of the containers a testSwap scenario replaces, one field
+    # per leg; NULL - and so unsummarized - for every other scenario
+    yhat.test.pre = testPre,
+    yhat.test.mid = testMid
   )
 }
 
@@ -1819,6 +2110,29 @@ fitSummaries <- function(scenario, seed) {
       setNames(
         colMeans(fit[["yhat.train"]]),
         paste0("fhat.train.", seq_len(ncol(fit[["yhat.train"]])))
+      )
+    )
+  }
+  # the pre-replacement test fits, testSwap only: the test store the sampler
+  # was CREATED with, and the one setTestPredictor installs. The standard
+  # fhat.test channel above carries the last leg, so all three containers are
+  # recorded and a build that rebuilt one of them differently moves only that
+  # leg. NULL - and so absent - everywhere else.
+  if (!is.null(fit[["yhat.test.pre"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["yhat.test.pre"]]),
+        paste0("fhat.test.pre.", seq_len(n.test))
+      )
+    )
+  }
+  if (!is.null(fit[["yhat.test.mid"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["yhat.test.mid"]]),
+        paste0("fhat.test.mid.", seq_len(n.test))
       )
     )
   }

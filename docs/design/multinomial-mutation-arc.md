@@ -419,7 +419,7 @@ MOVES DRAWS - but only for `seed = NA`. MEASURED: with `seed = 77L` the
 twin's run and the host's run are `identical`; without a seed they
 differ. So D1 is bitwise for every seeded user, and the 2-of-43
 re-record is a property of `fitSummaries`' `set.seed()` fixture
-(`benchmarks/R/equivalence.R:1621-1622`), not of the change. The prize is
+(`benchmarks/R/equivalence.R:1912-1913`), not of the change. The prize is
 small: MEASURED at n = 5000, p = 30, 100+100 sweeps, twin create 0.003s
 against a 0.339s run - about 0.8% of a short fit, not scaling with
 `n.samples`. **Do not spend the program's first re-record to reclaim

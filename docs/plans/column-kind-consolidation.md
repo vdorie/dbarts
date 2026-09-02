@@ -1801,3 +1801,48 @@ Draw-preserving: equivalence-02d41365 46/46, bcf-equivalence-00cfa108 12/12,
 multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z| line.
 S4b next: typed sources and the retained saving, the one slice that cannot be
 made small.
+
+### S4b gate enabling - the corpus at 51 scenarios
+
+Five scenarios join benchmarks/R/equivalence.R ahead of the ownership
+rework, so the three paths S4b moves that the 46-scenario corpus did not
+observe are recorded BEFORE it moves them - the S0 pattern.
+
+testswap replaces a sampler's whole test container mid-chain, once through
+setTestPredictor and once through setTestPredictorAndOffset, on a design
+carrying a complete dense factor, an NA-bearing dense factor and a
+CSC-backed sparseFactor beside two numeric columns. Each of the three
+containers gets its own recorded leg - fhat.test.pre, fhat.test.mid and
+the standard fhat.test - so a test store rebuilt differently moves the leg
+that reads it and leaves the others alone. No scenario in this harness had
+mutated the test container at all: both mutators were absent from the
+mutation vocabulary.
+
+leaffactor and leaffactormixed designate an ORDERED FACTOR as a
+linear-leaf covariate, which is admissible since only a categorical column
+is refused as one. The first is an all-dense container, where the store
+gathers its designated columns at build; the second is a mixed container,
+where the build gathers nothing and the leaf model reads the dense block
+the store retains. The linear and gp scenarios above designate plain
+numeric columns, so a factor leaf covariate had no anchor on either arm,
+train side or test side.
+
+factorpartial drives the per-observation update session over a dense
+factor column of a mixed store - the one store shape whose write-through
+into a retained block is live, and the shape the bridge deliberately keeps
+open. The replacement collapses the column onto two of its five levels,
+predreject's shape, so the row veto fires and the snapshot/restore arm
+rides the verdict channel rather than only the post-mutation draws.
+xbartmixed runs the crossvalidation loop over a mixed parent carrying both
+factor kinds and a CSC block, giving the fold view its first anchor over a
+parent that holds codes.
+
+No product code. The 46 predecessors reproduce equivalence-02d41365
+bitwise in a non-strict compare against it (46 compared / 5 skipped, no
+max |z| line anywhere); the 51-scenario trial recording reproduces itself
+51/51 under --strict-coverage; and the five new scenarios reproduce
+bitwise in two further fresh processes. The canonical re-record belongs at
+the landed engine tip, so this slice carries no .rds and no MANIFEST row,
+and check-doc-freshness FAILS on [f39]'s scenario count until it happens;
+the commit hashes for both are recorded with the re-record, which is where
+this entry's heading gains them.
