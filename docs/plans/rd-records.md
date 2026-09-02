@@ -394,8 +394,8 @@ called 418 and 539) against `[[bart.R:389-392@9d0ee10f]]`:
   design choice.
 - Every reader already tolerates the absence
   (`fitNChains` `[[R/diagnostics.R:16-21@9d0ee10f]]`, `fitSynopsis` `R/generics.R:
-  2958-2968`, `predict.rbart` `[[R/diagnostics.R:2226-2230@9d0ee10f]]`, `extract.rbart` `[[R/diagnostics.R:2435-2438@9d0ee10f]],
-  [[R/diagnostics.R:2449@9d0ee10f]]`, `plotTree.rbart` `[[R/diagnostics.R:2706-2709@9d0ee10f]], [[R/diagnostics.R:2722@9d0ee10f]]`) via `is.null(n.chains) ?
+  2958-2968`, `predict.rbart` `[[R/generics.R:2226-2230@9d0ee10f]]`, `extract.rbart` `[[R/generics.R:2435-2438@9d0ee10f]],
+  [[R/generics.R:2449@9d0ee10f]]`, `plotTree.rbart` `[[R/generics.R:2706-2709@9d0ee10f]], [[R/generics.R:2722@9d0ee10f]]`) via `is.null(n.chains) ?
   length(fit) : n.chains`, and the two values already agree on the general
   path (`length(fit) == n.chains` there), so making `$n.chains`
   unconditional changes no reader's answer - it only removes the silent
@@ -747,7 +747,7 @@ wrong):
 - `[[docs/design/multinomial-mutation-arc.md:812@9d0ee10f]]` -> `[[TODO:309-322@9d0ee10f]]`
 - `[[docs/design/tree-mixing-proposals.md:975@9d0ee10f]]` -> `[[TODO:302@9d0ee10f]]`
 - `[[docs/design/tree-mixing-proposals.md:2067@9d0ee10f]]` -> `[[TODO:312@9d0ee10f]]`
-- `[[docs/plans/archive/multiforest-extension-surface.md:71@9d0ee10f]]` -> `[[TODO:190-214@9d0ee10f]]` (one
+- `[[docs/plans/multiforest-extension-surface.md:71@9d0ee10f]]` -> `[[TODO:190-214@9d0ee10f]]` (one
   line past this entry; itself hash-qualified "at 934a02d5", so already
   self-marked as a snapshot reference rather than a live one)
 
@@ -804,7 +804,7 @@ original wording) but keep it to appended/adjusted clauses on the SAME line
 rather than a new prepended sentence, to stay line-count-invariant. If VD
 prefers the purer model-space-survey form (a new prepended line) instead,
 that is a reasonable alternative - see the alternative below - but it
-requires re-verifying/re-anchoring `[[prerc-lens2-backlog.md:29@9d0ee10f]]`'s `[[prerc-lens2-backlog.md:846-850@9d0ee10f]]`
+requires re-verifying/re-anchoring `[[prerc-lens2-backlog.md:29@9d0ee10f]]`'s `[[docs/plans/release-candidate-review.md:846-850@9d0ee10f]]`
 citation (and confirming no other citation beyond line 610 elsewhere) as a
 coordinated follow-up, the same kind of pass commit `936825d7` did for
 `docs/design` after the composition-refusals landing.
