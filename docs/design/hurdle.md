@@ -120,7 +120,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   the two fits.
 - Combined prediction / reporting / state serialization. Pure packaging convenience,
   which R gives for free in the bartMultinomial / bartNegbin idiom (a few dozen lines,
-  R/bart.R:1729,2205). The engine route would instead DOUBLE the state wire format
+  [[bart.R#packageMultinomialResults, packageNegbinResults]]). The engine route would instead DOUBLE the state wire format
   (two response latent/sigma blocks, two forest lists) - a format bump, not a saving.
 - LinkingTo / dbarts.h reach. None in v1: nbinom, ordinal, hazard, and heteroscedastic
   all ship with zero dbarts.h exposure (negative-binomial.md). No gain.
@@ -188,7 +188,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   orthogonal Chain-level axis, not a combiner instance.
 - **Reuses the heteroscedastic nullable-second-object precedent as far as it goes.** A
   distinctly-typed, nullable member beside forests_ (the varianceForest_ shape,
-  chain.hpp:5457,738-742), null off hurdle so the single-forest path is byte-neutral by
+  [[chain.hpp#varianceForest_]]), null off hurdle so the single-forest path is byte-neutral by
   construction (heteroscedastic.md section 8).
 - **Where hurdle needs MORE than heteroscedastic.** Heteroscedastic's second forest (i)
   saw ALL n observations, (ii) SHARED the one response_ (it routed into that response's
@@ -224,7 +224,7 @@ hurdle fit must reduce BITWISE to its two independently-fit components:
 - Channels: component 1's trees / latents / varcount identical to the wrapper's
   occupancy fit; component 2's trees / sigma / varcount identical to the wrapper's
   positive fit; the packaged objects differ ONLY in the hurdle marker fields (the
-  markerOnly assertion, hazard-reduction.R:85). The wrapper's two internal fits ARE
+  markerOnly assertion, [[hazard-reduction.R#markerOnly]]). The wrapper's two internal fits ARE
   the two standalone fits at their seeds, so the equality is bitwise by construction -
   the "hurdle is two glued fits" thesis made testable, exactly hazard's "hurdle is
   sugar" gate (survival.md).
@@ -257,8 +257,8 @@ across the two fits, and predict on new data.
 
 - **How the user asks.** family = "hurdle.lognormal" (v1: probit occupancy +
   lognormal positive part), added to the dbarts and bart2 family vectors
-  (R/dbarts.R:387, R/bart.R:704), with `twopart` an accepted alias that resolves to
-  it (R/dbarts.R:402, R/bart.R:713). This section first proposed the bare "hurdle";
+  ([[dbarts.R#dbarts]], [[bart.R#bart2]]), with `twopart` an accepted alias that resolves to
+  it ([[dbarts.R#dbarts]], [[bart.R#bart2]]). This section first proposed the bare "hurdle";
   the NAMING decision in section 13 supersedes it, and the qualified token is what
   ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
@@ -275,7 +275,7 @@ across the two fits, and predict on new data.
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
   negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
-  bartNegbin idiom, R/bart.R:1729,2205) holding the two component fits (or their packaged
+  bartNegbin idiom, [[bart.R#packageMultinomialResults, packageNegbinResults]]) holding the two component fits (or their packaged
   draws) plus a marker recording the variant. Generics combine the two components' draws
   by sample index (any pairing is a valid joint draw, section 0):
   - predict / fitted / extract, type = "ev"/"response": combined E[y | x] =
@@ -290,8 +290,8 @@ across the two fits, and predict on new data.
     reachable per part.
   - print reports "family: hurdle (probit occupancy + lognormal)".
   Because each component fit carries the ordinary $family element ("probit"/"gaussian"),
-  every existing $family-dispatched generic (probabilityFromLatents, pointwiseLogLikelihood,
-  R/generics.R:14,56) stays correct on the components unchanged; the hurdle-level combine
+  every existing $family-dispatched generic ([[generics.R#probabilityFromLatents, pointwiseLogLikelihood]])
+  stays correct on the components unchanged; the hurdle-level combine
   is new code keyed on the bartHurdle class / marker, the hazard $periods split
   (survival.md section 4). predict requires keepTrees (the predict.bart guard).
 
