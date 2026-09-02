@@ -2396,8 +2396,8 @@ RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
 full-namespace resync missed them): [[data-store.md:198@bf503e27]]/201/206/214
 (constructs sit ~320 lines below the cited sampler.hpp lines),
 [[grow-from-root-default.md:141@bf503e27]], [[model-space-survey.md:71@bf503e27]] (quoted text
-absent from the cited file), [[within-chain-threading.md:204@bf503e27]]'s [[within-chain-threading.md:675-702@bf503e27]]
-half, [[data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
+absent from the cited file), [[docs/design/within-chain-threading.md:204@bf503e27]]'s unresolved: [[docs/design/within-chain-threading.md:675-702@bf503e27]]
+half, [[docs/design/data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
 
 ### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
 
@@ -4106,7 +4106,7 @@ tarball.
 
 ### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
 
-The bridge's packaging region (live [[spec.R:4188-4462@bf503e27]], 161 lines of channel
+The bridge's packaging region (live unresolved: [[spec.R:4188-4462@bf503e27]], 161 lines of channel
 assembly) becomes 87: thirteen hand-rolled chain-ternary allocations
 collapse onto one allocChannel(type, {leading dims}) lambda (a
 single-chain per-draw scalar stays a bare dim-less vector - the
