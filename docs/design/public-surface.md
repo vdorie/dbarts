@@ -235,7 +235,7 @@ binary fits on the latent scale. The wrappers' probability transforms
 (predict/extract/fitted/plot) went link-aware 2026-07-03: packaged fits
 carry a `family` element and transform through it (fits saved without
 one are probit). rbart's ranef Gibbs step assumes normal latents, so
-binary still resolves to probit, but `rbart_vi` now carries its own `family` argument (auto/gaussian/aft, rbart.R:49) rather than rejecting one.
+binary still resolves to probit, but `rbart_vi` now carries its own `family` argument (auto/gaussian/aft, [[rbart.R#rbart_vi]]) rather than rejecting one.
 
 ## 3a. Prior specification
 
@@ -412,7 +412,7 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 - Additive evolution is free (name lookup), so deferred without cost:
   per-observation predictor updates and the joint session, setCutPoints,
   and setData - the per-iteration observer callback landed anyway, as
-  `dbarts_sampler_setCallback` (dbarts.h:858), ahead of classic
+  `dbarts_sampler_setCallback` ([[dbarts.h#dbarts_sampler_setCallback]]), ahead of classic
   `Control::callback`'s reachable consumer.
 - STRUCK: C++ headers shipping for `LinkingTo` use without ABI promises. Not
   implemented and not wanted - the flat C header is the shipped surface, by design.
@@ -520,7 +520,7 @@ cross-checked both directions at creation.
 `$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`
 are R5 methods; `dbarts_sampler_numForests`/`setForestBasis`/`getForestFits`/
 `numForestAmplitudes`/`getForestAmplitudes` reach the same sampler from C
-(inst/include/dbarts/dbarts.h:1115-1166); a run reports every forest's fits and
+([[dbarts.h#dbarts_sampler_numForests, dbarts_sampler_setForestBasis, dbarts_sampler_getForestFits, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]); a run reports every forest's fits and
 the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 
