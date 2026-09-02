@@ -21,9 +21,9 @@ Evidence: 610 `stop()` in `R/`, 365 `Rf_error()` in `src/R_interface_bartcore.cp
 + `src/C_interface.cpp` + `src/R_interface.cpp`, 3 `ext_throwError` in
 [[src/bartcore/chain.hpp#sampleTreesFromPrior, sampleNodeParametersFromPrior]]
 and [[src/bartcore/sampler.hpp#fanOutPredictSlabs]]. Each rule states the
-majority it codifies, or
-says plainly that it invents (no majority existed). Frequencies in the
-appendix. Every rule below was additionally checked against: a direct
+majority it codifies, or says plainly that it invents (no majority existed).
+Frequencies in the appendix. Every rule below was additionally checked
+against: a direct
 source-level survey of `stop()` in base, stats, Matrix, survival, lme4,
 and mgcv (the observable practice of highly-regarded base-style packages -
 the tradition dbarts actually belongs to, since it ships no
@@ -105,7 +105,7 @@ Begin the message lowercase, unless the first token is an established acronym
 or proper noun always capitalized on its own (BCF, DART, R, PG) - keep its
 natural casing rather than force `"bcf does not support"`.
 
-- Conformance: 546/546 `stop()` bodies are lowercase-initial
+- Conformance: 562/562 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
 - Violation: none left on the C side. The prior outlier ("Student-t
   residuals ...") went with its message; [[src/R_interface_bartcore.cpp#installForests]]
@@ -296,11 +296,12 @@ A helper reached from both the .Call bridge and the flat C API takes the
 dynamic prefix and is handed the flat entry's own name, since that route
 has no R call frame at all; three refusals are the outstanding exceptions,
 prefixed by none of them - the factor level-code texts
-([[src/R_interface_bartcore.cpp#categoricalTrainingMessage, orderedFactorTrainingMessage, categoricalTestMessage, orderedFactorTestMessage]])
-and the level-count ceilings ([[src/R_interface_bartcore.cpp#refuseLevelCountPastCeiling]]),
+([[src/R_interface_bartcore.cpp#categoricalTrainingMessage, orderedFactorTrainingMessage, categoricalTestMessage, orderedFactorTestMessage]]),
 raised from the shared [[src/R_interface_bartcore.cpp#validateCategoricalPredictors]]
-and [[src/R_interface_bartcore.cpp#validateTestContainerAgainstStore]], and the
-sparse leaf-covariate test refusal raised in
+and [[src/R_interface_bartcore.cpp#validateTestContainerAgainstStore]], the
+level-count ceilings ([[src/R_interface_bartcore.cpp#refuseLevelCountPastCeiling]]),
+raised from [[src/R_interface_bartcore.cpp#validateCategoricalPredictors]]
+alone, and the sparse leaf-covariate test refusal raised in
 [[src/C_interface.cpp#dbarts_sampler_setTestPredictors]]' own body.
 
 **External evidence.** WRE's C-API chapter has a section titled "Error
@@ -375,10 +376,10 @@ Conformance: `"x.test cannot be NULL"` ([[R/dbarts.R#"x.test cannot be NULL"]]).
 `"'<name>' must be specified"`. Conformance: `"'group.by' must be specified to
 use rbart_vi"` ([[R/rbart.R#"'group.by' must be specified to use rbart_vi"]]).
 The former violation, `"'group.by' must be supplied when 'newdata' is given"`,
-no longer occurs:
-[[R/bart.R#"'group.by' must be given by name when 'newdata' is given"]]
-now refuses a different predicate, `"'group.by' must be given by name when
-'newdata' is given"`.
+is retired - the formal moved after `...`, so
+[[R/bart.R#"'group.by' must be given by name when 'newdata' is given"]]'s
+`missing()` test now means "not name-matched", and the message says so -
+`"'group.by' must be given by name when 'newdata' is given"`.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -612,8 +613,8 @@ fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
 | dimension | finding |
 |---|---|
 | argument quoting | single-quote opens the message (177 R, 14 C); backtick/sQuote/dQuote: 0/0 |
-| terminal period | period-free: 348/348 C, 549/549 R - the sweep's three restated-refusal exceptions are gone |
-| sentence case | lowercase-initial: 534/534 R bodies that carry a literal (15 more rethrow a caught error object and carry none), 347/348 C; C's one remaining outlier is the DART acronym exception - the prior genuine miss is fixed, and the two BCF-initial messages were reworded with the amplitude rename |
+| terminal period | period-free: 365/365 C, 610/610 R - the sweep's three restated-refusal exceptions are gone |
+| sentence case | lowercase-initial: 562/562 R bodies that carry a literal (48 more rethrow a caught error object or build the message first and carry none), 364/365 C; C's one remaining outlier is the DART acronym exception - the prior genuine miss is fixed, and the two BCF-initial messages were reworded with the amplitude rename |
 | hyphenation | `non-negative` 24 (R 16 + C 8) vs `nonnegative` 0 - `non-negative` is now unanimous |
 | out-of-range shape | `"... out of range"` 42 combined (R 8 + C 34) vs `"must be between"` 1 - bare `out of range` remains majority for index/discrete bounds |
 | composition-refusal verb | `"does not support"` 33 (R 28 + C 5) vs `"incompatible with"` 3 (C) / `"is not available for"` 0 |
