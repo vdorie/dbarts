@@ -1,21 +1,24 @@
 # The multiplier combiner: design
 
-Status: LANDED, 2026-08-13 to 2026-08-14, across M4.0 (562ee684), M4.1
-(1458328c + e48fc5de), M4.2 (1a2aaedc), M4.3 (9c63e9d8) and M4.4 (this
-commit), with the landing records at e7708b7c and 54e114ff
+Status: LANDED, 2026-08-13 to 2026-08-14, across M4.0 (eb340f4f), M4.1
+(e3170da4 + 9459bef0), M4.2 (a35ff7df), M4.3 (983d7f0a) and M4.4 (e5e93f11),
+with the landing records at 53d64798 and c0c9e12f
 (docs/plans/archive/multiforest-extension-surface.md, M4). The general K-forest
 basis/amplitude family: each forest carries its own basis, its row contracts
 with that forest's amplitude vector into a per-observation scalar, and the
 forest enters the combination scaled by it. bcf's `a mu + b_z tau` is the
 K = 2 instance. Posterior-defining: `AmplitudeForestCombiner<L>`
-(src/bartcore/combiner.hpp:726), the K-forest chain constructor
-(chain.hpp:754-855), `expandForestSpecs` (combiner.hpp:355), the R resolution
+([[src/bartcore/combiner.hpp#AmplitudeForestCombiner]]), the K-forest chain
+constructor ([[src/bartcore/chain.hpp#Chain]]), `expandForestSpecs`
+([[src/bartcore/combiner.hpp#expandForestSpecs]]), the R resolution
 (R/model.R `resolveForests`, R/spec.R), and the gates
 (benchmarks/R/bcf-equivalence.R, bcf-exact{,-restricted,-weak}.R). Scope:
-GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:611-623 admits those three
-and refuses each other family by name, chain.hpp:774-791 builds the matching
-response model, facade.hpp:912-915 the engine-side door), and CONSTANT leaves
-only (combiner.hpp:727-728). Under a latent family the combination is the
+GAUSSIAN, PROBIT and LOGISTIC responses ([[R/spec.R#resolveSamplerSpec]] admits
+those three and refuses each other family by name,
+[[src/bartcore/chain.hpp#Chain]] builds the matching response model,
+[[src/bartcore/facade.hpp#createAmplitudeSampler]] the engine-side door), and
+CONSTANT leaves only ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner]]).
+Under a latent family the combination is the
 INDEX, on the link's own fixed scale: sigma is pinned, the response transform
 is the identity, and every forest's prior scale is stated in latent sd units.
 
@@ -64,93 +67,103 @@ combination and the reporting channels all read one number per forest per row.
 `q_f >= 1` always, and there is NO implicit all-ones column. A forest whose
 multiplier is a plain amplitude carries the ones column densely and reaches it
 by the same contraction every other forest uses, which is what leaves exactly
-one multiplier path (combiner.hpp:1294-1302).
+one multiplier path ([[src/bartcore/combiner.hpp#forestMultiplier]]).
 
 Storage is ROW-major, row i at `i * numColumns`, because the contraction is the
 only read the engine makes of a basis: a row is contiguous and the multiplier
-costs one stream per forest (combiner.hpp:1294-1302). The plan's "The channel,
-specified" section said COLUMN-major and was wrong about the shipped code;
-M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
-(dbarts.h:1037-1040, src/C_interface.cpp:982-984), and M4.5 corrected the plan
-line itself (docs/plans/archive/multiforest-extension-surface.md:557-561).
+costs one stream per forest ([[src/bartcore/combiner.hpp#forestMultiplier]]).
+The plan's "The channel, specified" section said COLUMN-major and was wrong
+about the shipped code; M4.3 item 5 resolved the transpose IN THE DOC
+DIRECTION, the header agrees
+([[inst/include/dbarts/dbarts.h#dbarts_sampler_setTreeStorage]],
+[[src/C_interface.cpp#dbarts_sampler_printTrees]]), and M4.5 corrected the
+plan line itself
+([[docs/plans/archive/multiforest-extension-surface.md:557-561@4c018187]]).
 
 ## The amplitude layout
 
 The amplitudes are ONE flat vector, forest f's block at `amplitudeOffset[f]`,
-the offsets a pure prefix sum of the widths (combiner.hpp:453-455, :1338-1363).
+the offsets a pure prefix sum of the widths
+([[src/bartcore/combiner.hpp#AmplitudeState]],
+[[src/bartcore/combiner.hpp#rebuildAmplitudeLayout]]).
 
 The vector is RAGGED, and a TOTAL IS NOT A LAYOUT: `q = (1, 3)` and
 `q = (2, 2)` both carry four amplitudes, so the per-forest widths travel with
 them or a restore silently permutes the blocks. That one sentence is what the
-whole persistence contract turns on (combiner.hpp:93-103, :1079-1089).
+whole persistence contract turns on ([[src/bartcore/combiner.hpp#ChainStateData]],
+[[src/bartcore/combiner.hpp#glueIsValid]]).
 
 bcf's named accessors `a()`, `b0()`, `b1()` index THROUGH the offsets rather
-than at 0/1/2 (combiner.hpp:476-481): forest 1's block starts wherever forest
-0's ends, so a prognostic basis wider than one column moves them.
+than at 0/1/2 ([[src/bartcore/combiner.hpp#a, b0, b1]]): forest 1's block
+starts wherever forest 0's ends, so a prognostic basis wider than one column
+moves them.
 
 ## The reparameterization
 
-`formForestResponse` (combiner.hpp:859-877) hands forest f the pair its own
-constant-leaf node sums need: response `r_i / m_{f,i}` and weight
-`w_i m_{f,i}^2`, where `r_i` is the residual net of every OTHER forest's scaled
-contribution.
+`formForestResponse` ([[src/bartcore/combiner.hpp#formForestResponse]]) hands
+forest f the pair its own constant-leaf node sums need: response
+`r_i / m_{f,i}` and weight `w_i m_{f,i}^2`, where `r_i` is the residual net of
+every OTHER forest's scaled contribution.
 
-A multiplier indistinguishable from zero at `0x1p-26` (combiner.hpp:824,
-applied :866-870) leaves the row with exactly zero weight AND exactly zero
-response. The zero response is required rather than cosmetic: the chain reads
-this buffer arithmetically when it rolls the running residual and finalizes
-total fits, and the node sufficient-statistic kernels accumulate `w * y`, where
-a zero weight against an amplified response would be `0 * inf`. The tolerance
-doubles as a condition-number cap - the division amplifies by at most 2^26,
-whatever the family, the weights and K, and the arithmetic downstream cancels
-that amplification EXACTLY rather than merely bounding it: the node kernels
-accumulate `sumWeights = sum_i w_i m_i^2` and `sumWeightedResponse =
-sum_i (w_i m_i^2)(r_i / m_i)`, whose exact value is `sum_i w_i m_i r_i`
-(combiner.hpp:837-843).
+A multiplier indistinguishable from zero at `0x1p-26`
+([[src/bartcore/combiner.hpp#zeroMultiplierTolerance]], applied inside
+[[src/bartcore/combiner.hpp#formForestResponse]]) leaves the row with exactly
+zero weight AND exactly zero response. The zero response is required rather
+than cosmetic: the chain reads this buffer arithmetically when it rolls the
+running residual and finalizes total fits, and the node sufficient-statistic
+kernels accumulate `w * y`, where a zero weight against an amplified response
+would be `0 * inf`. The tolerance doubles as a condition-number cap - the
+division amplifies by at most 2^26, whatever the family, the weights and K,
+and the arithmetic downstream cancels that amplification EXACTLY rather than
+merely bounding it: the node kernels accumulate `sumWeights = sum_i w_i
+m_i^2` and `sumWeightedResponse = sum_i (w_i m_i^2)(r_i / m_i)`, whose exact
+value is `sum_i w_i m_i r_i` ([[src/bartcore/combiner.hpp#formForestResponse]]).
 
 The snap belongs to the REPARAMETERIZATION, not to the model: `combinedFits`
 and the amplitude draw keep the exact multiplier, so a snapped row still
 receives `m_{f,i} f_f(x_i)` in the combination and still informs the amplitude
-conditional (combiner.hpp:912-913, :921-925).
+conditional ([[src/bartcore/combiner.hpp#combinedFits, formForestResponse]]).
 
 The caller-settable per-forest, per-observation weight `s_{f,i}` composes as
 one further multiplicative factor after this call returns, before the tree
 loop. Its two edges - at `s = 0` with `m != 0` only the weight is zeroed, and
 the weight lives on the chain rather than the serialized state - are
-docs/design/bcf.md:159-169's.
+[[docs/design/bcf.md#The multiplier snap and the per-forest weight]]'s.
 
 ## The amplitude conditional
 
 Forest by forest in INDEX order, each block drawn jointly from its Gaussian
 full conditional given the current value of every other block, so the pass is a
 Gibbs scan and a block sees the blocks before it already updated
-(combiner.hpp:1102-1117).
+([[src/bartcore/combiner.hpp#drawAmplitudes]]).
 
 Forest f's design row is its basis row scaled by its own fit,
 `x_i = B_f(i,.) f_f(x_i)`, against the residual net of every other forest, so
 the conditional's precision is `P = I/priorVar + sum_i w_i x_i x_i' / sigma^2`
 and its first moment `sum_i w_i x_i r_i / sigma^2`. The prior term is what
 keeps P positive definite whatever the basis does, which is why the
-factorization needs no failure path (combiner.hpp:1119-1125).
+factorization needs no failure path
+([[src/bartcore/combiner.hpp#drawForestAmplitude]]).
 
 A scale-mixture prior's variance is refreshed straight after its own block,
 from `IG((1 + q)/2, (scale^2 + ||a_f||^2)/2)` - at q = 1 exactly the 1.0
-bcf's own spelling carries (combiner.hpp:1107-1115).
+bcf's own spelling carries ([[src/bartcore/combiner.hpp#drawAmplitudes]]).
 
 **The LDL' fact, and why it is not the shipped Cholesky.** The factorization is
 the square-root-free unit-lower `L D L'` because only its solve reduces to ONE
 division per coordinate. Over an ORTHOGONAL basis - bcf's indicator pair, any
 factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
-(combiner.hpp:1139-1142). The two-sqrt Cholesky solve gives
-`x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2 landing note,
-plan :4855-4857). `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is
-its teeth, with a p = 1 arm asserting the Cholesky route DIFFERS and a p = 2
-orthogonal arm (plan :4891-4896).
+([[src/bartcore/combiner.hpp#drawForestAmplitude]]). The two-sqrt Cholesky
+solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2
+landing note, [[docs/plans/archive/multiforest-extension-surface.md:4855-4857@4c018187]]).
+`testUnitLowerFactorization` (tests/cpp/test_model.cpp) is its teeth, with a
+p = 1 arm asserting the Cholesky route DIFFERS and a p = 2 orthogonal arm
+([[docs/plans/archive/multiforest-extension-surface.md:4891-4896@4c018187]]).
 
 ## Why bcf no longer keeps a specialized draw
 
-`drawGlue` (combiner.hpp:952-955) is the general sweep and nothing else. bcf's
+`drawGlue` ([[src/bartcore/combiner.hpp#drawGlue]]) is the general sweep and nothing else. bcf's
 K = 2 shape landed with a two-scalar specialization beside it, selected on the
 forest count, a basis-shape predicate and an `AmplitudeSpec` flag. The two were
 the SAME conditional in exact arithmetic - all four accumulators bitwise equal
@@ -173,38 +186,42 @@ shape draws through the one conditional.
 Per forest, at most one GIG draw each, in index order. The blocks are DISJOINT,
 so the moves commute and each is an exact Gibbs update given the rest, which
 makes the order a stream convention rather than a modelling choice
-(combiner.hpp:961-969). "At most" is exact: `afterCombine` skips a forest
-entirely on `!prior.update || !prior.ridge`, before any draw
-(combiner.hpp:980), and `rescaleAmplitudeRidge` returns 1.0 consuming NO rng
-below two occupied leaves or at a zero leaf sum (combiner.hpp:1232). Two
-further 1.0 returns guard a non-finite or non-positive draw (:1248, :1250), but
-those are reached only AFTER the GIG draw is taken, so :1232 is the sole
-rng-free skip of the three. M4.0's pins hold all three inert on the stream.
+([[src/bartcore/combiner.hpp#afterCombine]]). "At most" is exact: `afterCombine`
+skips a forest entirely on `!prior.update || !prior.ridge`, before any draw
+([[src/bartcore/combiner.hpp#afterCombine]]), and `rescaleAmplitudeRidge`
+returns 1.0 consuming NO rng below two occupied leaves or at a zero leaf sum
+([[src/bartcore/combiner.hpp#rescaleAmplitudeRidge]]). Two further 1.0 returns
+guard a non-finite or non-positive draw, but those are reached only AFTER the
+GIG draw is taken, so the leaf-count/leaf-sum guard is the sole rng-free skip
+of the three ([[src/bartcore/combiner.hpp#rescaleAmplitudeRidge]]). M4.0's pins
+hold all three inert on the stream.
 
 Forest f's `L + q` scale coordinates travel the likelihood-invariant orbit
 `(a_f, leaves) -> (a_f/c, c leaves)` with `c = sqrt(v)` and
 `v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)`, L and M the count and
-squared sum of that forest's OCCUPIED leaves (combiner.hpp:1235-1246,
-:1246-1255). The exponent follows the general rule `p = (k - d)/2` for
-rescaling k leaf parameters against d glue scalars; the naive move-map
-Jacobian's `(L - q + 1)/2` is off by one and the b-move's prototype (q = 2)
-rejects it at KS 1.6e-21 - derived and evidenced below, "The exponent rule".
+squared sum of that forest's OCCUPIED leaves
+([[src/bartcore/combiner.hpp#rescaleAmplitudeRidge]]). The exponent follows the
+general rule `p = (k - d)/2` for rescaling k leaf parameters against d glue
+scalars; the naive move-map Jacobian's `(L - q + 1)/2` is off by one and the
+b-move's prototype (q = 2) rejects it at KS 1.6e-21 - derived and evidenced
+below, "The exponent rule".
 
 **One mechanism, not two.** Instantiated at q = 1 it IS bcf's shipped a-move
 bitwise; at q = 2 with a fixed prior variance it IS the b-move
-docs/plans/archive/bcf-b-ridge.md derives (combiner.hpp:971-974).
+docs/plans/archive/bcf-b-ridge.md derives
+([[src/bartcore/combiner.hpp#rescaleAmplitudeRidge]]).
 
 B reads the LIVE prior variance, which for a scale mixture is the auxiliary
 this move conditions on. Refreshing it here would re-randomize the coordinate
 just conditioned on and throttle the mixing gain - measured, IACT 69 -> 196 on
-`|a|` (docs/plans/archive/bcf-ridge-interweaving.md:488-492); the one-sweep lag is
-benign, the next `drawGlue` refreshing it given the new amplitude
-(combiner.hpp:1195-1208).
+`|a|` ([[docs/plans/archive/bcf-ridge-interweaving.md:488-492@4c018187]]); the
+one-sweep lag is benign, the next `drawGlue` refreshing it given the new
+amplitude ([[src/bartcore/combiner.hpp#drawForestAmplitude]]).
 
 The rescale-consistency set the move must carry, or a stored
 `amplitude * leaf` stops being the identified product: `muByTree`, `totalFits`,
 `totalTestFits`/`currTestFits` under `record`, and the keepTrees flattened slot
-(combiner.hpp:1255-1271).
+([[src/bartcore/combiner.hpp#rescaleAmplitudeRidge]]).
 
 ## The exponent rule
 
@@ -300,20 +317,24 @@ parameterization the implementer will code is the one validated. PASSES.
 
 ## ridgeB is code that is OFF
 
-The b-move ships, but `AmplitudeSpec::ridgeB = false` (combiner.hpp:342).
-Enabling it costs a GIG draw per sweep, which re-records `bcf-equivalence`, and
-its own acceptance gate (docs/plans/archive/bcf-b-ridge.md:438-449 - IACT payoff,
+The b-move ships, but `AmplitudeSpec::ridgeB = false`
+([[src/bartcore/combiner.hpp#AmplitudeSpec]]). Enabling it costs a GIG draw
+per sweep, which re-records `bcf-equivalence`, and its own acceptance gate
+([[docs/plans/archive/bcf-b-ridge.md:438-449@9cebb352]] - IACT payoff,
 bcf-exact mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork:
 it flips only on a named measured mixing case, plus that gate, plus a re-record
 with the `equivalence.yaml` bump in the same commit.
 
-**No silent enablement is possible** (resolved at M4.3 review, plan
-:4967-4975). On every creation route the scale mixture holds if and only if a
+**No silent enablement is possible** (resolved at M4.3 review,
+[[docs/plans/archive/multiforest-extension-surface.md:4967-4975@4c018187]]).
+On every creation route the scale mixture holds if and only if a
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
-that forest declares a basis (`R/model.R:1153`,
-`if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
-`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2375) and
-derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2374). So every
+that forest declares a basis ([[R/model.R#forestParams]],
+`if (withBasis) 0 else declared(spec$sd, 2)`); the bridge
+reads it into `ForestSpec::amplitudePriorScale`
+([[src/R_interface_bartcore.cpp#applyAmplitudeSpec]]) and derives
+`forest.ridge = forest.amplitudePriorScale > 0.0`
+([[src/R_interface_bartcore.cpp#applyAmplitudeSpec]]). So every
 basis-carrying forest gets `ridge = false`, and the combiner's own
 `halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
 one reachable q > 1 scale-mixture state, a post-creation widening of a
@@ -323,7 +344,7 @@ the M4.2-validated exponent, so no stream moves.
 ## The basis is read, not classified
 
 Nothing routes on basis SHAPE any more. `drawForestAmplitude`
-(combiner.hpp:1144) contracts forest f's design row - its basis row scaled by
+([[src/bartcore/combiner.hpp#drawForestAmplitude]]) contracts forest f's design row - its basis row scaled by
 its own fit - whatever the basis holds, so a continuous two-column pair is the
 same conditional as an indicator pair rather than a different model.
 
@@ -347,51 +368,61 @@ identically.
 ## One mutation route
 
 Synthesis is CONSTRUCTION-ONLY: `synthesizeIndicatorBasis`
-(combiner.hpp:1319-1329) is called once, from the constructor (:765).
+([[src/bartcore/combiner.hpp#synthesizeIndicatorBasis]]) is called once, from
+the constructor ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner]]).
 `installForestBasis` is the SOLE mutator and therefore owns the guards nothing
 else is left to apply - the index, `numColumns >= 1`, a non-null pointer, and
-finiteness (combiner.hpp:785-791). It wins by being the only operation there
-is, which is why no ordering between two mutators has to be specified
-(combiner.hpp:769-771).
+finiteness ([[src/bartcore/combiner.hpp#installForestBasis]]). It wins by
+being the only operation there is, which is why no ordering between two
+mutators has to be specified ([[src/bartcore/combiner.hpp#installForestBasis]]).
 
 Ordering is LAST INSTALL WINS, per forest, and both orderings of a widen and a
 swap collapse to it because `rebuildAmplitudeLayout` derives the offsets as a
 pure prefix sum of the width vector and carries every block by position
-(combiner.hpp:773-779, :1338-1363). Amplitudes PRESERVE and remap; surviving
-coordinates keep their values at their new offsets and new ones enter at the
-neutral 1.0. A width-preserving install is the BITWISE IDENTITY on every
-amplitude (the :1346 early return) - that is bcf's mid-life z swap, and it is
-baseline-gating.
+([[src/bartcore/combiner.hpp#rebuildAmplitudeLayout]]). Amplitudes PRESERVE
+and remap; surviving coordinates keep their values at their new offsets and
+new ones enter at the neutral 1.0. A width-preserving install is the BITWISE
+IDENTITY on every amplitude (the early return in
+[[src/bartcore/combiner.hpp#rebuildAmplitudeLayout]]) - that is bcf's mid-life
+z swap, and it is baseline-gating.
 
 `glue_.z` is DELETED. The amplitude conditional contracts `basis[1]` itself,
 not a borrowed indicator, because a width-preserving swap to a different
 complementary pair would otherwise install the new pair, leave the layout
 unmoved, and then draw `b0`/`b1` under the OLD partition while
-`forestMultiplier` contracted the NEW basis (M4.3 item 1, plan :1908-1928;
-landed per :4926-4927).
+`forestMultiplier` contracted the NEW basis (M4.3 item 1,
+[[docs/plans/archive/multiforest-extension-surface.md:1908-1928@4c018187]];
+landed per
+[[docs/plans/archive/multiforest-extension-surface.md:4926-4927@4c018187]]).
 
 ## Persistence
 
 The AMPLITUDES are state; the BASES are not.
 
 `serializeGlue`/`restoreGlue` carry the per-forest widths, the flat amplitude
-vector, and each forest's prior variance (combiner.hpp:1044-1060).
+vector, and each forest's prior variance
+([[src/bartcore/combiner.hpp#serializeGlue]]).
 `glueIsValid` is the LAYOUT check `stateIsValid` routes through, because
 `restoreGlue` writes THROUGH the live offsets and a state with the same total
 over different widths would otherwise be admitted and silently permute the
-blocks (combiner.hpp:1079-1089, routed at chain.hpp:3158).
+blocks ([[src/bartcore/combiner.hpp#glueIsValid]], routed at
+[[src/bartcore/chain.hpp#stateIsValid]]).
 
 The four named scalars `a`/`aVariance`/`b0`/`b1` survive in `ChainStateData` as
 a hand-written K = 2 READING only, non-authoritative, read exactly when
 `amplitudeWidths` is empty - which is exactly a state written by hand rather
-than by a combiner (combiner.hpp:104-110, :1065-1072).
+than by a combiner ([[src/bartcore/combiner.hpp#ChainStateData]],
+[[src/bartcore/combiner.hpp#restoreGlue]]).
 
-The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
-validated by `validateForestBases`, R/data.R:803), the way the design
-matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
-a widening applied after a restore preserves and remaps the RESTORED amplitudes
-rather than the constructed ones (combiner.hpp:1040-1043; plan :1958-1978, landed
-:4931-4933).
+The bases ride CREATION, on `data@bases` (a LIST, [[R/A_class.R#dbartsData]],
+validated by `validateForestBases`, [[R/data.R#validateForestBases]]), the way
+the design matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth
+reapply hook: a widening applied after a restore preserves and remaps the
+RESTORED amplitudes rather than the constructed ones
+([[src/bartcore/combiner.hpp#serializeGlue]];
+[[docs/plans/archive/multiforest-extension-surface.md:1958-1978@4c018187]],
+landed
+[[docs/plans/archive/multiforest-extension-surface.md:4931-4933@4c018187]]).
 
 ## Bitwise contracts
 
@@ -399,7 +430,7 @@ THREE accumulation directions, all observable once q > 1 or K > 2, each a
 contract:
 
 1. `combinedFits` accumulates WITHIN the row and from the LAST forest DOWN
-   (combiner.hpp:914-928, seed at :923, descending loop :924-925). This is the
+   ([[src/bartcore/combiner.hpp#combinedFits]]). This is the
    load-bearing one and it is MEASURED. Under fused multiply-add contraction
    exactly one product in a sum escapes its own rounding - the one the closing
    add absorbs - and the two-forest `a mu + b_z tau` this replaces absorbed
@@ -407,29 +438,35 @@ contract:
    only bare multiply in the closing add. Accumulating FORWARD absorbs the last
    forest's product instead, moves ~30% of rows by one ulp and contaminates the
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
-   tau, glue, sigma and train (combiner.hpp:921-926; M4.1 landing note, plan
-   :4798-4808). `testCombinedFitsAssociation`
-   (tests/cpp/test_sampler.cpp:3692) is the ONLY in-process guard - the M4.0
-   seam pin structurally CANNOT see association, its reference expression
-   inheriting the test compiler's own contraction.
+   tau, glue, sigma and train ([[src/bartcore/combiner.hpp#combinedFits]];
+   M4.1 landing note,
+   [[docs/plans/archive/multiforest-extension-surface.md:4798-4808@4c018187]]).
+   `testCombinedFitsAssociation`
+   ([[tests/cpp/test_sampler.cpp#testCombinedFitsAssociation]]) is the ONLY
+   in-process guard - the M4.0 seam pin structurally CANNOT see association,
+   its reference expression inheriting the test compiler's own contraction.
 2. `formForestResponse`'s residual accumulates FORWARD, subtracting the other
    forests in increasing index order, and deliberately NOT combinedFits'
    reverse: this sum has no two-term fused expression to reproduce, and the
    amplitude conditional forms the same residual the same way, so the two agree
-   by construction rather than by coincidence (combiner.hpp:871-874, :1163-1165).
+   by construction rather than by coincidence
+   ([[src/bartcore/combiner.hpp#formForestResponse, drawForestAmplitude]]).
 3. `forestMultiplier` contracts FORWARD over the columns; at q > 2 a
    reassociation moves the multiplier by an ulp and every reader of it with it
-   (combiner.hpp:1294-1303).
+   ([[src/bartcore/combiner.hpp#forestMultiplier]]).
 
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values
-silently vacate pins (M4.0's required fix, plan :4745-4753; recurred at M4.3's
-Arm 5(iii) dead pin, :4957-4960).
+silently vacate pins (M4.0's required fix,
+[[docs/plans/archive/multiforest-extension-surface.md:4745-4753@4c018187]];
+recurred at M4.3's Arm 5(iii) dead pin,
+[[docs/plans/archive/multiforest-extension-surface.md:4957-4960@4c018187]]).
 
 ## The calibration map, general in K
 
-Stated on `ForestSpec` rather than in the chain (combiner.hpp:300-309, applied
-chain.hpp:798-813). The node scale is
+Stated on `ForestSpec` rather than in the chain
+([[src/bartcore/combiner.hpp#ForestSpec]], applied
+[[src/bartcore/chain.hpp#Chain]]). The node scale is
 `nodeScaleFactor * s / (nodeScaleDivisor * c)`, s the family's own LATENT
 SCALE and c the median nonzero row norm of the forest's basis - exactly `1.0`
 on every shipped route, so c is inert there:
@@ -457,11 +494,13 @@ expressions are written exactly as bcf's were, which is what keeps the K = 2
 instance bitwise.
 
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
-is capped at one forest, for any K: `resolveForests` (R/model.R:1030-1100,
-refusal :1059-1065) requires every forest past the first to carry a basis, and
-`forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
-basis is present (R/model.R:1126), from which the bridge derives
-`forest.ridge = false` (R_interface_bartcore.cpp:2377) - forests 2..K are
+is capped at one forest, for any K: `resolveForests`
+([[R/model.R#resolveForests]], refusal also in
+[[R/model.R#resolveForests]]) requires every forest past the first to carry a
+basis, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
+whenever a basis is present ([[R/model.R#forestParams]]), from which the
+bridge derives `forest.ridge = false`
+([[src/R_interface_bartcore.cpp#applyAmplitudeSpec]]) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
 as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
@@ -511,18 +550,20 @@ mandate, discharged here in its successor form.
 
 ## bcf as the K = 2 instance
 
-`expandForestSpecs` (combiner.hpp:355-369) is the thin adapter between bcf's
-two-forest spelling and the K-length vector every other layer works in, and it
-is LOAD-BEARING rather than courtesy: 25 `tests/cpp` fixtures and
-benchmarks/R/bcf-equivalence.R drive through the `AmplitudeSpec` spelling (plan
-:1785-1791, :2182-2184). Forest 0 takes the half-Cauchy amplitude over the
-implicit intercept and leaves its node scale at s; forest 1 takes the
-fixed-variance pair over the treatment indicator basis and carries `sdModerate`
-in its node scale.
+`expandForestSpecs` ([[src/bartcore/combiner.hpp#expandForestSpecs]]) is the
+thin adapter between bcf's two-forest spelling and the K-length vector every
+other layer works in, and it is LOAD-BEARING rather than courtesy: 25
+`tests/cpp` fixtures and benchmarks/R/bcf-equivalence.R drive through the
+`AmplitudeSpec` spelling
+([[docs/plans/archive/multiforest-extension-surface.md:1785-1791@4c018187]],
+[[docs/plans/archive/multiforest-extension-surface.md:2182-2184@4c018187]]).
+Forest 0 takes the half-Cauchy amplitude over the implicit intercept and
+leaves its node scale at s; forest 1 takes the fixed-variance pair over the
+treatment indicator basis and carries `sdModerate` in its node scale.
 
 `bcfGlue(a, b0, b1)` survives as a named READING that returns false on any
 other layout, which is how a caller learns it is not looking at bcf
-(combiner.hpp:802-808, chain.hpp:1250-1256).
+([[src/bartcore/combiner.hpp#bcfGlue]], [[src/bartcore/chain.hpp#forestTotalFits]]).
 
 ## Surfaces
 
@@ -543,18 +584,21 @@ the map and restores them.
 
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
-(R/spec.R:570-577, the `validateForestBases` install; the family gate it feeds
-is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
-`$getForestAmplitudes(forest)` (R/dbarts.R:1748), both 1-based via
-`resolveForestIndex` (R/bartcore.R:1051). Flat C:
+([[R/spec.R#resolveSamplerSpec]], the `validateForestBases` install; the
+family gate it feeds is also in [[R/spec.R#resolveSamplerSpec]]). R5:
+`$setForestBasis(forest, basis)` ([[R/dbarts.R#dbartsSampler$setForestBasis]])
+and `$getForestAmplitudes(forest)`
+([[R/dbarts.R#dbartsSampler$getForestAmplitudes]]), both 1-based via
+`resolveForestIndex` ([[R/bartcore.R#resolveForestIndex]]). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_getForestAmplitudes`, ragged and ROW-major
-(inst/include/dbarts/dbarts.h:1152-1180).
+([[inst/include/dbarts/dbarts.h#dbarts_sampler_setForestBasis, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]).
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1093-1094,
-src/R_interface_bartcore.cpp:4196-4198).
+that rule in two independent places
+([[src/C_interface.cpp#dbarts_sampler_numForests]],
+[[src/R_interface_bartcore.cpp#bartcore_setForestBasis]]).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
@@ -573,30 +617,33 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   each is missing (gaussian, probit and logistic landed at M4.4).
 - The test surface, for EVERY family including the two M4.4 added.
   `testFitsAreDefined` and `logLikelihoodIsDefined` are both false
-  (combiner.hpp:991-992), so `setTestPredictors`, `setTestOffset` and
-  `predict` refuse - through `refuseUndefinedTestFits`, gated on
-  `testFitsAreDefined` rather than on the forest count
-  (src/R_interface_bartcore_common.hpp:232-242) - and no log-likelihood is
-  reported. Unchanged by M4.4.
+  ([[src/bartcore/combiner.hpp#testFitsAreDefined, logLikelihoodIsDefined]]),
+  so `setTestPredictors`, `setTestOffset` and `predict` refuse - through
+  `refuseUndefinedTestFits`, gated on `testFitsAreDefined` rather than on the
+  forest count
+  ([[src/R_interface_bartcore_common.hpp#refuseUndefinedTestFits, testFitsAreDefined]])
+  - and no log-likelihood is reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
-  (dbarts.h:228-243); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
-  binding decision 8 forbids.
+  ([[inst/include/dbarts/dbarts.h#dbarts_results]]); DECLINED at
+  [[docs/plans/archive/multiforest-extension-surface.md:1521-1531@4c018187]],
+  a `DBARTS_C_API_MINOR` bump binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
-  (facade.hpp:909).
+  ([[src/bartcore/facade.hpp#createAmplitudeSampler]]).
 - Nameable leaf-prior calibration. The map owns it, so the write is refused on
   ANY combining sampler: `Chain::setForestPriorScale` returns `false` on
-  `f >= forests_.size() || combiner_ != nullptr` (chain.hpp:1230-1231), which the
+  `f >= forests_.size() || combiner_ != nullptr`
+  ([[src/bartcore/chain.hpp#setForestPriorScale]]), which the
   flat entry surfaces to a caller as a 0 return.
 
 The classes the family ENABLES, and their evidence status, are
-docs/design/model-space-survey.md's D4: continuous/dose-response exposure BCF
-(unpublished preprint), VCBART's varying coefficients (which carries no
-sampled amplitude), heterogeneous mediation, and the multiplier half of
-principal stratification with BCF.
+[[docs/design/model-space-survey.md#D4. The general per-forest multiplier]]:
+continuous/dose-response exposure BCF (unpublished preprint), VCBART's
+varying coefficients (which carries no sampled amplitude), heterogeneous
+mediation, and the multiplier half of principal stratification with BCF.
 
 ## Landing notes
 
-**M4.0, 562ee684 (pins).** Component pins over BOTH `afterCombine` overrides -
+**M4.0, eb340f4f (pins).** Component pins over BOTH `afterCombine` overrides -
 BCF's GIG rescale with its three reachable 1.0 skips inert on the rng stream,
 and the multinomial additive shift with its returns-1.0-having-moved
 convention, whose pin is the SOLE guard on that convention. The review's
@@ -607,7 +654,7 @@ implementation staying green. Fixed with unequal per-forest tree counts. ~348
 dense-equivalent of the TESTS band - the slice added no engine code at all, so
 this figure is not comparable with the engine nets quoted for M4.1-M4.3 below.
 
-**M4.1, 1458328c + follow-up e48fc5de (the multiplier generalization).**
+**M4.1, e3170da4 + follow-up 9459bef0 (the multiplier generalization).**
 `forestMultiplier` became `dot(a_f, B_f(i,.))` and `combinedFits` a K loop with
 no K = 2 special case. The defining event was a 12/12 `bcf-equivalence`
 divergence root-caused to FMA CONTRACTION ASSOCIATION, fixed by accumulating
@@ -617,9 +664,10 @@ install WITHOUT `--preclean` reported bitwise identical, so every re-check must
 `--preclean`. BENCH, on a granted quiet window: B/A per-sweep 1.0098 at
 n = 20000 and 1.0105 at n = 2000, flat across 100x in n - per-element compute
 in the combiner, not bandwidth - and the ~1% BCF-only cost was ACCEPTED as the
-price of the general multiplier (plan :4834-4846).
+price of the general multiplier
+([[docs/plans/archive/multiforest-extension-surface.md:4834-4846@4c018187]]).
 
-**M4.2, 1a2aaedc (the q-variate conditional).** The per-forest q-variate
+**M4.2, a35ff7df (the q-variate conditional).** The per-forest q-variate
 conditional through the new unit-lower LDL' helper, and ONE general per-forest
 ASIS rescale at `p = (L - q)/2` whose q = 1 instance is bitwise-identical to
 bcf's a-move. The in-slice rule's outcome: bitwise on the ASIS half,
@@ -628,7 +676,7 @@ the reviewer over 21 accumulation variants against the real engine (a first
 standalone probe false-alarmed - vectorization split the multiplies in the
 replica, a recorded methodology lesson). Engine ~180 dense-equivalent.
 
-**M4.3, 9c63e9d8 (SUBSUME).** `setTreatment` retired as a mutator at all four
+**M4.3, 983d7f0a (SUBSUME).** `setTreatment` retired as a mutator at all four
 layers in favour of `setForestBasis(f, values, q)`; `installTreatment` became
 the constructor-only `synthesizeIndicatorBasis`; `installForestBasis` became
 the sole mutator; `glue_.z` DELETED; draw-path selection moved onto the
@@ -642,8 +690,9 @@ dropped outright with licensed successors (the treatment-coding refusal,
 replaced by length/finiteness refusals at creation). `consumer.c` `LEG_COUNT`
 18 -> 19. Engine ~165 dense-equivalent.
 
-**M4.4, 4da3bd8a (the latent family).** `probit` and `logistic` wired
-through the K-forest constructor's response switch (chain.hpp:747-762), the
+**M4.4, e5e93f11 (the latent family).** `probit` and `logistic` wired
+through the K-forest constructor's response switch
+([[src/bartcore/chain.hpp:747-762@e5e93f11]]), the
 calibration map re-based on `latentScaleAnchor` at the settled Option L
 anchor - probit s = 1, logistic s = pi/sqrt(3) - and closed by option E, the
 basis row-norm divisor (median of nonzero row norms, re-derived on
@@ -692,7 +741,9 @@ no longer runs under, while the amplitude prior FOLLOWS the state under
 so a `LinkingTo` consumer recompiles; `dbarts_apiHash()` did not, the append
 being below the header's documented 1.0-0 boundary.
 
-**Budget units, as a standing convention** (plan :4985-4989). Slice bands on
+**Budget units, as a standing convention**
+([[docs/plans/archive/multiforest-extension-surface.md:4985-4989@4c018187]]).
+Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and
 formatting inflation, which roughly doubles raw counts. M4.3's implementer
 reported raw nets against a dense band and appeared over budget when it was
@@ -701,6 +752,7 @@ reported raw nets against a dense band and appeared over budget when it was
 ## Status
 
 LANDED, gaussian, probit and logistic. M4.4 discharged the header's former
-"Gaussian responses only" - dbarts.h:717-718 now names gaussian, probit and
-logistic, with aft, ordinal and nbinom refused by name at creation. The ridgeB door is
-shut. The naming debt is discharged; see above.
+"Gaussian responses only" - [[inst/include/dbarts/dbarts.h:717-718@e5e93f11]]
+now names gaussian, probit and logistic, with aft, ordinal and nbinom refused
+by name at creation. The ridgeB door is shut. The naming debt is discharged;
+see above.
