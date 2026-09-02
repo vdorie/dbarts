@@ -13,7 +13,7 @@ re-verified live against that tree.
 `dbartsSampler$predict`/`$predictForests` but was inert:
 man/dbartsSampler-class.Rd then said plainly that "`run` and `predict`
 both execute serially regardless of the value passed here" (that item is
-now split - section 6, and Rd:154-170 live).
+now split - section 6, and [[sampler.Rd#n.threads]] live).
 Vincent ruled that this formal gets wired to real threading. Because
 dbarts is pre-1.0-0, the shipped `dbarts.h` C API is free to change to
 carry it - no consumer's ABI is frozen yet, and consumer compatibility
@@ -28,13 +28,16 @@ Native predict multithreading shipped once already, in 0.9-31 (commit
 released versions, not dead work. The bartcore C++20 rewrite forked
 past it during the engine cutover: `main`'s classic engine still
 carries the `numThreads` overload of `BARTFit::predict`, but
-bartcore's replay entry points (`Sampler::predictColumns` at
-sampler.hpp:723, `predictPerForestColumns` at :783,
-`predictVarianceColumns` at :850) never gained one, while
-`Sampler::run` (:349-420) kept its fan-out.
-`docs/plans/archive/interface-review.md`'s F10 item (:199) already records both
+bartcore's replay entry points ([[src/bartcore/sampler.hpp#predictColumns]],
+[[src/bartcore/sampler.hpp#predictPerForestColumns]],
+[[src/bartcore/sampler.hpp#predictVarianceColumns]]) never gained one, while
+[[src/bartcore/sampler.hpp#run]] kept its fan-out.
+`docs/plans/archive/interface-review.md`'s F10 item
+([[docs/plans/archive/interface-review.md:199@c44fcbc5]]) already records both
 formals as "fully inert, not merely serial," and lists "threaded
-prediction" on the 2.0-WISHLIST (:543); this design discharges both,
+prediction" on the 2.0-WISHLIST
+([[docs/plans/archive/interface-review.md:543@c44fcbc5]]); this design
+discharges both,
 striking the wishlist line. The NEWS entry is corrected in place
 rather than left standing (`f04e8686` is precedent for editing NEWS
 pre-release): its "across chains" wording would stay false even after
@@ -42,25 +45,25 @@ landing, since the axis below is (chain, draw) slabs, not chains.
 
 ## 3. The partition axis
 
-`Sampler::predictColumns` (sampler.hpp:723-747) iterates chains x
+[[src/bartcore/sampler.hpp#predictColumns]] iterates chains x
 `recordedDraws_`; each (chain, draw) pair is a SLAB writing a disjoint
 `out + (c * numDraws + i) * slab` range. The only accumulation anywhere
 in the replay is `fits[indices[k]] += leafValue` inside
-`addFlatPredictionsBelow` (tree.hpp:1919), once per row per tree, tree
+[[src/bartcore/tree.hpp#addFlatPredictionsBelow]], once per row per tree, tree
 loop `t = 0..numTrees-1` identical at every entry point: each (slab,
 row) pair owns its accumulator and sees the same addend order, so a
 partition keeping a (slab, row) pair whole in one thread is bitwise
 identical at every thread count. No RNG, no `Rf_error`, no `R_alloc`
-runs inside the threaded region - `translateSource`'s `R_alloc`
-(C_interface.cpp:187,196,221) runs strictly before, so dbarts.h's
-main-R-thread-only contract (:45-47) stays unrelaxed. The same shape
-covers `predictPerForestColumns`, `predictVarianceColumns`, and
-`predictBlend` (R/generics.R:867) - the route by which a BCF fit's
-*plain* `predict` reaches the replay, via `predictForest` (:718).
+runs inside the threaded region - [[src/C_interface.cpp#translateSource]]'s
+`R_alloc` runs strictly before, so
+[[inst/include/dbarts/dbarts.h#"main-R-thread-only"]] stays unrelaxed. The
+same shape covers `predictPerForestColumns`, `predictVarianceColumns`, and
+[[R/generics.R#predictBlend]] - the route by which a BCF fit's *plain*
+`predict` reaches the replay, via [[R/generics.R#predictForest]].
 
 ## 4. Worker bodies and thread-count resolution
 
-`predictFromSavedSample` (chain.hpp:2801) constructs an `indices`
+[[src/bartcore/chain.hpp#predictFromSavedSample]] constructs an `indices`
 vector plus `blockOffsets` on every slab call - numChains x
 numSavedDraws times, contended allocator traffic under a naive
 partition - so the design hoists one scratch struct per worker,
@@ -70,16 +73,21 @@ raising any exception; `Rf_error` fires only
 after the join, on the main thread, since an escaping `std::bad_alloc`
 inside a bare `std::thread` body is `std::terminate` and would abort
 the whole R session. `numWorkers <= 1` runs inline with no spawn,
-mirroring `run`'s own `sampler.hpp:395`/`:1284` arms, and is capped at the slab
+mirroring `run`'s and `growFromRoot`'s own
+[[src/bartcore/sampler.hpp#run, growFromRoot]] arms, and is capped at the slab
 count (the one-slab-per-chain invariant, asserted where there are no
 saved trees, is what makes the non-const `flattenTree` safe without
 synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
-on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:1013-1015) both store
-the value as given, and `R/A_class.R:349-350` guards only the R path -
-so the resolved count floors at 1, never 0 workers: without the floor,
+on the C path - `Sampler::setNumThreads`
+([[src/bartcore/sampler.hpp#setNumThreads]]) and
+`dbarts_sampler_setNumThreads`
+([[src/C_interface.cpp#dbarts_sampler_setNumThreads]]) both store
+the value as given, and
+[[R/A_class.R#"'n.threads' must be a positive integer"]] guards
+only the R path - so the resolved count floors at 1, never 0 workers: without
+the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
 workers and hand R an uninitialized `Rf_allocVector(REALSXP, ...)`; a
 test pins this case. A named `constexpr`, sized from a measured ~2.6
@@ -89,8 +97,9 @@ not forest 0's, so a small predict runs without spawning threads.
 
 ## 5. Header and ABI
 
-The prototype, as shipped (inst/include/dbarts/dbarts.h:995, X-macro in
-lockstep at :530-533), returning a capability status:
+The prototype, as shipped
+([[inst/include/dbarts/dbarts.h#dbarts_sampler_predict]], X-macro in
+lockstep), returning a capability status:
 
 ```c
 /// numThreads is a PER-CALL override that does not persist: 0 means the
@@ -103,46 +112,54 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:578, then
+self-correcting: `dbarts_apiSignatureToken`
+([[src/C_interface.cpp#dbarts_apiSignatureToken]], then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
-DBARTS_C_API_HASH` (:501) and prints the new layout hash to paste over
-`DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed; the signature
-token still reads `0x0b33edcf638a3cd3ULL`, while the layout hash has
+DBARTS_C_API_HASH` ([[src/C_interface.cpp#dbarts_apiToken, DBARTS_C_API_HASH]])
+and prints the new layout hash to paste over `DBARTS_C_API_HASH`
+([[inst/include/dbarts/dbarts.h#DBARTS_C_API_HASH]]). Both were re-signed; the
+signature token still reads `0x0b33edcf638a3cd3ULL`, while the layout hash has
 been re-baked by later header changes and no longer carries this
 landing's value. This section also called for
-`DBARTS_C_API_MINOR` (dbarts.h:138) to bump from 0 to 1; it did not, on
-the header's own pre-release rule - see section 11.
-`facade.hpp` took the parameter on all three predict virtuals -
-`predict` (:268), `predictPerForest` (:273), `predictVariance` (:278) -
-with no default argument (a default on a virtual binds from the static
-type, and every real call goes through `SamplerBase&`); the overrides
-(:553, :559, :564) and the dense convenience spellings (:285, :291) take
-and forward it too, or those calls would silently have stayed serial.
-`tests/cpp/test_facade.cpp`'s virtual enumerator, spy, and conformance
-checks (:40-41, :140-146, :771-822) record the `numThreads` a forwarder
-was handed and assert it passed through, disproving "the wiring is a
-no-op".
+`DBARTS_C_API_MINOR` ([[inst/include/dbarts/dbarts.h#DBARTS_C_API_MINOR]]) to
+bump from 0 to 1; it did not, on the header's own pre-release rule - see
+section 11.
+[[src/bartcore/facade.hpp#predict, predictPerForest, predictVariance]] took
+the parameter on all three predict virtuals - with no default argument (a
+default on a virtual binds from the static type, and every real call goes
+through `SamplerBase&`); the overrides and the dense convenience spellings
+take and forward it too, or those calls would silently have stayed serial.
+`tests/cpp/test_facade.cpp`'s virtual enumerator ([[tests/cpp/test_facade.cpp#FacadeVirtual]]),
+spy ([[tests/cpp/test_facade.cpp#SpySampler]]), and conformance checks
+([[tests/cpp/test_facade.cpp#"the thread count crosses the boundary intact"]])
+record the `numThreads` a forwarder was handed and assert it passed through,
+disproving "the wiring is a no-op".
 
 ## 6. Bridge and R surface
 
 The bridge took the argument on both `.Call` entries -
-`dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
-(`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:225-226) - and on
-`predictFromSource` (R_interface_bartcore.cpp:5936), `bartcore_predict`
-(:5971), `predictPerForestFromSource` (:5955), and
-`bartcore_predictPerForest` (:5995), validated with
+[[src/R_interface.cpp#dbarts_bartcore_predict, dbarts_bartcore_predictPerForest]]
+(`DEF_FUNC` arity 3 -> 4, live at 4) - and on
+[[src/R_interface_bartcore.cpp#predictFromSource]],
+[[src/R_interface_bartcore.cpp#bartcore_predict]],
+[[src/R_interface_bartcore.cpp#predictPerForestFromSource]], and
+[[src/R_interface_bartcore.cpp#bartcore_predictPerForest]], validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Six inst/tinytest sites
-(test-predict-sparse.R:164, test-predict-code-channel.R:85,
-test-generics-multithreaded.R:330, test-multinomial-test-offset.R:430
-and :440, test-multinomial-category-offset.R:453) call these `.Call`s
-directly and needed the fourth argument; all six pass it.
-`dbartsSampler$predict`/`$predictForests` (R/dbarts.R:1084-1169) pass
-their formal through; `bartcorePredict` (R/bartcore.R:1085) and the
-test harness's `bartcorePredictPerForest` in `inst/common/bartcoreHandle.R`
+([[inst/tinytest/test-predict-sparse.R#"dbarts:::C_dbarts_bartcore_predict"]],
+[[inst/tinytest/test-predict-code-channel.R#"dbarts:::C_dbarts_bartcore_predict"]],
+[[inst/tinytest/test-generics-multithreaded.R#"dbarts:::C_dbarts_bartcore_predict"]],
+[[inst/tinytest/test-multinomial-test-offset.R#"dbarts:::C_dbarts_bartcore_predict"]],
+[[inst/tinytest/test-multinomial-category-offset.R#"dbarts:::C_dbarts_bartcore_predict"]])
+call these `.Call`s directly and needed the fourth argument; all six pass it.
+`dbartsSampler$predict`/`$predictForests`
+([[R/dbarts.R#dbartsSampler$predict, dbartsSampler$predictForests]]) pass
+their formal through; `bartcorePredict` ([[R/bartcore.R#bartcorePredict]]) and
+the test harness's `bartcorePredictPerForest` in
+[[inst/common/bartcoreHandle.R#bartcorePredictPerForest]]
 (no per-forest wrapper ships in `R/`; `$predictForests` calls the entry
 point directly) gain the argument; `R/partialDependence.R`'s five
-`sampler$predict(x.test)` sites (:242, :244, :346, :363, :365) take it
+[[R/partialDependence.R#"sampler$predict(x.test)"]] sites take it
 from the caller.
 
 The formal is appended **last**, after every existing positional
@@ -161,21 +178,22 @@ what lets a subclass method forward its own formals through
 `NextMethod()`'s `...`. `n.threads` is a formal on all six, so it
 reaches neither path.
 
-| generic | R/generics.R | default expression |
+| generic | anchor | default expression |
 |---|---|---|
-| predict.bart | :289 | `object$fit$control@n.threads` (already present at :331, moved last) |
-| predict.bartMultinomial | :1283 | `object$fit$control@n.threads` |
-| predict.bartOrdinal | :1593 | `object$fit$control@n.threads` |
-| predict.bartNegbin | :1870 | `object$fit$control@n.threads` |
-| predict.bartHurdle | :2412 | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
-| predict.rbart | :2463 | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
+| predict.bart | [[R/generics.R#predict.bart]] | `object$fit$control@n.threads` (already present, moved last) |
+| predict.bartMultinomial | [[R/generics.R#predict.bartMultinomial]] | `object$fit$control@n.threads` |
+| predict.bartOrdinal | [[R/generics.R#predict.bartOrdinal]] | `object$fit$control@n.threads` |
+| predict.bartNegbin | [[R/generics.R#predict.bartNegbin]] | `object$fit$control@n.threads` |
+| predict.bartHurdle | [[R/generics.R#predict.bartHurdle]] | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
+| predict.rbart | [[R/generics.R#predict.rbart]] | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
 
 `predict.bart`'s validation moved above the two early returns that
 preceded it - `return(predictForest(...))` and `return(predictBlend(...))`
 - so the amplitude family's value is validated too; live,
-`validatePredictThreads(n.threads)` sits at R/generics.R:350, above both,
-and `predictBlend` (:867-879) is a forwarding site.
-man/dbartsSampler-class.Rd:154-170's joint "run and predict both execute
+`validatePredictThreads(n.threads)` sits inside
+[[R/generics.R#predict.bart]], above both, and
+[[R/generics.R#predictBlend]] is a forwarding site.
+[[sampler.Rd#n.threads]]'s joint "run and predict both execute
 serially" item is split: predict's half states the per-call override and
 the default, and affirms that `_R_CHECK_LIMIT_CORES_` (read only by
 `parallel:::.check_ncores`) does not govern native threads; run's half
@@ -185,7 +203,7 @@ The chosen R default is the fit's own thread count, and that exposure
 is stated plainly: 117 of 307 `bart2`/`rbart_vi` calls across
 inst/tinytest declare no thread argument, 50 with `n.chains > 1` or
 defaulted, so their `control@n.threads` is `min(guessNumCores(),
-n.chains)`, up to 4 on a CI box (R/bart.R:670), and under this default
+n.chains)`, up to 4 on a CI box ([[R/bart.R#bart2]]), and under this default
 every `predict()` becomes multi-worker on those fits, a posture
 already true of `run`. The new tests pin explicit counts of 2 or
 fewer.
@@ -222,13 +240,13 @@ non-negative figure, `convertSamplesFromDbartsToBart`, is 0.30% of a
 representative `predict.bart` call.
 
 The serial work predict's threaded region does **not** cover - the
-flat-offset add over the whole output (R_interface_bartcore.cpp:5831-
-5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:6027) - is one pass over the output
-per call against `numTrees` passes inside the replay, so the bridge's
+flat-offset add over the whole output and, on the heteroscedastic path, a
+full `Rf_duplicate` before the second (variance) fan-out, both inside
+[[src/R_interface_bartcore.cpp#predictFromSource]] - is one pass over the
+output per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`
-(R/bart.R:666). A parallel fraction near 0.98-0.995 gives an Amdahl
+([[R/bart.R#bart2]]). A parallel fraction near 0.98-0.995 gives an Amdahl
 ceiling of roughly 3.8-3.9x at 4 threads and 7.0-7.7x at 8 - **a
 ceiling from a serial fraction, not a measured speedup**. No scaling
 curve has been measured, and the script that would produce one at
@@ -254,8 +272,9 @@ accepted regardless and is the anchor used throughout this document.
 
 ## 10. Doors
 
-- **D1**: `run`'s own per-call thread override (R/dbarts.R:960-964),
-  equally inert today. Deferred: `run`'s count also sizes
+- **D1**: `run`'s own per-call thread override
+  ([[R/dbarts.R#dbartsSampler$run]]), equally inert today. Deferred: `run`'s
+  count also sizes
   `routeTestRows`, and `run` mutates state, so wiring it moves
   progress reporting and interrupts too - a larger change.
 - **D2**: A predict-shaped thread default distinct from the fit's own
@@ -312,12 +331,12 @@ partition-dependent tree-sum order fails 6 and the same two; forcing
 the resolved count to 1 inside the engine fails 10 tinytest assertions,
 4 engine partition checks and all three facade pass-through checks.
 
-Consumer migration: stan4bart src/init.cpp:342 inserts a `0` before
-`REAL(result)` and rebuilds (it pins the hash by equality at
-src/init.cpp:972). bartCause needs no edit - its
+Consumer migration: stan4bart's src/init.cpp (near its line 342) inserts a
+`0` before `REAL(result)` and rebuilds (it pins the hash by equality nearby,
+at src/init.cpp line 972). bartCause needs no edit - its
 `predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)`
-at R/generics.R:162 stays correct precisely because the formal is
-appended last.
+in its own R/generics.R (near line 162) stays correct precisely because the
+formal is appended last.
 
 Open, unchanged: section 8's scaling curve, whose benchmark script has not
 been written; the tuned cutoff constant (`Sampler::predictParallelCutoff`,
