@@ -200,12 +200,12 @@ Every predict route, and where its `newdata` is validated:
 
 | method | R/generics.R | newdata path |
 |---|---|---|
-| `predict.bart` | [[feature-matrix.md:296@7a8c7286]] | `object$fit$predict(newdata, offset, n.threads)` [[feature-matrix.md:386@7a8c7286]] (and `predictForest` [[feature-matrix.md:668@7a8c7286]], `predictBlend` [[feature-matrix.md:808@7a8c7286]], through the same R5 methods) |
-| `predict.bartMultinomial` | [[feature-matrix.md:1216@7a8c7286]] | `validateXTest(newdata, object$fit$data@x)` [[feature-matrix.md:1240@7a8c7286]], then `$predict` [[feature-matrix.md:1267@7a8c7286]] (which validates again) |
-| `predict.bartOrdinal` | [[feature-matrix.md:1502@7a8c7286]] | `validateXTest` [[feature-matrix.md:1524@7a8c7286]], then `bartcorePredict` [[feature-matrix.md:1534@7a8c7286]] |
-| `predict.bartNegbin` | [[feature-matrix.md:1754@7a8c7286]] | `validateXTest` [[feature-matrix.md:1777@7a8c7286]], then `bartcorePredict` [[feature-matrix.md:1786@7a8c7286]] |
-| `predict.bartHurdle` | [[feature-matrix.md:2147@7a8c7286]] | `hurdleParts` [[feature-matrix.md:1990@7a8c7286]] -> two `predict.bart` calls |
-| `predict.rbart` | [[feature-matrix.md:2194@7a8c7286]] | `object$fit[[i]]$predict(newdata, offset, n.threads)` [[feature-matrix.md:2249@7a8c7286]], [[feature-matrix.md:2259@7a8c7286]], [[feature-matrix.md:2269@7a8c7286]] |
+| `predict.bart` | [[R/generics.R:296@ed43deef]] | `object$fit$predict(newdata, offset, n.threads)` [[R/generics.R:386@ed43deef]] (and `predictForest` [[R/generics.R:668@ed43deef]], `predictBlend` [[R/generics.R:808@ed43deef]], through the same R5 methods) |
+| `predict.bartMultinomial` | [[R/generics.R:1216@ed43deef]] | `validateXTest(newdata, object$fit$data@x)` [[R/generics.R:1240@ed43deef]], then `$predict` [[R/generics.R:1267@ed43deef]] (which validates again) |
+| `predict.bartOrdinal` | [[R/generics.R:1502@ed43deef]] | `validateXTest` [[R/generics.R:1524@ed43deef]], then `bartcorePredict` [[R/generics.R:1534@ed43deef]] |
+| `predict.bartNegbin` | [[R/generics.R:1754@ed43deef]] | `validateXTest` [[R/generics.R:1777@ed43deef]], then `bartcorePredict` [[R/generics.R:1786@ed43deef]] |
+| `predict.bartHurdle` | [[R/generics.R:2147@ed43deef]] | `hurdleParts` [[R/generics.R:1990@ed43deef]] -> two `predict.bart` calls |
+| `predict.rbart` | [[R/generics.R:2194@ed43deef]] | `object$fit[[i]]$predict(newdata, offset, n.threads)` [[R/generics.R:2249@ed43deef]], [[R/generics.R:2259@ed43deef]], [[R/generics.R:2269@ed43deef]] |
 
 Plus `survivalProbabilities.bart` / `.rbart` ([[R/bart.R:2500@7a8c7286]], [[R/bart.R:2551@7a8c7286]]), which build an expanded newdata and forward to
 `predict`, and the R5 surface itself: `$predict` ([[R/dbarts.R:1084@7a8c7286]]) and `$predictForests` ([[R/dbarts.R:1147@7a8c7286]]) both open with
@@ -217,12 +217,12 @@ So `validateXTest` ([[R/data.R:50-283@7a8c7286]]) is the single R-side chokepoin
 every R5 predict/test-surface method, `dbartsData(test = )` ([[R/data.R:1492@7a8c7286]]), and the EXPORTED `makeTestModelMatrix`
 ([[R/data.R:46@7a8c7286]], `export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)` at NAMESPACE:16, documented
 [[man/makeind.Rd:12@7a8c7286]]) all reach it. It returns with the test columns already reordered and renamed onto the training columns
-([[man/makeind.Rd:265-279@7a8c7286]]), so column j of its value is column j of `x.train`.
+([[R/data.R:265-279@7a8c7286]]), so column j of its value is column j of `x.train`.
 
 Three routes do not pass through it, and the design states them as the contract's edge rather than chasing them: the
 per-column `$setTestPredictor(x, column)` form ([[R/bartcore.R:571-600@7a8c7286]] takes the `column` branch), the internal store-view
 build (section 8's residue), and DIRECT SLOT ASSIGNMENT - `data@x.test <- ...` on a `dbartsData` object, which bartCause
-does at fit time (bartCause [[R/responseFit.R:180-189@7a8c7286]]). The contract this slice ships is therefore: the validated surfaces
+does at fit time (bartCause's `R/responseFit.R` lines 180-189). The contract this slice ships is therefore: the validated surfaces
 plus the flat backstop; a raw slot poke is outside it, as it is for every other check `validateXTest` performs (column
 count, category codes, factor levels).
 
@@ -490,7 +490,7 @@ Existing tests, verified by reading:
 New tests.
 
 D6, extending inst/tinytest/test-heteroscedastic.R's existing section "Student-t residuals and a grouped fit:
-unadjudicated with 'variance'" ([[test-data-missing.R:222@7a8c7286]]) rather than opening a file:
+unadjudicated with 'variance'" ([[inst/tinytest/test-heteroscedastic.R:222@7a8c7286]]) rather than opening a file:
 - a control carrying `bartcore.groups` (the four sibling files' idiom) plus `variance = varianceForest(n.trees = 3L)`
   through `dbarts()` raises, matching `"does not support grouped random effects"`;
 - the same two halves through `dbartsSpec()` raise the same message;
@@ -499,7 +499,7 @@ unadjudicated with 'variance'" ([[test-data-missing.R:222@7a8c7286]]) rather tha
 - each half ALONE still constructs (the assertion that this is a composition check, not a regression on either feature);
 - the refusal fires whichever order the halves are declared in.
 D6, in inst/tinytest/test-capi.R beside the existing `capi_create` refusal probes ([[test-data-missing.R:118-150@7a8c7286]]), reusing the grouped control
-the file already builds at [[test-data-missing.R:776@7a8c7286]]: that control plus a `bartcore.variance` attribute through `capi_create` raises
+the file already builds at [[inst/tinytest/test-capi.R:776@fe0b3292]]: that control plus a `bartcore.variance` attribute through `capi_create` raises
 `"not supported with a heteroscedastic variance forest"` - the flat entrance's only coverage.
 
 D8, in inst/tinytest/test-data-missing.R, appended at the END of the file (several blocks there hardcode values that
@@ -530,28 +530,28 @@ Warning handling: none of these emits a warning, so no `expect_warning` count ch
 ## 11. Consumer sweep (read-only, `git -C <repo> grep`)
 
 - stan4bart, /Users/vdorie/Repositories/stan4bart branch `bartcore` (f9bca65). D6: CANNOT hit it - it resolves through
-  `dbartsSpec` ([[R/stan4bart_fit.R:554-559@7a8c7286]]) and explicitly refuses `variance` in `bart_args` ([[R/stan4bart_fit.R:544-548@7a8c7286]], "the parametric
+  `dbartsSpec` (stan4bart's `R/stan4bart_fit.R` lines 554-559) and explicitly refuses `variance` in `bart_args` (stan4bart's `R/stan4bart_fit.R` lines 544-548, "the parametric
   component draws the residual standard deviation"), and it never writes `bartcore.groups` (its only control attribute is
-  `n.cuts`, [[R/stan4bart_fit.R:524@7a8c7286]]). D8: it calls the FLAT `dbarts_sampler_predict` ([[src/init.cpp:349@7a8c7286]]) with a dense source, so it is
-  exactly the consumer the C++ backstop serves - but it forbids `na.action = na.pass` outright ([[R/stan4bart.R:41-42@7a8c7286]]) and
+  `n.cuts`, stan4bart's `R/stan4bart_fit.R` line 524). D8: it calls the FLAT `dbarts_sampler_predict` (stan4bart's `src/init.cpp` line 349) with a dense source, so it is
+  exactly the consumer the C++ backstop serves - but it forbids `na.action = na.pass` outright (stan4bart's `R/stan4bart.R` lines 41-42) and
   defaults to `na.omit` (:6), so no NA reaches a model frame it hands to dbarts. No migration cost, no expected hit.
 - bartCause, /Users/vdorie/Repositories/bartCause branch `dbarts-1.0` (d825cfc). D6: reaches the grouped surface only
-  through `rbart_vi` ([[R/responseFit.R:121@7a8c7286]], [[R/responseFit.R:210@7a8c7286]]; [[R/treatmentFit.R:107@7a8c7286]]), which has no `variance` formal - unreachable.
-  D8: its predict calls ([[R/generics.R:143-176@7a8c7286]]) pass `x.new` built from the user's confounders; it validates the treatment
-  column for NA ([[R/generics.R:209@7a8c7286]]) but not the rest, so a bartCause user with NA confounders on a training-complete column is now
+  through `rbart_vi` (bartCause's `R/responseFit.R` lines 121 and 210; its `R/treatmentFit.R` line 107), which has no `variance` formal - unreachable.
+  D8: its predict calls (bartCause's `R/generics.R` lines 143-176) pass `x.new` built from the user's confounders; it validates the treatment
+  column for NA (bartCause's `R/generics.R` line 209) but not the rest, so a bartCause user with NA confounders on a training-complete column is now
   refused instead of silently answered - the intended change, and BART with NA predictors is new in 1.0, so nothing there
-  can be relying on it. Its fit-time `data@x.test <-` assignment ([[R/responseFit.R:180-189@7a8c7286]]) is outside the validated
+  can be relying on it. Its fit-time `data@x.test <-` assignment (bartCause's `R/responseFit.R` lines 180-189) is outside the validated
   surface by section 5's contract, so that path is unchanged either way. No code change expected; run its suite as the
   gate.
 - treatSens, branch `dbarts-1.0` (1db3d89). D6: creates through
-  `dbarts_sampler_create` ([[src/bartTreatmentModel.cpp:63@7a8c7286]], [[src/sensitivityAnalysis.cpp:260@7a8c7286]]) with neither attribute -
-  unreachable. D8: it IS a test-surface user - `dbartsData(x, y, x.test)` ([[R/cibart.R:56@7a8c7286]]) and `sampler$setTestPredictor`
-  ([[R/treatSensBART.R:228@7a8c7286]], [[R/treatSensBART.R:245@7a8c7286]], [[R/treatSensBART.R:253@7a8c7286]]) - so the R check runs on its data; its designs are simulated numeric confounders
+  `dbarts_sampler_create` (treatSens's `src/bartTreatmentModel.cpp` line 63 and `src/sensitivityAnalysis.cpp` line 260) with neither attribute -
+  unreachable. D8: it IS a test-surface user - `dbartsData(x, y, x.test)` (treatSens's `R/cibart.R` line 56) and `sampler$setTestPredictor`
+  (treatSens's `R/treatSensBART.R` lines 228, 245 and 253) - so the R check runs on its data; its designs are simulated numeric confounders
   with no NAs, and the per-column `setTestPredictor(newColumn, i)` form is not on the checked route anyway. No expected
   hit.
 - bairrtt, /Users/vdorie/Repositories/bairrtt branch `main` (6167423). D6: no dbarts composition surface at all. D8: it
-  predicts through the R5 `$predict(frame)` six times ([[R/irt_causal_bart.R:568-713@7a8c7286]]), which is on the checked route, but
-  it refuses NA covariates at ingestion itself (`as_covariate_frame`, [[R/engine.R:303-305@7a8c7286]], "'x' must not contain NA") and
+  predicts through the R5 `$predict(frame)` six times (bairrtt's `R/irt_causal_bart.R` lines 568-713), which is on the checked route, but
+  it refuses NA covariates at ingestion itself (`as_covariate_frame`, bairrtt's `R/engine.R` lines 303-305, "'x' must not contain NA") and
   its documented missingness is in the RESPONSE matrix, which is not a predictor. No hit.
 
 Total expected lockstep migration cost: zero lines in any consumer. Rebuild stan4bart and treatSens against commit 1
@@ -644,6 +644,6 @@ column; benchmarks/R/composition-matrix.R reports two pre-existing DISAGREEMENTS
 dbarts5 "no base fixture recipe"; logistic setWeights integer-weights - fixed at HEAD, both harness bugs, not model gaps); multinomial-mutation-arc.md sections 5-8 and
 model-space-survey.md hold drifted anchors inside frozen text ([[C_interface.cpp:460@936825d7]]/462, data.R ranges,
 [[model-space-survey.md:368-369@936825d7]]), left by rule; direct data@x.test slot assignment bypasses the R refusal (validated
-surfaces + flat backstop are the contract) - bartCause's [[responseFit.R:180-189@936825d7]] uses that route at fit time.
+surfaces + flat backstop are the contract) - bartCause's `responseFit.R` lines 180-189 uses that route at fit time.
 Consumers: zero migration lines (stan4bart refuses variance in bart_args and forbids na.pass; treatSens and bairrtt
 feed complete designs).
