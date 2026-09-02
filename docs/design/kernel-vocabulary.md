@@ -77,13 +77,13 @@ dense split.
 Flat-descent sibling (engine-side, src/bartcore/tree.hpp): the saved-tree
 replay partitions rows over a flattened node rather than a store column, so
 it reads cells from whichever channel a borrowed predictor source holds them
-in. partitionFlatIndicesOver (tree.hpp:1801) is templated over a Cells
-policy - DoubleCells (:1764) over the double channel, CodeCells (:1781) over
+in. partitionFlatIndicesOver ([[tree.hpp#partitionFlatIndicesOver]]) is templated over a Cells
+policy - DoubleCells ([[tree.hpp#DoubleCells]]) over the double channel, CodeCells ([[tree.hpp#CodeCells]]) over
 int32 level codes, whose ordinal cut is the largest code the threshold
-admits (codeThresholdBelow, data.hpp:54) - and partitionFlatIndices
-(tree.hpp:1863) picks the channel ONCE per node from the column reader's
+admits (codeThresholdBelow, [[data.hpp#codeThresholdBelow]]) - and partitionFlatIndices
+([[tree.hpp#partitionFlatIndices]]) picks the channel ONCE per node from the column reader's
 codes(), whose three arms are dense values, dense codes, and a CSC-backed
-column's rank lookup (data.hpp:594-607). A coded column pays one 4-byte load
+column's rank lookup ([[data.hpp#PredictorSourceColumnReader::codes]]). A coded column pays one 4-byte load
 per row and no per-row conversion.
 
 ### Sufficient statistics / moments (misc/stats.h, src/misc/moments.c)
