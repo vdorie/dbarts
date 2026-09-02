@@ -173,7 +173,7 @@ recorded-draw count, and nothing else (`[[sampler.hpp:89-97@3c81d6df]]`); neithe
 store from the stored data object". Every restore entrance re-creates from a
 data object first - R's `getPointer`/`setState` (`[[R/dbarts.R:1927-1948@3c81d6df]]`,
 `[[R/dbarts.R:1959-1973@3c81d6df]]`), the flat C `dbarts_sampler_setState` (`[[C_interface.cpp:1009@3c81d6df]]`),
-and stan4bart's own re-creation (`~/[[Repositories/stan4bart/src/init.cpp:373-376@3c81d6df]]`)
+and stan4bart's own re-creation (`~/Repositories/stan4bart/src/init.cpp` lines 373-376)
 - so the kind rides `dbartsData@varTypes` (`[[R/A_class.R:487@3c81d6df]]`), an S4 slot R
 serializes with the object, and reaches the rebuilt store through the ordinary
 creation parse. Section 1 develops this, including the two bridge sites that
@@ -1135,7 +1135,7 @@ replay family routes raw predictors *without the store that typed the columns*",
 and the signature bears it out - `partitionFlatIndices` takes a `Columns` and a
 `FlatNode` and no `ColumnStore` (`[[tree.hpp:1863@3c81d6df]]`). Storeless replay is a
 shipped capability: `dbarts_sampler_getTrees` hands flat trees to consumers and
-stan4bart calls it (`~/[[Repositories/stan4bart/src/init.cpp:502@3c81d6df]]`).
+stan4bart calls it (`~/Repositories/stan4bart/src/init.cpp` line 502).
 
 What *is* redundant is the **cross-check**: `buildFromFlatBelow`
 (`[[tree.hpp:1512@3c81d6df]]`) and `flatSubtreeIsWellFormed` (`[[tree.hpp:2118@3c81d6df]]`) each
@@ -1264,9 +1264,9 @@ property.
 ### The bill, and a gate that currently cannot see it
 
   - **`benchmarks/R/equivalence.R` did not move, and that was the problem.** Its
-    factor cases were all built with plain `factor(...)` (`[[grow.hpp:185-186@3c81d6df]]`, `[[grow.hpp:195-204@3c81d6df]]`,
-    `[[grow.hpp:871@3c81d6df]]`, `[[grow.hpp:899@3c81d6df]]`); the only `ordered` occurrences were `ordered_result = TRUE`
-    at `[[grow.hpp:351@3c81d6df]]` and `[[grow.hpp:523@3c81d6df]]`, which is the *response*. There was no ordered-factor
+    factor cases were all built with plain `factor(...)` (`[[benchmarks/R/equivalence.R:185-186@3c81d6df]]`, `[[benchmarks/R/equivalence.R:195-204@3c81d6df]]`,
+    `[[benchmarks/R/equivalence.R:871@3c81d6df]]`, `[[benchmarks/R/equivalence.R:899@3c81d6df]]`); the only `ordered` occurrences were `ordered_result = TRUE`
+    at `[[benchmarks/R/equivalence.R:351@3c81d6df]]` and `[[benchmarks/R/equivalence.R:523@3c81d6df]]`, which is the *response*. There was no ordered-factor
     **predictor** anywhere in the corpus, so a grid change would have left the
     gate green while changing user-visible fits, and the gate could not detect
     an ordered-factor regression at all. **S0 added one, and landed and
