@@ -87,7 +87,7 @@ T2c. Error quality (C4): Inf in response -> "missing value where
 T2d. Bridge (C4, C-side): assignInPlace ([[R_interface.cpp:77-80@790462ea]], [[R_interface.cpp:122@790462ea]])
   writes R-supplied index/memcpy with no bounds/type/length validation on
   the per-iteration rbart hot path - add checks (defense-in-depth; callers
-  currently valid). rc_get*At off-by-one ([[rc/bounds.c:55@790462ea]], [[rc/bounds.c:271@790462ea]], [[rc/bounds.c:487@790462ea]]: "i >"
+  currently valid). rc_get*At off-by-one ([[src/rc/bounds.c:55@0eb76b51]], [[src/rc/bounds.c:271@0eb76b51]], [[src/rc/bounds.c:487@0eb76b51]]: "i >"
   should be "i >="; unused API, latent). [[simd.c:198@790462ea]] AVX512 CPUID max-leaf
   constant 0x60 should be 0xD (dead path today - no AVX512 kernels
   dispatch). [[C_interface.cpp:158-192@790462ea]] GetRNGstate/PutRNGstate bracket not
@@ -116,7 +116,7 @@ family comment ([[R_interface_bartcore.cpp:1037-1039@790462ea]], 1512-1515 - omi
 aft; fix first site, point second at it); [[R/dbarts.R:59@790462ea]] cryptic defaults
 comment (state the constructor-vs-prototype n.threads divergence);
 [[R/A_class.R:1@790462ea]] joke -> state the load-order invariant; delete debug
-leftovers ([[R/multipleAssignment.R:48-145@790462ea]] commented cats,
+leftovers ([[R/multipleAssignment.R:48-145@6c740a41]] commented cats,
 [[R/sliceSample.R:72-75@790462ea]] abandoned branch); [[sampler.hpp:884@790462ea]]/938 duplicated
 rollback comment (shrink second to a pointer); dbarts.h x_test/
 offset_test -> xTest/offsetTest (parameter names are not ABI; keep the

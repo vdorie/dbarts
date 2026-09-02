@@ -26,7 +26,7 @@ parked NT-store question with a real large-n profile.
   z'Wz-carrying marginals across the maxLeafSize_ boundary and change
   the GP posterior. Also: [[tree.hpp:177@fc40a08a]], [[tree.hpp:497-523@fc40a08a]], [[tree.hpp:800-801@fc40a08a]]; moves.hpp:
   215-216; the four kernel signatures [[moments.c:311-410@fc40a08a]] /
-  [[include/misc/stats.h:42-45@fc40a08a]] (internal, scalar, undispatched). The
+  [[src/include/misc/stats.h:42-45@fc40a08a]] (internal, scalar, undispatched). The
   cross-model marginal tests (test_model.cpp) must pass UNEDITED once
   all marginals agree; an edit there means the drop is inconsistent.
   No serialization field carries it.

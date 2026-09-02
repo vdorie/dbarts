@@ -224,7 +224,7 @@ principle clause 3's "named, measured and testable" difference.
   units), forwarded into the spec. `node.scale` is not it. This is the formal
   bartCause forwards for free - its whitelist is DYNAMIC, computed against
   `formals(eval(bartCall[[1L]]))` union `formals(dbartsControl)`
-  (`[[bartCause/R/responseFit.R:213-216@4c018187]]`, `[[bartc.R:22@4c018187]]`), and `node.prior` is a
+  (bartCause's `R/responseFit.R` lines 213-216, bartCause's `R/bartc.R` line 22), and `node.prior` is a
   formal of `dbarts()` only - and it is what `xbart`'s own family switch must
   honor.
 - **Refused at creation, by name, at three NEW sites.** BCF and multinomial
@@ -590,10 +590,10 @@ follow.
   stan4bart edits. OPTIONAL one-liner: `mvbart.R` sets `node.prior` itself and
   can opt in.
 - treatSens `dbarts-1.0`: 0 required edits from this arc. It builds its model
-  in R (`[[R/cibart.R:83-87@4c018187]]`, `node.scale = if (binary) 3.0 else 0.5`) and
+  in R (treatSens's `R/cibart.R` lines 83-87, `node.scale = if (binary) 3.0 else 0.5`) and
   passes the model SEXP through to `dbarts_sampler_create`, so the engine-side
   conversion serves it; it already owes an independent 3rd-argument edit at
-  its four flat `setResponse` sites. OPTIONAL one-liner at `[[cibart.R:83-87@4c018187]]`
+  its four flat `setResponse` sites. OPTIONAL one-liner at treatSens's `R/cibart.R` lines 83-87
   closes its own calibration hazard.
 - bartCause `dbarts-1.0`: 0 edits, and it forwards the new `bart2` formal for
   free (its whitelist is dynamic).
@@ -799,7 +799,7 @@ S3 - LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13 (implemented as
 exactly to this section's spec: the `dbarts_forest_calibration` POD, the
 `dbarts_leaf_model` enum, the two X-list entries and the per-leaf-model
 Doxygen (dbarts.h); the `C_interface.cpp` bodies
-(`dbarts_sampler_forestCalibration` [[test-calibration-creation.R:856-887@4c018187]], `dbarts_sampler_setForestPriorScale`
+(`dbarts_sampler_forestCalibration` [[src/C_interface.cpp:856-887@c85d6db6]], `dbarts_sampler_setForestPriorScale`
 :889-899) plus the exact-`offsetof`/exact-`sizeof` asserts; the `consumer.c`
 + `test-capi.R` coverage, including the omitting-caller `structSize` canary
 (`[[test-capi.R:955-961@4c018187]]`: a caller whose `structSize` stops below `leafModel`

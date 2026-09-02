@@ -33,7 +33,7 @@ Matched by setting both sides explicitly (identical constructors on both trees):
   where 0.9-34 writes `1/num.vars`), resolving identically; an explicit non-uniform split.probs
   vector in the two splitprobs arms. k = 2.0 fixed for every gaussian arm and for b_probit_k2.
 - BINARY k HYPERPRIOR, the one non-obvious mapping: classic draws k^2 with shape 0.5*(M + 2*nu - 1)
-  (main:[[src/dbarts/parameterPrior.cpp:166@b102e17c]]) where bartcore uses 0.5*(M + nu)
+  (main:[[src/dbarts/parameterPrior.cpp:166@edcdf735]]) where bartcore uses 0.5*(M + nu)
   ([[src/bartcore/model.hpp:2521@b102e17c]], the dropped-Jacobian fix bcdcc07/14bd6b52), and the rate term
   including the finite-scale 0.5/s^2 is identical. So classic chi(nu,s) IS bartcore chi(2*nu - 1,
   s): b_probit_chi2 runs chi(1.25, 2) against chi(1.5, 2), b_probit_chiinf chi(1.25, Inf) against
@@ -93,7 +93,7 @@ E1. CHANGE-MOVE DETAILED BALANCE. 0.9-34's changeRule.cpp accepts on the pure pi
 proposal-density term, inherited from the CGM-lineage original; 1.0-0 adds the hybrid
 correction ([[docs/design/change-move-balance.md:18-77@658869ac]], [[NEWS.Rd:1154-1163@658869ac]]; exact gate
 benchmarks/R/change-balance.R, defect z +255 -> repair z -1.2,
-[[docs/plans/archive/change-move-fix.md:200-207@658869ac]]). The doc's bias factor, [p_var(v')/p_var(v)] *
+[[docs/plans/change-move-fix.md:200-207@658869ac]]). The doc's bias factor, [p_var(v')/p_var(v)] *
 [|Valid(v)|/|Valid(v')|], is invisible at equal cut counts AND equal split probabilities; both
 halves reproduce, each in its own scenario.
 - g_quants (coarse columns get 2-4 quantile cuts, the rest ~100): 0.9-34 OVER-uses the
@@ -109,7 +109,7 @@ halves reproduce, each in its own scenario.
   at p = 1.000.
 
 E2. ZERO-WEIGHT SIGMA DF. 0.9-34 counts all n rows in the sigma posterior df
-(main:[[src/dbarts/parameterPrior.cpp:109@658869ac]]) though zero-weight rows contribute nothing to the sum of
+(main:[[src/dbarts/parameterPrior.cpp:109@edcdf735]]) though zero-weight rows contribute nothing to the sum of
 squares; 1.0-0 counts positive-weight rows only (cf99a00, [[NEWS.Rd:1164-1172@658869ac]]). With 80 of 400 weights
 exactly 0 and true sigma 1: 1.0-0 gives 1.072 (sd 0.078) on every seed, 0.9-34 gives 0.43-0.54 on 12
 of 20 seeds and NON-FINITE yhat/sigma on the other 8, leaving 1002 of its 1012 summary columns

@@ -19,7 +19,7 @@ Ordered most valuable first. Line counts approximate.
 `src/misc/hierarchicalThreadManager.c` (828), `src/misc/blockingThreadManager.c`
 (395), their declarations in `src/include/misc/thread.h` (10 `misc_btm_*` +
 ~28 `misc_htm_*`), and ~1200 lines of `misc_mt_*` / `misc_htm_*` moment wrappers
-and task bodies in `src/misc/moments.c` (74 functions spanning [[src/misc/moments.c:96-2770@23b9cde7]] of 2775).
+and task bodies in `src/misc/moments.c` (74 functions spanning [[src/misc/moments.c:96-2770@74e2e050]] of 2775).
 
 Generalizes over: a two-level (chains x rows) work-stealing thread hierarchy, a
 blocking pool, and a threaded variant of every moment function.
@@ -261,7 +261,7 @@ Blast radius: `test-slice-sample.R` only (internal, not exported).
 
 ## 11. `unpack` / `[<-.named_lval` - a destructuring facility with zero users - CUT
 
-`[[R/multipleAssignment.R:118-139@23b9cde7]]` (`unpack` and its method) has **zero** uses
+`[[R/multipleAssignment.R:118-139@74e2e050]]` (`unpack` and its method) has **zero** uses
 outside `inst/tinytest/test-multipleAssignment.R`. Its sibling `massign` has
 exactly four uses, all `[[R/partialDependence.R:44@23b9cde7]], 75, 215, 329`, all of the form
 `massign[sampler, fit] <- ...` - two-element positional destructuring. The
@@ -283,7 +283,7 @@ CUT `unpack` outright (~25 lines); MAINTAINER-CALL on the named branch of
 
 ## 12. Formals that exist in order to be ignored - CUT (~30 lines)
 
-- `[[R/bart.R:2972-2975@23b9cde7]]` **`makeind(x, all = TRUE)`**: the body is
+- `[[R/bart.R:2937-2940@23b9cde7]]` **`makeind(x, all = TRUE)`**: the body is
   `ignored <- all ## for R check` and then `makeModelMatrixFromDataFrame(x,
   TRUE)`. `[[man/makeind.Rd:25@23b9cde7]]` documents `all` as "not currently implemented;
   retained for signature compatibility with `BayesTree::makeind`", and
@@ -321,8 +321,8 @@ it.
 ## 14. `setCallback` + `getDispersion` - KEEP the hook; MAINTAINER-CALL on the reader
 
 `[[inst/include/dbarts/dbarts.h:506@23b9cde7]]` and `[[inst/include/dbarts/dbarts.h:600@23b9cde7]]`.
-`[[docs/plans/capi-callbacks.md:9-13@23b9cde7]]` names the outer-Gibbs host (stan4bart), then
-`[[docs/plans/capi-callbacks.md:84-85@23b9cde7]]` puts migrating stan4bart out of scope; `[[docs/plans/capi-callbacks.md:23-24@23b9cde7]]` records that callbacks
+`[[docs/plans/archive/capi-callbacks.md:9-13@23b9cde7]]` names the outer-Gibbs host (stan4bart), then
+`[[docs/plans/archive/capi-callbacks.md:84-85@23b9cde7]]` puts migrating stan4bart out of scope; `[[docs/plans/archive/capi-callbacks.md:23-24@23b9cde7]]` records that callbacks
 had previously been deferred until a consumer existed.
 
 `setCallback`'s claim holds: a per-sweep hook is strictly cheaper than
@@ -365,7 +365,7 @@ is how a general mechanism quietly becomes a broken one.
 - `[[R/dbarts.R:1986@23b9cde7]]` **`printTrees(chainNums)`** has no default and is never
   supplied; resolved through `match.call()` at [[R/dbarts.R:1988@23b9cde7]].
 - `[[R/bartcore.R:740@23b9cde7]]` **`mu.blocks`**: reached only from
-  `[[bartCause/tests/testthat/test-14-bcf.R:353@23b9cde7]]`; absent from `inst/tinytest`
+  bartCause's `tests/testthat/test-14-bcf.R` line 353; absent from `inst/tinytest`
   entirely.
 
 ## 17. The per-generic "foreign argument" reason tables - KEEP (value named)
@@ -517,7 +517,7 @@ pre-release is when alias policy is cheapest to revisit.
   deliberate: adding a family fails the build rather than silently acquiring the
   gaussian law. Correct as written.
 - **`dbartsSpec(parentEnv = )`** looks unused in-repo but **is** supplied by
-  stan4bart (`~/[[Repositories/stan4bart/R/stan4bart_fit.R:556@23b9cde7]]`). Keep.
+  stan4bart (`R/stan4bart_fit.R` line 556). Keep.
 - `misc/partition.h`, `misc/simd.h`, `misc/io.h`, and `misc/linearAlgebra.h` (bar
   `misc_vectorIsConstant`) are fully used.
 

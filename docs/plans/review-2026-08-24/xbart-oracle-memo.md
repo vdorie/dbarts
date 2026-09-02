@@ -3,7 +3,7 @@
 Read-only, tip b102e17c. Every claim is tool-verified; probe numbers come from a staged
 `git archive HEAD` + `R CMD INSTALL --preclean` build (dbarts 1.0.0).
 
-FIRST CORRECTION. [[review-lenses-memo.md:142@b102e17c]] says "xbart still has zero equivalence
+FIRST CORRECTION. unresolved: [[review-lenses-memo.md:142@b102e17c]] says "xbart still has zero equivalence
 scenarios, no exact gate, no SBC arm". The first clause is FALSE at the tip: the
 canonical baseline equivalence-5a3bc276.rds carries 43 scenarios and `xbart` is one of
 them (verified by reading the .rds). The phrase "no oracle at any date" appears nowhere
