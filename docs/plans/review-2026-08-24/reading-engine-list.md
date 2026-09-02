@@ -55,7 +55,7 @@ DIVERGE first - a divergence outranks a large exact clone.
 
 - D1. `alpha == 0.0` short-circuit exists only in the scalar kernels: [[linearAlgebra.c:67@b102e17c]] and [[linearAlgebra.c:85@b102e17c]]
   guard `if (length == 0 || alpha == 0.0) return;`; the same two functions guard on length alone
-  at [[linearAlgebra_sse2.c:42@b102e17c]], [[linearAlgebra_sse2.c:60@b102e17c]], [[_avx.c:53@b102e17c]], [[_avx.c:75@b102e17c]], [[_neon.c:150@b102e17c]], [[_neon.c:220@b102e17c]]. The C fallback writes
+  at [[linearAlgebra_sse2.c:42@b102e17c]], [[linearAlgebra_sse2.c:60@b102e17c]], [[src/misc/linearAlgebra_avx.c:53@b102e17c]], [[src/misc/linearAlgebra_avx.c:75@b102e17c]], [[src/misc/linearAlgebra_neon.c:150@b102e17c]], [[src/misc/linearAlgebra_neon.c:220@b102e17c]]. The C fallback writes
   nothing where SIMD dispatch writes, in a library whose stated invariant is within-host bitwise
   identity across dispatch. Live callers ([[model.hpp:2833@b102e17c]], [[model.hpp:2912@b102e17c]], [[model.hpp:2968@b102e17c]], [[model.hpp:3033@b102e17c]]) pass `-min_`, i.e.
   `-0.0` when min_ is 0; `x += -0.0` is a round-to-nearest no-op for every finite x, so observable
@@ -92,7 +92,7 @@ AGREE-but-restated (reading cost and drift risk, no defect today):
 
 - D6. Six augmentation laws restated in the bridge: [[R_interface_bartcore.cpp:6145-6270@b102e17c]] (126 lines)
   re-implements Probit/Ordinal/AFT/Logistic/NB/T response draws ([[model.hpp:3085@b102e17c]], [[model.hpp:3220@b102e17c]], [[model.hpp:3548@b102e17c]] and
-  the NB/T drawers). [[model.hpp:6146-6149@b102e17c]] declares it deliberate (a different generator, citing
+  the NB/T drawers). [[R_interface_bartcore.cpp:6146-6149@b102e17c]] declares it deliberate (a different generator, citing
   r-c-division.md); nothing enforces lockstep - no shared kernel, no cross-check test named at the
   site. High.
 - D7. `linearAlgebra_sse2.c` and `_avx.c` contain ZERO intrinsics (`grep -c '_mm'` = 0 for both;
@@ -124,8 +124,8 @@ methods) but the premise does not carry: [[model.hpp:322-324@b102e17c]] static_a
 ([[chain.hpp:532@b102e17c]]) are both constrained on IntegrableLeafModel. What CAN be shared is -
 MoveScorableLeafModel admits it, `logLikelihoodForBranch` scores it unchanged. The blocker is the
 combination law (Forest's treeFits/totalFits/treeY are additive; the variance forest is
-multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest-combiner.md:207-211@b102e17c]], [[forest-combiner.md:252@b102e17c]] and
-[[heteroscedastic.md:59-62@b102e17c]], [[heteroscedastic.md:586-590@b102e17c]]. `extension-point`, high.
+multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/design/forest-combiner.md:207-211@b102e17c]], [[docs/design/forest-combiner.md:252@b102e17c]] and
+[[docs/design/heteroscedastic.md:59-62@b102e17c]], [[docs/design/heteroscedastic.md:586-590@b102e17c]]. `extension-point`, high.
 
 ## 3. DEAD OR UNREACHABLE
 - U1. `Tree::rightChildOf` ([[tree.hpp:366@b102e17c]]) and `Sampler::setCurrentSampleNum` ([[sampler.hpp:485@b102e17c]]):
@@ -152,7 +152,7 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest
   triple wrapping two abandoned NEON load strategies ([[src/misc/partition_body.c:107-123@9b0ae65b]], inside a block comment): ~18 dead
   lines, the same shape as `#if 0`, which the memo's sec 1.0 reported as zero occurrences.
 - U7. `XINT_TYPE` width generality has no user and a wrong-answer failure mode.
-  [[kernel-vocabulary.md:24-27@9b0ae65b]] says the code type is "configure-selected via `--with-xint-size`";
+  [[kernel-vocabulary.md:24-27@b102e17c]] says the code type is "configure-selected via `--with-xint-size`";
   [[configure.ac:21@9b0ae65b]] hard-wires `uint16_t` with no such option and no width-suffixed kernel exists.
   The `#ifndef XINT_TYPE` guard (src/include/misc/types.h.in:6) still lets a CPPFLAGS define
   override it, and every SIMD partition kernel hard-codes `epi16`/`u16` ([[partition_body.c:11@9b0ae65b]], [[partition_body.c:73@9b0ae65b]],
@@ -160,41 +160,41 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest
 
 ## 4. DEFENSIVE CODE WITH NO REACHABLE TRIGGER (bridge)
 - V1. The state-format compatibility window is empty by construction: `stateFormatVersion` and
-  `minReadableStateFormatVersion` are both 3 ([[R_interface_bartcore.cpp:6312@9b0ae65b]], [[R_interface_bartcore.cpp:6321@9b0ae65b]]), and the
-  comment at [[R_interface_bartcore.cpp:6310-6311@9b0ae65b]] concedes "no release ever shipped format 3". The two floor checks ([[R_interface_bartcore.cpp:6658@9b0ae65b]],
-  [[R_interface_bartcore.cpp:7282@9b0ae65b]]) can only fire on a state with no version attribute (reads 0). Forward-looking; the
-  registry rule at [[R_interface_bartcore.cpp:6285-6298@9b0ae65b]] is the durable part. `extension-point`, high.
+  `minReadableStateFormatVersion` are both 3 ([[R_interface_bartcore.cpp:6312@b102e17c]], [[R_interface_bartcore.cpp:6321@b102e17c]]), and the
+  comment at [[R_interface_bartcore.cpp:6310-6311@b102e17c]] concedes "no release ever shipped format 3". The two floor checks ([[R_interface_bartcore.cpp:6658@b102e17c]],
+  [[R_interface_bartcore.cpp:7282@b102e17c]]) can only fire on a state with no version attribute (reads 0). Forward-looking; the
+  registry rule at [[R_interface_bartcore.cpp:6285-6298@b102e17c]] is the durable part. `extension-point`, high.
 - V2. A check byte-identical to its sole caller's: `createMultinomialCountsHolder` re-runs `if
-  (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2)` ([[R_interface_bartcore.cpp:3379-3380@9b0ae65b]]) which
-  `createMultinomialDataHolder` already ran at [[R_interface_bartcore.cpp:3457-3458@9b0ae65b]], with only `parseMultinomialData` (which
+  (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2)` ([[R_interface_bartcore.cpp:3379-3380@b102e17c]]) which
+  `createMultinomialDataHolder` already ran at [[R_interface_bartcore.cpp:3457-3458@b102e17c]], with only `parseMultinomialData` (which
   never touches countsExpr) between. The helper has C++ linkage only, so it is not a flat-C
-  backstop. `dead-defense`, high. Its surrounding PROTECT is separately annotated ([[R_interface_bartcore.cpp:3374-3377@9b0ae65b]]) as
+  backstop. `dead-defense`, high. Its surrounding PROTECT is separately annotated ([[R_interface_bartcore.cpp:3374-3377@b102e17c]]) as
   deliberate analyzer bait - decide the two separately.
 - V3. Author-acknowledged unreachable: `resolveCscCategoricalReferences`'s `if (source >=
-  numSparseColumns) Rf_error("%s", boundMessage)` ([[R_interface_bartcore.cpp:628-629@9b0ae65b]]). Its own doc comment at [[R_interface_bartcore.cpp:609-610@9b0ae65b]] says
-  so, and `mapColumnSources` ([[R_interface_bartcore.cpp:570@9b0ae65b]]) bounds every CSC entry at all three call sites.
+  numSparseColumns) Rf_error("%s", boundMessage)` ([[R_interface_bartcore.cpp:628-629@b102e17c]]). Its own doc comment at [[R_interface_bartcore.cpp:609-610@b102e17c]] says
+  so, and `mapColumnSources` ([[R_interface_bartcore.cpp:570@b102e17c]]) bounds every CSC entry at all three call sites.
   `dead-defense`, high; the odd part is that the comment names the redundancy and the check stays.
 - V4. PROTECT convention applied inconsistently inside one function. Four pairs guard an attribute
   of the already-rooted `stateExpr`/`donorStateExpr` argument with nothing allocating in the
-  window: [[R_interface_bartcore.cpp:6649-6653@9b0ae65b]] (formatVersion in setState), [[R_interface_bartcore.cpp:7277-7281@9b0ae65b]] (its copy in installForests),
-  [[R_interface_bartcore.cpp:6731-6740@9b0ae65b]] (sampleNum), [[R_interface_bartcore.cpp:6742-6753@9b0ae65b]] (recordedDraws). In the SAME functions, sibling reads of the
-  identical pattern skip PROTECT ([[R_interface_bartcore.cpp:6699-6700@9b0ae65b]], [[R_interface_bartcore.cpp:6711@9b0ae65b]], [[R_interface_bartcore.cpp:7079@9b0ae65b]], [[R_interface_bartcore.cpp:7094-7095@9b0ae65b]]). None is among the four
-  sites docs/plans/release-candidate-review.md's rchk note ([[R_interface_bartcore.cpp:1138-1173@9b0ae65b]], [[R_interface_bartcore.cpp:1300-1330@9b0ae65b]]) records, and
+  window: [[R_interface_bartcore.cpp:6649-6653@b102e17c]] (formatVersion in setState), [[R_interface_bartcore.cpp:7277-7281@b102e17c]] (its copy in installForests),
+  [[R_interface_bartcore.cpp:6731-6740@b102e17c]] (sampleNum), [[R_interface_bartcore.cpp:6742-6753@b102e17c]] (recordedDraws). In the SAME functions, sibling reads of the
+  identical pattern skip PROTECT ([[R_interface_bartcore.cpp:6699-6700@b102e17c]], [[R_interface_bartcore.cpp:6711@b102e17c]], [[R_interface_bartcore.cpp:7079@b102e17c]], [[R_interface_bartcore.cpp:7094-7095@b102e17c]]). None is among the four
+  sites docs/plans/release-candidate-review.md's rchk note ([[R_interface_bartcore.cpp:1138-1173@b102e17c]], [[R_interface_bartcore.cpp:1300-1330@b102e17c]]) records, and
   all are distinct from the two `setState` rchk BAILOUTS the note calls already-balanced. The
   finding is the inconsistency, not the PROTECTs. Medium.
 - V5. `rbart_getFitted`'s two PROTECTs ([[R_interface_rbart.cpp:16-17@9b0ae65b]]): both dims are reduced to raw
   `int*` at [[R_interface_rbart.cpp:19-20@9b0ae65b]] and last read at [[R_interface_rbart.cpp:40-42@9b0ae65b]], and the only allocation is `rc_newReal(n)` at [[R_interface_rbart.cpp:44@9b0ae65b]].
   Untouched by the rchk commit. Medium - defensible only if `rc_getDims` can itself allocate.
-- V6. NOT dead, keep. `setState`'s three "already-non-null" guards ([[R_interface_rbart.cpp:6799@9b0ae65b]], [[R_interface_rbart.cpp:6813@9b0ae65b]], [[R_interface_rbart.cpp:6830@9b0ae65b]]) make the
-  null branch in `readFunctionTreeParams` ([[R_interface_rbart.cpp:5490@9b0ae65b]]), `readTreeParams` ([[R_interface_rbart.cpp:5469@9b0ae65b]]) and `readTreeMasks`
-  ([[R_interface_rbart.cpp:5438@9b0ae65b]]) unreachable on setState's path, but the same helpers are called unguarded from
-  `readWarmStartState` ([[R_interface_rbart.cpp:7144-7164@9b0ae65b]]).
+- V6. NOT dead, keep. `setState`'s three "already-non-null" guards ([[R_interface_bartcore.cpp:6799@b102e17c]], [[R_interface_bartcore.cpp:6813@b102e17c]], [[R_interface_bartcore.cpp:6830@b102e17c]]) make the
+  null branch in `readFunctionTreeParams` ([[R_interface_bartcore.cpp:5490@b102e17c]]), `readTreeParams` ([[R_interface_bartcore.cpp:5469@b102e17c]]) and `readTreeMasks`
+  ([[R_interface_bartcore.cpp:5438@b102e17c]]) unreachable on setState's path, but the same helpers are called unguarded from
+  `readWarmStartState` ([[R_interface_bartcore.cpp:7144-7164@b102e17c]]).
 - V7. NOT dead, keep - this closes the "R already refused it" class. No C-side check on the .Call
   path is provably unreachable: every `dbarts_bartcore_*` symbol is an ordinary DL_FUNC in
   `R_callMethods[]` ([[R_interface.cpp:180-259@9b0ae65b]]), reachable by any R code holding the internal `C_`
-  name; two sites say so themselves ([[R_interface.cpp:3987-3993@9b0ae65b]], [[R_interface.cpp:4878-4882@9b0ae65b]]). The S4 route confirms it:
-  `dbartsControl`'s `setValidity` ([[R/A_class.R:272-383@9b0ae65b]]) is not re-run on plain `@<-` mutation and
-  `setControl` ([[R/dbarts.R:1155-1206@9b0ae65b]]) never calls `validObject()`. ~13 more sites carry the same
+  name; two sites say so themselves ([[R_interface_bartcore.cpp:3987-3993@b102e17c]], [[R_interface_bartcore.cpp:4878-4882@b102e17c]]). The S4 route confirms it:
+  `dbartsControl`'s `setValidity` ([[R/A_class.R:272-383@b102e17c]]) is not re-run on plain `@<-` mutation and
+  `setControl` ([[R/dbarts.R:1155-1206@b102e17c]]) never calls `validObject()`. ~13 more sites carry the same
   explicit "backstop" annotation.
 - V8. rc constraint API re-derived: 42 constrained calls (35 `rc_getInt`/`rc_getDouble`/
   `rc_getBool` carrying RC_LENGTH or RC_VALUE, 7 `rc_assert*Constraints`, 0 bare `rc_get*0`)
@@ -207,31 +207,31 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest
 
 ## 5. COMMENTS
 - C1. THREE `stale` "Not yet exposed through the R surface" claims - all three features ARE
-  reachable from R today: [[chain.hpp:88@9b0ae65b]] (monotone) vs [[R/model.R:99@9b0ae65b]], [[R/model.R:526-531@9b0ae65b]]; [[chain.hpp:141@9b0ae65b]]
-  (interaction constraints) vs [[R/spec.R:415-416@9b0ae65b]] and [[R_interface_bartcore.cpp:1254@9b0ae65b]]; [[chain.hpp:166@9b0ae65b]]
-  (variance forest) vs [[R/spec.R:532@9b0ae65b]], [[R/dbarts.R:816@9b0ae65b]], [[R_interface_bartcore.cpp:2017@9b0ae65b]]. A reader who
+  reachable from R today: [[chain.hpp:88@b102e17c]] (monotone) vs [[R/model.R:99@9b0ae65b]], [[R/model.R:526-531@b102e17c]]; [[chain.hpp:141@b102e17c]]
+  (interaction constraints) vs [[R/spec.R:415-416@b102e17c]] and [[R_interface_bartcore.cpp:1254@b102e17c]]; [[chain.hpp:166@b102e17c]]
+  (variance forest) vs [[R/spec.R:532@b102e17c]], [[R/dbarts.R:816@b102e17c]], [[R_interface_bartcore.cpp:2017@b102e17c]]. A reader who
   trusts these will not look for the R-side refusals that guard them. High. Best comment finding
   here.
-- C2. [[R_interface_bartcore.cpp:6272-6311@9b0ae65b]], a 40-line block comment of which ~28 lines narrate three
+- C2. [[R_interface_bartcore.cpp:6272-6311@b102e17c]], a 40-line block comment of which ~28 lines narrate three
   pre-release format iterations that never shipped. It opens "The shipped format (version 2)"
   while `stateFormatVersion = 3` sits 40 lines below - a contradiction inside one comment. The
-  load-bearing part is the registry rule ([[R_interface_bartcore.cpp:6285-6298@9b0ae65b]], ~13 lines). `stale` + narration, high. Worst
+  load-bearing part is the registry rule ([[R_interface_bartcore.cpp:6285-6298@b102e17c]], ~13 lines). `stale` + narration, high. Worst
   site by volume.
 - C3. The other worst narration sites (criterion: the payload is a comparison to code that no
-  longer exists and cannot be seen), most-useless first - [[chain.hpp:1041@9b0ae65b]] ("the family conjunct
+  longer exists and cannot be seen), most-useless first - [[chain.hpp:1041@b102e17c]] ("the family conjunct
   that used to stand beside it was there because setResponse handed forest 0's bare totals as
-  though combined"); [[R/generics.R:1154@9b0ae65b]] and [[R/generics.R:1287@9b0ae65b]] ("the same keepTrees gate a deleted `$bc` field
+  though combined"); [[R/generics.R:1154@b102e17c]] and [[R/generics.R:1287@b102e17c]] ("the same keepTrees gate a deleted `$bc` field
   used to"); [[R/utility.R:119@9b0ae65b]] ("gone now that the rename has landed"); [[R/utility.R:49@9b0ae65b]] ("silent
-  before bart2 could forward a resid.prior object at all"); [[R_interface_bartcore.cpp:2766@9b0ae65b]] (quotes
-  an old, replaced error message); [[C_interface.cpp:624@9b0ae65b]] ("which this entry used to drop on the
-  floor"); [[R/data.R:453@9b0ae65b]] (three appeals to an invisible prior implementation in one comment);
-  [[R/data.R:342@9b0ae65b]] ("this used to be a function evaluated in the caller's frame"); [[R/spec.R:490@9b0ae65b]],
-  [[R/model.R:1759@9b0ae65b]] and [[R/spec.R:652@9b0ae65b]] (removed flat formals and a vanished literal); [[R/bart.R:769@9b0ae65b]] and
+  before bart2 could forward a resid.prior object at all"); [[R_interface_bartcore.cpp:2766@b102e17c]] (quotes
+  an old, replaced error message); [[C_interface.cpp:624@b102e17c]] ("which this entry used to drop on the
+  floor"); [[R/data.R:453@b102e17c]] (three appeals to an invisible prior implementation in one comment);
+  [[R/data.R:342@9b0ae65b]] ("this used to be a function evaluated in the caller's frame"); [[R/spec.R:490@b102e17c]],
+  [[R/model.R:1759@b102e17c]] and [[R/spec.R:652@b102e17c]] (removed flat formals and a vanished literal); [[R/bart.R:769@b102e17c]] and
   [[R/dbarts.R:627@9b0ae65b]] (fixed-bug narration). 20 sites total, 14 in R/ and 6 in C++; src/misc,
   src/external, src/rc and src/include are narration-free.
-- C4. Forward-looking PLAN narration (a plan is not a constraint): [[model.hpp:2589-2594@9b0ae65b]] ("v1 ships
-  the exact integer envelope... A later real-shape mode routes a fractional b"), [[model.hpp:2774@9b0ae65b]],
-  [[facade.hpp:784@9b0ae65b]] ("v1 keeps the mean leaf constant"), [[R_interface_bartcore.cpp:3008@9b0ae65b]], [[R_interface_bartcore.cpp:3014@9b0ae65b]], [[R_interface_bartcore.cpp:3030@9b0ae65b]].
+- C4. Forward-looking PLAN narration (a plan is not a constraint): [[model.hpp:2589-2594@b102e17c]] ("v1 ships
+  the exact integer envelope... A later real-shape mode routes a fractional b"), [[model.hpp:2774@b102e17c]],
+  [[facade.hpp:784@b102e17c]] ("v1 keeps the mean leaf constant"), [[R_interface_bartcore.cpp:3008@b102e17c]], [[R_interface_bartcore.cpp:3014@b102e17c]], [[R_interface_bartcore.cpp:3030@b102e17c]].
   Six sites; each also states a live refusal, so only the forward half is narration. Medium.
 - C5. 262 docs/ citations no installed user can follow (`.Rbuildignore` has `^docs$`). The
   decision is not "are they rotten" - they are not - but whether a shipped comment should cite a
@@ -239,23 +239,23 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest
 
 ## 6. SEAMS THAT COST AT RUNTIME
 - S1. PER-OBSERVATION VIRTUAL DISPATCH, contradicting the architecture's own rule.
-  `PredictorUpdateSession` ([[sampler.hpp:89-100@9b0ae65b]]) declares `observationWouldRemainValid(i)` and
-  `commitObservation(i)`; `updatePredictorPerObservationJointly` ([[facade.hpp:694-703@9b0ae65b]]) calls both
+  `PredictorUpdateSession` ([[sampler.hpp:89-100@b102e17c]]) declares `observationWouldRemainValid(i)` and
+  `commitObservation(i)`; `updatePredictorPerObservationJointly` ([[facade.hpp:694-703@b102e17c]]) calls both
   inside `for (i = 0; i < numObservations; ++i)`, once per sampler per observation.
-  [[core-generalization.md:69-76@9b0ae65b]] states "nothing dispatches per observation" and "Per obs | none:
+  [[core-generalization.md:69-76@b102e17c]] states "nothing dispatches per observation" and "Per obs | none:
   monomorphic loops/kernels". The erasure is NOT removable by templating - the joint sweep takes
   `SamplerBase* const*` over samplers of possibly different L, its whole purpose
   (R/updatePredictorPerObservationJointly.R; the bairrtt consumer) - though the single-sampler
-  path ([[facade.hpp:217@9b0ae65b]]) pays it without needing it. Frequency PER-OBSERVATION, 2 virtual calls x
+  path ([[facade.hpp:217@b102e17c]]) pays it without needing it. Frequency PER-OBSERVATION, 2 virtual calls x
   numSamplers x n; the work inside is a per-tree descent so the ratio is likely fine, but either
   the code or the doc's absolute rule should move. `extension-point`, high; not benchmarked.
-- S2. `std::function` on the run path: pollInterrupt/shouldCancel ([[facade.hpp:147@9b0ae65b]], [[sampler.hpp:274@9b0ae65b]],
-  [[sampler.hpp:362-370@9b0ae65b]], [[chain.hpp:1345@9b0ae65b]]) and SweepCallback ([[chain.hpp:396@9b0ae65b]]), both called once per sweep
-  ([[chain.hpp:1358@9b0ae65b]], [[chain.hpp:1362@9b0ae65b]]). PER-SWEEP, negligible; listed to close the class.
+- S2. `std::function` on the run path: pollInterrupt/shouldCancel ([[facade.hpp:147@b102e17c]], [[sampler.hpp:274@b102e17c]],
+  [[sampler.hpp:362-370@b102e17c]], [[chain.hpp:1345@b102e17c]]) and SweepCallback ([[chain.hpp:396@b102e17c]]), both called once per sweep
+  ([[chain.hpp:1358@b102e17c]], [[chain.hpp:1362@b102e17c]]). PER-SWEEP, negligible; listed to close the class.
 - S3/S4. `combiner_->` virtuals: 44 sites in chain.hpp, the two inside the sweep's forest loop
-  being drawForestGlue/formForestResponse ([[chain.hpp:1407-1408@9b0ae65b]], prior-sampling copy at [[chain.hpp:1973-1974@9b0ae65b]]) -
+  being drawForestGlue/formForestResponse ([[chain.hpp:1407-1408@b102e17c]], prior-sampling copy at [[chain.hpp:1973-1974@b102e17c]]) -
   PER-SWEEP-PER-FOREST, two impls plus a null default. `response_->` virtuals in `run`
-  ([[chain.hpp:1511-1521@9b0ae65b]]) - PER-SWEEP, nine impls.
+  ([[chain.hpp:1511-1521@b102e17c]]) - PER-SWEEP, nine impls.
 
 ## 7. LOWER-VALUE, FOR COMPLETENESS
 - L1. Fourteen `*ForTesting` accessors on the shipped engine that no production code calls (all
@@ -265,33 +265,33 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[forest
   one call site); 84 are never referenced from tests/cpp. Re-derived; the memo says 144/103 over
   the engine alone. Decomposition, not sediment - the 84 with no test reach belongs to lens F2.
 - L3. core-generalization.md, the arbiter document, names two extension points no shipped code
-  carries: `SplitSelector` ([[chain.hpp:129-133@9b0ae65b]]) and `MoveStrategy` ([[chain.hpp:118-126@9b0ae65b]], template rule at [[chain.hpp:86@9b0ae65b]]), zero
+  carries: `SplitSelector` ([[chain.hpp:129-133@b102e17c]]) and `MoveStrategy` ([[chain.hpp:118-126@b102e17c]], template rule at [[chain.hpp:86@b102e17c]]), zero
   occurrences of either in src/. It cannot justify a seam by naming it alone; check the code.
 
 ## 8. THE TEN TO DECIDE FIRST
 Ranked by maintainer time saved per decision, not by size.
 
-1. C1 `stale` - three "Not yet exposed through the R surface" comments ([[chain.hpp:88@9b0ae65b]], [[chain.hpp:141@9b0ae65b]], [[chain.hpp:166@9b0ae65b]])
+1. C1 `stale` - three "Not yet exposed through the R surface" comments ([[chain.hpp:88@b102e17c]], [[chain.hpp:141@b102e17c]], [[chain.hpp:166@b102e17c]])
    on features R reaches today. One-line fix, misleading now.
-2. D2 `diverge` - variance-leaf positivity checked on 3 of 4 state paths ([[sampler.hpp:891@9b0ae65b]] vs
-   [[sampler.hpp:919-923@9b0ae65b]]). Correctness candidate.
-3. D3 `diverge` - `forests_[0]` hardcoded in applyNewData ([[chain.hpp:2453@9b0ae65b]]) and
-   recoverTreeParameters ([[chain.hpp:2421@9b0ae65b]]) where siblings loop. Correctness candidate.
-4. D5 `diverge` - `shippedShape()` ([[combiner.hpp:1474@9b0ae65b]]) routes on basis shape but not the
+2. D2 `diverge` - variance-leaf positivity checked on 3 of 4 state paths ([[sampler.hpp:891@b102e17c]] vs
+   [[sampler.hpp:919-923@b102e17c]]). Correctness candidate.
+3. D3 `diverge` - `forests_[0]` hardcoded in applyNewData ([[chain.hpp:2453@b102e17c]]) and
+   recoverTreeParameters ([[chain.hpp:2421@b102e17c]]) where siblings loop. Correctness candidate.
+4. D5 `diverge` - `shippedShape()` ([[combiner.hpp:1474@b102e17c]]) routes on basis shape but not the
    half-Cauchy flag, so two amplitude specs get two different models.
-5. S1 `extension-point` - per-observation virtual dispatch ([[facade.hpp:694-703@9b0ae65b]]) against
-   [[core-generalization.md:69-76@9b0ae65b]]'s "nothing dispatches per observation"; the code or the doc's
+5. S1 `extension-point` - per-observation virtual dispatch ([[facade.hpp:694-703@b102e17c]]) against
+   [[core-generalization.md:69-76@b102e17c]]'s "nothing dispatches per observation"; the code or the doc's
    absolute rule moves.
 6. D4 `diverge` - `ResponseFamily::gaussian` means "Student-t" in the augmentation surface
-   ([[R_interface_bartcore.cpp:6225@9b0ae65b]]), "Gaussian" in resolveFamily ([[R_interface_bartcore.cpp:1582@9b0ae65b]]).
-7. C2 `stale` - the 40-line state-format comment ([[R_interface_bartcore.cpp:6272-6311@9b0ae65b]]), ~28 lines
+   ([[R_interface_bartcore.cpp:6225@b102e17c]]), "Gaussian" in resolveFamily ([[R_interface_bartcore.cpp:1582@b102e17c]]).
+7. C2 `stale` - the 40-line state-format comment ([[R_interface_bartcore.cpp:6272-6311@b102e17c]]), ~28 lines
    of pre-release history opening "the shipped format (version 2)" 40 lines above
    `stateFormatVersion = 3`.
 8. U2/U3 `sediment` - four `default:` arms suppressing -Wswitch on `ResponseFamily`
-   ([[chain.hpp:766@9b0ae65b]], [[chain.hpp:5033@9b0ae65b]], [[R_interface_bartcore.cpp:2298@9b0ae65b]], [[R_interface_bartcore.cpp:2842@9b0ae65b]]). Delete each and read the
+   ([[chain.hpp:766@b102e17c]], [[chain.hpp:5033@b102e17c]], [[R_interface_bartcore.cpp:2298@b102e17c]], [[R_interface_bartcore.cpp:2842@b102e17c]]). Delete each and read the
    compiler; cheapest decision here.
 9. V3 `dead-defense` - a refusal whose own comment says it is unreachable
-   ([[R_interface_bartcore.cpp:628-629@9b0ae65b]], annotated at [[R_interface_bartcore.cpp:609-610@9b0ae65b]]).
+   ([[R_interface_bartcore.cpp:628-629@b102e17c]], annotated at [[R_interface_bartcore.cpp:609-610@b102e17c]]).
 10. D7 - `linearAlgebra_sse2.c` and `_avx.c` carry zero intrinsics: five routines written four
     times while the sibling partition family shares one body; D1's divergence rides on it.
 
