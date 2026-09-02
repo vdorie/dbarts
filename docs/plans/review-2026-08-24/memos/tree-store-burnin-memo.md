@@ -106,7 +106,7 @@ the `capacity` most recent recorded draws. Files: `[[sampler.hpp:548@fab82735]]`
 `currentSampleNum()` at `[[sampler.hpp:476@fab82735]]`), and `[[R_interface_bartcore.cpp:7275-7281@fab82735]]`.
 `SamplerBase::currentSampleNum()` already exists as a virtual (`[[facade.hpp:202@fab82735]]`,
 `[[facade.hpp:480@fab82735]]`): **no new virtual, no facade churn, no dbarts.h signature change**, no
-`stateFormatVersion` bump (stays 2, `[[facade.hpp:6250@fab82735]]`). Preserves the nbinom loop and the
+`stateFormatVersion` bump (stays 2, `[[R_interface_bartcore.cpp:6250@fab82735]]`). Preserves the nbinom loop and the
 Door 3 batching equivalence (both end with cursor 0, so their read order is
 unchanged). Cost: `[[tests/cpp/test_state.cpp:225-240@fab82735]]` asserts a partial run's new
 draws land at output 0..1; under B they land at the tail (~6 lines).
