@@ -76,7 +76,7 @@ Constraining facts, MEASURED or read:
   needed either.
 - The ENGINE already implements ordinal ([[model.hpp:3304@0045507c]], the Phi difference) and nbinom
   ([[model.hpp:4480@0045507c]]) pointwise densities, and deliberately does NOT for multinomial
-  (`logLikelihoodIsDefined()` false - [[model.hpp:3710@0045507c]], [[chain.hpp:5396@0045507c]], [[multinomial.md:304@0045507c]]).
+  (`logLikelihoodIsDefined()` false - [[model.hpp:3710@0045507c]], [[chain.hpp:5396@0045507c]], [[docs/design/multinomial.md:304@0045507c]]).
   [[dbarts.h:174@0045507c]] still says the channel covers "gaussian, binary, and aft", understating it.
 - The three K/count families' `extract` methods have NO `combineChains` formal; they return the
   fit's stored layout.  Only `extract.bartHurdle` has one.
@@ -86,7 +86,7 @@ BART 2.9.10 (installed; sources read).  **Zero plot methods** - `grep("^plot",
 ls("package:BART"))` is empty (MEASURED); NAMESPACE registers 9 `predict` methods and nothing
 else.  **No per-observation log-likelihood anywhere** (grep `loglik|logLik|LOO|waic` over all
 eight fitters' deparsed sources: 0 hits, MEASURED).  The one LOO-ish quantity is `gbart`'s
-undocumented scalar `LPML`: [[gbart.R:206-230@0045507c]] builds exactly the matrix dbarts already returns
+undocumented scalar `LPML`: the BART package's `gbart.R` lines 206-230 build exactly the matrix dbarts already returns
 - `dnorm(Y, res$yhat.train, SD, TRUE)`, or `dbinom(Y, 1, res$prob.train, TRUE)` - collapses
 it to the naive harmonic-mean CPO and returns only `sum(log.CPO)`; the `res$CPO` line is commented
 out.  Draws are bare draws x observations matrices, no dimnames, no chain index, no coda/posterior
@@ -100,36 +100,36 @@ segments, a dashed identity line and empirical coverage in the title.  Posterior
 OBSERVATIONS x DRAWS - transposed relative to every other package.  No loglik, no LOO/WAIC.
 SoftBart 1.0.3 is the only tree package computing the right quantity: legacy `softbart()` returns
 `loglik_train`, draws x observations, `= dnorm(Y, Yhat, sigma/sqrt(w), log = TRUE)`
-([[soft_bart.cpp:1257-1266@0045507c]]) - undocumented, absent from its four modern fitters, on the NORMALISED y
+(SoftBart's `soft_bart.cpp` lines 1257-1266) - undocumented, absent from its four modern fitters, on the NORMALISED y
 scale, never wired to loo.  Net: dbarts's loglik channel is already the best in the tree family;
 extend it rather than adopt anything from these packages.
 
 ## 2. Bayesian regression packages (the formulas worth copying)
 brms (master, R/log_lik.R, R/distributions.R, inst/chunks/*.stan; not installed locally).
-- Hurdle: every hurdle family routes through one helper `.dhurdle` ([[distributions.R:2580@0045507c]]). `y == 0
+- Hurdle: every hurdle family routes through one helper `.dhurdle` (brms's `R/distributions.R` line 2580). `y == 0
   -> log(hu)`; `y > 0 -> log(1 - hu) + log g(y) - lccdf0`, with `lccdf0 = log(1 - g(0))` when
   `type == "int"` and `lccdf0 = 0` when `type == "real"`.  So the COUNT hurdles are zero-truncated
   and the CONTINUOUS ones (gamma, lognormal) are NOT - continuous positive support already puts
   zero mass at 0.  `hu` is P(y = 0), the opposite orientation to dbarts's pi = P(y > 0).
   `hurdle_lognormal` calls `dlnorm(x, meanlog, sdlog)`: the density on the NATURAL y scale,
   Jacobian included.
-- Ordinal `log_lik_cumulative` ([[log_lik.R:880@0045507c]]): `eta <- disc * (thres - mu)`; category 1 is `log
+- Ordinal `log_lik_cumulative` (brms's `R/log_lik.R` line 880): `eta <- disc * (thres - mu)`; category 1 is `log
   F(eta_1)`, category K is `log(1 - F(eta_{K-1}))`, interior is `log_diff_exp(log F(eta_y), log
   F(eta_{y-1}))`.  Cutpoint-minus-linear-predictor is dbarts's own orientation.
 - Categorical: `log softmax(eta)[y]`, reference category spliced in as a zero column. Multinomial
-  `dmultinomial` ([[distributions.R:2836@0045507c]]) is `lgamma(size+1) + rowSums(x*log_prob - lgamma(x+1))` -
+  `dmultinomial` (brms's `R/distributions.R` line 2836) is `lgamma(size+1) + rowSums(x*log_prob - lgamma(x+1))` -
   the multinomial coefficient IS included, `size = sum(x)` from the row.
 - Negbinomial: `dnbinom(y, mu = mu, size = shape)`; brms's `shape` IS R's `size`, and rstanarm's
-  `reciprocal_dispersion` is the same thing ([[log_lik.R:446@0045507c]]).
-- Weights: `log_lik_weight` is `x * weight`, applied at the end of every family ([[log_lik.R:1104@0045507c]]);
+  `reciprocal_dispersion` is the same thing (rstanarm's `R/log_lik.R` line 446).
+- Weights: `log_lik_weight` is `x * weight`, applied at the end of every family (brms's `R/log_lik.R` line 1104);
   rstanarm's `.weighted` is identical.  Offsets never appear in log_lik - they are a summand of
-  the linear predictor ([[predictor.R:18@0045507c]]).
-- Dimensions: roxygen at [[log_lik.R:22@0045507c]] promises "an S x N matrix"; rstanarm says the same; `?loo`
+  the linear predictor (brms's `R/predictor.R` line 18).
+- Dimensions: roxygen at brms's `R/log_lik.R` line 22 promises "an S x N matrix"; rstanarm says the same; `?loo`
   (rendered from installed loo 2.10.0) says `loo(matrix)`: "An S by N matrix ... with all chains
   merged", `loo(array)`: "An I by C by N array".  dbarts already matches both.
 - `plot.brmsfit` is `bayesplot::mcmc_combo(combo = c("hist","trace"))`, five variables per page;
   `plot.stanreg` defaults to `mcmc_intervals`.  Both parameter-space, both ggplot2.
-rstanarm `.ll_polr_i` ([[log_lik.R:463@0045507c]]) is brms's three-branch ordinal form computed on the
+rstanarm `.ll_polr_i` (rstanarm's `R/log_lik.R` line 463) is brms's three-branch ordinal form computed on the
 probability scale then logged - exactly what dbarts would do from its stored probabilities. No
 hurdle, categorical or multinomial in rstanarm.  posterior 1.7.0 (installed, MEASURED):
 `draws_array` dims are named iteration / chain / variable in that order; `draws_matrix` is draw x
@@ -143,7 +143,7 @@ brackets are safe.
 ## 3. Classical packages - the logLik convention
 `?logLik` documents the return as "a number with at least one attribute df ... [and] nobs"; every
 stats/MASS/nnet/nlme method listed there returns a scalar.
-- pscl::hurdle ([[hurdle.R:9-63@0045507c]], 149): two SUMS added.  The count part IS zero-truncated -
+- pscl::hurdle (pscl's `R/hurdle.R` lines 9-63, 149): two SUMS added.  The count part IS zero-truncated -
   `sum(w*dpois(y,mu,log=TRUE)) - sum(w*log(1 - exp(-mu)))` over positives only; `ppois(0,
   lower.tail = FALSE, log.p = TRUE)` is the same quantity, used in the gradient and fitted-value
   code.  `$loglik` is a SCALAR; no per-observation vector exists.  `zeroinfl` is the mixture form
@@ -243,7 +243,7 @@ shape `type = "ppd"` already returns for this family.
     1) + sum_k y_ik * log p[s,i,k]` `= dmultinom(y[i,], prob = p[s,i,], log = TRUE)` - VERIFIED to
     machine precision against `dmultinom` on a fitted counts model.  The label case is its `n_i =
     1` reduction, where the coefficient is 0 and the value is `log p[s,i,y_i]`.  INCLUDE the
-    coefficient: brms does (`dmultinomial`, [[distributions.R:2836@0045507c]]), it makes the number a genuine
+    coefficient: brms does (`dmultinomial`, its `R/distributions.R` line 2836), it makes the number a genuine
     log density, and elpd DIFFERENCES are unaffected either way.  The likelihood unit is the
     OBSERVATION (a row of counts, n_i trials) - not a trial and not a (row, category) cell - so
     LOO is leave-one-row-out; say so in the Rd.  Dims: `dim(ev)` without the trailing K margin,
