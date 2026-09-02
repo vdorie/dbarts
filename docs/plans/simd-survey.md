@@ -144,7 +144,7 @@ measurement required to choose restore-vs-delete; maintainer-run.
 => Highest hotness, but blocked by draw-neutrality and gather-bound economics.
    NOT recommended without an explicit VD decision.
 
-### #C  Cut-scan histogram  ([[scan.hpp:61-144@4a521760]], histogramDenseCutScan + scanOrdinalCuts)
+### #C  Cut-scan histogram  (unresolved: [[scan.hpp:61-144@4a521760]], histogramDenseCutScan + scanOrdinalCuts)
 1. The scatter-reduce histogram: gather code=column[indices[i]] then SCATTER a
    (count,sumW,sumWz) double triple into bins[code]; then a small prefix scan.
 2. Frequency: **COLD in the default sampler.** Only caller is growTreeFromRoot

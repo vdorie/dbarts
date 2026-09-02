@@ -1,7 +1,7 @@
 # Slice spec: out-of-sample per-forest predict replay
 # (priced 2026-08-20; AMENDED per blind critique, verdict EXECUTE-WITH-AMENDMENTS)
 
-Door: [[docs/plans/archive/bcf-bartcause-relocation.md:1271-1276@658869ac]]. Verdict MEDIUM-PLUS:
+Door: [[docs/plans/bcf-bartcause-relocation.md:1271-1276@658869ac]]. Verdict MEDIUM-PLUS:
 expect ~700-800 raw insertions, >= 13 files. Comparables: 88ffe12
 (multinomial C2 predict, 347/62/9) and 77013d72 (one new read method, 656
 insertions / 15 files - the closer calibration for the Rd/bridge surface).
@@ -56,7 +56,7 @@ insertions / 15 files - the closer calibration for the Rd/bridge surface).
 ## Slice sketch
 
 engine: chain.hpp predictPerForestFromSavedSample + live twin (fork of
-  [[combiner.hpp:2823-2884@0f5a2285]] minus softmax, RAW - no scale) ~55; sampler.hpp
+  [[src/bartcore/chain.hpp:2823-2884@0f5a2285]] minus softmax, RAW - no scale) ~55; sampler.hpp
   predictPerForest + predictPerForestColumns (dense/CSC pair, out =
   nTest x K x capacity x nChains) ~45; facade.hpp one new virtual +
   forwarder ~10 (--preclean MANDATORY; delete benchmarks/kernels
@@ -67,7 +67,7 @@ engine: chain.hpp predictPerForestFromSavedSample + live twin (fork of
 bridge: R_interface_bartcore.cpp new bartcore_predictPerForest ~120-125:
   reuses parseTestSource / validateTestContainerAgainstStore /
   refuseSparseLeafCovariate, refuses on !forestReportingIsDefined, but
-  CANNOT reuse predictFromSource ([[chain.hpp:5605-5711@0f5a2285]]) - the K margin changes the
+  CANNOT reuse predictFromSource ([[src/R_interface_bartcore.cpp:5605-5711@0f5a2285]]) - the K margin changes the
   dim vector and a per-forest raw fit takes NO offset (the offset belongs
   to the combination, as the shift does) - so it forks the allocation/
   wrapper logic. Plus declaration in src/R_interface_bartcore.hpp
@@ -95,7 +95,7 @@ messages: refuseUndefinedTestFits's text stays SURFACE-NEUTRAL (five
   ([[R/generics.R:402-407@0f5a2285]]) gets a message-only reword so it no longer
   claims the capability is absent (the stored channel still is).
 tests: tests/cpp/test_sampler.cpp - per-forest replay at training rows
-  vs forestTotalFits, tolerance-based, twin of [[R/generics.R:4729-4800@0f5a2285]] ~70;
+  vs forestTotalFits, tolerance-based, twin of [[tests/cpp/test_sampler.cpp:4729-4800@0f5a2285]] ~70;
   inst/tinytest - out-of-sample twin of the [[test-argument-surface.R:743@0f5a2285]]
   identity at 1e-12, PLUS a storeState/loadState round trip through the
   new read (precedent [[test-bcf-r5-surface.R:214@0f5a2285]]) ~110.
@@ -120,8 +120,8 @@ binaries).
 ## Scope boundary (binding)
 
 Blocked on the test-basis modelling decision
-([[bart2-argument-consolidation.md:883-901@0f5a2285]]; door
-[[bcf-bartcause-relocation.md:1274-1276@0f5a2285]]) - DO NOT TOUCH: resident test
+([[docs/plans/bart2-argument-consolidation.md:883-901@0f5a2285]]; door
+[[docs/plans/bcf-bartcause-relocation.md:1274-1276@0f5a2285]]) - DO NOT TOUCH: resident test
 basis, setTestPredictors/setTestOffset on an amplitude sampler,
 run()$yhat.test for such fits, extract(type="forest", sample="test")
 BEHAVIOR (message reword only, above), bcf() missing-response handling,

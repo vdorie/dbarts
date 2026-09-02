@@ -39,12 +39,12 @@ because after the freeze the same slip would ship.
 
 ## What the ground truth already is
 
-Registration ([[src/R_interface.cpp:299-361@126fb2cd]]): ~33 entry points in a
+Registration ([[src/R_interface.cpp:298-322@126fb2cd]]): ~33 entry points in a
 C_callMethods table, each R_RegisterCCallable'd under its own name in
 R_init_dbarts. Append-only-by-name discipline; a signature change is an ABI
 event (docs/plans/README.md, the a73ca50 review-checklist step).
-The current version constant is a single integer ([[dbarts.h:54@126fb2cd]];
-dbarts_apiVersion, [[C_interface.cpp:76@126fb2cd]], returns one int) - an unpublished
+The current version constant is a single integer ([[dbarts.h:54@11888173]];
+dbarts_apiVersion, [[C_interface.cpp:76@11888173]], returns one int) - an unpublished
 dev convention with zero compatibility weight, replaceable at will until
 submission.
 
@@ -52,26 +52,26 @@ Consumer (stan4bart, the SOLE reverse-LinkingTo package - CRAN confirms;
 every other revdep is R-level, and stan4bart ships lockstep, same
 maintainer):
 - It already collapses the surface into ONE table struct: BARTFunctionTable
-  ([[src/init.cpp:56-90@126fb2cd]]), 22 of the ~33 symbols, populated by 22
-  R_GetCCallable calls in lookupBARTFunctions ([[src/init.cpp:1001-1029@126fb2cd]]), with 39
+  (stan4bart's `src/init.cpp` lines 56-90), 22 of the ~33 symbols, populated by 22
+  R_GetCCallable calls in lookupBARTFunctions (stan4bart's `src/init.cpp` lines 1001-1029), with 39
   invocation sites routed through bartFunctions.*. So "one lookup + a
   table" is a one-time ~21-line saving in the one consumer, not a per-site
   win.
 - Its dev builds already perform a load-time version handshake:
   apiVersion() != DBARTS_C_API_VERSION errors before any pointer is used
-  ([[src/init.cpp:1003-1006@126fb2cd]]). Dev-time context, but it shows the consumer-side check is
+  (stan4bart's `src/init.cpp` lines 1003-1006). Dev-time context, but it shows the consumer-side check is
   a habit this pair actually keeps.
 - Each signature is stated THREE times on the consumer side even though it
-  #include <dbarts/dbarts.h> ([[src/init.cpp:23@126fb2cd]]): the header prototype, the struct field
+  #include <dbarts/dbarts.h> (stan4bart's `src/init.cpp` line 23): the header prototype, the struct field
   type, and the bit_cast target type at the lookup. Neither of the latter
   two is derived from the first; a rebuild recompiles them verbatim. The
   getTrees skew lived in exactly that gap - the key mechanical fact for
   the analysis below.
 
 Growth precedent already in this tree: dbarts_results is a
-structSize-growable output struct ([[dbarts.h:83-102@126fb2cd]], DBARTS_RESULTS_HAS) -
+structSize-growable output struct ([[dbarts.h:83-102@11888173]], DBARTS_RESULTS_HAS) -
 old callers are never written past, appends never reorder. The state format
-reads its blocks BY NAME behind an encoding floor ([[dbarts.h:237-243@126fb2cd]],
+reads its blocks BY NAME behind an encoding floor ([[dbarts.h:237-243@11888173]],
 c-api-growth.md part 2). Both are self-describing-DATA designs; growth of
 the FUNCTION surface is already handled by append-only names (a future
 run2-style addition is just a new name, load-detectable when absent). A
@@ -103,8 +103,8 @@ build-time token exists. Dominated, not wrong.
 The incident was a REBUILD scenario: stan4bart was recompiled against the
 nine-arg header repeatedly during that week (R CMD check builds it). The
 operative staleness was not an old binary - it was the HAND-ROLLED
-declaration ([[init.cpp:73-75@126fb2cd]], [[init.cpp:1017@126fb2cd]]), which no rebuild re-derives. Had the
-call at [[init.cpp:531@126fb2cd]] gone through a type stated IN THE HEADER - a table
+declaration (stan4bart's `init.cpp` lines 73-75, line 1017), which no rebuild re-derives. Had the
+call at stan4bart's `init.cpp` line 531 gone through a type stated IN THE HEADER - a table
 struct's field, or an inline stub - the rebuild would have produced a
 COMPILE error (eight args passed to a nine-arg type). So for the motivating
 incident, table-struct-in-header and header stubs are safety-EQUIVALENT:
@@ -239,7 +239,7 @@ ingredient matters; the X-macro is its zero-toolchain form.
   committed golden against the header's normalized declaration set. Its
   cost must be stated honestly: NOT a raw text diff - a73ca50's header
   diff was ~3 declaration lines amid ~8 doc-comment lines, prototypes span
-  lines ([[dbarts.h:214-220@126fb2cd]]), and dbarts_results is field-order-sensitive
+  lines ([[dbarts.h:214-220@11888173]]), and dbarts_results is field-order-sensitive
   (a mid-struct insertion must flag as an ORDER change, never wave through
   as an addition) - so it is a small normalizing C-declaration parser, real
   work under a one-person-maintainer constraint, and it only fires on CI.
@@ -256,8 +256,8 @@ ingredient matters; the X-macro is its zero-toolchain form.
   SOURCE against the candidate dbarts and run its suite UNDER ASAN (plus
   stack-protector) - ASAN turns the incident's ~half-of-runs corruption
   deterministic. The existing revdep-smoke.yaml is structurally unable to
-  catch this class: monthly, not per-PR ([[dbarts.h:10@126fb2cd]]); pulls stan4bart from CRAN,
-  not dev ([[dbarts.h:49-55@126fb2cd]]); unsanitized R CMD check. This job is also the ONLY
+  catch this class: monthly, not per-PR ([[.github/workflows/revdep-smoke.yaml:10@126fb2cd]]); pulls stan4bart from CRAN,
+  not dev ([[.github/workflows/revdep-smoke.yaml:49-55@126fb2cd]]); unsanitized R CMD check. This job is also the ONLY
   layer that catches SEMANTIC signature drift - same types, changed
   meaning or units - to which stubs, hashes, and diffs are all blind. Note
   that CRAN's own single-shot revdep check passes a 50%-flaky corruption

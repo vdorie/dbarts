@@ -44,7 +44,7 @@ section 13 authoritative (supersedes the in-body defaults of sections 3 and 6).
   hazard-reduction.R (compareLink; markerOnly [[R/bart.R:85@09d61773]]). Equivalence harness: scenario
   list [[benchmarks/R/equivalence.R:60-561@09d61773]], hazard scenario [[benchmarks/R/equivalence.R:524-559@09d61773]], fitViaHazard
   [[benchmarks/R/equivalence.R:708-732@09d61773]], fitSummaries dispatch [[benchmarks/R/equivalence.R:801-814@09d61773]], new-scenario "skipped/uncovered" policy
-  [[benchmarks/R/equivalence.R:428@09d61773]], [[benchmarks/R/equivalence.R:1127-1152@09d61773]]. pkgdown reference sections [[_pkgdown.yml:9-44@09d61773]] (no per-family Rd
+  [[benchmarks/R/equivalence.R:428@09d61773]], [[benchmarks/R/equivalence.R:1127-1152@09d61773]]. pkgdown reference sections [[_pkgdown.yml:9-43@09d61773]] (no per-family Rd
   exists today - man/ has none for bartNegbin/bartOrdinal). air.toml present.
 
 ## Constraints

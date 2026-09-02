@@ -953,7 +953,7 @@ question; it does not settle it, and by design it gates nothing.
 - **bairrtt cross-check.** At the one recorded consumer shape (n = 300, 150
   trees as 2 chains x 75, ~1 SD move, config (a) shipped) the harness rejects
   **0.043%** of moves on a continuous latent and **0.226%** on a binary one,
-  against bairrtt's prose "under 1%" (`bairrtt/[[TODO:117-118@4c018187]]`). Consistent, and
+  against bairrtt's prose "under 1%" (bairrtt's `TODO` lines 117-118). Consistent, and
   on the low side. Under the accepted-rows reading (~0.44n) the figures are
   ~0.10% and ~0.51%; both readings sit under 1%.
 - **Move size.** Smaller moves do not cost more: at n = 1000 continuous,
@@ -1182,7 +1182,7 @@ is not defined on it. Q1 therefore runs its own kernel: a Metropolis-within-
 Gibbs step on each row's latent against the two surrogate samplers' Gaussian
 likelihoods (fits from `bartcore_predict` on the live trees) and an N(0, 1)
 prior, with the veto / forced collapse / frozen forest applied to the accepted
-rows. This is the bairrtt pattern (`[[irt_causal_bart.R:598-613@4c018187]]`: MH filter, then
+rows. This is the bairrtt pattern (bairrtt's `irt_causal_bart.R` lines 598-613: MH filter, then
 install). It is confined to Q1, which is REPORTED and never gated, and it does
 not touch P1's denominator anywhere else in the design.
 

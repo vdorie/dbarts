@@ -221,7 +221,7 @@ with different names. Full formals table in `generics/probe11.R`'s first block.
   bare `...` that ABSORBS the bart-family vocabulary without error. (G3, G4)
 - `predict.bart`'s `\dots` is documented "Not used" ([[bart.Rd:219@b102e17c]]) and indeed ignores
   `sample=`: AGREES, but a live trap because extract/fitted take `sample`.
-  `predict.rbart` reads `dotsList[["value"]]` by exact name only ([[bart.Rd:1619-1624@b102e17c]]), so a
+  `predict.rbart` reads `dotsList[["value"]]` by exact name only ([[R/generics.R:1619-1624@b102e17c]]), so a
   partial `val=` is dropped rather than warned about. No two formals within any one
   method are in a prefix relation, so no user abbreviation is ambiguous.
 
@@ -282,8 +282,8 @@ Only the non-AGREE rows and the load-bearing AGREEs are listed.
 - C. "Is `extract(type = 'loglik')` a bart/rbart channel or every family's?" (G8)
 - D. "Which generics does an `xbart` result support?" - a bare array today, so
   `fitted`/`residuals` misfire on stats' defaults. Class it, or leave it. (sec 3)
-- E. "Does `dbartsSampler` ever grow the bart-family S3 surface?" - dbartsSampler-
-  [[class.Rd:355@b102e17c]] already answers no; the open part is only whether the six defaults
+- E. "Does `dbartsSampler` ever grow the bart-family S3 surface?" -
+  [[dbartsSampler-class.Rd:355@b102e17c]] already answers no; the open part is only whether the six defaults
   should be refused by name instead of leaking RC-field errors. (sec 3)
 - F. "Should `extract(type = 'trees')` read the CURRENT trees on a keepSampler-only
   fit, or refuse?" - [[plotTree.Rd:39-42@b102e17c]] already documents that fallback for plotTree,
