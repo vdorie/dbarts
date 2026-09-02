@@ -84,7 +84,7 @@ data-fitted init as a remedy, not a hazard.**
   warm start.
 - dbarts has all four moves:
   `enum class StepType { birth, death, swap, change };`
-  (src/bartcore/moves.hpp:838). Neither lower bound analyzes a sampler
+  ([[moves.hpp#StepType]]). Neither lower bound analyzes a sampler
   dbarts runs, on a model (one tree, dyadic, two moves) dbarts fits.
 
 **What does support the stickiness premise is empirical, narrower, and
@@ -138,7 +138,7 @@ retained), distributed one-per-chain. stochtree does the same and
 documents it (`forest_ind <- num_gfr - chain_num`,
 `num_gfr >= num_chains` required). dbarts' k grow sweeps run
 INDEPENDENTLY per chain, each on its own Mersenne Twister
-(src/bartcore/sampler.hpp:1278-1308, `Chain::growForestFromRoot`) - a
+([[sampler.hpp#Sampler::growFromRoot]], `Chain::growForestFromRoot`) - a
 structurally different design that, if anything, resembles Tan et al.'s
 per-chain-varied greedy fit more than it resembles either published
 positive design. Whether dbarts' design is more, equally, or less
@@ -167,7 +167,7 @@ direction VD suspects - but a prior pass overstated it as a flat claim.
 The source hedges ("seems to"), states no effect size, and three
 corrections narrow it further: (1) the init is NOT "essentially
 deterministic" or "a greedy point" - the paper's own repository
-(`yanshuotan/bart-comp-efficiency`, `runner.py:66-98`,
+(`yanshuotan/bart-comp-efficiency`, `runner.py`,
 `consolidated_configs/initialization.yaml`) shows each of the 8 chains gets
 a SEPARATELY, randomly tuned XGBoost ensemble (depth, learning rate,
 subsample, colsample_bytree, `RandomizedSearchCV(random_state=seed)`
@@ -830,19 +830,19 @@ cold mean 3.8 (min 0, zero in 10/192), warm mean 0.3 (min 0, **zero in
 chains at S6 (exact x1==x2 duplicates, where a change move swapping the
 label has likelihood ratio exactly 1 and should switch freely) is not an
 estimator bug: it is a structural fact about dbarts' change move.
-`changeMove` (src/bartcore/moves.hpp:475-616) draws its target node
+`changeMove` ([[moves.hpp#changeMove]]) draws its target node
 uniformly over ALL non-bottom nodes INCLUDING the root
-(`tree.fillNotBottom(0, notBottom)` at moves.hpp:482, seeded from index 0;
-uniform draw at moves.hpp:485-487) - the root is not structurally excluded
+(`tree.fillNotBottom(0, notBottom)` ([[moves.hpp#fillNotBottom]]), seeded from index 0;
+uniform draw ([[moves.hpp#ext_rng_simulateUnsignedIntegerUniformInRange]])) - the root is not structurally excluded
 from proposal. But once proposed, the move keeps the ENTIRE descendant
 skeleton fixed (every split rule below the changed node is untouched) and
 only swaps the changed node's own rule, then reroutes every observation
 through that unchanged skeleton (`Tree::refreshSubtree`, called at
-moves.hpp:593) and rescores the FULL subtree's likelihood under the new
-routing (`logLikelihoodForBranch`, moves.hpp:588 and :599, walking every
+[[moves.hpp#refreshSubtree]]) and rescores the FULL subtree's likelihood under the new
+routing (`logLikelihoodForBranch`, [[moves.hpp#logLikelihoodForBranch]], walking every
 bottom descendant via `fillBottom` and vetoing with `-HUGE_VAL` if any
-leaf empties, moves.hpp:79). Acceptance is `alpha = exp((belowY-belowX) +
-(yLogL-xLogL) + correction)`, capped at 1 (moves.hpp:609-611). At the root
+leaf empties, [[moves.hpp#leafVetoRank]]). Acceptance is `alpha = exp((belowY-belowX) +
+(yLogL-xLogL) + correction)`, capped at 1 ([[moves.hpp#changeMove]]). At the root
 of a tree with any depth, "the subtree below the changed node" is the
 entire tree: rerouting all n observations through a new top split while
 every rule beneath it stays fixed makes it overwhelmingly likely some
@@ -945,7 +945,7 @@ stump, `sampleTreesFromPrior`) is unchanged.
   future opt-in guidance: B2 was still falling at the largest grid value
   tested.
 - Family consistency (four bart2 families refuse `n.grow.sweeps` via
-  `checkFamilyUnsupportedArgs`, R/bart.R:618-646; `rbart_vi` has no
+  [[bart.R#checkFamilyUnsupportedArgs]]; `rbart_vi` has no
   `n.grow.sweeps` formal at all) is now an ordinary opt-in-surface
   question - extend the surface or document the gap - independent of this
   verdict, low priority, unscheduled.
