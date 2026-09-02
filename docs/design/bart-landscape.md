@@ -139,7 +139,7 @@ permutation variable selection is an R layer over any engine's `varcount`.
 What the authors wanted was a JVM-native artifact with its own memory and
 threading story, which no R/C++ engine supplies. *Verified:*
 `R/bart_package_builders.R` formals, DESCRIPTION, `inst/java` listing; dbarts
-`man/dbarts.Rd:117`.
+[[man/dbarts.Rd#missing]].
 
 **SoftBart 1.0.3** (Linero; CRAN, 2025-11-23; 284/mo). Soft BART: leaves are
 reached probabilistically through logistic gates rather than by hard
@@ -157,9 +157,9 @@ C++ (`soft_bart.cpp/.h`, RcppArmadillo) including its own slice sampler.
 observation contributes to every leaf with a weight, so leaf sufficient
 statistics stop being within-leaf sums. Note also that
 `Hypers()` NAMES the leaf-prior scale (`sigma_mu <- 0.5 / (k * sqrt(num_tree))`,
-`R/SoftBart.R:42`) and the probit entry overrides it
+`R/SoftBart.R`) and the probit entry overrides it
 (`hypers$sigma_mu = 3 / k / sqrt(num_tree)`, `k = 1` default,
-`R/softbart_probit.R:79,111`) - a peer engine already ships a nameable
+`R/softbart_probit.R`) - a peer engine already ships a nameable
 calibration, on the internal scale, with the user responsible for normalizing
 X and Y. *Verified:* `R/MakeForest.R`, `src/soft_bart.h` class `Forest`,
 `R/SoftBart.R`, `R/softbart_probit.R`; arXiv 2210.16375 PDF converted to text.
@@ -178,7 +178,7 @@ two-forest structure is (A) - two dbarts samplers each carrying the other's
 fit as an offset target the same posterior, measured twice in the r-c-division
 arc. What does not port is the `b0`/`b1` rescale, which reinterprets
 already-drawn leaf values and so writes engine state. dbarts has since taken
-BCF as an engine model for exactly that reason. *Verified:* `R/bcf.R:224-242`
+BCF as an engine model for exactly that reason. *Verified:* `R/bcf.R`
 formals, `src/` listing, `tree.h` header.
 
 **stochtree 0.4.5** (Herren, Hahn, Murray, Carvalho; CRAN, 2026-06-30;
@@ -201,9 +201,9 @@ engine. Its own paper's Table 1 gives the "C/C++ API" row exactly one check
 (its own) and the "Random effects" row exactly one, and its prose calls dbarts
 "a limited interface for interchanging a forest MCMC step with other
 samplers"; dbarts ships `inst/include/dbarts/dbarts.h` (39 entries in
-`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* `R/data.R:300-391`,
-`R/model.R:93-133`, `R/bart.R:187-207`,
-`src/include/stochtree/leaf_model.h:352-358`, NAMESPACE; arXiv 2512.12051v1
+`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* stochtree's `R/data.R`,
+`R/model.R`, `R/bart.R`,
+`src/include/stochtree/leaf_model.h`, NAMESPACE; arXiv 2512.12051v1
 Section 1.2 and Table 1 fetched and converted to text.
 
 **flexBART 2.0.3** (Deshpande, Perrett; CRAN, 2026-02-12; 199/mo). BART with
@@ -219,8 +219,8 @@ per model shape (`single_ensm_probit.cpp`, `multi_ensm_poisson.cpp`, ...).
 *Counterfactual:* **(C)** - a split-rule representation change is clause 2 by
 name. The plain categorical half is no longer a gap: this tip splits unordered
 factors by level subset natively (`factors = "categorical"` is the DEFAULT,
-`man/dbarts.Rd:95`); the graph-structured half remains a contribution nobody
-else has. *Verified:* `R/flexBART.R:1-30`, `src/graph_funs.h`, `src/structs.h`,
+[[man/dbarts.Rd#factors]]); the graph-structured half remains a contribution nobody
+else has. *Verified:* `R/flexBART.R`, `src/graph_funs.h`, `src/structs.h`,
 DESCRIPTION.
 
 **nftbart 2.3** (Sparapani, McCulloch, Pratola; CRAN, 2025-12-03; 158/mo).
@@ -234,24 +234,24 @@ Pratola/McCulloch/Chipman OpenBT line (`brt.h`, `ambrt.h`, `psbrt.h`,
 channel coexist on the tip - but the composition does not close. nftbart's own
 R reconstructs the observation-level moments as
 `mu. = dpmu * s.train + f.train` and `sd. = dpsd * s.train`
-(`R/nft2.R:425-426`), so given a DPM component the mean forest's conditional
+(`R/nft2.R`), so given a DPM component the mean forest's conditional
 carries offset `dpmu_c * s(x_i)` and precision `1 / dpsd_c^2` ON TOP of the
 `s(x_i)^2` the variance forest already supplies - both scaled by a quantity
 the engine REDRAWS inside `run()`. A host driving the loop from R can only
 install a one-sweep-stale `s(x)`, so the recipe is approximate, not an exact
 Gibbs kernel; making it exact means the scaled DPM location entering within
 the sweep, which is a contributed response family. (The DPM block itself is
-C++ in nftbart - `DPMLIOneal8.h`, `drawDPM` passed in at `R/nft2.R:292`; it is
+C++ in nftbart - `DPMLIOneal8.h`, `drawDPM` passed in at `R/nft2.R`; it is
 the counterfactual port's R program that would draw it.) *Verified:*
 DESCRIPTION Description field, `src/` listing and copyright headers,
-`R/nft2.R:292,425-426`; the offset-scaling defect was found by an independent
+`R/nft2.R`; the offset-scaling defect was found by an independent
 adversarial re-fetch of the package, which is why this grade moved from (A).
 
 **bartcs 1.3.0** (Yoo, Kim; CRAN, 2025-04-08; 281/mo). Confounder selection:
 an exposure model and an outcome model fit jointly, sharing one Dirichlet
 prior over splitting probabilities so a variable used by one is more likely to
 be offered to the other. *Unique:* the coupling runs through the SPLIT PRIOR,
-not the mean - `single_bart.cpp:63,98` draws `var_prob` from `rdirichlet` and
+not the mean - `single_bart.cpp` draws `var_prob` from `rdirichlet` and
 updates it by Metropolis against the union of both models' variable counts.
 *Built:* own C++ (`BART.cpp`, `Node.cpp`, `grow.cpp`, `prune.cpp`,
 `change.cpp`), Rcpp, calling back into MCMCpack from C++. *Counterfactual:*
@@ -260,14 +260,15 @@ mid-run, so a two-sampler R loop that reads `varcount`, draws the Dirichlet
 and re-installs the probabilities is expressible today - but `setModel` also
 re-pins sigma (engine-side, not in the R layer: `Chain::setModel` sets
 `sigmaIsFixed_` and calls `setSigma` or `setSigmaPrior` for gaussian and aft
-samplers with no variance forest, `src/bartcore/chain.hpp:1726-1758`) and is
+samplers with no variance forest,
+[[src/bartcore/chain.hpp#Chain::setModel]]) and is
 refused outright on a DART prior, so the composition carries side effects its
 author never named. Unlocking items: a
 split-probability channel narrower than `setModel` (dbarts issue #67,
 "Feature request: more convenient updates of splitting probabilities", open
-since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R:4-21`,
+since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R`,
 `src/single_bart.cpp`, `src/separate_bart.cpp`; this worktree's
-`R/dbarts.R:1225-1252` and `man/dbartsSampler-class.Rd:127`.
+[[R/dbarts.R#dbartsSampler$setModel]] and [[man/dbartsSampler-class.Rd#dbartsSampler$setModel]].
 
 **VCBART 1.2.5** (Deshpande, Bai, Balocchi, Starling, Weiss; CRAN,
 2026-04-21; 135/mo). Varying-coefficient models `y = sum_j beta_j(x) z_j`,
@@ -281,14 +282,14 @@ approximation. Block `j`'s conditional is
 `(y - sum_{l != j} beta_l z_l) = beta_j(x) z_j + e`; divide by `z_j` and it is
 an ordinary Gaussian regression on `beta_j(x)` with case weights `z_j^2`, so
 the leaf sufficient statistics are `sum z_j^2` and `sum z_j r` - exactly the
-two sums VCBART's own C++ accumulates (`src/funs.cpp:206-207`, inside
+two sums VCBART's own C++ accumulates (`src/funs.cpp`, inside
 `compute_p_theta_ind`), and the leftover `sum r^2` is partition-independent
 and cancels in the Metropolis ratio, so the tree moves agree too. Two clauses
 the recipe needs. (i) `z_j == 0` rows: `resid / z_j` is NaN or Inf there, and
 NaN is refused by `setResponse` while Inf silently poisons the leaf's weighted
 mean - so write any FINITE placeholder at those rows, where the zero weight
 makes the value irrelevant, and the shipped "excluded from the likelihood,
-fitted value retained" semantics apply (`man/dbartsSampler-class.Rd:178`).
+fitted value retained" semantics apply ([[man/dbartsSampler-class.Rd#dbartsSampler$weights]]).
 (ii) The compound-symmetry arm (`vcbart_cs_fit.cpp`, `update_rho`,
 `compute_p_theta_cs`) is OUT of scope: its within-subject covariance is
 non-diagonal and case weights are diagonal. The standing caveat is the
@@ -297,7 +298,7 @@ whatever `resid / z_j` the sampler was CONSTRUCTED on, so the composition is
 correct only by care. Nameable calibration makes it **(B)** and correct by
 construction; the M4 basis family would make it one sampler instead of K. The
 recipe works on CRAN 0.9-33 too. *Verified:* DESCRIPTION, `src/` and `R/`
-listings, `R/VCBART_ind.R`; `src/funs.cpp:206-207` and the zero-weight
+listings, `R/VCBART_ind.R`; `src/funs.cpp` and the zero-weight
 failure modes come from an independent adversarial re-check.
 
 **sparseVCBART 1.0.0** (Ghosh, Deshpande; CRAN, 2026-05-19; 100/mo). VCBART
@@ -351,7 +352,7 @@ and a Stan-sampled parametric block alternating through the offset channel,
 `mvbart()` routing around the response channel deliberately; in-house, and the
 reference implementation of the (A) pattern. **riAFTBART 0.3.3** (Hu, Ji,
 Zhang; 173/mo) - random-intercept AFT with multiple treatments, and the
-measured defect: `R/sampling_funs.R:13-17` calls `dbarts::bart(...)` FRESH
+measured defect: `R/sampling_funs.R` calls `dbarts::bart(...)` FRESH
 every Gibbs iteration and takes `mod$yhat.train.mean` and `mean(mod$sigma)` as
 the draw. Posterior means used as draws, plus a cold-start refit per sweep.
 **(A)** - the correct version is one persistent sampler,
@@ -441,12 +442,12 @@ Principal stratification with BART for a binary instrument and binary outcome
 (LATE / complier effects). *Unique:* the row set each component is fit to is
 LATENT and moves every outer iteration - compliers, always-takers and
 never-takers are imputed per sweep. *Built:* reuse of dbarts, awkwardly. Six
-probit samplers in `initialize_samplers` (`R/fit_psbart_binary.R:257-302`),
+probit samplers in `initialize_samplers` (`R/fit_psbart_binary.R`),
 five carrying a `subset =` stratum; `update_samplers` calls
 `$setData(dbartsData(X, Y, subset = <new stratum>))` on five of them EVERY
-outer iteration (`:339-386`), for `n_warmup + n_samples` = 2000 iterations by
-default (`:35-46`). Nine dbarts internals are reached by `getFromNamespace`
-(`R/utils.R:145-156`, plus `normal` again at `R/fit_psbart_ordinal.R:385`), of
+outer iteration (same file), for `n_warmup + n_samples` = 2000 iterations by
+default (same file). Nine dbarts internals are reached by `getFromNamespace`
+(`R/utils.R`, plus `normal` again at `R/fit_psbart_ordinal.R`), of
 which four are used - to hand-build a probit sampler with a chosen node prior,
 because the convenience layer is not reusable. The row subsetting itself uses
 the PUBLIC `dbartsData(subset =)`. *Counterfactual:* **(B).** Gaussian row
@@ -489,24 +490,24 @@ abstract fetched (the repository carries no citation).
 random effects. *Unique:* nothing in the integrand - Polya-Gamma augmentation
 plus a Gaussian forest. *Built:* **reuse**, by the same author who abandoned
 every engine for clbart, which makes the pair a natural experiment.
-`R/nbbart.R:32-38` builds one `dbarts::dbarts(x, z, offset = offset,
+`R/nbbart.R` builds one `dbarts::dbarts(x, z, offset = offset,
 weights = omega, resid.prior = fixed(1), sigma = 1)`; the loop draws
 `omega ~ PG(y + xi, eta)`, forms `z = (y - xi) / (2 omega)`, then
-`setResponse(z)` / `setWeights(omega)` / `run(0L, 1L)` at `:81-83`.
-`spanbbart` builds its sampler with NO offset argument (`:69`), residualizing
+`setResponse(z)` / `setWeights(omega)` / `run(0L, 1L)` (same file).
+`spanbbart` builds its sampler with NO offset argument (`spanbbart.R`), residualizing
 spatial and fixed effects out of the response instead, and mutates at
-`:150-152`. *Counterfactual:* **(A)**, demonstrated - and it would have run on
+the same file. *Counterfactual:* **(A)**, demonstrated - and it would have run on
 CRAN 0.9-33 unchanged. Two free observations. (i) `R/soft_spanbbart.R` is the
-SAME outer loop written against SoftBart's `MakeForest` (`:78`), with
-`G <- forest$do_gibbs_weighted(x2, r, omega, x2, 1)[1,]` at `:153` standing
-line for line where `spanbbart.R:150-152` puts `setResponse` / `setWeights` /
+SAME outer loop written against SoftBart's `MakeForest` (same file), with
+`G <- forest$do_gibbs_weighted(x2, r, omega, x2, 1)[1,]` standing
+line for line where `spanbbart.R` puts `setResponse` / `setWeights` /
 `run` - one author ported one model across both embeddable engines, differing
 only in the forest call, so the surfaces are substitutable for this model
 class. (ii) `nbbart` appears to carry a live instance of r-c-division
-defect 5: `offset` is passed at `:32` and `:87` computes `eta <- offset + G`
-from `G <- samples$train` (`:84`), while `run()$train` already carries the
+defect 5: `offset` is passed and `eta <- offset + G` computes
+from `G <- samples$train` (`R/nbbart.R`), while `run()$train` already carries the
 offset - the CRAN 0.9-33 gaussian branch adds it at
-`src/dbarts/bartFit.cpp:2449` (the binary branch does the same at `:2433`).
+`src/dbarts/bartFit.cpp` (the binary branch does the same).
 Inert at the default `offset = rep(0, n)`; double-counts the moment a user
 supplies the log-exposure a count model exists for. *Verified:* cloned the
 repository and read all three files, plus both CRAN dbarts source lines.
@@ -526,7 +527,7 @@ weight channel (`dbarts:::bartcoreSetForestWeights`) is internal, absent from
 `dbarts.h` and from the R5 class. Unlocking items: the active-rows mask (AFT
 is its S2 scope) or a public per-forest weight. *Verified:* cloned the
 repository - README.md, DESCRIPTION, `src/` listing; the model shape agrees
-with `docs/design/model-space-survey.md:178-186`, which verified the paper and
+with [[docs/design/model-space-survey.md#Door 2 - per-forest row subsetting]], which verified the paper and
 the per-sweep `glabel` draw first-hand.
 
 **BPCF** (Kim et al.; GitHub `lit777/BPCF`, C++). Principal stratification
@@ -536,7 +537,7 @@ standalone C++. *Counterfactual:* **(A)** - a per-sweep predictor column is
 `setPredictor(x, column = j)`, which ships, with transactional roll-back and a
 per-observation install mask. *Verified:* the repository exists and is C++
 (GitHub API); the "every component sees all n rows every sweep" reading is
-carried from `model-space-survey.md:198-206`, which verified paper and code -
+carried from [[docs/design/model-space-survey.md#Door 2 - per-forest row subsetting]], which verified paper and code -
 **UNVERIFIED here first-hand**.
 
 **embarcadero** (Carlson) - a dbarts-based species-distribution package the
