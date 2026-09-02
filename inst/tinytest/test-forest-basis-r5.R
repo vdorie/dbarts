@@ -304,6 +304,16 @@ expect_true(continuousError < 1e-12)
 expect_true(dbarts:::samplerCarriesAmplitudes(threeForests))
 plain <- dbarts(x, y, control = seededControlForestBasisR5())
 expect_false(dbarts:::samplerCarriesAmplitudes(plain))
+# a plain sampler has no basis to change at all, so the refusal names that
+# rather than claiming a forest index is out of range
+expect_error(
+  plain$setForestBasis(1L, wide),
+  paste0(
+    "$setForestBasis is not available on a sampler that carries no forest ",
+    "amplitudes: amplitudes are fixed at creation; make a new sampler instead"
+  ),
+  fixed = TRUE
+)
 # the five refusals it gates stay red on a multi-forest sampler
 expect_error(threeForests$setResponse(y, updateScale = TRUE), "does not supp")
 expect_error(

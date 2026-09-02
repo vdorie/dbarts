@@ -329,7 +329,7 @@ expect_error(
 # receives a donor tree that splits outside that mask, and
 # columnMaskStateFeasible (chain.hpp) must refuse the whole install before
 # touching any live state - the same mechanism and error text as the BCF
-# columnMask refusal test in test-interactions.R.
+# cross-moderator installForests refusal in test-interactions.R.
 wsControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,

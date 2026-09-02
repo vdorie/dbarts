@@ -1492,7 +1492,14 @@ dbartsSampler <- setRefClass(
       if (is.null(basis)) {
         stop("'basis' cannot be NULL")
       }
-      if (is.null(data@bases) || index >= length(data@bases)) {
+      if (is.null(data@bases)) {
+        stop(
+          "$setForestBasis",
+          " is not available on a sampler that carries no forest amplitudes: ",
+          "amplitudes are fixed at creation; make a new sampler instead"
+        )
+      }
+      if (index >= length(data@bases)) {
         stop("forest index out of range")
       }
       values <- validateForestBases(
