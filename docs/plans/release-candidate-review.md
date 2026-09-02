@@ -545,7 +545,7 @@ package-local warnUnusedDots: R 4.6 signals chkDots's diagnosis as a
 classed condition, R 4.5 and earlier as a bare simpleWarning nothing
 downstream can catch by class, so the new helper warns once naming every
 unused argument and the method reached, catchable and matchable on every
-supported R. 4eb46434 strips 40 line-neutral scratch/session paths out of
+supported R. 4eb46434 strips 40 line-neutral scratch and session paths out of
 tracked docs.
 
 Slice S1 of docs/plans/column-kind-consolidation.md lands as six commits:
