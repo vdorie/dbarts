@@ -81,7 +81,7 @@ The per-sweep, per-tree O(n) passes and their memory access shape:
 2. setNodeAverages -> computeLeafStats ([[tree.hpp#computeLeafStats]]): per leaf,
    `misc_computeIndexedSufficientStatisticsFast(treeY, indices+begin,
    len, ...)`, i.e. read `treeY[indices[begin+k]]` for k in 0..len and
-   accumulate (sumW, sumWZ, sumWZ2). This is a GATHER over the residual
+   accumulate (sumW, sumWZ). This is a GATHER over the residual
    (32% of runtime, the top hotspot). It reads the RESIDUAL, which
    changes every tree, not the static y.
 3. metropolisJumpForTree scoring (moves.hpp): a proposed birth partitions

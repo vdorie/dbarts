@@ -55,7 +55,7 @@ the BCF constructor. The landed virtual surface:
   rescale returns the scale applied to the forest it reports, 1.0 if that one
   held while another travelled; the multinomial level shift returns 1.0
   unconditionally, HAVING moved, an additive move having no scale to report.
-  The sweep discards the value, but `Chain::interweaveGlueRidge` - a public
+  The sweep discards the value, but `Chain::interweaveGlueRidgeForTesting` - a public
   forwarder kept for the component tests - passes it through, which is how
   tests/cpp pins the ridge move's magnitude without reaching into the
   combiner's private state.
@@ -101,7 +101,7 @@ constant-leaf model end to end).
 combiner_ is nullptr for every single-forest chain, and stays the ONLY test at
 every touchpoint - never a NullCombiner sentinel object, which would force a
 per-sweep virtual call the single-forest chain must not pay. The landed
-touchpoints (chain.hpp): setTreatment, bcfGlue, interweaveGlueRidge,
+touchpoints (chain.hpp): setTreatment, bcfGlue, interweaveGlueRidgeForTesting,
 formForestResponse inside both sweep loops (run() and growForestFromRoot()),
 drawGlue+afterCombine at the sweep's glue point, combinedFits() (returns the
 bare `forests_[0].totalFits.data()` pointer off BCF, with no virtual call and
@@ -410,7 +410,7 @@ while bcf_ no longer existed; storeSample's combinedFits() call was pulled
 forward here for the same reason. The rewrite went through a transitional
 `glueState()` virtual accessor (returning `AmplitudeState*`/`const
 AmplitudeState*`) added to ForestCombiner<L> so Chain's still-resident
-drawGlue/interweaveGlueRidge/storeSample/getState/ setState bodies could reach
+drawGlue/interweaveGlueRidgeForTesting/storeSample/getState/ setState bodies could reach
 AmplitudeForestCombiner's internal glue struct directly; this was acknowledged
 as transitional and fully retired in commit 4, once
 drawGlue/afterCombine/serializeGlue/restoreGlue took over its call sites. Gate:
@@ -418,14 +418,14 @@ equivalence 22/22 + BCF fixture identical + tests/cpp + bcf-exact.R quick +
 full tinytest.
 
 Commit 3 = b8b0b4c. Move the coupling draw and ridge move into the combiner
-(engine, byte-identical). drawGlue and interweaveGlueRidge (the ridge rescale)
+(engine, byte-identical). drawGlue and interweaveGlueRidgeForTesting (the ridge rescale)
 became virtual ForestCombiner methods, called from Chain at the same sweep
 points and in the same rng order as before. DEVIATION recorded: afterCombine
 returns double (then the applied ridge scale c, 1.0 when the move was skipped
 or inert - see the corrected LIVE contract at "The ForestCombiner<L>
 hierarchy" above, which this historical sentence predates: 1.0 no longer means
 unchanged) specifically so the cpp component tests can read it through
-Chain::interweaveGlueRidge, the public forwarder kept for exactly this; the
+Chain::interweaveGlueRidgeForTesting, the public forwarder kept for exactly this; the
 sweep itself discards the return value. Doxygen comments relocated with the
 math were redirected from docs/plans/archive/bcf-ridge-interweaving.md (and a
 "docs/plans Status" pointer) to docs/design/bcf.md, since that plan's
