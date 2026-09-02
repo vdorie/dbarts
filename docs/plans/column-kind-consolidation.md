@@ -64,7 +64,7 @@ missing marker costs is four concrete things:
     `numCuts + 1` reachable code values, K > 101 guarantees by pigeonhole that
     two adjacent levels share a code and can never be separated by any rule.
     Nothing warns. An *un*ordered factor with too many levels errors and names
-    the cap (`R/utility.R:500-507`); the ordered one does not, because the cap
+    the cap (`R/utility.R:540-547`); the ordered one does not, because the cap
     check is gated on `!is.ordered(column)`.
 
   - *A split-prior distortion, not merely wasted work.* Below that threshold
@@ -354,7 +354,7 @@ The ceiling is the code type's, not `n.cuts`: `build` clamps `maxNumCuts[j]` to
 `:1155-1157`), so a grid of K-1 cuts is representable exactly while
 K <= 65534. **An ordered factor with more than 65534 levels is refused at
 ingestion, naming the cap** - the ordered-side counterpart of the unordered
-factor's refusal above 65535 levels (`R/utility.R:500-507`), which is where the
+factor's refusal above 65535 levels (`R/utility.R:540-547`), which is where the
 R-side check belongs so the message names the column. The two ceilings are one
 apart (65534 against 65535) because the ordered side spends a code on the
 grid's upper bin and the unordered side does not; the two ceilings are
@@ -389,7 +389,7 @@ a level absent from training but present in test data cannot be separated from
 its neighbour, and the code-to-level correspondence is not stable under
 subsetting. The alternative is to place K-1 cuts from the **declared** level
 count, which the factor's own level table already carries - `factor.levels`
-(`R/utility.R:515`, filled for ordered factors too). That table does not reach
+(`R/utility.R:556`, filled for ordered factors too). That table does not reach
 the store today for exactly the reason this proposal exists:
 `readDeclaredCategoryCounts` skips any column the bridge does not consider
 categorical (`R_interface_bartcore.cpp:896`), so an ordered factor's declared
@@ -400,7 +400,7 @@ That function has a **second** early-continue worth naming: `:897` skips any
 column whose source is CSC-backed (`sourceOf(j) < 0`), because a container
 declares its own K for those. An ordered factor cannot reach that path from R -
 `makeCategoricalModelMatrix` only ever produces a `sparseFactor` as a
-*categorical* column (`R/utility.R:491-493`) - but the flat C API and
+*categorical* column (`R/utility.R:531-533`) - but the flat C API and
 `tests/cpp` can construct one, and under a declared-levels grid such a column
 would fall through to an inferred count. Whichever way the sub-decision goes,
 the CSC-backed ordered factor needs a stated answer rather than an inherited
@@ -430,7 +430,7 @@ declared count becomes the grid:
     declares both a `factor.levels` entry and a `sparseCategoryCount` for the
     same column. R cannot construct one - `makeCategoricalModelMatrix` types
     every `sparseFactor` categorical whether or not it is ordered
-    (`R/utility.R:491-493`) - so for anything R produces the two are the same
+    (`R/utility.R:531-533`) - so for anything R produces the two are the same
     number; a hand-built container or a header-only host can disagree.
   - **Such a column's implicit rows read the quantized zero, not its declared
     reference level.** `resolveCscCategoricalReferences` skips a
@@ -464,7 +464,7 @@ factors are ordinal and never cap" over a 54-level ordered-factor case at
 survives because `dbartsData` is pure R construction and never reaches
 `buildCutsForColumn` at all, so no grid is built and no cap is consulted at the
 point the test measures. What the new refusal changes is the *R-side* level
-check that would sit beside `R/utility.R:500-507`, and 54 levels is far below
+check that would sit beside `R/utility.R:540-547`, and 54 levels is far below
 the 65534 ceiling, so that case passes too. The comment should be rewritten to
 say what is now true - an ordered factor caps at 65534 levels rather than never
 - and the file wants two additions: a case above `n.cuts` (say 150 levels)
@@ -542,7 +542,7 @@ makes the feature silently wrong rather than merely absent.
 **Provenance divergence, and why it cannot be repaired.** A `dbartsData` saved
 by an older build carries `varTypes` 0 for an ordered factor, and 0 is ambiguous
 - it also means numeric. There is no upgrade path: nothing in the stored object
-distinguishes the two. (`factor.levels` is *nearly* a marker - `R/utility.R:515`
+distinguishes the two. (`factor.levels` is *nearly* a marker - `R/utility.R:556`
 fills it for ordered factors too - but it is an attribute of `@x`, not a slot,
 and it is equally present for unordered factors, so it identifies "was a factor"
 rather than "was an ordered factor".) With the grid fix landing, the consequence
@@ -1097,7 +1097,7 @@ for R users does not change, because the bridge still fires first with its own
 wording (`R_interface_bartcore.cpp:1635-1638`).
 
 S3 also carries the engine-side backstop for S2's level ceiling. The
-K > 65534 refusal specified in section 1 sits beside `R/utility.R:500-507`,
+K > 65534 refusal specified in section 1 sits beside `R/utility.R:540-547`,
 which is R, so a header-only host reaches `build` with a wider ordered factor
 and gets a grid silently clamped by `maxNumCutsRepresentable`
 (`data.hpp:1155-1157`) - a merge, which is the defect S2 removes. `build` must
