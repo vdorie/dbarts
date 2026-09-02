@@ -146,8 +146,9 @@ exactly from R without patching anything:
 
 1. Export every ensemble's live trees for the current sweep -
    `bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`
-   retired: [[R/bartcore.R#bartcoreGetTrees]] (no longer exists under this
-   name in R/; superseded by the reshaped R5 tree-reading surface)
+   - no longer a shipped `R/` helper; it survives as the tinytest harness
+   helper [[inst/common/bartcoreHandle.R#bartcoreGetTrees]], and the shipped
+   surface is the R5 [[R/dbarts.R#dbartsSampler$getTrees]]
    for `f = 0..numForests-1`, plus
    `state[[c]]$variance.{vars,values,sizes,flags}`
    ([[src/R_interface_bartcore.cpp#storeState]]) for a heteroscedastic sampler.
@@ -261,7 +262,7 @@ per-tree per-row marginal reject probability.
 **Why P1 is baselined on config (a) and not on `E_0`.** The guard's own
 comment says an accepted transactional change on a multi-forest sampler
 "would leave a multi-forest sampler's other forests routed against stale
-codes" ([[src/R_interface_bartcore.cpp#refuseMultiForestMutation]]). `E_0` on a multi-ensemble
+codes" (retired: [[src/R_interface_bartcore.cpp#refuseMultiForestTransactionalUpdate]]). `E_0` on a multi-ensemble
 sampler is the state the guards exist to prevent, not an alternative a
 consumer can have. The alternatives are today's refusal, forced collapse (a
 different posterior), or a different mechanism. So the gated contrast is
