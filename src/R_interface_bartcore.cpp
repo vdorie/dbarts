@@ -608,22 +608,24 @@ void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
   }
 }
 
-// Assemble a mixed container's dense block and column-source map, the shared
-// core of both mixed call sites: code each dense column into \p denseAssembly
-// via codeDenseColumn, publish its base through \p denseValues (null if empty),
-// and fill \p columnSources via mapColumnSources. \p rowLengthMessage and
-// \p malformedMessage carry the side's wording. The CSC slots and reference
-// resolution stay at each call site (sparse requirement / resolve order differ).
+// Assemble a mixed container's dense values and column-source map, the shared
+// core of the three mixed call sites: code each dense column into
+// \p denseAssembly via codeDenseColumn, publish its base through
+// \p denseValues (null if empty), and fill \p columnSources via
+// mapColumnSources. \p rowLengthMessage and \p malformedMessage carry the
+// side's wording. The CSC slots and reference resolution stay at each call
+// site (sparse requirement / resolve order differ).
 //
 // A non-null \p codeAssembly asks for the SPLIT layout instead: a factor
 // column crosses as its own int32 level codes and \p denseChannels addresses
 // each predictor's slice within the channel that holds it, so no factor cell
-// is widened to a double and narrowed straight back. Only a consumer that
-// reads the view a column at a time may ask - a consumer that indexes the
-// dense raw as one block sized by the largest dense source cannot. The split
-// layout packs both channels per PREDICTOR, which is what a view is indexed
-// by, so \p denseChannels must be published whenever it is taken; a map
-// naming one dense column twice then gives it a slot per predictor.
+// is widened to a double and narrowed straight back. Both store builds ask,
+// reading the result a column at a time; the MUTATION entrances take the
+// single block instead, since every mutation kernel indexes the dense values
+// column-major. The split layout packs both channels per PREDICTOR, which is
+// what a view is indexed by, so \p denseChannels must be published whenever
+// it is taken; a map naming one dense column twice then gives it a slot per
+// predictor.
 void parseMixedContainerBlock(SEXP denseExpr, const int* map,
                               size_t numPredictors, size_t numRows,
                               size_t numCscColumns,
@@ -1144,9 +1146,11 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       // the mixed flavor: a per-column dense list (factors carrying their
       // integer codes, or NULL for no dense columns), a dgCMatrix, and a
       // 1-based map - positive k names dense column k, negative -k sparse
-      // column k, the engine's ~(k - 1). Assemble the transient block - the
-      // exact doubles the retained cbind held - which the mapped build copies
-      // into the store, so it need only outlive the ensuing build call.
+      // column k, the engine's ~(k - 1). Assemble the transient values in the
+      // split layout, a factor column as its own integer codes, which the
+      // mapped build reads a column at a time - copying the real-valued ones
+      // into the store and quantizing the factor ones straight off their
+      // codes - so the assembly need only outlive the ensuing build call.
       if (!Rf_inherits(sparseExpr, "dgCMatrix"))
         Rf_error("malformed mixed predictor container");
       if (!Rf_isNull(denseExpr) && TYPEOF(denseExpr) != VECSXP)
@@ -1160,9 +1164,15 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         csc.numColumns, data.denseAssembly, data.predictors.denseValues,
         data.columnSources,
         "number of rows of 'x' must equal length of 'y'",
-        "malformed mixed predictor container");
+        "malformed mixed predictor container", &data.codeAssembly,
+        &data.denseChannels);
       data.xIsMixed = true;
       data.predictors.columnSources = data.columnSources.data();
+      // the split layout packs the double channel per predictor too, so the
+      // map is what addresses either channel
+      data.predictors.denseChannels = data.denseChannels.data();
+      if (!data.codeAssembly.empty())
+        data.predictors.denseCodes = data.codeAssembly.data();
       data.predictors.cscColumnPointers = csc.pointers;
       data.predictors.cscRowIndices = csc.rows;
       data.predictors.cscValues = csc.values;

@@ -837,14 +837,17 @@ struct ColumnStore {
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
-  // Owned dense block of a mixed build, in the host's dense-source layout
-  // (numObservations x the number of dense sources the map indexes), which
-  // every denseResident train source points into. The store owns its raw on
-  // both sides: the host assembles the block transiently and the build copies
-  // it, so a mutation writes the new values through residentRaw and every later
+  // Owned dense block of a mixed build, holding its REAL-VALUED dense-backed
+  // columns and packed per predictor over the columns it serves; every
+  // denseResident train source points into it. The store owns its raw on both
+  // sides: the host assembles the block transiently and the build copies it,
+  // so a mutation writes the new values through residentRaw and every later
   // reader - setCutPoints, state restore, a linear/GP leaf's regather - sees
-  // the live column rather than the creation-time one. Empty on dense builds
-  // and views.
+  // the live column rather than the creation-time one. A FACTOR column keeps
+  // no slice: its cells are level codes the codes already carry, its grid
+  // follows the level table rather than its values so it never re-quantizes,
+  // and a designated leaf covariate among them is gathered instead. Empty on
+  // dense builds and views.
   std::vector<double> ownedDenseValues;
 
   // Owned re-quantize sources for CSC-backed columns after mutation. A column
@@ -897,8 +900,11 @@ struct ColumnStore {
   /// Column j's raw values for a re-quantize, given the call-time predictor
   /// matrix x (which the caller supplies for the build's duration): the mixed
   /// build's owned dense slice, x's column for a dense build, null for
-  /// CSC-backed columns (which re-quantize from their retained slices instead).
+  /// CSC-backed columns (which re-quantize from their retained slices instead)
+  /// and for factor columns, which never re-quantize at all - their grid
+  /// follows the level table, fixed at build.
   const double* rawColumnForRequantize(size_t j, const double* x) const {
+    if (isFactor(j)) return nullptr;
     if (train.sources[j].isCscBacked()) return nullptr;
     if (train.sources[j].kind == ColumnSourceKind::denseResident)
       return train.sources[j].residentRaw;
@@ -1273,6 +1279,11 @@ struct ColumnStore {
   /// beyond the new range are the caller's problem (the sampler collapses them).
   void setCutPointsForColumn(size_t j, const double* cuts,
                              std::uint32_t numCutPoints, const double* x) {
+    // a factor column's grid is the level table's, fixed at build: an
+    // externally chosen one would strand its codes off their own levels, and
+    // it retains no raw to re-quantize against one. Every reachable caller
+    // refuses one first; this is the backstop
+    if (isFactor(j)) return;
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
     if (maxNumCuts[j] < numCutPoints) maxNumCuts[j] = numCutPoints;
@@ -1517,10 +1528,6 @@ struct ColumnStore {
                            size_t numGatherColumns = 0) {
     size_t n = source.numRows, p = source.numColumns;
     bool mapped = source.isMapped();
-    // the mapped arm copies denseValues as one block sized by the largest
-    // dense source, which a split-channel view does not lay out; only the
-    // dense build consumes the code channel
-    if (mapped && source.hasSplitDenseChannels()) return false;
     isView = false;
     numObservations = n;
     numPredictors = p;
@@ -1554,19 +1561,18 @@ struct ColumnStore {
       ownedCscRows.assign(p, {});
       ownedCscValues.assign(p, {});
       cscColumnOwned.assign(p, 0);
-      // own the dense block, sized by the largest dense source it is indexed
-      // by (the buildTest treatment); creation peaks at two copies of it, the
-      // host's transient assembly and this one, and steady state holds only
-      // this
-      std::int32_t maxDenseSource = -1;
-      for (size_t j = 0; j < p; ++j)
-        if (source.sourceOf(j) > maxDenseSource)
-          maxDenseSource = source.sourceOf(j);
-      if (maxDenseSource >= 0)
-        ownedDenseValues.assign(
-          source.denseValues,
-          source.denseValues + (static_cast<size_t>(maxDenseSource) + 1) * n);
     }
+    // the mapped arm's own dense block: one slice per predictor whose values
+    // are real numbers, so a factor column costs it nothing. Creation peaks at
+    // the host's transient assembly beside this copy of the columns it keeps
+    std::vector<size_t> residentSlot(p, 0);
+    size_t numResidentColumns = 0;
+    if (mapped)
+      for (size_t j = 0; j < p; ++j) {
+        if (source.sourceOf(j) < 0 || isFactor(j)) continue;
+        residentSlot[j] = numResidentColumns++;
+      }
+    ownedDenseValues.assign(numResidentColumns * n, 0.0);
 
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
@@ -1583,9 +1589,22 @@ struct ColumnStore {
         continue;
       }
       if (columnSource >= 0) {
-        desc.kind = ColumnSourceKind::denseResident;
-        desc.residentRaw =
-          ownedDenseValues.data() + static_cast<size_t>(columnSource) * n;
+        if (isFactor(j)) {
+          desc.kind = ColumnSourceKind::denseCodesOnly;
+        } else {
+          desc.kind = ColumnSourceKind::denseResident;
+          // the block is sized above, so no later assign moves these
+          desc.residentRaw = ownedDenseValues.data() + residentSlot[j] * n;
+          // the copy widens a coded real-valued column exactly as a per-cell
+          // read of it would, so the grid below is over real values whichever
+          // channel the host held them in
+          DenseColumnValues column = source.denseColumn(j);
+          if (column.isCoded()) {
+            for (size_t i = 0; i < n; ++i) desc.residentRaw[i] = column.at(i);
+          } else {
+            std::memcpy(desc.residentRaw, column.values, n * sizeof(double));
+          }
+        }
         train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
         continue;
@@ -1636,13 +1655,14 @@ struct ColumnStore {
     std::vector<double> widened;
     for (size_t j = 0; j < p; ++j) {
       buildRankStorageInto(train, n, j);
-      // the raw a column quantizes from: the store's own dense slice for a
-      // mapped dense-backed column, the call's own channel for an unmapped
-      // one, and neither for a CSC-backed column (which reads its retained
-      // slice)
-      DenseColumnValues column = mapped
-        ? DenseColumnValues(train.sources[j].residentRaw)
-        : source.denseColumn(j);
+      // the raw a column quantizes from: the store's own dense slice where it
+      // keeps one, the call's own channel otherwise - an unmapped column, and
+      // a mapped FACTOR column, whose codes are its values - and neither for a
+      // CSC-backed column (which reads its retained slice)
+      DenseColumnValues column =
+        train.sources[j].kind == ColumnSourceKind::denseResident
+          ? DenseColumnValues(train.sources[j].residentRaw)
+          : source.denseColumn(j);
       if (column.isCoded() && !isFactor(j)) {
         widened.resize(n);
         for (size_t i = 0; i < n; ++i) widened[i] = column.at(i);
@@ -2044,27 +2064,28 @@ struct ColumnStore {
   // cutsWouldRemainValid. Views hold no raw source and are refused upstream;
   // dense, CSC, and mixed builds all reach here.
 
-  /// Keep a dense-backed column's owned raw current with the values a mutation
-  /// installs, so the re-quantize sources (setCutPoints, state restore) and the
-  /// leaf-covariate regather read the live column. Only a mixed build owns a
-  /// dense block; a dense build re-reads the caller's matrix, so nothing to do.
-  /// The self-write guard covers the builders and re-quantizes that pass the
-  /// owned column back in.
+  /// Keep a column's owned raw current with the values a mutation installs, so
+  /// the re-quantize sources (setCutPoints, state restore) and the
+  /// leaf-covariate regather read the live column. denseResident is the one
+  /// kind that keeps a raw slice, and every other keeps none by construction
+  /// rather than by accident: a dense build re-reads the caller's matrix, a
+  /// FACTOR column's cells are the codes themselves, and a CSC-backed column's
+  /// slice is rebuilt by its own mutation path. The CODES are never at stake
+  /// here - every caller pairs this with the quantize that writes them - and a
+  /// gathered leaf covariate is refreshed by that same quantize. The
+  /// self-write guard covers the builders and re-quantizes that pass the owned
+  /// column back in.
   void writeOwnedDenseColumn(size_t j, const double* column) {
+    if (train.sources[j].kind != ColumnSourceKind::denseResident) return;
     double* raw = train.sources[j].residentRaw;
-    if (train.sources[j].kind != ColumnSourceKind::denseResident ||
-        raw == nullptr || raw == column)
-      return;
+    if (raw == column) return;
     std::memcpy(raw, column, numObservations * sizeof(double));
   }
 
   /// The one-cell analogue, for the per-observation update session.
   void writeOwnedDenseCell(size_t i, size_t j, double value) {
-    double* raw = train.sources[j].residentRaw;
-    if (train.sources[j].kind != ColumnSourceKind::denseResident ||
-        raw == nullptr)
-      return;
-    raw[i] = value;
+    if (train.sources[j].kind != ColumnSourceKind::denseResident) return;
+    train.sources[j].residentRaw[i] = value;
   }
 
   /// Replace the whole predictor matrix; newX is column-major and read for
@@ -2229,10 +2250,10 @@ struct ColumnStore {
     if (ownedDenseValues.empty()) return;
     for (size_t k = 0; k < numColumns; ++k) {
       size_t j = columns != nullptr ? columns[k] : k;
+      // only the columns that keep a slice; a factor column keeps none and
+      // has no raw write to undo
+      if (train.sources[j].kind != ColumnSourceKind::denseResident) continue;
       const double* raw = train.sources[j].residentRaw;
-      if (train.sources[j].kind != ColumnSourceKind::denseResident ||
-          raw == nullptr)
-        continue;
       rollback.columns.push_back(j);
       rollback.values.insert(rollback.values.end(), raw, raw + numObservations);
     }

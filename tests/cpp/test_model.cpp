@@ -3403,16 +3403,18 @@ static void testMixedColumnStore() {
           mixed.columnIsSparse(4),
           "the density threshold tiers the CSC-backed columns");
     // the store OWNS its dense block, so the served raw equals the host's by
-    // value rather than by address
+    // value rather than by address - and the block holds the REAL-VALUED
+    // columns alone, so dense-backed column 2, a categorical one here, serves
+    // none where an undesignated CSC-backed column serves none
     bool rawServed = mixed.rawColumn(0) != nullptr &&
-      mixed.rawColumn(2) != nullptr &&
-      mixed.rawColumn(0) != fixture.denseSource.data();
+      mixed.rawColumn(0) != fixture.denseSource.data() &&
+      mixed.ownedDenseValues.size() == n;
     for (size_t i = 0; i < n && rawServed; ++i)
-      rawServed = mixed.rawColumn(0)[i] == fixture.denseSource[i] &&
-        mixed.rawColumn(2)[i] == fixture.denseSource[i + n];
+      rawServed = mixed.rawColumn(0)[i] == fixture.denseSource[i];
     check(rawServed && mixed.rawColumn(1) == nullptr &&
-          mixed.rawColumn(3) == nullptr,
-          "raw values are served exactly for dense-backed columns");
+          mixed.rawColumn(2) == nullptr && mixed.rawColumn(3) == nullptr,
+          "raw values are served exactly for the real-valued dense-backed "
+          "columns");
     check(mixed.hasMissing[0] == 0 && mixed.hasMissing[1] == 0 &&
           mixed.hasMissing[2] == 0 && mixed.hasMissing[3] == 0 &&
           mixed.hasMissing[4] == 1,

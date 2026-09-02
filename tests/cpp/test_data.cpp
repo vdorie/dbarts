@@ -958,9 +958,13 @@ static void testPredictorViewEquivalence() {
     built(viaMap.build(mapped, maxCuts.data(), 0, useQuantiles));
     check(gridsAgree(dense, viaMap) && trainCodesAgree(dense, viaMap),
           "an identity-mapped view bins exactly as the dense build");
-    check(viaMap.ownedDenseValues.size() == n * p &&
-          viaMap.rawColumn(1) == viaMap.ownedDenseValues.data() + n,
-          "an identity-mapped build owns its dense block");
+    // the block holds the three real-valued columns, packed over them, so
+    // column 1 sits at its own slot and the categorical column 2 at none
+    check(viaMap.ownedDenseValues.size() == n * 3 &&
+          viaMap.rawColumn(1) == viaMap.ownedDenseValues.data() + n &&
+          viaMap.rawColumn(3) == viaMap.ownedDenseValues.data() + 2 * n &&
+          viaMap.rawColumn(2) == nullptr,
+          "an identity-mapped build owns its real-valued dense columns");
 
     built(dense.buildTest(xTest.data(), numTest));
     PredictorSource testMap;
@@ -1782,6 +1786,167 @@ static void testCodeChannelIngestion() {
   printf("ok: code channel ingestion\n");
 }
 
+// The training store keeps only what a column's values ARE, on the mapped arm
+// too. A mixed build copies the host's dense block, and that copy now holds
+// the REAL-VALUED columns alone, packed over them: a factor column's cells are
+// level codes the codes already carry, and its grid follows the level table,
+// fixed at build, so it never re-quantizes. A DESIGNATED factor column is
+// gathered instead, since a leaf model reads raw doubles.
+//
+// The same store must come out of either spelling - a dense block of doubles,
+// or a split-channel source whose factor columns cross as int32 level codes -
+// codes, level counts and MISSING FLAGS alike, the last being the one whose
+// divergence moves draws rather than values. And a mutation must reach the
+// codes of a column that keeps no raw.
+//
+// Deterministic: the suites after it read the same rng stream.
+static void testMixedStoreRetention() {
+  const size_t n = 128, p = 4;
+  const std::uint32_t numLevels = 5, numCategories = 3;
+  // 0 numeric dense, 1 ordered factor dense (the leaf covariate),
+  // 2 categorical dense, 3 CSC-backed numeric
+  const ColumnKind kinds[p] = { ColumnKind::numeric, ColumnKind::orderedFactor,
+                                ColumnKind::categorical,
+                                ColumnKind::numeric };
+  const std::int32_t sources[p] = { 0, 1, 2, ~0 };
+  const size_t gather[1] = { 1 };
+  double nan = std::numeric_limits<double>::quiet_NaN();
+
+  std::vector<double> denseBlock(3 * n);
+  std::vector<double> levelValues(n), categoryValues(n);
+  for (size_t i = 0; i < n; ++i) {
+    denseBlock[i] = 0.125 * static_cast<double>(i % 23);
+    // a missing level in each factor column, so the reserved code and the
+    // missing flag both ride either channel
+    levelValues[i] = i % 13 == 0 ? nan : static_cast<double>(i % numLevels);
+    categoryValues[i] = i % 17 == 0
+      ? nan : static_cast<double>(i % numCategories);
+    denseBlock[n + i] = levelValues[i];
+    denseBlock[2 * n + i] = categoryValues[i];
+  }
+  std::vector<int> pointers = { 0, 0 };
+  std::vector<int> cscRows;
+  std::vector<double> cscValues;
+  for (size_t i = 0; i < n; i += 4) {
+    cscRows.push_back(static_cast<int>(i));
+    cscValues.push_back(0.5 + 0.25 * static_cast<double>(i % 5));
+  }
+  pointers[1] = static_cast<int>(cscRows.size());
+
+  PredictorSource mixed;
+  mixed.numRows = n;
+  mixed.numColumns = p;
+  mixed.denseValues = denseBlock.data();
+  mixed.cscColumnPointers = pointers.data();
+  mixed.cscRowIndices = cscRows.data();
+  mixed.cscValues = cscValues.data();
+  mixed.columnSources = sources;
+  mixed.columnTypes = kinds;
+  ColumnStore store;
+  built(store.build(mixed, nullptr, 20u, false, gather, 1));
+
+  check(store.ownedDenseValues.size() == n,
+        "the mixed block holds the real-valued dense column alone");
+  bool served = store.rawColumn(0) == store.ownedDenseValues.data();
+  for (size_t i = 0; i < n && served; ++i)
+    served = store.rawColumn(0)[i] == denseBlock[i];
+  check(served, "the real-valued dense column serves the block's own slice");
+  check(store.rawColumn(2) == nullptr && store.rawColumn(3) == nullptr,
+        "an undesignated factor column and a CSC-backed one serve no raw");
+  const double* covariate = store.rawColumn(1);
+  bool gathered = covariate != nullptr;
+  for (size_t i = 0; i < n && gathered; ++i)
+    gathered = i % 13 == 0 ? isNA(covariate[i])
+                           : covariate[i] == levelValues[i];
+  check(gathered, "a designated factor column of a mixed store is gathered");
+  // it never re-quantizes, so nothing serves it a re-quantize source either
+  check(store.rawColumnForRequantize(1, nullptr) == nullptr &&
+          store.rawColumnForRequantize(2, nullptr) == nullptr &&
+          store.rawColumnForRequantize(0, nullptr) != nullptr,
+        "a factor column offers no re-quantize source");
+
+  std::vector<xint_t> denseCodes(p * n);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < n; ++i) denseCodes[j * n + i] = store.codeAt(j, i);
+
+  // the same mixed source with its factor columns in the code channel
+  std::vector<double> valueBlock(n);
+  std::vector<std::int32_t> codeBlock(2 * n);
+  const std::int32_t channels[p] = { 0, ~0, ~1, ~0 };
+  for (size_t i = 0; i < n; ++i) {
+    valueBlock[i] = denseBlock[i];
+    codeBlock[i] = isNA(levelValues[i])
+      ? naDenseCode : static_cast<std::int32_t>(levelValues[i]);
+    codeBlock[n + i] = isNA(categoryValues[i])
+      ? naDenseCode : static_cast<std::int32_t>(categoryValues[i]);
+  }
+  PredictorSource coded = mixed;
+  coded.denseValues = valueBlock.data();
+  coded.denseCodes = codeBlock.data();
+  // a CSC-backed column answers off its own negative source before the channel
+  // map is read, so its entry is never used
+  coded.denseChannels = channels;
+  ColumnStore codedStore;
+  built(codedStore.build(coded, nullptr, 20u, false, gather, 1));
+
+  bool agrees = codedStore.categoryCounts == store.categoryCounts &&
+    codedStore.numCuts == store.numCuts &&
+    codedStore.cutPoints == store.cutPoints &&
+    codedStore.train.codes == store.train.codes &&
+    codedStore.ownedDenseValues == store.ownedDenseValues;
+  check(agrees, "a coded mixed source builds the same store the doubles do");
+  check(codedStore.hasMissing == store.hasMissing &&
+          codedStore.hasMissing[1] == 1 && codedStore.hasMissing[2] == 1,
+        "the coded mapped arm records the same missingness");
+  check(codedStore.codeAt(1, 0) == naCode &&
+          codedStore.codeAt(2, 0) ==
+            missingCategoryCode(codedStore.categoryCounts[2]),
+        "a coded missing cell takes the reserved code its kind spends");
+  bool codedGathered = codedStore.rawColumn(1) != nullptr &&
+    codedStore.rawColumn(2) == nullptr;
+  for (size_t i = 0; i < n && codedGathered; ++i)
+    codedGathered = i % 13 == 0
+      ? isNA(codedStore.rawColumn(1)[i])
+      : codedStore.rawColumn(1)[i] == levelValues[i];
+  check(codedGathered, "the gather widens a coded covariate of a mixed store");
+
+  // a mutation of a column that keeps no raw still reaches its codes, and the
+  // gathered copy follows: the write-through has nothing to write, and says so
+  // rather than leaving the codes stale
+  std::vector<double> newLevels(n);
+  for (size_t i = 0; i < n; ++i)
+    newLevels[i] = static_cast<double>((i + 2) % numLevels);
+  size_t column1[] = { 1 };
+  store.setColumns(newLevels.data(), column1, 1, false);
+  bool mutated = true;
+  for (size_t i = 0; i < n && mutated; ++i)
+    mutated = store.codeAt(1, i) == store.codeFor(1, newLevels[i]) &&
+      store.rawColumn(1)[i] == newLevels[i];
+  check(mutated, "a mutation reaches the codes of a raw-less factor column");
+  store.setCell(3, 1, 0.0);
+  check(store.codeAt(1, 3) == store.codeFor(1, 0.0) &&
+          store.rawColumn(1)[3] == 0.0,
+        "a single-cell mutation does too");
+
+  // an externally chosen grid does not reach a factor column: its own follows
+  // the level table, fixed at build, and it retains no raw to re-quantize
+  // against another. Every reachable caller refuses one first, so this pins
+  // the backstop the state restore leans on
+  std::vector<xint_t> before(n);
+  for (size_t i = 0; i < n; ++i) before[i] = store.codeAt(1, i);
+  std::vector<double> gridBefore(store.cutPoints[1]);
+  std::uint32_t numCutsBefore = store.numCuts[1];
+  const double intruder[2] = { 1.5, 3.5 };
+  store.setCutPointsForColumn(1, intruder, 2, nullptr);
+  bool gridHeld = store.cutPoints[1] == gridBefore &&
+    store.numCuts[1] == numCutsBefore;
+  for (size_t i = 0; i < n && gridHeld; ++i)
+    gridHeld = store.codeAt(1, i) == before[i];
+  check(gridHeld, "an externally chosen grid does not reach a factor column");
+
+  printf("ok: mixed store retention\n");
+}
+
 // The test store keeps only what a test column's values ARE. A factor test
 // column's cells are level codes, its grid is the training level table, fixed
 // at build, so it never re-quantizes and retains no double: the block holds
@@ -2146,6 +2311,7 @@ void runDataTests() {
   testPredictorViewEquivalence();
   testMaterializePredictorSource();
   testCodeChannelIngestion();
+  testMixedStoreRetention();
   testTestStoreRetention();
   testViewOverCodedAndMixedParent();
   testSetDataRefusals();
