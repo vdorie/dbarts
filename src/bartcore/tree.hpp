@@ -1734,6 +1734,9 @@ private:
 struct DenseColumnReader {
   const double* values;
   double at(size_t row) const { return values[row]; }
+  /// Never coded: a plain double block carries no code channel. The replay's
+  /// per-node dispatch reads this on every reader it accepts.
+  const std::int32_t* codes() const { return nullptr; }
 };
 
 /// A borrowed dense column-major block in the Columns shape the flat replay
@@ -1750,18 +1753,54 @@ struct DenseColumns {
   }
 };
 
-/// Partition indices[lo, hi) of a Columns predictor source around a
-/// flattened split so left-bound rows precede right-bound ones, returning
-/// the boundary: ordinal rows go left when x <= value, categorical rows when
-/// the mask's direction bit for their code is clear. Order within the halves
-/// is not preserved (nor needed; replays only count or accumulate). The tag
-/// selects the payload; maskWords holds a pooled rule's numMaskWords words at
-/// maskOffset and may be null when no rule is pooled.
-template <typename Columns>
-inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
-                                   size_t* indices, size_t lo, size_t hi,
-                                   const std::uint64_t* maskWords = nullptr) {
-  auto column = x.column(static_cast<size_t>(flat.variable));
+/// One column's cells as the replay reads them, in the type the column is
+/// actually stored in. Three questions are asked per row - is the cell
+/// missing, which category is it, is it at or under the ordinal cut - and
+/// each Cells answers them without leaving that type, so no cell is
+/// converted to serve a comparison. The cut is built from the flat node only
+/// on the ordinal arm, since FlatNode's payload is a union and the other two
+/// arms hold a mask there.
+template <typename Reader>
+struct DoubleCells {
+  using Cut = double;
+  Reader column;
+  double at(size_t row) const { return column.at(row); }
+  static bool missing(double value) { return isNA(value); }
+  static std::uint32_t category(double value) {
+    return static_cast<std::uint32_t>(value);
+  }
+  static Cut cutFrom(double value) { return value; }
+  static bool atOrUnderCut(double value, Cut cut) { return value <= cut; }
+};
+
+/// The same over the int32 code channel: the missing marker is naDenseCode,
+/// a category IS the code, and the ordinal comparison runs against the
+/// largest code the cut admits. One 4-byte load per row against the double
+/// channel's 8, and no conversion on a path that is walked once per row per
+/// node visit.
+struct CodeCells {
+  using Cut = std::int64_t;
+  const std::int32_t* codes;
+  std::int32_t at(size_t row) const { return codes[row]; }
+  static bool missing(std::int32_t code) { return code == naDenseCode; }
+  static std::uint32_t category(std::int32_t code) {
+    return static_cast<std::uint32_t>(code);
+  }
+  static Cut cutFrom(double value) { return codeThresholdBelow(value); }
+  static bool atOrUnderCut(std::int32_t code, Cut cut) { return code <= cut; }
+};
+
+/// Partition indices[lo, hi) around a flattened split over one column's
+/// cells, returning the boundary: ordinal rows go left when the cell is at or
+/// under the cut, categorical rows when the mask's direction bit for their
+/// code is clear. Order within the halves is not preserved (nor needed;
+/// replays only count or accumulate). The tag selects the payload; maskWords
+/// holds a pooled rule's numMaskWords words at maskOffset and may be null
+/// when no rule is pooled.
+template <typename Cells>
+inline size_t partitionFlatIndicesOver(const FlatNode& flat, const Cells& cells,
+                                       size_t* indices, size_t lo, size_t hi,
+                                       const std::uint64_t* maskWords) {
   size_t mid = lo;
   bool missingGoesLeft = (flat.flags & flatMissingGoesRight) == 0;
   FlatKind kind = flatKindOf(flat);
@@ -1772,11 +1811,11 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
     // undefined behavior, so the tree layer is safe standalone
     std::uint32_t maxCode = 64u * flat.numMaskWords - 1u;
     for (size_t k = lo; k < hi; ++k) {
-      double value = column.at(indices[k]);
-      bool goesLeft = isNA(value)
+      auto value = cells.at(indices[k]);
+      bool goesLeft = Cells::missing(value)
         ? missingGoesLeft
         : !maskTestBit(directions,
-                       std::min(static_cast<std::uint32_t>(value), maxCode));
+                       std::min(Cells::category(value), maxCode));
       if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
@@ -1787,11 +1826,10 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
   } else if (kind == FlatKind::categoricalInline) {
     std::uint64_t directions = flat.mask;
     for (size_t k = lo; k < hi; ++k) {
-      double value = column.at(indices[k]);
-      bool goesLeft = isNA(value)
+      auto value = cells.at(indices[k]);
+      bool goesLeft = Cells::missing(value)
         ? missingGoesLeft
-        : ((directions >>
-            (static_cast<std::uint32_t>(value) & 63u)) & 1u) == 0;
+        : ((directions >> (Cells::category(value) & 63u)) & 1u) == 0;
       if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
@@ -1800,10 +1838,13 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
       }
     }
   } else {
+    // a NaN comparison is false, which would silently send a missing cell
+    // right, so missingness is tested before the cut on either channel
+    typename Cells::Cut cut = Cells::cutFrom(flat.value);
     for (size_t k = lo; k < hi; ++k) {
-      double value = column.at(indices[k]);
-      // a NaN comparison is false, which would silently send it right
-      bool goesLeft = isNA(value) ? missingGoesLeft : value <= flat.value;
+      auto value = cells.at(indices[k]);
+      bool goesLeft = Cells::missing(value)
+        ? missingGoesLeft : Cells::atOrUnderCut(value, cut);
       if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
@@ -1813,6 +1854,22 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
     }
   }
   return mid;
+}
+
+/// The same over a Columns predictor source, choosing the channel the split
+/// column is stored in ONCE per node rather than per row: a coded column
+/// routes off its int32 codes and every other one off doubles.
+template <typename Columns>
+inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
+                                   size_t* indices, size_t lo, size_t hi,
+                                   const std::uint64_t* maskWords = nullptr) {
+  auto column = x.column(static_cast<size_t>(flat.variable));
+  const std::int32_t* codes = column.codes();
+  if (codes != nullptr)
+    return partitionFlatIndicesOver(flat, CodeCells{codes}, indices, lo, hi,
+                                    maskWords);
+  return partitionFlatIndicesOver(flat, DoubleCells<decltype(column)>{column},
+                                  indices, lo, hi, maskWords);
 }
 
 /// The raw column-major entry: numRows is the block's row stride.

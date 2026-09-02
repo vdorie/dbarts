@@ -44,6 +44,21 @@ constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFDu;
 constexpr std::int32_t naDenseCode =
   std::numeric_limits<std::int32_t>::min();
 
+/// The largest int32 code c for which (double)c <= \p value, widened to
+/// int64 so both ends of the double range clamp rather than wrap. Exact:
+/// every int32 converts to a double without rounding, so (double)c <= value
+/// is c <= floor(value). A NaN value admits no code, which is what the
+/// double comparison it stands in for does. The flat replay reads it once
+/// per node so a coded column's threshold rule runs without converting a
+/// cell.
+inline std::int64_t codeThresholdBelow(double value) {
+  // NaN, or under every int32: nothing is at or below it
+  if (!(value >= -2147483649.0))
+    return std::numeric_limits<std::int64_t>::min();
+  if (value >= 2147483647.0) return 2147483647;
+  return static_cast<std::int64_t>(std::floor(value));
+}
+
 /// Missing categorical values take a category position above the real ones
 /// so the reachable-mask machinery routes them like any other category: the
 /// fixed position 63 (the top of the rule word) for columns whose mask is
@@ -572,6 +587,11 @@ struct PredictorSourceColumnReader {
     if (dense.codes != nullptr) return dense.at(row);
     return sparse->at(row);
   }
+  /// The column's own int32 codes, or null for one that is not stored in the
+  /// code channel. The flat replay asks once per node and routes off them
+  /// where they exist, so a coded column pays no conversion per row; every
+  /// reader the replay accepts answers this.
+  const std::int32_t* codes() const { return dense.codes; }
 };
 
 /// A borrowed PredictorSource in the Columns shape the flat replay reads

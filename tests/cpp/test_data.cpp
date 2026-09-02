@@ -1769,7 +1769,44 @@ static void testSetDataRefusals() {
   printf("ok: setData refusals\n");
 }
 
+// The code channel's ordinal threshold. The flat replay routes a coded column
+// by comparing its int32 code against codeThresholdBelow(cut) instead of
+// converting the cell, so that comparison must agree with the double one for
+// EVERY int32 code, including at both ends of the range and against the
+// doubles no code can be compared against at all.
+static void testCodeThresholdBelow() {
+  const double cuts[] = {
+    0.5, 1.5, 2.5, 3.5,               // the ordered factor's midpoint grid
+    -0.5, 0.0, 1.0, -1.0, 7.25, -7.25,
+    2147483646.0, 2147483647.0, 2147483648.0, 4e9,
+    -2147483647.0, -2147483648.0, -2147483649.0, -4e9,
+    1e300, -1e300,
+    std::numeric_limits<double>::infinity(),
+    -std::numeric_limits<double>::infinity(),
+    std::numeric_limits<double>::quiet_NaN()
+  };
+  const std::int32_t codes[] = {
+    0, 1, 2, 3, 4, 63, 64, 65534, 65535, 100000,
+    -1, -2, 2147483647, -2147483647,
+    std::numeric_limits<std::int32_t>::min() + 1
+  };
+  bool agrees = true;
+  for (double cut : cuts) {
+    std::int64_t threshold = codeThresholdBelow(cut);
+    for (std::int32_t code : codes)
+      agrees &= (static_cast<double>(code) <= cut) == (code <= threshold);
+  }
+  check(agrees,
+        "the coded ordinal comparison is the double one, code for code");
+  // a NaN cut admits nothing, matching a comparison against NaN
+  check(codeThresholdBelow(std::numeric_limits<double>::quiet_NaN()) <
+          static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min()),
+        "a NaN cut admits no code");
+  printf("ok: coded ordinal threshold\n");
+}
+
 void runDataTests() {
+  testCodeThresholdBelow();
   testColumnStoreCodes();
   testColumnKindAxis();
   testOrderedFactorGrid();
