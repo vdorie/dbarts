@@ -256,6 +256,13 @@ struct ParsedData {
   // parse result, which is all either build needs - an unmapped build
   // quantizes into owned codes and a mapped one copies the block
   std::vector<double> denseAssembly;
+  // the code channel beside it: a dense container's FACTOR columns as int32
+  // level codes, packed over the columns that take them, with denseChannels
+  // saying which channel each predictor's slice sits in. Empty - and the
+  // channel unpublished - when no dense column is a factor, which leaves the
+  // view the single block every entrance took before.
+  std::vector<std::int32_t> codeAssembly;
+  std::vector<std::int32_t> denseChannels;
   // the test view, unmapped over the x.test matrix or filled from the parsed
   // container below; the test store copies its raw either way
   bartcore::PredictorSource testPredictors;
@@ -556,6 +563,19 @@ void codeDenseColumn(double* target, SEXP columnExpr, size_t numRows,
   } else {
     Rf_error("%s", malformedMessage);
   }
+}
+
+// The code channel's spelling of the same column: a factor's 1-based codes
+// become codes[i] - 1 and its NA the channel's own missing marker, which the
+// store's quantize sends to the reserved code a NaN would have taken. The
+// column crosses as the integers it already is, so no cell is widened and
+// narrowed again.
+void codeDenseCodeColumn(std::int32_t* target, SEXP columnExpr,
+                         size_t numRows) {
+  const int* codes = INTEGER(columnExpr);
+  for (size_t i = 0; i < numRows; ++i)
+    target[i] = codes[i] == NA_INTEGER
+      ? bartcore::naDenseCode : static_cast<std::int32_t>(codes[i] - 1);
 }
 
 // Map a mixed container's 1-based column map into engine column sources: a
@@ -998,7 +1018,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       data.numPredictors = rc_getLength(mapExpr);
       const int* map = INTEGER(mapExpr);
       size_t numDenseColumns = static_cast<size_t>(rc_getLength(denseExpr));
-      data.denseAssembly.resize(data.numPredictors * data.numObservations);
+      // one pass to give each column its channel and its packed position
+      // within it, a second to fill: a factor column crosses as its own
+      // integer codes and costs 4 bytes a cell rather than 8, and the double
+      // block shrinks to the columns that are genuinely real-valued
+      data.denseChannels.resize(data.numPredictors);
+      size_t numValueColumns = 0, numCodeColumns = 0;
       for (size_t j = 0; j < data.numPredictors; ++j) {
         if (map[j] < 1 || static_cast<size_t>(map[j]) > numDenseColumns)
           Rf_error("malformed mixed predictor container");
@@ -1007,11 +1032,37 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         if (static_cast<size_t>(rc_getLength(columnExpr)) !=
             data.numObservations)
           Rf_error("number of rows of 'x' must equal length of 'y'");
-        codeDenseColumn(
-          data.denseAssembly.data() + j * data.numObservations, columnExpr,
-          data.numObservations, "malformed mixed predictor container");
+        data.denseChannels[j] = Rf_isFactor(columnExpr)
+          ? ~static_cast<std::int32_t>(numCodeColumns++)
+          : static_cast<std::int32_t>(numValueColumns++);
       }
-      data.predictors.denseValues = data.denseAssembly.data();
+      data.denseAssembly.resize(numValueColumns * data.numObservations);
+      data.codeAssembly.resize(numCodeColumns * data.numObservations);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        SEXP columnExpr =
+          VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(map[j] - 1));
+        if (data.denseChannels[j] < 0)
+          codeDenseCodeColumn(
+            data.codeAssembly.data() +
+              static_cast<size_t>(~data.denseChannels[j]) *
+                data.numObservations,
+            columnExpr, data.numObservations);
+        else
+          codeDenseColumn(
+            data.denseAssembly.data() +
+              static_cast<size_t>(data.denseChannels[j]) *
+                data.numObservations,
+            columnExpr, data.numObservations,
+            "malformed mixed predictor container");
+      }
+      data.predictors.denseValues =
+        numValueColumns > 0 ? data.denseAssembly.data() : NULL;
+      // no factor column leaves the view the single dense block it has always
+      // been, channel map and all
+      if (numCodeColumns > 0) {
+        data.predictors.denseCodes = data.codeAssembly.data();
+        data.predictors.denseChannels = data.denseChannels.data();
+      }
     } else {
       // the mixed flavor: a per-column dense list (factors carrying their
       // integer codes, or NULL for no dense columns), a dgCMatrix, and a
@@ -1636,14 +1687,16 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   return bartcore::ResponseFamily::gaussian;
 }
 
-// Column j's dense slice of a parsed view, when a dense source serves it: the
-// plain matrix's own column, or the block column the source map names. Null
-// for a CSC-backed column (coded by its container, nothing contiguous to scan)
-// and for a view with no values at all.
-const double* rawViewColumn(const bartcore::PredictorSource& view, size_t j) {
-  std::int32_t source = view.sourceOf(j);
-  if (source < 0 || view.denseValues == NULL) return NULL;
-  return view.denseValues + static_cast<size_t>(source) * view.numRows;
+// Column j's dense slice of a parsed view, in whichever channel holds it: the
+// plain matrix's own column, the block column the source map names, or the
+// int32 codes a host handed over as integers. Empty for a CSC-backed column
+// (coded by its container, nothing contiguous to scan) and for a view with no
+// values at all. The sweep below reads it a cell at a time, so a coded column
+// is scanned where it lies rather than widened into a block first - which is
+// the block the code channel exists not to build.
+bartcore::DenseColumnValues rawViewColumn(
+    const bartcore::PredictorSource& view, size_t j) {
+  return view.denseColumn(j);
 }
 
 // The two refusal texts the categorical entrances share - the training side
@@ -1692,10 +1745,14 @@ void refuseLevelCountPastCeiling(bartcore::ColumnKind kind, double count) {
 // Refuse any code outside [0, bound): a code must be integral, and only the
 // reserved missing value is exempt. Cold path shared by every categorical
 // entrance, so it takes the caller's refusal text rather than deciding one.
-void refuseInvalidCategoryCodes(const double* values, size_t numValues,
-                                double bound, const char* message) {
+// Either channel: a double cell is read as it lies and an int32 one widens a
+// cell at a time, where integrality is free and the missing marker is the
+// channel's own rather than a NaN.
+void refuseInvalidCategoryCodes(bartcore::DenseColumnValues values,
+                                size_t numValues, double bound,
+                                const char* message) {
   for (size_t i = 0; i < numValues; ++i) {
-    double value = values[i];
+    double value = values.at(i);
     if (bartcore::isNA(value)) continue;  // the reserved missing category
     if (value < 0.0 || value >= bound || value != std::floor(value))
       Rf_error("%s", message);
@@ -1717,10 +1774,10 @@ double declaredCategoryCount(const ParsedData& data, size_t j) {
 double trainingCategoryBound(const ParsedData& data, size_t j) {
   double declared = declaredCategoryCount(data, j);
   if (data.predictors.sourceOf(j) < 0) return declared;
-  const double* column = rawViewColumn(data.predictors, j);
+  bartcore::DenseColumnValues column = rawViewColumn(data.predictors, j);
   double maxValue = -1.0;
   for (size_t i = 0; i < data.numObservations; ++i) {
-    double value = column[i];
+    double value = column.at(i);
     if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
   }
   double inferred = maxValue < 0.0 ? 0.0 : maxValue + 1.0;
@@ -1791,8 +1848,9 @@ void validateCategoricalPredictors(const ParsedData& data) {
       refuseInvalidCategoryCodes(&reference, 1, bound, testMessage);
       continue;
     }
-    const double* testColumn = rawViewColumn(data.testPredictors, j);
-    if (testColumn == NULL) continue;  // no test view of this column
+    bartcore::DenseColumnValues testColumn =
+      rawViewColumn(data.testPredictors, j);
+    if (!testColumn.isPresent()) continue;  // no test view of this column
     refuseInvalidCategoryCodes(testColumn, data.numTestObservations, bound,
                                testMessage);
   }
@@ -2371,7 +2429,7 @@ void refuseUnsupportedAmplitudeComposition(
     const ParsedData& data, const bartcore::SamplerOptions& options) {
   if (const char* refused = refusedAmplitudeFamilyReason(family))
     Rf_error("a treatment forest does not support %s", refused);
-  if (!data.predictors.isDenseBlock())
+  if (!data.predictors.isDenseColumnar())
     Rf_error("a treatment forest requires dense predictors");
   const char* offender = NULL;
   if (options.useDart) offender = "a DART tree prior";
@@ -3308,7 +3366,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     if (const char* refused = refusedAmplitudeFamilyReason(family))
       Rf_error("a treatment forest does not support %s", refused);
     requireResolvedSigmaEstimate(family, data.sigmaEstimate);
-    if (!data.predictors.isDenseBlock())
+    if (!data.predictors.isDenseColumnar())
       Rf_error("a treatment forest requires dense predictors");
 
     bartcore::SamplerOptions options =
@@ -3368,7 +3426,7 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
   parseSamplerSpecification(controlExpr, modelExpr, dataExpr, "", control, model,
                             data, sigmaIsFixed);
   validateCategoricalPredictors(data);
-  if (!data.predictors.isDenseBlock())
+  if (!data.predictors.isDenseColumnar())
     Rf_error("multinomial requires dense predictors");
   // an integer weight is exactly the row-wise count replication the counts
   // response already expresses, and a non-integer one would need a
@@ -4772,11 +4830,24 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
 
-  return unwindProtect([&, data = ParsedData{}]() mutable -> SEXP {
+  return unwindProtect([&, data = ParsedData{},
+                       block = std::vector<double>{}]() mutable -> SEXP {
     parseData(data, dataExpr);
     if (data.xIsSparse || data.xIsMixed)
       Rf_error("bartcore setData requires a dense predictor matrix; sparse "
                "predictors fix the design at creation");
+    // the whole-data replacement is a single column-major block on both sides
+    // of the C boundary, so a view whose host split its dense storage across
+    // the two channels is materialized once here
+    if (data.predictors.hasSplitDenseChannels()) {
+      block.resize(data.numObservations * data.numPredictors);
+      bartcore::materializePredictorSource(data.predictors,
+                                           data.columnTypes.data(), 0,
+                                           data.numObservations, block.data());
+      data.predictors.denseValues = block.data();
+      data.predictors.denseCodes = NULL;
+      data.predictors.denseChannels = NULL;
+    }
     if (data.testIsMixed)
       Rf_error("bartcore setData requires a dense test matrix; a sparse test "
                "set fixes the design at creation");

@@ -578,6 +578,11 @@ struct PredictorSourceColumnReader {
 struct PredictorSourceColumns {
   PredictorSourceColumns(const PredictorSource& source,
                          const ColumnKind* storeTypes) {
+    // the reader is double-typed, so every dense column must sit in the double
+    // channel: the entrances that can be handed a coded view materialize it
+    // first. The assert is debug-only (R's build defines NDEBUG), so the
+    // replay pays nothing for it.
+    assert(!source.hasSplitDenseChannels());
     size_t numRows = source.numRows;
     size_t numColumns = source.numColumns;
     // sized once, before any reader points into it, so no build reallocates;
