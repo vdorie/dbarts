@@ -553,14 +553,14 @@ static void testMissingMechanics() {
   orderedTree.initialize(indices5.data(), n);
   Rule orderedRule;
   orderedRule.variableIndex = 1;
-  orderedRule.setSplitIndex(4);
+  orderedRule.setSplitIndex(1);
   orderedTree.birth(orderedStore, 0, orderedRule, y.data(), nullptr);
   std::vector<double> orderedParams(orderedTree.nodes.size(), 0.0);
   std::vector<FlatNode> orderedFlat;
   orderedTree.flatten(orderedStore, orderedParams.data(), orderedFlat);
   check(expectedFlatKind(orderedStore, 1) == FlatKind::ordinal &&
           flatKindOf(orderedFlat[0]) == FlatKind::ordinal &&
-          orderedFlat[0].value == orderedStore.cutPoints[1][4],
+          orderedFlat[0].value == orderedStore.cutPoints[1][1],
         "an ordered-factor rule flattens with the ordinal tag");
   check(flatTreeIsWellFormed(orderedStore, orderedFlat.data(),
                              orderedFlat.size()),
@@ -577,7 +577,7 @@ static void testMissingMechanics() {
   std::vector<double> orderedRebuiltParams;
   check(orderedRebuilt.buildFromFlat(orderedStore, orderedFlat.data(),
                                      orderedFlat.size(), orderedRebuiltParams) &&
-          orderedRebuilt.at(0).rule.splitIndex() == 4,
+          orderedRebuilt.at(0).rule.splitIndex() == 1,
         "an ordered-factor flat tree rebuilds onto its cut grid");
   check(!orderedRebuilt.buildFromFlat(orderedStore, misTagged.data(),
                                       misTagged.size(), orderedRebuiltParams),

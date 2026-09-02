@@ -1200,8 +1200,9 @@ void testColumnKindAxis() {
           !store.splitsBySubset(2),
         "only the categorical column splits by subset mask");
   check(store.numCuts[0] == 10 && store.numCuts[1] == 0 &&
-          store.numCuts[2] == 10,
-        "a categorical column carries no cut count, an ordered factor does");
+          store.numCuts[2] == numLevels - 1,
+        "a categorical column carries no cut count, an ordered factor one per "
+        "level boundary");
   check(store.categoryCounts[0] == 0 &&
           store.categoryCounts[1] == declaredCategories &&
           store.categoryCounts[2] == numLevels,
@@ -1210,15 +1211,17 @@ void testColumnKindAxis() {
           store.cutPoints[2].size() == store.numCuts[2],
         "an ordered factor keeps a cut grid, a categorical column none");
 
-  // the S1 property: an ordered factor bins exactly as the same codes
-  // declared numeric, so marking the kind moves no code
-  ColumnStore asNumeric;
-  asNumeric.build(x.data(), n, p, 10u, false, nullptr);
-  bool codesAgree = store.numCuts[2] == asNumeric.numCuts[2] &&
-                    store.cutPoints[2] == asNumeric.cutPoints[2];
+  // the grid follows the level table rather than the cut cap: one cut at each
+  // level midpoint, so a level's code is its own index
+  bool gridIsMidpoints = true;
+  for (std::uint32_t c = 0; c < store.numCuts[2]; ++c)
+    gridIsMidpoints &= store.cutPoints[2][c] == static_cast<double>(c) + 0.5;
+  check(gridIsMidpoints, "an ordered factor cuts at the level midpoints");
+  bool codesAreLevels = true;
   for (size_t i = 0; i < n; ++i)
-    codesAgree &= store.codeAt(2, i) == asNumeric.codeAt(2, i);
-  check(codesAgree, "an ordered factor bins as the same numeric column");
+    codesAreLevels &=
+      store.codeAt(2, i) == static_cast<xint_t>(x[2 * n + i]);
+  check(codesAreLevels, "an ordered factor's code is its own level index");
 
   // a view copies the kind and the level count with the rest of the grid,
   // over both the whole-store and the column-subset arms
@@ -1261,9 +1264,79 @@ void testColumnKindAxis() {
   printf("ok: column kind axis\n");
 }
 
+// The ordered-factor midpoint grid: K - 1 cuts at the boundaries between
+// consecutive DECLARED level codes, whatever the cut cap or the store's
+// quantile flag says. The cap is raised to fit, so the quantile path's
+// thinning arm - which would merge levels past the cap - never fires for the
+// kind, and an interior level absent from the training values still gets its
+// own boundary.
+void testOrderedFactorGrid() {
+  const size_t n = 120;
+  const std::uint32_t numLevels = 150, cutCap = 100;
+  // levels 0..numLevels-1 cycled, with 3 interior levels held out of training
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) {
+    std::uint32_t level = static_cast<std::uint32_t>(i) % numLevels;
+    if (level == 7 || level == 40 || level == 101) level = 0;
+    x[i] = static_cast<double>(level);
+  }
+  const ColumnKind kinds[1] = { ColumnKind::orderedFactor };
+  const std::uint32_t declared[1] = { numLevels };
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, cutCap, false, kinds, nullptr, 0, declared);
+  check(store.categoryCounts[0] == numLevels &&
+          store.numCuts[0] == numLevels - 1,
+        "a declared K-level ordered factor takes K - 1 cuts past the cut cap");
+  check(store.maxNumCuts[0] == numLevels - 1 &&
+          store.numCuts[0] <= store.maxNumCuts[0],
+        "the cap is raised to the grid rather than the thinning bypassed");
+  bool midpoints = true;
+  for (std::uint32_t c = 0; c < store.numCuts[0]; ++c)
+    midpoints &= store.cutPoints[0][c] == static_cast<double>(c) + 0.5;
+  check(midpoints, "every cut sits between consecutive level codes");
+  bool codesAreLevels = true;
+  for (size_t i = 0; i < n; ++i)
+    codesAreLevels &= store.codeAt(0, i) == static_cast<xint_t>(x[i]);
+  check(codesAreLevels,
+        "a level's code is its own index, so adjacent levels separate");
+  // the held-out interior levels have their own boundaries, which an
+  // observed-value grid could not give them
+  check(store.codeFor(0, 6.0) == 6 && store.codeFor(0, 7.0) == 7 &&
+          store.codeFor(0, 8.0) == 8 && store.codeFor(0, 101.0) == 101,
+        "an unobserved interior level codes to its declared position");
+
+  // the kind decides the grid before the store's quantile flag does
+  ColumnStore quantileStore;
+  quantileStore.build(x.data(), n, 1, cutCap, true, kinds, nullptr, 0,
+                      declared);
+  check(quantileStore.numCuts[0] == store.numCuts[0] &&
+          quantileStore.cutPoints[0] == store.cutPoints[0],
+        "the grid is the same in quantile mode");
+
+  // a cap already above K - 1 is left alone
+  ColumnStore wideCap;
+  wideCap.build(x.data(), n, 1, 1000u, false, kinds, nullptr, 0, declared);
+  check(wideCap.numCuts[0] == numLevels - 1 && wideCap.maxNumCuts[0] == 1000,
+        "a cap wider than the grid is not lowered to it");
+
+  // a single-level column admits no interior split and still carries a cut,
+  // which the store's own validator and its consumers require
+  std::vector<double> constant(n, 0.0);
+  const std::uint32_t oneLevel[1] = { 1 };
+  ColumnStore degenerate;
+  degenerate.build(constant.data(), n, 1, cutCap, false, kinds, nullptr, 0,
+                   oneLevel);
+  check(degenerate.categoryCounts[0] == 1 && degenerate.numCuts[0] == 1,
+        "a one-level ordered factor carries one degenerate cut");
+
+  printf("ok: ordered factor midpoint grid\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnKindAxis();
+  testOrderedFactorGrid();
   testColumnStoreView();
   testColumnStoreColumnSubset();
   testColumnStoreLeafGather();

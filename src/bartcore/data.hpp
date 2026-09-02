@@ -591,6 +591,12 @@ struct ColumnStore {
   bool splitsBySubset(size_t j) const { return kindSplitsBySubset(types[j]); }
   bool splitsByThreshold(size_t j) const { return !splitsBySubset(j); }
 
+  /// The semantic axis, where the two factor kinds behave alike: their cells
+  /// are level codes of a fixed table rather than measurements, so their grid
+  /// follows the level count rather than the values and a value outside the
+  /// table is malformed rather than merely extreme.
+  bool isFactor(size_t j) const { return types[j] != ColumnKind::numeric; }
+
   /// Whether column j's rules store pool offsets instead of inline masks
   /// (more than 63 categories, so the mask spans more than one word).
   bool columnIsPooled(size_t j) const {
@@ -838,6 +844,25 @@ struct ColumnStore {
     }
   }
 
+  /// An ordered factor's grid: K - 1 cuts at the midpoints between
+  /// consecutive DECLARED level codes, so every adjacent level pair is
+  /// separable, each distinct threshold occupies exactly one index slot (the
+  /// grow prior's logCut then normalizes over the real partition set), and a
+  /// level's code is its own index. The cap is RAISED to fit rather than the
+  /// thinning bypassed, keeping numCuts[j] <= maxNumCuts[j] as every other
+  /// externally determined grid does; n.cuts therefore does not apply to the
+  /// column, exactly as it does not to a categorical one. Fewer than two
+  /// levels admit no interior split and take the single degenerate cut a
+  /// column with no cut at all cannot be.
+  void fillCutsAtLevelMidpoints(size_t j) {
+    std::uint32_t numLevels = categoryCounts[j];
+    numCuts[j] = numLevels >= 2u ? numLevels - 1u : 1u;
+    if (maxNumCuts[j] < numCuts[j]) maxNumCuts[j] = numCuts[j];
+    cutPoints[j].resize(numCuts[j]);
+    for (std::uint32_t k = 0; k < numCuts[j]; ++k)
+      cutPoints[j][k] = static_cast<double>(k) + 0.5;
+  }
+
   void fillCutsOverRange(size_t j, double xMin, double xMax) {
     cutPoints[j].resize(numCuts[j]);
     double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
@@ -908,7 +933,9 @@ struct ColumnStore {
   /// either kind takes its (fixed) level count from the host's declared level
   /// table when it supplied one, but never below what its own codes reach - a
   /// declared count short of an observed code would strand that code past its
-  /// own grid. A categorical column then keeps no cuts at all.
+  /// own grid. A categorical column then keeps no cuts at all, and an ordered
+  /// factor takes the midpoint grid of that level table rather than a uniform
+  /// or quantile grid over its observed values.
   ///
   /// keepCategoryCount holds a factor column's creation-time level count
   /// against a whole-data replacement, whose new values are a new sample of
@@ -917,7 +944,7 @@ struct ColumnStore {
   /// depend on call history.
   void buildCutsForColumn(size_t j, const double* column,
                           bool keepCategoryCount = false) {
-    if (types[j] != ColumnKind::numeric && !keepCategoryCount) {
+    if (isFactor(j) && !keepCategoryCount) {
       std::uint32_t inferred = columnIsCscBacked(j)
         ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
@@ -926,6 +953,8 @@ struct ColumnStore {
     if (splitsBySubset(j)) {
       numCuts[j] = 0;
       cutPoints[j].clear();
+    } else if (types[j] == ColumnKind::orderedFactor) {
+      fillCutsAtLevelMidpoints(j);
     } else if (useQuantiles) {
       QuantileGrid grid = columnIsCscBacked(j)
         ? quantileGridForCscColumn(j)
