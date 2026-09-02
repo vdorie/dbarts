@@ -65,7 +65,7 @@ by agents that did not hold it.
 
 ## A2. The worst five, verbatim
 
-**1. `R/model.R:1102-1138` - 37 lines. The longest comment in `R/`. Half of it is a design derivation defending a constant to a reviewer.**
+**1. `[[R/model.R:1102-1138@3080a9c5]]` - 37 lines. The longest comment in `R/`. Half of it is a design derivation defending a constant to a reviewer.**
 
 ```
 ## count - so at the literal 1 the all-basis index prior grew as
@@ -86,7 +86,7 @@ not map algebra" is `docs/design` material: numeric evidence that the chosen
 default is right. **Fix: shorten to ~12 lines, move the derivation to the
 amplitude design doc. Delta: -25.** Risk: none (comment only).
 
-**2. `R/model.R:417-441` - 25 lines, ends on an experiment result.**
+**2. `[[R/model.R:417-441@3080a9c5]]` - 25 lines, ends on an experiment result.**
 ```
 ## tail mass to within 3.4 percent (P(p < 0.01 or p > 0.99) 0.2468 against
 ## 0.2387, where 2 gave 0.3764).
@@ -94,7 +94,7 @@ amplitude design doc. Delta: -25.** Risk: none (comment only).
 Reporting a calibration experiment's numbers in a shipped file is the purest
 form of "why the change is correct". **Fix: shorten to ~10. Delta: -15.**
 
-**3. `R/mixedMatrix.R:547-572` - 26 lines narrating `installPredictorColumns`'s
+**3. `[[R/mixedMatrix.R:547-572@3080a9c5]]` - 26 lines narrating `installPredictorColumns`'s
 control flow branch by branch** ("rows = NULL replaces columns whole: a
 dense-backed slot j is repointed straight at... A CSC-backed column instead has
 its entries spliced... a mixed call naming both kinds dispatches per column on
@@ -103,7 +103,7 @@ below it. The load-bearing sentence is one: per-observation mutation of a
 CSC-backed column is refused upstream, so the partial merge only ever addresses
 dense columns. **Fix: shorten to ~6. Delta: -20.**
 
-**4. `R/data.R:1704-1726` - 23 lines, justifies a magic constant *and* the
+**4. `[[R/data.R:1704-1726@3080a9c5]]` - 23 lines, justifies a magic constant *and* the
 absence of a second check.**
 ```
 # No distinct-value-count check backs this up:
@@ -117,7 +117,7 @@ constraint worth keeping is two lines: doubles near magnitude s are spaced
 ~2.22e-16*s apart, so 1e-10 is ~1e6x ulp spacing. **Fix: shorten to ~8.
 Delta: -15.**
 
-**5. `R/bart.R:1436-1454` and `R/bartcore.R:907-931` - provenance closers.**
+**5. `[[R/bart.R:1436-1454@3080a9c5]]` and `[[R/bartcore.R:907-931@3080a9c5]]` - provenance closers.**
 ```
 # ... so bart2's usual tree.prior/node.prior/resid.prior/control
 # machinery resolves n.trees, n.chains, the tree prior and k exactly as it
@@ -137,7 +137,7 @@ The rule bans `docs/` paths; the same logic bans `benchmarks/`, which is not in
 the built package at all, so the reference is unresolvable for any reader of the
 installed source.
 
-- `R/bart.R:825`, `:1445`, `:1540`, `:2312`; `R/bartcore.R:954`; `R/spec.R:476`
+- `[[R/bart.R:825@3080a9c5]]`, `[[R/bart.R:1445@3080a9c5]]`, `[[R/bart.R:1540@3080a9c5]]`, `[[R/bart.R:2312@3080a9c5]]`; `[[R/bartcore.R:954@3080a9c5]]`; `[[R/spec.R:476@3080a9c5]]`
   all cite `benchmarks/R/*.R`. **Fix: delete the citation, keep the claim.
   Delta: -8.**
 - The other 25 are `R/foo.R`-style sibling citations (`R/dbarts.R` has 7,
@@ -170,12 +170,12 @@ naive grep:
 
 | function | how it is actually reached |
 |---|---|
-| `parsePriors` (`R/model.R:92`) | `R/spec.R:313` rewrites a call onto it via `quoteInNamespace` |
-| `processHit` (`R/formulaTerms.R:298`) | `R/formulaTerms.R:417` `lapply(walked$hits, processHit, ...)` |
-| `findTermInFormulaData` (`R/data.R:359`) | `R/data.R:1133,1189,1349` call-rewriting |
-| `rethrowValidityError` (`R/utility.R:5`) | `R/model.R:386` / `R/utility.R:15` as a `tryCatch` handler |
-| `validateArgumentsInEnvironment` (`R/dbarts.R:253`) | `R/xbart.R:80`, `R/dbarts.R:598` `quoteInNamespace` |
-| `validateForestKnobs` (`R/model.R:985`) | `R/model.R:1043` `lapply(forests, ...)` |
+| `parsePriors` (`[[R/model.R:92@3080a9c5]]`) | `[[R/spec.R:313@3080a9c5]]` rewrites a call onto it via `quoteInNamespace` |
+| `processHit` (`[[R/formulaTerms.R:298@3080a9c5]]`) | `[[R/formulaTerms.R:417@3080a9c5]]` `lapply(walked$hits, processHit, ...)` |
+| `findTermInFormulaData` (`[[R/data.R:359@3080a9c5]]`) | `[[R/data.R:1133@3080a9c5]], [[R/data.R:1189@3080a9c5]], [[R/data.R:1349@3080a9c5]]` call-rewriting |
+| `rethrowValidityError` (`[[R/utility.R:5@3080a9c5]]`) | `[[R/model.R:386@3080a9c5]]` / `[[R/utility.R:15@3080a9c5]]` as a `tryCatch` handler |
+| `validateArgumentsInEnvironment` (`[[R/dbarts.R:253@3080a9c5]]`) | `[[R/xbart.R:80@3080a9c5]]`, `[[R/dbarts.R:598@3080a9c5]]` `quoteInNamespace` |
+| `validateForestKnobs` (`[[R/model.R:985@3080a9c5]]`) | `[[R/model.R:1043@3080a9c5]]` `lapply(forests, ...)` |
 | the 5 `as_draws_*` methods, `.onLoad`/`.onUnload` | registered dynamically / by R |
 | `pdbart`, `pd2bart`, `makeind`, `dbartsDrawLatents`, `dbartsWorkingResponse`, `makeTestModelMatrix` | exported in `NAMESPACE`, documented in `man/` |
 
@@ -185,7 +185,7 @@ The three near-misses are `bartcoreBCFSampler` (127 lines incl. comment),
 `bartcoreMultinomialSampler` (52) and `bartcoreMultinomialCountSampler` (48):
 227 shipped lines with **zero production callers**, reached only from 20+
 tinytest files and 5 `benchmarks/R` harnesses. That is a deliberate internal
-harness API - the comment at `R/bartcore.R:907` says so in as many words - so
+harness API - the comment at `[[R/bartcore.R:907@3080a9c5]]` says so in as many words - so
 it is not cruft. Noted and cleared.
 
 ## B3. REJECTED (mostly): "one-caller helpers are cruft until proven otherwise"
@@ -267,7 +267,7 @@ false economy. **Do not touch those.**
 `tryCatch` appears 10x, `inherits(tryResult, "error")` 6x, `storeState(ptr)` 13x,
 and the normalized-duplicate pass finds the same 8-line
 `tryCatch -> inherits -> stop -> updateState -> storeState -> invisible(NULL)`
-window at `R/dbarts.R:990, 1004, 1032, 1269, 1359, 1362, 1448, 1451, 1492, 1495,
+window at `[[R/dbarts.R:990@3080a9c5]], 1004, 1032, 1269, 1359, 1362, 1448, 1451, 1492, 1495,
 1621, 1654`. **Fix: one `withSamplerCall(ptr, updateState, expr)` wrapper.
 Delta: -50.** Risk: this is the mutable-method surface `stan4bart`/`bairrtt`
 drive; behavioural equivalence must hold exactly. tinytest plus the R5 surface
@@ -275,9 +275,9 @@ tests suffice - no C recompile involved.
 
 ## B8. Duplicate-window pass: 200 normalized 8-line duplicate windows in `R/`
 
-Most are argument-forwarding lists (`R/bart.R:1189/1474/1564/1790/2041` - the
+Most are argument-forwarding lists (`[[R/bart.R:1189@3080a9c5]]/1474/1564/1790/2041` - the
 same 8-arg `buildHostSamplerCall` preamble five times) and family vocabulary
-vectors (`R/bart.R:692`, `R/dbarts.R:375`, `R/spec.R:799` all spell the same
+vectors (`[[R/bart.R:692@3080a9c5]]`, `[[R/dbarts.R:375@3080a9c5]]`, `[[R/spec.R:799@3080a9c5]]` all spell the same
 9-element `family = c("auto", "gaussian", ...)` default). The family vector is
 worth centralising - three copies of a controlled vocabulary will drift.
 **Fix: one `bartFamilies` constant. Delta: -20.** The argument-forwarding
@@ -302,9 +302,9 @@ drift in `R/`. The guard-verb split (B2) is the one genuine instance.**
 
 - `R/dbarts.R`: 172 distinct commits. `R/bart.R`: 144. `R/data.R`: 79.
   `R/generics.R`: 69 (65 distinct commits still visible in blame).
-- `predict.bart` (`R/generics.R:289-457`, 169 lines): **17 distinct commits**
+- `predict.bart` (`[[R/generics.R:289-457@3080a9c5]]`, 169 lines): **17 distinct commits**
   still authoring live lines. One line in ten comes from a different session.
-- `resolveSamplerSpec` (`R/spec.R:102-777`, 675 lines): **23 distinct commits.**
+- `resolveSamplerSpec` (`[[R/spec.R:102-777@3080a9c5]]`, 675 lines): **23 distinct commits.**
 
 This is the mechanism behind A1 and B3: each session appended its clause to the
 prologue and its table next to its own code, because appending is the edit that
@@ -354,16 +354,16 @@ Delta: ~10-14 files moved.** Risk: none, but check for inbound links first -
 ## D3. WITHDRAWN: `tools/check-build-freshness.R` is wired, just not via CI
 
 I initially flagged it as the one `tools/` script nothing runs. It is executed
-by `benchmarks/R/mutation-battery.R:504`. Its three siblings
+by `[[benchmarks/R/mutation-battery.R:504@3080a9c5]]`. Its three siblings
 (`check-doc-freshness`, `check-rc-codoc`, `check-win-drift`) are wired into
-`.github/workflows/lint.yaml:86-92`, and `regenerate-snapshots.R` is invoked by
+`[[.github/workflows/lint.yaml:86-92@3080a9c5]]`, and `regenerate-snapshots.R` is invoked by
 five `test-reproducibility-*.R` files. **All five `tools/*.R` are live. No
 action.** (The `.R` scripts should still be `.Rbuildignore`d - see H7 - but that
 is about what ships, not about whether they are used.)
 
 ## D4. TODO contradicts its own stated contract in 79 of its 348 lines
 
-`TODO:1` says, verbatim: *"An unordered, forward-facing backlog; completed work
+`[[TODO:1@3080a9c5]]` says, verbatim: *"An unordered, forward-facing backlog; completed work
 and its rationale [live elsewhere]"*. It then carries **35 entries, 10 of them
 flagged CLOSED / LANDED / SHIPPED, consuming 79 lines**:
 
@@ -416,12 +416,12 @@ This is worth stating plainly, because it bounds the whole review:
   `src/*.cpp`, `src/*.hpp`, `inst/include/dbarts/*.h`, `man/*.Rd`. No en-dashes,
   no em-dashes, no arrow glyphs. Perfect compliance.
 - **Zero `docs/` paths in shipped source.** The one grep hit
-  (`src/include/external/io.h:16`) is an open-std.org URL for a C standards
+  (`[[src/include/external/io.h:16@3080a9c5]]`) is an open-std.org URL for a C standards
   document, i.e. a genuine citation, not a repo path.
 - **Only 4 test-path references in shipped C++**, and two of them
-  (`src/bartcore/chain.hpp:4515`, `:4648` - "defines NDEBUG, so this is live
+  (`[[src/bartcore/chain.hpp:4515@3080a9c5]]`, `[[src/bartcore/chain.hpp:4648@3080a9c5]]` - "defines NDEBUG, so this is live
   only in tests/cpp") are real constraints about where an assert is live.
-  The other two (`grow.hpp:149`, `R_interface_bartcore.cpp:4167`) are
+  The other two (`[[grow.hpp:149@3080a9c5]]`, `[[R_interface_bartcore.cpp:4167@3080a9c5]]`) are
   provenance and should go. **Delta: -2.**
 - **No slice codenames in shipped source.**
 
@@ -448,13 +448,13 @@ Same block census run over the engine and bridges:
 
 **328 comment blocks over six lines** against R's 177. `combiner.hpp` is the
 densest file in the repo: **one 6+ line comment block every 35 lines.** Longest
-individual blocks: `grow.hpp:125` (53 lines), `scan.hpp:61` (43),
-`combiner.hpp:1884` (38), `chain.hpp:4587` (36).
+individual blocks: `[[grow.hpp:125@3080a9c5]]` (53 lines), `[[scan.hpp:61@3080a9c5]]` (43),
+`[[combiner.hpp:1884@3080a9c5]]` (38), `[[chain.hpp:4587@3080a9c5]]` (36).
 
 **But read this number differently from R's.** I read the two longest engine
-blocks in full. `grow.hpp:125-177` documents the exact RNG draw discipline
+blocks in full. `[[grow.hpp:125-177@3080a9c5]]` documents the exact RNG draw discipline
 (which node draws how many coins, in what order) - load-bearing for bitwise
-equivalence and genuinely unshowable in code. `combiner.hpp:1884-1921` derives
+equivalence and genuinely unshowable in code. `[[combiner.hpp:1884-1921@3080a9c5]]` derives
 the level-centering move's exact conditional and warns that
 `ConstantGaussianLeaf::scale` already carries the `1/sqrt(m_k)` so dividing
 again double-counts it - a real trap, correctly documented.
@@ -462,13 +462,13 @@ again double-counts it - a real trap, correctly documented.
 In both, the rule violations are *surgical sentences inside otherwise earned
 comments*:
 
-- `grow.hpp:129` "(documented so the equivalence picture stays predictable)" -
+- `[[grow.hpp:129@3080a9c5]]` "(documented so the equivalence picture stays predictable)" -
   meta-provenance.
-- `grow.hpp:149` "test_grow.cpp chi-squares the realized root-rule
+- `[[grow.hpp:149@3080a9c5]]` "test_grow.cpp chi-squares the realized root-rule
   frequencies..." - cites a non-shipped test from shipped source.
-- `combiner.hpp:1895` "(a Jensen bias, confirmed against the exact gate) - so it
+- `[[combiner.hpp:1895@3080a9c5]]` "(a Jensen bias, confirmed against the exact gate) - so it
   is deliberately NOT used" - defends the choice to a reviewer.
-- `combiner.hpp:1908` "Uniform absorption is also the better mixing device
+- `[[combiner.hpp:1908@3080a9c5]]` "Uniform absorption is also the better mixing device
   than..." - same.
 
 **Judgement: the engine's comment load is not where to cut.** It is derivation,
@@ -500,12 +500,12 @@ holding every refusal rule, and the pairing is explicit in the exports:
 | - | `refuseEmptyTreeStore`, `refuseNonBinaryMask`, `refuseCscReferenceAgainstStore`, `refuseSparseLeafCovariate` |
 
 `src/C_interface.cpp` carries **22 `using bartcore_bridge::` declarations**
-(`:23-44`) pulling exactly these in. **There is one implementation of each rule,
+(`[[combiner.hpp:23-44@3080a9c5]]`) pulling exactly these in. **There is one implementation of each rule,
 and both entrances - the R bridge and the flat C API - call it.** That is not
 duplication and not defense in depth; it is one source of truth with two doors.
 
 The one rule implemented locally in `C_interface.cpp` rather than shared is
-`refuseTestMissingness` (`:256-267`), and its comment states precisely why:
+`refuseTestMissingness` (`[[combiner.hpp:256-267@3080a9c5]]`), and its comment states precisely why:
 
 ```
 // A test NA takes a rule's learned missing direction, and a rule learns one
@@ -544,10 +544,10 @@ equivalence gate. **This is the one comment corpus in the repo I would not cut.*
 
 ## E4. Shipped C++ hygiene: 4 test-path references, 2 of them legitimate
 
-Detailed in D7. `src/bartcore/chain.hpp:4515` and `:4648` state a real
+Detailed in D7. `[[src/bartcore/chain.hpp:4515@3080a9c5]]` and `[[src/bartcore/chain.hpp:4648@3080a9c5]]` state a real
 constraint about `NDEBUG` making an assert live only under `tests/cpp`.
-`src/bartcore/grow.hpp:149` ("test_grow.cpp chi-squares the realized root-rule
-frequencies...") and `src/R_interface_bartcore.cpp:4167` are provenance and
+`[[src/bartcore/grow.hpp:149@3080a9c5]]` ("test_grow.cpp chi-squares the realized root-rule
+frequencies...") and `[[src/R_interface_bartcore.cpp:4167@3080a9c5]]` are provenance and
 should go. **Delta: -2 lines.**
 
 ## E5. CORRECTED: one genuinely dead function in the engine, and my own clearance of it was wrong
@@ -557,18 +557,18 @@ cleared all 36 zero-call candidates. A second census, run with clang
 (`-Wunused-function -Wunused-member-function -Wunused-private-field
 -Wunreachable-code-aggressive`) rather than grep, found one survivor:
 
-**`GPGaussianLeaf::maxLeafSize()` at `src/bartcore/model.hpp:1352` is dead.**
+**`GPGaussianLeaf::maxLeafSize()` at `[[src/bartcore/model.hpp:1352@3080a9c5]]` is dead.**
 ```
   std::size_t maxLeafSize() const { return maxLeafSize_; }
 ```
-I had cleared it against `src/R_interface_bartcore.cpp:1356`. That line is
+I had cleared it against `[[src/R_interface_bartcore.cpp:1356@3080a9c5]]`. That line is
 ```
     model.gpMaxLeafSize = static_cast<size_t>(maxLeafSize);
 ```
 where `maxLeafSize` is a **local `int` declared three lines above** by
 `rc_getInt`, not a call to the accessor. Every other hit in `model.hpp` is
-either the member field `maxLeafSize_` (`:1455, :1523, :1597, :1663, :2087`), a
-constructor parameter (`:1360, :1363`), or a comment (`:1324, :1447`). The
+either the member field `maxLeafSize_` (`[[src/R_interface_bartcore.cpp:1455@3080a9c5]], [[src/R_interface_bartcore.cpp:1523@3080a9c5]], [[src/R_interface_bartcore.cpp:1597@3080a9c5]], [[src/R_interface_bartcore.cpp:1663@3080a9c5]], [[src/R_interface_bartcore.cpp:2087@3080a9c5]]`), a
+constructor parameter (`[[src/R_interface_bartcore.cpp:1360@3080a9c5]], [[src/R_interface_bartcore.cpp:1363@3080a9c5]]`), or a comment (`[[src/R_interface_bartcore.cpp:1324@3080a9c5]], [[src/R_interface_bartcore.cpp:1447@3080a9c5]]`). The
 accessor has zero callers. **Fix: delete. Delta: -1.** Risk: none.
 
 **Methodology note that caused my error, and that matters for anyone repeating
@@ -591,11 +591,11 @@ and read as production API:
 
 | function | declared | only callers |
 |---|---|---|
-| `Chain::interweaveGlueRidge` | `chain.hpp:1331` | `tests/cpp/test_sampler.cpp:2730` |
-| `TResponse::estimatesResidualDf` | `model.hpp:4167` | `tests/cpp/` |
-| `NBResponse::estimatesDispersion` | `model.hpp:4463` | `tests/cpp/` |
-| `ColumnStore::testColumnIsSparse` | `data.hpp:1807` | `tests/cpp/test_model.cpp:5767` |
-| `ColumnStore::testSparseColumn` | `data.hpp:1810` | `tests/cpp/test_model.cpp:5768` |
+| `Chain::interweaveGlueRidge` | `[[chain.hpp:1331@3080a9c5]]` | `[[tests/cpp/test_sampler.cpp:2730@3080a9c5]]` |
+| `TResponse::estimatesResidualDf` | `[[model.hpp:4167@3080a9c5]]` | `tests/cpp/` |
+| `NBResponse::estimatesDispersion` | `[[model.hpp:4463@3080a9c5]]` | `tests/cpp/` |
+| `ColumnStore::testColumnIsSparse` | `[[data.hpp:1807@3080a9c5]]` | `[[tests/cpp/test_model.cpp:5767@3080a9c5]]` |
+| `ColumnStore::testSparseColumn` | `[[data.hpp:1810@3080a9c5]]` | `[[tests/cpp/test_model.cpp:5768@3080a9c5]]` |
 
 I actually observed three of these myself and recorded them as "alive" without
 drawing the conclusion - being reached *only* from `tests/cpp` is the finding,
@@ -611,15 +611,15 @@ template instantiation, member calls, and function-pointer use:
 
 | candidate | actually reached by |
 |---|---|
-| `bcfGlue` (`combiner.hpp:820`) | 23 mentions; live |
-| `blendSoftmax` (`combiner.hpp:2043`) | called at `combiner.hpp:1879` |
-| `interweaveGlueRidge` | `tests/cpp/test_sampler.cpp:2730` |
-| `partitionByPredicate` (`tree.hpp:730`) | `tree.hpp:761`, `:771` (lambda arguments) |
-| `mapCutPointsBelow` (`tree.hpp:1284`) | recursive self-call at `:1294` |
-| `runTestFitRange` (`chain.hpp:4051`) | function pointer to `misc_mt_runTasks`, `chain.hpp:4083` |
-| `maxLeafSize` | `src/R_interface_bartcore.cpp:1356` |
-| `testColumnIsSparse` | `tests/cpp/test_model.cpp:5767-5768` |
-| `monotoneIntegrate` (`model.hpp:366`) | one caller, `model.hpp:842` - and it names a mathematical operation, so it earns the name |
+| `bcfGlue` (`[[combiner.hpp:820@3080a9c5]]`) | 23 mentions; live |
+| `blendSoftmax` (`[[combiner.hpp:2043@3080a9c5]]`) | called at `[[combiner.hpp:1879@3080a9c5]]` |
+| `interweaveGlueRidge` | `[[tests/cpp/test_sampler.cpp:2730@3080a9c5]]` |
+| `partitionByPredicate` (`[[tree.hpp:730@3080a9c5]]`) | `[[tree.hpp:761@3080a9c5]]`, `[[tree.hpp:771@3080a9c5]]` (lambda arguments) |
+| `mapCutPointsBelow` (`[[tree.hpp:1284@3080a9c5]]`) | recursive self-call at `[[tree.hpp:1294@3080a9c5]]` |
+| `runTestFitRange` (`[[chain.hpp:4051@3080a9c5]]`) | function pointer to `misc_mt_runTasks`, `[[chain.hpp:4083@3080a9c5]]` |
+| `maxLeafSize` | `[[src/R_interface_bartcore.cpp:1356@3080a9c5]]` |
+| `testColumnIsSparse` | `[[tests/cpp/test_model.cpp:5767-5768@3080a9c5]]` |
+| `monotoneIntegrate` (`[[model.hpp:366@3080a9c5]]`) | one caller, `[[model.hpp:842@3080a9c5]]` - and it names a mathematical operation, so it earns the name |
 
 **13 of the 36 are `*ForTesting` accessors** - a deliberate, self-documenting
 test-only surface. It is **16 distinct symbols, 24 occurrences**, split
@@ -634,12 +634,12 @@ Normalized 10-line duplicate-window pass over `src/bartcore/*.hpp`: **25
 windows, collapsing to 9 distinct sites, every one a pair.** For scale, `R/`
 produced 200 windows at an 8-line window in a comparable 20,826 lines. **The
 engine is the least clone-duplicated code in the repository.** The nine sites:
-`tree.hpp:1322/1399`, `model.hpp:3922/4175`, `:3117/3256`, `:1610/2007`,
-`:1175/1192`, `:1054/1419`, `:1013/1381`, `chain.hpp:5146/5210`, `:1418/1990`.
+`[[tree.hpp:1322@3080a9c5]]/1399`, `[[model.hpp:3922@3080a9c5]]/4175`, `[[model.hpp:3117@3080a9c5]]/3256`, `[[model.hpp:1610@3080a9c5]]/2007`,
+`[[model.hpp:1175@3080a9c5]]/1192`, `[[model.hpp:1054@3080a9c5]]/1419`, `[[model.hpp:1013@3080a9c5]]/1381`, `[[chain.hpp:5146@3080a9c5]]/5210`, `[[chain.hpp:1418@3080a9c5]]/1990`.
 
 Two deserve names:
 
-**(a) `model.hpp:1013` vs `model.hpp:1381` - a genuine factorable duplicate, ~13 lines x2.**
+**(a) `[[model.hpp:1013@3080a9c5]]` vs `[[model.hpp:1381@3080a9c5]]` - a genuine factorable duplicate, ~13 lines x2.**
 The covariate-standardization setup is copied verbatim between two leaf models,
 and the *only* difference is which cache the first line clears:
 ```
@@ -665,11 +665,11 @@ each leaf model keeps only its own cache-clear. Delta: -13.**
 equivalence harness, not tinytest.** Small payoff against a real gate - do it
 only when something else is already opening these files.
 
-**(b) `chain.hpp:1418` vs `chain.hpp:1990` - parallel backfit skeletons. LEAVE ALONE.**
+**(b) `[[chain.hpp:1418@3080a9c5]]` vs `[[chain.hpp:1990@3080a9c5]]` - parallel backfit skeletons. LEAVE ALONE.**
 Both iterate `forests_`, bind `forestY`/`forestWeights` and branch on
-`combiner_`, but they diverge immediately: `:1990` calls
+`combiner_`, but they diverge immediately: `[[chain.hpp:1990@3080a9c5]]` calls
 `combiner_->drawForestGlue(f, rng_, forests_)` before forming the response and
-`:1418` does not - **a different RNG consumption order.** Factoring these would
+`[[chain.hpp:1418@3080a9c5]]` does not - **a different RNG consumption order.** Factoring these would
 put a draw-order difference behind a shared function's parameter, which is
 exactly how a bitwise gate breaks quietly. **Legitimately parallel. No change.**
 
@@ -678,7 +678,7 @@ exactly how a bitwise gate breaks quietly. **Legitimately parallel. No change.**
 I closed the naming question directly. Most axes are clean singletons:
 `numTrees` 188/0, `forestIndex` 78/0, `numCategories` 34/0. Two apparent splits
 are legitimate: `numObs` (145) is a local shorthand for the long accessor
-(`std::size_t numObs = node.numObservations();`, `model.hpp:1257`), not a
+(`std::size_t numObs = node.numObservations();`, `[[model.hpp:1257@3080a9c5]]`), not a
 competing API name; `workingResponse` (25) vs `resid` (52) are the GLM working
 response and the plain residual, genuinely different things.
 
@@ -686,12 +686,12 @@ response and the plain residual, genuinely different things.
 
 | identifier | uses | what it is | declared |
 |---|---|---|---|
-| `cutPoints` | **61** | the per-column **split candidate grid** for tree rules | `data.hpp:527` `std::vector<std::vector<double>> cutPoints;` |
-| `cutpoints` | **42** | the ordinal cumulative-probit's **K-1 latent thresholds** | `combiner.hpp:80` `std::vector<double> cutpoints;` |
+| `cutPoints` | **61** | the per-column **split candidate grid** for tree rules | `[[data.hpp:527@3080a9c5]]` `std::vector<std::vector<double>> cutPoints;` |
+| `cutpoints` | **42** | the ordinal cumulative-probit's **K-1 latent thresholds** | `[[combiner.hpp:80@3080a9c5]]` `std::vector<double> cutpoints;` |
 
 These are unrelated quantities. Both are plural, both are `vector<double>` or
 `const double*`, they live in files that include one another, and
-**`cutpoints` is in the shipped public header** (`inst/include/dbarts/dbarts.h:1272`,
+**`cutpoints` is in the shipped public header** (`[[inst/include/dbarts/dbarts.h:1272@3080a9c5]]`,
 "cutpoints the ordinal's numCutpoints strictly increasing interior..."), so a
 `LinkingTo: dbarts` consumer meets it. `grep -i cutpoints` returns both, and
 nothing but a capital P separates the split grid from an ordered probit's
@@ -723,7 +723,7 @@ anything else here is touched.** I verified it independently and it is
 unambiguous, because the codebase states the violated contract in its own words
 and honours it everywhere else.
 
-**The contract**, `src/R_interface_bartcore_common.hpp:182-183`, verbatim:
+**The contract**, `[[src/R_interface_bartcore_common.hpp:182-183@3080a9c5]]`, verbatim:
 ```
 /// gaussian passes through, validated for non-negativity by its callers.
 ```
@@ -733,10 +733,10 @@ caller.** There are four callers. Three honour it. One does not:
 
 | caller | non-negativity check? |
 |---|---|
-| `R_interface_bartcore.cpp:2525` (creation) | via the R surface ahead of it |
-| `R_interface_bartcore.cpp:4735` (setData) | via the R surface ahead of it |
-| `R_interface_bartcore.cpp:4950` (R bridge setWeights) | **YES** - `:4954` `if (!(weights[i] >= 0.0)) Rf_error("weights must be non-negative");` |
-| **`C_interface.cpp:702`** (`dbarts_sampler_setWeights`) | **NO** |
+| `[[R_interface_bartcore.cpp:2525@3080a9c5]]` (creation) | via the R surface ahead of it |
+| `[[R_interface_bartcore.cpp:4735@3080a9c5]]` (setData) | via the R surface ahead of it |
+| `[[R_interface_bartcore.cpp:4950@3080a9c5]]` (R bridge setWeights) | **YES** - `[[R_interface_bartcore.cpp:4954@3080a9c5]]` `if (!(weights[i] >= 0.0)) Rf_error("weights must be non-negative");` |
+| **`[[C_interface.cpp:702@3080a9c5]]`** (`dbarts_sampler_setWeights`) | **NO** |
 
 The flat entrance runs the family policy and then installs directly:
 ```
@@ -747,7 +747,7 @@ The flat entrance runs the family policy and then installs directly:
 
 **Why this is a bug and not a judgement call:** the flat C API has no R layer in
 front of it - that is the whole point of it, and the file says so at
-`R_interface_bartcore.cpp:4730-4732` ("the R surface checks it first, so this is
+`[[R_interface_bartcore.cpp:4730-4732@3080a9c5]]` ("the R surface checks it first, so this is
 a no-op there and the real gate for the flat C API"). And the *same file* gets
 it right 400 lines later for a different weight vector:
 
@@ -769,7 +769,7 @@ exposed consumers are exactly the `LinkingTo: dbarts` packages the flat API
 exists for (stan4bart, bairrtt), which reach it without R validation.
 `R_FINITE` is unchecked too, so `NA`/`Inf` weights install as well.
 
-**Fix:** three lines at `C_interface.cpp:703`, mirroring `:1111-1115`:
+**Fix:** three lines at `[[C_interface.cpp:703@3080a9c5]]`, mirroring `[[C_interface.cpp:1111-1115@3080a9c5]]`:
 ```
   for (size_t i = 0; i < weightShape.numObservations; ++i)
     if (!R_FINITE(weights[i]) || weights[i] < 0.0)
@@ -782,7 +782,7 @@ behaviour).** Nothing about the two-channel design changes - this is a missing
 caller-side check, not a design question.
 
 **One item I could not fully close:** the flat *creation* path's weight
-validation at `C_interface.cpp:1249-1254` gates on
+validation at `[[C_interface.cpp:1249-1254@3080a9c5]]` gates on
 `readsWeights = in.weights != NULL && resolved == RF::logistic`, so gaussian
 creation weights appear to be unchecked there too. I did not trace every flat
 creation entrance, so treat creation as *likely* exposed and confirm it while
@@ -796,24 +796,24 @@ the caller did not already know. Verified individually:
 
 | forwarder | declared | its one caller | why it is cruft |
 |---|---|---|---|
-| `ColumnStore::clearTest()` | `data.hpp:1789` | `sampler.hpp:1366` | a rename of the already-public `resetTestStorage()` |
-| `testColumnIsCscBacked()` | `data.hpp:1043` | `data.hpp:1052` | consumed **nine lines below its own definition** |
-| `ColumnSource::isRank()` | `data.hpp:158` | `data.hpp:469` | a second named layer over one enum compare |
-| `treesSplittingOnColumn()` | `chain.hpp:2247` | `sampler.hpp:1888` | one-line partial application of public `collectSplittingTrees` |
-| `varianceTreesSplittingOnColumn()` | `chain.hpp:2271` | `sampler.hpp:1892` | same, and its call site is **four lines from the previous one** |
+| `ColumnStore::clearTest()` | `[[data.hpp:1789@3080a9c5]]` | `[[sampler.hpp:1366@3080a9c5]]` | a rename of the already-public `resetTestStorage()` |
+| `testColumnIsCscBacked()` | `[[data.hpp:1043@3080a9c5]]` | `[[data.hpp:1052@3080a9c5]]` | consumed **nine lines below its own definition** |
+| `ColumnSource::isRank()` | `[[data.hpp:158@3080a9c5]]` | `[[data.hpp:469@3080a9c5]]` | a second named layer over one enum compare |
+| `treesSplittingOnColumn()` | `[[chain.hpp:2247@3080a9c5]]` | `[[sampler.hpp:1888@3080a9c5]]` | one-line partial application of public `collectSplittingTrees` |
+| `varianceTreesSplittingOnColumn()` | `[[chain.hpp:2271@3080a9c5]]` | `[[sampler.hpp:1892@3080a9c5]]` | same, and its call site is **four lines from the previous one** |
 
 The last pair is the clearest case: two wrappers whose only callers sit four
 lines apart in the same function, both forwarding to one public method.
 **Fix: inline all eight. Delta: -28.** Risk: `tests/cpp` plus a normal build.
 
-**One exclusion I endorse:** `gaussianPdf` (`model.hpp:340`) is also a
+**One exclusion I endorse:** `gaussianPdf` (`[[model.hpp:340@3080a9c5]]`) is also a
 single-caller helper, but it sits on the monotone-leaf marginal, so inlining it
 moves floating-point evaluation order. **Leave it** - or gate the change on the
 equivalence harness against a monotone baseline. Not worth it for one line.
 
 ## E9. A genuine style fork for the maintainer to settle: six post-hoc `Rf_error` guards
 
-`src/R_interface_bartcore.cpp:3874, :3922, :3962, :4010, :4059, :4094` each read
+`[[src/R_interface_bartcore.cpp:3874@3080a9c5]], [[src/R_interface_bartcore.cpp:3922@3080a9c5]], [[src/R_interface_bartcore.cpp:3962@3080a9c5]], [[src/R_interface_bartcore.cpp:4010@3080a9c5]], [[src/R_interface_bartcore.cpp:4059@3080a9c5]], [[src/R_interface_bartcore.cpp:4094@3080a9c5]]` each read
 
 ```
 if (!engine->set*(...)) Rf_error(...);
@@ -824,7 +824,7 @@ probed immediately above. **The two reviewers of this code disagree, and the
 disagreement is legitimate**, so I am presenting it rather than resolving it:
 
 - **Delete them (-42).** They are dead by construction; the file's own comment
-  at `:4164-4167` argues precisely this way about a sibling case.
+  at `[[src/R_interface_bartcore.cpp:4164-4167@3080a9c5]]` argues precisely this way about a sibling case.
 - **Keep them (-6, cutting the three verbatim-triplicated comments to one line
   each).** Deleting the test means discarding a `bool` the engine deliberately
   returns, and clang cannot prove the branches unreachable.
@@ -832,7 +832,7 @@ disagreement is legitimate**, so I am presenting it rather than resolving it:
 The resolution is a house rule, not a review finding: *"never discard a `bool`
 returned by the engine"* keeps them; *"no unreachable branches"* deletes them.
 **Both positions agree on one real defect regardless of which rule wins:**
-`:4092-4095` carries three lines of user-facing prose about fractional weights
+`[[src/R_interface_bartcore.cpp:4092-4095@3080a9c5]]` carries three lines of user-facing prose about fractional weights
 that **cannot be reached**, because `refuseNonBinaryMask` raises first. That is
 a broken error message, not a style question. **Fix it either way. -3.**
 
@@ -864,7 +864,7 @@ Across all 5432 assertions: **zero** `expect_true(TRUE)`, **zero**
 guarantees dressed as package behaviour. Total genuinely dead assertions found:
 **five**, worth ~8 lines.
 
-1. `inst/tinytest/test-generics-multithreaded.R:270-273` - the one true
+1. `[[inst/tinytest/test-generics-multithreaded.R:270-273@3080a9c5]]` - the one true
    self-comparison:
    ```r
    expect_identical(
@@ -875,14 +875,14 @@ guarantees dressed as package behaviour. Total genuinely dead assertions found:
    The comment says the intent is "`group.by` follows `...`, so it is matched
    by name only". **That intent is untestable this way** - if `group.by` were
    swallowed by `...`, both sides would be equally wrong and it would still
-   pass. The 1-thread-vs-2-thread assertion at `:260-263` already covers it.
+   pass. The 1-thread-vs-2-thread assertion at `[[inst/tinytest/test-generics-multithreaded.R:260-263@3080a9c5]]` already covers it.
    **Delete. -4.**
-2. `inst/tinytest/test-argument-surface.R:853`
+2. `[[inst/tinytest/test-argument-surface.R:853@3080a9c5]]`
    `expect_equal(length(formals(dbarts::xbart)), 32L)` - fails on every
    legitimate signature change, names nothing, and the `for (knob in
-   xbartKnobs)` loop at `:845-850` already asserts the surface by name.
+   xbartKnobs)` loop at `[[inst/tinytest/test-argument-surface.R:845-850@3080a9c5]]` already asserts the surface by name.
    **Delete. -1.**
-3. `inst/tinytest/test-summary-nondefault-families.R:31, 44, 56` - three
+3. `[[inst/tinytest/test-summary-nondefault-families.R:31@3080a9c5]], 44, 56` - three
    `expect_false(identical(class(...), "summary.default"))` that cannot fail
    while the `expect_true(inherits(..., "summary.bart"))` two lines below
    passes. Also calls `summary()` a second time for nothing. **Delete. -3.**
@@ -892,7 +892,7 @@ guarantees dressed as package behaviour. Total genuinely dead assertions found:
 Grepped the whole suite plus `inst/common` for `docs/` paths, `.md` filenames,
 PR numbers, commit hashes and slice codenames: **0 hits.** Every occurrence of
 the word "slice" is an R variable (`sweepSlice`, `savedSlice`) or English about
-array indexing. One prose wobble only: `test-generics-intervals.R:152-154` says
+array indexing. One prose wobble only: `[[test-generics-intervals.R:152-154@3080a9c5]]` says
 "already had ci.level third before this slice" - a temporal self-reference, the
 single provenance leak in 45k lines.
 
@@ -948,7 +948,7 @@ move.**
 ## F5. UPHELD: the rbart group-by preamble, character-identical in 10 files
 
 `test-rbart-{bartcore,error,example,generics,groupby,multithreaded,options,reproducibility,weights}.R:1-27`
-and `test-reproducibility-rbart.R:6-27` are byte-for-byte identical (modulo one
+and `[[test-reproducibility-rbart.R:6-27@3080a9c5]]` are byte-for-byte identical (modulo one
 extra `source(captureWarnings.R)` in two of them): the Friedman source, the
 `RNGkind(sample.kind = "Rounding")` dance, the group draw, `sigma.b <- 1.5`,
 the `b[g]` shift and the `rm()`.
@@ -978,9 +978,9 @@ workflow. **No change recommended.**
 
 | file(s) | now | after | delta | operation |
 |---|---|---|---|---|
-| `test-generics-errors.R` | 755 | ~635 | **-120** | Three arms (predict `:1-410`, extract `:412-581`, fitted `:583-755`) each rebuild the same six fits with byte-identical knobs. `bart2FitKT:113` and `bartFitKT:415` are identical including `keepTrees=TRUE`. The dataset is built three times unseeded (`xSmall:225`, `xSmall2:482`, `xSmall3:587`) though every assertion is an error-message check that never reads it. Build once at the top. Also 11 fewer sampler runs at test time. |
-| `test-multinomial-surface.R` | 983 | ~830 | **-150** | Highest absolute redundancy in the corpus (168/781 = 22%). `internalMultinomialFit:30-59` and `internalMultinomialCountFit:403-432` are 30-line near-clones - **the file's own comment at `:400` admits it**. Plus the same 8-line knob block 10x (`:89,117,165,459,498,551,654,680,702`). |
-| rbart preamble family (10 files) | ~230 | ~65 | **-190** | See F5. Worst single file `test-rbart-groupby.R` (44% redundant): the preamble plus three near-identical surface arms at `:170-200,:235-270,:285-315` differing only in `combineChains` and a 0.90-vs-0.80 bound. |
+| `test-generics-errors.R` | 755 | ~635 | **-120** | Three arms (predict `:1-410`, extract `[[test-reproducibility-rbart.R:412-581@3080a9c5]]`, fitted `[[test-reproducibility-rbart.R:583-755@3080a9c5]]`) each rebuild the same six fits with byte-identical knobs. `bart2FitKT:113` and `bartFitKT:415` are identical including `keepTrees=TRUE`. The dataset is built three times unseeded (`xSmall:225`, `xSmall2:482`, `xSmall3:587`) though every assertion is an error-message check that never reads it. Build once at the top. Also 11 fewer sampler runs at test time. |
+| `test-multinomial-surface.R` | 983 | ~830 | **-150** | Highest absolute redundancy in the corpus (168/781 = 22%). `internalMultinomialFit:30-59` and `internalMultinomialCountFit:403-432` are 30-line near-clones - **the file's own comment at `[[test-reproducibility-rbart.R:400@3080a9c5]]` admits it**. Plus the same 8-line knob block 10x (`[[test-reproducibility-rbart.R:89@3080a9c5]], [[test-reproducibility-rbart.R:117@3080a9c5]], [[test-reproducibility-rbart.R:165@3080a9c5]], [[test-reproducibility-rbart.R:459@3080a9c5]], [[test-reproducibility-rbart.R:498@3080a9c5]], [[test-reproducibility-rbart.R:551@3080a9c5]], [[test-reproducibility-rbart.R:654@3080a9c5]], [[test-reproducibility-rbart.R:680@3080a9c5]], [[test-reproducibility-rbart.R:702@3080a9c5]]`). |
+| rbart preamble family (10 files) | ~230 | ~65 | **-190** | See F5. Worst single file `test-rbart-groupby.R` (44% redundant): the preamble plus three near-identical surface arms at `[[test-reproducibility-rbart.R:170-200@3080a9c5]],[[test-reproducibility-rbart.R:235-270@3080a9c5]],[[test-reproducibility-rbart.R:285-315@3080a9c5]]` differing only in `combineChains` and a 0.90-vs-0.80 bound. |
 | xbart trio | 437 | ~300 | **-137** | `test-xbart-reproducibility.R` is **68% redundant** - four copies of the same 12-line `xbart(seed=0L)` call varying only `n.threads` (1,1,2,2). Two runs prove determinism; four copies do not. Plus a shared `checkXvalShape()` across `test-xbart-method.R`/`test-xbart-loss.R`. |
 | `test-gp-leaves.R` + `test-linear-leaves.R` | 644 | ~560 | **-84** | Three byte-identical blocks modulo `node.prior` and one tolerance: state round-trip (`gp:229-264` = `linear:182-217`), the plotTree/prior-swap refusal (`gp:123-143` = `linear:73-94`), the `rm()` teardown (`gp:290-307` = `linear:263-280`). Per-family assertions stay put - that part is legitimately parallel. |
 
@@ -992,10 +992,10 @@ naming conventions, no coordination.
 
 ## F8. Legitimately parallel - do NOT touch
 
-- Cross-family generic-refusal blocks (`test-hurdle.R:289-310`,
-  `test-nbinom.R:476-511`, `test-ordinal.R:495-524`): each family must refuse
+- Cross-family generic-refusal blocks (`[[test-hurdle.R:289-310@3080a9c5]]`,
+  `[[test-nbinom.R:476-511@3080a9c5]]`, `[[test-ordinal.R:495-524@3080a9c5]]`): each family must refuse
   independently. The near-duplication *is* the test.
-- `test-rng.R:84,95,109,120`: four seeded `bart()` calls whose whole point is
+- `[[test-rng.R:84@3080a9c5]], [[test-rng.R:95@3080a9c5]], [[test-rng.R:109@3080a9c5]], [[test-rng.R:120@3080a9c5]]`: four seeded `bart()` calls whose whole point is
   that identical arguments give identical draws.
 - The five worst in-file "repeat" offenders (`test-fits-without-offset.R` 28,
   `test-data-testOffset.R` 26, `test-makeModelMatrix.R` 16) all apply the
@@ -1040,14 +1040,14 @@ stay independently runnable at different commits*. I read the shared functions.
 
 Every shared helper is a **statistic over draws**, not oracle logic:
 
-- `lag1Acf` (`multinomial-equivalence.R:153` = `bcf-equivalence.R:170`, 12
+- `lag1Acf` (`[[multinomial-equivalence.R:153@3080a9c5]]` = `[[bcf-equivalence.R:170@3080a9c5]]`, 12
   lines): row-wise lag-1 autocorrelation. Pure arithmetic on a matrix.
-- `essCompare` (`:183` = `:200`, 13 lines): a two-sample z-statistic with an
+- `essCompare` (`[[bcf-equivalence.R:183@3080a9c5]]` = `[[bcf-equivalence.R:200@3080a9c5]]`, 13 lines): a two-sample z-statistic with an
   ESS correction. Reads only the two arms' draw matrices.
-- `drawSummary` (`:146` = `:163`, 4 lines): `rowMeans` / `var` / `ncol`.
-- `nonFiniteParts` (`:367` = `:384`, 24 lines): `sprintf` formatting of
+- `drawSummary` (`[[bcf-equivalence.R:146@3080a9c5]]` = `[[bcf-equivalence.R:163@3080a9c5]]`, 4 lines): `rowMeans` / `var` / `ncol`.
+- `nonFiniteParts` (`[[bcf-equivalence.R:367@3080a9c5]]` = `[[bcf-equivalence.R:384@3080a9c5]]`, 24 lines): `sprintf` formatting of
   non-finite cell counts.
-- `makeControl` (`:95` = `:113`, 8 lines): a `dbartsControl(...)` builder.
+- `makeControl` (`[[bcf-equivalence.R:95@3080a9c5]]` = `[[bcf-equivalence.R:113@3080a9c5]]`, 8 lines): a `dbartsControl(...)` builder.
 
 **None of these reimplements sampler behaviour, so none can launder a bug into
 the verdict.** They are applied *symmetrically to both arms*: a bug in
@@ -1094,12 +1094,12 @@ lines, and all six are a `sprintf` column width (`"%-14s"` vs `"%-6s"`).** That
 is a copy with a formatting edit, not an independent implementation.
 
 And argument (a) is **already violated by these same two files**:
-`bcf-equivalence.R:56-59` and `multinomial-equivalence.R:66-69` both
+`[[bcf-equivalence.R:56-59@3080a9c5]]` and `[[multinomial-equivalence.R:66-69@3080a9c5]]` both
 `source(system.file("common", "bartcoreHandle.R", package = "dbarts"))` - 484
 lines of handle API loaded **from the installed package under test**. If that is
 acceptable (and it is; 27 tinytest files and 14 benchmark scripts do it), then a
 sibling `.R` in `benchmarks/R/` is *strictly safer* - it is not built by the
-compiler whose output is being validated. `equivalence.R:39-42` already sources
+compiler whose output is being validated. `[[equivalence.R:39-42@3080a9c5]]` already sources
 a sibling (`bartcore-shim.R`), so the pattern is established.
 
 The duplication also provides **zero** independent-implementation value: sharing
@@ -1160,8 +1160,8 @@ Real INDEX defects instead, both small:
 `.log`, 17 `.rds`, 7 `.py`, 3 `.jsonl`, 3 `.csv`, 2 `.out`, 1 `.json`. **The
 `.rds`/`.log`/`.out`/`.jsonl` alone are 476 KB of binary and raw run logs checked
 into a docs tree.** Its own scripts still point at their pre-promotion home -
-`matrix.R:4`, `matrix-entries.R:7,18`, `matrix-sampler-census.R:18`,
-`wave3-plan.md:3,670` all cite their old scratch location, dangling for
+`[[matrix.R:4@3080a9c5]]`, `[[matrix-entries.R:7@3080a9c5]], [[matrix-entries.R:18@3080a9c5]]`, `[[matrix-sampler-census.R:18@3080a9c5]]`,
+`[[wave3-plan.md:3@3080a9c5]], [[wave3-plan.md:670@3080a9c5]]` all cite their old scratch location, dangling for
 anyone who clones.
 
 **Fix: keep the 32 `.md` (TODO cites their ledger); move the 37 `.R` + 7 `.py`
@@ -1224,7 +1224,7 @@ part of the record system:**
   C-API-visible surface.
 - **No slice codenames anywhere.**
 
-Three real defects only: `NEWS.Rd:1925, :1941, :1956` name unexported internals
+Three real defects only: `[[NEWS.Rd:1925@3f532af2]], [[NEWS.Rd:1941@3f532af2]], [[NEWS.Rd:1956@3f532af2]]` name unexported internals
 (`bartcore*` functions, `bartcore_create`) - rewrite to the observable effect;
 BUG FIXES item #6 (18 lines) opens "That conditioning is now applied per
 forest..." as a continuation of #5 promoted to a standalone `\item`, unreadable
@@ -1237,7 +1237,7 @@ no 0.9-34 user saw those behaviours, so they are not fixes.
 
 **Delete (2 files, -39 lines):**
 - `tools/m4/ax_log1p_in_namespace_std.m4` (39 lines) - not `m4_include`d
-  (`configure.ac:13-16` lists exactly four), `AX_CXX_LOG1P_IN_NAMESPACE_STD` has
+  (`[[configure.ac:13-16@3f532af2]]` lists exactly four), `AX_CXX_LOG1P_IN_NAMESPACE_STD` has
   0 hits in generated `configure`, `HAVE_LOG1P_IN_NAMESPACE_STD` 0 hits
   anywhere. Last touched 2021-10-04.
 - `tools/build-aux/install-sh` - **0 bytes**, `configure:2636` sets
@@ -1252,14 +1252,14 @@ Risk: none.** Best line-per-keystroke item in the review.
 
 **Everything else in `tools/`, `inst/common`, `tests/cpp` is live.** My earlier
 `check-build-freshness.R` suspicion resolves: it is executed by
-`benchmarks/R/mutation-battery.R:504`, so it is wired, just not via CI.
+`[[benchmarks/R/mutation-battery.R:504@3f532af2]]`, so it is wired, just not via CI.
 `tests/cpp` is **the most current thing audited** - newest file touched in the
 same commit that reshaped `inst/include/dbarts/dbarts.h`; 13 `test_*.cpp` <-> 13
-suites in `main.cpp:73-90` <-> 13 Makefile SOURCES entries, no orphans, zero
+suites in `[[main.cpp:73-90@3f532af2]]` <-> 13 Makefile SOURCES entries, no orphans, zero
 references to a removed API.
 
 **`benchmarks/kernels` header-tracking gap confirmed**: its Makefile has no
-`-MMD`, no `-MP`, no `-include *.d` (contrast `tests/cpp/Makefile:14` and `:40`,
+`-MMD`, no `-MP`, no `-include *.d` (contrast `tests/cpp/Makefile:14` and `[[main.cpp:40@3f532af2]]`,
 which have all three), and its only header prerequisite is `partition_u8.h` at
 `Makefile:18`. `linear_leaf.cpp` includes the header-only
 `<bartcore/bartcore.hpp>`, so an engine header edit changes no prerequisite.
@@ -1296,7 +1296,7 @@ files nobody can open. **Fix: mark each `(recording not retained)`. +7 clauses.*
 `.github/workflows/lint.yaml` job `doc-freshness` (lines 74-92) runs
 `tools/check-doc-freshness.R`, whose declared inputs are `docs/design/*.md`,
 `docs/design/INDEX.md`, `docs/plans/*.md` and `TODO`. **All three are in the
-workflow's own `paths-ignore`** (`lint.yaml:11` `docs/**`, `:12` `TODO`, `:13`
+workflow's own `paths-ignore`** (`[[lint.yaml:11@23b9cde7]]` `docs/**`, `[[lint.yaml:12@23b9cde7]]` `TODO`, `[[lint.yaml:13@23b9cde7]]`
 `**.md`).
 
 **A push touching only `docs/` or `TODO` never runs the doc-freshness check -
@@ -1310,12 +1310,12 @@ the lint job's full `local::.` compile.
 
 ## H10. CI: 54 duplicated lines, half the gate surface automation-dead, 12 stale branch names
 
-- **Duplicate jobs.** `equivalence.yaml:69-122` - jobs `bcf-equivalence` (26
+- **Duplicate jobs.** `[[equivalence.yaml:69-122@23b9cde7]]` - jobs `bcf-equivalence` (26
   lines) and `multinomial-equivalence` (28 lines) - run the same script, same
   pinned baseline hash and same `--cross-host` flag as the single 24-line step in
-  `exact-gates.yaml:141-164`, **which fires on every push**. The two are
+  `[[exact-gates.yaml:141-164@23b9cde7]]`, **which fires on every push**. The two are
   byte-identical to each other except 2 of 27 lines. Each baseline hash is pinned
-  twice (4 literals for 2 files). **Fix: delete `equivalence.yaml:69-122`; keep
+  twice (4 literals for 2 files). **Fix: delete `[[equivalence.yaml:69-122@23b9cde7]]`; keep
   the gaussian job (35-67), which alone uses `--strict-coverage`. Delta: -54
   lines, 3 jobs -> 1, 4 hash pins -> 2. Risk: low - per-push coverage is strictly
   higher than the weekly cron it replaces.**
@@ -1327,20 +1327,20 @@ the lint job's full `local::.` compile.
   the green badge covers half of what is declared. Validate all 5 the day
   bartcore reaches main.
 - **`master` referenced 12x** across 6 workflows (push + PR triggers) - no such
-  branch exists. `check-standard.yaml:5,14`, `cpp-tests.yaml:9,18`,
-  `exact-gates.yaml:38,45`, `lint.yaml:7,16`, `pkgdown.yaml:6,15`,
-  `sanitizers.yaml:17,26`. **12 edits, zero risk.**
-- **`valgrind.yaml:41` installs only `c("tinytest","Matrix")`** where
-  `sanitizers.yaml:64` installs `c("tinytest","Matrix","survival","posterior")`.
+  branch exists. `[[check-standard.yaml:5@23b9cde7]], [[check-standard.yaml:14@23b9cde7]]`, `[[cpp-tests.yaml:9@23b9cde7]], [[cpp-tests.yaml:18@23b9cde7]]`,
+  `[[exact-gates.yaml:38@23b9cde7]], [[exact-gates.yaml:45@23b9cde7]]`, `[[lint.yaml:7@23b9cde7]], [[lint.yaml:16@23b9cde7]]`, `[[pkgdown.yaml:6@23b9cde7]], [[pkgdown.yaml:15@23b9cde7]]`,
+  `[[sanitizers.yaml:17@23b9cde7]], [[sanitizers.yaml:26@23b9cde7]]`. **12 edits, zero risk.**
+- **`[[valgrind.yaml:41@23b9cde7]]` installs only `c("tinytest","Matrix")`** where
+  `[[sanitizers.yaml:64@23b9cde7]]` installs `c("tinytest","Matrix","survival","posterior")`.
   37 tinytest files reference `posterior` and 17 reference `survival`, all behind
   `requireNamespace()` guards - **so under valgrind those blocks skip silently and
-  still report green**, and valgrind carries none of `sanitizers.yaml:87-125`'s
+  still report green**, and valgrind carries none of `[[sanitizers.yaml:87-125@23b9cde7]]`'s
   count floors to catch the shrinkage. One-line fix.
 - **PR/push asymmetry:** 5 of 6 push workflows apply `paths-ignore` to `push` but
   not `pull_request`, so a docs-only PR runs the full 14-job / 12-compile matrix
   while the identical push does not.
-- **Two display names are still filenames** (`lint.yaml:23 name: lint.yaml`,
-  `pkgdown.yaml:20`). `pkgdown.yaml` is the only push workflow without
+- **Two display names are still filenames** (`[[lint.yaml:23@23b9cde7]] name: lint.yaml`,
+  `[[pkgdown.yaml:20@23b9cde7]]`). `pkgdown.yaml` is the only push workflow without
   `cancel-in-progress`, and its job-level concurrency groups all non-PR runs under
   the constant `pkgdown-true`, so a push burst **queues** 30-minute site builds.
 
@@ -1357,7 +1357,7 @@ five `.in` sources tracked. **No generated file is checked in.** The five `.win`
 variants are consistent with their `.in` counterparts - the 29 "absent"
 `config.hpp` symbols are correct (every consumer uses `#ifdef`, so omission ==
 disabled, and the `COMPILER_SUPPORTS_*` set arrives via `src/misc/config.h.win`
-plus `-D` flags from `src/Makevars.win:13`).
+plus `-D` flags from `[[src/Makevars.win:13@23b9cde7]]`).
 
 Two gaps worth closing: **`tools/check-win-drift.R` checks the 4 config header
 pairs but not `src/Makevars.win`** - and that is the one pair with a real
@@ -1368,15 +1368,15 @@ today, silently wrong the first version bump that forgets them.
 
 ## H12. Four doc-vs-code falsehoods found in passing
 
-- `docs/plans/change-move-fix.md:267` - says `change-fix-stage2.R` "and its
+- `[[docs/plans/change-move-fix.md:267@23b9cde7]]` - says `change-fix-stage2.R` "and its
   result files are kept unchanged as the experiment record"; **the `.R` was
   deleted 2026-08-24 in 7318b266.** (Keep the 4 result files in
   `benchmarks/results/` - they are unreproducible evidence for a landed engine
   decision - but fix the sentence.)
-- `docs/plans/review-2026-08-24/gate-ledger-read.md:103,121` - calls
+- `[[docs/plans/review-2026-08-24/gate-ledger-read.md:103@7318b266]], [[docs/plans/review-2026-08-24/gate-ledger-read.md:121@7318b266]]` - calls
   `check-win-drift.R` and `check-doc-freshness.R` **unwired**; both are wired
-  (`lint.yaml:86`, `:89`).
-- `docs/plans/bcf-bartcause-relocation.md:1224` - names
+  (`[[lint.yaml:86@7318b266]]`, `[[lint.yaml:89@7318b266]]`).
+- `[[docs/plans/bcf-bartcause-relocation.md:1224@7318b266]]` - names
   `inst/common/linearData.R` and `binaryData.R`; **neither exists.**
 - `DESCRIPTION:19-21` - credits `ax_cxx_namespace_std.m4` and
   `ax_func_posix_memalign.m4`; **no such files in the tree.**
@@ -1396,9 +1396,9 @@ so the file only exists in a local working tree. **No action. Cleared.**
 
 Two claims I re-checked myself because they drive slate items, both confirmed:
 
-- **H9 (doc-freshness gate)**: `lint.yaml:10-14` `paths-ignore` is literally
+- **H9 (doc-freshness gate)**: `[[lint.yaml:10-14@7318b266]]` `paths-ignore` is literally
   `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`, and the `doc-freshness`
-  job at `:74-92` runs `check-win-drift.R`, `check-doc-freshness.R` and
+  job at `[[lint.yaml:74-92@7318b266]]` runs `check-win-drift.R`, `check-doc-freshness.R` and
   `check-rc-codoc.R`. A docs-only or TODO-only push skips the whole workflow.
   Confirmed. (The `pull_request` trigger has no `paths-ignore`, so the gate does
   fire on PRs - which softens it only if records changes go through PRs. On a
@@ -1412,9 +1412,9 @@ Two claims I re-checked myself because they drive slate items, both confirmed:
 
 ## Item 0 - NOT a cleanup. Fix this first, on its own.
 
-**`dbarts_sampler_setWeights` (`src/C_interface.cpp:702-704`) installs negative,
+**`dbarts_sampler_setWeights` (`[[src/C_interface.cpp:702-704@7318b266]]`) installs negative,
 `NA` and `Inf` gaussian case weights without a check**, violating a contract the
-codebase states in its own header (`R_interface_bartcore_common.hpp:182`:
+codebase states in its own header (`[[R_interface_bartcore_common.hpp:182@7318b266]]`:
 "gaussian passes through, validated for non-negativity by its callers") and
 honours at its other three callers, including the sibling
 `dbarts_sampler_setForestWeights` 400 lines below in the same file. A negative
@@ -1422,7 +1422,7 @@ case weight is a negative precision contribution and can produce a silently
 wrong fit. Exposed consumers are the `LinkingTo` packages the flat API exists
 for. **+4 lines. Gate: `tests/cpp` + a `test-capi.R` case. No equivalence run
 needed.** Full detail and the patch in E10. Also confirm the flat *creation*
-path (`C_interface.cpp:1249-1254` gates on logistic only).
+path (`[[C_interface.cpp:1249-1254@7318b266]]` gates on logistic only).
 
 ## The ten highest-value cleanups
 
@@ -1430,25 +1430,25 @@ Ordered by value, not by size. "Gate" means what must pass beyond `tinytest`.
 
 | # | item | where | delta | gate |
 |---|---|---|---|---|
-| 1 | **Split `doc-freshness` into its own workflow with no `paths-ignore`.** The gate's declared inputs (`docs/**`, `TODO`, `**.md`) are all in the workflow's own ignore list, so it never runs on the commits it exists to check - and 408 of 1319 branch commits are exactly those. | `.github/workflows/lint.yaml:10-14, :74-92` | -19 / +25 | CI: confirm the new workflow fires on a docs-only push |
+| 1 | **Split `doc-freshness` into its own workflow with no `paths-ignore`.** The gate's declared inputs (`docs/**`, `TODO`, `**.md`) are all in the workflow's own ignore list, so it never runs on the commits it exists to check - and 408 of 1319 branch commits are exactly those. | `[[.github/workflows/lint.yaml:10-14@7318b266]], [[.github/workflows/lint.yaml:74-92@7318b266]]` | -19 / +25 | CI: confirm the new workflow fires on a docs-only push |
 | 2 | **Add `^tools/[^/]*\.R$` to `.Rbuildignore`.** 2350 lines of developer R (incl. `check-doc-freshness.R` at 1771 lines / 61 KB) currently ship in the CRAN tarball. `build-aux/` and `m4/` must stay. | `.Rbuildignore` | **-2350 shipped** | `R CMD build` + `R CMD check` |
 | 3 | **Merge the two equivalence harnesses' shared helpers.** `compareCrossHost` - the 157-line gate logic itself - differs between them in six `sprintf` column widths. Both files already source 484 lines from the installed package under test, so the "oracle independence" argument is already spent. | `benchmarks/R/{bcf,multinomial}-equivalence.R` -> new `equivalence-common.R` | **-220** | **run both compares against the pinned baselines before and after; verdicts must stay bitwise** |
 | 4 | **Archive 118 landed plan docs (32,992 lines) and strip 476 KB of logs/rds from `docs/plans/review-2026-08-24/`.** `git mv` to `docs/plans/archive/`, nothing deleted. | `docs/plans/` | 118 files moved, -40 files, ~-6000 lines | none; but ~102 inbound path rewrites + 118 INDEX row moves are the whole cost |
-| 5 | **Delete the duplicate CI equivalence jobs.** `equivalence.yaml:69-122` runs the same script, baseline hash and flag as `exact-gates.yaml:141-164`, which already fires on every push. The two jobs differ from each other in 2 of 27 lines. | `.github/workflows/equivalence.yaml` | -54, 3 jobs -> 1, 4 hash pins -> 2 | CI green on next push |
+| 5 | **Delete the duplicate CI equivalence jobs.** `[[equivalence.yaml:69-122@7318b266]]` runs the same script, baseline hash and flag as `[[exact-gates.yaml:141-164@7318b266]]`, which already fires on every push. The two jobs differ from each other in 2 of 27 lines. | `.github/workflows/equivalence.yaml` | -54, 3 jobs -> 1, 4 hash pins -> 2 | CI green on next push |
 | 6 | **Consolidate the test suite's five worst files.** `test-generics-errors.R` rebuilds the same six fits in three arms (-120, and 11 fewer sampler runs); `test-multinomial-surface.R` (-150); the rbart preamble to `inst/common` (-190); the xbart trio (-137); gp/linear leaf scaffolding (-84). | `inst/tinytest/` | **-680** | **re-run both `*reproducibility*rbart*` files - the shared preamble advances the RNG stream feeding 5 snapshot values** |
-| 7 | **Cut the R comment corpus's provenance and design-derivation.** 93 of 177 blocks over six lines carry an offending sentence; 1101 of 1866 long-block lines sit in one. Start with `R/model.R:1102` (-25), `R/model.R:417` (-15), `R/mixedMatrix.R:547` (-20), `R/data.R:1704` (-15), the 6 `benchmarks/` citations (-8), the 2 shipped-C++ test-path cites (-2). | `R/`, `src/` | -250 to -400 | none (comments only) |
+| 7 | **Cut the R comment corpus's provenance and design-derivation.** 93 of 177 blocks over six lines carry an offending sentence; 1101 of 1866 long-block lines sit in one. Start with `[[R/model.R:1102@7318b266]]` (-25), `[[R/model.R:417@7318b266]]` (-15), `[[R/mixedMatrix.R:547@7318b266]]` (-20), `[[R/data.R:1704@7318b266]]` (-15), the 6 `benchmarks/` citations (-8), the 2 shipped-C++ test-path cites (-2). | `R/`, `src/` | -250 to -400 | none (comments only) |
 | 8 | **Collapse the TODO's closed entries.** 6 items are closed with no open door at all; another 4 carry landed-recap prefixes before their first `Open:`. Every collapsed line is reproduced verbatim in the named plan doc. The file's own line 1 says completed work lives elsewhere. | `TODO` | -55 (-79 after the RC review closes) | none |
-| 9 | **Fix the four doc-vs-code falsehoods and the two dead build files.** `change-move-fix.md:267` names a deleted `.R` as "kept"; `gate-ledger-read.md:103,121` calls two wired checkers unwired; `bcf-bartcause-relocation.md:1224` names two nonexistent fixtures; `DESCRIPTION:19-21` credits two absent `.m4`. Delete `tools/m4/ax_log1p_in_namespace_std.m4` (39 lines, unreferenced since 2021) and the 0-byte `tools/build-aux/install-sh`. | mixed | -39, 6 edits | `autoreconf -i && ./configure` after the m4 delete |
+| 9 | **Fix the four doc-vs-code falsehoods and the two dead build files.** `[[change-move-fix.md:267@7318b266]]` names a deleted `.R` as "kept"; `[[gate-ledger-read.md:103@7318b266]], [[gate-ledger-read.md:121@7318b266]]` calls two wired checkers unwired; `[[bcf-bartcause-relocation.md:1224@7318b266]]` names two nonexistent fixtures; `DESCRIPTION:19-21` credits two absent `.m4`. Delete `tools/m4/ax_log1p_in_namespace_std.m4` (39 lines, unreferenced since 2021) and the 0-byte `tools/build-aux/install-sh`. | mixed | -39, 6 edits | `autoreconf -i && ./configure` after the m4 delete |
 | 10 | **Rename the 20 divergent test helper names, hoist the 5 identical ones.** `seededControl` means seven different things in seven files (one of them a plain `list()`, not callable); `makeSampler` six. Zero runtime risk - tinytest isolates each file - pure comprehension cost on every future read. | `inst/tinytest/`, `inst/common/` | -52 (+renames) | per-file seed and `n.trees` literals must survive verbatim at each call site |
 
 **Engine items added after the late sweep returned** (all verified
 independently): delete the one dead accessor `GPGaussianLeaf::maxLeafSize()`
-(`model.hpp:1352`, -1); inline the eight single-caller forwarders (-28, E8);
+(`[[model.hpp:1352@7318b266]]`, -1); inline the eight single-caller forwarders (-28, E8);
 rename the five convention-breaking test-only functions to `*ForTesting`
 (E5b, 0 lines); fix the unreachable fractional-weight error prose at
-`R_interface_bartcore.cpp:4092-4095` (-3). And settle the E9 style fork - six
+`[[R_interface_bartcore.cpp:4092-4095@7318b266]]` (-3). And settle the E9 style fork - six
 post-hoc `if (!engine->set*(...)) Rf_error(...)` guards at
-`R_interface_bartcore.cpp:3874, :3922, :3962, :4010, :4059, :4094`: **-42 if the
+`[[R_interface_bartcore.cpp:3874@7318b266]], [[R_interface_bartcore.cpp:3922@7318b266]], [[R_interface_bartcore.cpp:3962@7318b266]], [[R_interface_bartcore.cpp:4010@7318b266]], [[R_interface_bartcore.cpp:4059@7318b266]], [[R_interface_bartcore.cpp:4094@7318b266]]`: **-42 if the
 house rule is "no unreachable branches", -6 if it is "never discard a `bool`
 from the engine".** Two reviewers split on it; it is a house call, not a finding.
 
@@ -1463,7 +1463,7 @@ ABI call while nothing is frozen - not a cleanup. See E7.
 bartcore]` in 6 workflows (12 edits, no such branch exists); add `-MMD -MP
 -include $(DEPS)` to `benchmarks/kernels/Makefile` (3 lines, kills the documented
 "delete the binaries by hand" footgun); add `survival`+`posterior` to
-`valgrind.yaml:41` (37 tinytest files silently skip under valgrind today and
+`[[valgrind.yaml:41@7318b266]]` (37 tinytest files silently skip under valgrind today and
 still report green); mark the MANIFEST's 7 missing baselines
 `(recording not retained)`; standardise the four stray guard verbs
 (`check*`/`require*`/`enforce*`) onto `refuse*`/`validate*`; factor the

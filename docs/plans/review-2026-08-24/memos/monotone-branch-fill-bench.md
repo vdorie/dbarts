@@ -17,15 +17,15 @@ item 14 (`wave5-review-followups`, retired at 39fa379a), which cites the
 wave-5a critique's item N6 (recorded in release-candidate-review.md's wave-5a
 landing note): the rank is evaluated for EVERY leaf, so leafHasNoWeight's
 first-vetoed-leaf early exit is gone, and the monotone rank scan is NEW work
-(moves.hpp:55-58 returns first today) - a masked bench-sampler arm was called
+([[moves.hpp:55-58@39fa379a]] returns first today) - a masked bench-sampler arm was called
 for.
 
 The empty-leaf veto slice added a per-leaf rank loop to
-`logLikelihoodForBranch` (`src/bartcore/moves.hpp:67-96`) that runs for every
+`logLikelihoodForBranch` (`[[src/bartcore/moves.hpp:67-96@39fa379a]]`) that runs for every
 leaf model, monotone included. It fills the branch's bottom-leaf list into
 `tree.bottomScratch`. Immediately afterwards, for a `ParamScoringLeafModel`,
 `MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams`
-(`src/bartcore/model.hpp:729-771` at base) re-derived the SAME list into
+(`[[src/bartcore/model.hpp:729-771@39fa379a]]` at base) re-derived the SAME list into
 `scratch.branch` with a second `tree.fillBottom(branchIndex, ...)`. That is the
 "double branch-fill on the scoring path": one `fillBottom` per scored branch is
 pure duplicate work, paid on both the current-branch and proposal-branch scores
