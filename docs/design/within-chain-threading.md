@@ -42,22 +42,22 @@ codes.
 
 ## 1. Which passes parallelize, which stay serial
 
-The steady-state sweep (chain.hpp run(), the tree loop at :1457-1526 plus the
-sigma/latent tail :1533-1545). Backfitting is sequential across trees; parallelism
+The steady-state sweep ([[chain.hpp#Chain::run]]: the tree loop plus the
+sigma/latent tail). Backfitting is sequential across trees; parallelism
 lives INSIDE each pass, not across trees. Per tree t, in order:
 
-- RESIDUAL ROLL (:1464-1470). A fused O(n) streaming pass: read totalFits and the
+- RESIDUAL ROLL ([[chain.hpp#rollTreeResidual]]). A fused O(n) streaming pass: read totalFits and the
   tree's old/prev fit slabs, write the running residual treeY. PARALLELIZE
   (flat obs-order, split [0,n) into blocks). Streaming.
-- SUFFSTAT GATHER (setNodeAverages -> computeLeafStats, :1469). Per leaf an
+- SUFFSTAT GATHER (setNodeAverages -> computeLeafStats, [[chain.hpp#setNodeAverages]]). Per leaf an
   O(n_leaf) GATHER-reduce of treeY over the leaf's shuffled member slice; O(n)
   over the tree. PARALLELIZE (a reduction, needs the fixed-block scheme,
   section 3). x86's #1 hotspot (~32%); latency-bound on the shuffled index
   buffer (block-fusion.md section 1, section 10).
-- MOVE (metropolisJumpForTree, :1481). O(n_leaf) partition of one leaf's members
+- MOVE (metropolisJumpForTree, [[chain.hpp#metropolisJumpForTree]]). O(n_leaf) partition of one leaf's members
   plus 2 child suffstats, wrapped in an RNG proposal and accept/reject. SERIAL:
   small (one leaf), RNG-coupled, and the tree mutation is inherently sequential.
-- LEAF-MEAN DRAW + SCATTER (sampleParametersAndSetFits, :1513). Draw one mu per
+- LEAF-MEAN DRAW + SCATTER (sampleParametersAndSetFits, [[chain.hpp#sampleParametersAndSetFits]]). Draw one mu per
   leaf from a single RNG stream (SERIAL, O(#leaves)), then SCATTER-write each mu
   into the tree's fit slab (O(n), x86's #3 hotspot ~15%). The draw is serial;
   the SCATTER PARALLELIZES (writes only, no reduction ordering to preserve --
@@ -65,10 +65,10 @@ lives INSIDE each pass, not across trees. Per tree t, in order:
 
 Once per sweep, after the tree loop:
 
-- TOTALFITS REBUILD (:1528-1530). O(n) streaming. PARALLELIZE.
-- SIGMA DRAW (drawSigma, :1544-1545). An O(n) SSR reduction (fixed-block scheme) plus
+- TOTALFITS REBUILD ([[chain.hpp#finalizeTotalFits]]). O(n) streaming. PARALLELIZE.
+- SIGMA DRAW (drawSigma, [[chain.hpp#drawSigma]]). An O(n) SSR reduction (fixed-block scheme) plus
   one gamma draw. PARALLELIZE the reduction; the draw is serial. Once/sweep.
-- LATENT REFRESH (refreshLatents, :1535). O(n), embarrassingly parallel but
+- LATENT REFRESH (refreshLatents, [[chain.hpp#refreshLatents]]). O(n), embarrassingly parallel but
   RNG-CONSUMING per observation. DEFER (section 5). Once/sweep.
 
 Per-pass work and traffic (u16 hot layer, m trees, doubles = 8 B):
@@ -134,7 +134,7 @@ the serial move/draw phase between the suffstat and scatter regions, and is
 fragile under oversubscription (cross-chain workers times within-chain workers);
 std::barrier (libc++'s spin-then-block atomic wait) keeps the low-contention
 cost while parking cleanly when a phase runs long. Keep the misc_mt pool exactly
-where it is -- testFitPool_ (chain.hpp:4063) is a COLD, coarse, once-per-run
+where it is -- testFitPool_ ([[chain.hpp#testFitPool_]]) is a COLD, coarse, once-per-run
 test-fit fan-out, for which condvar dispatch is fine; this note does not touch
 it. A spin-vs-block toggle on the new pool is a prototype tuning knob, not a
 design fork.
@@ -188,7 +188,7 @@ The flagship consumer is an embedded single-chain Gibbs sampler calling
 run(0, 1) once per outer sweep. Per-run thread startup (spawn + join ~tens of us
 each) would swamp a per-sweep win, so the pool MUST persist across run() calls.
 
-PRECEDENT. testFitPool_ (chain.hpp:4063, :895, :4058-4075) is exactly this
+PRECEDENT. testFitPool_ ([[chain.hpp#testFitPool_, routeTestRows]]) is exactly this
 lifecycle: a pool held as a Chain member, lazily created on first use, resized
 only when the budget changes, reused across calls, destroyed in the Chain
 destructor. The new pool follows it structurally -- a persistent Chain member,
@@ -201,7 +201,7 @@ fit, and index buffers; they never call into R. This is the existing worker rule
 (the ProgressSink pattern, sampler.hpp), satisfied trivially here.
 
 INTERACTION WITH THE CROSS-CHAIN LAYER AND THE BUDGET SPLIT. Cross-chain
-parallelism (sampler.hpp:392-393, :1264-1265) fans numChains across
+parallelism ([[sampler.hpp#Sampler::run, Sampler::growFromRoot]]) fans numChains across
 numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 
 - SINGLE CHAIN (numChains = 1): numWorkers = 1, the cross-chain layer is inert
@@ -209,7 +209,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
   within-chain parallelism. This is the flagship case and the clean one.
 - MULTIPLE CHAINS: each chain already occupies a core. The within-chain budget
   per chain is numThreads / numChainWorkers -- the same arithmetic testFitPool_
-  uses (chain.hpp:4063, budget = numThreads / chains). Within-chain threading
+  uses ([[chain.hpp#routeTestRows]], budget = numThreads / chains). Within-chain threading
   engages only when that per-chain budget is > 1 (i.e. numThreads > numChains);
   otherwise the chain runs its sweep serially. This keeps total live threads
   ~ numThreads and avoids oversubscription (cross-chain workers nesting
@@ -218,7 +218,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 
 ## 5. Latent refresh: deferred
 
-refreshLatents (chain.hpp:1535) rewrites the working response (and, for logistic,
+refreshLatents ([[chain.hpp#refreshLatents]]) rewrites the working response (and, for logistic,
 the Polya-Gamma weights) once per sweep. It is embarrassingly parallel over
 observations but RNG-CONSUMING: each observation draws from the chain's single
 RNG stream in obs order. Parallelizing it without breaking thread-count
