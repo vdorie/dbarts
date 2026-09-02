@@ -232,16 +232,24 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   // The code channel, resolved against the STORE's kinds: a dense-backed
   // factor column reads its codes, everything else the double block, each
   // indexed within its own channel. The entries below read a view through a
-  // double-typed reader, so the widen happens once here rather than in each of
-  // them - which is still one conversion fewer than the caller would have done
-  // by hand, and the block it produces is transient.
+  // double-typed reader, so the DENSE columns are widened once here rather
+  // than in each of them - still one conversion fewer than the caller would
+  // have done by hand, and the block it produces is transient. Only the dense
+  // columns: any CSC storage stays sparse, so a coded source keeps every rule
+  // an uncoded one has, the sparse leaf-covariate refusal included.
   if (denseCodes != NULL) {
     std::int32_t* channels = reinterpret_cast<std::int32_t*>(
       R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
+    size_t numDenseColumns = 0;
     bool anyCoded = false;
     for (size_t j = 0; j < numColumns; ++j) {
       std::int32_t which = translated.view.sourceOf(j);
-      if (which >= 0 && storeTypes[j] != bartcore::ColumnKind::numeric) {
+      if (which < 0) {
+        channels[j] = which;
+        continue;
+      }
+      ++numDenseColumns;
+      if (storeTypes[j] != bartcore::ColumnKind::numeric) {
         channels[j] = ~which;
         anyCoded = true;
       } else {
@@ -251,14 +259,27 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
     if (anyCoded) {
       translated.view.denseCodes = denseCodes;
       translated.view.denseChannels = channels;
-      size_t cells = numRows * numColumns;
+      size_t cells = numDenseColumns * numRows;
       double* block = reinterpret_cast<double*>(
         R_alloc(cells > 0 ? cells : 1, sizeof(double)));
-      bartcore::materializePredictorSource(translated.view, storeTypes, 0,
-                                           numRows, block);
-      bartcore::PredictorSource widened = bartcore::densePredictorSource(
-        block, numRows, numColumns, nullptr, categoryCounts);
-      translated.view = widened;
+      std::int32_t* widenedSources = reinterpret_cast<std::int32_t*>(
+        R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
+      size_t slot = 0;
+      for (size_t j = 0; j < numColumns; ++j) {
+        std::int32_t which = translated.view.sourceOf(j);
+        if (which < 0) {
+          widenedSources[j] = which;
+          continue;
+        }
+        bartcore::DenseColumnValues column = translated.view.denseColumn(j);
+        double* target = block + slot * numRows;
+        for (size_t i = 0; i < numRows; ++i) target[i] = column.at(i);
+        widenedSources[j] = static_cast<std::int32_t>(slot++);
+      }
+      translated.view.denseValues = block;
+      translated.view.denseCodes = nullptr;
+      translated.view.denseChannels = nullptr;
+      translated.view.columnSources = widenedSources;
     }
   }
   return translated;
