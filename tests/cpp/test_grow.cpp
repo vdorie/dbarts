@@ -65,7 +65,7 @@ void testDeterminismAndDrawCount() {
   makeStepData(x, y, n);
   ColumnStore store;
   store.build(x.data(), n, 1, 50);
-  check(store.hasMissing[0] == 0 && store.types[0] == ColumnType::ordinal,
+  check(store.hasMissing[0] == 0 && store.types[0] == ColumnKind::numeric,
         "no-missing, all-ordinal build for the draw-count census");
 
   CGMTreePrior prior;  // base 0.95, power 2
@@ -286,7 +286,7 @@ void testCategoricalSplits() {
     x[i + n] = runif01();
     y[i] = (x[i + n] < 0.5 ? -2.0 : 2.0) + 0.1 * (runif01() - 0.5);
   }
-  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
   // one declared level no row observes: reachable everywhere, present nowhere,
   // so A = 1 at the root and the absent-position coin runs
   uint32_t categoryCounts[] = {numLevels, 0};
@@ -359,7 +359,7 @@ void testPooledCategoricalGrow() {
     y[i] = (i % numObserved < 30 ? -1.5 : 1.5) + 0.1 * (runif01() - 0.5);
   }
   x[5] = std::nan("");
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   // the declared level count exceeds what any row observes, so ten categories
   // are reachable but absent at every node and their coins really run
   uint32_t categoryCounts[] = {numLevels};
@@ -880,7 +880,7 @@ void testCategoricalExactDrawLaw() {
     // that a cell's expected count stops supporting the chi-square
     y[i] = 0.3 * (x[i] - 1.5) + 1.2 * (fixtureUniform(generator) - 0.5);
   }
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
   check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
@@ -999,7 +999,7 @@ void testCategoricalPrefixDrawLaw() {
     x[i] = static_cast<double>(i % numLevels);
     y[i] = 0.04 * (x[i] - 5.5) + 1.2 * (fixtureUniform(generator) - 0.5);
   }
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 20, false, types);
   check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
@@ -1189,7 +1189,7 @@ void testCategoricalGroupMassClosedForm() {
     std::vector<double> x(numReachable);
     for (std::uint32_t code = 0; code < numReachable; ++code)
       x[code] = static_cast<double>(code);
-    ColumnType types[] = {ColumnType::categorical};
+    ColumnKind types[] = {ColumnKind::categorical};
     ColumnStore store;
     store.build(x.data(), numReachable, 1, 10, false, types);
     check(store.categoryCounts[0] == numReachable &&
@@ -1362,7 +1362,7 @@ void testCategoricalGrowGaugeAndCoins() {
     const double* weights =
       weightStorage.empty() ? nullptr : weightStorage.data();
 
-    ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+    ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
     std::uint32_t categoryCounts[] = {fixture.numLevels, 0};
     ColumnStore store;
     store.build(x.data(), n, 2, 10, false, types, nullptr, 0, categoryCounts);
@@ -1510,8 +1510,8 @@ void testCategoricalGrowHonorsInteraction() {
            (x[i + 2 * n] < 0.5 ? 0.5 : -0.5) +
            0.2 * (fixtureUniform(generator) - 0.5);
   }
-  ColumnType types[] = {ColumnType::categorical, ColumnType::categorical,
-                        ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical,
+                        ColumnKind::numeric};
   ColumnStore store;
   store.build(x.data(), n, p, 12, false, types);
 
@@ -1542,7 +1542,7 @@ void testCategoricalGrowHonorsInteraction() {
     tree.fillNotBottom(0, internal);
     for (std::int32_t node : internal)
       if (store.types[static_cast<size_t>(tree.at(node).rule.variableIndex)] ==
-          ColumnType::categorical)
+          ColumnKind::categorical)
         ++numCategorical;
   }
   tree.setInteractionConstraint(nullptr);

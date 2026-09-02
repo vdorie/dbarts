@@ -438,8 +438,8 @@ struct Fixtures {
     options.numSamplesToStore = 2;
     options.leafCovariateColumns = &leafCovariate;
     options.numLeafCovariates = 1;
-    std::vector<ColumnType> types = {ColumnType::ordinal,
-                                     ColumnType::categorical};
+    std::vector<ColumnKind> types = {ColumnKind::numeric,
+                                     ColumnKind::categorical};
     options.predictors.columnTypes = types.data();
     ext_rng* one = newRng(51011u);
     lin.build(xPooled.data(), y.data(), n, p, nullptr, nullptr,

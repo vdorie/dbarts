@@ -95,9 +95,13 @@ expect_false(identical(hashes$text, "0x5a32aa4cd3872d55"))
 # itself had moved and its length still spelled numCutpoints: a token blind to
 # one parameter of a signature would still read this
 expect_false(identical(hashes$text, "0xc4a2d83f6050bb1f"))
+# the token before dbarts_column_type gained its ordered-factor enumerator: an
+# appended enumerator moves it, which is what makes the enumerator list the
+# place a new column kind is declared
+expect_false(identical(hashes$text, "0xb6c0e97dc0688991"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xb6c0e97dc0688991")
+expect_identical(hashes$text, "0xe14b499a84f501d2")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and

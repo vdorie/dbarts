@@ -116,7 +116,7 @@ static void testCategoricalMechanics() {
     y[i] = static_cast<double>(i % 4);
   }
 
-  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
   ColumnStore store;
   store.build(x.data(), n, 2, 10, false, types);
 
@@ -200,7 +200,7 @@ static void testCategoricalPriorMath(ext_rng* rng) {
   std::vector<double> x(n), y(n, 0.0);
   for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % 5);
 
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
 
@@ -280,7 +280,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
     y[i] = (category % 3 == 0 ? 2.0 : 0.0) + 0.3 * (runif01() - 0.5);
   }
 
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
   check(store.categoryCounts[0] == K, "pooled column counts its categories");
@@ -452,7 +452,7 @@ static void testMissingMechanics() {
     else x[i + n] = static_cast<double>(i % 4);
     y[i] = runif01();
   }
-  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 2, 10, false, types);
 

@@ -497,7 +497,7 @@ void testOrdinalCategoricalScanAgreement() {
     x[n + m] = std::nan("");
     y[m] += 1.2;  // and carrying a level of their own, so routing them matters
   }
-  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 2, numLevels, false, types);
   check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1,
@@ -674,7 +674,7 @@ void testCategoricalScan() {
     w[i] = 0.5 + runif01();
   }
   x[3] = std::nan("");  // one missing value: a real category, not a skip
-  ColumnType types[] = {ColumnType::categorical, ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 2, 20, false, types);
   check(store.hasMissing[0] == 1 && store.categoryCounts[0] == numLevels,

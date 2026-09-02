@@ -499,8 +499,9 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
 
 ## Turns a data.frame into a numeric matrix without expanding factors:
 ## unordered factors become categorical columns holding codes 0..K-1,
-## ordered factors become ordinal codes, and matrix columns (e.g. from
-## poly()) splice in as ordinal. Attaches "varTypes" (integer per column)
+## ordered factors become ordered-factor columns holding the same codes -
+## split on by threshold, since their order is meaningful - and matrix
+## columns (e.g. from poly()) splice in as ordinal. Attaches "varTypes" (integer per column)
 ## and "factor.levels" (list per column, NULL for non-factors) for the
 ## sampler and for test-data mapping; only the bartcore engine accepts
 ## categorical columns.
@@ -548,7 +549,7 @@ makeCategoricalModelMatrix <- function(x) {
       # the factor itself; its codes materialize as doubles only at use
       columns[[j]] <- column
       columnTypes[[j]] <- if (is.ordered(column)) {
-        ORDINAL_VARIABLE
+        ORDERED_FACTOR_VARIABLE
       } else {
         CATEGORICAL_VARIABLE
       }

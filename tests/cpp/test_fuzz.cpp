@@ -346,7 +346,7 @@ static int fuzzPickOp(ext_rng* r, unsigned mask) {
 }
 
 struct ColSpec {
-  ColumnType type = ColumnType::ordinal;
+  ColumnKind type = ColumnKind::numeric;
   int categories = 0;      // categorical only
   double missingRate = 0.0;
 };
@@ -368,7 +368,7 @@ struct ConfigSpec {
 static void fuzzFillColumn(ext_rng* r, const ColSpec& col, const double* current,
                            size_t n, int flavor, double* out) {
   const double na = std::nan("");
-  if (col.type == ColumnType::categorical) {
+  if (col.type == ColumnKind::categorical) {
     for (size_t i = 0; i < n; ++i)
       out[i] = static_cast<double>(fuzzInt(r, static_cast<size_t>(col.categories)));
     if (col.missingRate > 0.0 || flavor == 2)
@@ -443,7 +443,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   size_t p = s.numPredictors();
   std::vector<size_t> ordinalCols;
   for (size_t j = 0; j < p; ++j)
-    if (spec.cols[j].type == ColumnType::ordinal) ordinalCols.push_back(j);
+    if (spec.cols[j].type == ColumnKind::numeric) ordinalCols.push_back(j);
 
   // the driver's own copy of the current predictors, maintained in lockstep
   // with accepted mutations (empty for a CSC-backed sampler)
@@ -518,7 +518,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       case OP_PER_OBS:
       case OP_SESSION_ABANDON: {
         size_t col = fuzzInt(opRng, p);
-        int flavor = spec.cols[col].type == ColumnType::categorical
+        int flavor = spec.cols[col].type == ColumnKind::categorical
                        ? (fuzzUnif(opRng) < 0.5 ? 0 : 2)
                        : static_cast<int>(fuzzInt(opRng, 5));
         std::vector<double> nv(n);
@@ -555,7 +555,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         std::vector<double> nx(n2 * p), ny(n2);
         for (size_t j = 0; j < p; ++j)
           fuzzFillColumn(opRng, spec.cols[j], nullptr, n2,
-                         spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                         spec.cols[j].type == ColumnKind::categorical ? 0 : 2,
                          nx.data() + j * n2);
         fuzzFillResponse(opRng, spec.family, nx.data(), n2, p, ny.data());
         double* xb = arena.keep(std::move(nx));
@@ -621,7 +621,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         std::vector<double> xt(nt * p);
         for (size_t j = 0; j < p; ++j)
           fuzzFillColumn(opRng, spec.cols[j], nullptr, nt,
-                         spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                         spec.cols[j].type == ColumnKind::categorical ? 0 : 2,
                          xt.data() + j * nt);
         double* tb = arena.keep(std::move(xt));
         s.setTestPredictors(tb, nt);
@@ -866,12 +866,12 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
   ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(opRng, seed * 2u + 7u);
 
-  std::vector<ColumnType> types(p);
+  std::vector<ColumnKind> types(p);
   std::vector<double> x(n0 * p), y(n0);
   for (size_t j = 0; j < p; ++j) {
     types[j] = spec.cols[j].type;
     fuzzFillColumn(opRng, spec.cols[j], nullptr, n0,
-                   spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                   spec.cols[j].type == ColumnKind::categorical ? 0 : 2,
                    x.data() + j * n0);
   }
   fuzzFillResponse(opRng, spec.family, x.data(), n0, p, y.data());
@@ -927,12 +927,12 @@ static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
   ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(opRng, seed * 2u + 7u);
 
-  std::vector<ColumnType> types(p);
+  std::vector<ColumnKind> types(p);
   std::vector<double> x(n0 * p), y(n0), z(n0);
   for (size_t j = 0; j < p; ++j) {
     types[j] = spec.cols[j].type;
     fuzzFillColumn(opRng, spec.cols[j], nullptr, n0,
-                   spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                   spec.cols[j].type == ColumnKind::categorical ? 0 : 2,
                    x.data() + j * n0);
   }
   fuzzFillResponse(opRng, spec.family, x.data(), n0, p, y.data());
@@ -986,12 +986,12 @@ static void fuzzRunMultinomial(const ConfigSpec& spec, std::uint32_t seed,
   ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(opRng, seed * 2u + 7u);
 
-  std::vector<ColumnType> types(p);
+  std::vector<ColumnKind> types(p);
   std::vector<double> x(n0 * p);
   for (size_t j = 0; j < p; ++j) {
     types[j] = spec.cols[j].type;
     fuzzFillColumn(opRng, spec.cols[j], nullptr, n0,
-                   spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                   spec.cols[j].type == ColumnKind::categorical ? 0 : 2,
                    x.data() + j * n0);
   }
   // a covariate-dependent label, one-hot into the category-major count matrix
@@ -1944,9 +1944,9 @@ static void testVarianceRollback() {
 
 static void testMutationFuzzer(int numSeeds) {
   ColSpec ord;
-  ColSpec cat4{ColumnType::categorical, 4, 0.0};
-  ColSpec ordMiss{ColumnType::ordinal, 0, 0.25};
-  ColSpec cat3Miss{ColumnType::categorical, 3, 0.2};
+  ColSpec cat4{ColumnKind::categorical, 4, 0.0};
+  ColSpec ordMiss{ColumnKind::numeric, 0, 0.25};
+  ColSpec cat3Miss{ColumnKind::categorical, 3, 0.2};
   std::vector<ConfigSpec> configs = {
     {"gaussian", ResponseFamily::gaussian, {ord, ord, ord}, 1,
      fuzzAllSingleForestOps},

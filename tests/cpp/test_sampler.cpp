@@ -1330,7 +1330,7 @@ static void testEndToEndCategorical(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.predictors.columnTypes = nullptr;  // set via ctor path below
-  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
   options.predictors.columnTypes = types;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
@@ -1372,7 +1372,7 @@ static void testWideCategorical(ext_rng* rng) {
     y[i] = (category >= 27 ? 2.0 : 0.0) + 0.3 * (runif01() - 0.5);
   }
 
-  ColumnType types[] = {ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
   check(store.categoryCounts[0] == K,
@@ -1511,7 +1511,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
            (category2 >= 55 ? -1.5 : 0.0) + 0.3 * (runif01() - 0.5);
   }
 
-  ColumnType types[] = {ColumnType::categorical, ColumnType::categorical};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::categorical};
   {
     ColumnStore probe;
     probe.build(x.data(), n, 2, 10, false, types);

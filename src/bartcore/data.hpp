@@ -83,14 +83,35 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
   *sd_ = sd;
 }
 
-/// Column types the store distinguishes. Ordinal columns quantize against
-/// cut points and split by threshold; categorical columns hold integer
-/// category codes 0..numCategories-1 directly and split by subset. Masks of
-/// up to 63 categories live inline in the rule word (and inline in the
-/// flattened node); wider columns pool their mask words per tree and the
-/// flattened format references them through a side channel. Codes must fit
-/// xint_t, including the reserved missing code K of a pooled column.
-enum class ColumnType : std::uint8_t { ordinal, categorical };
+/// A column's semantic kind, which fixes how its values are read. A numeric
+/// column quantizes real values against cut points; a categorical column
+/// holds integer category codes 0..numCategories-1 directly; an ordered
+/// factor holds level codes whose order is meaningful, so it quantizes
+/// against cut points over those codes. The values are pinned: 0 and 1 are
+/// the two the shipped C API has always carried, and the third is appended.
+///
+/// Splitting is the SEPARATE, derived axis - splitsBySubset below - because
+/// only the two ends of the pipeline (grid construction, ingestion
+/// validation, reporting) care which kind a column is, while every rule,
+/// scan, mask and replay site cares only whether it partitions by subset
+/// mask or by threshold. Masks of up to 63 categories live inline in the
+/// rule word (and inline in the flattened node); wider columns pool their
+/// mask words per tree and the flattened format references them through a
+/// side channel. Codes must fit xint_t, including the reserved missing code
+/// K of a pooled column.
+enum class ColumnKind : std::uint8_t {
+  numeric = 0,
+  categorical = 1,
+  orderedFactor = 2
+};
+
+/// The mechanic axis: whether a column's rules partition its codes by a
+/// subset mask rather than by a threshold on their order. One definition,
+/// read through ColumnStore::splitsBySubset, PredictorSource::splitsBySubset,
+/// and directly wherever only a bare type channel is in hand.
+constexpr bool kindSplitsBySubset(ColumnKind kind) {
+  return kind == ColumnKind::categorical;
+}
 
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
@@ -194,7 +215,7 @@ struct PredictorSource {
   // count K each categorical column's host declares (null or 0 leaves it
   // inferred from the observed codes), and the reference-level code of each
   // CSC-backed categorical column (null when none is categorical)
-  const ColumnType* columnTypes = nullptr;
+  const ColumnKind* columnTypes = nullptr;
   const std::uint32_t* categoryCounts = nullptr;
   const xint_t* referenceCodes = nullptr;
 
@@ -209,9 +230,13 @@ struct PredictorSource {
                                     : static_cast<std::int32_t>(j);
   }
 
-  ColumnType typeOf(size_t j) const {
-    return columnTypes != nullptr ? columnTypes[j] : ColumnType::ordinal;
+  ColumnKind typeOf(size_t j) const {
+    return columnTypes != nullptr ? columnTypes[j] : ColumnKind::numeric;
   }
+
+  /// The mechanic axis over the view's own typing channel; see
+  /// kindSplitsBySubset.
+  bool splitsBySubset(size_t j) const { return kindSplitsBySubset(typeOf(j)); }
 
   std::uint32_t categoryCountOf(size_t j) const {
     return categoryCounts != nullptr ? categoryCounts[j] : 0u;
@@ -245,7 +270,7 @@ static_assert(std::is_trivially_destructible_v<PredictorSource>,
 /// The dense spelling of a view: a plain column-major block, no map.
 inline PredictorSource densePredictorSource(
     const double* values, size_t numRows, size_t numColumns,
-    const ColumnType* columnTypes = nullptr,
+    const ColumnKind* columnTypes = nullptr,
     const std::uint32_t* categoryCounts = nullptr) {
   PredictorSource source;
   source.numRows = numRows;
@@ -302,7 +327,7 @@ inline bool predictorSourceIsAllCsc(const PredictorSource& source,
 /// doubles; the row range exists so a caller may stream a wide source in
 /// chunks without materializing it whole.
 inline void materializePredictorSource(const PredictorSource& source,
-                                       const ColumnType* storeTypes,
+                                       const ColumnKind* storeTypes,
                                        size_t rowBegin, size_t rowEnd,
                                        double* out) {
   size_t numRows = rowEnd - rowBegin;
@@ -316,8 +341,8 @@ inline void materializePredictorSource(const PredictorSource& source,
                   numRows * sizeof(double));
       continue;
     }
-    bool categorical = storeTypes != nullptr &&
-                       storeTypes[j] == ColumnType::categorical;
+    bool categorical =
+      storeTypes != nullptr && kindSplitsBySubset(storeTypes[j]);
     double implicitValue =
       categorical ? static_cast<double>(source.referenceCodeOf(j)) : 0.0;
     for (size_t i = 0; i < numRows; ++i) target[i] = implicitValue;
@@ -400,7 +425,7 @@ struct PredictorSourceColumnReader {
 /// would cost, and the values themselves stay borrowed.
 struct PredictorSourceColumns {
   PredictorSourceColumns(const PredictorSource& source,
-                         const ColumnType* storeTypes) {
+                         const ColumnKind* storeTypes) {
     size_t numRows = source.numRows;
     size_t numColumns = source.numColumns;
     // sized once, before any reader points into it, so no build reallocates;
@@ -422,7 +447,7 @@ struct PredictorSourceColumns {
       int begin = source.cscColumnPointers[column];
       int end = source.cscColumnPointers[column + 1];
       bool categorical =
-        storeTypes != nullptr && storeTypes[j] == ColumnType::categorical;
+        storeTypes != nullptr && kindSplitsBySubset(storeTypes[j]);
       sparseColumns_[numSparse].build(
         source.cscRowIndices + begin, source.cscValues + begin,
         static_cast<size_t>(end - begin), numRows,
@@ -530,18 +555,18 @@ struct ColumnStore {
   // acceptsNewRawPredictors instead.
   bool isView = false;
 
-  std::vector<ColumnType> types;
+  std::vector<ColumnKind> types;
   // the training rows' codes over this store's cut grid
   CodeBlock train;
   bool builtFromCsc = false;
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
-  // per column, the category count K of a categorical column, 0 for any
-  // column that splits by threshold. Fixed once built: every mask tier, every
-  // reserved missing code and every histogram width is derived from it, so it
-  // is the one channel that says how many categories a column has - numCuts
-  // answers only how many cut points it has.
+  // per column, the level count K of a FACTOR column (either kind), 0 for a
+  // numeric one. Fixed once built: every mask tier, every reserved missing
+  // code and every category histogram width derives from it, so it is the one
+  // channel that says how many levels a column has - numCuts answers only how
+  // many cut points it has.
   std::vector<std::uint32_t> categoryCounts;
   std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
   // per column, whether any training value is missing; gates the extra
@@ -555,11 +580,17 @@ struct ColumnStore {
   // and the flattened format's mask side channel; narrower masks are inline
   bool hasPooledCategorical = false;
 
+  /// The mechanic axis: whether column j's rules partition by a subset mask
+  /// over its category codes rather than by a threshold on their order. Every
+  /// rule, scan, mask and replay site branches on this rather than on the
+  /// kind, so a kind that splits by threshold needs no site of its own.
+  bool splitsBySubset(size_t j) const { return kindSplitsBySubset(types[j]); }
+  bool splitsByThreshold(size_t j) const { return !splitsBySubset(j); }
+
   /// Whether column j's rules store pool offsets instead of inline masks
   /// (more than 63 categories, so the mask spans more than one word).
   bool columnIsPooled(size_t j) const {
-    return types[j] == ColumnType::categorical &&
-           maskWordsForCount(categoryCounts[j]) > 1;
+    return splitsBySubset(j) && maskWordsForCount(categoryCounts[j]) > 1;
   }
 
   void refreshCategoricalTiers() {
@@ -713,7 +744,7 @@ struct ColumnStore {
   // categorical codes are the values themselves. Missing values take the
   // reserved codes.
   xint_t codeFor(size_t variable, double value) const {
-    if (types[variable] == ColumnType::categorical)
+    if (splitsBySubset(variable))
       return isNA(value) ? missingCategoryCode(categoryCounts[variable])
                          : static_cast<xint_t>(value);
     if (isNA(value)) return naCode;
@@ -866,19 +897,21 @@ struct ColumnStore {
     return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
   }
 
-  /// Initial cut construction; sets numCuts[j] and, for a categorical column,
+  /// Initial cut construction; sets numCuts[j] and, for a factor column,
   /// categoryCounts[j]. column supplies the dense raw values (null for
-  /// CSC-backed columns, which read their retained slice). A categorical
-  /// column keeps no cuts and takes its (fixed) category count from the host's
-  /// declared level table when it supplied one, but never below what its own
-  /// codes reach - a declared count short of an observed code would strand
-  /// that code past its own grid.
+  /// CSC-backed columns, which read their retained slice). A factor column of
+  /// either kind takes its (fixed) level count from the host's declared level
+  /// table when it supplied one, but never below what its own codes reach - a
+  /// declared count short of an observed code would strand that code past its
+  /// own grid. A categorical column then keeps no cuts at all.
   void buildCutsForColumn(size_t j, const double* column) {
-    if (types[j] == ColumnType::categorical) {
+    if (types[j] != ColumnKind::numeric) {
       std::uint32_t inferred = columnIsCscBacked(j)
         ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
       categoryCounts[j] = declared > inferred ? declared : inferred;
+    }
+    if (splitsBySubset(j)) {
       numCuts[j] = 0;
       cutPoints[j].clear();
     } else if (useQuantiles) {
@@ -915,7 +948,7 @@ struct ColumnStore {
   /// new values through the retained grid and collapses what empties.
   /// Categorical columns have nothing to refresh; the caller pre-checked.
   bool refreshCutsForColumn(size_t j, const double* column) {
-    if (types[j] == ColumnType::categorical) return true;
+    if (splitsBySubset(j)) return true;
     if (useQuantiles) {
       QuantileGrid grid = quantileGridForColumn(j, column);
       if (grid.inducedNumCuts < numCuts[j]) return false;
@@ -931,7 +964,7 @@ struct ColumnStore {
   /// refresh feasibility for ordinal columns, category-code validity for
   /// categorical ones.
   bool cutsWouldRemainValid(size_t j, const double* values) const {
-    if (types[j] == ColumnType::categorical) {
+    if (splitsBySubset(j)) {
       for (size_t i = 0; i < numObservations; ++i)
         if (!categoricalValueIsValid(j, values[i])) return false;
       return true;
@@ -991,8 +1024,8 @@ struct ColumnStore {
   void quantizeCscColumnInto(CodeBlock& block, size_t numRows, size_t j,
                              std::uint8_t* hasMissingOut) {
     const CscColumnSlice& slice = block.sources[j].slice;
-    xint_t zeroCode = types[j] == ColumnType::categorical
-      ? block.sources[j].refCode : codeFor(j, 0.0);
+    xint_t zeroCode =
+      splitsBySubset(j) ? block.sources[j].refCode : codeFor(j, 0.0);
     std::uint8_t anyMissing = 0;
     if (block.columnIsSparse(j)) {
       SparseColumnData& sparse =
@@ -1152,7 +1185,7 @@ struct ColumnStore {
     if (source.columnTypes != nullptr) {
       types.assign(source.columnTypes, source.columnTypes + p);
     } else {
-      types.assign(p, ColumnType::ordinal);
+      types.assign(p, ColumnKind::numeric);
     }
     cutPoints.resize(p);
     numCuts.resize(p);
@@ -1257,7 +1290,7 @@ struct ColumnStore {
   /// is the host's declared level count per column (0 = infer from the codes).
   void build(const double* x_, size_t n, size_t p,
              const std::uint32_t* maxNumCuts_, bool useQuantiles_,
-             const ColumnType* columnTypes = nullptr,
+             const ColumnKind* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
              size_t numGatherColumns = 0,
              const std::uint32_t* categoryCounts_ = nullptr) {
@@ -1267,7 +1300,7 @@ struct ColumnStore {
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
              bool useQuantiles_ = false,
-             const ColumnType* columnTypes = nullptr,
+             const ColumnKind* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
              size_t numGatherColumns = 0,
              const std::uint32_t* categoryCounts_ = nullptr) {
@@ -1476,7 +1509,7 @@ struct ColumnStore {
       gatheredSds[slot] = sd;
     }
     for (size_t j = 0; j < numPredictors; ++j) {
-      xint_t missingCode = types[j] == ColumnType::categorical
+      xint_t missingCode = splitsBySubset(j)
         ? missingCategoryCode(categoryCounts[j]) : naCode;
       xint_t* column = train.codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
@@ -1599,10 +1632,9 @@ struct ColumnStore {
   /// caller snapshots for rollback first.
   void mutateCscColumnFromDense(size_t j, const double* column,
                                 bool updateCuts) {
-    if (updateCuts && types[j] != ColumnType::categorical)
-      refreshCutsForColumn(j, column);
+    if (updateCuts && splitsByThreshold(j)) refreshCutsForColumn(j, column);
 
-    const double implicitValue = types[j] == ColumnType::categorical
+    const double implicitValue = splitsBySubset(j)
       ? static_cast<double>(train.sources[j].refCode) : 0.0;
     std::vector<int> newRows;
     std::vector<double> newValues;
@@ -1802,7 +1834,7 @@ struct ColumnStore {
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
       const double* column = x_ + j * n;
-      if (types[j] != ColumnType::categorical) buildCutsForColumn(j, column);
+      if (splitsByThreshold(j)) buildCutsForColumn(j, column);
       quantizeColumn(j, column);
     }
   }
@@ -1852,7 +1884,7 @@ public:
         savedNumCuts_(store.numCuts) {
     store_.cutPoints = donorCutPoints;
     for (size_t j = 0; j < store_.numPredictors; ++j)
-      if (store_.types[j] != ColumnType::categorical)
+      if (store_.splitsByThreshold(j))
         store_.numCuts[j] =
           static_cast<std::uint32_t>(donorCutPoints[j].size());
   }

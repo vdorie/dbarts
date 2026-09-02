@@ -54,8 +54,8 @@ static void testColumnStoreView() {
   x[0] = 0.0;
   x[1] = 1.0;
 
-  std::vector<ColumnType> types = {ColumnType::ordinal, ColumnType::ordinal,
-                                   ColumnType::categorical};
+  std::vector<ColumnKind> types = {ColumnKind::numeric, ColumnKind::numeric,
+                                   ColumnKind::categorical};
   ColumnStore parent;
   parent.build(x.data(), n, p, 25, false, types.data());
 
@@ -130,8 +130,8 @@ static void testColumnStoreColumnSubset() {
   x[0] = 0.0;  // column 0 extremes land in the test rows below, so a store
   x[1] = 1.0;  // built over only the training subset would bin it differently
 
-  std::vector<ColumnType> types = {ColumnType::ordinal, ColumnType::ordinal,
-                                   ColumnType::categorical};
+  std::vector<ColumnKind> types = {ColumnKind::numeric, ColumnKind::numeric,
+                                   ColumnKind::categorical};
   size_t covariate[] = {1};
   ColumnStore parent;
   parent.build(x.data(), n, p, 25, false, types.data(), covariate, 1);
@@ -411,7 +411,7 @@ static void testSetCutPointsOrphan() {
   for (const Node& node : tree.nodes)
     if (!node.isBottom() &&
         store.types[static_cast<size_t>(node.rule.variableIndex)] !=
-          ColumnType::categorical)
+          ColumnKind::categorical)
       inRange &= node.rule.splitIndex() <
                  static_cast<int32_t>(store.numCuts[static_cast<size_t>(
                    node.rule.variableIndex)]);
@@ -590,8 +590,8 @@ static void testMissingIngestion() {
     x[i + 2 * n] = runif01();
   }
 
-  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical,
-                        ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical,
+                        ColumnKind::numeric};
   ColumnStore store;
   store.build(x.data(), n, 3, 10, false, types);
 
@@ -668,9 +668,9 @@ static void testTransientBlockAssembly() {
   std::memcpy(assembled.data() + 2 * n, numeric2.data(),
               n * sizeof(double));
 
-  std::vector<ColumnType> types = {ColumnType::ordinal,
-                                   ColumnType::categorical,
-                                   ColumnType::ordinal};
+  std::vector<ColumnKind> types = {ColumnKind::numeric,
+                                   ColumnKind::categorical,
+                                   ColumnKind::numeric};
   ColumnStore fromReference, fromAssembled;
   fromReference.build(reference.data(), n, p, 100, false, types.data());
   fromAssembled.build(assembled.data(), n, p, 100, false, types.data());
@@ -826,7 +826,7 @@ static void testSparseCategoricalTestColumnStore() {
   std::vector<double> xTrain(nTrain);
   for (size_t i = 0; i < nTrain; ++i)
     xTrain[i] = static_cast<double>(i % K);
-  ColumnType type = ColumnType::categorical;
+  ColumnKind type = ColumnKind::categorical;
   ColumnStore store;
   store.build(xTrain.data(), nTrain, 1, 100, false, &type);
   check(store.categoryCounts[0] == K && store.numCuts[0] == 0,
@@ -907,8 +907,8 @@ static void testPredictorViewEquivalence() {
     xTest[i + 2 * numTest] = static_cast<double>(i % 3);
     xTest[i + 3 * numTest] = runif01();
   }
-  const ColumnType types[p] = { ColumnType::ordinal, ColumnType::ordinal,
-                                ColumnType::categorical, ColumnType::ordinal };
+  const ColumnKind types[p] = { ColumnKind::numeric, ColumnKind::numeric,
+                                ColumnKind::categorical, ColumnKind::numeric };
   const std::uint32_t counts[p] = { 0, 0, declaredK, 0 };
   std::vector<std::uint32_t> maxCuts(p, 20);
   std::vector<std::int32_t> identity(p);
@@ -1009,8 +1009,8 @@ static void testPredictorViewEquivalence() {
   }
   pointers[2] = static_cast<int>(rows.size());
 
-  const ColumnType cscTypes[q] = { ColumnType::ordinal,
-                                   ColumnType::categorical };
+  const ColumnKind cscTypes[q] = { ColumnKind::numeric,
+                                   ColumnKind::categorical };
   const std::uint32_t cscCounts[q] = { 0, cscDeclaredK };
   const xint_t cscReferences[q] = { 0, reference };
   std::vector<std::int32_t> allCsc(q);
@@ -1068,8 +1068,8 @@ static void testMaterializePredictorSource() {
     dense[i + n] = 0.25 * static_cast<double>(i);
   }
   const std::int32_t sources[p] = { ~0, ~1, ~2, 1 };
-  const ColumnType types[p] = { ColumnType::ordinal, ColumnType::categorical,
-                                ColumnType::ordinal, ColumnType::ordinal };
+  const ColumnKind types[p] = { ColumnKind::numeric, ColumnKind::categorical,
+                                ColumnKind::numeric, ColumnKind::numeric };
   const xint_t references[p] = { 0, reference, 0, 0 };
 
   PredictorSource source;
@@ -1169,8 +1169,82 @@ static void testMaterializePredictorSource() {
   printf("ok: predictor source materialization\n");
 }
 
+// The kind axis: three kinds, one derived splitting predicate. An ordered
+// factor is its own kind, carries a level count like a categorical one, and
+// splits by threshold like a numeric one - which is what makes it bin
+// identically to the same codes declared numeric.
+void testColumnKindAxis() {
+  const size_t n = 60, p = 3;
+  const std::uint32_t numLevels = 3, declaredCategories = 5;
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = 0.25 * static_cast<double>(i % 7);            // numeric
+    x[n + i] = static_cast<double>(i % 4);               // categorical, K = 4
+    x[2 * n + i] = static_cast<double>(i % numLevels);   // ordered factor
+  }
+  const ColumnKind kinds[p] = { ColumnKind::numeric, ColumnKind::categorical,
+                                ColumnKind::orderedFactor };
+  // a declared table wider than the observed codes on the categorical column,
+  // none on the ordered one, so both the declared and the inferred arm run
+  const std::uint32_t declared[p] = { 0, declaredCategories, 0 };
+  ColumnStore store;
+  store.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+
+  check(store.types[0] == ColumnKind::numeric &&
+          store.types[1] == ColumnKind::categorical &&
+          store.types[2] == ColumnKind::orderedFactor,
+        "the store keeps each column's kind");
+  check(!store.splitsBySubset(0) && store.splitsBySubset(1) &&
+          !store.splitsBySubset(2),
+        "only the categorical column splits by subset mask");
+  check(store.numCuts[0] == 10 && store.numCuts[1] == 0 &&
+          store.numCuts[2] == 10,
+        "a categorical column carries no cut count, an ordered factor does");
+  check(store.categoryCounts[0] == 0 &&
+          store.categoryCounts[1] == declaredCategories &&
+          store.categoryCounts[2] == numLevels,
+        "both factor kinds carry a level count, the numeric column none");
+  check(store.cutPoints[1].empty() &&
+          store.cutPoints[2].size() == store.numCuts[2],
+        "an ordered factor keeps a cut grid, a categorical column none");
+
+  // the S1 property: an ordered factor bins exactly as the same codes
+  // declared numeric, so marking the kind moves no code
+  ColumnStore asNumeric;
+  asNumeric.build(x.data(), n, p, 10u, false, nullptr);
+  bool codesAgree = store.numCuts[2] == asNumeric.numCuts[2] &&
+                    store.cutPoints[2] == asNumeric.cutPoints[2];
+  for (size_t i = 0; i < n; ++i)
+    codesAgree &= store.codeAt(2, i) == asNumeric.codeAt(2, i);
+  check(codesAgree, "an ordered factor bins as the same numeric column");
+
+  // a view copies the kind and the level count with the rest of the grid,
+  // over both the whole-store and the column-subset arms
+  std::vector<size_t> rows(n / 2), testRows(4), columns = {2, 1};
+  for (size_t i = 0; i < rows.size(); ++i) rows[i] = 2 * i;
+  for (size_t i = 0; i < testRows.size(); ++i) testRows[i] = i;
+  ColumnStore whole, subset;
+  whole.buildFromParent(store, rows.data(), rows.size(), testRows.data(),
+                        testRows.size());
+  subset.buildFromParent(store, rows.data(), rows.size(), testRows.data(),
+                         testRows.size(), nullptr, 0, columns.data(),
+                         columns.size());
+  check(whole.types == store.types &&
+          whole.categoryCounts == store.categoryCounts,
+        "a whole-store view copies the kinds and level counts");
+  check(subset.types[0] == ColumnKind::orderedFactor &&
+          subset.types[1] == ColumnKind::categorical &&
+          subset.categoryCounts[0] == numLevels &&
+          subset.categoryCounts[1] == declaredCategories &&
+          subset.columnIsPooled(1) == store.columnIsPooled(1),
+        "a column-subset view copies each mapped column's kind and count");
+
+  printf("ok: column kind axis\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
+  testColumnKindAxis();
   testColumnStoreView();
   testColumnStoreColumnSubset();
   testColumnStoreLeafGather();

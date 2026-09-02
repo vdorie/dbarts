@@ -205,7 +205,7 @@ struct ParsedMutationSource {
   std::vector<double> denseAssembly;
   std::vector<std::int32_t> columnSources;
   std::vector<bartcore::xint_t> referenceCodes;
-  std::vector<bartcore::ColumnType> storeTypes;
+  std::vector<bartcore::ColumnKind> storeTypes;
   std::vector<double> block;
   // the argument's per-sparse-column reference metadata, borrowed from the
   // container; NULL for a bare dgCMatrix, whose implicit rows are the zero its
@@ -220,8 +220,12 @@ struct ParsedData {
   const double* y = NULL;
   size_t numObservations = 0;
   size_t numPredictors = 0;
-  std::vector<bartcore::ColumnType> columnTypes;
+  std::vector<bartcore::ColumnKind> columnTypes;
   bool anyCategorical = false;
+  // any column the store must be told about: the typing channel is published
+  // on this, not on anyCategorical, so an ordered factor with no unordered
+  // factor beside it still reaches the store as its own kind
+  bool anyFactor = false;
   // The borrowed view every training entrance reads: a plain matrix and the
   // dense columnar container leave it unmapped over denseAssembly or the R
   // matrix, while a dgCMatrix and the mixed container map each column onto the
@@ -610,7 +614,7 @@ void parseMixedContainerBlock(SEXP denseExpr, const int* map,
 // it) and \p referenceMessage the [0, K) validation; both carry the side's
 // wording.
 void resolveCscCategoricalReferences(
-    const bartcore::ColumnType* columnTypes,
+    const bartcore::ColumnKind* columnTypes,
     const std::int32_t* columnSources, size_t numPredictors,
     const int* referenceMeta, const int* categoryCountMeta,
     size_t numSparseColumns,
@@ -621,7 +625,7 @@ void resolveCscCategoricalReferences(
   if (categoryCountsOut != nullptr)
     categoryCountsOut->assign(numPredictors, 0);
   for (size_t j = 0; j < numPredictors; ++j) {
-    if (columnTypes[j] != bartcore::ColumnType::categorical ||
+    if (columnTypes[j] != bartcore::ColumnKind::categorical ||
         columnSources[j] >= 0)
       continue;
     size_t source = static_cast<size_t>(~columnSources[j]);
@@ -670,7 +674,7 @@ void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
 // Shared by the creation parse and the setTestPredictor/AndOffset mutations.
 void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                         size_t numPredictors,
-                        const bartcore::ColumnType* columnTypes) {
+                        const bartcore::ColumnKind* columnTypes) {
   SEXP denseExpr = PROTECT(rc_getListElement(containerExpr, "dense"));
   SEXP sparseExpr = PROTECT(rc_getListElement(containerExpr, "sparse"));
   SEXP mapExpr = PROTECT(rc_getListElement(containerExpr, "map"));
@@ -731,7 +735,7 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
   // already in level order
   bool anyTestCscCategorical = false;
   for (size_t j = 0; j < numPredictors; ++j)
-    if (columnTypes[j] == bartcore::ColumnType::categorical &&
+    if (columnTypes[j] == bartcore::ColumnKind::categorical &&
         out.view.sourceOf(j) < 0) {
       anyTestCscCategorical = true;
       break;
@@ -761,7 +765,7 @@ bool testSourceIsSparse(SEXP xTestExpr) {
 // rows the zero its own storage means, no reference metadata to declare.
 void parseTestSource(ParsedTestContainer& out, SEXP xTestExpr,
                      size_t numPredictors,
-                     const bartcore::ColumnType* storeTypes) {
+                     const bartcore::ColumnKind* storeTypes) {
   if (!Rf_inherits(xTestExpr, "dgCMatrix")) {
     parseTestContainer(out, xTestExpr, numPredictors, storeTypes);
     return;
@@ -848,7 +852,7 @@ bool parseMutationSource(ParsedMutationSource& out, SEXP xExpr, size_t numRows,
 // store's type of each column the argument names. A declared reference against
 // a non-categorical store column is refused before anything is read.
 const double* materializeMutationSource(
-    ParsedMutationSource& parsed, const bartcore::ColumnType* storeTypes) {
+    ParsedMutationSource& parsed, const bartcore::ColumnKind* storeTypes) {
   size_t numColumns = parsed.view.numColumns;
   refuseCscReferenceAgainstStore(storeTypes, parsed.columnSources.data(),
                                  numColumns, parsed.referenceMeta,
@@ -877,15 +881,15 @@ bool installTestContainer(bartcore::SamplerBase& sampler,
   return sampler.setTestData(parsed.view);
 }
 
-// Take each dense-backed categorical column's declared level count from the
-// per-column level tables attr(x, "factor.levels") carries (one list element
-// per predictor, NULL where the column is not a factor). The gate is
-// varTypes: an ordered factor carries a level table too, but enters as an
-// ordinal column, whose grid is cut points rather than categories. Absent -
-// no attribute, a wrong-length one, or a NULL entry - leaves the count 0, the
-// spelling resolveCscCategoricalReferences already uses for "infer from the
-// observed codes". CSC-backed columns are skipped: their container declares
-// its own K, which the caller has already resolved.
+// Take each factor column's declared level count from the per-column level
+// tables attr(x, "factor.levels") carries (one list element per predictor,
+// NULL where the column is not a factor). BOTH factor kinds read it: the
+// level table is a property of the factor, not of the sample, so a level no
+// training row observes still counts. Absent - no attribute, a wrong-length
+// one, or a NULL entry - leaves the count 0, the spelling
+// resolveCscCategoricalReferences already uses for "infer from the observed
+// codes". A count a container already declared stays authoritative, which is
+// what leaves every CSC-backed categorical column to the caller's resolution.
 void readDeclaredCategoryCounts(ParsedData& data, SEXP factorLevelsExpr) {
   if (data.categoryCounts.empty())
     data.categoryCounts.assign(data.numPredictors, 0);
@@ -893,8 +897,8 @@ void readDeclaredCategoryCounts(ParsedData& data, SEXP factorLevelsExpr) {
       static_cast<size_t>(rc_getLength(factorLevelsExpr)) != data.numPredictors)
     return;
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
-    if (data.predictors.sourceOf(j) < 0) continue;
+    if (data.columnTypes[j] == bartcore::ColumnKind::numeric) continue;
+    if (data.categoryCounts[j] != 0) continue;
     R_xlen_t numLevels =
       Rf_xlength(VECTOR_ELT(factorLevelsExpr, static_cast<R_xlen_t>(j)));
     // a table wider than the code type can hold declares nothing usable; the
@@ -1057,14 +1061,24 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ,
                           rc_asRLength(data.numPredictors), RC_END);
   int* variableTypes = INTEGER(slotExpr);
-  data.columnTypes.assign(data.numPredictors, bartcore::ColumnType::ordinal);
+  data.columnTypes.assign(data.numPredictors, bartcore::ColumnKind::numeric);
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (variableTypes[j] == 0) continue; // 0 encodes ordinal
-    data.columnTypes[j] = bartcore::ColumnType::categorical;
-    data.anyCategorical = true;
+    // the wire codes of ColumnKind, which the R side and the flat C API's
+    // dbarts_column_type share; anything else is a malformed data object
+    if (variableTypes[j] == 0) continue;
+    if (variableTypes[j] == 1) {
+      data.columnTypes[j] = bartcore::ColumnKind::categorical;
+      data.anyCategorical = true;
+    } else if (variableTypes[j] == 2) {
+      data.columnTypes[j] = bartcore::ColumnKind::orderedFactor;
+    } else {
+      Rf_error("variable types must be 0 (numeric), 1 (categorical), or "
+               "2 (ordered factor)");
+    }
+    data.anyFactor = true;
   }
   data.predictors.columnTypes =
-    data.anyCategorical ? data.columnTypes.data() : NULL;
+    data.anyFactor ? data.columnTypes.data() : NULL;
   // keyed on the parse-time flavor, never on the map: a bare dgCMatrix carries
   // an all-CSC map exactly as a container's sparse columns do, and only the
   // former lacks the reference metadata a categorical column needs
@@ -1077,7 +1091,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     // of every container carrying a sparse block, so it is present here
     bool anyCscCategorical = false;
     for (size_t j = 0; j < data.numPredictors; ++j)
-      if (data.columnTypes[j] == bartcore::ColumnType::categorical &&
+      if (data.columnTypes[j] == bartcore::ColumnKind::categorical &&
           data.columnSources[j] < 0) {
         anyCscCategorical = true;
         break;
@@ -1096,8 +1110,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   // the dense-backed categorical columns' declared counts, on top of whatever
   // the CSC resolution above settled (which stays authoritative for the
   // columns it owns - a container declares its own K)
-  if (data.anyCategorical)
-    readDeclaredCategoryCounts(data, factorLevelsExpr);
+  if (data.anyFactor) readDeclaredCategoryCounts(data, factorLevelsExpr);
   data.predictors.categoryCounts =
     data.categoryCounts.empty() ? NULL : data.categoryCounts.data();
 
@@ -1520,15 +1533,15 @@ void printInitialSummary(const ParsedControl& control,
     // a categorical column has no cut grid; the count that bounds its rules
     // is its category count
     ext_printf("(%lu: %u) ", static_cast<unsigned long>(j + 1),
-               store.types[j] == bartcore::ColumnType::categorical
-                 ? store.categoryCounts[j] : store.numCuts[j]);
+               store.splitsBySubset(j) ? store.categoryCounts[j]
+                                       : store.numCuts[j]);
     if ((j + 1) % 5 == 0) ext_printf("\n");
   }
   ext_printf("\n");
   if (control.printCutoffs > 0) {
     ext_printf("cutoffs:\n");
     for (size_t j = 0; j < store.numPredictors; ++j) {
-      if (store.types[j] == bartcore::ColumnType::categorical) continue;
+      if (store.splitsBySubset(j)) continue;
       ext_printf("x(%lu) cutoffs: ", static_cast<unsigned long>(j + 1));
       // numCuts is unsigned and every index below is taken relative to the
       // last cut, so a column carrying none prints nothing rather than wraps
@@ -1704,7 +1717,7 @@ double trainingCategoryBound(const ParsedData& data, size_t j) {
 // mis-bin, shift past a tree's category mask, or over-read a pooled bitmap.
 void validateCategoricalPredictors(const ParsedData& data) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    if (data.columnTypes[j] != bartcore::ColumnKind::categorical) continue;
     if (data.predictors.sourceOf(j) < 0) {
       // a CSC-backed column stores only its non-reference codes; those must lie
       // in the K its container declared - the count the store will take - as
@@ -1728,7 +1741,7 @@ void validateCategoricalPredictors(const ParsedData& data) {
   }
   if (!data.anyCategorical || data.numTestObservations == 0) return;
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    if (data.columnTypes[j] != bartcore::ColumnKind::categorical) continue;
     double bound = trainingCategoryBound(data, j);
     if (data.testPredictors.sourceOf(j) < 0) {
       ParsedCscCodes stored = parsedCscCodes(
@@ -2967,7 +2980,7 @@ void refuseNonBinaryMask(const double* active, size_t numObservations) {
 
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
                           const double* values, size_t numValues) {
-  if (store.types[column] != bartcore::ColumnType::categorical) return;
+  if (store.types[column] != bartcore::ColumnKind::categorical) return;
   for (size_t i = 0; i < numValues; ++i) {
     if (!store.categoricalValueIsValid(column, values[i]))
       Rf_error("categorical predictor values must be existing category codes");
@@ -2983,14 +2996,14 @@ void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
 // subset mutation passes the types of the columns it names. External linkage:
 // promoted to the bridge block so the flat C API's source-shaped entries state
 // this rule once rather than restating it.
-void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
+void refuseCscReferenceAgainstStore(const bartcore::ColumnKind* storeTypes,
                                     const std::int32_t* columnSources,
                                     size_t numColumns, const int* referenceMeta,
                                     size_t numSparseColumns) {
   if (referenceMeta == NULL) return;
   for (size_t j = 0; j < numColumns; ++j) {
     if (columnSources[j] >= 0 ||
-        storeTypes[j] == bartcore::ColumnType::categorical)
+        storeTypes[j] == bartcore::ColumnKind::categorical)
       continue;
     size_t source = static_cast<size_t>(~columnSources[j]);
     if (source < numSparseColumns && referenceMeta[source] != NA_INTEGER)
@@ -3028,7 +3041,7 @@ void validateTestContainerAgainstStore(
     const bartcore::ColumnStore& store,
     const bartcore::PredictorSource& view) {
   for (size_t j = 0; j < store.numPredictors; ++j) {
-    if (store.types[j] != bartcore::ColumnType::categorical) continue;
+    if (store.types[j] != bartcore::ColumnKind::categorical) continue;
     double bound = static_cast<double>(store.categoryCounts[j]);
     if (view.sourceOf(j) >= 0) {
       refuseInvalidCategoryCodes(rawViewColumn(view, j), view.numRows, bound,
@@ -4733,13 +4746,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
                             data.y, data.numObservations,
                             "bartcore setData");
     for (size_t j = 0; j < data.numPredictors; ++j) {
-      bool wasCategorical = sampler.data().types[j] ==
-                            bartcore::ColumnType::categorical;
-      bool isCategorical = data.columnTypes[j] ==
-                           bartcore::ColumnType::categorical;
-      if (isCategorical != wasCategorical)
+      // the kind fixes the grid, so a replacement that changes it is a
+      // different design rather than new values for this one
+      if (data.columnTypes[j] != sampler.data().types[j])
         Rf_error("bartcore setData requires the same predictor types");
-      if (!wasCategorical) continue;
+      if (!sampler.data().splitsBySubset(j)) continue;
       // category counts are fixed at creation; new values must be existing
       // codes, in the training and test data both
       for (size_t i = 0; i < data.numObservations; ++i)
@@ -5237,8 +5248,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
         Rf_error("bartcore_setCutPoints: column out of range");
       columns[k] = static_cast<size_t>(column - 1);
-      if (holder.sampler->data().types[columns[k]] ==
-          bartcore::ColumnType::categorical)
+      if (holder.sampler->data().splitsBySubset(columns[k]))
         Rf_error("cannot set cut points for a categorical predictor");
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
@@ -7606,8 +7616,7 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
             node.variable >= 0 ? node.variable + 1 : node.variable);
           bool isCategoricalRule =
             node.variable >= 0 &&
-            store.types[static_cast<size_t>(node.variable)] ==
-              bartcore::ColumnType::categorical;
+            store.splitsBySubset(static_cast<size_t>(node.variable));
           // a categorical rule's payload is a mask, not a data value; the
           // directions column carries its decode and its value is NA
           out.value.push_back(
@@ -7799,8 +7808,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   bool anyMissing = false, anyCategorical = false;
   for (size_t j = 0; j < store.numPredictors; ++j) {
     if (store.hasMissing[j]) anyMissing = true;
-    if (store.types[j] == bartcore::ColumnType::categorical)
-      anyCategorical = true;
+    if (store.splitsBySubset(j)) anyCategorical = true;
   }
 
   // function-valued (gp) leaves report no per-leaf coefficients - the

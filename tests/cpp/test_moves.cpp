@@ -296,8 +296,8 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
   }
   x[0] = 0.0; x[1] = 1.0; x[2] = 2.0;  // every category present
 
-  std::vector<ColumnType> types = {ColumnType::categorical,
-                                   ColumnType::ordinal};
+  std::vector<ColumnKind> types = {ColumnKind::categorical,
+                                   ColumnKind::numeric};
   SamplerOptions options;
   options.numTrees = 50;
   options.predictors.columnTypes = types.data();
@@ -781,7 +781,7 @@ static void testCategoricalMutation(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = 25;
-  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
   options.predictors.columnTypes = types;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
@@ -1694,7 +1694,7 @@ static void testMoveValidityPredicates() {
   check(!ruleIsValid(ordinalCtx, tree, 0, 0),
         "ruleIsValid refuses a descendant outside its ancestor interval");
 
-  ColumnType type = ColumnType::categorical;
+  ColumnKind type = ColumnKind::categorical;
   ColumnStore categoricalStore;
   PredictorSource source =
     densePredictorSource(xCategorical.data(), n, 1, &type);

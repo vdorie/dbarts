@@ -276,7 +276,7 @@ void refuseNonBinaryMask(const double* active, std::size_t numObservations);
 /// entry names CSC column ~v) and storeTypes is indexed by SOURCE column, so a
 /// subset mutation passes the types of the columns it names; a null
 /// referenceMeta (nothing declared) passes through.
-void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
+void refuseCscReferenceAgainstStore(const bartcore::ColumnKind* storeTypes,
                                     const std::int32_t* columnSources,
                                     std::size_t numColumns,
                                     const int* referenceMeta,

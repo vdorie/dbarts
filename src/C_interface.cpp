@@ -93,7 +93,7 @@ const double* predictorsFromDataExpr(SEXP dataExpr) {
 // subset mutation names its own columns, so the two indexings differ).
 struct TranslatedSource {
   bartcore::PredictorSource view;
-  const bartcore::ColumnType* storeTypes;
+  const bartcore::ColumnKind* storeTypes;
 };
 
 // Validate a caller's source against the sampler and translate it into the
@@ -144,9 +144,11 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   bool anyDense = false, anyCsc = false;
   for (size_t j = 0; j < numColumns; ++j) {
     if (columnTypes != NULL && columnTypes[j] != DBARTS_COLUMN_ORDINAL &&
-        columnTypes[j] != DBARTS_COLUMN_CATEGORICAL)
-      Rf_error("%s: source.columnTypes[%lu] is neither DBARTS_COLUMN_ORDINAL "
-               "nor DBARTS_COLUMN_CATEGORICAL", caller,
+        columnTypes[j] != DBARTS_COLUMN_CATEGORICAL &&
+        columnTypes[j] != DBARTS_COLUMN_ORDERED_FACTOR)
+      Rf_error("%s: source.columnTypes[%lu] is not one of "
+               "DBARTS_COLUMN_ORDINAL, DBARTS_COLUMN_CATEGORICAL, "
+               "DBARTS_COLUMN_ORDERED_FACTOR", caller,
                static_cast<unsigned long>(j));
     if (categoryCounts != NULL && categoryCounts[j] > bartcore::maxCategories)
       Rf_error("%s: source.categoryCounts[%lu] exceeds the %lu category limit",
@@ -183,8 +185,8 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
     Rf_error("%s: a CSC-backed column names an incomplete CSC triple", caller);
 
   // the STORE's types, gathered onto the view's own columns
-  bartcore::ColumnType* storeTypes = reinterpret_cast<bartcore::ColumnType*>(
-    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(bartcore::ColumnType)));
+  bartcore::ColumnKind* storeTypes = reinterpret_cast<bartcore::ColumnKind*>(
+    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(bartcore::ColumnKind)));
   for (size_t j = 0; j < numColumns; ++j)
     storeTypes[j] = store.types[columns != NULL ? columns[j] : j];
 

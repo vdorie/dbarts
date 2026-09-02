@@ -762,15 +762,16 @@ inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
 
 /// Whether any predictor carries a nonzero monotone direction (the constrained
 /// leaf's construction-time selector); a null spec or an all-zero vector keeps
-/// the unchanged constant-leaf path. A direction on a categorical column is
-/// refused (monotonicity is undefined on unordered codes).
+/// the unchanged constant-leaf path. A direction on a subset-splitting column
+/// is refused (monotonicity is undefined on unordered codes); an ordered
+/// factor accepts one, its level codes being ordered.
 inline bool monotoneConstraintIsActive(const SamplerOptions& options,
                                        std::size_t numPredictors) {
   if (options.monotoneDirections == nullptr) return false;
   bool active = false;
   for (std::size_t j = 0; j < numPredictors; ++j) {
     if (options.monotoneDirections[j] == 0) continue;
-    if (options.predictors.typeOf(j) == ColumnType::categorical) return false;
+    if (options.predictors.splitsBySubset(j)) return false;
     active = true;
   }
   return active;
@@ -798,9 +799,10 @@ inline bool varianceForestIsRefused(const SamplerOptions& options,
 /// linear-leaf instantiation - or the GP one under options.gpLeaves -
 /// anything else the constant leaf. Returns null on an invalid
 /// designation - more than maxNumCovariates columns (both leaf models share
-/// the bound), a column out of range, or a categorical column (category
-/// codes are unordered; interact through splits instead) - which the host
-/// turns into its own error.
+/// the bound), a column out of range, or a subset-splitting column (its
+/// category codes are unordered; interact through splits instead) - which the
+/// host turns into its own error. An ordered factor is admissible, entering
+/// as its standardized level codes, i.e. as equally-spaced interval data.
 inline std::unique_ptr<SamplerBase> createSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
@@ -825,9 +827,7 @@ inline std::unique_ptr<SamplerBase> createSampler(
     return nullptr;
   if (!leafCovariateDesignationIsValid(
         options, numPredictors,
-        [&](std::size_t j) {
-          return options.predictors.typeOf(j) == ColumnType::categorical;
-        },
+        [&](std::size_t j) { return options.predictors.splitsBySubset(j); },
         [&](std::size_t j) { return options.predictors.sourceOf(j) >= 0; }))
     return nullptr;
   if (options.gpLeaves)
@@ -864,7 +864,7 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
 
   if (!leafCovariateDesignationIsValid(
         options, store.numPredictors,
-        [&](std::size_t j) { return store.types[j] == ColumnType::categorical; },
+        [&](std::size_t j) { return store.splitsBySubset(j); },
         [&](std::size_t j) { return store.rawColumn(j) != nullptr; }))
     return nullptr;
   if (options.gpLeaves)

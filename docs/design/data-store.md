@@ -23,13 +23,16 @@ transaction, the R-protection story - follows from that.
 `ColumnStore` IS the cut grid. The per-column quantization parameters live
 directly on the store as parallel vectors, one entry per predictor:
 
-- `types` - `ColumnType::ordinal` or `categorical` (`data.hpp:215`).
+- `types` - `ColumnKind::numeric`, `categorical`, or `orderedFactor`
+  (`data.hpp:215`). Splitting keys on the DERIVED predicate
+  `splitsBySubset(j)`, not on the kind: only grid construction, ingestion
+  validation and reporting read the kind itself.
 - `numCuts[j]` - the ordinal cut count, and 0 for a categorical column
   (which has no cut grid at all). `refreshCutsForColumn` (the mutation
   re-cut) keeps the count fixed, and only `setCutPointsForColumn` (the
   setCutPoints surface) changes it.
-- `categoryCounts[j]` - the fixed level count K of a categorical column, 0
-  for any column that splits by threshold. Fixed at build: every mask tier,
+- `categoryCounts[j]` - the fixed level count K of a factor column of
+  either kind, 0 for a numeric one. Fixed at build: every mask tier,
   reserved missing code and category histogram width derives from it.
 - `cutPoints[j]` - the ascending ordinal thresholds (empty for
   categoricals).

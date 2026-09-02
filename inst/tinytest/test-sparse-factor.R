@@ -1034,8 +1034,9 @@ expect_error(
 # predict()'s R-side densification (as.matrix.dbartsMixedMatrix, gated only on
 # is.na) and another to the engine (a reference is read only for a
 # store-categorical column, 0 otherwise) - reachable by training with an
-# ORDERED factor column (typed ordinal, but still carrying a factor.levels
-# entry) and supplying that column as a sparseFactor test column;
+# ORDERED factor column (its own kind, splitting by threshold, but still
+# carrying a factor.levels entry) and supplying that column as a
+# sparseFactor test column;
 # mapFactorColumnsToTrainingLevels remaps it rather than refusing, since its
 # numeric-training guard keys on a NULL level table, not on varTypes. Both
 # funnels now refuse it identically, at the validateXTest choke point they
@@ -1050,7 +1051,7 @@ y.ord <- c(-10, 0, 10)[as.integer(f.ord)] + rnorm(120L, 0, 0.5)
 train.ord <- data.frame(f = f.ord)
 expect_equal(
   attr(dbarts:::makeCategoricalModelMatrix(train.ord), "varTypes"),
-  0L
+  2L
 )
 
 sampler.ord <- dbarts(

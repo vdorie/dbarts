@@ -1468,7 +1468,7 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
                         ResponseFamily::gaussian, ySd, 3.0,
                         0.37804942330213542, bad, &rng) == nullptr,
           "out-of-range leaf covariate refused");
-    ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+    ColumnKind types[] = {ColumnKind::numeric, ColumnKind::categorical};
     bad = options;
     bad.predictors.columnTypes = types;
     check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
@@ -2960,7 +2960,7 @@ struct CscCategoricalFixture {
   std::vector<int> pointers;   // 2
   std::vector<int> rows;
   std::vector<double> values;
-  std::vector<ColumnType> types = { ColumnType::categorical };
+  std::vector<ColumnKind> types = { ColumnKind::categorical };
 
   void build(size_t n_, std::uint32_t K_, double probReference) {
     n = n_;
@@ -3262,7 +3262,7 @@ struct MixedFixture {
   std::vector<double> denseSource;  // column-major, n x 2
   std::vector<double> full;         // column-major, n x 5
   std::vector<std::int32_t> sources;
-  std::vector<ColumnType> types;
+  std::vector<ColumnKind> types;
 
   void build(size_t n_, const std::vector<double>& cscFractions,
              bool categoricalDense1, size_t numMissingCsc2 = 0) {
@@ -3282,8 +3282,8 @@ struct MixedFixture {
         ? std::floor(runif01() * 4.0) : runif01();
     }
     sources = { 0, ~0, 1, ~1, ~2 };
-    types.assign(p, ColumnType::ordinal);
-    if (categoricalDense1) types[2] = ColumnType::categorical;
+    types.assign(p, ColumnKind::numeric);
+    if (categoricalDense1) types[2] = ColumnKind::categorical;
     full.resize(n * p);
     const double* columns[p] = {
       denseSource.data(), csc.dense.data(), denseSource.data() + n,

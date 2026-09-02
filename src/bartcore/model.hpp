@@ -2153,8 +2153,7 @@ struct CGMTreePrior {
   double ruleForVariableLogProbability(const Tree& tree, const ColumnStore& data,
                                        int32_t nodeIndex) const {
     int32_t variableIndex = tree.at(nodeIndex).rule.variableIndex;
-    if (data.types[static_cast<size_t>(variableIndex)] ==
-        ColumnType::categorical) {
+    if (data.splitsBySubset(static_cast<size_t>(variableIndex))) {
       size_t numReachable = tree.reachableCategoryCount(
         data, nodeIndex, variableIndex, reachableScratch_, nullptr);
       // past 54 reachable pow(2, R) - 2 is no longer exact; the closed form
@@ -2344,8 +2343,7 @@ struct CGMTreePrior {
     Rule result;
     result.variableIndex = variableIndex;
 
-    if (data.types[static_cast<size_t>(variableIndex)] ==
-        ColumnType::categorical) {
+    if (data.splitsBySubset(static_cast<size_t>(variableIndex))) {
       tree.withReachableMask(
         data, nodeIndex, variableIndex, reachableScratch_, nullptr,
         [&](const std::uint64_t* reachable, size_t numWords) {

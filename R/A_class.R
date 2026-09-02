@@ -578,11 +578,13 @@ methods::setValidity("dbartsData", function(object) {
   if (
     length(object@varTypes) > 0 &&
       any(
-        object@varTypes != ORDINAL_VARIABLE &
-          object@varTypes != CATEGORICAL_VARIABLE
+        !object@varTypes %in%
+          c(ORDINAL_VARIABLE, CATEGORICAL_VARIABLE, ORDERED_FACTOR_VARIABLE)
       )
   ) {
-    return("variable types must all be ordinal or categorical")
+    return(
+      "variable types must all be ordinal, categorical, or ordered factor"
+    )
   }
 
   if (!is.null(object@weights)) {

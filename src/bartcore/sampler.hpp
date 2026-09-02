@@ -898,7 +898,7 @@ public:
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
-      if (data_.types[j] == ColumnType::categorical) {
+      if (data_.splitsBySubset(j)) {
         if (!state.cutPoints[j].empty()) return false;
       } else if (state.cutPoints[j].empty() ||
                  state.cutPoints[j].size() > 65535) {
@@ -922,7 +922,7 @@ public:
     std::vector<SparseColumnData> oldSparseColumns(data_.train.sparseColumns);
     std::vector<SparseColumnData> oldTestSparseColumns(data_.test.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
-      if (data_.types[j] == ColumnType::categorical) continue;
+      if (data_.splitsBySubset(j)) continue;
       // a restored grid equal to the live one leaves the codes already correct
       // (the continuation contract), so skip its re-quantization and its raw
       if (state.cutPoints[j] == data_.cutPoints[j]) continue;
@@ -991,7 +991,7 @@ public:
       if (donor.cutPoints.size() != data_.numPredictors)
         return WarmStartResult::gridMismatch;
       for (size_t j = 0; j < data_.numPredictors; ++j) {
-        bool categorical = data_.types[j] == ColumnType::categorical;
+        bool categorical = data_.splitsBySubset(j);
         if (categorical != donor.cutPoints[j].empty())
           return WarmStartResult::gridMismatch;
         for (size_t k = 1; k < donor.cutPoints[j].size(); ++k)
@@ -1817,7 +1817,7 @@ private:
       size_t j = strategy.columns ? strategy.columns[k] : k;
       // categorical columns must hold representable codes whether or not cut
       // points refresh
-      if ((updateCutPoints || data_.types[j] == ColumnType::categorical) &&
+      if ((updateCutPoints || data_.splitsBySubset(j)) &&
           !data_.cutsWouldRemainValid(
             j, strategy.values + k * data_.numObservations))
         return PredictorUpdateResult::invalidCutPoints;

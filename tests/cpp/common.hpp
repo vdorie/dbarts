@@ -108,7 +108,7 @@ inline PredictorSource mixedPredictorSource(
     size_t numRows, size_t numColumns, const double* denseValues,
     const int* pointers, const int* rows, const double* values,
     const std::int32_t* columnSources,
-    const ColumnType* columnTypes = nullptr,
+    const ColumnKind* columnTypes = nullptr,
     const std::uint32_t* categoryCounts = nullptr,
     const xint_t* referenceCodes = nullptr) {
   PredictorSource source;

@@ -1,5 +1,6 @@
 ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
+ORDERED_FACTOR_VARIABLE <- 2L
 
 # The multinomial capability probe: a data object carrying the n x K count
 # response is a multinomial one, on both the fitting and the mutation surfaces.

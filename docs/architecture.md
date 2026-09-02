@@ -198,13 +198,15 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   (categorical). `xint_t` is `std::uint16_t` uniformly - there is no
   per-column code-width selection (u8 for low-cardinality columns) in the
   shipped store; every column pays the 16-bit width.
-- **Column types**: `std::vector<ColumnType> types` marks each column
-  `ordinal` or `categorical` (`ColumnType`, data.hpp). A categorical
-  column's raw double IS its integer level index - `codeFor` casts it
-  directly rather than binning it against cut points, so raw value and code
-  coincide for a categorical column. An ordered factor is not a third type:
-  it enters as an ordinal column whose raw values are the 0..K-1 level
-  codes, binned against cut points like any other ordinal.
+- **Column kinds**: `std::vector<ColumnKind> types` marks each column
+  `numeric`, `categorical`, or `orderedFactor` (`ColumnKind`, data.hpp). A
+  categorical column's raw double IS its integer level index - `codeFor`
+  casts it directly rather than binning it against cut points, so raw value
+  and code coincide for a categorical column. An ordered factor carries the
+  0..K-1 level codes and is binned against cut points over them, its order
+  being meaningful. Rules, scans, masks and the flat replay branch on the
+  DERIVED predicate `splitsBySubset(j)` rather than on the kind, so the
+  mechanic (subset mask vs. threshold) is stated once.
 - **Cut points**: `std::vector<std::vector<double>> cutPoints` plus
   `numCuts`/`categoryCounts`/`maxNumCuts` per column. `numCuts[j]` holds
   the ordinal cut count and is 0 for a categorical column, whose fixed

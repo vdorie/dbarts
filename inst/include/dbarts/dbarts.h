@@ -186,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xb6c0e97dc0688991ULL
+#  define DBARTS_C_API_HASH 0xe14b499a84f501d2ULL
 #endif
 
 #ifdef __cplusplus
@@ -276,7 +276,9 @@ typedef struct dbarts_results_t {
     NULL, NULL, NULL }
 
 /// A predictor column's type. Ordinal columns are cut on their values;
-/// categorical ones carry 0-based category codes.
+/// categorical ones carry 0-based category codes and split by subset mask;
+/// ordered-factor ones carry 0-based level codes whose order is meaningful,
+/// so they are cut on those codes rather than masked.
 ///
 /// All three ABI enums are generated from a list macro, which is also what
 /// the compile-time token folds: an enumerator ADDED to the enum body
@@ -285,7 +287,8 @@ typedef struct dbarts_results_t {
 /// after the last list below.
 #define DBARTS_COLUMN_TYPE_LIST(X) \
   X(DBARTS_COLUMN_ORDINAL, 0) \
-  X(DBARTS_COLUMN_CATEGORICAL, 1)
+  X(DBARTS_COLUMN_CATEGORICAL, 1) \
+  X(DBARTS_COLUMN_ORDERED_FACTOR, 2)
 #define DBARTS_ENUMERATOR(name, value) name = value,
 typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 

@@ -223,7 +223,7 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
         ? -std::log(static_cast<double>(numAvailable))
         : std::log(splitProbabilities[j] / availableSplitProbability);
 
-    if (data.types[j] == ColumnType::categorical) {
+    if (data.splitsBySubset(j)) {
       // R, the categories that reach this node: read off the mask
       // collectAvailableVariables already narrowed for an inline column,
       // walked here for a pooled one (that pass skips those)
@@ -322,7 +322,7 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
   Rule rule;
   rule.variableIndex = scratch.candidateVariable[choice];
   std::size_t winner = static_cast<std::size_t>(rule.variableIndex);
-  if (data.types[winner] == ColumnType::categorical)
+  if (data.splitsBySubset(winner))
     growCategoricalRule(data, leaf, rng, tree, nodeIndex, y, weights, k,
                         residualVariance, begin, numMembers,
                         scratch.candidateCut[choice], scratch, rule);

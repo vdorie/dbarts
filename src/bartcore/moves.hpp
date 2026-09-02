@@ -494,12 +494,10 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   size_t maskPoolMark = tree.maskPoolMark();
 
   const bool newIsCategorical =
-    ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
-    ColumnType::categorical;
+    ctx.data.splitsBySubset(static_cast<size_t>(newVariableIndex));
   int32_t oldVariableIndex = tree.at(nodeToChange).rule.variableIndex;
   const bool oldIsCategorical =
-    ctx.data.types[static_cast<size_t>(oldVariableIndex)] ==
-    ColumnType::categorical;
+    ctx.data.splitsBySubset(static_cast<size_t>(oldVariableIndex));
   int32_t forwardValid = 0, forwardInterval = 0;  // new-side ordinal counts
   int32_t reverseValid = 0, reverseInterval = 0;  // old-side ordinal counts
 
@@ -703,8 +701,7 @@ inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
 
 inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIndex,
                         int32_t variableIndex) {
-  if (ctx.data.types[static_cast<size_t>(variableIndex)] ==
-      ColumnType::categorical) {
+  if (ctx.data.splitsBySubset(static_cast<size_t>(variableIndex))) {
     return tree.withReachableMask(
       ctx.data, nodeIndex, variableIndex, ctx.scratch.reachableWords, nullptr,
       [&](const std::uint64_t* reachable, size_t numWords) {
