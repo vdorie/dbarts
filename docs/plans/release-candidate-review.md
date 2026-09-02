@@ -537,6 +537,85 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S4a, the code channel through the bridge's validation (e36fccbe, 6b597efb, 01cf9f4c, d89994d0, 070afd92, dec670bb, 7976ebff, 0e8830e9, a93c44ea, fd2af7c5, 3a676bc3, 1db47e89, 2026-09-02)
+
+Slice S4a of docs/plans/column-kind-consolidation.md lands as twelve
+commits. The borrowed predictor view carries a second dense channel,
+denseCodes: column-major int32 level codes beside denseValues' doubles,
+with naDenseCode - the minimum int32 - marking a missing cell, and
+denseChannels naming which channel holds each column and where within
+it. The channel is a storage fact, not a typing one: a coded column of
+numeric kind still widens once at the build. The bridge's pre-store
+validation sweep now scans whichever channel holds a column where it
+lies, a cell at a time, instead of materializing doubles first to scan
+them - rawViewColumn answers with the column, and
+refuseInvalidCategoryCodes, trainingCategoryBound,
+validateCategoricalPredictors and validateTestContainerAgainstStore all
+take it as it lies. That half is the slice: a version that added the
+channel and left the sweep double-typed would still materialize the
+doubles it reads and save nothing.
+
+denseChannels is engine-side addressing, judged minimal: 4 bytes per
+column, not per row, and only on the borrowed view - the bridge's
+std::vector<int32_t> dies with the parse and never reaches the retained
+ColumnStore. dbarts_predictor_source gains denseCodes and the
+numDenseCodeColumns width that bounds it, both below the 1.0-0 field
+boundary. One indexing rule: both channels are read at columnSources[j],
+the double index bounded by numColumns and the code index by
+numDenseCodeColumns, within the channel the sampler's kind for that
+column selects. DBARTS_C_API_HASH re-bakes to 0x37288e7c56449b34, then,
+folding the fixes below, to 0xca7b56a64c812b8d; the version constants do
+not move. A lockstep stan4bart rebuild is owed against the second bake -
+the first was verified 455/455 under the exact-ABI handshake.
+
+S3's two residues close. ColumnStore::setData now checks every factor
+cell of a replacement against the level table its pinned count fixes
+before it writes a code, and Sampler::setData decides its whole answer -
+both sides, through one predicate mirroring both of buildTest's refusal
+points - before either build is installed, refusing rather than leaving
+new training values beside a silently dropped test set.
+
+MEASURED, n = 1e6 with 20 factor columns and a supplied sigma: peak RSS
+476.5 MB before, 396.4 MB after - 80.1 MB against the 80.0 MB that 4
+bytes x 1e6 rows x 20 columns predicts, reproduced independently over
+three paired runs (-82.2, -77.5, -79.9 MB). The saving is the all-dense
+columnar arm's only; a container carrying a sparse column, and every
+test container, still assemble a block of doubles.
+
+The four hazards each carry a pin. Hazard 1 (missing flags, the only one
+whose failure would move a draw), hazard 2 (a coded missing cell takes
+the reserved code, not a level) and hazard 3 (the missing marker does
+not enter the inferred level count) each fail under a mutation of the
+rule they name. Hazard 4 (a mixed view's CSC columns read the same
+reference value coded and uncoded) is weaker by construction - the coded
+arm returns before the CSC branch, so both runs execute one
+implementation - and stands as an S4b regression guard rather than a
+test that discriminates the current code.
+
+Reviewer fixes folded: the flat-C guard now refuses per resolved channel
+rather than by an either-pointer test that let a null denseValues reach
+the widen loop's dereference; the code channel gained its declared
+extent, numDenseCodeColumns; the two contradictory indexing-rule
+sentences became the one above; NEWS narrowed its widen-removed claim to
+the all-dense columnar arm and dropped the false "no cell is converted
+twice"; the header and NEWS retracted the claim that a flat-C consumer
+avoids a widen in S4a, which S4c is what delivers; the anchor re-pin was
+completed for the two docs the slice itself edits, plus three more
+inside 0e8830e9's own diff of feature-matrix.md; and the landing entry's
+commit list and its description of the flat-C translation's shape were
+completed to match what shipped.
+
+Docs brought current in-slice: docs/design/data-store.md,
+docs/architecture.md and inst/NEWS.Rd (dec670bb, corrected and re-pinned
+by 3a676bc3).
+
+Gates (implementer-run; independent battery pending): R CMD INSTALL
+--preclean exit 0; tests/cpp 275 ok, all tests passed, 68 ok (sampler);
+tinytest 7626 / 0 fail; check-doc-freshness 0 FAIL, 63 warning(s);
+equivalence-02d41365 46/46, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise identical, no
+statistical fallback.
+
 ### Kind-axis slice S3, engine-side ingestion validation (9f532225, 6e11b7e5, 60a91fcd, 5242261d, 674d8373, dda84b40, 3437748e, 0fe9b742, f0d99249, 2026-09-02)
 
 Slice S3 of docs/plans/column-kind-consolidation.md lands as nine
@@ -581,18 +660,18 @@ ceiling, naming the kind and its limit, so the bridge fires first with
 its own wording on every path and the engine's refusal is the backstop
 the plan always meant it to be.
 
-Two residues, stated rather than fixed, both closing with S4a.
-ColumnStore::setData stays a TRUSTED entrance: keepCategoryCount pins K
-so the count class of refusal cannot arise there at all, its sole
-in-tree caller sweeps every training and test factor cell through
-categoricalValueIsValid before calling, dbarts.h exposes no setData,
-and setData is refused outright on CSC/mixed stores - so the only
-exposure is a header-only host, which is what its contract already
-states. Sampler::setData reports no status: a test matrix it refuses is
-silently dropped rather than diagnosed, leaving no test set instead of
-an error - defined behavior, unreachable from R since the bridge
-validates both sides first, but a status return belongs with S4a's
-single checked narrow per cell.
+Both residues closed at S4a (01cf9f4c, fd2af7c5).
+ColumnStore::setData no longer stays a TRUSTED entrance: it now checks
+every factor cell of a replacement against the level table its pinned
+count fixes before it writes a code, on top of the sole in-tree
+caller's own sweep, dbarts.h exposing no setData, and the CSC/mixed
+refusal that already limited exposure to a header-only host.
+Sampler::setData no longer reports no status: it decides its whole
+answer - both sides, through one predicate mirroring both of
+buildTest's refusal points - before either build is installed, so a
+refused test matrix is diagnosed rather than silently dropped, and the
+status threads through the facade virtual and the bridge's own
+per-cell loop, which still fires first naming the kind.
 
 Gates (implementer-run; independent battery pending): R CMD INSTALL
 --preclean exit 0; tests/cpp 273 ok, all tests passed, 68 ok (sampler);
