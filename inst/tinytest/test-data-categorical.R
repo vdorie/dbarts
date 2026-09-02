@@ -37,8 +37,8 @@ expect_true(ncol(data.ind@x) > 5L)
 expect_true(all(data.ind@varTypes == 0L))
 
 # unordered factors cap at the code type's limit (see
-# test-data-categorical-wide.R for levels past 53); ordered factors are
-# ordinal and never cap
+# test-data-categorical-wide.R for levels past 53); ordered factors cap one
+# level lower, since their K - 1 cut grid spends a code on its upper bin
 df.wide <- data.frame(f = factor(paste0("l", seq_len(54L))), y = rnorm(54L))
 expect_inherits(
   dbartsData(y ~ f, df.wide, factors = "categorical"),
@@ -49,6 +49,58 @@ expect_inherits(
   dbartsData(y ~ f, df.wide, factors = "categorical"),
   "dbartsData"
 )
+
+wide.levels <- paste0("l", seq_len(65535L))
+df.ceiling <- data.frame(y = rnorm(4L))
+df.ceiling$f <- factor(
+  wide.levels[seq_len(4L)],
+  levels = wide.levels[seq_len(65534L)],
+  ordered = TRUE
+)
+expect_inherits(dbartsData(y ~ f, df.ceiling), "dbartsData")
+df.ceiling$f <- factor(
+  wide.levels[seq_len(4L)],
+  levels = wide.levels,
+  ordered = TRUE
+)
+expect_error(
+  dbartsData(y ~ f, df.ceiling),
+  pattern = "more than 65534 levels"
+)
+
+# an ordered factor splits between EVERY adjacent level pair, whatever n.cuts
+# says: its grid is the midpoints of its declared levels, so the top pair
+# separates where a 100-cut grid over 150 levels gave them one code
+set.seed(21)
+n.ord <- 600L
+ord.levels <- paste0("l", seq_len(150L))
+df.ord <- data.frame(
+  o = factor(rep_len(ord.levels, n.ord), levels = ord.levels, ordered = TRUE)
+)
+df.ord$y <- ifelse(as.integer(df.ord$o) == 150L, 4, 0) + rnorm(n.ord, 0, 0.2)
+control.ord <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 25L,
+  n.samples = 100L,
+  n.cuts = 100L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+sampler.ord <- dbarts(y ~ o, df.ord, control = control.ord)
+fit.ord <- rowMeans(sampler.ord$run(100L, 100L)$train)
+expect_true(
+  mean(fit.ord[as.integer(df.ord$o) == 150L]) -
+    mean(fit.ord[as.integer(df.ord$o) == 149L]) >
+    2
+)
+# and every rule on the column sits at a level midpoint
+ord.rules <- local({
+  trees <- sampler.ord$getTrees()
+  trees$value[trees$var == 1L]
+})
+expect_true(length(ord.rules) > 0L)
+expect_true(all(ord.rules %% 1 == 0.5))
 
 # test data code against the training level tables, whatever their order or
 # subset, and unseen levels are an error
@@ -187,4 +239,31 @@ attr(x.codes, "varTypes") <- 2L # ordered factor
 expect_inherits(
   dbarts(x.codes, y.codes, control = control.codes),
   "dbartsSampler"
+)
+
+# a value that is not an existing level code refuses on either factor kind and
+# on both sides of the fit: a column declared a factor is a factor throughout,
+# and a caller wanting a value between two levels has the numeric column
+expect_error(
+  dbarts(
+    x.codes,
+    y.codes,
+    test = matrix(c(0, 1, 2.5), ncol = 1L),
+    control = control.codes
+  ),
+  pattern = "ordered factor test predictors must hold existing level codes"
+)
+sampler.codes <- dbarts(x.codes, y.codes, control = control.codes)
+expect_error(
+  sampler.codes$setTestPredictor(matrix(2.5, ncol = 1L)),
+  pattern = "ordered factor predictor values must be existing level codes"
+)
+expect_error(
+  sampler.codes$setPredictor(rep_len(2.5, n.codes), 1L),
+  pattern = "ordered factor predictor values must be existing level codes"
+)
+# and its cut points are not the caller's to choose
+expect_error(
+  sampler.codes$setCutPoints(list(c(0.5, 2.5)), 1L),
+  pattern = "cannot set cut points for an ordered factor predictor"
 )
