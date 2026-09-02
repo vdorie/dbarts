@@ -9,7 +9,7 @@ rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8
 ## 1. The family enum
 
 Taken from code. Create (dbarts.h:417-419, :702-703 -> `resolveFamily`, src/R_interface_bartcore.cpp:1580-1618): `""` (dispatch on the response shape), `"gaussian"`,
-`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` (:535-541) and `dbarts_workingResponse` (:542-546) -> the augmentation
+`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, `"aft"`. `dbarts_drawLatents` (:634) and `dbarts_workingResponse` (:542-546) -> the augmentation
 laws (`AugmentationLaw`, src/R_interface_bartcore_common.hpp): `"probit"`, `"logistic"`, `"ordinal"`, `"aft"`, `"nbinom"`, `"student"`; `""` and `"gaussian"` are REFUSED there, and
 `"student"` names a law no `ResponseFamily` value carries - a Student-t sampler's family IS gaussian - so it needs its own enumerator. Engine `ResponseFamily` has six values
 (src/bartcore/model.hpp:2580) and `SamplerShape::family` (src/bartcore/facade.hpp:76) is not total: multinomial pins `logistic` (src/bartcore/sampler.hpp:221), Student-t
@@ -37,7 +37,7 @@ new entry appended LAST in `DBARTS_C_API_LIST` (48 after, 47 today) - `X(int, db
 `kIsSampled`/`usesDart` (:976-977), returned by value and so carrying no `get` (section 2). Admission is narrower per entry, every refusal naming entry and family: create
 takes AUTO, GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL, NBINOM and refuses STUDENT, MULTINOMIAL and anything outside [0, 8]; drawLatents/workingResponse take PROBIT,
 LOGISTIC, ORDINAL, AFT, NBINOM, STUDENT and refuse AUTO, GAUSSIAN, MULTINOMIAL (today's behaviour). Implement as two int -> family mappings in src/C_interface.cpp beside
-`dbarts_sampler_create` (:478-484) and `augmentationArguments` (:1086-1126); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
+`dbarts_sampler_create` (:478-484) and `augmentationArguments` (:1295); `resolveFamily` and the augmentation resolver keep their string forms for the R bridge
 (R/dbarts.R:926, :1832 call `C_dbarts_bartcore_create`), so nothing below C_interface.cpp changes. `dbarts_sampler_family` is total over what the engine builds:
 `shape().supportsCountsMutation` -> MULTINOMIAL (facade.hpp:110-114; dead until multinomial creation opens, the point being the ENUMERATOR existing pre-freeze), else
 `shape().family` one-to-one. Never AUTO (creation resolved it), never STUDENT (a Student-t sampler's family IS gaussian - facade.hpp:107, dbarts.h:786-789). Hash:

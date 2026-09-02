@@ -52,25 +52,26 @@ authority where this table is terser.
 | Seeded draws differ from 0.9-x; sampling no longer advances R's stream, so R-level draws after a fit change too | UPGRADING item 2 |
 | Binary `k` prior becomes `chi(1.5, 2)` (`k = chi(1.5, Inf)` restores the old one); `xbart` now fixes `k = 2` on every family | UPGRADING item 3 |
 | Sampler states saved by earlier versions are unrestorable - refit | UPGRADING item 4 |
-| Packages linking against dbarts must port to the flat C API in `dbarts.h`; the old C++ headers are removed | UPGRADING item 5 |
-| `bart2`/`rbart_vi` default to `combineChains = TRUE`, merging the chain and sample margins; pass `combineChains = FALSE` for the old shape | UPGRADING item 6 |
-| Unordered factors split on level subsets and ordered factors become one ordinal column by default (`bart` unaffected); pass `factors = "indicators"` for the old expansion | UPGRADING item 7 |
-| A new `missing` argument keeps and models rows with missing predictors instead of silently dropping them; `NA` in test predictors or `newdata` errors where the training column was complete | UPGRADING item 8; `docs/plans/composition-refusals.md` s7 |
-| Test column names not covering the training design's are an error naming what's missing, not a positional-match warning | UPGRADING item 9 |
-| An unordered factor response with three or more levels fits multinomial via `bart2` under `family = "auto"`; `bart`/`dbarts`/`rbart_vi`/`xbart` refuse it | UPGRADING item 10 |
-| `dbartsControl` drops `rngKind`/`rngNormalKind` and renames `rngSeed` to `seed` | UPGRADING item 11 |
-| `xbart` loses its `control` argument, renames `sigma` to `sigest`, and `n.burn` now takes two values | UPGRADING item 12 |
-| A `probit` fit refuses `weights`; 0.9-x accepted them and fit a weighted probit | UPGRADING item 13 |
-| A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 14 |
-| The sampler's mutators refresh `$state` only when called with `updateState = TRUE`; `NA` no longer defers to the control's setting | UPGRADING item 15 |
-| The sampler's `run` renames `numThreads` to `n.threads` | UPGRADING item 16 |
-| `setResponse` gains `updateScale` (default `FALSE`) as its second positional argument, displacing `updateState` to third | UPGRADING item 17 |
-| An `rbart_vi` fit with a built-in prior and no callback carries a length-one `$fit` list instead of one sampler per chain | UPGRADING item 18 |
-| `predict.bart`/`predict.rbart` take `(object, newdata, type, offset, ...)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 19; `docs/plans/predict-surface.md` s3 |
-| `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 20; `docs/plans/surface-refusals.md` s8 |
-| `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 21 |
-| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded, and any OTHER unknown name warns rather than vanishing (class `dbartsUnusedArgsWarning`; a warning, not an error, so a subclass forwarding through `NextMethod()` is not refused) | UPGRADING item 22; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); `warnUnusedDots` (R/utility.R); surface-refusals.md s4 |
-| A fractional double is refused, naming the argument, on every count argument, index and column/group selector a caller can write; `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 23; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
+| A `dbartsData` object saved by an earlier version keeps its old column types and fits differently from one freshly built over the same data frame; an ordered factor in particular has no upgrade path, so rebuild saved data objects | UPGRADING item 5; `docs/plans/column-kind-consolidation.md` section 1 |
+| Packages linking against dbarts must port to the flat C API in `dbarts.h`; the old C++ headers are removed | UPGRADING item 6 |
+| `bart2`/`rbart_vi` default to `combineChains = TRUE`, merging the chain and sample margins; pass `combineChains = FALSE` for the old shape | UPGRADING item 7 |
+| Unordered factors split on level subsets and ordered factors become one ordinal column by default (`bart` unaffected); pass `factors = "indicators"` for the old expansion | UPGRADING item 8 |
+| A new `missing` argument keeps and models rows with missing predictors instead of silently dropping them; `NA` in test predictors or `newdata` errors where the training column was complete | UPGRADING item 9; `docs/plans/composition-refusals.md` s7 |
+| Test column names not covering the training design's are an error naming what's missing, not a positional-match warning | UPGRADING item 10 |
+| An unordered factor response with three or more levels fits multinomial via `bart2` under `family = "auto"`, an ordered one fits ordinal via `dbarts`/`bart2`; the fitters that do not carry the family refuse it by name | UPGRADING item 11 |
+| `dbartsControl` drops `rngKind`/`rngNormalKind` and renames `rngSeed` to `seed` | UPGRADING item 12 |
+| `xbart` loses its `control` argument, renames `sigma` to `sigest`, and `n.burn` now takes two values | UPGRADING item 13 |
+| A `probit` fit refuses `weights`; 0.9-x accepted them and fit a weighted probit | UPGRADING item 14 |
+| A wrong-length `weights` vector is an error, not recycled; `resid.prior = fixed(value)` now holds the residual variance at `value`; `getSumsOfSquaredResiduals` returns the raw sum of squares | UPGRADING item 15 |
+| The sampler's mutators refresh `$state` only when called with `updateState = TRUE`; `NA` no longer defers to the control's setting | UPGRADING item 16 |
+| The sampler's `run` renames `numThreads` to `n.threads` | UPGRADING item 17 |
+| `setResponse` gains `updateScale` (default `FALSE`) as its second positional argument, displacing `updateState` to third | UPGRADING item 18 |
+| An `rbart_vi` fit with a built-in prior and no callback carries a length-one `$fit` list instead of one sampler per chain | UPGRADING item 19 |
+| `predict.bart`/`predict.rbart` share their first five formals `(object, newdata, type, offset, weights)`; `group.by` moves after `...`, name-matched only; `offset.test` is refused by name | UPGRADING item 20; `docs/plans/predict-surface.md` s3 |
+| `fitted`'s third positional argument is `ci.level` (was `sample`); `sample` moves to fourth | UPGRADING item 21; `docs/plans/surface-refusals.md` s8 |
+| `predict.rbart`'s deprecated `value` alias and `type = "post-mean"` are removed; use `type = "ev"` | UPGRADING item 22 |
+| Names foreign to the method called - on `predict.bart`, `extract`, `fitted`, `residuals` - are refused by name instead of silently discarded, and any OTHER unknown name warns rather than vanishing (class `dbartsUnusedArgsWarning`; a warning, not an error, so a subclass forwarding through `NextMethod()` is not refused) | UPGRADING item 23; `refuseUnusedGenericArgs`, `foreignArgsFor`, the five `*ForeignReasons` tables (R/generics.R); `warnUnusedDots` (R/utility.R); surface-refusals.md s4 |
+| A fractional double is refused, naming the argument, on every count argument, index and column/group selector a caller can write; `$getSigmas`/`$getSumsOfSquaredResiduals` also refuse their vestigial `result` argument | UPGRADING item 24; `coerceOrError` (R/utility.R); surface-refusals.md s10 |
 
 Decided since: an ordinal fit's R-visible spelling was renamed to
 `thresholds`, aligning it with the engine and C API's `ordinalThresholds`.
@@ -117,13 +118,20 @@ lives. `wc -l inst/include/dbarts/dbarts.h src/C_interface.cpp`
   finite and non-negative (`enforceBinaryWeightPolicy`, shared with the R
   bridge) - previously R's job alone.
 - `dbarts_drawLatents` takes **`ordinalThresholds`**, not `cutPoints`.
+- `dbarts_predictor_source` gains **`denseCodes`/`numDenseCodeColumns`**, an
+  int32 code channel appended below the 1.0-0 field boundary, so a caller
+  whose factor columns are already level codes hands them over unwidened
+  (`INT_MIN` marks a missing code). Both channels index at the same
+  `columnSources[j]`, in the channel the sampler's kind for that column
+  selects; leaving `denseCodes` NULL is what every earlier caller does and
+  stays valid.
 - `dbarts.h` no longer defines `USE_FC_LEN_T` nor includes `<Rversion.h>`; a
   consumer relying on that pull-in must include it itself.
 - `DBARTS_C_API_MAJOR 1` / `DBARTS_C_API_MINOR 0` do not move. The exact-ABI
   token `DBARTS_C_API_HASH` **re-bakes at every header change** - several
-  times since `capi-shape.md` recorded its own value, and again when the
-  ordered-factor column type was appended - so read it from the header at
-  the merge tip, never from a doc.
+  times since `capi-shape.md` recorded its own value, again when the
+  ordered-factor column type was appended, and again when the code channel
+  was - so read it from the header at the merge tip, never from a doc.
 
 Migration, from `docs/plans/capi-shape.md` s11 (lockstep, after dbarts
 installs clean):
@@ -151,7 +159,7 @@ less than they look like they prove.
 | `exact-gates` cross-host step | push/PR | bcf and multinomial equivalence under `--cross-host` tier 1 LOCKED: `rtol = 1e-8`, `atol = rtol * max|a|` continuous, `identical()` combinatorial | CI |
 | `lint` | push/PR | `air format --check`, lintr, `tools/check-rc-codoc.R` | CI |
 | `doc-freshness` | push/PR, own workflow, no `paths-ignore` | `docs/design` anchor identity and both INDEX manifests. Split out of `lint.yaml`, whose `paths-ignore` excluded this check's own inputs | CI |
-| `equivalence.R` gaussian | schedule + dispatch | 46 scenarios bitwise same-host | dormant |
+| `equivalence.R` gaussian | schedule + dispatch | 51 scenarios bitwise same-host | dormant |
 | `sbc.R` | schedule + dispatch | 83 functionals, Bonferroni band | dormant |
 | `rchk` | schedule + dispatch | PROTECT balance | dormant |
 | `valgrind` | schedule + dispatch | leaks, OOB reads | dormant |
