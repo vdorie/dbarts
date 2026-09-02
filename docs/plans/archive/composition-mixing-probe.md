@@ -280,29 +280,29 @@ Eight single-chain fits rather than one eight-chain fit, for three reasons:
 it matches A0-A2's one-chain-per-object discipline; it removes
 `makeCluster`'s silent fallback (stan4bart's own test asserts `cores = 1`
 and `cores = 2` differ at the same seed,
-`[[stan4bart/inst/tinytest/test-05-rng.R:60@4c018187]]`); and it caps
+stan4bart's `inst/tinytest/test-05-rng.R` line 60); and it caps
 `extract(fit, "indiv.bart")` at 5000 x 2000 doubles (80 MB) instead of
 640 MB.
 
 `skip = 1L` is **pinned and asserted**: it wires into dbarts' `n.thin`
-(`[[stan4bart/R/stan4bart_fit.R:474@4c018187]]`, `[[stan4bart/R/stan4bart_fit.R:515@4c018187]]`) and dbarts runs
+(stan4bart's `R/stan4bart_fit.R` lines 474 and 515) and dbarts runs
 `(numBurnIn + numSamples) * numThin` sweeps (`[[chain.hpp:917@4c018187]]`), so V3's
 exposure identity is silently false at any other value.
 
 **Matched exposure, and its exact limits.** The exposure unit is the BART
 sweep, and stan4bart runs exactly one per HMC iteration
-(`[[stan4bart/src/init.cpp:642@4c018187]]`, inside the loop at `[[stan4bart/src/init.cpp:570@4c018187]]`), with `iter`
+(stan4bart's `src/init.cpp` line 642, inside the loop at line 570), with `iter`
 counting warmup (verified: iter 60 / warmup 30 returns 30 kept draws). No
 adaptation or thinning branch. So `iter = B + K, warmup = B` delivers
 exactly B burn and K kept BART sweeps. Three exact discrepancies:
 
-1. **A3 gets one extra BART sweep** at `[[init.cpp:245@4c018187]]`, before the loop.
+1. **A3 gets one extra BART sweep** at stan4bart's `src/init.cpp` line 245, before the loop.
    Total exposure B + K + 1. Ruled **noise**: one sweep in 4001, preceded
    by `sampleTreesFromPrior` with zero-valued leaves, entirely inside burn.
 2. **A3's sweep contains no sigma draw.** `resid.prior = fixed(1)`
-   (`[[stan4bart/R/stan4bart_fit.R:553@4c018187]]`) sets `sigmaIsFixed`; `[[chain.hpp:1085@4c018187]]`
+   (stan4bart's `R/stan4bart_fit.R` line 553) sets `sigmaIsFixed`; `[[chain.hpp:1085@4c018187]]`
    guards the draw; sigma arrives from WALNUTS via
-   `dbarts_sampler_setSigma` (`[[init.cpp:617@4c018187]]`). So matched *sweeps* are not
+   `dbarts_sampler_setSigma` (stan4bart's `src/init.cpp` line 617). So matched *sweeps* are not
    matched *Gibbs scans*: A0-A2 execute (structure, leaves, sigma), A3
    executes (structure, leaves) with sigma from another block under another
    conditional. **Registered consequences: A3 exits G2 entirely** (a
@@ -310,11 +310,11 @@ exactly B burn and K kept BART sweeps. Three exact discrepancies:
    harm comparison), and **A3 is registered as the shipped stan4bart
    sampler measured as a whole, not a controlled variant of A2.** Its DiD
    is interpretable within-arm; its cross-arm use is limited to G1.
-3. **A3 rescales the BART response during warmup.** `[[init.cpp:634-635@4c018187]]`,
+3. **A3 rescales the BART response during warmup.** stan4bart's `src/init.cpp` lines 634-635,
    `update_scale_mod = 1 << (8 * iter / numIter)` with `numIter` the
-   *phase* count (`[[init.cpp:509@4c018187]]`): at iter 4000 / warmup 2000 it fires **498 times,
+   *phase* count (stan4bart's `src/init.cpp` line 509): at iter 4000 / warmup 2000 it fires **498 times,
    last at warmup iteration 1920, zero times after**, plus one at setup
-   (`[[init.cpp:233@4c018187]]`). "Warmup-only" is true on firing and **false on consequence**:
+   (stan4bart's `src/init.cpp` line 233). "Warmup-only" is true on firing and **false on consequence**:
    `updateScale` re-anchors the *persistent* internal response transform
    (`[[dbarts.h:363-367@4c018187]]`), which sets the leaf prior scale via
    `nodeScale / sqrt(numTrees)` (`[[model.hpp:915@4c018187]]`), which governs how
@@ -605,7 +605,7 @@ Cell DF (`resid.prior = fixed(1)`, verified to work including alongside
   shape difference stops the run.
 - **V2 - no intercept anywhere.** `rownames(extract(fit, "fixef"))`
   contains no intercept term (confirmed as a general rule:
-  `[[stan4bart/R/lme4_functions.R:185-188@4c018187]]` drops `(Intercept)`
+  stan4bart's `R/lme4_functions.R` lines 185-188 drops `(Intercept)`
   unconditionally, the BART term carries it), asserted per fit anyway
   because it is free. A2's `Z` has no ones column.
 - **V3 - exposure identity.** Each arm executed exactly `B + K` BART
@@ -630,7 +630,7 @@ Cell DF (`resid.prior = fixed(1)`, verified to work including alongside
 - **V7 - A3 at m = 1 runs.** Downgraded from a gate to an assertion:
   `n.trees` is forwarded untouched with only a `> 0` check
   (`[[R/A_class.R:326-328@4c018187]]`) and stan4bart's own suite already fits at
-  `n.trees = 1L` (`[[inst/tinytest/test-06-no_ranef.R:19@4c018187]]`).
+  `n.trees = 1L` (stan4bart's `inst/tinytest/test-06-no_ranef.R` line 19).
 - **V8 - the A1 reconstruction identity.** `cor(reconstructed total fit,
   r$train) == 1` to machine precision on every sweep of one small cell.
   Failure voids the A1 ridge readout only.
@@ -668,7 +668,7 @@ exits the T1/T1b gate, also in the title line.
 direction stated per metric. A limb clears only if the one-sided test
 rejects **and** the point estimate lies beyond the margin - the record's
 actual practice (`[[grow-from-root-default.md:696@4c018187]]`, `[[grow-from-root-default.md:708@4c018187]]`;
-`[[-study.md:157@4c018187]]`). v1 used `4 x SE` as the decision threshold itself, which
+`[[docs/plans/grow-from-root-default-study.md:157@4c018187]]`). v1 used `4 x SE` as the decision threshold itself, which
 is a ~4-sigma critical value with no precedent in the record and which
 inverts the direction of conservatism.
 
@@ -740,7 +740,7 @@ on a per-cell harm rejection on **G1** or **G2a**: a one-sided harm test
 (H0: contrast <= 0) rejecting under Holm across all G1/G2a x arm x cell
 contrasts at family-wise 0.05, AND a point estimate beyond its margin, in
 at least two cells. **One cell rejecting triggers a fresh-seed re-run of
-it; confirmation counts as the second** (`[[-study.md:160-161@4c018187]]`).
+it; confirmation counts as the second** (`[[docs/plans/grow-from-root-default-study.md:160-161@4c018187]]`).
 
 v1 dropped that escape hatch while citing, as validation, an incident in
 which **exactly one cell flagged** (S4-5000, C2 = +11.10%) and the re-run
@@ -797,7 +797,7 @@ R >= 9 x sd_rep^2 / margin^2        alpha 0.05 one-sided, power 0.90
 ```
 
 **Planned R = 24 x C = 8 chains** per (arm, cell), matching the record's
-SMALL stratum exactly (24 x 8; `[[-study.md:211-212@4c018187]]`,
+SMALL stratum exactly (24 x 8; `[[docs/plans/grow-from-root-default-study.md:211-212@4c018187]]`,
 `[[grow-from-root-default.md:463@4c018187]]`). v1's C = 4 contradicted its own two
 citations of 24 x 8 and would have inflated every between-chain sd_rep by
 ~1.53x.
@@ -814,7 +814,7 @@ citations of 24 x 8 and would have inflated every between-chain sd_rep by
 
 **No sd_rep prior is imported except G1's**, and its provenance is the
 record's re-measured frozen value. v1 imported 0.0011-0.0015 for T2 from a
-scratch probe the record explicitly superseded (`[[-study.md:28-30@4c018187]]`), read
+scratch probe the record explicitly superseded (`[[docs/plans/grow-from-root-default-study.md:28-30@4c018187]]`), read
 two strata as a range, and paired a LARGE-n sd with a SMALL-n R; at the
 record's own re-measured LARGE value with the four-chain inflation, that
 metric failed floor-above-ceiling before Stage 0 ran.
@@ -824,7 +824,7 @@ and the noise vector `eps` **once**, from `set.seed(BASE_SEED + r)`;
 construct `y` at every dial level from that same `X` and `eps`. Sampler
 seed `= r` for every arm and every cell in the replicate (A3:
 `r * 1000L + chainIndex`). This matches the record's both-seeds pairing
-(`[[-study.md:81-82@4c018187]]`). Sampler streams are not matched *across arms* - the
+(`[[docs/plans/grow-from-root-default-study.md:81-82@4c018187]]`). Sampler streams are not matched *across arms* - the
 models differ, so they cannot be - but they are matched **across dial
 levels within an arm**, which is exactly what the DiD needs and what
 shrinks `sd_rep(DiD)`. Fresh-seed blocks for re-runs: `BASE_SEED + 1000 + r`.
@@ -973,7 +973,7 @@ DF, then X/N. The gated cells (D0, DP, D50, DQ) and the calibration cells
 **Not usable, registered so nobody starts:** stan4bart's WALNUTS
 diagnostics. `divergent__`, `treedepth__` and `energy__` are constant-zero
 placeholders and `check_sampler_diagnostics` is a documented no-op
-(`[[stan4bart/R/stan4bart.R:280-295@4c018187]]`).
+(stan4bart's `R/stan4bart.R` lines 280-295).
 
 ### Reused from the grow-from-root harness
 
@@ -981,13 +981,13 @@ The prior harness is **gitignored,
 so recoverable on this machine but not from git**;
 `grow-from-root-default.md` sec 8 is correct that the supported path is
 reconstruction from the pre-registration. Read and confirmed portable:
-`friedman()` (`[[common.R:56@4c018187]]`), the S5 / S6 constructors (`cells.R`),
-`inclusionByChain()` (`[[common.R:209@4c018187]]`), `iact()` (`[[common.R:244@4c018187]]`), the root-extraction idiom
-inside `rootStats()` (`[[common.R:307@4c018187]]`), the test helpers `harmTest` / `benefitTest`
-(`[[common.R:360-385@4c018187]]`), the checkpoint helpers `ckptPath` / `withCkpt` (`[[common.R:386-390@4c018187]]`).
+`friedman()` (`unresolved: [[common.R:56@4c018187]]`), the S5 / S6 constructors (`cells.R`),
+`inclusionByChain()` (`unresolved: [[common.R:209@4c018187]]`), `iact()` (`unresolved: [[common.R:244@4c018187]]`), the root-extraction idiom
+inside `rootStats()` (`unresolved: [[common.R:307@4c018187]]`), the test helpers `harmTest` / `benefitTest`
+(`unresolved: [[common.R:360-385@4c018187]]`), the checkpoint helpers `ckptPath` / `withCkpt` (`unresolved: [[common.R:386-390@4c018187]]`).
 
-**Not portable:** `fitArm()` (`[[common.R:150@4c018187]]`), `armStats()` (`[[common.R:257@4c018187]]`) and
-`rootStats()` (`[[common.R:307@4c018187]]`) are written against `bart2()` fit objects; this
+**Not portable:** `fitArm()` (`unresolved: [[common.R:150@4c018187]]`), `armStats()` (`unresolved: [[common.R:257@4c018187]]`) and
+`rootStats()` (`unresolved: [[common.R:307@4c018187]]`) are written against `bart2()` fit objects; this
 probe drives `dbarts()` sampler objects sweep-by-sweep because A1 is
 unreachable from `bart2()`. Their bodies port; their interfaces do not. The
 old harness sources `common.R` by a hardcoded absolute path; the new one
