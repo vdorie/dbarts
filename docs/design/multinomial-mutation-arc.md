@@ -210,8 +210,8 @@ an engine nothing reads. Same harm, one method call away.
 All three `predict` methods code `newdata` against the HOST's design:
 `[[R/generics.R#predict.bartMultinomial, predict.bartOrdinal, predict.bartNegbin, validateXTest]]` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
-`bartcorePredict` (retired: [[R/generics.R#bartcorePredict]] - routed through `object$fit` directly, not a
-separate `$bc` handle). The host carries the factor level
+`[[R/generics.R#bartcorePredict]]` (the separate `$bc` handle is gone; the
+call routes through `object$fit` directly). The host carries the factor level
 table and column names a data-frame `newdata` is expanded against. Any
 fork that removes `$fit` must relocate that table.
 
@@ -777,7 +777,8 @@ that already ships, NOT the rejected guard-all-reads stopgap.
 `[[inst/NEWS.Rd#"no longer a host shell for any of the three"]]` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written (retired: `$bc` has zero occurrences left in
-any of the files below - grep confirms it):
+any of the files below - the only survivor is the NEWS sentence
+announcing the removal):
 six code readers (retired: [[R/generics.R#"$bc"]]),
 three test assertions (retired: [[inst/tinytest/test-ordinal.R#"$bc"]],
 retired: [[inst/tinytest/test-nbinom.R#"$bc"]],
