@@ -1670,11 +1670,19 @@ struct ColumnStore {
     return true;
   }
 
-  /// Dense spelling of the same check, for the entrances that hand over a
+  /// Whether buildTest would ingest this view: BOTH of its refusal points,
+  /// asked without touching the test store, so an entrance that has training
+  /// values to install can decide its whole answer before it installs any of
+  /// them. Keep this in step with buildTest's own opening tests.
+  bool testSourceIsIngestible(const PredictorSource& source) const {
+    return !source.hasSplitDenseChannels() &&
+           testSourceLevelCodesAreValid(source);
+  }
+
+  /// Dense spelling of the same question, for the entrances that hand over a
   /// plain column-major test matrix.
-  bool testSourceLevelCodesAreValid(const double* x_test,
-                                    size_t numTest) const {
-    return testSourceLevelCodesAreValid(
+  bool testSourceIsIngestible(const double* x_test, size_t numTest) const {
+    return testSourceIsIngestible(
       densePredictorSource(x_test, numTest, numPredictors));
   }
 

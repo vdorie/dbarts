@@ -1008,7 +1008,9 @@ static void testSetData(ext_rng* rng) {
   // the old ones, every split remaps onto itself, and fits are recovered
   // exactly
   std::vector<double> xCopy(x), yCopy(y);
-  sampler.setData(xCopy.data(), yCopy.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(xCopy.data(), yCopy.data(), n, nullptr, nullptr,
+                        nullptr, 0),
+        "setData ingests the replacement");
   check(storageDigest(sampler.data()) == codesBefore,
         "identity setData preserves codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore,
@@ -1019,7 +1021,9 @@ static void testSetData(ext_rng* rng) {
   // internal sigma; on the original scale it must not move
   std::vector<double> yScaled(n);
   for (size_t i = 0; i < n; ++i) yScaled[i] = 2.0 * y[i] + 3.0;
-  sampler.setData(xCopy.data(), yScaled.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(xCopy.data(), yScaled.data(), n, nullptr, nullptr,
+                        nullptr, 0),
+        "setData ingests the replacement");
   checkNear(sampler.sigma(0), sigmaBefore, 1e-12 * sigmaBefore,
             "setData preserves sigma on the original scale");
 
@@ -1105,8 +1109,9 @@ static void testSetDataResize(ext_rng* rng) {
   std::vector<double> xTest2(nTest2 * 2);
   for (double& v : xTest2) v = 2.0 * runif01() + 1.0;
 
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, xTest2.data(),
-                  nTest2);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr,
+                        xTest2.data(), nTest2),
+        "setData ingests the replacement");
   check(sampler.numObservations() == n2, "setData resizes observations");
   check(sampler.numTestObservations() == nTest2, "setData resizes test set");
 
@@ -1135,7 +1140,8 @@ static void testSetDataResize(ext_rng* rng) {
   check(finite, "sampler runs after resized setData");
 
   // dropping the test set entirely
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
+        "setData ingests the replacement");
   check(sampler.numTestObservations() == 0, "setData clears the test set");
 
   printf("ok: setData resize\n");
@@ -1171,12 +1177,14 @@ static void testSetDataVarianceForestResize(ext_rng* rng) {
     for (double v : varianceDraws) finite &= std::isfinite(v) && v > 0.0;
     check(finite, label);
   };
-  sampler.setData(xGrown.data(), yGrown.data(), nGrown, nullptr, nullptr,
-                  nullptr, 0);
+  check(sampler.setData(xGrown.data(), yGrown.data(), nGrown, nullptr, nullptr,
+                  nullptr, 0),
+        "setData ingests the replacement");
   check(sampler.numObservations() == nGrown,
         "setData grows a heteroscedastic sampler");
   runAndCheck(nGrown, "s^2 stays finite and positive after setData grows n");
-  sampler.setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0),
+        "setData ingests the replacement");
   check(sampler.numObservations() == n,
         "setData shrinks a heteroscedastic sampler");
   runAndCheck(n, "s^2 stays finite and positive after setData shrinks n");
@@ -1207,7 +1215,8 @@ static void testSetDataQuantileShrink(ext_rng* rng) {
   // count shrinks and out-of-range splits remap or collapse
   std::vector<double> x2(x);
   for (size_t i = 0; i < n; ++i) x2[i] = static_cast<double>(i % 4);
-  sampler.setData(x2.data(), y.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y.data(), n, nullptr, nullptr, nullptr, 0),
+        "setData ingests the replacement");
   check(sampler.data().numCuts[0] == 3, "setData shrinks quantile cut counts");
 
   bool occupied = true, codesInRange = true;
@@ -1249,7 +1258,8 @@ static void testSetDataProbit(ext_rng* rng) {
   std::vector<double> y2(n2);
   for (size_t i = 0; i < n2; ++i) y2[i] = y2Continuous[i] > 0.0 ? 1.0 : 0.0;
 
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
+        "setData ingests the replacement");
   check(sampler.numObservations() == n2, "probit setData resizes");
 
   // latents cold-initialize to 2 y - 1
@@ -1289,7 +1299,8 @@ static void testMultiChainSetData() {
 
   std::vector<double> x2, y2;
   makeMutationData(x2, y2, n2);
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
+        "setData ingests the replacement");
 
   bool occupied = true;
   for (size_t c = 0; c < numChains; ++c)

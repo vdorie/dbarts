@@ -1188,6 +1188,18 @@ static void testMaterializePredictorSource() {
     }
   check(implicitHolds,
         "the CSC columns materialize identically beside a coded one");
+  // stated as the VALUE rather than as agreement with the uncoded run, which
+  // shares the arm being pinned: the reference itself must reach the implicit
+  // rows of a CSC categorical column when a coded column sits beside it
+  bool codedReferenceHolds =
+    codedBlock[n + 0] == 4.0 && codedBlock[n + 5] == 0.0;
+  for (size_t i = 1; i < n; ++i)
+    if (i != 5)
+      codedReferenceHolds &=
+        codedBlock[n + i] == static_cast<double>(reference);
+  check(codedReferenceHolds,
+        "a CSC categorical column's implicit rows read its reference code "
+        "beside a coded column");
   bool codedHolds = std::isnan(codedBlock[3 * n + 4]);
   for (size_t i = 0; i < n; ++i)
     if (i != 4)

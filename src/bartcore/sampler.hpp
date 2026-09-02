@@ -1353,20 +1353,26 @@ public:
   /// or empty collapses. Gaussian chains keep sigma and the variance prior
   /// fixed on the original scale.
   ///
-  /// False REFUSES the replacement, leaving the sampler untouched: a factor
-  /// cell on either side is not a level code of its column's table. BOTH
-  /// sides are checked before anything moves - the level table is fixed at
-  /// creation and a replacement does not move it, so a test matrix this
-  /// entrance cannot ingest refuses the whole call rather than leaving new
-  /// training values beside no test set.
+  /// False REFUSES the replacement and the sampler is UNTOUCHED: a factor
+  /// cell on one side or the other is not a level code of its column's table.
+  /// Everything either build can refuse is decided here, before either is
+  /// installed - the level table is fixed at creation and a replacement does
+  /// not move it, so the answer does not depend on the order they run in.
+  /// That matters because they cannot both be rolled back: the test store is
+  /// quantized against the grid the training replacement rebuilds, so it must
+  /// be built second, and a refusal there would leave the store holding new
+  /// codes and a new observation count while the chains were still sized for
+  /// the old ones. The two status tests below are backstops that the checks
+  /// here make unreachable.
   [[nodiscard]] bool setData(const double* x, const double* y,
                              size_t numObservations, const double* weights,
                              const double* offset, const double* x_test,
                              size_t numTestObservations,
                              const double* testOffset = nullptr) {
     bool hasTest = x_test != nullptr && numTestObservations > 0;
+    if (!data_.replacementLevelCodesAreValid(x, numObservations)) return false;
     if (hasTest &&
-        !data_.testSourceLevelCodesAreValid(x_test, numTestObservations))
+        !data_.testSourceIsIngestible(x_test, numTestObservations))
       return false;
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap. The variance forest's
@@ -1384,9 +1390,6 @@ public:
 
     if (!data_.setData(x, numObservations)) return false;
     if (hasTest) {
-      // the pre-check above bounds every test cell against the same fixed
-      // table this build re-tests, so the refusal is a backstop rather than
-      // a live arm
       if (!data_.buildTest(x_test, numTestObservations)) return false;
       data_.testOffset = testOffset;
     } else {

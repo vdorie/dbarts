@@ -101,6 +101,28 @@ expect_true(anyNA(data.matrix.chan@x[, 1L]))
 # test rows may carry it
 expect_equal(nlevels(f.chan), 4L)
 
+# A refused whole-data replacement leaves the sampler exactly as it was: the
+# level check runs on both sides before either is installed, so a sampler that
+# saw the refusal draws bitwise identically to one that never saw the call.
+x.bad.chan <- x.chan
+x.bad.chan[1L, 1L] <- 4 # one level past the four "f" declares
+attr(x.bad.chan, "varTypes") <- c(1L, 2L, 0L)
+attr(x.bad.chan, "factor.levels") <- attr(x.chan, "factor.levels")
+data.bad.chan <- dbarts::dbartsData(x.bad.chan, y.chan)
+
+set.seed(11L)
+sampler.kept.chan <- dbarts::dbarts(df.chan, y.chan, control = control.chan)
+set.seed(11L)
+sampler.refused.chan <- dbarts::dbarts(df.chan, y.chan, control = control.chan)
+expect_error(
+  sampler.refused.chan$setData(data.bad.chan),
+  pattern = "categorical predictor values must be existing category codes"
+)
+expect_identical(
+  sampler.refused.chan$run(10L, 20L)$train,
+  sampler.kept.chan$run(10L, 20L)$train
+)
+
 rm(
   n.chan,
   f.chan,
@@ -121,5 +143,9 @@ rm(
   sampler.frame.chan,
   fit.frame.chan,
   sampler.matrix.chan,
-  fit.matrix.chan
+  fit.matrix.chan,
+  x.bad.chan,
+  data.bad.chan,
+  sampler.kept.chan,
+  sampler.refused.chan
 )
