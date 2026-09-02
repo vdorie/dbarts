@@ -141,8 +141,19 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   const std::uint32_t* categoryCounts = SOURCE_PTR(source, categoryCounts);
   const std::int32_t* referenceCodes = SOURCE_PTR(source, referenceCodes);
   const std::int32_t* denseCodes = SOURCE_PTR(source, denseCodes);
+  size_t numDenseCodeColumns = SOURCE_NUM(source, numDenseCodeColumns);
 
-  bool anyDense = false, anyCsc = false;
+  // the STORE's types, gathered onto the view's own columns; read below to
+  // decide which channel each dense-backed column's index bounds against, so
+  // it must precede the sweep rather than follow it
+  bartcore::ColumnKind* storeTypes = reinterpret_cast<bartcore::ColumnKind*>(
+    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(bartcore::ColumnKind)));
+  for (size_t j = 0; j < numColumns; ++j)
+    storeTypes[j] = store.types[columns != NULL ? columns[j] : j];
+
+  // per channel, whether any dense-backed column reads it: a channel a column
+  // needs must be present, which is what the sweep below refuses on
+  bool anyDoubleDense = false, anyCodedDense = false, anyCsc = false;
   for (size_t j = 0; j < numColumns; ++j) {
     if (columnTypes != NULL && columnTypes[j] != DBARTS_COLUMN_ORDINAL &&
         columnTypes[j] != DBARTS_COLUMN_CATEGORICAL &&
@@ -164,12 +175,24 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
     std::int32_t which =
       columnSources != NULL ? columnSources[j] : static_cast<std::int32_t>(j);
     if (which >= 0) {
-      if (static_cast<size_t>(which) >= numColumns)
-        Rf_error("%s: source.columnSources[%lu] names dense column %lu, past "
-                 "the source's own width", caller,
-                 static_cast<unsigned long>(j),
-                 static_cast<unsigned long>(which));
-      anyDense = true;
+      // one index, bounded against the channel the column's kind selects
+      if (denseCodes != NULL &&
+          storeTypes[j] != bartcore::ColumnKind::numeric) {
+        if (static_cast<size_t>(which) >= numDenseCodeColumns)
+          Rf_error("%s: source.columnSources[%lu] names code column %lu, but "
+                   "the source declares %lu", caller,
+                   static_cast<unsigned long>(j),
+                   static_cast<unsigned long>(which),
+                   static_cast<unsigned long>(numDenseCodeColumns));
+        anyCodedDense = true;
+      } else {
+        if (static_cast<size_t>(which) >= numColumns)
+          Rf_error("%s: source.columnSources[%lu] names dense column %lu, past "
+                   "the source's own width", caller,
+                   static_cast<unsigned long>(j),
+                   static_cast<unsigned long>(which));
+        anyDoubleDense = true;
+      }
     } else {
       if (static_cast<size_t>(~which) >= numCscColumns)
         Rf_error("%s: source.columnSources[%lu] names CSC column %lu, but the "
@@ -179,17 +202,16 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
       anyCsc = true;
     }
   }
-  if (anyDense && denseValues == NULL && denseCodes == NULL)
+  // a channel is required by the columns that read it, not by the other one
+  // being present: a code channel beside a numeric dense column does not
+  // supply that column's values
+  if (anyDoubleDense && denseValues == NULL)
     Rf_error("%s: a dense-backed column names no denseValues", caller);
+  if (anyCodedDense && denseCodes == NULL)
+    Rf_error("%s: a factor column names no denseCodes", caller);
   if (anyCsc && (cscColumnPointers == NULL || cscRowIndices == NULL ||
                  cscValues == NULL))
     Rf_error("%s: a CSC-backed column names an incomplete CSC triple", caller);
-
-  // the STORE's types, gathered onto the view's own columns
-  bartcore::ColumnKind* storeTypes = reinterpret_cast<bartcore::ColumnKind*>(
-    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(bartcore::ColumnKind)));
-  for (size_t j = 0; j < numColumns; ++j)
-    storeTypes[j] = store.types[columns != NULL ? columns[j] : j];
 
   // one rule, one implementation: the bridge's own refusal, over the
   // per-CSC-column NA_INTEGER encoding it keys on (< 0 here is "declared
@@ -230,18 +252,21 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   }
 
   // The code channel, resolved against the STORE's kinds: a dense-backed
-  // factor column reads its codes, everything else the double block, each
-  // indexed within its own channel. The entries below read a view through a
-  // double-typed reader, so the DENSE columns are widened once here rather
-  // than in each of them - still one conversion fewer than the caller would
-  // have done by hand, and the block it produces is transient. Only the dense
-  // columns: any CSC storage stays sparse, so a coded source keeps every rule
-  // an uncoded one has, the sparse leaf-covariate refusal included.
-  if (denseCodes != NULL) {
+  // factor column reads its codes, everything else the double block, both at
+  // the same columnSources[j] within the channel the kind selects.
+  //
+  // Every entry below reads a view through a double-typed reader, so the
+  // DENSE columns are widened into one transient block here rather than in
+  // each of them. That is the same two conversions a caller widening by hand
+  // pays (int to double here, double to the store's own code at the
+  // quantize); what the field saves the caller is the loop and the block, not
+  // a conversion. Only the dense columns are widened: any CSC storage stays
+  // sparse, so a coded source keeps every rule an uncoded one has, the sparse
+  // leaf-covariate refusal included.
+  if (anyCodedDense) {
     std::int32_t* channels = reinterpret_cast<std::int32_t*>(
       R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
     size_t numDenseColumns = 0;
-    bool anyCoded = false;
     for (size_t j = 0; j < numColumns; ++j) {
       std::int32_t which = translated.view.sourceOf(j);
       if (which < 0) {
@@ -249,14 +274,10 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
         continue;
       }
       ++numDenseColumns;
-      if (storeTypes[j] != bartcore::ColumnKind::numeric) {
-        channels[j] = ~which;
-        anyCoded = true;
-      } else {
-        channels[j] = which;
-      }
+      channels[j] = storeTypes[j] != bartcore::ColumnKind::numeric
+        ? ~which : which;
     }
-    if (anyCoded) {
+    {
       translated.view.denseCodes = denseCodes;
       translated.view.denseChannels = channels;
       size_t cells = numDenseColumns * numRows;
@@ -439,8 +460,10 @@ static_assert(offsetof(dbarts_predictor_source, referenceCodes) ==
               4 * sizeof(size_t) + 7 * sizeof(double*));
 static_assert(offsetof(dbarts_predictor_source, denseCodes) ==
               4 * sizeof(size_t) + 8 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, numDenseCodeColumns) ==
+              4 * sizeof(size_t) + 9 * sizeof(double*));
 static_assert(sizeof(dbarts_predictor_source) ==
-                4 * sizeof(size_t) + 9 * sizeof(double*),
+                5 * sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_predictor_source layout changed; update these offsets");
 
 static_assert(offsetof(dbarts_forest_calibration, structSize) == 0);
@@ -516,7 +539,8 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
 #define DBARTS_PREDICTOR_SOURCE_FIELDS(X) \
   X(structSize) X(numRows) X(numColumns) X(denseValues) X(numCscColumns) \
   X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
-  X(columnTypes) X(categoryCounts) X(referenceCodes) X(denseCodes)
+  X(columnTypes) X(categoryCounts) X(referenceCodes) X(denseCodes) \
+  X(numDenseCodeColumns)
 #define DBARTS_FOREST_CALIBRATION_FIELDS(X) \
   X(structSize) X(priorScale) X(priorSd) X(priorMean) X(k) X(responseScale) \
   X(responseShift) X(kHasHyperprior) X(leafModel) X(amplitudePriorVariance) \

@@ -102,9 +102,12 @@ expect_false(identical(hashes$text, "0xb6c0e97dc0688991"))
 # the token before dbarts_predictor_source gained its code channel: an
 # appended field moves it, since the fold carries each struct's size
 expect_false(identical(hashes$text, "0xe14b499a84f501d2"))
+# and again when the code channel gained the width that bounds it: a second
+# appended field moves the same size the first did
+expect_false(identical(hashes$text, "0x37288e7c56449b34"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x37288e7c56449b34")
+expect_identical(hashes$text, "0xca7b56a64c812b8d")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -931,7 +934,9 @@ makeSource <- function(
   types = NULL,
   counts = NULL,
   refs = NULL,
-  numCscColumns = NULL
+  numCscColumns = NULL,
+  codes = NULL,
+  numCodeColumns = NULL
 ) {
   spec <- list(
     numRows = as.integer(numRows),
@@ -960,6 +965,12 @@ makeSource <- function(
   }
   if (!is.null(refs)) {
     spec$referenceCodes <- as.integer(refs)
+  }
+  if (!is.null(codes)) {
+    spec$denseCodes <- as.integer(codes)
+  }
+  if (!is.null(numCodeColumns)) {
+    spec$numDenseCodeColumns <- as.integer(numCodeColumns)
   }
   spec
 }
@@ -1057,6 +1068,100 @@ srcAllImplicit <- makeSource(
 expect_identical(
   CALL("capi_predict_source", ptrSrc, srcAllImplicit),
   predAllImplicit
+)
+
+# the code channel: a caller whose factor column is already integer codes
+# hands it over as integers, and the answer is the dense one bitwise. Both
+# blocks are indexed by the SAME columnSources[j], within the channel the
+# sampler's kind for that column selects - so under the identity map the code
+# block is indexed by predictor position and its column 0 goes unread
+codesIntSrc <- as.integer(codesTestSrc)
+srcCodedIdentity <- makeSource(
+  nTestSrc,
+  2L,
+  dense = c(x1TestSrc, rep(0, nTestSrc)),
+  codes = c(rep(0L, nTestSrc), codesIntSrc)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcCodedIdentity),
+  predDenseSrc
+)
+
+# and an explicit map is what makes the packed form legal: each column names
+# its index WITHIN its own channel, so both blocks are one column wide
+srcCodedPacked <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  codes = codesIntSrc,
+  map = c(0L, 0L)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcCodedPacked),
+  predDenseSrc
+)
+
+# the code channel composes with CSC storage rather than densifying it: the
+# ordinal column stays sparse beside the coded factor column
+srcCodedCsc <- makeSource(
+  nTestSrc,
+  2L,
+  codes = codesIntSrc,
+  cscColumns = list(cscColumn(x1TestSrc, 0)),
+  map = c(-1L, 0L),
+  types = c(0L, 1L)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcCodedCsc),
+  predDenseSrc
+)
+
+# a null code channel is the double path every caller written before the
+# field takes, unchanged
+srcNoCodes <- makeSource(nTestSrc, 2L, dense = denseTestSrc)
+expect_identical(CALL("capi_predict_source", ptrSrc, srcNoCodes), predDenseSrc)
+
+# a code channel does not supply a NUMERIC dense column's values, so a source
+# that leaves denseValues out is refused rather than read through a null
+srcCodesOnly <- makeSource(
+  nTestSrc,
+  2L,
+  codes = c(rep(0L, nTestSrc), codesIntSrc)
+)
+expect_error(
+  CALL("capi_predict_source", ptrSrc, srcCodesOnly),
+  "names no denseValues"
+)
+
+# and the code block declares its own extent, so an index past it is refused
+# rather than read past the caller's array: the identity map with a PACKED
+# one-column code block is exactly that mistake
+srcCodesNarrow <- makeSource(
+  nTestSrc,
+  2L,
+  dense = c(x1TestSrc, rep(0, nTestSrc)),
+  codes = codesIntSrc
+)
+expect_error(
+  CALL("capi_predict_source", ptrSrc, srcCodesNarrow),
+  "names code column 1, but the source declares 1"
+)
+
+# the channel's own missing marker is R's integer NA, and it reaches the
+# entries as the NA every double-typed rule tests for - here the refusal a
+# test NA takes against a training column that carried none
+codesWithNA <- codesIntSrc
+codesWithNA[3L] <- NA_integer_
+srcCodedNA <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  codes = codesWithNA,
+  map = c(0L, 0L)
+)
+expect_error(
+  CALL("capi_predict_source", ptrSrc, srcCodedNA),
+  "missing values but the training column had none"
 )
 
 # the negative half of that oracle: force the categorical column's implicit

@@ -124,6 +124,17 @@ static dbarts_predictor_source sourceFromList(SEXP spec) {
   element = getElement(spec, "referenceCodes");
   if (!Rf_isNull(element))
     source.referenceCodes = (const int32_t*) INTEGER(element);
+  /* the code channel and its declared width, which a caller may understate to
+   * drive the out-of-range refusal exactly as numCscColumns does */
+  element = getElement(spec, "denseCodes");
+  if (!Rf_isNull(element)) {
+    source.denseCodes = (const int32_t*) INTEGER(element);
+    source.numDenseCodeColumns =
+      (size_t) (Rf_xlength(element) / (R_xlen_t) source.numRows);
+  }
+  element = getElement(spec, "numDenseCodeColumns");
+  if (!Rf_isNull(element))
+    source.numDenseCodeColumns = (size_t) Rf_asInteger(element);
   return source;
 }
 

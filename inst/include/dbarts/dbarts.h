@@ -186,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x37288e7c56449b34ULL
+#  define DBARTS_C_API_HASH 0xca7b56a64c812b8dULL
 #endif
 
 #ifdef __cplusplus
@@ -348,27 +348,40 @@ typedef struct dbarts_predictor_source_t {
   const uint32_t* categoryCounts; ///< declared and checked; no entry reads it
   const int32_t* referenceCodes;  ///< per column; < 0 = declared none
   /* 1.0-0 field boundary: appends go below, never above. */
-  /// The code channel: a second column-major block holding the int32 level
-  /// codes of the dense columns the SAMPLER holds as factors, INT_MIN (R's
-  /// NA_INTEGER) for missing. A caller whose factor columns are already
-  /// integers hands them over as integers rather than widening every cell to
-  /// a double the library narrows straight back.
+  /// The code channel: a second column-major block, numDenseCodeColumns
+  /// columns by numRows rows, holding the int32 level codes of the dense
+  /// columns the SAMPLER holds as factors, with INT_MIN (R's NA_INTEGER)
+  /// marking a missing code. It saves a caller whose factor columns are
+  /// already integers the widening loop and the double block that loop needs;
+  /// the library still narrows each code to its own storage, as it does a
+  /// double.
   ///
-  /// When it is non-null, a dense-backed column the sampler holds as a factor
-  /// reads column columnSources[j] of THIS block; every other dense-backed
-  /// column reads column columnSources[j] of denseValues. The two channels
-  /// index independently, so each is packed over the columns it serves and a
-  /// mixed source names 0..m-1 in one and 0..f-1 in the other. Null leaves
-  /// every dense-backed column reading denseValues, which is what every
-  /// caller written before this field does.
+  /// ONE rule decides which channel a column reads, and it is the SAME index
+  /// in either. A dense-backed column j (columnSources[j] >= 0, the identity
+  /// when columnSources is NULL) that the sampler holds as a factor reads
+  /// code column columnSources[j] of this block, which must be less than
+  /// numDenseCodeColumns; every other dense-backed column reads double column
+  /// columnSources[j] of denseValues, which must be less than numColumns. An
+  /// entry refuses a source that breaks either bound, or that leaves NULL a
+  /// channel one of its columns needs.
+  ///
+  /// So under the identity map the code block is indexed by predictor
+  /// position and must be wide enough for the last factor column's position,
+  /// its other columns unread. A caller that wants both blocks packed over
+  /// the columns they serve supplies an explicit columnSources naming each
+  /// column's index WITHIN the channel its kind selects. A caller that does
+  /// not know which columns the sampler holds as factors leaves denseCodes
+  /// NULL, which is exactly what every caller written before this field does.
   const int32_t* denseCodes;
+  size_t numDenseCodeColumns;     ///< columns in denseCodes; 0 when there is
+                                  ///< no code channel
 } dbarts_predictor_source;
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and zeroes
 /// everything else, which reads as "dense block, no map, nothing declared".
 #define DBARTS_PREDICTOR_SOURCE_INIT \
   { sizeof(dbarts_predictor_source), 0, 0, NULL, 0, NULL, NULL, NULL, NULL, \
-    NULL, NULL, NULL, NULL }
+    NULL, NULL, NULL, NULL, 0 }
 
 /// The dense spelling: a plain column-major numRows x numColumns block, which
 /// is the shape the predictor entries took before this struct existed.
