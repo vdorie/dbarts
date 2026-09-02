@@ -190,6 +190,13 @@ struct ParsedControl {
 // unwind-protected scopes, so an error jump destroys it and frees its buffers.
 struct ParsedTestContainer {
   std::vector<double> denseAssembly;
+  // the code channel beside it, filled only for a consumer that reads the
+  // view a column at a time: the dense FACTOR columns as int32 level codes,
+  // with denseChannels saying which channel each predictor's slice sits in.
+  // Both empty - and the channel unpublished - for a block-addressed consumer
+  // such as the test-store build.
+  std::vector<std::int32_t> codeAssembly;
+  std::vector<std::int32_t> denseChannels;
   std::vector<std::int32_t> columnSources;
   std::vector<bartcore::xint_t> cscReferenceCodes;
   // the borrowed view the test build takes, over the buffers above and the
@@ -604,6 +611,16 @@ void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
 // and fill \p columnSources via mapColumnSources. \p rowLengthMessage and
 // \p malformedMessage carry the side's wording. The CSC slots and reference
 // resolution stay at each call site (sparse requirement / resolve order differ).
+//
+// A non-null \p codeAssembly asks for the SPLIT layout instead: a factor
+// column crosses as its own int32 level codes and \p denseChannels addresses
+// each predictor's slice within the channel that holds it, so no factor cell
+// is widened to a double and narrowed straight back. Only a consumer that
+// reads the view a column at a time may ask - a consumer that indexes the
+// dense raw as one block sized by the largest dense source cannot. The split
+// layout packs both channels per PREDICTOR, which is what a view is indexed
+// by, so \p denseChannels must be published whenever it is taken; a map
+// naming one dense column twice then gives it a slot per predictor.
 void parseMixedContainerBlock(SEXP denseExpr, const int* map,
                               size_t numPredictors, size_t numRows,
                               size_t numCscColumns,
@@ -611,20 +628,63 @@ void parseMixedContainerBlock(SEXP denseExpr, const int* map,
                               const double*& denseValues,
                               std::vector<std::int32_t>& columnSources,
                               const char* rowLengthMessage,
-                              const char* malformedMessage) {
+                              const char* malformedMessage,
+                              std::vector<std::int32_t>* codeAssembly = NULL,
+                              std::vector<std::int32_t>* denseChannels = NULL) {
   size_t numDenseColumns = Rf_isNull(denseExpr)
     ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
-  denseAssembly.resize(numDenseColumns * numRows);
+  // every dense column is shaped and typed here, mapped or not, so a
+  // container is refused the same way whichever layout its consumer asked for
   for (size_t k = 0; k < numDenseColumns; ++k) {
     SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
     if (static_cast<size_t>(rc_getLength(columnExpr)) != numRows)
       Rf_error("%s", rowLengthMessage);
-    codeDenseColumn(denseAssembly.data() + k * numRows, columnExpr, numRows,
-                    malformedMessage);
+    if (!Rf_isFactor(columnExpr) && !Rf_isReal(columnExpr))
+      Rf_error("%s", malformedMessage);
   }
-  denseValues = numDenseColumns > 0 ? denseAssembly.data() : NULL;
   mapColumnSources(columnSources, map, numPredictors, numDenseColumns,
                    numCscColumns, malformedMessage);
+  if (codeAssembly == NULL) {
+    denseAssembly.resize(numDenseColumns * numRows);
+    for (size_t k = 0; k < numDenseColumns; ++k)
+      codeDenseColumn(denseAssembly.data() + k * numRows,
+                      VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k)), numRows,
+                      malformedMessage);
+    denseValues = numDenseColumns > 0 ? denseAssembly.data() : NULL;
+    return;
+  }
+  denseChannels->assign(numPredictors, 0);
+  size_t numValueColumns = 0, numCodeColumns = 0;
+  for (size_t j = 0; j < numPredictors; ++j) {
+    // a CSC-backed column keeps its own negative source, which denseColumn
+    // answers before it reads the channel map
+    if (columnSources[j] < 0) {
+      (*denseChannels)[j] = columnSources[j];
+      continue;
+    }
+    SEXP columnExpr =
+      VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(columnSources[j]));
+    (*denseChannels)[j] = Rf_isFactor(columnExpr)
+      ? ~static_cast<std::int32_t>(numCodeColumns++)
+      : static_cast<std::int32_t>(numValueColumns++);
+  }
+  denseAssembly.resize(numValueColumns * numRows);
+  codeAssembly->resize(numCodeColumns * numRows);
+  for (size_t j = 0; j < numPredictors; ++j) {
+    if (columnSources[j] < 0) continue;
+    SEXP columnExpr =
+      VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(columnSources[j]));
+    std::int32_t channel = (*denseChannels)[j];
+    if (channel < 0)
+      codeDenseCodeColumn(
+        codeAssembly->data() + static_cast<size_t>(~channel) * numRows,
+        columnExpr, numRows);
+    else
+      codeDenseColumn(
+        denseAssembly.data() + static_cast<size_t>(channel) * numRows,
+        columnExpr, numRows, malformedMessage);
+  }
+  denseValues = numValueColumns > 0 ? denseAssembly.data() : NULL;
 }
 
 // Resolve each CSC-backed categorical column's reference code (and, for the
@@ -692,9 +752,16 @@ void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
 // match; columnTypes[j] marks whether predictor j is categorical. The store
 // copies everything, so the outputs need only outlive the ensuing build call.
 // Shared by the creation parse and the setTestPredictor/AndOffset mutations.
+//
+// codeFactorColumns asks for the split layout, in which a dense factor column
+// crosses as its own int32 level codes rather than widened into the double
+// block. Only a READ-ONLY consumer may ask - the replay reads the view a
+// column at a time, while the test-store build lays its dense raw out as one
+// block and so needs every column in the double channel.
 void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                         size_t numPredictors,
-                        const bartcore::ColumnKind* columnTypes) {
+                        const bartcore::ColumnKind* columnTypes,
+                        bool codeFactorColumns) {
   SEXP denseExpr = PROTECT(rc_getListElement(containerExpr, "dense"));
   SEXP sparseExpr = PROTECT(rc_getListElement(containerExpr, "sparse"));
   SEXP mapExpr = PROTECT(rc_getListElement(containerExpr, "map"));
@@ -723,8 +790,17 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                            numCscColumns, out.denseAssembly,
                            out.view.denseValues, out.columnSources,
                            "number of rows of 'x.test' columns must match",
-                           "malformed mixed test container");
+                           "malformed mixed test container",
+                           codeFactorColumns ? &out.codeAssembly : NULL,
+                           codeFactorColumns ? &out.denseChannels : NULL);
   out.view.columnSources = out.columnSources.data();
+  // the split layout packs the double channel per predictor too, so the map
+  // is what addresses either channel and rides whenever it was taken
+  if (codeFactorColumns) {
+    out.view.denseChannels = out.denseChannels.data();
+    if (!out.codeAssembly.empty())
+      out.view.denseCodes = out.codeAssembly.data();
+  }
   if (hasSparse) {
     out.view.cscColumnPointers = csc.pointers;
     out.view.cscRowIndices = csc.rows;
@@ -787,7 +863,9 @@ void parseTestSource(ParsedTestContainer& out, SEXP xTestExpr,
                      size_t numPredictors,
                      const bartcore::ColumnKind* storeTypes) {
   if (!Rf_inherits(xTestExpr, "dgCMatrix")) {
-    parseTestContainer(out, xTestExpr, numPredictors, storeTypes);
+    // read-only: the replay reads the view a column at a time, so a dense
+    // factor column crosses as its own codes
+    parseTestContainer(out, xTestExpr, numPredictors, storeTypes, true);
     return;
   }
   SEXP dimExpr = PROTECT(Rf_getAttrib(xTestExpr, Rf_install("Dim")));
@@ -1176,7 +1254,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     // copies its raw, so the parsed sources ride in data (freed on an error
     // jump with it) rather than being pinned by the holder
     parseTestContainer(data.testContainer, slotExpr, data.numPredictors,
-                       data.columnTypes.data());
+                       data.columnTypes.data(), false);
     data.testIsMixed = true;
     data.testPredictors = data.testContainer.view;
     data.numTestObservations = data.testPredictors.numRows;
@@ -4943,7 +5021,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     // buffers, so the unwind-protected scope frees them on the error jump.
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, shape.numPredictors,
-                         holder.sampler->data().types.data());
+                         holder.sampler->data().types.data(), false);
       validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (holder.sampler->data().testOffset != NULL &&
           parsed.view.numRows != shape.numTestObservations)
@@ -5023,7 +5101,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     // leaves the sampler untouched
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, numPredictors,
-                         holder.sampler->data().types.data());
+                         holder.sampler->data().types.data(), false);
       validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (!Rf_isNull(offsetExpr) &&
           (!Rf_isReal(offsetExpr) ||
