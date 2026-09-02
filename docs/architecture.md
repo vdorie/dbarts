@@ -232,11 +232,11 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   factor column's transient costs 4 bytes a cell rather than 8 and no cell
   is widened and narrowed again. The channel is a storage fact and the kind
   a reading one: both `build` arms and `buildTest` consume either, widening
-  a coded column the store reads as numeric. So does the flat replay's
-  reader (`PredictorSourceColumnReader`), so `predict` and the saved-tree
-  replay route a factor test set off its own codes. Only the mutation
-  entrances still need one dense block, which their kernels index
-  column-major, and they materialize their own.
+  a coded column the store reads as numeric. The flat replay's reader
+  (`PredictorSourceColumnReader`) reads either too and picks the channel
+  once per node, so `predict` and the saved-tree replay route a factor test
+  set off its own codes without widening a cell. Only the mutation entrances
+  still need one dense block, column-major, and they materialize their own.
 - **Raw values**: per-column storage and re-quantize source is one
   descriptor, `ColumnSource` (carried in `sources[j]` on each `CodeBlock`),
   discriminated by `ColumnSourceKind` - which names WHICH POOL the column's
