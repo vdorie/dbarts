@@ -562,7 +562,7 @@ no forest amplitudes: amplitudes are fixed at creation; make a new
 sampler instead", the R14 mutation-guard shape, instead of "forest index
 out of range", which stays for a genuine out-of-range index on a sampler
 that does carry them ([[R/dbarts.R#dbartsSampler$setForestBasis]]; pinned
-in [[test-forest-basis-r5.R#"carries no forest amplitudes"]]). This was
+in [[test-forest-basis-r5.R#"is not available on a sampler that carries no forest "]]). This was
 the last live numbered finding of the 2026-08-24 review. The tour's
 section 4 bullet claiming that test-blocks.R cited a columnMask refusal
 test test-interactions.R no longer holds was itself wrong: the test is
