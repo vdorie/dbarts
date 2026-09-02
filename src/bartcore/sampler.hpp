@@ -940,10 +940,7 @@ public:
     std::vector<SparseColumnData> oldSparseColumns(data_.train.sparseColumns);
     std::vector<SparseColumnData> oldTestSparseColumns(data_.test.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
-      // a FACTOR column of either kind keeps the grid its level table fixes at
-      // build - the level count is pinned, so a state's own grid over the same
-      // column is the same grid - and retains no raw to re-quantize from
-      if (data_.isFactor(j)) continue;
+      if (data_.splitsBySubset(j)) continue;
       // a restored grid equal to the live one leaves the codes already correct
       // (the continuation contract), so skip its re-quantization and its raw
       if (state.cutPoints[j] == data_.cutPoints[j]) continue;

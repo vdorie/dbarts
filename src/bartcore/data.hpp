@@ -300,11 +300,14 @@ struct ColumnSource {
 ///
 /// Ownership: everything here is borrowed for the consuming call only. A train
 /// build over a MAPPED source retains what it must - the CSC slices stay
-/// borrowed until a column is first mutated, and the dense block is copied
-/// into the store (ColumnStore::ownedDenseValues), so no host pins a mixed
-/// build's block. A train build over an UNMAPPED source retains nothing: the
-/// store re-quantizes from whatever matrix a later call hands it. A test build
-/// copies everything.
+/// borrowed until a column is first mutated, and the REAL-VALUED dense columns
+/// are copied into the store (ColumnStore::ownedDenseValues), so no host pins
+/// a mixed build's block. A train build over an UNMAPPED source retains
+/// nothing: the store re-quantizes from whatever matrix a later call hands it.
+/// A test build copies every raw it KEEPS, so no borrowed pointer survives it.
+/// Neither side keeps a FACTOR column's values: those are level codes, which
+/// the store's own codes carry, so what a designated leaf covariate reads is a
+/// gathered copy rather than a slice of either block.
 ///
 /// The grid spec (cut counts, quantile mode) is deliberately absent: it is a
 /// prior, not data, and a view built from a parent store carries the parent's.
@@ -1508,16 +1511,24 @@ struct ColumnStore {
   /// releases, and the build owns a copy of each.
   ///
   /// A MAPPED view mixes storage. A nonnegative source names a dense column of
-  /// source.denseValues - quantized with the same dense arithmetic, categorical
-  /// allowed, rawColumn served - and a negative one CSC column ~sourceOf(j) of
-  /// the triple, which takes rank-bitmap storage at or below
-  /// sparseDensityThreshold nonzero fraction and densified codes above, its
-  /// borrowed slice serving re-quantization either way. The dense block is
-  /// COPIED into ownedDenseValues, so it need not outlive the call and a
-  /// mutation writes the new values through the store's own copy; the CSC
+  /// the view, read through whichever value channel holds it and quantized
+  /// with the same dense arithmetic, categorical allowed; a negative one names
+  /// CSC column ~sourceOf(j) of the triple, which takes rank-bitmap storage at
+  /// or below sparseDensityThreshold nonzero fraction and densified codes
+  /// above, its borrowed slice serving re-quantization either way. The CSC
   /// triple stays borrowed for the store's lifetime (until a column's first
-  /// mutation repoints it at owned nonzeros). Its dense-backed columns serve
-  /// raw from that block already, so gatherColumns does not apply.
+  /// mutation repoints it at owned nonzeros).
+  ///
+  /// Of the dense-backed columns, the REAL-VALUED ones are COPIED into
+  /// ownedDenseValues, so the host's block need not outlive the call and a
+  /// mutation writes the new values through the store's own copy; those serve
+  /// rawColumn from that copy, so gatherColumns does not apply to them. A
+  /// FACTOR column is copied nowhere - its cells are level codes the codes
+  /// already carry, and its grid follows the level table, so it never
+  /// re-quantizes - and serves rawColumn only when gatherColumns names it,
+  /// which is how an ordered factor stays admissible as a leaf covariate here.
+  /// A CSC-backed column is never gathered: sparse storage serves no dense raw
+  /// at all.
   ///
   /// False REFUSES the build: some cell of a factor column is not a level code
   /// the store can represent. The store is left partly built and the caller
