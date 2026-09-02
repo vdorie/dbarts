@@ -537,6 +537,62 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### UBSAN null-source memcpy in the test-store build (2026-09-02)
+
+The sanitizer workflow went red on d28b087b with every test passing:
+`data.hpp:1883: runtime error: null pointer passed as argument 2, which
+is declared to never be null`, one finding on each of the gcc and clang
+legs, raised during test-argument-surface.R.
+
+CAUSE, zero length rather than a broken contract. `bart2`'s burn-in run
+drops the test data and reinstalls it afterwards (R/bart.R's
+`runWithBurnIn`), so `bartcore_setTestPredictorAndOffset` reaches
+`setTestPredictors(NULL, 0)` and `buildTest` builds over a view with no
+rows and no dense block. `PredictorSource::denseColumn` answers a
+both-channels-null `DenseColumnValues` for such a view, exactly as it
+documents, and the per-column copy then ran `memcpy(dest, nullptr, 0)` -
+undefined for a null source even at zero bytes, which glibc's `nonnull`
+declaration lets UBSAN see. The destination was live (the owned block
+keeps its capacity across an `assign(0)`), which is why only argument 2
+was named. Nothing was read or written wrongly, so no draw and no
+user-visible behavior was ever at stake, and there is no NEWS entry.
+test-argument-surface.R covers it through the first hurdle.lognormal fit
+(the positive component takes `test = formula`, so the burn-in drop
+fires); the CI leg's first hit is UBSAN's once-per-location report of a
+path most fits with test data and burn-in take.
+
+FIX, a guard at each copy over a source-provided pointer in the build,
+buildTest and materialize paths - six sites in data.hpp, all in the same
+shape: `buildTest`'s dense-resident copy (the reported one) and its two
+CSC nonzero copies, `build`'s mapped dense-resident copy,
+`materializePredictorSource`'s dense column copy, and `quantizeColumn`'s
+leaf-covariate regather. The copies over owned storage keyed on the
+training row count (the rollback restores, `writeOwnedDenseColumn`) take
+no guard: their source is owned or a caller column of that same length,
+and a store with no rows has no column to mutate. Weights and offsets
+are borrowed, never copied, so nothing there to guard.
+
+PIN, `testEmptyTestStore` in tests/cpp/test_data.cpp: a populated test
+build (so the owned buffers hold capacity, the shape that leaves a live
+destination beside an absent source), then the rowless dense build, then
+a rowless mapped view whose CSC column stores no nonzeros. Under
+ASAN+UBSAN before the fix it raises the CI finding at data.hpp:1883 plus
+four more at the CSC copies; after it, clean.
+
+GATES. Reproduced the workflow's UBSAN half locally on macOS - the SDK
+declares no `nonnull` on `memcpy`, so the leg was rebuilt with that
+declaration forced - and the pre-fix build raises the CI finding at the
+same file, line, column and stack from the same test; the fixed build
+runs the whole suite, 7669 / 0 fail, with no finding. The ASAN half is
+not reproducible on macOS against an uninstrumented R, so ASAN coverage
+came from the tests/cpp binary instead: ASAN+UBSAN, 281 ok, all tests
+passed, and 69 ok on the sampler arm. Uninstrumented: tests/cpp 281 ok
+(280 before the pin) and 69 ok; tinytest 7669 / 0 fail;
+equivalence-d4bca4ce 51/51, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z|
+line; check-doc-freshness 0 FAIL, 62 warning(s), output byte-identical
+to the base run.
+
 ### Kind-axis slice S4b, typed predictor sources (17c7d419, e83c5665, 04e2a222, 0b16acd9, 829cc1ff, a091ca33, 1940821a, 2026-09-02)
 
 Slice S4b of docs/plans/column-kind-consolidation.md lands as seven

@@ -192,9 +192,13 @@ integers, so no cell is widened at the bridge and narrowed again at the
 quantize. Both `build` arms and `buildTest` consume either channel, reading
 the view a column at a time: a real-valued column is copied (or widened
 once, since its grid is over real values) into the block the side keeps, and
-a factor column quantizes straight off its codes and keeps none. Only the
-MUTATION entrances still need the dense values as one block, which their
-kernels index column-major, and they lay their own out.
+a factor column quantizes straight off its codes and keeps none. A ROWLESS
+view - what dropping the test data hands `buildTest`, and what an
+all-implicit sparse column presents - carries no pointer for either channel
+or for the CSC nonzeros, so every one of those copies is skipped rather than
+run at zero length: a zero-byte copy from a null source is undefined all the
+same. Only the MUTATION entrances still need the dense values as one block,
+which their kernels index column-major, and they lay their own out.
 
 The flat replay reads either channel too.
 `PredictorSourceColumnReader` - the reader `predict`, the saved-tree replay
