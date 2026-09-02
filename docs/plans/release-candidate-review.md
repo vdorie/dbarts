@@ -537,6 +537,71 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Kind-axis slice S3, engine-side ingestion validation (9f532225, 6e11b7e5, 60a91fcd, 5242261d, 674d8373, dda84b40, 3437748e, 0fe9b742, f0d99249, 2026-09-02)
+
+Slice S3 of docs/plans/column-kind-consolidation.md lands as nine
+commits. ColumnStore::build and buildTest now check what they ingest
+instead of trusting the host to have done it. A factor cell must be a
+whole number in [0, 65535) or missing, refused on the factor-count
+sweep the build already runs over every cell of a factor column -
+inferredCategoryCount and its CSC sibling report invalidCategoryCount
+instead of a count - so no cell is read twice and a column that is not
+a factor pays nothing. The two kinds refuse for different reasons: a
+categorical cell is narrowed to xint_t by a bare cast, undefined
+outside the range, while an ordered-factor cell takes the ordinal arm,
+where the cast is safe and the reason is that a value which is not a
+declared level has no position on the midpoint grid. The declared COUNT
+has its own ceiling, maxLevelsForKind - 65535 categorical, 65534
+ordered factor, one apart because the ordered side spends a code on the
+upper bin of its K - 1 grid - closing S2's recorded fillCutsAtLevelMidpoints
+residue. On the test side the level table is the training one, fixed
+rather than inferred, so buildTest sweeps the view before anything is
+written and a refusal leaves the test store untouched, honoring
+setTestData's existing contract.
+
+The refusal travels as a status, never an exception, since the hosts
+that raise on it cross a C boundary: build and buildTest are now
+[[nodiscard]] bool, and every sampler factory that ingests values
+answers a refused cell with the null it already answers a refused
+composition with. Before the nodiscard mark, one caller dropped the
+status anyway: xbart's shared data handle was built straight from the
+store, past any sampler factory, and discarded build's return, so a
+refused build published a structurally incomplete handle - no grid, no
+level count, no codes past the refused column - as a live one, and
+xbart returned a number instead of erroring. It now destroys the store
+and raises on refusal. The level-count ceiling turned out to be
+R-reachable on two paths the bridge did not gate: an exported
+sparseFactor's level table (65536 levels) and a matrix's varTypes
+declaration, both bypassing the is.factor branch R/utility.R checks.
+Each reached the store's refusal and came back as the
+sampler-specification message, naming neither cause.
+validateCategoricalPredictors now bounds a declared count against
+maxLevelsForKind and bounds an undeclared column's codes by that same
+ceiling, naming the kind and its limit, so the bridge fires first with
+its own wording on every path and the engine's refusal is the backstop
+the plan always meant it to be.
+
+Two residues, stated rather than fixed, both closing with S4a.
+ColumnStore::setData stays a TRUSTED entrance: keepCategoryCount pins K
+so the count class of refusal cannot arise there at all, its sole
+in-tree caller sweeps every training and test factor cell through
+categoricalValueIsValid before calling, dbarts.h exposes no setData,
+and setData is refused outright on CSC/mixed stores - so the only
+exposure is a header-only host, which is what its contract already
+states. Sampler::setData reports no status: a test matrix it refuses is
+silently dropped rather than diagnosed, leaving no test set instead of
+an error - defined behavior, unreachable from R since the bridge
+validates both sides first, but a status return belongs with S4a's
+single checked narrow per cell.
+
+Gates (implementer-run; independent battery pending): R CMD INSTALL
+--preclean exit 0; tests/cpp 273 ok, all tests passed, 68 ok (sampler);
+tinytest 7602 / 0 fail; check-doc-freshness 0 FAIL, 64 warning(s) (the
+base count; five re-pinned to their anchors' new line numbers);
+equivalence-02d41365 46/46, bcf-equivalence-00cfa108 12/12,
+multinomial-equivalence-4d9a3337 11/11, all bitwise identical, no
+statistical fallback.
+
 ### Kind-axis slice S2, the ordered-factor midpoint grid (9486f561, 625c6550, 038d5441, 02d41365, 1ed31cf8, f2485641, 33afc29e, 2026-09-01)
 
 Slice S2 of docs/plans/column-kind-consolidation.md lands as seven

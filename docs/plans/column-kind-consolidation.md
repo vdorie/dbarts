@@ -1536,7 +1536,7 @@ rather than a loose one.
 S3 next: engine-side ingestion validation, including the K > 65534
 backstop this slice leaves R-side only.
 
-### S3 - engine-side ingestion validation (SHAS)
+### S3 - engine-side ingestion validation (9f532225, 6e11b7e5, 60a91fcd, 5242261d, 674d8373, dda84b40, 3437748e, 0fe9b742, f0d99249)
 
 The store now checks what it ingests at its own build entrances rather
 than trusting every host to have done it. On the TRAINING side the check
