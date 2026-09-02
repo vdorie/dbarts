@@ -312,8 +312,8 @@ with the `equivalence.yaml` bump in the same commit.
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis (`R/model.R:1153`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
-`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2177) and
-derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2178). So every
+`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2193) and
+derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2194). So every
 basis-carrying forest gets `ridge = false`, and the combiner's own
 `halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
 one reachable q > 1 scale-mixture state, a post-creation widening of a
@@ -554,7 +554,7 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
 that rule in two independent places (src/C_interface.cpp:1049-1050,
-src/R_interface_bartcore.cpp:3985-3988).
+src/R_interface_bartcore.cpp:4001-4004).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and

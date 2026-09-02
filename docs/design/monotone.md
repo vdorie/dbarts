@@ -56,7 +56,7 @@ neighboring leaves (section 4). No new sweep structure is introduced; the two
 seams that exist are re-pointed for the constrained forest.
 
 **Box geometry is already computed.** Each leaf's [L_ik, U_ik] along an ordinal
-column is `Tree::splitInterval` (tree.hpp:416), the ancestor-constrained cut
+column is `Tree::splitInterval` (tree.hpp:429), the ancestor-constrained cut
 interval used for availability (`hasAnyAvailableVariable`, tree.hpp:616,
 moves.hpp:144). Neighbor determination for a constrained axis walks the tree's
 bottom nodes and, for each ordered pair, tests boundary adjacency in the
@@ -73,11 +73,11 @@ new piece of tree geometry and the component-test target of section 9.
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
 (`leafCovariateColumns` chain.hpp:81; `columnTypes` is per-column too but
-rides `PredictorSource` at data.hpp:197, reaching the options through
+rides `PredictorSource` at data.hpp:222, reaching the options through
 `SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
 As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
 entry on any column selects the constrained
-instantiation at the factory (`createSampler`, facade.hpp:800-803); an all-zero
+instantiation at the factory (`createSampler`, facade.hpp:801-805); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,
 and keeps the constraint out of the data container - the same data can be fit
@@ -426,7 +426,7 @@ follow-up, not v1 scope.
 - **Leaf model (model.hpp):** a constant leaf with a tree-granularity Gibbs draw
   (section 3) and per-leaf c-inflation (section 6); holds a pointer to the
   direction vector and computes neighbor bounds via `Tree::splitInterval`
-  (tree.hpp:416).
+  (tree.hpp:429).
 - **Move (moves.hpp):** `ConstrainedConjugateMove` replaces the per-leaf marginal
   sum (moves.hpp:74-95) with the conditional truncated joint marginal of the
   touched leaves (section 4), READING frozen neighbor mu from muByTree and WRITING

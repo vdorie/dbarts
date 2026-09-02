@@ -39,12 +39,12 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2618`) fires on a
+`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2634`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`.
 It raises, as every helper below does; the flat entries return 0 instead.
 
-`refuseMultiForestResponseMutation` (`:2647`) is the one multi-forest family
+`refuseMultiForestResponseMutation` (`:2663`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
 swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1039`), which is
@@ -62,7 +62,7 @@ against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
 default the argument to FALSE. The weight conduit has no scale to pin and skips
 the clause.
 
-`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:2900`) closes the
+`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:2916`) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
 through. It guards `setTestPredictor`, `setTestOffset`,

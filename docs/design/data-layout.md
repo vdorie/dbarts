@@ -51,9 +51,9 @@ layout is the substrate.
 Per forest (combiner.hpp:138-208):
 
 - `indexBuffer` : `n * numTrees` size_t. Tree t owns the contiguous slice
-  `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:260,268).
+  `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:272,280).
   It is a PERSISTENT per-tree permutation P_t: initialized to identity
-  (tree.hpp:279), partitioned in place by moves (tree.hpp:837
+  (tree.hpp:279), partitioned in place by moves (tree.hpp:849
   partitionChildren), and carried across sweeps. Each node owns a
   contiguous RANGE `[node.begin, node.end)` of P_t (tree.hpp:221); the
   node's members are `indices[begin .. end)`, which are SCATTERED

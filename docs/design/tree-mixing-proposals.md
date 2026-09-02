@@ -155,7 +155,7 @@ Adjacent machinery already landed, relevant to cost: `scan.hpp:105`
 `n.grow.sweeps`, init only, with a reset/regrow/rebuild/redraw loop at
 `chain.hpp:2009-2022`); `tree.hpp:1025-1047` `SubtreeSnapshot` (restores node
 *contents* for a fixed set of node ids - it cannot undo a shape change);
-`tree.hpp:1091`/`:1283` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
+`tree.hpp:1103`/`:1297` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
 
 ---
 
@@ -658,7 +658,7 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1331`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:853`) | shipped, supported |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1331`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:856`) | shipped, supported |
 | inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:37-40`, `:51`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation

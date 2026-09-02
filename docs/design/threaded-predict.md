@@ -46,7 +46,7 @@ landing, since the axis below is (chain, draw) slabs, not chains.
 `recordedDraws_`; each (chain, draw) pair is a SLAB writing a disjoint
 `out + (c * numDraws + i) * slab` range. The only accumulation anywhere
 in the replay is `fits[indices[k]] += leafValue` inside
-`addFlatPredictionsBelow` (tree.hpp:1852), once per row per tree, tree
+`addFlatPredictionsBelow` (tree.hpp:1862), once per row per tree, tree
 loop `t = 0..numTrees-1` identical at every entry point: each (slab,
 row) pair owns its accumulator and sees the same addend order, so a
 partition keeping a (slab, row) pair whole in one thread is bitwise
@@ -106,7 +106,7 @@ The change moved two hash literals, both failing loudly and
 self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:525, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
-DBARTS_C_API_HASH` (:465) and prints the new layout hash to paste over
+DBARTS_C_API_HASH` (:467) and prints the new layout hash to paste over
 `DBARTS_C_API_HASH` (dbarts.h:189). Both were re-signed - live,
 C_interface.cpp:525 asserts `0x0b33edcf638a3cd3ULL` and dbarts.h:189
 bakes `0xb6c0e97dc0688991ULL`. This section also called for
@@ -212,7 +212,7 @@ representative `predict.bart` call.
 The serial work predict's threaded region does **not** cover - the
 flat-offset add over the whole output (R_interface_bartcore.cpp:5804-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:5794) - is one pass over the output
+the second (variance) fan-out (:5807) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

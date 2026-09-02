@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3558`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3524`) - the dedicated
+(`src/R_interface_bartcore.cpp:3574`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3540`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -132,12 +132,12 @@ except where it names another file:
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
 | run | `bartcore_run` `:4315` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3839` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:3914` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:3953` | `:125` | S, unexported |
+| **response swap** | `bartcore_setCounts` `:3855` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:3930` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:3969` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
 | cut points | `bartcore_setCutPoints` `:5227` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4796` | `:558` | S (`refuseUndefinedTestFits` `:2900` gates on `testFitsAreDefined`, TRUE here) |
+| test predictors | `bartcore_setTestPredictor` `:4796` | `:558` | S (`refuseUndefinedTestFits` `:2916` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4074` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
 | predict (K-aware, own n x K offset) | `bartcore_predict` `:5840` | `:1085` | S |
 | per-category fits / varcounts | `:4147`, `:4280` | retired; `R/dbarts.R:1727`, `:1757` | S |
@@ -147,8 +147,8 @@ except where it names another file:
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, `:2647-2674`), `setWeights`
-(`:2668-2672`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2618`), `setCalibration` (`:4248-4256`),
+(`:2684-2688`, same branch), `setSigma`, `setData` / `setModel`
+(`refuseMultiForestMutation` `:2634`), `setCalibration` (`:4264-4272`),
 `setForestWeights` (`:4034-4037`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
@@ -567,7 +567,7 @@ the counts channel" - one string, right on both surfaces, and what
 S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2676-2677`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2652-2667` tested only
+then fell through to the RESPONSE message (`:2668-2683` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
