@@ -2329,6 +2329,13 @@ static void testEmptyTestStore() {
   check(store.numTestObservations == 0,
         "a rowless mixed test build keeps no test rows");
 
+  // the training arm reads the same absent block through the twin of that
+  // copy, so the same view stands the mapped build up as well
+  ColumnStore rowlessStore;
+  built(rowlessStore.build(rowless, nullptr, 20u, false));
+  check(rowlessStore.numObservations == 0 && rowlessStore.numPredictors == p,
+        "a rowless mapped training build keeps its columns and no rows");
+
   rngState = savedRngState;
   printf("ok: rowless test store\n");
 }

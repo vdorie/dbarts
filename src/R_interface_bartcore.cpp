@@ -7927,12 +7927,16 @@ void emitTreeColumn(SEXP resultExpr, SEXP namesExpr, R_xlen_t columnNum,
   R_xlen_t length = static_cast<R_xlen_t>(column.size());
   if constexpr (std::is_same_v<T, int>) {
     SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(INTSXP, length));
-    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)), column.data(),
-                column.size() * sizeof(int));
+    // an empty selection gathers no rows and holds no block to read: memcpy
+    // is undefined on a null source even for zero bytes
+    if (length != 0)
+      std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)), column.data(),
+                  column.size() * sizeof(int));
   } else {
     SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(REALSXP, length));
-    std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)), column.data(),
-                column.size() * sizeof(double));
+    if (length != 0)
+      std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)), column.data(),
+                  column.size() * sizeof(double));
   }
   SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar(name));
 }

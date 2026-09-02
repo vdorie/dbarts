@@ -134,6 +134,18 @@ keptTrees <- dbarts::extract(fitKept, "trees")
 expect_equal(colnames(keptTrees), c("sample", "tree", "n", "var", "value"))
 expect_true(nrow(keptTrees) > 0L)
 
+# an EMPTY index selection is a zero-row answer rather than an error, through
+# both entrances: the bridge emits each column from a gather that holds no
+# block at all
+expect_equal(
+  nrow(dbarts::extract(fitKept, "trees", treeNums = integer(0))),
+  0L
+)
+expect_equal(
+  nrow(fitKeepSampler$fit$getTrees(treeNums = integer(0))),
+  0L
+)
+
 rm(n.trees, fitKeepSampler, currentTrees, fitKept, keptTrees)
 
 
