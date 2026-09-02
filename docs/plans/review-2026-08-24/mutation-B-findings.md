@@ -113,7 +113,7 @@ F7   [[facade.hpp:519@9cebb352]]    saved-tree reads take the reported forest's 
 ## Ladder audit
 Probe: a 7th ResponseFamily enumerator in a staged copy; tests/cpp rebuilt and R_interface_bartcore.cpp
 compiled -fsyntax-only, -Wall -Wextra.  Exactly THREE sites warned (-Wswitch): [[chain.hpp:582@9cebb352]],
-R_interface:2268, [[chain.hpp:6181@9cebb352]].  Four `default:` ladders stayed silent, plus one open-coded chain no -Wswitch reaches
+R_interface:2268, [[chain.hpp:5014@9cebb352]].  Four `default:` ladders stayed silent, plus one open-coded chain no -Wswitch reaches
 (only two of the four are in src/bartcore; the memo's list spans both files):
   [[chain.hpp:756@9cebb352]]  AmplitudeSpec ctor        aft/ord/nbinom/new  -> GaussianResponse
   [[chain.hpp:5026@9cebb352]] latentScaleAnchor         gauss/aft/ord/nb/new -> scaledResponseSd()
@@ -125,7 +125,7 @@ those arms are gaussian-only today.  [[chain.hpp:2812@9cebb352]] is the worst do
 (a negative nbinom count underflowing into a ~1.8e19 allocation, "an uncatchable crash"). The de-facto 7th
 family already exists - [[chain.hpp:862@9cebb352]] sets `family_ = logistic` for multinomial commenting "family() is not
 read on this path", yet SamplerShape::family ([[facade.hpp:432@9cebb352]]) reports it and the bridge branches on it at
-:2729,[[facade.hpp:4611@9cebb352]],[[facade.hpp:4662@9cebb352]],[[facade.hpp:4702@9cebb352]],[[facade.hpp:4877@9cebb352]],[[facade.hpp:4949@9cebb352]], each unreachable only because a SEPARATE multi-forest refusal stands in
+:2729,unresolved: [[facade.hpp:4611@9cebb352]],unresolved: [[facade.hpp:4662@9cebb352]],unresolved: [[facade.hpp:4702@9cebb352]],unresolved: [[facade.hpp:4877@9cebb352]],unresolved: [[facade.hpp:4949@9cebb352]], each unreachable only because a SEPARATE multi-forest refusal stands in
 front.  VERDICT the doors are shut by refusals in another file, not by the type system, and one family already
 travels under another's name.
 
@@ -169,7 +169,7 @@ test does.  The sentinel shape, milder.
 3 MAJOR [[chain.hpp:4207@9cebb352]] [C3].  Binding y + meanFits for y - meanFits - the variance forest fits the wrong
   quantity - passes: the only VALUE-level variance assertion (test_model:689-725) uses y = s(x)*N(0,1) with NO
   MEAN FUNCTION, so y-f and y+f differ by 2f ~ 0, and its bound is loose. MAJOR not BLOCKER - tinytest
-  backstops it ([[test-heteroscedastic.R:11-42@9cebb352]]) - but [[heteroscedastic.md:465@9cebb352]] states gate (d) as "recovers f(x)
+  backstops it ([[test-heteroscedastic.R:11-42@9cebb352]]) - but [[docs/design/heteroscedastic.md:465@9cebb352]] states gate (d) as "recovers f(x)
   AND s(x)" and the C++ fixture dropped f(x).  ASSERTION the same test on a strong non-constant mean, s^2(x)
   tracking the noise and NOT |f(x)|.  FIX agent-fix (test).
 4 MAJOR [[sampler.hpp:575@9cebb352]] (identically [[sampler.hpp:605@9cebb352]], [[sampler.hpp:679@9cebb352]]) [A8].  Predict's destination taking the CAPACITY stride while
