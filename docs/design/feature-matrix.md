@@ -151,7 +151,7 @@ it rides on.
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
 | bcf | S [[CH#Chain::setResponse]] [f48] | S [[CH#Chain::setOffset]] [f48] | R [[bartcore.R#refuseAmplitudeMutation]] [f48] | S [[RIB#bartcore_setPredictor, bartcore_updatePredictorPerObservation]] | S [[RIB#bartcore_setWeights]] [f48] | S [[RIB#bartcore_setSigma]] [f48] | R [[RIB#refuseUndefinedTestFits]] [f49] |
 | grouped | S [[MOD#GroupedResponse::setResponse]] [f13] | S [[MOD#GroupedResponse::setOffset]] | R [[RIB#refuseGroupedScaleUpdate]] [f13] | S [[RIB#bartcore_setPredictor]] | S [[MOD#GroupedResponse::setWeights]] [f14] | S [[RIB#bartcore_setSigma]] [f14] | S [[RIB#bartcore_setTestPredictor]] |
-| hetero | S [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#refuseVarianceForestScaleUpdate]] | R [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setPredictor, bartcore_updatePredictorPerObservation]] | S [[RIB#bartcore_setWeights]] | R [[RIB#refusePinnedSigmaChange]] | S [[RIB#bartcore_setTestPredictor]] |
+| hetero | S [[RIB#bartcore_setResponse]] | S [[RIB#bartcore_setOffset]] | R [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setPredictor, bartcore_updatePredictorPerObservation]] | S [[RIB#bartcore_setWeights]] | R [[RIB#refusePinnedSigmaChange]] | S [[RIB#bartcore_setTestPredictor]] |
 
 `setData` (whole-data replacement, n free) is dense-store and single-forest
 only ([[RIB#refusePredictorMutation, refuseMultiForestMutation]]) and is
