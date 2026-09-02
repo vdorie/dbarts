@@ -19,8 +19,9 @@ predicate changes (predicate reconciliation, e.g. `any(w < 0)` vs
 
 Evidence: 610 `stop()` in `R/`, 365 `Rf_error()` in `src/R_interface_bartcore.cpp`
 + `src/C_interface.cpp` + `src/R_interface.cpp`, 3 `ext_throwError` in
-`src/bartcore/chain.hpp:1886,2050` and `src/bartcore/sampler.hpp:682`. Each
-rule states the majority it codifies, or
+[[src/bartcore/chain.hpp#sampleTreesFromPrior, sampleNodeParametersFromPrior]]
+and [[src/bartcore/sampler.hpp#fanOutPredictSlabs]]. Each rule states the
+majority it codifies, or
 says plainly that it invents (no majority existed). Frequencies in the
 appendix. Every rule below was additionally checked against: a direct
 source-level survey of `stop()` in base, stats, Matrix, survival, lme4,
@@ -46,15 +47,17 @@ Wrap an argument, formal, or slot name in `'...'`. Never backtick, never bare,
 never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
 do not introduce them now).
 
-- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:772`).
+- Conformance: `"'weights' must have the same length as 'y'"`
+  ([[R/data.R#"'weights' must have the same length as 'y'"]]).
 - Violation, since reworded: `"chainNum must be a single chain index in
-  [1, ...]"` was bare; `R/generics.R:3030` now reads `stop("'chainNum'
-  must be a single chain index in [1, ", n.chains, "]")`.
+  [1, ...]"` was bare; [[R/generics.R#"'chainNum' must be a single chain index in [1, "]]
+  now reads `stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")`.
 
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
 sentence's own subject stays bare - `"probit models do not support weights"`
-(`src/R_interface_bartcore.cpp:2784`), not `"'probit' models"`.
+([[src/R_interface_bartcore.cpp#"probit models do not support weights"]]), not
+`"'probit' models"`.
 
 **External evidence.** The two external sources disagree, and the disagreement
 is the crux of this rule. Published best practice (tidyverse style guide):
@@ -105,10 +108,10 @@ natural casing rather than force `"bcf does not support"`.
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
 - Violation: none left on the C side. The prior outlier ("Student-t
-  residuals ...") went with its message; `:7753` (DART) is the acronym
-  exception and stays as-is; the two BCF-initial messages that sat beside it
-  were reworded when the amplitude family took amplitude-rooted names,
-  leaving DART the only one.
+  residuals ...") went with its message; [[src/R_interface_bartcore.cpp#installForests]]
+  (DART) is the acronym exception and stays as-is; the two BCF-initial
+  messages that sat beside it were reworded when the amplitude family took
+  amplitude-rooted names, leaving DART the only one.
 
 **External evidence.** Published best practice (tidyverse): "Errors should be
 written in sentence case ... make sure to capitalise the first word (unless
@@ -126,7 +129,7 @@ one design decision, not two).
 
 No message ends in `.`: 348/348 on the C side, 549/549 on the R side. The
 former exception - one refusal restated three times, each copy ending in a
-period - is fixed: `R/spec.R:54-59`, `:73-77`, `:82-86` (probit/ordinal/nbinom
+period - is fixed in [[R/spec.R#enforceWeightPolicy]] (probit/ordinal/nbinom
 weight refusals).
 
 - Conformance: any `Rf_error` call (all 348 are period-free).
@@ -183,18 +186,20 @@ R: interpolate via `stop()`'s own `...` concatenation, with the placeholder's
 quote marks (R1) typed directly into the adjacent string literal - the
 majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
 Keep `sprintf()` as the accepted alternate when one clause interpolates two or
-more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
-(0 uses of either today). Conformance: `stop("'chainNum' must be a single
-chain index in [1, ", n.chains, "]")` (`R/generics.R:3030`). The example
-this rule first cited, `"invalid monotone direction '", value, "'; use
--1, 0, or +1"`, did not survive: R12's rewording left `R/model.R:557-560`
+more values ([[R/augmentation.R#augVector]]); do not introduce
+`paste0()`/`gettextf()` (0 uses of either today). Conformance:
+`stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")`
+([[R/generics.R#"'chainNum' must be a single chain index in [1, "]]). The
+example this rule first cited, `"invalid monotone direction '", value, "'; use
+-1, 0, or +1"`, did not survive: R12's rewording left [[R/model.R#parseMonotoneSign]]
 a fixed two-literal message that interpolates nothing.
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
 a user-supplied choice; leave it bare for a descriptive phrase (`"a treatment
-forest does not support %s"`, `src/R_interface_bartcore.cpp:2340`, where
-`refused` is a phrase like `"a DART tree prior"`, not a name).
+forest does not support %s"`,
+[[src/R_interface_bartcore.cpp#"a treatment forest does not support %s"]],
+where `refused` is a phrase like `"a DART tree prior"`, not a name).
 
 **External evidence.** Neither tidyverse nor rlang docs address the choice
 between comma-concatenation and `sprintf()` for a base `stop()` call - that
@@ -223,13 +228,15 @@ One main clause stating the refusal, optionally followed by ONE more clause
 (`:` for an explanation, `;` for a remedy) - not both.
 
 - Conformance: `"%s: a multi-forest sampler fixes its data at creation; make
-  a new sampler instead"` (`src/R_interface_bartcore.cpp:2642`) - main +
-  one remedy clause.
+  a new sampler instead"`
+  ([[src/R_interface_bartcore.cpp#"a multi-forest sampler fixes its data at creation"]])
+  - main + one remedy clause.
 - Both prior violations were fixed while they stood: `refuseHostMutation`'s
-  message was refusal plus one remedy clause (the function and every call site
-  are since deleted, multinomial-mutation-arc.md S4), and `R/spec.R:54-59`
-  (probit weights) collapsed to the same shape, matching the C twin's
-  already-shorter form (`src/R_interface_bartcore.cpp:2784-2786`).
+  message was refusal plus one remedy clause (retired - the function and every
+  call site are since deleted, multinomial-mutation-arc.md S4), and
+  [[R/spec.R#enforceWeightPolicy]] (probit weights) collapsed to the same
+  shape, matching the C twin's already-shorter form
+  ([[src/R_interface_bartcore.cpp#enforceBinaryWeightPolicy]]).
 
 **External evidence.** Published best practice's general philosophy agrees
 with R6's spirit: "An error message should start with a general statement of
@@ -262,33 +269,39 @@ the same sites:
 - **Default - no prefix.** Raised directly in a `.Call` bridge entry point's
   own body (or a helper it alone reaches); R's `Error in .Call(...)` frame
   already attributes it. E.g. `"forest weight length must match the number of
-  observations"` (`src/R_interface_bartcore.cpp:4072`).
+  observations"`
+  ([[src/R_interface_bartcore.cpp#"forest weight length must match the number of observations"]]).
 - **Flat C API entry points** (`src/C_interface.cpp`, `src/R_interface.cpp`,
   the `dbarts.h` ABI) **- hardcoded literal self-name.** Reachable by a
   `LinkingTo: dbarts` consumer with no R call frame to consult, so the message
   must self-identify. All 23 hardcoded instances are a `dbarts_sampler_*`
-  function naming itself (`src/C_interface.cpp:534`: `"dbarts_sampler_run:
-  results.structSize is 0..."`). Always follow the name with `:`.
+  function naming itself
+  ([[src/C_interface.cpp#"dbarts_sampler_run: results.structSize is 0"]]:
+  `"dbarts_sampler_run: results.structSize is 0..."`). Always follow the name
+  with `:`.
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
-  site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4908`/`:5214`).
+  site (`refuseMultiForestMutation`, called from
+  [[src/R_interface_bartcore.cpp#bartcore_setData]] and
+  [[src/R_interface_bartcore.cpp#bartcore_setModel]]).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
-  date (38 of 69 vs 31 without), e.g. `:2816`. Reword the no-colon
-  instances to add the colon. The one cited here has been: `:133` now
-  reads `"%s: requires a numeric matrix with matching columns"`, and the
+  date (38 of 69 vs 31 without), e.g. [[src/R_interface_bartcore.cpp#refuseMultiForestMutation]].
+  Reword the no-colon instances to add the colon. The one cited here has
+  been: [[src/R_interface_bartcore.cpp#"%s: requires a numeric matrix with matching columns"]]
+  now reads `"%s: requires a numeric matrix with matching columns"`, and the
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole
   pre-built message rather than a caller prefix.
 
 A helper reached from both the .Call bridge and the flat C API takes the
 dynamic prefix and is handed the flat entry's own name, since that route
 has no R call frame at all; three refusals are the outstanding exceptions,
-prefixed by none of them - the factor level-code texts and the level-count
-ceilings (src/R_interface_bartcore.cpp:1793-1800, :1826-1829), raised from
-the shared validateCategoricalPredictors and
-validateTestContainerAgainstStore, and the sparse leaf-covariate test
-refusal raised in dbarts_sampler_setTestPredictors' own body
-(src/C_interface.cpp:891).
+prefixed by none of them - the factor level-code texts
+([[src/R_interface_bartcore.cpp#categoricalTrainingMessage, orderedFactorTrainingMessage, categoricalTestMessage, orderedFactorTestMessage]])
+and the level-count ceilings ([[src/R_interface_bartcore.cpp#refuseLevelCountPastCeiling]]),
+raised from the shared [[src/R_interface_bartcore.cpp#validateCategoricalPredictors]]
+and [[src/R_interface_bartcore.cpp#validateTestContainerAgainstStore]], and the
+sparse leaf-covariate test refusal raised in
+[[src/C_interface.cpp#dbarts_sampler_setTestPredictors]]' own body.
 
 **External evidence.** WRE's C-API chapter has a section titled "Error
 signaling" in its table of contents, but the fetched manual text did not
@@ -311,13 +324,15 @@ R message is canonical - the one users see, the one docs/tests quote; the
 C-side message is independently worded against this rule, not copied.
 Verbatim-identical strings across the boundary already failed once: `"forest
 weights must be finite and non-negative"` is byte-identical at
-`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4079`, but the very next
-guard in the same pair, the length check, drifted apart with no R counterpart
-to stay in sync with (`"forest weight length must match the number of
-observations"`, C-only). A string shared across two languages by hand is
-identical by discipline, not by construction, and the discipline already
-lapsed once. Every C-side backstop should carry a one-line comment naming it
-as direct-API defense in depth, on the model of `src/C_interface.cpp:788-794`
+[[R/dbarts.R#"forest weights must be finite and non-negative"]] /
+[[src/R_interface_bartcore.cpp#"forest weights must be finite and non-negative"]],
+but the very next guard in the same pair, the length check, drifted apart with
+no R counterpart to stay in sync with (`"forest weight length must match the
+number of observations"`, C-only). A string shared across two languages by
+hand is identical by discipline, not by construction, and the discipline
+already lapsed once. Every C-side backstop should carry a one-line comment
+naming it as direct-API defense in depth, on the model of
+[[src/C_interface.cpp#"defense in depth, since validateTestSource has already raised it"]]
 (`"defense in depth, since validateTestSource has already raised it"`). This
 is the message policy K6 reconciles predicates toward; K6 remains free to
 decide, guard by guard, whether a given C-side backstop is worth keeping.
@@ -355,12 +370,15 @@ below - see there for the explicit sign-off).
 
 Two sub-shapes, tracking two different R predicates. **Value present but
 NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
-Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1090`). **Argument omitted
-from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
-specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
-(`R/rbart.R:127`). The former violation, `"'group.by' must be supplied when
-'newdata' is given"`, is retired: `R/bart.R:2605` now refuses a different
-predicate, `"'group.by' must be given by name when 'newdata' is given"`.
+Conformance: `"x.test cannot be NULL"` ([[R/dbarts.R#"x.test cannot be NULL"]]).
+**Argument omitted from the call** (R `missing(x)`, no C analogue):
+`"'<name>' must be specified"`. Conformance: `"'group.by' must be specified to
+use rbart_vi"` ([[R/rbart.R#"'group.by' must be specified to use rbart_vi"]]).
+The former violation, `"'group.by' must be supplied when 'newdata' is given"`,
+no longer occurs:
+[[R/bart.R#"'group.by' must be given by name when 'newdata' is given"]]
+now refuses a different predicate, `"'group.by' must be given by name when
+'newdata' is given"`.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -390,8 +408,9 @@ in this document uses. This sub-shape of R9 is final.
 `"'<name>' must be a/an <type description>[, not <actual>]"` - the bare shape
 without the bracketed clause is dominant already (~25 sampled type-mismatch
 messages, only 2 use a different verb) and stays the required minimum.
-Conformance: `"'weights' must be a numeric vector"` (`R/data.R:765`,
-`R/data.R:1290`) - both guards in the same file now read exactly alike.
+Conformance: `"'weights' must be a numeric vector"`
+([[R/data.R#"'weights' must be a numeric vector"]]) - both guards in the same
+file now read exactly alike.
 
 The bracketed `, not <actual>` clause is new: append it when the actual
 type/class is already in hand as a short noun (`class(x)[1]`, `typeof(x)`) at
@@ -429,11 +448,11 @@ Against a fixed/derived count: `"'<name>' must have length <N>"`. Against
 another argument's length: `"'<name>' must have the same length as
 '<reference>' (<N>)"`. Closest precedent (names the reference but not the
 numbers): `sprintf("'%s' must have length %d, that of '%s'", name, n,
-reference)` (`R/augmentation.R:18`) - keep its shape, the sweep's one named
-exception. The prior furthest outlier, `R/bartcore.R`'s `"length of new x
-does not match old"` (naming neither argument nor either length), is fixed:
-`R/bartcore.R:284` now reads `"'x' must have length <N>"`, matching this
-rule.
+reference)` ([[R/augmentation.R#"'%s' must have length %d, that of '%s'"]]) -
+keep its shape, the sweep's one named exception. The prior furthest outlier,
+`R/bartcore.R`'s `"length of new x does not match old"` (naming neither
+argument nor either length), is fixed: [[R/bartcore.R#"'x' must have length "]]
+now reads `"'x' must have length <N>"`, matching this rule.
 
 Appending the actual (got) length - `"; got <got>"` - is now encouraged, not
 mandated, when the value is already in hand; see the shared reasoning under
@@ -478,11 +497,13 @@ is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (`R/generics.R:645-649`). The monotone-direction violation is
-retired: `R/model.R:555` now reads `"'direction' must be one of -1, 0, 1"`,
-with no `got` value - this rule's shape exactly. Still open:
-`"unrecognized response family for a binary response"`
-(`src/R_interface_bartcore.cpp:1744`) - names no choices at all.
+"', '"), "'"` ([[R/generics.R#"'forest' must name one of '"]]). The
+monotone-direction violation is retired:
+[[R/model.R#"'direction' must be one of -1, 0, 1"]] now reads `"'direction'
+must be one of -1, 0, 1"`, with no `got` value - this rule's shape exactly.
+Still open: `"unrecognized response family for a binary response"`
+([[src/R_interface_bartcore.cpp#"unrecognized response family for a binary response"]])
+- names no choices at all.
 
 **External evidence.** The `"must be one of"` shape itself is directly
 attested in base R: `stop("'origin' must be one of 'start', 'current' or
@@ -515,21 +536,22 @@ mandated, when cheap.
 `"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
 37 R + 16 C "not support" hits use this exact verb). Conformance: `"a
 treatment forest does not support %s"`
-(`src/R_interface_bartcore.cpp:2340`); `"probit models do
-not support weights; fit integer count weights with family = \"logistic\",
-or model continuous weights' latents directly"` (`R/spec.R:54-59`).
+([[src/R_interface_bartcore.cpp#"a treatment forest does not support %s"]]);
+`"probit models do not support weights; fit integer count weights with
+family = \"logistic\", or model continuous weights' latents directly"`
+([[R/spec.R#"probit models do not support weights; fit integer count weights"]]).
 Violation, since reworded to exactly this rule's proposal: `"sample =
 \"test\" is not available for type = \"forest\": an ..."` is now
 `"type = \"forest\" does not support sample = \"test\": no test-sample
-per-forest channel is stored, ..."` (`R/generics.R:633-638`).
+per-forest channel is stored, ..."` ([[R/generics.R#"does not support sample"]]).
 
 Sub-shape, foreign-argument refusal: an argument a method does not take,
 refused because a sibling method of the same surface does take it, reads
 "'<name>' is not used by <generic> on a <class> fit: <reason>" - the
 subject is the argument, not the method, so the caller reads the
-offending name first (R/generics.R:2062-2075). Where the refusal has no
-single offending name, the plain R13 shape stands: "predict on a bart fit
-does not support unnamed arguments: ..." (R/generics.R:2086-2095).
+offending name first ([[R/generics.R#refuseUnusedGenericArgs]]). Where the
+refusal has no single offending name, the plain R13 shape stands: "predict on
+a bart fit does not support unnamed arguments: ..." ([[R/generics.R#refuseUnusedGenericArgs]]).
 
 **External evidence.** Checked hard, because this looked like a plausible
 override going in. Neither tidyverse nor rlang address "unsupported feature"
@@ -557,14 +579,16 @@ R-canonical shape (per R8): `"<operation> is not available on <context>[:
 <reason>]"` - was the shape `refuseHostMutation` gave 22 call sites, before
 the function and every call site were deleted (multinomial-mutation-arc.md
 S4). The shape survives in its replacements, `refuseCountsMutation`
-(`R/bartcore.R:62`) and `refuseAmplitudeMutation` (`R/bartcore.R:36`), and in
-`$setControl`'s own per-slot refusal (`R/dbarts.R:1207-1213`). C-side
-backstops keep their own idiom under R7/R8 (`"%s: a multi-forest sampler
-fixes its data at creation; make a new sampler instead"`,
-`src/R_interface_bartcore.cpp:2642`). Conformance: `setModel`'s DART-tree-
-prior refusal (`R/dbarts.R:1249-1256`) reads `"changing a DART tree prior is
-not available on an existing sampler: recreate it instead"`, matching this
-rule.
+([[R/bartcore.R#refuseCountsMutation]]) and `refuseAmplitudeMutation`
+([[R/bartcore.R#refuseAmplitudeMutation]]), and in `$setControl`'s own
+per-slot refusal ([[R/dbarts.R#dbartsSampler$setControl]]). C-side backstops
+keep their own idiom under R7/R8 (`"%s: a multi-forest sampler fixes its data
+at creation; make a new sampler instead"`,
+[[src/R_interface_bartcore.cpp#"a multi-forest sampler fixes its data at creation"]]).
+Conformance: `setModel`'s DART-tree-prior refusal
+([[R/dbarts.R#"changing a DART tree prior is not available on an existing"]])
+reads `"changing a DART tree prior is not available on an existing sampler:
+recreate it instead"`, matching this rule.
 
 **External evidence.** R14 happens to already use the phrase the R13 survey
 just found to be the *more* common external construction: `"not available"`
@@ -580,9 +604,9 @@ same data set that left R13 SILENT-KEPT.
 
 Corpus: 610 `stop()` (`R/`), 365 `Rf_error()` (`src/R_interface_bartcore.cpp`
 + `src/C_interface.cpp` + `src/R_interface.cpp`), 3 `ext_throwError()`
-(`src/bartcore/chain.hpp:1886,2050` and `src/bartcore/sampler.hpp:682`, the
-only users of that fourth mechanism, not part of this drift). 0 uses
-anywhere of `gettextf`,
+([[src/bartcore/chain.hpp#sampleTreesFromPrior, sampleNodeParametersFromPrior]]
+and [[src/bartcore/sampler.hpp#fanOutPredictSlabs]], the only users of that
+fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
 `sQuote`, `dQuote`, backtick-quoted argument names, or non-ASCII bytes.
 
 | dimension | finding |
@@ -597,7 +621,7 @@ anywhere of `gettextf`,
 | missing-arg (omitted sub-case) | `"must be specified"` 5, `"must be supplied"` 0, `"must be given"` 0 - `specified` is now unanimous |
 | enum-rejection verb | messages opening on `invalid` 2 (C), `unknown` 3 (R), `unsupported` 2 (R 0 + C 2, claimed by R13), `unrecognized` 5 (R 2 + C 3); `"must be one of"` 2 - still no majority among the four rejected adjectives, migration to the settled shape is gradual |
 | C caller-name prefix | no-prefix 259 (74%), dynamic `%s`+caller 69 (20%, colon 47 / no-colon 22), hardcoded literal 20 (6%) - all three map to distinct call-site kinds (R7) |
-| length-mismatch templates | unified: 1 template (R11's `'<name>' must have the same length as '<reference>'` / `'<name>' must have length <N>`), applied at 14 call sites across `R/data.R`, `R/A_class.R`, `R/dbarts.R`, and `R/partialDependence.R`; `R/augmentation.R:18`'s `sprintf()` form is R11's one named, kept exception. Was 6 competing templates at this table's prior revision, drifted to 7 before this sweep |
+| length-mismatch templates | unified: 1 template (R11's `'<name>' must have the same length as '<reference>'` / `'<name>' must have length <N>`), applied at 14 call sites across `R/data.R`, `R/A_class.R`, `R/dbarts.R`, and `R/partialDependence.R`; [[R/augmentation.R#augVector]]'s `sprintf()` form is R11's one named, kept exception. Was 6 competing templates at this table's prior revision, drifted to 7 before this sweep |
 | R interpolation | comma-concatenated `stop()` args majority (43 sampled) vs `sprintf()` (15); `paste0()`/`gettextf()` as the sole message wrapper: 0 (inline `paste0(..., collapse = ...)` for an enum/choice list, e.g. R12's own template, is not this and is unaffected) |
 
 ## External evidence appendix
@@ -721,5 +745,5 @@ CRAN builds installed in this environment's R library.
    out-of-range: state the expected value/type/choices as the required
    minimum; append the actual/received value when it's already in hand,
    never as a mandatory re-derivation. `"'forest' index must be between 1
-   and <N>"` (`R/generics.R:613`) remains the model example; it was right
-   the first time.
+   and <N>"` ([[R/generics.R#"'forest' index must be between 1 and "]])
+   remains the model example; it was right the first time.
