@@ -120,9 +120,11 @@ first recording onward, is bartcore output re-recorded against bartcore output; 
 statistical check IS the oracle" is the MANIFEST's own phrase for the current equivalence-5a3bc276.rds
 row (43 scenarios, max |z| 2.06 across 87 summaries on the one moved scenario).
 
-Current rows: equivalence-5a3bc276.rds (43 scenarios), bcf-equivalence-6e3b9fb8.rds (12), multinomial-
-equivalence-4d9a3337.rds (11), bench-sampler-ab1dc52.csv (speed) - the 3 .rds files equivalence.yaml
-compares against (never run in CI, Sec.1).
+Current rows, corrected at 3c81d6df (this line was stale even at the 08-24 snapshot; see MANIFEST):
+equivalence-d4bca4ce.rds (51 scenarios), bcf-equivalence-3c81d6df.rds (12), multinomial-
+equivalence-4d9a3337.rds (11), bench-sampler-ab1dc52.csv (speed). equivalence.yaml's weekly job now
+compares only the gaussian .rds; the bcf and multinomial .rds are compared by exact-gates.yaml's
+per-push --cross-host step instead (Sec.1), their equivalence.yaml duplicates having been dropped.
 
 ## 4. Exact-posterior gates (exact-gates.yaml, 20 scripts, quick-mode only in CI)
 

@@ -138,15 +138,17 @@ jobs:
       # harness settings guard refuses to compare against a quick run. Runs
       # even after a failing gate so one run surfaces every failure.
       # Both compares finish in about a second on a 2020 desktop, against the
-      # ~4-minute install and 30-minute timeout of this job. The baseline hashes are
-      # pinned here and in equivalence.yaml, so a re-record repins both.
+      # ~4-minute install and 30-minute timeout of this job. The bcf and
+      # multinomial baseline hashes are pinned only here now - equivalence.yaml's
+      # own copies were dropped as duplicates of this job's compares - so a
+      # re-record repins this file alone.
       - name: Run the cross-host equivalence compares
         if: ${{ !cancelled() }}
         run: |
           fail=0
           echo "::group::bcf-equivalence --cross-host"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-00cfa108.rds --cross-host; then
+            benchmarks/baselines/bcf-equivalence-3c81d6df.rds --cross-host; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::cross-host gate bcf-equivalence FAILED"

@@ -697,7 +697,7 @@ BITWISE `setWeights(w * a)` in `train` and in `sigma`; an all-zeros mask runs
 finite; a fractional element is refused. PINNED at mask S4:
 [[test-active-rows-pins.R#"masked.bcf"]] (bitwise vs `setWeights(w * a)` on
 train and sigma) and the `bcf-equivalence.R` `masked` scenario, carried by the
-current `bcf-equivalence-00cfa108.rds`. A per-forest mask is refused as
+current `bcf-equivalence-3c81d6df.rds`. A per-forest mask is refused as
 REDUNDANT rather than unbuilt: [[RIB#bartcore_setForestWeights]] already
 expresses it - though note that channel is deliberately NOT row removal
 ([[CH#Chain::setForestWeights]]: it does not remove the row from occupancy, the
@@ -854,7 +854,7 @@ path, so this is a surface gap, not an engine one.
 [[CH#SamplerOptions]]).
 
 [f39] Current baselines: `equivalence-d4bca4ce.rds` (51 scenarios),
-`bcf-equivalence-00cfa108.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
+`bcf-equivalence-3c81d6df.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
 - benchmarks/baselines/MANIFEST. Scenario names are the keys in
 [[benchmarks/R/equivalence.R#makeScenarios]].
 

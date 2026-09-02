@@ -35,13 +35,6 @@ items
     valgrind.yaml is unregistered off the default branch; per-push CI
     sanitizers cover the file under instrumented R meanwhile.
     docs/plans/adoption-slate.md.
-  bcf-baseline-cross-host: re-record the bcf equivalence baseline at
-    the RC tip, same-host on arm64/macOS, and discharge the obligations
-    it carries - MANIFEST row and supersession, two workflow pins,
-    forward-facing docs pins, the gate-ledger line, and the
-    MANIFEST-anchor line numbers a new row shifts. Mechanical, and
-    nothing in it can be done early. Checklist:
-    docs/plans/bcf-cross-host.md sec 7.
   bcf-sigma-tail-mixing: research door, no plan doc of its own. In the
     EXTREME tail (|a0| >= ~40, ~3% of the prior) the chain is
     frozen-structure mixing that no amount of burn fixes; a principled
