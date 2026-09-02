@@ -123,7 +123,7 @@ architecture holds, the gate battery did not. Six blocking findings, adjudicated
    becomes true before the message retires.
 5. **The window contradicted a settled ruling. UPHELD.** Not reopened; see
    "window" above. The critique's second half is also upheld: bcf-public-surface
-   S0 (`[[docs/plans/archive/bcf-public-surface.md:286-289@4c018187]]`) pins the BCF refusals this
+   S0 (`[[docs/plans/bcf-public-surface.md:324-327@4c018187]]`) pins the BCF refusals this
    arc's S1/S2 retire. Ownership is settled in S0 item 1.
 6. **Fork 2's closure rested on a mis-stated premise. UPHELD.** Restated in
    "Fork 2". The conclusion (per-sampler veto) survives; the argument changes.
@@ -159,9 +159,9 @@ F10's negative half does not need to cover it.
 in that file's ANONYMOUS namespace (`[[src/R_interface_bartcore.cpp:35-2222@4c018187]]`), unlike `refuseMultiForestMutation`
 (`[[src/R_interface_bartcore.cpp:2245@4c018187]]`) and `refusePinnedSigmaChange`, which sit in `bartcore_bridge` and are
 declared in `[[R_interface_bartcore_common.hpp:115@4c018187]], [[R_interface_bartcore_common.hpp:122@4c018187]]`. Four call sites:
-`bartcore_setPredictor` (`[[R_interface_bartcore_common.hpp:3945@4c018187]]`, forwards force), `bartcore_updatePredictor`
-(`[[R_interface_bartcore_common.hpp:3991@4c018187]]`, forwards force), `bartcore_updatePredictorPerObservation` (`[[R_interface_bartcore_common.hpp:4099@4c018187]]`, NO
-force argument), `bartcore_updatePredictorPerObservationJointly` (`[[R_interface_bartcore_common.hpp:4164@4c018187]]`, per
+`bartcore_setPredictor` (`[[src/R_interface_bartcore.cpp:5053@4c018187]]`, forwards force), `bartcore_updatePredictor`
+(`[[src/R_interface_bartcore.cpp:5101@4c018187]]`, forwards force), `bartcore_updatePredictorPerObservation` (`[[src/R_interface_bartcore.cpp:5214@4c018187]]`, NO
+force argument), `bartcore_updatePredictorPerObservationJointly` (`[[src/R_interface_bartcore.cpp:5268@4c018187]]`, per
 sampler). `Chain::numForests` is `forests_.size()`; a heteroscedastic sampler
 reports `numForests == 1` and holds its variance trees in `varianceForest_`. The
 unit of study is `E = numForests + (hasVarianceForest ? 1 : 0)`.
@@ -313,7 +313,7 @@ self-consistent and merely wrong.
 Scope: heteroscedastic ONLY at fed324e. `resolveFamily` has no multinomial branch
 and `createHolder` never reaches `createBCFHolder`, so neither multi-forest shape
 is flat-creatable yet. **bcf-public-surface S1 changes that**
-(`[[bcf-public-surface.md:296-318@4c018187]]`: `createHolder` reads the treatment slot and
+(`[[docs/plans/bcf-public-surface.md:347-349@4c018187]]`: `createHolder` reads the treatment slot and
 routes to `createBCFSampler`), at which point the same hole strands tau on every
 flat BCF.
 
@@ -390,7 +390,7 @@ three. Reject on the BENEFIT and the EVIDENCE, not on the description: the
 benefit is at most 0.037 pp of install rate, the only evidence is one surrogate
 that gates nothing, and there is no reversibility argument for the resulting
 kernel while the one recorded consumer treats the install mask as an MH accept
-mask (`[[bairrtt/R/irt_causal_bart.R:614@4c018187]]`, rejected rows reverted as rejected MH
+mask (bairrtt's `R/irt_causal_bart.R` line 614, rejected rows reverted as rejected MH
 moves). A collapse is not an involution: it accepts the move AND changes tree
 structure irreversibly, in scan order, and neither mandated BCF oracle
 (`bcf-exact.R`, `bcf-exact-restricted.R`) can see it. The strongest form - E2
@@ -628,7 +628,7 @@ ABORT: any trio divergence.
 1. Pins for the refusals this arc will retire, so a later slice cannot open one
    silently. **Ownership, settled here:** bcf-public-surface S0 already pins the
    BCF transactional `setPredictor` and the per-observation session
-   (`[[bcf-public-surface.md:286-289@4c018187]]`) and lands FIRST, so it OWNS the BCF pins.
+   (`[[docs/plans/bcf-public-surface.md:324-327@4c018187]]`) and lands FIRST, so it OWNS the BCF pins.
    This slice writes only the pins that arc does not: on a MULTINOMIAL and on a
    HETEROSCEDASTIC sampler, transactional `setPredictor` / `updatePredictor` and
    both per-observation entries REFUSE with their current messages, while forced
@@ -961,15 +961,15 @@ LANDED (see Landing notes).
 ## Migration costs per consumer (enumerated, never constraining)
 
 - **bairrtt** (`/Users/vdorie/Repositories/bairrtt`, live R5 driver: two
-  `dbarts::dbarts` samplers at `[[irt_causal_bart.R:446@4c018187]], 458`,
-  `updatePredictorPerObservationJointly` at `[[irt_causal_bart.R:609@4c018187]]`,
-  `setPredictor(forceUpdate = TRUE)` during burn at `[[irt_causal_bart.R:619@4c018187]], 624`, rejected rows
-  reverted as rejected MH moves at `[[irt_causal_bart.R:614@4c018187]]`). Existing code: ZERO change - it is
+  `dbarts::dbarts` samplers at bairrtt's `R/irt_causal_bart.R` lines 446 and 458,
+  `updatePredictorPerObservationJointly` at bairrtt's `R/irt_causal_bart.R` line 609,
+  `setPredictor(forceUpdate = TRUE)` during burn at bairrtt's `R/irt_causal_bart.R` lines 619 and 624, rejected rows
+  reverted as rejected MH moves at bairrtt's `R/irt_causal_bart.R` line 614). Existing code: ZERO change - it is
   homoscedastic single-forest and every path it uses is untouched and gated bitwise
   from S0 on. What it GAINS: the ability to make its outcome model a two-forest
   causal forest with the latent ability as a treatment moderator, the motivating
   class. What it still needs BEYOND this arc: the BCF test surface - its MH filter
-  calls `$predict` (`[[irt_causal_bart.R:568@4c018187]], 571, 636, 637, 709, 713`), which
+  calls `$predict` (bairrtt's `R/irt_causal_bart.R` lines 568, 571, 636, 637, 709 and 713), which
   `refuseUndefinedTestFits` refuses (`[[R_interface_bartcore.cpp:2858@4c018187]]`). This
   arc removes ONE of its two blockers; stated plainly so no reader over-reads
   "the named consumer is unblocked". Its measured price for the widening at

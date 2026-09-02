@@ -86,7 +86,7 @@ directions bind this document beyond the decisions:
   recorded in section 8.
 
 **Fork 6 is an XOR.** The door it closes was recorded as one -
-[[docs/plans/archive/bcf-bartcause-relocation.md:1252-1258@4c018187]], "whether `bart2` reaches a
+[[docs/plans/bcf-bartcause-relocation.md:1252-1258@4c018187]], "whether `bart2` reaches a
 multi-forest model through a flat `forests =` formal **or** through
 formula-level term syntax" - and VD picked formula terms. Rev 4 recommended
 both and, worse, implemented the undecided branch in the counts, the signature,
@@ -175,8 +175,8 @@ rename `seed -> rngSeed` ([[R/bart.R:681-683@4c018187]]), three `%/% n.thin` div
 formal of the target exactly and drops the rest silently.
 
 **Dispatch order inside bart2** (load-bearing for 3.c and 5.3): `argNames` is
-captured at [[R/utility.R:655@4c018187]], BEFORE the multinomial ([[R/utility.R:707@4c018187]]), ordinal ([[R/utility.R:906@4c018187]]), nbinom ([[R/utility.R:935@4c018187]])
-and hurdle ([[R/utility.R:965@4c018187]]) branches and before the standard path's build ([[R/utility.R:1005-1024@4c018187]]).
+captured at [[R/bart.R:774@4c018187]], BEFORE the multinomial ([[R/bart.R:925@4c018187]]), ordinal ([[R/bart.R:1078@4c018187]]), nbinom ([[R/bart.R:1111@4c018187]])
+and hurdle ([[R/bart.R:1154@4c018187]]) branches and before the standard path's build ([[R/bart.R:1186-1205@4c018187]]).
 
 **Siblings**: `bart` 33; `xbart` 28 with `control =` at [[R/xbart.R:23@4c018187]] and six
 slots overwritten ([[R/xbart.R:52-57@4c018187]]); `rbart_vi` 42; `dbarts` 31; `dbartsControl` 16;
@@ -481,7 +481,7 @@ Dots rejection-only; `storage`/`updateState` appended; `k` -> `NULL`;
 Three appended formals (fork 7, revised under critique r3 F1/F13/F14):
 `subset = NULL`, `storage = c("double", "single")`, and
 `family = c("auto", "logistic", "aft")`. Net 33 + 3 = **36 formals**. Every
-default reproduces today's behavior: `subset = NULL` is what [[R/xbart.R:2421@4c018187]] hardcodes,
+default reproduces today's behavior: `subset = NULL` is what [[R/bart.R:2692@4c018187]] hardcodes,
 `storage`'s first value is the current default, and **`family`'s first token is
 `"auto"`** - MEASURED(rev5), `dbarts()`'s own default is `"auto"`, `bart()`
 passes no `family` today, and `dbarts(x, binary_y)` resolves to probit while
@@ -895,7 +895,7 @@ because the sugar rewrites to the named call before anything numeric runs.
   [[src/R_interface_bartcore.cpp:2833-2836@4c018187]]. So a term-bearing formula with
   `test` is refused, restating that message in the term's spelling. Supporting
   test bases is the engine-side door
-  [[docs/plans/archive/bcf-bartcause-relocation.md:1274-1276@4c018187]] records as "A test
+  [[docs/plans/bcf-bartcause-relocation.md:1275-1277@4c018187]] records as "A test
   treatment vector / test basis [...] A modelling decision first" - not cheap,
   and not this arc's. S12 loses the test-frame work rev 4 budgeted.
 - **`missing = "incorporate"`**: an NA in an expanded basis has no defined
@@ -1141,7 +1141,7 @@ the model cannot keep.
 
 `predict()` is NOT extended. Out-of-sample per-forest values need the
 engine-side per-forest saved-tree replay door
-([[docs/plans/archive/bcf-bartcause-relocation.md:1271-1273@4c018187]]), which this arc does not
+([[docs/plans/bcf-bartcause-relocation.md:1271-1273@4c018187]]), which this arc does not
 open (N8). The door's language is updated at the records commit to record that
 the in-sample half landed here.
 
@@ -1169,16 +1169,16 @@ than reopened.
 | dbarts docs | [[man/dbartsControl.Rd:14@4c018187]], [[man/dbartsControl.Rd:59@4c018187]], [[man/dbartsControl.Rd:77@4c018187]]; [[man/dbarts.Rd:96@4c018187]]; [[man/samplePriorPredictive.Rd:70@4c018187]], [[man/samplePriorPredictive.Rd:73@4c018187]], [[man/samplePriorPredictive.Rd:80@4c018187]]; [[man/dbartsSampler-class.Rd:114@4c018187]] | in-arc |
 | design record | [[docs/design/public-surface.md:76@4c018187]], [[docs/design/public-surface.md:101@4c018187]] | amend in place |
 | dbarts tests | 66 occurrences across 32 files (re-derived by both critiques) | largest mechanical edit |
-| bartCause | [[R/bcf.R:205-209@4c018187]] | loud, 1 line |
-| stan4bart | forwardable set; [[inst/tinytest/test-02-binary.R:57@4c018187]]; after the rename `seed` clears BOTH forwarding loops and is applied twice (benign, same slot); `bart_args = list(rngSeed = 5)` is dropped silently | test edit + 2 recorded consequences |
+| bartCause | bartCause's `R/bcf.R` lines 205-209 | loud, 1 line |
+| stan4bart | forwardable set; stan4bart's `inst/tinytest/test-02-binary.R` line 57; after the rename `seed` clears BOTH forwarding loops and is applied twice (benign, same slot); `bart_args = list(rngSeed = 5)` is dropped silently | test edit + 2 recorded consequences |
 | CRAN | consumers with `formals()`-derived filters drop their users' `rngSeed` silently | user-facing silent |
 
 ### 6.2 xbart
 
 [[R/xbart.R:23-24@4c018187]], [[R/xbart.R:36-47@4c018187]], [[R/xbart.R:49-57@4c018187]], [[R/xbart.R:71-72@4c018187]], [[R/xbart.R:93-95@4c018187]], [[R/xbart.R:138-141@4c018187]], [[R/xbart.R:168-173@4c018187]],
-:190-209; [[man/xbart.Rd:86-90@4c018187]]. bartCause [[R/bayesOpt.R:30-47@4c018187]] becomes a DROP
+:190-209; [[man/xbart.Rd:86-90@4c018187]]. bartCause's `R/bayesOpt.R` lines 30-47 becomes a DROP
 filter (`keepTrainingFits`, `keepTrees`, `updateState`, `printEvery`,
-`printCutoffs` have no xbart formal and xbart has no dots); [[R/bayesOpt.R:22@4c018187]], [[R/bayesOpt.R:27@4c018187]], [[R/bayesOpt.R:28@4c018187]]
+`printCutoffs` have no xbart formal and xbart has no dots); bartCause's `R/bayesOpt.R` lines 22, 27, and 28
 survive. Zero CRAN xbart consumers; `iiasa/ibis.iSDM` (non-CRAN) breaks loudly
 on `control =`.
 
@@ -1199,13 +1199,13 @@ silently dropped afterwards; NEWS.
 | dbarts | the gating helper plus six sites; the shared unknown-argument helper; two new formals on bart2 and rbart_vi | in-arc |
 | **bart()** | **none - by construction** | none |
 | any wrapper forwarding one argument set to two families | sees a `dbartsFamilyGatedWarning`, mutable by class. A wrapper that prefers silence pre-filters the gated names or handles the class; that is the wrapper's choice and no part of this design depends on it | user-facing warning |
-| bartCause | [[R/responseFit.R:213-216@4c018187]] may drop its `dbartsControl` clause (2 lines). `storage`/`updateState` become reachable through its `formals(bart2)`-keyed treatment filter ([[R/utility.R:165@4c018187]]), so `bartc(..., storage = "single")` starts applying reduced-precision storage to the propensity fit too - a numeric change; NEWS both sides | 2 lines + a recorded numeric change |
+| bartCause | bartCause's `R/responseFit.R` lines 213-216 may drop its `dbartsControl` clause (2 lines). `storage`/`updateState` become reachable through its `formals(bart2)`-keyed treatment filter (bartCause's `R/utility.R` line 165), so `bartc(..., storage = "single")` starts applying reduced-precision storage to the propensity fit too - a numeric change; NEWS both sides | 2 lines + a recorded numeric change |
 
 ### 6.5 Prior objects and formula terms
 
 Prior objects are additive. **Formula terms are additive for every censused
 consumer**: a term appears only in a formula the USER writes. bartCause builds
-its formulas itself ([[R/argParse.R:78@4c018187]], [[R/argParse.R:212@4c018187]]) and never constructs a term;
+its formulas itself (bartCause's `R/argParse.R` lines 78 and 212) and never constructs a term;
 stan4bart, treatSens and bairrtt never call bart2; WeightIt and MatchIt pass
 `formula` through from their own callers, so a term written by their user
 reaches bart2 unchanged and works. No consumer's accept-set changes, because no
@@ -1252,7 +1252,7 @@ formal arguments") does not name the abbreviation's former target.
 Every slice is independently gateable and draw-neutrality-classified.
 **The equivalence harness cannot prove neutrality for most of these slices**:
 `benchmarks/R/equivalence.R` has zero `xbart` occurrences and reaches `bart2`
-only from the four alternate-family scenarios (calls at [[man/rbart.Rd:942@4c018187]], [[man/rbart.Rd:971@4c018187]], [[man/rbart.Rd:1001@4c018187]],
+only from the four alternate-family scenarios (calls at [[benchmarks/R/equivalence.R:1118@4c018187]], [[benchmarks/R/equivalence.R:1147@4c018187]], [[benchmarks/R/equivalence.R:1177@4c018187]],
 :1039 - anchor corrected from rev 4's scenario-definition lines).
 
 **The in-slice A/B pattern**, used wherever harness coverage is absent: a probe
@@ -1276,7 +1276,7 @@ re-record.
 | S7 | prior objects | three formals appended; four collision refusals; the `resid.prior` family diagnosis | in-slice A/B |
 | S8 | xbart | `control =` removed, four flat knobs, `tree.prior`, shape checks | `inst/tinytest/test-xbart-*.R` |
 | S9 | split.probs default | bart2/rbart_vi -> `NULL` | in-slice A/B; identity proved by construction |
-| **S10** | **bart() parity** | append `subset`, `storage`, `family = c("auto", "logistic", "aft")`; forward all three in the literal list; **by-name refusals pointing at bart2 for the four own-class tokens** (`match.arg`'s generic "'arg' should be one of" names neither bart2 nor why, and the existing ordinal treatment at [[man/rbart.Rd:2362-2372@4c018187]]/[[man/rbart.Rd:2440-2445@4c018187]] is ordinal-specific while multinomial's refusal lives in `dbarts()`, not `bart()` - MEASURED(r3)); 2 Rd items; the rule paragraph; tests | in-slice A/B on `bart()` (harness covers it as the default route) **plus a regression-shaped pair: a BINARY `bart()` fit at HEAD and at the slice must be bitwise identical** - the F1 failure mode |
+| **S10** | **bart() parity** | append `subset`, `storage`, `family = c("auto", "logistic", "aft")`; forward all three in the literal list; **by-name refusals pointing at bart2 for the four own-class tokens** (`match.arg`'s generic "'arg' should be one of" names neither bart2 nor why, and the existing ordinal treatment at [[R/bart.R:2738-2749@4c018187]]/[[R/bart.R:2854-2857@4c018187]] is ordinal-specific while multinomial's refusal lives in `dbarts()`, not `bart()` - MEASURED(r3)); 2 Rd items; the rule paragraph; tests | in-slice A/B on `bart()` (harness covers it as the default route) **plus a regression-shaped pair: a BINARY `bart()` fit at HEAD and at the slice must be bitwise identical** - the F1 failure mode |
 | **S11** | **fork 6a: per-forest output channel** | thread `samples$forestFits`/`samples$glue` through `packageBartResults` via `shapeMultinomialChannel` (trailing margin); `forest1..K` names plus a `forest.labels` attribute; carry the expanded bases; response-scale conversion; `extract(type = "forest", forest =, contribution =)`; refusal on fits without forest reporting; T-E | existing single-forest fits bitwise unchanged (in-slice A/B); T-E's identity `< 1e-12` on binary AND 3-level-factor bases |
 | **S12** | **fork 6b: formula-term ingestion** | the both-sides AST walk with ancestor-chain context tracking and non-forest-operand recursion (5.3 steps 1-2), the colon desugar (5.2.1) and the left-operand grammar (5.2.1a), the symbolic-vars grammar and its subset-of-the-design rule (5.2.3, 5.3 step 4), AST-surgery rewrite, post-subset basis evaluation, the twelve refusals of 5.6 (including `*`, the ancestor-chain check, both grammars, the factor-member and colon-chain cases, and the family matrix at family-resolution time), docs | **draw-neutral for every non-term call**, gated by the A/B matrix below; term-using calls are NEW paths gated by tests, including the desugar-equivalence and refusal cells below |
 | **S13** | **fork 6c: formula-path bases subsetting** | converge `dbarts(forest(basis =))` onto the term route's post-subset rule | **BEHAVIOR CHANGE, not a defect fix** - see below |
@@ -1346,7 +1346,7 @@ dbarts(y ~ a, d, subset = 21:40, forests = list(forest(), forest(basis = <20-row
 
 The second is the ambiguous case the recorded door names ("it makes a shipped
 argument's contract ambiguous at equal row counts",
-[[bcf-bartcause-relocation.md:1283-1284@4c018187]]): a 20-row basis supplied against a
+[[docs/plans/bcf-bartcause-relocation.md:823-824@4c018187]]): a 20-row basis supplied against a
 20-row subset of a 40-row frame is silently row-aligned by position. Under the
 post-subset rule it either refuses or selects different rows. **The decision:
 with `subset` present the basis must be FULL-DATA length and is subset by the
@@ -1944,7 +1944,7 @@ Items the arc RECORDED for later rather than resolving:
 - Out-of-sample per-forest replay (N8) stays a door: S11 shipped only
   the in-sample half (`extract(type = "forest")`); `predict()` needs the
   engine-side per-forest saved-tree replay door recorded at
-  [[docs/plans/archive/bcf-bartcause-relocation.md:1271-1273@4c018187]], which this arc did
+  [[docs/plans/bcf-bartcause-relocation.md:1271-1273@4c018187]], which this arc did
   not open. 5.8.6 says that door's language is updated "at the records
   commit" - recorded here rather than by editing that file, which is
   outside this closure's scope.
