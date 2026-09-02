@@ -206,16 +206,14 @@ Things that could be wrong and would not be caught.
   (`tests/cpp/test_facade.cpp`, `test_moves.cpp`, `test_model.cpp`), but the
   mutation record itself has not been re-run against this tip to confirm
   none remain.
-- **A stale cross-reference in the column-mask coverage**: `test-blocks.R`'s
-  warm-start block cites "the BCF columnMask refusal test in
-  test-interactions.R", which that file no longer contains. The containment
-  gate is still tested from `test-blocks.R`,
-  `test-heteroscedastic-warm-start.R` and `tests/cpp/test_state.cpp`;
-  nothing tests that `setState` itself honours the containment verdict
-  (`sampler.hpp`'s `allValid = columnMaskOk`); `Chain::stateIsValid`'s own
-  per-forest and per-variance-tree checks already reject the same invalid
-  states independently, which is why the review-2026-08-24 mutation pass
-  ruled this one not blocking (mutation-B-findings.md).
+- **Nothing tests that `setState` itself honours the containment verdict**
+  (`sampler.hpp`'s `allValid = columnMaskOk`). The containment gate is
+  tested from `test-blocks.R`, `test-interactions.R`,
+  `test-heteroscedastic-warm-start.R` and `tests/cpp/test_state.cpp`, and
+  `Chain::stateIsValid`'s own per-forest and per-variance-tree checks
+  already reject the same invalid states independently, which is why the
+  review-2026-08-24 mutation pass ruled this one not blocking
+  (mutation-B-findings.md).
 - **Six of 32 `benchmarks/R` harnesses are wired to no workflow at all**:
   `bench-sampler.R`, `composition-matrix.R`, `forest-ranef-collapse-proto.R`,
   `geweke-mc.R`, `grouped-mixing.R` (five harnesses), plus
