@@ -38,9 +38,9 @@ using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::responseConduitIsFixed;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::sigmaIsPinned;
+using bartcore_bridge::supportFamily;
 using bartcore_bridge::testFitsAreUndefined;
 using bartcore_bridge::validateColumnValues;
-using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -1315,21 +1315,22 @@ static AugmentationLaw augmentationLawOf(int family, const char* caller) {
   return AugmentationLaw::probit; // unreached: Rf_error longjmps
 }
 
-// Resolves the family and applies the rules R/augmentation.R applies ahead of
-// the R helpers, which the wrapped forms below have no R layer to inherit. Only
-// the half a wrong argument cannot survive: the parameter each law REQUIRES,
-// there being no default to fall back on (the ordinal arm indexes its cut
-// points unconditionally, and the Polya-Gamma working response divides by its
+// This file reads the laws through if-chains rather than a switch - the token
+// map above and the per-law argument rules below - so -Wswitch cannot see a law
+// either one omits; this assertion is the only tripwire. Update it only
+// together with both.
+static_assert(bartcore_bridge::numAugmentationLaws == 6,
+              "a law was added to AugmentationLaw: augmentationLawOf's token "
+              "map and the argument rules below each need an arm for it");
+
+// Applies the rules R/augmentation.R applies ahead of the R helpers, which the
+// wrapped forms below have no R layer to inherit. Only the half a wrong
+// argument cannot survive: the parameter each law REQUIRES, there being no
+// default to fall back on (the ordinal arm indexes its cut points
+// unconditionally, and the Polya-Gamma working response divides by its
 // latent), and the logistic counts. A parameter no law reads is IGNORED rather
 // than refused by name as R refuses it, a C caller having no way to leave one
 // out. drawing selects the draw's own scalars.
-// The per-law argument rules below are if-chains, not a switch, so -Wswitch
-// cannot see a law they omit; this assertion is the only tripwire. Update it
-// only together with the rules and with augmentationLawOf's token map.
-static_assert(bartcore_bridge::numAugmentationLaws == 6,
-              "a law was added to AugmentationLaw: the argument rules below "
-              "and augmentationLawOf's token map each need an arm for it");
-
 static void augmentationArguments(AugmentationLaw law,
                                   const AugmentationInputs& in, bool drawing,
                                   const char* caller) {
