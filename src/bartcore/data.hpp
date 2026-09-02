@@ -1670,6 +1670,29 @@ struct ColumnStore {
     return true;
   }
 
+  /// Dense spelling of the same check, for the entrances that hand over a
+  /// plain column-major test matrix.
+  bool testSourceLevelCodesAreValid(const double* x_test,
+                                    size_t numTest) const {
+    return testSourceLevelCodesAreValid(
+      densePredictorSource(x_test, numTest, numPredictors));
+  }
+
+  /// Whether every factor cell of a WHOLE-DATA replacement is a level code of
+  /// its column's table. The table is the creation-time one, pinned rather
+  /// than re-derived, so the question is membership in it rather than the
+  /// representability the build's count sweep asks - and it is asked over the
+  /// replacement's own row count, which need not be the store's.
+  bool replacementLevelCodesAreValid(const double* x_, size_t n) const {
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (!isFactor(j)) continue;
+      const double* column = x_ + j * n;
+      for (size_t i = 0; i < n; ++i)
+        if (!categoricalValueIsValid(j, column[i])) return false;
+    }
+    return true;
+  }
+
   /// Build the test store from a borrowed predictor view against the training
   /// cut grid (already built, shared by identity; numCuts and cutPoints are not
   /// rebuilt). Column j reads dense column sourceOf(j) of source.denseValues
@@ -2175,10 +2198,16 @@ struct ColumnStore {
   /// new number of observations, read for the call only. Threshold cuts are
   /// rebuilt from scratch, so unlike refreshCutsForColumn a quantile-mode count
   /// may shrink and the caller remaps existing splits onto the new grid; a
-  /// factor column's level count stays fixed whichever kind it is (the caller
-  /// validates the new values). Dense stores only (setData is refused on
-  /// CSC/mixed).
-  void setData(const double* x_, size_t n) {
+  /// factor column's level count stays fixed whichever kind it is. Dense
+  /// stores only (setData is refused on CSC/mixed).
+  ///
+  /// False REFUSES the replacement, leaving the store untouched: some cell of
+  /// a factor column is not a level code of that column's table. The count is
+  /// pinned, so the count sweep build runs cannot arise here and the check is
+  /// membership instead - and it runs before a single code is written, since
+  /// unlike a creation build this store has values to preserve.
+  [[nodiscard]] bool setData(const double* x_, size_t n) {
+    if (!replacementLevelCodesAreValid(x_, n)) return false;
     numObservations = n;
     train.codes.resize(n * numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) train.codeOffsets[j] = j * n;
@@ -2186,12 +2215,12 @@ struct ColumnStore {
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
       const double* column = x_ + j * n;
-      // the level count is pinned, so the count sweep - and with it the
-      // ingestion refusal - does not run: setData trusts its caller, as its
-      // contract above says
-      if (splitsByThreshold(j)) buildCutsForColumn(j, column, true);
+      // the level count is pinned, so the count sweep does not run here; the
+      // membership check above is what stands in for it
+      if (splitsByThreshold(j)) (void)buildCutsForColumn(j, column, true);
       quantizeColumn(j, column);
     }
+    return true;
   }
 
   /// Dense-stored columns only; rank columns have no contiguous codes.

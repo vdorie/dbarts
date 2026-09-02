@@ -4893,10 +4893,14 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
           Rf_error("%s", message);
     }
 
-    sampler.setData(data.predictors.denseValues, data.y, data.numObservations,
-                    data.weights, data.offset,
-                    data.testPredictors.denseValues, data.numTestObservations,
-                    data.testOffset);
+    // the loop above bounds every factor cell on both sides against the same
+    // fixed level table the engine re-tests, so this refusal is the backstop
+    // a header-only host meets rather than a live arm here
+    if (!sampler.setData(data.predictors.denseValues, data.y,
+                         data.numObservations, data.weights, data.offset,
+                         data.testPredictors.denseValues,
+                         data.numTestObservations, data.testOffset))
+      Rf_error("a predictor value is not an existing level code");
     // a family whose augmentation is STATED against the counts takes them
     // through the weight conduit as well, so the latents are drawn against the
     // counts now in force rather than left at the deterministic cold start a

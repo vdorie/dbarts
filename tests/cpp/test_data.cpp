@@ -493,7 +493,7 @@ static void testMapOldCutPointsOntoNew() {
   // 1), and 2.5 clamps into the left child's shrunken interval [0, 1)
   std::vector<double> x2(n);
   for (size_t i = 0; i < n; ++i) x2[i] = 2.0 * static_cast<double>(i + 1);
-  store.setData(x2.data(), n);
+  check(store.setData(x2.data(), n), "the store takes the replacement");
 
   std::vector<double> params(tree.nodes.size(), 0.0);
   tree.mapOldCutPointsOntoNew(store, oldCuts, params);
@@ -508,7 +508,7 @@ static void testMapOldCutPointsOntoNew() {
   oldCuts = store.cutPoints;
   int32_t oldRootIndex = tree.at(0).rule.splitIndex();
   check(oldRootIndex == 1, "");  // silence unused in release
-  store.setData(x3.data(), n);
+  check(store.setData(x3.data(), n), "the store takes the replacement");
 
   params.assign(tree.nodes.size(), 0.0);
   std::vector<int32_t> bottoms;
@@ -568,7 +568,7 @@ static void testMapOldCutPointsStarvedWeightedMerge() {
   // leaving the left child no interval, so its subtree collapses
   std::vector<double> x2(n);
   for (size_t i = 0; i < n; ++i) x2[i] = 20.0 + 2.0 * static_cast<double>(i);
-  store.setData(x2.data(), n);
+  check(store.setData(x2.data(), n), "the store takes the replacement");
 
   tree.mapOldCutPointsOntoNew(store, oldCuts, params);
   check(tree.at(leftChild).isBottom(), "interval-starved subtree collapses");
@@ -1256,7 +1256,8 @@ void testColumnKindAxis() {
   }
   ColumnStore replaced;
   built(replaced.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared));
-  replaced.setData(narrowed.data(), n);
+  check(replaced.setData(narrowed.data(), n),
+        "the store takes the replacement");
   check(replaced.categoryCounts[1] == declaredCategories &&
           replaced.categoryCounts[2] == numLevels,
         "setData keeps each factor kind's level count fixed");
@@ -1387,7 +1388,8 @@ void testOrderedFactorGridSurvivesMutation() {
   built(replaced.build(x.data(), n, 1, 100u, false, kinds, nullptr, 0, declared));
   std::vector<double> originalCuts(replaced.cutPoints[0]);
   std::vector<double> shorter(n / 2, 0.0);
-  replaced.setData(shorter.data(), n / 2);
+  check(replaced.setData(shorter.data(), n / 2),
+        "the store takes the replacement");
   check(replaced.categoryCounts[0] == numLevels &&
           replaced.cutPoints[0] == originalCuts,
         "setData keeps the level count and rebuilds the same midpoints");

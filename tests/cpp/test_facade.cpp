@@ -102,11 +102,11 @@ public:
   SPY_VOID(setSigma, (double s), (s))
   SPY_RET(bool, setTestData, (const PredictorSource& s), (s))
   SPY_VOID(setTestOffset, (const double* o), (o))
-  SPY_VOID(setData,
-           (const double* x, const double* y, std::size_t n, const double* w,
-            const double* o, const double* xt, std::size_t nt,
-            const double* ot),
-           (x, y, n, w, o, xt, nt, ot))
+  SPY_RET(bool, setData,
+          (const double* x, const double* y, std::size_t n, const double* w,
+           const double* o, const double* xt, std::size_t nt,
+           const double* ot),
+          (x, y, n, w, o, xt, nt, ot))
   SPY_RET(PredictorUpdateResult, setPredictor,
           (const PredictorSource& s, bool f, bool u), (s, f, u))
   SPY_RET(PredictorUpdateResult, updatePredictor,
@@ -621,8 +621,9 @@ const Row rows[] = {
     f.g.base().setTestOffset(nullptr);
   }},
   {FacadeVirtual::setData, "setData", [](Fixtures& f) {
-    f.d.base().setData(f.x.data(), f.y.data(), Fixtures::n / 2, nullptr,
-                       nullptr, nullptr, 0, nullptr);
+    check(f.d.base().setData(f.x.data(), f.y.data(), Fixtures::n / 2, nullptr,
+                             nullptr, nullptr, 0, nullptr),
+          "facade setData: the replacement is ingested");
     check(f.d.impl().numObservations() == Fixtures::n / 2 &&
             f.d.impl().data().numObservations == Fixtures::n / 2,
           "facade setData: the impl's store takes the replacement");

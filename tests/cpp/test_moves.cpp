@@ -29,7 +29,9 @@ static void testLogisticMutation(ext_rng* rng) {
   std::vector<double> y2(n2);
   for (size_t i = 0; i < n2; ++i)
     y2[i] = runif01() < 1.0 / (1.0 + std::exp(-f2[i])) ? 1.0 : 0.0;
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr,
+                        0),
+        "logistic setData ingests the replacement");
   check(sampler.numObservations() == n2, "logistic setData resizes");
 
   bool occupied = true;
@@ -838,7 +840,9 @@ static void testCategoricalMutation(ext_rng* rng) {
     y2[i] = categoryMeans[category] + 2.0 * x2[i + n2] +
             0.3 * (runif01() - 0.5);
   }
-  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr,
+                        0),
+        "categorical setData ingests the replacement");
   check(sampler.numObservations() == n2 &&
           sampler.data().categoryCounts[0] == 4,
         "categorical setData resizes and keeps categories");
@@ -1483,8 +1487,9 @@ static void testLinearLeafMutation(ext_rng* rng) {
     double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
     y2[i] = f2[i] + 0.2 * normal;
   }
-  sampler->setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0,
-                   nullptr);
+  check(sampler->setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr,
+                         0, nullptr),
+        "setData ingests the replacement");
 
   std::vector<double> fits2(n2 * numSamples);
   Results results2;

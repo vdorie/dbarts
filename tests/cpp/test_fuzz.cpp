@@ -560,7 +560,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         fuzzFillResponse(opRng, spec.family, nx.data(), n2, p, ny.data());
         double* xb = arena.keep(std::move(nx));
         double* yb = arena.keep(std::move(ny));
-        s.setData(xb, yb, n2, nullptr, nullptr, nullptr, 0);
+        // the fuzzer's factor values are drawn from each column's own level
+        // table, so the replacement is always ingestible
+        check(s.setData(xb, yb, n2, nullptr, nullptr, nullptr, 0),
+              "fuzz setData ingests the replacement");
         if (!currentX.empty()) currentX.assign(xb, xb + n2 * p);
         snprintf(line, sizeof line, "op%d setData n=%zu", op, n2);
         record(line);

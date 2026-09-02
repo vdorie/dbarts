@@ -176,11 +176,16 @@ public:
                                      data().numPredictors));
   }
   virtual void setTestOffset(const double* testOffset) = 0;
-  virtual void setData(const double* x, const double* y,
-                       std::size_t numObservations, const double* weights,
-                       const double* offset, const double* x_test,
-                       std::size_t numTestObservations,
-                       const double* testOffset) = 0;
+  /// Replace the whole data set. Returns false without touching the sampler
+  /// when a factor cell on either side is not a level code of its column's
+  /// table; both sides are checked before anything moves.
+  [[nodiscard]] virtual bool setData(const double* x, const double* y,
+                                     std::size_t numObservations,
+                                     const double* weights,
+                                     const double* offset,
+                                     const double* x_test,
+                                     std::size_t numTestObservations,
+                                     const double* testOffset) = 0;
   /// Replace the predictors from a borrowed view; only a dense block is
   /// consumable (PredictorSource::isDenseBlock), since every mutation kernel
   /// indexes the values column-major.
@@ -475,12 +480,12 @@ public:
   void setTestOffset(const double* testOffset) override {
     impl_.setTestOffset(testOffset);
   }
-  void setData(const double* x, const double* y, std::size_t numObservations,
+  bool setData(const double* x, const double* y, std::size_t numObservations,
                const double* weights, const double* offset,
                const double* x_test, std::size_t numTestObservations,
                const double* testOffset) override {
-    impl_.setData(x, y, numObservations, weights, offset, x_test,
-                  numTestObservations, testOffset);
+    return impl_.setData(x, y, numObservations, weights, offset, x_test,
+                         numTestObservations, testOffset);
   }
   // the view-taking overrides hide the base's dense convenience spellings;
   // re-expose them so a dense caller still resolves

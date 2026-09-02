@@ -1352,10 +1352,22 @@ public:
   /// remapped onto the value-nearest new cuts, and any subtree left invalid
   /// or empty collapses. Gaussian chains keep sigma and the variance prior
   /// fixed on the original scale.
-  void setData(const double* x, const double* y, size_t numObservations,
-               const double* weights, const double* offset,
-               const double* x_test, size_t numTestObservations,
-               const double* testOffset = nullptr) {
+  ///
+  /// False REFUSES the replacement, leaving the sampler untouched: a factor
+  /// cell on either side is not a level code of its column's table. BOTH
+  /// sides are checked before anything moves - the level table is fixed at
+  /// creation and a replacement does not move it, so a test matrix this
+  /// entrance cannot ingest refuses the whole call rather than leaving new
+  /// training values beside no test set.
+  [[nodiscard]] bool setData(const double* x, const double* y,
+                             size_t numObservations, const double* weights,
+                             const double* offset, const double* x_test,
+                             size_t numTestObservations,
+                             const double* testOffset = nullptr) {
+    bool hasTest = x_test != nullptr && numTestObservations > 0;
+    if (hasTest &&
+        !data_.testSourceLevelCodesAreValid(x_test, numTestObservations))
+      return false;
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap. The variance forest's
     // factors ride the same phase: their per-observation slab is strided by
@@ -1370,12 +1382,12 @@ public:
 
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
 
-    data_.setData(x, numObservations);
-    // a refused test matrix leaves no test set rather than a mis-coded one:
-    // this entrance reports no status, and the store has already taken the
-    // replacement training values
-    if (x_test != nullptr && numTestObservations > 0 &&
-        data_.buildTest(x_test, numTestObservations)) {
+    if (!data_.setData(x, numObservations)) return false;
+    if (hasTest) {
+      // the pre-check above bounds every test cell against the same fixed
+      // table this build re-tests, so the refusal is a backstop rather than
+      // a live arm
+      if (!data_.buildTest(x_test, numTestObservations)) return false;
       data_.testOffset = testOffset;
     } else {
       data_.resetTestStorage();
@@ -1384,6 +1396,7 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
                                varianceParams[c]);
+    return true;
   }
 
   /// Replace the predictor matrix from a borrowed view (the store keeps its
