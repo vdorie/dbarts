@@ -1364,11 +1364,13 @@
             whose factor columns are already integer level codes hands them
             over as \code{int32_t} instead of building the double block the
             entries used to require of it; \code{INT_MIN} (R's
-            \code{NA_INTEGER}) marks a missing code. The library widens that
-            block once internally for now, so what the field saves a caller
-            is the loop and the buffer rather than a conversion. Both
-            channels are indexed by the same \code{columnSources[j]}, within
-            the channel the sampler's kind for that column selects: the
+            \code{NA_INTEGER}) marks a missing code. The mutation entries
+            widen that block once internally, so there the field saves the
+            caller the loop and the buffer rather than the conversion; the
+            test-side entries read the codes where they lie and build no
+            double block at all. Both channels are indexed by the same
+            \code{columnSources[j]}, within the channel the sampler's kind
+            for that column selects: the
             double index is bounded by \code{numColumns} and the code index
             by \code{numDenseCodeColumns}, and an entry refuses a source that
             breaks either bound or that leaves out a channel its columns
