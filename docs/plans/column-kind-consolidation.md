@@ -1094,7 +1094,13 @@ bridge's checks run *before* the store is touched, which is what preserves the
 nothing-mutated-on-refusal property that `setState`'s rollback
 (`sampler.hpp:945-955`) and the mutation transaction depend on. Message quality
 for R users does not change, because the bridge still fires first with its own
-wording (`R_interface_bartcore.cpp:1651-1656`).
+wording (`R_interface_bartcore.cpp:1653-1658`) - but only for CODES. **The
+bridge did not bound the level COUNT at all**, and `R/utility.R`'s 65534/65535
+gate sits inside its `is.factor(column)` branch, so a `sparseFactor`'s declared
+table and a `varTypes` entry on a plain matrix both reach the store past it.
+S3 therefore has to add the ceiling to `validateCategoricalPredictors` as well,
+or those two entrances answer a documented R surface with the wrong cause;
+corrected at S3's implementation.
 
 S3 also carries the engine-side backstop for S2's level ceiling. The
 K > 65534 refusal specified in section 1 sits beside `R/utility.R:540-558`,
@@ -1529,3 +1535,66 @@ rather than a loose one.
 
 S3 next: engine-side ingestion validation, including the K > 65534
 backstop this slice leaves R-side only.
+
+### S3 - engine-side ingestion validation (SHAS)
+
+The store now checks what it ingests at its own build entrances rather
+than trusting every host to have done it. On the TRAINING side the check
+rides the factor-count sweep the build already runs over every cell of a
+factor column - inferredCategoryCount and its CSC sibling report
+invalidCategoryCount instead of a count - so no cell is read twice and a
+column that is not a factor pays nothing; a dense build of n = 1e6 x
+p = 10 times the same before and after. A cell must be a whole number in
+[0, 65535) or missing, and the two kinds need that for different
+reasons: a categorical cell is narrowed to xint_t by a bare cast, which
+is undefined outside the range, while an ordered-factor cell takes the
+ordinal arm, where the cast is safe and the reason is that a value which
+is not a declared level has no position on a grid built from the level
+table. The COUNT has its own ceiling, maxLevelsForKind - 65535
+categorical, 65534 ordered factor, one apart because the ordered side
+spends a code on the upper bin of its K - 1 grid - which closes S2's
+recorded residue: fillCutsAtLevelMidpoints's cap raise needs no
+representability clamp once the count that sizes it is bounded first.
+On the TEST side the level table is the training one, fixed rather than
+inferred, so the sweep runs before anything is written and a refusal
+leaves the test store untouched, which setTestData's contract already
+promised.
+
+The refusal travels as a status, never an exception, since the hosts
+that raise on it cross a C boundary: build and buildTest are
+[[nodiscard]] bool, every sampler factory that ingests values mints its
+facade through makeIngestingFacade and answers null exactly as the leaf
+covariate and variance forest refusals do, and the xbart data handle
+destroys its store and raises. tests/cpp fixtures assert the status
+through built() rather than discarding it.
+
+The level-count ceiling turned out to be R-reachable, contrary to this
+section's own claim above: R/utility.R gates only its is.factor branch,
+so an exported sparseFactor of 65536 levels and a varTypes entry on a
+plain matrix both reached the store past it and answered with the
+sampler-specification message, which names none of the causes.
+validateCategoricalPredictors now bounds the declared count against
+maxLevelsForKind and bounds an undeclared column's codes by the kind's
+ceiling rather than by maxCategories, so the bridge fires first with its
+own wording on every path and the engine's refusal is the backstop it
+was meant to be. The ordered-factor code message is corrected to
+[0, 65534), the range that kind actually admits.
+
+Two residues, stated rather than fixed. ColumnStore::setData stays a
+TRUSTED entrance: keepCategoryCount pins K, so the count class of
+refusal cannot arise there at all; its sole in-tree caller sweeps every
+training and test factor cell through categoricalValueIsValid before
+calling; dbarts.h exposes no setData; and setData is refused outright on
+CSC/mixed stores. The only exposure is a header-only host, which is what
+its contract states - but it is asymmetric with this slice's own thesis,
+and S4a, which lands one checked narrow per cell anyway, is where the
+asymmetry closes. Second, Sampler::setData reports no status, so a test
+matrix it refuses leaves NO test set rather than an error; that is
+defined behaviour rather than a mis-coded store, and unreachable from R
+(the bridge validates both sides first), but a status return would be
+better and belongs with the same S4a pass.
+
+Draw-preserving, as a refusal moves no draw: equivalence-02d41365 46/46,
+bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337 11/11,
+all bitwise. No hot-path file is touched. S4a next: the code channel and
+the bridge's code-typed validation sweep.

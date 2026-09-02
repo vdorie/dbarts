@@ -268,7 +268,7 @@ ConstantGaussianLeaf single-forest model like probit, so it composes with the
 existing SamplerFacade instantiations (facade.hpp:413+) unchanged; K threads in
 through the same options struct the survival status and group indices use
 (chain.hpp:774-791). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1581-1619) branches on the boolean
+(src/R_interface_bartcore.cpp:1583-1621) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside

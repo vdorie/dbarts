@@ -74,7 +74,7 @@ weights, offset and test data **with n free to change**
 observations"; the predictor count is fixed). It rebuilds the cut grid, remaps
 existing splits onto value-nearest new cuts via `Tree::mapOldCutPointsOntoNew`,
 and collapses whatever is left invalid (src/bartcore/chain.hpp:1553-1611). Dense
-stores only (src/R_interface_bartcore.cpp:3326-3331); grouped and AFT samplers
+stores only (src/R_interface_bartcore.cpp:3346-3351); grouped and AFT samplers
 refuse (3314-3319).
 
 **Multi-forest samplers** are exactly BCF (2 forests) and multinomial (K
@@ -83,7 +83,7 @@ variance forest is a *separate* nullable member `varianceForest_`, so a
 heteroscedastic sampler reports `numForests == 1` and no multi-forest guard sees
 it - see section 6.
 
-- `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2629-2634).
+- `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2649-2654).
 - Response-side mutation rides `supportsResponseMutation`: **true for BCF**
   (combiner.hpp:621), **false for multinomial** (combiner.hpp:411 default, not
   overridden).
@@ -92,12 +92,12 @@ it - see section 6.
 - Predictor mutation: the **forced** whole-matrix `setPredictor` is supported
   multi-forest and is the documented swap; the **transactional** and
   **per-observation** paths refuse on `numForests >= 2`
-  (`refuseMultiForestTransactionalUpdate`, R_interface_bartcore.cpp:1909-1923),
+  (`refuseMultiForestTransactionalUpdate`, R_interface_bartcore.cpp:1929-1943),
   because `Chain::revalidateTrees` opens `Forest& forest = forests_[0]`
   (chain.hpp:1484) and revalidates the primary forest only.
 
 **Row subsets already exist, at creation.** `bartcore_createFromHandle`
-(R_interface_bartcore.cpp:2589-2600) builds a sampler over a row-subset view of
+(R_interface_bartcore.cpp:2609-2620) builds a sampler over a row-subset view of
 a data handle, copying the handle's cut grid so folds bin identically to the full
 data. That is xbart's fold mechanism and the mechanism
 docs/plans/archive/data-ownership-4-views.md names for "hurdle/IRT-style embeddings". The
@@ -342,7 +342,7 @@ one semantic.
 
 ### D1. Multi-forest transactional and per-observation predictor mutation, fixed n
 
-`refuseMultiForestTransactionalUpdate` (R_interface_bartcore.cpp:1909-1923)
+`refuseMultiForestTransactionalUpdate` (R_interface_bartcore.cpp:1929-1943)
 refuses the transactional `setPredictor`/`updatePredictor` and every
 per-observation session on `numForests >= 2`, because `Chain::revalidateTrees`
 (chain.hpp:1484) revalidates `forests_[0]` only. The forced whole-matrix swap is
@@ -365,7 +365,7 @@ than inventing a shape.
 
 **`forceUpdate = TRUE` is not a workaround.** Forced collapses emptied leaves
 into their parents; transactional rolls the whole change back; the per-observation
-session takes no force argument at all (R_interface_bartcore.cpp:3796-3802,
+session takes no force argument at all (R_interface_bartcore.cpp:3823-3829,
 3860-3868). These are **different posteriors, and neither is the other** - the
 partial-rollback session is itself a constraint-vetoed proposal, so "force is the
 deviant one" overstates the case in the memo's direction. What is unambiguous is
@@ -423,7 +423,7 @@ for `family = "multinomial"`). The price is higher than "audit the combiner".
 be a conditional inside a larger Gibbs sampler at all" is FALSE: the forced
 whole-matrix `setPredictor` is open for multinomial today
 (`bartcore_setPredictor` gates only `forceUpdate != TRUE`,
-R_interface_bartcore.cpp:3676-3679), so the *predictor* channel - the
+R_interface_bartcore.cpp:3703-3706), so the *predictor* channel - the
 latent-covariate shape of D1 - already works there. It is the *response* side
 that is closed. (b) The shipped entry is `bart2(family = "multinomial")`;
 `bartMultinomial` is the fit **class** name (R/generics.R:772), not an exported
@@ -444,7 +444,7 @@ which stops at the multinomial boundary.
 creation entry, `dbarts_sampler_create` (src/C_interface.cpp:107), routes
 through `bartcore_bridge::createHolder`, which now dispatches to BCF
 creation itself when the data carries a treatment vector
-(src/R_interface_bartcore.cpp:2580-2655) - `createBCFHolder` is no longer
+(src/R_interface_bartcore.cpp:2600-2675) - `createBCFHolder` is no longer
 the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:644,
 corrected from this section's stale :629) is no longer the only R entry.
 `bcf()` stays a comment (R/model.R:1666, 1684), expected to ship in
@@ -582,7 +582,7 @@ consumer").
 Fixed at HEAD (not a live defect): `applyNewData` resizes and re-anchors the variance-forest storage via `resizeVarianceStorage`, and both `forceRefreshTrees` and the donor-state restore path route the new data through `refreshVarianceForest` as well.
 The survey found `setData` accepted on a heteroscedastic sampler:
 `refuseMultiForestMutation` keys on `numForests >= 2`
-(R_interface_bartcore.cpp:2629-2634), but the variance forest is the separate
+(R_interface_bartcore.cpp:2649-2654), but the variance forest is the separate
 `varianceForest_` member, so such a sampler reports `numForests == 1` and passes.
 
 The critique escalated it on two axes, and the escalation is confirmed here:
@@ -697,7 +697,7 @@ defect lives in; the critique caught this and showed the probes transfer by
 diffing the two revisions, which the memo had not done.
 
 **Three corrections against the critique**, each re-checked here. (a) The
-grouped/AFT `setData` refusals are at R_interface_bartcore.cpp:3314-3319 - the
+grouped/AFT `setData` refusals are at R_interface_bartcore.cpp:3334-3339 - the
 memo was right and the critique's 3316-3321 is off by two. (b) The dense-only
 refusal is at 3326-3331 - memo right, critique's 3325 off by one. (The critique's
 third drift claim *is* correct: `applyNewData` runs to chain.hpp:1611, not 1608.)

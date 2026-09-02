@@ -430,7 +430,7 @@ draw is only defined for integer y_i. Unlike the binary check, counts are
 unbounded, so validation is integrality + non-negativity, not a two-value test.
 
 **A third response-shape channel (the ordinal precedent).** resolveFamily
-(src/R_interface_bartcore.cpp:1581-1614) branches on control.responseIsBinary and
+(src/R_interface_bartcore.cpp:1583-1616) branches on control.responseIsBinary and
 control.numOrdinalCategories; a count response is neither, so - exactly as ordinal
 added a K-level channel (docs/design/ordinal.md section 4) - NB needs a `count`
 response-shape flag plumbed through ParsedControl beside responseIsBinary, with
@@ -440,7 +440,7 @@ and the chain family switch (chain.hpp:597-631) a case constructing
 NBResponse(y, offset, numObservations, rSpec), with the r spec (a fixed integer,
 or the grid-estimate flag; the residualDf convention of "positive fixes,
 non-positive estimates" carries over) threaded through the options struct as
-residualDf and numCategories are (R_interface_bartcore.cpp:1759, 1762).
+residualDf and numCategories are (R_interface_bartcore.cpp:1779, 1762).
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
 a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:218-237),
@@ -494,7 +494,7 @@ getState writes it when carriesR() (chain.hpp:3065-3069, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:3272-3275); setState restoreR()s it (chain.hpp:3746-3747). The bridge adds a
 SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames
-(R_interface_bartcore.cpp:6513-6515), a
+(R_interface_bartcore.cpp:6540-6542), a
 conditional write when finite (:6642-6644, the resid.df line), and a by-name
 read tolerating absence (:7117-7123). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no

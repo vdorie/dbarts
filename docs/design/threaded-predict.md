@@ -77,7 +77,7 @@ synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
 on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:960-962) both store
+`dbarts_sampler_setNumThreads` (C_interface.cpp:962-964) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
@@ -128,9 +128,9 @@ no-op".
 The bridge took the argument on both `.Call` entries -
 `dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
 (`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:225-226) - and on
-`predictFromSource` (R_interface_bartcore.cpp:5748), `bartcore_predict`
-(:5791), `predictPerForestFromSource` (:5850), and
-`bartcore_predictPerForest` (:5890), validated with
+`predictFromSource` (R_interface_bartcore.cpp:5775), `bartcore_predict`
+(:5818), `predictPerForestFromSource` (:5877), and
+`bartcore_predictPerForest` (:5917), validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
 (test-predict-sparse.R:164, test-multinomial-test-offset.R:411 and
 :421, test-multinomial-category-offset.R:436) call these `.Call`s
@@ -210,9 +210,9 @@ non-negative figure, `convertSamplesFromDbartsToBart`, is 0.30% of a
 representative `predict.bart` call.
 
 The serial work predict's threaded region does **not** cover - the
-flat-offset add over the whole output (R_interface_bartcore.cpp:5804-
+flat-offset add over the whole output (R_interface_bartcore.cpp:5831-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:5839) - is one pass over the output
+the second (variance) fan-out (:5866) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

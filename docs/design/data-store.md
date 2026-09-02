@@ -24,7 +24,7 @@ transaction, the R-protection story - follows from that.
 directly on the store as parallel vectors, one entry per predictor:
 
 - `types` - `ColumnKind::numeric`, `categorical`, or `orderedFactor`
-  (`data.hpp:244`). Splitting keys on the DERIVED predicate
+  (`data.hpp:248`). Splitting keys on the DERIVED predicate
   `splitsBySubset(j)`, not on the kind: only grid construction, ingestion
   validation and reporting read the kind itself.
 - `numCuts[j]` - the threshold count: `n.cuts` (or the quantile-induced
@@ -58,7 +58,7 @@ code blocks quantize against it by identity - a view or a test block bins
 identically to its parent by construction because it copies these fields,
 not because any code re-derives them.
 
-`codeFor(j, value)` (`data.hpp:382`) is the one quantizer: ordinal values
+`codeFor(j, value)` (`data.hpp:386`) is the one quantizer: ordinal values
 map by `lower_bound` over `cutPoints[j]` (a value above every cut takes
 code `numCuts[j]`, always right of any split); categorical values are
 their own integer code; missing values take `naCode` (ordinal) or
@@ -67,7 +67,7 @@ or K pooled).
 
 ## CodeBlock (train and test)
 
-A `CodeBlock` (`data.hpp:182`) holds one row set's codes over the store's
+A `CodeBlock` (`data.hpp:186`) holds one row set's codes over the store's
 grid. `ColumnStore` instantiates two: `train` and `test`. Each owns:
 
 - `codes` - the packed dense codes, a single contiguous `xint_t` vector.
@@ -104,10 +104,10 @@ What stays store-level, not block-level, and why:
 ## ColumnSource and its four kinds
 
 Per-column storage is one explicit descriptor, `ColumnSource`
-(`data.hpp:162`), carried in `CodeBlock::sources` and sized to
+(`data.hpp:166`), carried in `CodeBlock::sources` and sized to
 `numPredictors` on any side that has rows (train always after a build;
 test whenever `numTestObservations > 0`; both empty on a reset test
-store). `ColumnSourceKind` (`data.hpp:148`) discriminates four kinds; each
+store). `ColumnSourceKind` (`data.hpp:152`) discriminates four kinds; each
 reads only the descriptor fields it owns:
 
 The discriminator is WHERE THE RE-QUANTIZE SOURCE LIVES, not who owns the
@@ -139,7 +139,7 @@ dense-backed factor inside a mixed container declares a level table the
 same way a CSC-backed one does. `refCode` is read on BOTH sides: its
 test-side value comes from the test view's `referenceCodes`
 (`PredictorSource`, `data.hpp`), and `quantizeCscColumnInto` reads it
-block-parametrically for the implicit rows (`data.hpp:619`). It holds the
+block-parametrically for the implicit rows (`data.hpp:623`). It holds the
 reference level's level-order code - not the sparse storage's structural
 zero; it may be any valid code, including 0. A dense factor codes its
 reference level by level order too, which the bitwise-vs-dense gate
@@ -149,13 +149,13 @@ their code; an ordinal one's take the quantized zero.
 Re-quantization resolves the raw source per kind through three accessors
 whose fallback orders are the contract:
 
-- `rawColumnForRequantize(j, x)` (`data.hpp:329`): CSC-backed -> null (the
+- `rawColumnForRequantize(j, x)` (`data.hpp:333`): CSC-backed -> null (the
   slice serves it); `denseResident` -> `residentRaw`; else `x + j*n` (or null
   if `x` is null). This is the mutation/setCutPoints path.
-- `rawColumn(j)` (`data.hpp:339`, owned training raw for leaf models):
+- `rawColumn(j)` (`data.hpp:343`, owned training raw for leaf models):
   gathered slot -> `gatheredRawValues`; `denseResident` -> `residentRaw`;
   else null.
-- `rawTestColumn(j)` (`data.hpp:351`): if `test.sources` is populated,
+- `rawTestColumn(j)` (`data.hpp:355`): if `test.sources` is populated,
   `denseResident` -> `residentRaw` and CSC-backed -> null (sparse storage
   serves no dense test covariate); else `ownedTestValues`; else the
   view-gathered `gatheredRawTestValues`; else null.
@@ -174,7 +174,7 @@ sampler's designated leaf covariates - or, for a data handle, the
 leaf-covariate columns declared at its creation (empty for a
 constant-leaf consumer) - into `gatheredRawValues`
 (column-major, `numObservations x q`), refreshed in the same pass as each
-column quantizes (`quantizeColumn`, `data.hpp:672`). `rawColumn` then
+column quantizes (`quantizeColumn`, `data.hpp:676`). `rawColumn` then
 serves owned memory for the store's lifetime, borrow long since released.
 Few columns are gathered, so the slot lookup is a linear scan
 (`gatheredSlotForColumn`).
@@ -184,7 +184,7 @@ The test-side twin `gatheredRawTestValues` is populated only by a view
 
 ## View semantics (buildFromParent)
 
-A view (`buildFromParent`, `data.hpp:1045`) is a row- and column-subset of
+A view (`buildFromParent`, `data.hpp:1054`) is a row- and column-subset of
 a built parent store, used by xbart folds and the data-handle path. It:
 
 - copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
@@ -229,7 +229,7 @@ strategies parameterize it:
 - `SubsetUpdate` (`sampler.hpp:1469`), driving `updatePredictor`:
   journals each touched column cell-by-cell via `setColumnJournaled`,
   recording each changed cell's old code into a `ColumnCodeRollback`
-  (`data.hpp:1904`). Past a quarter of the column changed, the journal
+  (`data.hpp:1915`). Past a quarter of the column changed, the journal
   falls back to a whole pre-change column copy and stops journaling. Per
   column it also snapshots `hasMissing[j]` and (if cuts refresh)
   `cutPoints[j]`.
@@ -360,7 +360,7 @@ all of that holds. Use the composed helpers - `parseCscMatrix`, `parseMixedConta
 - which serve both the training and test container parses from one body.
 
 State blocks are read BY NAME and defaulted when absent
-(`R_interface_bartcore.cpp:3972`): a newer release's additive blocks load
+(`R_interface_bartcore.cpp:3999`): a newer release's additive blocks load
 into an older reader, and only an encoding below
 `minReadableStateFormatVersion` is refused. Preserve that when you add a
 block - name it, default it, do not reorder. Predictors are not serialized

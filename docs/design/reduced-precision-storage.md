@@ -259,14 +259,14 @@ one re-record; OPT-IN only). The primary target.
 EXCLUDED from every track - flagged so no one bundles them as a transparent
 memory tier.
 
-- Predictor codes uint16 -> uint8 (data.hpp:481): the largest n*p array but
+- Predictor codes uint16 -> uint8 (data.hpp:485): the largest n*p array but
   ALREADY uint16; narrowing further lowers maxNumCutsRepresentable (~254),
   capping cutpoints and silently changing which splits exist -> different
   tree structure, pathological on high-cardinality columns. Only ever an
   explicit low-resolution MODELING option with its own arc, never a
   transparent tier.
-- fp32 cutpoints (data.hpp:556, tiny footprint) and fp32 ownedTestValues
-  (data.hpp:588, cold re-quantize source): fp32 flips near-tie quantization ->
+- fp32 cutpoints (data.hpp:560, tiny footprint) and fp32 ownedTestValues
+  (data.hpp:592, cold re-quantize source): fp32 flips near-tie quantization ->
   correctness-sensitive; not worth the risk, and cutpoints are not n-scaled.
 
 Also out of scope, decided at design time rather than by later measurement:

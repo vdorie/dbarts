@@ -41,17 +41,17 @@ unanimous default: the engine owns quantized data only, with no implicit
 raw retention. That default only works because every residual consumer of
 stored raw values was tracked down and given an explicit, narrow home:
 
-- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:969)
-  and quantile refresh (data.hpp:928). Not recoverable from codes (bin
+- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:978)
+  and quantile refresh (data.hpp:932). Not recoverable from codes (bin
   counts do not locate new quantile values).
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
   (model.hpp:998,1013,1362,1381); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
 - getTrees saved-tree replay (bartcore_getTrees,
-  R_interface_bartcore.cpp:6022) read store.x; it was routable from codes
+  R_interface_bartcore.cpp:6049) read store.x; it was routable from codes
   while the cut grid was unchanged since save. As shipped it needs neither:
   the replay reads the training predictors the R method supplies (data@x)
-  and the engine keeps no matrix (R_interface_bartcore.cpp:6090-6092).
+  and the engine keeps no matrix (R_interface_bartcore.cpp:6117-6119).
 - dbarts.h exposes no raw-x getter; the C ABI is unaffected.
 
 The panel's proposed resolutions, from that same 2026-07-06 synthesis:

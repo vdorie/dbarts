@@ -53,7 +53,7 @@ do not introduce them now).
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
 sentence's own subject stays bare - `"probit models do not support weights"`
-(`src/R_interface_bartcore.cpp:2764`), not `"'probit' models"`.
+(`src/R_interface_bartcore.cpp:2784`), not `"'probit' models"`.
 
 **External evidence.** The two external sources disagree, and the disagreement
 is the crux of this rule. Published best practice (tidyverse style guide):
@@ -103,7 +103,7 @@ natural casing rather than force `"bcf does not support"`.
 
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
-- Violation: `src/R_interface_bartcore.cpp:2377` ("Student-t residuals ...")
+- Violation: `src/R_interface_bartcore.cpp:2397` ("Student-t residuals ...")
   is a genuine outlier, not an acronym - reword under the sweep. `:7434`
   (DART) is the acronym exception and stays as-is; the two BCF-initial
   messages that sat beside it were reworded when the amplitude family took
@@ -192,7 +192,7 @@ a fixed two-literal message that interpolates nothing.
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
 a user-supplied choice; leave it bare for a descriptive phrase (`"a treatment
-forest does not support %s"`, `src/R_interface_bartcore.cpp:2320`, where
+forest does not support %s"`, `src/R_interface_bartcore.cpp:2340`, where
 `refused` is a phrase like `"a DART tree prior"`, not a name).
 
 **External evidence.** Neither tidyverse nor rlang docs address the choice
@@ -222,13 +222,13 @@ One main clause stating the refusal, optionally followed by ONE more clause
 (`:` for an explanation, `;` for a remedy) - not both.
 
 - Conformance: `"%s: a multi-forest sampler fixes its data at creation; make
-  a new sampler instead"` (`src/R_interface_bartcore.cpp:2622`) - main +
+  a new sampler instead"` (`src/R_interface_bartcore.cpp:2642`) - main +
   one remedy clause.
 - Both prior violations were fixed while they stood: `refuseHostMutation`'s
   message was refusal plus one remedy clause (the function and every call site
   are since deleted, multinomial-mutation-arc.md S4), and `R/spec.R:54-59`
   (probit weights) collapsed to the same shape, matching the C twin's
-  already-shorter form (`src/R_interface_bartcore.cpp:2764-2766`).
+  already-shorter form (`src/R_interface_bartcore.cpp:2784-2786`).
 
 **External evidence.** Published best practice's general philosophy agrees
 with R6's spirit: "An error message should start with a general statement of
@@ -261,7 +261,7 @@ the same sites:
 - **Default - no prefix.** Raised directly in a `.Call` bridge entry point's
   own body (or a helper it alone reaches); R's `Error in .Call(...)` frame
   already attributes it. E.g. `"forest weight length must match the number of
-  observations"` (`src/R_interface_bartcore.cpp:4045`).
+  observations"` (`src/R_interface_bartcore.cpp:4072`).
 - **Flat C API entry points** (`src/C_interface.cpp`, `src/R_interface.cpp`,
   the `dbarts.h` ABI) **- hardcoded literal self-name.** Reachable by a
   `LinkingTo: dbarts` consumer with no R call frame to consult, so the message
@@ -271,9 +271,9 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4737`/`:5026`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4764`/`:5053`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
-  date (38 of 69 vs 31 without), e.g. `:2651`. Reword the no-colon
+  date (38 of 69 vs 31 without), e.g. `:2671`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
   reads `"%s: requires a numeric matrix with matching columns"`, and the
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole
@@ -300,7 +300,7 @@ R message is canonical - the one users see, the one docs/tests quote; the
 C-side message is independently worded against this rule, not copied.
 Verbatim-identical strings across the boundary already failed once: `"forest
 weights must be finite and non-negative"` is byte-identical at
-`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4052`, but the very next
+`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4079`, but the very next
 guard in the same pair, the length check, drifted apart with no R counterpart
 to stay in sync with (`"forest weight length must match the number of
 observations"`, C-only). A string shared across two languages by hand is
@@ -470,7 +470,7 @@ Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
 '", value, "'; use -1, 0, or +1"` (`R/model.R:558`) - reword to `"'direction'
 must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
 site). `"unrecognized response family for a binary response"`
-(`src/R_interface_bartcore.cpp:1590`) - names no choices at all.
+(`src/R_interface_bartcore.cpp:1592`) - names no choices at all.
 
 **External evidence.** The `"must be one of"` shape itself is directly
 attested in base R: `stop("'origin' must be one of 'start', 'current' or
@@ -503,7 +503,7 @@ mandated, when cheap.
 `"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
 37 R + 16 C "not support" hits use this exact verb). Conformance: `"a
 treatment forest does not support %s"`
-(`src/R_interface_bartcore.cpp:2320`); `"probit models do
+(`src/R_interface_bartcore.cpp:2340`); `"probit models do
 not support weights; fit integer count weights with family = \"logistic\",
 or model continuous weights' latents directly"` (`R/spec.R:54-59`).
 Violation, since reworded to exactly this rule's proposal: `"sample =
@@ -541,7 +541,7 @@ S4). The shape survives in its replacements, `refuseCountsMutation`
 `$setControl`'s own per-slot refusal (`R/dbarts.R:1207-1213`). C-side
 backstops keep their own idiom under R7/R8 (`"%s: a multi-forest sampler
 fixes its data at creation; make a new sampler instead"`,
-`src/R_interface_bartcore.cpp:2622`). Conformance: `setModel`'s DART-tree-
+`src/R_interface_bartcore.cpp:2642`). Conformance: `setModel`'s DART-tree-
 prior refusal (`R/dbarts.R:1249-1256`) reads `"changing a DART tree prior is
 not available on an existing sampler: recreate it instead"`, matching this
 rule.

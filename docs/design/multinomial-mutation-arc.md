@@ -64,7 +64,7 @@ retired - the separate `$bc` handle is gone (section 1.5).
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:1889-1912`, draws one
+(`createChainRngs`, `src/R_interface_bartcore.cpp:1909-1932`, draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -109,8 +109,8 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3600`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3566`) - the dedicated
+(`src/R_interface_bartcore.cpp:3620`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3586`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
@@ -130,26 +130,26 @@ except where it names another file:
 
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
-| create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4336` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3881` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:3956` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:3989` | `:125` | S, unexported |
-| predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5252` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4821` | `:558` | S (`refuseUndefinedTestFits` `:2933` gates on `testFitsAreDefined`, TRUE here) |
-| active-row mask | `bartcore_setActiveRows` `:4074` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5868` | `:1085` | S |
-| per-category fits / varcounts | `:4147`, `:4280` | retired; `R/dbarts.R:1727`, `:1757` | S |
-| calibration read | `bartcore_getCalibration` `:4205` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
-| state store / restore | `:5684`, `:5689` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
-| saved trees | `bartcore_getTrees` `:6022` | retired; `R/dbarts.R:2035` | S, forest-indexed |
+| create (labels / counts) | `bartcore_create`'s multinomial arm `:3561` -> `createMultinomialDataHolder` `:3527` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
+| run | `bartcore_run` `:4363` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:3908` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:3983` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:4016` | `:125` | S, unexported |
+| predictors: whole / column / per-obs / joint | `:5194`, `:5146`, `:5307`, `:5361` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
+| cut points | `bartcore_setCutPoints` `:5279` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:4848` | `:558` | S (`refuseUndefinedTestFits` `:2953` gates on `testFitsAreDefined`, TRUE here) |
+| active-row mask | `bartcore_setActiveRows` `:4101` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5895` | `:1085` | S |
+| per-category fits / varcounts | `:4174`, `:4307` | retired; `R/dbarts.R:1727`, `:1757` | S |
+| calibration read | `bartcore_getCalibration` `:4232` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
+| state store / restore | `:5711`, `:5716` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
+| saved trees | `bartcore_getTrees` `:6049` | retired; `R/dbarts.R:2035` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
-(redirect to counts / category offset, `:2647-2674`), `setWeights`
-(`:2694-2698`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2634`), `setCalibration` (`:4289-4305`),
-`setForestWeights` (`:4064-4076`, permanent, model grounds), `getLatents`
+(redirect to counts / category offset, `:2667-2694`), `setWeights`
+(`:2714-2718`, same branch), `setSigma`, `setData` / `setModel`
+(`refuseMultiForestMutation` `:2654`), `setCalibration` (`:4316-4332`),
+`setForestWeights` (`:4091-4103`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -522,7 +522,7 @@ Three costs the first draft missed, all confirmed:
 - **Option (ii) is a hard error, not "five sites".** MEASURED:
   `dbarts(x[0, ], numeric(0))` stops with `data has zero rows` at the R
   layer, and the bridge would stop with `length of y must be greater than
-  0` (`src/R_interface_bartcore.cpp:945-946`) if it got there. Option (i)
+  0` (`src/R_interface_bartcore.cpp:947-948`) if it got there. Option (i)
   still wins, on corrected costs.
 
 **G1a: `data@y` carries the TRIALS vector `n_i`.** Length n, meaningful,
@@ -564,14 +564,14 @@ surface label (against the shared-guard note in letter). **H3
 (RECOMMENDED)** name the CAPABILITY, not the entry - "replace it through
 the counts channel" - one string, right on both surfaces, and what
 `docs/design/error-style.md` (ADOPTED 2026-08-17) asks for. H3 LANDED at
-S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2676-2677`).
+S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2696-2697`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2678-2693` tested only
+then fell through to the RESPONSE message (`:2698-2713` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
-arm is `:2661-2665`, and it states the model reason - an integer weight
+arm is `:2681-2685`, and it states the model reason - an integer weight
 already IS row-wise count replication, and a non-integer one has no exact
 augmentation sampler.
 
@@ -930,7 +930,7 @@ rather than contradicting it. Recording them so the record is exact:
    C2 edits that line AND adds an `expect_false`, on top of the two
    source re-bakes. Costlier than stated; same direction.
 2. **Finding 4**, option (ii) "is a hard bridge error ...
-   `R_interface_bartcore.cpp:937-953`." Refined: it dies one layer
+   `R_interface_bartcore.cpp:939-955`." Refined: it dies one layer
    earlier - MEASURED `dbarts(x[0, ], numeric(0))` stops at the R layer
    with `data has zero rows` before the bridge is reached. Both are hard
    errors; same conclusion.

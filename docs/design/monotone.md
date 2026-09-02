@@ -73,7 +73,7 @@ new piece of tree geometry and the component-test target of section 9.
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
 (`leafCovariateColumns` chain.hpp:81; `columnTypes` is per-column too but
-rides `PredictorSource` at data.hpp:251, reaching the options through
+rides `PredictorSource` at data.hpp:255, reaching the options through
 `SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
 As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
 entry on any column selects the constrained
