@@ -1222,6 +1222,45 @@ static void testMaterializePredictorSource() {
   check(codedReaderHolds,
         "the replay reader answers a coded column as the widened block does");
 
+  // Two coded columns of DIFFERENT content, read as the values they are
+  // rather than against a block the same arm filled: a reader resolving
+  // every coded column to one code slice, or one dropping the missing
+  // marker's mapping, agrees with such a block and disagrees here. The
+  // descent takes the slice pointer rather than at(), so that is pinned too.
+  const size_t q = 2;
+  std::vector<std::int32_t> pairCodes(q * n);
+  for (size_t i = 0; i < n; ++i) {
+    pairCodes[i] = i == 6 ? naDenseCode : static_cast<std::int32_t>(i % 3);
+    pairCodes[i + n] =
+      i == 9 ? naDenseCode : static_cast<std::int32_t>(7 + i % 5);
+  }
+  const std::int32_t pairChannels[q] = { ~0, ~1 };
+  const ColumnKind pairTypes[q] = { ColumnKind::categorical,
+                                    ColumnKind::orderedFactor };
+  PredictorSource pairSource;
+  pairSource.numRows = n;
+  pairSource.numColumns = q;
+  pairSource.denseCodes = pairCodes.data();
+  pairSource.denseChannels = pairChannels;
+  PredictorSourceColumns pairColumns(pairSource, pairTypes);
+  bool pairHolds = true;
+  for (size_t i = 0; i < n; ++i) {
+    double first = pairColumns.column(0).at(i);
+    double second = pairColumns.column(1).at(i);
+    pairHolds &= i == 6 ? std::isnan(first)
+                        : first == static_cast<double>(i % 3);
+    pairHolds &= i == 9 ? std::isnan(second)
+                        : second == static_cast<double>(7 + i % 5);
+  }
+  check(pairHolds,
+        "each coded column reads its own codes, the missing marker included");
+  check(pairColumns.column(0).codes() == pairCodes.data() &&
+          pairColumns.column(1).codes() == pairCodes.data() + n,
+        "the descent takes each coded column's own slice");
+  check(columns.column(3).codes() == nullptr &&
+          columns.column(0).codes() == nullptr,
+        "a double-channel column and a CSC one offer the descent no codes");
+
   printf("ok: predictor source materialization\n");
 }
 

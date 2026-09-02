@@ -1164,6 +1164,66 @@ expect_error(
   "missing values but the training column had none"
 )
 
+# the two entrances a coded source reaches without the replay reader: the
+# test-store install, which lays a coded view back out as one block, and the
+# predictor mutation, which materializes it. Both must land the store the
+# double spelling lands, so a fresh sampler installing each and running the
+# same sweeps reports the same fits.
+runInstalled <- function(install) {
+  ptr <- CALL("capi_create", specSrc$control, specSrc$model, specSrc$data, "")
+  install(ptr)
+  CALL("capi_run", ptr, 5L, 3L, TRUE, TRUE)
+}
+codedTestSource <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  codes = codesIntSrc,
+  map = c(0L, 0L)
+)
+doubleTestSource <- makeSource(nTestSrc, 2L, dense = denseTestSrc)
+testViaCodes <- runInstalled(function(ptr) {
+  CALL("capi_set_test_predictors_source", ptr, codedTestSource)
+})
+testViaDoubles <- runInstalled(function(ptr) {
+  CALL("capi_set_test_predictors_source", ptr, doubleTestSource)
+})
+testViaMatrix <- runInstalled(function(ptr) {
+  CALL("capi_set_test_predictors", ptr, denseTestSrc)
+})
+expect_identical(testViaCodes$test, testViaDoubles$test)
+expect_identical(testViaCodes$test, testViaMatrix$test)
+
+trainCodesSrc <- as.integer(codesSrc[, 2L])
+codedTrainSource <- makeSource(
+  nSrc,
+  2L,
+  dense = codesSrc[, 1L],
+  codes = trainCodesSrc,
+  map = c(0L, 0L)
+)
+doubleTrainSource <- makeSource(nSrc, 2L, dense = as.double(codesSrc))
+trainViaCodes <- runInstalled(function(ptr) {
+  expect_true(CALL("capi_set_predictor_source", ptr, codedTrainSource))
+})
+trainViaDoubles <- runInstalled(function(ptr) {
+  expect_true(CALL("capi_set_predictor_source", ptr, doubleTrainSource))
+})
+expect_identical(trainViaCodes$train, trainViaDoubles$train)
+expect_identical(trainViaCodes$sigma, trainViaDoubles$sigma)
+
+# and the same source through the subset mutation, which names its columns in
+# argument order rather than store order
+updateViaCodes <- runInstalled(function(ptr) {
+  expect_true(CALL(
+    "capi_update_predictor_source",
+    ptr,
+    codedTrainSource,
+    c(0L, 1L)
+  ))
+})
+expect_identical(updateViaCodes$train, trainViaCodes$train)
+
 # the negative half of that oracle: force the categorical column's implicit
 # rows to read the storage's zero rather than the declared reference and the
 # answers must part company
