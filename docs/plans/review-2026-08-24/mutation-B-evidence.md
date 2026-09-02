@@ -5,7 +5,7 @@
 Probe: a 7th ResponseFamily enumerator in a staged copy; tests/cpp rebuilt and
 R_interface_bartcore.cpp compiled -fsyntax-only, -Wall -Wextra.  Exactly THREE
 sites warned (-Wswitch): [[chain.hpp:582@658869ac]] (single-forest response factory),
-R_interface:2268 (refusedAmplitudeFamilyReason), [[chain.hpp:6181@658869ac]] (drawAugmentationLaws).
+R_interface:2268 (refusedAmplitudeFamilyReason), unresolved: [[chain.hpp:6181@658869ac]] (drawAugmentationLaws).
 Four `default:` ladders stayed silent, plus one open-coded chain no -Wswitch
 can reach.  (Only two of the four are in src/bartcore; the memo's list spans
 both files.)
@@ -21,8 +21,8 @@ enumerates the harm it prevents (a negative nbinom count underflowing into a
 ~1.8e19 allocation, "an uncatchable crash, not an error").  The de-facto 7th
 family already exists: [[chain.hpp:862@658869ac]] sets `family_ = logistic` for multinomial
 commenting "family() is not read on this path", yet SamplerShape::family
-([[facade.hpp:432@658869ac]]) reports logistic and the bridge branches on it at [[facade.hpp:2729@658869ac]],
-:4611, [[facade.hpp:4662@658869ac]], [[facade.hpp:4702@658869ac]], [[facade.hpp:4877@658869ac]], [[facade.hpp:4949@658869ac]] - each unreachable only because a SEPARATE
+([[facade.hpp:432@658869ac]]) reports logistic and the bridge branches on it at unresolved: [[facade.hpp:2729@658869ac]],
+:4611, unresolved: [[facade.hpp:4662@658869ac]], unresolved: [[facade.hpp:4702@658869ac]], unresolved: [[facade.hpp:4877@658869ac]], unresolved: [[facade.hpp:4949@658869ac]] - each unreachable only because a SEPARATE
 multi-forest refusal stands in front, a coupling nothing asserts.
 VERDICT the doors are shut by refusals in another file, not by the type system,
 and one family already travels under another's name.
@@ -89,7 +89,7 @@ lacks.  Residual exposure: the SHIPPED library has no runtime guard on the
   the mutation is invisible by construction; its bound is loose too
   (highMean > 2.5*lowMean against a truth ratio of 44).  MAJOR not BLOCKER
   because tinytest backstops it ([[test-heteroscedastic.R:11-42@658869ac]]: fTrue = 2x, s(x)
-  bounded in (0.15,0.6) and (0.9,2.2)).  [[heteroscedastic.md:465-468@658869ac]] states gate
+  bounded in (0.15,0.6) and (0.9,2.2)).  [[docs/design/heteroscedastic.md:465-468@658869ac]] states gate
   (d) as "recovers f(x) AND s(x)"; the C++ fixture dropped f(x).  ASSERTION the
   same test on a strong non-constant mean, asserting s^2(x) tracks the true
   noise and NOT |f(x)|.  FIX agent-fix (test).

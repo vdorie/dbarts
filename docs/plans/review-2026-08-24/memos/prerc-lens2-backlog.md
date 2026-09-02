@@ -51,20 +51,20 @@ P7 bcf equivalence baseline predates the statistical mode, and the cross-host ch
    FORMAT (exempt snapshot channels under a cross-host flag, vs convert to draws-axis recordings). Re-record valid only from
    the recording host. DECIDE FORMAT NOW, re-record at the RC tip.
 P8 plot.bart and plot.rbart leak par(mfrow): plotSigmaTrace ([[R/plot.R:9-12@ecdfb945]]) sets it with no save; callers at [[R/plot.R:53@ecdfb945]] and [[R/plot.R:119@ecdfb945]] do
-   not restore, while plot.bartHurdle ([[R/plot.R:415-416@ecdfb945]]) and five other sites do. CRAN policy; recorded door at [[R/plot.R:607@ecdfb945]]. ~8 R + sentinel,
+   not restore, while plot.bartHurdle ([[R/plot.R:415-416@ecdfb945]]) and five other sites do. CRAN policy; recorded door at unresolved: [[R/plot.R:607@ecdfb945]]. ~8 R + sentinel,
    Sonnet. TAKE - the last residue of a pass that fixed six sites and missed the two most-used ones.
 
 ## 2. POST-1.0 additive (nameable value, additive-later by construction)
 
 Settled deferrals (VD 2026-08-24): group.by on bart2/dbarts; survival entry=; sparse-extensions' rbart_vi and linear-leaf
-halves; rbart_vi logistic token; fit-time test basis. Families/links: Poisson ([[negative-binomial.md:635@ecdfb945]]); grouped
-ordinal/nbinom/hazard ([f31], [[ordinal.md:490@ecdfb945]], [[negative-binomial.md:641@ecdfb945]], [[survival.md:706@ecdfb945]]); NB integer frequency weights ([[survival.md:455@ecdfb945]]);
-hurdle.nbinom, gamma part, logistic occupancy, grouped hurdle, Duan smearing ([[hurdle.md:320-329@ecdfb945]]); competing risks
+halves; rbart_vi logistic token; fit-time test basis. Families/links: Poisson ([[docs/design/negative-binomial.md:635@ecdfb945]]); grouped
+ordinal/nbinom/hazard ([f31], [[ordinal.md:490@ecdfb945]], [[docs/design/negative-binomial.md:641@ecdfb945]], [[survival.md:706@ecdfb945]]); NB integer frequency weights ([[survival.md:455@ecdfb945]]);
+hurdle.nbinom, gamma part, logistic occupancy, grouped hurdle, Duan smearing ([[docs/design/hurdle.md:320-329@ecdfb945]]); competing risks
 ([[survival.md:692@ecdfb945]], moves with multinomial D2); time-varying covariates / long-format ingestion ([[survival.md:688@ecdfb945]]); probit multinomial path
-([[multinomial.md:383@ecdfb945]]); xbart ordinal ranked-probability loss ([[ordinal.md:500@ecdfb945]]). Amplitude coupling
+([[docs/design/multinomial.md:383@ecdfb945]]); xbart ordinal ranked-probability loss ([[ordinal.md:500@ecdfb945]]). Amplitude coupling
 ([[multiplier-combiner.md:572-589@ecdfb945]]): aft/ordinal/nbinom under the coupling; variance forest under it; the combining-sampler test
 surface (bairrtt named); per-forest nameable calibration on combiners. C API additive, all bump MINOR and re-bake by the
-header's own rule ([[dbarts.h:133-137@ecdfb945]]): multinomial creation + K-aware predict ([[c-api-growth.md:695-722@ecdfb945]]); per-observation
+header's own rule ([[dbarts.h:133-137@ecdfb945]]): multinomial creation + K-aware predict ([[docs/plans/archive/c-api-growth.md:695-722@758bccdd]]); per-observation
 predictor updates, setCutPoints, setData, observer callback ([[public-surface.md:408-412@ecdfb945]]); forest-indexed predict
 ([[bart-as-a-component.md:167-174@ecdfb945]]). Workflow layer, NOT ON ANY LIST: ICE / centered PDP / >2-variable PDP; update() to extend a
 chain; an xbart result class with a best-cell extractor ([[man/xbart.Rd:134@ecdfb945]] states the bare array deliberately); interaction
@@ -75,7 +75,7 @@ per-person-period LOO trap ([[bartcore-review-tour.md:290@ecdfb945]], "stated no
 precision; nbinom per-sweep loop collapse (owes bench-sampler); run()'s per-call thread override D1 and a predict-shaped
 thread default D2 ([[threaded-predict.md:245@ecdfb945]]); a per-sweep run callback ([[correlated-outcomes.md:110@ecdfb945]]). Data handle: serialization
 and public exposure of the standalone container stay open as decided ([[public-surface.md:492-501@ecdfb945]]) - surface on two axes, a new
-exported class and a serialized format; and shared MUTABLE codes across attached samplers ([[data-ownership.md:205-207@ecdfb945]]), which
+exported class and a serialized format; and shared MUTABLE codes across attached samplers ([[docs/design/data-ownership.md:205-207@ecdfb945]]), which
 would collapse bairrtt's two-copy workaround. Research: gp sampled lengthscales; interaction heredity; per-forest row
 subsetting - COMPACTION arm only (mask arm permanently refused, zero-weight arm shipped); exact AR-1; tree-mixing perturb /
 rotation / heated companion chains; GPU cut-scan; python bindings; informed grow-from-root. Evidence/calibration: hetero SBC
@@ -86,7 +86,7 @@ evaluates in environment(basis)), C8.
 
 ## 3. DECLINE / CLOSED, with the recorded reason
 
-Approximate Polya-Gamma - real dispersion AND real binary weights, one decision: DECLINED for 1.0 ([[data-ownership.md:1040@0045507c]]). hurdle samplerOnly:
+Approximate Polya-Gamma - real dispersion AND real binary weights, one decision: DECLINED for 1.0 (unresolved: [[data-ownership.md:1040@0045507c]]). hurdle samplerOnly:
 stays refused. Multinomial twin-create deletion: STRUCK as a relitigation (draws move only at seed = NA; 3ms). $getLatents
 build: written decline, VD 2026-08-20. forest-ranef-interweaving: NO-GO with a benchmark gate and a VD-sign-off reopen clause.
 BCF whole-data setData (door 1) and setData on CSC/mixed (door 3): KEEP UNDESIGNED, gated on a considered failure to find an
@@ -116,18 +116,18 @@ N3 [[model-space-survey.md:581-613@0045507c]] still reads as an open RELEASE BLO
 N4 feature-matrix [f19]:555 and [f28]:694 claim no test pins the student / hetero loglik channel, so those cells stay "?".
    Both are pinned BY VALUE ([[test-pointwise-loglik.R:386-398@0045507c]]; [[test-heteroscedastic-channels.R:37-53@0045507c]], tol 1e-12). Only 2 of the
    4 "?" cells are real - P5.
-N5 Other verified staleness. r-c-division.md carries two: [[test-heteroscedastic-channels.R:344-353@0045507c]] marks the getLatents docs slice "STILL OPEN" though
+N5 Other verified staleness. r-c-division.md carries two: unresolved: [[test-heteroscedastic-channels.R:344-353@0045507c]] marks the getLatents docs slice "STILL OPEN" though
    $getFitsWithoutOffset() ships and its own text names the trap ([[R/dbarts.R:1696-1705@0045507c]], [[man/dbartsAugmentation.Rd:31@0045507c]]) and
    [[dbarts.h:770-778@0045507c]] documents the per-family semantics; [[dbarts.h:292-296@0045507c]]'s adopted flat rename is DONE ([[dbarts.h:497-510@0045507c]] carries
    setForestBasis/numForestAmplitudes/forestAmplitudes with setForestWeights kept). Also: [[feature-matrix.md:503-506@0045507c]] reads as a
-   live apiHash defect (impossible - [[C_interface.cpp:465@0045507c]] static_asserts it); [[c-api-growth.md:709-712@0045507c]] prices the multinomial C
+   live apiHash defect (impossible - [[C_interface.cpp:465@0045507c]] static_asserts it); [[docs/plans/archive/c-api-growth.md:709-712@758bccdd]] prices the multinomial C
    door against two superseded ABI literals (live 0x66d33f1613892406, 0xcb83367ee0c4175b); [[public-surface.md:220-221@0045507c]] still
    asks as "Open:" whether family belongs on xbart, which [[R/xbart.R:26@0045507c]] has carried since (auto/gaussian/probit/logistic,
    probit the binary default); [[TODO:233-234@0045507c]] still lists the review-tour refresh as remaining though it landed at 0b89ab8b;
    [[TODO:153-154@0b89ab8b]] calls the statesAgree above-chain gap "worked around" while [[test_fuzz.cpp:164-168@0b89ab8b]] documents it as deliberate.
    Verified clean: 70 freshness advisories (tool exits OK), zero TODO/FIXME/XXX in shipped dirs.
-N6 [[nameable-calibration.md:3@0b89ab8b]] says PARTIAL, flat-C half pending; [[feature-matrix.md:1024@0b89ab8b]] says ARC COMPLETE, four slices landed;
-   [[INDEX.md:73@0b89ab8b]] still calls it and latent-subset-mask "the two designed-but-unbuilt arcs" (both ARC COMPLETE).
+N6 unresolved: [[nameable-calibration.md:3@0b89ab8b]] says PARTIAL, flat-C half pending; [[feature-matrix.md:1024@0b89ab8b]] says ARC COMPLETE, four slices landed;
+   unresolved: [[INDEX.md:73@0b89ab8b]] still calls it and latent-subset-mask "the two designed-but-unbuilt arcs" (both ARC COMPLETE).
 N7 docs/plans/INDEX.md: 3 stale rows of 151 - multinomial-level-centering (OPEN vs own LANDED ec2a3d0), grouped-equivalence
    (RESEARCH-OPEN vs own CLOSED), setpredictor-leafof-rebuild (OPEN vs own CLOSED). check-doc-freshness.R checks docs/design
    labels only (37 checked).

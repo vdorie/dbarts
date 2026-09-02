@@ -978,9 +978,9 @@ workflow. **No change recommended.**
 
 | file(s) | now | after | delta | operation |
 |---|---|---|---|---|
-| `test-generics-errors.R` | 755 | ~635 | **-120** | Three arms (predict `:1-410`, extract `[[test-reproducibility-rbart.R:412-581@3080a9c5]]`, fitted `[[test-reproducibility-rbart.R:583-755@3080a9c5]]`) each rebuild the same six fits with byte-identical knobs. `bart2FitKT:113` and `bartFitKT:415` are identical including `keepTrees=TRUE`. The dataset is built three times unseeded (`xSmall:225`, `xSmall2:482`, `xSmall3:587`) though every assertion is an error-message check that never reads it. Build once at the top. Also 11 fewer sampler runs at test time. |
-| `test-multinomial-surface.R` | 983 | ~830 | **-150** | Highest absolute redundancy in the corpus (168/781 = 22%). `internalMultinomialFit:30-59` and `internalMultinomialCountFit:403-432` are 30-line near-clones - **the file's own comment at `[[test-reproducibility-rbart.R:400@3080a9c5]]` admits it**. Plus the same 8-line knob block 10x (`[[test-reproducibility-rbart.R:89@3080a9c5]], [[test-reproducibility-rbart.R:117@3080a9c5]], [[test-reproducibility-rbart.R:165@3080a9c5]], [[test-reproducibility-rbart.R:459@3080a9c5]], [[test-reproducibility-rbart.R:498@3080a9c5]], [[test-reproducibility-rbart.R:551@3080a9c5]], [[test-reproducibility-rbart.R:654@3080a9c5]], [[test-reproducibility-rbart.R:680@3080a9c5]], [[test-reproducibility-rbart.R:702@3080a9c5]]`). |
-| rbart preamble family (10 files) | ~230 | ~65 | **-190** | See F5. Worst single file `test-rbart-groupby.R` (44% redundant): the preamble plus three near-identical surface arms at `[[test-reproducibility-rbart.R:170-200@3080a9c5]],[[test-reproducibility-rbart.R:235-270@3080a9c5]],[[test-reproducibility-rbart.R:285-315@3080a9c5]]` differing only in `combineChains` and a 0.90-vs-0.80 bound. |
+| `test-generics-errors.R` | 755 | ~635 | **-120** | Three arms (predict `:1-410`, extract `unresolved: [[test-reproducibility-rbart.R:412-581@3080a9c5]]`, fitted `unresolved: [[test-reproducibility-rbart.R:583-755@3080a9c5]]`) each rebuild the same six fits with byte-identical knobs. `bart2FitKT:113` and `bartFitKT:415` are identical including `keepTrees=TRUE`. The dataset is built three times unseeded (`xSmall:225`, `xSmall2:482`, `xSmall3:587`) though every assertion is an error-message check that never reads it. Build once at the top. Also 11 fewer sampler runs at test time. |
+| `test-multinomial-surface.R` | 983 | ~830 | **-150** | Highest absolute redundancy in the corpus (168/781 = 22%). `internalMultinomialFit:30-59` and `internalMultinomialCountFit:403-432` are 30-line near-clones - **the file's own comment at `unresolved: [[test-reproducibility-rbart.R:400@3080a9c5]]` admits it**. Plus the same 8-line knob block 10x (`unresolved: [[test-reproducibility-rbart.R:89@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:117@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:165@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:459@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:498@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:551@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:654@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:680@3080a9c5]], unresolved: [[test-reproducibility-rbart.R:702@3080a9c5]]`). |
+| rbart preamble family (10 files) | ~230 | ~65 | **-190** | See F5. Worst single file `test-rbart-groupby.R` (44% redundant): the preamble plus three near-identical surface arms at `unresolved: [[test-reproducibility-rbart.R:170-200@3080a9c5]],unresolved: [[test-reproducibility-rbart.R:235-270@3080a9c5]],unresolved: [[test-reproducibility-rbart.R:285-315@3080a9c5]]` differing only in `combineChains` and a 0.90-vs-0.80 bound. |
 | xbart trio | 437 | ~300 | **-137** | `test-xbart-reproducibility.R` is **68% redundant** - four copies of the same 12-line `xbart(seed=0L)` call varying only `n.threads` (1,1,2,2). Two runs prove determinism; four copies do not. Plus a shared `checkXvalShape()` across `test-xbart-method.R`/`test-xbart-loss.R`. |
 | `test-gp-leaves.R` + `test-linear-leaves.R` | 644 | ~560 | **-84** | Three byte-identical blocks modulo `node.prior` and one tolerance: state round-trip (`gp:229-264` = `linear:182-217`), the plotTree/prior-swap refusal (`gp:123-143` = `linear:73-94`), the `rm()` teardown (`gp:290-307` = `linear:263-280`). Per-family assertions stay put - that part is legitimately parallel. |
 
@@ -1310,12 +1310,12 @@ the lint job's full `local::.` compile.
 
 ## H10. CI: 54 duplicated lines, half the gate surface automation-dead, 12 stale branch names
 
-- **Duplicate jobs.** `[[equivalence.yaml:69-122@23b9cde7]]` - jobs `bcf-equivalence` (26
+- **Duplicate jobs.** `unresolved: [[equivalence.yaml:69-122@23b9cde7]]` - jobs `bcf-equivalence` (26
   lines) and `multinomial-equivalence` (28 lines) - run the same script, same
   pinned baseline hash and same `--cross-host` flag as the single 24-line step in
   `[[exact-gates.yaml:141-164@23b9cde7]]`, **which fires on every push**. The two are
   byte-identical to each other except 2 of 27 lines. Each baseline hash is pinned
-  twice (4 literals for 2 files). **Fix: delete `[[equivalence.yaml:69-122@23b9cde7]]`; keep
+  twice (4 literals for 2 files). **Fix: delete `unresolved: [[equivalence.yaml:69-122@23b9cde7]]`; keep
   the gaussian job (35-67), which alone uses `--strict-coverage`. Delta: -54
   lines, 3 jobs -> 1, 4 hash pins -> 2. Risk: low - per-push coverage is strictly
   higher than the weekly cron it replaces.**
@@ -1368,12 +1368,12 @@ today, silently wrong the first version bump that forgets them.
 
 ## H12. Four doc-vs-code falsehoods found in passing
 
-- `[[docs/plans/change-move-fix.md:267@23b9cde7]]` - says `change-fix-stage2.R` "and its
+- `[[docs/plans/archive/change-move-fix.md:267@758bccdd]]` - says `change-fix-stage2.R` "and its
   result files are kept unchanged as the experiment record"; **the `.R` was
   deleted 2026-08-24 in 7318b266.** (Keep the 4 result files in
   `benchmarks/results/` - they are unreproducible evidence for a landed engine
   decision - but fix the sentence.)
-- `[[docs/plans/review-2026-08-24/gate-ledger-read.md:103@7318b266]], [[docs/plans/review-2026-08-24/gate-ledger-read.md:121@7318b266]]` - calls
+- `[[docs/plans/review-2026-08-24/gate-ledger-read.md:103@758bccdd]], [[docs/plans/review-2026-08-24/gate-ledger-read.md:121@758bccdd]]` - calls
   `check-win-drift.R` and `check-doc-freshness.R` **unwired**; both are wired
   (`[[lint.yaml:86@7318b266]]`, `[[lint.yaml:89@7318b266]]`).
 - `[[docs/plans/bcf-bartcause-relocation.md:1224@7318b266]]` - names
@@ -1398,7 +1398,7 @@ Two claims I re-checked myself because they drive slate items, both confirmed:
 
 - **H9 (doc-freshness gate)**: `[[lint.yaml:10-14@7318b266]]` `paths-ignore` is literally
   `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`, and the `doc-freshness`
-  job at `[[lint.yaml:74-92@7318b266]]` runs `check-win-drift.R`, `check-doc-freshness.R` and
+  job at `[[.github/workflows/lint.yaml:74-92@758bccdd]]` runs `check-win-drift.R`, `check-doc-freshness.R` and
   `check-rc-codoc.R`. A docs-only or TODO-only push skips the whole workflow.
   Confirmed. (The `pull_request` trigger has no `paths-ignore`, so the gate does
   fire on PRs - which softens it only if records changes go through PRs. On a
@@ -1422,7 +1422,7 @@ case weight is a negative precision contribution and can produce a silently
 wrong fit. Exposed consumers are the `LinkingTo` packages the flat API exists
 for. **+4 lines. Gate: `tests/cpp` + a `test-capi.R` case. No equivalence run
 needed.** Full detail and the patch in E10. Also confirm the flat *creation*
-path (`[[C_interface.cpp:1249-1254@7318b266]]` gates on logistic only).
+path (`[[src/C_interface.cpp:1249-1254@758bccdd]]` gates on logistic only).
 
 ## The ten highest-value cleanups
 
@@ -1430,15 +1430,15 @@ Ordered by value, not by size. "Gate" means what must pass beyond `tinytest`.
 
 | # | item | where | delta | gate |
 |---|---|---|---|---|
-| 1 | **Split `doc-freshness` into its own workflow with no `paths-ignore`.** The gate's declared inputs (`docs/**`, `TODO`, `**.md`) are all in the workflow's own ignore list, so it never runs on the commits it exists to check - and 408 of 1319 branch commits are exactly those. | `[[.github/workflows/lint.yaml:10-14@7318b266]], [[.github/workflows/lint.yaml:74-92@7318b266]]` | -19 / +25 | CI: confirm the new workflow fires on a docs-only push |
+| 1 | **Split `doc-freshness` into its own workflow with no `paths-ignore`.** The gate's declared inputs (`docs/**`, `TODO`, `**.md`) are all in the workflow's own ignore list, so it never runs on the commits it exists to check - and 408 of 1319 branch commits are exactly those. | `[[.github/workflows/lint.yaml:10-14@7318b266]], [[.github/workflows/lint.yaml:74-92@758bccdd]]` | -19 / +25 | CI: confirm the new workflow fires on a docs-only push |
 | 2 | **Add `^tools/[^/]*\.R$` to `.Rbuildignore`.** 2350 lines of developer R (incl. `check-doc-freshness.R` at 1771 lines / 61 KB) currently ship in the CRAN tarball. `build-aux/` and `m4/` must stay. | `.Rbuildignore` | **-2350 shipped** | `R CMD build` + `R CMD check` |
 | 3 | **Merge the two equivalence harnesses' shared helpers.** `compareCrossHost` - the 157-line gate logic itself - differs between them in six `sprintf` column widths. Both files already source 484 lines from the installed package under test, so the "oracle independence" argument is already spent. | `benchmarks/R/{bcf,multinomial}-equivalence.R` -> new `equivalence-common.R` | **-220** | **run both compares against the pinned baselines before and after; verdicts must stay bitwise** |
 | 4 | **Archive 118 landed plan docs (32,992 lines) and strip 476 KB of logs/rds from `docs/plans/review-2026-08-24/`.** `git mv` to `docs/plans/archive/`, nothing deleted. | `docs/plans/` | 118 files moved, -40 files, ~-6000 lines | none; but ~102 inbound path rewrites + 118 INDEX row moves are the whole cost |
-| 5 | **Delete the duplicate CI equivalence jobs.** `[[equivalence.yaml:69-122@7318b266]]` runs the same script, baseline hash and flag as `[[exact-gates.yaml:141-164@7318b266]]`, which already fires on every push. The two jobs differ from each other in 2 of 27 lines. | `.github/workflows/equivalence.yaml` | -54, 3 jobs -> 1, 4 hash pins -> 2 | CI green on next push |
+| 5 | **Delete the duplicate CI equivalence jobs.** `unresolved: [[equivalence.yaml:69-122@7318b266]]` runs the same script, baseline hash and flag as `[[.github/workflows/exact-gates.yaml:141-164@758bccdd]]`, which already fires on every push. The two jobs differ from each other in 2 of 27 lines. | `.github/workflows/equivalence.yaml` | -54, 3 jobs -> 1, 4 hash pins -> 2 | CI green on next push |
 | 6 | **Consolidate the test suite's five worst files.** `test-generics-errors.R` rebuilds the same six fits in three arms (-120, and 11 fewer sampler runs); `test-multinomial-surface.R` (-150); the rbart preamble to `inst/common` (-190); the xbart trio (-137); gp/linear leaf scaffolding (-84). | `inst/tinytest/` | **-680** | **re-run both `*reproducibility*rbart*` files - the shared preamble advances the RNG stream feeding 5 snapshot values** |
-| 7 | **Cut the R comment corpus's provenance and design-derivation.** 93 of 177 blocks over six lines carry an offending sentence; 1101 of 1866 long-block lines sit in one. Start with `[[R/model.R:1102@7318b266]]` (-25), `[[R/model.R:417@7318b266]]` (-15), `[[R/mixedMatrix.R:547@7318b266]]` (-20), `[[R/data.R:1704@7318b266]]` (-15), the 6 `benchmarks/` citations (-8), the 2 shipped-C++ test-path cites (-2). | `R/`, `src/` | -250 to -400 | none (comments only) |
+| 7 | **Cut the R comment corpus's provenance and design-derivation.** 93 of 177 blocks over six lines carry an offending sentence; 1101 of 1866 long-block lines sit in one. Start with `[[R/model.R:1102@7318b266]]` (-25), `[[R/model.R:417@7318b266]]` (-15), `[[R/mixedMatrix.R:547@7318b266]]` (-20), `[[R/data.R:1704@758bccdd]]` (-15), the 6 `benchmarks/` citations (-8), the 2 shipped-C++ test-path cites (-2). | `R/`, `src/` | -250 to -400 | none (comments only) |
 | 8 | **Collapse the TODO's closed entries.** 6 items are closed with no open door at all; another 4 carry landed-recap prefixes before their first `Open:`. Every collapsed line is reproduced verbatim in the named plan doc. The file's own line 1 says completed work lives elsewhere. | `TODO` | -55 (-79 after the RC review closes) | none |
-| 9 | **Fix the four doc-vs-code falsehoods and the two dead build files.** `[[change-move-fix.md:267@7318b266]]` names a deleted `.R` as "kept"; `[[gate-ledger-read.md:103@7318b266]], [[gate-ledger-read.md:121@7318b266]]` calls two wired checkers unwired; `[[bcf-bartcause-relocation.md:1224@7318b266]]` names two nonexistent fixtures; `DESCRIPTION:19-21` credits two absent `.m4`. Delete `tools/m4/ax_log1p_in_namespace_std.m4` (39 lines, unreferenced since 2021) and the 0-byte `tools/build-aux/install-sh`. | mixed | -39, 6 edits | `autoreconf -i && ./configure` after the m4 delete |
+| 9 | **Fix the four doc-vs-code falsehoods and the two dead build files.** `[[docs/plans/archive/change-move-fix.md:267@758bccdd]]` names a deleted `.R` as "kept"; `[[docs/plans/review-2026-08-24/gate-ledger-read.md:103@758bccdd]], [[docs/plans/review-2026-08-24/gate-ledger-read.md:121@758bccdd]]` calls two wired checkers unwired; `[[docs/plans/archive/bcf-bartcause-relocation.md:1224@758bccdd]]` names two nonexistent fixtures; `DESCRIPTION:19-21` credits two absent `.m4`. Delete `tools/m4/ax_log1p_in_namespace_std.m4` (39 lines, unreferenced since 2021) and the 0-byte `tools/build-aux/install-sh`. | mixed | -39, 6 edits | `autoreconf -i && ./configure` after the m4 delete |
 | 10 | **Rename the 20 divergent test helper names, hoist the 5 identical ones.** `seededControl` means seven different things in seven files (one of them a plain `list()`, not callable); `makeSampler` six. Zero runtime risk - tinytest isolates each file - pure comprehension cost on every future read. | `inst/tinytest/`, `inst/common/` | -52 (+renames) | per-file seed and `n.trees` literals must survive verbatim at each call site |
 
 **Engine items added after the late sweep returned** (all verified
