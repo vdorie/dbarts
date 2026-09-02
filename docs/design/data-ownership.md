@@ -19,9 +19,9 @@ matrix it already holds) wherever the engine still needs them - re-cutting,
 setData, and getTrees replay. A container or test build keeps the store's
 own copy of its REAL-VALUED columns instead, a factor column keeping only
 the codes it already is; no path needs versioning or a lifetime pin. Two
-more elaborate mechanisms for
-the same problem were designed and then designed OUT once call-time supply
-proved sufficient: a re-cuttable creation-time flag plus cut-grid "epoch"
+more elaborate mechanisms for the same problem were designed and then
+designed OUT once call-time supply proved sufficient: a re-cuttable
+creation-time flag plus cut-grid "epoch"
 versioning (replaced by call-time supply directly), and an engine-owned raw
 copy for "mutable" columns to dodge R's copy-on-write cost (replaced by
 reference-install, which turned out to make the CoW hedge unnecessary).
