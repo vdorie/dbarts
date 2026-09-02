@@ -90,7 +90,7 @@ blockSize == 1 (Stage A), ON at blockSize > 1.
 ## 2. The owned per-block atom map (design 2.3, 2.4)
 
 Stage A resolved DESIGN A: at b=1 `members` aliases tree.indices and no owned
-buffer exists ([[atoms.hpp:53-56@3137e17a]], 74-75). b>1 needs the owned atom-ordered buffer:
+buffer exists ([[src/bartcore/atoms.hpp:53-56@071fa859]], 74-75). b>1 needs the owned atom-ordered buffer:
 one `atomMembers` per block (a permutation of 0..n-1 grouped by atom, design
 2.3), NOT b per-tree buffers. Add it to AtomMap as an owned `std::vector<size_t>`
 alongside the aliased `members` pointer; at blockSize == 1 keep aliasing
@@ -100,27 +100,27 @@ at the owned buffer.
 Re-enable the three Stage-A-parked mechanisms for b>1 (they are Stage B's, kept
 default-on for the component tests, disabled only on the shipped b=1 path):
 
-- `atomOf` (obs -> atom, [[atoms.hpp:61@3137e17a]], `trackAtomOf`): the move bookkeeping that
+- `atomOf` (obs -> atom, [[src/bartcore/atoms.hpp:61@071fa859]], `trackAtomOf`): the move bookkeeping that
   lets a split/merge find an observation's atom in O(1). Required at b>1.
-- the cross-sweep A cache ([[atoms.hpp:98-142@3137e17a]], `aCacheBypass`): at b>1 the joint
+- the cross-sweep A cache ([[src/bartcore/atoms.hpp:98-142@071fa859]], `aCacheBypass`): at b>1 the joint
   map is PATCHED not rebuilt each sweep (design 4.5, persistence), so A(c) served
   from the memcmp-validated cache saves the O(n) re-scan the b=1 monolithic
   kernel could not. Re-enable it (aCacheBypass = false at b>1).
-- the S carry ([[atoms.hpp:72@3137e17a]], `setInBlockFits`): S(c) = sum over block trees of
+- the S carry ([[src/bartcore/atoms.hpp:72@071fa859]], `setInBlockFits`): S(c) = sum over block trees of
   their fit on c, the Gauss-Seidel coupling carried per atom.
 
 Joint-map build (buildForBlock, new): route each observation through the b block
 trees, form its leaf b-tuple, and bucket it into an atom. This is the O(bn)
 block-init / block-composition-change / periodic-rebuild path (design 4.5); the
 steady-state map PERSISTS and is patched by moves. The b>1 move maintenance
-generalizes the landed b=1 kernels: splitAtom ([[atoms.hpp:479-565@3137e17a]]), mergeAtoms
+generalizes the landed b=1 kernels: splitAtom ([[src/bartcore/atoms.hpp:479-565@071fa859]]), mergeAtoms
 (631-657), refreshSubtree (766-792), undoSplit (573-588), snapshotSubtree/
 restoreSubtree (680-725) each currently touch a single leaf slot; at b>1 a move
 in block tree t_j slices only the t_j coordinate of the leaf-tuple, so an atom
 splits/merges against the OTHER b-1 coordinates held fixed (design 4.1-4.3). The
-leafTuple SoA ([[atoms.hpp:66@3137e17a]]) widens from one int per atom to b ints per atom.
+leafTuple SoA ([[src/bartcore/atoms.hpp:66@071fa859]]) widens from one int per atom to b ints per atom.
 The atom member partition still reuses the tree's OWN partitionChildren over the
-owned buffer (design 5.2, [[atoms.hpp:497@3137e17a]], 772); no second partitioner is forked.
+owned buffer (design 5.2, [[src/bartcore/atoms.hpp:497@071fa859]], 772); no second partitioner is forked.
 
 ## 3. Block boundaries: the two O(n) passes (design 2.1, 3.5) -- EXACT
 
@@ -162,7 +162,7 @@ This is the sole floating-point change. For block tree t_j and its leaf L:
   D(L) = sum_{c in atoms(L)} r(c), r(c) = G(c) - A(c)*S(c); then W(L) = sum A(c)
   and sumWeightedResponse(L) = D(L) + mu_{t_j}(L)*W(L). Write (W(L),
   sumWeightedResponse(L)) into the node suffstat cache -- the SAME seam every
-  constant-leaf consumer reads ([[atoms.hpp:365-382@3137e17a]], writeNodeCaches). Feed the
+  constant-leaf consumer reads ([[src/bartcore/atoms.hpp:365-382@071fa859]], writeNodeCaches). Feed the
   UNCHANGED model.hpp math: logIntegratedLikelihood ([[model.hpp:109-122@3137e17a]]) and
   drawFromPosterior ([[model.hpp:128-143@3137e17a]]) are byte-for-byte the same functions of
   the suffstat.
