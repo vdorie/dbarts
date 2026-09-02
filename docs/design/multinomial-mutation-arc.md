@@ -19,7 +19,7 @@ re-verification tightened a finding rather than contradicting it.
 
 VD's framing (2026-08-20): pre-release-candidate. The `hostFor` guard is
 a stopgap the r-c-division record itself calls temporary
-(`docs/design/r-c-division.md:334-341`, "needs a guard or prominent
+([[docs/design/r-c-division.md#Defects found by this arc]], "needs a guard or prominent
 documentation until the multinomial mutation arc replaces the area").
 Guard-all-reads is REJECTED. The arc replaces the scaffolding with a real
 public surface, or scopes and names what it refuses.
@@ -33,7 +33,7 @@ Executed evidence: probes run against the installed dbarts 1.0.0, Built
 2026-08-20 source commits (`7ff77ab4` amplitude rename, `e75a2c79` the
 0.9-34 rng/cast port) are not in it - confirmed by
 `refuseAmplitudeMutation` being absent from the installed namespace while
-present at tip (`R/bartcore.R:36`). Neither commit touches a probed path
+present at tip ([[R/bartcore.R#refuseAmplitudeMutation]]). Neither commit touches a probed path
 (ordinal/nbinom host construction, pointer adoption, multinomial host
 family resolution, serialization), and every bitwise probe compares two
 arms of the SAME build, so a draw-moving rng port cannot flip a
@@ -52,19 +52,21 @@ anchors below are re-derived to the successor constructions):
 
 | site | family | host built by | real engine |
 |---|---|---|---|
-| `:1473-1481` | multinomial (labels) | `buildHostSamplerCall(family = "multinomial")` (`:1477`) + `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); `bartcoreMultinomialSampler` (`R/bartcore.R:932`) is now a thin wrapper over the same public path |
-| `:1559-1568` | multinomial (counts) | same, `family = "multinomial"` (`:1563`), `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; `bartcoreMultinomialCountSampler` (`:968`) |
-| `:1809` | ordinal | `buildHostSamplerCall(family = "ordinal")` | `bartcoreSampler(sampler, family = "ordinal")` (`:645`) |
-| `:2058` | nbinom | `buildHostSamplerCall(family = "nbinom")` | `bartcoreSampler(sampler, family = "nbinom")` |
+| `[[R/bart.R#bart2Multinomial]]` | multinomial (labels) | `[[R/bart.R#buildHostSamplerCall]]` with `family = "multinomial"`, then `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); `[[R/bartcore.R#bartcoreMultinomialSampler]]` is now a thin wrapper over the same public path |
+| `[[R/bart.R#bart2MultinomialCounts]]` | multinomial (counts) | same, `family = "multinomial"`, then `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; `[[R/bartcore.R#bartcoreMultinomialCountSampler]]` |
+| `[[R/bart.R#bart2Ordinal]]` | ordinal | `[[R/bart.R#buildHostSamplerCall]]` with `family = "ordinal"` | `[[R/bartcore.R#bartcoreSampler]]` called as `bartcoreSampler(sampler, family = "ordinal")` |
+| `[[R/bart.R#bart2Negbin]]` | nbinom | `buildHostSamplerCall` with `family = "nbinom"` | `bartcoreSampler` called as `bartcoreSampler(sampler, family = "nbinom")` |
 
-`buildHostSamplerCall` is `R/bart.R:540-560`. `result$bc <- bc` is
-retired - the separate `$bc` handle is gone (section 1.5).
-`result$fit <- sampler` at `:1502`, `:1582`, `:1882`, `:2124`, gated on
-`control@keepTrees || keepSampler`.
+`buildHostSamplerCall` is `[[R/bart.R#buildHostSamplerCall]]`.
+`result$bc <- bc` (retired: [[R/bart.R#bc]]) - the separate `$bc` handle
+is gone (section 1.5).
+`result$fit <- sampler` at `[[R/bart.R#bart2Multinomial]]`,
+`[[R/bart.R#bart2MultinomialCounts]]`, `[[R/bart.R#bart2Ordinal]]`,
+`[[R/bart.R#bart2Negbin]]`, gated on `control@keepTrees || keepSampler`.
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:2045-2068`, draws one
+([[src/R_interface_bartcore.cpp#createChainRngs]], draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -76,7 +78,7 @@ The four sites are NOT one shape. No shipped doc states this.
 a fully correct, fully mutable sampler of the right family - the same
 object `dbarts(x, y, family = "ordinal")` returns, whose whole
 single-forest mutation surface is SHIPPED
-(`docs/design/feature-matrix.md:267-268`, `:297-298`).
+([[docs/design/feature-matrix.md#Mutation channels on the R5 dbartsSampler]]).
 `bartcoreSampler(sampler, family = ...)` then builds a SECOND engine from
 that same `(control, model, data)` triple and the first is abandoned.
 MEASURED: `model@family` on an ordinal host reads `"ordinal"` and the
@@ -86,7 +88,7 @@ genuinely describes the engine. That fact is what makes fork D0 work.
 **Multinomial: a genuine placeholder whose resolved family depends on K,
 reachable only under an explicit token.** `family = NULL` removes the
 token, so `dbarts()` runs `family = "auto"` against `as.double(labels)`,
-codes `0..K-1`; `R/spec.R:197-206` resolves auto on a numeric response by
+codes `0..K-1`; `[[R/spec.R#responseIsBinary]]` resolves auto on a numeric response by
 `length(unique(y)) == 2 && sort(unique(y)) == c(0, 1)`.
 
 - K = 2, **under an explicit `family = "multinomial"`**: labels are 0/1,
@@ -94,8 +96,8 @@ codes `0..K-1`; `R/spec.R:197-206` resolves auto on a numeric response by
   `model@family` `"probit"`.
 - K >= 3: MEASURED `control@binary` FALSE, `model@family` `"gaussian"`,
   response transform anchored to the range of the integer category codes.
-- **`family = "auto"` never reaches this path.** `detectAutoMultinomial`
-  (`R/bart.R:1384-1392`) requires `n.levels >= 3L`, and a 2-level factor
+- **`family = "auto"` never reaches this path.** `[[R/bart.R#detectAutoMultinomial]]`
+  requires `n.levels >= 3L`, and a 2-level factor
   under auto announces probit and returns class `"bart"`. MEASURED:
   `family = "auto": 2-level factor response detected, fitting family =
   "probit"; set 'family' to override`.
@@ -104,17 +106,17 @@ codes `0..K-1`; `R/spec.R:197-206` resolves auto on a numeric response by
 (retired: the comment went with the host shell). It is surfaced - through thirteen unguarded R5 readers.
 
 **Multinomial had no public construction route at all** (retired at
-S2+S3, which built one). `dbarts()`'s `family` formal
-(`R/dbarts.R:375-389`) now lists thirteen tokens with `"multinomial"`
-among them (`:381`); `dbartsSpec()` reaches it the same way
-(`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
-through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3765`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3731`) - the dedicated
-`C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
+S2+S3, which built one). `[[R/dbarts.R#dbarts]]`'s `family` formal
+now lists thirteen tokens with `"multinomial"`
+among them; `[[R/spec.R#dbartsSpec]]` reaches it the same way; and creation runs
+through the single public dispatch every family uses, `[[src/R_interface_bartcore.cpp#bartcore_create]]`,
+whose multinomial arm is
+`[[src/R_interface_bartcore.cpp#createMultinomialDataHolder]]` - the dedicated
+`C_dbarts_bartcore_createMultinomial` / `...Counts` entries
+(retired: [[src/R_interface_bartcore.cpp#C_dbarts_bartcore_createMultinomial]])
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
-(`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
-(`src/C_interface.cpp:595`) routes to `createHolder`, never to the
+(`feature-matrix.md` `[f4]`): `[[src/C_interface.cpp#dbarts_sampler_create]]`
+routes to `[[src/C_interface.cpp#createHolder]]`, never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
@@ -123,33 +125,33 @@ multinomial arm.
 multinomial) `$K`. No class, no state, no methods.
 
 Every entry below ALREADY works on a multinomial handle (READ, against
-`src/R_interface_bartcore.cpp` and `docs/design/multinomial.md:304-353`).
+`src/R_interface_bartcore.cpp` and `[[docs/design/multinomial.md#The surface]]`).
 Bare line anchors are per COLUMN, not per reading order: the bridge column
 is `src/R_interface_bartcore.cpp`, the R-wrapper column `R/bartcore.R`
 except where it names another file:
 
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
-| create (labels / counts) | `bartcore_create`'s multinomial arm `:3561` -> `createMultinomialDataHolder` `:3527` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4507` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:4052` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:4127` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:4160` | `:125` | S, unexported |
-| predictors: whole / column / per-obs / joint | `:5194`, `:5146`, `:5307`, `:5361` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5440` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:5009` | `:558` | S (`refuseUndefinedTestFits` `:3098` gates on `testFitsAreDefined`, TRUE here) |
-| active-row mask | `bartcore_setActiveRows` `:4101` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:6056` | `:1085` | S |
-| per-category fits / varcounts | `:4174`, `:4307` | retired; `R/dbarts.R:1727`, `:1757` | S |
-| calibration read | `bartcore_getCalibration` `:4232` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
-| state store / restore | `:5711`, `:5716` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
-| saved trees | `bartcore_getTrees` `:6049` | retired; `R/dbarts.R:2035` | S, forest-indexed |
+| create (labels / counts) | `[[src/R_interface_bartcore.cpp#bartcore_create]]`'s multinomial arm -> `[[src/R_interface_bartcore.cpp#createMultinomialDataHolder]]` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `[[R/bartcore.R#bartcoreMultinomialSampler]]`, `[[R/bartcore.R#bartcoreMultinomialCountSampler]]` | S, unexported |
+| run | `[[src/R_interface_bartcore.cpp#bartcore_run]]` | `[[R/bartcore.R#bartcoreRun]]` | S |
+| **response swap** | `[[src/R_interface_bartcore.cpp#bartcore_setCounts]]` | `[[R/bartcore.R#bartcoreSamplerSetCounts]]` | S, unexported |
+| **train offset** | `[[src/R_interface_bartcore.cpp#bartcore_setCategoryOffset]]` | `[[R/bartcore.R#bartcoreSamplerSetCategoryOffset]]` | S, unexported |
+| **test offset** | `[[src/R_interface_bartcore.cpp#bartcore_setCategoryTestOffset]]` | `[[R/bartcore.R#bartcoreSamplerSetCategoryTestOffset]]` | S, unexported |
+| predictors: whole / column / per-obs / joint | `[[src/R_interface_bartcore.cpp#bartcore_setPredictor]]`, `[[src/R_interface_bartcore.cpp#bartcore_updatePredictor]]`, `[[src/R_interface_bartcore.cpp#bartcore_updatePredictorPerObservation]]`, `[[src/R_interface_bartcore.cpp#bartcore_updatePredictorPerObservationJointly]]` | | S - no multi-forest guard, by decision ([[docs/design/bart-as-a-component.md#Which mutations are legal between sweeps]]) |
+| cut points | `[[src/R_interface_bartcore.cpp#bartcore_setCutPoints]]` | `[[R/bartcore.R#bartcoreSamplerSetCutPoints]]` | S |
+| test predictors | `[[src/R_interface_bartcore.cpp#bartcore_setTestPredictor]]` | `[[R/bartcore.R#bartcoreSamplerSetTestPredictor]]` | S (`[[src/R_interface_bartcore.cpp#refuseUndefinedTestFits]]` gates on `testFitsAreDefined`, TRUE here) |
+| active-row mask | `[[src/R_interface_bartcore.cpp#bartcore_setActiveRows]]` | the bartcore.R wrapper is gone; reachable via `[[R/dbarts.R#setActiveRows]]` | S, global only (`[f21]`) |
+| predict (K-aware, own n x K offset) | `[[src/R_interface_bartcore.cpp#bartcore_predict]]` | `[[R/bartcore.R#bartcorePredict]]` | S |
+| per-category fits / varcounts | `[[src/R_interface_bartcore.cpp#bartcore_getForestFits]]`, `[[src/R_interface_bartcore.cpp#bartcore_getForestVariableCounts]]` | the bartcore.R wrapper is gone; reachable via `[[R/dbarts.R#getForestFits]]`, `[[R/dbarts.R#getForestVariableCounts]]` | S |
+| calibration read | `[[src/R_interface_bartcore.cpp#bartcore_getCalibration]]` | the bartcore.R wrapper is gone; reachable via `[[R/dbarts.R#getCalibration]]` | S (map columns, NaN off-map) |
+| state store / restore | `[[src/R_interface_bartcore.cpp#bartcore_storeState]]`, `[[src/R_interface_bartcore.cpp#bartcore_setState]]` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; [[docs/design/multinomial.md#The surface]]) |
+| saved trees | `[[src/R_interface_bartcore.cpp#bartcore_getTrees]]` | the bartcore.R wrapper is gone; reachable via `[[R/dbarts.R#getTrees]]` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
-(redirect to counts / category offset, `:2803-2830`), `setWeights`
-(`:2792-2796`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2790`), `setCalibration` (`:4452-4468`),
-`setForestWeights` (`:4227-4239`, permanent, model grounds), `getLatents`
+(redirect to counts / category offset, `[[src/R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]`), `setWeights`
+(same branch), `setSigma`, `setData` / `setModel`
+(`[[src/R_interface_bartcore.cpp#refuseMultiForestMutation]]`), `setCalibration` (`[[src/R_interface_bartcore.cpp#bartcore_setCalibration]]`),
+`setForestWeights` (`[[src/R_interface_bartcore.cpp#bartcore_setForestWeights]]`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -157,7 +159,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`TODO:123-129`) then said "The multinomial
+`multinomial-counts-mutation` entry (retired: [[TODO#multinomial-counts-mutation]] - the entry no longer exists as its own heading, archived at [[docs/plans/archive/multinomial-counts-mutation.md#multinomial-counts-mutation]] and referenced only from TODO's survival-followups entry) then said "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -165,9 +167,9 @@ environment.
 
 ### 1.4 What the R5 class promises that the shells cannot deliver
 
-`dbartsSampler` (`R/dbarts.R:889-2176`): 43 methods, 7 fields (`pointer`,
+`[[R/dbarts.R#dbartsSampler]]`: 43 methods, 7 fields (`pointer`,
 `control`, `model`, `data`, `state`, `hostFor` (retired: the field was
-deleted with the mechanism at S4/F1), `forestWeights` `:902`).
+deleted with the mechanism at S4/F1), `[[R/dbarts.R#forestWeights]]`).
 
 - **22 carry `refuseHostMutation`**: `run`, `sampleTreesFromPrior`,
   `sampleNodeParametersFromPrior`, `growFromRoot`, `setControl`,
@@ -176,8 +178,8 @@ deleted with the mechanism at S4/F1), `forestWeights` `:902`).
   `setPredictor`, `setCutPoints`, `setTestPredictor`,
   `setTestPredictorAndOffset`, `setTestOffset`, `setCalibration`,
   `setState`, `installTrees`.
-- **2 carry `refuseHostRead`** (retired: the guard is gone; both methods
-  remain): `getDispersion` (`:1705`), `getFitsWithoutOffset` (`:1752`).
+- **2 carried `refuseHostRead`** (retired: [[R/dbarts.R#refuseHostRead]] - the guard is gone; both methods
+  remain): `[[R/dbarts.R#getDispersion]]`, `[[R/dbarts.R#getFitsWithoutOffset]]`.
 - **13 substantive methods answer from the placeholder, unguarded**:
   `copy`, `predict`, `getLatents`, `getSigmas`,
   `getSumsOfSquaredResiduals`, `getForestFits`, `getForestAmplitudes`,
@@ -196,8 +198,8 @@ no error.
 
 **`$copy()` launders the guard.** MEASURED: original `hostFor` length 1,
 copy `hostFor` length 0; `copy$setResponse(...)` ACCEPTED while the
-original refuses. `copy` (`:1041`) constructs through
-`dbartsSampler$new`, which sets `hostFor <- character(0L)` (retired: both
+original refuses. `[[R/dbarts.R#copy]]` constructs through
+`dbartsSampler$new`, which sets `hostFor <- character(0L)` (retired: [[R/dbarts.R#hostFor]] - both
 the field and that reset are gone), and transfers only `state` and
 `forestWeights`. The copy is a REAL
 independent engine, so the mutations are not no-ops - they take effect on
@@ -206,9 +208,9 @@ an engine nothing reads. Same harm, one method call away.
 ### 1.5 `$fit` is load-bearing, so it cannot simply be deleted
 
 All three `predict` methods code `newdata` against the HOST's design:
-`R/generics.R:1344`, `:1650`, `:1927` all call
+`[[R/generics.R#predict.bartMultinomial, predict.bartOrdinal, predict.bartNegbin, validateXTest]]` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
-`bartcorePredict` (retired: routed through `object$fit` directly, not a
+`bartcorePredict` (retired: [[R/generics.R#bartcorePredict]] - routed through `object$fit` directly, not a
 separate `$bc` handle). The host carries the factor level
 table and column names a data-frame `newdata` is expanded against. Any
 fork that removes `$fit` must relocate that table.
@@ -216,7 +218,7 @@ fork that removes `$fit` must relocate that table.
 ### 1.6 The serialization hole, and the absence of any workaround
 
 `$bc` holds an external pointer and nothing else: no state slot, no
-class, no re-creation path (contrast `getPointer` `:1815-1851`).
+class, no re-creation path (contrast `[[R/dbarts.R#getPointer]]`).
 
 MEASURED, all three families, save then reload then `predict`:
 
@@ -230,17 +232,17 @@ nbinom      reloaded predict: ERR: bartcore function called on NULL external poi
 ```
 
 The second line of each pair is the one that matters:
-`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:254` -
+`$fit$storeState()` - the documented `bart` escape at `[[man/bart.Rd#"bartFit$fit$storeState()"]]` -
 does NOT help, because `predict` reaches through `$bc`, which has no
 state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in
 `test-multinomial-*.R`, `test-ordinal.R`, or `test-nbinom.R`.
 
 The engine half exists: store/restore work on a multinomial handle
-(`test-multinomial-counts-mutation.R:190-204`). What is missing is an
+(`[[inst/tinytest/test-multinomial-counts-mutation.R#"expect_silent(bartcoreSetState(bc.state, state.A))"]]`). What is missing is an
 object to hang the state on, and somewhere for the counts to live - they
-are data and ride no state block (`multinomial.md:354-363`; that test
-file's header, `:7`).
+are data and ride no state block ([[docs/design/multinomial.md#The surface]]; that test
+file's header, `[[inst/tinytest/test-multinomial-counts-mutation.R#"the counts are not in the serialized state"]]`).
 
 ---
 
@@ -249,10 +251,11 @@ file's header, `:7`).
 ### Fork A. Surface shape
 
 **A1** front any handle from `dbartsSampler` (needs the response on
-`data`, fork G; `length(data@y)` appears at `:1340`, `:1402`, `:1429`,
-`:1477`, and `R/bartcore.R:455`; `$predict`'s offset coercion
-`R/dbarts.R:1104-1143` needs a K-matrix arm - S2+S3 built it, the
-`!is.null(counts)` branch at `R/dbarts.R:1107-1125`).
+`data`, fork G; `length(data@y)` appears at
+`[[R/dbarts.R#dbartsSampler$setWeights, dbartsSampler$setActiveRows, dbartsSampler$setForestWeights, dbartsSampler$setForestBasis]]`,
+and `[[R/bartcore.R#bartcoreSamplerSetOffset]]`; `$predict`'s offset coercion
+`[[R/dbarts.R#dbartsSampler$predict]]` needs a K-matrix arm - S2+S3 built it, the
+`!is.null(counts)` branch inside it).
 **A2** a new public class (doubles the documented surface; breaks the
 "an ordinary `dbartsSampler`" promise `man/dbarts.Rd` makes for
 multi-forest fits).
@@ -266,12 +269,12 @@ problems:
 - multinomial: A1, via fork G.
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
-`checkFamilyUnsupportedArgs` (`R/bart.R:618-646`) has **four** callers -
-multinomial `:901`, ordinal `:1054`, nbinom `:1087`, and
-**`hurdle.lognormal` `:1131`** - and its `samplerOnly` block is three
-lines (`:625-627`) inside a helper that refuses two other things.
+`[[R/bart.R#checkFamilyUnsupportedArgs]]` has **four** callers, all inside
+`bart2` - multinomial, ordinal, nbinom, and
+**`hurdle.lognormal`** - and its `samplerOnly` block is three
+lines inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
-PAIR of samplers (`test-hurdle.R:213-214`) and which this arc does not
+PAIR of samplers (`[[inst/tinytest/test-hurdle.R#"expect_false(is.null(fitKeepSampler$occupancy$fit))"]]`) and which this arc does not
 touch. RECOMMEND: a per-caller `allow.samplerOnly` flag, TRUE for the
 three families this arc fixes, FALSE for hurdle; hurdle's own
 `samplerOnly` is Fork I.
@@ -304,7 +307,7 @@ read `refuseHostRead` blocks today.
 **B1 (OPEN VD FORK): `$getLatents` on a multinomial sampler.** NULL
 today (`[f22]`). r-c-division clause 4 defaults to read/write symmetry -
 "whatever the engine draws, the R program may read" - and the K x n omega
-matrix IS drawn every sweep (`combiner.hpp:1428`). (i) build a
+matrix IS drawn every sweep (`[[src/bartcore/combiner.hpp#MultinomialForestCombiner::drawForestGlue]]`). (i) build a
 combiner-side `latents()` (engine touch: `tests/cpp` cell plus an
 ASAN/UBSAN leg; ~40 engine + ~60 test by the
 `latent-family-weight-channel` sibling estimate); (ii) record a
@@ -330,26 +333,36 @@ and name `$setCounts`, with the reason in the message.
 
 ### Fork C. Does the flat C ABI grow?
 
-Facts, corrected and re-anchored: `DBARTS_C_API_HASH` is
-`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:189`);
+Facts, corrected and re-anchored: `DBARTS_C_API_HASH`
+(`[[inst/include/dbarts/dbarts.h#DBARTS_C_API_HASH]]`) was
+`0x66d33f1613892406ULL` when this section was written and has since
+re-baked again (current value `0xca7b56a64c812b8dULL`, per Fork C's own
+cost note below);
 `DBARTS_C_API_MAJOR`/`MINOR` are 1/0 and the header itself states the
 pre-release carve-out - "no version of this API has shipped yet, so
 whatever they read then simply IS the initial contract, and they do not
-move before it" (`dbarts.h:135-139`, which is the citation to use, not
+move before it"
+(`[[inst/include/dbarts/dbarts.h#DBARTS_C_API_MAJOR,DBARTS_C_API_MINOR]]`,
+which is the citation to use, not
 the plan doc). Multinomial has no flat creation path
 (`feature-matrix.md` `[f4]`). One reverse `LinkingTo`, in-house.
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
-`DBARTS_C_API_HASH` (`dbarts.h:189`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:565`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
+`DBARTS_C_API_HASH` (`[[inst/include/dbarts/dbarts.h#DBARTS_C_API_HASH]]`) AND `dbarts_apiSignatureToken`
+(`[[src/C_interface.cpp#dbarts_apiSignatureToken]]`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
-Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
+Plus `inst/tinytest/test-capi.R`: the live-hash `expect_identical`
+(`[[inst/tinytest/test-capi.R#"expect_identical(hashes$text"]]`) pins the literal and must
 change, and one `expect_false` for the superseded literal should be added
-alongside the ones already there. The quoted pin has since moved: the
-header re-baked when `dbarts_sampler_predict` took a thread count, so
-`:84` now reads `expect_identical(hashes$text, "0x66d33f1613892406")` and
-`0x6c9776ae1197e8f5` is itself one of the superseded literals, at `:81`
-beside `:73-74` and `:78`.
+alongside the ones already there. The quoted pin has since moved more than
+once: the header re-baked when `dbarts_sampler_predict` took a thread count
+(superseding `[[inst/tinytest/test-capi.R#"0x6c9776ae1197e8f5"]]`), and has
+re-baked again since - `0x66d33f1613892406`, this section's own then-live
+value, is now ALSO superseded
+(`[[inst/tinytest/test-capi.R#"0x66d33f1613892406"]]`), beside
+`[[inst/tinytest/test-capi.R#"0x1a911c00bb26dcd7"]]` and
+`[[inst/tinytest/test-capi.R#"0xcd88efcd67de55d7"]]` and
+`[[inst/tinytest/test-capi.R#"0x85bd1ef04beb3848"]]`.
 
 **C1** no growth / **C2** grow / **C3** reserve only (~30 lines in
 `docs/plans/archive/c-api-growth.md`).
@@ -360,7 +373,8 @@ right and my earlier C2-now recommendation rested on a misidentification
 landed after adoption-slate S8, so windows are cheap" from
 `0x85bd1ef04beb3848`, which is in fact the LIVE signature-half token, not
 a superseded hash. The conclusion survives on different evidence -
-`test-capi.R:73-74` names `0x1a911c00bb26dcd7` and `0xcd88efcd67de55d7`
+`[[inst/tinytest/test-capi.R#"0x1a911c00bb26dcd7"]]` names it and
+`[[inst/tinytest/test-capi.R#"0xcd88efcd67de55d7"]]`
 as superseded header literals, so the hash HAS re-baked more than once -
 but the inference I built the recommendation on was wrong, and the
 remaining reasons point the other way: the enabling consumer is
@@ -392,12 +406,12 @@ host model@family:  "ordinal";  control attrs: bartcore.n.categories
 
 Soundness, traced at tip: the abandoned host externalptr becomes
 unreachable and its finalizer deletes its own holder once
-(`holderFinalizer`, `:88-94`) - no double free, since each externalptr
+(`holderFinalizer`, `[[src/R_interface_bartcore.cpp#holderFinalizer]]`) - no double free, since each externalptr
 carries its own holder; the adopted ptr's protection slot already pins
 `sampler$data`, the same S4 object the R5 mirrors into, so every setter's
 retained vector lands on the right holder; the `state` promise is
 `delayedAssign`ed against the object's own `pointer`
-(`R/dbarts.R:932-946`), so it resolves against the adopted engine; and
+(`[[R/dbarts.R#dbartsSampler$initialize]]`), so it resolves against the adopted engine; and
 `getPointer()`'s re-creation branch rebuilds from
 `(control, model, data)` with `model@family == "ordinal"` and the
 `bartcore.*` control attributes intact, which is exactly correct for
@@ -419,7 +433,7 @@ MOVES DRAWS - but only for `seed = NA`. MEASURED: with `seed = 77L` the
 twin's run and the host's run are `identical`; without a seed they
 differ. So D1 is bitwise for every seeded user, and the 2-of-43
 re-record is a property of `fitSummaries`' `set.seed()` fixture
-(`benchmarks/R/equivalence.R:1912-1913`), not of the change. The prize is
+(`[[benchmarks/R/equivalence.R#fitSummaries]]`), not of the change. The prize is
 small: MEASURED at n = 5000, p = 30, 100+100 sweeps, twin create 0.003s
 against a 0.339s run - about 0.8% of a short fit, not scaling with
 `n.samples`. **Do not spend the program's first re-record to reclaim
@@ -433,14 +447,15 @@ broken.
 instead of two. MOVES DRAWS for `bart2(family = "multinomial")`.
 
 D3 does not have to move `benchmarks/R/multinomial-equivalence.R`: that
-harness reseeds between the host build and the handle build (`:158-165`,
-`:177-184`) and `bartcoreMultinomialSampler` makes exactly one `.Call`
-(`R/bartcore.R:928-933`), so the 11 baselines are insulated - see Fork J
+harness reseeds between the host build and the handle build in every
+scenario (`[[benchmarks/R/multinomial-equivalence.R#runScenarios]]`)
+and `bartcoreMultinomialSampler` makes exactly one `.Call`
+(`[[R/bartcore.R#bartcoreMultinomialSampler]]`), so the 11 baselines are insulated - see Fork J
 for what that implies and how to discharge it.
 
 What D3 breaks is `test-multinomial-surface.R`'s REPRODUCTION GATE
-(`:1-11`, `:97-102`), whose comparator `internalMultinomialFit`
-(`:12-40`) mirrors the host-then-bc sequence "with no reseed in between".
+(`[[inst/tinytest/test-multinomial-surface.R#"REPRODUCTION GATE"]]`), whose comparator `internalMultinomialFit`
+(`[[inst/tinytest/test-multinomial-surface.R#internalMultinomialFit]]`) mirrors the host-then-bc sequence "with no reseed in between".
 Both sides change together, which is why the gate must be re-pointed
 rather than trusted. **And it is the only instrument that path has** -
 see finding 9 / section 3's S0, which adds a real baseline first.
@@ -456,7 +471,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`thresholds.raw` (`R/bart.R:1879`) and `dispersion.raw` (`:2121`) inside
+`thresholds.raw` (`[[R/bart.R#bart2]]`) and `dispersion.raw` (`[[R/bart.R#bart2]]`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -472,20 +487,21 @@ the RC cleanup waves flag; re-adding 12 lines later is trivial.
 
 **Test footprint, corrected: SEVEN files, not two and not five**
 (verified live): `test-dispersion-channel.R` (retired: the shell cell was
-deleted, not rewritten), `test-fits-without-offset.R:231-241`,
-`test-calibration-midchain.R:466-469`, `test-forest-weights-r5.R:232-235`,
-`test-ordinal.R:145-152`, `test-nbinom.R:143-152`,
-`test-multinomial-surface.R:346-360`. The
-ordinal and nbinom blocks pin the FAMILY-SPECIFIC message text
-(`"host sampler of a bart2\\(family = \"ordinal\"\\) fit"`), and under D0
-those cells INVERT - the sampler becomes mutable - so they must be
-rewritten as capability assertions, not deleted.
+deleted, not rewritten), `[[inst/tinytest/test-fits-without-offset.R#"$getFitsWithoutOffset()"]]`,
+`[[inst/tinytest/test-calibration-midchain.R#"the multinomial coupling, through the low-level handle"]]`, `[[inst/tinytest/test-forest-weights-r5.R#"log-sum-exp"]]`,
+`test-ordinal.R`, `test-nbinom.R`,
+`[[inst/tinytest/test-multinomial-surface.R#"fit3pMulti <- bart2("]]`. The
+ordinal and nbinom blocks pinned the FAMILY-SPECIFIC message text
+(retired: `"host sampler of a bart2(family = \"ordinal\") fit"` no longer
+appears in either file - both cells have since inverted, see below), and
+under D0 those cells INVERT - the sampler becomes mutable - so they must
+be rewritten as capability assertions, not deleted.
 
 That footprint is spent. `hostFor` has zero survivors in `R/`, `src/`,
 `inst/` and `man/` - the sole remaining occurrence of the name is the
-descriptive comment at `inst/tinytest/test-host-shell-pins.R:4`. The
+descriptive comment at `[[inst/tinytest/test-host-shell-pins.R#"no hostFor field"]]`. The
 ordinal and nbinom cells did invert to capability assertions
-(`test-ordinal.R:145-152`, `test-nbinom.R:143-152`, both now asserting
+(`[[inst/tinytest/test-ordinal.R#"the retained $fit is the engine that ran, adopted from the abandoned"]]`, `[[inst/tinytest/test-nbinom.R#"the retained $fit is the engine that ran, adopted from the abandoned"]]`, both now asserting
 that the retained `$fit` reads, mutates and runs); the
 `test-dispersion-channel.R` cell was deleted rather than rewritten; and
 the four multinomial cells survive as refusals stated on MODEL grounds
@@ -495,34 +511,34 @@ rather than host-shell ones.
 
 **G1 (RECOMMENDED). `dbartsData` gains slots**: `counts` (n x K
 integer), `offset.category`, `offset.category.test`. The `bases`
-precedent is exact (`R/A_class.R:513-524`, whose own comment states the
+precedent is exact (`[[R/A_class.R#dbartsData]]`, whose own comment states the
 rule). Re-creation becomes free; save/load works; `$setCounts` mirrors as
 `$setWeights` does.
 
 Three costs the first draft missed, all confirmed:
 
-- **The `dbartsData` validity method is in scope.** `R/A_class.R:565-626`
+- **The `dbartsData` validity method is in scope.** `[[R/A_class.R#dbartsData]]`
   derives `numObservations <- length(object@y)` and carries the refusals
   for `x`, `varTypes`, `weights`, `offset`, `bases`, `x.test`. Three new
   slots must be constrained there. Priced into S2 now; it was not before.
 - **Two family gates are required, and one cannot key on family.**
   MEASURED on `dbartsData(x, rep(1, n))`: the degeneracy check
-  (`R/data.R:1699-1710`) fires `response values are indistinguishable, or
+  (`[[R/data.R#dbartsData]]`) fires `response values are indistinguishable, or
   nearly so, at double precision (1 distinct value(s) among 60
   observations)`, and `dbarts(x, rep(1, n))` installs a starting sigma at
   `estimateSigmaFromLinearModel`'s host-independent floor (was measured at
   `1.52e-16` before the floor landed). A single-trial multinomial has
   `n_i == 1` for every row -
   the dominant case - so both fire on EVERY such fit. The sigma gate is
-  one condition (`fixedUnitScale`, `R/spec.R:218-225`, already a
+  one condition (`fixedUnitScale`, `[[R/spec.R#fixedUnitScale]]`, already a
   family-keyed flag). The warning gate is NOT: `dbartsData()` has no
-  `family` formal (`R/data.R:1699-1710`), so it must key on the data object
+  `family` formal (`[[R/data.R#dbartsData]]`), so it must key on the data object
   - skip the range check when `@counts` is non-NULL, which is available
   at construction and is the honest predicate anyway.
 - **Option (ii) is a hard error, not "five sites".** MEASURED:
   `dbarts(x[0, ], numeric(0))` stops with `data has zero rows` at the R
   layer, and the bridge would stop with `length of y must be greater than
-  0` (`src/R_interface_bartcore.cpp:947-948`) if it got there. Option (i)
+  0` (`[[src/R_interface_bartcore.cpp#parseData]]`) if it got there. Option (i)
   still wins, on corrected costs.
 
 **G1a: `data@y` carries the TRIALS vector `n_i`.** Length n, meaningful,
@@ -530,7 +546,7 @@ and no `length(data@y)` check moves. (Option (ii) `numeric(0)` is the
 hard error above; option (iii) the argmax code is a lie.)
 
 **G2** an R5 field reapplied at re-creation (the `forestWeights` pattern)
-repeats a shape `bcf.md:164-174` already books as a defect - "the two
+repeats a shape `[[docs/design/bcf.md#The multiplier snap and the per-forest weight (2026-08-10)]]` already books as a defect - "the two
 stored states compare equal while the fits diverge".
 **G3** creation-argument only makes E2 impossible.
 
@@ -555,8 +571,8 @@ packages a clean upgrade, and the NEWS entry is owed either way.
 
 ### Fork H. Who names the channel in a cross-surface refusal
 
-`refuseMultiForestResponseMutation` (`:2636-2681`) is shared with the
-flat C API and its own comment forbids stating two rules (`:2650-2651`).
+`refuseMultiForestResponseMutation` (`[[src/R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]`) is shared with the
+flat C API and its own comment forbids stating two rules (`[[src/R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]`).
 Its multinomial arm then told R users to call `bartcore_setCounts` -
 an internal C name not callable from R.
 **H1** keep C names (status quo, wrong for R users). **H2** thread a
@@ -564,14 +580,16 @@ surface label (against the shared-guard note in letter). **H3
 (RECOMMENDED)** name the CAPABILITY, not the entry - "replace it through
 the counts channel" - one string, right on both surfaces, and what
 `docs/design/error-style.md` (ADOPTED 2026-08-17) asks for. H3 LANDED at
-S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2696-2697`).
+S2+S3: that is the message the response arm now carries (`[[src/R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2843-2858` tested only
+then fell through to the RESPONSE message (tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
-arm is `:2681-2685`, and it states the model reason - an integer weight
+arm is inside the same function
+(`[[src/R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]`),
+and it states the model reason - an integer weight
 already IS row-wise count replication, and a non-integer one has no exact
 augmentation sampler.
 
@@ -620,8 +638,8 @@ implementer splits them, S2 = 700/330 and S3 = 360/500, each with its own.
 | door | content | price | cost of deferring |
 |---|---|---|---|
 | **Door 1: twin-create deletion** | Drop the redundant `bartcore_create` for ordinal/nbinom (Fork D1). | ~60 / ~40, **moves 2 of 43** equivalence scenarios | 3ms per fit (MEASURED 0.003s against a 0.339s run) and "two engines per fit" survives into the RC |
-| **Door 2: flat ABI (Fork C2)** | `dbarts_sampler_createMultinomial` + counts/offset setters + a K-aware predict. | ~260 / ~200, **two literal re-bakes** (`dbarts.h:165`, `C_interface.cpp:484`), `test-capi.R:84` + one new `expect_false`, one in-house consumer rebuild | multinomial stays R-only; the named consumer (stan4bart) is on its own branch and its own release, so nothing is blocked |
-| **Door 3: nbinom loop collapse** | Replace the per-sweep loop (`R/bart.R:2078-2103`) with one `run`. | ~40 / ~30; **`bench-sampler` IS owed** - it removes `n.samples` R-level round trips from the sampling path, which is sweep-proportional | a per-sweep R round trip per kept draw |
+| **Door 2: flat ABI (Fork C2)** | `dbarts_sampler_createMultinomial` + counts/offset setters + a K-aware predict. | ~260 / ~200, **two literal re-bakes** (`[[inst/include/dbarts/dbarts.h#DBARTS_C_API_HASH]]`, `[[src/C_interface.cpp#dbarts_apiSignatureToken]]`), `[[inst/tinytest/test-capi.R#"expect_identical(hashes$text"]]` + one new `expect_false`, one in-house consumer rebuild | multinomial stays R-only; the named consumer (stan4bart) is on its own branch and its own release, so nothing is blocked |
+| **Door 3: nbinom loop collapse** | Replace the per-sweep loop (`[[R/bart.R#bart2]]`) with one `run`. | ~40 / ~30; **`bench-sampler` IS owed** - it removes `n.samples` R-level round trips from the sampling path, which is sweep-proportional | a per-sweep R round trip per kept draw |
 | **Door 4: `$getLatents` build (B1(i))** | Combiner-side `latents()` returning the n x K omegas. | ~40 engine / ~60 test, plus an ASAN/UBSAN leg | clause 4's read/write symmetry stays deliberately declined rather than met |
 | **Door 5: hurdle `samplerOnly`** | Decide whether a two-sampler `$fit` may be returned unrun. | decision, then ~20 / ~30 | the per-caller flag keeps today's refusal, which is correct-by-default |
 
@@ -630,8 +648,8 @@ seeded control, four cells: `run(3, 4)` batched against a loop of
 `run(3|0, 1)` is bitwise on BOTH `$train` and `$dispersion` at
 `keepTrees = FALSE` and `TRUE`, and at `n.thin = 1` and `2`. The saved
 slot base advances across calls (`Sampler::run` sets
-`setSavedSlotBase(currentSampleNum_)`, `sampler.hpp:320`, advanced at
-`:459`), so `keepTrees` is not a counterexample. The collapse is safe
+`setSavedSlotBase(currentSampleNum_)`, `[[src/bartcore/sampler.hpp#Sampler::run]]`, advanced at
+`[[src/bartcore/sampler.hpp#Sampler::run]]`), so `keepTrees` is not a counterexample. The collapse is safe
 whenever VD wants it.
 
 ### Gates, per slice
@@ -651,7 +669,7 @@ Equivalence trio, **42/12/11 today** (verified against
 - **S0**: all 42 existing scenarios bitwise; one appended
   `bart2multinom` row; the baseline file re-records because it grows.
   The new scenario runs LAST with its own `set.seed`, the harness's
-  established isolation pattern (`multinomial-equivalence.R:189-196`), so
+  established isolation pattern (`[[benchmarks/R/multinomial-equivalence.R#runScenarios]]`), so
   it perturbs nothing above it.
 - **S1a**: **43/43, 12/12, 11/11 BITWISE, no re-record.** Both creates
   still happen in the same order. This is the whole point of D0.
@@ -667,7 +685,7 @@ create savings are construction-time and are deferred to Door 1 anyway).
 
 **SBC: nothing owed, and this closes here rather than deferring.**
 `benchmarks/R/sbc.R` contains no `bart2(` call anywhere, and
-`sbcMakeMultinomial` (`:1599-1602`) goes through
+`sbcMakeMultinomial` (`[[benchmarks/R/sbc.R#sbcMakeMultinomial]]`) goes through
 `getFromNamespace("bartcoreMultinomialSampler")`. Every SBC arm drives
 the handle, so no arm sees S1a's or S4's draw changes.
 
@@ -677,7 +695,7 @@ the handle, so no arm sees S1a's or S4's draw changes.
 
 **4.1 State format: no bump owed, but the R object breaks.** The engine
 half is clean - the counts are DATA, not state
-(`multinomial.md:354-363`), G1 puts them where re-creation already reads
+(`[[docs/design/multinomial.md#The surface]]`), G1 puts them where re-creation already reads
 from, and `minReadableStateFormatVersion` is untouched. The R half is
 not: adding S4 slots invalidates every previously serialized
 `dbartsData` (Fork G-migration, MEASURED). Take m2 (the `.hasSlot`
@@ -705,12 +723,12 @@ depend on the file's full execution history, not just the preceding
   four gates were `control@keepTrees || keepSampler`. Current
   `man/bart2.Rd` (e.g. line 332 for ordinal, 336 for nbinom) states only
   `fit`'s gate; there is no `bc` left to misdescribe.
-- `man/bart2.Rd:301` (the multinomial refusal set).
+- `[[man/bart2.Rd#family]]` (the multinomial refusal set).
 - `man/dbartsSampler-class.Rd`: the host-shell sentences (retired: deleted
   under F1), the `getLatents`
   paragraph (Fork B1), `\item{forest}`, and the fit-surface table
-  `adoption-slate.md:224-233` added.
-- `man/bart.Rd:254` (save/load) extended to the three families - and it
+  `[[docs/plans/adoption-slate.md#S1. What getLatents returns]]` added.
+- `[[man/bart.Rd#storeState]]` (save/load) extended to the three families - and it
   is currently the ONLY place a user is told a workaround exists, which
   MEASURED does not work for them.
 - `man/dbarts.Rd`: the `family` formal gains `"multinomial"`; the
@@ -718,14 +736,14 @@ depend on the file's full execution history, not just the preceding
 - `docs/design/feature-matrix.md`: the `multinom` row of section 2, the
   `getLatents` and calibration cells of section 3, footnotes `[f4]`,
   `[f11]`, `[f21]`, `[f22]`, `[f23]`, and the gap paragraph at
-  `:961-972`.
-- `docs/design/r-c-division.md` defect 6 (`:334-341`) closes;
-  `docs/design/multinomial.md:190-380`;
+  `[[docs/design/feature-matrix.md#Gaps]]`.
+- `[[docs/design/r-c-division.md#Defects found by this arc]]` defect 6 closes;
+  `[[docs/design/multinomial.md#The surface]]`;
   `docs/design/bart-as-a-component.md` section 2.
-- `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
-  `multinomial-counts-mutation` (`:123-129`) gains the surface note.
+- `TODO`: `host-shell-read-guards` (retired: [[TODO#host-shell-read-guards]] - the entry is gone) closes as OBVIATED;
+  `multinomial-counts-mutation` (retired: [[TODO#multinomial-counts-mutation]] - the entry no longer exists as its own heading, archived at [[docs/plans/archive/multinomial-counts-mutation.md#multinomial-counts-mutation]] and referenced only from TODO's survival-followups entry) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2157`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `[[inst/NEWS.Rd#"no longer a host shell for any of the three"]]`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -733,8 +751,12 @@ depend on the file's full execution history, not just the preceding
 
 **4.5 The two `static_assert` residue strings (retired: swept by the
 amplitude rename; both now read "an amplitude coupling is a constant-leaf
-model").** `combiner.hpp:727` and `chain.hpp:734` no longer say BCF;
-`TODO:54-57` said sweep opportunistically with the
+model").** `[[src/bartcore/combiner.hpp#AmplitudeForestCombiner]]` and `[[src/bartcore/chain.hpp#Chain]]` no longer say BCF;
+TODO (retired: [[TODO#residue strings]] - no TODO entry naming this
+residue survives; `grep -rn "static_assert\|residue string\|amplitude
+coupling" TODO` finds nothing, so the sweep was evidently discharged or
+dropped without a trace rather than left pending) said sweep
+opportunistically with the
 next edit to those files. Honest read: **no slice above is expected to
 edit either file** - the multinomial engine is done. If Door 4 is taken,
 or if S2's dispatch arm turns out to need a combiner touch, sweep both in
@@ -752,12 +774,15 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`inst/NEWS.Rd:2157` records the deletion).** `$bc` was a bare
+`[[inst/NEWS.Rd#"no longer a host shell for any of the three"]]` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
-time this section was written: six code readers (`R/generics.R:659/649`,
-`794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,
-`test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
-paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:2034`), and the
+time this section was written (retired: `$bc` has zero occurrences left in
+any of the files below - grep confirms it):
+six code readers (retired: [[R/generics.R#"$bc"]]),
+three test assertions (retired: [[inst/tinytest/test-ordinal.R#"$bc"]],
+retired: [[inst/tinytest/test-nbinom.R#"$bc"]],
+retired: [[inst/tinytest/test-multinomial-surface.R#"$bc"]]), three Rd
+paragraphs, one shipped NEWS sentence (retired: [[inst/NEWS.Rd#"$bc"]]), and the
 `thresholds.raw`/`dispersion.raw` co-gate. Under the standing
 no-backwards-compat constraint this was a NEWS migration, not a design
 input, and it has since landed.
@@ -774,68 +799,68 @@ Sections 5-8 record dispositions verified against the tree as of the
 anchors are period-correct within these four sections and are not
 re-resynced here (they are not live pointers into the current tree).
 
-1. `r-c-division.md:339-341` - "whether to extend the `hostFor` guard to
+1. `[[docs/design/r-c-division.md:339-341@0f5a2285]]` - "whether to extend the `hostFor` guard to
    [ordinal and nbinom] is a VD question BY NAME, unscheduled."
-   **STALE.** Extended at adoption-slate S7 (`cedf4c34`); `R/bart.R:1754`
-   and `:1999` carry the assignments. (Defect 6 spans `:334-341`; my
-   revision-1 citation `:337-341` clipped it.)
-2. `TODO:150-168` - "four shipped readers ... answer from the shell."
+   **STALE.** Extended at adoption-slate S7 (`cedf4c34`); `[[R/bart.R:1754@0f5a2285]]`
+   and `[[R/bart.R:1999@0f5a2285]]` carry the assignments. (Defect 6 spans `[[docs/design/r-c-division.md:334-341@0f5a2285]]`; my
+   revision-1 citation `[[docs/design/r-c-division.md:337-341@0f5a2285]]` clipped it.)
+2. `[[TODO:150-168@0f5a2285]]` - "four shipped readers ... answer from the shell."
    **TRUE BUT UNDERSTATED.** Thirteen substantive unguarded methods;
    `$predict` among them, MEASURED to return a constant; `$copy()` a
    further hole.
-3. `adoption-slate.md:212-215` (**`docs/plans/`, not `docs/design/`**) -
+3. `[[docs/plans/adoption-slate.md:212-215@0f5a2285]]` (**`docs/plans/`, not `docs/design/`**) -
    "the host shell, a gaussian sampler". **PREMISE INCOMPLETE,
    CONCLUSION SURVIVES.** Gaussian at K >= 3; PROBIT at K = 2 - and K = 2
    is reachable only under an **explicit `family = "multinomial"`**,
    since auto announces probit and returns class `"bart"` (MEASURED).
    `numReportedLocations` is 1 either way.
-4. `multiforest-extension-surface.md:906-908` (**`docs/plans/`**) - "the
-   R5 fields are exactly six ... (`R/dbarts.R:711-722`)". **STALE, both
-   halves.** Seven fields at `R/dbarts.R:848-866`.
+4. `[[docs/plans/archive/multiforest-extension-surface.md:906-908@0f5a2285]]` (**`docs/plans/`**) - "the
+   R5 fields are exactly six ... (`[[R/dbarts.R:711-722@0f5a2285]]`)". **STALE, both
+   halves.** Seven fields at `[[R/dbarts.R:848-866@0f5a2285]]`.
 5. `feature-matrix.md` `[f11]` - "Every R5 mutator is refused by
-   `refuseHostMutation` (`dbarts.R:914-925`)". **VERIFIED.** 22 sites.
-6. `feature-matrix.md` `[f11]` anchors `bart.R:1451, 1534`. **STALE.**
-   Live `:1462`, `:1539`; `hostFor` at `:1443`, `:1526`.
-7. `feature-matrix.md` `[f4]` anchors `bartcore.R:846, 909`. **STALE.**
-   Live `:852`, `:915`.
-8. `adoption-slate.md:248-249` (**`docs/plans/`**) anchors four
-   `R/bartcore.R` wrappers. **VERIFIED** at `:1093`, `:1329`, `:1339`,
-   `:831`.
+   `refuseHostMutation` (`[[R/dbarts.R:914-925@0f5a2285]]`)". **VERIFIED.** 22 sites.
+6. `feature-matrix.md` `[f11]` anchors `[[R/bart.R:1451@0f5a2285]]`, `[[R/bart.R:1534@0f5a2285]]`. **STALE.**
+   Live `[[R/bart.R:1462@0f5a2285]]`, `[[R/bart.R:1539@0f5a2285]]`; `hostFor` at `[[R/bart.R:1443@0f5a2285]]`, `[[R/bart.R:1526@0f5a2285]]`.
+7. `feature-matrix.md` `[f4]` anchors `[[R/bartcore.R:846@0f5a2285]]`, `[[R/bartcore.R:909@0f5a2285]]`. **STALE.**
+   Live `[[R/bartcore.R:852@0f5a2285]]`, `[[R/bartcore.R:915@0f5a2285]]`.
+8. `[[docs/plans/adoption-slate.md:248-249@0f5a2285]]` (**`docs/plans/`**) anchors four
+   `R/bartcore.R` wrappers. **VERIFIED** at `[[R/bartcore.R:1093@0f5a2285]]`, `[[R/bartcore.R:1329@0f5a2285]]`, `[[R/bartcore.R:1339@0f5a2285]]`,
+   `[[R/bartcore.R:831@0f5a2285]]`.
 9. `bart-as-a-component.md` anchors. **FIVE VERIFIED EXACT** -
-   `refuseMultiForestMutation` `:2629`, `refuseMultiForestResponse
-   Mutation` `:2652`, `refuseUndefinedTestFits` `:2849`,
-   `Chain::supportsResponseMutation` `chain.hpp:1068`,
-   `AmplitudeForestCombiner` `combiner.hpp:726`. The sixth
-   (`refuseAmplitudeMutation`, `R/bartcore.R:36`) is exact as an anchor
-   but is cited at **doc line 74**, outside the `:42-71` window I quoted;
+   `refuseMultiForestMutation` `[[src/R_interface_bartcore.cpp:2629@0f5a2285]]`, `refuseMultiForestResponse
+   Mutation` `[[src/R_interface_bartcore.cpp:2652@0f5a2285]]`, `refuseUndefinedTestFits` `[[src/R_interface_bartcore.cpp:2849@0f5a2285]]`,
+   `Chain::supportsResponseMutation` `[[src/bartcore/chain.hpp:1068@0f5a2285]]`,
+   `AmplitudeForestCombiner` `[[src/bartcore/combiner.hpp:726@0f5a2285]]`. The sixth
+   (`refuseAmplitudeMutation`, `[[R/bartcore.R:36@0f5a2285]]`) is exact as an anchor
+   but is cited at **doc line 74**, outside the `[[R/bartcore.R:42-71@0f5a2285]]` window I quoted;
    "ALL SIX VERIFIED EXACT" overstated the window, not the anchors.
-10. `TODO:309-322` - "a full conditional inside a larger Gibbs/MH
+10. `[[TODO:309-322@0f5a2285]]` - "a full conditional inside a larger Gibbs/MH
     sampler." **TRUE OF THE ENGINE, FALSE OF THE PUBLIC SURFACE.**
-11. `r-c-division.md:28-31` - "the response side is sealed."
+11. `[[docs/design/r-c-division.md:28-31@0f5a2285]]` - "the response side is sealed."
     **STALE BY LANDING** at the bridge; still true at the surface.
-12. `feature-matrix.md:999-1005` - the multinomial gap list.
+12. `[[docs/design/feature-matrix.md:999-1005@0f5a2285]]` - the multinomial gap list.
     **VERIFIED, every clause.** The most accurate single statement of the
     problem in the repo.
-13. `adoption-slate.md:307` (**`docs/plans/`**) - "the shell cell."
-    **VERIFIED**: `test-fits-without-offset.R:239-242` and
-    `test-dispersion-channel.R:271-272`. Both lose their subject under F1.
+13. `[[docs/plans/adoption-slate.md:307@0f5a2285]]` (**`docs/plans/`**) - "the shell cell."
+    **VERIFIED**: `[[inst/tinytest/test-fits-without-offset.R:239-242@0f5a2285]]` and
+    `[[inst/tinytest/test-dispersion-channel.R:271-272@0f5a2285]]`. Both lose their subject under F1.
 14. **RETRACTED AND REPLACED.** Revision 1 claimed
     `0x85bd1ef04beb3848` was a superseded `DBARTS_C_API_HASH`, proving a
     second header window had landed after adoption-slate S8. **Wrong.**
     That literal is the LIVE `dbarts_apiSignatureToken`, static_asserted
-    at `src/C_interface.cpp:460`, and `test-capi.R:78` asserts the full
+    at `[[src/C_interface.cpp:460@0f5a2285]]`, and `[[inst/tinytest/test-capi.R:78@0f5a2285]]` asserts the full
     hash is NOT it. The conclusion survives on other evidence -
-    `test-capi.R:72-73` names `0x1a911c00bb26dcd7` and
+    `[[inst/tinytest/test-capi.R:72-73@0f5a2285]]` names `0x1a911c00bb26dcd7` and
     `0xcd88efcd67de55d7` as superseded header literals - but the
     inference was unsound and Fork C's recommendation changed with it.
     Also: the MAJOR/MINOR carve-out should be cited to
-    **`dbarts.h:100-104`**, the header's own words, not to a plan; the
-    carve-out text sits at `adoption-slate.md:1757-1759` and decision 8
+    **`[[inst/include/dbarts/dbarts.h:100-104@0f5a2285]]`**, the header's own words, not to a plan; the
+    carve-out text sits at `[[docs/plans/adoption-slate.md:1757-1759@0f5a2285]]` and decision 8
     is owned by `docs/plans/archive/dbarts-h-reshape.md`.
-15. `man/bart2.Rd:291/:295/:299` - "`bc` and `fit` present only under
+15. `[[man/bart2.Rd:291@0f5a2285]]`/`[[man/bart2.Rd:295@0f5a2285]]`/`[[man/bart2.Rd:299@0f5a2285]]` - "`bc` and `fit` present only under
     `keepTrees`". **WRONG for `$fit`**, and contradicted by
-    `test-multinomial-surface.R:340-354`. Moved to S0.
-16. `docs/design/INDEX.md:3` - "47 docs besides this index".
+    `[[inst/tinytest/test-multinomial-surface.R:340-354@0f5a2285]]`. Moved to S0.
+16. `[[docs/design/INDEX.md:3@0f5a2285]]` - "47 docs besides this index".
     **VERIFIED** (48 files).
 17. `benchmarks/R/equivalence.R` - **no multinomial scenario exists**
     (`grep -i multinom` returns nothing). So
@@ -843,25 +868,25 @@ re-resynced here (they are not live pointers into the current tree).
     and revision 1's "S4 re-records NONE" was technically true and
     substantively hollow. S0 now adds one.
 18. `benchmarks/R/sbc.R` - **no `bart2(` call anywhere**;
-    `sbcMakeMultinomial:1360-1362` uses
+    `sbcMakeMultinomial` (`[[benchmarks/R/sbc.R:1360-1362@0f5a2285]]`) uses
     `getFromNamespace("bartcoreMultinomialSampler")`. No SBC re-run is
     owed for S1a or S4.
-19. `R/bart.R:596-624` `checkFamilyUnsupportedArgs` has **four callers**:
-    `:891` multinomial, `:1041` ordinal, `:1072` nbinom, `:1114`
-    **hurdle.lognormal**. The `samplerOnly` block is `:604-606`.
+19. `[[R/bart.R:596-624@0f5a2285]]` `checkFamilyUnsupportedArgs` has **four callers**:
+    `[[R/bart.R:891@0f5a2285]]` multinomial, `[[R/bart.R:1041@0f5a2285]]` ordinal, `[[R/bart.R:1072@0f5a2285]]` nbinom, `[[R/bart.R:1114@0f5a2285]]`
+    **hurdle.lognormal**. The `samplerOnly` block is `[[R/bart.R:604-606@0f5a2285]]`.
     Revision 1's "two lines" was wrong and named three families where
     there are four.
-20. `R/A_class.R:548-610` - the `dbartsData` **validity method**, which
+20. `[[R/A_class.R:548-610@0f5a2285]]` - the `dbartsData` **validity method**, which
     derives `numObservations <- length(object@y)` and carries every slot
     refusal. Absent from revision 1's Fork G scope and price; now in S2.
-21. `R/data.R:1259-1270` degeneracy check and `R/spec.R:189-190` sigma
+21. `[[R/data.R:1259-1270@0f5a2285]]` degeneracy check and `[[R/spec.R:189-190@0f5a2285]]` sigma
     estimate both fire on a single-trial multinomial response.
     **MEASURED**: the warning text, and a starting sigma at
     `estimateSigmaFromLinearModel`'s host-independent floor (was
     `sigma = 1.52e-16` before the floor landed).
-    `dbartsData()` has no `family` formal (`R/data.R:735-746`), so the
+    `dbartsData()` has no `family` formal (`[[R/data.R:735-746@0f5a2285]]`), so the
     warning gate must key on `@counts`, not on family.
-22. `combiner.hpp:728` / `chain.hpp:760` carry the two residue
+22. `[[src/bartcore/combiner.hpp:728@0f5a2285]]` / `[[src/bartcore/chain.hpp:760@0f5a2285]]` carry the two residue
     strings (retired: both now read "an amplitude coupling", not BCF).
 
 ---
@@ -872,7 +897,7 @@ re-resynced here (they are not live pointers into the current tree).
 |---|---|
 | 1 | ACCEPTED and independently re-verified; **Fork D0 added and recommended**, with my own bitwise probe (train + cutpoints + dispersion, mutability, state round trip) and a source-level soundness trace. Twin deletion demoted to Door 1. |
 | 2 | ACCEPTED; the 3ms measurement is now the stated reason NOT to spend a re-record, and the "two engines per fit" framing is qualified as surviving into the RC under D0. |
-| 3 | ACCEPTED; draw movement is now stated as conditional on `seed = NA`, with the seeded-identical probe and the `equivalence.R:1396` fixture attribution. |
+| 3 | ACCEPTED; draw movement is now stated as conditional on `seed = NA`, with the seeded-identical probe and the `[[benchmarks/R/equivalence.R:1396@0f5a2285]]` fixture attribution. |
 | 4 | ACCEPTED in full; Fork G re-scoped (validity method into S2), both family gates named with the `dbartsData`-has-no-`family` complication, option (ii) corrected to a hard error. Ledger 20, 21. |
 | 5 | ACCEPTED; 4.1 corrected, **Fork G-migration added** with a measured `.hasSlot` mitigation and a NEWS line. |
 | 6 | ACCEPTED; four callers named, hurdle called out, per-caller flag recommended, Door 5 opened. Ledger 19. |
@@ -880,13 +905,13 @@ re-resynced here (they are not live pointers into the current tree).
 | 8 | ACCEPTED; "plausible-looking numeric vector" replaced with the measured constant 1. |
 | 9 | ACCEPTED; **a `bart2multinom` scenario is added in S0** so S4's move has a baseline; trio becomes 43/12/11 after S0. Ledger 17. |
 | 10 | ACCEPTED; **Fork J** added (below) with a recommended fate and a fallback. |
-| 11 | ACCEPTED; ledger 14 RETRACTED and replaced, MAJOR/MINOR re-cited to `dbarts.h:100-104`, C2's cost corrected to two re-bakes, **and Fork C's recommendation changed from C2-now to C3-now**. |
+| 11 | ACCEPTED; ledger 14 RETRACTED and replaced, MAJOR/MINOR re-cited to `[[inst/include/dbarts/dbarts.h:100-104@0f5a2285]]`, C2's cost corrected to two re-bakes, **and Fork C's recommendation changed from C2-now to C3-now**. |
 | 12 | ACCEPTED; S2 repriced 420 -> ~700 against its own named comparable, S3 260 -> ~360, test 380 -> ~830 for the merged slice. |
 | 13 | ACCEPTED; `bench-sampler` is now marked OWED for Door 3 and not-owed elsewhere. |
 | 14 | ACCEPTED and extended; I re-ran it across four cells (keepTrees x n.thin) on both channels. |
 | 15 | ACCEPTED; the SBC question is resolved in place, not deferred. Ledger 18. |
 | 16 | ACCEPTED and refined upward: **seven** files carry host-shell cells, not five; the ordinal/nbinom blocks pin family-specific text and INVERT under D0; `thresholds.raw`/`dispersion.raw` co-gating recorded in the S4 spec. |
-| 17 | ACCEPTED; all anchor corrections applied (plans-vs-design paths, `:334-341`, `:309-322`, `:1757-1759`, `combiner.hpp:730-731`, and the `:42-71` window overstatement). |
+| 17 | ACCEPTED; all anchor corrections applied (plans-vs-design paths, `[[docs/design/r-c-division.md:334-341@0f5a2285]]`, `[[TODO:309-322@0f5a2285]]`, `[[docs/plans/adoption-slate.md:1757-1759@0f5a2285]]`, `[[src/bartcore/combiner.hpp:730-731@0f5a2285]]`, and the `[[R/bartcore.R:42-71@0f5a2285]]` window overstatement). |
 | 18 | ACCEPTED; "silent no-op" replaced with "takes effect on an engine nothing reads", with the measured probe. |
 | 19 | ACCEPTED; the Rd defect moves from S5 to S0. |
 | 20 | ACCEPTED; the no-workaround line is now quoted from my own run, all three families. |
@@ -925,12 +950,12 @@ Four **upward refinements**, where re-verification tightened a finding
 rather than contradicting it. Recording them so the record is exact:
 
 1. **Finding 11(b)**, "the 'one text-hash cell edit' is likely zero edits
-   plus one new `expect_false`." Refined: `test-capi.R:80` pins the
+   plus one new `expect_false`." Refined: `[[inst/tinytest/test-capi.R:80@0f5a2285]]` pins the
    literal with `expect_identical(hashes$text, "0x6c9776ae1197e8f5")`, so
    C2 edits that line AND adds an `expect_false`, on top of the two
    source re-bakes. Costlier than stated; same direction.
 2. **Finding 4**, option (ii) "is a hard bridge error ...
-   `R_interface_bartcore.cpp:939-955`." Refined: it dies one layer
+   `[[src/R_interface_bartcore.cpp:939-955@0f5a2285]]`." Refined: it dies one layer
    earlier - MEASURED `dbarts(x[0, ], numeric(0))` stops at the R layer
    with `data has zero rows` before the bridge is reached. Both are hard
    errors; same conclusion.
@@ -939,8 +964,8 @@ rather than contradicting it. Recording them so the record is exact:
    `test-forest-weights-r5.R`, `test-ordinal.R`, `test-nbinom.R`,
    `test-multinomial-surface.R`.
 4. **Finding 11**, `dbarts_apiSignatureToken` "static_asserted at
-   `src/C_interface.cpp:462`." Refined: the `static_assert` statement
-   begins at **`:460`**; `:462` is inside its message string.
+   `[[src/C_interface.cpp:462@0f5a2285]]`." Refined: the `static_assert` statement
+   begins at **`[[src/C_interface.cpp:460@0f5a2285]]`**; `[[src/C_interface.cpp:462@0f5a2285]]` is inside its message string.
 
 One **provenance caveat on my own evidence**, stated rather than buried:
 the probes ran against a build one day behind tip (see "Verification
