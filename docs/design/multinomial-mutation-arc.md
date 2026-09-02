@@ -815,7 +815,7 @@ re-resynced here (they are not live pointers into the current tree).
    is reachable only under an **explicit `family = "multinomial"`**,
    since auto announces probit and returns class `"bart"` (MEASURED).
    `numReportedLocations` is 1 either way.
-4. `[[docs/plans/archive/multiforest-extension-surface.md:906-908@0f5a2285]]` (**`docs/plans/`**) - "the
+4. `[[docs/plans/multiforest-extension-surface.md:906-908@0f5a2285]]` (**`docs/plans/`**) - "the
    R5 fields are exactly six ... (`[[R/dbarts.R:711-722@0f5a2285]]`)". **STALE, both
    halves.** Seven fields at `[[R/dbarts.R:848-866@0f5a2285]]`.
 5. `feature-matrix.md` `[f11]` - "Every R5 mutator is refused by

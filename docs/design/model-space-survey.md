@@ -466,7 +466,7 @@ when the data carries a treatment vector
 no longer the only path in, and `dbarts:::bartcoreBCFSampler`
 ([[R/bartcore.R:644@60d7eb7c]], corrected from this section's stale line 629) is
 no longer the only R entry. `bcf()` stays a comment
-([[R/model.R:1666@60d7eb7c]], [[R/model.R:1684@60d7eb7c]]), expected to ship
+([[R/model.R:1102@60d7eb7c]], [[R/model.R:1120@60d7eb7c]]), expected to ship
 in bartCause instead (docs/plans/archive/multiforest-extension-surface.md
 fork 4). The R5 surface (S2, 18657f8f), the flat C surface (S3, 0ea8af56) and
 per-draw reporting (S4, f2d82bfe) followed; `treatment =`/`moderators =`/
@@ -510,7 +510,7 @@ classes it did NOT carry, each a different basis, are:
   ("the four VERIFIED classes it lacks",
   docs/plans/archive/multiforest-extension-surface.md M4.5) called it verified, and the
   plan's own later corrected-citations pass
-  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]])
+  ([[docs/plans/multiforest-extension-surface.md:488-493@4c018187]])
   downgraded it. Neither claim is left standing silently: the class is
   written, and it is written as unverified. dbarts expresses it TODAY - a
   one-column continuous basis is a legal `forest(basis = )`, and there is no
@@ -523,7 +523,7 @@ classes it did NOT carry, each a different basis, are:
   ensemble. **The structure matches; the MCMC does not.** VCBART has NO
   amplitude - its leaf jumps are `N(0, tau_j^2)` with `tau_j` a FIXED
   hyperparameter, never sampled
-  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]]) -
+  ([[docs/plans/multiforest-extension-surface.md:488-493@4c018187]]) -
   so dbarts expresses the model
   shape with an amplitude the original does not draw, which under this survey's
   own "a model's structure is not its MCMC" rule (section 1) is a different
@@ -754,7 +754,7 @@ latent classes, and so supported nothing that survives.
 - Kim, Zigler - Bayesian nonparametric trees for principal causal effects;
   Biometrics 81(1), article ujaf024, 2025, doi:10.1093/biomtc/ujaf024 (venue
   added 2026-08-14 from the extension-surface plan's corrected-citations pass,
-  [[docs/plans/archive/multiforest-extension-surface.md:483-484@4c018187]];
+  [[docs/plans/multiforest-extension-surface.md:483-484@4c018187]];
   this entry was previously venue-less)
   [verified: https://arxiv.org/abs/2403.13256; code https://github.com/lit777/BPCF]
 - Sun, Song, Bayesian Analysis 20(2) 345-373 - tree-based Bayesian AFT cure model
@@ -804,7 +804,7 @@ latent classes, and so supported nothing that survives.
 
 **Added 2026-08-14 with section 4's D4.** These three were verified by the
 extension-surface plan's corrected-citations pass
-([[docs/plans/archive/multiforest-extension-surface.md:483-493@4c018187]]),
+([[docs/plans/multiforest-extension-surface.md:483-493@4c018187]]),
 NOT by a fresh fetch in this file. Distinguishing the two is the point of this
 ledger, so it is stated rather than blurred.
 
@@ -813,7 +813,7 @@ ledger, so it is stated rather than blurred.
   It does NOT meet this file's verification standard, and it is the SOLE source
   for D4's continuous-multiplier class - which the extension-surface plan
   called "verified" before its own later pass downgraded it
-  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]]).
+  ([[docs/plans/multiforest-extension-surface.md:488-493@4c018187]]).
   Kept as a named class with an unverified source, rather than dropped or
   relabelled.
 - Deshpande, Bai, Balocchi, Starling, Weiss - VCBART, varying-coefficient BART;

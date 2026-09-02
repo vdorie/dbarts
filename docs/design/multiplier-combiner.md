@@ -78,7 +78,7 @@ DIRECTION, the header agrees
 ([[inst/include/dbarts/dbarts.h#dbarts_sampler_setTreeStorage]],
 [[src/C_interface.cpp#dbarts_sampler_printTrees]]), and M4.5 corrected the
 plan line itself
-([[docs/plans/archive/multiforest-extension-surface.md:557-561@4c018187]]).
+([[docs/plans/multiforest-extension-surface.md:557-561@4c018187]]).
 
 ## The amplitude layout
 
@@ -156,10 +156,10 @@ factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
 ([[src/bartcore/combiner.hpp#drawForestAmplitude]]). The two-sqrt Cholesky
 solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2
-landing note, [[docs/plans/archive/multiforest-extension-surface.md:4855-4857@4c018187]]).
+landing note, [[docs/plans/multiforest-extension-surface.md:4855-4857@4c018187]]).
 `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is its teeth, with a
 p = 1 arm asserting the Cholesky route DIFFERS and a p = 2 orthogonal arm
-([[docs/plans/archive/multiforest-extension-surface.md:4891-4896@4c018187]]).
+([[docs/plans/multiforest-extension-surface.md:4891-4896@4c018187]]).
 
 ## Why bcf no longer keeps a specialized draw
 
@@ -214,7 +214,7 @@ docs/plans/archive/bcf-b-ridge.md derives
 B reads the LIVE prior variance, which for a scale mixture is the auxiliary
 this move conditions on. Refreshing it here would re-randomize the coordinate
 just conditioned on and throttle the mixing gain - measured, IACT 69 -> 196 on
-`|a|` ([[docs/plans/archive/bcf-ridge-interweaving.md:488-492@4c018187]]); the
+`|a|` ([[docs/plans/bcf-ridge-interweaving.md:488-492@4c018187]]); the
 one-sweep lag is benign, the next `drawGlue` refreshing it given the new
 amplitude ([[src/bartcore/combiner.hpp#drawForestAmplitude]]).
 
@@ -326,7 +326,7 @@ it flips only on a named measured mixing case, plus that gate, plus a re-record
 with the `equivalence.yaml` bump in the same commit.
 
 **No silent enablement is possible** (resolved at M4.3 review,
-[[docs/plans/archive/multiforest-extension-surface.md:4967-4975@4c018187]]).
+[[docs/plans/multiforest-extension-surface.md:4967-4975@4c018187]]).
 On every creation route the scale mixture holds if and only if a
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis ([[R/model.R#forestParams]],
@@ -391,9 +391,9 @@ not a borrowed indicator, because a width-preserving swap to a different
 complementary pair would otherwise install the new pair, leave the layout
 unmoved, and then draw `b0`/`b1` under the OLD partition while
 `forestMultiplier` contracted the NEW basis (M4.3 item 1,
-[[docs/plans/archive/multiforest-extension-surface.md:1908-1928@4c018187]];
+[[docs/plans/multiforest-extension-surface.md:1908-1928@4c018187]];
 landed per
-[[docs/plans/archive/multiforest-extension-surface.md:4926-4927@4c018187]]).
+[[docs/plans/multiforest-extension-surface.md:4926-4927@4c018187]]).
 
 ## Persistence
 
@@ -420,9 +420,9 @@ the design matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth
 reapply hook: a widening applied after a restore preserves and remaps the
 RESTORED amplitudes rather than the constructed ones
 ([[src/bartcore/combiner.hpp#serializeGlue]];
-[[docs/plans/archive/multiforest-extension-surface.md:1958-1978@4c018187]],
+[[docs/plans/multiforest-extension-surface.md:1958-1978@4c018187]],
 landed
-[[docs/plans/archive/multiforest-extension-surface.md:4931-4933@4c018187]]).
+[[docs/plans/multiforest-extension-surface.md:4931-4933@4c018187]]).
 
 ## Bitwise contracts
 
@@ -440,7 +440,7 @@ contract:
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
    tau, glue, sigma and train ([[src/bartcore/combiner.hpp#combinedFits]];
    M4.1 landing note,
-   [[docs/plans/archive/multiforest-extension-surface.md:4798-4808@4c018187]]).
+   [[docs/plans/multiforest-extension-surface.md:4798-4808@4c018187]]).
    `testCombinedFitsAssociation`
    ([[tests/cpp/test_sampler.cpp#testCombinedFitsAssociation]]) is the ONLY
    in-process guard - the M4.0 seam pin structurally CANNOT see association,
@@ -458,9 +458,9 @@ contract:
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values
 silently vacate pins (M4.0's required fix,
-[[docs/plans/archive/multiforest-extension-surface.md:4745-4753@4c018187]];
+[[docs/plans/multiforest-extension-surface.md:4745-4753@4c018187]];
 recurred at M4.3's Arm 5(iii) dead pin,
-[[docs/plans/archive/multiforest-extension-surface.md:4957-4960@4c018187]]).
+[[docs/plans/multiforest-extension-surface.md:4957-4960@4c018187]]).
 
 ## The calibration map, general in K
 
@@ -555,8 +555,8 @@ thin adapter between bcf's two-forest spelling and the K-length vector every
 other layer works in, and it is LOAD-BEARING rather than courtesy: 25
 `tests/cpp` fixtures and benchmarks/R/bcf-equivalence.R drive through the
 `AmplitudeSpec` spelling
-([[docs/plans/archive/multiforest-extension-surface.md:1785-1791@4c018187]],
-[[docs/plans/archive/multiforest-extension-surface.md:2182-2184@4c018187]]).
+([[docs/plans/multiforest-extension-surface.md:1785-1791@4c018187]],
+[[docs/plans/multiforest-extension-surface.md:2182-2184@4c018187]]).
 Forest 0 takes the half-Cauchy amplitude over the implicit intercept and
 leaves its node scale at s; forest 1 takes the fixed-variance pair over the
 treatment indicator basis and carries `sdModerate` in its node scale.
@@ -625,7 +625,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   - and no log-likelihood is reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
   ([[inst/include/dbarts/dbarts.h#dbarts_results]]); DECLINED at
-  [[docs/plans/archive/multiforest-extension-surface.md:1521-1531@4c018187]],
+  [[docs/plans/multiforest-extension-surface.md:1521-1531@4c018187]],
   a `DBARTS_C_API_MINOR` bump binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   ([[src/bartcore/facade.hpp#createAmplitudeSampler]]).
@@ -665,7 +665,7 @@ install WITHOUT `--preclean` reported bitwise identical, so every re-check must
 n = 20000 and 1.0105 at n = 2000, flat across 100x in n - per-element compute
 in the combiner, not bandwidth - and the ~1% BCF-only cost was ACCEPTED as the
 price of the general multiplier
-([[docs/plans/archive/multiforest-extension-surface.md:4834-4846@4c018187]]).
+([[docs/plans/multiforest-extension-surface.md:4834-4846@4c018187]]).
 
 **M4.2, a35ff7df (the q-variate conditional).** The per-forest q-variate
 conditional through the new unit-lower LDL' helper, and ONE general per-forest
@@ -742,7 +742,7 @@ so a `LinkingTo` consumer recompiles; `dbarts_apiHash()` did not, the append
 being below the header's documented 1.0-0 boundary.
 
 **Budget units, as a standing convention**
-([[docs/plans/archive/multiforest-extension-surface.md:4985-4989@4c018187]]).
+([[docs/plans/multiforest-extension-surface.md:4985-4989@4c018187]]).
 Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and
 formatting inflation, which roughly doubles raw counts. M4.3's implementer

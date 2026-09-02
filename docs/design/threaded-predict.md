@@ -33,10 +33,10 @@ bartcore's replay entry points ([[src/bartcore/sampler.hpp#predictColumns]],
 [[src/bartcore/sampler.hpp#predictVarianceColumns]]) never gained one, while
 [[src/bartcore/sampler.hpp#run]] kept its fan-out.
 `docs/plans/archive/interface-review.md`'s F10 item
-([[docs/plans/archive/interface-review.md:199@c44fcbc5]]) already records both
+([[docs/plans/interface-review.md:199@c44fcbc5]]) already records both
 formals as "fully inert, not merely serial," and lists "threaded
 prediction" on the 2.0-WISHLIST
-([[docs/plans/archive/interface-review.md:543@c44fcbc5]]); this design
+([[docs/plans/interface-review.md:543@c44fcbc5]]); this design
 discharges both,
 striking the wishlist line. The NEWS entry is corrected in place
 rather than left standing (`f04e8686` is precedent for editing NEWS
