@@ -794,7 +794,7 @@ path, so this is a surface gap, not an engine one.
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 (`buildVarianceForest` CH:4145 never sets `useDart`, default false at CH:117).
 
-[f39] Current baselines: `equivalence-02d41365.rds` (46 scenarios),
+[f39] Current baselines: `equivalence-d4bca4ce.rds` (51 scenarios),
 `bcf-equivalence-00cfa108.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
 - benchmarks/baselines/MANIFEST. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.

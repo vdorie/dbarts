@@ -327,7 +327,7 @@ Gate commands:
     # equivalence trio - the pre-landing check; only the two cross-host
     # compares run in CI
     Rscript benchmarks/R/equivalence.R compare \
-      benchmarks/baselines/equivalence-02d41365.rds
+      benchmarks/baselines/equivalence-d4bca4ce.rds
     Rscript benchmarks/R/bcf-equivalence.R compare \
       benchmarks/baselines/bcf-equivalence-00cfa108.rds --cross-host
     Rscript benchmarks/R/multinomial-equivalence.R compare \

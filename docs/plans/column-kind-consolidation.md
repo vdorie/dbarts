@@ -1802,7 +1802,7 @@ multinomial-equivalence-4d9a3337 11/11, all bitwise with no max |z| line.
 S4b next: typed sources and the retained saving, the one slice that cannot be
 made small.
 
-### S4b gate enabling - the corpus at 51 scenarios
+### S4b gate enabling - the corpus at 51 scenarios (842e54cf)
 
 Five scenarios join benchmarks/R/equivalence.R ahead of the ownership
 rework, so the three paths S4b moves that the 46-scenario corpus did not
