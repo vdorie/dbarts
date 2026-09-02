@@ -245,22 +245,31 @@ struct CscColumnSlice {
 /// codes: every kind's codes are the store's.
 enum class ColumnSourceKind : std::uint8_t {
   denseCallSupplied,  // dense codes in codes[]; the raw arrives with the call
-                      // (train: the call-time x; test: ownedTestValues)
+                      // (train: the call-time x; test: none - the test store
+                      // owns every raw it keeps)
   denseResident,      // dense codes in codes[]; the raw lives in the store, at
                       // residentRaw, a slice of the side's owned dense block
+  denseCodesOnly,     // dense codes in codes[] and NO raw anywhere: a factor
+                      // column's cells are level codes, which the codes
+                      // already carry, and its grid follows the level table
+                      // rather than its values, so it never re-quantizes
   cscRank,            // rank-bitmap in the side's sparseColumns[rankSlot];
                       // re-quantize from slice
   cscDensified        // dense codes in codes[]; re-quantize from slice
 };
 
 /// A per-column source descriptor: one instance per column of a row set,
-/// carried in a vector sized to numPredictors on every built store. The
-/// discriminated fields are read only for the kinds that own them (rankSlot for
-/// cscRank; residentRaw for denseResident; slice for the two CSC kinds;
-/// declaredCategoryCount for any factor column whose host declared a level
-/// table, train-side only, and refCode for CSC-backed categorical columns on
-/// both sides). denseCallSupplied has a side-specific raw source the accessor
-/// supplies.
+/// carried in a vector sized to numPredictors on every built store. The kind
+/// names WHICH POOL the column's raw lives in - the store's own double block
+/// (denseResident), the caller's matrix (denseCallSupplied), the retained CSC
+/// nonzeros (the two CSC kinds), or none at all (denseCodesOnly) - so "this
+/// column has no double" is a state the descriptor states rather than a null a
+/// reader must know to expect. The discriminated fields are read only for the
+/// kinds that own them (rankSlot for cscRank; residentRaw for denseResident;
+/// slice for the two CSC kinds; declaredCategoryCount for any factor column
+/// whose host declared a level table, train-side only, and refCode for
+/// CSC-backed categorical columns on both sides). denseCodesOnly reads none of
+/// them.
 struct ColumnSource {
   ColumnSourceKind kind = ColumnSourceKind::denseCallSupplied;
   std::int32_t rankSlot = -1;          // cscRank: slot into the side's sparseColumns
@@ -699,15 +708,6 @@ struct CodeBlock {
     return columnIsSparse(j) ? sparseColumn(j).at(i)
                              : codes[codeOffsets[j] + i];
   }
-
-  /// A dense-backed column's raw source for re-quantization: the store's
-  /// resident raw when denseResident, else the side's call-supplied fallback
-  /// at column j (the call-time x for train, ownedTestValues for test).
-  const double* residentRawForColumn(size_t j, size_t numRows,
-                                  const double* ownedFallback) const {
-    return sources[j].kind == ColumnSourceKind::denseResident
-      ? sources[j].residentRaw : ownedFallback + j * numRows;
-  }
 };
 
 /// Classic dense column store: borrowed column-major doubles quantized once
@@ -790,10 +790,15 @@ struct ColumnStore {
   }
 
   size_t numTestObservations = 0;
-  // Owned copy of the test predictors, column-major numTestObservations x
-  // numPredictors, taken at buildTest. The engine borrows no test matrix: cut
-  // changes re-quantize the test codes from this copy, and rawTestColumn serves
-  // it to leaf models. Views hold none (they gather test-subset columns below).
+  // Owned copy of the REAL-VALUED dense-backed test columns, column-major and
+  // packed per predictor over the columns it serves, taken at buildTest; each
+  // denseResident test source points into it. A FACTOR test column keeps only
+  // its codes: its cells are level codes, its grid follows the training level
+  // table rather than its values, so it never re-quantizes, and a designated
+  // leaf covariate among them is served by the test gather below instead. The
+  // engine borrows no test matrix either way: cut changes re-quantize a
+  // numeric test column from this copy, and rawTestColumn serves it to leaf
+  // models. Views hold none (they gather test-subset columns below).
   std::vector<double> ownedTestValues;
   // The test rows' codes over this store's cut grid (types, numCuts,
   // cutPoints), the training-side layout mirrored for the test rows. testCodeAt
@@ -822,7 +827,13 @@ struct ColumnStore {
   // copied cut grid, so every fold runs the prior a full-data fit would.
   std::vector<size_t> gatheredRawColumns;
   std::vector<double> gatheredRawValues;      // column-major, numObservations x q
-  std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x q
+  // the test-side twin, with its OWN column list because the two sides gather
+  // different subsets: a top-level test store owns every real-valued dense
+  // test column already and gathers only the designated columns it cannot
+  // serve from that block, while a view gathers each side of the same
+  // designation. Slots index gatheredRawTestColumns, never gatheredRawColumns.
+  std::vector<size_t> gatheredRawTestColumns;
+  std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x its columns
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
@@ -853,6 +864,13 @@ struct ColumnStore {
   std::int32_t gatheredSlotForColumn(size_t j) const {
     for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
       if (gatheredRawColumns[k] == j) return static_cast<std::int32_t>(k);
+    return -1;
+  }
+
+  /// The same over the test-side gather, whose column list is its own.
+  std::int32_t gatheredTestSlotForColumn(size_t j) const {
+    for (size_t k = 0; k < gatheredRawTestColumns.size(); ++k)
+      if (gatheredRawTestColumns[k] == j) return static_cast<std::int32_t>(k);
     return -1;
   }
 
@@ -899,9 +917,12 @@ struct ColumnStore {
       ? train.sources[j].residentRaw : nullptr;
   }
 
-  /// Raw test values of column j: the mixed build's owned dense slice (null for
-  /// its CSC-backed columns, which serve no leaf raw), the dense buildTest copy,
-  /// or the values gathered at view construction.
+  /// Raw test values of column j: the test store's own dense slice, a gathered
+  /// copy (a designated factor column, which retains no slice of its own, or a
+  /// view's subset values), null when neither serves it - a CSC-backed column,
+  /// which serves no leaf raw, and an undesignated factor column, which keeps
+  /// only its codes. The designation is refused upstream where this is null,
+  /// so a leaf model never reads one.
   const double* rawTestColumn(size_t j) const {
     if (!test.sources.empty()) {
       const ColumnSource& source = test.sources[j];
@@ -909,9 +930,7 @@ struct ColumnStore {
         return source.residentRaw;
       if (source.isCscBacked()) return nullptr;
     }
-    if (!ownedTestValues.empty())
-      return ownedTestValues.data() + j * numTestObservations;
-    std::int32_t slot = gatheredSlotForColumn(j);
+    std::int32_t slot = gatheredTestSlotForColumn(j);
     if (slot >= 0)
       return gatheredRawTestValues.data() +
              static_cast<size_t>(slot) * numTestObservations;
@@ -1403,16 +1422,18 @@ struct ColumnStore {
 
   /// Re-quantize test column j against the current cuts. A CSC-backed column
   /// (the CSC-backed columns of a mixed test build) reads its retained owned
-  /// slice; a dense-backed one reads the owned dense raw (the mixed build's
-  /// slice or the buildTest per-column copy). The test side gates no draws, so
-  /// it tracks no missingness.
+  /// slice; a real-valued dense-backed one reads its slice of ownedTestValues.
+  /// A FACTOR test column has nothing to re-quantize from and needs nothing:
+  /// its grid follows the training level table, which is fixed at build, so
+  /// the codes buildTest wrote against it stay current. The test side gates no
+  /// draws, so it tracks no missingness.
   void quantizeTestColumn(size_t j) {
     if (test.columnIsCscBacked(j)) {
       quantizeCscColumnInto(test, numTestObservations, j, nullptr);
       return;
     }
-    const double* raw =
-      test.residentRawForColumn(j, numTestObservations, ownedTestValues.data());
+    const double* raw = test.sources[j].residentRaw;
+    if (raw == nullptr) return;
     quantizeDenseInto(test, numTestObservations, j, raw, nullptr);
   }
 
@@ -1424,6 +1445,7 @@ struct ColumnStore {
                             size_t numGatherColumns) {
     gatheredRawColumns.assign(gatherColumns, gatherColumns + numGatherColumns);
     gatheredRawValues.assign(numGatherColumns * numObservations, 0.0);
+    gatheredRawTestColumns.clear();
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
@@ -1445,6 +1467,7 @@ struct ColumnStore {
     hasMissing.assign(numPredictors, 0);
     gatheredRawColumns.clear();
     gatheredRawValues.clear();
+    gatheredRawTestColumns.clear();
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
@@ -1543,8 +1566,6 @@ struct ColumnStore {
         ownedDenseValues.assign(
           source.denseValues,
           source.denseValues + (static_cast<size_t>(maxDenseSource) + 1) * n);
-    } else {
-      setupGatheredColumns(gatherColumns, numGatherColumns);
     }
 
     size_t numDenseCodes = 0;
@@ -1589,6 +1610,25 @@ struct ColumnStore {
     }
     train.codes.resize(numDenseCodes);
     hasSparse = !train.sparseColumns.empty();
+
+    // the leaf-covariate gather, over the designated columns THIS build cannot
+    // otherwise serve raw. A dense build retains no raw at all, so every
+    // designated column is copied. A mapped build already serves its
+    // real-valued dense-backed columns from its own block, so only a FACTOR
+    // column among them is gathered - its cells are level codes, which the
+    // block does not hold - and never a CSC-backed one, whose sparse storage
+    // serves no dense raw and which the quantize would leave a slot of zeros.
+    if (mapped) {
+      std::vector<size_t> mappedGather;
+      for (size_t k = 0; k < numGatherColumns; ++k) {
+        size_t j = gatherColumns[k];
+        if (j < p && isFactor(j) && source.sourceOf(j) >= 0)
+          mappedGather.push_back(j);
+      }
+      setupGatheredColumns(mappedGather.data(), mappedGather.size());
+    } else {
+      setupGatheredColumns(gatherColumns, numGatherColumns);
+    }
 
     // scratch for a coded column of NUMERIC kind, whose grid is over real
     // values: one column at a time, and only for a host that codes a column
@@ -1657,6 +1697,8 @@ struct ColumnStore {
   void resetTestStorage() {
     numTestObservations = 0;
     ownedTestValues.clear();
+    gatheredRawTestColumns.clear();
+    gatheredRawTestValues.clear();
     test.codes.clear();
     test.codeOffsets.clear();
     test.sources.clear();
@@ -1697,13 +1739,12 @@ struct ColumnStore {
     return true;
   }
 
-  /// Whether buildTest would ingest this view: BOTH of its refusal points,
-  /// asked without touching the test store, so an entrance that has training
-  /// values to install can decide its whole answer before it installs any of
-  /// them. Keep this in step with buildTest's own opening tests.
+  /// Whether buildTest would ingest this view, asked without touching the test
+  /// store, so an entrance that has training values to install can decide its
+  /// whole answer before it installs any of them. Keep this in step with
+  /// buildTest's own opening test.
   bool testSourceIsIngestible(const PredictorSource& source) const {
-    return !source.hasSplitDenseChannels() &&
-           testSourceLevelCodesAreValid(source);
+    return testSourceLevelCodesAreValid(source);
   }
 
   /// Dense spelling of the same question, for the entrances that hand over a
@@ -1730,18 +1771,24 @@ struct ColumnStore {
 
   /// Build the test store from a borrowed predictor view against the training
   /// cut grid (already built, shared by identity; numCuts and cutPoints are not
-  /// rebuilt). Column j reads dense column sourceOf(j) of source.denseValues
-  /// when nonnegative - quantized with the dense arithmetic, raw served through
-  /// rawTestColumn - or CSC column ~sourceOf(j) of the triple otherwise, which
-  /// takes rank-bitmap storage at or below sparseDensityThreshold nonzero
-  /// fraction and densified codes above, the training tier rule per column. An
-  /// unmapped view is the plain test matrix, dense column for dense column.
-  /// source.referenceCodes gives each CSC-backed categorical test column its
-  /// reference level code (the code the implicit rows take).
+  /// rebuilt). Column j reads dense column sourceOf(j) of the view - in
+  /// whichever value channel holds it, so a host whose factor columns are
+  /// int32 level codes hands them over as integers - or CSC column ~sourceOf(j)
+  /// of the triple otherwise, which takes rank-bitmap storage at or below
+  /// sparseDensityThreshold nonzero fraction and densified codes above, the
+  /// training tier rule per column. An unmapped view is the plain test matrix,
+  /// dense column for dense column. source.referenceCodes gives each
+  /// CSC-backed categorical test column its reference level code (the code the
+  /// implicit rows take).
   ///
-  /// The test store owns ALL its raw whatever the view's shape: the dense block
-  /// and the CSC nonzero values+rows are copied, so no borrowed pointer
-  /// survives the call and a later cut change re-quantizes from the copies.
+  /// The test store owns every raw it KEEPS, whatever the view's shape, so no
+  /// borrowed pointer survives the call: the real-valued dense columns are
+  /// copied into ownedTestValues (packed per predictor over the columns it
+  /// serves) and the CSC nonzero values+rows into their own buffers, and a
+  /// later cut change re-quantizes from those copies. A FACTOR test column
+  /// keeps only its codes - it never re-quantizes - and a designated leaf
+  /// covariate among them is gathered instead, the test-side twin of the
+  /// training gather.
   ///
   /// False REFUSES the view, leaving the test store untouched: some factor
   /// cell it would ingest is not a level code of that column's table. The
@@ -1749,26 +1796,23 @@ struct ColumnStore {
   /// anything is written rather than riding the quantize as the training
   /// side's does.
   [[nodiscard]] bool buildTest(const PredictorSource& source) {
-    // the test store owns its raw as one dense block sized by the largest
-    // dense source, which a split-channel view does not lay out
-    if (source.hasSplitDenseChannels()) return false;
     if (!testSourceLevelCodesAreValid(source)) return false;
     size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;
 
-    // own the dense block, sized by the largest dense source it is indexed by
-    std::int32_t maxDenseSource = -1;
-    for (size_t j = 0; j < p; ++j)
-      if (source.sourceOf(j) > maxDenseSource)
-        maxDenseSource = source.sourceOf(j);
-    size_t numDenseColumns =
-      maxDenseSource >= 0 ? static_cast<size_t>(maxDenseSource) + 1 : 0;
-    ownedTestValues.assign(source.denseValues,
-                           source.denseValues + numDenseColumns * numTest);
-
     test.sources.assign(p, ColumnSource{});
     test.sparseColumns.clear();
     test.codeOffsets.assign(p, 0);
+
+    // the dense block holds the real-valued columns only, one slice per
+    // predictor that takes one; a factor column's slot stays absent
+    std::vector<size_t> residentSlot(p, 0);
+    size_t numResidentColumns = 0;
+    for (size_t j = 0; j < p; ++j) {
+      if (source.sourceOf(j) < 0 || isFactor(j)) continue;
+      residentSlot[j] = numResidentColumns++;
+    }
+    ownedTestValues.assign(numResidentColumns * numTest, 0.0);
 
     // own the CSC nonzeros: pack them so each column's slice points into
     // storage that never reallocates for the store's lifetime
@@ -1788,9 +1832,24 @@ struct ColumnStore {
       ColumnSource& desc = test.sources[j];
       std::int32_t columnSource = source.sourceOf(j);
       if (columnSource >= 0) {
-        desc.kind = ColumnSourceKind::denseResident;
-        desc.residentRaw = ownedTestValues.data() +
-          static_cast<size_t>(columnSource) * numTest;
+        if (isFactor(j)) {
+          desc.kind = ColumnSourceKind::denseCodesOnly;
+        } else {
+          desc.kind = ColumnSourceKind::denseResident;
+          // the block is sized above, so no later assign moves these
+          desc.residentRaw =
+            ownedTestValues.data() + residentSlot[j] * numTest;
+          // the copy widens a coded real-valued column exactly as a per-cell
+          // read of it would
+          DenseColumnValues column = source.denseColumn(j);
+          if (column.isCoded()) {
+            for (size_t i = 0; i < numTest; ++i)
+              desc.residentRaw[i] = column.at(i);
+          } else {
+            std::memcpy(desc.residentRaw, column.values,
+                        numTest * sizeof(double));
+          }
+        }
         test.codeOffsets[j] = numDenseCodes;
         numDenseCodes += numTest;
         continue;
@@ -1823,7 +1882,36 @@ struct ColumnStore {
 
     for (size_t j = 0; j < p; ++j) {
       buildRankStorageInto(test, numTest, j);
-      quantizeTestColumn(j);
+      if (test.columnIsCscBacked(j) ||
+          test.sources[j].kind == ColumnSourceKind::denseResident) {
+        quantizeTestColumn(j);
+        continue;
+      }
+      // a factor test column retains no raw, so it quantizes here from the
+      // borrowed channel that holds it - the one pass its codes ever need
+      DenseColumnValues column = source.denseColumn(j);
+      if (column.isCoded())
+        quantizeDenseCodesInto(test, numTest, j, column.codes, nullptr);
+      else
+        quantizeDenseInto(test, numTest, j, column.values, nullptr);
+    }
+
+    // the test-side gather: a designated column the block above no longer
+    // holds is copied out of the borrowed channel, so rawTestColumn serves a
+    // leaf model owned memory once the borrow releases
+    gatheredRawTestColumns.clear();
+    gatheredRawTestValues.clear();
+    for (size_t k = 0; k < gatheredRawColumns.size(); ++k) {
+      size_t j = gatheredRawColumns[k];
+      if (j >= p || source.sourceOf(j) < 0 ||
+          test.sources[j].kind != ColumnSourceKind::denseCodesOnly)
+        continue;
+      size_t slot = gatheredRawTestColumns.size();
+      gatheredRawTestColumns.push_back(j);
+      gatheredRawTestValues.resize((slot + 1) * numTest);
+      double* values = gatheredRawTestValues.data() + slot * numTest;
+      DenseColumnValues column = source.denseColumn(j);
+      for (size_t i = 0; i < numTest; ++i) values[i] = column.at(i);
     }
     return true;
   }
@@ -1900,6 +1988,9 @@ struct ColumnStore {
       if (parentColumn == nullptr) continue;
       size_t slot = gatheredRawColumns.size();
       gatheredRawColumns.push_back(rawColumnsToGather[k]);
+      // a view gathers both sides of the same designation, so the two lists
+      // agree slot for slot here even though a top-level store's do not
+      gatheredRawTestColumns.push_back(rawColumnsToGather[k]);
       gatheredRawValues.resize(gatheredRawValues.size() + numRows);
       gatheredRawTestValues.resize(gatheredRawTestValues.size() + numTestRows);
       gatheredMeans.resize(slot + 1);

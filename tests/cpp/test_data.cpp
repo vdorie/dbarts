@@ -973,12 +973,20 @@ static void testPredictorViewEquivalence() {
     built(denseTestViaMap.buildTest(testMap));
     check(testCodesAgree(dense, denseTestViaMap),
           "an identity-mapped test view bins exactly as the dense test build");
-    bool rawAgrees = true;
-    for (size_t j = 0; j < p && rawAgrees; ++j)
+    // the real-valued columns serve the same owned raw either way; the
+    // categorical one serves none on either, its cells being level codes the
+    // test codes already carry
+    bool rawAgrees = dense.rawTestColumn(2) == nullptr &&
+      denseTestViaMap.rawTestColumn(2) == nullptr;
+    for (size_t j = 0; j < p && rawAgrees; ++j) {
+      if (j == 2) continue;
       for (size_t i = 0; i < numTest; ++i)
         rawAgrees &= dense.rawTestColumn(j)[i] ==
                      denseTestViaMap.rawTestColumn(j)[i];
-    check(rawAgrees, "both test spellings serve the same owned raw");
+    }
+    check(rawAgrees,
+          "both test spellings serve the same owned raw, and a factor column "
+          "none");
   }
 
   // the all-negative map: two CSC columns, one per storage tier, the densified
@@ -1774,6 +1782,122 @@ static void testCodeChannelIngestion() {
   printf("ok: code channel ingestion\n");
 }
 
+// The test store keeps only what a test column's values ARE. A factor test
+// column's cells are level codes, its grid is the training level table, fixed
+// at build, so it never re-quantizes and retains no double: the block holds
+// the real-valued columns alone, packed over the columns it serves, and a
+// DESIGNATED factor column is gathered instead so a leaf model still reads
+// owned raw. The same store must come out of either spelling of the same
+// values - a plain double matrix, or a split-channel view whose factor
+// columns cross as int32 level codes - which is what makes the code channel a
+// consuming path rather than a refused one.
+//
+// Deterministic: the suites after it read the same rng stream.
+static void testTestStoreRetention() {
+  const size_t n = 64, numTest = 40, p = 4;
+  const std::uint32_t numLevels = 5, numCategories = 3;
+  // 0 numeric, 1 ordered factor (the leaf covariate), 2 categorical,
+  // 3 numeric
+  const ColumnKind kinds[p] = { ColumnKind::numeric, ColumnKind::orderedFactor,
+                                ColumnKind::categorical,
+                                ColumnKind::numeric };
+  std::vector<double> x(n * p), xTest(numTest * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = 0.125 * static_cast<double>(i % 29);
+    x[n + i] = static_cast<double>(i % numLevels);
+    x[2 * n + i] = static_cast<double>(i % numCategories);
+    x[3 * n + i] = 0.0625 * static_cast<double>((5 * i) % 37);
+  }
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  for (size_t i = 0; i < numTest; ++i) {
+    xTest[i] = 0.25 * static_cast<double>(i % 13);
+    // a missing level, so the reserved code rides either channel
+    xTest[numTest + i] = i % 11 == 0
+      ? nan : static_cast<double>(i % numLevels);
+    xTest[2 * numTest + i] = static_cast<double>((i + 1) % numCategories);
+    xTest[3 * numTest + i] = 0.5 * static_cast<double>(i % 7);
+  }
+
+  const size_t gather[1] = { 1 };
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 20u, false, kinds, gather, 1));
+  built(store.buildTest(xTest.data(), numTest));
+
+  // the block holds columns 0 and 3 and nothing else
+  check(store.ownedTestValues.size() == 2 * numTest,
+        "the test block holds the real-valued columns alone");
+  bool served = store.rawTestColumn(0) == store.ownedTestValues.data() &&
+    store.rawTestColumn(3) == store.ownedTestValues.data() + numTest;
+  for (size_t i = 0; i < numTest && served; ++i)
+    served = store.rawTestColumn(0)[i] == xTest[i] &&
+      store.rawTestColumn(3)[i] == xTest[3 * numTest + i];
+  check(served, "a real-valued test column serves its own slice of the block");
+  check(store.rawTestColumn(2) == nullptr,
+        "an undesignated factor test column serves no raw");
+  const double* covariate = store.rawTestColumn(1);
+  bool gathered = covariate != nullptr;
+  for (size_t i = 0; i < numTest && gathered; ++i)
+    gathered = i % 11 == 0 ? isNA(covariate[i])
+                           : covariate[i] == xTest[numTest + i];
+  check(gathered, "a designated factor test column is gathered instead");
+
+  std::vector<xint_t> denseTestCodes(p * numTest);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      denseTestCodes[j * numTest + i] = store.testCodeAt(j, i);
+
+  // the same values as a split-channel view: the two factor columns cross as
+  // int32 level codes with the channel's own missing marker, the two numeric
+  // ones as doubles, each channel packed over the columns it serves
+  std::vector<double> testValueBlock(2 * numTest);
+  std::vector<std::int32_t> testCodeBlock(2 * numTest);
+  const std::int32_t channels[p] = { 0, ~0, ~1, 1 };
+  for (size_t i = 0; i < numTest; ++i) {
+    testValueBlock[i] = xTest[i];
+    testValueBlock[numTest + i] = xTest[3 * numTest + i];
+    testCodeBlock[i] = isNA(xTest[numTest + i])
+      ? naDenseCode : static_cast<std::int32_t>(xTest[numTest + i]);
+    testCodeBlock[numTest + i] =
+      static_cast<std::int32_t>(xTest[2 * numTest + i]);
+  }
+  PredictorSource coded;
+  coded.numRows = numTest;
+  coded.numColumns = p;
+  coded.denseValues = testValueBlock.data();
+  coded.denseCodes = testCodeBlock.data();
+  coded.denseChannels = channels;
+  built(store.buildTest(coded));
+
+  bool codesAgree = store.ownedTestValues.size() == 2 * numTest;
+  for (size_t j = 0; j < p && codesAgree; ++j)
+    for (size_t i = 0; i < numTest && codesAgree; ++i)
+      codesAgree = store.testCodeAt(j, i) == denseTestCodes[j * numTest + i];
+  check(codesAgree,
+        "a coded test view bins exactly as the double one, cell for cell");
+  const double* codedCovariate = store.rawTestColumn(1);
+  bool codedGathered = codedCovariate != nullptr &&
+    store.rawTestColumn(2) == nullptr;
+  for (size_t i = 0; i < numTest && codedGathered; ++i)
+    codedGathered = i % 11 == 0 ? isNA(codedCovariate[i])
+                                : codedCovariate[i] == xTest[numTest + i];
+  check(codedGathered,
+        "the gather widens a coded covariate, its missing cells included");
+
+  // the refusal still precedes every write: a level code outside the training
+  // table leaves the test store the earlier call built
+  std::vector<double> badTest(xTest);
+  badTest[numTest] = static_cast<double>(numLevels);
+  check(!store.buildTest(badTest.data(), numTest),
+        "a test level code outside the training table is refused");
+  bool preserved = store.numTestObservations == numTest;
+  for (size_t j = 0; j < p && preserved; ++j)
+    for (size_t i = 0; i < numTest && preserved; ++i)
+      preserved = store.testCodeAt(j, i) == denseTestCodes[j * numTest + i];
+  check(preserved, "a refused test view leaves the test store untouched");
+
+  printf("ok: test store retention\n");
+}
+
 // A view over a parent whose factor columns are NOT plain doubles: one parent
 // built through the code channel, one mixed parent (dense block plus a CSC
 // column). buildFromParent copies the grid and gathers codes rather than
@@ -2022,6 +2146,7 @@ void runDataTests() {
   testPredictorViewEquivalence();
   testMaterializePredictorSource();
   testCodeChannelIngestion();
+  testTestStoreRetention();
   testViewOverCodedAndMixedParent();
   testSetDataRefusals();
 }

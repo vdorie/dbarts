@@ -257,10 +257,10 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   // the same columnSources[j] within the channel the kind selects. Only the
   // dense columns: any CSC storage stays sparse, so a coded source keeps
   // every rule an uncoded one has, the sparse leaf-covariate refusal
-  // included. The channel rides the view from here: the entries whose
-  // consumer indexes the dense raw as one block call widenCodedDenseColumns
-  // below, and the ones that read a view a column at a time - the replay and
-  // the refusal sweeps - take the codes where they lie.
+  // included. The channel rides the view from here: every consumer reads a
+  // view a column at a time - the replay, the refusal sweeps, the test-store
+  // build - so the codes stay where they lie, and the one entrance that
+  // indexes the dense raw as a block, mutation, materializes it instead.
   if (anyCodedDense) {
     std::int32_t* channels = reinterpret_cast<std::int32_t*>(
       R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
@@ -274,41 +274,6 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
     translated.view.denseChannels = channels;
   }
   return translated;
-}
-
-// Lay a split-channel view's dense columns back out as one column-major
-// double block, packed in column order, and re-point the view at it. The CSC
-// storage is untouched. Only the entries whose consumer addresses the dense
-// raw as a single block sized by the largest dense source need this - the
-// test-store build is one; a consumer that reads a column at a time takes the
-// channels as they lie.
-void widenCodedDenseColumns(TranslatedSource& source) {
-  if (!source.view.hasSplitDenseChannels()) return;
-  size_t numRows = source.view.numRows, numColumns = source.view.numColumns;
-  size_t numDenseColumns = 0;
-  for (size_t j = 0; j < numColumns; ++j)
-    if (source.view.sourceOf(j) >= 0) ++numDenseColumns;
-  size_t cells = numDenseColumns * numRows;
-  double* block = reinterpret_cast<double*>(
-    R_alloc(cells > 0 ? cells : 1, sizeof(double)));
-  std::int32_t* widenedSources = reinterpret_cast<std::int32_t*>(
-    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
-  size_t slot = 0;
-  for (size_t j = 0; j < numColumns; ++j) {
-    std::int32_t which = source.view.sourceOf(j);
-    if (which < 0) {
-      widenedSources[j] = which;
-      continue;
-    }
-    bartcore::DenseColumnValues column = source.view.denseColumn(j);
-    double* target = block + slot * numRows;
-    for (size_t i = 0; i < numRows; ++i) target[i] = column.at(i);
-    widenedSources[j] = static_cast<std::int32_t>(slot++);
-  }
-  source.view.denseValues = block;
-  source.view.denseCodes = nullptr;
-  source.view.denseChannels = nullptr;
-  source.view.columnSources = widenedSources;
 }
 
 #undef SOURCE_PTR
@@ -916,10 +881,6 @@ int dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
       source.view.numRows != engine.shape().numTestObservations)
     Rf_error("dbarts_sampler_setTestPredictors: test offset length would no "
              "longer match; set the predictors and offset together");
-  // the test store owns its dense raw as one block sized by the largest dense
-  // source, so a coded view is laid back out as doubles here - after the
-  // refusals above, which read the codes where they lie
-  widenCodedDenseColumns(source);
   // the store build answers the leaf-covariate refusal with a false return;
   // defense in depth, since validateTestSource has already raised it - a
   // discarded false would leave the store holding its PREVIOUS rows and report

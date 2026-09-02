@@ -756,15 +756,14 @@ void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
 // copies everything, so the outputs need only outlive the ensuing build call.
 // Shared by the creation parse and the setTestPredictor/AndOffset mutations.
 //
-// codeFactorColumns asks for the split layout, in which a dense factor column
-// crosses as its own int32 level codes rather than widened into the double
-// block. Only a READ-ONLY consumer may ask - the replay reads the view a
-// column at a time, while the test-store build lays its dense raw out as one
-// block and so needs every column in the double channel.
+// The layout is always the SPLIT one: a dense factor column crosses as its own
+// int32 level codes rather than widened into the double block. Every consumer
+// reads the view a column at a time - the replay off the codes, the test-store
+// build quantizing each column from the channel that holds it and retaining a
+// double only where the column's values are real numbers.
 void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                         size_t numPredictors,
-                        const bartcore::ColumnKind* columnTypes,
-                        bool codeFactorColumns) {
+                        const bartcore::ColumnKind* columnTypes) {
   SEXP denseExpr = PROTECT(rc_getListElement(containerExpr, "dense"));
   SEXP sparseExpr = PROTECT(rc_getListElement(containerExpr, "sparse"));
   SEXP mapExpr = PROTECT(rc_getListElement(containerExpr, "map"));
@@ -794,16 +793,13 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                            out.view.denseValues, out.columnSources,
                            "number of rows of 'x.test' columns must match",
                            "malformed mixed test container",
-                           codeFactorColumns ? &out.codeAssembly : NULL,
-                           codeFactorColumns ? &out.denseChannels : NULL);
+                           &out.codeAssembly, &out.denseChannels);
   out.view.columnSources = out.columnSources.data();
   // the split layout packs the double channel per predictor too, so the map
-  // is what addresses either channel and rides whenever it was taken
-  if (codeFactorColumns) {
-    out.view.denseChannels = out.denseChannels.data();
-    if (!out.codeAssembly.empty())
-      out.view.denseCodes = out.codeAssembly.data();
-  }
+  // is what addresses either channel
+  out.view.denseChannels = out.denseChannels.data();
+  if (!out.codeAssembly.empty())
+    out.view.denseCodes = out.codeAssembly.data();
   if (hasSparse) {
     out.view.cscColumnPointers = csc.pointers;
     out.view.cscRowIndices = csc.rows;
@@ -868,7 +864,7 @@ void parseTestSource(ParsedTestContainer& out, SEXP xTestExpr,
   if (!Rf_inherits(xTestExpr, "dgCMatrix")) {
     // read-only: the replay reads the view a column at a time, so a dense
     // factor column crosses as its own codes
-    parseTestContainer(out, xTestExpr, numPredictors, storeTypes, true);
+    parseTestContainer(out, xTestExpr, numPredictors, storeTypes);
     return;
   }
   SEXP dimExpr = PROTECT(Rf_getAttrib(xTestExpr, Rf_install("Dim")));
@@ -1257,7 +1253,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     // copies its raw, so the parsed sources ride in data (freed on an error
     // jump with it) rather than being pinned by the holder
     parseTestContainer(data.testContainer, slotExpr, data.numPredictors,
-                       data.columnTypes.data(), false);
+                       data.columnTypes.data());
     data.testIsMixed = true;
     data.testPredictors = data.testContainer.view;
     data.numTestObservations = data.testPredictors.numRows;
@@ -3793,8 +3789,7 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     // read, or NULL for none. The handle serves views whose leaf specs are
     // unknown at creation, so the caller declares the union its views need; an
     // undeclared column is left ungathered and its view designation refused
-    // downstream (rawColumn null). Dense builds only: a mixed build's
-    // dense-backed columns already serve raw, and a sparse build serves none.
+    // downstream (rawColumn null).
     if (!Rf_isNull(leafCovariateColumnsExpr)) {
       if (!Rf_isInteger(leafCovariateColumnsExpr))
         Rf_error("leaf covariate columns must be an integer vector or NULL");
@@ -3809,10 +3804,10 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     }
 
     bartcore::ColumnStore* handle = new bartcore::ColumnStore;
-    // the handle owns raw only for the declared leaf-covariate columns of a
-    // DENSE build; a mapped build's dense-backed columns already serve raw
-    // from the store's own block, and its CSC-backed ones serve none
-    if (data.predictors.isMapped()) gatherColumns.clear();
+    // the build decides which of the declared columns it must own a copy of:
+    // a mapped build already serves its real-valued dense-backed columns from
+    // its own block and takes only the factor ones, and a CSC-backed column
+    // is left ungathered on either build
     // validateCategoricalPredictors bounds every level code and count above,
     // so this is the backstop rather than the gate; a discarded refusal would
     // publish a store whose later columns carry no grid and no codes
@@ -5024,7 +5019,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     // buffers, so the unwind-protected scope frees them on the error jump.
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, shape.numPredictors,
-                         holder.sampler->data().types.data(), false);
+                         holder.sampler->data().types.data());
       validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (holder.sampler->data().testOffset != NULL &&
           parsed.view.numRows != shape.numTestObservations)
@@ -5104,7 +5099,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     // leaves the sampler untouched
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, numPredictors,
-                         holder.sampler->data().types.data(), false);
+                         holder.sampler->data().types.data());
       validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (!Rf_isNull(offsetExpr) &&
           (!Rf_isReal(offsetExpr) ||
