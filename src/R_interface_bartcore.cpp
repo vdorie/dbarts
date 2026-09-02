@@ -31,11 +31,13 @@
 using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::AugmentationInputs;
-using bartcore_bridge::augmentationFamily;
+using bartcore_bridge::augmentationLaw;
+using bartcore_bridge::AugmentationLaw;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::enforceBinaryWeightPolicy;
+using bartcore_bridge::lawDrawsPrecision;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
@@ -48,6 +50,7 @@ using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
+using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateColumnValues;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
@@ -6444,22 +6447,19 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                           SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
                           SEXP dispersionExpr, SEXP ordinalThresholdsExpr,
                           SEXP dfExpr) {
-  bartcore::ResponseFamily family =
-    augmentationFamily(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr,
                        ordinalThresholdsExpr, sigmaExpr, dispersionExpr,
                        dfExpr);
-  validateResponseSupport(family, in.numOrdinalThresholds + 1, in.y,
+  validateResponseSupport(supportFamily(law), in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbartsDrawLatents");
   // everything that can longjmp runs BEFORE the generator exists, the result
   // vector included, so the draw loop cannot strand it
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  using RF = bartcore::ResponseFamily;
-  bool precision = family == RF::logistic || family == RF::nbinom ||
-                   family == RF::gaussian;
-  drawAugmentation(family, in, REAL(result), "dbartsDrawLatents");
+  bool precision = lawDrawsPrecision(law);
+  drawAugmentation(law, in, REAL(result), "dbartsDrawLatents");
   setAttribByName(result, "quantity",
                   Rf_mkString(precision ? "precision" : "location"));
   UNPROTECT(1);
@@ -6469,19 +6469,18 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
 SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
                               SEXP weightsExpr, SEXP offsetExpr,
                               SEXP dispersionExpr) {
-  bartcore::ResponseFamily family =
-    augmentationFamily(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(latentExpr, yExpr, weightsExpr, offsetExpr, R_NilValue,
                        R_NilValue, dispersionExpr, R_NilValue);
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against
-  if (family != bartcore::ResponseFamily::ordinal)
-    validateResponseSupport(family, 0, in.y, in.numObservations,
+  if (law != AugmentationLaw::ordinal)
+    validateResponseSupport(supportFamily(law), 0, in.y, in.numObservations,
                             "dbartsWorkingResponse");
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  computeWorkingResponse(family, in, REAL(latentExpr), REAL(result));
+  computeWorkingResponse(law, in, REAL(latentExpr), REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -6496,16 +6495,56 @@ namespace bartcore_bridge {
 // RESTATED here rather than shared with the response models, which run against
 // a different generator.
 
-bartcore::ResponseFamily augmentationFamily(const char* name) {
-  using RF = bartcore::ResponseFamily;
-  if (std::strcmp(name, "probit") == 0) return RF::probit;
-  if (std::strcmp(name, "logistic") == 0) return RF::logistic;
-  if (std::strcmp(name, "ordinal") == 0) return RF::ordinal;
-  if (std::strcmp(name, "aft") == 0) return RF::aft;
-  if (std::strcmp(name, "nbinom") == 0) return RF::nbinom;
+// Every dispatch below names every AugmentationLaw enumerator and carries no
+// default arm, which makes an unhandled law a -Wswitch warning; this assertion
+// is what makes it a build FAILURE, and its message names the arms to add.
+// Update it only together with those arms.
+static_assert(bartcore_bridge::numAugmentationLaws == 6,
+              "a law was added to AugmentationLaw: augmentationLaw, "
+              "supportFamily, lawDrawsPrecision, drawAugmentationLaws and "
+              "computeWorkingResponse each need an arm for it");
+
+AugmentationLaw augmentationLaw(const char* name) {
+  using AL = AugmentationLaw;
+  if (std::strcmp(name, "probit") == 0) return AL::probit;
+  if (std::strcmp(name, "logistic") == 0) return AL::logistic;
+  if (std::strcmp(name, "ordinal") == 0) return AL::ordinal;
+  if (std::strcmp(name, "aft") == 0) return AL::aft;
+  if (std::strcmp(name, "nbinom") == 0) return AL::nbinom;
   if (std::strcmp(name, "student") != 0)
     Rf_error("unrecognized augmentation family \"%s\"", name);
-  return RF::gaussian;
+  return AL::studentT;
+}
+
+bartcore::ResponseFamily supportFamily(AugmentationLaw law) {
+  using AL = AugmentationLaw;
+  using RF = bartcore::ResponseFamily;
+  switch (law) {
+  case AL::probit: return RF::probit;
+  case AL::logistic: return RF::logistic;
+  case AL::ordinal: return RF::ordinal;
+  case AL::aft: return RF::aft;
+  case AL::nbinom: return RF::nbinom;
+  // a Student-t response is unconstrained, which is the gaussian arm; the
+  // aft arm would state the same nothing, so the choice is documentary
+  case AL::studentT: return RF::gaussian;
+  }
+  return RF::gaussian; // unreached: the switch above is total
+}
+
+bool lawDrawsPrecision(AugmentationLaw law) {
+  using AL = AugmentationLaw;
+  switch (law) {
+  case AL::logistic:
+  case AL::nbinom:
+  case AL::studentT:
+    return true;
+  case AL::probit:
+  case AL::ordinal:
+  case AL::aft:
+    return false;
+  }
+  return false; // unreached: the switch above is total
 }
 
 /// A per-call generator drawing R's stream, held BY an unwindProtect closure:
@@ -6521,20 +6560,22 @@ typedef std::unique_ptr<ext_rng, NativeRngDeleter> NativeRng;
 /// (ProbitResponse::refreshLatents, OrdinalResponse::drawLatents,
 /// AFTResponse::refreshLatents, LogisticResponse::refreshLatents,
 /// NBResponse::drawOmega, TResponse::refreshLatents), NaN fallbacks included.
-static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
+static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
                                  const AugmentationInputs& in, double* result) {
-  using RF = bartcore::ResponseFamily;
+  using AL = AugmentationLaw;
   for (size_t i = 0; i < in.numObservations; ++i) {
     double psi = in.fit[i] + (in.offset != NULL ? in.offset[i] : 0.0);
-    switch (family) {
-    case RF::probit: {
+    // the switch names every enumerator and carries no default arm, so a law
+    // added without one must fail the build rather than go undrawn
+    switch (law) {
+    case AL::probit: {
       double sign = 2.0 * in.y[i] - 1.0;
       double z = sign *
         ext_rng_simulateLowerTruncatedNormalScale1(rng, sign * psi, 0.0);
       result[i] = !std::isnan(z) ? z : sign * DBL_EPSILON;
       break;
     }
-    case RF::ordinal: {
+    case AL::ordinal: {
       // category k lies in (ordinalThresholds[k - 2],
       // ordinalThresholds[k - 1]], the boundary categories one-sided;
       // numOrdinalThresholds is K - 1
@@ -6555,13 +6596,13 @@ static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
       }
       break;
     }
-    case RF::aft: { // the imputed log survival time of a row censored at y
+    case AL::aft: { // the imputed log survival time of a row censored at y
       double draw =
         ext_rng_simulateLowerTruncatedNormal(rng, psi, in.sigma, in.y[i]);
       result[i] = !std::isnan(draw) ? draw : in.y[i];
       break;
     }
-    case RF::logistic: {
+    case AL::logistic: {
       long reps = in.weights != NULL ? std::lround(in.weights[i]) : 1L;
       double omega = ext_rng_simulatePolyaGamma(rng, psi);
       for (long c = 1; c < reps; ++c)
@@ -6569,11 +6610,11 @@ static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
       result[i] = omega;
       break;
     }
-    case RF::nbinom:
+    case AL::nbinom:
       result[i] =
         bartcore::simulatePolyaGammaShape(rng, in.y[i] + in.dispersion, psi);
       break;
-    case RF::gaussian: { // the Student-t scale mixer
+    case AL::studentT: { // the Student-t scale mixer
       double residual = in.y[i] - psi;
       result[i] = ext_rng_simulateGamma(
         rng, 0.5 * (in.df + 1.0),
@@ -6584,9 +6625,8 @@ static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
   }
 }
 
-void drawAugmentation(bartcore::ResponseFamily family,
-                      const AugmentationInputs& in, double* result,
-                      const char* caller) {
+void drawAugmentation(AugmentationLaw law, const AugmentationInputs& in,
+                      double* result, const char* caller) {
   // the caller has already allocated result, so nothing that can longjmp runs
   // while the generator is alive
   GetRNGstate();
@@ -6596,35 +6636,34 @@ void drawAugmentation(bartcore::ResponseFamily family,
       PutRNGstate();
       Rf_error("%s: could not create a random number generator", caller);
     }
-    drawAugmentationLaws(rng.get(), family, in, result);
+    drawAugmentationLaws(rng.get(), law, in, result);
     PutRNGstate();
     return R_NilValue;
   });
 }
 
-void computeWorkingResponse(bartcore::ResponseFamily family,
-                            const AugmentationInputs& in, const double* latent,
-                            double* result) {
-  using RF = bartcore::ResponseFamily;
+void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
+                            const double* latent, double* result) {
+  using AL = AugmentationLaw;
   for (size_t i = 0; i < in.numObservations; ++i) {
-    // the latent families' working response IS the drawn latent; the switch
-    // names every enumerator and carries no default arm, so a family added
+    // the location laws' working response IS the drawn latent; the switch
+    // names every enumerator and carries no default arm, so a law added
     // without one must fail the build rather than take that reading silently
     double value = latent[i];
-    switch (family) {
-    case RF::logistic:
+    switch (law) {
+    case AL::logistic:
       value = (in.weights != NULL ? in.weights[i] : 1.0) * (in.y[i] - 0.5) /
         latent[i];
       break;
-    case RF::nbinom:
+    case AL::nbinom:
       value = 0.5 * (in.y[i] - in.dispersion) / latent[i];
       break;
-    case RF::gaussian: // the Student-t mixer's working response is y itself
+    case AL::studentT: // the mixer's working response is y itself
       value = in.y[i];
       break;
-    case RF::probit:
-    case RF::ordinal:
-    case RF::aft:
+    case AL::probit:
+    case AL::ordinal:
+    case AL::aft:
       break;
     }
     result[i] = value - (in.offset != NULL ? in.offset[i] : 0.0);

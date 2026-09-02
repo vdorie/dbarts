@@ -21,7 +21,8 @@
 
 using std::size_t;
 using bartcore_bridge::AugmentationInputs;
-using bartcore_bridge::augmentationFamily;
+using bartcore_bridge::augmentationLaw;
+using bartcore_bridge::AugmentationLaw;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::enforceBinaryWeightPolicy;
@@ -40,6 +41,7 @@ using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::sigmaIsPinned;
 using bartcore_bridge::testFitsAreUndefined;
 using bartcore_bridge::validateColumnValues;
+using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -1319,35 +1321,39 @@ static const char* augmentationFamilyName(int family, const char* caller) {
 // latent), and the logistic counts. A parameter no law reads is IGNORED rather
 // than refused by name as R refuses it, a C caller having no way to leave one
 // out. drawing selects the draw's own scalars.
-static bartcore::ResponseFamily augmentationArguments(
-  const char* family, const AugmentationInputs& in, bool drawing,
-  const char* caller) {
-  using RF = bartcore::ResponseFamily;
-  if (family == NULL) Rf_error("%s: 'family' cannot be NULL", caller);
-  RF resolved = augmentationFamily(family);
+// The per-law argument rules below are if-chains, not a switch, so -Wswitch
+// cannot see a law they omit; this assertion is the only tripwire. Update it
+// only together with the rules and with augmentationFamilyName's token map.
+static_assert(bartcore_bridge::numAugmentationLaws == 6,
+              "a law was added to AugmentationLaw: the argument rules below "
+              "and the family token map above each need an arm for it");
+
+static void augmentationArguments(AugmentationLaw law,
+                                  const AugmentationInputs& in, bool drawing,
+                                  const char* caller) {
+  using AL = AugmentationLaw;
   if (in.fit == NULL || in.y == NULL)
     Rf_error("%s: the %s and response vectors are required", caller,
              drawing ? "fit" : "latent");
-  if (drawing && resolved == RF::ordinal &&
+  if (drawing && law == AL::ordinal &&
       (in.ordinalThresholds == NULL || in.numOrdinalThresholds == 0))
     Rf_error("%s: family \"ordinal\" requires cut points", caller);
-  if (drawing && (resolved == RF::aft || resolved == RF::gaussian) &&
+  if (drawing && (law == AL::aft || law == AL::studentT) &&
       !(R_FINITE(in.sigma) && in.sigma > 0.0))
     Rf_error("%s: the aft and student laws require a positive 'sigma'", caller);
-  if (drawing && resolved == RF::gaussian &&
-      !(R_FINITE(in.df) && in.df > 0.0))
+  if (drawing && law == AL::studentT && !(R_FINITE(in.df) && in.df > 0.0))
     Rf_error("%s: family \"student\" requires positive 'df'", caller);
-  if (resolved == RF::nbinom &&
+  if (law == AL::nbinom &&
       !(R_FINITE(in.dispersion) && in.dispersion > 0.0))
     Rf_error("%s: family \"nbinom\" requires a positive 'dispersion'", caller);
 
   bool precisionLatent =
-    !drawing && (resolved == RF::logistic || resolved == RF::nbinom);
+    !drawing && (law == AL::logistic || law == AL::nbinom);
   // the counts rule belongs to the logistic law alone, which is the only one
-  // that reads a weight (as its Polya-Gamma copy count); a family that does not
+  // that reads a weight (as its Polya-Gamma copy count); a law that does not
   // read them ignores them, as this entry's contract states
-  bool readsWeights = in.weights != NULL && resolved == RF::logistic;
-  if (!readsWeights && !precisionLatent) return resolved;
+  bool readsWeights = in.weights != NULL && law == AL::logistic;
+  if (!readsWeights && !precisionLatent) return;
   for (size_t i = 0; i < in.numObservations; ++i) {
     if (readsWeights && (!(in.weights[i] > 0.0) ||
                          in.weights[i] != std::floor(in.weights[i])))
@@ -1357,7 +1363,6 @@ static bartcore::ResponseFamily augmentationArguments(
       Rf_error("%s: 'latent' is the precision the working response divides by: "
                "it must be positive", caller);
   }
-  return resolved;
 }
 
 void dbarts_drawLatents(int family, size_t numObservations,
@@ -1366,40 +1371,38 @@ void dbarts_drawLatents(int family, size_t numObservations,
                         double sigma, double dispersion,
                         const double* ordinalThresholds,
                         size_t numOrdinalThresholds, double df, double* out) {
-  const char* familyName =
-    augmentationFamilyName(family, "dbarts_drawLatents");
+  AugmentationLaw law =
+    augmentationLaw(augmentationFamilyName(family, "dbarts_drawLatents"));
   AugmentationInputs in{.numObservations = numObservations, .fit = fit, .y = y,
                         .weights = weights, .offset = offset,
                         .ordinalThresholds = ordinalThresholds,
                         .numOrdinalThresholds = numOrdinalThresholds,
                         .sigma = sigma, .dispersion = dispersion, .df = df};
-  bartcore::ResponseFamily resolved =
-    augmentationArguments(familyName, in, true, "dbarts_drawLatents");
+  augmentationArguments(law, in, true, "dbarts_drawLatents");
   if (out == NULL) Rf_error("dbarts_drawLatents: 'out' cannot be NULL");
   // the same support rule every conduit that swaps a y states
-  validateResponseSupport(resolved, in.numOrdinalThresholds + 1, in.y,
+  validateResponseSupport(supportFamily(law), in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbarts_drawLatents");
-  drawAugmentation(resolved, in, out, "dbarts_drawLatents");
+  drawAugmentation(law, in, out, "dbarts_drawLatents");
 }
 
 void dbarts_workingResponse(int family, size_t numObservations,
                             const double* latent, const double* y,
                             const double* weights, const double* offset,
                             double dispersion, double* out) {
-  const char* familyName =
-    augmentationFamilyName(family, "dbarts_workingResponse");
+  AugmentationLaw law =
+    augmentationLaw(augmentationFamilyName(family, "dbarts_workingResponse"));
   AugmentationInputs in{.numObservations = numObservations, .fit = latent,
                         .y = y, .weights = weights, .offset = offset,
                         .dispersion = dispersion};
-  bartcore::ResponseFamily resolved =
-    augmentationArguments(familyName, in, false, "dbarts_workingResponse");
+  augmentationArguments(law, in, false, "dbarts_workingResponse");
   if (out == NULL) Rf_error("dbarts_workingResponse: 'out' cannot be NULL");
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against
-  if (resolved != bartcore::ResponseFamily::ordinal)
-    validateResponseSupport(resolved, 0, in.y, in.numObservations,
+  if (law != AugmentationLaw::ordinal)
+    validateResponseSupport(supportFamily(law), 0, in.y, in.numObservations,
                             "dbarts_workingResponse");
-  computeWorkingResponse(resolved, in, latent, out);
+  computeWorkingResponse(law, in, latent, out);
 }
 
 // Provider-side binding: each real function's address must
