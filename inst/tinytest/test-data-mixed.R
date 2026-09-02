@@ -493,3 +493,75 @@ sv.test.na[1L] <- NA_real_
 test.mixed.sparse.na$sv <- sv.test.na
 test.mixed.sparse.na$sm <- sm[1:5, , drop = FALSE]
 expect_error(sampler$predict(test.mixed.sparse.na), pattern = "'sv'")
+
+# an ORDERED factor is admissible as a linear-leaf covariate on a mixed
+# container, and the store keeps no double for it: the build gathers its own
+# copy on the TRAIN side and buildTest gathers the twin, so a leaf model reads
+# owned values on both. The pin is that a test set which repeats the training
+# rows reproduces the training fits exactly - test covariates left unserved
+# would enter the leaf at zero and move only the test leg
+of <- factor(
+  sample(c("lo", "mid", "hi"), n, replace = TRUE),
+  levels = c("lo", "mid", "hi"),
+  ordered = TRUE
+)
+x.frame.ordered <- x.frame
+x.frame.ordered$of <- of
+data.ordered <- dbartsData(x.frame.ordered, y, x.frame.ordered)
+expect_inherits(data.ordered@x, "dbartsMixedMatrix")
+expect_equal(attr(data.ordered@x, "varTypes")[6L], 2L)
+
+sampler.ordered <- dbarts(
+  data.ordered,
+  node.prior = linear("of"),
+  control = dbartsControl(
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = 20L,
+    updateState = FALSE
+  )
+)
+run.ordered <- sampler.ordered$run()
+expect_true(all(is.finite(run.ordered$train)))
+expect_equal(run.ordered$test, run.ordered$train)
+
+# and the fold view over the same container carries the designation: the
+# handle gathers what its parent's block no longer holds, so xbart runs the
+# linear leaf rather than refusing it
+loss.ordered <- suppressWarnings(xbart(
+  x.frame.ordered,
+  y,
+  n.samples = 5L,
+  n.reps = 1L,
+  n.burn = c(5L, 2L),
+  n.trees = 20L,
+  k = 2,
+  power = 2,
+  base = 0.95,
+  n.threads = 1L,
+  verbose = FALSE,
+  node.prior = linear("of")
+))
+expect_true(all(is.finite(loss.ordered)))
+
+# state restore over a mixed store carrying an ordered factor: the state's
+# grid for a factor column of either kind is the level table's, pinned at
+# build, so the restore leaves it in place rather than re-quantizing a column
+# that retains no raw to re-quantize from. Continuing from a restored state
+# must reproduce the run it was taken from
+control.state <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 5L,
+  n.burn = 0L,
+  updateState = TRUE
+)
+sampler.state <- dbarts(data.ordered, control = control.state)
+invisible(sampler.state$run(20L, 5L))
+state.mixed <- sampler.state$state
+first <- sampler.state$run(0L, 5L)
+sampler.state$setState(state.mixed)
+second <- sampler.state$run(0L, 5L)
+expect_equal(second$train, first$train)
+expect_equal(second$sigma, first$sigma)
