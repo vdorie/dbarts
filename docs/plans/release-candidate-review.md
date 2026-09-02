@@ -789,11 +789,13 @@ columns beside a sparseFactor, one thread, medians of 7: the coded
 replay comes out about a fifth faster than the double path across
 5-200 trees, with the double path itself unmoved.
 
-The widen translateSource used to do for every entry moves to
-widenCodedDenseColumns and fires only where the consumer addresses the
-dense raw as one block - the test-store build. setTestPredictors still
-widens, after its refusals; dbarts_sampler_predict and the saved-tree
+The widen translateSource used to do for every entry narrows to the
+consumers that address the dense raw as ONE BLOCK - the test-store build at
+this slice, and the two mutation entrances, which are what is left of it
+once S4b takes the test store; dbarts_sampler_predict and the saved-tree
 replay behind getTrees route rows straight off the codes instead.
+setTestPredictors does not widen a block: it quantizes off the codes
+directly, one cell at a time through codeFor, after its refusals.
 buildTest's split-channel refusal stays unreachable by construction of
 the funnels that reach it, which is S4b's rework to consume. On the R
 side parseMixedContainerBlock gains the same split layout, and

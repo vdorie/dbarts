@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at d477a46b (bartcore); the INDEX manifests it points at are
+Current at d28b087b (bartcore); the INDEX manifests it points at are
 machine-checked, this file is not.
 
 Regenerate: re-derive every claim against the new tip, print counts as
@@ -128,10 +128,12 @@ lives. `wc -l inst/include/dbarts/dbarts.h src/C_interface.cpp`
 - `dbarts.h` no longer defines `USE_FC_LEN_T` nor includes `<Rversion.h>`; a
   consumer relying on that pull-in must include it itself.
 - `DBARTS_C_API_MAJOR 1` / `DBARTS_C_API_MINOR 0` do not move. The exact-ABI
-  token `DBARTS_C_API_HASH` **re-bakes at every header change** - several
-  times since `capi-shape.md` recorded its own value, again when the
-  ordered-factor column type was appended, and again when the code channel
-  was - so read it from the header at the merge tip, never from a doc.
+  token `DBARTS_C_API_HASH` **re-bakes at every ABI change** - a signature, a
+  struct field, an enumerator or the callback's parameters, not a header edit
+  by itself - and separately has moved several times: since `capi-shape.md`
+  recorded its own value, again when the ordered-factor column type was
+  appended, and again when the code channel was - so read it from the header
+  at the merge tip, never from a doc.
 
 Migration, from `docs/plans/capi-shape.md` s11 (lockstep, after dbarts
 installs clean):

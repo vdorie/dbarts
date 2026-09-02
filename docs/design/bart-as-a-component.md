@@ -144,7 +144,7 @@ reproducibility - within-host across any SIMD dispatch only.
 
 Two ship, and neither is a mid-sweep hook.
 
-`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:852`) takes
+`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:858`) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop
 the run early. It fires at the top of each iteration, unthrottled by thinning,
 before sigma enters the sweep. It is refused when `numThreads > 1 &&
