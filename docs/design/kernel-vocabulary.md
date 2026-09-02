@@ -172,8 +172,9 @@ SIMD specializations only when profiling justifies them.
   own `indices` argument.
 - Reduction order may differ between thread counts. The only dispatched
   kernels are permutations and elementwise passes, and no draw-path
-  reduction is dispatched, so a fit is BITWISE identical across instruction
-  sets (inst/tinytest/test-simd.R gates it).
+  reduction is dispatched, so a fit is BITWISE identical across the
+  instruction sets one host dispatches over (inst/tinytest/test-simd.R
+  gates it); cross-host agreement is statistical only.
 - Instruction-set switching is a test/bench facility only; production
   installs once at load.
 - misc.a is R-free: output goes through the `misc_printf`/`misc_flushOutput`

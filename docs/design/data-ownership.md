@@ -17,12 +17,13 @@ write-through. A matrix-built column owns only its quantized codes; the R
 layer supplies raw values as call-time arguments (from the data.frame or
 matrix it already holds) wherever the engine still needs them - re-cutting,
 setData, and getTrees replay. A container or test build keeps the store's
-own copy of its REAL-VALUED columns instead, a factor column keeping only
-the codes it already is; no path needs versioning or a lifetime pin. Two
+own copy of its real-valued DENSE columns instead, a factor column keeping
+only the codes it already is and a train-side CSC column its borrowed
+nonzeros until first mutated; no path needs cut-grid versioning. Two
 more elaborate mechanisms for the same problem were designed and then
 designed OUT once call-time supply proved sufficient: a re-cuttable
-creation-time flag plus cut-grid "epoch"
-versioning (replaced by call-time supply directly), and an engine-owned raw
+creation-time flag plus cut-grid "epoch" versioning (replaced by call-time
+supply directly), and an engine-owned raw
 copy for "mutable" columns to dodge R's copy-on-write cost (replaced by
 reference-install, which turned out to make the CoW hedge unnecessary).
 Both are kept below under "Considered and rejected," with the reasoning,

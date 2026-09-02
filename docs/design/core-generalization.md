@@ -692,9 +692,9 @@ partitioning entirely; a different library sharing only the tree structure).
    storage, getTrees, predict, and state serialization; replay against
    raw predictors (x <= cut goes left, mask bit sends right), or against
    a factor column's int32 codes, reproduces the engine's code-based
-   routing exactly. keepTrees mirrors the classic
-   circular buffer: capacity = n.samples at creation, trees flattened
-   inside the tree loop while the freshly drawn parameters are live,
+   routing exactly. keepTrees mirrors the classic circular buffer:
+   capacity = n.samples at creation, trees flattened inside the tree
+   loop while the freshly drawn parameters are live,
    currentSampleNum advancing per run. Every read indexes FROM that
    cursor: output draw i is slot (currentSampleNum + capacity - filled
    + i) mod capacity over the filled = min(recorded draws, capacity)

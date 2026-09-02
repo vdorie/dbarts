@@ -337,9 +337,8 @@ Implemented per the plan above; deltas and specifics:
   parent.rawColumn per column, skipping columns the parent cannot serve
   (the facade then refuses those designations), and inherits parent
   standardization constants when the parent is itself a view. The whole
-  source rides SamplerOptions::predictors; the facade
-  refuses linear leaves per designated CSC-backed column instead of
-  store-wide.
+  source rides SamplerOptions::predictors; the facade refuses linear
+  leaves per designated CSC-backed column instead of store-wide.
 - I() does not survive on S4 objects and data.frame(...) rejects
   sparseVector/dgCMatrix arguments (NROW sees 1); columns must be
   assigned into an existing frame (df$s <- sv). model.frame() rejects S4
