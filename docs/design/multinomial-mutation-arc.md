@@ -630,7 +630,7 @@ seeded control, four cells: `run(3, 4)` batched against a loop of
 `run(3|0, 1)` is bitwise on BOTH `$train` and `$dispersion` at
 `keepTrees = FALSE` and `TRUE`, and at `n.thin = 1` and `2`. The saved
 slot base advances across calls (`Sampler::run` sets
-`setSavedSlotBase(currentSampleNum_)`, `sampler.hpp:302`, advanced at
+`setSavedSlotBase(currentSampleNum_)`, `sampler.hpp:320`, advanced at
 `:459`), so `keepTrees` is not a counterexample. The collapse is safe
 whenever VD wants it.
 

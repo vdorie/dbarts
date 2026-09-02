@@ -40,7 +40,7 @@ INVARIANT (non-negotiable, verified by the blind critique below): the default
 instantiation stays BITWISE-IDENTICAL and pays ZERO new runtime cost.
 
 The facade already resolves runtime choices into monomorphic instantiations:
-`createSampler` (facade.hpp:805) reads the family / IsCategorical /
+`createSampler` (facade.hpp:823) reads the family / IsCategorical /
 ServesRawValues / leaf-covariate axes and dispatches ONCE to build a concrete
 `SamplerFacade<L>` (facade.hpp:413), handing the R bridge a type-erased
 `SamplerBase*`; every later call is "one virtual hop into fully typed code"
@@ -259,14 +259,14 @@ one re-record; OPT-IN only). The primary target.
 EXCLUDED from every track - flagged so no one bundles them as a transparent
 memory tier.
 
-- Predictor codes uint16 -> uint8 (data.hpp:452): the largest n*p array but
+- Predictor codes uint16 -> uint8 (data.hpp:481): the largest n*p array but
   ALREADY uint16; narrowing further lowers maxNumCutsRepresentable (~254),
   capping cutpoints and silently changing which splits exist -> different
   tree structure, pathological on high-cardinality columns. Only ever an
   explicit low-resolution MODELING option with its own arc, never a
   transparent tier.
-- fp32 cutpoints (data.hpp:527, tiny footprint) and fp32 ownedTestValues
-  (data.hpp:559, cold re-quantize source): fp32 flips near-tie quantization ->
+- fp32 cutpoints (data.hpp:556, tiny footprint) and fp32 ownedTestValues
+  (data.hpp:588, cold re-quantize source): fp32 flips near-tie quantization ->
   correctness-sensitive; not worth the risk, and cutpoints are not n-scaled.
 
 Also out of scope, decided at design time rather than by later measurement:

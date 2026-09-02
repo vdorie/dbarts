@@ -73,11 +73,11 @@ new piece of tree geometry and the component-test target of section 9.
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
 (`leafCovariateColumns` chain.hpp:81; `columnTypes` is per-column too but
-rides `PredictorSource` at data.hpp:222, reaching the options through
+rides `PredictorSource` at data.hpp:251, reaching the options through
 `SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
 As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
 entry on any column selects the constrained
-instantiation at the factory (`createSampler`, facade.hpp:806-817); an all-zero
+instantiation at the factory (`createSampler`, facade.hpp:823-834); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,
 and keeps the constraint out of the data container - the same data can be fit
@@ -114,7 +114,7 @@ not matching dbarts's `lower.case.dotted` R style.
 factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
 defensively, at the factory (the subset-splitting refusal already guarding
-leaf covariates, facade.hpp:774). ORDERED factors are their own `ColumnKind`
+leaf covariates, facade.hpp:789). ORDERED factors are their own `ColumnKind`
 and, like numeric columns, split by THRESHOLD, so both accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
@@ -414,7 +414,7 @@ follow-up, not v1 scope.
   at construction like `columnTypes`. No dbarts.h / ABI change in v1 (the
   robust-errors/ordinal precedent) - monotone is reachable only through the R
   surface and internal bridge, so no LinkingTo consumer sees it.
-- **Factory (facade.hpp:800-803):** any nonzero direction selects the monotone
+- **Factory (facade.hpp:815-818):** any nonzero direction selects the monotone
   constant-leaf instantiation (`MonotoneConstantGaussianLeaf` +
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).

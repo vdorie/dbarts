@@ -67,7 +67,7 @@ here rather than an enum read. That enum now REACHES the bcf row, which is why
 so much of that row is family-dependent below: since M4.4 the K-forest chain
 selects its response model off `AmplitudeSpec::family` (COM:322, `switch
 (spec.family)` CH:774) instead of building an unconditional `GaussianResponse`,
-and the K-forest `Sampler` constructor takes `family_(spec.family)` (SAM:190)
+and the K-forest `Sampler` constructor takes `family_(spec.family)` (SAM:189)
 instead of pinning gaussian. Leaf models (constant, monotone, linear, GP) are
 an orthogonal axis and are not rows; where a leaf model gates a capability the
 cell says so.
@@ -112,7 +112,7 @@ stating what it is missing (spec.R:616-642, which now also carries an explicit
 - "its forests are its categories... not an amplitude coupling"), with the
 same three-family gate at the bridge (`refusedAmplitudeFamilyReason`
 RIB:2299, called from both creation routes at RIB:2352 and RIB:3288) and at
-the factory (`createAmplitudeSampler` FAC:883-904).
+the factory (`createAmplitudeSampler` FAC:900-921).
 
 Since S12 (`bart2-argument-consolidation`), `bart2()`'s formula interface
 reaches the same `forests =` machinery through a `forest()` term rather than a
@@ -172,7 +172,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
-| gaussian | S FAC:809 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
+| gaussian | S FAC:826 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | student | R spec.R:521 [f30] | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | probit | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | logistic | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
@@ -182,9 +182,9 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1238 | S dbarts.R:1013 |
 | hurdle | R spec.R:509 [f34] | M | S bart.R:2359, 2368 [f35] | R bart.R:631 | R bart.R:631 |
-| bcf | R FAC:892 [f48] | R RIB:2349 | R spec.R:653-654 | S SAM:1029 [f36] | S CH:1990 [f36] |
+| bcf | R FAC:909 [f48] | R RIB:2349 | R spec.R:653-654 | S SAM:1047 [f36] | S CH:1990 [f36] |
 | grouped | R spec.R:532 [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
-| hetero | - | R spec.R:532 [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
+| hetero | - | R spec.R:532 [f30] | S CH:585 [f38] | S SAM:1047 | S CH:1990 |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
 are refused at dbarts.R:1015-1023 and no-op at CH:1968, so every family above
@@ -368,7 +368,7 @@ logistic, nbinom, aft; **S3** multinomial (global only); **S4** surface,
 records, baselines. S0 landed at dc11a805 (the pins, now
 inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1638, which owns the single validating and
-normalizing scan, `Sampler` SAM:1583, the facade's pure virtual FAC:367 and its
+normalizing scan, `Sampler` SAM:1604, the facade's pure virtual FAC:367 and its
 shape probe FAC:105 - plus gaussian, Student-t, probit and ordinal, the R5
 `$setActiveRows` (dbarts.R:1413) and the bridge entry (RIB:4107). S2 landed at
 87d370ea: logistic (`workingWeights()` MOD:3522) and nbinom
@@ -384,7 +384,7 @@ degrees-of-freedom recount, and skips the censored redraw at an inactive row
 (MOD:3836). All three report NaN pointwise log-likelihood at an inactive row.
 Oracles: per-family kernel comparisons against the compacted arm, bitwise in
 value and in RNG stream (`testActiveRowsLogisticKernel`
-tests/cpp/test_model.cpp:5504, `testActiveRowsNBKernels` :5590,
+tests/cpp/test_model.cpp:5576, `testActiveRowsNBKernels` :5590,
 `testActiveRowsAFTCensored` :5682 - each latent being a rejection sampler
 means a discard-rather-than-skip at an inactive row fails the arm outright),
 plus a sampler-level conditional independence oracle under substituted
@@ -461,7 +461,7 @@ force, independent of the model's recorded intent, so a `setResponse` /
 than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1201),
 sharing one `priorScaleFactor` conversion (CH:3965) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
-and carry no family switch (facade FAC:353, 360; `Sampler` SAM:1561, 1570; R5
+and carry no family switch (facade FAC:353, 360; `Sampler` SAM:1582, 1570; R5
 `dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1808, 1835; bridge
 `bartcore_getCalibration`/`bartcore_setCalibration` RIB:4234, 4273). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
@@ -766,8 +766,8 @@ mechanism above and the Rd text, at bart2.Rd:284 and dbarts.Rd:80.
 which is an ordinary single-forest chain that takes it.
 
 [f36] No family gate: `installForests` checks shape, grid, DART, and the
-variance forest's presence and saved slot (SAM:983-1034), matching donor
-forest counts at SAM:1029, and `growForestFromRoot` loops every forest
+variance forest's presence and saved slot (SAM:1001-1052), matching donor
+forest counts at SAM:1047, and `growForestFromRoot` loops every forest
 (CH:1990, the loop; the variance-forest pre-step above it sits at
 CH:1985-1988). Neither is exercised by a BCF test, and BCF has no `bart2()`
 surface, so both are reached only through the R5 `$installTrees`
@@ -837,8 +837,8 @@ docs/plans/archive/runsbcbcf-repair.md).
 multiforest-extension-surface M4.4 (e5e93f11). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
 naming what it is missing (spec.R:616-642, `refusedAmplitudeFamilyReason`
-RIB:2299, `createAmplitudeSampler` FAC:883-904 - the last sitting directly
-beside the variance-forest door at FAC:892, which is unchanged and
+RIB:2299, `createAmplitudeSampler` FAC:900-921 - the last sitting directly
+beside the variance-forest door at FAC:909, which is unchanged and
 family-independent). The calibration map's anchor is now family-keyed,
 `latentScaleAnchor` (CH:5013): sd(y) under gaussian, 1 under probit, pi/sqrt(3)
 under logistic, and stated per unit of basis row norm (`basisRowNorm` CH:5051).
@@ -1022,8 +1022,8 @@ door its own arc recorded as unbuilt - the `setState` variance column-mask
 gap - is BUILT: `Chain::columnMaskStateFeasible` carries a variance pass of
 its own over the state's variance trees (CH:3387-3402), `rebuildVarianceForest`
 holds every restored variance tree to the forest's mask (CH:4322), and both
-install entries gate on the predicate - `setState` at SAM:946 and
-`installForests` at SAM:1134 - each surfacing the one refusal by name
+install entries gate on the predicate - `setState` at SAM:964 and
+`installForests` at SAM:1152 - each surfacing the one refusal by name
 (RIB:7215, RIB:7513).
 
 **Cross-cutting.** `nameable-calibration` is ARC COMPLETE, all four slices

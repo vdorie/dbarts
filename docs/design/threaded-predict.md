@@ -29,7 +29,7 @@ released versions, not dead work. The bartcore C++20 rewrite forked
 past it during the engine cutover: `main`'s classic engine still
 carries the `numThreads` overload of `BARTFit::predict`, but
 bartcore's replay entry points (`Sampler::predictColumns` at
-sampler.hpp:705, `predictPerForestColumns` at :783,
+sampler.hpp:723, `predictPerForestColumns` at :783,
 `predictVarianceColumns` at :850) never gained one, while
 `Sampler::run` (:349-420) kept its fan-out.
 `docs/plans/archive/interface-review.md`'s F10 item (:199) already records both
@@ -42,7 +42,7 @@ landing, since the axis below is (chain, draw) slabs, not chains.
 
 ## 3. The partition axis
 
-`Sampler::predictColumns` (sampler.hpp:705-729) iterates chains x
+`Sampler::predictColumns` (sampler.hpp:723-747) iterates chains x
 `recordedDraws_`; each (chain, draw) pair is a SLAB writing a disjoint
 `out + (c * numDraws + i) * slab` range. The only accumulation anywhere
 in the replay is `fits[indices[k]] += leafValue` inside
@@ -70,13 +70,13 @@ raising any exception; `Rf_error` fires only
 after the join, on the main thread, since an escaping `std::bad_alloc`
 inside a bare `std::thread` body is `std::terminate` and would abort
 the whole R session. `numWorkers <= 1` runs inline with no spawn,
-mirroring `run`'s own `sampler.hpp:377`/`:1266` arms, and is capped at the slab
+mirroring `run`'s own `sampler.hpp:395`/`:1284` arms, and is capped at the slab
 count (the one-slab-per-chain invariant, asserted where there are no
 saved trees, is what makes the non-const `flattenTree` safe without
 synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
-on the C path - `Sampler::setNumThreads` (sampler.hpp:1197-1200) and
+on the C path - `Sampler::setNumThreads` (sampler.hpp:1215-1218) and
 `dbarts_sampler_setNumThreads` (C_interface.cpp:960-962) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,

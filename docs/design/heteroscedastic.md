@@ -260,9 +260,9 @@ weights = response_->workingWeights() every sweep (chain.hpp:1374). Routing s^2
 through the same channel would COLLIDE with the family's own latent precisions. So a
 variance forest requires ResponseFamily::gaussian and is REFUSED at construction for
 probit, logistic, nbinom, and ordinal, checked at the factory against the family
-argument (facade.hpp:796-798) before any Chain is built - the same
+argument (facade.hpp:811-813) before any Chain is built - the same
 construction-time refusal shape monotone uses for categorical columns
-(facade.hpp:774). Only the Gaussian family, whose workingWeights() returns the
+(facade.hpp:789). Only the Gaussian family, whose workingWeights() returns the
 borrowed user weights (model.hpp:2800), leaves the channel available to carry
 w_i / s^2(x_i). (Heteroscedastic probit/logistic - modeling a variance surface under
 a latent link - is a real model but needs a distinct latent-plus-scale plumbing out
@@ -401,7 +401,7 @@ Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
 mirroring monotone (monotone.md) and BCF (combiner.hpp:500-501):
 
-- No `variance` / `n.trees.variance` -> the factory (facade.hpp:806 createSampler)
+- No `variance` / `n.trees.variance` -> the factory (facade.hpp:823 createSampler)
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with
   varianceForest_ null (or the combiner absent). Not a variance-capable type with
   the forest switched off - the SAME object code, so the identical rng stream. The

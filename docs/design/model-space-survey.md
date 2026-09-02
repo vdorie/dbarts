@@ -70,7 +70,7 @@ The baseline every door is a delta over. Verified by reading at 39451b1.
 
 **Single-forest samplers.** `setData` already replaces predictors, response,
 weights, offset and test data **with n free to change**
-(src/bartcore/sampler.hpp:1028-1038, "with a possibly different number of
+(src/bartcore/sampler.hpp:1046-1056, "with a possibly different number of
 observations"; the predictor count is fixed). It rebuilds the cut grid, remaps
 existing splits onto value-nearest new cuts via `Tree::mapOldCutPointsOntoNew`,
 and collapses whatever is left invalid (src/bartcore/chain.hpp:1553-1611). Dense

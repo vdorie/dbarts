@@ -129,7 +129,7 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:802, chain.hpp:1250-1256, facade.hpp:864-868). The SPELLING
+(combiner.hpp:802, chain.hpp:1250-1256, facade.hpp:881-885). The SPELLING
 followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
@@ -254,10 +254,10 @@ What still does NOT generalize, after M4:
   law: it carries gaussian, probit and logistic arms and records
   `family_ = spec.family` (chain.hpp:774-792), so a binary amplitude coupling
   is a shipped shape. What does not generalize is the rest: aft, ordinal and
-  nbinom are refused at the factory (facade.hpp:882-885), each wanting a block
+  nbinom are refused at the factory (facade.hpp:899-902), each wanting a block
   of its own interleaved with the amplitudes, and `createAmplitudeSampler`
   still carries a single `SamplerFacade<ConstantGaussianLeaf>` instantiation
-  (facade.hpp:886-888), so the leaf type is fixed whatever the family. That
+  (facade.hpp:903-905), so the leaf type is fixed whatever the family. That
   remainder is M4.4.
 - (iii) The NAMING. Was the debt: every layer read "BCF" where it meant
   "carries amplitudes". DISCHARGED - the family is spelled `AmplitudeSpec` /
