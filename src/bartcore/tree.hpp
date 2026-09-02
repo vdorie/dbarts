@@ -166,7 +166,9 @@ struct Rule {
 };
 
 /// The split kind a FlatNode's payload carries; kept in flags so the replay
-/// family routes raw predictors without the store that typed the columns.
+/// family routes raw predictors without the store that typed the columns. It
+/// is the MECHANIC axis, so a column kind that splits by threshold tags
+/// ordinal whatever its semantics; expectedFlatKind below derives it.
 enum class FlatKind : std::uint8_t {
   leaf = 0,            // payload: the leaf parameter (an intercept)
   ordinal,             // payload: the cut point, as the double it was
@@ -208,6 +210,17 @@ inline void setFlatKind(FlatNode& node, FlatKind kind) {
   node.flags = static_cast<std::uint8_t>(
     (node.flags & ~flatKindMask) |
     (static_cast<std::uint8_t>(kind) << flatKindShift));
+}
+
+/// The tag an internal node splitting on \p variable must carry. The tag is
+/// what lets the replay family route without a store, so it is written here
+/// and checked against here rather than re-derived per ladder: one definition
+/// for the flatten, the rebuild and the well-formedness check, each of which
+/// then holds only its own payload arm.
+inline FlatKind expectedFlatKind(const ColumnStore& data, size_t variable) {
+  if (!data.splitsBySubset(variable)) return FlatKind::ordinal;
+  return data.columnIsPooled(variable) ? FlatKind::categoricalPooled
+                                       : FlatKind::categoricalInline;
 }
 
 /// Flat-arena node. Children are allocated as adjacent pairs, so
@@ -1466,17 +1479,17 @@ private:
 
     flat.variable = node.rule.variableIndex;
     size_t j = static_cast<size_t>(flat.variable);
-    if (data.splitsByThreshold(j)) {
-      setFlatKind(flat, FlatKind::ordinal);
+    FlatKind kind = expectedFlatKind(data, j);
+    setFlatKind(flat, kind);
+    if (kind == FlatKind::ordinal) {
       flat.value = data.cutPoints[j]
                                  [static_cast<size_t>(node.rule.splitIndex())];
-    } else if (data.columnIsPooled(j)) {
+    } else if (kind == FlatKind::categoricalPooled) {
       // side channel: maskOffset points at numMaskWords words of category
       // bits only; the missing direction stays in flags for either kind
       std::uint32_t numCategories = data.categoryCounts[j];
       size_t numWords = maskWordsForCount(numCategories);
       size_t offset = masks->size();
-      setFlatKind(flat, FlatKind::categoricalPooled);
       flat.maskOffset = static_cast<std::uint64_t>(offset);
       flat.numMaskWords = static_cast<std::uint32_t>(numWords);
       masks->resize(offset + numWords, 0);
@@ -1485,7 +1498,6 @@ private:
       for (size_t w = 0; w < numWords; ++w) words[w] = pooled[w];
       words[numCategories >> 6] &= ~(1ull << (numCategories & 63u));
     } else {
-      setFlatKind(flat, FlatKind::categoricalInline);
       flat.mask = node.rule.categoryDirections() & ~Rule::missingDirectionBit;
     }
     if (ruleMissingGoesRight(data, node.rule))
@@ -1529,8 +1541,8 @@ private:
     rule.variableIndex = flat.variable;
     size_t variable = static_cast<size_t>(flat.variable);
     FlatKind kind = flatKindOf(flat);
-    if (data.splitsBySubset(variable) && data.columnIsPooled(variable)) {
-      if (kind != FlatKind::categoricalPooled) return false;
+    if (kind != expectedFlatKind(data, variable)) return false;
+    if (kind == FlatKind::categoricalPooled) {
       // side channel: the offset must be the running pre-order word cursor,
       // the words category bits only, the assembled mask a canonical gauge
       std::uint32_t numCategories = data.categoryCounts[variable];
@@ -1554,8 +1566,7 @@ private:
           maskEquals(directions, reachableScratch_.data(), numWords))
         return false;
       rule.setMaskOffset(offset);
-    } else if (data.splitsBySubset(variable)) {
-      if (kind != FlatKind::categoricalInline) return false;
+    } else if (kind == FlatKind::categoricalInline) {
       // an inline mask over the observed categories with no bit past them;
       // the missing direction arrives in flags
       std::uint32_t numCategories = data.categoryCounts[variable];
@@ -1571,7 +1582,6 @@ private:
         return false;
       rule.setCategoryDirections(directions);
     } else {
-      if (kind != FlatKind::ordinal) return false;
       const std::vector<double>& cuts(
         data.cutPoints[static_cast<size_t>(flat.variable)]);
       std::uint32_t numCuts = data.numCuts[static_cast<size_t>(flat.variable)];
@@ -2063,8 +2073,8 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
     return 0;
   size_t variable = static_cast<size_t>(flat.variable);
   FlatKind kind = flatKindOf(flat);
-  if (data.splitsBySubset(variable) && data.columnIsPooled(variable)) {
-    if (kind != FlatKind::categoricalPooled) return 0;
+  if (kind != expectedFlatKind(data, variable)) return 0;
+  if (kind == FlatKind::categoricalPooled) {
     size_t numWords = maskWordsForCount(data.categoryCounts[variable]);
     if (masks == nullptr || maskCursor == nullptr ||
         flat.maskOffset != *maskCursor ||
@@ -2075,15 +2085,12 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
         (flat.flags & flatMissingGoesRight) == 0)
       return 0;
     *maskCursor += numWords;
-  } else if (data.splitsBySubset(variable)) {
-    if (kind != FlatKind::categoricalInline) return 0;
+  } else if (kind == FlatKind::categoricalInline) {
     // an inline mask with no bit past the categories; the mask plus the
     // missing direction must send something right
     if ((flat.mask >> data.categoryCounts[variable]) != 0 ||
         (flat.mask == 0 && (flat.flags & flatMissingGoesRight) == 0))
       return 0;
-  } else if (kind != FlatKind::ordinal) {
-    return 0;
   }
   size_t numOnLeft =
     flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1, masks,

@@ -543,6 +543,46 @@ static void testMissingMechanics() {
   check(rebuilt.at(0).rule.categoryDirections() == Rule::missingDirectionBit,
         "the rebuilt rule recovers the missing direction");
 
+  // the tag is the MECHANIC axis: an ordered factor splits by threshold, so
+  // its rules tag ordinal and round-trip through the ordinal payload arm
+  ColumnKind orderedTypes[] = {ColumnKind::numeric, ColumnKind::orderedFactor};
+  ColumnStore orderedStore;
+  orderedStore.build(x.data(), n, 2, 10, false, orderedTypes);
+  std::vector<index_t> indices5(n);
+  Tree orderedTree;
+  orderedTree.initialize(indices5.data(), n);
+  Rule orderedRule;
+  orderedRule.variableIndex = 1;
+  orderedRule.setSplitIndex(4);
+  orderedTree.birth(orderedStore, 0, orderedRule, y.data(), nullptr);
+  std::vector<double> orderedParams(orderedTree.nodes.size(), 0.0);
+  std::vector<FlatNode> orderedFlat;
+  orderedTree.flatten(orderedStore, orderedParams.data(), orderedFlat);
+  check(expectedFlatKind(orderedStore, 1) == FlatKind::ordinal &&
+          flatKindOf(orderedFlat[0]) == FlatKind::ordinal &&
+          orderedFlat[0].value == orderedStore.cutPoints[1][4],
+        "an ordered-factor rule flattens with the ordinal tag");
+  check(flatTreeIsWellFormed(orderedStore, orderedFlat.data(),
+                             orderedFlat.size()),
+        "an ordered-factor flat tree is well formed");
+  // and a mis-tagged node is refused by the one shared predicate
+  std::vector<FlatNode> misTagged(orderedFlat);
+  setFlatKind(misTagged[0], FlatKind::categoricalInline);
+  check(!flatTreeIsWellFormed(orderedStore, misTagged.data(),
+                              misTagged.size()),
+        "a categorical tag on an ordered-factor column is refused");
+  std::vector<index_t> indices6(n);
+  Tree orderedRebuilt;
+  orderedRebuilt.initialize(indices6.data(), n);
+  std::vector<double> orderedRebuiltParams;
+  check(orderedRebuilt.buildFromFlat(orderedStore, orderedFlat.data(),
+                                     orderedFlat.size(), orderedRebuiltParams) &&
+          orderedRebuilt.at(0).rule.splitIndex() == 4,
+        "an ordered-factor flat tree rebuilds onto its cut grid");
+  check(!orderedRebuilt.buildFromFlat(orderedStore, misTagged.data(),
+                                      misTagged.size(), orderedRebuiltParams),
+        "the rebuild refuses the mis-tagged node too");
+
   // raw-value replay routes NaN by the flag
   std::vector<std::uint32_t> counts(flat.size());
   std::vector<size_t> replayIndices(n);
