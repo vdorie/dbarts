@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at d28b087b (bartcore); the INDEX manifests it points at are
+Current at d0237c8d (bartcore); the INDEX manifests it points at are
 machine-checked, this file is not.
 
 Regenerate: re-derive every claim against the new tip, print counts as
