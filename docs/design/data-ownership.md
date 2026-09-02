@@ -77,7 +77,7 @@ land here, not as a separate retrofit), a cut table or level table, and an
 NA policy.
 
 Coverage of the four kind x storage cells is now complete. Three shipped
-before this design (data.hpp:92 ColumnType; buildMixed per-column dispatch,
+before this design (data.hpp:102 ColumnKind; buildMixed per-column dispatch,
 sparse-columns.md mixed landing notes): dense ordinal (numerics and ordered
 factors), dense categorical (unordered factors, membership splits, <= 65535
 levels), and sparse ordinal (CSC, rank bitmap or densified codes). Sparse

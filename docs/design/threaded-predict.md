@@ -212,7 +212,7 @@ representative `predict.bart` call.
 The serial work predict's threaded region does **not** cover - the
 flat-offset add over the whole output (R_interface_bartcore.cpp:5804-
 5808) and, on the heteroscedastic path, a full `Rf_duplicate` before
-the second (variance) fan-out (:5807) - is one pass over the output
+the second (variance) fan-out (:5817) - is one pass over the output
 per call against `numTrees` passes inside the replay, so the bridge's
 serial share is structurally `O(1 / numTrees)`: about 0.5% at
 ntree=200, about 1.3% at `bart2`'s default `n.trees = 75L`

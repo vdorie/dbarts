@@ -64,7 +64,7 @@ retired - the separate `$bc` handle is gone (section 1.5).
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:1863-1886`, draws one
+(`createChainRngs`, `src/R_interface_bartcore.cpp:1889-1912`, draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -109,12 +109,12 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3574`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3540`) - the dedicated
+(`src/R_interface_bartcore.cpp:3584`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3550`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
-(`src/C_interface.cpp:542`) routes to `createHolder`, never to the
+(`src/C_interface.cpp:544`) routes to `createHolder`, never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
@@ -131,15 +131,15 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3541` -> `createMultinomialDataHolder` `:3507` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4315` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3855` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:3930` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:3969` | `:125` | S, unexported |
+| run | `bartcore_run` `:4325` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:3865` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:3940` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:3979` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5167`, `:5119`, `:5280`, `:5334` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5227` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4796` | `:558` | S (`refuseUndefinedTestFits` `:2916` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5237` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:4806` | `:558` | S (`refuseUndefinedTestFits` `:2926` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4074` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5840` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5850` | `:1085` | S |
 | per-category fits / varcounts | `:4147`, `:4280` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4205` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5684`, `:5689` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
@@ -147,9 +147,9 @@ except where it names another file:
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, `:2647-2674`), `setWeights`
-(`:2684-2688`, same branch), `setSigma`, `setData` / `setModel`
+(`:2694-2698`, same branch), `setSigma`, `setData` / `setModel`
 (`refuseMultiForestMutation` `:2634`), `setCalibration` (`:4264-4272`),
-`setForestWeights` (`:4034-4037`, permanent, model grounds), `getLatents`
+`setForestWeights` (`:4044-4047`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -567,7 +567,7 @@ the counts channel" - one string, right on both surfaces, and what
 S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2676-2677`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2668-2683` tested only
+then fell through to the RESPONSE message (`:2678-2693` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2069`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:2080`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`inst/NEWS.Rd:2034` records the deletion).** `$bc` was a bare
+`inst/NEWS.Rd:2045` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,

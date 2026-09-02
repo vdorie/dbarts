@@ -103,7 +103,7 @@ natural casing rather than force `"bcf does not support"`.
 
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
-- Violation: `src/R_interface_bartcore.cpp:2357` ("Student-t residuals ...")
+- Violation: `src/R_interface_bartcore.cpp:2377` ("Student-t residuals ...")
   is a genuine outlier, not an acronym - reword under the sweep. `:7434`
   (DART) is the acronym exception and stays as-is; the two BCF-initial
   messages that sat beside it were reworded when the amplitude family took
@@ -271,9 +271,9 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4713`/`:4998`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4723`/`:5008`).
   Standardize on `%s: ` (colon) - the majority sub-style at the survey
-  date (38 of 69 vs 31 without), e.g. `:2634`. Reword the no-colon
+  date (38 of 69 vs 31 without), e.g. `:2644`. Reword the no-colon
   instances to add the colon. The one cited here has been: `:133` now
   reads `"%s: requires a numeric matrix with matching columns"`, and the
   `Rf_error("%s", ...)` calls that remain in that file substitute a whole

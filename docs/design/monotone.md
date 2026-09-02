@@ -57,7 +57,7 @@ seams that exist are re-pointed for the constrained forest.
 
 **Box geometry is already computed.** Each leaf's [L_ik, U_ik] along an ordinal
 column is `Tree::splitInterval` (tree.hpp:429), the ancestor-constrained cut
-interval used for availability (`hasAnyAvailableVariable`, tree.hpp:616,
+interval used for availability (`hasAnyAvailableVariable`, tree.hpp:628,
 moves.hpp:144). Neighbor determination for a constrained axis walks the tree's
 bottom nodes and, for each ordered pair, tests boundary adjacency in the
 constrained coordinate and interval overlap in every OTHER coordinate the two
@@ -77,7 +77,7 @@ rides `PredictorSource` at data.hpp:222, reaching the options through
 `SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
 As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
 entry on any column selects the constrained
-instantiation at the factory (`createSampler`, facade.hpp:801-805); an all-zero
+instantiation at the factory (`createSampler`, facade.hpp:806-817); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,
 and keeps the constraint out of the data container - the same data can be fit
@@ -113,9 +113,9 @@ not matching dbarts's `lower.case.dotted` R style.
 **Categorical predictors refuse.** Monotonicity is undefined on an unordered
 factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
-defensively, at the factory (the categorical-refusal already guarding leaf
-covariates, facade.hpp:774). ORDERED factors and numeric columns are stored as
-ordinal `ColumnType` (core-generalization.md) and DO accept the constraint -
+defensively, at the factory (the subset-splitting refusal already guarding
+leaf covariates, facade.hpp:774). ORDERED factors are their own `ColumnKind`
+and, like numeric columns, split by THRESHOLD, so both accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
 and numerics are eligible," the clean `is.ordered()`-adjacent split.

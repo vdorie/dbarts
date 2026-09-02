@@ -401,7 +401,7 @@ Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
 mirroring monotone (monotone.md) and BCF (combiner.hpp:500-501):
 
-- No `variance` / `n.trees.variance` -> the factory (facade.hpp:807 createSampler)
+- No `variance` / `n.trees.variance` -> the factory (facade.hpp:806 createSampler)
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with
   varianceForest_ null (or the combiner absent). Not a variance-capable type with
   the forest switched off - the SAME object code, so the identical rng stream. The

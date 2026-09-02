@@ -112,16 +112,23 @@ missing marker costs is four concrete things:
 columns numCuts holds the (fixed) category count, cutPoints stays empty"
 (`data.hpp:508-510`, field at `:538`, written at `:872`). There are exactly 62
 `numCuts[...]` references in `src/bartcore/*.hpp` and
-`src/R_interface_bartcore.cpp`; twenty-two of them read it as a category count:
-`data.hpp:555`, `:710`, `:723`, `:1465`; `tree.hpp:320`, `:330`, `:445`,
-`:473`, `:502`, `:650`, `:1475`, `:1536`, `:1561`, `:1611`, `:2069`, `:2083`,
-`:2148`; `moves.hpp:404`, `:708`; `model.hpp:2158`, `:2349`; `grow.hpp:84`,
-`:230`; `scan.hpp:301-304`; `R_interface_bartcore.cpp:3029`, `:5483`, `:5663`,
-`:7620`, `:7624`. Every one is already inside a `types[j] == categorical`
-guard, which is what makes the split mechanical. Two deserve attention:
-`scan.hpp:301-304` sizes the categorical scan's histogram and is on the **hot
-path**, and `data.hpp:1465` is inside `buildFromParent`, which section 1
-returns to.
+`src/R_interface_bartcore.cpp`; TWENTY-SEVEN of them read it as a category
+count: `data.hpp:555`, `:710`, `:723`, `:1466`; `tree.hpp:320`, `:330`,
+`:445`, `:473`, `:503`, `:650`, `:1178`, `:1181`, `:1475`, `:1536`, `:1561`,
+`:1611`, `:2069`, `:2083`, `:2148`; `scan.hpp:303`, `:304`;
+`R_interface_bartcore.cpp:1521`, `:3029`, `:5483`, `:5663`, `:7620`, `:7624`,
+plus the WRITE at `data.hpp:872` and one test-side read,
+`tests/cpp/test_grow.cpp:860`, which sizes a category histogram from it and
+so must move with them. (An earlier draft of this list named `moves.hpp:404`,
+`:708`, `model.hpp:2158`, `:2349`, `grow.hpp:84` and `:230`; those lines hold
+no `numCuts[` at all - they are `types[j] == categorical` comparisons, which
+the `splitsBySubset` sweep carries instead. Corrected against the tree at
+S1's implementation.) Every read is already inside a `types[j] ==
+categorical` guard, which is what makes the split mechanical. Three deserve
+attention: `scan.hpp:303-304` sizes the categorical scan's histogram and is on
+the **hot path**, `data.hpp:1466` is inside `buildFromParent`, which section 1
+returns to, and `R_interface_bartcore.cpp:1521` is the verbose printer's
+untyped line, which the recommendation below makes kind-aware.
 
 **3. A categorical column's raw double IS its code.** `codeFor` does an
 unchecked `static_cast<xint_t>(value)` for a categorical (`data.hpp:708-711`),
@@ -405,6 +412,33 @@ of the factor rather than of the sample, which is what the level table is for.
 ordered factor takes its container's declared K rather than an inferred count.
 This also fixes what `K` means in the cap rule above - declared count, not
 observed-unique count - so the two are one decision.
+
+**Two residues of that ruling, stated rather than inherited.** Extending the
+type gate is enough for every column R can build; the `sourceOf(j) < 0` gate
+could not be dropped literally, because `resolveCscCategoricalReferences`
+resolves a CSC-backed CATEGORICAL column's K and its reference code together
+from the container's own metadata, and letting a `factor.levels` entry
+override that would contradict "a container declares its own K". S1 therefore
+substitutes an equivalent rule - a count the container already declared stays
+authoritative - which selects the same set for categoricals (that resolution
+zero-fills, then writes a strictly positive count for exactly the CSC-backed
+categorical columns) and lets a CSC-backed ordered factor take its
+`factor.levels` entry. What is left open, and what S2 must rule when the
+declared count becomes the grid:
+
+  - **Which channel wins for a hand-built CSC-backed ordered factor** that
+    declares both a `factor.levels` entry and a `sparseCategoryCount` for the
+    same column. R cannot construct one - `makeCategoricalModelMatrix` types
+    every `sparseFactor` categorical whether or not it is ordered
+    (`R/utility.R:491-493`) - so for anything R produces the two are the same
+    number; a hand-built container or a header-only host can disagree.
+  - **Such a column's implicit rows read the quantized zero, not its declared
+    reference level.** `resolveCscCategoricalReferences` skips a
+    non-categorical column, so its `refCode` is never resolved and
+    `quantizeCscColumnInto` takes `codeFor(j, 0.0)` for the implicit rows.
+    That is the pre-kind ordinal behavior and is unreachable from R, but it is
+    a silent wrong answer for a host that declares one, and S2's
+    declared-levels grid is what makes the code positions matter.
 
 With the cap treatment specified, three consequences follow:
 

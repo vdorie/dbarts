@@ -1159,17 +1159,29 @@ expect_error(
   ),
   "rows"
 )
-# a column type outside {ordinal, categorical}, a declared level count or a
-# reference code past the engine's category limit, and a source naming a CSC
-# column it does not carry (without the bound, the ~v decode reads past the
-# caller's own pointer array)
+# DBARTS_COLUMN_ORDERED_FACTOR (2) is a declared column type a source may
+# carry: the entrance accepts it and answers exactly as the same source
+# declaring DBARTS_COLUMN_ORDINAL does, since a source's declared types are
+# validated and then discarded - the STORE's types are what route.
+expect_identical(
+  CALL(
+    "capi_predict_source",
+    ptrSrc,
+    makeSource(nTestSrc, 2L, dense = denseTestSrc, types = c(2L, 1L))
+  ),
+  predDenseSrc
+)
+# a column type outside {ordinal, categorical, ordered factor}, a declared
+# level count or a reference code past the engine's category limit, and a
+# source naming a CSC column it does not carry (without the bound, the ~v
+# decode reads past the caller's own pointer array)
 expect_error(
   CALL(
     "capi_predict_source",
     ptrSrc,
     makeSource(nTestSrc, 2L, dense = denseTestSrc, types = c(0L, 7L))
   ),
-  "columnTypes"
+  "DBARTS_COLUMN_ORDERED_FACTOR"
 )
 expect_error(
   CALL(

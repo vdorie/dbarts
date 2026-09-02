@@ -1175,7 +1175,9 @@ static void testMaterializePredictorSource() {
 // identically to the same codes declared numeric.
 void testColumnKindAxis() {
   const size_t n = 60, p = 3;
-  const std::uint32_t numLevels = 3, declaredCategories = 5;
+  // the categorical column declares past the pooling boundary so the subset
+  // view's tier check compares a true against a true
+  const std::uint32_t numLevels = 3, declaredCategories = 70;
   std::vector<double> x(n * p);
   for (size_t i = 0; i < n; ++i) {
     x[i] = 0.25 * static_cast<double>(i % 7);            // numeric
@@ -1236,8 +1238,25 @@ void testColumnKindAxis() {
           subset.types[1] == ColumnKind::categorical &&
           subset.categoryCounts[0] == numLevels &&
           subset.categoryCounts[1] == declaredCategories &&
-          subset.columnIsPooled(1) == store.columnIsPooled(1),
+          store.columnIsPooled(1) && subset.columnIsPooled(1) &&
+          !subset.columnIsPooled(0),
         "a column-subset view copies each mapped column's kind and count");
+
+  // a whole-data replacement is a new sample of the SAME factors, so neither
+  // factor kind re-derives its level count from it: a store whose ordered
+  // factor observes only code 0 after the swap keeps its declared 3
+  std::vector<double> narrowed(n * p, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    narrowed[i] = 0.25 * static_cast<double>(i % 7);
+    narrowed[n + i] = static_cast<double>(i % 2);
+    narrowed[2 * n + i] = 0.0;
+  }
+  ColumnStore replaced;
+  replaced.build(x.data(), n, p, 10u, false, kinds, nullptr, 0, declared);
+  replaced.setData(narrowed.data(), n);
+  check(replaced.categoryCounts[1] == declaredCategories &&
+          replaced.categoryCounts[2] == numLevels,
+        "setData keeps each factor kind's level count fixed");
 
   printf("ok: column kind axis\n");
 }

@@ -909,8 +909,15 @@ struct ColumnStore {
   /// table when it supplied one, but never below what its own codes reach - a
   /// declared count short of an observed code would strand that code past its
   /// own grid. A categorical column then keeps no cuts at all.
-  void buildCutsForColumn(size_t j, const double* column) {
-    if (types[j] != ColumnKind::numeric) {
+  ///
+  /// keepCategoryCount holds a factor column's creation-time level count
+  /// against a whole-data replacement, whose new values are a new sample of
+  /// the SAME factor: the level table is a property of the factor rather than
+  /// of the sample, so re-deriving it from the replacement would make K
+  /// depend on call history.
+  void buildCutsForColumn(size_t j, const double* column,
+                          bool keepCategoryCount = false) {
+    if (types[j] != ColumnKind::numeric && !keepCategoryCount) {
       std::uint32_t inferred = columnIsCscBacked(j)
         ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
@@ -1826,11 +1833,12 @@ struct ColumnStore {
   }
 
   /// Whole-data replacement: new values for the same predictors, possibly a
-  /// new number of observations, read for the call only. Ordinal cuts are
+  /// new number of observations, read for the call only. Threshold cuts are
   /// rebuilt from scratch, so unlike refreshCutsForColumn a quantile-mode count
-  /// may shrink and the caller remaps existing splits onto the new grid;
-  /// categorical category counts stay fixed (the caller validates the new
-  /// values). Dense stores only (setData is refused on CSC/mixed).
+  /// may shrink and the caller remaps existing splits onto the new grid; a
+  /// factor column's level count stays fixed whichever kind it is (the caller
+  /// validates the new values). Dense stores only (setData is refused on
+  /// CSC/mixed).
   void setData(const double* x_, size_t n) {
     numObservations = n;
     train.codes.resize(n * numPredictors);
@@ -1839,7 +1847,7 @@ struct ColumnStore {
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
       const double* column = x_ + j * n;
-      if (splitsByThreshold(j)) buildCutsForColumn(j, column);
+      if (splitsByThreshold(j)) buildCutsForColumn(j, column, true);
       quantizeColumn(j, column);
     }
   }

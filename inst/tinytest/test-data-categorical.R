@@ -156,3 +156,35 @@ for (i in categoricalRoots) {
 pdf(NULL)
 expect_silent(sampler.keep$plotTree(1L))
 dev.off()
+
+# a hand-typed column of either factor kind is bounded before ingestion: the
+# store derives a factor column's level count by casting its observed maximum
+# to an unsigned count whichever kind it is, so a value outside the code range
+# is refused at creation rather than converted
+n.codes <- 40L
+x.codes <- matrix(as.double(rep(c(0, 1, 2, 3), 10L)), ncol = 1L)
+x.codes[1L] <- 1e13
+y.codes <- rnorm(n.codes)
+control.codes <- dbartsControl(
+  n.trees = 1L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE
+)
+attr(x.codes, "varTypes") <- 2L # ordered factor
+expect_error(
+  dbarts(x.codes, y.codes, control = control.codes),
+  pattern = "ordered factor predictors must hold integer level codes"
+)
+attr(x.codes, "varTypes") <- 1L # categorical
+expect_error(
+  dbarts(x.codes, y.codes, control = control.codes),
+  pattern = "categorical predictors must hold integer category codes"
+)
+# and a column whose codes ARE in range is accepted under either kind
+x.codes[1L] <- 3
+attr(x.codes, "varTypes") <- 2L # ordered factor
+expect_inherits(
+  dbarts(x.codes, y.codes, control = control.codes),
+  "dbartsSampler"
+)

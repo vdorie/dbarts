@@ -1650,6 +1650,8 @@ const double* rawViewColumn(const bartcore::PredictorSource& view, size_t j) {
 // reuse them, so a refusal reads the same wherever it fires.
 const char* const categoricalTrainingMessage =
   "categorical predictors must hold integer category codes in [0, 65535)";
+const char* const orderedFactorTrainingMessage =
+  "ordered factor predictors must hold integer level codes in [0, 65535)";
 const char* const categoricalTestMessage =
   "categorical test predictors must hold existing category codes";
 
@@ -1706,18 +1708,33 @@ double trainingCategoryBound(const ParsedData& data, size_t j) {
   return declared > inferred ? declared : inferred;
 }
 
-// Bound every categorical code the creation parse is about to ingest. Runs
-// before the store exists, so the training-side count is reconstructed rather
-// than read off numCuts: a CSC-backed training column's stored codes must lie
-// in its declared K, and a dense one's in its own declared K where its host
-// supplied a level table, else need only be representable (the count is then
-// inferred from them). Each test view is then bounded by that count, whatever
-// backs it - the x.test matrix, a container's dense slice, a container's CSC
-// slice, or the reference code its implicit rows read. An unbounded code would
-// mis-bin, shift past a tree's category mask, or over-read a pooled bitmap.
+// Bound every level code the creation parse is about to ingest, over BOTH
+// factor kinds: the store's own count arm casts a factor column's observed
+// maximum to an unsigned level count whichever kind it is, so a value outside
+// the code range must be refused before it reaches that cast. Runs before the
+// store exists, so the training-side count is reconstructed rather than read
+// off categoryCounts: a CSC-backed training column's stored codes must lie in
+// its declared K (its container always declares one), and a dense one's in its
+// own declared K where its host supplied a level table, else need only be
+// representable (the count is then inferred from them). Each test view is then
+// bounded by that count - the x.test matrix, a container's dense slice, a
+// container's CSC slice, or the reference code its implicit rows read - for a
+// categorical column, whose codes are its identity; an ordered factor's test
+// values quantize against a threshold grid and are bounded like any other
+// threshold column's. An unbounded training code would mis-bin, shift past a
+// tree's category mask, or over-read a pooled bitmap.
 void validateCategoricalPredictors(const ParsedData& data) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (data.columnTypes[j] != bartcore::ColumnKind::categorical) continue;
+    if (data.columnTypes[j] == bartcore::ColumnKind::numeric) continue;
+    bool categorical =
+      data.columnTypes[j] == bartcore::ColumnKind::categorical;
+    const char* message = categorical ? categoricalTrainingMessage
+                                      : orderedFactorTrainingMessage;
+    // a declared level table bounds the column outright; without one its own
+    // codes fix the count, so they need only be representable
+    double declared = declaredCategoryCount(data, j);
+    double bound = declared > 0.0
+      ? declared : static_cast<double>(bartcore::maxCategories);
     if (data.predictors.sourceOf(j) < 0) {
       // a CSC-backed column stores only its non-reference codes; those must lie
       // in the K its container declared - the count the store will take - as
@@ -1725,19 +1742,12 @@ void validateCategoricalPredictors(const ParsedData& data) {
       ParsedCscCodes stored = parsedCscCodes(data.predictors.cscColumnPointers,
                                              data.predictors.cscValues,
                                              data.predictors.sourceOf(j));
-      refuseInvalidCategoryCodes(stored.values, stored.numValues,
-                                 declaredCategoryCount(data, j),
-                                 categoricalTrainingMessage);
+      refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
+                                 message);
       continue;
     }
-    // a declared level table bounds a dense training column outright; without
-    // one the column's own codes fix the count, so they need only be
-    // representable
-    double declared = declaredCategoryCount(data, j);
-    refuseInvalidCategoryCodes(
-      rawViewColumn(data.predictors, j), data.numObservations,
-      declared > 0.0 ? declared : static_cast<double>(bartcore::maxCategories),
-      categoricalTrainingMessage);
+    refuseInvalidCategoryCodes(rawViewColumn(data.predictors, j),
+                               data.numObservations, bound, message);
   }
   if (!data.anyCategorical || data.numTestObservations == 0) return;
   for (size_t j = 0; j < data.numPredictors; ++j) {

@@ -1291,6 +1291,17 @@
             tree split grid's per-column candidate list); the two were never
             the same quantity. \code{DBARTS_C_API_HASH} is re-baked for this
             signature.
+      \item \code{dbarts_column_type} gains a third enumerator,
+            \code{DBARTS_COLUMN_ORDERED_FACTOR = 2}, which a
+            \code{dbarts_predictor_source} may declare for a column whose
+            level codes are ordered: such a column splits at a threshold on
+            those codes rather than by a subset mask, as an ordinal column
+            does, and \code{dbarts_sampler_setPredictor} and its siblings now
+            name it in the refusal they raise for an unknown column type. The
+            two existing enumerators keep their values.
+            \code{DBARTS_C_API_HASH} is re-baked for the appended enumerator;
+            every consumer checking \code{dbarts_apiHash()} against the header
+            constant must be rebuilt.
     }
   }
   \subsection{BUG FIXES}{

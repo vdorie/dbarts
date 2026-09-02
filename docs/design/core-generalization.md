@@ -654,7 +654,7 @@ partitioning entirely; a different library sharing only the tree structure).
    makeModelMatrix, and the classic cut-map code never branches on type),
    so there is no cross-engine reference and no compatibility to keep.
    bartcore's design is clean-room: ColumnStore carries per-column
-   ColumnType; categorical columns hold integer category codes 0..K-1
+   ColumnKind; categorical columns hold integer category codes 0..K-1
    directly (K <= 53, fixed at build), Rule holds a
    splitIndex/categoryDirections union, and observations route by bit
    test, one type dispatch per node operation. Rules live in a canonical

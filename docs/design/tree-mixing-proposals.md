@@ -153,7 +153,7 @@ Adjacent machinery already landed, relevant to cost: `scan.hpp:105`
 `scanOrdinalCuts` (leaf-templated full-cut scan); `grow.hpp:179`
 `growTreeFromRoot`; `chain.hpp:1967` `growForestFromRoot` (opt-in
 `n.grow.sweeps`, init only, with a reset/regrow/rebuild/redraw loop at
-`chain.hpp:2009-2022`); `tree.hpp:1025-1047` `SubtreeSnapshot` (restores node
+`chain.hpp:2009-2022`); `tree.hpp:1037-1059` `SubtreeSnapshot` (restores node
 *contents* for a fixed set of node ids - it cannot undo a shape change);
 `tree.hpp:1103`/`:1297` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
 
@@ -2091,7 +2091,7 @@ fixed.
      full candidate assembly there. Cost is `2 x (nodes)` candidate
      assemblies, not `2 x (levels)`.
 - **The categorical support gap is confirmed, and the `P(var)` accounting
-  is right.** `grow.hpp:224` skips `ColumnType::categorical` outright
+  is right.** `grow.hpp:226` skips a subset-splitting column outright
   while `numAvailable` counts categoricals even though they generate no
   candidates - which is *correct* for matching `model.hpp:2135-2145`'s
   `-log(numAvailable)`, since both sides count the same set and the missing
