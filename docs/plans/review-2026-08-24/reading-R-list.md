@@ -141,7 +141,7 @@ stan4bart bartcore, treatSens master, bairrtt main - branches confirmed, no chec
 zero-exercise claim was re-derived by reading its would-be call site, since same-name formals collide across entry
 points.
 - 3.1 [option with no caller; HIGHEST value here] [[R/rbart.R:47@b102e17c]] `rbart_vi(callback = NULL)` - wired (validated
-  [[R/rbart.R:327-332@b102e17c]], threaded [[R/rbart.R:370@b102e17c]]), documented ([[man/rbart.Rd:82@b102e17c]], [[man/rbart.Rd:149@b102e17c]]), and it SWITCHES THE SAMPLER: [[man/rbart.Rd:384@b102e17c]]'s `builtinTauPrior
+  [[R/rbart.R:327-332@b102e17c]], threaded [[R/rbart.R:370@b102e17c]]), documented ([[man/rbart.Rd:82@b102e17c]], [[man/rbart.Rd:149@b102e17c]]), and it SWITCHES THE SAMPLER: [[R/rbart.R:384@b102e17c]]'s `builtinTauPrior
   && is.null(callback)` sends a callback-carrying fit down the R Gibbs loop rather than the engine loop. Zero uses in
   inst/tinytest, \examples, vignettes/, benchmarks/R or the four sister repos - test-rbart-loop-callback.R and
   test-capi.R exercise a DIFFERENT internal per-sweep engine callback. [[R/rbart.R:43@b102e17c]] `keepCall` is likewise never
@@ -181,13 +181,13 @@ points.
   dbartsControl@useQuantiles/@printCutoffs) but ALL are read by the C++ bridge through the slot-as-attribute path
   ([[src/R_interface_bartcore.cpp:1209@b102e17c]], [[src/R_interface_bartcore.cpp:1832@b102e17c]], the REPROTECT_SLOT calls) - not findings. (c) dbartsSpec's
   tree.prior/resid.prior/proposal.probs/ parentEnv look unexercised inside dbarts, but stan4bart passes all four
-  ([[stan4bart/R/stan4bart_fit.R:554-558@b102e17c]]) - a dbarts-only grep would have called them dead.
+  (stan4bart's `R/stan4bart_fit.R` lines 554-558) - a dbarts-only grep would have called them dead.
 ## 4. Defensive code with no reachable trigger
-- 4.1 [unreachable] R/dbarts.R validateArgumentsInEnvironment, three sites. [[stan4bart/R/stan4bart_fit.R:295-297@b102e17c]] `if (is.null(n.samples))` runs
-  after [[stan4bart/R/stan4bart_fit.R:285@b102e17c]]'s as.integer(n.samples) and [[stan4bart/R/stan4bart_fit.R:292@b102e17c]]'s `length != 1L` refusal; as.integer(NULL) is integer(0), so the length
-  check always fires first. [[stan4bart/R/stan4bart_fit.R:321@b102e17c]] `is.null(sigma) || sigma <= 0.0` sits inside `!missing(sigma) && !is.na(sigma)`
-  ([[stan4bart/R/stan4bart_fit.R:309@b102e17c]]); `TRUE && logical(0)` is NA and `if (NA)` raises "missing value where TRUE/FALSE needed" (executed, R 4.6.1),
-  so a NULL sigma gets R's error, never this one; [[stan4bart/R/stan4bart_fit.R:344@b102e17c]] is the same shape for sigest. LOST: nothing - the NULL cases
+- 4.1 [unreachable] R/dbarts.R validateArgumentsInEnvironment, three sites. [[R/dbarts.R:295-297@b102e17c]] `if (is.null(n.samples))` runs
+  after [[R/dbarts.R:285@b102e17c]]'s as.integer(n.samples) and [[R/dbarts.R:292@b102e17c]]'s `length != 1L` refusal; as.integer(NULL) is integer(0), so the length
+  check always fires first. [[R/dbarts.R:321@b102e17c]] `is.null(sigma) || sigma <= 0.0` sits inside `!missing(sigma) && !is.na(sigma)`
+  ([[R/dbarts.R:309@b102e17c]]); `TRUE && logical(0)` is NA and `if (NA)` raises "missing value where TRUE/FALSE needed" (executed, R 4.6.1),
+  so a NULL sigma gets R's error, never this one; [[R/dbarts.R:344@b102e17c]] is the same shape for sigest. LOST: nothing - the NULL cases
   want an EARLIER check.
 - 4.2 [partly unreachable] [[R/augmentation.R:44-52@b102e17c]] augRestrict's second arm (`if (!supplied && family %in% families)
   stop("family \"%s\" requires '%s'")`) is dead for two of its five call sites: [[R/augmentation.R:77@b102e17c]] and [[R/augmentation.R:80@b102e17c]] hardcode `supplied =
@@ -206,14 +206,14 @@ points.
   on those first and the guard cannot deliver. (c) `git log -S` dates the additions to this unreleased branch: @counts
   and dataSlotOrNULL at 5a3bc276 (2026-08-24), @bases at 983d7f0a (2026-08-14), @response.type at ee7bf84f
   (2026-07-17); none is on main, so under no-backwards-compat the only objects protected are ones serialized by an
-  intermediate commit of this branch, and [[R/A_class.R:627-631@ee7bf84f]] concedes the half-measure ("stays READABLE ... but it is
+  intermediate commit of this branch, and [[R/A_class.R:627-631@b102e17c]] concedes the half-measure ("stays READABLE ... but it is
   not revalidatable"). LOST IF REMOVED: nothing the branch owes anyone - but a real 0.9-x-fit migration story starts
   here and must then cover @bases and @response.type too. High.
-- 4.4 [divergent, unconfirmed] [[R/rbart.R:104@ee7bf84f]] `if (control@n.samples == 0L)` where bart2 ([[R/bart.R:806@ee7bf84f]]) and bart
-  ([[R/bart.R:2725@ee7bf84f]]) wrap the same test in isTRUE(... <= 0L). Reachable only if control@n.samples can be NA there; [[A_class.R:385@ee7bf84f]]
+- 4.4 [divergent, unconfirmed] [[R/rbart.R:104@b102e17c]] `if (control@n.samples == 0L)` where bart2 ([[R/bart.R:806@b102e17c]]) and bart
+  ([[R/bart.R:2725@b102e17c]]) wrap the same test in isTRUE(... <= 0L). Reachable only if control@n.samples can be NA there; [[A_class.R:385@b102e17c]]
   permits NA_integer_ explicitly, but no concrete call was traced. Confidence low.
-- 4.5 [stale precondition] [[R/bartcore.R:636-645@ee7bf84f]] - bartcoreSampler's comment says "Internal interface used by the tests
-  and the equivalence harness". It is production code: [[R/bart.R:1802@ee7bf84f]] and [[R/bart.R:2051@ee7bf84f]] call it on every bart2 ordinal and
+- 4.5 [stale precondition] [[R/bartcore.R:636-645@b102e17c]] - bartcoreSampler's comment says "Internal interface used by the tests
+  and the equivalence harness". It is production code: [[R/bart.R:1802@b102e17c]] and [[R/bart.R:2051@b102e17c]] call it on every bart2 ordinal and
   nbinom fit. See 6.2.
 
 ## 5. Comments and docs that narrate process rather than state a constraint
@@ -226,40 +226,40 @@ Method: extracted every consecutive `#`/`##` block in all 25 files and judged ea
 - 102 of the 129 cite a docs/ path. VERIFIED: 109 raw lines match `docs/` in R/ (152 more in src/, out of scope),
   naming 15 distinct .md paths, and ALL 15 EXIST. `.Rbuildignore` carries `^docs$`, so none resolves for an installed
   user. No `plans/` reference appears anywhere in R/.
-- SAME DEFECT, NOT PREVIOUSLY COUNTED: 6 lines cite benchmarks/R/*.R ([[R/spec.R:476@ee7bf84f]], [[R/bart.R:817@ee7bf84f]], [[R/bart.R:1428@ee7bf84f]], [[R/bart.R:1523@ee7bf84f]], [[R/bart.R:2250@ee7bf84f]],
-  [[R/bartcore.R:956@ee7bf84f]]); `.Rbuildignore` also carries `^benchmarks$`.
-- STALE PATH: [[R/diagnostics.R:4@ee7bf84f]] says the posterior methods are registered "in zzz.R". There is no R/zzz.R; the
-  registration is [[R/hooks.R:6-21@ee7bf84f]].
+- SAME DEFECT, NOT PREVIOUSLY COUNTED: 6 lines cite benchmarks/R/*.R ([[R/spec.R:476@b102e17c]], [[R/bart.R:817@b102e17c]], [[R/bart.R:1428@b102e17c]], [[R/bart.R:1523@b102e17c]], [[R/bart.R:2250@b102e17c]],
+  [[R/bartcore.R:956@b102e17c]]); `.Rbuildignore` also carries `^benchmarks$`.
+- STALE PATH: [[R/diagnostics.R:4@b102e17c]] says the posterior methods are registered "in zzz.R". There is no R/zzz.R; the
+  registration is [[R/hooks.R:6-21@b102e17c]].
 - Comment lines as a share of the file: spec.R 0.289, bartcore.R 0.272, diagnostics.R 0.247, bart.R 0.210, model.R
   0.202, mixedMatrix.R 0.202; tree-wide 0.173. spec.R is both densest and second-highest hit count; diagnostics.R is
   dense and nearly clean, so density is not itself the problem.
 
 Worst 15 sites (quotes verified; three marked PRE-EXISTING are VD's own, not branch residue):
-- [[R/data.R:341-342@ee7bf84f]] "this used to be a function evaluated in the caller's frame, but that causes warnings in R check so
-  now it is just a block of code" - PRE-EXISTING (main:[[R/data.R:106@ee7bf84f]]).
-- [[R/xbart.R:57@ee7bf84f]] "control = is no longer a formal: xbart builds its own control..."
-- [[R/xbart.R:191-192@ee7bf84f]] "a custom control could once supply an n.trees a caller left unnamed; control = is gone".
-- [[R/bart.R:769@ee7bf84f]] "used to silently take dbarts()'s own default rather than the token/value this signature advertises" -
-  a fixed defect; [[R/rbart.R:66@ee7bf84f]] ships the same sentence.
-- [[R/dbarts.R:627@ee7bf84f]] "this combination used to fit an ordinary single-forest model with the declaration silently
+- [[R/data.R:341-342@b102e17c]] "this used to be a function evaluated in the caller's frame, but that causes warnings in R check so
+  now it is just a block of code" - PRE-EXISTING (main:[[R/data.R:106@b102e17c]]).
+- [[R/xbart.R:57@b102e17c]] "control = is no longer a formal: xbart builds its own control..."
+- [[R/xbart.R:191-192@b102e17c]] "a custom control could once supply an n.trees a caller left unnamed; control = is gone".
+- [[R/bart.R:769@b102e17c]] "used to silently take dbarts()'s own default rather than the token/value this signature advertises" -
+  a fixed defect; [[R/rbart.R:66@b102e17c]] ships the same sentence.
+- [[R/dbarts.R:627@b102e17c]] "this combination used to fit an ordinary single-forest model with the declaration silently
   discarded. Refuse it by name instead."
-- [[R/spec.R:17@ee7bf84f]] "xbart once carried the weaker `family != \"gaussian\"`."
-- [[R/spec.R:652@ee7bf84f]] "the gaussian-only literal 0.5 this used to compare against always meant" - unreadable without the
+- [[R/spec.R:17@b102e17c]] "xbart once carried the weaker `family != \"gaussian\"`."
+- [[R/spec.R:652@b102e17c]] "the gaussian-only literal 0.5 this used to compare against always meant" - unreadable without the
   removed comparison.
-- [[R/data.R:1294-1296@ee7bf84f]] "(the bug: incorporation was only reachable through the formula path, since this branch always
+- [[R/data.R:1294-1296@b102e17c]] "(the bug: incorporation was only reachable through the formula path, since this branch always
   complete-cases-filtered first)".
-- [[R/data.R:1031-1032@ee7bf84f]] "completeness is validated below (previous versions silently na.omit-dropped them)".
-- [[R/generics.R:1154@ee7bf84f]] and [[R/generics.R:1287@ee7bf84f]] "rides the same keepTrees gate a deleted $bc field used to" - twice.
-- [[R/utility.R:118-119@ee7bf84f]] "the passthrough that let it keep flowing through '...' is gone now that the rename has landed";
-  [[R/bartcore.R:1018@ee7bf84f]] "the same creation-time checks the retired dedicated entries used".
-- [[R/model.R:1759-1760@ee7bf84f]] and [[R/spec.R:489-490@ee7bf84f]] both narrate "the removed flat n.trees.variance / power.variance /
+- [[R/data.R:1031-1032@b102e17c]] "completeness is validated below (previous versions silently na.omit-dropped them)".
+- [[R/generics.R:1154@b102e17c]] and [[R/generics.R:1287@b102e17c]] "rides the same keepTrees gate a deleted $bc field used to" - twice.
+- [[R/utility.R:118-119@b102e17c]] "the passthrough that let it keep flowing through '...' is gone now that the rename has landed";
+  [[R/bartcore.R:1018@b102e17c]] "the same creation-time checks the retired dedicated entries used".
+- [[R/model.R:1759-1760@b102e17c]] and [[R/spec.R:489-490@b102e17c]] both narrate "the removed flat n.trees.variance / power.variance /
   base.variance formals" - shipped twice.
-- [[R/sliceSample.R:304@ee7bf84f]] "leaves j == maxIter and used to raise the exhaustion error over a good sample".
-  ([[R/rbart.R:483-484@ee7bf84f]] "To be polite ... we set the seed back" and [[R/data.R:1218@ee7bf84f]] "backwards compatibility of
+- [[R/sliceSample.R:304@b102e17c]] "leaves j == maxIter and used to raise the exhaustion error over a good sample".
+  ([[R/rbart.R:483-484@b102e17c]] "To be polite ... we set the seed back" and [[R/data.R:1218@b102e17c]] "backwards compatibility of
   bart(x.train, y.train, x.test)" are both PRE-EXISTING.)
 
 ## 6. Over-engineering for one use
-- 6.1 [test-surface / seam] [[R/bartcore.R:1066-1535@ee7bf84f]] - a low-level handle API (a bcSampler env carrying $ptr and $x)
+- 6.1 [test-surface / seam] [[R/bartcore.R:1066-1535@b102e17c]] - a low-level handle API (a bcSampler env carrying $ptr and $x)
   with 31 functions no other R/ file calls: bartcoreBCFSampler, bartcoreMultinomialSampler,
   bartcoreMultinomialCountSampler, bartcoreSet{Counts, CategoryOffset, CategoryTestOffset, ForestBasis, ForestWeights,
   ForestPriorScale, Offset, Response, ActiveRows, Weights, TestOffset, Data, TestPredictor, Predictor, CutPoints,
@@ -273,28 +273,28 @@ Worst 15 sites (quotes verified; three marked PRE-EXISTING are VD's own, not bra
   seam, gestured at by docs/design/bart-as-a-component.md's "graduation debt", but NO design doc names this API as it.
   RECOMMEND scoping the seam, not a deletion. High on the census; the call is VD's.
 - 6.2 [sediment, recorded and priced] Two engine constructions per bart2 ordinal/nbinom fit. bart2Ordinal
-  ([[R/bart.R:1802@ee7bf84f]]) and bart2Negbin ([[R/bart.R:2051@ee7bf84f]]) build a host through dbarts(), then call bartcoreSampler(sampler, family =
-  ...) which issues a SECOND C_dbarts_bartcore_create ([[R/bartcore.R:647-654@ee7bf84f]]), then sampler$adoptPointer(bc$ptr) so
-  $fit wraps the second and abandons the first. The comments ([[R/bartcore.R:1804-1807@ee7bf84f]], [[R/bartcore.R:2053-2056@ee7bf84f]]) give the reason: both creates in
+  ([[R/bart.R:1802@b102e17c]]) and bart2Negbin ([[R/bart.R:2051@b102e17c]]) build a host through dbarts(), then call bartcoreSampler(sampler, family =
+  ...) which issues a SECOND C_dbarts_bartcore_create ([[R/bartcore.R:647-654@b102e17c]]), then sampler$adoptPointer(bc$ptr) so
+  $fit wraps the second and abandons the first. The comments ([[R/bart.R:1804-1807@b102e17c]], [[R/bart.R:2053-2056@b102e17c]]) give the reason: both creates in
   the same order keep the draw stream, i.e. avoid re-recording baselines. docs/design/multinomial-mutation-arc.md
   records the split - multinomial moved to direct construction (one create), ordinal/nbinom "adopt the engine that ran
-  by pointer (bitwise, no re-record)". The simpler form already exists in-file at [[bart.R:1470-1491@ee7bf84f]]. LOST: a baseline
+  by pointer (bitwise, no re-record)". The simpler form already exists in-file at [[bart.R:1470-1491@b102e17c]]. LOST: a baseline
   re-record, the entire cost. High; a scheduling question, not a discovery.
-- 6.3 [tidiness] [[R/A_class.R:272-390@ee7bf84f]], the hand-unrolled validity table; see 1.12.
+- 6.3 [tidiness] [[R/A_class.R:272-390@b102e17c]], the hand-unrolled validity table; see 1.12.
 - 6.4 [checked and CLEARED - need no maintainer time] R/validateComposition.R; R/diagnostics.R (every summary method
   delegates to summary.bart); R/partialDependence.R (pdbart.* helpers genuinely shared by pdbart and pd2bart);
   R/mixedMatrix.R (every helper has 2+ callers); R/formulaTerms.R (547 lines from two entry sites, one coherent
   module); R/model.R's prior class hierarchy (no virtual class has a single implementation); 4 setMethod calls total,
   none a single-method generic of dbarts' own making; R/utility.R's metaprogramming (ifelse_3, evalx, redirectCall,
-  addCallArgument, subTermInLanguage, quoteInNamespace) is PRE-EXISTING on main; [[R/rbart.R:1-6@ee7bf84f]] rbart.priors is a
-  2-entry registry with both exercised (prior = gamma, [[inst/tinytest/test-rbart-bartcore.R:95@ee7bf84f]],
-  [[benchmarks/R/equivalence.R:1427@ee7bf84f]]).
+  addCallArgument, subTermInLanguage, quoteInNamespace) is PRE-EXISTING on main; [[R/rbart.R:1-6@b102e17c]] rbart.priors is a
+  2-entry registry with both exercised (prior = gamma, [[inst/tinytest/test-rbart-bartcore.R:95@b102e17c]],
+  [[benchmarks/R/equivalence.R:1427@b102e17c]]).
 
 ## 7. Two notes outside the six classes
-- [pre-existing, low] dcauchy and dgamma ([[R/rbart.R:2@ee7bf84f]], :4) and the `predict` generic ([[R/generics.R:1489-1490@ee7bf84f]],
-  [[R/bart.R:2440@ee7bf84f]], [[R/bart.R:2512@ee7bf84f]], [[R/bart.R:2561@ee7bf84f]]) are used but appear in no `importFrom(stats, ...)`; both hold on main and 0.9-33 ships
+- [pre-existing, low] dcauchy and dgamma ([[R/rbart.R:2@b102e17c]], :4) and the `predict` generic ([[R/generics.R:1489-1490@b102e17c]],
+  [[R/bart.R:2440@b102e17c]], [[R/bart.R:2512@b102e17c]], [[R/bart.R:2561@b102e17c]]) are used but appear in no `importFrom(stats, ...)`; both hold on main and 0.9-33 ships
   that way, so a standing condition, not a branch regression (derived mechanically).
 - [for the cross-surface pass] Family tokens per entry: dbarts 13, bart2 13, dbartsSpec 8, xbart 4, rbart_vi 3, bart
-  3; [[man/dbartsSpec.Rd:40@ee7bf84f]]'s "Both entry points call the same resolution" is true of the resolver, not the accepted
-  set. dbarts() lists hurdle.lognormal then stop()s on it ([[R/dbarts.R:438-448@ee7bf84f]]) - accept-then-refuse, unlike bart()'s
+  3; [[man/dbartsSpec.Rd:40@b102e17c]]'s "Both entry points call the same resolution" is true of the resolver, not the accepted
+  set. dbarts() lists hurdle.lognormal then stop()s on it ([[R/dbarts.R:438-448@b102e17c]]) - accept-then-refuse, unlike bart()'s
   pre-match.arg redirect (3.3).
