@@ -106,58 +106,58 @@ ABI wall is only the public `dbarts_results`.
 Entry points register two ways in src/R_interface.cpp: the `.Call` table
 (R-facing `bartcore_*`) and the CCallable table (dbarts.h symbols, resolved
 by consumers through `R_GetCCallable`). `dbarts_sampler_run` is at
-[[R_interface.cpp:301@5eae79d3]]; the CCallable block runs [[R_interface.cpp:295-345@5eae79d3]], registered in
-`R_init_dbarts` [[R_interface.cpp:349-357@5eae79d3]]. `DBARTS_C_API_VERSION` is 1 ([[dbarts.h:48@5eae79d3]]), returned
-by `dbarts_apiVersion()` ([[C_interface.cpp:43@5eae79d3]]); the header instructs consumers
-to check it before using the rest ([[dbarts.h:9-13@5eae79d3]]).
+unresolved: [[R_interface.cpp:301@5eae79d3]]; the CCallable block runs unresolved: [[R_interface.cpp:295-345@5eae79d3]], registered in
+`R_init_dbarts` unresolved: [[R_interface.cpp:349-357@5eae79d3]]. `DBARTS_C_API_VERSION` is 1 ([[dbarts.h:48@00e68586]]), returned
+by `dbarts_apiVersion()` ([[C_interface.cpp:43@00e68586]]); the header instructs consumers
+to check it before using the rest ([[dbarts.h:9-13@00e68586]]).
 
 ### The state format, precisely
 
-`storeState` ([[R_interface_bartcore.cpp:2787-2948@5eae79d3]]) marshals a
-`bartcore::SamplerStateData` ([[src/bartcore/sampler.hpp:63@5eae79d3]],
-[[chain.hpp:196-235@5eae79d3]]) into an R list, one element per chain, plus top-level
-attributes. `setState` ([[R_interface_bartcore.cpp:2950-3181@5eae79d3]]) reverses it.
+`storeState` ([[R_interface_bartcore.cpp:2787-2948@00e68586]]) marshals a
+`bartcore::SamplerStateData` ([[src/bartcore/sampler.hpp:63@00e68586]],
+[[chain.hpp:196-235@00e68586]]) into an R list, one element per chain, plus top-level
+attributes. `setState` ([[R_interface_bartcore.cpp:2950-3181@00e68586]]) reverses it.
 
 Top-level attributes on the state list:
-- `cutPoints` (REQUIRED; [[R_interface_bartcore.cpp:2936@5eae79d3]], read [[R_interface_bartcore.cpp:2981-2998@5eae79d3]], refuses if absent/wrong-length)
-- `currentSampleNum` (REQUIRED; [[R_interface_bartcore.cpp:2937@5eae79d3]], read [[R_interface_bartcore.cpp:3000-3008@5eae79d3]])
-- `formatVersion` ([[R_interface_bartcore.cpp:2939@5eae79d3]], integer, currently == 3)
-- `packageVersion` ([[R_interface_bartcore.cpp:2941@5eae79d3]], provenance string, PACKAGE_VERSION "1.0-0",
-  [[src/config.hpp:97@5eae79d3]])
-- `class` = "bartcoreState" ([[src/config.hpp:2943@5eae79d3]])
+- `cutPoints` (REQUIRED; [[R_interface_bartcore.cpp:2936@00e68586]], read [[R_interface_bartcore.cpp:2981-2998@00e68586]], refuses if absent/wrong-length)
+- `currentSampleNum` (REQUIRED; [[R_interface_bartcore.cpp:2937@00e68586]], read [[R_interface_bartcore.cpp:3000-3008@00e68586]])
+- `formatVersion` ([[R_interface_bartcore.cpp:2939@00e68586]], integer, currently == 3)
+- `packageVersion` ([[R_interface_bartcore.cpp:2941@00e68586]], provenance string, PACKAGE_VERSION "1.0-0",
+  [[src/config.hpp.in:96@00e68586]])
+- `class` = "bartcoreState" ([[R_interface_bartcore.cpp:2943@00e68586]])
 
 The KEY fact for this job: `setState` already reads every per-chain slot BY
-NAME through `getListElement` ([[R_interface_bartcore.cpp:83-90@5eae79d3]], a linear
+NAME through `getListElement` ([[R_interface_bartcore.cpp:83-90@00e68586]], a linear
 names scan), NOT by positional index, and already defaults absent OPTIONAL
 slots. The write side names slots via a fixed enum only for its own
-convenience ([[R_interface_bartcore.cpp:2810-2821@5eae79d3]]); the read side is name-driven and enum-free.
+convenience ([[R_interface_bartcore.cpp:2810-2821@00e68586]]); the read side is name-driven and enum-free.
 
 Per-chain slots, classified as the reader treats them today:
-- `forests` (REQUIRED; [[R_interface_bartcore.cpp:3015-3019@5eae79d3]] refuses if null/non-list). Each forest:
+- `forests` (REQUIRED; [[R_interface_bartcore.cpp:3015-3019@00e68586]] refuses if null/non-list). Each forest:
   - `tree.vars`/`tree.values`/`tree.sizes`/`tree.flags` (REQUIRED via
-    readFlatTrees, [[R_interface_bartcore.cpp:3029-3034@5eae79d3]])
+    readFlatTrees, [[R_interface_bartcore.cpp:3029-3034@00e68586]])
   - `tree.params` (CONDITIONALLY REQUIRED: iff `usesFunctionLeaves()` or
-    `numLeafCovariates() > 0`, [[R_interface_bartcore.cpp:3046-3066@5eae79d3]])
+    `numLeafCovariates() > 0`, [[R_interface_bartcore.cpp:3046-3066@00e68586]])
   - `tree.masks` (CONDITIONALLY REQUIRED: iff `data().hasPooledCategorical`,
-    [[R_interface_bartcore.cpp:3069-3078@5eae79d3]])
-  - `saved.*` (OPTIONAL: `saved.sizes` presence gates the block, [[R_interface_bartcore.cpp:3035-3042@5eae79d3]];
+    [[R_interface_bartcore.cpp:3069-3078@00e68586]])
+  - `saved.*` (OPTIONAL: `saved.sizes` presence gates the block, [[R_interface_bartcore.cpp:3035-3042@00e68586]];
     present iff tree storage was on)
-  - `k` (REQUIRED, [[R_interface_bartcore.cpp:3080-3085@5eae79d3]])
-- `sigma` (REQUIRED, [[R_interface_bartcore.cpp:3089-3094@5eae79d3]])
-- `fit.scale` (REQUIRED, length 2, [[R_interface_bartcore.cpp:3096-3102@5eae79d3]])
-- `latents` (OPTIONAL: `if (!Rf_isNull(...))`, [[R_interface_bartcore.cpp:3104-3112@5eae79d3]]; present iff binary)
-- `ranef` + `tau` (OPTIONAL pair: gated on `ranef` non-null, [[R_interface_bartcore.cpp:3114-3125@5eae79d3]])
+  - `k` (REQUIRED, [[R_interface_bartcore.cpp:3080-3085@00e68586]])
+- `sigma` (REQUIRED, [[R_interface_bartcore.cpp:3089-3094@00e68586]])
+- `fit.scale` (REQUIRED, length 2, [[R_interface_bartcore.cpp:3096-3102@00e68586]])
+- `latents` (OPTIONAL: `if (!Rf_isNull(...))`, [[R_interface_bartcore.cpp:3104-3112@00e68586]]; present iff binary)
+- `ranef` + `tau` (OPTIONAL pair: gated on `ranef` non-null, [[R_interface_bartcore.cpp:3114-3125@00e68586]])
 - `dart.probabilities` + `dart.alpha` + `dart.updates.skipped` (OPTIONAL
-  triple, [[R_interface_bartcore.cpp:3127-3145@5eae79d3]])
-- `rng.state` (OPTIONAL, [[R_interface_bartcore.cpp:3147-3157@5eae79d3]]; absence forfeits bitwise continuation
-  only - [[dbarts.h:194-196@5eae79d3]] already documents cross-kind unrestored streams)
-- `bcf` (OPTIONAL, [[dbarts.h:3159-3170@5eae79d3]]; present iff BCF)
+  triple, [[R_interface_bartcore.cpp:3127-3145@00e68586]])
+- `rng.state` (OPTIONAL, [[R_interface_bartcore.cpp:3147-3157@00e68586]]; absence forfeits bitwise continuation
+  only - [[dbarts.h:194-196@00e68586]] already documents cross-kind unrestored streams)
+- `bcf` (OPTIONAL, [[R_interface_bartcore.cpp:3159-3170@00e68586]]; present iff BCF)
 
 So the additive-by-name reader is ~90% already built. The ONE thing that
 orphans states across releases is the strict-equality gate at the top of
-`setState` ([[dbarts.h:2959-2969@5eae79d3]]) and `installForests` ([[dbarts.h:3337-3340@5eae79d3]]):
+`setState` ([[R_interface_bartcore.cpp:2959-2969@00e68586]]) and `installForests` ([[R_interface_bartcore.cpp:3337-3340@00e68586]]):
 `if (formatVersion != stateFormatVersion) Rf_error(...)`. Every past feature
-bumped `stateFormatVersion` (now 3; history at [[dbarts.h:2773-2785@5eae79d3]]:
+bumped `stateFormatVersion` (now 3; history at [[R_interface_bartcore.cpp:2773-2785@00e68586]]:
 v2 = flat-node tagging + dropped-slots ENCODING change, v3 = trees-into-
 forests + bcf slot STRUCTURAL change) and thereby invalidated every state a
 prior release wrote. public-surface.md records this gate as the "one
@@ -456,7 +456,7 @@ optional per-chain slot:
 if (chainState.hasNB)
   SET_VECTOR_ELT(chainExpr, SLOT_NB, Rf_ScalarReal(chainState.r));
 ```
-named `"nb"` (append the enum + name at [[dbarts.h:2810-2821@5eae79d3]]; no floor bump - it is
+named `"nb"` (append the enum + name at [[R_interface_bartcore.cpp:2810-2821@00e68586]]; no floor bump - it is
 additive). Reader:
 ```cpp
 SEXP nbExpr = getListElement(chainExpr, "nb");
@@ -478,7 +478,7 @@ Cross-version behavior:
 - NB state loaded by a NEW reader on an NB sampler: required, present,
   restored bitwise.
 This is exactly the latents/tree.params/tree.masks conditional-required
-pattern already in setState ([[dbarts.h:3046-3078@5eae79d3]], [[dbarts.h:3104-3112@5eae79d3]]), so NB adds no new
+pattern already in setState ([[R_interface_bartcore.cpp:3046-3078@00e68586]], [[R_interface_bartcore.cpp:3104-3112@00e68586]]), so NB adds no new
 machinery - it instantiates the registry rule.
 
 ### Landed: dbarts_sampler_setForestWeights (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
