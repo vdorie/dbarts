@@ -1,10 +1,10 @@
 # Model-space survey: which model classes justify which update shapes
 
-Code citations are at 39451b1; they are not live.
+Code citations are at 60f899b4; they are not live.
 
 Status: COMPLETE as a survey, 2026-08-08; D1 (section 4) subsequently LANDED
 2026-08-10 through 2026-08-12 (docs/plans/archive/multiforest-predictor-mutation.md,
-SL 7299b8b through S4) - see the landing note appended to section 4; D4
+SL a13152c5 through S4) - see the landing note appended to section 4; D4
 (section 4, the general per-forest multiplier channel) ADDED and CLOSED
 2026-08-14 (docs/plans/archive/multiforest-extension-surface.md M4.0-M4.3), carrying
 the four model classes the survey lacked as multiplier classes. Research
@@ -66,40 +66,46 @@ Two methodological findings, both load-bearing:
 
 ## 2. What the engine serves today
 
-The baseline every door is a delta over. Verified by reading at 39451b1.
+The baseline every door is a delta over. Verified by reading at 60f899b4.
 
 **Single-forest samplers.** `setData` already replaces predictors, response,
 weights, offset and test data **with n free to change**
-(src/bartcore/sampler.hpp:1046-1056, "with a possibly different number of
-observations"; the predictor count is fixed). It rebuilds the cut grid, remaps
-existing splits onto value-nearest new cuts via `Tree::mapOldCutPointsOntoNew`,
-and collapses whatever is left invalid (src/bartcore/chain.hpp:1553-1611). Dense
-stores only (src/R_interface_bartcore.cpp:3346-3351); grouped and AFT samplers
-refuse (3314-3319).
+([[src/bartcore/sampler.hpp:1046-1056@60f899b4]], "with a possibly different
+number of observations"; the predictor count is fixed). It rebuilds the cut
+grid, remaps existing splits onto value-nearest new cuts via
+`Tree::mapOldCutPointsOntoNew`, and collapses whatever is left invalid
+([[src/bartcore/chain.hpp:1553-1611@60f899b4]]). Dense stores only
+([[src/R_interface_bartcore.cpp:3346-3351@60f899b4]]); grouped and AFT
+samplers refuse ([[src/R_interface_bartcore.cpp:3314-3319@60f899b4]]).
 
 **Multi-forest samplers** are exactly BCF (2 forests) and multinomial (K
-forests): `numForests` is `forests_.size()` (chain.hpp:711). The heteroscedastic
-variance forest is a *separate* nullable member `varianceForest_`, so a
-heteroscedastic sampler reports `numForests == 1` and no multi-forest guard sees
-it - see section 6.
+forests): `numForests` is `forests_.size()`
+([[src/bartcore/chain.hpp:711@60f899b4]]). The heteroscedastic variance forest
+is a *separate* nullable member `varianceForest_`, so a heteroscedastic
+sampler reports `numForests == 1` and no multi-forest guard sees it - see
+section 6.
 
-- `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2649-2654).
+- `setData` refuses for `numForests >= 2`
+  ([[src/R_interface_bartcore.cpp:2649-2654@60f899b4]]).
 - Response-side mutation rides `supportsResponseMutation`: **true for BCF**
-  (combiner.hpp:621), **false for multinomial** (combiner.hpp:411 default, not
-  overridden).
-- `setTreatment` swaps z mid-run at fixed n (combiner.hpp:439).
+  ([[src/bartcore/combiner.hpp:621@60f899b4]]), **false for multinomial**
+  ([[src/bartcore/combiner.hpp:411@60f899b4]] default, not overridden).
+- `setTreatment` swaps z mid-run at fixed n
+  ([[src/bartcore/combiner.hpp:439@60f899b4]]).
 - `setCutPoints` installs an arbitrary grid with no multi-forest guard.
 - Predictor mutation: the **forced** whole-matrix `setPredictor` is supported
   multi-forest and is the documented swap; the **transactional** and
   **per-observation** paths refuse on `numForests >= 2`
-  (`refuseMultiForestTransactionalUpdate`, R_interface_bartcore.cpp:1929-1943),
+  (`refuseMultiForestTransactionalUpdate`,
+  [[src/R_interface_bartcore.cpp:1929-1943@60f899b4]]),
   because `Chain::revalidateTrees` opens `Forest& forest = forests_[0]`
-  (chain.hpp:1484) and revalidates the primary forest only.
+  ([[src/bartcore/chain.hpp:1484@60f899b4]]) and revalidates the primary
+  forest only.
 
 **Row subsets already exist, at creation.** `bartcore_createFromHandle`
-(R_interface_bartcore.cpp:2609-2620) builds a sampler over a row-subset view of
-a data handle, copying the handle's cut grid so folds bin identically to the full
-data. That is xbart's fold mechanism and the mechanism
+([[src/R_interface_bartcore.cpp:2609-2620@60f899b4]]) builds a sampler over a
+row-subset view of a data handle, copying the handle's cut grid so folds bin
+identically to the full data. That is xbart's fold mechanism and the mechanism
 docs/plans/archive/data-ownership-4-views.md names for "hurdle/IRT-style embeddings". The
 subset is **fixed at creation**; such a sampler refuses `setPredictor`,
 `setData`, `setCutPoints` and `setState`.
@@ -115,11 +121,12 @@ exact zero.** As surveyed, `formForestResponse` divided the residual by the
 forest multiplier and floored |m| at 1e-9, so a b0 = 0 control row entered
 tau's suffstats with weight ~1e-18 and response ~1e9 x resid: effective, not
 exact. The floor was REPLACED by an exact-zero snap at `0x1p-26` on 2026-08-10
-(combiner.hpp:770, applied :805-809; docs/plans/archive/zero-weight-exactness.md), the
-shipment door 2's own update below records at "Update, 2026-08-10". A snapped
-row now leaves with exactly zero weight and exactly zero response. What the
-snap does NOT change is the cost: tau still pays O(n) per sweep, which is the
-half of this paragraph that door 2 rests on.
+([[src/bartcore/combiner.hpp#zeroMultiplierTolerance, formForestResponse]];
+docs/plans/archive/zero-weight-exactness.md), the shipment door 2's own update
+below records at "Update, 2026-08-10". A snapped row now leaves with exactly
+zero weight and exactly zero response. What the snap does NOT change is the
+cost: tau still pays O(n) per sweep, which is the half of this paragraph that
+door 2 rests on.
 
 ---
 
@@ -165,7 +172,10 @@ half of this paragraph that door 2 rests on.
   method throws the fit away *on purpose*. The narrow claim that survives:
   **no verified BART or BCF model maintains one fit across an accruing sample.**
 - The z-required constraint remains correct if the door is ever taken
-  (combiner.hpp:467/486/510 index `glue_.z` over live `numObservations`), but no
+  ([[src/bartcore/combiner.hpp:467@60f899b4]],
+  [[src/bartcore/combiner.hpp:486@60f899b4]],
+  [[src/bartcore/combiner.hpp:510@60f899b4]] index `glue_.z` over live
+  `numObservations` - `glue_.z` was since deleted at M4.3), but no
   model was found to pay for it.
 
 If any part of door 1 is ever taken, take D1 and D3 (section 4) first: strictly
@@ -245,7 +255,8 @@ class is efficiency, not mutability.
 2. **Per-forest ZERO WEIGHT.** Excluded rows get weight 0 in that forest's
    `ForestResponse`. By far the cheapest, and SHIPPED since this was written
    (2026-08-10; see the update below): the combiner already formed a per-forest
-   weight vector every sweep (now combiner.hpp:797-817) and needed only an
+   weight vector every sweep (now [[src/bartcore/combiner.hpp#formForestResponse]])
+   and needed only an
    exact-zero path in place of the then-live 1e-9 multiplier floor, plus a
    caller-settable per-forest weight. Both landed. Exact exclusion from the leaf
    conditionals and the sigma df is an already-solved semantic
@@ -342,11 +353,13 @@ one semantic.
 
 ### D1. Multi-forest transactional and per-observation predictor mutation, fixed n
 
-`refuseMultiForestTransactionalUpdate` (R_interface_bartcore.cpp:1929-1943)
+`refuseMultiForestTransactionalUpdate`
+([[src/R_interface_bartcore.cpp:1929-1943@60f899b4]])
 refuses the transactional `setPredictor`/`updatePredictor` and every
 per-observation session on `numForests >= 2`, because `Chain::revalidateTrees`
-(chain.hpp:1484) revalidates `forests_[0]` only. The forced whole-matrix swap is
-the only supported multi-forest predictor mutation.
+([[src/bartcore/chain.hpp:1484@60f899b4]]) revalidates `forests_[0]` only. The
+forced whole-matrix swap is the only supported multi-forest predictor
+mutation.
 
 **Models blocked - four, all fixed n, all needing no new data object:** IRT +
 causal forest (bairrtt, an **existing consumer**, whose `irt_causal_bart` runs
@@ -365,8 +378,10 @@ than inventing a shape.
 
 **`forceUpdate = TRUE` is not a workaround.** Forced collapses emptied leaves
 into their parents; transactional rolls the whole change back; the per-observation
-session takes no force argument at all (R_interface_bartcore.cpp:3823-3829,
-3860-3868). These are **different posteriors, and neither is the other** - the
+session takes no force argument at all
+([[src/R_interface_bartcore.cpp:3823-3829@60f899b4]],
+[[src/R_interface_bartcore.cpp:3860-3868@60f899b4]]). These are **different
+posteriors, and neither is the other** - the
 partial-rollback session is itself a constraint-vetoed proposal, so "force is the
 deviant one" overstates the case in the memo's direction. What is unambiguous is
 that force destroys the per-observation partial-rollback semantics bairrtt
@@ -405,29 +420,31 @@ transactional entries.
 ### D2. Multinomial response-side mutation - a counts/offset channel
 
 `MultinomialForestCombiner` does not override `supportsResponseMutation`
-(combiner.hpp:411 default false), so `setResponse`, `setOffset` and `setWeights`
-are all refused on a shipped public sampler. The gap is real: multinomial BART
-cannot participate in an outer Gibbs sampler on its **response** side.
+([[src/bartcore/combiner.hpp:411@60f899b4]] default false), so `setResponse`,
+`setOffset` and `setWeights` are all refused on a shipped public sampler. The
+gap is real: multinomial BART cannot participate in an outer Gibbs sampler on
+its **response** side.
 
 **Re-scoped, because the memo's premise was wrong.** Flipping the flag would
 enable **nothing**. `MultinomialForestCombiner::formForestResponse`
-(combiner.hpp:785-796) takes `const double* /*y*/, const double* /*w*/` - both
-ignored, as its own doc comment says ("the passed chain y is ignored"). The
-response *is* the combiner-owned `counts_` matrix, fixed at construction;
-`setResponse` on a multinomial would write a `y` nothing reads. D2's real content
-is **a new counts (and n x K offset) mutation channel on the combiner**, plus
-surface work at the creation end (R/bart.R:829-856 refuses `weights` and `offset`
-for `family = "multinomial"`). The price is higher than "audit the combiner".
+([[src/bartcore/combiner.hpp:785-796@60f899b4]]) takes `const double* /*y*/,
+const double* /*w*/` - both ignored, as its own doc comment says ("the passed
+chain y is ignored"). The response *is* the combiner-owned `counts_` matrix,
+fixed at construction; `setResponse` on a multinomial would write a `y`
+nothing reads. D2's real content is **a new counts (and n x K offset) mutation
+channel on the combiner**, plus surface work at the creation end
+([[R/bart.R:829-856@60f899b4]] refuses `weights` and `offset` for
+`family = "multinomial"`). The price is higher than "audit the combiner".
 
 **Two further corrections to the memo's framing.** (a) "A multinomial BART cannot
 be a conditional inside a larger Gibbs sampler at all" is FALSE: the forced
 whole-matrix `setPredictor` is open for multinomial today
 (`bartcore_setPredictor` gates only `forceUpdate != TRUE`,
-R_interface_bartcore.cpp:3703-3706), so the *predictor* channel - the
-latent-covariate shape of D1 - already works there. It is the *response* side
-that is closed. (b) The shipped entry is `bart2(family = "multinomial")`;
-`bartMultinomial` is the fit **class** name (R/generics.R:772), not an exported
-constructor.
+[[src/R_interface_bartcore.cpp:3703-3706@60f899b4]]), so the *predictor*
+channel - the latent-covariate shape of D1 - already works there. It is the
+*response* side that is closed. (b) The shipped entry is
+`bart2(family = "multinomial")`; `bartMultinomial` is the fit **class** name
+([[R/generics.R:772@60f899b4]]), not an exported constructor.
 
 **Models blocked:** competing-risks discrete-time hazard, which
 docs/design/survival.md section 6 already records as "the same expansion with a
@@ -440,17 +457,19 @@ which stops at the multinomial boundary.
 ### D3. Public BCF creation surface - CLOSED (2026-08-10 to 2026-08-11)
 
 **CLOSED by bcf-public-surface.** BCF is now reachable from
-`dbarts(treatment = z, ...)`/`dbartsSpec(...)` (S1, a1dbde7): the one flat
-creation entry, `dbarts_sampler_create` (src/C_interface.cpp:107), routes
-through `bartcore_bridge::createHolder`, which now dispatches to BCF
-creation itself when the data carries a treatment vector
-(src/R_interface_bartcore.cpp:2600-2675) - `createBCFHolder` is no longer
-the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:644,
-corrected from this section's stale :629) is no longer the only R entry.
-`bcf()` stays a comment (R/model.R:1666, 1684), expected to ship in
-bartCause instead (docs/plans/archive/multiforest-extension-surface.md fork 4). The
-R5 surface (S2, 339aeb0), the flat C surface (S3, 1622eb9) and per-draw
-reporting (S4, 1df9c0c) followed; `treatment =`/`moderators =`/
+`dbarts(treatment = z, ...)`/`dbartsSpec(...)` (S1, 60d7eb7c): the one flat
+creation entry, `dbarts_sampler_create`
+([[src/C_interface.cpp:107@60d7eb7c]]), routes through
+`bartcore_bridge::createHolder`, which now dispatches to BCF creation itself
+when the data carries a treatment vector
+([[src/R_interface_bartcore.cpp:2600-2675@60d7eb7c]]) - `createBCFHolder` is
+no longer the only path in, and `dbarts:::bartcoreBCFSampler`
+([[R/bartcore.R:644@60d7eb7c]], corrected from this section's stale line 629) is
+no longer the only R entry. `bcf()` stays a comment
+([[R/model.R:1666@60d7eb7c]], [[R/model.R:1684@60d7eb7c]]), expected to ship
+in bartCause instead (docs/plans/archive/multiforest-extension-surface.md
+fork 4). The R5 surface (S2, 18657f8f), the flat C surface (S3, 0ea8af56) and
+per-draw reporting (S4, f2d82bfe) followed; `treatment =`/`moderators =`/
 `treatmentForest =` are PROVISIONAL, scheduled for replacement by
 `forests = list(forest(basis = ...))` (same plan, M2).
 
@@ -472,8 +491,9 @@ mutation and persistence contracts and its bitwise contracts are
 docs/design/multiplier-combiner.md; the arc is
 docs/plans/archive/multiforest-extension-surface.md M4. **Gaussian, probit and logistic
 responses** (M4.4) - the creation surface admits those three and refuses `aft`,
-`ordinal` and `nbinom` by name (R/spec.R:504-526), and the K-forest chain builds
-the matching response model (chain.hpp:710-725) - so every class below is
+`ordinal` and `nbinom` by name ([[R/spec.R:504-526@e5e93f11]]), and the
+K-forest chain builds the matching response model
+([[src/bartcore/chain.hpp:710-725@e5e93f11]]) - so every class below is
 expressible for a continuous outcome and for a binary one, where the forests
 combine into the INDEX rather than the mean and sigma is pinned.
 
@@ -489,18 +509,22 @@ classes it did NOT carry, each a different basis, are:
   there is no venue. Recorded here because the phrase this section executes
   ("the four VERIFIED classes it lacks",
   docs/plans/archive/multiforest-extension-surface.md M4.5) called it verified, and the
-  plan's own later corrected-citations pass (:488-493) downgraded it. Neither
-  claim is left standing silently: the class is written, and it is written as
-  unverified. dbarts expresses it TODAY - a one-column continuous basis is a
-  legal `forest(basis = )`, and there is no shape predicate left to route it
-  anywhere: `drawForestAmplitude` (combiner.hpp:1144) contracts whatever the
+  plan's own later corrected-citations pass
+  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]])
+  downgraded it. Neither claim is left standing silently: the class is
+  written, and it is written as unverified. dbarts expresses it TODAY - a
+  one-column continuous basis is a legal `forest(basis = )`, and there is no
+  shape predicate left to route it anywhere: `drawForestAmplitude`
+  ([[src/bartcore/combiner.hpp#drawForestAmplitude]]) contracts whatever the
   basis holds, so a continuous column is drawn as the design matrix it is.
 - **VCBART** (Deshpande, Bai, Balocchi, Starling, Weiss), Bayesian Analysis
   21(1):281-308, 2026. Varying coefficients: forest j carries the single column
   `X_j`, so `E[y_i] = sum_j beta_j(x_i) X_ij` with each `beta_j` its own
   ensemble. **The structure matches; the MCMC does not.** VCBART has NO
   amplitude - its leaf jumps are `N(0, tau_j^2)` with `tau_j` a FIXED
-  hyperparameter, never sampled (plan :488-493) - so dbarts expresses the model
+  hyperparameter, never sampled
+  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]]) -
+  so dbarts expresses the model
   shape with an amplitude the original does not draw, which under this survey's
   own "a model's structure is not its MCMC" rule (section 1) is a different
   sampler, not a port. Holding a forest's amplitude fixed is one knob
@@ -514,17 +538,19 @@ classes it did NOT carry, each a different basis, are:
 - **Principal stratification with BCF** (Kim, Zigler), Biometrics 81(1) article
   ujaf024, 2025. Forests carrying the column `a_i`. **PRESENT in this survey,
   but only as its other half:** section 3 door 2 records that the imputed
-  strata enter the outcome ensemble as SPLITTING COVARIATES and routes that half
-  to D1 (`:196-204`, `:354-355`), which was and remains the right routing for
-  it. What was unrecorded is the MULTIPLIER half - the arm indicator entering as
+  strata enter the outcome ensemble as SPLITTING COVARIATES and routes that
+  half to D1 (this document, section 3 door 2's "What did not survive" list
+  and section 4's Models-blocked list), which was and remains the right
+  routing for it. What was unrecorded is the MULTIPLIER half - the arm
+  indicator entering as
   a basis column rather than as a split variable. Both halves are the same
   paper; neither subsumes the other, and the D1 entry is not duplicated here.
 
-**CLOSED.** The channel shipped across M4.0 (562ee684, pins), M4.1 (1458328c +
-e48fc5de, the multiplier generalization), M4.2 (1a2aaedc, the q-variate
-amplitude conditional and the one general ASIS rescale) and M4.3 (9c63e9d8, the
+**CLOSED.** The channel shipped across M4.0 (eb340f4f, pins), M4.1 (e3170da4 +
+9459bef0, the multiplier generalization), M4.2 (a35ff7df, the q-variate
+amplitude conditional and the one general ASIS rescale) and M4.3 (983d7f0a, the
 K-length spec surface, the sole mutation route, and `data@bases`), with the
-landing records at e7708b7c and 54e114ff. It is reachable from the PUBLIC R
+landing records at 53d64798 and c0c9e12f. It is reachable from the PUBLIC R
 surface at any K through `dbarts(..., forests = list(forest(basis = ...)))`,
 from the R5 sampler through `$setForestBasis`/`$getForestAmplitudes`, and from
 the flat C API through `dbarts_sampler_setForestBasis` and the ragged amplitude
@@ -582,24 +608,27 @@ consumer").
 Fixed at HEAD (not a live defect): `applyNewData` resizes and re-anchors the variance-forest storage via `resizeVarianceStorage`, and both `forceRefreshTrees` and the donor-state restore path route the new data through `refreshVarianceForest` as well.
 The survey found `setData` accepted on a heteroscedastic sampler:
 `refuseMultiForestMutation` keys on `numForests >= 2`
-(R_interface_bartcore.cpp:2649-2654), but the variance forest is the separate
-`varianceForest_` member, so such a sampler reports `numForests == 1` and passes.
+([[src/R_interface_bartcore.cpp:2649-2654@60f899b4]]), but the variance forest
+is the separate `varianceForest_` member, so such a sampler reports
+`numForests == 1` and passes.
 
 The critique escalated it on two axes, and the escalation is confirmed here:
 
 - **Wider than `setData`.** No data-mutation path in the engine re-routes the
-  variance forest. `revalidateTrees` (chain.hpp:1484) and `applyNewData`
-  (chain.hpp:1557) open on `forests_[0]`; `forceRefreshTrees` (chain.hpp:1628)
-  and `dropStaleMissingDirections` (chain.hpp:1615) iterate `forests_` and never
+  variance forest. `revalidateTrees` ([[src/bartcore/chain.hpp:1484@60f899b4]])
+  and `applyNewData` ([[src/bartcore/chain.hpp:1557@60f899b4]]) open on
+  `forests_[0]`; `forceRefreshTrees` ([[src/bartcore/chain.hpp:1628@60f899b4]])
+  and `dropStaleMissingDirections`
+  ([[src/bartcore/chain.hpp:1615@60f899b4]]) iterate `forests_` and never
   touch `varianceForest_`. The only site that repartitions variance trees is
   `rebuildVarianceForest`, reached from state restore, never from mutation. So
   the corruption reaches the **supported, documented** forced `setPredictor`
   idiom and `setCutPoints`, not just `setData`.
 - **Memory safety, not silent wrongness.** `meanWeights_` is `assign(n, 0.0)`
-  once at `buildVarianceForest` (chain.hpp:2898) and never resized, while
-  `formMeanWeights` and `sweepVarianceForest` write over the *new* n. The
-  n-growing case is an out-of-bounds **write** and segfaults; it is reachable
-  from the public R surface (`dbarts(..., variance = ~1)` then
+  once at `buildVarianceForest` ([[src/bartcore/chain.hpp:2898@60f899b4]]) and
+  never resized, while `formMeanWeights` and `sweepVarianceForest` write over
+  the *new* n. The n-growing case is an out-of-bounds **write** and segfaults;
+  it is reachable from the public R surface (`dbarts(..., variance = ~1)` then
   `sampler$setData(...)`). Not reachable from the flat C API - there is no
   `dbarts_sampler_setData` in inst/include/dbarts/dbarts.h.
 
@@ -697,10 +726,12 @@ defect lives in; the critique caught this and showed the probes transfer by
 diffing the two revisions, which the memo had not done.
 
 **Three corrections against the critique**, each re-checked here. (a) The
-grouped/AFT `setData` refusals are at R_interface_bartcore.cpp:3334-3339 - the
-memo was right and the critique's 3316-3321 is off by two. (b) The dense-only
-refusal is at 3326-3331 - memo right, critique's 3325 off by one. (The critique's
-third drift claim *is* correct: `applyNewData` runs to chain.hpp:1611, not 1608.)
+grouped/AFT `setData` refusals are at
+[[src/R_interface_bartcore.cpp:3334-3339@60f899b4]] - the memo was right and
+the critique's 3316-3321 is off by two. (b) The dense-only refusal is at
+3326-3331 - memo right, critique's 3325 off by one. (The critique's third
+drift claim *is* correct: `applyNewData` runs to
+[[src/bartcore/chain.hpp:1611@60f899b4]], not 1608.)
 (c) TBAFTcure is **not** a fork of the `bcf` package, as the critique stated; its
 README says the tree code is "constructed following the framework of R package
 bcf" [verified: https://github.com/roxiesun/TBAFTcure]. The correction runs in
@@ -723,7 +754,8 @@ latent classes, and so supported nothing that survives.
 - Kim, Zigler - Bayesian nonparametric trees for principal causal effects;
   Biometrics 81(1), article ujaf024, 2025, doi:10.1093/biomtc/ujaf024 (venue
   added 2026-08-14 from the extension-surface plan's corrected-citations pass,
-  :483-484; this entry was previously venue-less)
+  [[docs/plans/archive/multiforest-extension-surface.md:483-484@4c018187]];
+  this entry was previously venue-less)
   [verified: https://arxiv.org/abs/2403.13256; code https://github.com/lit777/BPCF]
 - Sun, Song, Bayesian Analysis 20(2) 345-373 - tree-based Bayesian AFT cure model
   [verified: https://projecteuclid.org/journals/bayesian-analysis/advance-publication/A-Tree-based-Bayesian-Accelerated-Failure-Time-Cure-Model-for/10.1214/23-BA1402.pdf
@@ -772,16 +804,18 @@ latent classes, and so supported nothing that survives.
 
 **Added 2026-08-14 with section 4's D4.** These three were verified by the
 extension-surface plan's corrected-citations pass
-(docs/plans/archive/multiforest-extension-surface.md:483-493), NOT by a fresh fetch in
-this file. Distinguishing the two is the point of this ledger, so it is stated
-rather than blurred.
+([[docs/plans/archive/multiforest-extension-surface.md:483-493@4c018187]]),
+NOT by a fresh fetch in this file. Distinguishing the two is the point of this
+ledger, so it is stated rather than blurred.
 
 - Woody, Carvalho, Hahn, Murray (arXiv:2007.09845) - continuous /
   dose-response exposure BCF. **UNPUBLISHED: v1 only, no journal reference.**
   It does NOT meet this file's verification standard, and it is the SOLE source
   for D4's continuous-multiplier class - which the extension-surface plan
-  called "verified" before its own later pass downgraded it (:488-493). Kept as
-  a named class with an unverified source, rather than dropped or relabelled.
+  called "verified" before its own later pass downgraded it
+  ([[docs/plans/archive/multiforest-extension-surface.md:488-493@4c018187]]).
+  Kept as a named class with an unverified source, rather than dropped or
+  relabelled.
 - Deshpande, Bai, Balocchi, Starling, Weiss - VCBART, varying-coefficient BART;
   Bayesian Analysis 21(1):281-308, 2026 (the 2024-10-04 date is the advance
   publication). Structure verified; the MCMC differs - its leaf jumps are
