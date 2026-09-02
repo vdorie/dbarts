@@ -24,10 +24,13 @@ transaction, the R-protection story - follows from that.
 directly on the store as parallel vectors, one entry per predictor:
 
 - `types` - `ColumnType::ordinal` or `categorical` (`data.hpp:215`).
-- `numCuts[j]` - the ordinal cut count, or the fixed categorical level
-  count K. Fixed at build for a categorical column; for an ordinal column
-  `refreshCutsForColumn` (the mutation re-cut) keeps the count fixed, and
-  only `setCutPointsForColumn` (the setCutPoints surface) changes it.
+- `numCuts[j]` - the ordinal cut count, and 0 for a categorical column
+  (which has no cut grid at all). `refreshCutsForColumn` (the mutation
+  re-cut) keeps the count fixed, and only `setCutPointsForColumn` (the
+  setCutPoints surface) changes it.
+- `categoryCounts[j]` - the fixed level count K of a categorical column, 0
+  for any column that splits by threshold. Fixed at build: every mask tier,
+  reserved missing code and category histogram width derives from it.
 - `cutPoints[j]` - the ascending ordinal thresholds (empty for
   categoricals).
 - `maxNumCuts[j]` - the cap on quantile-induced counts, itself capped at
@@ -49,8 +52,8 @@ not because any code re-derives them.
 map by `lower_bound` over `cutPoints[j]` (a value above every cut takes
 code `numCuts[j]`, always right of any split); categorical values are
 their own integer code; missing values take `naCode` (ordinal) or
-`missingCategoryCode(numCuts[j])` (categorical, position 63 inline or K
-pooled).
+`missingCategoryCode(categoryCounts[j])` (categorical, position 63 inline
+or K pooled).
 
 ## CodeBlock (train and test)
 
@@ -118,7 +121,7 @@ Of the two remaining descriptor fields, only `refCode` is CSC-categorical
 only. `declaredCategoryCount` (the fixed level count K a host declares -
 unrecoverable from observed codes alone when a level has zero training
 rows) is train-side only - the test side reuses the store's fixed
-`numCuts[j]` for K - but rides every storage kind, not just CSC: a
+`categoryCounts[j]` for K - but rides every storage kind, not just CSC: a
 dense-backed factor inside a mixed container declares a level table the
 same way a CSC-backed one does. `refCode` is read on BOTH sides: its
 test-side value comes from the test view's `referenceCodes`
@@ -172,8 +175,8 @@ A view (`buildFromParent`, `data.hpp:994`) is a row- and column-subset of
 a built parent store, used by xbart folds and the data-handle path. It:
 
 - copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
-  `maxNumCuts`) for the spanned columns, so it bins identically by
-  construction;
+  `categoryCounts`, `maxNumCuts`) for the spanned columns, so it bins
+  identically by construction;
 - DENSIFIES: gathered train and test codes are fully dense whatever the
   parent's per-column storage, so the sparse-specific paths never run in a
   fold (every `sources` entry stays `denseOwned`, `sparseColumns` empty);

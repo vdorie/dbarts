@@ -839,7 +839,8 @@ static void testCategoricalMutation(ext_rng* rng) {
             0.3 * (runif01() - 0.5);
   }
   sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
-  check(sampler.numObservations() == n2 && sampler.data().numCuts[0] == 4,
+  check(sampler.numObservations() == n2 &&
+          sampler.data().categoryCounts[0] == 4,
         "categorical setData resizes and keeps categories");
   occupied = true;
   for (size_t t = 0; t < 25; ++t)
@@ -1698,7 +1699,7 @@ static void testMoveValidityPredicates() {
   PredictorSource source =
     densePredictorSource(xCategorical.data(), n, 1, &type);
   categoricalStore.build(source, nullptr, 100, false);
-  check(categoricalStore.numCuts[0] == 4,
+  check(categoricalStore.categoryCounts[0] == 4,
         "the categorical fixture has four levels");
 
   Tree categoricalTree;

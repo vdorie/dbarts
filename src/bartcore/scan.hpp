@@ -300,8 +300,9 @@ std::size_t scanCategoryHistogram(const ColumnStore& data, std::size_t variable,
                                   CategoricalScanScratch& scratch) {
   std::size_t numBins =
     data.hasMissing[variable]
-      ? static_cast<std::size_t>(missingCategoryCode(data.numCuts[variable])) + 1
-      : static_cast<std::size_t>(data.numCuts[variable]);
+      ? static_cast<std::size_t>(
+          missingCategoryCode(data.categoryCounts[variable])) + 1
+      : static_cast<std::size_t>(data.categoryCounts[variable]);
   if (scratch.bins.size() < numBins) scratch.bins.resize(numBins);
   if (scratch.seen.size() < numBins) scratch.seen.resize(numBins, 0);
   scratch.touched.clear();

@@ -206,9 +206,10 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   it enters as an ordinal column whose raw values are the 0..K-1 level
   codes, binned against cut points like any other ordinal.
 - **Cut points**: `std::vector<std::vector<double>> cutPoints` plus
-  `numCuts`/`maxNumCuts` per column. `numCuts[j]` holds the ordinal cut
-  count for an ordinal column, or the fixed category count K for a
-  categorical one (`cutPoints[j]` stays empty for categoricals). ColumnStore
+  `numCuts`/`categoryCounts`/`maxNumCuts` per column. `numCuts[j]` holds
+  the ordinal cut count and is 0 for a categorical column, whose fixed
+  category count K lives in `categoryCounts[j]` and whose `cutPoints[j]`
+  stays empty. ColumnStore
   is the sole owner of cut construction and re-quantization -
   uniform-over-range or quantile mode, selected by `useQuantiles`. Every
   other layer (moves, the tree prior) reads cuts through

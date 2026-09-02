@@ -677,7 +677,7 @@ void testCategoricalScan() {
   ColumnType types[] = {ColumnType::categorical, ColumnType::categorical};
   ColumnStore store;
   store.build(x.data(), n, 2, 20, false, types);
-  check(store.hasMissing[0] == 1 && store.numCuts[0] == numLevels,
+  check(store.hasMissing[0] == 1 && store.categoryCounts[0] == numLevels,
         "the categorical fixture declares six levels and carries a missing one");
 
   std::vector<index_t> members(n);

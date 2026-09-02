@@ -132,7 +132,8 @@ static void testCategoricalFlattenBoundaries() {
     ColumnType types[] = {ColumnType::categorical};
     ColumnStore store;
     store.build(x.data(), n, 1, 10, false, types);
-    check(store.numCuts[0] == K && store.columnIsPooled(0) == (K >= 64),
+    check(store.categoryCounts[0] == K &&
+            store.columnIsPooled(0) == (K >= 64),
           "the pooling boundary is 64 categories");
 
     std::vector<index_t> indices(n);

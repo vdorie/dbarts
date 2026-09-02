@@ -1375,7 +1375,8 @@ static void testWideCategorical(ext_rng* rng) {
   ColumnType types[] = {ColumnType::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
-  check(store.numCuts[0] == K, "wide categorical column counts its categories");
+  check(store.categoryCounts[0] == K,
+        "wide categorical column counts its categories");
   check(store.categoricalValueIsValid(0, 52.0) &&
           !store.categoricalValueIsValid(0, 53.0),
         "wide categorical value validity");

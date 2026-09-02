@@ -78,6 +78,7 @@ static void testColumnStoreView() {
         view.numTestObservations == testRows.size() &&
         view.numPredictors == p, "view dimensions");
   check(view.types == parent.types && view.numCuts == parent.numCuts &&
+        view.categoryCounts == parent.categoryCounts &&
         view.cutPoints == parent.cutPoints &&
         view.maxNumCuts == parent.maxNumCuts,
         "view copies the parent cut grid");
@@ -154,6 +155,7 @@ static void testColumnStoreColumnSubset() {
   check(viewFull.numPredictors == p && viewFull.train.codes == viewDefault.train.codes &&
           viewFull.cutPoints == viewDefault.cutPoints &&
           viewFull.numCuts == viewDefault.numCuts &&
+          viewFull.categoryCounts == viewDefault.categoryCounts &&
           viewFull.types == viewDefault.types &&
           viewFull.maxNumCuts == viewDefault.maxNumCuts &&
           viewFull.test.codes == viewDefault.test.codes &&
@@ -175,6 +177,7 @@ static void testColumnStoreColumnSubset() {
   for (size_t j = 0; j < subset.size(); ++j)
     gridMatches = gridMatches && view.types[j] == parent.types[subset[j]] &&
       view.numCuts[j] == parent.numCuts[subset[j]] &&
+      view.categoryCounts[j] == parent.categoryCounts[subset[j]] &&
       view.cutPoints[j] == parent.cutPoints[subset[j]] &&
       view.maxNumCuts[j] == parent.maxNumCuts[subset[j]];
   check(gridMatches, "subset view copies each mapped parent column's cut grid");
@@ -595,7 +598,7 @@ static void testMissingIngestion() {
   check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1 &&
           store.hasMissing[2] == 0,
         "hasMissing marks exactly the columns with NAs");
-  check(store.numCuts[1] == 4,
+  check(store.categoryCounts[1] == 4 && store.numCuts[1] == 0,
         "categorical categories are counted over observed values");
 
   bool codesRight = true;
@@ -826,7 +829,8 @@ static void testSparseCategoricalTestColumnStore() {
   ColumnType type = ColumnType::categorical;
   ColumnStore store;
   store.build(xTrain.data(), nTrain, 1, 100, false, &type);
-  check(store.numCuts[0] == K, "training counts the categorical levels");
+  check(store.categoryCounts[0] == K && store.numCuts[0] == 0,
+        "training counts the categorical levels");
 
   // test: the reference level is implicit, other levels stored (~10%), so the
   // column lands rank-tier
@@ -912,6 +916,7 @@ static void testPredictorViewEquivalence() {
 
   auto gridsAgree = [](const ColumnStore& a, const ColumnStore& b) {
     return a.types == b.types && a.numCuts == b.numCuts &&
+           a.categoryCounts == b.categoryCounts &&
            a.cutPoints == b.cutPoints && a.maxNumCuts == b.maxNumCuts &&
            a.hasMissing == b.hasMissing;
   };
@@ -932,7 +937,7 @@ static void testPredictorViewEquivalence() {
     ColumnStore dense;
     dense.build(x.data(), n, p, maxCuts.data(), useQuantiles, types, nullptr, 0,
                 counts);
-    check(dense.numCuts[2] == declaredK,
+    check(dense.categoryCounts[2] == declaredK,
           "the declared level count reaches the dense build");
 
     PredictorSource nullMap;
@@ -1029,7 +1034,7 @@ static void testPredictorViewEquivalence() {
                     0, cscCounts);
     check(fromCsc.columnIsSparse(0) && !fromCsc.columnIsSparse(1),
           "the all-negative map splits the two storage tiers");
-    check(fromCsc.numCuts[1] == cscDeclaredK,
+    check(fromCsc.categoryCounts[1] == cscDeclaredK,
           "the declared level count reaches the CSC-backed categorical column");
     check(gridsAgree(fromDense, fromCsc) && trainCodesAgree(fromDense, fromCsc),
           "an all-negative-map view bins as the dense-equivalent build");

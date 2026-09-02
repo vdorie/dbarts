@@ -2476,6 +2476,7 @@ static void testSparseColumnStore() {
     bool cutsMatch = true;
     for (size_t j = 0; j < fixture.p; ++j) {
       cutsMatch &= fromCsc.numCuts[j] == fromDense.numCuts[j];
+      cutsMatch &= fromCsc.categoryCounts[j] == fromDense.categoryCounts[j];
       cutsMatch &= fromCsc.cutPoints[j] == fromDense.cutPoints[j];
     }
     check(cutsMatch, useQuantiles
@@ -2773,6 +2774,8 @@ static void testSparseMutation() {
     bool codesMatch = true, cutsMatch = true;
     for (size_t j = 0; j < p; ++j) {
       cutsMatch &= sparse.data().numCuts[j] == dense.data().numCuts[j];
+      cutsMatch &= sparse.data().categoryCounts[j] ==
+                   dense.data().categoryCounts[j];
       cutsMatch &= sparse.data().cutPoints[j] == dense.data().cutPoints[j];
       for (size_t i = 0; i < n; ++i)
         codesMatch &= sparse.data().codeAt(j, i) == dense.data().codeAt(j, i);
@@ -3034,8 +3037,8 @@ static void testSparseCategoricalColumnStore() {
     ColumnStore sparseStore = fixture.buildStore(false);
 
     allOk &= sparseStore.columnIsSparse(0) == config.expectSparse;
-    allOk &= sparseStore.numCuts[0] == config.K &&
-             denseStore.numCuts[0] == config.K;
+    allOk &= sparseStore.categoryCounts[0] == config.K &&
+             denseStore.categoryCounts[0] == config.K;
     for (size_t i = 0; i < n; ++i)
       allOk &= sparseStore.codeAt(0, i) == denseStore.train.codes[i];
 
@@ -3195,7 +3198,7 @@ static void testSparseCategoricalMutation() {
     ColumnStore denseStore;
     denseStore.build(newCodes.data(), n, 1, 100u, false, fixture.types.data(),
                      nullptr, 0, &fixture.K);
-    bool matches = mutated.numCuts[0] == denseStore.numCuts[0] &&
+    bool matches = mutated.categoryCounts[0] == denseStore.categoryCounts[0] &&
                    mutated.hasMissing[0] == denseStore.hasMissing[0];
     for (size_t i = 0; i < n; ++i)
       matches &= mutated.codeAt(0, i) == denseStore.train.codes[i];
@@ -3346,12 +3349,14 @@ static void testMixedColumnStore() {
     bool cutsMatch = true;
     for (size_t j = 0; j < fixture.p; ++j) {
       cutsMatch &= mixed.numCuts[j] == reference.numCuts[j];
+      cutsMatch &= mixed.categoryCounts[j] == reference.categoryCounts[j];
       cutsMatch &= mixed.cutPoints[j] == reference.cutPoints[j];
     }
     check(cutsMatch, useQuantiles
           ? "mixed quantile cuts bitwise-match the dense builder's"
           : "mixed uniform cuts bitwise-match the dense builder's");
-    check(mixed.numCuts[2] == 4, "the dense-backed categorical keeps its levels");
+    check(mixed.categoryCounts[2] == 4,
+          "the dense-backed categorical keeps its levels");
 
     bool codesMatch = true;
     for (size_t j = 0; j < fixture.p; ++j)

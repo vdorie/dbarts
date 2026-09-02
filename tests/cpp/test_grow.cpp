@@ -292,7 +292,7 @@ void testCategoricalSplits() {
   uint32_t categoryCounts[] = {numLevels, 0};
   ColumnStore store;
   store.build(x.data(), n, 2, 20, false, types, nullptr, 0, categoryCounts);
-  check(store.numCuts[0] == numLevels && !store.columnIsPooled(0),
+  check(store.categoryCounts[0] == numLevels && !store.columnIsPooled(0),
         "the categorical fixture declares five inline levels");
 
   CGMTreePrior prior;
@@ -366,7 +366,7 @@ void testPooledCategoricalGrow() {
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types, nullptr, 0, categoryCounts);
   check(store.columnIsPooled(0) && store.hasMissing[0] == 1 &&
-          store.numCuts[0] == numLevels,
+          store.categoryCounts[0] == numLevels,
         "the wide fixture pools its mask and carries a missing value");
 
   CGMTreePrior prior;
@@ -857,7 +857,8 @@ void categoryBinsFromRaw(const ColumnStore& store, size_t variable,
                          const double* y, size_t n,
                          std::vector<ConstantLeafScanBin>& bins,
                          ConstantLeafScanBin& total) {
-  bins.assign(static_cast<size_t>(store.numCuts[variable]), ConstantLeafScanBin{});
+  bins.assign(static_cast<size_t>(store.categoryCounts[variable]),
+              ConstantLeafScanBin{});
   for (size_t i = 0; i < n; ++i) {
     bins[store.codeAt(variable, i)].addObservation(1.0, y[i]);
     total.addObservation(1.0, y[i]);
@@ -882,7 +883,7 @@ void testCategoricalExactDrawLaw() {
   ColumnType types[] = {ColumnType::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
-  check(store.numCuts[0] == numLevels && store.hasMissing[0] == 0 &&
+  check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
           !store.columnIsPooled(0),
         "the exact-branch fixture is one inline four-level column, no missing");
 
@@ -1001,7 +1002,7 @@ void testCategoricalPrefixDrawLaw() {
   ColumnType types[] = {ColumnType::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 20, false, types);
-  check(store.numCuts[0] == numLevels && store.hasMissing[0] == 0 &&
+  check(store.categoryCounts[0] == numLevels && store.hasMissing[0] == 0 &&
           numLevels > categoricalExhaustiveCap,
         "the prefix-branch fixture declares twelve levels, past the cap");
 
@@ -1191,7 +1192,7 @@ void testCategoricalGroupMassClosedForm() {
     ColumnType types[] = {ColumnType::categorical};
     ColumnStore store;
     store.build(x.data(), numReachable, 1, 10, false, types);
-    check(store.numCuts[0] == numReachable &&
+    check(store.categoryCounts[0] == numReachable &&
             store.columnIsPooled(0) == (numReachable > 63),
           "the cross-check store declares every category at its own tier");
     std::vector<index_t> indexBuffer(numReachable);
@@ -1282,7 +1283,7 @@ size_t tallyCategoricalNode(const Tree& tree, const ColumnStore& store,
                             std::vector<std::uint64_t>& reachable,
                             std::vector<std::uint8_t>& present) {
   std::int32_t column = static_cast<std::int32_t>(variable);
-  size_t numWords = maskWordsForCount(store.numCuts[variable]);
+  size_t numWords = maskWordsForCount(store.categoryCounts[variable]);
   reachable.assign(numWords, 0);
   std::uint64_t inlineMask = 0;
   const std::uint64_t* mask = &inlineMask;
@@ -1297,7 +1298,8 @@ size_t tallyCategoricalNode(const Tree& tree, const ColumnStore& store,
                    maskIsSubsetOf(mask, reachable.data(), numWords) &&
                    !maskEquals(mask, reachable.data(), numWords);
 
-  std::uint32_t missingCode = missingCategoryCode(store.numCuts[variable]);
+  std::uint32_t missingCode =
+    missingCategoryCode(store.categoryCounts[variable]);
   present.assign(static_cast<size_t>(missingCode) + 1, 0);
   size_t numPresent = 0;
   const Node& node = tree.at(nodeIndex);
@@ -1364,7 +1366,7 @@ void testCategoricalGrowGaugeAndCoins() {
     std::uint32_t categoryCounts[] = {fixture.numLevels, 0};
     ColumnStore store;
     store.build(x.data(), n, 2, 10, false, types, nullptr, 0, categoryCounts);
-    check(store.numCuts[0] == fixture.numLevels &&
+    check(store.categoryCounts[0] == fixture.numLevels &&
             (store.hasMissing[0] != 0) == fixture.missing &&
             store.hasMissing[1] == 0 &&
             store.columnIsPooled(0) == (fixture.numLevels > 63),

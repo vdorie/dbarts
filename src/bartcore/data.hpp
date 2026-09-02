@@ -505,9 +505,10 @@ struct CodeBlock {
 /// into per-column integer codes against per-column cut points, either
 /// uniformly spaced over the column's range or at unique-value midpoints
 /// (quantile mode). numCuts is fixed once built; recomputing cuts for new
-/// values keeps the count so existing split indices stay in range. For
-/// categorical columns numCuts holds the (fixed) category count, cutPoints
-/// stays empty, and codes are the values themselves.
+/// values keeps the count so existing split indices stay in range. A
+/// categorical column has no cut grid at all - numCuts 0, cutPoints empty,
+/// its (fixed) category count in categoryCounts, and codes the values
+/// themselves.
 struct ColumnStore {
   // Move-only: a denseBorrowed source points into this store's own
   // ownedDenseValues/ownedTestValues, so a copy would leave the duplicate's
@@ -536,6 +537,12 @@ struct ColumnStore {
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
+  // per column, the category count K of a categorical column, 0 for any
+  // column that splits by threshold. Fixed once built: every mask tier, every
+  // reserved missing code and every histogram width is derived from it, so it
+  // is the one channel that says how many categories a column has - numCuts
+  // answers only how many cut points it has.
+  std::vector<std::uint32_t> categoryCounts;
   std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
   // per column, whether any training value is missing; gates the extra
   // missing-direction draw in rules and the NA-aware partition kernel.
@@ -552,7 +559,7 @@ struct ColumnStore {
   /// (more than 63 categories, so the mask spans more than one word).
   bool columnIsPooled(size_t j) const {
     return types[j] == ColumnType::categorical &&
-           maskWordsForCount(numCuts[j]) > 1;
+           maskWordsForCount(categoryCounts[j]) > 1;
   }
 
   void refreshCategoricalTiers() {
@@ -707,7 +714,7 @@ struct ColumnStore {
   // reserved codes.
   xint_t codeFor(size_t variable, double value) const {
     if (types[variable] == ColumnType::categorical)
-      return isNA(value) ? missingCategoryCode(numCuts[variable])
+      return isNA(value) ? missingCategoryCode(categoryCounts[variable])
                          : static_cast<xint_t>(value);
     if (isNA(value)) return naCode;
     const std::vector<double>& cuts = cutPoints[variable];
@@ -720,7 +727,8 @@ struct ColumnStore {
   /// existing category or missing; the category count is fixed once built.
   bool categoricalValueIsValid(size_t variable, double value) const {
     if (isNA(value)) return true;
-    return value >= 0.0 && value < static_cast<double>(numCuts[variable]) &&
+    return value >= 0.0 &&
+           value < static_cast<double>(categoryCounts[variable]) &&
            value == static_cast<double>(static_cast<xint_t>(value));
   }
 
@@ -858,18 +866,20 @@ struct ColumnStore {
     return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
   }
 
-  /// Initial cut construction; sets numCuts[j]. column supplies the dense raw
-  /// values (null for CSC-backed columns, which read their retained slice). A
-  /// categorical column keeps no cuts and takes its (fixed) category count from
-  /// the host's declared level table when it supplied one, but never below what
-  /// its own codes reach - a declared count short of an observed code would
-  /// strand that code past its own grid.
+  /// Initial cut construction; sets numCuts[j] and, for a categorical column,
+  /// categoryCounts[j]. column supplies the dense raw values (null for
+  /// CSC-backed columns, which read their retained slice). A categorical
+  /// column keeps no cuts and takes its (fixed) category count from the host's
+  /// declared level table when it supplied one, but never below what its own
+  /// codes reach - a declared count short of an observed code would strand
+  /// that code past its own grid.
   void buildCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) {
       std::uint32_t inferred = columnIsCscBacked(j)
         ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
       std::uint32_t declared = train.sources[j].declaredCategoryCount;
-      numCuts[j] = declared > inferred ? declared : inferred;
+      categoryCounts[j] = declared > inferred ? declared : inferred;
+      numCuts[j] = 0;
       cutPoints[j].clear();
     } else if (useQuantiles) {
       QuantileGrid grid = columnIsCscBacked(j)
@@ -1146,6 +1156,7 @@ struct ColumnStore {
     }
     cutPoints.resize(p);
     numCuts.resize(p);
+    categoryCounts.assign(p, 0);
     if (maxNumCutsPerColumn != nullptr) {
       maxNumCuts.assign(maxNumCutsPerColumn, maxNumCutsPerColumn + p);
     } else {
@@ -1413,17 +1424,20 @@ struct ColumnStore {
       types.resize(numPredictors);
       cutPoints.resize(numPredictors);
       numCuts.resize(numPredictors);
+      categoryCounts.resize(numPredictors);
       maxNumCuts.resize(numPredictors);
       for (size_t j = 0; j < numPredictors; ++j) {
         types[j] = parent.types[parentColumns[j]];
         cutPoints[j] = parent.cutPoints[parentColumns[j]];
         numCuts[j] = parent.numCuts[parentColumns[j]];
+        categoryCounts[j] = parent.categoryCounts[parentColumns[j]];
         maxNumCuts[j] = parent.maxNumCuts[parentColumns[j]];
       }
     } else {
       types = parent.types;
       cutPoints = parent.cutPoints;
       numCuts = parent.numCuts;
+      categoryCounts = parent.categoryCounts;
       maxNumCuts = parent.maxNumCuts;
     }
     // views densify: gathered codes are fully dense whatever the parent's
@@ -1463,7 +1477,7 @@ struct ColumnStore {
     }
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = types[j] == ColumnType::categorical
-        ? missingCategoryCode(numCuts[j]) : naCode;
+        ? missingCategoryCode(categoryCounts[j]) : naCode;
       xint_t* column = train.codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
         column[i] = parent.codeAt(parentColumns[j], rows[i]);

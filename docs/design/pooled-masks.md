@@ -54,7 +54,7 @@ double encoding holds 53. They are lifted separately.
   (naCategory's 63 would collide with a real category), assigned
   per-column by codeFor and buildFromParent.
 
-A column is pooled iff maskWordsForColumn(numCuts[j]) > 1, i.e.
+A column is pooled iff maskWordsForColumn(categoryCounts[j]) > 1, i.e.
 ceil((K + 1) / 64) > 1. Everything keys off that predicate; ordinal
 columns and narrow categorical columns never touch the pool.
 

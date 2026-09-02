@@ -1517,8 +1517,11 @@ void printInitialSummary(const ParsedControl& control,
   ext_printf("Cutoff rules c in x<=c vs x>c\n");
   ext_printf("Number of cutoffs: (var: number of possible c):\n");
   for (size_t j = 0; j < store.numPredictors; ++j) {
+    // a categorical column has no cut grid; the count that bounds its rules
+    // is its category count
     ext_printf("(%lu: %u) ", static_cast<unsigned long>(j + 1),
-               store.numCuts[j]);
+               store.types[j] == bartcore::ColumnType::categorical
+                 ? store.categoryCounts[j] : store.numCuts[j]);
     if ((j + 1) % 5 == 0) ext_printf("\n");
   }
   ext_printf("\n");
@@ -3026,7 +3029,7 @@ void validateTestContainerAgainstStore(
     const bartcore::PredictorSource& view) {
   for (size_t j = 0; j < store.numPredictors; ++j) {
     if (store.types[j] != bartcore::ColumnType::categorical) continue;
-    double bound = static_cast<double>(store.numCuts[j]);
+    double bound = static_cast<double>(store.categoryCounts[j]);
     if (view.sourceOf(j) >= 0) {
       refuseInvalidCategoryCodes(rawViewColumn(view, j), view.numRows, bound,
                                  categoricalTestMessage);
@@ -5480,7 +5483,7 @@ static size_t maskWordsForFlatTree(
     if (node.variable < 0) continue;
     size_t j = static_cast<size_t>(node.variable);
     if (j < store.numPredictors && store.columnIsPooled(j))
-      numWords += bartcore::maskWordsForCount(store.numCuts[j]);
+      numWords += bartcore::maskWordsForCount(store.categoryCounts[j]);
   }
   return numWords;
 }
@@ -5660,7 +5663,7 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
           store.columnIsPooled(static_cast<size_t>(node.variable)))
         node.numMaskWords = static_cast<std::uint32_t>(
           bartcore::maskWordsForCount(
-            store.numCuts[static_cast<size_t>(node.variable)]));
+            store.categoryCounts[static_cast<size_t>(node.variable)]));
       ++offset;
     }
   }
@@ -7617,11 +7620,13 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               directionsScratch.clear();
               if (store.columnIsPooled(variable)) {
                 const std::uint64_t* words = masks->data() + node.maskOffset;
-                for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
+                for (std::uint32_t c = 0; c < store.categoryCounts[variable];
+                     ++c)
                   directionsScratch.push_back(
                     bartcore::maskTestBit(words, c) ? 'R' : 'L');
               } else {
-                for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
+                for (std::uint32_t c = 0; c < store.categoryCounts[variable];
+                     ++c)
                   directionsScratch.push_back(
                     ((node.mask >> c) & 1u) != 0 ? 'R' : 'L');
               }

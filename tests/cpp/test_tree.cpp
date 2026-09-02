@@ -120,7 +120,8 @@ static void testCategoricalMechanics() {
   ColumnStore store;
   store.build(x.data(), n, 2, 10, false, types);
 
-  check(store.numCuts[0] == 4, "categorical column counts its categories");
+  check(store.categoryCounts[0] == 4,
+        "categorical column counts its categories");
   check(store.cutPoints[0].empty(), "categorical column keeps no cut points");
   bool codesMatch = true;
   for (size_t i = 0; i < n; ++i)
@@ -282,7 +283,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   ColumnType types[] = {ColumnType::categorical};
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
-  check(store.numCuts[0] == K, "pooled column counts its categories");
+  check(store.categoryCounts[0] == K, "pooled column counts its categories");
   check(store.columnIsPooled(0) && store.hasPooledCategorical,
         "pooled tier predicates");
   check(maskWordsForCount(K) == 2, "70 categories need two words");
@@ -426,7 +427,8 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   xMissing[7] = std::nan("");
   ColumnStore storeMissing;
   storeMissing.build(xMissing.data(), n, 1, 10, false, types);
-  check(storeMissing.numCuts[0] == K && storeMissing.hasMissing[0] == 1 &&
+  check(storeMissing.categoryCounts[0] == K &&
+          storeMissing.hasMissing[0] == 1 &&
           storeMissing.train.codes[0] == 70,
         "pooled NA takes code K");
   Tree missingTree;
