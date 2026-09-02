@@ -3,7 +3,7 @@
 Source: consolidated-report.md sections (b)(c)(d)(e)(g), the
 per-cell evidence in matrix-results.md / matrix-review-entries.md / matrix-review-generics.md,
 and VD's judgements J1-J8. Waves 1-2 are b102e17c..07ad73e4 (landing note at
-docs/plans/release-candidate-review.md:543). J7 (engine default: arms, in a
+[[docs/plans/release-candidate-review.md:543@07ad73e4]]). J7 (engine default: arms, in a
 private worktree) and J9 (predict n.threads) are OUT of this wave.
 
 Every count and line reference below was re-verified in this pass; section E lists the
@@ -13,12 +13,12 @@ command behind each. All line numbers are against 0045507c.
 
 LANDED (do not re-plan)
 - 8042cc2c: B1 extract(type="trees") refuses sample/combineChains/forest/contribution by
-  name (R/generics.R:360-372, wired at :398 and :1901); B2 survivalProbabilities names the
-  hazard period column on both branches (R/bart.R:2421, :2434); minor [M2] residuals(sample=)
-  refused by name (refuseResidualsSample, :842-851, on bart/rbart/bartHurdle).
-- b657e8ae: M3 (dbartsSpec.Rd:40,:48), M4 (bart.Rd:153), M5 (bart.Rd:165), M7 (bart.Rd:248
-  hurdle storeState recipe), M8 (dbartsSampler-class.Rd:328), M12 (three chain.hpp comments),
-  U7 (kernel-vocabulary.md:26), minors [M4] setForestBasis wording, [M5] chain column, [M7]
+  name ([[R/generics.R:360-372@8042cc2c]], wired at [[R/generics.R:398@8042cc2c]] and [[R/generics.R:1901@8042cc2c]]); B2 survivalProbabilities names the
+  hazard period column on both branches ([[R/bart.R:2421@8042cc2c]], [[R/bart.R:2434@8042cc2c]]); minor [M2] residuals(sample=)
+  refused by name (refuseResidualsSample, [[R/bart.R:842-851@8042cc2c]], on bart/rbart/bartHurdle).
+- b657e8ae: M3 ([[dbartsSpec.Rd:40@b657e8ae]],[[dbartsSpec.Rd:48@b657e8ae]]), M4 ([[bart.Rd:153@b657e8ae]]), M5 ([[bart.Rd:165@b657e8ae]]), M7 ([[bart.Rd:248@b657e8ae]]
+  hurdle storeState recipe), M8 ([[dbartsSampler-class.Rd:328@b657e8ae]]), M12 (three chain.hpp comments),
+  U7 ([[kernel-vocabulary.md:26@b657e8ae]]), minors [M4] setForestBasis wording, [M5] chain column, [M7]
   storeState's NULL return - all Rd/comment.
 - 7318b266 + 66ac05b3: M13 in full (rchk gate, sanitizers [main, master], lint/pkgdown PR
   trigger, three unrunnable harnesses deleted, logistic-reference gating + BART in CI).
@@ -35,7 +35,7 @@ REMAINING (this wave)
 - M10 xbart answers family-then-response and n.threads length-2 with raw R errors ->
   r-surface.
 - E19 defaultNodeScale has no default arm (silent NULL) -> r-surface.
-- minor [M6-gen] bart.Rd:248 understates which generics stop on a stateless fit ->
+- minor [M6-gen] [[bart.Rd:248@07ad73e4]] understates which generics stop on a stateless fit ->
   r-surface (Rd only).
 - minor [M10-gen] names(fit) lists NULL-valued yhat.test/s.train/s.test -> r-surface.
 - minor [M1-gen] own-class extract methods give bare "'arg' should be one of" where
@@ -57,42 +57,42 @@ REMAINING (this wave)
 
 Shared conventions for every refusal written in this wave:
 - Echo the token/argument the CALLER TYPED. Where an entry folds an alias
-  ("twopart" -> "hurdle.lognormal", R/bart.R:712, R/dbarts.R:405) or remaps a family
-  ("hazard"/"hazard.logistic" -> "probit"/"logistic", R/dbarts.R:534), capture
+  ("twopart" -> "hurdle.lognormal", [[R/bart.R:712@07ad73e4]], [[R/dbarts.R:405@07ad73e4]]) or remaps a family
+  ("hazard"/"hazard.logistic" -> "probit"/"logistic", [[R/dbarts.R:534@07ad73e4]]), capture
   `requestedFamily <- family` BEFORE the fold and interpolate that in every downstream
   stop(); never the resolved token.
 - Name the KIND received, not just the expected shape ("a length-n vector was
   supplied", "an n x 2 matrix was supplied", "a Surv response was supplied").
 - Single quotes around argument names, escaped double quotes around family tokens -
-  the package's existing style (R/bart.R:849, R/data.R:628).
+  the package's existing style ([[R/bart.R:849@07ad73e4]], [[R/data.R:628@07ad73e4]]).
 
 ### (i) Slice "r-surface" - J1 + J3 + J5 + J8 + remaining S3 + dataSlotOrNULL
 
 R1. J1 - delete the rejection-only dots channel.
-  Current: bart2 (R/bart.R:704 `...`) and rbart_vi (R/rbart.R:53 `...`) declare a dots
-  formal used only to produce a nicer error; R/bart.R:764-765 and R/rbart.R:61-62 call
-  rejectUnknownDotsArgs(argNames, fn) (R/utility.R:122-142), which consults
-  retiredDotsNames (R/utility.R:120, one row: rngSeed -> seed) and otherwise agreps the
+  Current: bart2 ([[R/bart.R:704@07ad73e4]] `...`) and rbart_vi ([[R/rbart.R:53@07ad73e4]] `...`) declare a dots
+  formal used only to produce a nicer error; [[R/bart.R:764-765@07ad73e4]] and [[R/rbart.R:61-62@07ad73e4]] call
+  rejectUnknownDotsArgs(argNames, fn) ([[R/utility.R:122-142@07ad73e4]]), which consults
+  retiredDotsNames ([[R/utility.R:120@07ad73e4]], one row: rngSeed -> seed) and otherwise agreps the
   nearest formal.
   Required: delete the `...` formal from both signatures, delete the two
-  argNames/rejectUnknownDotsArgs blocks (R/bart.R:762-765, R/rbart.R:59-62), delete
+  argNames/rejectUnknownDotsArgs blocks ([[R/bart.R:762-765@07ad73e4]], [[R/rbart.R:59-62@07ad73e4]]), delete
   rejectUnknownDotsArgs and retiredDotsNames and the 12-line comment above them
-  (R/utility.R:108-142). R's own "unused argument" wall then serves all six entries
+  ([[R/utility.R:108-142@07ad73e4]]). R's own "unused argument" wall then serves all six entries
   (bart, bart2, dbarts, dbartsSpec, xbart, rbart_vi) identically - which also closes
   E15's asymmetry without writing anything. Partial matching is unaffected: both dots
   were the LAST formal, so no formal moves behind a `...`.
-  Rd: delete `\dots)` from the bart2 usage block (man/bart2.Rd:68) and the rbart_vi
-  usage block (man/rbart.Rd:38); delete the \item{\dots} paragraph at man/bart2.Rd:260-262;
-  drop `\dots` from the shared \item list at man/rbart.Rd:85. Leave every method usage's
+  Rd: delete `\dots)` from the bart2 usage block ([[man/bart2.Rd:68@07ad73e4]]) and the rbart_vi
+  usage block ([[man/rbart.Rd:38@07ad73e4]]); delete the \item{\dots} paragraph at [[man/bart2.Rd:260-262@07ad73e4]];
+  drop `\dots` from the shared \item list at [[man/rbart.Rd:85@07ad73e4]]. Leave every method usage's
   \dots alone (predict/fitted/extract/plot keep theirs).
 
 R2. J3 - bart()'s by-name family redirects, and the typed-token rule.
-  Current: R/bart.R:2648-2655 refuses only bartOwnClassFamilies (R/bart.R:2589-2594:
+  Current: [[R/bart.R:2648-2655@07ad73e4]] refuses only bartOwnClassFamilies ([[R/bart.R:2589-2594@07ad73e4]]:
   multinomial, ordinal, nbinom, hurdle.lognormal) through refuseBartOwnClassFamily
-  (:2596-2607); the other six of the ten tokens man/bart.Rd:174 names fall through to
+  ([[R/bart.R:2596-2607@07ad73e4]]); the other six of the ten tokens [[man/bart.Rd:174@07ad73e4]] names fall through to
   match.arg's "'arg' should be one of "auto", "logistic", "aft"".
   Required: extend the pre-match.arg by-name branch to all ten tokens with three
-  reasons, exactly as bart.Rd:174 already states them:
+  reasons, exactly as [[bart.Rd:174@07ad73e4]] already states them:
     - multinomial, ordinal, nbinom, hurdle.lognormal, twopart ->
       'bart() does not fit family = "<typed>"; use bart2(x.train, y.train, family =
       "<typed>")'   (existing text, extended to carry "twopart" unfolded)
@@ -107,19 +107,19 @@ R2. J3 - bart()'s by-name family redirects, and the typed-token rule.
   Implement as one named vector bartRedirectedFamilies (token -> reason class) beside
   bartOwnClassFamilies so the Rd and the code list the same ten.
   Typed-token echo, the other half of J3 (E16/E17): in R/dbarts.R capture the typed
-  token before :405's twopart fold and before :534's hazard remap and use it in the
+  token before [[bart.Rd:405@07ad73e4]]'s twopart fold and before [[bart.Rd:534@07ad73e4]]'s hazard remap and use it in the
   downstream refusals that currently name the resolved one - the sites reached are
   R/model.R's resid.dist refusal ("family \"probit\" has its own fixed error scale")
-  and the variance-forest refusal. Do the same in R/bart.R:712 for bart2. Rule to
+  and the variance-forest refusal. Do the same in [[R/bart.R:712@07ad73e4]] for bart2. Rule to
   write in the comment: the resolved token is an implementation detail; the caller can
   only act on what they typed.
-  rbart_vi / xbart / dbartsSpec keep their narrow vocabularies (R/rbart.R:52
-  c("auto","gaussian","aft"), R/xbart.R:26 c("auto","gaussian","probit","logistic"),
+  rbart_vi / xbart / dbartsSpec keep their narrow vocabularies ([[R/rbart.R:52@07ad73e4]]
+  c("auto","gaussian","aft"), [[R/xbart.R:26@07ad73e4]] c("auto","gaussian","probit","logistic"),
   R/spec.R's eight). Their Rd sentences are corrected to say the vocabulary is
   narrower BY DESIGN and that the wider set lives on bart2 - one sentence each in
   man/rbart.Rd, man/xbart.Rd, man/dbartsSpec.Rd. E18 (bart(keepevery = -1) refused as
   'n.thin') is the same rule one layer down: bart() already coerces by the typed name
-  (R/bart.R:2670-2677) but the positivity refusal comes from dbartsControl's validity,
+  ([[R/bart.R:2670-2677@07ad73e4]]) but the positivity refusal comes from dbartsControl's validity,
   which names n.thin - add a bart()-side positivity check for keepevery/ndpost/nskip
   naming the typed spelling before the control is built.
 
@@ -127,18 +127,18 @@ R3. J5 - one offset name, shape follows family.
   Current spellings (E8, all re-verified): bart2(offset = <n x K>) accepted;
   bart2(offset.category = ) -> unknown argument; dbarts(offset.category = ) -> raw
   unused argument; dbarts(offset = <n x K>) -> "'offset' must have the same length as
-  'y'" (R/data.R:765, a length() test, so an n x 1 matrix passes and an n x K does
-  not); dbartsData(counts = , offset.category = ) accepted (R/data.R:899-900).
+  'y'" ([[R/data.R:765@07ad73e4]], a length() test, so an n x 1 matrix passes and an n x K does
+  not); dbartsData(counts = , offset.category = ) accepted ([[R/data.R:899-900@07ad73e4]]).
   Required:
   a. dbartsData: DELETE the offset.category and offset.category.test formals
-     (R/data.R:899-900) and the countsIsMissing clauses that read them (:907-909).
+     ([[R/data.R:899-900@07ad73e4]]) and the countsIsMissing clauses that read them ([[R/data.R:907-909@07ad73e4]]).
      The n x K train shift arrives as `offset`, the nTest x K test shift as
-     `offset.test`. The dbartsData SLOTS keep their names (R/A_class.R:536-538) and so
+     `offset.test`. The dbartsData SLOTS keep their names ([[R/A_class.R:536-538@07ad73e4]]) and so
      do the R5 methods $setCategoryOffset/$setCategoryTestOffset (method names, not
      argument names - see D2).
   b. Routing: in dbartsData and in the dbarts()/bart2() matrix paths, a matrix-valued
      `offset` on a counts-carrying data object installs the category offset
-     (validateDataCategoryOffset, R/data.R:1430-1443, unchanged); a matrix-valued
+     (validateDataCategoryOffset, [[R/data.R:1430-1443@07ad73e4]], unchanged); a matrix-valued
      offset anywhere else is refused; a vector-valued offset on a multinomial fit is
      refused.
   c. Messages (one helper each, used by dbartsData, dbarts, bart2, predict):
@@ -153,15 +153,15 @@ R3. J5 - one offset name, shape follows family.
        ''offset' must have one column per category (K = <K>); a <r> x <c> matrix was
        supplied'  (validateCategoryOffset's existing wording, kept)
   d. predict.bartMultinomial: rename the formal offset.category.test -> offset
-     (R/generics.R:1017, body reads at :1033-1056). SPECIFIED HERE, EXECUTED BY THE
+     ([[R/generics.R:1017@07ad73e4]], body reads at [[R/generics.R:1033-1056@07ad73e4]]). SPECIFIED HERE, EXECUTED BY THE
      GENERICS SLICE (section C: J4 rewrites the same method; one owner per function).
      predict.bart already spells the
-     new-row shift `offset` (R/generics.R:210), so this is the same name for the same
-     thing on both classes. Update man/bart2.Rd:80 (usage) and :272-273 (the \item),
-     and the two prose paragraphs that name the old spelling (man/bart2.Rd:229, :312).
-  e. M1's false message: R/data.R:1178-1180 (sparse branch) and :1237-1239 (numeric
+     new-row shift `offset` ([[R/generics.R:210@07ad73e4]]), so this is the same name for the same
+     thing on both classes. Update [[man/bart2.Rd:80@07ad73e4]] (usage) and [[man/bart2.Rd:272-273@07ad73e4]] (the \item),
+     and the two prose paragraphs that name the old spelling ([[man/bart2.Rd:229@07ad73e4]], [[man/bart2.Rd:312@07ad73e4]]).
+  e. M1's false message: [[R/data.R:1178-1180@07ad73e4]] (sparse branch) and [[R/data.R:1237-1239@07ad73e4]] (numeric
      branch) compare NROW(formula) against NROW(codeResponse(data)$y) after
-     codeResponse (R/data.R:458-473) has flattened an n x 2 response to length 2n.
+     codeResponse ([[R/data.R:458-473@07ad73e4]]) has flattened an n x 2 response to length 2n.
      Insert refuseMultiColumnResponse(data) BEFORE codeResponse in both branches:
        Surv:      ''y' is a survival response (Surv); dbartsData() takes a
                   single-column response - fit through dbarts()/bart2() with family =
@@ -175,66 +175,66 @@ R3. J5 - one offset name, shape follows family.
                   with family = "multinomial"'
      Fixing this one helper fixes all four inheriting surfaces (dbartsData positional,
      rbart_vi's matrix route, xbart, dbarts) - E4's own repro list.
-  f. R/bart.R:867-874's multinomial offset.test refusal names
+  f. [[R/bart.R:867-874@07ad73e4]]'s multinomial offset.test refusal names
      dbarts:::bartcoreSetCategoryTestOffset as the internal channel, and
-     man/bart2.Rd:229 repeats it. Under the handle-api slice that symbol leaves the
+     [[man/bart2.Rd:229@07ad73e4]] repeats it. Under the handle-api slice that symbol leaves the
      namespace; see C for who owns the edit.
 
 R4. J8 - option vocabularies.
-  a. monotone: R/model.R:548-570 parseMonotoneSign switches on tolower(value) and
+  a. monotone: [[R/model.R:548-570@07ad73e4]] parseMonotoneSign switches on tolower(value) and
      accepts "inc", "dec", "0" alongside the documented set. DELETE those three switch
-     arms; keep tolower() and DOCUMENT the case fold in man/dbarts.Rd:72 and
-     man/bart2.Rd:203 ("matching is case-insensitive, so "Increasing" is accepted").
-     The numeric 0 arm is untouched - man/dbarts.Rd:72 documents 0 for unconstrained.
+     arms; keep tolower() and DOCUMENT the case fold in [[man/dbarts.Rd:72@07ad73e4]] and
+     [[man/bart2.Rd:203@07ad73e4]] ("matching is case-insensitive, so "Increasing" is accepted").
+     The numeric 0 arm is untouched - [[man/dbarts.Rd:72@07ad73e4]] documents 0 for unconstrained.
      No existing pin asserts "inc"/"dec"/"0" (verified: 0 hits in inst/tinytest).
-  b. makeind(all = ): NO CODE CHANGE. R/bart.R:2835-2838 binds `ignored <- all`;
-     man/makeind.Rd:26 already says "Not currently implemented". Add the reason to
+  b. makeind(all = ): NO CODE CHANGE. [[R/bart.R:2835-2838@07ad73e4]] binds `ignored <- all`;
+     [[man/makeind.Rd:26@07ad73e4]] already says "Not currently implemented". Add the reason to
      that item - "retained for signature compatibility with BayesTree::makeind" - and
      stop there.
   c. n.samples = 0: dbartsControl/dbarts keep accepting it (the host-loop shape).
-     bart2 (R/bart.R:806-809), xbart (R/xbart.R:94-96) and rbart_vi (R/rbart.R:104-106,
+     bart2 ([[R/bart.R:806-809@07ad73e4]]), xbart ([[R/xbart.R:94-96@07ad73e4]]) and rbart_vi ([[R/rbart.R:104-106@07ad73e4]],
      currently "no posterior draws will be taken after thinning") share ONE message
      from one helper in R/utility.R:
        ''n.samples' must leave at least one draw after thinning (n.samples %/% n.thin
        = 0); dbarts() and dbartsControl() accept a zero-draw run - a sampler driven by
        a host loop - but <caller>() returns posterior draws'
      with <caller> the entry point's own name. Add one sentence to
-     man/dbartsControl.Rd:32-33 recording the split (it already contrasts the
+     [[man/dbartsControl.Rd:32-33@07ad73e4]] recording the split (it already contrasts the
      per-run() return count with bart2's sweep budget - this appends the zero case).
-     The multinomial branch keeps its own family-named check (R/bart.R:923).
+     The multinomial branch keeps its own family-named check ([[R/bart.R:923@07ad73e4]]).
 
 R5. Remaining S3 items.
-  - M6: R/bart.R:389-393 sets result$n.chains only in the else branch. Set it
+  - M6: [[R/bart.R:389-393@07ad73e4]] sets result$n.chains only in the else branch. Set it
     UNCONDITIONALLY (2 lines), as bartMultinomial/bartOrdinal/bartNegbin already do;
-    bartHurdle's assembly needs the same. bart.Rd:315-317 then becomes true.
-  - M9: R/augmentation.R:65 declares sigma = 1 and :79-81 guards on !missing(sigma).
+    bartHurdle's assembly needs the same. [[bart.Rd:315-317@07ad73e4]] then becomes true.
+  - M9: [[R/augmentation.R:65@07ad73e4]] declares sigma = 1 and [[R/augmentation.R:79-81@07ad73e4]] guards on !missing(sigma).
     Change the default to NULL and guard on !is.null(sigma); the aft/student arms that
-    consume it already treat NULL as absent (R/augmentation.R:52's augRestrict).
-  - M10: (i) move `family <- match.arg(family)` (R/xbart.R:123) ABOVE the data build
+    consume it already treat NULL as absent ([[R/augmentation.R:52@07ad73e4]]'s augRestrict).
+  - M10: (i) move `family <- match.arg(family)` ([[R/xbart.R:123@07ad73e4]]) ABOVE the data build
     so a bad family is named before the response is ingested, matching the other four
     entries; (ii) give n.threads the length/positivity check the others have -
-    R/xbart.R:398-401 currently coerces then tests is.na() on a length-2 value, which
+    [[R/xbart.R:398-401@07ad73e4]] currently coerces then tests is.na() on a length-2 value, which
     raises R's raw "'length = 2' in coercion to 'logical(1)'". Add
-    'n.threads' must be of length 1' (A_class.R:296's wording) before the positivity
+    'n.threads' must be of length 1' ([[A_class.R:296@07ad73e4]]'s wording) before the positivity
     test.
-  - E19: R/model.R:400-415 defaultNodeScale's switch() has no default arm, so
+  - E19: [[R/model.R:400-415@07ad73e4]] defaultNodeScale's switch() has no default arm, so
     ("hazard") and ("student") return NULL silently. Add the sibling's stop() text
-    (R/model.R:451): 'no node scale is defined for family "<family>"'.
-  - minor [M6-gen]: man/bart.Rd:248's Saving subsection says only predict stops on a
+    ([[R/model.R:451@07ad73e4]]): 'no node scale is defined for family "<family>"'.
+  - minor [M6-gen]: [[man/bart.Rd:248@07ad73e4]]'s Saving subsection says only predict stops on a
     stateless fit; extract(type = "trees") and plotTree stop identically. One clause.
   - minor [M10-gen]: R/bart.R's result assembly writes yhat.test/s.train/s.test
     entries as NULL, so names(fit) lists absent components. Assign only when non-NULL
     (result[["yhat.test"]] <- ... inside the existing if), or drop the NULL entries at
     the end with result[!vapply(result, is.null, NA)] - the second is one line and
     order-preserving.
-  - dataSlotOrNULL deletion (from J6, homed here): R/data.R:11-13 with its 8-line
+  - dataSlotOrNULL deletion (from J6, homed here): [[R/data.R:11-13@07ad73e4]] with its 8-line
     comment (:4-10). Its comment claims every internal read of counts/offset.category/
     offset.category.test goes through it; FALSE - it has exactly ONE in-package use
-    (R/data.R:20, inside dataCounts), while @counts is read bare at R/A_class.R:634 and
-    @offset.category bare at R/generics.R:1034. Inline the slot read into dataCounts
+    ([[R/data.R:20@07ad73e4]], inside dataCounts), while @counts is read bare at [[R/A_class.R:634@07ad73e4]] and
+    @offset.category bare at [[R/generics.R:1034@07ad73e4]]. Inline the slot read into dataCounts
     and delete the function. It protects only objects serialized by an intermediate
     commit of THIS branch, which nothing outside the branch holds.
-    Test consequence: inst/tinytest/test-multinomial-r5-surface.R:469-479 exercises it
+    Test consequence: [[inst/tinytest/test-multinomial-r5-surface.R:469-479@07ad73e4]] exercises it
     by hand-stripping attributes - delete that block.
 
 Files touched: R/bart.R, R/rbart.R, R/xbart.R, R/data.R, R/dbarts.R, R/model.R,
@@ -244,28 +244,28 @@ man/rbart.Rd, man/xbart.Rd, man/dbarts.Rd, man/dbartsData.Rd, man/dbartsControl.
 man/dbartsSpec.Rd, man/makeind.Rd, man/dbartsAugmentation.Rd; inst/NEWS.Rd.
 
 Test pins to add or rewrite (inst/tinytest):
-- test-argument-surface.R - REWRITE the 8 dots pins (:387, :389, :392, :399, :403,
-  :549, :553, :557) to expect R's "unused argument"; the rngSeed pair loses its
-  retirement text entirely (that is the J1 trade). :563's dbarts() "unused argument"
-  pin is unchanged and becomes the shared expectation. :407-412's partial-match pin
+- test-argument-surface.R - REWRITE the 8 dots pins ([[inst/tinytest/test-multinomial-r5-surface.R:387@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:389@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:392@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:399@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:403@07ad73e4]],
+  [[inst/tinytest/test-multinomial-r5-surface.R:549@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:553@07ad73e4]], [[inst/tinytest/test-multinomial-r5-surface.R:557@07ad73e4]]) to expect R's "unused argument"; the rngSeed pair loses its
+  retirement text entirely (that is the J1 trade). [[inst/tinytest/test-multinomial-r5-surface.R:563@07ad73e4]]'s dbarts() "unused argument"
+  pin is unchanged and becomes the shared expectation. [[inst/tinytest/test-multinomial-r5-surface.R:407-412@07ad73e4]]'s partial-match pin
   must stay green (it will).
-- test-heteroscedastic.R:259-262 - the rbart_vi(variance = ) pin moves from
+- [[test-heteroscedastic.R:259-262@07ad73e4]] - the rbart_vi(variance = ) pin moves from
   "unknown argument" to "unused argument".
-- test-bart-bart2.R:108-122 - ADD six by-name refusal pins (gaussian, probit,
+- [[test-bart-bart2.R:108-122@07ad73e4]] - ADD six by-name refusal pins (gaussian, probit,
   hazard.probit, hazard, hazard.logistic, twopart), each asserting the typed token
   appears in the message; keep the four existing ones.
-- test-error-quality.R:38-47 - the n.samples = 0 pin text changes to the shared
+- [[test-error-quality.R:38-47@07ad73e4]] - the n.samples = 0 pin text changes to the shared
   message; ADD the rbart_vi and xbart arms so all three entries are pinned to ONE
-  string. test-xbart-error.R:24 - same rewrite.
+  string. [[test-xbart-error.R:24@07ad73e4]] - same rewrite.
 - test-data-compatibility.R or a new test-response-shape.R - ADD the three by-kind
   ingest refusals (Surv, n x 2, n x K), each asserting the message names the kind;
   plus the four inheriting surfaces (dbartsData positional, rbart_vi matrix,
   xbart, dbarts) reaching the same text.
-- test-multinomial-r5-surface.R - REWRITE :132, :136, :140, :144, :434, :449 from
-  offset.category=/offset.category.test= to offset=/offset.test=; DELETE :469-479
+- test-multinomial-r5-surface.R - REWRITE [[test-xbart-error.R:132@07ad73e4]], [[test-xbart-error.R:136@07ad73e4]], [[test-xbart-error.R:140@07ad73e4]], [[test-xbart-error.R:144@07ad73e4]], [[test-xbart-error.R:434@07ad73e4]], [[test-xbart-error.R:449@07ad73e4]] from
+  offset.category=/offset.category.test= to offset=/offset.test=; DELETE [[test-xbart-error.R:469-479@07ad73e4]]
   (dataSlotOrNULL).
-- test-multinomial-generics.R - REWRITE the 5 offset.category.test= sites (:288, :295,
-  :302, :310, :321) to offset=. Ships WITH the generics slice, per R3(d).
+- test-multinomial-generics.R - REWRITE the 5 offset.category.test= sites ([[test-xbart-error.R:288@07ad73e4]], [[test-xbart-error.R:295@07ad73e4]],
+  [[test-xbart-error.R:302@07ad73e4]], [[test-xbart-error.R:310@07ad73e4]], [[test-xbart-error.R:321@07ad73e4]]) to offset=. Ships WITH the generics slice, per R3(d).
 - test-monotone.R - ADD an "inc" refusal pin and a case-fold acceptance pin
   ("Increasing" equals "increasing").
 - test-argument-surface.R or test-error-quality.R - ADD the matrix-offset and
@@ -294,27 +294,27 @@ Rd topics: bart, bart2, rbart, xbart, dbarts, dbartsData, dbartsControl, dbartsS
 makeind, dbartsAugmentation.
 Anchor drift: branch off 0045507c. Only inst/tinytest/test-xbart-*.R and inst/NEWS.Rd
 can move under it - the xbart-oracle worktree holds test-xbart-reproducibility.R (stay
-out of that file) and any further wave-3 slice appends at NEWS.Rd:1854.
+out of that file) and any further wave-3 slice appends at [[NEWS.Rd:1854@0045507c]].
 
 ### (ii) Slice "generics" - J2 + J4 + trees fallback + the three Rd sentences
 
 G1. J2 - plot on the four own-class families. Current: only plot.bartMultinomial
-  exists (R/plot.R:188-210, registered NAMESPACE S3method(plot, bartMultinomial));
+  exists ([[R/plot.R:188-210@0045507c]], registered NAMESPACE S3method(plot, bartMultinomial));
   plot(bartOrdinalFit) reaches plot.default and raises "'x' is a list, but does not
   have components 'x' and 'y'". Required: plot.bartOrdinal, plot.bartNegbin,
   plot.bartHurdle in R/plot.R + three NAMESPACE registrations.
   >>> SURVEY SLOT A: the per-family plot semantics (what is traced, and against what)
   come from the generics-survey agent; plot.bartMultinomial's "trace each category's
-  training-mean predicted probability over the kept draws" (man/bart2.Rd:312) is the
+  training-mean predicted probability over the kept draws" ([[man/bart2.Rd:312@0045507c]]) is the
   shape to match. Implement whatever the survey returns; the file, registration and
   Rd obligations below are fixed regardless.
 
 G2. J2 - extract(type = "loglik") on the four own-class families. Current: all four
-  refuse by name through validateType (R/generics.R:1442-1448) because "loglik" is
-  absent from their type vocabularies (R/generics.R:906 multinomial, :1115 ordinal,
-  :1281 negbin, :1564 hurdle); bart.Rd:201 documents "loglik" on the extract generic
+  refuse by name through validateType ([[R/generics.R:1442-1448@0045507c]]) because "loglik" is
+  absent from their type vocabularies ([[R/generics.R:906@0045507c]] multinomial, [[R/generics.R:1115@0045507c]] ordinal,
+  [[R/generics.R:1281@0045507c]] negbin, [[R/generics.R:1564@0045507c]] hurdle); [[bart.Rd:201@0045507c]] documents "loglik" on the extract generic
   unscoped, and it is the channel loo/WAIC consume. Required: add "loglik" to each of
-  the four vocabularies and give pointwiseLogLikelihood (R/generics.R:56-169) an arm
+  the four vocabularies and give pointwiseLogLikelihood ([[R/generics.R:56-169@0045507c]]) an arm
   per family; it already switches on object[["family"]] and already handles the
   weights and chain-shape bookkeeping.
   >>> SURVEY SLOT B: the per-family density (multinomial: the count/one-hot
@@ -323,32 +323,32 @@ G2. J2 - extract(type = "loglik") on the four own-class families. Current: all f
   3314, is the oracle; nbinom: dnbinom at the per-draw dispersion; hurdle: the
   two-part mixture, the zero spike plus the lognormal branch) is the survey's to fix.
   Whatever it returns must satisfy: shape identical to extract(type = "ev") minus any
-  K margin, zero-weight rows flagged NaN as the gaussian arm does (R/generics.R:122).
+  K margin, zero-weight rows flagged NaN as the gaussian arm does ([[R/generics.R:122@0045507c]]).
 
 G3. J2 - extract(type = "trees") on a keepSampler-only fit. Current: the guard at
-  R/generics.R:385-396 tests is.null(object$fit), i.e. the SAMPLER, so a
+  [[R/generics.R:385-396@0045507c]] tests is.null(object$fit), i.e. the SAMPLER, so a
   keepTrees = FALSE / keepSampler = TRUE fit falls through and getTrees returns the
   CURRENT working trees as an 11 x 4 frame (tree, n, var, value - no chain, no sample
   column, no warning). Required: KEEP that behavior (it is plotTree's documented
-  fallback, man/plotTree.Rd:39-42) and DISCLOSE it in man/bart.Rd's "Extracting Trees"
-  subsection (:257-266): state that without keepTrees but with a kept sampler the
+  fallback, [[man/plotTree.Rd:39-42@0045507c]]) and DISCLOSE it in man/bart.Rd's "Extracting Trees"
+  subsection ([[man/plotTree.Rd:257-266@0045507c]]): state that without keepTrees but with a kept sampler the
   frame holds the sampler's CURRENT trees and omits the chain/sample index columns,
-  in the same words plotTree.Rd:39-42 uses. No message is emitted (plotTree emits
+  in the same words [[plotTree.Rd:39-42@0045507c]] uses. No message is emitted (plotTree emits
   none). Pin both shapes.
 
 G4. J4 - the own-class argument vocabulary. Current formals are
-  (object, type, sample, ...) on extract.bartMultinomial (:904), .bartOrdinal (:1113),
-  .bartNegbin (:1279), and the bare "..." silently swallows the bart-family vocabulary:
+  (object, type, sample, ...) on extract.bartMultinomial ([[plotTree.Rd:904@0045507c]]), .bartOrdinal ([[plotTree.Rd:1113@0045507c]]),
+  .bartNegbin ([[plotTree.Rd:1279@0045507c]]), and the bare "..." silently swallows the bart-family vocabulary:
   ten verified cells, each identical() to the call without the argument -
   extract(combineChains=), extract(forest=), fitted(sample=), fitted(ci.level=),
   predict(ci.level=), residuals(type=), summary(vars=).
   Required:
   a. HONOUR combineChains on extract for the three classes: add the formal, reshape
      through combineOrUncombineChains(x, fitNChains(object), combineChains)
-     (R/generics.R:196-205), the helper predict on the same fits already uses.
+     ([[R/generics.R:196-205@0045507c]]), the helper predict on the same fits already uses.
   b. HONOUR ci.level on fitted and predict for the three classes, through
-     posteriorInterval (R/generics.R:170-195), returning est/ci.lower/ci.upper exactly
-     as bart/rbart/bartHurdle do (bart.Rd:215-216).
+     posteriorInterval ([[R/generics.R:170-195@0045507c]]), returning est/ci.lower/ci.upper exactly
+     as bart/rbart/bartHurdle do ([[bart.Rd:215-216@0045507c]]).
   c. REFUSE by name, one helper (refuseUnusedGenericArgs(dots, generic, class)) reading
      names(list(...)) and stopping on the first hit:
        forest:       "'forest' is not used by <generic> on a <class> fit: <single-forest
@@ -362,7 +362,7 @@ G4. J4 - the own-class argument vocabulary. Current formals are
                      | ...>"
        vars:         "'vars' is not used by summary on a bartMultinomial fit: it pools
                      the per-category mean-probability channel, which selects nothing"
-     summary.bartOrdinal/.bartNegbin already carry a real vars (R/diagnostics.R:229-247)
+     summary.bartOrdinal/.bartNegbin already carry a real vars ([[R/diagnostics.R:229-247@0045507c]])
      and are untouched; only summary.bartMultinomial (R/diagnostics.R, the (object, ...)
      one) refuses.
   d. Same refusal helper covers the plotTree/survivalProbabilities absences: register
@@ -376,23 +376,23 @@ G4. J4 - the own-class argument vocabulary. Current formals are
        \"hazard\")); a <class> fit has no hazard channel"
 
 G5. minor [M1-gen] - the four own-class extract methods validate sample with bare
-  match.arg (R/generics.R:911, :1120, :1286, :1570) and give "'arg' should be one of
-  ...", where bart/rbart say "sample must be in 'train', 'test'" (R/generics.R:415,
-  :815, :1947, :2065). Add validateSample() beside validateType and use it at all
+  match.arg ([[R/generics.R:911@0045507c]], [[R/generics.R:1120@0045507c]], [[R/generics.R:1286@0045507c]], [[R/generics.R:1570@0045507c]]) and give "'arg' should be one of
+  ...", where bart/rbart say "sample must be in 'train', 'test'" ([[R/generics.R:415@0045507c]],
+  [[R/generics.R:815@0045507c]], [[R/generics.R:1947@0045507c]], [[R/generics.R:2065@0045507c]]). Add validateSample() beside validateType and use it at all
   eight sites, so one wording serves every class.
 
-G6. minor [M3-gen] - plotTree.bart (R/generics.R:2134-2149) builds args via
+G6. minor [M3-gen] - plotTree.bart ([[R/generics.R:2134-2149@0045507c]]) builds args via
   list(treeNum = treeNum, ...) and do.call, so a caller's sample=/chain= partial-
   matches sampleNum/chainNum and silently draws. Refuse sample/chain by name in the
   same helper: "'sample' is not used by plotTree; the saved sample is 'sampleNum'".
-  plotTree.rbart (:2151) takes the same treatment.
+  plotTree.rbart ([[R/generics.R:2151@0045507c]]) takes the same treatment.
 
 G7. J2 - the three unclassed results, one Rd sentence each.
-  man/pdbart.Rd \value (:82): "The result carries class \"pdbart\"/\"pd2bart\" for its
+  man/pdbart.Rd \value ([[R/generics.R:82@0045507c]]): "The result carries class \"pdbart\"/\"pd2bart\" for its
   plot method only; it is not a fit, so predict, extract, fitted and residuals are not
   defined for it (fitted and residuals fall through to stats' defaults and return
   NULL)."
-  man/xbart.Rd \value (:129-133): "The result is a bare array with no class, so the fit
+  man/xbart.Rd \value ([[R/generics.R:129-133@0045507c]]): "The result is a bare array with no class, so the fit
   generics - predict, extract, fitted, residuals - do not apply to it; it is a table of
   losses, not a fit."
   man/summary.bart.Rd (:5-8, where as_draws_* is scoped): one clause recording that the
@@ -437,7 +437,7 @@ slice's alone.
 ### (iii) Slice "handle-api" - the rest of J6
 
 H1. Move the 31 handle wrappers out of the namespace.
-  The set is exactly the contiguous block R/bartcore.R:1066-1535, which holds 32
+  The set is exactly the contiguous block [[R/bartcore.R:1066-1535@0045507c]], which holds 32
   definitions: bartcoreSetCounts, bartcoreSetCategoryOffset,
   bartcoreSetCategoryTestOffset, bartcoreSetForestBasis, bartcoreSetForestWeights,
   bartcoreForestAmplitudes, bartcoreForestFits, bartcoreFitsWithoutOffset,
@@ -451,8 +451,8 @@ H1. Move the 31 handle wrappers out of the namespace.
   bartcoreStoreState, bartcoreSetState (31 bartcore* wrappers) plus resolveForestIndex,
   which is NOT one of them and STAYS (7 uses in R/dbarts.R).
   Three of the 31 have live in-package callers and so keep their R/bartcore.R
-  definitions: bartcoreRun (R/bart.R:1488, :1574, :1826, :2076 and R/xbart.R:695),
-  bartcorePredict (R/generics.R:1221, :1354), bartcoreSetModel (R/xbart.R:691).
+  definitions: bartcoreRun ([[R/bart.R:1488@0045507c]], [[R/bart.R:1574@0045507c]], [[R/bart.R:1826@0045507c]], [[R/bart.R:2076@0045507c]] and [[R/xbart.R:695@0045507c]]),
+  bartcorePredict ([[R/generics.R:1221@0045507c]], [[R/generics.R:1354@0045507c]]), bartcoreSetModel ([[R/xbart.R:691@0045507c]]).
   The other 28 are deleted from R/bartcore.R.
   New file inst/common/bartcoreHandle.R defines all 31 names so every test/benchmark
   call site is uniform: 28 verbatim bodies (comments and validation carried over -
@@ -476,28 +476,28 @@ H1. Move the 31 handle wrappers out of the namespace.
   benchmarks/R/bartcore-shim.R is unrelated (it loads the C++ rshim, not these).
   NAMESPACE is UNCHANGED: none of the 31 was ever exported.
 
-H2. Delete the two dead engine members: src/bartcore/tree.hpp:366
-  `Tree::rightChildOf` and src/bartcore/sampler.hpp:485
+H2. Delete the two dead engine members: [[src/bartcore/tree.hpp:366@0045507c]]
+  `Tree::rightChildOf` and [[src/bartcore/sampler.hpp:485@0045507c]]
   `Sampler::setCurrentSampleNum` (one definition each, zero callers in src/, tests/ or
   inst/). Header edits, so R CMD INSTALL --preclean and tests/cpp from make clean.
 
 H3. adoptPointer / reapplyForestWeights: keep BOTH and document both. Evidence for
   reapplyForestWeights (the one J6 left open): it is NOT dead - three live call sites
-  (R/dbarts.R:1066 in copy(), :1827 and :1859 in the getPointer/setState re-creation
-  paths) - and it IS now pinned: inst/tinytest/test-forest-weights-r5.R:103-140 forces
+  ([[R/dbarts.R:1066@0045507c]] in copy(), [[R/dbarts.R:1827@0045507c]] and [[R/dbarts.R:1859@0045507c]] in the getPointer/setState re-creation
+  paths) - and it IS now pinned: [[inst/tinytest/test-forest-weights-r5.R:103-140@0045507c]] forces
   forestWeights to list() immediately before each of the three re-creation sites, which
-  its own comment at :108 records as the only oracle that can see the call. What is
+  its own comment at [[inst/tinytest/test-forest-weights-r5.R:108@0045507c]] records as the only oracle that can see the call. What is
   missing is documentation: 0 man/ hits for either name. Add an "Infrastructure
   methods" paragraph to man/dbartsSampler-class.Rd covering adoptPointer,
-  reapplyForestWeights and getPointer, lifted from their R5 docstrings (R/dbarts.R:946,
-  :1791). inst/tinytest/test-host-shell-pins.R:16-21 already classifies both as
+  reapplyForestWeights and getPointer, lifted from their R5 docstrings ([[R/dbarts.R:946@0045507c]],
+  [[R/dbarts.R:1791@0045507c]]). [[inst/tinytest/test-host-shell-pins.R:16-21@0045507c]] already classifies both as
   infrastructure and its census assertions (46 own / 5 infrastructure / 41 substantive,
-  :43-45) are unchanged by this slice - do not perturb them.
+  [[inst/tinytest/test-host-shell-pins.R:43-45@0045507c]]) are unchanged by this slice - do not perturb them.
 
-H4. Amend docs/design/core-generalization.md:69-76. The sentence "Dispatch is free when
+H4. Amend [[docs/design/core-generalization.md:69-76@0045507c]]. The sentence "Dispatch is free when
   amortized over the work it gates; nothing dispatches per observation" and the table's
   "Per obs | none: monomorphic loops/kernels" row are both falsified by
-  src/bartcore/facade.hpp:694-703, the joint per-observation predictor sweep, which
+  [[src/bartcore/facade.hpp:694-703@0045507c]], the joint per-observation predictor sweep, which
   calls two virtuals per observation through the per-sampler session objects
   (observationWouldRemainValid(j), commitObservation(j)). Amend both to name the joint
   sweep as the deliberate exception and say why: the sweep exists to let N samplers of
@@ -530,41 +530,41 @@ moved 257 lines at 0045507c) lands in files this slice rewrites.
 
 Files two slices both touch, and where:
 - inst/NEWS.Rd - r-surface and generics both append to the 1.0-0 BUG FIXES itemize,
-  which ends at :1854 (waves 1 and 2 both appended there: 8042cc2c +34, e35c8797 +8).
+  which ends at [[src/bartcore/facade.hpp:1854@0045507c]] (waves 1 and 2 both appended there: 8042cc2c +34, e35c8797 +8).
   GUARANTEED textual conflict if both are written in parallel. handle-api adds nothing.
-- man/bart2.Rd - r-surface edits the usage \dots (:68), the \item{\dots} (:260-262),
-  the multinomial offset prose (:229) and the offset.category.test \item (:272-273);
-  generics edits the own-class generic paragraphs (:308-320) and the summary/vars
-  items (:279). Different regions of one file; git will usually merge, but the file is
+- man/bart2.Rd - r-surface edits the usage \dots ([[src/bartcore/facade.hpp:68@e35c8797]]), the \item{\dots} ([[src/bartcore/facade.hpp:260-262@e35c8797]]),
+  the multinomial offset prose ([[src/bartcore/facade.hpp:229@e35c8797]]) and the offset.category.test \item ([[src/bartcore/facade.hpp:272-273@e35c8797]]);
+  generics edits the own-class generic paragraphs ([[src/bartcore/facade.hpp:308-320@e35c8797]]) and the summary/vars
+  items ([[src/bartcore/facade.hpp:279@e35c8797]]). Different regions of one file; git will usually merge, but the file is
   long-line Rd and a hand merge is likely.
 - R/generics.R - owned by GENERICS ALONE, provided one item moves: predict.bartMultinomial
-  (:1013-1070) is touched by J5 (rename offset.category.test -> offset) AND by J4 (add
+  ([[src/bartcore/facade.hpp:1013-1070@e35c8797]]) is touched by J5 (rename offset.category.test -> offset) AND by J4 (add
   ci.level, refuse by name). MOVE the rename into the generics slice, together with the
   five predict(offset.category.test=) pins in inst/tinytest/test-multinomial-generics.R.
   r-surface then touches R/generics.R not at all (verified: dataSlotOrNULL has no
-  generics.R use; the @offset.category read at :1034 is already a bare slot read and is
+  generics.R use; the @offset.category read at [[src/bartcore/facade.hpp:1034@e35c8797]] is already a bare slot read and is
   inside predict.bartMultinomial anyway).
-- R/bart.R:867-874 - the multinomial offset.test refusal names
+- [[R/bart.R:867-874@e35c8797]] - the multinomial offset.test refusal names
   dbarts:::bartcoreSetCategoryTestOffset, which the handle-api slice moves out of the
-  namespace; man/bart2.Rd:229 repeats the same claim. RESOLUTION: r-surface rewrites
+  namespace; [[man/bart2.Rd:229@e35c8797]] repeats the same claim. RESOLUTION: r-surface rewrites
   both to name the R5 method $setCategoryTestOffset (which stays in the package),
   removing the coupling; handle-api then touches neither file. This is the one item
   that MUST move between slices to keep them disjoint.
 - inst/tinytest/test-multinomial-r5-surface.R - r-surface (dbartsData spelling at
-  :132/:136/:140/:144/:434/:449, dataSlotOrNULL block :469-479) and handle-api (it is
+  [[man/bart2.Rd:132@e35c8797]]/[[man/bart2.Rd:136@e35c8797]]/[[man/bart2.Rd:140@e35c8797]]/[[man/bart2.Rd:144@e35c8797]]/[[man/bart2.Rd:434@e35c8797]]/[[man/bart2.Rd:449@e35c8797]], dataSlotOrNULL block [[man/bart2.Rd:469-479@e35c8797]]) and handle-api (it is
   one of the 34 bartcore-calling files). Unavoidable; handle-api lands last and re-runs
   its sed over whatever the earlier slices left.
 - inst/tinytest/test-xbart-*.R - r-surface (M10 pins) vs the in-flight xbart-oracle
   worktree, which has test-xbart-reproducibility.R modified and test-xbart-fold-oracle.R
   new. Disjoint files today; r-surface should put its xbart pins in
   test-xbart-error.R / test-error-quality.R and stay out of -reproducibility.R.
-- benchmarks/R/sbc.R - handle-api (18 getFromNamespace lines at :1055-1059, :1261-1265,
-  :1596) vs the SBC/leaf-scale arm, which landed 257 lines there at 0045507c and may
+- benchmarks/R/sbc.R - handle-api (18 getFromNamespace lines at [[man/bart2.Rd:1055-1059@e35c8797]], [[man/bart2.Rd:1261-1265@e35c8797]],
+  [[man/bart2.Rd:1596@e35c8797]]) vs the SBC/leaf-scale arm, which landed 257 lines there at 0045507c and may
   come back. Land handle-api after any further SBC work, or coordinate that file.
 - src/ - handle-api touches tree.hpp and sampler.hpp; the engine-default worktree has
   R_interface_bartcore.cpp, chain.hpp, model.hpp modified. Disjoint. E19's R-side fix
   (r-surface, R/model.R defaultNodeScale) is the twin of the engine-default worktree's
-  R_interface_bartcore.cpp:2298 default arm - no shared file, but they should land in
+  [[R_interface_bartcore.cpp:2298@0045507c]] default arm - no shared file, but they should land in
   either order and then agree; note the pairing in both landing notes.
 
 Recommended execution:
@@ -599,7 +599,7 @@ D3. Are the four creators part of "the 31"? DEFAULT: NO - the 31 is the contiguo
     bartcoreMultinomialCountSampler and bartcoreMultinomialDataSampler have no
     in-package callers but are 200+ lines of model construction, not .Call wrappers;
     they stay in R/ and tests keep reaching them with :::.
-D4. (g.5) C8, R/plotTree.R:9-35's dead padding branch, was folded into VD-H by the
+D4. (g.5) C8, [[R/plotTree.R:9-35@0045507c]]'s dead padding branch, was folded into VD-H by the
     report but is not named in J6. DEFAULT: leave it, record it as residue.
 D5. minor [M8-gen], setForestBasis(k, ~var) evaluating the formula in
     environment(basis) instead of against the sampler's data, is named by no judgement.
@@ -626,35 +626,35 @@ E1. Landed commits and their file lists: `git log --oneline b102e17c..0045507c` 
     touches R/data.R, R/augmentation.R, R/xbart.R or R/model.R
     (`git log --oneline b102e17c..0045507c -- R/data.R R/augmentation.R R/xbart.R R/model.R`
     is empty).
-E2. 8 dots pins in inst/tinytest/test-argument-surface.R (:387, :389, :392, :399, :403,
-    :549, :553, :557) + 1 in test-heteroscedastic.R (:260) = 9 expect_error sites on the
+E2. 8 dots pins in inst/tinytest/test-argument-surface.R ([[R/plotTree.R:387@0045507c]], [[R/plotTree.R:389@0045507c]], [[R/plotTree.R:392@0045507c]], [[R/plotTree.R:399@0045507c]], [[R/plotTree.R:403@0045507c]],
+    [[R/plotTree.R:549@0045507c]], [[R/plotTree.R:553@0045507c]], [[R/plotTree.R:557@0045507c]]) + 1 in test-heteroscedastic.R ([[R/plotTree.R:260@0045507c]]) = 9 expect_error sites on the
     dots channel: `grep -rn "unknown argument" inst/tinytest/*.R` (7 message lines, two
     of them comments) cross-read against the surrounding expect_error blocks.
-E3. dots formals: `grep -n "^  \.\.\.$" R/bart.R R/rbart.R` -> R/bart.R:704 (bart2),
-    R/rbart.R:53 (rbart_vi); the other two hits (R/bart.R:2487, :2539) are method
+E3. dots formals: `grep -n "^  \.\.\.$" R/bart.R R/rbart.R` -> [[R/bart.R:704@0045507c]] (bart2),
+    [[R/rbart.R:53@0045507c]] (rbart_vi); the other two hits ([[R/bart.R:2487@0045507c]], [[R/bart.R:2539@0045507c]]) are method
     signatures, not entries. Helper: `grep -rn "rejectUnknownDotsArgs|retiredDotsNames"
-    R/ man/ inst/tinytest/ docs/` -> R/utility.R:120,:122,:129,:130, call sites
-    R/bart.R:765 and R/rbart.R:62, zero man/ hits, one test comment.
-E4. bart()'s family vocabulary c("auto","logistic","aft") at R/bart.R:2645; the
-    four-token own-class list at R/bart.R:2589-2594; the ten tokens bart.Rd:174 names,
-    read in full. Existing pins at inst/tinytest/test-bart-bart2.R:108-122 (4 tokens).
+    R/ man/ inst/tinytest/ docs/` -> [[R/utility.R:120@0045507c]],[[R/utility.R:122@0045507c]],[[R/utility.R:129@0045507c]],[[R/utility.R:130@0045507c]], call sites
+    [[R/bart.R:765@0045507c]] and [[R/rbart.R:62@0045507c]], zero man/ hits, one test comment.
+E4. bart()'s family vocabulary c("auto","logistic","aft") at [[R/bart.R:2645@0045507c]]; the
+    four-token own-class list at [[R/bart.R:2589-2594@0045507c]]; the ten tokens [[bart.Rd:174@0045507c]] names,
+    read in full. Existing pins at [[inst/tinytest/test-bart-bart2.R:108-122@0045507c]] (4 tokens).
 E5. offset spellings: `grep -rn "offset.category" R/*.R man/*.Rd inst/tinytest/*.R
-    benchmarks/R/*.R` -> 17 hits in R/data.R (formals at :899-900, missing() clauses at
-    :907-909, validation at :1430-1443), R/A_class.R slots at :536-538,
-    R/generics.R:1017/:1033-1056 (predict.bartMultinomial), man/bart2.Rd:80/:229/
-    :272-273/:312, man/dbartsData.Rd:14/:26-27, man/dbarts.Rd:103,
-    man/dbartsSampler-class.Rd:142/:150; tests: test-multinomial-r5-surface.R 21 hits
+    benchmarks/R/*.R` -> 17 hits in R/data.R (formals at [[inst/tinytest/test-bart-bart2.R:899-900@0045507c]], missing() clauses at
+    [[inst/tinytest/test-bart-bart2.R:907-909@0045507c]], validation at [[inst/tinytest/test-bart-bart2.R:1430-1443@0045507c]]), R/A_class.R slots at [[inst/tinytest/test-bart-bart2.R:536-538@0045507c]],
+    [[R/generics.R:1017@0045507c]]/[[R/generics.R:1033-1056@0045507c]] (predict.bartMultinomial), [[man/bart2.Rd:80@0045507c]]/[[man/bart2.Rd:229@0045507c]]/
+    [[man/bart2.Rd:272-273@0045507c]]/[[man/bart2.Rd:312@0045507c]], [[man/dbartsData.Rd:14@0045507c]]/[[man/dbartsData.Rd:26-27@0045507c]], [[man/dbarts.Rd:103@0045507c]],
+    [[man/dbartsSampler-class.Rd:142@0045507c]]/[[man/dbartsSampler-class.Rd:150@0045507c]]; tests: test-multinomial-r5-surface.R 21 hits
     (6 of them dbartsData calls) and test-multinomial-generics.R 5 (all
     predict(offset.category.test=)); benchmarks/: ZERO
     (`grep -rc "offset.category" benchmarks/R/*.R` all 0).
-E6. M1's two sites: R/data.R:1178-1180 and :1237-1239, both `stop("'x' must have the
-    same number of observations as 'y'")` after codeResponse (R/data.R:458-473).
+E6. M1's two sites: [[R/data.R:1178-1180@0045507c]] and [[R/data.R:1237-1239@0045507c]], both `stop("'x' must have the
+    same number of observations as 'y'")` after codeResponse ([[R/data.R:458-473@0045507c]]).
 E7. The 31 handle wrappers: `awk 'NR>=1066 && NR<=1535' R/bartcore.R | grep -cE
     "^[a-zA-Z][A-Za-z0-9_.]* <- function"` -> 32 definitions, of which resolveForestIndex
-    (:1252) is a helper -> 31 bartcore* wrappers. Per-function caller census run over
+    ([[R/data.R:1252@0045507c]]) is a helper -> 31 bartcore* wrappers. Per-function caller census run over
     R/*.R, inst/tinytest/*.R and benchmarks/: bartcoreRun 5 in-package call sites
-    (R/bart.R:1488,:1574,:1826,:2076; R/xbart.R:695), bartcorePredict 2
-    (R/generics.R:1221,:1354), bartcoreSetModel 1 (R/xbart.R:691); the other 28 have
+    ([[R/bart.R:1488@0045507c]],[[R/bart.R:1574@0045507c]],[[R/bart.R:1826@0045507c]],[[R/bart.R:2076@0045507c]]; [[R/xbart.R:695@0045507c]]), bartcorePredict 2
+    ([[R/generics.R:1221@0045507c]],[[R/generics.R:1354@0045507c]]), bartcoreSetModel 1 ([[R/xbart.R:691@0045507c]]); the other 28 have
     zero in-package callers (the only other R/ hits are comments, listed by
     `grep -rn "\bbartcoreX\b" R/*.R | grep -v "^R/bartcore.R"`). bartcorePredictPerForest
     has zero callers anywhere.
@@ -667,38 +667,38 @@ E8. Call-site counts: `grep -rhoE "dbarts:::bartcore[A-Za-z0-9_]+" inst/tinytest
     Of the 34 test files, 7 already source an inst/common helper
     (`comm -12` of the two file lists); inst/common holds 8 helpers today (`ls inst/common`).
 E9. Trio composition: equivalence 43 scenarios, bcf-equivalence 12,
-    multinomial-equivalence 11 (gate-ledger.md:111).
+    multinomial-equivalence 11 ([[gate-ledger.md:111@0045507c]]).
     bcf-equivalence.R holds 50 bartcore refs, multinomial-equivalence.R 48,
     equivalence.R 0 (`grep -ohE "dbarts:::bartcore[A-Za-z0-9_]+" <file> | sort | uniq -c`).
 E10. Dead engine members: `grep -rn "rightChildOf|setCurrentSampleNum" src/ tests/ inst/
-    docs/` -> src/bartcore/tree.hpp:366, src/bartcore/sampler.hpp:485, plus one
+    docs/` -> [[src/bartcore/tree.hpp:366@0045507c]], [[src/bartcore/sampler.hpp:485@0045507c]], plus one
     docs/plans note. Zero call sites.
-E11. reapplyForestWeights: 3 call sites (R/dbarts.R:1066, :1827, :1859), definition at
-    :1790, pin at inst/tinytest/test-forest-weights-r5.R:103-140 with the oracle comment
-    at :108; adoptPointer: definition R/dbarts.R:945, 2 call sites (R/bart.R:1807,
-    :2056); both have 0 man/ hits (`grep -rn "adoptPointer|reapplyForestWeights" man/`
-    is empty). test-host-shell-pins.R:16-21 lists both as infrastructure; its counts are
-    at :43-45 (46 / 5 / 41).
-E12. core-generalization.md's claim is at :69-71 plus the "Per obs" table row at :76;
-    the falsifying loop is src/bartcore/facade.hpp:694-703 (two virtuals per
+E11. reapplyForestWeights: 3 call sites ([[R/dbarts.R:1066@0045507c]], [[R/dbarts.R:1827@0045507c]], [[R/dbarts.R:1859@0045507c]]), definition at
+    [[R/dbarts.R:1790@0045507c]], pin at [[inst/tinytest/test-forest-weights-r5.R:103-140@0045507c]] with the oracle comment
+    at [[inst/tinytest/test-forest-weights-r5.R:108@0045507c]]; adoptPointer: definition [[R/dbarts.R:945@0045507c]], 2 call sites ([[R/bart.R:1807@0045507c]],
+    [[R/bart.R:2056@0045507c]]); both have 0 man/ hits (`grep -rn "adoptPointer|reapplyForestWeights" man/`
+    is empty). [[test-host-shell-pins.R:16-21@0045507c]] lists both as infrastructure; its counts are
+    at [[test-host-shell-pins.R:43-45@0045507c]] (46 / 5 / 41).
+E12. core-generalization.md's claim is at [[test-host-shell-pins.R:69-71@0045507c]] plus the "Per obs" table row at [[test-host-shell-pins.R:76@0045507c]];
+    the falsifying loop is [[src/bartcore/facade.hpp:694-703@0045507c]] (two virtuals per
     observation).
-E13. n.samples = 0: three refusal sites R/bart.R:806-809, R/xbart.R:94-96,
-    R/rbart.R:104-106; two pins (inst/tinytest/test-error-quality.R:46,
-    test-xbart-error.R:24); zero pins on rbart_vi's wording
+E13. n.samples = 0: three refusal sites [[R/bart.R:806-809@0045507c]], [[R/xbart.R:94-96@0045507c]],
+    [[R/rbart.R:104-106@0045507c]]; two pins ([[inst/tinytest/test-error-quality.R:46@0045507c]],
+    [[test-xbart-error.R:24@0045507c]]); zero pins on rbart_vi's wording
     (`grep -rn "no posterior draws" inst/tinytest/ benchmarks/` is empty);
-    man/dbartsControl.Rd:32-33 is the sentence to extend.
-E14. monotone: parseMonotoneSign at R/model.R:548-570 with the "inc"/"dec"/"0" arms at
-    :553,:557,:559; zero tests pin those spellings
-    (`grep -rn '"inc"|"dec"' inst/tinytest/*.R` is empty); man/dbarts.Rd:72 and
-    man/bart2.Rd:203 are the Rd items.
+    [[man/dbartsControl.Rd:32-33@0045507c]] is the sentence to extend.
+E14. monotone: parseMonotoneSign at [[R/model.R:548-570@0045507c]] with the "inc"/"dec"/"0" arms at
+    [[R/model.R:553@0045507c]],[[R/model.R:557@0045507c]],[[R/model.R:559@0045507c]]; zero tests pin those spellings
+    (`grep -rn '"inc"|"dec"' inst/tinytest/*.R` is empty); [[man/dbarts.Rd:72@0045507c]] and
+    [[man/bart2.Rd:203@0045507c]] are the Rd items.
 E15. The 12 "should be one of" pins that must survive G5:
-    `grep -rn "should be one of" inst/tinytest/*.R` -> test-augmentation.R:376,
-    test-argument-surface.R:259,:260, test-bart-bart2.R:109 (a comment),
-    test-hazard.R:339,:346, test-hurdle-surface.R:77,:85, test-nbinom.R:232,:236,
-    test-prior-predictive.R:127, test-xbart-model.R:206 - none of them a `sample`
+    `grep -rn "should be one of" inst/tinytest/*.R` -> [[test-augmentation.R:376@0045507c]],
+    [[test-argument-surface.R:259@0045507c]],[[test-argument-surface.R:260@0045507c]], [[test-bart-bart2.R:109@0045507c]] (a comment),
+    [[test-hazard.R:339@0045507c]],[[test-hazard.R:346@0045507c]], [[test-hurdle-surface.R:77@0045507c]],[[test-hurdle-surface.R:85@0045507c]], [[test-nbinom.R:232@0045507c]],[[test-nbinom.R:236@0045507c]],
+    [[test-prior-predictive.R:127@0045507c]], [[test-xbart-model.R:206@0045507c]] - none of them a `sample`
     argument, so the wording change is safe.
 E16. NEWS append point: `grep -n "subsection" inst/NEWS.Rd` -> the 1.0-0 BUG FIXES
-    subsection opens at :995 and its itemize closes at :1854; both landed waves appended
+    subsection opens at [[test-xbart-model.R:995@0045507c]] and its itemize closes at [[test-xbart-model.R:1854@0045507c]]; both landed waves appended
     immediately above that line.
 E17. In-flight worktrees: `git worktree list` -> engine-default and xbart-oracle, both
     at 0045507c; `git status --porcelain` in each -> engine-default has
@@ -706,4 +706,4 @@ E17. In-flight worktrees: `git worktree list` -> engine-default and xbart-oracle
     tests/cpp/Makefile modified; xbart-oracle has inst/tinytest/test-xbart-
     reproducibility.R modified and test-xbart-fold-oracle.R new.
 E18. Suite size: 167 files in inst/tinytest (`ls inst/tinytest/*.R | wc -l`); wave 2's
-    recorded assertion count is 7040 (landing note :619).
+    recorded assertion count is 7040 (landing note [[test-xbart-model.R:619@0045507c]]).

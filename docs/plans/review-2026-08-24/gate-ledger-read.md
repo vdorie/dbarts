@@ -23,7 +23,7 @@ CONFIRMED:
   omits: equivalence-4a42620a.rds "reproduces the implementer's independent own-build recording 42/42" - an
   independent BUILD of the same source, not an implementation, so finding #3 stands. 15 of 20 exact gates at
   n.trees/numTrees=1L unconditionally (re-derived by grep). SBC 6 arms as listed, SBC_FAIL_ON_FLAG set, nTrees=50L,
-  one 25L override (sbc.R:2175).
+  one 25L override ([[sbc.R:2175@658869ac]]).
 - tinytest pins: 6 files, 7+3+14+1+3=28 plus 6 = 34 expect_ exactly; regenerate-snapshots.R lists 5. I swept all 167
   tinytest files for >=6-decimal literals; the 4 extra hits are re-derived analytic constants, comments, or a string
   check - not RNG pins. "6 files" is right.
@@ -43,7 +43,7 @@ OVERSTATED:
   `windows-arm64-neon` on windows-11-arm - a SIXTH platform class (native aarch64) that asserts NEON then pins
   test-simd.R at an exact count. A platform leg, not a re-run.
 - "rchk run once". Two campaigns on 08-19: on MAIN for the CRAN patch (48 [UP] -> zero real findings at cb290550,
-  rc-review:731-745) and on bartcore (11 [UP] -> 69de27ac -> 8dbc0ce9 clean, :1138-1172).
+  rc-review:731-745) and on bartcore (11 [UP] -> 69de27ac -> 8dbc0ce9 clean, [[sbc.R:1138-1172@658869ac]]).
 - valgrind. The manual run was NOT the workflow's configuration: native arm64 ubuntu:24.04 + stock R 4.3.3, because
   "the r-hub amd64 image crashes under Rosetta emulation on this host" (rc-review:1072), while valgrind.yaml runs the
   r-hub amd64 container. So valgrind has never run in its declared configuration anywhere. "All ok, 6419 results" vs
@@ -53,10 +53,10 @@ OVERSTATED:
 
 ## 2. Missed
 
-- A. THE FLAT C API HAS THE BRANCH'S STRONGEST GATE AND THE LEDGER HAS NO ROW FOR IT. src/C_interface.cpp:461,:465 are
+- A. THE FLAT C API HAS THE BRANCH'S STRONGEST GATE AND THE LEDGER HAS NO ROW FOR IT. [[src/C_interface.cpp:461@658869ac]],[[src/C_interface.cpp:465@658869ac]] are
   two constexpr FNV-1a static_asserts - a signature token, and a full fold over signatures + both ABI enums + the
   callback parameters + the compiler-reported LAYOUT (size, each field name paired with its offset) of the three
-  crossing structs - checked against DBARTS_C_API_HASH (dbarts.h:142), beside offsetof asserts at :331. Any covered
+  crossing structs - checked against DBARTS_C_API_HASH ([[dbarts.h:142@658869ac]]), beside offsetof asserts at [[dbarts.h:331@658869ac]]. Any covered
   ABI change FAILS THE BUILD until the literal is re-baked, on every push, in every workflow that compiles
   (check-standard's 6 platforms, cpp-tests, exact-gates, both sanitizer legs). Beside it test-capi.R (233 assertions)
   compiles a real consumer.c against the INSTALLED headers, resolves every entry via R_GetCCallable as a LinkingTo
@@ -80,8 +80,8 @@ OVERSTATED:
   "instrumented counter build" measuring equal-rank realizations (2 maskprobit, 1 maskordinal, 0 elsewhere) - the
   MANIFEST's CITED ORACLE for the equivalence-d15a2bfb.rds re-record, unreproducible by anything in the tree (the
   qualitative law IS gated, by tests/cpp testEqualRankOneComparison and bd-balance.R's veto arm); (2)
-  monotone-prior-draw.md:73-98, instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
-  justifies the 1e6 retry cap; (3) setpredictor-leafof-rebuild.md:74-98, an rdtsc + md5 probe absent from the tree;
+  [[monotone-prior-draw.md:73-98@658869ac]], instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
+  justifies the 1e6 retry cap; (3) [[setpredictor-leafof-rebuild.md:74-98@658869ac]], an rdtsc + md5 probe absent from the tree;
   (4) bcf-bartcause-relocation.md, ~50 MEASURED tags from an untracked probe.
 - G. THE SPEED GATE IS 1225 COMMITS STALE, 327 IN src/ (`git rev-list --count ab1dc52..HEAD`). "16 days" understates
   it. The equivalence baseline 5a3bc276 is 24 commits / 7 src/ behind - healthy.
@@ -92,7 +92,7 @@ OVERSTATED:
   R-CMD-check legs and both sanitizer legs while macOS and both Windows legs passed; container-reproduced on amd64 R
   4.6.1 + OpenBLAS, NOT on native arm64 (rc-review:986-1000). Three BLAS classes are covered and the one that bit is
   the one that caught it. The ledger scores it "anchor NONE".
-- J. TESTS/CPP IS NOT "ANCHOR NONE" EITHER: main.cpp:1 declares testing "against independently coded reference math",
+- J. TESTS/CPP IS NOT "ANCHOR NONE" EITHER: [[main.cpp:1@658869ac]] declares testing "against independently coded reference math",
   and it delivers - test_scan.cpp checks log-likelihoods against an independent brute-force per-cut recompute,
   test_interaction.cpp brute-forces variableAvailable off a hand-built p-bitset. A genuine independent oracle, on
   every push.

@@ -28,11 +28,11 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 ### BLOCKER
 
 - **E1. `extract(fit, type="trees", sample=<numeric>)` silently returns a FILTERED
-  tree table; `sample="train"/"test"` dies on an NA.** `R/generics.R:363-382`
+  tree table; `sample="train"/"test"` dies on an NA.** `[[R/generics.R:363-382@b102e17c]]`
   (`extract.bart`) rewrites the call onto `object$fit$getTrees` and strips `object`
-  (:379) and `type` (:380) but NOT `sample`; `getTrees`'s formals are
+  ([[R/generics.R:379@b102e17c]]) and `type` ([[R/generics.R:380@b102e17c]]) but NOT `sample`; `getTrees`'s formals are
   `(treeNums, chainNums, sampleNums, ...)`, so R partial-matches `sample` ->
-  `sampleNums`. `R/generics.R:1851-1866` (`extract.rbart`) has the same rewrite.
+  `sampleNums`. `[[R/generics.R:1851-1866@b102e17c]]` (`extract.rbart`) has the same rewrite.
 
       extract(f, type="trees")            -> data.frame 106x5
       extract(f, type="trees", sample=1)  -> data.frame  20x5   # SILENTLY filtered
@@ -41,13 +41,13 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 
   CONFIRMS and SHARPENS F3: the prior report had the numeric case as "silently
   ignores the filter". It does not ignore it - it applies a filter nobody asked for,
-  so the tree table is wrong output on a call `man/bart.Rd:258` describes ("extract
+  so the tree table is wrong output on a call `[[man/bart.Rd:258@b102e17c]]` describes ("extract
   will accept ... chainNums, sampleNums, and treeNums"). 33 cells, one cause. Fix:
   **agent-fix** - `sample` belongs in the strip list beside `object` and `type`.
 
 ### MAJOR
 
-- **E2. `man/bart.Rd:174` claims all ten non-`bart` family tokens are refused BY
+- **E2. `[[man/bart.Rd:174@b102e17c]]` claims all ten non-`bart` family tokens are refused BY
   NAME; six of the ten get R's bare `match.arg` message.** Rd: "The other ten
   `bart2` tokens are refused BY NAME rather than falling through to `match.arg`'s
   generic 'should be one of' message, which names neither the token nor `bart2`".
@@ -55,23 +55,23 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   `hazard.logistic`, `twopart` -> `'arg' should be one of "auto", "logistic",
   "aft"`. Only `multinomial`, `ordinal`, `nbinom`, `hurdle.lognormal` are named
   (`bart() does not fit family = "F"; use bart2(x.train, y.train, family = "F")`) -
-  the literal contents of `bartOwnClassFamilies` (`R/bart.R:2587-2592`).
+  the literal contents of `bartOwnClassFamilies` (`[[R/bart.R:2587-2592@b102e17c]]`).
   `docs/design/feature-matrix.md` [f1] states the OPPOSITE of the Rd ("The
   remaining six tokens ... fall to `match.arg`'s generic message if typed"), and
   the code follows the design doc. Fix: **agent-fix** - the design doc says what is
-  right; bart.Rd:174's first sentence is the wrong one.
+  right; [[bart.Rd:174@b102e17c]]'s first sentence is the wrong one.
 - **E3. `"twopart"` is the tenth token and is missing from BOTH the Rd's
-  enumeration and `bartOwnClassFamilies`.** bart.Rd:174 lists nine tokens across
-  its three reason-groups; `twopart` appears in none. `R/bart.R:2587-2592` is
+  enumeration and `bartOwnClassFamilies`.** [[bart.Rd:174@b102e17c]] lists nine tokens across
+  its three reason-groups; `twopart` appears in none. `[[R/bart.R:2587-2592@b102e17c]]` is
   checked against the RAW token before `bart2()`'s alias fold runs, so
   `bart(family="hurdle.lognormal")` gets a named redirect to bart2() while
   `bart(family="twopart")` gets bare `match.arg` - for the identical request, the
-  two spellings being documented as the same family (`man/dbarts.Rd:111`,
-  `man/bart2.Rd:237`). CONFIRMS F9. Fix: **agent-fix** (add `"twopart"` to
+  two spellings being documented as the same family (`[[man/dbarts.Rd:111@b102e17c]]`,
+  `[[man/bart2.Rd:237@b102e17c]]`). CONFIRMS F9. Fix: **agent-fix** (add `"twopart"` to
   `bartOwnClassFamilies`; the alias equivalence is already documented).
 - **E4. `dbartsData()` mis-reports EVERY multi-column response with a factually
-  false row-count message; four surfaces inherit it.** `R/data.R:1179-1181` and
-  `R/data.R:1238-1241` compare `NROW(formula)` against `NROW(codeResponse(data)$y)`,
+  false row-count message; four surfaces inherit it.** `[[R/data.R:1179-1181@b102e17c]]` and
+  `[[R/data.R:1238-1241@b102e17c]]` compare `NROW(formula)` against `NROW(codeResponse(data)$y)`,
   and `codeResponse` flattens an n x 2 response (a `Surv` included) to length 2n.
   With `NROW(x) == NROW(sv) == 40` and `dim(sv) == 40x2`, all of
   `dbartsData(x, sv)`, `dbartsData(x, cbind(yG, yG))`, `dbartsData(x, counts)`
@@ -83,29 +83,29 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   family="aft")` succeeds because it extracts log-time+status BEFORE calling
   `dbartsData()`. Fix: **agent-fix** for the message (it asserts something false);
   **VD-judgement** (G-B) for whether the ingest should name a survival/matrix
-  response - `man/rbart.Rd:95` already says survival "enter[s] only through the
+  response - `[[man/rbart.Rd:95@b102e17c]]` already says survival "enter[s] only through the
   formula interface", the shape of refusal the Rd implies.
-- **E5. `man/bart.Rd:153` states the `combinechains = TRUE` result shape
+- **E5. `[[man/bart.Rd:153@b102e17c]]` states the `combinechains = TRUE` result shape
   backwards.** Rd: "if TRUE, samples will be returned in arrays of dimensions equal
   to nchain x ndpost x number of observations". Behavior:
   `bart(nchain=2, combinechains=TRUE)$yhat.train` -> 12x40 (collapsed matrix);
   `FALSE` -> 2x6x40 (the array); bart2's `combineChains` is identical. Its own
-  \value at `bart.Rd:277` and `man/bart2.Rd:164` state it correctly. Fix: **agent-fix**.
-- **E6. `man/bart.Rd:165` transposes the `proposalprobs` defaults.** Rd lists
+  \value at `[[bart.Rd:277@b102e17c]]` and `[[man/bart2.Rd:164@b102e17c]]` state it correctly. Fix: **agent-fix**.
+- **E6. `[[man/bart.Rd:165@b102e17c]]` transposes the `proposalprobs` defaults.** Rd lists
   "birth_death, change, and swap ... Defaults are 0.5, 0.1, 0.4, and 0.5
   respectively", i.e. change = 0.1, swap = 0.4. The live default on both `dbarts`
   and `bart2` is `c(birth_death=0.5, swap=0.1, change=0.4, birth=0.5)`, as
-  `man/bart2.Rd:200` states. Fix: **agent-fix**.
-- **E7. `man/dbartsSpec.Rd:40`'s "a family can never resolve two ways" is falsified,
-  and `:48` contradicts the function's own signature.** CONFIRMS F1.
+  `[[man/bart2.Rd:200@b102e17c]]` states. Fix: **agent-fix**.
+- **E7. `[[man/dbartsSpec.Rd:40@b102e17c]]`'s "a family can never resolve two ways" is falsified,
+  and `[[man/dbartsSpec.Rd:48@b102e17c]]` contradicts the function's own signature.** CONFIRMS F1.
   `dbartsSpec(dbartsData(x, yMultinom), ctl, family="multinomial")` -> `family
   "multinomial" cannot fit a 3-level factor response; ...` while
   `dbarts(x, yMultinom, family="multinomial", ...)` is accepted, and
   `dbartsSpec(dbartsData(x, counts=cnt), ctl, family="multinomial")` is accepted.
-  `:48` calls `"multinomial"` unavailable because it describes "more than one
+  `[[man/dbartsSpec.Rd:48@b102e17c]]` calls `"multinomial"` unavailable because it describes "more than one
   sampler" - false (one K-forest sampler), and the token IS in dbartsSpec's
-  vocabulary. `dbartsSpec.Rd:25` documents the counts route correctly.
-  Fix: **agent-fix** - :25 is right; :40 and :48 are wrong.
+  vocabulary. `[[dbartsSpec.Rd:25@b102e17c]]` documents the counts route correctly.
+  Fix: **agent-fix** - [[dbartsSpec.Rd:25@b102e17c]] is right; [[dbartsSpec.Rd:40@b102e17c]] and [[dbartsSpec.Rd:48@b102e17c]] are wrong.
 - **E8. The per-category offset has three spellings and `dbarts()`'s own matrix
   interface reaches none.** REFINES F5 (which read it as keyword-unreachable
   everywhere).
@@ -117,7 +117,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
       dbartsData(x, counts=, offset.category=<n x K>)              -> accepted
       dbarts(<that dbartsData>, family="multinomial")              -> accepted
 
-  `man/dbarts.Rd:103` says "the per-category shift is `offset.category`" without
+  `[[man/dbarts.Rd:103@b102e17c]]` says "the per-category shift is `offset.category`" without
   saying it is not a `dbarts()` argument; the `offset=<n x K>` attempt gets a length
   message rather than a pointer at the channel that serves the caller.
   Fix: **VD-judgement** (G-B).
@@ -132,18 +132,18 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 - **E11. `n.samples = 0` gets three different answers across five entries.**
   `dbartsControl`/`dbarts` accept; `bart2`/`xbart` -> `'n.samples' must be a positive
   integer`; `rbart_vi` -> `no posterior draws will be taken after thinning`.
-  `man/dbartsControl.Rd:33` (a per-`run()` return count) and `bart2.Rd:152` (a sweep
+  `[[man/dbartsControl.Rd:33@b102e17c]]` (a per-`run()` return count) and `[[bart2.Rd:152@b102e17c]]` (a sweep
   budget) are both silent on zero. Fix: **VD-judgement** (G-E).
 - **E12. `monotone` accepts three undocumented spellings and is case-folded.**
-  `R/model.R:548-570` (`parseMonotoneSign`) switches on `tolower(value)` and accepts
-  `"inc"`, `"dec"`, `"0"`; its own refusal at `R/model.R:559-562` enumerates only the
+  `[[R/model.R:548-570@b102e17c]]` (`parseMonotoneSign`) switches on `tolower(value)` and accepts
+  `"inc"`, `"dec"`, `"0"`; its own refusal at `[[R/model.R:559-562@b102e17c]]` enumerates only the
   documented set. `dbarts(monotone=list(x1=S))` is accepted for S in
   `"inc"`, `"dec"`, `"0"`, `"INC"`, `"Increasing"`, and refused for `"up"` with
   `'direction' must be one of '+'/'-', 'increasing'/'decreasing', or +1/-1`.
-  `man/dbarts.Rd:72` and `man/bart2.Rd:203` document only `"+"`/`"increasing"`/1 and
+  `[[man/dbarts.Rd:72@b102e17c]]` and `[[man/bart2.Rd:203@b102e17c]]` document only `"+"`/`"increasing"`/1 and
   `"-"`/`"decreasing"`/-1. CONFIRMS the options-audit item. Fix: **VD-judgement** (G-F).
 - **E13. `dbartsDrawLatents()` refuses its own formal default when written out.**
-  `R/augmentation.R:65` declares `sigma = 1`; `:79-81` guards with
+  `[[R/augmentation.R:65@b102e17c]]` declares `sigma = 1`; `[[R/augmentation.R:79-81@b102e17c]]` guards with
   `if (!missing(sigma))`, so `dbartsDrawLatents("probit", fit=f, y=y, sigma=1)` ->
   `'sigma' applies only to family "aft" and "student", not "probit"`, while omitting
   it returns a numeric len40. Fix: **agent-fix** (guard on the value, or default NULL).
@@ -151,10 +151,10 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 ### MINOR
 
 - **E14. `makeind(x, all=TRUE)` is a live formal that does nothing.**
-  `R/bart.R:2833-2836` binds `all` to `ignored` and calls
+  `[[R/bart.R:2833-2836@b102e17c]]` binds `all` to `ignored` and calls
   `makeModelMatrixFromDataFrame(x, TRUE)` unconditionally; both values give
   byte-identical output. PARTIAL REFUTATION of the options-audit framing:
-  `man/makeind.Rd:26` DOES document it, as "Not currently implemented" - inert but
+  `[[man/makeind.Rd:26@b102e17c]]` DOES document it, as "Not currently implemented" - inert but
   documented. Fix: **VD-judgement** (implement vs delete from \usage; narrow).
 - **E15. F4's raw-`unused argument` wall extends to two more entries.** F4 named
   `bart()` and `xbart()`; `dbarts()` has no `...` either, nor does `dbartsSpec()`.
@@ -175,36 +175,36 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 - **E18. `bart(keepevery=-1)` -> `'n.thin' must be a positive integer`** names an
   argument `bart()` does not have. Fix: **VD-judgement** (G-D).
 - **E19. Two sibling R helpers 42 lines apart disagree on unknown-family policy.**
-  `R/model.R:400-414` `defaultNodeScale` has NO default arm, so
+  `[[R/model.R:400-414@b102e17c]]` `defaultNodeScale` has NO default arm, so
   `dbarts:::defaultNodeScale("hazard")` and `("student")` return **NULL** silently,
-  while `R/model.R:442-453` `defaultAmplitudePriorScale` `stop()`s by name. The C++
-  mirror at `R_interface_bartcore.cpp:2291-2306` claims in comment to mirror the R
+  while `[[R/model.R:442-453@b102e17c]]` `defaultAmplitudePriorScale` `stop()`s by name. The C++
+  mirror at `[[R_interface_bartcore.cpp:2291-2306@b102e17c]]` claims in comment to mirror the R
   one but has `default: return 0.5` and no multinomial arm (its enum has six).
   Fix: **agent-fix** (give `defaultNodeScale` the same `stop()`).
 - **E20. The four C++ `default:` arms on a family switch - what each absorbs, and
-  none is R-reachable.** `chain.hpp:756` (K-forest ctor) -> `GaussianResponse`,
-  absorbing aft/ordinal/nbinom and any 7th enumerator; `chain.hpp:5026`
+  none is R-reachable.** `[[chain.hpp:756@b102e17c]]` (K-forest ctor) -> `GaussianResponse`,
+  absorbing aft/ordinal/nbinom and any 7th enumerator; `[[chain.hpp:5026@b102e17c]]`
   (`latentScaleAnchor`) -> `scaledResponseSd()`, deliberate for gaussian (comment
-  says why), also absorbing aft/ordinal/nbinom; `R_interface_bartcore.cpp:2291`
+  says why), also absorbing aft/ordinal/nbinom; `[[R_interface_bartcore.cpp:2291@b102e17c]]`
   (`defaultNodeScale`) -> 0.5 (gaussian's), absorbing gaussian and aft;
-  `R_interface_bartcore.cpp:2812` (`validateResponseSupport`) -> `default: break`,
+  `[[R_interface_bartcore.cpp:2812@b102e17c]]` (`validateResponseSupport`) -> `default: break`,
   deliberate. All three K-forest arms sit behind `refusedAmplitudeFamilyReason`
-  (`R_interface_bartcore.cpp:2266`), called from both creation routes (:2313, :3150)
-  and the factory (`facade.hpp:809-826`). The grid confirms by execution:
+  (`[[R_interface_bartcore.cpp:2266@b102e17c]]`), called from both creation routes ([[R_interface_bartcore.cpp:2313@b102e17c]], [[R_interface_bartcore.cpp:3150@b102e17c]])
+  and the factory (`[[facade.hpp:809-826@b102e17c]]`). The grid confirms by execution:
   `dbarts(forests=list(forest(), forest(basis=~z)), family=)` is accepted for
   gaussian/probit/logistic and refused BY NAME for aft, ordinal, nbinom,
   multinomial. No R call reaches any of the four. Fix: **VD-judgement** (G-G).
 - **E21. `resolveFamily` vs `augmentationFamily` DO have disjoint vocabularies, but
-  the gap is unreachable from R.** `R_interface_bartcore.cpp:1582` takes
-  `""`/gaussian/probit/logistic/ordinal/nbinom/aft; `:6151` takes
+  the gap is unreachable from R.** `[[R_interface_bartcore.cpp:1582@b102e17c]]` takes
+  `""`/gaussian/probit/logistic/ordinal/nbinom/aft; `[[R_interface_bartcore.cpp:6151@b102e17c]]` takes
   probit/logistic/ordinal/aft/nbinom/student and refuses gaussian. CONFIRMS the
-  memo. But `R/augmentation.R:7`'s `augFamilies` is byte-identical to
+  memo. But `[[R/augmentation.R:7@b102e17c]]`'s `augFamilies` is byte-identical to
   `augmentationFamily`'s set and gates first: `dbartsDrawLatents(family="gaussian")`
   -> `'arg' should be one of "probit","logistic","ordinal","aft","nbinom","student"`.
-  Only the flat `dbarts_drawLatents` (`src/C_interface.cpp:1090`) reaches the C++
+  Only the flat `dbarts_drawLatents` (`[[src/C_interface.cpp:1090@b102e17c]]`) reaches the C++
   refusal. Fix: **defer** (each table is total over its own callers).
 - **E22. `defaultAmplitudePriorScale` has no multinomial arm - confirmed, inert.**
-  It errors by name, but both call sites (`R/bartcore.R:777`, `R/model.R:1146`) sit
+  It errors by name, but both call sites (`[[R/bartcore.R:777@b102e17c]]`, `[[R/model.R:1146@b102e17c]]`) sit
   behind the K-forest gate, which refuses multinomial first. Fix: **defer**.
 
 ## 2. Error-without-reason cells, grouped by root cause
@@ -214,7 +214,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 - **G1, bare `match.arg` on a token outside the entry's vocabulary** - 70 cells
   (16 prior + 54 new; rbart_vi 10, bart 6, xbart 5, dbartsSpec 2, 31 in the new
   resolver block). ONE fix: a shared by-name family redirect ahead of `match.arg`
-  on each entry, the shape `refuseBartOwnClassFamily` already has. `bart.Rd:174`
+  on each entry, the shape `refuseBartOwnClassFamily` already has. `[[bart.Rd:174@b102e17c]]`
   already asserts this fix as if it were done (E2/E3).
 - **G2, R's raw `unused argument` from an entry with no `...`** - 137 cells
   (16 + 121; dbartsSpec 42, xbart 32, dbarts 22, bart 12, plus resolver probes).
@@ -242,10 +242,10 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   question; F8 is value-level, and this grid checks no numbers).
 - **F9 CONFIRMED and SUBSUMED by E2** - `twopart` is one of six tokens, not one.
 - **Options audit `makeind(all=)`: CONFIRMED inert, framing PARTLY REFUTED** -
-  `man/makeind.Rd:26` documents it as "Not currently implemented." **Monotone
+  `[[man/makeind.Rd:26@b102e17c]]` documents it as "Not currently implemented." **Monotone
   `"inc"`/`"dec"`: CONFIRMED and EXTENDED** - `"0"` and case-folding too (E12).
 - **Options audit `family="probit"` unspellable on bart()/rbart_vi(): CONFIRMED** -
-  both give bare `match.arg`; feature-matrix [f1] and `man/rbart.Rd:95` make the
+  both give bare `match.arg`; feature-matrix [f1] and `[[man/rbart.Rd:95@b102e17c]]` make the
   narrow vocabularies intended, so the defect is the message, not the set (E2).
 - **Options audit `defaultAmplitudePriorScale` no multinomial case: CONFIRMED,
   unreachable** (E22). **bart()'s redirect misses twopart and the hazard tokens:
@@ -260,22 +260,22 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
 
 ## 4. Rd claims that AGREE (spot list of the 71)
 
-- `bart2.Rd:306` "gaussian, probit, and logistic are the only families a term can
+- `[[bart2.Rd:306@b102e17c]]` "gaussian, probit, and logistic are the only families a term can
   join" - `bart2(y ~ x1 + x2 + z:forest(x2), family=F)` accepted for
   auto/gaussian/probit/logistic, refused by name for the other nine; and "no
   `forests =` formal of its own" - `unknown argument 'forests'` on all 13.
-- `rbart.Rd:95` survival "do not support `weights` or `subset` ... and enter only
+- `[[rbart.Rd:95@b102e17c]]` survival "do not support `weights` or `subset` ... and enter only
   through the formula interface" - formula route accepted, weights and subset
   refused by name, bare `cbind(t, s)` + explicit `family="aft"` accepted.
-- `dbartsSpec.Rd:25` counts data resolves to multinomial from `"auto"`, refused
-  under any other family; `:31` `survival=` is aft-only AND aft requires it (both by
-  name); `:43` the empty-string C-API dispatch set matches `resolveFamily`'s shape
-  gates exactly; `:56` `family` never `"auto"`. `dbartsData.Rd:24`/`:27` counts
+- `[[dbartsSpec.Rd:25@b102e17c]]` counts data resolves to multinomial from `"auto"`, refused
+  under any other family; `[[dbartsSpec.Rd:31@b102e17c]]` `survival=` is aft-only AND aft requires it (both by
+  name); `[[dbartsSpec.Rd:43@b102e17c]]` the empty-string C-API dispatch set matches `resolveFamily`'s shape
+  gates exactly; `[[dbartsSpec.Rd:56@b102e17c]]` `family` never `"auto"`. `[[dbartsData.Rd:24@b102e17c]]`/`[[dbartsData.Rd:27@b102e17c]]` counts
   needs >= 2 categories and offset.category is refused without counts - by name.
-- `bart.Rd:114`/`dbarts.Rd:42` weight policy (probit refuses, logistic requires
+- `[[bart.Rd:114@b102e17c]]`/`[[dbarts.Rd:42@b102e17c]]` weight policy (probit refuses, logistic requires
   positive integer counts, unit counts accepted) holds on all four entries taking
-  `weights`, across all 13 tokens. `bart2.Rd:188` `predict` requires `keepTrees` - by
-  name on all seven families probed; `dbarts.Rd:103` flat `offset` refused for
+  `weights`, across all 13 tokens. `[[bart2.Rd:188@b102e17c]]` `predict` requires `keepTrees` - by
+  name on all seven families probed; `[[dbarts.Rd:103@b102e17c]]` flat `offset` refused for
   multinomial - by name on `dbarts` and `bart2` alike.
 - Documented family-specific conditioning refusals all fire BY NAME across the full
   family cross: `test` on hazard/hurdle (6 cells), `subset` on survival/multinomial/

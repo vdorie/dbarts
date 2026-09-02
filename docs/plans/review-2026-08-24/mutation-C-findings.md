@@ -91,43 +91,43 @@ BLOCKER = the mutation left all 51 files in this half green AND names a defect i
 behavior. MAJOR = an aimed mutation the target file cannot see. MINOR = reach gap with a
 killer elsewhere, or an equivalent mutant worth a decision.
 
-1. BLOCKER  R/dbarts.R:1079 and R/generics.R:294  `n.threads` is a SILENT NO-OP on predict.
+1. BLOCKER  [[R/dbarts.R:1079@b102e17c]] and [[R/generics.R:294@b102e17c]]  `n.threads` is a SILENT NO-OP on predict.
    The R5 method is `predict = function(x.test, offset.test, n.threads = control@n.threads)`
    and its body ends `.Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test)` - three
    arguments, no thread count (`DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3)`,
-   R_interface.cpp:224). predict.bart coerces `n.threads <- as.integer(n.threads)[1L]` and
+   [[R_interface.cpp:224@b102e17c]]). predict.bart coerces `n.threads <- as.integer(n.threads)[1L]` and
    hands it to that method, which discards it. Replacing the coerced value with -99L (gm1)
    and pinning the R5 default to 1L (gm2) both leave ALL 51 FILES GREEN on the wide run.
    test-generics-multithreaded.R exists solely to gate this ("test that predict gives same
    result when single or multi-threaded", 2 assertions) and is therefore vacuous: it never
    runs multi-threaded, and is a byte-for-byte duplicate of
-   test-generics-correctValues.R:16-31 with `n.threads = 2L` written in the call.
+   [[test-generics-correctValues.R:16-31@b102e17c]] with `n.threads = 2L` written in the call.
    SHOULD EXIST either wire the argument through (a 4-argument bartcore_predict, or
    `sampler$setNumThreads()` around the call) and then pin it in
    test-generics-multithreaded.R with a timing- or state-free discriminator, OR drop the
    argument from both signatures and delete the file. Do not leave a documented argument that
    the engine cannot see.  VD-judgement (the fix is a public-signature decision, and
    inst/include/dbarts/dbarts.h consumers may reach the same entry)
-2. MAJOR  R/plot.R:219  plot.pdbart's `for (i in xind)` can be narrowed to `xind[1L]` -
+2. MAJOR  [[R/plot.R:219@b102e17c]]  plot.pdbart's `for (i in xind)` can be narrowed to `xind[1L]` -
    rendering only the first requested predictor - with all 51 files green (wide).
-   test-pdbart.R:88-91 states the claim in a comment ("the plot method renders each requested
+   [[test-pdbart.R:88-91@b102e17c]] states the claim in a comment ("the plot method renders each requested
    predictor into a null device") and then asserts `expect_silent(plot(pdb1))`, which sees
    neither how many panels were drawn nor which. Same shape as leg A finding 11.
-   SHOULD EXIST test-pdbart.R:90: count the panels, e.g.
+   SHOULD EXIST [[test-pdbart.R:90@b102e17c]]: count the panels, e.g.
    `pdf(NULL); plot(pdb1); expect_equal(length(recordPlot()[[1L]]), <k>)`, or simplest,
    `expect_error(plot(pdb1, xind = 99L))` plus a per-panel `expect_silent(plot(pdb1, xind = 2L))`.
    agent-fix
-3. MAJOR  R/bart.R:1236-1237  `n.grow.sweeps`'s COUNT is unpinned: `sampler$growFromRoot(
+3. MAJOR  [[R/bart.R:1236-1237@b102e17c]]  `n.grow.sweeps`'s COUNT is unpinned: `sampler$growFromRoot(
    n.grow.sweeps, ...)` -> `growFromRoot(1L, ...)` leaves all 51 green (wide). This is leg A
    finding 1's twin one level up - leg A pinned the sampler method, this is bart2's forwarding
-   of the user's number. test-bart2-grow-from-root.R does gate the FEATURE (:107's early-RMSE
+   of the user's number. test-bart2-grow-from-root.R does gate the FEATURE ([[R/bart.R:107@b102e17c]]'s early-RMSE
    claim kills a mutation that skips growth entirely) but not the count.
-   SHOULD EXIST test-bart2-grow-from-root.R after :107: at one seed,
+   SHOULD EXIST test-bart2-grow-from-root.R after [[R/bart.R:107@b102e17c]]: at one seed,
    `expect_false(isTRUE(all.equal(bart2(..., n.grow.sweeps = 1L)$yhat.train,
    bart2(..., n.grow.sweeps = 3L)$yhat.train)))`.  agent-fix
-4. MAJOR  R/data.R:536-548  the 3+-level factor refusal in the single-forest entry points
+4. MAJOR  [[R/data.R:536-548@b102e17c]]  the 3+-level factor refusal in the single-forest entry points
    (`if (!splitMultinomialMessage) stop(caller, " does not fit a ", K, "-level ", ...)`) can
-   be deleted with all 51 green (wide). test-factor-response.R:85-103 is the file that exists
+   be deleted with all 51 green (wide). [[test-factor-response.R:85-103@b102e17c]] is the file that exists
    to hold it (five expect_error calls naming "multinomial"), and every one of them still
    passes: the SECOND stop() a few lines down (the family == "auto" arm) fires instead and
    carries the same word. The guard for the explicit-family callers - xbart, rbart_vi - is
@@ -135,27 +135,27 @@ killer elsewhere, or an equivalent mutant worth a decision.
    SHOULD EXIST test-factor-response.R: anchor the refusals that must come from the
    non-auto arm on their own text, e.g. `expect_error(xbart(x, y3, family = "probit"), "does
    not fit a 3-level factor")`.  agent-fix
-5. MAJOR  R/bartcore.R:407-414  `setResponse(updateScale = TRUE)`'s refusal under an
+5. MAJOR  [[R/bartcore.R:407-414@b102e17c]]  `setResponse(updateScale = TRUE)`'s refusal under an
    amplitude-carrying or grouped sampler can be deleted with all 51 green (wide).
-   test-grouped-swap.R:64-74 is written to hold exactly this ("updateScale = TRUE is refused
+   [[test-grouped-swap.R:64-74@b102e17c]] is written to hold exactly this ("updateScale = TRUE is refused
    on both response-side conduits, and the refusal names the two quantities it is
    protecting", three expect_error calls with pattern "tau") - and they still pass, because
    the C bridge refuses independently with a message that also contains "tau". The R-layer
    guard, which is the one that names the calibration anchor, is unheld.
-   SHOULD EXIST test-grouped-swap.R:67: pin the R text that distinguishes the two,
+   SHOULD EXIST [[test-grouped-swap.R:67@b102e17c]]: pin the R text that distinguishes the two,
    `pattern = "leaf calibration stated against the anchor"`.  agent-fix
 6. MAJOR  test-generics-sequentialExecution.R (2 assertions, the leg's only GAP)  making
    `$sampleTreesFromPrior()` a complete no-op (se1: drop the `.Call`) leaves both assertions
-   green, while it IS caught elsewhere (test-calibration-prior-draws.R:171-172). The file's
-   :42 compares a bart2 fit against a hand-driven sampler loop, and BOTH sides call the
+   green, while it IS caught elsewhere ([[test-calibration-prior-draws.R:171-172@b102e17c]]). The file's
+   [[test-calibration-prior-draws.R:42@b102e17c]] compares a bart2 fit against a hand-driven sampler loop, and BOTH sides call the
    mutated function, so the equality is common-mode blind to anything the two paths share.
-   Its second assertion, :65 `expect_inherits(sampler, "dbartsSampler")`, cannot fail short of
+   Its second assertion, [[test-calibration-prior-draws.R:65@b102e17c]] `expect_inherits(sampler, "dbartsSampler")`, cannot fail short of
    an error - it is the "sequential runs don't overflow with fixed trees" claim, unpinned.
-   SHOULD EXIST test-generics-sequentialExecution.R:65: after the 6 sweeps past n.samples = 5,
+   SHOULD EXIST [[test-generics-sequentialExecution.R:65@b102e17c]]: after the 6 sweeps past n.samples = 5,
    assert what "no overflow" means - `expect_equal(dim(sampler$getTrees()),
    dim(<the 5-sample store>))`, or that the store's recorded-draw count is 5 not 6.
    agent-fix
-7. MAJOR  R/data.R:769  `validateXYOffset` can return `offset = NULL` - silently discarding
+7. MAJOR  [[R/data.R:769@b102e17c]]  `validateXYOffset` can return `offset = NULL` - silently discarding
    the user's offset on the whole x/y interface - and test-data-compatibility.R (8
    assertions, 7 of them `expect_inherits(..., "dbartsData")`) and test-data-formula.R
    (13, 11 of them the same) both stay green. Their subject IS offset/weights/subset
@@ -163,11 +163,11 @@ killer elsewhere, or an equivalent mutant worth a decision.
    SHOULD EXIST test-data-compatibility.R: replace the inherits chain with content, e.g.
    `expect_equal(dbartsData(x, y, offset = offset)@offset, offset)` and
    `expect_equal(dbartsData(x, y, subset = 1:10, weights = weights)@weights, weights[1:10])`.
-   The same rewrite for test-data-formula.R:14-55.  agent-fix
-8. MINOR  R/plotTree.R:9-35  decodeCategoricalSplits' PADDING BRANCH IS DEAD CODE. Skipping
+   The same rewrite for [[test-data-formula.R:14-55@b102e17c]].  agent-fix
+8. MINOR  [[R/plotTree.R:9-35@b102e17c]]  decodeCategoricalSplits' PADDING BRANCH IS DEAD CODE. Skipping
    the whole decode (dca3) and padding with "R" instead of "L" (dcd2) BOTH leave
    test-data-categorical.R, -declared.R and -wide.R green - including
-   test-data-categorical-declared.R:53's `nchar(directions) == 4L` on a factor whose 4th
+   [[test-data-categorical-declared.R:53@b102e17c]]'s `nchar(directions) == 4L` on a factor whose 4th
    level is never observed. The C side already emits one character per DECLARED level, so
    `padding > 0` never holds on any path these files reach. The one kill dcd1 earns
    (dropping the declared-count lookup) is incidental: `max(x[, j])` returns NA on the
@@ -175,22 +175,22 @@ killer elsewhere, or an equivalent mutant worth a decision.
    not on the claim.
    VD-judgement (delete the padding loop and the factorLevels lookup with it, or find the
    path that still needs it and give that path a test).
-9. MINOR  R/model.R:1554 (resolvePriorScale's `node.prior@prior.sd * node.hyperprior@k`)
+9. MINOR  [[R/model.R:1554@b102e17c]] (resolvePriorScale's `node.prior@prior.sd * node.hyperprior@k`)
    is unreached by this half: dropping the `* k` conversion leaves all of
    test-calibration-prior-draws.R green because every sampler there spells `scale =`, never
    `sd =`. The sd spelling's own refusal (a drawn k) is tested; its arithmetic is not.
    SHOULD EXIST test-calibration-prior-draws.R: one constant-leaf arm with
-   `node.prior = normal(k = fixedK, sd = priorSd)` measured against the same band as :57.
+   `node.prior = normal(k = fixedK, sd = priorSd)` measured against the same band as [[R/model.R:57@b102e17c]].
    agent-fix
-10. MINOR  R/generics.R:125 (pointwiseLogLikelihood's zero-weight NaN flag) can report -Inf
+10. MINOR  [[R/generics.R:125@b102e17c]] (pointwiseLogLikelihood's zero-weight NaN flag) can report -Inf
     instead of NaN with test-pointwise-loglik.R green - the file's zero-weight arm asserts
     only that the value is not finite. The comment says the channel flags it "rather than
     reporting the -Inf an infinite sd would give", which is precisely the distinction lost.
     SHOULD EXIST test-pointwise-loglik.R: `expect_true(all(is.nan(ll[, zeroWeightRow])))`.
     agent-fix
-11. MINOR  R/bart.R:2709 (`control@n.burn <- control@n.burn %/% control@n.thin` on bart()'s
+11. MINOR  [[R/bart.R:2709@b102e17c]] (`control@n.burn <- control@n.burn %/% control@n.thin` on bart()'s
     path) can be deleted with test-control-valuesAreUsed.R green; its keepevery arm
-    (:40-55) pins only `nrow(yhat.train) == n.sims %/% keepevery`, the SAMPLE side. The burn
+    ([[R/bart.R:40-55@b102e17c]]) pins only `nrow(yhat.train) == n.sims %/% keepevery`, the SAMPLE side. The burn
     side of the same thinning is unpinned on both bart() and bart2() (mt1 is the bart2 twin,
     also green everywhere).
     SHOULD EXIST test-control-valuesAreUsed.R: assert the sampler's resolved control, e.g.
@@ -198,10 +198,10 @@ killer elsewhere, or an equivalent mutant worth a decision.
 12. MINOR  Six reach gaps confined to this half - an out-of-file assertion is the sole
     killer, so no new assertion is needed, only a note not to trim the killer: dcm3 (x/y
     weights installed in reverse row order) survives test-data-compatibility.R and
-    test-data-formula.R and dies only at test-bart-weights-parity.R:22 and
-    test-generics-posteriorPredictiveDistribution.R:90; mp3 (named split probabilities
+    test-data-formula.R and dies only at [[test-bart-weights-parity.R:22@b102e17c]] and
+    [[test-generics-posteriorPredictiveDistribution.R:90@b102e17c]]; mp3 (named split probabilities
     resolving to nothing) survives test-dart-mixed-columns.R and dies at
-    test-model-priors.R:86; me2/ml1/gl1 (the node-prior designation refusals) survive
+    [[test-model-priors.R:86@b102e17c]]; me2/ml1/gl1 (the node-prior designation refusals) survive
     test-model-errors.R and die in test-gp-leaves.R / test-linear-leaves.R; fo1
     (getFitsWithoutOffset shifted) survives test-family-offset.R and dies in
     test-augmentation.R and test-embedding-recipes.R.  defer

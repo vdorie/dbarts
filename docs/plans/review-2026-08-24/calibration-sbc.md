@@ -122,11 +122,11 @@ default the raw levels calibrate.
 
 ## Not covered, with the cost to cover
 
-aft - NOT COVERED, and the sharpest gap: AFTResponse (model.hpp:3794) owns real
+aft - NOT COVERED, and the sharpest gap: AFTResponse ([[model.hpp:3794@b102e17c]]) owns real
 sampling code (a truncated-normal latent redraw per censored row per sweep), so
 it reduces to nothing. The block: censoring STATUS is fixed at creation
 (setResponse refreshes bounds but cannot change which rows are censored,
-model.hpp:3868) while the generative model makes status_i = 1{logT*_i <= c_i} a
+[[model.hpp:3868@b102e17c]]) while the generative model makes status_i = 1{logT*_i <= c_i} a
 function of theta0. Two enablers: (A) a status setter - engine + bridge + R5
 method + refusal parity + tests, ~100-150 lines over three layers, and NEW
 PUBLIC SURFACE, so it lands before 1.0-0 or not at all; (B) a creation-time
@@ -139,7 +139,7 @@ bit-identical to a gaussian fit on log T, so the gaussian arm IS it.
 
 hazard - NOT COVERED DIRECTLY, CALIBRATION-INHERITED. The recorded reason stands
 (the person-period design, hence the tree prior's cut grid, depends on y0). But
-hazard adds no engine code - R/dbarts.R:487-536 expands and remaps to the binary
+hazard adds no engine code - [[R/dbarts.R:487-536@b102e17c]] expands and remaps to the binary
 token before the sampler exists - and hazard-reduction.R gates DRAW-FOR-DRAW
 bitwise equality with a hand-expanded bart2(probit)/bart2(logistic) fit at 40
 trees. The probit and logistic arms above plus that reduction ARE ensemble-scale
@@ -147,7 +147,7 @@ evidence for hazard. A direct arm needs the at-risk set frozen (no censoring,
 all K periods observed), ~60 harness lines; low value given the reduction.
 
 hurdle - NOT COVERED DIRECTLY, CALIBRATION-INHERITED for the two components.
-bart2Hurdle (R/bart.R:2206) literally calls bart2(probit) and bart2(gaussian),
+bart2Hurdle ([[R/bart.R:2206@b102e17c]]) literally calls bart2(probit) and bart2(gaussian),
 and hurdle-reduction.R gates them draw-for-draw at 30 trees, so the probit and
 gaussian arms cover both components at ensemble scale. NOT covered: the
 combine/retransform step, whose analytic oracle is still owed (hurdle.md step
@@ -155,7 +155,7 @@ combine/retransform step, whose analytic oracle is still owed (hurdle.md step
 owed oracle, not SBC, is the right instrument.
 
 hetero - NOT COVERED, the other gap with real sampling code (the multiplicative
-variance roll, chain.hpp:724) and no reduction argument. Prior draws never reach
+variance roll, [[chain.hpp:724@b102e17c]]) and no reduction argument. Prior draws never reach
 varianceForest_: there is no sampleTreesFromPrior for the variance forest, so
 theta0 cannot be drawn from its prior through any API. Liftable R-side via
 setState (the state carries variance.vars/values/sizes/flags). Cost ~100-150

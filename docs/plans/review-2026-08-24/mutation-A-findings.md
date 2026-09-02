@@ -24,7 +24,7 @@ expect_true(all(...)) 250, finiteness/typecheck/silence smoke 392, refusal 634. 
 classes the memo expected are NOT here. Tautologies: one candidate in 3363 sites (a
 NULL-vs-NULL expect_equal), no self-comparison, no compare-to-same-call-path pair. RNG-locked
 snapshot literals: all five drift-tripwire files are untouched and out of scope; the 11
-high-precision literals in scope carry their derivation inline (test-bcf-family.R:150-174).
+high-precision literals in scope carry their derivation inline ([[test-bcf-family.R:150-174@658869ac]]).
 Vacuous all(): an instrumented run shadowing base::all recorded ZERO zero-length operands
 across all 167 files - the 250 sites are a latent hazard, not a live one.
 
@@ -107,14 +107,14 @@ OK 34, WEAK 19, GAP 12. No file went unreached: all 65 ran under all 85 mutation
 
 BLOCKER = the mutation left all 167 tinytest files AND tests/cpp green, so the defect class
 is invisible to the gates in shipped behavior.
-1. BLOCKER  R/dbarts.R:1025  `$growFromRoot(n.sweeps)` can ignore n.sweeps entirely
+1. BLOCKER  [[R/dbarts.R:1025@658869ac]]  `$growFromRoot(n.sweeps)` can ignore n.sweeps entirely
    (`.Call(C_dbarts_bartcore_growFromRoot, ptr, n.sweeps)` -> `, 1L`). 167 files green,
    tests/cpp green. test-grow-from-root.R spends its 18 assertions on finiteness, same-seed
    reproducibility and the R-level "positive integer" refusal - none of which move when the
    argument is discarded. A documented, user-facing parameter with zero behavioral coverage.
    SHOULD EXIST test-grow-from-root.R: at one seed, `expect_false(isTRUE(all.equal(
    growFromRootFit(1L), growFromRootFit(3L))))`.  agent-fix
-2. BLOCKER  src/bartcore/combiner.hpp:906-913  BCF `formForestVetoWeights` can drop its
+2. BLOCKER  [[src/bartcore/combiner.hpp:906-913@658869ac]]  BCF `formForestVetoWeights` can drop its
    near-zero multiplier snap (`fabs(m) < zeroMultiplierTolerance ? 0.0 : w*m*m` -> `w*m*m`).
    167 files green, tests/cpp green. The snap is what makes the creation glue b0 = 0 leave
    every control row weightless in the treatment forest, so without it
@@ -124,53 +124,53 @@ is invisible to the gates in shipped behavior.
    SHOULD EXIST test-bcf-mutation-pins.R: after `$sampleTreesFromPrior()` on a b0 = 0 BCF,
    `expect_true(all(fit$getTrees(forest = 2L, current = TRUE, newdata = x[z == 1, ,
    drop = FALSE])$n[var == -1L] > 0L))`.  agent-fix
-3. BLOCKER  src/bartcore/combiner.hpp:1822-1825  multinomial `formForestVetoWeights` can
+3. BLOCKER  [[src/bartcore/combiner.hpp:1822-1825@658869ac]]  multinomial `formForestVetoWeights` can
    ignore the active-row mask (`activeRows_.empty() ? omega[i] : omega[i]*activeRows_[i]`
    -> `omega[i]`). 167 files green, tests/cpp green. Same channel as finding 2, same
    silence: the mask reaches the sweep's precisions (c05 IS caught at
-   test-active-rows-pins.R:470-471) but not the prior tree draw's veto vector.
+   [[test-active-rows-pins.R:470-471@658869ac]]) but not the prior tree draw's veto vector.
    SHOULD EXIST test-active-rows-pins.R: the multinomial mirror of finding 2's assertion,
    after `$setActiveRows(a)` then `$sampleTreesFromPrior()`.  agent-fix
-4. MAJOR  src/bartcore/model.hpp:3415  ordinal `updateCutpoints`'s loop bound
+4. MAJOR  [[src/bartcore/model.hpp:3415@658869ac]]  ordinal `updateCutpoints`'s loop bound
    (`s < numCategories_` -> `s + 1 < numCategories_`) freezes the last free cutpoint; at
    K = 3 that is every free cutpoint, so the ordinal cutpoint sampler is inert. All 167
-   files green; only tests/cpp (test_model.cpp:4885) kills it. test-ordinal.R's only value
-   assertion on gamma_2 is :356 `abs(mean(cutpoints[, 2L]) - 0.8) < 0.35`, and the frozen
+   files green; only tests/cpp ([[test_model.cpp:4885@658869ac]]) kills it. test-ordinal.R's only value
+   assertion on gamma_2 is [[test_model.cpp:356@658869ac]] `abs(mean(cutpoints[, 2L]) - 0.8) < 0.35`, and the frozen
    cold start (spacing 1.0) sits inside that band at |1 - 0.8| = 0.2.
-   SHOULD EXIST test-ordinal.R after :356: `expect_true(sd(fitRec$cutpoints[, 2L]) > 0.02)`.
+   SHOULD EXIST test-ordinal.R after [[test_model.cpp:356@658869ac]]: `expect_true(sd(fitRec$cutpoints[, 2L]) > 0.02)`.
    agent-fix
-5. MAJOR  src/bartcore/grow.hpp:186  `if (growth <= 0.0) return;` -> `< 0.0` disables
+5. MAJOR  [[src/bartcore/grow.hpp:186@658869ac]]  `if (growth <= 0.0) return;` -> `< 0.0` disables
    growTreeFromRoot's depth/availability veto. All 167 green; caught only by tests/cpp
    (test_grow.cpp "a growth-vetoed node draws nothing"). test-grow-from-root.R is 11/18
    smoke and never bounds a grown tree's depth.
    SHOULD EXIST test-grow-from-root.R: with a tree prior whose growth is 0 past depth 2,
    `expect_true(max(sampler$getTrees()$depth) <= 2L)` (or the equivalent walk).  agent-fix
-6. MAJOR  R/data.R:1495, test-data-precision-warning.R:20-24,44-47  the precision-degeneracy
+6. MAJOR  [[R/data.R:1495@658869ac]], [[test-data-precision-warning.R:20-24@658869ac]], [[test-data-precision-warning.R:44-47@658869ac]]  the precision-degeneracy
    threshold is unpinned from below: `1e-10 -> 1e-30` leaves all 167 files green, because
    both warn-cases have `diff(range(y))` EXACTLY 0 (y.huge collapses to one double; y.const
    is constant), so only "range == 0" is tested and the constant the file exists to defend
-   is never exercised. :36 is the one tautology in the suite - it recomputes the code's own
+   is never exercised. [[test-data-precision-warning.R:36@658869ac]] is the one tautology in the suite - it recomputes the code's own
    ratio and compares it to the code's own literal, testing nothing.
    SHOULD EXIST test-data-precision-warning.R: `y.near <- 1e15 + runif(n) * 10` (ratio ~1e-14,
    many distinct doubles) must warn "indistinguishable".  agent-fix
-7. MAJOR  R/data.R:627-629  the `family = "ordinal"` minimum-category refusal can be deleted
+7. MAJOR  [[R/data.R:627-629@658869ac]]  the `family = "ordinal"` minimum-category refusal can be deleted
    with all 167 files green. Neither test-ordinal.R nor test-data-errors.R ever offers a
    one-level ordered response.
    SHOULD EXIST test-ordinal.R: `expect_error(bart2(x, ordered(rep("a", n)), family =
    "ordinal"), "at least 2 categories")`.  agent-fix
 8. MAJOR  R/xbart.R (mcr arm, `sum(weights * misclassified) / sum(weights)`)  the
    misclassification loss can ignore case weights entirely with all 167 green. The rmse arm
-   is covered (the same mutation there is killed by test-xbart-oracle.R:79-88); mcr is not,
+   is covered (the same mutation there is killed by [[test-xbart-oracle.R:79-88@658869ac]]); mcr is not,
    and test-xbart-weight.R carries 5 assertions, none of them a weighted-loss oracle.
    SHOULD EXIST test-xbart-weight.R: an mcr weighted-loss oracle mirroring
-   test-xbart-oracle.R:79-88, or at minimum `expect_false(isTRUE(all.equal(xbart(...,
+   [[test-xbart-oracle.R:79-88@658869ac]], or at minimum `expect_false(isTRUE(all.equal(xbart(...,
    loss = "mcr", weights = w), xbart(..., loss = "mcr"))))` at a fixed seed.  agent-fix
-9. MAJOR  R/rbart.R:270  the "survival (aft) fits do not support 'weights'" refusal can be
+9. MAJOR  [[R/rbart.R:270@658869ac]]  the "survival (aft) fits do not support 'weights'" refusal can be
    deleted with all 167 green. test-rbart-weights.R holds 3 assertions and never asks;
    test-rbart-aft.R does not either.
    SHOULD EXIST test-rbart-weights.R: `expect_error(rbart_vi(y ~ x, group.by = g, weights =
    w, family = "aft", ...), "do not support 'weights'")`.  agent-fix
-10. MAJOR  R/dbarts.R:1929  `getTrees`'s `current = TRUE` can be ignored (`useSaved <-
+10. MAJOR  [[R/dbarts.R:1929@658869ac]]  `getTrees`'s `current = TRUE` can be ignored (`useSaved <-
     control@keepTrees && !current` -> `control@keepTrees`), reading the saved store where the
     caller asked for the live trees; all 167 green. This is load-bearing:
     test-empty-leaf-veto-weights.R's entire structural oracle is getTrees(current = TRUE),
@@ -178,47 +178,47 @@ is invisible to the gates in shipped behavior.
     SHOULD EXIST test-sampler-trees.R: after `run()` on a keepTrees sampler,
     `expect_false(identical(sampler$getTrees(current = TRUE), sampler$getTrees()))`.
     agent-fix
-11. MAJOR  R/generics.R:2364-2369  print.bart's whole synopsis body can print wrong values
+11. MAJOR  [[R/generics.R:2364-2369@658869ac]]  print.bart's whole synopsis body can print wrong values
     (family always "gaussian"; n.chains under the n.trees label) with all 167 green.
-    test-plot-generics.R:103-104 are `expect_true(is.character(capture.output(print(x))))`,
+    [[test-plot-generics.R:103-104@658869ac]] are `expect_true(is.character(capture.output(print(x))))`,
     which CANNOT FAIL - capture.output always returns character. The file is 24 assertions:
     12 expect_silent, 10 refusals, 2 that cannot fail, zero content pins.
-    SHOULD EXIST test-plot-generics.R:103: `expect_true(any(grepl("family: probit",
+    SHOULD EXIST [[test-plot-generics.R:103@658869ac]]: `expect_true(any(grepl("family: probit",
     capture.output(print(fit.bin)), fixed = TRUE)))`.  agent-fix
-12. MINOR  R/data.R:735  validateForestBases's finiteness refusal is double-guarded at
-    creation (A_class.R:624 refuses first, which is what test-bcf-creation.R:352-355
-    actually exercises) and untested on the predict path (generics.R:647), so deleting it
+12. MINOR  [[R/data.R:735@658869ac]]  validateForestBases's finiteness refusal is double-guarded at
+    creation ([[A_class.R:624@658869ac]] refuses first, which is what [[test-bcf-creation.R:352-355@658869ac]]
+    actually exercises) and untested on the predict path ([[generics.R:647@658869ac]]), so deleting it
     leaves all 167 green while `predict(fit, newdata, bases = <NaN>)` would reach the blend.
     SHOULD EXIST test-predict-blend.R: `expect_error(predict(fit, xNew, bases = list(NULL,
     cbind(rep(NaN, m), 0))), "must all be finite")`.  agent-fix
-13. MINOR  R/data.R:381  the "cannot find test offset" message text is unpinned (replacing it
-    leaves all 167 green), while the sibling text at R/data.R:231 IS pinned three times
-    (test-data-errors.R:90, test-sampler-errors.R:43, test-sampler-trees.R:274).
+13. MINOR  [[R/data.R:381@658869ac]]  the "cannot find test offset" message text is unpinned (replacing it
+    leaves all 167 green), while the sibling text at [[R/data.R:231@658869ac]] IS pinned three times
+    ([[test-data-errors.R:90@658869ac]], [[test-sampler-errors.R:43@658869ac]], [[test-sampler-trees.R:274@658869ac]]).
     test-error-quality.R is 8 assertions and does not cover it.
     SHOULD EXIST test-error-quality.R: `expect_error(dbartsData(y ~ x, df, test.offset =
     nosuch), "cannot find test offset")`.  agent-fix
-14. MINOR  src/bartcore/sampler.hpp:485  `setCurrentSampleNum` is an equivalent mutant -
+14. MINOR  [[src/bartcore/sampler.hpp:485@658869ac]]  `setCurrentSampleNum` is an equivalent mutant -
     discarding its argument changes nothing anywhere, because it has no caller in src/, R/,
     tests/ or inst/. Dead public accessor on the engine's shape surface, not a test gap.
     VD-judgement (delete, or wire it into the setState restore that sets
-    state.currentSampleNum directly at R_interface_bartcore.cpp:6738).
+    state.currentSampleNum directly at [[R_interface_bartcore.cpp:6738@658869ac]]).
 15. MINOR  test-bart-formula.R (2 assertions, both `expect_inherits(..., "bart")`) is
     class-only smoke: no mutation, aimed or incidental, can move it, and none did.
     VD-judgement (fold into test-data-formula.R, or give it one content pin).
-16. MINOR  b04 (logistic PG latent ignoring the case weight, model.hpp:3554) makes the suite
+16. MINOR  b04 (logistic PG latent ignoring the case weight, [[model.hpp:3554@658869ac]]) makes the suite
     HANG rather than fail - the 65-file run did not finish in 300s, where every other
     mutation finished in under 45s. The only signal a CI job gets is a timeout. Worth a
     separate look as robustness (an unbounded loop reachable from an inflated working
     response), not as a test gap.  VD-judgement
 17. MINOR  Seven reach gaps confined to the CHANGED set - an untouched file is the SOLE
     killer, so no new assertion is needed, only a note not to trim that file: r12
-    ppdNoiseScale's per-row weight (test-generics-posteriorPredictiveDistribution.R:90,
-    test-ppd-sigma-pairing.R:152); r22 extract(type="forest", contribution=TRUE) with `*`
-    made `+` (test-bcf-forest-channel.R:90); b06 the interaction subtree walk
-    (test-interactions.R:96); b07 bart2's grow-from-root falling back to the prior draw
-    (test-bart2-grow-from-root.R:107, test-grow-from-root-categorical.R:75); b15 rbart_vi's
-    group.by type refusal (test-rbart-error.R:26); d06 xbart's rmse weights
-    (test-xbart-oracle.R:79); d03 the BCF snap band (tests/cpp only).  defer
+    ppdNoiseScale's per-row weight ([[test-generics-posteriorPredictiveDistribution.R:90@658869ac]],
+    [[test-ppd-sigma-pairing.R:152@658869ac]]); r22 extract(type="forest", contribution=TRUE) with `*`
+    made `+` ([[test-bcf-forest-channel.R:90@658869ac]]); b06 the interaction subtree walk
+    ([[test-interactions.R:96@658869ac]]); b07 bart2's grow-from-root falling back to the prior draw
+    ([[test-bart2-grow-from-root.R:107@658869ac]], [[test-grow-from-root-categorical.R:75@658869ac]]); b15 rbart_vi's
+    group.by type refusal ([[test-rbart-error.R:26@658869ac]]); d06 xbart's rmse weights
+    ([[test-xbart-oracle.R:79@658869ac]]); d03 the BCF snap band (tests/cpp only).  defer
 
 ## Real defects exposed incidentally
 

@@ -14,21 +14,21 @@ impact - probed on all three, demonstrated on the grouped `sigma` artifact.
 
 Two things are called the leaf scale; only one was ever unpinned.
 
-- INTERNAL `forest.leaf.scale` (chain.hpp:633) is computed ONCE at
+- INTERNAL `forest.leaf.scale` ([[chain.hpp:633@658869ac]]) is computed ONCE at
   construction, `resolvedNodeScale(nodeScale, priorScale) / sqrt(m)`, and NO
   mutation path recomputes it - setResponse/setOffset/setData/setWeights never
   write it. Already pinned at creation, and always was.
 - IN FORCE, response units: `prior.scale = leaf.scale * fitScale * sqrt(m)`
-  (chain.hpp:3973), `fitScale` the transform's multiplier - `range_` under
-  gaussian/t/aft/grouped (model.hpp:2920, 3926), 1 under the latent families.
+  ([[chain.hpp:3973@658869ac]]), `fitScale` the transform's multiplier - `range_` under
+  gaussian/t/aft/grouped ([[model.hpp:2920@658869ac]], 3926), 1 under the latent families.
   What moves is the TRANSFORM, not the leaf scale.
 
 So the problem was never "the engine recomputes a scale mid-run": two
 INDEPENDENTLY CONSTRUCTED samplers get different response-unit leaf priors, each
 deriving `range_` from its own `y`, so a harness that must rebuild per
-replication (aft: censoring status is structural, model.hpp:3868; grouped:
-setData refused, R_interface_bartcore.cpp:4634) fits under a different prior
-from the one theta0 came from. `resolvedNodeScale` (chain.hpp:3963) is the pin:
+replication (aft: censoring status is structural, [[model.hpp:3868@658869ac]]; grouped:
+setData refused, [[R_interface_bartcore.cpp:4634@658869ac]]) fits under a different prior
+from the one theta0 came from. `resolvedNodeScale` ([[chain.hpp:3963@658869ac]]) is the pin:
 a finite `priorScale` is divided BY the transform, so the response-unit prior is
 the named constant whatever `y` built it.
 
@@ -66,14 +66,14 @@ Under option B: NONE. Under A it depends on which channel a new pin covers (a
 creation-only one duplicates `node.prior = normal(scale =)`):
 
 - A pin held through `setData` WOULD change the model users get: `setData`
-  re-anchors today (section 2), and dbartsSampler-class.Rd:419 plus dbarts.Rd's
+  re-anchors today (section 2), and [[dbartsSampler-class.Rd:419@658869ac]] plus dbarts.Rd's
   "Naming the leaf calibration" both PROMISE it re-anchors while leaving the
   named intent alone.
 - `setResponse(updateScale = TRUE)` keeps rescaling either way - its documented
-  purpose (dbartsSampler-class.Rd:144, "should only be TRUE during burn-in") -
+  purpose ([[dbartsSampler-class.Rd:144@658869ac]], "should only be TRUE during burn-in") -
   and is already refused where a calibration is stated against a transform
   never restated (multi-forest, heteroscedastic, grouped under gaussian/t/aft:
-  `refuseGroupedScaleUpdate`, R_interface_bartcore.cpp:2723). Untouched here.
+  `refuseGroupedScaleUpdate`, [[R_interface_bartcore.cpp:2723@658869ac]]). Untouched here.
 
 Model-change risk from "pinning": nil under B and nil under a default-off A -
 except that A's only non-duplicate content IS that setData arm.
@@ -84,9 +84,9 @@ except that A's only non-duplicate content IS that setData arm.
 - Option A, default-off creation pin: bitwise-neutral. No equivalence scenario
   names a `prior.scale` (benchmarks/R/equivalence.R greps clean) and
   `setForestPriorScale` already skips a write reproducing what is in force
-  (chain.hpp:1208).
+  ([[chain.hpp:1208@658869ac]]).
 - Option A extended to `setData`: DRAW-MOVING on exactly one canonical
-  scenario, `setdata` (equivalence.R:139-146, the only `$setData` caller;
+  scenario, `setdata` ([[equivalence.R:139-146@658869ac]], the only `$setData` caller;
   gaussian, n 400 -> 500, so the transform genuinely moves) - one re-record
   plus any tinytest snapshot replaying a setData path. NO scenario calls
   `setResponse`; the other mutation scenarios drive setPredictor / setWeights /
@@ -156,6 +156,6 @@ Riders: (1) pin the SHIFT as well as the scale on any rebuild arm, via
 `setOffset(rep_len(anchorMean - prior.mean, n), updateScale = FALSE)` after
 construction - section 5's third row is the evidence it matters; (2) the aft arm
 needs nothing else from the engine - it draws sigma conjugately like gaussian
-(chain.hpp:648), its reported-scale sigma prior is range-independent under an
-explicit `sigma =` (sbc.R:38-42), and a zero-censoring control reduces bitwise
-to the gaussian arm (survival.md:53-56), the self-check to run first.
+([[chain.hpp:648@658869ac]]), its reported-scale sigma prior is range-independent under an
+explicit `sigma =` ([[sbc.R:38-42@658869ac]]), and a zero-censoring control reduces bitwise
+to the gaussian arm ([[survival.md:53-56@658869ac]]), the self-check to run first.

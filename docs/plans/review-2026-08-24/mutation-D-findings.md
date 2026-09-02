@@ -102,46 +102,46 @@ multithreaded, sampler-setData, sampler-state-emptyLeafVeto and warm-start - fin
 Severity here is leg A's, adjusted for the budget stop: BLOCKER would require a full-suite
 plus tests/cpp replant, which this leg could not afford, so nothing is filed as one.
 
-1. MAJOR  src/bartcore/moves.hpp:120-123  resolveVetoRank's `-HUGE_VAL` can be replaced by
+1. MAJOR  [[src/bartcore/moves.hpp:120-123@b102e17c]]  resolveVetoRank's `-HUGE_VAL` can be replaced by
    the pre-fix finite `-1.0e7` with all 51 files green. test-sampler-state-emptyLeafVeto.R
    exists for exactly this ("Regression for the -1e7 -> -HUGE_VAL fix") and none of its 4
    assertions move: its fixture (n = 2000, resid.prior = fixed(1e-6), 50 trees) no longer
    drives a valid branch's score past -1e7, so the regime the file's header describes is not
-   reached. tests/cpp/test_moves.cpp:1212-1218 pins `currentLogL == -HUGE_VAL` directly, so
+   reached. [[tests/cpp/test_moves.cpp:1212-1218@b102e17c]] pins `currentLogL == -HUGE_VAL` directly, so
    the C++ gate does own the invariant - the R file's claim to be the regression does not
    hold.  SHOULD EXIST  either scale the fixture (smaller sigma / deeper trees) until the
-   assertion at :43-48 actually separates, or drop the regression claim from the header and
+   assertion at [[tests/cpp/test_moves.cpp:43-48@b102e17c]] actually separates, or drop the regression claim from the header and
    point it at tests/cpp.  VD-judgement
 
-2. MAJOR  R/xbart.R:367-371, test-xbart-method.R:114-132  the k-fold remainder distribution
+2. MAJOR  [[R/xbart.R:367-371@b102e17c]], [[test-xbart-method.R:114-132@b102e17c]]  the k-fold remainder distribution
    (`rep.int(c(1L, 0L), c(n %% k, k - n %% k))`) can be deleted - every fold takes
    floor(n / k) rows and the remainder rows are never held out - with test-xbart-method.R
    green. That includes its own section headed "test that k-fold subdivides data correctly
    when data do not divide evenly by k", whose single assertion is
-   `expect_inherits(xval, "array")`. Only test-xbart-oracle.R:141 catches it.
-   SHOULD EXIST  test-xbart-method.R:132, a fold-size oracle rather than a class check:
+   `expect_inherits(xval, "array")`. Only [[test-xbart-oracle.R:141@b102e17c]] catches it.
+   SHOULD EXIST  [[test-xbart-method.R:132@b102e17c]], a fold-size oracle rather than a class check:
    `expect_equal(xbart(x, y, method = "k-fold", n.test = 5, n.reps = 1L,
    loss = function(y.test, s, w) length(y.test), ...), 24 / 5)`.  agent-fix
 
-3. MAJOR  R/xbart.R:712 and :731, test-xbart-loss.R  the file whose subject is the custom
+3. MAJOR  [[R/xbart.R:712@b102e17c]] and [[R/xbart.R:731@b102e17c]], test-xbart-loss.R  the file whose subject is the custom
    loss channel survives BOTH "the loss function's value is discarded"
    (`lossValues[cell, ] <- 0.0`) and "the k-fold losses are summed instead of averaged". Its
    8 assertions are inherits / dim / dimnames / !anyNA, twice; not one reads a loss value.
    Its n.threads = 1 and n.threads = 2 arms are likewise indistinguishable (finding 6).
-   SHOULD EXIST  test-xbart-loss.R:41, a constant-loss identity
+   SHOULD EXIST  [[test-xbart-loss.R:41@b102e17c]], a constant-loss identity
    (`expect_equal(as.vector(xbart(..., loss = function(a, b, c) 42)), rep(42, ...))`) and a
-   mad() value oracle mirroring test-xbart-oracle.R:63-70.  agent-fix
+   mad() value oracle mirroring [[test-xbart-oracle.R:63-70@b102e17c]].  agent-fix
 
-4. MAJOR  R/dbarts.R:836, test-prior-predictive.R:104-111  samplePriorPredictive's sigma
+4. MAJOR  [[R/dbarts.R:836@b102e17c]], [[test-prior-predictive.R:104-111@b102e17c]]  samplePriorPredictive's sigma
    prior draw (`sqrt(df * sigest^2 * rawScale / rchisq(n.samples, df))`) can be replaced by
    the point estimate `rep_len(sigest, n.samples)` with all 51 green: the file's (d) block
    asserts only `var(ppd.pinned) >= var(pinned1)`, which holds for any positive noise scale.
    The prior-predictive's whole point is that sigma carries its own prior uncertainty.
-   SHOULD EXIST  test-prior-predictive.R:111, at the pinned control seed
+   SHOULD EXIST  [[test-prior-predictive.R:111@b102e17c]], at the pinned control seed
    `expect_true(sd(apply(ppd.pinned - pinned1, 1L, sd)) > 0)` - under the mutation every draw
    shares one sigma and that spread is 0.  agent-fix
 
-5. MAJOR  R/utility.R:797-816, test-predict-sparse.R  the sparse test column's level-recode
+5. MAJOR  [[R/utility.R:797-816@b102e17c]], test-predict-sparse.R  the sparse test column's level-recode
    arm has NO live coverage. Every passing sparse case in the file declares the training
    level set, so `identical(oldLevels, trainingLevels)` short-circuits before the recode: two
    mutations inside it - category codes off by one, and the reference level left on the
@@ -155,18 +155,18 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
 6. MINOR  test-rbart-multithreaded.R (1 assertion, `expect_inherits(..., "rbart")`)  forcing
    dbartsControl's n.threads to 1L leaves all 51 green, test-reproducibility-
    continuousResponse-multithreaded.R included - its pinned draws are thread-count
-   independent by design (test-rng.R:133-135 says so). Nothing in the half can observe a lost
+   independent by design ([[test-rng.R:133-135@b102e17c]] says so). Nothing in the half can observe a lost
    thread, and this file cannot fail for any reason short of an error.
    SHOULD EXIST  fold it into test-rbart-options.R, or pin the reachability directly:
    `expect_equal(fit$fit[[1L]]$control@n.threads, 2L)`.  VD-judgement
 
-7. MINOR  R/model.R:1614-1627  `student()`'s own `df <= 0.0` refusal is dead: deleting it
+7. MINOR  [[R/model.R:1614-1627@b102e17c]]  `student()`'s own `df <= 0.0` refusal is dead: deleting it
    leaves all 51 green because `newValidated` runs dbartsStudentDist validity
-   (R/A_class.R:223), whose message also contains "positive finite". test-robust-errors.R
-   :28-31 pins the S4 validity, not the constructor. A redundancy, not a coverage hole.
+   ([[R/A_class.R:223@b102e17c]]), whose message also contains "positive finite". test-robust-errors.R
+   [[R/A_class.R:28-31@b102e17c]] pins the S4 validity, not the constructor. A redundancy, not a coverage hole.
    defer
 
-8. MINOR  R/bartcore.R:441 (setData), test-sampler-setData.R  quantizing the replacement data
+8. MINOR  [[R/bartcore.R:441@b102e17c]] (setData), test-sampler-setData.R  quantizing the replacement data
    onto a single cut per column leaves the file's ONE assertion green: it compares
    `sd(rowMeans(samples1$train) - y)` against `sd(rowMeans(samples2$train) - y)` at tol 1e-2,
    and both fits degrade together, so the comparison is self-cancelling. The file's stated
@@ -175,25 +175,25 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
    (`expect_true(sd(rowMeans(samples2$train) - y) < 0.3)`) alongside the paired comparison.
    agent-fix
 
-9. MINOR  R/model.R:378-380  the uniform-split-probability canonicalization to `numeric()` is
+9. MINOR  [[R/model.R:378-380@b102e17c]]  the uniform-split-probability canonicalization to `numeric()` is
    unreached by test-sampler-splitProbabilities.R: with `if (FALSE)` all 51 stay green,
-   because its three `length(splitProbabilities) == 0L` assertions (:21-41) take the earlier
+   because its three `length(splitProbabilities) == 0L` assertions ([[R/model.R:21-41@b102e17c]]) take the earlier
    scalar/NULL path instead.  SHOULD EXIST  the same assertion for an explicitly uniform
    length-p vector (`splitprobs = rep(1, ncol(x))`).  agent-fix
 
-10. MINOR  R/rbart.R:1201 vs :1269  the two arms of rbart_vi's `$varprobs` assembly are
-    separately unpinned: test-rbart-options.R:167-168 exercises the DART report at
+10. MINOR  [[R/rbart.R:1201@b102e17c]] vs [[R/rbart.R:1269@b102e17c]]  the two arms of rbart_vi's `$varprobs` assembly are
+    separately unpinned: [[test-rbart-options.R:167-168@b102e17c]] exercises the DART report at
     n.chains = 1, so the mutation aimed at the multi-chain arm moved nothing. The
     single-chain replant was queued and did not run inside the budget.  defer
 
-11. MINOR  R/sliceSample.R:185  dropping the upper-boundary clamp on the stepping-out
+11. MINOR  [[R/sliceSample.R:185@b102e17c]]  dropping the upper-boundary clamp on the stepping-out
     interval is an EQUIVALENT mutant here (the beta target is 0 outside [0, 1], so every
     out-of-range proposal is shrunk away). Recorded so a later leg does not re-file it.
     defer
 
 ## Real defects exposed incidentally
 
-One, and it is a robustness gap rather than a live defect. R/generics.R:2040-2046
+One, and it is a robustness gap rather than a live defect. [[R/generics.R:2040-2046@b102e17c]]
 (fitted.rbart, type = "ev") reads `ranefNames <- dimnames(object$ranef)[[length(...)]]` and
 passes `match(object$group.by, ranefNames)` straight into `.Call(C_rbart_fitted, ...)`. When
 that name vector is absent the match is all-NA and the C entry point indexes on NA_INTEGER:
@@ -201,7 +201,7 @@ the R session SEGFAULTS ("caught segfault ... cause 'invalid permissions'", trac
 `1: fitted.rbart(rbartFit)`) rather than raising an error. Shipped code always populates the
 dimnames, so this is not reachable from the public surface today; it is reachable from any
 consumer that builds an rbart-shaped list by hand, which the flat C API invites.
-REPRODUCTION: in R/bart.R:40, `colnames(res) <- dimnames(samples)[[1L]]` -> `NULL`; install;
+REPRODUCTION: in [[R/bart.R:40@b102e17c]], `colnames(res) <- dimnames(samples)[[1L]]` -> `NULL`; install;
 `Rscript -e 'tinytest::run_test_file("inst/tinytest/test-rbart-performance.R")'`. Suggested
 fix: bounds-check the group index in src/R_interface_rbart.cpp's rbart_fitted, or refuse an
 NA match R-side before the .Call.  agent-fix

@@ -11,8 +11,8 @@ archive main | tar -x` -> 0.9-34 and `git archive HEAD` -> 1.0-0 (b102e17c), eac
 --preclean -l <lib> .`, every run prefixed with its own `R_LIBS`. Method is the equivalence
 harness's STATISTICAL mode, re-implemented to drive two installs: data fixed per scenario, 20 MCMC
 seeds per engine, one summary vector per seed, per-summary across-seed Welch z
-(equivalence.R:1830-1841; |z| > 4 = FAIL) plus the parameter-free disjoint-seed-range complement
-(:1821-1829). Summaries per fit: per-observation posterior mean and sd of yhat.train/yhat.test,
+([[equivalence.R:1830-1841@b102e17c]]; |z| > 4 = FAIL) plus the parameter-free disjoint-seed-range complement
+([[equivalence.R:1821-1829@b102e17c]]). Summaries per fit: per-observation posterior mean and sd of yhat.train/yhat.test,
 sigma mean/sd, per-variable inclusion proportion, sampled k mean/sd/median, and for rbart_vi
 per-group ranef mean/sd and tau mean/sd/median/q10/q90; plus, on top of the harness, Spearman and a
 two-sample KS between the two engines' per-observation posterior means. Main arm ndpost 1000 / nskip
@@ -33,8 +33,8 @@ Matched by setting both sides explicitly (identical constructors on both trees):
   where 0.9-34 writes `1/num.vars`), resolving identically; an explicit non-uniform split.probs
   vector in the two splitprobs arms. k = 2.0 fixed for every gaussian arm and for b_probit_k2.
 - BINARY k HYPERPRIOR, the one non-obvious mapping: classic draws k^2 with shape 0.5*(M + 2*nu - 1)
-  (main:src/dbarts/parameterPrior.cpp:166) where bartcore uses 0.5*(M + nu)
-  (src/bartcore/model.hpp:2521, the dropped-Jacobian fix bcdcc07/14bd6b52), and the rate term
+  (main:[[src/dbarts/parameterPrior.cpp:166@b102e17c]]) where bartcore uses 0.5*(M + nu)
+  ([[src/bartcore/model.hpp:2521@b102e17c]], the dropped-Jacobian fix bcdcc07/14bd6b52), and the rate term
   including the finite-scale 0.5/s^2 is identical. So classic chi(nu,s) IS bartcore chi(2*nu - 1,
   s): b_probit_chi2 runs chi(1.25, 2) against chi(1.5, 2), b_probit_chiinf chi(1.25, Inf) against
   chi(1.5, Inf). Both hold, which is itself a check on that identity.
@@ -91,9 +91,9 @@ on the matched arms, a 1-2% one is not.
 
 E1. CHANGE-MOVE DETAILED BALANCE. 0.9-34's changeRule.cpp accepts on the pure pi-ratio with no
 proposal-density term, inherited from the CGM-lineage original; 1.0-0 adds the hybrid
-correction (docs/design/change-move-balance.md:18-77, NEWS.Rd:1154-1163; exact gate
+correction ([[docs/design/change-move-balance.md:18-77@658869ac]], [[NEWS.Rd:1154-1163@658869ac]]; exact gate
 benchmarks/R/change-balance.R, defect z +255 -> repair z -1.2,
-docs/plans/archive/change-move-fix.md:200-207). The doc's bias factor, [p_var(v')/p_var(v)] *
+[[docs/plans/archive/change-move-fix.md:200-207@658869ac]]). The doc's bias factor, [p_var(v')/p_var(v)] *
 [|Valid(v)|/|Valid(v')|], is invisible at equal cut counts AND equal split probabilities; both
 halves reproduce, each in its own scenario.
 - g_quants (coarse columns get 2-4 quantile cuts, the rest ~100): 0.9-34 OVER-uses the
@@ -109,8 +109,8 @@ halves reproduce, each in its own scenario.
   at p = 1.000.
 
 E2. ZERO-WEIGHT SIGMA DF. 0.9-34 counts all n rows in the sigma posterior df
-(main:src/dbarts/parameterPrior.cpp:109) though zero-weight rows contribute nothing to the sum of
-squares; 1.0-0 counts positive-weight rows only (cf99a00, NEWS.Rd:1164-1172). With 80 of 400 weights
+(main:[[src/dbarts/parameterPrior.cpp:109@658869ac]]) though zero-weight rows contribute nothing to the sum of
+squares; 1.0-0 counts positive-weight rows only (cf99a00, [[NEWS.Rd:1164-1172@658869ac]]). With 80 of 400 weights
 exactly 0 and true sigma 1: 1.0-0 gives 1.072 (sd 0.078) on every seed, 0.9-34 gives 0.43-0.54 on 12
 of 20 seeds and NON-FINITE yhat/sigma on the other 8, leaving 1002 of its 1012 summary columns
 unusable. The documented feedback loop (deflated sigma -> trees absorb residual -> smaller S ->
@@ -120,7 +120,7 @@ finite, and it too diverges (|z| 4.98).
 E3. rbart_vi RESPONSE SCALING. 0.9-34 re-anchors the response transform during warmup with the
 current random effects subtracted; 1.0-0's in-core Gibbs fixes it at creation from y alone, so b
 never touches it - measured as "sigma ~1.4% lower in-core" at
-docs/design/grouped-random-effects.md:212-219 (NEWS.Rd:521-537). Reproduced with the right
+[[docs/design/grouped-random-effects.md:212-219@658869ac]] ([[NEWS.Rd:521-537@658869ac]]). Reproduced with the right
 conditional structure: the effect scales with ranef sd relative to response range. rbart_sym (range
 ~8, ranef sd 1.0) gives sigma 0.8256 vs 0.8109, -1.78%, z 4.72, and mean posterior sd of yhat
 +3.13%, z -4.11 (11 of 857 over 4); rbart on Friedman (range ~30, ranef sd 1.5) gives -1.07%, z 1.26
@@ -129,7 +129,7 @@ the shift is in the leaf prior's effective scale, not the variance components.
 
 E4. xbart FOLD LEAKAGE. 0.9-34 carries the chain across folds, so a fold's held-out rows were
 training rows moments earlier; 1.0-0 starts fresh per split and shares one cut grid across folds
-(NEWS.Rd:618-638). 5-fold rmse over 20 reps: 0.9-34 1.5537 against 1.0-0 1.7170, i.e. 0.9-34 reports
+([[NEWS.Rd:618-638@658869ac]]). 5-fold rmse over 20 reps: 0.9-34 1.5537 against 1.0-0 1.7170, i.e. 0.9-34 reports
 10.5% LOWER loss, z -54.8, all 7 summaries with disjoint seed ranges; 14.7% at n.trees = 25 against
 6.4% at 75, the documented concentration at small ensembles. A discriminator separates leakage from
 under-burning: raising burn-in to 2000 leaves 1.0-0 unmoved (1.7574 -> 1.7576, so its 200-sweep
@@ -144,7 +144,7 @@ weak-signal cell (n = 200, base rate 0.5, effect 0.3) reproduces the documented 
 sampled k has median 14848 and max 519000 against 1.0-0's 3.61 and 7.01, and the runaway collapses
 the fit - mean |posterior mean latent| 0.00046 vs 0.2591, mean posterior sd 0.0098 vs 0.3962 (z ~
 -47), i.e. 0.9-34's default binary fit degenerates to the intercept. The k channel gives only z
-1.2-1.7: the runaway inflates across-seed variance, the degeneracy equivalence.R:1815-1820 warns
+1.2-1.7: the runaway inflates across-seed variance, the degeneracy [[equivalence.R:1815-1820@658869ac]] warns
 about.
 
 ## 5. Unexplained disagreements

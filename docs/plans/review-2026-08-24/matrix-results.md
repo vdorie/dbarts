@@ -64,7 +64,7 @@ by default in this probe); a hazard/hazard.logistic fit built without
 
 \** `dbarts()` refuses `hurdle.lognormal`/`twopart` by name
 ("fits two component samplers and is only available through bart2()"),
-matching bart2.Rd:237's own statement of the same restriction. Agrees.
+matching [[bart2.Rd:237@b102e17c]]'s own statement of the same restriction. Agrees.
 
 ## 2. Class x generic table
 
@@ -110,11 +110,11 @@ Given the size of a full 29-file Rd sweep, this pass verified the Rd claims
 tied directly to what the grid actually exercised (dbartsSpec.Rd, rbart.Rd,
 bart2.Rd), rather than an exhaustive extraction across every man page.
 
-- **CONTRADICTS**: man/dbartsSpec.Rd:40, "Both entry points call the same
+- **CONTRADICTS**: [[man/dbartsSpec.Rd:40@b102e17c]], "Both entry points call the same
   resolution, so a family can never resolve two ways" - directly falsified
   by finding F1 below (`family = "multinomial"` resolves on `dbarts()` and
   refuses on `dbartsSpec()` for the identical input).
-- **Internally inconsistent, same file**: man/dbartsSpec.Rd:48 groups
+- **Internally inconsistent, same file**: [[man/dbartsSpec.Rd:48@b102e17c]] groups
   `"multinomial"` with `"hurdle.lognormal"` as families "unavailable"
   through this entry point because they "describe more than one sampler" -
   false for multinomial (one K-forest sampler, not multiple; unlike
@@ -123,11 +123,11 @@ bart2.Rd), rather than an exhaustive extraction across every man page.
   dbartsSpec's `family=` vocabulary, but `"multinomial"` IS present and
   match.arg-selectable - so the same paragraph claims a token is
   unreachable while the signature offers it.
-- **AGREES**: man/rbart.Rd:94-95 already documents "[the survival response]
+- **AGREES**: [[man/rbart.Rd:94-95@b102e17c]] already documents "[the survival response]
   enter[s] only through the formula interface" for `family = "aft"` - the
   restriction itself is correctly documented; finding F2 is about the
   *enforcement*, not the documentation.
-- **AGREES**: man/bart2.Rd:306, "\[the forest()\ term route\] is the only
+- **AGREES**: [[man/bart2.Rd:306@b102e17c]], "\[the forest()\ term route\] is the only
   way bart2 itself reaches the per-forest channel, since it has no
   `forests =` formal of its own" - matches the grid exactly (bart2 refuses
   `forests=` by name; dbarts accepts it). Not a bug or a doc gap.
@@ -172,7 +172,7 @@ bart2.Rd), rather than an exhaustive extraction across every man page.
 ## 7. Numbered candidate findings
 
 **F1. `dbartsSpec()` and `dbarts()` resolve `family = "multinomial"`
-differently for the identical input, contradicting dbartsSpec.Rd:40's
+differently for the identical input, contradicting [[dbartsSpec.Rd:40@b102e17c]]'s
 "same resolution" claim.**
 Repro:
 ```r
@@ -191,7 +191,7 @@ already-built `dbartsData`, so it never gets that conversion. Confirmed
 counts-built `dbartsData(x, counts = countMatrix)` directly - so the token
 is reachable, just not through the "obvious" construction path the doc's
 "same resolution" claim implies exists uniformly for all 8 tokens dbartsSpec
-declares. Also see the man/dbartsSpec.Rd:48 inconsistency in section 3.
+declares. Also see the [[man/dbartsSpec.Rd:48@b102e17c]] inconsistency in section 3.
 
 **F2. `rbart_vi(family="aft")` via the matrix interface fails with an
 opaque dimension-mismatch error, not the by-name refusal the family's own
@@ -205,7 +205,7 @@ rbart_vi(x, Surv(time, status), group.by = g, family = "aft", ...)
 `x` has 40 rows and `Surv(time, status)` also reports 40 (`NROW`/`length`
 agree) - the message is simply wrong about what's wrong. Root cause: R/rbart.R's
 own comment says "rbart_vi's matrix interface has no survival form; aft
-enters only through the formula" - a real, and correctly documented (rbart.Rd:95),
+enters only through the formula" - a real, and correctly documented ([[rbart.Rd:95@b102e17c]]),
 restriction - but nothing enforces it explicitly on the matrix path. The raw
 `Surv` object gets forwarded straight into `dbartsData(formula=x, data=Surv,
 ...)`, which has no survival-response handling at all (unlike
@@ -265,10 +265,10 @@ directly - none declare it) **- the only door is a pre-built
 confirmed in Part B), but genuinely undiscoverable from any fitting entry's
 own argument list - a candidate doc gap rather than a behavioral one.
 
-**F9. `bart()`'s by-name own-class-family refusal (man/bart.Rd:16: "naming
+**F9. `bart()`'s by-name own-class-family refusal ([[man/bart.Rd:16@b102e17c]]: "naming
 one of bart2's remaining own-class families to bart's family is refused,
 pointing there") does not cover the `"twopart"` alias, even though
-`"twopart"` is documented (dbarts.Rd:111, bart2.Rd) to resolve and print as
+`"twopart"` is documented ([[dbarts.Rd:111@b102e17c]], bart2.Rd) to resolve and print as
 `"hurdle.lognormal"` everywhere else.**
 Not reachable from Part A/B above, since both only probe each entry's own
 declared vocabulary (`declaredTokens(bart)` = `c("auto","logistic","aft")`,
@@ -282,7 +282,7 @@ bart(x, y, family = "hurdle.lognormal", verbose = FALSE)
 bart(x, y, family = "twopart", verbose = FALSE)
 # -> 'arg' should be one of "auto", "logistic", "aft"    [bare match.arg]
 ```
-Root cause: `bartOwnClassFamilies` (R/bart.R:2587-2592) is the literal
+Root cause: `bartOwnClassFamilies` ([[R/bart.R:2587-2592@b102e17c]]) is the literal
 vector `c("multinomial", "ordinal", "nbinom", "hurdle.lognormal")` - checked
 by `bart()` against the RAW token *before* `bart2()`'s own alias-fold (which
 resolves `"twopart"` to `"hurdle.lognormal"` immediately after
@@ -344,7 +344,7 @@ than evidence keepTrees itself is broken - `test-host-shell-pins.R` already
 covers the real keepTrees-survives-save/reload path.
 
 **Not exercised**: a multinomial or BCF (`forests=`) sampler's own method
-census - `man/dbartsSampler-class.Rd:351` documents in detail which of the
+census - `[[man/dbartsSampler-class.Rd:351@b102e17c]]` documents in detail which of the
 41 methods a multinomial sampler refuses and why (`setResponse`,
 `setOffset`, `setWeights`, `setSigma`, `setData`, `setModel`,
 `setCalibration`, `setForestWeights`, `setForestBasis`,
@@ -385,7 +385,7 @@ push cell count. What was traded for that headroom, explicitly:
   covered separately by section 8's supplementary census (28
   accepted/13 refused/0 error-without-reason on a plain gaussian sampler),
   which closes most of this gap for the single-forest case; a multinomial
-  or BCF sampler's method census (man/dbartsSampler-class.Rd:351's specific
+  or BCF sampler's method census ([[man/dbartsSampler-class.Rd:351@b102e17c]]'s specific
   per-method refusal claims) is still untested - see section 8's own "not
   exercised" note.
 - **Two independent processes converged on this same deliverable during

@@ -3,7 +3,7 @@
 Read-only, tip b102e17c. Every claim is tool-verified; probe numbers come from a staged
 `git archive HEAD` + `R CMD INSTALL --preclean` build (dbarts 1.0.0).
 
-FIRST CORRECTION. review-lenses-memo.md:142 says "xbart still has zero equivalence
+FIRST CORRECTION. [[review-lenses-memo.md:142@b102e17c]] says "xbart still has zero equivalence
 scenarios, no exact gate, no SBC arm". The first clause is FALSE at the tip: the
 canonical baseline equivalence-5a3bc276.rds carries 43 scenarios and `xbart` is one of
 them (verified by reading the .rds). The phrase "no oracle at any date" appears nowhere
@@ -15,11 +15,11 @@ xbart's answer = split assembly x per-cell fit x loss x aggregation x chunking.
 
 | piece | what it is | oracle today |
 |---|---|---|
-| split assembly | R/xbart.R:718 `sample.int(n)` per rep, cut into `foldSizes` (:353); train = complement | PARTIAL. test-xbart-oracle.R pins fold SIZES arithmetically (12 -> 4,4,4 and 3,3,2,2,2 -> 2.4) and pins a partition by VALUE (`sort(unlist(fold y)) == sort(y)`). WHICH rows, and that train is the complement: nothing. |
-| per-cell fit | `bartcoreSamplerFromHandle` row-subset view (R/bartcore.R:689), fresh per n.trees, warm across cells at n.burn[2] | PARTIAL. The engine's own gates cover the sampler. test-data-handle.R pins a FULL-row view bitwise == an ordinary sampler, and for a proper fold only shapes, finiteness, and one offset mean-within-1. Test-row ALIGNMENT and no-leakage: nothing. Warm-start-across-cells: nothing anywhere. |
-| loss | rmse / weighted rmse / log / mcr / custom (R/xbart.R:564-611) | FULL. f009eff8's test-xbart-oracle.R, 16 assertions: a capturing loss records the (y.test, testSamples, weights) triples and every built-in formula is transcribed BY HAND outside xbart. Mutation-proven twice (fold-count off-by-one kills 6/16; swapped log branches + reversed rmse rows kills 3/16). |
-| aggregation | fold mean, then placement into (rep, n.trees, k, power, base, loss) by `linearIndex` (:509-517) | PARTIAL. The fold mean is pinned (a loss returning `length(y.test)` reports 4 and 2.4). Placement is SHAPE-ONLY: dims and dimnames are asserted in test-xbart-method.R / -loss.R; no test ties the slice LABELLED k = X to a fit that used k = X. Two equal-length axes could be transposed silently. |
-| chunking | `numChunks = min(n.threads, n.reps)`, one seed per chunk (:452-461) | PARTIAL. Fixed (seed, n.threads) reproducibility is pinned; the DIFFERENCE across thread counts is pinned as an inequality (`any(xval.1 != xval.3)`). Nothing pins what threading must preserve. |
+| split assembly | [[R/xbart.R:718@5a3bc276]] `sample.int(n)` per rep, cut into `foldSizes` ([[R/xbart.R:353@5a3bc276]]); train = complement | PARTIAL. test-xbart-oracle.R pins fold SIZES arithmetically (12 -> 4,4,4 and 3,3,2,2,2 -> 2.4) and pins a partition by VALUE (`sort(unlist(fold y)) == sort(y)`). WHICH rows, and that train is the complement: nothing. |
+| per-cell fit | `bartcoreSamplerFromHandle` row-subset view ([[R/bartcore.R:689@5a3bc276]]), fresh per n.trees, warm across cells at n.burn[2] | PARTIAL. The engine's own gates cover the sampler. test-data-handle.R pins a FULL-row view bitwise == an ordinary sampler, and for a proper fold only shapes, finiteness, and one offset mean-within-1. Test-row ALIGNMENT and no-leakage: nothing. Warm-start-across-cells: nothing anywhere. |
+| loss | rmse / weighted rmse / log / mcr / custom ([[R/xbart.R:564-611@5a3bc276]]) | FULL. f009eff8's test-xbart-oracle.R, 16 assertions: a capturing loss records the (y.test, testSamples, weights) triples and every built-in formula is transcribed BY HAND outside xbart. Mutation-proven twice (fold-count off-by-one kills 6/16; swapped log branches + reversed rmse rows kills 3/16). |
+| aggregation | fold mean, then placement into (rep, n.trees, k, power, base, loss) by `linearIndex` ([[R/xbart.R:509-517@658869ac]]) | PARTIAL. The fold mean is pinned (a loss returning `length(y.test)` reports 4 and 2.4). Placement is SHAPE-ONLY: dims and dimnames are asserted in test-xbart-method.R / -loss.R; no test ties the slice LABELLED k = X to a fit that used k = X. Two equal-length axes could be transposed silently. |
+| chunking | `numChunks = min(n.threads, n.reps)`, one seed per chunk ([[R/xbart.R:452-461@658869ac]]) | PARTIAL. Fixed (seed, n.threads) reproducibility is pinned; the DIFFERENCE across thread counts is pinned as an inequality (`any(xval.1 != xval.3)`). Nothing pins what threading must preserve. |
 | drift channel | equivalence scenario `xbart`, recorded channel = the loss array | NOT AN ORACLE. It is a self-comparison: the recording and the re-run are the same code. It catches movement, not error. |
 
 f009eff8's oracle proves exactly one thing: GIVEN the triples xbart hands its loss, the
