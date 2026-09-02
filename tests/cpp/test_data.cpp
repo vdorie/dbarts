@@ -1774,6 +1774,161 @@ static void testCodeChannelIngestion() {
   printf("ok: code channel ingestion\n");
 }
 
+// A view over a parent whose factor columns are NOT plain doubles: one parent
+// built through the code channel, one mixed parent (dense block plus a CSC
+// column). buildFromParent copies the grid and gathers codes rather than
+// values, so a view must bin exactly as its parent whatever the parent
+// retained - kinds, level counts, cut grids, every train and test code, and
+// the raw of a designated leaf covariate the parent can serve.
+//
+// Deterministic throughout: the suites after this one read the same rng
+// stream.
+static void testViewOverCodedAndMixedParent() {
+  const size_t n = 96, p = 4, numLevels = 5, numCategories = 4;
+  // parent columns: 0 numeric, 1 ordered factor, 2 categorical, 3 numeric
+  const ColumnKind kinds[p] = { ColumnKind::numeric, ColumnKind::orderedFactor,
+                                ColumnKind::categorical,
+                                ColumnKind::numeric };
+  std::vector<double> values(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    values[i] = 0.125 * static_cast<double>(i % 31);
+    values[n + i] = static_cast<double>(i % numLevels);
+    values[2 * n + i] = static_cast<double>(i % numCategories);
+    values[3 * n + i] = 0.0625 * static_cast<double>((3 * i) % 41);
+  }
+
+  std::vector<size_t> rows, testRows;
+  for (size_t i = 0; i < n; i += 3) rows.push_back(i);
+  for (size_t i = 1; i < n; i += 5) testRows.push_back(i);
+  // the ordered factor is the leaf covariate: a categorical one is refused as
+  // one, so it is the single kind that needs a double for a non-splitting
+  // reason
+  const size_t gather[1] = { 1 };
+
+  auto viewAgreesWithParent = [&](const ColumnStore& parent,
+                                  const ColumnStore& view, const char* what) {
+    bool ok = view.isView && view.types == parent.types &&
+      view.categoryCounts == parent.categoryCounts &&
+      view.numCuts == parent.numCuts && view.cutPoints == parent.cutPoints &&
+      view.maxNumCuts == parent.maxNumCuts &&
+      view.numObservations == rows.size() &&
+      view.numTestObservations == testRows.size();
+    for (size_t j = 0; j < p && ok; ++j) {
+      for (size_t i = 0; i < rows.size() && ok; ++i)
+        ok = view.codeAt(j, i) == parent.codeAt(j, rows[i]);
+      for (size_t i = 0; i < testRows.size() && ok; ++i)
+        ok = view.testCodeAt(j, i) == parent.codeAt(j, testRows[i]);
+    }
+    check(ok, what);
+  };
+
+  auto gatheredRawAgrees = [&](const ColumnStore& view, const char* what) {
+    const double* raw = view.rawColumn(1);
+    const double* rawTest = view.rawTestColumn(1);
+    bool ok = raw != nullptr && rawTest != nullptr;
+    for (size_t i = 0; i < rows.size() && ok; ++i)
+      ok = raw[i] == values[n + rows[i]];
+    for (size_t i = 0; i < testRows.size() && ok; ++i)
+      ok = rawTest[i] == values[n + testRows[i]];
+    // the constants are the parent's full-data ones, not the subset's
+    double mean, sd, parentMean, parentSd;
+    standardizationMomentsForColumn(values.data() + n, n, &parentMean,
+                                    &parentSd);
+    ok = ok && view.suppliedStandardization(1, &mean, &sd) &&
+      mean == parentMean && sd == parentSd;
+    check(ok, what);
+  };
+
+  // the reference: a plain double parent, every column in one block
+  ColumnStore denseParent;
+  built(denseParent.build(values.data(), n, p, 20u, false, kinds, gather, 1));
+  ColumnStore denseView;
+  denseView.buildFromParent(denseParent, rows.data(), rows.size(),
+                            testRows.data(), testRows.size(), gather, 1);
+  viewAgreesWithParent(denseParent, denseView,
+                       "a view over a double-backed parent bins as its parent");
+  gatheredRawAgrees(denseView,
+                    "a view over a double-backed parent gathers its covariate");
+
+  // the coded parent: the two factor columns cross as int32 level codes, the
+  // two numeric ones as doubles, each channel packed over the columns it
+  // serves
+  std::vector<double> valueBlock(2 * n);
+  std::vector<std::int32_t> codeBlock(2 * n);
+  const std::int32_t channels[p] = { 0, ~0, ~1, 1 };
+  for (size_t i = 0; i < n; ++i) {
+    valueBlock[i] = values[i];
+    valueBlock[n + i] = values[3 * n + i];
+    codeBlock[i] = static_cast<std::int32_t>(values[n + i]);
+    codeBlock[n + i] = static_cast<std::int32_t>(values[2 * n + i]);
+  }
+  PredictorSource coded;
+  coded.numRows = n;
+  coded.numColumns = p;
+  coded.denseValues = valueBlock.data();
+  coded.denseCodes = codeBlock.data();
+  coded.denseChannels = channels;
+  coded.columnTypes = kinds;
+  ColumnStore codedParent;
+  built(codedParent.build(coded, nullptr, 20u, false, gather, 1));
+  check(codedParent.types == denseParent.types &&
+          codedParent.categoryCounts == denseParent.categoryCounts &&
+          codedParent.train.codes == denseParent.train.codes,
+        "a coded parent holds the codes the double-backed one does");
+  ColumnStore codedView;
+  codedView.buildFromParent(codedParent, rows.data(), rows.size(),
+                            testRows.data(), testRows.size(), gather, 1);
+  viewAgreesWithParent(codedParent, codedView,
+                       "a view over a coded parent bins as its parent");
+  gatheredRawAgrees(codedView,
+                    "a view over a coded parent gathers its covariate");
+
+  // the mixed parent: column 3 moves to CSC storage, the rest stay dense, so
+  // the parent's build takes the mapped arm
+  std::vector<double> mixedDense(3 * n);
+  for (size_t i = 0; i < n; ++i) {
+    mixedDense[i] = values[i];
+    mixedDense[n + i] = values[n + i];
+    mixedDense[2 * n + i] = values[2 * n + i];
+  }
+  // a sparse column of the same logical values: the entries the dense column
+  // holds nonzero, in ascending row order
+  std::vector<int> pointers = { 0, 0 };
+  std::vector<int> cscRows;
+  std::vector<double> cscValues;
+  for (size_t i = 0; i < n; ++i)
+    if (values[3 * n + i] != 0.0) {
+      cscRows.push_back(static_cast<int>(i));
+      cscValues.push_back(values[3 * n + i]);
+    }
+  pointers[1] = static_cast<int>(cscRows.size());
+  const std::int32_t mixedSources[p] = { 0, 1, 2, ~0 };
+  PredictorSource mixed;
+  mixed.numRows = n;
+  mixed.numColumns = p;
+  mixed.denseValues = mixedDense.data();
+  mixed.cscColumnPointers = pointers.data();
+  mixed.cscRowIndices = cscRows.data();
+  mixed.cscValues = cscValues.data();
+  mixed.columnSources = mixedSources;
+  mixed.columnTypes = kinds;
+  ColumnStore mixedParent;
+  built(mixedParent.build(mixed, nullptr, 20u, false, gather, 1));
+  check(mixedParent.types == denseParent.types &&
+          mixedParent.categoryCounts == denseParent.categoryCounts &&
+          mixedParent.train.codes == denseParent.train.codes,
+        "a mixed parent holds the codes the double-backed one does");
+  ColumnStore mixedView;
+  mixedView.buildFromParent(mixedParent, rows.data(), rows.size(),
+                            testRows.data(), testRows.size(), gather, 1);
+  viewAgreesWithParent(mixedParent, mixedView,
+                       "a view over a mixed parent bins as its parent");
+  gatheredRawAgrees(mixedView,
+                    "a view over a mixed parent gathers its covariate");
+
+  printf("ok: view over a coded and a mixed parent\n");
+}
+
 // Both whole-data entrances used to trust their caller. The store's own now
 // checks membership in each factor column's fixed level table before it writes
 // a code, and the sampler's checks BOTH sides before anything moves, so a test
@@ -1867,5 +2022,6 @@ void runDataTests() {
   testPredictorViewEquivalence();
   testMaterializePredictorSource();
   testCodeChannelIngestion();
+  testViewOverCodedAndMixedParent();
   testSetDataRefusals();
 }
