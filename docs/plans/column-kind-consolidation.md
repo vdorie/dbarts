@@ -1599,7 +1599,7 @@ bcf-equivalence-00cfa108 12/12, multinomial-equivalence-4d9a3337 11/11,
 all bitwise. No hot-path file is touched. S4a next: the code channel and
 the bridge's code-typed validation sweep.
 
-### S4a - the code channel (e36fccbe, 6b597efb, 01cf9f4c, d89994d0, 070afd92, dec670bb, 7976ebff, 0e8830e9, a93c44ea, fd2af7c5)
+### S4a - the code channel (e36fccbe, 6b597efb, 01cf9f4c, d89994d0, 070afd92, dec670bb, 7976ebff, 0e8830e9, a93c44ea, fd2af7c5, 3a676bc3)
 
 The borrowed predictor view carries two dense channels now: denseValues,
 column-major doubles, and denseCodes, column-major int32 level codes with
