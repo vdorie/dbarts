@@ -2288,6 +2288,51 @@ static void testCodeThresholdBelow() {
   printf("ok: coded ordinal threshold\n");
 }
 
+// Dropping the test data is a ROWLESS test build: the view carries no dense
+// block and no CSC storage for the ingestion copies to read, so each copy must
+// skip rather than run at zero length over a null source (memcpy is undefined
+// on a null argument even for zero bytes). Run after a populated test build,
+// which is the shape that leaves the owned buffers holding capacity - a live
+// destination beside the source that is not there.
+//
+// Deterministic: the suites after it read the same rng stream.
+static void testEmptyTestStore() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 60, numTest = 24, p = 3;
+
+  std::vector<double> xTrain(n * p);
+  for (double& v : xTrain) v = runif01();
+  ColumnStore store;
+  built(store.build(xTrain.data(), n, p, 20));
+
+  std::vector<double> xTest(numTest * p);
+  for (double& v : xTest) v = runif01();
+  built(store.buildTest(xTest.data(), numTest));
+  check(store.numTestObservations == numTest,
+        "the populated test build takes its row count");
+
+  // the drop spelling every burn-in run takes: a null block over zero rows
+  built(store.buildTest(nullptr, 0));
+  check(store.numTestObservations == 0,
+        "a rowless dense test build keeps no test rows");
+
+  // the same over a mapped view whose CSC column stores no nonzeros at all,
+  // so neither the source's value and row pointers nor the owned buffers exist
+  const int emptyPointers[2] = { 0, 0 };
+  const std::int32_t columnSources[p] = { 0, ~0, 1 };
+  PredictorSource rowless;
+  rowless.numRows = 0;
+  rowless.numColumns = p;
+  rowless.cscColumnPointers = emptyPointers;
+  rowless.columnSources = columnSources;
+  built(store.buildTest(rowless));
+  check(store.numTestObservations == 0,
+        "a rowless mixed test build keeps no test rows");
+
+  rngState = savedRngState;
+  printf("ok: rowless test store\n");
+}
+
 void runDataTests() {
   testCodeThresholdBelow();
   testColumnStoreCodes();
@@ -2315,4 +2360,5 @@ void runDataTests() {
   testTestStoreRetention();
   testViewOverCodedAndMixedParent();
   testSetDataRefusals();
+  testEmptyTestStore();
 }

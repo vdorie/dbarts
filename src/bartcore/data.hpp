@@ -519,8 +519,12 @@ inline void materializePredictorSource(const PredictorSource& source,
           target[i] = column.at(rowBegin + i);
         continue;
       }
-      std::memcpy(target, column.values + rowBegin,
-                  numRows * sizeof(double));
+      // an empty row range has no block to read: memcpy is undefined on a
+      // null source even for zero bytes, and a view carrying no rows carries
+      // no values pointer either
+      if (numRows != 0)
+        std::memcpy(target, column.values + rowBegin,
+                    numRows * sizeof(double));
       continue;
     }
     bool categorical =
@@ -1431,7 +1435,10 @@ struct ColumnStore {
     double* gathered =
       gatheredRawValues.data() + static_cast<size_t>(slot) * numObservations;
     if (!column.isCoded()) {
-      std::memcpy(gathered, column.values, numObservations * sizeof(double));
+      // memcpy is undefined on a null source even for zero bytes, and a
+      // rowless column carries no values pointer
+      if (numObservations != 0)
+        std::memcpy(gathered, column.values, numObservations * sizeof(double));
       return;
     }
     for (size_t i = 0; i < numObservations; ++i) gathered[i] = column.at(i);
@@ -1615,7 +1622,9 @@ struct ColumnStore {
           DenseColumnValues column = source.denseColumn(j);
           if (column.isCoded()) {
             for (size_t i = 0; i < n; ++i) desc.residentRaw[i] = column.at(i);
-          } else {
+          } else if (n != 0) {
+            // memcpy is undefined on a null source even for zero bytes, and a
+            // rowless view carries no values pointer
             std::memcpy(desc.residentRaw, column.values, n * sizeof(double));
           }
         }
@@ -1879,7 +1888,10 @@ struct ColumnStore {
           if (column.isCoded()) {
             for (size_t i = 0; i < numTest; ++i)
               desc.residentRaw[i] = column.at(i);
-          } else {
+          } else if (numTest != 0) {
+            // dropping the test data is a rowless view with no values
+            // pointer, and memcpy is undefined on a null source even for
+            // zero bytes
             std::memcpy(desc.residentRaw, column.values,
                         numTest * sizeof(double));
           }
@@ -1892,10 +1904,15 @@ struct ColumnStore {
       size_t begin = static_cast<size_t>(source.cscColumnPointers[cscColumn]);
       size_t end = static_cast<size_t>(source.cscColumnPointers[cscColumn + 1]);
       size_t numNonzero = end - begin;
-      std::memcpy(ownedTestCscValues.data() + cursor,
-                  source.cscValues + begin, numNonzero * sizeof(double));
-      std::memcpy(ownedTestCscRows.data() + cursor,
-                  source.cscRowIndices + begin, numNonzero * sizeof(int));
+      // an all-implicit column stores nothing, and neither the source nor
+      // the owned buffer need hold a pointer then; memcpy is undefined on a
+      // null argument even for zero bytes
+      if (numNonzero != 0) {
+        std::memcpy(ownedTestCscValues.data() + cursor,
+                    source.cscValues + begin, numNonzero * sizeof(double));
+        std::memcpy(ownedTestCscRows.data() + cursor,
+                    source.cscRowIndices + begin, numNonzero * sizeof(int));
+      }
       desc.slice = { ownedTestCscValues.data() + cursor,
                      ownedTestCscRows.data() + cursor, numNonzero };
       desc.refCode = source.referenceCodeOf(j);
