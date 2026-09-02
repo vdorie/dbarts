@@ -39,12 +39,12 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2729`) fires on a
+`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2807`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`.
 It raises, as every helper below does; the flat entries return 0 instead.
 
-`refuseMultiForestResponseMutation` (`:2758`) is the one multi-forest family
+`refuseMultiForestResponseMutation` (`:2836`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
 swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1039`), which is
@@ -62,7 +62,7 @@ against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
 default the argument to FALSE. The weight conduit has no scale to pin and skips
 the clause.
 
-`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:3011`) closes the
+`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:3089`) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
 through. It guards `setTestPredictor`, `setTestOffset`,
@@ -152,7 +152,7 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4667`) is the
+`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4745`) is the
 internal single-chain R hook behind `rbart_vi`'s Gibbs loop. It refuses more
 than one chain outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the

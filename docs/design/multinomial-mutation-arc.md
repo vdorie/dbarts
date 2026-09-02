@@ -64,7 +64,7 @@ retired - the separate `$bc` handle is gone (section 1.5).
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:1967-1990`, draws one
+(`createChainRngs`, `src/R_interface_bartcore.cpp:2045-2068`, draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -109,12 +109,12 @@ S2+S3, which built one). `dbarts()`'s `family` formal
 among them (`:381`); `dbartsSpec()` reaches it the same way
 (`R/spec.R:799-808`, `"multinomial"` at `:805`); and creation runs
 through the single public dispatch every family uses, `bartcore_create`
-(`src/R_interface_bartcore.cpp:3678`), whose multinomial arm is
-`createMultinomialDataHolder` (`:3644`) - the dedicated
+(`src/R_interface_bartcore.cpp:3756`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3722`) - the dedicated
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
-(`src/C_interface.cpp:625`) routes to `createHolder`, never to the
+(`src/C_interface.cpp:630`) routes to `createHolder`, never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
@@ -131,25 +131,25 @@ except where it names another file:
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
 | create (labels / counts) | `bartcore_create`'s multinomial arm `:3561` -> `createMultinomialDataHolder` `:3527` (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | `:932`, `:968` | S, unexported |
-| run | `bartcore_run` `:4421` | `bartcoreRun` `:1070` | S |
-| **response swap** | `bartcore_setCounts` `:3966` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
-| **train offset** | `bartcore_setCategoryOffset` `:4041` | `:108` | S, unexported |
-| **test offset** | `bartcore_setCategoryTestOffset` `:4074` | `:125` | S, unexported |
+| run | `bartcore_run` `:4499` | `bartcoreRun` `:1070` | S |
+| **response swap** | `bartcore_setCounts` `:4044` | `bartcoreSamplerSetCounts` `:87` | S, unexported |
+| **train offset** | `bartcore_setCategoryOffset` `:4119` | `:108` | S, unexported |
+| **test offset** | `bartcore_setCategoryTestOffset` `:4152` | `:125` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5194`, `:5146`, `:5307`, `:5361` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:83-90`) |
-| cut points | `bartcore_setCutPoints` `:5354` | `:536` | S |
-| test predictors | `bartcore_setTestPredictor` `:4923` | `:558` | S (`refuseUndefinedTestFits` `:3011` gates on `testFitsAreDefined`, TRUE here) |
+| cut points | `bartcore_setCutPoints` `:5432` | `:536` | S |
+| test predictors | `bartcore_setTestPredictor` `:5001` | `:558` | S (`refuseUndefinedTestFits` `:3089` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4101` | retired; `R/dbarts.R:1398` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5970` | `:1085` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:6048` | `:1085` | S |
 | per-category fits / varcounts | `:4174`, `:4307` | retired; `R/dbarts.R:1727`, `:1757` | S |
 | calibration read | `bartcore_getCalibration` `:4232` | retired; `R/dbarts.R:1811` | S (map columns, NaN off-map) |
 | state store / restore | `:5711`, `:5716` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:354-363`) |
 | saved trees | `bartcore_getTrees` `:6049` | retired; `R/dbarts.R:2035` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
-(redirect to counts / category offset, `:2725-2752`), `setWeights`
-(`:2714-2718`, same branch), `setSigma`, `setData` / `setModel`
-(`refuseMultiForestMutation` `:2712`), `setCalibration` (`:4374-4390`),
-`setForestWeights` (`:4149-4161`, permanent, model grounds), `getLatents`
+(redirect to counts / category offset, `:2803-2830`), `setWeights`
+(`:2792-2796`, same branch), `setSigma`, `setData` / `setModel`
+(`refuseMultiForestMutation` `:2790`), `setCalibration` (`:4452-4468`),
+`setForestWeights` (`:4227-4239`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -341,7 +341,7 @@ the plan doc). Multinomial has no flat creation path
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:189`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:594`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
+(`src/C_interface.cpp:599`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
 change, and one `expect_false` for the superseded literal should be added
@@ -567,7 +567,7 @@ the counts channel" - one string, right on both surfaces, and what
 S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2696-2697`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-then fell through to the RESPONSE message (`:2756-2771` tested only
+then fell through to the RESPONSE message (`:2834-2849` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
 answered "this sampler's response is its n x K count matrix". Give
 weights its own arm naming the model reason. LANDED with H3: the weights
@@ -725,7 +725,7 @@ depend on the file's full execution history, not just the preceding
 - `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (`:138-144`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `:2132`), `dbarts(family = "multinomial")`, the
+  shipped sentence at `:2141`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`inst/NEWS.Rd:2045` records the deletion).** `$bc` was a bare
+`inst/NEWS.Rd:2054` records the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:659/649`,
 `794/810`, `924/939`), three test assertions (`test-ordinal.R:156`,
