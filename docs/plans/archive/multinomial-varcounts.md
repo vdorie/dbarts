@@ -20,7 +20,7 @@ window: NONE. Internal engine + bartcore .Call + the bart2 R surface; dbarts.h
 budget: ~180-230 lines. C1 ~170: engine ~70 (two combiner virtuals + the
   storeSample varcount loop + the chain/sampler stride + a SamplerBase accessor
   + a Results field), bridge ~30 (varcount alloc widened like the C2 fits seam +
-  scratch/copy sizing), R surface ~20 (packageMultinomialResults varcount
+  scratch-copy sizing), R surface ~20 (packageMultinomialResults varcount
   reshape), tests ~50 (tinytest shape/names/reproduction + the fixture channel +
   MANIFEST + one tests/cpp per-category storeSample check). C2 ~40 docs. Chiefly
   src/bartcore/combiner.hpp, chain.hpp, sampler.hpp, facade.hpp,
@@ -106,7 +106,7 @@ C1. The per-sample per-category varcount channel, one gated commit (RNG-neutral;
    the multinomial-arc discipline). Engine (combiner.hpp two virtuals + override,
    chain.hpp storeSample loop + accessor + Results field, sampler.hpp stride,
    facade.hpp SamplerBase accessor) + bridge (R_interface_bartcore.cpp alloc +
-   scratch/copy + numVariableCountForests set on both run and callback paths) +
+   scratch-copy + numVariableCountForests set on both run and callback paths) +
    R (packageMultinomialResults varcount) + the fixture channel (record
    res$varcount in recordChannels, re-record multinomial-equivalence-<hash>.rds,
    demote bcefa63 to historical, MANIFEST neutrality note) + tinytest (a

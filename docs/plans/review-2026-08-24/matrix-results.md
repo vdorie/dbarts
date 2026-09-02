@@ -11,7 +11,7 @@ plus a few more for the census, well inside the 30-minute budget (see
 
 Every number below was produced by running `matrix.R` (and, for section 8,
 `matrix-sampler-census.R`), not transcribed from
-`scratch/review-lenses-memo.md`; where it disagrees with that memo's
+an untracked review memo; where it disagrees with that memo's
 citations, the disagreement is noted rather than silently resolved.
 
 Both scripts are independently re-runnable against any installed lib:

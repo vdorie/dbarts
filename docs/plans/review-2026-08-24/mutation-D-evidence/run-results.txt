@@ -27,15 +27,15 @@ s04	rejectionSample (log): out-of-boundary proposals are returne	29s	KILLERS=1	t
 u01	uncombineChains vector branch: sample-major instead of chain	24s	KILLERS=1	test-utility-chains.R(FAIL=1 test-utility-chains.R :56-56)
 u02	combineChains 2-D branch: flattened without transposing	25s	KILLERS=1	test-utility-chains.R(FAIL=1 test-utility-chains.R :56-56)
 Traceback (most recent call last):
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutD-75096/drive.py", line 85, in <module>
+  File "<private-scratch-prefix>/mutD-75096/drive.py", line 85, in <module>
     main()
     ~~~~^^
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutD-75096/drive.py", line 69, in main
+  File "<private-scratch-prefix>/mutD-75096/drive.py", line 69, in main
     cur=parse(outp)
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutD-75096/drive.py", line 43, in parse
+  File "<private-scratch-prefix>/mutD-75096/drive.py", line 43, in parse
     for line in open(path):
                 ~~~~^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutD-75096/logs/u03.txt'
+FileNotFoundError: [Errno 2] No such file or directory: '<private-scratch-prefix>/mutD-75096/logs/u03.txt'
 u03	convertSamplesFromDbartsToBart: combined result loses its pa	11s	KILLERS=3	test-utility-chains.R(FAIL=6); test-rbart-generics.R(FAIL=ERR); test-rbart-aft.R(FAIL=ERR); SEGFAULT in test-rbart-performance.R fitted.rbart
 u04	convertSamplesFromDbartsToBart: uncombined permutation swaps	23s	KILLERS=4	test-rbart-bartcore.R(FAIL=ERR length of 'dimnames' [3] not equal to array extent); test-rbart-example.R(FAIL=3 test-rbart-example.R :41-44;test-rbart-example.R :45-48;test-rbart-example.R :49-52); test-rbart-generics.R(FAIL=ERR subscript out of bounds); test-utility-chains.R(FAIL=10 test-utility-chains.R :19-19;test-utility-chains.R :20-23;test-utility-chains.R :25-27;test-utility-chains.R :25-27;test)
 p02	sparse test column recode: category codes off by one	23s	KILLERS=0	

@@ -330,7 +330,7 @@ here.
 ## (e) Fix-wave plan
 
 Slices by file area, in landing order. Artifacts: private libs, staged sources and mutation logs under
-`/private/tmp/claude-501/.../scratch/consol-78583/` (`mutlog/<id>.diff`, `.tinytest.log`, `.run.log`);
+a private scratch prefix (`mutlog/<id>.diff`, `.tinytest.log`, `.run.log`);
 re-runnable probes in `consol/`.
 
 - S1 `R/generics.R` + `R/bart.R` - the two live BLOCKERS: B1 (strip the trees-call formals in

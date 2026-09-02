@@ -7,7 +7,7 @@ FIRST CORRECTION. review-lenses-memo.md:142 says "xbart still has zero equivalen
 scenarios, no exact gate, no SBC arm". The first clause is FALSE at the tip: the
 canonical baseline equivalence-5a3bc276.rds carries 43 scenarios and `xbart` is one of
 them (verified by reading the .rds). The phrase "no oracle at any date" appears nowhere
-in scratch/ or docs/. The accurate statement is narrower, and is section 1.
+in any scratch note or docs/. The accurate statement is narrower, and is section 1.
 
 ## 1. Decomposition and coverage
 

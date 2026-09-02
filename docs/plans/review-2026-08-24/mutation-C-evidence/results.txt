@@ -20,15 +20,15 @@ a3	AFT never imputes a censored latent (pins it at the bound)	24s	K=1	test-aft.R
 ai1	assignInPlace bounds check removed	24s	K=1	test-assignInPlace-bounds.R(FAIL=1 test-assignInPlace-bounds.R :10-13)
 ai2	assignInPlace index-arity check removed	24s	K=1	test-assignInPlace-bounds.R(FAIL=1 test-assignInPlace-bounds.R :41-44)
 Traceback (most recent call last):
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 88, in <module>
+  File "<private-scratch-prefix>/mutC-75149/drive2.py", line 88, in <module>
     main()
     ~~~~^^
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 75, in main
+  File "<private-scratch-prefix>/mutC-75149/drive2.py", line 75, in main
     cur=parse(outp)
-  File "/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/drive2.py", line 43, in parse
+  File "<private-scratch-prefix>/mutC-75149/drive2.py", line 43, in parse
     for line in open(path):
                 ~~~~^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutC-75149/logs/ai3.txt'
+FileNotFoundError: [Errno 2] No such file or directory: '<private-scratch-prefix>/mutC-75149/logs/ai3.txt'
 ai3 CRASH-KILL (R session died, no output file: bounds test segfaults)
 bw1	bart() tail no longer attaches $weights	24s	K=1	test-bart-weights-parity.R(FAIL=3 test-bart-weights-parity.R :22-22;test-bart-weights-parity.R :28-31;test-bart-weights-parity.R :46-46)
 bw2	pointwise loglik ignores case weights	9s	K=2	test-bart-weights-parity.R(FAIL=1 test-bart-weights-parity.R :28-31); test-pointwise-loglik.R(FAIL=1 test-pointwise-loglik.R :64-67)

@@ -4,7 +4,7 @@
 # as accepted or refused. Companion to matrix.R (which crossed conditioning
 # against ONE representative family per entry); this closes that coarsening.
 #
-#   R_LIBS=<lib> Rscript scratch/review-2026-08-24/matrix-entries.R [outDir]
+#   R_LIBS=<lib> Rscript docs/plans/review-2026-08-24/matrix-entries.R [outDir]
 #
 # Emits <outDir>/matrix-entries-grid.csv
 #   entry,family,conditioning,outcome,detail
@@ -15,7 +15,7 @@ suppressPackageStartupMessages({
 })
 
 cliArgs <- commandArgs(trailingOnly = TRUE)
-outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "scratch/review-2026-08-24"
+outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "docs/plans/review-2026-08-24"
 dir.create(outDir, showWarnings = FALSE, recursive = TRUE)
 csvPath <- file.path(outDir, "matrix-entries-grid.csv")
 grDevices::pdf(NULL)

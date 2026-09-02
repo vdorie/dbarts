@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # Executable consistency matrix, second whole-branch review (bartcore, tip b102e17c).
 # Re-run against any installed lib:
-#   R_LIBS=<lib> Rscript scratch/review-2026-08-24/matrix.R [outDir]
+#   R_LIBS=<lib> Rscript docs/plans/review-2026-08-24/matrix.R [outDir]
 #
 # Emits <outDir>/matrix-grid.csv (entry,conditioning,generic,type,sample,outcome,detail)
 # and prints phase timings to stderr. matrix-results.md is written by hand from the CSV,
@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
 })
 
 cliArgs <- commandArgs(trailingOnly = TRUE)
-outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "scratch/review-2026-08-24"
+outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "docs/plans/review-2026-08-24"
 dir.create(outDir, showWarnings = FALSE, recursive = TRUE)
 csvPath <- file.path(outDir, "matrix-grid.csv")
 

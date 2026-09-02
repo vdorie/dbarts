@@ -16,7 +16,7 @@ changing) landed at commit d384211 after a falsification gate (drift + SBC)
 showed it safe to ship un-anchored; measured speedup is 1.10x-1.30x depending
 on thread/chain count, and grows with n and with multi-chain bandwidth
 pressure (the default multi-chain configuration on commodity hardware benefits
-most). A follow-on fp32 scratch/fits bundle and a leafOf uint16 narrowing were
+most). A follow-on fp32 scratch-and-fits bundle and a leafOf uint16 narrowing were
 both designed and then declined by measurement - the residual gather carries
 the entire win; streaming scratch does not. Bottom line: fp32 storage is the
 memory-wall answer for this engine (see memory-wall-frontier.md section 9,
@@ -359,7 +359,7 @@ DRAM-bound, where fp32 helps streaming too).
 
 ### v2 scope and leafOf: declined by measurement
 
-The v1 A/B settles the fp32 scratch/fits bundle (section 3b) against itself.
+The v1 A/B settles the fp32 scratch-and-fits bundle (section 3b) against itself.
 The bundle (totalFits, test fits, dense treeFits, variance-forest arrays,
 gaussian working response) is STREAMING, not gathered - and the microbench
 plus the x86 v1 undershoot show fp32 STREAMING gains ~nothing (M1

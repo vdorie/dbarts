@@ -1,10 +1,10 @@
 # Fix wave 3 - implementer spec (bartcore @ 0045507c)
 
-Source: scratch/review-2026-08-24/consolidated-report.md sections (b)(c)(d)(e)(g), the
+Source: consolidated-report.md sections (b)(c)(d)(e)(g), the
 per-cell evidence in matrix-results.md / matrix-review-entries.md / matrix-review-generics.md,
 and VD's judgements J1-J8. Waves 1-2 are b102e17c..07ad73e4 (landing note at
-docs/plans/release-candidate-review.md:543). J7 (engine default: arms, worktree
-.claude/worktrees/engine-default) and J9 (predict n.threads) are OUT of this wave.
+docs/plans/release-candidate-review.md:543). J7 (engine default: arms, in a
+private worktree) and J9 (predict n.threads) are OUT of this wave.
 
 Every count and line reference below was re-verified in this pass; section E lists the
 command behind each. All line numbers are against 0045507c.
@@ -667,7 +667,7 @@ E8. Call-site counts: `grep -rhoE "dbarts:::bartcore[A-Za-z0-9_]+" inst/tinytest
     Of the 34 test files, 7 already source an inst/common helper
     (`comm -12` of the two file lists); inst/common holds 8 helpers today (`ls inst/common`).
 E9. Trio composition: equivalence 43 scenarios, bcf-equivalence 12,
-    multinomial-equivalence 11 (scratch/review-2026-08-24/gate-ledger.md:111).
+    multinomial-equivalence 11 (gate-ledger.md:111).
     bcf-equivalence.R holds 50 bartcore refs, multinomial-equivalence.R 48,
     equivalence.R 0 (`grep -ohE "dbarts:::bartcore[A-Za-z0-9_]+" <file> | sort | uniq -c`).
 E10. Dead engine members: `grep -rn "rightChildOf|setCurrentSampleNum" src/ tests/ inst/

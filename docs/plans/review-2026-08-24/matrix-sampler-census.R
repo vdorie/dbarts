@@ -15,7 +15,7 @@ suppressPackageStartupMessages({
 })
 
 cliArgs <- commandArgs(trailingOnly = TRUE)
-outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "scratch/review-2026-08-24"
+outDir <- if (length(cliArgs) >= 1) cliArgs[[1]] else "docs/plans/review-2026-08-24"
 csvPath <- file.path(outDir, "matrix-grid.csv")
 stopifnot(file.exists(csvPath))
 

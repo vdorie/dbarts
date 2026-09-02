@@ -12,7 +12,7 @@ src/bartcore/*.hpp or src/R_interface_bartcore.cpp. Other findings below
 have not been re-audited since this snapshot.
 
 Read-only at b102e17c.  Work in a `git archive HEAD` copy under
-/private/tmp/.../scratch/mutB-36911 with the checkout's src/*.a and generated
+a private scratch prefix with the checkout's src/*.a and generated
 config headers copied in; the checkout's src/ was never touched, and a final
 `diff -r` confirmed every staged header restored byte for byte.  Long-form
 evidence: mutation-B-evidence.md, same directory.  SCOPE the ten tests/cpp

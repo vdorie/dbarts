@@ -2,7 +2,7 @@
 
 Repo `/Users/vdorie/Repositories/dbarts`, branch `bartcore`, HEAD **7a8c7286** (verified, clean). Evidence from a tarball
 (`R CMD build`, 54 s) installed into a private lib; R 4.6.1, aarch64-apple-darwin23. Read-only: no edits, no write-side git,
-`.claude/worktrees` untouched.
+private worktrees untouched.
 
 **Verdict: no CRAN-blocking defect.** Every `R CMD check` leg run here is `Status: OK`. But two *silent wrong-answer* traps sit
 on the main user path, and the shipped consumer header omits the one fact every `LinkingTo` consumer needs first.

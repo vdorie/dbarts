@@ -14,7 +14,7 @@ any of them.
 
 Read-only. Every count below was produced in this pass by direct commands (git, gh api/run list, grep,
 wc) against the checkout and the GitHub API for vdorie/dbarts, not copied from
-scratch/review-lenses-memo.md; where a number matches that memo it is noted, where it differs or adds
+an untracked review memo; where a number matches that memo it is noted, where it differs or adds
 precision that is called out. main's only workflow is check-standard.yaml (git ls-tree main --
 .github/workflows); bartcore carries 11 files plus one now-deleted one (abi-contract.yaml, footnote).
 
@@ -64,7 +64,7 @@ Wired (24 of 38, by grep of exec filename against .github/workflows/*.yaml): 20 
 sbc.yaml (sbc.R).
 
 Orphan (14 of 38 - referenced by no workflow; matches the memo's count, but MEMBERSHIP moved since the
-2026-08-17 audit at .claude/rc-review-orphan-legs-2026-08-17.md: hazard-reduction.R/hurdle-reduction.R
+2026-08-17 audit at a private orphan-legs memo: hazard-reduction.R/hurdle-reduction.R
 were orphans there and are now wired into exact-gates.yaml; backfit-exact.R, composition-matrix.R,
 geweke-mc.R, mutation-battery.R are new files since then and are orphans now):
 

@@ -1,6 +1,6 @@
 # Adversarial critique: backlog-value-scan-2026-08-24 (branch bartcore, ee70e6f7)
 
-Posture REFUTE. `git archive HEAD` staged under scratch/crit-valuescan-11201/src, `R CMD INSTALL
+Posture REFUTE. `git archive HEAD` staged under a private scratch prefix, `R CMD INSTALL
 --preclean -l ../lib .` (EXIT 0); every probe `R_LIBS=lib Rscript`. Main checkout untouched.
 
 ## 1. Asserted defects

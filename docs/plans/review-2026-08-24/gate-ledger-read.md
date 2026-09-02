@@ -72,9 +72,9 @@ OVERSTATED:
   It is alone because R CMD check runs tests opaquely.
 - D. SANITIZERS HAS NO MAIN BINDING: push branches [bartcore], while every other push workflow lists [main, master,
   bartcore]. On merge to main the per-push memory-safety gate AND floor C stop.
-- E. THE EVIDENCE SUBSTRATE IS UNTRACKED. `.claude/` is gitignored (.gitignore:27) and `git ls-files .claude/` = 0,
+- E. THE EVIDENCE SUBSTRATE IS UNTRACKED. The private working directory is gitignored (.gitignore:27) and holds zero tracked files,
   yet tracked files cite into it 120 times - including MANIFEST, which names
-  .claude/rc-review-p10-baseline-provenance-2026-08-17.md as its authority for the historical-classic relabel. The
+  a private review memo as its authority for the historical-classic relabel. The
   rchk logs, the valgrind final log and the orphan-leg audit all live there; on a fresh clone none of it exists.
 - F. PROSE-ONLY GATES (a one-time agent run is not a gate), instrumentation confirmed absent from src/: (1) the
   "instrumented counter build" measuring equal-rank realizations (2 maskprobit, 1 maskordinal, 0 elsewhere) - the
@@ -82,7 +82,7 @@ OVERSTATED:
   qualitative law IS gated, by tests/cpp testEqualRankOneComparison and bd-balance.R's veto arm); (2)
   monotone-prior-draw.md:73-98, instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
   justifies the 1e6 retry cap; (3) setpredictor-leafof-rebuild.md:74-98, an rdtsc + md5 probe absent from the tree;
-  (4) bcf-bartcause-relocation.md, ~50 MEASURED tags from a .claude/ probe.
+  (4) bcf-bartcause-relocation.md, ~50 MEASURED tags from an untracked probe.
 - G. THE SPEED GATE IS 1225 COMMITS STALE, 327 IN src/ (`git rev-list --count ab1dc52..HEAD`). "16 days" understates
   it. The equivalence baseline 5a3bc276 is 24 commits / 7 src/ behind - healthy.
 - H. MEASURED HIT RATE, NEVER REPORTED. Failures over full history: lint 62, pkgdown 26, check-standard 25, sanitizers
@@ -127,7 +127,7 @@ OVERSTATED:
    PR intent with VD first.
 7. agent-fix, Sonnet, 3-4 deletions. Delete change-fix-instrumentation.R, change-fix-stage2.R, parallel-falsifiers.R
    (cannot execute); delete or document linear-leaf-xcheck.R.
-8. VD-judgement, sizeable. Move the .claude/ artifacts that TRACKED files cite - the p10 baseline-provenance audit
+8. VD-judgement, sizeable. Move the private-directory artifacts that TRACKED files cite - the p10 baseline-provenance audit
    MANIFEST names, the rchk .bcheck logs, the valgrind final log - into a tracked tree, or rewrite those citations to
    stand alone, so provenance survives a clone. Miss E.
 9. agent-fix, Opus, ~1 day. Add an ensemble-scale arm (75 trees, real cut points) to the gaussian and probit gates:

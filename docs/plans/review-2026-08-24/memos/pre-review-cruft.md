@@ -1161,12 +1161,12 @@ Real INDEX defects instead, both small:
 `.rds`/`.log`/`.out`/`.jsonl` alone are 476 KB of binary and raw run logs checked
 into a docs tree.** Its own scripts still point at their pre-promotion home -
 `matrix.R:4`, `matrix-entries.R:7,18`, `matrix-sampler-census.R:18`,
-`wave3-plan.md:3,670` all say `scratch/review-2026-08-24/...`, dangling for
+`wave3-plan.md:3,670` all cite their old scratch location, dangling for
 anyone who clones.
 
 **Fix: keep the 32 `.md` (TODO cites their ledger); move the 37 `.R` + 7 `.py`
 to `benchmarks/R/` or delete; drop the 476 KB of regenerable logs/rds; rewrite
-the 5 `scratch/` paths. Delta: -40 files, -476 KB, ~-6,000 lines. Risk: low.**
+the 5 dangling scratch paths. Delta: -40 files, -476 KB, ~-6,000 lines. Risk: low.**
 
 ## H4. Records template drift: five status dialects, 115 heading signatures, 20 landing-note spellings, seven codename alphabets
 

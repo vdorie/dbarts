@@ -18,7 +18,7 @@ per-group ranef mean/sd and tau mean/sd/median/q10/q90; plus, on top of the harn
 two-sample KS between the two engines' per-observation posterior means. Main arm ndpost 1000 / nskip
 1000 / n.trees 75 / n.chains 1 / n.threads 1 / n.thin 1, a second at ndpost 10000 / nskip 2000 over
 the matched-prior scenarios, dropping the detection floor ~3x. Harness, recordings and raw compare
-output under /private/tmp/claude-501/.../scratch/anchor-40574/out/ (anchor.R, compare.R, *.rds,
+output under a private scratch prefix's out/ (anchor.R, compare.R, *.rds,
 *.txt).
 
 ## 2. Prior and control mapping

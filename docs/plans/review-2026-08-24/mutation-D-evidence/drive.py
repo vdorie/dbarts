@@ -1,5 +1,5 @@
 import json,os,subprocess,sys,time,shutil
-W="/private/tmp/claude-501/-Users-vdorie-Repositories-dbarts/934bd0e3-b391-47be-9c03-3581c065237f/scratch/mutD-75096"
+W="<private-scratch-prefix>/mutD-75096"
 SRC="/Users/vdorie/Repositories/dbarts"
 BUILD=W+"/build"; PRIST=W+"/pristine"; LIB=W+"/lib"; LOGS=W+"/logs"
 

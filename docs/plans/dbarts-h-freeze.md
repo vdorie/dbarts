@@ -140,7 +140,7 @@ DBARTS_C_API_HASH` clauses. Add to the dbarts RELEASE procedure entry in TODO: "
 Its call sites (:197-199, :366-367) need no text change. (2) src/init.cpp:432 `dbarts_sampler_printTrees`: insert `0` for `useLiveTrees` before the trailing `0` forest;
 :495-497 already passes `useLiveTrees` to `getTrees`. (3) src/init.cpp:971-972: drop the hash clause and the stale comment at :966-970 scheduling its removal. (4)
 `-DDBARTS_REQUIRE_EXACT_ABI` appended to `PKG_CPPFLAGS` in BOTH src/Makevars.in:1 and src/Makevars.win:1. No `printEvery` edit - the `100` literals at :200, :368 widen;
-no `dbarts_results` edit (src/bart_util.hpp:27, :47); no renamed reader called. treatSens, /Users/vdorie/Repositories/treatSens/.claude/worktrees/dbarts-1.0 branch
+no `dbarts_results` edit (src/bart_util.hpp:27, :47); no renamed reader called. treatSens, in a private worktree on branch
 `dbarts-1.0`, 11 entries, 4 edits: src/bartTreatmentModel.cpp:62 `"probit"` -> `DBARTS_FAMILY_PROBIT`; src/sensitivityAnalysis.cpp:259 `""` -> `DBARTS_FAMILY_AUTO`;
 src/R_interface.cpp:452-453 drop the hash clause; and `#define DBARTS_REQUIRE_EXACT_ABI` immediately above each `#define DBARTS_USE_STUBS`, since this repo defines the
 macro per translation unit rather than in Makevars - src/R_interface.cpp:27, src/bartTreatmentModel.cpp:10, src/sensitivityAnalysis.cpp:32, three sites with the comment
