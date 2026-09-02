@@ -59,8 +59,8 @@
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. \code{columns} names model
       matrix columns (character) or indexes them (numeric) and is matched
-      to the data when a sampler is built; factor columns cannot be
-      designated. The covariates are standardized internally and every
+      to the data when a sampler is built; unordered factor columns cannot
+      be designated. The covariates are standardized internally and every
       coefficient shares the \code{normal(k)} prior. Reported leaf values
       keep the intercept; \code{getTrees} adds one \code{beta.<column>}
       column per covariate. \code{\link{xbart}} accepts the same

@@ -18,7 +18,7 @@ library(dbarts, quietly = TRUE)
 A `dbartsSampler` is a mutable object that runs one sweep at a time, so BART can be a conditional model inside a larger Gibbs or Metropolis-Hastings scheme rather than the whole of it. Six recipes follow. Each is a complete, runnable outer sampler; each answers the same three questions, which are the ones a composition gets wrong:
 
 * **which channel** the outer block writes -- response, offset, weights, sigma, or a predictor column;
-* **which fit** the outer block reads back, since the five reporting methods do not report the same quantity (`?dbartsSampler`, "Reading the fit");
+* **which fit** the outer block reads back, since the six reporting methods do not report the same quantity (`?dbartsSampler`, "Reading the fit");
 * **whose prior** is in force, since a swapped response does not re-anchor the leaf prior the sampler was built with.
 
 `?dbarts-embedding` is the reference page for the channels and the reads; this vignette is the worked set. Every recipe here is also a cell in the package's test suite, because a composition that runs to completion can still be sampling the wrong posterior.

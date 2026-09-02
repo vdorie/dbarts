@@ -46,7 +46,7 @@
   }
 
   \subsection{Which fit to read back}{
-    Five methods report a fitted quantity and no two report the same one; the table in
+    Six methods report a fitted quantity and no two report the same one; the table in
     \sQuote{Reading the fit}, \code{\link[=dbartsSampler-class]{dbartsSampler}}, is authoritative.
     The rule an outer block needs: it conditions on \eqn{f(x_i)}{f(x_i)}, so it reads
     \code{$getFitsWithoutOffset()} and adds back whatever offset it installed.
