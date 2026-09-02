@@ -100,14 +100,14 @@ moves them.
 
 ## The reparameterization
 
-`formForestResponse` ([[src/bartcore/combiner.hpp#formForestResponse]]) hands
+`formForestResponse` ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::formForestResponse]]) hands
 forest f the pair its own constant-leaf node sums need: response
 `r_i / m_{f,i}` and weight `w_i m_{f,i}^2`, where `r_i` is the residual net of
 every OTHER forest's scaled contribution.
 
 A multiplier indistinguishable from zero at `0x1p-26`
 ([[src/bartcore/combiner.hpp#zeroMultiplierTolerance]], applied inside
-[[src/bartcore/combiner.hpp#formForestResponse]]) leaves the row with exactly
+[[src/bartcore/combiner.hpp#AmplitudeForestCombiner::formForestResponse]]) leaves the row with exactly
 zero weight AND exactly zero response. The zero response is required rather
 than cosmetic: the chain reads this buffer arithmetically when it rolls the
 running residual and finalizes total fits, and the node sufficient-statistic
@@ -117,12 +117,12 @@ division amplifies by at most 2^26, whatever the family, the weights and K,
 and the arithmetic downstream cancels that amplification EXACTLY rather than
 merely bounding it: the node kernels accumulate `sumWeights = sum_i w_i
 m_i^2` and `sumWeightedResponse = sum_i (w_i m_i^2)(r_i / m_i)`, whose exact
-value is `sum_i w_i m_i r_i` ([[src/bartcore/combiner.hpp#formForestResponse]]).
+value is `sum_i w_i m_i r_i` ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::formForestResponse]]).
 
 The snap belongs to the REPARAMETERIZATION, not to the model: `combinedFits`
 and the amplitude draw keep the exact multiplier, so a snapped row still
 receives `m_{f,i} f_f(x_i)` in the combination and still informs the amplitude
-conditional ([[src/bartcore/combiner.hpp#combinedFits, formForestResponse]]).
+conditional ([[src/bartcore/combiner.hpp#combinedFits, AmplitudeForestCombiner::formForestResponse]]).
 
 The caller-settable per-forest, per-observation weight `s_{f,i}` composes as
 one further multiplicative factor after this call returns, before the tree

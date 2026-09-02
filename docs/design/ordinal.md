@@ -239,7 +239,7 @@ probit's rebuildWorking (working = latents - offset), workingWeights() = nullptr
 drawSigma() = sigma, initialSigma/fitScale/fitShift/sigmaScale = 1/1/0/1. The
 overrides are refreshLatents (the two-step cutpoints-then-latents draw of section
 3), computeLogLikelihood (the Phi-difference, generalizing probit's two-tail
-form at [[src/bartcore/model.hpp#computeLogLikelihood]]), and the new cutpoint
+form at [[src/bartcore/model.hpp#ProbitResponse::computeLogLikelihood]]), and the new cutpoint
 state hooks (section 6). Ordinal carries K on construction (levels count).
 
 **A doubly-truncated-normal primitive is required.** random.h shipped only
