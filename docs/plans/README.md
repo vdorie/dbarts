@@ -28,18 +28,50 @@ Sections:
 
 ## Cross-references
 
-Cite a durable landmark: name the symbol, section title, or item label
-the change would move with - `rollTreeResidual (chain.hpp)`, not
-`chain.hpp:2581`; `data-ownership.md "Implementation record" item 5`,
-not `data-ownership.md:180`. Add a `file:NNN` line number alongside the
-symbol as a locating convenience, never in its place.
-`tools/check-doc-freshness.R` verifies docs/design anchors (both the
-file:line and the cited symbol) and the docs/design and docs/plans
-INDEX manifests; it does not check docs/plans citations themselves, so
-name the symbol as well as the line - a moved anchor there is caught
-only by re-reading, not by the checker. State each fact in one home
-doc; elsewhere link to it by title, do not restate it (a copied fact is
-a second thing to keep in sync, and the one that rots).
+Documentation cites code by SYMBOL. Every citation - of code or of
+another document - is written in one machine-checked grammar, delimited
+by double brackets so a single regex finds all of them, with `#`
+separating the path from what it names so a C++ `::` qualification never
+collides with the path:
+
+    [[src/bartcore/chain.hpp#rollTreeResidual]]     current state, by symbol
+    [[MOD#GaussianResponse]]                        alias path
+    [[R/bart.R#bart2()]]                            a trailing () is stripped
+    [[sampler.Rd#dbartsSampler$setResponse]]        split on $ as well as ::
+    [[test-argument-surface.R#"hurdle.lognormal"]]  verbatim fragment
+    [[docs/design/data-ownership.md#Implementation record]]  doc to doc, by heading
+    [[src/bartcore/chain.hpp:2581@d477a46b]]        history, a line at a commit
+    retired: [[R/spec.R#refuseHostMutation]]        skipped; prose says it is gone
+
+- A path is a repo path, a basename unique in the tracked inventory, or
+  one of the aliases the head of feature-matrix.md defines. It must
+  resolve to a file that exists: a citation into another repository is
+  prose, not a cite.
+- A symbol is checked component-wise - split on `::` and `$`, each part a
+  whole-word token somewhere in that file. Adjacency is not required and
+  no line number is involved, so a definition that moves needs no re-pin.
+  Several names in one cite are separated by commas.
+- A `.md` target is always a heading cite: the text must appear in one of
+  the target document's markdown headings.
+- A quoted fragment is checked as a literal substring. That is the form
+  for a file with no symbols to name - a tinytest script; a tests/cpp
+  citation names its test function instead.
+- A line number appears ONLY in the history form, `path:line@sha` or
+  `path:a-b@sha`, whose sha is at least 8 hex digits and must be an
+  ancestor of HEAD. Ancestry is all that is checked, because the line
+  belongs to that commit rather than to the working tree. Landing notes
+  and a plan's Landing section cite this way, pinned to the commit the
+  note describes.
+- `retired:` immediately before a cite skips it, and the prose around it
+  must say the thing is gone.
+
+Backticks around a cite are optional. `tools/check-doc-freshness.R`
+checks every cite in everything under docs/, the top-level README.md,
+man/*.Rd and vignettes/*.Rmd, and fails on any bare line reference left
+outside the history form, so an unconverted citation cannot pass
+unnoticed. State each fact in one home doc; elsewhere link to it by
+title, do not restate it (a copied fact is a second thing to keep in
+sync, and the one that rots).
 
 ## RNG classes and their gates
 

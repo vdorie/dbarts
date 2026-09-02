@@ -6,7 +6,7 @@ a cell, and VD uses it to schedule feature completion.
 
 What each shipped response model can and cannot do, one row per model and one
 column per capability that bears on scheduling. Every SHIPPED and REFUSED cell
-carries an anchor verified against the live tree; a wrong cell misdirects
+carries a cite verified against the live tree; a wrong cell misdirects
 scheduling, so a cell that cannot be verified is marked `?` rather than
 guessed.
 
@@ -14,14 +14,14 @@ guessed.
 
 | code | meaning |
 |---|---|
-| `S` | SHIPPED. Works today; the anchor is the site that makes it work. |
-| `R` | REFUSED on model or identification grounds - the refusal is part of the model, not a hole. The anchor is the refusal site. |
+| `S` | SHIPPED. Works today; the cite is the site that makes it work. |
+| `R` | REFUSED on model or identification grounds - the refusal is part of the model, not a hole. The cite is the refusal site. |
 | `P` | PLANNED. A named design arc covers it; the slice is named in the cell. |
-| `M` | MISSING. Not built, no schedule. An anchor, when given, is a guard that errors *because the thing is unbuilt* - a recorded door, not a model refusal. |
+| `M` | MISSING. Not built, no schedule. A cite, when given, is a guard that errors *because the thing is unbuilt* - a recorded door, not a model refusal. |
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors:
+Path aliases used in cites:
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -34,9 +34,11 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at d477a46b - the cited line
-holds the construct the cell names, never an offset from another anchor - and a
-cell's VALUE is adjudicated separately from its anchor.
+A cell cites a SYMBOL, not a line: `[[MOD#GaussianResponse]]` holds as long as
+model.hpp still defines that name, wherever the definition sits. The grammar
+and the checker that enforces it are stated in
+[[docs/plans/README.md#Cross-references]]; a cell's VALUE is adjudicated
+separately from its cite.
 
 ## Rows
 
