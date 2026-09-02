@@ -14,10 +14,13 @@ mechanism.
 
 ## Features
 
-- Response families, via `family =`: `"gaussian"`, `"probit"`,
-  `"logistic"`, accelerated-failure-time survival (`"aft"`),
-  discrete-time survival hazard (`"hazard"`, `"hazard.logistic"`),
-  multinomial (`"multinomial"`), ordered categorical (`"ordinal"`),
+- Response families, via `family =` on
+  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md) and
+  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md):
+  `"gaussian"`, `"probit"`, `"logistic"`, accelerated-failure-time
+  survival (`"aft"`), discrete-time survival hazard (`"hazard"`,
+  `"hazard.probit"`, `"hazard.logistic"`), multinomial
+  (`"multinomial"`), ordered categorical (`"ordinal"`),
   negative-binomial counts (`"nbinom"`), and semicontinuous two-part
   (`"hurdle.lognormal"`)
 - Outlier-robust Student-t residuals (`resid.dist = student(...)`)
