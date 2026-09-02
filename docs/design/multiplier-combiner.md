@@ -553,7 +553,7 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:1087-1088,
+that rule in two independent places (src/C_interface.cpp:1108-1109,
 src/R_interface_bartcore.cpp:4110-4112).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
