@@ -875,7 +875,9 @@ const double* materializeMutationSource(
 // Route a parsed test container to the engine's typed test store (against the
 // training cut grid, owning its raw). Returns false, store untouched, when a
 // designated leaf covariate column would be CSC-backed - sparse storage serves
-// no dense raw test covariate; the caller raises the leaf-covariate error.
+// no dense raw test covariate; the caller raises the leaf-covariate error. The
+// build's own level-code refusal shares the return but reaches no caller here:
+// validateTestContainerAgainstStore bounds every code first.
 bool installTestContainer(bartcore::SamplerBase& sampler,
                           const ParsedTestContainer& parsed) {
   return sampler.setTestData(parsed.view);

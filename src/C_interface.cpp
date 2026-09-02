@@ -832,7 +832,9 @@ int dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
   // the store build answers the leaf-covariate refusal with a false return;
   // defense in depth, since validateTestSource has already raised it - a
   // discarded false would leave the store holding its PREVIOUS rows and report
-  // them as the new test set
+  // them as the new test set. The build's own level-code refusal shares the
+  // return and not this text, and cannot reach it: validateTestSource bounds
+  // every code against the store first
   if (!engine.setTestData(source.view))
     Rf_error("a leaf covariate column cannot be a sparse test column; "
              "supply it as a dense test column");
