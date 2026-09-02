@@ -82,8 +82,11 @@ Data frame columns - through the formula interface or a frame passed as
   levels down each branch; `factors = "indicators"` instead expands each
   factor into binary indicator columns, as previous versions always did;
 
-- ordered factors enter as ordinal predictors, coded numerically by
-  level order;
+- ordered factors enter as their own predictor kind, coded numerically
+  by level order and split at a threshold on those codes; the split grid
+  is the midpoints between consecutive *declared* levels, one candidate
+  per level boundary, so `n.cuts` does not apply to such a column and
+  adjacent levels are always separable;
 
 - matrix columns (e.g. from [`poly`](https://rdrr.io/r/stats/poly.html))
   splice in as ordinal predictors, one per column;
@@ -108,17 +111,23 @@ Data frame columns - through the formula interface or a frame passed as
   formula path refuses one explicitly).
 
 Factor level tables are retained so that test data are coded
-identically, and a categorical predictor's category count is the
-*declared* level table rather than the levels the training rows happen
-to take. A level declared but unobserved in training therefore keeps its
-own bin, and test or replacement data carrying it are accepted at every
-entrance (creation, `setTestPredictor`, `predict`, `setPredictor`); this
-holds equally for dense factors, `sparseFactor` columns, and dense
-factors inside a mixed dense/sparse frame. Drop unused levels before
-fitting ([`droplevels`](https://rdrr.io/r/base/droplevels.html)) if you
-would rather they not be modeled. `test` accepts the same column types
-as `x.train`, including `sparseFactor` and sparse ordinal columns. A
-`sparseFactor` or sparse ordinal test column recodes over the training
+identically, and a factor predictor's level count - ordered or
+unordered - is the *declared* level table rather than the levels the
+training rows happen to take. A level declared but unobserved in
+training therefore keeps its own bin, and test or replacement data
+carrying it are accepted at every entrance (creation,
+`setTestPredictor`, `predict`, `setPredictor`); conversely a value that
+is not an existing integer level code is refused at those same
+entrances, naming the kind, for ordered and unordered factors alike. An
+unordered factor is limited to 65535 levels and an ordered one to
+65534 - one lower, since an ordered factor spends a code on the upper
+bin of its \\K - 1\\ cut grid - and a wider one is an error naming the
+column. This holds equally for dense factors, `sparseFactor` columns,
+and dense factors inside a mixed dense/sparse frame. Drop unused levels
+before fitting ([`droplevels`](https://rdrr.io/r/base/droplevels.html))
+if you would rather they not be modeled. `test` accepts the same column
+types as `x.train`, including `sparseFactor` and sparse ordinal columns.
+A `sparseFactor` or sparse ordinal test column recodes over the training
 level table and stays resident - through creation and
 `setTestPredictor` - rather than densifying at ingestion, the same
 storage tier rule as training. `predict` and `getTrees(newdata = )` code

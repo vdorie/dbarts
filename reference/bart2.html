@@ -278,7 +278,7 @@
 <dd><p>Logical; if <code>TRUE</code>, samples are returned collapsed across chains rather than in a chains-by-samples array. Default <code>TRUE</code>, as for <code><a href="bart.html">bart</a></code> and <code><a href="rbart.html">rbart_vi</a></code>; the number of chains is tracked regardless on the returned object's <code>n.chains</code> component (see ‘Value’).</p></dd>
 
    <dt id="arg-n-cuts">n.cuts<a class="anchor" aria-label="anchor" href="#arg-n-cuts"></a></dt>
-<dd><p>The maximum number of possible values used in decision rules (see <code>useQuantiles</code>, and <code><a href="bart.html">bart</a></code>'s ‘Decision Rules’ details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values.</p></dd>
+<dd><p>The maximum number of possible values used in decision rules (see <code>useQuantiles</code>, and <code><a href="bart.html">bart</a></code>'s ‘Decision Rules’ details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.</p></dd>
 
    <dt id="arg-usequantiles">useQuantiles<a class="anchor" aria-label="anchor" href="#arg-usequantiles"></a></dt>
 <dd><p>When <code>TRUE</code>, determine tree decision rules using estimated quantiles derived from the predictor variables. When <code>FALSE</code>, splits are determined using values equally spaced across the range of a variable. See <code><a href="bart.html">bart</a></code>'s ‘Decision Rules’ details.</p></dd>
@@ -367,7 +367,7 @@
 <dd><p>Passed through to <code><a href="dbartsControl.html">dbartsControl</a></code>. A logical setting the default behavior for many <code><a href="dbartsSampler-class.html">sampler</a></code> methods with regards to the immediate updating of the cached state of the object; see <code>dbartsControl</code>'s <code>updateState</code>.</p></dd>
 
    <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Unused; present on the <code>bartMultinomial</code>/<code>bartOrdinal</code>/<code>bartNegbin</code>/<code>bartHurdle</code> methods below only for S3 generic compatibility.</p></dd>
+<dd><p>Present on the <code>bartMultinomial</code>/<code>bartOrdinal</code>/<code>bartNegbin</code>/<code>bartHurdle</code> methods below for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns (class <code>dbartsUnusedArgsWarning</code>). See <code><a href="bart.html">bart</a></code>'s own <code>...</code> item.</p></dd>
 
    <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>An object of class <code>bartMultinomial</code>, <code>bartOrdinal</code>, <code>bartNegbin</code>, or <code>bartHurdle</code>, returned by <code>bart2</code> under the corresponding <code>family</code>.</p></dd>
@@ -483,7 +483,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001362</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001458</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 </span>
@@ -530,7 +530,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001558</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001601</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 2 2 1 2 3 </span>

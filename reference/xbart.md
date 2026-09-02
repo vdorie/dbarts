@@ -110,10 +110,12 @@ xbart(
   `bart2`, and `rbart_vi`, here it is one or two non-negative integers,
   specifying 1) the burn-in when a chain is freshly started against a
   data split and 2) the burn-in when moving from one parameter setting
-  to another over the same split. Chains are never carried between data
-  splits or folds - the held-out observations of one were training
-  observations of the previous, so continuing a chain lets slowly-mixing
-  settings score against data they have effectively seen.
+  to another over the same split. A longer vector is an error naming the
+  argument rather than being silently truncated to its first two
+  entries. Chains are never carried between data splits or folds - the
+  held-out observations of one were training observations of the
+  previous, so continuing a chain lets slowly-mixing settings score
+  against data they have effectively seen.
 
 - loss:
 

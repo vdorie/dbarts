@@ -236,8 +236,12 @@ residuals(object, type = "ev", ...)
 
 - ...:
 
-  Unused; present on `plot`/`fitted`/`extract`/`predict`/`residuals`
-  only for S3 generic compatibility.
+  Present on `plot`/`fitted`/`extract`/`predict`/`residuals` for S3
+  generic compatibility, but not silently discarded: a name foreign to
+  the method called is refused by name, and any other unrecognized name
+  warns (class `dbartsUnusedArgsWarning`). See
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `...` item.
 
 ## Details
 
@@ -401,7 +405,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000419
+#> total seconds in loop: 0.000283
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -414,7 +418,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002079
+#> total seconds in loop: 0.001422
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -459,7 +463,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000594
+#> total seconds in loop: 0.000422
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -472,7 +476,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002902
+#> total seconds in loop: 0.001996
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

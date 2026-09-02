@@ -579,7 +579,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - cuts:
 
-  Vector of cut points for use with `setCutPoints`.
+  Vector of cut points for use with `setCutPoints`, which applies to
+  numeric predictors only: a factor column of either kind is refused,
+  naming the kind, its grid following its level table rather than any
+  externally chosen one.
 
 - column:
 
@@ -1157,7 +1160,10 @@ reporting the draw number asked for), `tree`, `n` (the number of
 observations in the node), `var` (the splitting variable, or -1 at a
 leaf), and `value` (the split value, or the leaf prediction). An ordinal
 rule's value is its cut point and observations with values less than or
-equal to it go left; a categorical rule carries no data value (its
+equal to it go left; on an ordered-factor column that cut point is an
+exact half-integer at a level boundary, so `levels(x)[floor(value) + 1]`
+is the last level going left (the split value is a 0-based code, R's
+`levels` is 1-based); a categorical rule carries no data value (its
 `value` is `NA`) and its split is reported in the `directions` column
 instead. When the sampler has any categorical predictors the result
 gains a `directions` column decoding each categorical rule into one

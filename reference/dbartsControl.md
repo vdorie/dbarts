@@ -90,7 +90,10 @@ dbartsControl(
   rules to be used for each given predictor. If of length less than the
   number of predictors, earlier values are recycled. If for any
   predictor more values are specified than are coherent, fewer may be
-  used. See the ‘Decision Rules’ section of
+  used. It does not reach a factor predictor of either kind: an
+  unordered factor splits on level subsets and an ordered one at its
+  declared level midpoints, a factor's grid following its level table
+  rather than a count. See the ‘Decision Rules’ section of
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for how
   the rules themselves are placed.
 

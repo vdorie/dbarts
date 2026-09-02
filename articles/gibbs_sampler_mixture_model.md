@@ -440,8 +440,10 @@ predictor becomes a single categorical column: its splits send a subset
 of levels down each branch, rather than the one-indicator-per-level
 expansion `bart` still uses. `factors = "indicators"` recovers that
 expansion on either function, useful for comparing the two. Ordered
-factors always code as ordinal, on their integer levels, regardless of
-`factors`.
+factors are their own predictor kind regardless of `factors`: coded on
+their integer levels and split at a threshold, with one candidate
+threshold per level boundary rather than a fixed count of cuts, so
+`n.cuts` does not reach them.
 
 Missing predictor values need not be removed beforehand. The default
 `missing = "incorporate"` gives every split rule a learned direction for

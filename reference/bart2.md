@@ -449,7 +449,8 @@ print(x, ...)
   ‘Decision Rules’ details). If a single number, it is recycled for all
   variables; otherwise must be a vector of length equal to the number of
   predictor columns. Fewer rules may be used if a covariate lacks enough
-  unique values.
+  unique values. Factor predictors take no rules from it, of either
+  kind: a factor's grid follows its level table.
 
 - useQuantiles:
 
@@ -982,9 +983,13 @@ print(x, ...)
 
 - ...:
 
-  Unused; present on the
+  Present on the
   `bartMultinomial`/`bartOrdinal`/`bartNegbin`/`bartHurdle` methods
-  below only for S3 generic compatibility.
+  below for S3 generic compatibility, but not silently discarded: a name
+  foreign to the method called is refused by name, and any other
+  unrecognized name warns (class `dbartsUnusedArgsWarning`). See
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `...` item.
 
 - object:
 
@@ -1522,7 +1527,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001362
+#> total seconds in loop: 0.001458
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1569,7 +1574,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001558
+#> total seconds in loop: 0.001601
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

@@ -364,11 +364,14 @@ dbarts(
   How factor columns in a data frame enter the model. The default
   `"categorical"` keeps each unordered factor as a single predictor
   whose splits send a subset of its levels (at most 65535) down each
-  branch, and codes ordered factors as ordinal; level tables are
-  retained so that test data are coded identically. The number of
-  categories is the declared level table, not the levels the training
-  rows happen to take, so a declared but unobserved level keeps its own
-  bin and test or replacement data carrying it are accepted
+  branch, and keeps each ordered factor as a single predictor split at a
+  threshold on its level codes, its candidate thresholds the midpoints
+  between consecutive declared levels (at most 65534 levels, one fewer
+  than an unordered factor, and `n.cuts` does not apply); level tables
+  are retained so that test data are coded identically. A factor's level
+  count, ordered or not, is the declared level table, not the levels the
+  training rows happen to take, so a declared but unobserved level keeps
+  its own bin and test or replacement data carrying it are accepted
   ([`droplevels`](https://rdrr.io/r/base/droplevels.html) beforehand to
   model only the observed levels). `"indicators"` expands each factor
   into binary indicator columns, as previous versions always did and as
