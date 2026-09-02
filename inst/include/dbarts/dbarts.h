@@ -186,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xe14b499a84f501d2ULL
+#  define DBARTS_C_API_HASH 0x37288e7c56449b34ULL
 #endif
 
 #ifdef __cplusplus
@@ -348,13 +348,27 @@ typedef struct dbarts_predictor_source_t {
   const uint32_t* categoryCounts; ///< declared and checked; no entry reads it
   const int32_t* referenceCodes;  ///< per column; < 0 = declared none
   /* 1.0-0 field boundary: appends go below, never above. */
+  /// The code channel: a second column-major block holding the int32 level
+  /// codes of the dense columns the SAMPLER holds as factors, INT_MIN (R's
+  /// NA_INTEGER) for missing. A caller whose factor columns are already
+  /// integers hands them over as integers rather than widening every cell to
+  /// a double the library narrows straight back.
+  ///
+  /// When it is non-null, a dense-backed column the sampler holds as a factor
+  /// reads column columnSources[j] of THIS block; every other dense-backed
+  /// column reads column columnSources[j] of denseValues. The two channels
+  /// index independently, so each is packed over the columns it serves and a
+  /// mixed source names 0..m-1 in one and 0..f-1 in the other. Null leaves
+  /// every dense-backed column reading denseValues, which is what every
+  /// caller written before this field does.
+  const int32_t* denseCodes;
 } dbarts_predictor_source;
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and zeroes
 /// everything else, which reads as "dense block, no map, nothing declared".
 #define DBARTS_PREDICTOR_SOURCE_INIT \
   { sizeof(dbarts_predictor_source), 0, 0, NULL, 0, NULL, NULL, NULL, NULL, \
-    NULL, NULL, NULL }
+    NULL, NULL, NULL, NULL }
 
 /// The dense spelling: a plain column-major numRows x numColumns block, which
 /// is the shape the predictor entries took before this struct existed.

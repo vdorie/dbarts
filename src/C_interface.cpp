@@ -140,6 +140,7 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   const std::int32_t* columnTypes = SOURCE_PTR(source, columnTypes);
   const std::uint32_t* categoryCounts = SOURCE_PTR(source, categoryCounts);
   const std::int32_t* referenceCodes = SOURCE_PTR(source, referenceCodes);
+  const std::int32_t* denseCodes = SOURCE_PTR(source, denseCodes);
 
   bool anyDense = false, anyCsc = false;
   for (size_t j = 0; j < numColumns; ++j) {
@@ -178,7 +179,7 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
       anyCsc = true;
     }
   }
-  if (anyDense && denseValues == NULL)
+  if (anyDense && denseValues == NULL && denseCodes == NULL)
     Rf_error("%s: a dense-backed column names no denseValues", caller);
   if (anyCsc && (cscColumnPointers == NULL || cscRowIndices == NULL ||
                  cscValues == NULL))
@@ -226,6 +227,39 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
       codes[j] = referenceCodes[j] >= 0
         ? static_cast<bartcore::xint_t>(referenceCodes[j]) : bartcore::xint_t{0};
     translated.view.referenceCodes = codes;
+  }
+
+  // The code channel, resolved against the STORE's kinds: a dense-backed
+  // factor column reads its codes, everything else the double block, each
+  // indexed within its own channel. The entries below read a view through a
+  // double-typed reader, so the widen happens once here rather than in each of
+  // them - which is still one conversion fewer than the caller would have done
+  // by hand, and the block it produces is transient.
+  if (denseCodes != NULL) {
+    std::int32_t* channels = reinterpret_cast<std::int32_t*>(
+      R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));
+    bool anyCoded = false;
+    for (size_t j = 0; j < numColumns; ++j) {
+      std::int32_t which = translated.view.sourceOf(j);
+      if (which >= 0 && storeTypes[j] != bartcore::ColumnKind::numeric) {
+        channels[j] = ~which;
+        anyCoded = true;
+      } else {
+        channels[j] = which;
+      }
+    }
+    if (anyCoded) {
+      translated.view.denseCodes = denseCodes;
+      translated.view.denseChannels = channels;
+      size_t cells = numRows * numColumns;
+      double* block = reinterpret_cast<double*>(
+        R_alloc(cells > 0 ? cells : 1, sizeof(double)));
+      bartcore::materializePredictorSource(translated.view, storeTypes, 0,
+                                           numRows, block);
+      bartcore::PredictorSource widened = bartcore::densePredictorSource(
+        block, numRows, numColumns, nullptr, categoryCounts);
+      translated.view = widened;
+    }
   }
   return translated;
 }
@@ -382,8 +416,10 @@ static_assert(offsetof(dbarts_predictor_source, categoryCounts) ==
               4 * sizeof(size_t) + 6 * sizeof(double*));
 static_assert(offsetof(dbarts_predictor_source, referenceCodes) ==
               4 * sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, denseCodes) ==
+              4 * sizeof(size_t) + 8 * sizeof(double*));
 static_assert(sizeof(dbarts_predictor_source) ==
-                4 * sizeof(size_t) + 8 * sizeof(double*),
+                4 * sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_predictor_source layout changed; update these offsets");
 
 static_assert(offsetof(dbarts_forest_calibration, structSize) == 0);
@@ -459,7 +495,7 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
 #define DBARTS_PREDICTOR_SOURCE_FIELDS(X) \
   X(structSize) X(numRows) X(numColumns) X(denseValues) X(numCscColumns) \
   X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
-  X(columnTypes) X(categoryCounts) X(referenceCodes)
+  X(columnTypes) X(categoryCounts) X(referenceCodes) X(denseCodes)
 #define DBARTS_FOREST_CALIBRATION_FIELDS(X) \
   X(structSize) X(priorScale) X(priorSd) X(priorMean) X(k) X(responseScale) \
   X(responseShift) X(kHasHyperprior) X(leafModel) X(amplitudePriorVariance) \

@@ -99,9 +99,12 @@ expect_false(identical(hashes$text, "0xc4a2d83f6050bb1f"))
 # appended enumerator moves it, which is what makes the enumerator list the
 # place a new column kind is declared
 expect_false(identical(hashes$text, "0xb6c0e97dc0688991"))
+# the token before dbarts_predictor_source gained its code channel: an
+# appended field moves it, since the fold carries each struct's size
+expect_false(identical(hashes$text, "0xe14b499a84f501d2"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xe14b499a84f501d2")
+expect_identical(hashes$text, "0x37288e7c56449b34")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
