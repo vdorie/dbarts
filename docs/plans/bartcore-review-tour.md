@@ -197,7 +197,7 @@ ruling, made deliberately:
   family is gaussian, probit or logistic, so it reaches the shared
   dispatcher - but whether it is the right quantity for a combined
   per-forest location is unadjudicated, and `docs/design/feature-matrix.md`
-  marks that cell missing.
+  marks that cell unverified.
 - The heteroscedastic scale leaf is calibrated once at creation and never
   rescaled when `sigmaScale` moves, so a response or offset swap under
   `updateScale = TRUE` leaves the prior on the old scale (`TODO`'s

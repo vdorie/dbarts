@@ -70,7 +70,7 @@ Columns: `file | STATUS | one-liner`.
 | multinomial-mutation-arc.md | LANDED, 2026-08-24 | Gives multinomial responses a real sampler surface, constructed directly rather than through a placeholder host object. |
 | core-generalization.md | LANDED (mostly; phase 6 open) | The founding design for the bartcore C++20 engine rewrite; docs/architecture.md is now authoritative for current state. |
 | bart-landscape.md | SNAPSHOT 2026-08-12 | A survey of 35 BART implementations (R, Python, research) and how each compares to dbarts's own feature set. |
-| feature-matrix.md | LIVING REFERENCE, cites are symbols checked live by `tools/check-doc-freshness.R` | A living reference of what each of the ten shipped response models, plus three couplings/decorations, can and cannot do, kept current at every landing. |
+| feature-matrix.md | LIVING REFERENCE, cites are symbols checked live by `tools/check-doc-freshness.R` | A living reference of what each of the nine shipped response models, plus four couplings and decorations, can and cannot do, kept current at every landing. |
 | consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()`, letting a `LinkingTo` consumer resolve a sampler specification without building an unexported internal one. |
 | r-c-division.md | ACCEPTED (VD 2026-08-11) | States the rule for what belongs in R versus C++ ("R addresses the conditionals; C++ addresses the integrand") and prices the adoption slate that rule implies (docs/plans/adoption-slate.md). |
 | bart-as-a-component.md | LANDED, 2026-08-19 | Documents the contract a driver loop can rely on when embedding dbarts inside a larger sampler: what a mutation does and does not carry, and which multi-forest mutations are legal. |
