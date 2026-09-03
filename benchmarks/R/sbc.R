@@ -15,9 +15,12 @@
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R grouped-gaussian-swap 200 200 30  # the swap arm
 #   Rscript benchmarks/R/sbc.R aft 200 200 30       # aft/survival, rebuilt
+#   Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 # GP/constant mix
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
 #   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
-# Positional args: config R L thin. Or source() the file to reuse the API:
+# Positional args: config R L thin, plus an optional 5th, the burn in absolute
+# sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
+# the API:
 #   source("benchmarks/R/sbc.R"); res <- runSbc(sbcConfig("gaussian"), R = 200)
 # SBC_FAIL_ON_FLAG=1 (env var, opt-in) makes the CLI exit status 1 if any
 # functional's verdict is FLAG; unset, the CLI always exits 0 (unchanged
@@ -2274,12 +2277,18 @@ if (sys.nframe() == 0L) {
   R <- if (length(args) >= 2L) as.integer(args[2]) else 200L
   L <- if (length(args) >= 3L) as.integer(args[3]) else 200L
   thin <- if (length(args) >= 4L) as.integer(args[4]) else 30L
-  # optional 5th arg, family tiers only: the burn in absolute SWEEPS, which
-  # otherwise comes from the measured sbcBurnSweeps. It exists so the
-  # chain-length diagnostic ladder (the A4e protocol: re-run a flagged arm at
-  # several thin/burn points and see whether the bias SHRINKS into the band or
-  # plateaus) is a recordable command rather than a scratch script.
+  # optional 5th arg: the burn in absolute SWEEPS, which otherwise comes from
+  # the measured sbcBurnSweeps (family tiers) or the driver default. It exists
+  # so the chain-length diagnostic ladder (the A4e protocol: re-run a flagged
+  # arm at several thin/burn points and see whether the bias SHRINKS into the
+  # band or plateaus) is a recordable command rather than a scratch script, and
+  # so an arm recorded at a shorter burn than today's default is reproducible
+  # from the command line.
   burnSweeps <- if (length(args) >= 5L) as.numeric(args[5]) else NULL
+  # optional 6th arg: the driver seed, so the A4e adjudication's replication
+  # step can draw a FRESH stream at settings otherwise held fixed. Absent, the
+  # driver's own pinned seed keeps every recorded run reproducible.
+  runSeed <- if (length(args) >= 6L) as.integer(args[6]) else NULL
 
   # Step-1 self-check mode: the discrete rank against a closed-form conjugate
   # posterior. No engine involved, so it runs in seconds and gates the two grid
@@ -2354,7 +2363,7 @@ if (sys.nframe() == 0L) {
   isAft <- which == "aft"
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
-  isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted")
+  isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted", "gp-mixed")
   isFamilyTier <- which %in%
     c("ordinal", "nbinom", "t", "multinom", "multinomial")
 
@@ -2415,11 +2424,20 @@ if (sys.nframe() == 0L) {
     # sampled-k SBC would be prior-mismatched (residual gap, recorded).
     # n/nTrees sized by measured cost: prior-drawn trees are shallow, so leaf
     # kernel solves scale with n^3 (31 ms/sweep at n=150 vs 1.8 at n=80).
+    # "gp-mixed" caps at 30 instead, the MEASURED median leaf size of this
+    # config's own prior draws (600 draws x 25 trees: median 29, 2.42 leaves
+    # per tree), so ~49% of leaves exceed the cap and fall back to constant
+    # fits and ~79% of trees carry both leaf kinds at once -- the only arm
+    # that exercises the mixed path inside a single tree.
     cfg <- sbcConfig(
       family = "gaussian",
       n = 80L,
       nTrees = 25L,
-      nodePrior = dbartsPriors$gp(1L, k = 2, max.leaf.size = 100L)
+      nodePrior = dbartsPriors$gp(
+        1L,
+        k = 2,
+        max.leaf.size = if (which == "gp-mixed") 30L else 100L
+      )
     )
     cfg$f0FromForestFits <- TRUE
     if (which == "gp-na-leaf") {
@@ -2580,7 +2598,14 @@ if (sys.nframe() == 0L) {
   } else if (isAft) {
     runSbcAft(config, R = R, L = L, thin = thin)
   } else {
-    runSbc(config, R = R, L = L, thin = thin)
+    plainArgs <- list(config, R = R, L = L, thin = thin)
+    if (!is.null(burnSweeps)) {
+      plainArgs$burn <- as.integer(ceiling(burnSweeps / thin))
+    }
+    if (!is.null(runSeed)) {
+      plainArgs$seed <- runSeed
+    }
+    do.call(runSbc, plainArgs)
   }
   if (isDart) {
     cat(sprintf(

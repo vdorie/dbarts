@@ -15,12 +15,16 @@ prioritized by review 3's uncovered feature combinations.
 ## Status
 
 DONE. The harness (benchmarks/R/sbc.R) was built, validated against
-a known-good baseline, and run across 18 configurations spanning
+a known-good baseline, and run across 19 configurations spanning
 three tiers: A (gaussian/probit/logistic baselines, DART, grouped
 random intercepts, weighted gaussian, BCF), B (linear leaf, all four
-review-3 combinations), and C (GP leaf, all three). Every
-configuration calibrates. One config initially looked like a real
-calibration defect - BCF's glue-on sigma channel (A4, A4b) - but a
+review-3 combinations), and C (GP leaf, four: baseline, NA
+covariate, weights, and the GP/constant-fallback mix). Every
+configuration calibrates. Two flags were adjudicated rather than
+left standing: C4's f.star3, which did not reproduce on a fresh
+stream at identical settings and is recorded as a band excursion
+(C4b), and BCF's glue-on sigma channel (A4, A4b), which initially
+looked like a real calibration defect but a
 follow-up chain-length diagnostic (A4e) resolved it as slow mixing
 along the (a, mu-amplitude) scale ridge, not a sampler defect; a
 mixing-efficiency remedy is filed as TODO bcf-ridge-interweaving
@@ -562,13 +566,14 @@ Tier B complete: all four linear-leaf configs clean.
 ### Tier C - GP leaf
 
 R=200, L=150, thin=20, burn=50, n=80 p=3 nTrees=25,
-gp(1L, k = 2, max.leaf.size = 100).
+gp(1L, k = 2, max.leaf.size = 100), except C4/C4b (cap 30, thin 60).
 
 Setup notes (all measured, none assumed):
 - max.leaf.size = 100 matches the equivalence gp scenario's cap; with n = 80
   no leaf ever truncates, so every leaf runs the TRUE GP path (no constant
-  fallback). k is FIXED at 2: the equivalence scenario's chi hyperprior
-  samples k, but sampleNodeParametersFromPrior draws at the CURRENT k and no
+  fallback) -- C4 is the arm that does truncate. k is FIXED at 2: the
+  equivalence scenario's chi hyperprior samples k, but
+  sampleNodeParametersFromPrior draws at the CURRENT k and no
   API installs a hyperprior draw -- a sampled-k SBC would be prior-mismatched.
   RESIDUAL GAP: the sampled-k (chi hyperprior) channel has no SBC coverage
   for any leaf type (same class of limitation as DART alpha-sampling, held
@@ -625,7 +630,105 @@ review-3 number-one uncovered combination for both leaf families.
     f.star1-5   --      --      0.039-0.080 all PASS
 
 The weighted GP path (per-row precisions entering the leaf kernel solves)
-calibrates. Tier C complete: all three GP configs clean.
+calibrates. The three uncapped GP configs are clean.
+
+#### C4. GP leaf + constant-fallback leaves in the SAME tree -- f.star3 FLAG
+
+Leaves above max.leaf.size score and draw as CONSTANT leaves
+([[src/bartcore/model.hpp#GPGaussianLeaf]]); C1-C3 never reach that path
+(cap 100 > n = 80). C4 caps low enough that a tree typically holds both leaf
+kinds at once. Identical to C1 otherwise.
+
+Setup notes (all measured, none assumed):
+- CAP, measured off this config's OWN prior draws (600 draws x 25 trees =
+  15000 trees, 36295 leaves, 2.42 leaves per tree): leaf sizes run 1-80 with
+  median 29 and quartiles 10 / 53. max.leaf.size = 30 is the median-leaf
+  choice and puts the truncated fraction closest to half: 48.6% of leaves
+  exceed the cap (they hold 80.5% of the observations), 79.1% of trees hold
+  BOTH a GP leaf and a constant-fallback leaf, 1.4% are all-GP and 19.5%
+  all-fallback. Neighbouring caps for the record (leaves over cap / mixed
+  trees): 20 -> 60.4% / 66.8%; 40 -> 37.5% / 85.2%; 50 -> 27.3% / 60.5%. No
+  cap makes a tree purely GP often -- 2.42 leaves over n = 80 means one child
+  is usually large -- so the mixed tree, not the all-GP tree, is what a cap
+  buys here.
+- The mix SURVIVES the fit, so it is not an artifact of the prior draw: over
+  200 posterior end states (8 reps x 25 trees) 47.1% of leaves are over cap,
+  holding 81.2% of the observations, and 82.5% of trees are mixed.
+- THINNING re-measured at this config (5 datasets, 6000 unthinned draws,
+  worst retained lag-1 ACF over all 7 functionals): the mixed arm mixes
+  SLOWER than the pure-GP arm -- thin 20 -> 0.31, 30 -> 0.22, 40 -> 0.16,
+  60 -> 0.117, against cap 100 on the same probe at 0.21 / 0.13 / 0.12 /
+  0.083. thin = 60 is the first point at the constant-leaf standard
+  (0.04-0.13), so C4 runs at 60, not C1-C3's 20. burn pinned to C1-C3's 50
+  thinned units (3000 sweeps at thin 60) through the CLI's 5th argument,
+  which this arm extends from the family tiers to the plain runSbc path.
+- Self-checks before the ranks: sigma prior coverage 0.8997 (target 0.90);
+  recorded training fits vs the internal-fit map 2.22e-15, test path 0.
+
+    functional  chisqP   ksP   ecdfDiff  band(.0924)
+    avg.f       0.030   0.141   0.0785    PASS
+    f.star1     0.839   0.461   0.0602    PASS
+    f.star2     0.924   0.548   0.0516    PASS
+    f.star3     0.196   0.009   0.1112    FLAG
+    f.star4     0.431   0.429   0.0612    PASS
+    f.star5     0.576   0.206   0.0708    PASS
+    sigma       0.359   0.273   0.0655    PASS
+
+f.star3's rank histogram is a mild DOWNWARD slope, not a U or an inverted U:
+121 of 200 ranks fall in the lower half of {0..150} (uniform expectation
+100), bin counts 14 15 10 14 7 19 9 13 11 9 | 8 10 9 5 5 6 11 9 8 8. A slope
+is a location shift (theta0 low against its posterior draws at that one test
+point), which is the signature of bias rather than of the under-dispersion
+short thinning would produce.
+
+AS RUN: six of seven functionals calibrate; f.star3 is over the band. The run
+was not repeated, retuned or rethinned to move it; C4b adjudicates it.
+1.84 s/rep, 6.1 min at R=200. Repro:
+`Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000`.
+
+#### C4b. A4e adjudication of C4's f.star3 flag -- BAND EXCURSION, arm CLEAN
+
+The protocol's first stage is PERSISTENCE: re-run the flagged arm and see
+whether the flag survives (A4 -> A4b for BCF's sigma). Everything is held at
+C4's settings -- gp-mixed, R=200, L=150, thin=60, burn=50 -- and only the
+driver seed moves, 20260709 -> 20260903. Varying the stream at identical
+settings is the tighter control for a band excursion than A4b's change of
+chain length: a bias in the stationary distribution has to reproduce on ANY
+stream, while an excursion does not.
+
+    functional  chisqP   ksP   ecdfDiff  band(.0924)   (C4's value)
+    avg.f       0.993   0.989   0.0301    PASS         (0.0785)
+    f.star1     0.942   0.276   0.0681    PASS         (0.0602)
+    f.star2     0.274   0.559   0.0534    PASS         (0.0516)
+    f.star3     0.294   0.910   0.0380    PASS         (0.1112 FLAG)
+    f.star4     0.630   0.489   0.0577    PASS         (0.0612)
+    f.star5     0.431   0.990   0.0293    PASS         (0.0708)
+    sigma       0.839   0.990   0.0298    PASS         (0.0655)
+
+The flag does not reproduce, in magnitude or in direction: f.star3's ecdf-diff
+falls from 0.1112 to 0.0380 (band 0.0924), its KS p rises from 0.009 to 0.910,
+and the downward slope is gone -- 105 of 200 ranks in the lower half against
+C4's 121, uniform 100. All seven functionals pass, none marginal.
+
+VERDICT: BAND EXCURSION, not a calibration defect. The chain-length ladder
+(three points spanning 8.3x) is NOT reached: its premise is a flag that
+persists at a settled chain, which is what made the BCF sigma case worth
+8.3x of chain, and nothing here persists. Across C4 and C4b that is 14
+functional-readings at a nominal 5% band, where at least one excursion is
+expected about half the time. Tier C is clean on all four configs, the mixed
+GP/constant-fallback path included.
+
+Lead retained in case a later run flags the same point: f.star3 is the
+design's EDGE test point in the GP leaf covariate -- x* = (0.910, 0.133,
+0.471), its x1 at the 93.8th percentile of the training x1 (range
+0.013-0.992). That is where a GP leaf's kriged conditional mean and a
+constant-fallback leaf's x-independent value disagree most, so it is the
+natural place for a real mixed-path defect to surface. f.star4 (x1 = 0.143,
+the 10th percentile) is the opposite edge and was clean in both runs.
+
+1.73 s/rep, 5.8 min at R=200. Repro:
+`Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 20260903` (6th arg =
+driver seed).
 
 ## Final summary
 
@@ -666,10 +769,19 @@ chisq/KS secondary.
     C    GP + NA leaf covariate        ALL PASS - GP imputation path
                                        calibrates (watch rows clean)
     C    GP + weights                  ALL PASS (7/7)
+    C    GP + constant-fallback mix    f.star3 flagged at ecdf 0.1112 (band
+                                       0.0924); a fresh-stream replication at
+                                       identical settings puts it at 0.0380
+                                       with every functional PASS = BAND
+                                       EXCURSION, arm clean (C4b)
 
-18 configs; every one calibrates. The one config that initially looked like a
-defect (BCF glue-on sigma, A4/A4b) was fully resolved by the chain-length
-diagnostic (A4e): slow mixing on the (a, mu-amplitude) scale ridge, not a
+19 configs; every one calibrates. Two flags were adjudicated rather than left
+standing. C4's f.star3 vanished on a fresh stream at identical settings (ecdf
+0.1112 -> 0.0380, slope gone), so it is a band excursion and the persistence
+stage of the A4e protocol terminates there. The one config that initially
+looked like a defect (BCF glue-on sigma, A4/A4b) was fully resolved by the
+chain-length diagnostic (A4e): slow mixing on the (a, mu-amplitude) scale
+ridge, not a
 sampler defect - exonerated within SBC resolution, with a mixing-efficiency
 remedy (interweaving) filed as TODO bcf-ridge-interweaving rather than a
 correctness fix. Residual gaps recorded: the sampled-k chi-hyperprior channel
