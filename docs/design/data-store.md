@@ -341,7 +341,9 @@ store's lifetime):
 - the call-time training `x` (dense builds): borrowed for the build or
   re-quantize call only; the store retains nothing unflagged.
 - a mixed build's CSC slices (`slice`): borrowed for the store's lifetime,
-  pointing into R-owned memory or a bridge-owned assembly.
+  pointing into R-owned memory or a bridge-owned assembly - on the train side
+  only until the column is first mutated, after which the slice points at
+  store-owned memory (below).
 
 Owned by the store (survive the borrow):
 
@@ -355,7 +357,15 @@ Owned by the store (survive the borrow):
   columns, packed the same way) and
   `ownedTestCscValues`/`ownedTestCscRows` (a mixed/CSC test build packs
   every CSC-backed test column's nonzeros so each slice points into
-  storage that never reallocates). The engine borrows no test matrix.
+  storage that never reallocates). The engine borrows no test matrix;
+- a MUTATED train-side CSC column's nonzeros
+  ([[data.hpp#ownedCscValues, ownedCscRows]]). A CSC-backed column keeps its
+  build-time borrow until a mutation writes it: `mutateCscColumnFromDense`
+  moves the new rows and values into these buffers, `repointOwnedSlice`
+  ([[data.hpp#repointOwnedSlice]]) aims `train.sources[j].slice` at them, and
+  `cscColumnOwned[j]` records the switch - so every later re-quantize
+  (`setCutPoints`, state restore) reads the live values rather than a borrow
+  that no longer reflects them. Untouched columns keep the borrow.
 
 Owned by nobody, because it does not exist: a FACTOR column's doubles, on
 either side. What was retained per factor column - 8 bytes a cell in each
