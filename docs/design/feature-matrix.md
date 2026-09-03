@@ -383,16 +383,21 @@ always was. The flat C API guards through the same call
 on both ([[RIB#refuseBinaryWeightChange]], [[RIB#refusePinnedSigmaChange]]);
 grouped aft takes `setSigma` and refuses `setWeights`.
 
-[f15] `setActiveRows` is a first-class 0/1 per-observation mask: one validating
-and normalizing scan owns it ([[CH#Chain::setActiveRows]]), each family
-composes it into its own precision vector, and the latent draw is SKIPPED - not
-drawn and discarded - at an inactive row. The 0/1 domain is a refusal, not a
-convention: a fractional value is a weighted likelihood and belongs to
-`setWeights` ([[dbarts.h#dbarts_sampler_setActiveRows]], pinned on the flat
-surface alongside the all-ones no-op and the NULL clear at
-[[test-capi.R#"capi_set_active_rows"]]). Per-family composition, multinomial's
-global mask, the NaN pointwise log-likelihood at an inactive row, the surfaces
-and the evidence are in [[docs/design/active-rows-mask.md#The contract]].
+[f15] `setActiveRows` is a first-class 0/1 per-observation mask
+(docs/plans/latent-subset-mask.md): one validating and normalizing scan owns it
+([[CH#Chain::setActiveRows]]), each family composes it into its own precision
+vector, and a rejection-drawn latent is SKIPPED - not drawn and discarded - at
+an inactive row. The 0/1 domain is a refusal, not a convention: a fractional
+value is a weighted likelihood and belongs to `setWeights`
+([[dbarts.h#dbarts_sampler_setActiveRows]], pinned on the flat surface
+alongside the all-ones no-op and the NULL clear at
+[[test-capi.R#"capi_set_active_rows"]]). Every shipped family implements the
+channel, multinomial included, so the bridge's active-row refusal
+([[RIB#"active-row masking is not implemented for this response family"]]) is
+family-generic, reached only by a future family that does not override the base
+refusal. Per-family composition, Student-t's drawn-and-annihilated exception,
+multinomial's global mask, the NaN pointwise log-likelihood, the surfaces and
+the evidence are in [[docs/design/active-rows-mask.md#The contract]].
 
 [f16] `prior.scale` names the per-forest prior ANCHOR - the forest-total prior
 scale at k = 1, in response units - rather than an sd, and
