@@ -125,7 +125,7 @@ See [f7].
 
 The channels that make dbarts a conditional model inside an outer sampler; the
 two families of mutation and their transaction semantics are
-[[docs/architecture.md#The mutation surface and its transaction semantics]].
+[[docs/architecture.md#The mutation surface]].
 "Test surface" means the test-set predictor and offset conduits and the fits
 they feed, not unit tests. `updateScale` is broken out because it is refused
 independently of the setter it rides on. Probit, ordinal, aft and nbinom carry
@@ -679,7 +679,7 @@ group gate on either path, so this is a surface gap, not an engine one.
 
 [f39] The equivalence gate replays a fixed scenario set against a recorded
 baseline and requires BITWISE-identical draws
-([[docs/architecture.md#Gates]]). Current baselines:
+([[docs/plans/README.md#RNG classes and their gates]]). Current baselines:
 `equivalence-d4bca4ce.rds` (51 scenarios),
 `bcf-equivalence-3c81d6df.rds` (12) and
 `multinomial-equivalence-4d9a3337.rds` (11) - benchmarks/baselines/MANIFEST.
