@@ -23,12 +23,35 @@ that stays NaN-free is unchanged.
 
 ## Where the constant is read
 
-There is exactly one read of the veto value in the tree: the guard in
-logLikelihoodForBranch (moves.hpp), `if numObservations() == 0 return
--10000000.0`. Every conjugate move consumes it through that function:
-birth/death score the affected branch before and after and take
+Correction (2026-09-03): this section described the pre-RANK mechanism
+(a finite -1e7 literal read off a member-count predicate). It now
+describes the shipped mechanism instead; see "Is vetoed-vs-vetoed
+reachable? Yes; the veto is a RANK (2026-08-18)" for the full argument.
+
+There is no literal -1e7, or any other finite veto constant, anywhere in
+`src/bartcore`. The predicate a leaf is scored under is
+`Tree::leafHasNoWeight` ([[tree.hpp#Tree::leafHasNoWeight]]): with no
+weight vector installed it is the member count
+(`numObservations() == 0`); with one installed, it scans the leaf's
+members and returns true only if none carries positive weight.
+`Tree::leafVetoRank` ([[tree.hpp#Tree::leafVetoRank]]) turns that
+predicate into the 2/1/0 rank - 2 for a leaf with no member at all
+(checked directly, ahead of and independent of the weight scan), 1 for
+`leafHasNoWeight`, 0 otherwise.
+
+The rank is resolved per branch, not per leaf: `logLikelihoodForBranch`
+([[moves.hpp#logLikelihoodForBranch]]) walks the branch's bottom nodes,
+takes the worst `leafVetoRank` among them, sums the log-likelihood of
+only the rank-0 leaves, and returns both as a `BranchScore`
+([[moves.hpp#BranchScore]]). `resolveVetoRank`
+([[moves.hpp#resolveVetoRank]]) then compares a branch's current and
+proposed `BranchScore`s lexicographically: the worse-ranked side is
+assigned `-HUGE_VAL` (not a finite literal), and ranks equal falls back
+to the finite log-likelihoods. Every conjugate move consumes this pair
+through `logLikelihoodForBranch` and `resolveVetoRank`: birth/death
+score the affected branch before and after and take
 exp(newLogLikelihood - oldLogLikelihood); change and swap do the same
-with exp(yLogL - xLogL). There is no other literal -1e7 in the engine.
+with exp(yLogL - xLogL).
 
 ## Which move paths can create an empty leaf
 

@@ -90,6 +90,30 @@ transactional path existed and was retired when those paths learned to loop
 the forests. So `setPredictor`, whole-matrix and column-granular and
 per-observation, is open at every sampler shape.
 
+## The mutation-legality table
+
+Section 2 above, one row per mutation. "Single forest" and "multi-forest"
+are the legality on that sampler shape; "guard" names the symbol that
+raises (a dash means no forest-count-keyed guard exists - the mutation is
+either open at every shape or gated on something else entirely, noted in
+the cell).
+
+| mutation | single forest | multi-forest | guard |
+|---|---|---|---|
+| `setData` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
+| `setModel` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
+| `setCalibration` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([[chain.hpp#Chain::setForestPriorScale]]), returns false rather than raising itself |
+| `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
+| `setOffset` | allowed, any `updateScale` | same rule as `setResponse` | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
+| `setWeights` | allowed | allowed only if the combiner supports response mutation (no `updateScale` clause - weights carry no scale to pin) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
+| `setSigma` | allowed | allowed | none (not forest-count-keyed) |
+| `setPredictor` | allowed | allowed, whole-matrix, column-granular and per-observation alike | none, by decision - see the paragraph above |
+| `updatePredictor` (column-granular, per-observation, joint) | allowed | allowed | none, by decision - see the paragraph above |
+| `setForestBasis` | refused - no amplitudes to install into | allowed, the SOLE basis-mutation route, at any forest and any width | none forest-count-keyed; capability probe is `totalAmplitudes() == 0` |
+| `setForestWeights` | refused - no amplitudes to install into | allowed for a combiner that carries per-forest weights (BCF); refused on model grounds for a K-forest multinomial mask, which is global instead (`setActiveRows`) | none forest-count-keyed; capability probe is `supportsForestWeights` |
+| `setTestPredictor` / `setTestOffset` / `setTestPredictorAndOffset` | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
+| `predict` (per-forest) | allowed | same rule as the test-input surface above | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
+
 ## 3. What engine state does not carry, and who reinstalls it
 
 The engine RETAINS the pointer it is handed for the raw conditioning vectors

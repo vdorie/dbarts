@@ -203,15 +203,35 @@ two-forest backfit or the glue draw is wrong.
 
 ## Mutation surface
 
+Correction (2026-09-03): the per-forest setModel and per-forest predict
+claims below are wrong; the shipped engine refuses both on BCF's
+two-forest sampler. The bullet is restated to match; no landing note had
+corrected it before now.
+
 bartCause swaps response-side quantities between samples; the split decides
 which entry points fan per forest.
 
 - Chain-level (touch the shared response, fan to recompute each forest's
   residual): setResponse, setOffset, setWeights, setSigma, getLatents. y, sigma,
   and the offset are shared; each forest's `treeY_` is derived.
-- Per-forest: setModel (each forest has its own base/power, k, node scale, split
-  probabilities), setTreeStorage / getTrees / printTrees / predict (addressed by
-  forest - a caller wants tau's trees or mu's), and the leaf-scale draw hook.
+- setModel and predict would need per-forest addressing (setModel: each
+  forest has its own base/power, k, node scale, split probabilities;
+  predict: a caller wants tau's fit or mu's), but the shipped engine
+  refuses both on any sampler with numForests >= 2, BCF included.
+  `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]])
+  fires on `bartcore_setModel`, so BCF cannot swap a forest's model
+  between sweeps - only a fresh sampler can.
+  `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]])
+  closes `bartcore_predict` because
+  `AmplitudeForestCombiner::testFitsAreDefined`
+  ([[combiner.hpp#AmplitudeForestCombiner::testFitsAreDefined]]) returns
+  false: there is no off-sample a*mu + b_z*tau blend to score.
+  getTrees and printTrees remain genuinely per-forest (a 0-based forest
+  index, dbarts.h), so a caller can still read tau's trees or mu's
+  directly; setTreeStorage is not addressed by forest at all - it takes
+  no forest argument (dbarts.h) and toggles the saved-tree store for the
+  whole sampler, both forests at once. The leaf-scale draw hook is
+  per-forest and unaffected by either refusal.
 - Predictor mutation over shared views: setPredictor and family target a forest's
   view, but a mutation to a column both forests reference fans to both under the
   single-writer rule (collapsing the two-copy setPredictorJointly workaround,

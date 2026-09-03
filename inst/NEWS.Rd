@@ -87,8 +87,19 @@
             \code{bart2(family = "ordinal")}. Passed
             through the \code{x}/\code{y} interface either previously fit a
             continuous response on the integer level codes.
+      \item \code{bart2}'s \code{ordinal}, \code{nbinom}, and
+            \code{multinomial} fits no longer carry \code{$bc} (listed
+            under BUG FIXES); \code{thresholds.raw} and
+            \code{dispersion.raw} are unaffected. Code reading \code{$bc}
+            from one of these fits must be updated.
       \item \code{dbartsControl} loses \code{rngKind} and
             \code{rngNormalKind}, and renames \code{rngSeed} to \code{seed}.
+      \item A consumer that forwards its own arguments through a
+            \code{formals()}-derived accept filter - stan4bart, WeightIt,
+            and MatchIt among them (listed under BUG FIXES) - silently
+            drops \code{rngSeed} instead of forwarding it as \code{seed},
+            so the fit runs unseeded with no error. Update such a filter
+            to accept \code{seed}.
       \item \code{xbart} loses its \code{control} argument and renames
             \code{sigma} to \code{sigest}. \code{n.cuts},
             \code{useQuantiles}, and \code{n.thin} are ordinary formals,
@@ -152,6 +163,12 @@
             single-chain sampler per chain; code indexing \code{$fit[[i]]} by
             chain must be reworked. A custom prior or callback keeps the
             per-chain list.
+      \item \code{names(fit)} on a \code{bart}/\code{bart2} fit no longer
+            lists \code{yhat.test}, \code{s.train}, \code{s.test}, or
+            \code{binaryOffset} when the fit carries none of them (listed
+            under BUG FIXES); those elements were previously listed with a
+            \code{NULL} value. Code that checks for their presence via
+            \code{names} rather than \code{is.null} must be updated.
       \item \code{predict.bart} and \code{predict.rbart} now share their
             first five formals, \code{(object, newdata, type, offset,
             weights)}. On \code{predict.bart}, \code{type} moves ahead of
@@ -173,6 +190,11 @@
             refused by name, pointing at \code{type}; \code{"post-mean"}
             falls into \code{type}'s own \dQuote{must be in} message, which
             lists the types it does take. Use \code{type = "ev"}.
+      \item Beyond \code{value}, every \code{predict} method now warns -
+            once per call, classed \code{dbartsUnusedArgsWarning} - on any
+            other argument that is neither a formal nor a recognized
+            foreign one, instead of silently discarding it into
+            \code{\dots} (listed under BUG FIXES).
       \item These names, foreign to the method actually called, are refused
             by name instead of being silently discarded through
             \code{\dots}: \code{sample} and \code{group.by} on
@@ -1281,7 +1303,12 @@
             below 1 - including a sampler whose own count was set to 0 - is
             treated as 1, so the output buffer is always written. The replay is
             identical bit for bit at every value.
-      \item \code{DBARTS_C_API_HASH} is re-baked for the entry points above.
+      \item \code{DBARTS_C_API_HASH} is re-baked for the entry points above -
+            this batch only, the \code{dispersion} field,
+            \code{dbarts_sampler_getDispersion}, \code{dbarts_drawLatents}
+            and \code{dbarts_workingResponse}, not the forest-index or
+            predictor-source signature changes described earlier in this
+            section, which are not append-only.
             All but \code{dbarts_sampler_predict} are append-only, so only that
             one's call sites change; every consumer checking
             \code{dbarts_apiHash()} against the header constant must be
