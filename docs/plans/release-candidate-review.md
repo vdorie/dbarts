@@ -554,6 +554,19 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Engine workflows skip NEWS.Rd edits (daf0b256, 2026-09-03)
+
+The docs wave's NEWS.Rd cross-references fired all six package
+workflows, about an hour and a half of runner time that an Rd file
+cannot affect. cpp-tests, sanitizers and exact-gates now list
+inst/NEWS.Rd under paths-ignore, and cpp-tests also man/**, since the
+C++ suite never sees an Rd file; sanitizers and exact-gates install the
+package, so man pages stay in scope there. check-standard and pkgdown
+still run on NEWS.Rd, where a malformed entry would surface. fe6489d4
+lower-cases two emphases the wave's fix pass had left (the amend that
+was meant to carry them did not stage them). Full battery green at
+20346d49 and doc-freshness green at 7ceb53bf before this push.
+
 ### The reading path reviewed and trimmed after the tour (3b6d870f to 20346d49, 2026-09-03)
 
 Seven independent reviews at 6cd09c18 covered what VD reads after the
