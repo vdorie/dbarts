@@ -554,6 +554,56 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Nine rulings on the tour's open items (b7080267 to 58812b7f, 2026-09-03)
+
+VD took the decision points the day's reviews had raised, one at a time,
+each with alternatives, product tradeoffs and a recommendation.
+1. gp() calibration: the "not ensemble-scale" framing was wrong for this
+   leaf model. A GP leaf earns its keep at tens of trees, not hundreds
+   (tool-verified literature: GP-BART defaults to 10 for this reason,
+   treed GP uses one tree, ridgeBART recommends 50; a sweep over four
+   targets found 10 to 25 the only band never worse than constant-leaf
+   BART, and 200 trees behaving like constant BART at 100x the cost).
+   The man page now recommends 10 to 25 and explains the max.leaf.size
+   interaction (58812b7f). The one real gap, a tree holding both GP and
+   constant-fallback leaves, is calibrated: sbc.R's gp-mixed arm at cap
+   30 (48.6 percent of prior leaves over the cap, 79 percent of trees
+   mixed), seven functionals, one initial flag on the edge test point
+   that a fresh-seed replication showed to be a band excursion
+   (7a6afce3; docs/plans/sbc-calibration.md Tier C4 and C4b).
+2. bcf pointwise loglik: verified and pinned. extract(type = "loglik")
+   scores the combined location a*mu + (basis %*% b)*tau + shift +
+   offset at the fit's sigma or link, in gaussian (with offset and case
+   weights), probit and logistic, hand-vs-extract differences at 1e-14;
+   the matrix cell is S ([[inst/tinytest/test-bcf-loglik.R#"the COMBINED one"]], b7080267).
+3. Heteroscedastic scale leaf under updateScale = TRUE: refused, not
+   stale; refuseVarianceForestScaleUpdate on both setters, C API
+   included, pinned in test-sampler-errors.R. The rescale door stays
+   post-1.0 and is additive.
+4. Sampled GP lengthscales: an additive named state block, not a format
+   break; removed from the tour's cost list.
+5. Four shipped-but-untested setters pinned by creation parity:
+   ordinal and nbinom setOffset, hazard setResponse and setOffset, with
+   negative controls; the hazard setResponse case is equalized because
+   the probit constructor cold-starts latents deterministically while
+   the setter redraws them (4e5cdb8a).
+6. setActiveRows gets a design record: docs/design/active-rows-mask.md,
+   status REFERENCE, with f15 reduced to a pointer (dd2e060c); a critic
+   caught two wrong sentences (Student-t draws its latent at every row
+   and annihilates it through the composite; logistic accepts a count
+   swap) and a lost coverage pointer, corrected in 2ec4bb32.
+7. and 8. The matrix keeps both the warm-start and grow-from-root
+   columns (different capabilities, jointly refused today by one check;
+   f50 says so) and the active-rows column (a uniform promise with its
+   per-family site).
+9. NEWS consolidation: after VD's read, once the entry stops moving.
+The tour's section 6 cost list is empty and says why; the tour and the
+plans INDEX are stamped at 58812b7f. Merged-tree tinytest 7742/0; the
+new test files' CI battery green at 4e5cdb8a. Residue: the comment on
+LogisticResponse::setActiveRows in src/bartcore/model.hpp says no count
+change is accepted afterwards, which bartcore_setWeights contradicts;
+a comment fix for the next engine-touching slice.
+
 ### Engine workflows skip NEWS.Rd edits (daf0b256, 2026-09-03)
 
 The docs wave's NEWS.Rd cross-references fired all six package

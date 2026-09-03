@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 4e5cdb8a (bartcore), 2026-09-03.
+Current at 58812b7f (bartcore), 2026-09-03.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
 are the decision; the appendices are for a reader who opens the code. Code
