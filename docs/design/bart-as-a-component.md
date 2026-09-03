@@ -106,13 +106,14 @@ the cell).
 | `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
 | `setOffset` | allowed, any `updateScale` | same rule as `setResponse` | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
 | `setWeights` | allowed | allowed only if the combiner supports response mutation (no `updateScale` clause - weights carry no scale to pin) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
-| `setSigma` | allowed | allowed | none (not forest-count-keyed) |
+| `setSigma` | allowed | allowed, but only where the sampler has a free sigma to set: refused under a variance forest and off gaussian/aft, which takes out a K-forest multinomial (it marks itself `logistic`, [[chain.hpp#"family_ = ResponseFamily::logistic"]]) and a probit BCF | none forest-count-keyed; `refusePinnedSigmaChange` ([[R_interface_bartcore.cpp#refusePinnedSigmaChange]]) gates on the family and the variance forest |
 | `setPredictor` | allowed | allowed, whole-matrix, column-granular and per-observation alike | none, by decision - see the paragraph above |
 | `updatePredictor` (column-granular, per-observation, joint) | allowed | allowed | none, by decision - see the paragraph above |
-| `setForestBasis` | refused - no amplitudes to install into | allowed, the SOLE basis-mutation route, at any forest and any width | none forest-count-keyed; capability probe is `totalAmplitudes() == 0` |
+| `setForestBasis` | refused - no amplitudes to install into | allowed, the SOLE basis-mutation route, at any forest and any width | none forest-count-keyed; capability probe is `totalAmplitudes()`, and a zero total is the refusal |
 | `setForestWeights` | refused - no amplitudes to install into | allowed for a combiner that carries per-forest weights (BCF); refused on model grounds for a K-forest multinomial mask, which is global instead (`setActiveRows`) | none forest-count-keyed; capability probe is `supportsForestWeights` |
 | `setTestPredictor` / `setTestOffset` / `setTestPredictorAndOffset` | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
-| `predict` (per-forest) | allowed | same rule as the test-input surface above | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
+| `predict` (combined) | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) - the test-input surface's rule | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
+| `predict` (per-forest) | refused - no per-forest fits to report | allowed only where the coupling composes through amplitude glue, which is the REVERSE of the combined rule (BCF: yes; K-forest multinomial: no) | `bartcore_predictPerForest` ([[R_interface_bartcore.cpp#bartcore_predictPerForest]]) raises on `!forestReportingIsDefined`, overridden true by `AmplitudeForestCombiner` alone ([[combiner.hpp#AmplitudeForestCombiner::forestReportingIsDefined]]) |
 
 ## 3. What engine state does not carry, and who reinstalls it
 

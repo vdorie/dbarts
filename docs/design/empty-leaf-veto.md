@@ -40,10 +40,16 @@ predicate into the 2/1/0 rank - 2 for a leaf with no member at all
 `leafHasNoWeight`, 0 otherwise.
 
 The rank is resolved per branch, not per leaf: `logLikelihoodForBranch`
-([[moves.hpp#logLikelihoodForBranch]]) walks the branch's bottom nodes,
-takes the worst `leafVetoRank` among them, sums the log-likelihood of
-only the rank-0 leaves, and returns both as a `BranchScore`
-([[moves.hpp#BranchScore]]). `resolveVetoRank`
+([[moves.hpp#logLikelihoodForBranch]]) walks the branch's bottom nodes and
+takes the worst `leafVetoRank` among them. The rank half is leaf-model
+independent; the likelihood half is not. Off a `ParamScoringLeafModel` -
+the conjugate leaves - it is the per-leaf marginal summed over the rank-0
+leaves alone. On one (the monotone constant leaf) the leaf owns the branch
+marginal outright and the value returned is
+`logLikelihoodForBranchWithParams`
+([[moves.hpp#logLikelihoodForBranchWithParams]]) over the whole branch,
+with no per-leaf sum running at all. Either way rank and likelihood return
+together as a `BranchScore` ([[moves.hpp#BranchScore]]). `resolveVetoRank`
 ([[moves.hpp#resolveVetoRank]]) then compares a branch's current and
 proposed `BranchScore`s lexicographically: the worse-ranked side is
 assigned `-HUGE_VAL` (not a finite literal), and ranks equal falls back

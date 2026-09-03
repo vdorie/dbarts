@@ -204,9 +204,10 @@ two-forest backfit or the glue draw is wrong.
 ## Mutation surface
 
 Correction (2026-09-03): the per-forest setModel and per-forest predict
-claims below are wrong; the shipped engine refuses both on BCF's
-two-forest sampler. The bullet is restated to match; no landing note had
-corrected it before now.
+claims below are wrong, and wrong in different ways. The shipped engine
+refuses setModel on BCF's two-forest sampler; the per-forest predict it
+ALLOWS there, and refuses the COMBINED one instead. The bullet is
+restated to match; no landing note had corrected it before now.
 
 bartCause swaps response-side quantities between samples; the split decides
 which entry points fan per forest.
@@ -214,24 +215,35 @@ which entry points fan per forest.
 - Chain-level (touch the shared response, fan to recompute each forest's
   residual): setResponse, setOffset, setWeights, setSigma, getLatents. y, sigma,
   and the offset are shared; each forest's `treeY_` is derived.
-- setModel and predict would need per-forest addressing (setModel: each
-  forest has its own base/power, k, node scale, split probabilities;
-  predict: a caller wants tau's fit or mu's), but the shipped engine
-  refuses both on any sampler with numForests >= 2, BCF included.
+- setModel would need per-forest addressing (each forest has its own
+  base/power, k, node scale, split probabilities), but the shipped engine
+  refuses it on any sampler with numForests >= 2, BCF included:
   `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]])
   fires on `bartcore_setModel`, so BCF cannot swap a forest's model
   between sweeps - only a fresh sampler can.
-  `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]])
-  closes `bartcore_predict` because
+- predict is two entry points with opposite rules, and BCF gets the
+  per-forest one. `bartcore_predictPerForest`
+  ([[R_interface_bartcore.cpp#bartcore_predictPerForest]]), behind
+  `$predictForests` ([[dbarts.R#predictForests]]), refuses on
+  `!forestReportingIsDefined`, which `AmplitudeForestCombiner` alone
+  overrides true
+  ([[combiner.hpp#AmplitudeForestCombiner::forestReportingIsDefined]]),
+  so a caller does get tau's fit or mu's off BCF - and a K-forest
+  multinomial is the shape refused there. The COMBINED `bartcore_predict`
+  runs the other way: `refuseUndefinedTestFits`
+  ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) closes it on
+  `numForests >= 2 && !testFitsAreDefined`, and
   `AmplitudeForestCombiner::testFitsAreDefined`
   ([[combiner.hpp#AmplitudeForestCombiner::testFitsAreDefined]]) returns
-  false: there is no off-sample a*mu + b_z*tau blend to score.
+  false: there is no off-sample a*mu + b_z*tau blend to score. So the
+  forest-count generalization holds for setModel and not for predict.
   getTrees and printTrees remain genuinely per-forest (a 0-based forest
   index, dbarts.h), so a caller can still read tau's trees or mu's
   directly; setTreeStorage is not addressed by forest at all - it takes
   no forest argument (dbarts.h) and toggles the saved-tree store for the
-  whole sampler, both forests at once. The leaf-scale draw hook is
-  per-forest and unaffected by either refusal.
+  whole sampler, both forests at once. Each forest's own k draw
+  ([[chain.hpp#updateK]]) is per-forest too and unaffected by either
+  refusal.
 - Predictor mutation over shared views: setPredictor and family target a forest's
   view, but a mutation to a column both forests reference fans to both under the
   single-writer rule (collapsing the two-copy setPredictorJointly workaround,

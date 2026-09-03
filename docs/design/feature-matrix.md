@@ -392,7 +392,13 @@ facade's [[FAC#SamplerBase::setActiveRows]] with its shape probe
 [[FAC#SamplerShape::supportsActiveRows]]; the R5
 [[dbarts.R#setActiveRows]], the bridge [[RIB#bartcore_setActiveRows]] and the
 flat C [[C_interface.cpp#dbarts_sampler_setActiveRows]] all reach it, the last
-by probing `shape.supportsActiveRows` and never by family.
+by probing `shape.supportsActiveRows` and never by family. The 0/1 domain is
+a refusal, not a convention: [[CH#Chain::setActiveRows]] returns false unless
+every element is exactly 0.0 or 1.0, since a fractional value is a weighted
+likelihood and belongs to `setWeights`
+([[dbarts.h#dbarts_sampler_setActiveRows]]), and the flat-C pins carry that
+fractional refusal alongside the all-ones no-op and the NULL clear
+([[test-capi.R#"capi_set_active_rows"]]).
 
 Per-family constraints. Logistic ([[MOD#LogisticResponse::workingWeights]]) and
 nbinom ([[MOD#NBResponse::workingWeights]]) serve a SEPARATE a_i omega_i
@@ -560,7 +566,8 @@ is a `ProbitResponse` or a `LogisticResponse` just as readily as a
 `setActiveRows` exactly as it does off a coupling, so [f15]'s coverage carries
 the latent case - but every MEASUREMENT is gaussian two-forest
 ([[test-active-rows-pins.R#"masked.bcf"]], bitwise against `setWeights(w * a)`
-in `train` and in `sigma`, plus the `bcf-equivalence.R` `masked` scenario), and
+in `train` and in `sigma`, plus the `bcf-equivalence.R` `masked` scenario; an
+all-zeros mask runs finite and a fractional element is refused), and
 no latent K-forest mask is measured anywhere. A per-forest mask is refused as
 REDUNDANT rather than unbuilt, since the public
 [[dbarts.R#setForestWeights]] / [[RIB#bartcore_setForestWeights]] channel
@@ -770,8 +777,10 @@ not have: the resident test store, `run()$yhat.test` and the SAMPLER's own
 ships instead reports the per-forest pieces and leaves the contraction to the
 caller, whose bases they are: the engine replay
 ([[RIB#bartcore_predictPerForest]],
-[[CH#Chain::predictPerForestFromSavedSample]]) and, at the FIT level, an R
-contraction ([[generics.R#predictBlend]]) taking the bases from a `bases =`
+[[CH#Chain::predictPerForestFromSavedSample]]), which replays every forest at
+the new rows RAW - on the forests' internal scale, with no `fitScale`, no
+`fitShift` and no offset, because the combination carries all three - and, at
+the FIT level, an R contraction ([[generics.R#predictBlend]]) taking the bases from a `bases =`
 argument or, for a `bart2` `forest()` term, re-evaluating the declaring formula
 against `newdata` under the fit's own factor levels. The in-sample channel has
 the same shape: [[bart.R#packageBartResults]] packages `forestFits` and `glue`

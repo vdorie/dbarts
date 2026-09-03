@@ -164,10 +164,12 @@
             chain must be reworked. A custom prior or callback keeps the
             per-chain list.
       \item \code{names(fit)} on a \code{bart}/\code{bart2} fit no longer
-            lists \code{yhat.test}, \code{s.train}, \code{s.test}, or
-            \code{binaryOffset} when the fit carries none of them (listed
-            under BUG FIXES); those elements were previously listed with a
-            \code{NULL} value. Code that checks for their presence via
+            lists \code{yhat.test}, \code{s.train} or \code{s.test} when the
+            fit carries none of them, nor \code{binaryOffset} on a
+            \code{bart2} binary fit given no \code{offset} (\code{bart},
+            whose \code{binaryOffset} defaults to 0, always carries one)
+            (listed under BUG FIXES); those elements were previously listed
+            with a \code{NULL} value. Code that checks for their presence via
             \code{names} rather than \code{is.null} must be updated.
       \item \code{predict.bart} and \code{predict.rbart} now share their
             first five formals, \code{(object, newdata, type, offset,
@@ -1304,13 +1306,22 @@
             treated as 1, so the output buffer is always written. The replay is
             identical bit for bit at every value.
       \item \code{DBARTS_C_API_HASH} is re-baked for the entry points above -
-            this batch only, the \code{dispersion} field,
-            \code{dbarts_sampler_getDispersion}, \code{dbarts_drawLatents}
-            and \code{dbarts_workingResponse}, not the forest-index or
-            predictor-source signature changes described earlier in this
-            section, which are not append-only.
+            \code{dbarts_apiHash} itself, \code{dbarts_sampler_setForestWeights},
+            \code{dbarts_sampler_setActiveRows},
+            \code{dbarts_sampler_getForestCalibration},
+            \code{dbarts_sampler_setForestPriorScale}, the \code{dispersion}
+            field, \code{dbarts_sampler_getDispersion},
+            \code{dbarts_drawLatents}, \code{dbarts_workingResponse} and
+            \code{dbarts_sampler_predict}'s new \code{numThreads} argument.
             All but \code{dbarts_sampler_predict} are append-only, so only that
-            one's call sites change; every consumer checking
+            one's call sites change - its \code{numThreads} is inserted before
+            the output pointer rather than appended. The token itself covers the
+            WHOLE ABI rather than one batch: it folds every entry-point
+            signature, the callback's parameters, the ABI enumerators and the
+            ABI structs' layout, so the forest-index and predictor-source
+            signature changes described earlier in this section move it too.
+            This batch is what triggered the re-bake, not the whole of what the
+            re-baked value covers. Every consumer checking
             \code{dbarts_apiHash()} against the header constant must be
             rebuilt - the lockstep handshake as designed.
       \item A \code{dbarts_family} enum replaces the stringly-typed

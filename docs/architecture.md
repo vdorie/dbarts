@@ -184,12 +184,15 @@ category forests through a softmax likelihood, with a one-vs-rest
 Polya-Gamma augmentation drawn against the current margins immediately
 before each category's own forest updates (`drawForestGlue`).
 
-Two per-forest channels ride alongside: `Chain::setForestWeights` installs a
-per-observation precision factor composed into forest f's leaf conditionals
-alone (`composeForestWeights`), admitted only by a combiner whose
-`supportsForestWeights` is true, and `Chain::setActiveRows` installs a global
-0/1 mask saying which rows are in the data set this sweep, validated and
-normalized in one pass, with an all-ones mask installing nothing.
+Two per-observation channels ride alongside, only one of them per-forest.
+`Chain::setForestWeights` installs a precision factor composed into forest f's
+leaf conditionals alone (`composeForestWeights`), admitted only by a combiner
+whose `supportsForestWeights` is true. `Chain::setActiveRows` is the
+counterexample: a global 0/1 mask saying which rows are in the data set this
+sweep, with no forest index anywhere on the path and admitted by the RESPONSE
+family (`supportsActiveRows`) rather than by the combiner, validated and
+normalized in one pass, with an all-ones mask installing nothing and a
+fractional element refused.
 
 Split availability is restricted per forest, not per chain: a forest may
 carry a column mask (BCF moderators, a column-restricted variance forest) and
@@ -252,14 +255,18 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 3. Rebuild the forest's `totalFits` once the tree loop ends
    (`finalizeTotalFits`).
 4. Refresh the response family's latents against the combined location
-   (`ResponseModel::refreshLatents`) and draw sigma (`drawSigma`).
+   (`ResponseModel::refreshLatents`) and, where sigma is a free parameter,
+   draw it (`drawSigma`).
 5. Draw the combiner's glue and its post-combine move; sweep the variance
    forest against the mean residual (`sweepVarianceForest`); draw each
    forest's `k` and, under DART, its split weights.
 6. Record the sample if this iteration is a kept one.
 
-Every draw there reads the chain's own generator; nothing in the loop touches
-R.
+Every draw there reads the chain's own generator. The one thing in the loop
+that touches R is the sweep callback: `bartcore_runWithCallback` installs an
+`onSweep` hook that evaluates an R closure through `R_tryEval` at the top of
+every iteration ("Callback restriction" below), and it is single-chain,
+inline-only for exactly that reason.
 
 ## ColumnStore
 
@@ -351,8 +358,9 @@ built on top of `FlatNode`.
   `ForestStateData` per forest, plus the store's cut points and the
   saved-tree write cursors. `stateFormatVersion` is 3, as is
   `minReadableStateFormatVersion` (`src/R_interface_bartcore.cpp`); blocks
-  are read by name and defaulted when absent, so an additive block loads into
-  an older reader. Restore is semantic, not bitwise: a restored chain rebuilds
+  are read by name and an absent optional block is defaulted, so adding one
+  bumps neither number - an older reader ignores the name it does not know,
+  and a newer reader defaults it when an older state omits it. Restore is semantic, not bitwise: a restored chain rebuilds
   partitions from tree structure and cut points, `totalFits` by summing tree
   fits, and the variance-prior anchor by re-running the same transform
   construction does, so it continues equivalently but not bit-for-bit.
@@ -378,10 +386,14 @@ determines them.
 
 After that one-time seeding, sampling itself never advances R's stream -
 `Chain::run` and everything it calls draws exclusively from the chain's own
-`ext_rng*` - and the bridge's remaining `GetRNGstate()`/`PutRNGstate()`
-brackets cover only draws made outside a chain's sweep loop: a probit latent
-redraw, the per-observation session's scan-order permutations, and the
-sample-from-prior, grow-from-root and draw-latents entry points.
+`ext_rng*`. The bridge's remaining `GetRNGstate()`/`PutRNGstate()` brackets
+are of two kinds. Most cover draws the bridge itself makes outside a chain's
+sweep loop: a probit latent redraw on `setResponse`, the per-observation
+session's scan-order permutations, and the sample-from-prior, grow-from-root
+and draw-latents entry points. Two more do enclose the sweep loop - they
+bracket `bartcore_run`'s own calls into `sampler.run(...)`, one in the
+`numSamples == 0` arm and one in the main arm - and are harmless rather than
+load-bearing, since nothing inside `sampler.run` touches R's stream.
 
 ## Threading model
 
