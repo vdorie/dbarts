@@ -79,6 +79,7 @@ Columns: `file | STATUS | one-liner`.
 | kernel-vocabulary.md | REFERENCE | Standing reference for the contract between the generic BART core and the compiled kernel library (`misc.a`). |
 | robust-errors.md | LANDED, 2026-07-17 | Adds outlier-robust Student-t residuals (`resid.dist = student(...)`) via scale-mixture augmentation. |
 | prior-defaults.md | REFERENCE | A plain record of every current prior default and its source. |
+| active-rows-mask.md | REFERENCE | Standing reference for the per-observation 0/1 active-row mask (`$setActiveRows`): its contract, how each response family composes it, and what it leaves untouched. |
 | nameable-calibration.md | ARC COMPLETE | Lets a fit name its per-forest leaf-prior scale directly in response units (`prior.scale`), with a matching `$getCalibration`/`$setCalibration` pair, also reachable through the flat C API. |
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a detailed-balance defect in the tree change move that biased splits toward low-cardinality variables. |
 | empty-leaf-veto.md | DECIDED (keep-and-document), 2026-07-07 | Keeps the existing empty-leaf veto rather than replacing it with occupancy-aware proposals; the veto was later made ranked rather than flat (docs/architecture.md, "Tree moves"). |

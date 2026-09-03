@@ -151,7 +151,9 @@ them again, and who does that depends on the layer:
   the two stored states compare equal while the fits diverge. This is a
   contract item, decided in [[docs/design/bcf.md#The multiplier snap and the per-forest weight (2026-08-10)]] and pinned for the same-holder
   round trip in `inst/tinytest/test-forest-weights.R`. An active-row mask is
-  mirrored nowhere at all and is lost on re-creation.
+  mirrored nowhere at all and is lost on re-creation. That channel's own
+  design - its contract, per-family composition and surfaces - is
+  [[docs/design/active-rows-mask.md#The contract]].
 - A flat C consumer owns every one of them, having no R5 layer to mirror
   through.
 

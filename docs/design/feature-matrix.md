@@ -383,65 +383,16 @@ always was. The flat C API guards through the same call
 on both ([[RIB#refuseBinaryWeightChange]], [[RIB#refusePinnedSigmaChange]]);
 grouped aft takes `setSigma` and refuses `setWeights`.
 
-[f15] `setActiveRows` is a first-class 0/1 per-observation mask
-(docs/plans/latent-subset-mask.md) that each family composes into its own
-precision vector, with the latent draw SKIPPED - not drawn and discarded - at an
-inactive row. One validating and normalizing scan owns it,
-[[CH#Chain::setActiveRows]], behind [[SAM#Sampler::setActiveRows]] and the
-facade's [[FAC#SamplerBase::setActiveRows]] with its shape probe
-[[FAC#SamplerShape::supportsActiveRows]]; the R5
-[[dbarts.R#setActiveRows]], the bridge [[RIB#bartcore_setActiveRows]] and the
-flat C [[C_interface.cpp#dbarts_sampler_setActiveRows]] all reach it, the last
-by probing `shape.supportsActiveRows` and never by family. The 0/1 domain is
-a refusal, not a convention: [[CH#Chain::setActiveRows]] returns false unless
-every element is exactly 0.0 or 1.0, since a fractional value is a weighted
-likelihood and belongs to `setWeights`
-([[dbarts.h#dbarts_sampler_setActiveRows]]), and the flat-C pins carry that
-fractional refusal alongside the all-ones no-op and the NULL clear
-([[test-capi.R#"capi_set_active_rows"]]).
-
-Per-family constraints. Logistic ([[MOD#LogisticResponse::workingWeights]]) and
-nbinom ([[MOD#NBResponse::workingWeights]]) serve a SEPARATE a_i omega_i
-composite rather than writing the zero into omega_ itself, since the working
-response divides by it and 0 * inf in the node kernels is a NaN; nbinom's
-[[MOD#NBResponse::setActiveRows]] additionally restricts the collapsed
-statistic S the dispersion grid draw reads and rebuilds the count-histogram
-kernel behind L_k ([[MOD#NBDispersionPrior::computeKernel]]) over the active
-rows at every mask change. aft's [[MOD#AFTResponse::setActiveRows]] composes
-into its contained Gaussian, inheriting the sigma degrees-of-freedom recount,
-and skips the censored redraw at an inactive row. All three report NaN
-pointwise log-likelihood at an inactive row. Multinomial's mask is GLOBAL,
-landing on the softmax coupling rather than the response, which holds no
-precisions of its own: [[MOD#MultinomialResponse::setActiveRows]] is a
-pass-through that only advertises the capability
-([[MOD#MultinomialResponse::supportsActiveRows]]), and `Chain::setActiveRows`
-forwards the mask to [[COM#MultinomialForestCombiner::setActiveRows]] after the
-response's own install ([[COM#ForestCombiner::setActiveRows]] is the inert
-default every additive coupling relies on instead). An inactive row's K
-interleaved Polya-Gamma draws are skipped in [[COM#drawForestGlue]] and its
-composed precision is zeroed in every category in
-[[COM#MultinomialForestCombiner::formForestResponse]]; the row keeps its leaf
-occupancy and its reported softmax probabilities, and omega is never zeroed
-since the working response divides by it. PER-FOREST masking is refused
-permanently on model grounds at the only reachable per-forest, per-observation
-channel, [[RIB#bartcore_setForestWeights]] - see [f21]. The bridge's
-active-row refusal
-([[RIB#"active-row masking is not implemented for this response family"]]) is
-family-generic, reached only by a future family that does not override the base
-refusal.
-
-Evidence: per-family kernel comparisons against the compacted case, bitwise in
-value and in RNG stream ([[tests/cpp/test_model.cpp#testActiveRowsLogisticKernel]],
-[[tests/cpp/test_model.cpp#testActiveRowsNBKernels]],
-[[tests/cpp/test_model.cpp#testActiveRowsAFTCensored]],
-[[tests/cpp/test_sampler.cpp#testActiveRowsMultinomialKernel]]); a
-sampler-level conditional-independence check under substituted inactive
-responses ([[test-active-rows-pins.R#"logistic, nbinom and aft"]],
-[[test-active-rows-pins.R#"multinomial, GLOBAL only"]]); grouped and
-heteroscedastic bitwise against `setWeights(w * a)`
-([[test-active-rows-pins.R#"heteroSampler"]],
-[[tests/cpp/test_sampler.cpp#testActiveRows]]); and the flat-C pins
-([[test-capi.R#"capi_set_active_rows"]]).
+[f15] `setActiveRows` is a first-class 0/1 per-observation mask: one validating
+and normalizing scan owns it ([[CH#Chain::setActiveRows]]), each family
+composes it into its own precision vector, and the latent draw is SKIPPED - not
+drawn and discarded - at an inactive row. The 0/1 domain is a refusal, not a
+convention: a fractional value is a weighted likelihood and belongs to
+`setWeights` ([[dbarts.h#dbarts_sampler_setActiveRows]], pinned on the flat
+surface alongside the all-ones no-op and the NULL clear at
+[[test-capi.R#"capi_set_active_rows"]]). Per-family composition, multinomial's
+global mask, the NaN pointwise log-likelihood at an inactive row, the surfaces
+and the evidence are in [[docs/design/active-rows-mask.md#The contract]].
 
 [f16] `prior.scale` names the per-forest prior ANCHOR - the forest-total prior
 scale at k = 1, in response units - rather than an sd, and
