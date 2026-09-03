@@ -81,6 +81,17 @@
       scalar; \code{NULL} uses the median pairwise-distance heuristic per
       column. Leaves holding more than \code{max.leaf.size} observations
       fall back to constant fits, confining the cubic kernel cost.
+      Fewer trees are needed than for constant leaves: 10 to 25 is a
+      reasonable range, since each leaf already fits a smooth function, while
+      past about 50 the per-tree shrinkage leaves each function too small to
+      improve on constant fits and the cost, linear in the number of trees and
+      cubic in the leaf size, keeps rising. The two settings interact: a tree
+      typically holds only two or three leaves, so a leaf carries a sizable
+      fraction of the sample and \code{max.leaf.size} must be comparable to
+      that fraction for the kernel to be used at all; lowering \code{n.trees}
+      grows deeper trees and is the effective way to bring leaves under the
+      cap, whereas lowering \code{max.leaf.size} only sends more leaves to the
+      constant fallback.
       Function-valued fits ride prediction only: \code{getTrees} reports
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification
