@@ -186,18 +186,13 @@ and `interaction-constraints`.
 One question is open: whether to declare the release candidate (`TODO`'s
 `rc-gate` item).
 
-Four pieces of shipped surface are cheap to change now and become a second
+Three pieces of shipped surface are cheap to change now and become a second
 breaking change after release. Leaving each as it stands is a legitimate
 ruling, made deliberately:
 
 - `gp()` is documented in `man/bart2.Rd`, `man/dbarts.Rd`,
   `man/dbartsPriors.Rd` and `man/xbart.Rd`. Its calibration evidence is a
   25-tree run, not an ensemble-scale one.
-- `extract(type = "loglik")` on a BCF-shaped fit runs unrefused - the fit's
-  family is gaussian, probit or logistic, so it reaches the shared
-  dispatcher - but whether it is the right quantity for a combined
-  per-forest location is unadjudicated, and `docs/design/feature-matrix.md`
-  marks that cell unverified.
 - The heteroscedastic scale leaf is calibrated once at creation and never
   rescaled when `sigmaScale` moves, so a response or offset swap under
   `updateScale = TRUE` leaves the prior on the old scale (`TODO`'s

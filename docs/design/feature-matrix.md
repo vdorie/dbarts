@@ -16,7 +16,7 @@ scheduling.
 | `P` | PLANNED. A named design arc covers it; the cell names which stage. No cell currently carries this code. |
 | `M` | MISSING. Not built, no schedule. A cite, when given, is a guard that errors *because the thing is unbuilt* - a recorded open item, not a model refusal. |
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
-| `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
+| `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". No cell currently carries this code. |
 
 A marker written `[fN by family]` flags a cell whose code varies with the base
 family the row is built over; the footnote says which family takes which.
@@ -175,7 +175,7 @@ calibration" is a named leaf-prior scale in response units ([f16]).
 | aft | R [[RIB#parseSamplerSpecification]] | S [[MOD#AFTResponse::setActiveRows]] | S [[MOD#AFTResponse::latents]] | S [[generics.R#pointwiseLogLikelihood]] | S [[dbarts.R#getCalibration, setCalibration]] [f16] |
 | hazard | R [[RIB#enforceBinaryWeightPolicy]] [f6] | S [[MOD#ProbitResponse::setActiveRows]] [f6] | S [[MOD#ProbitResponse::latents]] | S [[generics.R#pointwiseLogLikelihood]] [f24] | S [[dbarts.R#getCalibration, setCalibration]] [f6] |
 | hurdle | R [[bart.R#"does not support 'weights'"]] | - [f12] | - [f12] | S [[generics.R#hurdleLogLik]] [f25] | - [f12] |
-| bcf | S [[COM#AmplitudeForestCombiner::formForestResponse]] [f17] [f48 by family] | S [[MOD#GaussianResponse::setActiveRows]], [[CH#composeForestWeights]] [f26] | S [[CH#Chain::latents]] [f18 by family] | ? [[generics.R#pointwiseLogLikelihood]] | R [f23] |
+| bcf | S [[COM#AmplitudeForestCombiner::formForestResponse]] [f17] [f48 by family] | S [[MOD#GaussianResponse::setActiveRows]], [[CH#composeForestWeights]] [f26] | S [[CH#Chain::latents]] [f18 by family] | S [[generics.R#pointwiseLogLikelihood]], [[test-bcf-loglik.R#"the COMBINED one"]] | R [f23] |
 | grouped | S [[MOD#drawGroupEffects]] | S [[MOD#GroupedResponse::setActiveRows]] [f27] | S [[MOD#GroupedResponse::latents]] | S [[generics.R#pointwiseLogLikelihood]] | S [[MOD#GroupedResponse::fitScale, GroupedResponse::fitShift]] [f27] |
 | hetero | S [[CH#sweepVarianceForest]], [[MOD#ConstantVarianceLeaf::accumulate]] | S [[CH#formMeanWeights]] [f27] | - [f18] | S [[generics.R#heteroscedasticScale]] [f28] | S [[CH#Chain::resolvedNodeScale]], [[CH#Chain::forestCalibration, Chain::setForestPriorScale]] [f29] |
 
@@ -216,7 +216,7 @@ reads "constant leaf" in that column.
 | aft | `grouped_aft` only [f44] | OUT [f45] | test-aft.R, test-rbart-aft.R |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
-| bcf | 12 scenarios, own harness, gaussian only [f48] | PASS, gaussian only [f46] | 8 (test-bcf*.R) |
+| bcf | 12 scenarios, own harness, gaussian only [f48] | PASS, gaussian only [f46] | 9 (test-bcf*.R) |
 | grouped | `grouped`, `grouped_aft` | PASS (tier A) | 14 (test-rbart-*.R) |
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
@@ -854,11 +854,7 @@ Warm start and grow-from-root are unrefused and untested for two forests
 ([f36]). Whole-data `setData` stays undesigned (open question 1 of the
 model-space survey, docs/design/model-space-survey.md). The probit and logistic
 cases have no equivalence scenario, no SBC coverage and no measured active-rows
-mask ([f48], [f26]). Pointwise loglik RUNS - a bcf-shaped fit's `family` is
-gaussian, probit or logistic, so `extract(type = "loglik")` reaches the shared
-[[generics.R#pointwiseLogLikelihood]] dispatcher unrefused - but has never been
-checked to be the right quantity for a combined per-forest location, which is
-why that cell is `?`.
+mask ([f48], [f26]).
 
 **grouped.** `rbart_vi()`-only surface ([f8]): no `bart2()`, `dbarts()`,
 `xbart()` or `dbartsSpec()` reach, and no `warm.start` / `n.grow.sweeps`
