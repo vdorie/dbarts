@@ -1316,7 +1316,7 @@
             All but \code{dbarts_sampler_predict} are append-only, so only that
             one's call sites change - its \code{numThreads} is inserted before
             the output pointer rather than appended. The token itself covers the
-            WHOLE ABI rather than one batch: it folds every entry-point
+            whole ABI rather than one batch: it folds every entry-point
             signature, the callback's parameters, the ABI enumerators and the
             ABI structs' layout, so the forest-index and predictor-source
             signature changes described earlier in this section move it too.

@@ -189,7 +189,7 @@ Two per-observation channels ride alongside, only one of them per-forest.
 leaf conditionals alone (`composeForestWeights`), admitted only by a combiner
 whose `supportsForestWeights` is true. `Chain::setActiveRows` is the
 counterexample: a global 0/1 mask saying which rows are in the data set this
-sweep, with no forest index anywhere on the path and admitted by the RESPONSE
+sweep, with no forest index anywhere on the path and admitted by the response
 family (`supportsActiveRows`) rather than by the combiner, validated and
 normalized in one pass, with an all-ones mask installing nothing and a
 fractional element refused.
