@@ -43,6 +43,7 @@ on:
       - 'TODO'
       - '**.md'
       - 'benchmarks/baselines/MANIFEST'
+      - 'inst/NEWS.Rd'
   pull_request:
     branches: [main, bartcore]
   workflow_dispatch:

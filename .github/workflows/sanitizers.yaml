@@ -22,6 +22,7 @@ on:
       - 'TODO'
       - '**.md'
       - 'benchmarks/**'
+      - 'inst/NEWS.Rd'
   pull_request:
     branches: [main, bartcore]
     paths-ignore:
@@ -29,6 +30,7 @@ on:
       - 'TODO'
       - '**.md'
       - 'benchmarks/**'
+      - 'inst/NEWS.Rd'
   workflow_dispatch:
 
 concurrency:
