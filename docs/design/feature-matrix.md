@@ -746,7 +746,11 @@ inst/tinytest/test-predict-forest.R, inst/tinytest/test-predict-blend.R and
 not support 'warm.start' or 'n.grow.sweeps'` for the four alternate-family
 `bart2` arcs, with no model reason stated there or anywhere else: the guard
 records that the arc was never built for either argument, not that either is
-incoherent under the family, so these cells are `M` and not `R`.
+incoherent under the family, so these cells are `M` and not `R`. The two
+columns stay separate although one check refuses both today: a warm start
+installs a previous fit's trees and family state, while grow-from-root
+needs the family's working response inside the root-growth recursion, and
+either could arrive for a family without the other.
 
 ## Gaps
 

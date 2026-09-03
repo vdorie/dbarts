@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 849f08ea (bartcore), 2026-09-03.
+Current at 4e5cdb8a (bartcore), 2026-09-03.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
 are the decision; the appendices are for a reader who opens the code. Code
@@ -186,20 +186,15 @@ and `interaction-constraints`.
 One question is open: whether to declare the release candidate (`TODO`'s
 `rc-gate` item).
 
-Three pieces of shipped surface are cheap to change now and become a second
-breaking change after release. Leaving each as it stands is a legitimate
-ruling, made deliberately:
-
-- `gp()` is documented in `man/bart2.Rd`, `man/dbarts.Rd`,
-  `man/dbartsPriors.Rd` and `man/xbart.Rd`. Its calibration evidence is a
-  25-tree run, not an ensemble-scale one.
-- The heteroscedastic scale leaf is calibrated once at creation and never
-  rescaled when `sigmaScale` moves, so a response or offset swap under
-  `updateScale = TRUE` leaves the prior on the old scale (`TODO`'s
-  `variance-forest-mutation-routing`).
-- Sampling a GP lengthscale rather than fixing it needs per-sample channels
-  in the state and flatten formats: a saved-state format change, breaking
-  state compatibility a second time (`TODO`'s `gp-followups`).
+Nothing shipped is cheaper to change now than after the release. The four
+candidates the earlier review named have each been settled: `gp()` is
+calibrated at 25 trees, inside the range its man page recommends (a GP leaf
+earns its keep at tens of trees, not hundreds), in four configurations
+including the one where a tree holds both GP and constant-fallback leaves
+(`docs/plans/sbc-calibration.md`, Tier C); the pointwise log-likelihood on
+a BCF fit is pinned against a hand computation in all three families; the
+heteroscedastic swap under `updateScale = TRUE` is refused, not stale; and a
+sampled GP lengthscale would be an additive state block, not a format break.
 
 ## Appendix A. Reading the code
 

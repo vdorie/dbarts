@@ -96,7 +96,7 @@ Columns: `file | STATUS | one-liner`.
 | correctness-audit.md | REFERENCE | Re-derives every acceptance ratio and conjugate update term by term; all confirmed correct. |
 | release-candidate-review.md | SPECCED (2026-08-17, in execution) | The pre-release-candidate review program and its log of findings and fixes. |
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | Records nine pre-release-candidate decisions on the public surface: the `predict()` signature order, the `keepTrees` refusal wording, the stub version check, `dbarts.h` type/naming fixes, deprecation shims, composition refusals, the BCF baseline format, and the NA-at-predict refusal. |
-| bartcore-review-tour.md | Current at 849f08ea | The merge review: what bartcore replaces, what breaks for R users and for linked packages, what the gates prove and what nothing checks, the decided and open scope questions, the surface that gets more expensive after release, and appendices on reading the code and on where the rest of the documentation lives. |
+| bartcore-review-tour.md | Current at 4e5cdb8a | The merge review: what bartcore replaces, what breaks for R users and for linked packages, what the gates prove and what nothing checks, the decided and open scope questions, the surface that gets more expensive after release, and appendices on reading the code and on where the rest of the documentation lives. |
 | pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | Four reviews run ahead of VD's own manual read (staleness, completeness, YAGNI, agent accumulation), and the cleanup they led to. |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)
