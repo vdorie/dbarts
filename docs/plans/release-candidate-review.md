@@ -554,6 +554,61 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The reading path reviewed and trimmed after the tour (3b6d870f to 20346d49, 2026-09-03)
+
+Seven independent reviews at 6cd09c18 covered what VD reads after the
+tour: docs/architecture.md (cold read, YAGNI, facts), feature-matrix.md
+(96 cells opened against the code; the prose cold-read), the four design
+docs the tour requires (a reading map), and NEWS.Rd's 1.0-0 UPGRADING
+block (a cold read as a 0.9-x user). Facts held everywhere except the
+matrix: 82 of 96 cells confirmed, nine values wrong, eight of them one
+mechanism. Three implementers in file-disjoint worktrees, one critic
+over the integrated diff, one fix pass, the orchestrator's diff read.
+
+architecture.md (3b6d870f): the Gates section, the RNG bracket census
+and the facade's factory enumeration are gone (process, or a prose copy
+of a function); ColumnStore is a pointer at data-store.md plus four
+facts, and the one fact data-store.md lacked - a CSC column's train-side
+slice repointed at store-owned arrays on first write - now lives there
+([[src/bartcore/data.hpp#repointOwnedSlice]]); new sections "Forests
+and combiners" and "One sweep" define the combiner subsystem and walk
+one sweep from the bridge to the response draws; containment has a
+sentence; grow-from-root is described as initializing, not sampling;
+3,937 -> about 3,400 words.
+
+feature-matrix.md (47de768a): {ordinal, nbinom, multinom, hurdle} x
+{warm start, grow-from-root} recoded R -> M ([[R/bart.R#checkFamilyUnsupportedArgs]]
+carries no model reason); logistic/rbart_vi R -> M; bcf/pointwise loglik
+M -> ? (the call runs, unadjudicated); table 5 regains maskprobit,
+bart2probit and maskordinal; the hetero calibration cell cites the
+engine site; f2's Student-t claim and f17's weight-law site corrected;
+Gaps covers every M and ? cell and no R cell, its nine closed entries
+gone; footnotes that narrated history state the constraint;
+8,746 -> about 7,600 words.
+
+Design docs and NEWS (4be8d448): empty-leaf-veto.md's "Where the
+constant is read" describes the shipped rank mechanism
+([[src/bartcore/moves.hpp#resolveVetoRank]]); bcf.md's "Mutation
+surface" states what the engine refuses; bart-as-a-component.md gains
+"The mutation-legality table", so the tour's name for it is literal;
+NEWS.Rd's UPGRADING cross-references four breaks that lived only under
+BUG FIXES (the rngSeed -> seed rename dropped by formals()-filtering
+wrappers, $bc removed from three bart2 fits, names(fit) omitting absent
+elements, predict's unused-argument warning), 340 -> 344 entries.
+
+The integrated critic caught three wrong sentences in the new prose,
+fixed in 20346d49: the per-forest predict rule was inverted in two docs
+(bartcore_predictPerForest is allowed under amplitude glue and refused
+on multinomial; refuseUndefinedTestFits guards the combined predict,
+the reverse), architecture.md's bracket sentence denied the two brackets
+that enclose the sweep loop, and the NEWS append-only clause named a
+batch without dbarts_sampler_predict. Nine lesser items went with them,
+two of which were constraints a footnote shortening had dropped (f49's
+raw per-forest fits, f15/f26's fractional-mask refusal). check-doc-
+freshness OK; NEWS parses. Reading time on the path: about 32,000 words
+before, about 16,000 after, the design docs' 15,100 reduced to the
+4,200 the tour's Appendix B names.
+
 ### The review tour rewritten as a merge document (06f4d7a4, 2026-09-03)
 
 VD found the tour excessive and its predecessor's stop numbering
