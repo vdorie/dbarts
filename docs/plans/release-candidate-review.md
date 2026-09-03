@@ -554,6 +554,40 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The review tour rewritten as a merge document (06f4d7a4, 2026-09-03)
+
+VD found the tour excessive and its predecessor's stop numbering
+unfriendly. Four independent reviews at 6cd09c18 - structure and
+writing, YAGNI and redundancy, a cold read as a statistician new to
+docs/, and a fact check - agreed the facts held and the excess had one
+shape: review provenance beside package state (retired-box run numbers,
+four anchors into this log, a mutation record, a harness inventory, who
+ruled what), eight facts stated twice, and about twenty project terms
+never defined. One rewriter executed the cut list, an independent critic
+read the result against the code and the bar, the rewriter applied its
+rulings, and the orchestrator read the final.
+
+What changed for a reader: 2739 -> 2349 words; sections numbered 1 to 6
+with the code walk and the document map as appendices, so nothing
+numbered is optional; the five dormant workflows and the cross-host
+tiers each told once; the gate table reduced to what each gate proves;
+every term defined at first use, with the three family counts (six
+enumerators, the compositions, thirteen matrix rows) stated where they
+are first needed. Three things the earlier cut had dropped are back: a
+bairrtt row in the consumer table, the 0.9-34 comparison as positive
+evidence, and a section 6 list of shipped surface that becomes a second
+breaking change after release (gp() calibration, bcf pointwise loglik,
+the heteroscedastic scale leaf under updateScale, sampled GP
+lengthscales). The active-row-mask gap now cites
+docs/design/bart-as-a-component.md, where it lives. Appendix B carries
+the reading list for the four design docs: about 4,200 of their 15,100
+words. The critic caught one checkable claim the code contradicts -
+updateScale's refusal is keyed on the sampler's forest count
+([[src/R_interface_bartcore.cpp#responseConduitIsFixed]]), not on
+bases - and an ambiguous heading anchor into this log, replaced by a
+plain pointer. check-doc-freshness OK; docs/plans/INDEX.md's row
+updated; the stamp stays 849f08ea, the last code commit.
+
 ### setForestBasis names the missing amplitudes; the tour's column-mask bullet corrected (849f08ea, b6d236e0, 2026-09-02)
 
 `$setForestBasis` on a sampler that carries no forest amplitudes now
