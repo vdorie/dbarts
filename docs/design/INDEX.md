@@ -33,6 +33,7 @@ Columns: `file | STATUS | one-liner`.
 | grouped-random-effects.md | LANDED, 2026-07-04 | Moves `rbart_vi()`'s random-intercept sampling into the engine, composable with any response family; the R-level loop stays as a fallback for a custom prior. |
 | forest-ranef-interweaving.md | NO-GO (recorded door, reconfirmed 2026-07-20) | Investigated a mixing fix for forest/random-effect confounding; no cheap fix exists, and a full fix was not judged worth its cost. |
 | correlated-outcomes.md | RESOLVED, 2026-07-22 (decision-gated door) | Investigated richer error covariance around a BART mean; the multivariate/SUR case shipped as `mvbart()` in stan4bart with no dbarts engine change, AR-1 serial correlation stays deferred. |
+| retire-grouped-random-effects.md | ACCEPTED, 2026-09-06 (gate fired on two of three seeds; proceeding; stan4bart tau-mixing bar and bartCause group.by route are release prerequisites) | Retires grouped random intercepts from dbarts entirely - `rbart_vi()`, the `GroupedResponse` decorator, its bridge and its two `dbarts_results` fields - and makes stan4bart the home for multilevel structure; the speed comparison fired its tau-mixing gate on two of three seeds and the decision stands, against two sister-repo release prerequisites. |
 
 ## Performance & parallelism frontier
 
