@@ -79,7 +79,7 @@ state.wA <- storedFrom(source.wA)
 digest <- attr(state.wA, "weights.digest")
 expect_true(is.raw(digest))
 expect_identical(length(digest), 8L)
-expect_identical(attr(state.wA, "formatVersion"), 3L)
+expect_identical(attr(state.wA, "formatVersion"), 1L)
 
 # --- matched round trip: the identity --------------------------------------
 # the destination's weights ARE the ones the stored latents were shaped by, so
@@ -223,7 +223,7 @@ for (make in list(
   stripped <- make(wA)
   stripped$setState(withoutDigest(donor))
   expect_identical(stripped$getLatents(), donor[[1L]][["latents"]])
-  expect_identical(attr(donor, "formatVersion"), 3L)
+  expect_identical(attr(donor, "formatVersion"), 1L)
 }
 
 # present but not 8 raw bytes is named, in the malformed-block voice

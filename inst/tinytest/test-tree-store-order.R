@@ -143,13 +143,13 @@ expect_error(sampler.resized$predict(x), pattern = "no recorded draws")
 
 # the count cannot be inferred from a state that lacks it, so the encoding
 # floor refuses one written before it existed
-expect_equal(attr(sampler.state$state, "formatVersion"), 3L)
+expect_equal(attr(sampler.state$state, "formatVersion"), 1L)
 state.old <- sampler.state$state
-attr(state.old, "formatVersion") <- 2L
+attr(state.old, "formatVersion") <- 0L
 sampler.floor <- keepSampler(6L)
 expect_error(
   sampler.floor$setState(state.old),
-  pattern = "encoding version 2.*oldest this dbarts \\(3\\)"
+  pattern = "encoding version 0.*oldest this dbarts \\(1\\)"
 )
 state.stripped <- sampler.state$state
 attr(state.stripped, "recordedDraws") <- NULL

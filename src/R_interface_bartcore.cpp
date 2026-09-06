@@ -6563,14 +6563,12 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 // block's encoding - one that cannot be expressed as a new name - bumps
 // both. RENAMING a block is such a change, and a silent one: the reader
 // would find the old name absent and default an OPTIONAL block rather than
-// error, leaving the amplitudes at their construction values. Version 2 was
-// the glue block's rename from "bcf", and the floor moved with it so a state
-// carrying the old name is refused by version before any block is read.
-// Version 3 adds the saved-tree store's recorded-draw count beside its write
-// cursor. It is REQUIRED and not defaultable: a version-2 state carries no
-// count, and every value one could infer is a misread - capacity promotes a
-// partly filled store to full and replays slots nothing wrote, 0 discards a
-// full one - so the floor moved with it too.
+// error, leaving the amplitudes at their construction values.
+//
+// No serialized format has ever shipped, so both numbers hold at 1 through
+// every change made before the first release, additive or not. After that
+// release an additive block append still leaves both unchanged; a
+// non-additive change to an existing block still bumps both.
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
@@ -6578,16 +6576,13 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 // written before it carries none, and setState then behaves as it did before
 // the attribute existed. Making it REQUIRED behind a floor bump would buy no
 // compatibility and orphan in-flight states for nothing.
-static const int stateFormatVersion = 3;
+static const int stateFormatVersion = 1;
 
 // The oldest ENCODING this reader still understands: additive block additions
-// leave it here; only a non-additive encoding change raises it. Currently 3:
-// the 1.0-0 encoding is the FIRST shipped format, so the pre-release
-// development increments (the forests-list restructure included) are collapsed
-// into version 1, which the glue rename and then the recorded-draw count
-// supersede - no released reader or writer ever saw any of the three. Pre-1.0 states are not a compat target; a state
-// with no version attribute reads as 0 and is refused at the floor.
-static const int minReadableStateFormatVersion = 3;
+// leave it here; only a non-additive encoding change raises it. Held at 1
+// alongside stateFormatVersion until the first release. A state with no
+// version attribute reads as 0 and is refused at the floor.
+static const int minReadableStateFormatVersion = 1;
 
 // The weights a state was stored under, as the 64-bit digest the engine
 // computes over their bytes, little-endian into 8 raw bytes. It travels at

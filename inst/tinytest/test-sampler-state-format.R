@@ -23,13 +23,13 @@ preds <- predict(bartFit, testData$x)
 
 state <- bartFit$fit$state
 expect_inherits(state, "bartcoreState")
-expect_equal(attr(state, "formatVersion"), 3L)
+expect_equal(attr(state, "formatVersion"), 1L)
 
 # anti-orphan: a FUTURE additive version still loads. The floor is >=, and the
 # reader looks blocks up by name, so an unknown future block would just be
 # ignored - an additive release never orphans an older reader's states.
 future <- state
-attr(future, "formatVersion") <- 4L
+attr(future, "formatVersion") <- 2L
 bartFit$fit$setState(future)
 expect_equal(predict(bartFit, testData$x), preds)
 
@@ -39,20 +39,21 @@ old <- state
 attr(old, "formatVersion") <- 0L
 expect_error(
   bartFit$fit$setState(old),
-  pattern = "encoding version 0.*oldest this dbarts \\(3\\)"
+  pattern = "encoding version 0.*oldest this dbarts \\(1\\)"
 )
 
-# the floor is what makes a BLOCK RENAME safe. Version 1 spelled the amplitude
-# glue "bcf"; were such a state read here it would find "glue" absent, default
-# it as an optional block, and leave the amplitudes at their construction
-# values - a wrong answer, not an error. The version check runs BEFORE any
-# block is read, so a state still carrying the old name is refused by version.
+# the floor is what makes a BLOCK RENAME safe. An older encoding spelled the
+# amplitude glue "bcf"; were such a state read here it would find "glue"
+# absent, default it as an optional block, and leave the amplitudes at their
+# construction values - a wrong answer, not an error. The version check runs
+# BEFORE any block is read, so a state still carrying the old name is refused
+# by version.
 priorEncoding <- state
 priorEncoding[[1L]][["bcf"]] <- c(1, 1, 1, 1)
-attr(priorEncoding, "formatVersion") <- 1L
+attr(priorEncoding, "formatVersion") <- 0L
 expect_error(
   bartFit$fit$setState(priorEncoding),
-  pattern = "encoding version 1.*oldest this dbarts \\(3\\)"
+  pattern = "encoding version 0.*oldest this dbarts \\(1\\)"
 )
 
 # naming: a missing REQUIRED per-chain block is refused, naming the block.
@@ -222,12 +223,12 @@ rm(sampler.tx)
 # raise; it is the one refusal reachable through pure attribute surgery
 revived <- readRDS(tempFile)
 stale <- revived$state
-attr(stale, "formatVersion") <- 2L
+attr(stale, "formatVersion") <- 0L
 revived$state <- stale
 
-expect_error(revived$run(0L, 1L), pattern = "encoding version 2")
+expect_error(revived$run(0L, 1L), pattern = "encoding version 0")
 # the second run refuses IDENTICALLY rather than sampling a stump
-expect_error(revived$run(0L, 1L), pattern = "encoding version 2")
+expect_error(revived$run(0L, 1L), pattern = "encoding version 0")
 # nothing was bound and nothing was overwritten: the stored state still holds
 # the fitted forests, so a storeState()-less save still carries them
 expect_false(.Call(dbarts:::C_dbarts_bartcore_isValidPointer, revived$pointer))
@@ -237,7 +238,7 @@ expect_identical(revived$state, stale)
 # refused install the next revival resumes from the state that is still
 # stored, so the run after a refusal is bitwise the run without one
 refused.tx <- readRDS(tempFile)
-expect_error(refused.tx$setState(stale), pattern = "encoding version 2")
+expect_error(refused.tx$setState(stale), pattern = "encoding version 0")
 expect_identical(refused.tx$state, readRDS(tempFile)$state)
 set.seed(11L)
 draws.refused <- refused.tx$run(0L, 2L)

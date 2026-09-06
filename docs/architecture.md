@@ -353,7 +353,7 @@ built on top of `FlatNode`.
 - **State**: `SamplerStateData` (sampler.hpp) is the whole sampler's
   in-process serializable state - one `ChainStateData` per chain, itself one
   `ForestStateData` per forest, plus the store's cut points and the
-  saved-tree write cursors. `stateFormatVersion` is 3, as is
+  saved-tree write cursors. `stateFormatVersion` is 1, as is
   `minReadableStateFormatVersion` (`src/R_interface_bartcore.cpp`); blocks
   are read by name and an absent optional block is defaulted, so adding one
   bumps neither number - an older reader ignores the name it does not know,
