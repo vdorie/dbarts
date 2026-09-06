@@ -3733,18 +3733,27 @@ BartcoreHolder* createMultinomialDataHolder(SEXP controlExpr, SEXP modelExpr,
   // an unset slot of a NULL class union reads back as the S4 null SYMBOL, not
   // as R_NilValue, so every read here is normalized the way parseData
   // normalizes 'offset' and 'weights'
-  SEXP countsExpr = readNullableSlot(dataExpr, "counts");
+  SEXP countsExpr = PROTECT(readNullableSlot(dataExpr, "counts"));
   if (Rf_isNull(countsExpr))
     Rf_error("family \"multinomial\" requires a data object carrying an "
              "n x K count matrix");
   SEXP dimsExpr = Rf_getAttrib(countsExpr, R_DimSymbol);
   if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2)
     Rf_error("multinomial counts must be an n x K integer matrix");
-  return createMultinomialCountsHolder(
-    controlExpr, modelExpr, dataExpr, countsExpr,
-    static_cast<size_t>(INTEGER(dimsExpr)[1]),
-    readNullableSlot(dataExpr, "offset.category"),
-    readNullableSlot(dataExpr, "offset.category.test"));
+  size_t numCategories = static_cast<size_t>(INTEGER(dimsExpr)[1]);
+  // a slot read allocates its own symbol, so each is landed and pinned in
+  // turn rather than left an unordered argument of the call below. Every
+  // one of these is an attribute of the rooted data object, so the pinning
+  // is redundant to that rooting and is what the PROTECT-balance analyzer
+  // reads; a refusal above longjmps past it
+  SEXP offsetExpr = PROTECT(readNullableSlot(dataExpr, "offset.category"));
+  SEXP testOffsetExpr =
+    PROTECT(readNullableSlot(dataExpr, "offset.category.test"));
+  BartcoreHolder* holder =
+    createMultinomialCountsHolder(controlExpr, modelExpr, dataExpr, countsExpr,
+                                  numCategories, offsetExpr, testOffsetExpr);
+  UNPROTECT(3);
+  return holder;
 }
 
 /// Warm start: seed the sampler's live forests from a donor "bartcoreState"

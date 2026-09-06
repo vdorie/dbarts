@@ -285,7 +285,11 @@ static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatter
 void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result)
 {
   size_t numColumns = rc_getLength(x);
-  SEXP names = rc_getNames(x);
+  // the column names are read after every drop-pattern entry this loop
+  // allocates, so they are pinned for its whole length rather than left
+  // rooted only by the data frame, which is what the PROTECT-balance
+  // analyzer reads
+  SEXP names = PROTECT(rc_getNames(x));
   bool dropColumn;
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
@@ -351,6 +355,7 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       break;
     }
   }
+  UNPROTECT(1);
 }
 
 // derive one result-column name from the data-frame column name and, when

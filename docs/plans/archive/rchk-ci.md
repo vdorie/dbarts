@@ -72,3 +72,23 @@ Re-run reports ZERO findings. The landing note's unverified
 bartcore_run/namesExpr setAttrib candidate did not appear in any run:
 cleared by the tool, no fix needed. Gates: install, component tests,
 tinytest 2470/0, equivalence exact 18/18 identical draws.
+
+## Triage note (2026-09-06)
+
+First CI run of the workflow; the triage above ran locally, at c2d591a.
+Nine lines in two functions, both of them code added since that triage:
+countMatrixColumns's data-frame `names`, which the wider-column refusal
+made live across the drop-pattern allocations and the two
+validateDropPatternLength calls; and createMultinomialDataHolder's two
+category-offset slot reads, passed as unordered arguments of a single
+call (maacheck's suspicious-call class). Both are false positives on the
+running program - every SEXP involved is an attribute or slot of an
+already-rooted object - but the workflow carries no suppression list and
+CRAN runs rchk, so each is protected rather than excluded: a PROTECT
+around `names` for the length of the loop (createMatrix's shape), and the
+count matrix plus both category offsets landed in locals and PROTECTed
+before the call. Re-run under the same image reports ZERO findings
+(Analyzed 15534 functions; maacheck empty; bcheck carries only the benign
+too-many-states bailouts). Gates: install, component tests, the 23
+tinytest files over the two paths 1290/0, equivalence 51/51 identical
+draws under --strict-coverage.
