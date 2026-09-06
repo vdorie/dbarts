@@ -304,15 +304,22 @@ const double* mutationValues(const TranslatedSource& source) {
 void refuseTestMissingness(const bartcore::ColumnStore& store,
                            const bartcore::PredictorSource& source,
                            const char* caller) {
-  bartcore::PredictorSourceColumns columns(source, store.types.data());
-  for (size_t j = 0; j < source.numColumns; ++j) {
-    if (store.hasMissing[j]) continue;
-    bartcore::PredictorSourceColumnReader column = columns.column(j);
-    for (size_t i = 0; i < source.numRows; ++i)
-      if (bartcore::isNA(column.at(i)))
-        Rf_error("%s: test column %zu has missing values but the training "
-                 "column had none, so no rule routes them", caller, j + 1);
-  }
+  // The reader owns heap storage (the CSC columns' rank bitmaps) and Rf_error
+  // longjmps past its destructor, so the scan runs in a scope that closes
+  // before the raise and reports the offending column by value.
+  size_t offending = [&]() -> size_t {
+    bartcore::PredictorSourceColumns columns(source, store.types.data());
+    for (size_t j = 0; j < source.numColumns; ++j) {
+      if (store.hasMissing[j]) continue;
+      bartcore::PredictorSourceColumnReader column = columns.column(j);
+      for (size_t i = 0; i < source.numRows; ++i)
+        if (bartcore::isNA(column.at(i))) return j;
+    }
+    return source.numColumns;
+  }();
+  if (offending < source.numColumns)
+    Rf_error("%s: test column %zu has missing values but the training "
+             "column had none, so no rule routes them", caller, offending + 1);
 }
 
 // The test-side entries' shared refusals, in the order the R bridge runs them:
