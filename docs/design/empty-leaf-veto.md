@@ -370,3 +370,87 @@ the scan.
   back into S by sweep 98. At the sampler surface a 25-tree forest masked
   whole keeps moving, exports and restores its state, and a partial mask's 13
   stranded leaves clear within 200 sweeps.
+
+### Measured occupancy rejection rate (2026-09-06)
+
+A scaffold build put namespace-scope counters at the four
+[[src/bartcore/moves.hpp#resolveVetoRank]] call sites - birth and death
+in [[src/bartcore/moves.hpp#birthOrDeathMove]], plus
+[[src/bartcore/moves.hpp#changeMove]] and
+[[src/bartcore/moves.hpp#swapMove]] - classifying every scored proposal
+by the rank pair its two [[src/bartcore/moves.hpp#BranchScore]]s carry
+([[src/bartcore/tree.hpp#Tree::leafVetoRank]] taken over the branch) and
+then by the move's outcome: rejected by the RANK (the proposal's rank
+strictly worse, so the likelihood ratio is exactly 0.0), rejected by the
+ordinary MH ratio at equal rank, or accepted. Proposals that never reach
+a score - pi(T') = 0, an unsatisfiable rule draw, or a tree with no
+eligible node - are counted separately as no-ops, so the four shares sum
+to the proposals made. Every configuration ran the default prior, 200
+burn plus 500 sampled sweeps, one chain, one thread, a fixed seed, and
+200 trees unless its row says otherwise. The instrumentation was NOT
+landed: it was reverted after the run, and with its environment switch
+unset it cost nothing measurable (three repetitions each at n = 2000 and
+n = 10000, inside run-to-run noise).
+
+Percent of all proposals made, every move type pooled. "occ 2" is a
+member-empty proposed leaf, "occ 1" a proposed leaf of only zero-weight
+rows.
+
+    configuration          proposals  occ 2  occ 1  MH rej  accept  no-op
+    (a) n = 100               140000   3.46   0.00   52.71   35.12   8.70
+    (a) n = 500               140000   0.99   0.00   65.33   24.44   9.24
+    (a) n = 2000              140000   0.30   0.00   70.76   18.61  10.32
+    (a) n = 10000             140000   0.07   0.00   78.55   10.92  10.46
+    (b) 5 factors x 8 lv      140000   0.09   0.00   73.94   15.30  10.67
+    (c) n.cuts = 10           140000   0.02   0.00   71.97   17.90  10.10
+    (d) probit                140000   0.29   0.00   47.51   43.74   8.46
+    (e) 20 pct zero weight    140000   0.27   0.10   69.80   19.85   9.99
+    (f) n.trees = 50           35000   0.41   0.00   81.84    9.63   8.13
+
+Configuration (a) at n = 2000, by move type (percent of that move's
+proposals):
+
+    move     proposals  no-op   scored  occ 2  MH rej  accept
+    birth        37364      0    37364   0.76   76.68   22.56
+    death        32502      0    32502   0.00   74.05   25.95
+    change       56046   4169    51877   0.23   77.53   14.79
+    swap         14088  10284     3804   0.09   20.55    6.36
+    all         140000  14453   125547   0.30   70.76   18.61
+
+- Death never fires the veto, in any configuration: it collapses two
+  children into their non-empty parent.
+- The current branch was never itself vetoed in any of these runs -
+  nothing installs a weight or a mask mid-chain - so the rank comparison
+  only ever REJECTED, and the rank-improving outright accept was not
+  exercised.
+- (e) is the only configuration that reaches rank 1 at all: 135 of its
+  507 occupancy rejections, 93 of them at birth.
+- Occupancy is a small share of the REJECTION budget: 6.2 percent of
+  rejections at (a) n = 100, 1.5 at n = 500, 0.43 at n = 2000, 0.09 at
+  n = 10000, and between 0.03 and 0.62 for (b) through (f).
+- Not measured: what the change rate would be had the proposal not been
+  ancestor-conditioned. Reading that off needs a second cut draw, a
+  re-route and a second score per proposal, which is neither cheap nor
+  RNG-neutral. The cheap descriptor instead - over the ordinal change
+  proposals the descendant-valid good set averaged 96.9 to 98.4 percent
+  of the variable's whole cut grid, so the conditioning removes only a
+  thin tail of cuts at these depths.
+
+The measured rate is one to two orders of magnitude below the roughly 17
+percent Pratola (2016) reports for ancestor-conditioned change proposals
+in his example, the inefficiency Lakshminarayanan, Roy and Teh (2015)
+attribute to the CGM sampler. Only the smallest fit clears 1 percent
+(3.46 at n = 100), and the rate falls monotonically with the sample -
+0.99, 0.30, 0.07 - because the cut grid is fixed at 100 cuts, so a
+larger sample fills every bin and an empty side of a cut becomes rare.
+The change move, the one Pratola measures, runs at 0.01 to 2.45 percent
+of change proposals, below birth in every configuration; the budget
+concentrates in birth, 8.85 percent of births at n = 100 down to 0.19 at
+n = 10000. Coarsening the grid to 10 cuts (c) drops the pooled rate to
+0.02; unordered factor subset splits (b) and a probit response (d) do
+not raise it; the weight law (e) adds a rank-1 stream about a third the
+size of its rank-2 one. The alternative priced under "Why not make the
+proposals occupancy-aware" - 250 to 400 lines across moves.hpp,
+model.hpp and tree.hpp, plus regeneration of every RNG-locked snapshot -
+would be recovering between 0.02 and 3.46 percent of proposals, against
+an ordinary MH rejection rate of 47 to 82 percent in the same runs.
