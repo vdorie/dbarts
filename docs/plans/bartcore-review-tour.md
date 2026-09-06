@@ -117,7 +117,7 @@ A green gate proves what its row says and no more.
 | `sanitizers` | ASAN and UBSAN over engine and bridge; any finding fails |
 | `exact-gates` quick | 21 exact-posterior and move-balance scripts, against closed forms rather than snapshots |
 | `exact-gates` cross-host | bcf and multinomial equivalence at tier 1 |
-| `equivalence.R` gaussian | 51 scenarios reproduce bitwise on one host |
+| `equivalence.R` gaussian | 50 scenarios reproduce bitwise on one host |
 | `sbc.R` | simulation-based calibration (SBC) over five family arms (gaussian, ordinal, nbinom, Student-t, multinomial) and 30 functionals, Bonferroni-corrected |
 | `rchk` | PROTECT balance |
 | `valgrind` | leaks and out-of-bounds reads |

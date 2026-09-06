@@ -581,7 +581,7 @@ and BCF has no `bart2()` surface, so both are reached only through the R5
 [f39] The equivalence gate replays a fixed scenario set against a recorded
 baseline and requires BITWISE-identical draws
 ([[docs/plans/README.md#RNG classes and their gates]]). Current baselines:
-`equivalence-d4bca4ce.rds` (51 scenarios),
+`equivalence-1e5f80b2.rds` (50 scenarios),
 `bcf-equivalence-3c81d6df.rds` (12) and
 `multinomial-equivalence-4d9a3337.rds` (11) - benchmarks/baselines/MANIFEST.
 The names in this column are the keys in

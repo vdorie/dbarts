@@ -68,7 +68,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | group-by-exposure.md | RETIRED, 2026-09-06 | A placeholder decision memo on exposing grouped random effects beyond `rbart_vi()`; there is nothing left to expose (retire-grouped-random-effects.md). |
-| retire-grouped-random-effects.md | READY, 2026-09-06; deletion proceeds; two sister-repo prerequisites gate the release | Deletes the whole grouped-random-intercept path - engine decorator, bridge, R surface, tests, benchmarks and docs - re-records the equivalence baseline at 50 scenarios, and points users at stan4bart. |
+| retire-grouped-random-effects.md | LANDED 2026-09-06 (1e5f80b2); two sister-repo prerequisites gate the release | Deletes the whole grouped-random-intercept path - engine decorator, bridge, R surface, tests, benchmarks and docs - re-records the equivalence baseline at 50 scenarios, and points users at stan4bart. |
 
 ## API-surface cluster
 

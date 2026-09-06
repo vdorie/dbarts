@@ -232,7 +232,7 @@ misread an inserted argument as `group.by`.
 
 ## 8. Measurement, honestly stated
 
-Predict changes no draws, so the equivalence trio (51/12/11 scenarios)
+Predict changes no draws, so the equivalence trio (50/12/11 scenarios)
 stays bitwise unchanged. A naive ratio of `predict.bart` against its
 underlying `.Call`, two independently-timed series, is not reportable
 as a percentage on a loaded box; the one directly measured, always

@@ -252,5 +252,58 @@ by a moved stream - which is exactly what the neutrality check below proves.
 
 ## Status
 
-READY, 2026-09-06; deletion proceeds; two sister-repo prerequisites gate the
-release.
+LANDED 2026-09-06 (1e5f80b2); two sister-repo prerequisites gate the release.
+
+## Landing
+
+1e5f80b2, the whole deletion in one commit: 171 files, 887 insertions and
+9536 deletions. 25 files deleted outright, as the design enumerated. The
+engine keeps the `ResponseModel` seam and every concrete family; the
+per-sweep conduit loses only its three `refuseGroupedScaleUpdate` call
+sites.
+
+`DBARTS_C_API_HASH` re-bakes to `0x616ffcda8c947777`; neither version
+constant moves. Restoring a state written by a grouped build is now
+DETERMINED: it succeeds and ignores the two extra slots, because every
+per-chain block is read by name and the only length check is on the chain
+count.
+
+Gates, all at this tip. tests/cpp 276 ok plain and again under
+ASAN/UBSAN with no diagnostic. tinytest 7381/0 - no RNG-locked snapshot
+needed regenerating, which is the leak check the Verification named.
+Neutrality before recording: `equivalence.R compare` against
+`equivalence-d4bca4ce.rds` reports "identical draws (same RNG stream)" for
+all 49 survivors, with `grouped` and `grouped_aft` skipped (not produced)
+and the new `aft` skipped (not in baseline). The 21 exact gates pass in
+quick mode; `bcf-equivalence-3c81d6df` is 12/12 and
+`multinomial-equivalence-4d9a3337` 11/11 bitwise. `air format --check`,
+`lintr::lint_package()`, `pkgdown::check_pkgdown()`,
+`tools/check-rc-codoc.R` and `tools/check-doc-freshness.R` are clean, and
+`inst/NEWS.Rd` parses to 291 entries.
+
+NEWS came out three items off the design's census: NINE `\item` entries in
+the 1.0-0 section are wholly grouped and were deleted, not six. The three
+the census missed - `group.by`/`group.by.test` looked up by name,
+`rbart_vi`'s `k` formal defaulting to `NULL`, and the `ranef`-dimnames
+crash fix - name a surviving entry point only in passing and have nothing
+left once the grouped clause goes. 49 were edited, 1 (grouped-GAMI) left.
+
+Four sites the plan did not name also carried the path and were fixed
+here: `DESCRIPTION`'s feature list; two engine comments and one in
+`tests/cpp/test_shape.cpp` citing `rbart_vi`'s callback loop as the
+single-slab varcount example; and, contrary to step 5b's note that plans
+need no change, 36 history cites written with a BARE BASENAME
+(`test-grouped-swap.R`, `sliceSample.R`, `rbart.R`, ...) across 15 plan
+files. The freshness guard resolves a history cite's path against the
+CURRENT tracked inventory and only passes an unresolved token through
+verbatim, so a basename that used to resolve stops resolving the moment
+its file is deleted; each was spelled out to its full repo path at the
+same sha.
+
+`bartcore_runWithCallback` survives with its registration and no caller:
+the R Gibbs loop was its only one, and no tinytest reaches it now. It is
+left in place as the flat-API callback's R-side twin rather than deleted
+in this pass.
+
+revdep-smoke's bartCause leg is EXPECTED RED from here, waiting on release
+prerequisite 2 (a `group.by` route that does not go through `rbart_vi`).

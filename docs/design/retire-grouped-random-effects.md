@@ -1,8 +1,8 @@
 # Retire grouped random intercepts
 
-Status: ACCEPTED, 2026-09-06 (gate fired on two of three seeds; proceeding;
-stan4bart tau-mixing bar and bartCause group.by route are release
-prerequisites)
+Status: LANDED 2026-09-06 (1e5f80b2); the stan4bart tau-mixing bar and the
+bartCause group.by route remain release prerequisites, and revdep-smoke's
+bartCause leg is an accepted red until the second one lands
 
 Remove grouped random intercepts from dbarts entirely - the engine-side
 retired: [[MOD#GroupedResponse]] decorator and its tau block, the bridge that reaches
