@@ -27,7 +27,7 @@ families - gaussian, probit, logistic, aft, ordinal, nbinom - in
 `src/bartcore/model.hpp`'s `ResponseFamily`. Everything else called a family
 here (multinomial, bcf, heteroscedastic, student, hazard, hurdle)
 composes or reduces to those six. And `docs/design/feature-matrix.md` scores
-13 rows, counting each composition a user selects as its own model.
+12 rows, counting each composition a user selects as its own model.
 
 BCF's own R verb, `bcf()`/`bartBCF`, lives in bartCause on its `dbarts-1.0`
 branch; dbarts carries only the multi-forest engine it is built on.
