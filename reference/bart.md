@@ -322,8 +322,7 @@ residuals(object, type = "ev", ...)
   Integer specifying how many independent tree sets and fits should be
   calculated. Default 1 for `bart`, BayesTree's historical single-chain
   convention;
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s (and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
   default is 4.
 
 - nthread, n.threads:
@@ -349,9 +348,8 @@ residuals(object, type = "ev", ...)
   single matrix/vector of `nchain` \\\times\\ `ndpost` rows (see ‘Value’
   for the row order); if `FALSE`, they are kept in arrays of dimensions
   equal to `nchain` \\\times\\ `ndpost` \\\times\\ number of
-  observations. Default `TRUE` across `bart`,
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md); the
+  observations. Default `TRUE` across `bart` and
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md); the
   number of chains is tracked regardless on the returned object's
   `n.chains` component (see ‘Value’).
 
@@ -681,10 +679,8 @@ for a short time with a flat prior (`scale = Inf`) can show the range of
 
 ### Generics
 
-`bart` and
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) support
-[`fitted`](https://rdrr.io/r/stats/fitted.values.html) to return the
-posterior mean of a predicted quantity, as well as
+`bart` supports [`fitted`](https://rdrr.io/r/stats/fitted.values.html)
+to return the posterior mean of a predicted quantity, as well as
 [`predict`](https://rdrr.io/r/stats/predict.html) to return a set of
 posterior samples for a different sample. In addition, the `extract`
 generic can be used to obtain the posterior samples for the training
@@ -716,14 +712,13 @@ refused by name; `ci.level` is refused too (see its own entry above).
 [`load`](https://rdrr.io/r/base/load.html)ing a fitted BART object for
 use with `predict` requires that it be fit with `keeptrees`/`keepTrees`
 as `TRUE`, and that the sampler's tree state be captured before saving
-by calling `storeState()` on the sampler: `bartFit$fit$storeState()`
-(for `rbart_vi`, on each element of `fit`:
-`lapply(rbartFit$fit, function(f) f$storeState())`). The state is not
-captured automatically because it duplicates the trees on the R side and
-can exceed the fit's own sample blocks; it is materialized only on
-request. A fit saved without it reloads, but `predict`,
-`extract(type = "trees")`, and `plotTree` all stop identically, each
-with an error naming `storeState()`. The same convention covers
+by calling `storeState()` on the sampler: `bartFit$fit$storeState()`.
+The state is not captured automatically because it duplicates the trees
+on the R side and can exceed the fit's own sample blocks; it is
+materialized only on request. A fit saved without it reloads, but
+`predict`, `extract(type = "trees")`, and `plotTree` all stop
+identically, each with an error naming `storeState()`. The same
+convention covers
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
 own-class families - `family = "multinomial"`, `"ordinal"`, and
 `"nbinom"` - whose `$fit` is the sampler (K-forest or single-forest)
@@ -817,9 +812,9 @@ returned. In the numeric \\y\\ case, the list has components:
   chain, row \\r\\ is chain \\1 + (r - 1) \\/\\ m\\'s draw \\1 + (r - 1)
   \\\\ m\\ - chain 1's whole run first, then chain 2's, and so on
   (chain-major), not interleaved draw by draw. Every collapsed field a
-  fit returns (`sigma`, `k`, `tau`, `varcount`, `ranef`, ...) uses this
-  same row order, so row \\r\\ of one pairs with row \\r\\ of another -
-  e.g. `sigma[r]` is the residual scale that produced `yhat.train[r, ]`.
+  fit returns (`sigma`, `k`, `varcount`, ...) uses this same row order,
+  so row \\r\\ of one pairs with row \\r\\ of another - e.g. `sigma[r]`
+  is the residual scale that produced `yhat.train[r, ]`.
 
 - `yhat.test`:
 
@@ -1111,7 +1106,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.155601
+#> total seconds in loop: 0.216442
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -1,11 +1,9 @@
 # Convergence Diagnostics and Posterior-Package Draws for BART Fits
 
 `summary` reports a per-variable posterior summary of the scalar
-parameters (`sigma`, `k`, and, for
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) fits,
-`tau`) of a `bart`/`bart2`/`rbart_vi` fit, along with split-\\\hat{R}\\
-and effective sample size when the posterior package is installed. A
-heteroscedastic fit
+parameters (`sigma` and `k`) of a `bart`/`bart2` fit, along with
+split-\\\hat{R}\\ and effective sample size when the posterior package
+is installed. A heteroscedastic fit
 ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
 `variance`) has no scalar residual scale and reports `mean.s` in place
 of `sigma`; see `vars`.
@@ -33,18 +31,12 @@ itself.
 ``` r
 # S3 method for class 'bart'
 summary(object, vars = c("sigma", "k", "tau"), ...)
-# S3 method for class 'rbart'
-summary(object, vars = c("sigma", "k", "tau"), ...)
 # S3 method for class 'summary.bart'
 print(x, ...)
 
 # S3 method for class 'bart'
 as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
-# S3 method for class 'rbart'
-as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
 # S3 method for class 'bart'
-as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
-# S3 method for class 'rbart'
 as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
 # S3 method for class 'bartMultinomial'
@@ -73,22 +65,21 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
 - object, x:
 
-  An object of class `bart` or `rbart`, as returned by
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), or
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md); for
-  the four own-class methods, a `bart2` fit of the matching class.
+  An object of class `bart`, as returned by
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md); for the
+  four own-class methods, a `bart2` fit of the matching class.
 
 - vars:
 
   Character vector of fields to gather. Requested fields absent from
-  `object` (e.g. `k` when unmodeled, `tau` for a plain `bart`/`bart2`
-  fit) are silently dropped. `sigma`, `k`, and `tau` contribute one
+  `object` (e.g. `k` when unmodeled, or `tau`, which no shipped family
+  carries) are silently dropped. `sigma`, `k`, and `tau` contribute one
   draws variable each; any other field (`varcount`, `varprobs`,
-  `yhat.train`, `yhat.test`, `ranef`) contributes one variable per
-  column, named `"field[column]"`. \\f(x)\\ draws (`yhat.*`) are
-  reachable this way but are not summarized automatically, as they carry
-  one variable per observation.
+  `yhat.train`, `yhat.test`) contributes one variable per column, named
+  `"field[column]"`. \\f(x)\\ draws (`yhat.*`) are reachable this way
+  but are not summarized automatically, as they carry one variable per
+  observation.
 
   On a heteroscedastic fit the `sigma` token resolves to `mean.s`: the
   mean over the training observations of that draw's variance surface
@@ -138,7 +129,7 @@ their own family-scoped `vars`.
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
 
 ## Examples
 
@@ -159,7 +150,9 @@ summary(fit)
 #> # A tibble: 1 × 10
 #>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail
 #>   <chr>    <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-#> 1 sigma    0.865  0.864 0.0642 0.0507 0.786 0.952  1.01     37.7     30.5
+#> 1 sigma    0.993  0.985 0.0683 0.0761 0.888  1.10  1.01     45.2     30.7
+#> 
+#> Note: some R-hat values exceed 1.01; chains may not have converged.
 
 if (requireNamespace("posterior", quietly = TRUE)) {
   library(posterior)
@@ -179,11 +172,11 @@ if (requireNamespace("posterior", quietly = TRUE)) {
 #> 
 #>          chain
 #> iteration    1    2
-#>         1 0.79 0.90
-#>         2 0.80 0.97
-#>         3 0.90 0.86
-#>         4 0.89 0.74
-#>         5 0.87 0.89
+#>         1 0.99 0.92
+#>         2 0.89 1.06
+#>         3 0.88 1.04
+#>         4 1.01 0.97
+#>         5 1.00 0.97
 #> 
 #> # ... with 15 more iterations
 # }

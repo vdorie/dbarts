@@ -106,16 +106,16 @@ xbart(
 - n.burn:
 
   Unlike the single-scalar `n.burn` of
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  `bart2`, and `rbart_vi`, here it is one or two non-negative integers,
-  specifying 1) the burn-in when a chain is freshly started against a
-  data split and 2) the burn-in when moving from one parameter setting
-  to another over the same split. A longer vector is an error naming the
-  argument rather than being silently truncated to its first two
-  entries. Chains are never carried between data splits or folds - the
-  held-out observations of one were training observations of the
-  previous, so continuing a chain lets slowly-mixing settings score
-  against data they have effectively seen.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  `bart2`, here it is one or two non-negative integers, specifying 1)
+  the burn-in when a chain is freshly started against a data split
+  and 2) the burn-in when moving from one parameter setting to another
+  over the same split. A longer vector is an error naming the argument
+  rather than being silently truncated to its first two entries. Chains
+  are never carried between data splits or folds - the held-out
+  observations of one were training observations of the previous, so
+  continuing a chain lets slowly-mixing settings score against data they
+  have effectively seen.
 
 - loss:
 
@@ -207,8 +207,7 @@ xbart(
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
   Fitting functions (`xbart`,
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`,
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md))
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`)
   spell this `sigest`; sampler constructors
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   `dbartsSpec`) spell the same concept `sigma`. That estimate falls back

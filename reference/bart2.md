@@ -402,9 +402,8 @@ print(x, ...)
   draws are actually kept and returned. This is a SWEEP budget in the
   BayesTree tradition - the same role
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `ndpost`
-  plays (`ndpost / keepevery` are what is actually returned) and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s own
-  `n.samples` plays too. It differs from
+  plays (`ndpost / keepevery` are what is actually returned). It differs
+  from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
   (and the lower-level
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s)
@@ -441,8 +440,7 @@ print(x, ...)
 
   Logical; if `TRUE`, samples are returned collapsed across chains
   rather than in a chains-by-samples array. Default `TRUE`, as for
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md); the
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); the
   number of chains is tracked regardless on the returned object's
   `n.chains` component (see ‘Value’).
 
@@ -577,10 +575,8 @@ print(x, ...)
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
   forest's `tree.prior`, exactly as the plain selector does). Gaussian
-  responses only; `resid.dist = student()` residuals and a grouped
-  ([`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) fit
-  are refused with it too, unadjudicated rather than unsupported by
-  design (see
+  responses only; `resid.dist = student()` residuals are refused with it
+  too, unadjudicated rather than unsupported by design (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
   `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
@@ -769,10 +765,9 @@ print(x, ...)
   the same object `fit` is under `keepSampler`. `test` and `keepTrees`
   are supported as for multinomial, and `predict` replays the saved
   trees at new predictors, differencing the cumulative probit at the
-  stored per-draw thresholds. `rbart_vi` and `xbart` do not fit ordinal
-  responses (grouped ordinal models and ordinal-scale cross-validation
-  losses are recorded follow-ups). The fit's class is `"bartOrdinal"`,
-  not `"bart"`: see ‘Value’ below.
+  stored per-draw thresholds. `xbart` does not fit ordinal responses
+  (ordinal-scale cross-validation losses are a recorded follow-up). The
+  fit's class is `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
 
   `family = "nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation (a single
@@ -800,14 +795,13 @@ print(x, ...)
   and `keepTrees` are supported as for ordinal, and `predict` replays
   the saved trees at new predictors, reporting mean counts \\r
   e^{\psi}\\ at the stored per-draw dispersion (a log-exposure
-  `offset.test` enters \\\psi\\ additively). `rbart_vi` and `xbart` do
-  not fit count responses (grouped negative-binomial models, real
-  dispersion, and a Poisson family are recorded follow-ups). `y.train`
-  is additionally capped at \\10^6\\: the dispersion grid's count
-  histogram is sized from the largest count, so a larger one allocates
-  without bound, and a count above it is refused at creation and at
-  every response swap alike. The fit's class is `"bartNegbin"`, not
-  `"bart"`: see ‘Value’ below.
+  `offset.test` enters \\\psi\\ additively). `xbart` does not fit count
+  responses (real dispersion and a Poisson family are recorded
+  follow-ups). `y.train` is additionally capped at \\10^6\\: the
+  dispersion grid's count histogram is sized from the largest count, so
+  a larger one allocates without bound, and a count above it is refused
+  at creation and at every response swap alike. The fit's class is
+  `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
 
   `family = "hazard"` and `family = "hazard.logistic"` fit a
   discrete-time survival hazard model as *ingestion sugar* over the
@@ -842,9 +836,8 @@ print(x, ...)
   period) hazards on the expanded rows, and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   produces survival-curve draws \\S(t \mid x) = \prod\_{k :
-  \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `rbart_vi` and
-  `xbart` do not fit hazard responses (grouped/frailty hazard and a
-  `cloglog` link are recorded follow-ups).
+  \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `xbart` does not fit
+  hazard responses (a `cloglog` link is a recorded follow-up).
 
   `family = "hurdle.lognormal"` (alias `"twopart"`, which resolves and
   prints as `"hurdle.lognormal"`) fits a semicontinuous two-part
@@ -880,11 +873,11 @@ print(x, ...)
   `keepTrees = TRUE` and replays both saved forests at `newdata`.
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md) does
   not fit this family - it composes two samplers, which only `bart2()`
-  builds, so requesting it there is an error directing here. `rbart_vi`
-  and `xbart` do not fit it either. The fit's class is `"bartHurdle"`,
-  holding both component fits (`$occupancy`, a `"bart"` probit fit of
-  the occupancy indicator; `$positive`, a `"bart"` gaussian fit of
-  \\\log y\\ on the positive subset) under their own
+  builds, so requesting it there is an error directing here. `xbart`
+  does not fit it either. The fit's class is `"bartHurdle"`, holding
+  both component fits (`$occupancy`, a `"bart"` probit fit of the
+  occupancy indicator; `$positive`, a `"bart"` gaussian fit of \\\log
+  y\\ on the positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
 - missing:
@@ -1497,8 +1490,8 @@ mutable sampler bart2 builds on,
 constructor
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
 formula terms desugar to, and
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)/[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
-for the other formula-first entry points.
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) for the
+other formula-first entry point.
 
 ## Examples
 
@@ -1532,7 +1525,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001000
+#> total seconds in loop: 0.001424
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1579,7 +1572,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001117
+#> total seconds in loop: 0.001625
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

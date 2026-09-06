@@ -239,21 +239,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whatever its response family, the calibration map being pinned at
   creation whether or not there is a transform to re-anchor - and a
   heteroscedastic (`variance`) one, whose variance forest would
-  otherwise keep reporting \\s^2(x)\\ on the abandoned scale. A sampler
-  carrying grouped random effects (see
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) is
-  refused on the same grounds, but only where there is a data-derived
-  transform to abandon: under a gaussian, Student-t
-  (`resid.dist = student`) or `"aft"` response the random intercepts
-  \\b\\ and their scale \\\tau\\ are held against the transform fixed at
-  creation and nothing converts them, so `TRUE` would silently restate
-  both in response units while `sigma` moved with the scale; under
-  `"probit"` or `"logistic"` the transform is the link's own and `TRUE`
-  is accepted as the no-op it already is. On `setResponse`, supplying
-  this argument positionally (`setResponse(y, TRUE)`) rather than by
-  name warns once per session (class `dbartsPositionalArgsWarning`) - it
-  is the second argument, where a caller porting code written before
-  this order had `updateState` there instead.
+  otherwise keep reporting \\s^2(x)\\ on the abandoned scale. On
+  `setResponse`, supplying this argument positionally
+  (`setResponse(y, TRUE)`) rather than by name warns once per session
+  (class `dbartsPositionalArgsWarning`) - it is the second argument,
+  where a caller porting code written before this order had
+  `updateState` there instead.
 
 - offset.test:
 
@@ -471,10 +462,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler instead: the split-candidate cut grid stays the FULL-data
   grid, holding the tree prior fixed while the row set moves; the
   response transform and residual prior scale stay the FULL-data
-  calibration (a masked gaussian - and so `aft`, and any `variance` or
-  grouped decorator - keeps the range and residual-prior scale of every
-  row); and an ordinal sampler keeps its FULL-data number of categories,
-  free thresholds, and log-gap prior even when a mask empties a boundary
+  calibration (a masked gaussian - and so `aft`, and any `variance`
+  decoration - keeps the range and residual-prior scale of every row);
+  and an ordinal sampler keeps its FULL-data number of categories, free
+  thresholds, and log-gap prior even when a mask empties a boundary
   category - only `setData` changes them. `setData` also CLEARS an
   installed mask - the mask is a per-row vector and `setData` may change
   the number of rows - so a caller replacing the data must reinstall any
@@ -494,11 +485,6 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler is affected the same way, since an inactive row's stored
   \\\lambda_i\\ is drawn from a conditional its own data no longer
   informs.
-
-  On a sampler with grouped random effects, a group all of whose rows
-  are inactive draws its effect from the PRIOR through the group-effect
-  update's own formula - the coherent answer, and NOT what a compacted
-  sampler with that group physically deleted would do.
 
 - basis:
 
@@ -851,9 +837,8 @@ modelling conventions -
 [`predict`](https://rdrr.io/r/stats/predict.html),
 [`extract`](https://vdorie.github.io/dbarts/reference/bart.md) - apply
 to FIT objects instead, the results of
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md). Those
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). Those
 accessors read the stored `yhat.train`/`yhat.test` channels the engine
 already wrote the offset into, and no `type` arm removes it:
 `type = "bart"` returns those draws as they stand, `"ev"` maps them
@@ -992,22 +977,6 @@ string, or
 shared-column match - continues to resolve against
 `colnames(sampler$data@x)` as it did before the replacement.
 
-### Grouped random effects
-
-A sampler carrying grouped random intercepts - the one
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) returns
-in `$fit` when its prior is built in - is mutable on the response side.
-`setResponse` and `setOffset` accept a same-length replacement at the
-pinned scale (`updateScale = FALSE`, the default): the group effects and
-their scale are a Gibbs block the swap deliberately carries across,
-exactly as they are carried across a tree sweep, and the group indices
-are per-observation and unchanged, so every row stays in its group.
-`updateScale = TRUE` is refused under a re-anchoring family (see
-`updateScale` above). `setData` stays refused outright: it may change
-the number of rows, and the grouping is fixed at creation, so there is
-no coherent reading of the new rows' group membership - re-create the
-sampler instead.
-
 ### Warm starts
 
 `installTrees` seeds the sampler's forests from a `donor` instead of
@@ -1043,21 +1012,21 @@ workflow follows for free: `donor$growFromRoot(k)` then
 ## Value
 
 For `run`, a named-list with contents `sigma`, `train`, `test`, and
-`varcount` (plus `k`, `varprobs`, `tau`, and `ranef` when applicable).
-`train` is an array of dimension n.obs x n.samples x n.chains, and
-likewise `test` (or `NULL` if the sampler has no test data) and
-`varcount` are n.predictors x n.samples x n.chains; `sigma` is n.samples
-x n.chains. When `n.chains` is `1` the trailing chain dimension is
-dropped, so `train` is a plain n.obs x n.samples matrix and `sigma` a
-plain vector of length n.samples. On a multi-forest (`forests`) sampler
-`varcount` gains a forest axis between the predictors and the samples -
-n.predictors x n.forests x n.samples x n.chains, forest-major within a
-draw and the prognostic forest first - so each forest's own per-draw
-split counts arrive from one call rather than only the reported
-forest's; a single-forest sampler's array keeps exactly its n.predictors
-x n.samples x n.chains shape, and the same widening is what a
-`family = "multinomial"` sampler's per-category counts ride. This is the
-RAW run shape; the packaged fit
+`varcount` (plus `k` and `varprobs` when applicable). `train` is an
+array of dimension n.obs x n.samples x n.chains, and likewise `test` (or
+`NULL` if the sampler has no test data) and `varcount` are n.predictors
+x n.samples x n.chains; `sigma` is n.samples x n.chains. When `n.chains`
+is `1` the trailing chain dimension is dropped, so `train` is a plain
+n.obs x n.samples matrix and `sigma` a plain vector of length n.samples.
+On a multi-forest (`forests`) sampler `varcount` gains a forest axis
+between the predictors and the samples - n.predictors x n.forests x
+n.samples x n.chains, forest-major within a draw and the prognostic
+forest first - so each forest's own per-draw split counts arrive from
+one call rather than only the reported forest's; a single-forest
+sampler's array keeps exactly its n.predictors x n.samples x n.chains
+shape, and the same widening is what a `family = "multinomial"`
+sampler's per-category counts ride. This is the RAW run shape; the
+packaged fit
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) builds
 reshapes it draws-first with the forest names on the trailing margin, as
 it does for the multinomial channel. `$getForestVariableCounts` reads

@@ -27,9 +27,6 @@ sampler to completion and returns posterior draws.
   feature set, including every response `family`. This is the one to
   reach for first.
 
-- [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) -
-  adds a random intercept per group to the model of `bart2`.
-
 - [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) -
   crossvalidates over `k`, `power`, `base`, and the tree count.
 

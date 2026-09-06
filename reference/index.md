@@ -48,14 +48,6 @@ Fit BART models to fixed data.
   [`summary(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
   [`print(`*`<summary.bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
   : Bayesian Additive Regression Trees with Extended Response Families
-- [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  : Bayesian Additive Regression Trees with Random Effects
 - [`xbart()`](https://vdorie.github.io/dbarts/reference/xbart.md) :
   Crossvalidation For Bayesian Additive Regression Trees
 - [`pdbart()`](https://vdorie.github.io/dbarts/reference/pdbart.md)
@@ -155,12 +147,9 @@ Accelerated failure time survival curves.
 Convergence summaries, and calibration of a sampler composed around one.
 
 - [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`summary(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`print(`*`<summary.bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_array(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_df(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_array(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_df(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_array(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)

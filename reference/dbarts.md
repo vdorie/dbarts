@@ -46,15 +46,14 @@ dbarts(
   `setPredictor(x, column = j)`, which replaces a sparse column whole;
   replacing a sparse-backed column densifies its storage permanently.
   Per-observation replacement of a sparse-backed column, and `setData`,
-  are fixed at creation. Sparse inputs are not supported by
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) or
-  the `node.prior = linear()` and `gp()` leaf models (a sparse-backed
-  test column cannot serve a designated leaf covariate either). A sparse
-  or data-frame test set stays resident (rank-bitmap or dense per
-  column, the same rule as training) rather than densifying at
-  ingestion, and `predict` and `getTrees(newdata = )` route its rows
-  through the trees off that storage rather than densifying it either. A
-  data frame may mix ordinary columns with
+  are fixed at creation. Sparse inputs are not supported by the
+  `node.prior = linear()` and `gp()` leaf models (a sparse-backed test
+  column cannot serve a designated leaf covariate either). A sparse or
+  data-frame test set stays resident (rank-bitmap or dense per column,
+  the same rule as training) rather than densifying at ingestion, and
+  `predict` and `getTrees(newdata = )` route its rows through the trees
+  off that storage rather than densifying it either. A data frame may
+  mix ordinary columns with
   [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   or `dgCMatrix` columns (assign them into the frame; they do not
   survive `data.frame(...)` or
@@ -288,17 +287,16 @@ dbarts(
   `tree.prior` `base`/`power`); a `varianceForest` with no `vars` reads
   every predictor, matching `TRUE`. Gaussian responses and constant
   leaves only; monotone constraints and the latent families are not
-  supported. `resid.dist = student()` residuals and a grouped
-  ([`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) fit
-  are also refused together with `variance` - unadjudicated (whether the
-  variance forest's weight-channel routing composes with either) rather
-  than unsupported by design. The per-tree leaf prior is calibrated from
-  the residual (`resid.prior`) hyperparameters so that a constant
-  variance surface reproduces the homoscedastic `sigma` posterior. The
-  fit gains posterior draws `s.train`/`s.test` of \\s(x)\\, and
-  `predict` attaches an `"s"` attribute with \\s(x)\\ at new predictors
-  (requires `keepTrees`). \\s(x)\\ is the fit's residual scale wherever
-  one is reported or drawn at: `extract(type = "loglik")` scores at
+  supported. `resid.dist = student()` residuals are also refused
+  together with `variance` - unadjudicated (whether the variance
+  forest's weight-channel routing composes with them) rather than
+  unsupported by design. The per-tree leaf prior is calibrated from the
+  residual (`resid.prior`) hyperparameters so that a constant variance
+  surface reproduces the homoscedastic `sigma` posterior. The fit gains
+  posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
+  an `"s"` attribute with \\s(x)\\ at new predictors (requires
+  `keepTrees`). \\s(x)\\ is the fit's residual scale wherever one is
+  reported or drawn at: `extract(type = "loglik")` scores at
   \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there, and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   summarizes `mean.s` in place of `sigma`, which under this
@@ -341,9 +339,9 @@ dbarts(
   model does not read - `monotone`, `variance`, a DART tree prior,
   `split.probs`, a linear or Gaussian-process node prior, a `k`
   hyperprior or non-default `k`, a non-default `proposal.probs`,
-  Student-t residuals, grouped random effects, `storage = "single"`,
-  per-column cut counts, and a `test` set - are refused at creation
-  rather than ignored, as is any declaration the engine cannot honour.
+  Student-t residuals, `storage = "single"`, per-column cut counts, and
+  a `test` set - are refused at creation rather than ignored, as is any
+  declaration the engine cannot honour.
 
 - control:
 
@@ -356,15 +354,15 @@ dbarts(
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
   Same concept as `sigest` in
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`,
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md). That
-  estimate falls back to the marginal standard deviation of the response
-  when the linear model's residual standard error comes out non-finite,
-  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
-  with sparse-backed predictor columns skips the linear model altogether
-  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
-  a `dbartsSigmaFallbackWarning`).
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
+  and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
+  That estimate falls back to the marginal standard deviation of the
+  response when the linear model's residual standard error comes out
+  non-finite, warning as it does so (class
+  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
+  columns skips the linear model altogether and falls back the same way
+  (class `dbartsSparseSigmaFallbackWarning`, a
+  `dbartsSigmaFallbackWarning`).
 
 - seed:
 
@@ -456,9 +454,9 @@ dbarts(
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   for what the softmax refuses and why. `monotone`, a DART tree prior,
   `split.probs`, a linear or Gaussian-process node prior, a `k`
-  hyperprior, a named `prior.scale`, grouped random effects, `variance`
-  and `storage = "single"` are refused at creation rather than dropped,
-  and the response uses the matrix (`x.train`/`y.train`) interface.
+  hyperprior, a named `prior.scale`, `variance` and `storage = "single"`
+  are refused at creation rather than dropped, and the response uses the
+  matrix (`x.train`/`y.train`) interface.
 
   `"ordinal"` fits an ordered categorical response by a cumulative
   probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim N(0, 1)\\,
@@ -646,10 +644,9 @@ response units: it is the prior standard deviation of the forest total
 (`(max(y) + min(y)) / 2`, net of `offset`, for a continuous response; 0
 for the latent-scale families). `normal(sd = )` names the same quantity
 at the resolved `k`, and is refused under a `k` hyperprior.
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), and
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) take it
-as a `prior.scale` argument directly. Unset, nothing changes.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) take it as
+a `prior.scale` argument directly. Unset, nothing changes.
 
 The named quantity is the LEAF-PARAMETER scale of the forest total. It
 equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the

@@ -4,8 +4,6 @@ Posterior draws of the survival probability \\S(t \mid x)\\ from a
 survival fit: an accelerated failure time (AFT) log-normal fit produced
 by [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) (or
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
-`family = "aft"`, the grouped (random-intercept) AFT fit produced by
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
 `family = "aft"`, or a discrete-time hazard fit produced by
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) with
 `family = "hazard"` (or `"hazard.logistic"`).
@@ -29,16 +27,6 @@ survivalProbabilities(
   ...
 )
 
-# S3 method for class 'rbart'
-survivalProbabilities(
-  object,
-  times,
-  newdata = NULL,
-  combineChains = TRUE,
-  ...,
-  group.by
-)
-
 # S3 method for class 'bartMultinomial'
 survivalProbabilities(object, ...)
 
@@ -56,10 +44,10 @@ survivalProbabilities(object, ...)
 
 - object:
 
-  A fitted `bart` or `rbart` object from a survival model: an AFT model
-  (its `family` element equals `"aft"`) or a discrete-time hazard model
-  (it carries a `$periods` grid; its `family` records the binary link).
-  A hazard fit must have been made with `keepTrees = TRUE`.
+  A fitted `bart` object from a survival model: an AFT model (its
+  `family` element equals `"aft"`) or a discrete-time hazard model (it
+  carries a `$periods` grid; its `family` records the binary link). A
+  hazard fit must have been made with `keepTrees = TRUE`.
 
 - times:
 
@@ -74,17 +62,6 @@ survivalProbabilities(object, ...)
   observations are used; otherwise `object` must have been fit with
   `keepTrees = TRUE`.
 
-- group.by:
-
-  For the `rbart` method with `newdata`, the grouping factor for the new
-  observations, as in
-  [`predict`](https://vdorie.github.io/dbarts/reference/rbart.md). A
-  group not seen in training draws its intercept from \\N(0, \tau)\\.
-  Ignored (and unnecessary) when `newdata` is `NULL`. Supplied by name
-  only - it follows `...` in the signature, so it is never matched
-  positionally; a missing one is refused, naming itself. Refused by name
-  on the `bart` method, which has no grouping.
-
 - combineChains:
 
   A logical determining whether the chain dimension is collapsed into
@@ -92,7 +69,7 @@ survivalProbabilities(object, ...)
 
 - ...:
 
-  Not a formal on either method: a name belonging to a sibling generic
+  Not a formal on the method: a name belonging to a sibling generic
   (`type`, `sample`, `ci.level`, `offset`, `weights`, `n.threads`,
   `forest`, `contribution`, `bases`) is refused by name rather than
   silently ignored, since this method returns the draws of \\S(t \mid
@@ -112,15 +89,6 @@ probability is evaluated at every posterior draw of \\f(x)\\ and
 \\\sigma\\, following the package's convention that draw-level functions
 return draws: take means or quantiles over the draw margin for point
 estimates and credible bands.
-
-For a grouped fit from
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
-`family = "aft"`, the `rbart` method uses the same formula, with
-\\f(x)\\ replaced by the linear predictor \\E\[\log T \mid x, g\] =
-f(x) + \alpha\_{g}\\ that includes the drawn random intercept for the
-observation's group. It is sourced from the expected-value (`"ev"`)
-channel, so dropping the intercepts (which would misplace every grouped
-curve) is not possible.
 
 For a discrete-time hazard fit, the survival function is the cumulative
 product \$\$S(t \mid x) = \prod\_{k \\:\\ \mathrm{periods}\[k\] \le t}
@@ -144,7 +112,6 @@ training data when `newdata` is `NULL`.
 ## See also
 
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
 [`predict`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)
 

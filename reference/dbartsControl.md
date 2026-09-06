@@ -74,15 +74,13 @@ dbartsControl(
   This is a per-`run()` RETURN count, unaffected by `n.thin` - unlike
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s (and
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
-  `ndpost`, and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
-  same-named argument, which is a one-shot sweep budget divided by
-  thinning; see `bart2`'s `n.samples` item for the full boundary. `0` is
-  accepted here (and by
+  `ndpost`) same-named argument, which is a one-shot sweep budget
+  divided by thinning; see `bart2`'s `n.samples` item for the full
+  boundary. `0` is accepted here (and by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) - a
   sampler meant to be driven by a host loop's own `run()` calls rather
-  than this one's; `bart2`, `xbart`, and `rbart_vi` all return posterior
-  draws and refuse a thinned-to-zero budget instead.
+  than this one's; `bart2` and `xbart` both return posterior draws and
+  refuse a thinned-to-zero budget instead.
 
 - n.cuts:
 

@@ -618,25 +618,128 @@ levels rather than two indicator columns, and the ten missing values of
 <code>x</code> are incorporated rather than dropped.</p>
 </div>
 <div class="section level2">
+<h2 id="a-random-intercept-model-through-setoffset">A Random-Intercept Model Through <code>setOffset</code><a class="anchor" aria-label="anchor" href="#a-random-intercept-model-through-setoffset"></a>
+</h2>
+<p>The response-side conduit carries a whole outer block just as
+<code>setPredictor</code> carries the predictor side. A random-intercept
+model
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>y</mi><mi>i</mi></msub><mo>=</mo><mi>f</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false" form="postfix">)</mo><mo>+</mo><msub><mi>b</mi><mrow><mi>g</mi><mo stretchy="false" form="prefix">(</mo><mi>i</mi><mo stretchy="false" form="postfix">)</mo></mrow></msub><mo>+</mo><msub><mi>ϵ</mi><mi>i</mi></msub><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>ϵ</mi><mi>i</mi></msub><mo>∼</mo><mi>N</mi><mo stretchy="false" form="prefix">(</mo><mn>0</mn><mo>,</mo><msup><mi>σ</mi><mn>2</mn></msup><mo stretchy="false" form="postfix">)</mo><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>b</mi><mi>j</mi></msub><mo>∼</mo><mi>N</mi><mo stretchy="false" form="prefix">(</mo><mn>0</mn><mo>,</mo><msup><mi>τ</mi><mn>2</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">
+y_i = f(x_i) + b_{g(i)} + \epsilon_i, \quad
+\epsilon_i \sim N(0, \sigma^2), \quad
+b_j \sim N(0, \tau^2)
+</annotation></semantics></math> is the smallest worked example:
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>b</mi><annotation encoding="application/x-tex">b</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
+are two Gibbs blocks the outer loop owns, and BART sees them only as an
+offset. Each sweep draws
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>b</mi><annotation encoding="application/x-tex">b</annotation></semantics></math>
+from its conjugate normal against the current residual, installs
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>f</mi><annotation encoding="application/x-tex">f</annotation></semantics></math>’s
+new offset with <code>setOffset</code>, runs one sweep, subtracts the
+offset back off the reported fit, and then draws
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>.</p>
+<p><code>setOffset(offset, updateScale)</code> takes
+<code>updateScale = FALSE</code> after warmup: the response transform
+BART calibrated at creation must stay put, or
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>b</mi><annotation encoding="application/x-tex">b</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
+- which the outer loop holds in response units - would come to mean
+something else from one sweep to the next.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">24</span><span class="op">)</span></span>
+<span><span class="va">n_ri</span>     <span class="op">&lt;-</span> <span class="fl">200L</span></span>
+<span><span class="va">n_groups</span> <span class="op">&lt;-</span> <span class="fl">8L</span></span>
+<span><span class="va">g</span>        <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_groups</span><span class="op">)</span>, <span class="va">n_ri</span><span class="op">)</span></span>
+<span><span class="va">x_ri</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n_ri</span> <span class="op">*</span> <span class="fl">3L</span><span class="op">)</span>, <span class="va">n_ri</span>, <span class="fl">3L</span><span class="op">)</span></span>
+<span><span class="va">b_true</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_groups</span>, <span class="fl">0</span>, <span class="fl">0.8</span><span class="op">)</span></span>
+<span><span class="va">y_ri</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">pi</span> <span class="op">*</span> <span class="va">x_ri</span><span class="op">[</span>, <span class="fl">1L</span><span class="op">]</span><span class="op">)</span> <span class="op">+</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">x_ri</span><span class="op">[</span>, <span class="fl">2L</span><span class="op">]</span> <span class="op">+</span> <span class="va">b_true</span><span class="op">[</span><span class="va">g</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_ri</span>, <span class="fl">0</span>, <span class="fl">0.5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">n_warmup_ri</span>  <span class="op">&lt;-</span> <span class="fl">200L</span></span>
+<span><span class="va">n_samples_ri</span> <span class="op">&lt;-</span> <span class="fl">500L</span></span>
+<span></span>
+<span><span class="va">control_ri</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbartsControl.html">dbartsControl</a></span><span class="op">(</span>updateState <span class="op">=</span> <span class="cn">FALSE</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>                            n.burn <span class="op">=</span> <span class="fl">0L</span>, n.samples <span class="op">=</span> <span class="fl">1L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>                            n.threads <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">50L</span><span class="op">)</span></span>
+<span><span class="va">sampler_ri</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x_ri</span>, <span class="va">y_ri</span>, control <span class="op">=</span> <span class="va">control_ri</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># rows of each group, and its size; the conjugate draw needs both</span></span>
+<span><span class="va">rows_of</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_ri</span><span class="op">)</span>, <span class="va">g</span><span class="op">)</span></span>
+<span><span class="va">size_of</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lengths.html" class="external-link">lengths</a></span><span class="op">(</span><span class="va">rows_of</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Half-Cauchy(0, 2.5 sd(y)) on tau, sampled by a random-walk Metropolis step</span></span>
+<span><span class="va">tau_scale</span> <span class="op">&lt;-</span> <span class="fl">2.5</span> <span class="op">*</span> <span class="fu">sd</span><span class="op">(</span><span class="va">y_ri</span><span class="op">)</span></span>
+<span><span class="va">log_tau_posterior</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tau</span>, <span class="va">b</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="va">tau</span> <span class="op">&lt;=</span> <span class="fl">0</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="op">-</span><span class="cn">Inf</span><span class="op">)</span></span>
+<span>  <span class="op">-</span><span class="va">n_groups</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">tau</span><span class="op">)</span> <span class="op">-</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">b</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span> <span class="op">/</span> <span class="va">tau</span><span class="op">^</span><span class="fl">2</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/stats/Cauchy.html" class="external-link">dcauchy</a></span><span class="op">(</span><span class="va">tau</span>, <span class="fl">0</span>, <span class="va">tau_scale</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">b</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_groups</span>, <span class="fl">0</span>, <span class="va">tau_scale</span> <span class="op">/</span> <span class="fl">5</span><span class="op">)</span></span>
+<span><span class="va">tau</span>   <span class="op">&lt;-</span> <span class="va">tau_scale</span> <span class="op">/</span> <span class="fl">5</span></span>
+<span><span class="va">sigma</span> <span class="op">&lt;-</span> <span class="fu">sd</span><span class="op">(</span><span class="va">y_ri</span><span class="op">)</span></span>
+<span><span class="va">f_hat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep_len</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n_ri</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">samples_b</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="cn">NA_real_</span>, <span class="va">n_samples_ri</span>, <span class="va">n_groups</span><span class="op">)</span></span>
+<span><span class="va">samples_tau</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep_len</a></span><span class="op">(</span><span class="cn">NA_real_</span>, <span class="va">n_samples_ri</span><span class="op">)</span></span>
+<span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_warmup_ri</span> <span class="op">+</span> <span class="va">n_samples_ri</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="co"># b | f, sigma, tau: independent normals, one per group</span></span>
+<span>  <span class="va">resid</span>     <span class="op">&lt;-</span> <span class="va">y_ri</span> <span class="op">-</span> <span class="va">f_hat</span></span>
+<span>  <span class="va">post_var</span>  <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">/</span> <span class="op">(</span><span class="va">size_of</span> <span class="op">/</span> <span class="va">sigma</span><span class="op">^</span><span class="fl">2</span> <span class="op">+</span> <span class="fl">1</span> <span class="op">/</span> <span class="va">tau</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span></span>
+<span>  <span class="va">post_mean</span> <span class="op">&lt;-</span> <span class="va">post_var</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">rows_of</span>, <span class="kw">function</span><span class="op">(</span><span class="va">rows</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">resid</span><span class="op">[</span><span class="va">rows</span><span class="op">]</span><span class="op">)</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">/</span></span>
+<span>                             <span class="va">sigma</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span></span>
+<span>  <span class="va">b</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_groups</span>, <span class="va">post_mean</span>, <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">post_var</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="co"># f, sigma | b: one BART sweep against the intercepts as an offset. The</span></span>
+<span>  <span class="co"># scale re-anchors during warmup only, and is pinned for every kept draw.</span></span>
+<span>  <span class="va">sampler_ri</span><span class="op">$</span><span class="fu">setOffset</span><span class="op">(</span><span class="va">b</span><span class="op">[</span><span class="va">g</span><span class="op">]</span>, updateScale <span class="op">=</span> <span class="va">i</span> <span class="op">&lt;=</span> <span class="va">n_warmup_ri</span><span class="op">)</span></span>
+<span>  <span class="va">draw</span>  <span class="op">&lt;-</span> <span class="va">sampler_ri</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span></span>
+<span>  <span class="va">f_hat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/vector.html" class="external-link">as.vector</a></span><span class="op">(</span><span class="va">draw</span><span class="op">$</span><span class="va">train</span><span class="op">)</span> <span class="op">-</span> <span class="va">b</span><span class="op">[</span><span class="va">g</span><span class="op">]</span></span>
+<span>  <span class="va">sigma</span> <span class="op">&lt;-</span> <span class="va">draw</span><span class="op">$</span><span class="va">sigma</span><span class="op">[</span><span class="fl">1L</span><span class="op">]</span></span>
+<span></span>
+<span>  <span class="co"># tau | b: a random-walk Metropolis step on the log scale</span></span>
+<span>  <span class="va">proposal</span> <span class="op">&lt;-</span> <span class="va">tau</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">logRatio</span> <span class="op">&lt;-</span> <span class="fu">log_tau_posterior</span><span class="op">(</span><span class="va">proposal</span>, <span class="va">b</span><span class="op">)</span> <span class="op">-</span> <span class="fu">log_tau_posterior</span><span class="op">(</span><span class="va">tau</span>, <span class="va">b</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">proposal</span><span class="op">)</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">tau</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span> <span class="op">&lt;</span> <span class="va">logRatio</span><span class="op">)</span> <span class="va">tau</span> <span class="op">&lt;-</span> <span class="va">proposal</span></span>
+<span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="va">i</span> <span class="op">&gt;</span> <span class="va">n_warmup_ri</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">samples_b</span><span class="op">[</span><span class="va">i</span> <span class="op">-</span> <span class="va">n_warmup_ri</span>, <span class="op">]</span> <span class="op">&lt;-</span> <span class="va">b</span></span>
+<span>    <span class="va">samples_tau</span><span class="op">[</span><span class="va">i</span> <span class="op">-</span> <span class="va">n_warmup_ri</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">tau</span></span>
+<span>  <span class="op">}</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># the group intercepts and their scale are only identified up to a shared</span></span>
+<span><span class="co"># level, which the forest absorbs, so compare them centered</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">samples_b</span><span class="op">)</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">samples_b</span><span class="op">)</span><span class="op">)</span>, <span class="va">b_true</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">b_true</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">## [1] 0.9962625</span></span></code></pre>
+<p>The same shape carries any outer block whose contribution to the
+linear predictor is a per-observation vector: a parametric term, a
+spatial effect, a frailty. <code>setResponse</code> is the companion for
+a block that changes
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>
+itself rather than shifting it.</p>
+</div>
+<div class="section level2">
 <h2 id="multiple-threading">Multiple Threading<a class="anchor" aria-label="anchor" href="#multiple-threading"></a>
 </h2>
 <p>When implementing a Gibbs sampler using <code>dbarts</code> in R, it
 is most often the case that multiple threads will need to be handled by
 creating separate copies of the sampler and data. While
 <code>dbartsSampler</code>s are natively multithreaded, few of their
-slots are stored independently across chains. For an example of this
-approach and a more complete implementation of the principles in this
-document, consult the implementation of <a href="https://github.com/vdorie/dbarts/blob/master/R/rbart.R" class="external-link">rbart_vi</a>.</p>
+slots are stored independently across chains, so an outer loop that owns
+per-chain state runs one single-chain sampler per chain and threads them
+itself.</p>
 <p>This custom-loop bookkeeping is only needed when embedding BART in a
-larger sampler. A plain multi-chain
-<code>bart2</code>/<code>rbart_vi</code> fit already tracks its chain
-dimension: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports split-R-hat and effective
-sample size for the scalar parameters (<code>sigma</code>,
-<code>k</code>, and, for <code>rbart_vi</code>, <code>tau</code>) when
-the <code>posterior</code> package is installed, and
-<code>as_draws_array</code>/<code>as_draws_df</code> convert its
-chain-dimensioned draws to <code>posterior</code>’s array/data frame
-conventions.</p>
+larger sampler. A plain multi-chain <code>bart2</code> fit already
+tracks its chain dimension: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports split-R-hat
+and effective sample size for the scalar parameters (<code>sigma</code>
+and <code>k</code>) when the <code>posterior</code> package is
+installed, and <code>as_draws_array</code>/<code>as_draws_df</code>
+convert its chain-dimensioned draws to <code>posterior</code>’s
+array/data frame conventions.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

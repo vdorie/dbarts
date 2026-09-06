@@ -35,7 +35,6 @@ mechanism.
 - Categorical predictors split on level subsets
   (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed
   dense/sparse predictor input
-- Grouped random effects (`rbart_vi`)
 - Warm starts from a previous fit (`warm.start`) or XBART-style
   grow-from-root (`n.grow.sweeps`)
 - Reduced-precision residual storage for large problems

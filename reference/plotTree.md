@@ -3,7 +3,6 @@
 Minimalist visualization of the branching and leaf contents of one tree
 in a fitted
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
-or [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)
 model, or in a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
 A fit-level convenience wrapper around the sampler's `plotTree` method,
@@ -24,9 +23,6 @@ plotTree(object, ...)
 
 # S3 method for class 'bart'
 plotTree(object, treeNum = 1L, chainNum, sampleNum, ...)
-
-# S3 method for class 'rbart'
-plotTree(object, treeNum = 1L, chainNum = 1L, sampleNum, ...)
 
 # S3 method for class 'dbartsSampler'
 plotTree(object, ...)
@@ -50,10 +46,7 @@ plotTree(object, ...)
 
   A fitted model of class `bart` (from
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)) or
-  `rbart` (from
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)), or
-  a
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)), or a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
   Fits must have been made with the trees kept (`keeptrees`/`keepTrees`
   equal to `TRUE`).
@@ -65,8 +58,7 @@ plotTree(object, ...)
 - chainNum:
 
   An integer, the index of the chain to plot from. For a `bart` fit with
-  a single chain it may be omitted; for `rbart` it selects the chain and
-  defaults to the first.
+  a single chain it may be omitted.
 
 - sampleNum:
 
@@ -99,7 +91,6 @@ calling the `plotTree` method on the underlying sampler, i.e.
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
 
 ## Examples
