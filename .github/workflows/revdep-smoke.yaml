@@ -80,5 +80,10 @@ jobs:
       - name: Install ${{ matrix.package }} dependencies
         run: Rscript -e 'remotes::install_deps("${{ matrix.package }}", dependencies = NA)'
 
+      # check the BUILT tarball: R CMD build is what derives Author and
+      # Maintainer from Authors@R, and a check on the source directory fails
+      # at DESCRIPTION for both consumers
       - name: R CMD check ${{ matrix.package }}
-        run: R CMD check --no-manual "${{ matrix.package }}"
+        run: |
+          R CMD build --no-build-vignettes --no-manual "${{ matrix.package }}"
+          R CMD check --no-manual "${{ matrix.package }}"_*.tar.gz
