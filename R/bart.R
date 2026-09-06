@@ -1219,6 +1219,15 @@ bart2 <- function(
       "supply at most one"
     )
   }
+  # a data object carrying forest bases reaches here as an ordinary fit, so
+  # this is where the multi-forest donor refusal is owed on the modelling
+  # surface: named for the argument the caller wrote, ahead of the R5 method's
+  # own wording and the bridge backstop under it. 'n.grow.sweeps' is not held
+  # to it - grow-from-root composes through the combiner and is covered at two
+  # forests
+  if (!is.null(warm.start)) {
+    refuseMultiForestWarmStart(sampler$getPointer(), "'warm.start'")
+  }
 
   if (!is.null(warm.start)) {
     sampler$installTrees(warm.start)

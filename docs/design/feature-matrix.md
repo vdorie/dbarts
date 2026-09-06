@@ -184,11 +184,11 @@ calibration" is a named leaf-prior scale in response units ([f16]).
 | logistic | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
 | ordinal | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
 | nbinom | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| multinom | R [[bart.R#unsupported]] | R [[bart.R#"'dart' or a DART 'tree.prior'"]] [f33] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
+| multinom | R [[bart.R#unsupported]] | R [[bart.R#"'dart' or a DART 'tree.prior'"]] [f33] | M [[bart.R#checkFamilyUnsupportedArgs]], [[RIB#refuseMultiForestWarmStart]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
 | aft | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
 | hazard | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
 | hurdle | R [[spec.R#"a variance forest requires family"]] [f34] | S [[bart.R#redirectCall]] [f35] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| bcf | R [[FAC#createAmplitudeSampler]] [f48] | R [[spec.R#"a DART tree prior"]] | S [[SAM#Sampler::installForests]] [f36] | S [[CH#growForestFromRoot]] [f36] |
+| bcf | R [[FAC#createAmplitudeSampler]] [f48] | R [[spec.R#"a DART tree prior"]] | M [[RIB#refuseMultiForestWarmStart]] [f36] | S [[CH#growForestFromRoot]] [f36] |
 | hetero | - | S [[CH#useDart]] [f38] | S [[SAM#Sampler::installForests]] | S [[CH#growForestFromRoot]] |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
@@ -264,12 +264,18 @@ the per-observation augmentation entries read. The engine family stays
 
 [f3] Ordinal and nbinom are reachable through `dbarts_sampler_create` and ship
 a `DBARTS_FAMILY_*` enumerator each; heteroscedastic is a decoration with no
-enumerator of its own, selected instead by a control attribute. None of the
-three selecting control attributes is documented in the shipped header:
-ordinal's `bartcore.n.categories`
+enumerator of its own, selected instead by a control attribute. All three
+selecting attributes are documented in the shipped header, in the
+specification-attribute block on `dbarts_sampler_create`
+([[CAPI#"SPECIFICATION ATTRIBUTES"]]): ordinal's `bartcore.n.categories`
 ([[RIB#parseControl, bartcore.n.categories]]), nbinom's `bartcore.dispersion`
 ([[RIB#parseControl, bartcore.dispersion]]) and heteroscedastic's
-`bartcore.variance` ([[RIB#applyVarianceAttributes]]).
+`bartcore.variance` ([[RIB#applyVarianceAttributes]]). The block states each
+one's type and shape, its allowed values, the family or composition it selects
+and what a malformed value does, and covers every other attribute creation
+reads off the control or model beside them: `bartcore.survival`,
+`bartcore.forests`, `resid.df`, the monotone directions, and the interaction
+and block partitions.
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
 counts matrix or a factor/character/integer-code response, one-hot expanded
@@ -567,12 +573,39 @@ unreachable, so the positive fit is always homoscedastic
 [f35] `dart` is forwarded to both components ([[bart.R#redirectCall]]), each of
 which is an ordinary single-forest chain that takes it.
 
-[f36] No family gate: [[SAM#Sampler::installForests]] checks shape, grid, DART,
-and the variance forest's presence and saved slot, and matches donor forest
-counts, and [[CH#growForestFromRoot]] loops every forest, with a
-variance-forest pre-step above the loop. Neither is exercised by a BCF test,
-and BCF has no `bart2()` surface, so both are reached only through the R5
-[[dbarts.R#installTrees]] / [[dbarts.R#growFromRoot]].
+[f36] The two initializations part company at more than one forest.
+
+WARM START is refused at the forest count.
+`refuseMultiForestWarmStart` ([[RIB#refuseMultiForestWarmStart]]) errors on
+`numForests >= 2` at [[RIB#bartcore_installForests]]; the R5 method raises the
+same rule in its own wording ahead of it
+([[bartcore.R#refuseMultiForestWarmStart]], called from
+[[dbarts.R#installTrees]]); and `bart2`'s `warm.start` refuses there too
+([[bart.R#refuseMultiForestWarmStart]]), which is the entrance a `forest()`
+term or a bases-carrying data object arrives by ([f7]). The cell is `M` and not
+`R` for [f50]'s reason: the guard records that the install is not validated
+above one forest, not that it is incoherent. It would ANSWER rather than raise
+- [[SAM#Sampler::installForests]] reassembles the trees from a saved slot but
+takes `hasAmplitudes`, `amplitudes` and `amplitudeVariances` off the donor's
+LIVE chain state, so a slot-sourced install pairs one draw's forests with
+another's glue - and nothing covers the result: no R test, no component pin
+above one forest, no equivalence scenario, no calibration evidence. The same
+count catches the K-forest softmax.
+
+GROW-FROM-ROOT is shipped and covered at two forests, so it carries no guard.
+[[CH#growForestFromRoot]] composes through the combiner inside its own sweep -
+`drawForestGlue`, `formForestResponse`, then `drawGlue` and `afterCombine`, the
+same calls [[CH#Chain::run]] makes - with a variance-forest pre-step above the
+loop. The two-forest branch is exercised from R by
+[[test-prior-init-composed-law.R#"grow-from-root holds the same law"]], which
+pins the per-forest no-empty-leaf conditioning against a composed per-forest
+weight, and pinned in the component suite by
+[[tests/cpp/test_sampler.cpp#testBCFGrowForestFromRoot]] (a hardcoded
+characteristic value of `a mu + b_z tau`) with the K-forest twin
+[[tests/cpp/test_sampler.cpp#testMultinomialGrowForestFromRoot]] beside it, and
+walked by the mutation fuzzer. What it still lacks is an equivalence scenario
+and calibration evidence, which is the standing multi-forest evidence gap
+([f48]) rather than anything specific to the initializer.
 
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 ([[CH#buildVarianceForest]] never sets `useDart`, whose default is false in
@@ -688,7 +721,12 @@ incoherent under the family, so these cells are `M` and not `R`. The two
 columns are separate although one check refuses both today: a warm start
 installs a previous fit's trees and family state, while grow-from-root
 needs the family's working response inside the root-growth recursion, and
-either could arrive for a family without the other.
+either could arrive for a family without the other. The warm-start column is
+covered twice over for multinomial: its K forests also meet the forest-count
+guard [f36] states, which closes the R5 sampler surface this `bart2` check
+does not reach. The grow-from-root column is not - `$growFromRoot` runs on a
+K-forest sampler, [f36]'s second half - so that cell records the `bart2` arc
+alone.
 
 ## Gaps
 
@@ -704,13 +742,13 @@ REFUSED cells are deliberately absent - they are part of the models.
 
 **probit.** None.
 
-**ordinal.** `warm.start` / `n.grow.sweeps` are unbuilt for the arc ([f50]). Its selecting control
-attribute is undocumented in the shipped header ([f3]). One dedicated tinytest
+**ordinal.** `warm.start` / `n.grow.sweeps` are unbuilt for the arc ([f50]).
+One dedicated tinytest
 file, in which pointwise loglik is exercised only for shape. SBC gamma3
 resolved but not re-run at full R.
 
 **nbinom.** No `xbart()` token, and warm start / grow-from-root are unbuilt
-([f50]). Header attribute undocumented ([f3]). SBC
+([f50]). SBC
 `r`/`agg.psi` flag standing, read as slow mixing along the r-psi ridge, with a
 third, longer run owed ([f42]). Real-valued dispersion remains a recorded open
 item (TODO's `negbin-real-dispersion` item).
@@ -734,12 +772,12 @@ grow-from-root ([f50]).
 **bcf.** No `xbart()` reach. The
 NAMED `bcf()` causal verb is bartCause's, not dbarts's; the K-forest amplitude
 capability itself is reachable from `bart2()`'s formula interface ([f7]).
-Warm start and grow-from-root are unrefused and untested for two forests
-([f36]). Whole-data `setData` stays undesigned (open question 1 of the
+A donor warm start is refused at the forest count, untested above
+one ([f36]); grow-from-root runs there and is covered, R-side and in the
+component suite, but by no equivalence scenario ([f36]). Whole-data `setData` stays undesigned (open question 1 of the
 model-space survey, docs/design/model-space-survey.md). The probit and logistic
 cases have no equivalence scenario, no SBC coverage and no measured active-rows
 mask ([f48], [f26]).
 
-**heteroscedastic.** No `xbart()` reach. Selecting
-attribute undocumented in the header ([f3]). Out of the SBC matrix, deferred
+**heteroscedastic.** No `xbart()` reach. Out of the SBC matrix, deferred
 not blocked ([f47]).

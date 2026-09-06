@@ -61,6 +61,21 @@ calibrations are stated against. The test is `updateScale != FALSE`, so NA
 refuses too; the R5 methods default the argument to FALSE. The weight conduit
 has no scale to pin and skips the clause.
 
+`refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]]) fires on the same
+bare `numForests >= 2` and covers ONE initialization, the donor warm start
+`bartcore_installForests`. It would ANSWER on a multi-forest sampler rather
+than raise: the trees are reassembled from a saved slot while the amplitudes
+come off the donor's live chain state, so a slot-sourced install pairs one
+draw's forests with another's glue, and nothing validates the result above one
+forest - the guard is a recorded open item rather than a model refusal. The R5
+method raises its own wording ahead of it (`refuseMultiForestWarmStart`,
+[[bartcore.R#refuseMultiForestWarmStart]]), as does `bart2`'s `warm.start`. The other
+initialization, `bartcore_growFromRoot`, carries NO forest-count guard and is
+open at every shape: it composes through the combiner inside its own sweep and
+its two-forest branch is covered from R and in the component suite. The flat C
+API exposes neither, so it needs no arm here. A variance forest is not one of
+the counted forests, so a heteroscedastic sampler passes through.
+
 `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
@@ -99,6 +114,8 @@ the cell).
 | mutation | single forest | multi-forest | guard |
 |---|---|---|---|
 | `setData` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
+| `installTrees` (donor warm start) | allowed | refused | `refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]]) |
+| `growFromRoot` | allowed | allowed, the combiner composing inside the grow sweep | none, by decision - see the paragraph above |
 | `setModel` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
 | `setCalibration` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([[chain.hpp#Chain::setForestPriorScale]]), returns false rather than raising itself |
 | `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |

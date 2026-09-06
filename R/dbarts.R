@@ -2003,12 +2003,14 @@ dbartsSampler <- setRefClass(
     installTrees = function(donor, samples = NULL) {
       "Warm-starts the forests from a donor sampler or bart fit over the same
        predictors. 'samples' maps each chain to a 1-based donor-sample index;
-       NULL spreads the chains across the donor's kept samples."
+       NULL spreads the chains across the donor's kept samples. Single-forest
+       samplers only."
+      ptr <- getPointer()
+      refuseMultiForestWarmStart(ptr, "installTrees()")
       donorState <- warmStartState(donor)
       if (!is.null(samples)) {
         samples <- coerceOrError(samples, "integer")
       }
-      ptr <- getPointer()
       .Call(C_dbarts_bartcore_installForests, ptr, donorState, samples)
       storeState(ptr)
       invisible(NULL)

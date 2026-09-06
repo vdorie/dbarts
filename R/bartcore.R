@@ -1059,6 +1059,30 @@ resolveForestIndex <- function(forest) {
 # own model, and neither sees a plain single-forest sampler.
 bartcoreNumForests <- function(ptr) .Call(C_dbarts_bartcore_numForests, ptr)
 
+# The forest-count refusal on a DONOR warm start. At more than one forest the
+# install would answer rather than raise - the trees arrive from a saved slot
+# and the amplitudes from the donor's live state - leaving a legal-looking fit
+# with a miscalibrated start that nothing covers. Grow-from-root is NOT held
+# to this: it composes through the combiner every sweep and is covered at two
+# forests. A COUNT, not a capability probe: the amplitude coupling and the
+# K-forest softmax are both uncovered here, and the count is what the message
+# can name. Raised R-side so a caller reads the surface it wrote rather than
+# the bridge's own entry point name; the bridge keeps the same refusal as a
+# backstop for the routes that skip this layer.
+refuseMultiForestWarmStart <- function(ptr, what) {
+  numForests <- bartcoreNumForests(ptr)
+  if (numForests >= 2L) {
+    stop(
+      what,
+      " does not support a multi-forest sampler: this one carries ",
+      numForests,
+      " forests, which have no tested warm start from a donor; draw from the ",
+      "prior, or grow from the root, instead"
+    )
+  }
+  invisible(NULL)
+}
+
 bartcoreSetModel <- function(bcSampler, model, data) {
   invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, data))
 }

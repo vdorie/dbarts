@@ -253,9 +253,9 @@ expect_true(all(trees.tau$n >= 0L))
 # The per-forest weight lives in the holder, not the state - deliberately,
 # and for the same reason z does: Chain::setForestWeights stores a borrowed
 # pointer beside the treatment vector, and neither rides serializeGlue or
-# stateFormatVersion. A storeState/setState round trip and an installForests
-# transplant must therefore leave whatever weight was installed before the
-# call installed after it, unconditionally. Checked by running the SAME
+# stateFormatVersion. A storeState/setState round trip must therefore leave
+# whatever weight was installed before the call installed after it,
+# unconditionally. Checked by running the SAME
 # holder through each round trip twice - once with an excluding weight,
 # once with the all-ones identity - and confirming the two still diverge
 # afterward: if the round trip had cleared the weight, both runs would
@@ -280,19 +280,27 @@ roundTripState <- function(weight) {
 }
 expect_false(identical(roundTripState(rep(0, n)), roundTripState(rep(1, n))))
 
-roundTripInstall <- function(weight) {
-  set.seed(5002)
-  donor <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  invisible(bartcoreRun(donor, 5L, 0L))
-  donorState <- bartcoreStoreState(donor)
-
-  target <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  bartcoreSetForestWeights(target, 1L, weight)
-  .Call(dbarts:::C_dbarts_bartcore_installForests, target$ptr, donorState, NULL)
-  invisible(bartcoreRun(target, 0L, 5L))
-  bartcoreForestFits(target, 1L)
-}
-expect_false(identical(
-  roundTripInstall(rep(0, n)),
-  roundTripInstall(rep(1, n))
-))
+# The installForests half of that boundary is unreachable on a two-forest
+# sampler: the transplant is refused at the forest count, on this route as on
+# every other, so there is no multi-forest warm start for a per-forest weight
+# to survive. Pinned as the refusal rather than dropped, since the weight
+# carriage question returns the day a multi-forest warm start is built.
+set.seed(5002)
+installDonor <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+invisible(bartcoreRun(installDonor, 5L, 0L))
+installDonorState <- bartcoreStoreState(installDonor)
+installTarget <- dbarts:::bartcoreBCFSampler(
+  sampler,
+  z,
+  n.trees.treatment = 25L
+)
+bartcoreSetForestWeights(installTarget, 1L, rep(0, n))
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_installForests,
+    installTarget$ptr,
+    installDonorState,
+    NULL
+  ),
+  "bartcore_installForests: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
+)

@@ -166,7 +166,10 @@ Things that could be wrong and would not be caught:
   scored directly either; their draws are checked to reproduce bitwise the
   draws a covered family makes on the corresponding data, so they inherit
   that family's calibration.
-- Warm start and grow-from-root are unrefused and untested at two forests.
+- A donor warm start refuses at two or more forests rather than run there, so
+  what R covers is the refusal; the install has no component pin above one
+  forest either. Grow-from-root does run there, pinned from R and in tests/cpp,
+  but no equivalence scenario or calibration evidence reaches it.
 - The cross-host tier-2 bar is weak by construction: it tolerates a shift of
   about 1.4 posterior standard deviations; a 20 percent node-prior widening
   passes tier 2 and fails tier 1. Its fix, independent per-scenario seeds

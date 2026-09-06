@@ -218,11 +218,15 @@ muTrees <- bartcoreGetTrees(
 expect_equal(worstOrder(tauTrees), 1L) # tau forest honors max.order = 1
 expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
 
-# ---- warm-start refusal: a BCF donor whose treatment forest splits on a non-
-#      moderator cannot seed a target whose moderators forbid that column ---
-# The tau signal above forces splits on both x1 and x2, so an unrestricted donor
-# tau splits on x2; a target restricting tau to x1 must refuse the transplant (a
-# moderator forest would otherwise silently score an out-of-mask split).
+# ---- warm-start refusal: a two-forest destination takes no warm start ------
+# The transplant this arm was written for - an unrestricted donor tau splitting
+# on x2 into a target whose moderators forbid that column - is unreachable: the
+# forest count refuses the install ahead of any column check, on this route as
+# on every other (test-multiforest-warmstart-refusal.R). The column-restriction
+# rule the arm pinned is engine-side and stays covered at one forest
+# (test-blocks.R) and in tests/cpp's own install-mask cases; what is pinned
+# here is that the count fires first, so the fixture the two rules share is
+# kept rather than dropped.
 donorSampler <- dbarts(xb, yb, control = control)
 donorBC <- dbarts:::bartcoreBCFSampler(donorSampler, z, n.trees.treatment = 30L)
 invisible(bartcoreRun(donorBC, 150L, 0L))
@@ -242,5 +246,5 @@ expect_error(
     donorState,
     NULL
   ),
-  "column restriction"
+  "a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )

@@ -224,10 +224,11 @@ expect_identical(
 )
 expect_true(all(is.finite(warmMissing$run(0L, 3L)$train)))
 
-# a two-forest destination cannot be seeded from a single-forest donor
+# a two-forest destination cannot be seeded at all: the warm start is refused
+# at the forest count, ahead of any donor comparison
 expect_error(
   bcfSampler()$installTrees(donor, samples = 2L),
-  pattern = "shape-compatible"
+  pattern = "does not support a multi-forest sampler"
 )
 
 

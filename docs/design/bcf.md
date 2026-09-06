@@ -221,6 +221,14 @@ which entry points fan per forest.
   `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]])
   fires on `bartcore_setModel`, so BCF cannot swap a forest's model
   between sweeps - only a fresh sampler can.
+- The DONOR warm start is refused at the same forest count setModel is:
+  `refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]])
+  fires on `bartcore_installForests`, so BCF takes no donor's forests. Not a
+  model refusal: the install reassembles the trees from a saved slot but takes
+  the amplitudes off the donor's live state, pairing one draw's forests with
+  another's glue, and nothing covers the result. The OTHER initialization is
+  untouched - `growFromRoot` runs on BCF, composing through the combiner in its
+  own sweep, covered from R and by `tests/cpp`'s `testBCFGrowForestFromRoot`.
 - predict is two entry points with opposite rules, and BCF gets the
   per-forest one. `bartcore_predictPerForest`
   ([[R_interface_bartcore.cpp#bartcore_predictPerForest]]), behind
@@ -260,8 +268,9 @@ which entry points fan per forest.
   mutable prognostic column uses the ordinary predictor path.
 - Also new for BCF: setForestWeights(f, s), a per-forest, per-observation
   precision multiplier ("The multiplier snap and the per-forest weight"
-  above). Unlike the basis it does not ride the state; a warm start or a
-  restore must reinstall it explicitly.
+  above). Unlike the basis it does not ride the state; a restore must
+  reinstall it explicitly, and a donor warm start does not reach this sampler
+  at all (bullet above).
 
 C exposure stayed internal at first (bartcore helpers plus the bridge, as the
 data handle does); it is now the public dbarts.h surface - see "Public

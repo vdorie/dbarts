@@ -792,7 +792,16 @@
             categorical predictors accordingly receive real split counts
             during the grow sweeps, so factor
             signals inform the sampled split-variable probabilities from
-            the first regular sweep.
+            the first regular sweep. The DONOR warm start
+            (\code{warm.start}, \code{$installTrees}) is single-forest only:
+            a sampler carrying two or more forests - an amplitude model such
+            as a Bayesian causal forest, or a multinomial sampler's K category
+            forests - refuses it, reporting the forest count, since the
+            install reassembles the trees from a saved sample while taking the
+            amplitudes from the donor's current state and is untested above one
+            forest. Grow-from-root has no such limit and is the initialization
+            those samplers take. A variance forest is not one of the counted
+            forests, so a heteroscedastic sampler takes both.
       \item Factor columns in data frames now default to
             \code{factors = "categorical"} in \code{dbarts}, \code{dbartsData}, \code{bart2},
             and \code{xbart} (a new argument on all four):
@@ -1201,6 +1210,20 @@
             sets \code{structSize} and zeroes the field pointers, so the size
             cannot be forgotten:
             \code{dbarts_results r = DBARTS_RESULTS_INIT;}.
+      \item \code{dbarts/dbarts.h} documents the specification attributes a
+            flat-C consumer sets on the control or model object to reach a
+            family or a composition, in one block on
+            \code{dbarts_sampler_create}: \code{bartcore.n.categories}
+            (ordinal), \code{bartcore.dispersion} (negative binomial),
+            \code{bartcore.survival} (AFT event status),
+            \code{bartcore.variance} (the heteroscedastic variance forest),
+            \code{bartcore.forests} (the K-forest amplitude model), and the
+            model-side \code{resid.df}, \code{monotone}, interaction and
+            block attributes. Each entry names the object the attribute lives
+            on, its type and shape, its allowed values, the family or
+            composition it selects, and what a malformed value does.
+            Documentation only: no signature, struct, enumerator or callback
+            changed, and \code{dbarts_apiHash()} is unmoved.
       \item The C API reaches Bayesian causal forests:
             \code{dbarts_sampler_numForests} reports the model's forest count,
             \code{dbarts_sampler_setForestBasis} swaps a forest's basis, and

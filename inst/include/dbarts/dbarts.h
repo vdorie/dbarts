@@ -831,6 +831,110 @@ uint64_t dbarts_apiHash(void);
 /// Under a latent family the combined location IS the index, on the link's own
 /// fixed scale - so every forest's prior scale is stated in latent sd units,
 /// sigma is pinned, and there is no response transform to rescale.
+///
+/// SPECIFICATION ATTRIBUTES. Beyond the S4 slots of dbartsControl,
+/// dbartsModel and dbartsData, several families and compositions are selected
+/// by R ATTRIBUTES on the control or model object, not by the family argument
+/// and not by any slot. R's own fitting layer attaches them; a consumer
+/// assembling a specification by hand sets them itself, with
+/// Rf_setAttrib(control, Rf_install("<name>"), value), and a family below that
+/// has no DBARTS_FAMILY_* enumerator is reachable no other way. All are
+/// OPTIONAL: absent, creation builds the plain single-forest model the family
+/// argument and the response shape name. Each is read once, here, and the
+/// response SHAPE it declares is resolved in a fixed order - the control's
+/// binary slot first, then "bartcore.n.categories", then
+/// "bartcore.dispersion", then continuous - so a control declaring two shapes
+/// takes the first of them and the family argument is then checked against
+/// that one. Malformed values RAISE, except where an entry says IGNORED, where
+/// a value of the wrong type or length is treated as absent and the shape it
+/// would have declared is silently not declared.
+///
+/// On the control object:
+/// - "bartcore.n.categories": INTSXP, length 1, value K >= 2. Declares the
+///   ordered categorical shape and selects the cumulative-probit ORDINAL
+///   family over a response holding integer category indices in [1, K]; family
+///   must then be DBARTS_FAMILY_AUTO or DBARTS_FAMILY_ORDINAL, and any other
+///   raises. IGNORED when it is not an integer vector of length 1, or when its
+///   value is below 2.
+/// - "bartcore.dispersion": REALSXP, length 1. Its PRESENCE declares the count
+///   shape and selects the NBINOM family; family must then be
+///   DBARTS_FAMILY_AUTO or DBARTS_FAMILY_NBINOM, and any other raises. The
+///   VALUE is the dispersion spec: positive FIXES r at that value, and
+///   non-positive (R writes -1) estimates r on the shipped positive-integer
+///   grid. A fixed r is taken as an integer and its integrality is NOT checked
+///   here - R's own layer refuses a non-integer, and a flat consumer that
+///   passes one gets an engine reading it as one. IGNORED when it is not a
+///   real vector of length 1.
+/// - "bartcore.survival": REALSXP, length numObservations, each element 1
+///   (event) or 0 (right-censored). REQUIRED by DBARTS_FAMILY_AFT, which
+///   raises without it, and refused on every other family, which raises with
+///   it. A wrong type, a wrong length, or an element that is neither 0 nor 1
+///   raises.
+/// - "bartcore.variance": VECSXP with named elements "n.trees" (INTSXP length
+///   1, >= 1), "base" (REALSXP length 1 in (0, 1)), "power" (REALSXP length 1,
+///   positive) and "columns" (INTSXP of 1-based predictor indices the variance
+///   forest may split on, or R_NilValue for all of them). Selects the
+///   HETEROSCEDASTIC composition: a second forest modelling s^2(x), which owns
+///   the residual variance row by row. Gaussian constant-leaf models only, and
+///   refused with Student-t residuals, a monotone constraint or a leaf
+///   covariate; the sampler still answers DBARTS_FAMILY_GAUSSIAN and still
+///   requires a resolved data@sigma. Any missing or malformed element raises,
+///   as does a column index outside [1, numPredictors].
+/// - "bartcore.forests": VECSXP with named elements "params", "vars",
+///   "interactions" and "blocks". "params" is a VECSXP of K >= 2 length-8
+///   REALSXPs, one per forest: tree count, base, power, the calibration map's
+///   node-scale factor and divisor, the amplitude prior's variance and
+///   half-Cauchy scale, and a nonzero flag to update the amplitudes (forest 0
+///   takes its tree count, base and power from the control and model instead,
+///   and its params entry's first three values are unread). The other three
+///   are optional K-parallel VECSXPs, each element null for a forest that
+///   declares nothing: "vars" an INTSXP of 1-based columns that forest may
+///   split on, "interactions" a list of "max.order" and "forbidden" (an
+///   even-length INTSXP of 0-based (a, b) column pairs), "blocks" a list of
+///   "block.of.column" (INTSXP, one 0-based group per predictor) and
+///   "block.tree.counts" (INTSXP of positive per-group capacities summing to
+///   that forest's tree count). Selects the K-forest AMPLITUDE family
+///   described above. It is one half of a spec: the data object must carry K
+///   bases, and either half without the other raises, as does a basis count
+///   that disagrees with K.
+/// - "bartcore.hazard.periods": read only by R's own packaging layer. Creation
+///   never looks at it, so a flat consumer has nothing to set and setting it
+///   selects nothing.
+///
+/// On the model object:
+/// - "resid.df": REALSXP, length 1. A finite value selects the STUDENT-T
+///   residual law - positive fixes the degrees of freedom, 0 estimates them on
+///   a grid - over the gaussian family, which is the only one that carries it;
+///   any other family raises, as does a negative value. There is no
+///   DBARTS_FAMILY_* enumerator to select it with: the sampler still answers
+///   DBARTS_FAMILY_GAUSSIAN, and dbarts_sampler_getLatents then reports
+///   precisions. IGNORED when it is not a real vector of length 1.
+/// - "monotone": INTSXP, length numPredictors, each element -1, 0 or 1 (the
+///   direction the fit must be monotone in for that column; 0 leaves it
+///   unconstrained). All-zero is the unconstrained default. A wrong length, a
+///   non-integer vector, or an element outside [-1, 1] raises.
+/// - "interaction.max.order": INTSXP, length 1, non-negative. Caps the number
+///   of distinct columns any one tree may split on. Not length 1, or negative:
+///   raises.
+/// - "interaction.forbidden": INTSXP, an even-length flat stream of 0-based
+///   column pairs (a, b) that may not co-occur in a tree. A non-integer
+///   vector, an odd length, or an index outside [0, numPredictors) raises.
+/// - "block.of.column": INTSXP, length numPredictors, a 0-based block index
+///   per column (negative leaves a column in no block). Confines each whole
+///   tree to one block. A non-integer vector or a wrong length raises. It
+///   selects nothing on its own: the partition is installed only alongside
+///   "block.tree.counts", and without them it is read and then unused.
+/// - "block.tree.counts": INTSXP, one positive tree capacity per block, in
+///   block order, summing to the model's tree count. A non-integer vector, a
+///   non-positive capacity, a sum that disagrees with the tree count, or a
+///   "block.of.column" entry naming a block past the last capacity raises.
+///
+/// Absence is R_NilValue, equivalently no attribute at all. For the atomic
+/// attributes above a zero-length vector is absent too; for the two VECSXP
+/// control attributes ("bartcore.variance", "bartcore.forests") it is not, and
+/// an empty list raises as a malformed specification. "bartcore.survival" is
+/// the exception in the other direction: it is refused off DBARTS_FAMILY_AFT
+/// whatever its length, and required at exactly the observation count on it.
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       int family);
 void dbarts_sampler_destroy(dbarts_sampler* sampler);

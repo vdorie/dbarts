@@ -44,6 +44,7 @@ using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
+using bartcore_bridge::refuseMultiForestWarmStart;
 using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseSparseLeafCovariate;
@@ -2759,6 +2760,29 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
   if (!isMultiForest(sampler)) return;
   Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
            "new sampler instead", caller);
+}
+
+// A donor warm start would ANSWER at more than one forest rather than raise:
+// installForests reassembles each chain's trees from a saved slot but takes
+// hasAmplitudes/amplitudes/amplitudeVariances off the donor's LIVE chain
+// state, so a slot-sourced multi-forest install pairs one draw's forests with
+// another's glue and the fit comes back legal-looking and miscalibrated -
+// the silent-wrong-answer shape rather than a bug a run would show. Nothing
+// covers the result: no R test, no component pin above one forest, no
+// equivalence scenario, no calibration evidence. Refuse it at the forest
+// count until something does; a single-forest sampler is untouched, and the
+// K-forest softmax is caught here too, having no coverage of its own either.
+// The OTHER initialization is not refused: growForestFromRoot composes through
+// the combiner inside its own sweep - drawForestGlue, formForestResponse and
+// drawGlue, the same calls run() makes - and its two-forest branch is
+// exercised from R (test-prior-init-composed-law.R) and pinned in tests/cpp.
+void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
+                                const char* caller) {
+  size_t numForests = sampler.shape().numForests;
+  if (numForests < 2) return;
+  Rf_error("%s: a multi-forest sampler (%lu forests) has no tested warm "
+           "start from a donor; draw from the prior or grow from the root "
+           "instead", caller, static_cast<unsigned long>(numForests));
 }
 
 // The response, offset and weight conduits are one rule under three names. The
@@ -5797,6 +5821,7 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   refuseMutationOnView(*holder.sampler, "bartcore_installForests");
+  refuseMultiForestWarmStart(*holder.sampler, "bartcore_installForests");
   bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
   return R_NilValue;
 }

@@ -117,6 +117,20 @@ bool isMultiForest(const bartcore::SamplerBase& sampler);
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller);
 
+/// Errors on a multi-forest sampler (numForests >= 2) asked to seed its
+/// forests from a DONOR (installForests). It would ANSWER rather than raise:
+/// the trees come from a saved slot while the amplitudes come off the donor's
+/// LIVE chain state, so a slot-sourced multi-forest install pairs one draw's
+/// forests with another's glue and returns a miscalibrated fit without a word.
+/// Nothing covers the result - no R test, no component pin above one forest,
+/// no equivalence scenario and no calibration evidence. The other
+/// initialization, grow-from-root, is NOT covered here: it composes through
+/// the combiner every sweep and is exercised at two forests both from R and in
+/// tests/cpp. The R5 method raises its own wording ahead of this guard. caller
+/// labels the error.
+void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
+                                const char* caller);
+
 /// The response-side conduits refuseMultiForestResponseMutation covers. They
 /// carry one rule and differ only in what a refusal names and in whether the
 /// conduit has a scale to pin (weights do not).
