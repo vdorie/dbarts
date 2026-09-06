@@ -6,17 +6,22 @@
 # gate; valgrind adds uninitialized-read (--track-origins) coverage on a
 # nightly cadence plus on demand.
 #
-# NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so the
-# nightly run does not fire until this workflow lands on main. On bartcore it
-# is workflow_dispatch (manual) only - run it before landing a large engine
-# change. Validate the schedule when bartcore merges to main, alongside the
-# other schedule/dispatch-only workflows.
+# NOTE: GitHub binds `schedule` AND `workflow_dispatch` to the repository
+# DEFAULT branch: neither fires, and `gh workflow run` answers 404, until this
+# workflow lands on main. On bartcore the only trigger is a push that touches
+# this file, so a run is forced by editing it. Validate the schedule when
+# bartcore merges to main, alongside the other schedule/dispatch-only
+# workflows.
 name: valgrind
 
 on:
   schedule:
     - cron: '0 7 * * *'   # ~nightly; fires from the default branch only
   workflow_dispatch:
+  push:
+    branches: [bartcore]
+    paths:
+      - '.github/workflows/valgrind.yaml'
 
 permissions: read-all
 
