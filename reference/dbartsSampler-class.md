@@ -990,7 +990,16 @@ grid is instead remapped onto this sampler's grid, collapsing any splits
 the grid starves, the same way a data replacement remaps existing
 splits. A warm start biases the early draws toward the donor, so it
 shortens burn-in rather than removing it; keep drawing a non-zero number
-of burn-in samples before treating the chain as converged.
+of burn-in samples before treating the chain as converged. Single-forest
+samplers only: a sampler carrying two or more forests (a Bayesian causal
+forest or any other amplitude model, and a multinomial sampler's K
+category forests) refuses the call by name, reporting its forest count,
+because the install is not tested at more than one forest - it
+reassembles the trees from a saved sample but takes the amplitudes from
+the donor's current state. Use `growFromRoot` to initialize such a
+sampler instead. A variance forest is not one of the counted forests, so
+a heteroscedastic sampler takes a warm start as any single-forest one
+does.
 
 `growFromRoot` instead builds the sampler's initial forest by
 XBART-style root-down stochastic tree construction (He, Yalov and Hahn
@@ -1005,8 +1014,10 @@ an error, not a silent fall-back, so initialize those forests with
 `sampleTreesFromPrior` instead. As with `installTrees`, the grown forest
 biases the early draws toward its fit, so shorten burn-in rather than
 skipping it. Each chain grows on its own random-number stream, so the
-result is independent of `n.threads`. A composable cross-sampler
-workflow follows for free: `donor$growFromRoot(k)` then
+result is independent of `n.threads`. Unlike `installTrees` it runs on a
+multi-forest sampler, each forest grown against its own residual inside
+the sweep and the forests' amplitudes drawn with them. A composable
+cross-sampler workflow follows for free: `donor$growFromRoot(k)` then
 `target$installTrees(donor)`.
 
 ## Value

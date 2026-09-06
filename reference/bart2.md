@@ -606,7 +606,12 @@ print(x, ...)
   `sigma`, and `k` carry over, and each chain starts from a different
   donor sample so multiple chains stay overdispersed. A warm start
   biases early draws toward the donor, so it shortens burn-in rather
-  than removing it; keep a non-zero `n.burn`. See
+  than removing it; keep a non-zero `n.burn`. Multi-forest samplers
+  refuse it: a fit whose forests carry amplitude bases (a
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+  term, or a data object built with `bases`) errors by name, naming its
+  forest count, because a donor install is not tested at more than one
+  forest; `n.grow.sweeps` is the initialization such a fit can take. See
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `installTrees` method for finer control.
 
@@ -622,7 +627,9 @@ print(x, ...)
   than removing it; keep a non-zero (if smaller) `n.burn`. The posterior
   the sampler targets is unchanged - only the starting point moves.
   Constant-leaf models only, and mutually exclusive with `warm.start`
-  (both request an initialization). See
+  (both request an initialization). Unlike `warm.start` it is available
+  on a multi-forest fit, each forest grown against its own residual
+  inside the sweep. See
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `growFromRoot` method.
 
@@ -1525,7 +1532,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001194
+#> total seconds in loop: 0.001434
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1572,7 +1579,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001334
+#> total seconds in loop: 0.001606
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 
