@@ -742,8 +742,9 @@ depend on the file's full execution history, not just the preceding
   `docs/design/bart-as-a-component.md` section 2.
 - `TODO`: `host-shell-read-guards` (retired: [[TODO#host-shell-read-guards]] - the entry is gone) closes as OBVIATED;
   `multinomial-counts-mutation` (retired: [[TODO#multinomial-counts-mutation]] - the entry no longer exists as its own heading, archived at [[docs/plans/archive/multinomial-counts-mutation.md#multinomial-counts-mutation]] and referenced only from TODO's survival-followups entry) gains the surface note.
-- `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
-  shipped sentence at `[[inst/NEWS.Rd#"no longer a host shell for any of the three"]]`), `dbarts(family = "multinomial")`, the
+- `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (recorded at
+  [[inst/NEWS.Rd:2196-2199@e5bb3251]] until the 1.0-0 notes were trimmed to
+  changes visible from 0.9-34), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
 - `docs/plans/archive/c-api-growth.md`: Fork C3's reserve.
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
@@ -774,7 +775,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`[[inst/NEWS.Rd#"no longer a host shell for any of the three"]]` records the deletion).** `$bc` was a bare
+[[inst/NEWS.Rd:2196-2199@e5bb3251]] recorded the deletion).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written (retired: `$bc` has zero occurrences left in
 any of the files below - the only survivor is the NEWS sentence
