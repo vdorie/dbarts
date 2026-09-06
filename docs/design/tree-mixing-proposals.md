@@ -3,8 +3,11 @@
 Status: COMPLETE (survey with an adjudicated evidence base), 2026-08-09;
 **section 12 is an addendum from a second research cycle, 2026-08-10**,
 which refutes one of this document's recorded inferences (erratum in
-sec 5.4), amends sec 3.1, and adjudicates fourteen new candidates.
-No work proposed, nothing scheduled, no source touched. TODO
+sec 5.4), amends sec 3.1, and adjudicates fourteen new candidates;
+**section 13 is a measured move-set A/B, 2026-09-06**, which reproduces
+Tan et al.'s null on this package's own kernel and, with a one-paragraph
+addendum in sec 6.1, supplies the per-move acceptance rates the move
+census asked for. No work proposed, nothing scheduled, no source touched. TODO
 `tree-mixing-proposals` (VD 2026-08-09: "I'm interested in the ways in
 which the posterior is sticky and if we can come up with some other
 proposal mechanisms to help BART explore and mix better"). Likely
@@ -1353,6 +1356,30 @@ Stage 0 output freezes, before any Stage 2 contrast is looked at: the
 window-width grid, the dosage grid, the per-replicate standard errors, and
 every threshold.
 
+**Addendum (2026-09-06): the first bullet is now measured.** A scaffold
+build that instrumented the four [[src/bartcore/moves.hpp#resolveVetoRank]]
+call sites for a different purpose - the occupancy veto's rejection budget -
+also classified every structural proposal by move type and outcome, and
+those counts carry the per-move acceptance rates this bullet asks for. At
+the default mixture, the default prior, n = 2000, p = 10, 200 trees, 200
+burn plus 500 sampled sweeps, one chain
+([[docs/design/empty-leaf-veto.md#Measured occupancy rejection rate (2026-09-06)]]):
+birth accepts 22.56 percent of its proposals, death 25.95, change 14.79 and
+swap 6.36, pooling to 18.61 percent over 140000 proposals. Two denominator
+facts travel with those numbers. Change and swap make proposals that never
+reach a score - 7.4 percent of change proposals and 73.0 percent of swap
+proposals are no-ops - so per *scored* proposal the rates are birth 22.56,
+death 25.95, change 15.98 and swap 23.55: swap's headline weakness is
+almost entirely its no-op rate, not its acceptance ratio. The run was also
+200 trees, not this section's m = 75 grid cell. The comparison to Pratola's
+4 / 18 / 25 / 65 percent still cannot be pinned, because that section does
+not record the noise level of its configurations and Pratola's own
+birth/death rate moves 4.5x between his sigma^2 = 1 and sigma^2 = 0.1 cells.
+The other three bullets - the log-likelihood difference among rejected
+proposals, change acceptance against node depth, and the
+displacement-versus-acceptance curve - remain unmeasured; none of them
+falls out of a counter at the veto call site.
+
 ### 6.2 Stage 1 - correctness (`perturb-balance.R`, new)
 
 A per-kernel exact-posterior gate on the **within-variable cut
@@ -2458,4 +2485,224 @@ numerics      independent exact enumeration of the single-predictor tree
               and the enumeration is reproducible from them.
 citations     every source in 12.4 fetched and read in this session; two
               carried as bibliographic record only, marked as such
+```
+
+---
+
+## 13. Move-set A/B (2026-09-06)
+
+### 13.1 The question
+
+Should dbarts follow the BART package, which proposes birth and death only,
+or bartMachine, which proposes grow, prune and change but no swap? Section 2
+records that dbarts dispatches to three kernels under four labels at
+`birth_death 0.5, swap 0.1, change 0.4, birth 0.5`, and section 5.7 requires
+that every candidate be measured against what is already shipped. This is
+the cheapest possible instance of that requirement: the two rival move sets
+are already reachable at runtime through `proposal.probs`
+([[R/dbarts.R#dbarts]], [[R/model.R#defaultProposalProbs]]) with no engine
+change at all, so the contrast costs a grid of fits and nothing else.
+
+Three cited sources disagree about what the answer should be. Pratola's
+birth/death-only sampler collapses at low noise - acceptance ~4 percent,
+90 percent coverage 53 percent - and mixes at sigma^2 = 1 [verified: arXiv
+1312.1895 sec 2.2, as section 3.2 carries it]. Tan et al. found that
+"restricting the move set [to grow and prune] does not substantially affect
+R-hat, coverage, or RMSE" on their own Python implementation [verified:
+arXiv 2406.19958 appendix L.6, as section 3.4 carries it]. bartMachine's
+retention of change is attributed to variable-inclusion proportions rather
+than to posterior means; **that attribution was not verified in this arc and
+bartMachine is not in section 10's ledger**, so it is carried here as the
+question's motivation and not as a citation. The three quantities they
+disagree about - predictive accuracy, coverage, and variable inclusion - are
+what this measurement takes.
+
+### 13.2 Arms
+
+Runtime only, everything else identical.
+
+    A   birth_death 0.5, swap 0.1, change 0.4, birth 0.5   the shipped default
+    B   birth_death 1.0, swap 0.0, change 0.0, birth 0.5   birth/death only
+    C   birth_death 0.6, swap 0.0, change 0.4, birth 0.5   change, no swap
+
+200 trees, 1000 burn-in, 2000 kept, one chain, one thread, `n.thin = 1`.
+Five matched seeds per arm and design, the `grouped-mixing.R` idiom section
+6.3 specifies: data seed indexed by design and replicate, sampler seed the
+replicate, both shared across arms so every contrast is paired. Note that
+200 trees and 4 chains are section 5.7's own baseline on the tree count but
+not on the chain count; one chain is what makes a 75-fit grid affordable,
+and it is why nothing between-chain appears below.
+
+### 13.3 Designs
+
+    (1) Friedman, n = 2000, p = 10 (5 noise), sigma = 1
+    (2) as (1) at sigma = 0.25            the low-noise regime of section 3.2
+    (3) 10 * 1[x1>.5] * 1[x2>.5] * 1[x3>.5] + 5 x4, n = 2000, p = 10,
+        sigma = 1                         a depth-3 interaction, where a rule
+                                          at a high node has to change
+    (4) Friedman on the first 5 of p = 100, n = 1000, sigma = 1
+                                          the variable-inclusion design
+    (5) probit, n = 2000, p = 10, latent = standardized Friedman
+
+The test set is 1000 rows, drawn once per design and held fixed across every
+arm and seed; 25 evenly spaced rows of it carry the ESS. RMSE and 90 percent
+pointwise coverage are of the true f on all 1000 rows - the latent index
+under (5). ESS is `posterior::ess_basic`, median over the 25 points for f,
+and of the sigma draws where sigma exists. Inclusion is `varcount` converted
+to per-draw proportions and averaged over draws; "incl true" below is the
+summed proportion on the signal columns.
+
+### 13.4 Tables
+
+Mean over the five seeds, min-max in parentheses.
+
+    (1) Friedman, sigma = 1
+    arm  RMSE                cover             ESS f         ESS sigma    incl true            wall s
+    A    0.517(0.479-0.552)  0.904(0.88-0.93)   20( 11- 28)   75(  8-244)  0.693(0.671-0.707)  6.17
+    B    0.515(0.493-0.534)  0.905(0.89-0.93)   21( 18- 23)   96(  6-246)  0.701(0.682-0.713)  5.16
+    C    0.511(0.485-0.533)  0.915(0.90-0.94)   23( 20- 25)   16(  7- 24)  0.697(0.682-0.718)  6.25
+
+    (2) Friedman, sigma = 0.25
+    arm  RMSE                cover             ESS f         ESS sigma    incl true            wall s
+    A    0.265(0.257-0.277)  0.714(0.69-0.75)    8(  3- 18)   19(  2- 84)  0.912(0.893-0.921)  5.95
+    B    0.263(0.251-0.275)  0.725(0.70-0.75)    9(  6- 15)    5(  2- 13)  0.918(0.914-0.924)  5.31
+    C    0.267(0.248-0.278)  0.714(0.68-0.74)   10(  5- 13)   25(  2- 81)  0.908(0.896-0.918)  6.04
+
+    (3) deep interaction
+    arm  RMSE                cover             ESS f         ESS sigma    incl true            wall s
+    A    0.753(0.635-0.859)  0.949(0.94-0.97)   48( 30- 68)   36(  2-112)  0.482(0.458-0.512)  6.12
+    B    0.762(0.660-0.825)  0.955(0.95-0.96)   49( 42- 57)  118(  2-333)  0.494(0.481-0.508)  5.34
+    C    0.722(0.653-0.785)  0.959(0.95-0.97)   43( 35- 48)   15(  2- 32)  0.473(0.456-0.500)  6.13
+
+    (4) sparse p = 100
+    arm  RMSE                cover             ESS f         ESS sigma    incl true            wall s
+    A    0.925(0.826-0.996)  0.900(0.88-0.92)   15(  9- 25)    2(  1-  3)  0.277(0.270-0.288)  4.60
+    B    0.945(0.875-0.994)  0.885(0.85-0.92)   14( 10- 20)    6(  1- 18)  0.279(0.260-0.290)  4.24
+    C    0.960(0.881-1.035)  0.881(0.85-0.92)   12(  9- 15)    9(  1- 30)  0.278(0.268-0.287)  4.63
+
+    (5) probit
+    arm  RMSE                cover             ESS f         ESS sigma    incl true            wall s
+    A    0.316(0.288-0.353)  0.950(0.91-0.98)  234(117-294)      -         0.540(0.535-0.547)  6.63
+    B    0.316(0.288-0.351)  0.948(0.90-0.98)  186(143-222)      -         0.541(0.533-0.548)  6.01
+    C    0.318(0.289-0.352)  0.946(0.92-0.97)  241(206-265)      -         0.540(0.532-0.545)  6.65
+
+Design 4 is the inclusion design, so it gets its own readout. Per-column
+inclusion proportion, averaged over the five seeds:
+
+    arm    x1      x2      x3      x4      x5     95 noise cols     noise cols
+                                                   mean     max   above min true
+    A    0.0726  0.0664  0.0497  0.0548  0.0336  0.0076  0.0112         0
+    B    0.0684  0.0725  0.0503  0.0525  0.0350  0.0076  0.0117         0
+    C    0.0739  0.0674  0.0493  0.0526  0.0349  0.0076  0.0106         0
+
+Zero noise columns clear the weakest signal column's inclusion proportion,
+in every arm and every one of the fifteen fits.
+
+### 13.5 What separated and what did not
+
+Sixty-eight paired contrasts - five designs, two contrasts against A, seven
+metrics, less the two sigma cells probit does not have. The largest is
+|t| = 2.53 on 4 degrees of freedom; the smallest Holm-adjusted p over the
+whole family is 1.000. **No arm separates from any other on RMSE, on 90
+percent coverage, on median f ESS, on sigma ESS, or on variable inclusion,
+in any of the five designs.**
+
+The resolution actually achieved, read off the paired standard errors: about
+0.012 on RMSE, 0.02 on coverage, 6 on median f ESS, 0.01 on the summed
+true-column inclusion share. Section 6.4's own pre-registered margin is 4x
+the per-replicate standard error, which is 0.05 to 0.08 on coverage here. No
+contrast reaches a third of it. Five pairs per cell rules out effects of the
+size the three sources disagree about; it does not rule out small ones.
+
+Two raw signals are worth recording even though neither survives
+multiplicity, because they point the same way and both sit in the probit
+design: B loses median f ESS against A (-48 +/- 22, four of five seeds
+negative) and C raises the *worst*-point f ESS against A (+48 +/- 19, five
+of five seeds positive). That is the change move helping, and the swap move
+not, on the probit latent. It is a mixing signal, not the inclusion signal
+bartMachine's retention of change is attributed to, and this grid cannot
+establish it.
+
+Sigma ESS does not discriminate and should not be carried forward at this
+replicate count: it swings from 1 to 333 across seeds inside a single arm
+and design. That is the slowness of the sigma chain at 200 trees, and it is
+consistent with section 3.2's mechanism, not an arm effect.
+
+Wall time is the one place the arms separate cleanly, consistently and in
+the same direction in all five designs. Pooled, B costs 0.884x arm A and C
+costs 1.008x; per design B/A is 0.836, 0.891, 0.873, 0.923, 0.907 and C/A is
+1.013, 1.015, 1.002, 1.006, 1.003. Dropping change and swap buys 8 to 16
+percent of the sweep. Dropping swap alone buys nothing measurable, which
+section 6.1's addendum explains: 73.0 percent of swap proposals are no-ops,
+so the move is already nearly free.
+
+### 13.6 Reading against the three sources
+
+- **Tan et al. is reproduced, on this package's own kernel.** Their
+  Experiment 7 compared `{grow .5, prune .5}` against
+  `{grow .25, prune .25, change .4, swap .1}` on a Python implementation and
+  found no substantial effect on R-hat, coverage or RMSE. Arm B against arm
+  A is that same contrast on dbarts, and it finds no effect on coverage or
+  RMSE either, in five designs including two their battery did not have (a
+  depth-3 interaction and a probit response). Section 8's standing
+  conclusion - "the case for a *new* move cannot rest on 'dbarts has four
+  moves'" - now rests on a dbarts measurement rather than on transfer from
+  another implementation.
+- **Pratola's low-noise collapse reproduces, and is not caused by the move
+  set.** Design 2 drops 90 percent coverage from 0.90 to 0.71, which is
+  section 3.2's established failure appearing on schedule. But it drops to
+  0.714, 0.725 and 0.714 in arms A, B and C alike. Pratola's own sampler was
+  verbatim "with birth/death proposals only", and section 3.2 already warns
+  that the match to dbarts is on `(n, m, sigma)` and nothing else; this
+  measurement adds that the move set is not the missing term. Restoring
+  change and swap to a birth/death-only sampler does not repair low-noise
+  coverage, so whatever repairs it is not in the shipped mixture.
+- **The bartMachine premise is not reproduced on the design built to test
+  it.** Design 4 puts Friedman signal on 5 of 100 columns, which is where
+  inclusion proportions are supposed to degrade if change is dropped. The
+  summed signal share is 0.277, 0.279 and 0.278 across arms; the 95 noise
+  columns average 0.0076 in every arm; and no noise column in any arm or
+  seed outranks the weakest signal column. If dropping change hurts
+  variable-inclusion proportions, it does not do so here at n = 1000,
+  p = 100, 200 trees and 2000 draws.
+
+### 13.7 What this does not settle
+
+- One chain per fit. Every between-chain statistic section 6.3 prefers - the
+  pooled between-chain standard deviation of time-averaged inclusion, above
+  all - is absent, and section 8 already records that at 75 trees no
+  structural statistic detects mode collapse at feasible replicate counts.
+  A null here is a null on within-chain readouts.
+- Five pairs. The margins are stated above; small effects are not excluded.
+- The three arms are mixtures over the *shipped* kernels. Nothing here
+  speaks to a new kernel, and in particular nothing here weakens or
+  strengthens the section 4.2 cut move, whose premise is that the shipped
+  change move is badly aimed rather than that there are too few moves.
+- Acceptance rates were not instrumented for this grid; section 6.1's
+  addendum supplies them from a separate run at a separate configuration.
+
+The practical consequence, stated plainly: there is no measured reason to
+change the shipped default, and no measured reason to fear either
+alternative. A user who sets `proposal.probs` to birth/death only gets the
+same answers 8 to 16 percent faster on these five designs. That is a fact
+worth documenting; it is not an argument for moving the default, which would
+need the harm battery section 6.4 requires and does not have.
+
+### 13.8 Provenance
+
+```
+repo          /Users/vdorie/Repositories/dbarts, branch bartcore
+measured at   916271f3, re-checked at c585ba2c (docs only in between, no
+              source, so the measurement is live at that tip)
+build         private library installed from a clean `git archive HEAD`
+              export; dbarts 1.0.0, R 4.6.1, posterior 1.7.0, arm64 macOS
+grid          3 arms x 5 designs x 5 seeds = 75 fits, run in the foreground,
+              single-threaded; 4.2 to 6.7 s per fit
+scope         measurement only - no source change, no default change, nothing
+              scheduled
+caveat        the host carried a load average of 9 to 16 throughout. Absolute
+              seconds are indicative; the B/A ratio holds in all five designs
+              and all 25 pairs, which is what carries the wall-time claim.
+scripts       run out of repo and not preserved; every input is named above
+              and the grid is reproducible from `proposal.probs` alone
 ```
