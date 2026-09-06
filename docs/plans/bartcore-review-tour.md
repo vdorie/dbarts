@@ -65,12 +65,15 @@ CAPABILITY STATUS. Below is what a caller of `R_C_interface.hpp` meets.
 - Six entries that were `void` on `R_C_interface.hpp` return `int` on
   `dbarts.h`, where every sampler entry is spelled `dbarts_sampler_<name>`:
   `setResponse`, `setOffset`, `setSigma`, `setTestPredictors` (singular
-  `setTestPredictor` there), `setTestOffset`, `predict`. All six return
-  CAPABILITY STATUS: 0 means the sampler cannot do this at all and nothing
-  was touched, a fixed property of the sampler, so probe once at setup; a
-  caller that ignores the return still compiles. `setWeights` is new to the
-  C API - it had no C entry point, only `dbarts::BARTFit::setWeights` behind
-  the C++ ABI.
+  `setTestPredictor` there), `setTestOffset`, `predict`. The `int` is a
+  CAPABILITY STATUS: 1 means the call did its work, which on an ordinary
+  gaussian sampler it always does; 0 means this sampler's model has nothing
+  for the call to act on, and it was left untouched - `setSigma` on a probit
+  sampler, whose residual scale is pinned at 1, or `setTestOffset` on a
+  multi-forest sampler. A bad argument still raises. The answer is a fixed
+  property of the sampler, so probe once at setup; a caller that ignores
+  the return still compiles. `setWeights` is new to the C API - it had no C
+  entry point, only `dbarts::BARTFit::setWeights` behind the C++ ABI.
 - `dbarts_sampler_getTrees` and `dbarts_sampler_printTrees` take `forest` as
   argument 2; a single-forest caller passes 0. The ABI hash is the backstop
   against a stale call site that a C compiler only warns about.
