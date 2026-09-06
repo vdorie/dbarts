@@ -1,9 +1,7 @@
 # The multiplier combiner: design
 
-Status: LANDED, 2026-08-13 to 2026-08-14, across M4.0 (eb340f4f), M4.1
-(e3170da4 + 9459bef0), M4.2 (a35ff7df), M4.3 (983d7f0a) and M4.4 (e5e93f11),
-with the landing records at 53d64798 and c0c9e12f
-(docs/plans/archive/multiforest-extension-surface.md, M4). The general K-forest
+Status: LANDED, 2026-08-13 to 2026-08-14 (landing record:
+docs/plans/archive/multiforest-extension-surface.md). The general K-forest
 basis/amplitude family: each forest carries its own basis, its row contracts
 with that forest's amplitude vector into a per-observation scalar, and the
 forest enters the combination scaled by it. bcf's `a mu + b_z tau` is the
@@ -73,13 +71,9 @@ one multiplier path ([[src/bartcore/combiner.hpp#forestMultiplier]]).
 Storage is ROW-major, row i at `i * numColumns`, because the contraction is the
 only read the engine makes of a basis: a row is contiguous and the multiplier
 costs one stream per forest ([[src/bartcore/combiner.hpp#forestMultiplier]]).
-The plan's "The channel, specified" section said COLUMN-major and was wrong
-about the shipped code; M4.3 item 5 resolved the transpose IN THE DOC
-DIRECTION, the header agrees
+The flat surface states the same order
 ([[CAPI#dbarts_sampler_setForestBasis, basisRowMajor]],
-[[src/C_interface.cpp#dbarts_sampler_setForestBasis]]), and M4.5 corrected the
-plan line itself
-([[docs/plans/multiforest-extension-surface.md:557-561@4c018187]]).
+[[src/C_interface.cpp#dbarts_sampler_setForestBasis]]).
 
 ## The amplitude layout
 
@@ -156,31 +150,27 @@ division per coordinate. Over an ORTHOGONAL basis - bcf's indicator pair, any
 factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
 ([[src/bartcore/combiner.hpp#drawForestAmplitude]]). The two-sqrt Cholesky
-solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2
-landing note, [[docs/plans/multiforest-extension-surface.md:4855-4857@4c018187]]).
+solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction.
 `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is its teeth, with a
-p = 1 arm asserting the Cholesky route DIFFERS and a p = 2 orthogonal arm
-([[docs/plans/multiforest-extension-surface.md:4891-4896@4c018187]]).
+p = 1 arm asserting the Cholesky route DIFFERS and a p = 2 orthogonal arm.
 
-## Why bcf no longer keeps a specialized draw
+## Why there is no specialized bcf draw
 
-`drawGlue` ([[src/bartcore/combiner.hpp#drawGlue]]) is the general sweep and nothing else. bcf's
-K = 2 shape landed with a two-scalar specialization beside it, selected on the
-forest count, a basis-shape predicate and an `AmplitudeSpec` flag. The two were
-the SAME conditional in exact arithmetic - all four accumulators bitwise equal
-under `-ffp-contract=off` - and differed only in where the compiler forms fused
-multiply-adds: the a block accumulated in one statement and fused, while the b
-block formed per-row products before a branch and accumulated inside it, which
-fused unevenly.
+`drawGlue` ([[src/bartcore/combiner.hpp#drawGlue]]) is the general sweep and nothing else. There is no
+two-scalar specialization beside it for bcf's K = 2 shape, selected on the
+forest count, a basis-shape predicate and an `AmplitudeSpec` flag. Such a
+specialization would be the SAME conditional in exact arithmetic - all four
+accumulators bitwise equal under `-ffp-contract=off` - and would differ only in
+where the compiler forms fused multiply-adds: an a block accumulated in one
+statement fuses, while a b block forming per-row products before a branch and
+accumulating inside it fuses unevenly.
 
-The MEASURED split, kept because it is what the deletion cost: all four
-PRECISIONS reproduced bitwise, weighted and unweighted; the divergence was in
-the MOMENTS - unweighted, n1 reproduced and n0 differed; weighted, both
-differed. No single accumulation shape reproduced both blocks, over 21 variants
-tried. So the general path could not be bitwise on bcf, and the specialization
-was held until a `bcf-equivalence` re-record was authorized. This IS that
-re-record: the branch, its predicate and its spec flag are gone, and every
-shape draws through the one conditional.
+The MEASURED split between the two: all four PRECISIONS reproduce bitwise,
+weighted and unweighted; the divergence is in the MOMENTS - unweighted, n1
+reproduces and n0 differs; weighted, both differ. No single accumulation shape
+reproduces both blocks, over 21 variants tried. So a general path cannot be
+bitwise against a two-scalar one on bcf, and the `bcf-equivalence` baseline is
+recorded against the one conditional every shape draws through.
 
 ## The ASIS ridge
 
@@ -556,21 +546,19 @@ before `binary-kforest-prior-default` S2 it was 0.3764.
 thin adapter between bcf's two-forest spelling and the K-length vector every
 other layer works in, and it is LOAD-BEARING rather than courtesy: 25
 `tests/cpp` fixtures and benchmarks/R/bcf-equivalence.R drive through the
-`AmplitudeSpec` spelling
-([[docs/plans/multiforest-extension-surface.md:1785-1791@4c018187]],
-[[docs/plans/multiforest-extension-surface.md:2182-2184@4c018187]]).
+`AmplitudeSpec` spelling.
 Forest 0 takes the half-Cauchy amplitude over the implicit intercept and
 leaves its node scale at s; forest 1 takes the fixed-variance pair over the
 treatment indicator basis and carries `sdModerate` in its node scale.
 
-`bcfGlue(a, b0, b1)` survives as a named READING that returns false on any
-other layout, which is how a caller learns it is not looking at bcf
+`bcfGlue(a, b0, b1)` is a named READING that returns false on any other
+layout, which is how a caller learns it is not looking at bcf
 ([[src/bartcore/combiner.hpp#bcfGlue]], [[src/bartcore/chain.hpp#forestTotalFits]]).
 
 ## Surfaces
 
 The map is READABLE, at all three layers, and is the only route to any of its
-five quantities (`binary-kforest-prior-default` S1):
+five quantities:
 `$getCalibration(f)` reports `amplitude.prior.variance` and
 `amplitude.prior.scale` - exclusive per forest, the fixed-variance and
 scale-mixture spellings of `ForestAmplitudePrior` - beside `node.scale.factor`,
@@ -602,33 +590,34 @@ that rule in two independent places
 ([[src/C_interface.cpp#dbarts_sampler_numForests]],
 [[src/R_interface_bartcore.cpp#bartcore_setForestBasis]]).
 
-Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
-combiner overrides `numVariableCountForests` to its own forest count and
-`variableCountForest(j)` to `j`, so `run()$varcount` is
+Per-forest SPLIT COUNTS are reported too: the combiner overrides
+`numVariableCountForests` to its own forest count and `variableCountForest(j)`
+to `j`, so `run()$varcount` is
 `n.predictors x n.forests x n.samples x n.chains`, forest-major and prognostic
 first - the multinomial coupling's channel, at a coupling whose
 `numReportedLocations` stays 1, which is exactly why the two axes are keyed
 separately. The width a run actually writes is the CALLER's declared
 `Results::numVariableCountForests`, clamped once to this count in
 `Sampler::run`; a caller declaring one (the flat C API, rbart_vi's callback
-loop) gets slot 0, the reported forest, byte for byte as before.
+loop) gets slot 0, the reported forest, in exactly the bytes a one-forest
+declaration receives.
 
 ## What this family does not do
 
 - `aft`, `ordinal` and `nbinom` responses - refused at creation, naming what
-  each is missing (gaussian, probit and logistic landed at M4.4).
-- The test surface, for EVERY family including the two M4.4 added.
+  each is missing.
+- The test surface, for EVERY family.
   `testFitsAreDefined` and `logLikelihoodIsDefined` are both false
   ([[src/bartcore/combiner.hpp#testFitsAreDefined, logLikelihoodIsDefined]]),
   so `setTestPredictors`, `setTestOffset` and `predict` refuse - through
   `refuseUndefinedTestFits`, gated on `testFitsAreDefined` rather than on the
   forest count
   ([[src/R_interface_bartcore_common.hpp#refuseUndefinedTestFits, testFitsAreDefined]])
-  - and no log-likelihood is reported. Unchanged by M4.4.
+  - and no log-likelihood is reported.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
-  ([[inst/include/dbarts/dbarts.h#dbarts_results]]); DECLINED at
-  [[docs/plans/multiforest-extension-surface.md:1521-1531@4c018187]],
-  a `DBARTS_C_API_MINOR` bump binding decision 8 forbids.
+  ([[inst/include/dbarts/dbarts.h#dbarts_results]]); appending one moves no
+  version constant before 1.0-0 ships and bumps `DBARTS_C_API_MINOR` after,
+  and changes `DBARTS_C_API_HASH` either way.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   ([[src/bartcore/facade.hpp#createAmplitudeSampler]]).
 - Nameable leaf-prior calibration. The map owns it, so the write is refused on

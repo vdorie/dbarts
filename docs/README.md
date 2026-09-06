@@ -64,17 +64,17 @@ a doc, start at the two INDEX files above.
 
 ## Known name collisions and non-obvious pairings
 
-These are intentional, not renamed for consistency - navigate them:
+These pairings are current and deliberate - navigate them:
 
 - `docs/plans/archive/c-api-growth.md` vs. `docs/plans/archive/capi-callbacks.md` /
   `docs/plans/archive/capi-dispatch-table.md` - same ABI-growth subsystem, two
-  spellings of the same prefix (`c-api` vs `capi`). Three distinct
-  stages of one arc, not redundant (only capi-dispatch-table.md
-  explicitly cites c-api-growth.md).
+  spellings of the same prefix (`c-api` vs `capi`). Three distinct docs on
+  that subsystem, not redundant copies; only capi-dispatch-table.md cites
+  c-api-growth.md.
 - `docs/plans/archive/x86-simd.md` vs. `docs/plans/x86-simd-plan.md` - NOT
-  duplicates. `x86-simd-plan.md` is a READ-ONLY measurement memo (the
-  x86-measured follow-up to `simd-survey.md`); `x86-simd.md` is the
-  action-plan-shaped file that resulted from it, now CLOSED/SUPERSEDED.
+  duplicates. `x86-simd-plan.md` is a READ-ONLY measurement memo, the
+  x86-measured companion to `simd-survey.md`; `x86-simd.md` is the
+  action-plan-shaped file on the same gaps, CLOSED/SUPERSEDED.
 - `docs/design/monotone.md` <-> `docs/plans/archive/monotone-bart.md` - design doc
   and plan file do not share a basename.
 - `docs/design/ordinal.md` <-> `docs/plans/archive/ordinal-outcomes.md` - same

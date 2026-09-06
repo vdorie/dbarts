@@ -153,8 +153,8 @@ weights are its Polya-Gamma trial counts and stay open ([f10]).
 only ([[RIB#refusePredictorMutation, refuseMultiForestMutation]]) and is
 refused for grouped ([[RIB#"grouped random effects fix the data at creation"]])
 and aft ([[RIB#"fix the censoring structure at creation"]]);
-BCF/multinomial whole-data `setData` stays undesigned by the model-space
-survey's verdict (model-space-survey.md's open questions 1 and 3).
+BCF/multinomial whole-data `setData` is undesigned (model-space-survey.md,
+open questions 1 and 3).
 
 ## 3. Row subsetting, latents, calibration
 
@@ -289,7 +289,7 @@ entry point, and no dbarts.h one at all -
 [[C_interface.cpp#creationFamilyName]] refuses the multinomial token as a
 sampler that entry cannot build.
 
-[f5] `family = "aft"` is an explicit, appended token on `bart()`, documented in
+[f5] `family = "aft"` is an explicit token on `bart()`, documented in
 man/bart.Rd's `family` item; the underlying `Surv()` / two-column-`y.train`
 detection is a separate mechanism and resolves the response shape on its own.
 
@@ -375,7 +375,7 @@ base family with a data-derived transform (gaussian, which is Student-t's
 report, and aft): b and tau are held on the base's internal scale and converted
 by nothing, so a re-anchoring swap would silently restate both in response
 units. Grouped probit and logistic take `updateScale = TRUE` as the no-op it
-always was. The flat C API guards through the same call
+is under any latent family ([f9]). The flat C API guards through the same call
 ([[C_interface.cpp#refuseGroupedScaleUpdate]]); `setData` stays refused.
 
 [f14] Reads off the BASE family: grouped gaussian takes `setWeights`
@@ -428,7 +428,7 @@ members, so a leaf held alive only by zeroed rows is empty and its branch is
 vetoed. The veto is a RANK, taken once over the branch's leaves in
 [[MOV#logLikelihoodForBranch]] for EVERY leaf model, the branch-owning
 constrained ones included, so model.hpp keeps only that model's own
-feasibility sentinel and no second copy of the weight law. Occupancy elsewhere
+feasibility sentinel. Occupancy elsewhere
 still counts members deliberately, so this does NOT make zero-weight occupancy
 match a compacted fit
 ([[docs/design/empty-leaf-veto.md#What counts as empty]]). The same law covers
@@ -460,17 +460,16 @@ against `dt(...)` at three indices ([[test-pointwise-loglik.R#"ll.t"]]).
 at creation ("drop zero-count rows", [[RIB#enforceBinaryWeightPolicy]]; R mirror
 [[spec.R#enforceWeightPolicy]]), so zero-weight subsetting is foreclosed for
 this family by the weight semantics themselves. The mid-chain `setActiveRows`
-channel is what serves that caller instead ([f15]); the zero-count creation
-refusal stands.
+channel is what serves that caller instead ([f15]).
 
-[f21] PER-FOREST masking stays REFUSED, permanently and on model
+[f21] PER-FOREST masking is REFUSED, permanently and on model
 grounds: the softmax margin is a log-sum-exp over the other K-1 forests,
 so a row absent from category k's forest is still in every other
 category's likelihood, and "row i is out of category k only" restricts no
 likelihood at all. The refusal lands at the only reachable per-forest,
 per-observation channel, [[RIB#bartcore_setForestWeights]], naming the
-model reason rather than "unbuilt". BCF's per-forest weight acceptance at
-that same channel stands unaffected - a different (additive) coupling
+model reason rather than "unbuilt". BCF accepts a per-forest weight at
+that same channel - a different (additive) coupling
 where the per-forest mask is redundant with, not incoherent under, the
 combined likelihood (see [f26]).
 
@@ -533,8 +532,8 @@ and in the sigma df, while a zeroed composed weight does reach that forest's
 empty-leaf veto). See
 [[docs/design/bcf.md#The multiplier snap and the per-forest weight]].
 
-[f27] Delegating decorations: neither row needed an engine edit of its own for
-either column. `GroupedResponse` forwards `setActiveRows`
+[f27] Delegating decorations: both columns fall out of the base family's
+implementation. `GroupedResponse` forwards `setActiveRows`
 ([[MOD#GroupedResponse::setActiveRows]]) exactly as it forwards `setWeights`
 ([[MOD#GroupedResponse::setWeights]]), advertising the base's capability
 ([[MOD#GroupedResponse::supportsActiveRows]]), and [[MOD#drawGroupEffects]]
@@ -752,7 +751,7 @@ not support 'warm.start' or 'n.grow.sweeps'` for the four alternate-family
 `bart2` arcs, with no model reason stated there or anywhere else: the guard
 records that the arc was never built for either argument, not that either is
 incoherent under the family, so these cells are `M` and not `R`. The two
-columns stay separate although one check refuses both today: a warm start
+columns are separate although one check refuses both today: a warm start
 installs a previous fit's trees and family state, while grow-from-root
 needs the family's working response inside the root-growth recursion, and
 either could arrive for a family without the other.

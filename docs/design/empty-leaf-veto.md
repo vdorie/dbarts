@@ -9,17 +9,16 @@ construction, as categorical rules mostly are - or whether the veto
 stays and is documented as deliberate. The conclusion is keep and
 document; the reasoning follows.
 
-Correction (2026-07-15): the penalty was a large *finite* constant
-(-1e7). That is wrong. A valid branch's log-likelihood is unbounded
-below - it carries a -0.5 * centeredSumOfSquares / residualVariance term
-that grows with the node's observation count and with a small residual
+The penalty is -HUGE_VAL, not a finite constant (0.9-34's `likelihood.cpp`
+returns -1e7). A finite penalty is unsound: a valid branch's log-likelihood is
+unbounded below - it carries a -0.5 * centeredSumOfSquares / residualVariance
+term that grows with the node's observation count and with a small residual
 variance - so at scale (a large fit, or a small sigma during sampling) a
-legitimate current branch scores below -1e7, the empty-leaf proposal at
--1e7 wins the finite-vs-vetoed comparison, and the empty leaf enters the
-chain state. It then fails the occupancy check on export/restore
-(stan4bart's createStoredBARTSampler, observed at n=50000). The penalty
-is now -HUGE_VAL, which vetoes unconditionally; the analysis below of why
-that stays NaN-free is unchanged.
+legitimate current branch scores below -1e7, the empty-leaf proposal at -1e7
+wins the finite-vs-vetoed comparison, and the empty leaf enters the chain
+state, where it fails the occupancy check on export/restore (stan4bart's
+createStoredBARTSampler, at n = 50000). -HUGE_VAL vetoes unconditionally, and
+the analysis below shows it stays NaN-free. (2026-07-15)
 
 ## Where the constant is read
 
@@ -89,19 +88,17 @@ leaf (it collapses two children into their non-empty parent).
 
 ## Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)
 
-This section used to answer "no", on the argument that the chain state
-maintains the no-empty-leaf invariant, so the current branch always scores
-finite and every comparison is finite-vs-vetoed. The premise holds of the
-STATE and fails of the SCORE: the score's predicate reads WEIGHTS, and weights
-do not ride the tree. Every install that can zero the vector a grown forest is
-scored against reaches a vetoed CURRENT state - `Chain::setWeights`,
-`setActiveRows`, `setForestWeights`, `setForestBasis` (the multiplier is a veto
-weight), `setState`/`installForests` and the predictor transaction's
-revalidation (which enforce the COUNT law, not this one), `setData` and the
-donor rebuild through `collapseEmptyNodes` (count law again), and with no
-install at all the BCF per-sweep zero-multiplier snap and `formMeanWeights`'
-`w_i / s^2(x_i)` underflow. No install-time gate can be total, and the
-documented, tested all-zero mask says so outright.
+The no-empty-leaf invariant holds of the chain STATE, not of the SCORE: the
+score's predicate reads WEIGHTS, and weights do not ride the tree. Every
+install that can zero the vector a grown forest is scored against reaches a
+vetoed CURRENT state - `Chain::setWeights`, `setActiveRows`,
+`setForestWeights`, `setForestBasis` (the multiplier is a veto weight),
+`setState`/`installForests` and the predictor transaction's revalidation (which
+enforce the COUNT law, not this one), `setData` and the donor rebuild through
+`collapseEmptyNodes` (count law again), and with no install at all the BCF
+per-sweep zero-multiplier snap and `formMeanWeights`' `w_i / s^2(x_i)`
+underflow. No install-time gate can be total, and the documented, tested
+all-zero mask says so outright.
 
 Left as two infinite penalties, that state is not merely unpriced: the
 comparison is `exp(-inf - (-inf)) = NaN`, every comparison against it is false,
@@ -120,45 +117,44 @@ likelihood (`Tree::leafVetoRank`, `moves.hpp`'s `BranchScore` and
 
 Worse rank loses outright (ratio exactly 0.0, today's double); better rank wins
 outright (+inf inside the same product, today's double); EQUAL rank takes
-today's arithmetic on the finite parts, where the finite part now SKIPS the
+today's arithmetic on the finite parts, where the finite part SKIPS the
 vetoed leaves rather than summing marginals for them - the conjugate leaves
 return exactly 0.0 there, but a linear or GP leaf does not, and a leaf with
-nothing to estimate should contribute nothing. Equal rank at level 1 is the
-only changed comparison, and it is what unfreezes the forest: the tree mixes
-under prior x transition at a constant likelihood, and any move clearing the
-veto is a rank decrease, accepted outright. Level 2 stays separate so the
-MEMBERSHIP law - what `bottomNodesAreOccupied`, state export/restore and the
-predictor surface all require - is never violated from a vetoed state.
+nothing to estimate should contribute nothing. Equal rank at level 1 is what
+keeps a vetoed forest moving: the tree mixes under prior x transition at a
+constant likelihood, and any move clearing the veto is a rank decrease,
+accepted outright. Level 2 stays separate so the MEMBERSHIP law - what
+`bottomNodesAreOccupied`, state export/restore and the predictor surface all
+require - is never violated from a vetoed state.
 
 Stationarity. The target is the CGM prior x marginal restricted to the
 admissible set S and renormalized, which IS the veto's definition. On S x S the
-acceptance is arithmetically identical to before, so the exact-posterior gates
-carry unchanged; from S no proposal outside S is ever accepted, so S is
-absorbing and the target is invariant. Outside S the kernel is off-support and
-free, and needs only to return: a death never raises a branch's rank (the
+rank decides nothing and the acceptance is the ordinary one, so the
+exact-posterior gates apply; from S no proposal outside S is ever accepted, so
+S is absorbing and the target is invariant. Outside S the kernel is off-support
+and free, and needs only to return: a death never raises a branch's rank (the
 parent's members are the children's union), and every equal-rank move has
 strictly positive acceptance, so the tree collapses back into S with positive
 probability per sweep. Under an ALL-zero vector S is empty and the kernel
 degenerates to the standard CGM structure kernel at constant likelihood - which
-is exactly what "the forest sits at its prior" was always meant to say. A host
-that rewrites the mask every sweep is not passing through a burn-in but living
-off support; the alternative there is a frozen forest, so the ranked kernel
-still dominates.
+is what "the forest sits at its prior" means. A host that rewrites the mask
+every sweep is not passing through a burn-in but living off support; the
+alternative there is a frozen forest, so the ranked kernel still dominates.
 
-The initializer keeps its own asymmetry, and it is now the only one. A forest
-whose composed vector is entirely zero has no conditional law to draw from, so
-`Chain::sampleTreesFromPrior` takes the BARE ROOT there - the unique structure
-no later weight restore can strand a member-empty leaf in, since every row sits
-in its one leaf - while the same state under the MOVES is a prior draw over
-structures. Init and mutate now disagree about one law, deliberately: aligning
-them is a separate decision (no baseline reaches the branch).
+The initializer is asymmetric with the moves, and it is the only place that is.
+A forest whose composed vector is entirely zero has no conditional law to draw
+from, so `Chain::sampleTreesFromPrior` takes the BARE ROOT there - the unique
+structure no later weight restore can strand a member-empty leaf in, since
+every row sits in its one leaf - while the same state under the MOVES is a
+prior draw over structures. Init and mutate disagree about one law,
+deliberately: aligning them is a separate decision (no baseline reaches the
+branch).
 
-The finite-vs-vetoed corollary survives where it was doing work: -HUGE_VAL is
-the correct penalty because a finite one cannot dominate a branch score that is
-itself unbounded below. What is gone is the claim that it never meets itself.
-The one -HUGE_VAL that is NOT the veto - a constrained leaf model's FEASIBILITY
-sentinel, an empty monotone cone - can still meet itself, and `resolveVetoRank`
-rejects that pair explicitly rather than reporting NaN.
+-HUGE_VAL is the correct penalty because a finite one cannot dominate a branch
+score that is itself unbounded below. The one -HUGE_VAL that is NOT the veto -
+a constrained leaf model's FEASIBILITY sentinel, an empty monotone cone - can
+still meet itself, and `resolveVetoRank` rejects that pair explicitly rather
+than reporting NaN.
 
 ## Why not make the proposals occupancy-aware
 
@@ -230,37 +226,33 @@ see docs/design/heteroscedastic.md section 14.
 
 ## What counts as empty: the weight law (2026-08-12)
 
-The veto counted leaf MEMBERS. It now counts POSITIVE-WEIGHT members. A zero
-weight is ABSENCE, not reweighting - the shipped contract
-(`dbartsSampler-class.Rd`, docs/plans/archive/zero-weight-exactness.md,
-docs/plans/archive/sigma-df-zero-weights.md: the leaf suffstats multiply by `w` and the
-sigma posterior's df counts positive weights only) - so a leaf all of whose rows
-carry weight zero enters no likelihood term of the forest that holds it. Under
-the count law such a leaf was legal: it scored exactly `0.0`
+The veto counts POSITIVE-WEIGHT members, not merely members (0.9-34 counts
+members: `likelihood.cpp`). A zero weight is ABSENCE, not reweighting - the
+shipped contract (`dbartsSampler-class.Rd`,
+docs/plans/archive/zero-weight-exactness.md,
+docs/plans/archive/sigma-df-zero-weights.md: the leaf suffstats multiply by `w`
+and the sigma posterior's df counts positive weights only) - so a leaf all of
+whose rows carry weight zero enters no likelihood term of the forest that holds
+it. Under a count law such a leaf is legal: it scores exactly `0.0`
 (`ConstantGaussianLeaf::logIntegratedLikelihood` returns 0 at `sumWeights == 0`)
-and drew its parameter from the prior at posterior precision 0, a state no fit
-on the positive-weight subset could produce. It is now vetoed, by the same
-`-HUGE_VAL` mechanism at the same site. The mechanism, the penalty value and the
-finite-vs-vetoed argument above are unchanged; only the predicate moved.
+and draws its parameter from the prior at posterior precision 0, a state no fit
+on the positive-weight subset could produce. The weight law vetoes it, by the
+same `-HUGE_VAL` mechanism at the same site.
 
-Two sites carry the predicate, because the branch marginal has two owners:
+One site carries the predicate: `logLikelihoodForBranch` (moves.hpp) takes the
+rank over the branch's leaves for EVERY leaf model, including the branch-owning
+constrained ones, whose marginal is then taken over the whole branch rather
+than summed per leaf.
+`MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams` (model.hpp)
+therefore keeps only its own feasibility sentinel and no copy of the weight
+law. Monotone directions compose with weights on any family (facade.hpp
+dispatches on the direction vector alone), so the shared rank is what keeps
+that configuration on one law.
 
-- `logLikelihoodForBranch` (moves.hpp), the conjugate path every ordinal and
-  categorical birth/death/change/swap consumes.
-- `MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams` (model.hpp),
-  which owns the constrained joint outright and therefore returns from
-  `logLikelihoodForBranch` BEFORE the loop above it runs. It had its own copy of
-  the count test; it now takes the same weight law. Monotone directions compose
-  with weights on any family (facade.hpp dispatches on the direction vector
-  alone), so leaving it behind would have kept one reachable configuration on
-  the old law. (Superseded 2026-08-18: with the veto a RANK, `logLikelihoodForBranch`
-  takes it over the same leaves for EVERY leaf model, branch-owning ones
-  included, so the second copy is gone and only the constrained model's own
-  feasibility sentinel remains there.)
-
-Both call `Tree::leafHasNoWeight(i, weights)`: with `weights == nullptr` it IS
-`numObservations() == 0`, so the unweighted path - the overwhelmingly common one
-- keeps its decision AND its arithmetic bit for bit; with a weight vector it
+The predicate is `Tree::leafHasNoWeight(i, weights)`: with `weights == nullptr`
+it IS `numObservations() == 0`, so the unweighted path - the overwhelmingly
+common one - keeps its decision AND its arithmetic bit for bit; with a weight
+vector it
 scans the leaf's members and stops at the first positive weight, so an ordinary
 leaf costs one gather and only a leaf about to be vetoed walks its members.
 
@@ -278,20 +270,23 @@ vetoed every root branch on that path.
 against, not the user's: the mean forest under a variance forest sees
 `w_i / s^2(x_i)`, a BCF forest sees `composeForestWeights`' product of the
 observation weight and the per-forest weight, and a latent family sees its
-composed working weights. So a zero per-forest weight (`setForestWeights`) now
+composed working weights. So a zero per-forest weight (`setForestWeights`)
 also vetoes a leaf of only such rows in THAT forest - stated in
 `Chain::setForestWeights`' contract - while the veto for the variance forest
 reads the user weights it is handed. Weights ship on gaussian and Student-t
 only, and the latent families' own working weights are strictly positive
 (a zero Polya-Gamma weight is unreachable, and a zero count is refused at
-creation), so no shipped latent configuration changes behavior.
+creation), so no USER WEIGHT reaches the law on a latent family. The
+active-row mask does: it IS a latent family's working weight vector, so an
+inactive-only leaf is weight-empty there exactly as a zero-weighted one is on
+gaussian (`Chain::setActiveRows`'s contract).
 
 ### The sites that still count members, and why that is correct
 
-The fix is deliberately confined to the DRAW LAW. Every other occupancy site
-keeps the member count, and each is right to (docs/plans/latent-subset-mask.md,
-"Semantics of inactive" rule 2, which depends on this and is written against
-it):
+The weight law is deliberately confined to the DRAW LAW. Every other occupancy
+site keeps the member count, and each is right to
+(docs/plans/latent-subset-mask.md, "Semantics of inactive" rule 2, which
+depends on this and is written against it):
 
 - `Tree::collapseEmptyNodesBelow` merges on `numObservations() == 0` (its
   weighted merge WEIGHT is a weight sum, but the trigger is the count). It runs
@@ -306,9 +301,9 @@ it):
   ride the state block.
 - `Tree::numObservations` itself, and the chi-k leaf-count gates that read it.
 
-The fix therefore changes which branches are VETOED, not which are CREATED, and
-it does NOT align a masked or zero-weighted sampler's occupancy with a compacted
-one's; that claim is struck in the subset-mask plan and is not made here.
+The weight law therefore changes which branches are VETOED, not which are
+CREATED, and it does NOT align a masked or zero-weighted sampler's occupancy
+with a compacted one's.
 
 ### Grow-from-root joins the law (2026-08-18)
 

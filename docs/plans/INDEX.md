@@ -9,7 +9,7 @@ see `docs/README.md` for how this index relates to the other navigation
 surfaces. See `docs/design/INDEX.md`
 for the paired design docs. 132 further plans that are LANDED/CLOSED/NO-GO
 with no present-facing reader live under `docs/plans/archive/`; their rows
-are kept, verbatim, in the "Archived" section at the bottom.
+are in the "Archived" section at the bottom.
 
 Columns: `file | STATUS | one-liner`.
 
@@ -23,7 +23,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Measured the acceptance-rate cost of widening the empty-leaf veto from the first forest alone to every forest in an ensemble; the cost was acceptable, clearing the way for that extension. |
+| multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Measured the acceptance-rate cost of the empty-leaf veto applying to every forest in an ensemble rather than one; the cost is acceptable. |
 
 ## Tau sampler cluster
 
@@ -36,25 +36,25 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | simd-survey.md | REFERENCE (READ-ONLY survey) | Surveyed arm64 SIMD candidates; recommends a fused residual-roll kernel and closing x86 dispatch gaps, keeps the sufficient-statistic kernel scalar for bitwise reproducibility. |
-| x86-simd-plan.md | PARTLY LANDED (stats.h and AVX2 fixes shipped; R1b/R2/R3 open) | Investigated x86 SIMD gaps; fixed a missing stats.h extern and an AVX2 CPU-detection bug, the remaining items stay open. |
+| x86-simd-plan.md | PARTLY LANDED (stats.h and AVX2 fixes shipped; three x86 items open) | Investigated x86 SIMD gaps; fixed a missing stats.h extern and an AVX2 CPU-detection bug, the remaining items stay open. |
 
 ## Mutation-surface cluster
 
 | file | STATUS | purpose |
 |---|---|---|
-| latent-subset-mask.md | LANDED (S0-S4 + flat C, ARC COMPLETE), 2026-08-13 | Adds a per-observation active-row mask (`$setActiveRows`) that lets every response family, including the latent ones zero weights cannot reach, drop rows from a fit between draws. |
+| latent-subset-mask.md | LANDED, 2026-08-13 | Adds a per-observation active-row mask (`$setActiveRows`) that lets every response family, including the latent ones zero weights cannot reach, drop rows from a fit between draws. |
 
 ## Data-store / predictor-storage cluster
 
 | file | STATUS | purpose |
 |---|---|---|
-| column-kind-consolidation.md | LANDED (S0-S4c, all seven slices) | Gives factor columns their own semantic column kind, separate from plain ordinal columns; changes an ordered factor's split grid to the midpoints between its declared levels (posterior-changing) and makes a factor column's stored representation its codes alone. |
+| column-kind-consolidation.md | LANDED (all seven slices) | Gives factor columns their own semantic column kind, separate from plain ordinal columns; changes an ordered factor's split grid to the midpoints between its declared levels (posterior-changing) and makes a factor column's stored representation its codes alone. |
 
 ## SBC / calibration cluster
 
 | file | STATUS | purpose |
 |---|---|---|
-| sbc-calibration.md | DONE (tiers A/B/C all complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
+| sbc-calibration.md | DONE (all tiers complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
 | sbc-family-tiers.md | BUILT d094675 (2026-08-04) | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag, with heteroscedastic and monotone left for a later run. |
 
 ## Response-family / model-surface singletons
@@ -73,20 +73,20 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| adoption-slate.md | LANDED (S1-S8, ARC COMPLETE), 2026-08-15 | Ships a slate of R-vs-C++ boundary fixes: per-family `getLatents` semantics, the nbinom dispersion as a per-draw channel, a relaxed grouped `setResponse`, exported augmentation helpers on R's RNG stream, and `dbartsValidateComposition` for validating a host's one-sweep step. |
-| capi-shape.md | LANDED 9df0cb50, 2026-08-26 | Freezes the pre-1.0 shape of `dbarts.h`: seven refusing entries return an int capability answer instead of raising, `forest` moves to the argument after the sampler on `getTrees`/`printTrees`, and `setForestBasis` renames its parameter to `basisRowMajor`. |
-| composition-refusals.md | LANDED 936825d7, 2026-08-25 | Makes grouped random effects with a variance forest a named validation error instead of silently drawing group effects at the wrong scale, and refuses an `NA` in test predictors wherever the training column was complete. |
-| dbarts-h-freeze.md | LANDED 6446ddce, 2026-08-25 | Replaces the stringly-typed family argument in `dbarts.h` with a `dbarts_family` enum and adds a `dbarts_sampler_family` accessor, plus several C-API type/naming fixes. |
+| adoption-slate.md | LANDED, 2026-08-15 | Ships a slate of R-vs-C++ boundary fixes: per-family `getLatents` semantics, the nbinom dispersion as a per-draw channel, a relaxed grouped `setResponse`, exported augmentation helpers on R's RNG stream, and `dbartsValidateComposition` for validating a host's one-sweep step. |
+| capi-shape.md | LANDED 9df0cb50, 2026-08-26 | Freezes the pre-1.0 shape of `dbarts.h`: seven entries that refuse a request return an int capability answer rather than raising, `getTrees`/`printTrees` take `forest` after the sampler, and `setForestBasis` takes `basisRowMajor`. |
+| composition-refusals.md | LANDED 936825d7, 2026-08-25 | Makes grouped random effects with a variance forest a named validation error, and refuses an `NA` in test predictors wherever the training column was complete. |
+| dbarts-h-freeze.md | LANDED 6446ddce, 2026-08-25 | Gives `dbarts.h` a `dbarts_family` enum for the family argument and a `dbarts_sampler_family` accessor, plus several C-API type/naming fixes. |
 | nameable-calibration.md | LANDED ab3aa2fa, 2026-08-13 | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain, instead of inheriting it from the construction range. |
 | predict-surface.md | LANDED 78f334c1, 2026-08-25 | Unifies the argument order across the six `predict` methods, makes `forest = NULL` mean every forest on the R5 readers, and equalizes the `fitted`/`predict` type vocabularies across families. |
-| rd-records.md | LANDED 52c10e02, 2026-08-26 | Corrects several Rd/documentation records ahead of the human review: `print.bart`/`print.rbart`, `xbart`'s return shape, the rbart `n.chains` code, and two composition-matrix harness bugs. |
+| rd-records.md | LANDED 52c10e02, 2026-08-26 | Corrects several Rd/documentation records: `print.bart`/`print.rbart`, `xbart`'s return shape, the rbart `n.chains` code, and two composition-matrix harness bugs. |
 | surface-refusals.md | LANDED d48aef8a, 2026-08-26 | Refuses, by name, an argument that is a formal on a sibling method but foreign to the one actually called, across `predict`/`extract`/`fitted`/`residuals`/`survivalProbabilities`; also refuses fractional counts wherever an integer is required. |
 
 ## Build / infra singletons
 
 | file | STATUS | purpose |
 |---|---|---|
-| repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene: widened concurrency and path filters landed; a code-coverage integration was considered and declined. |
+| repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene: widened concurrency and path filters landed; no codecov integration - coverage stays local-on-demand. |
 
 ## Review / retrospective programs
 
@@ -97,7 +97,7 @@ Columns: `file | STATUS | one-liner`.
 | release-candidate-review.md | SPECCED (2026-08-17, in execution) | The pre-release-candidate review program and its log of findings and fixes. |
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | Records nine pre-release-candidate decisions on the public surface: the `predict()` signature order, the `keepTrees` refusal wording, the stub version check, `dbarts.h` type/naming fixes, deprecation shims, composition refusals, the BCF baseline format, and the NA-at-predict refusal. |
 | bartcore-review-tour.md | Current at 58812b7f | The merge review: what bartcore replaces, what breaks for R users and for linked packages, what the gates prove and what nothing checks, the decided and open scope questions, the surface that gets more expensive after release, and appendices on reading the code and on where the rest of the documentation lives. |
-| pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | Four reviews run ahead of VD's own manual read (staleness, completeness, YAGNI, agent accumulation), and the cleanup they led to. |
+| pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | Four documentation passes (staleness, completeness, YAGNI, agent accumulation) and the cleanup they produced. |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)
 
@@ -116,8 +116,9 @@ Columns: `file | STATUS | one-liner`.
 
 ## Archived (landed; records only)
 
-Docs below are LANDED/CLOSED/NO-GO with no present-facing reader; moved to
-`docs/plans/archive/` verbatim, rows kept here for the historical manifest.
+Records only, for provenance: these plans are LANDED/CLOSED/NO-GO, live
+under `docs/plans/archive/`, and describe how the branch got here rather
+than what it is. Nothing below is needed to review the merge.
 
 | file | STATUS | purpose |
 |---|---|---|

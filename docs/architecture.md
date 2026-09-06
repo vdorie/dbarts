@@ -215,8 +215,8 @@ function in moves.hpp, called from `Chain`) is the per-iteration, per-tree
 entry: it draws a step type (`StepType::birth/death/swap/change`) and
 dispatches to the corresponding move function.
 
-Every candidate branch's empty-leaf veto is ranked rather than a flat
-`-HUGE_VAL` (`Tree::leafVetoRank`, [[moves.hpp#resolveVetoRank]]): rank 2 is
+Every candidate branch's empty-leaf veto is ranked
+(`Tree::leafVetoRank`, [[moves.hpp#resolveVetoRank]]): rank 2 is
 a leaf with no member at all, rank 1 a leaf whose members all carry zero
 weight, rank 0 a leaf a likelihood term reaches. Comparing a (current,
 proposal) pair, the worse-ranked branch takes `-HUGE_VAL` outright; when both
@@ -367,8 +367,8 @@ built on top of `FlatNode`.
 - **Wire**: what actually leaves the process. `storeState`
   (`src/R_interface_bartcore.cpp`) flattens `SamplerStateData` into a
   struct-of-arrays SEXP that `setState` reads back, one list per chain, whose
-  node values ride a RAWSXP at 8 bytes per node - so an inline categorical
-  mask's bit pattern survives rather than being normalized by a REALSXP.
+  node values ride a RAWSXP at 8 bytes per node, so an inline categorical
+  mask's bit pattern survives verbatim.
 
 ## RNG architecture
 
@@ -386,7 +386,7 @@ determines them.
 
 After that one-time seeding, sampling itself never advances R's stream -
 `Chain::run` and everything it calls draws exclusively from the chain's own
-`ext_rng*`. The bridge's remaining `GetRNGstate()`/`PutRNGstate()` brackets
+`ext_rng*`. The bridge's other `GetRNGstate()`/`PutRNGstate()` brackets
 are of two kinds. Most cover draws the bridge itself makes outside a chain's
 sweep loop: a probit latent redraw on `setResponse`, the per-observation
 session's scan-order permutations, and the sample-from-prior, grow-from-root

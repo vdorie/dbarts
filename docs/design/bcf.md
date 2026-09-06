@@ -16,9 +16,9 @@ treatment forest tau(x), combined as
 
     y_i = mu(x_i, pihat_i) + b_{z_i} tau(x_i) + eps_i,   eps ~ N(0, sigma^2),
 
-with z_i binary treatment. It is the concrete case the multi-forest provision
-(core-generalization.md, the multi-forest provision) was designed for, and
-bartCause is the intended consumer (see "Public creation surface" below).
+with z_i binary treatment. It is the K = 2 instance of the general amplitude
+family (multiplier-combiner.md), and bartCause is the intended consumer (see
+"Public creation surface" below).
 Scope: binary z, and a gaussian, probit or logistic response - under a binary
 link the forests combine into the latent predictor with sigma fixed at 1, and
 aft, ordinal and nbinom are refused by name. Continuous z is out of scope.
@@ -164,7 +164,7 @@ nothing to that forest's sufficient statistics instead of an
 amplified-and-cancelled near-zero contribution. The snap is local to the
 reparameterization: `combinedFits` and `drawGlue` keep the exact `b0`, and no
 snapped value is written back into the glue
-(docs/plans/archive/zero-weight-exactness.md).
+([[src/bartcore/combiner.hpp#formForestResponse]]).
 
 A caller-settable per-forest, per-observation weight composes with this
 multiplicatively: `forestWeights[i] = w_i * m_f^2 * s_{f,i}`, installed via

@@ -29,8 +29,7 @@ composes or reduces to those six. And `docs/design/feature-matrix.md` scores
 13 rows, counting each composition a user selects as its own model.
 
 BCF's own R verb, `bcf()`/`bartBCF`, lives in bartCause on its `dbarts-1.0`
-branch. It never shipped in dbarts and is not being removed from it; dbarts
-carries the multi-forest engine it is built on.
+branch; dbarts carries only the multi-forest engine it is built on.
 
 ## 2. Breaking changes for R users
 
@@ -49,8 +48,6 @@ most likely to bite a real script:
 - An argument name foreign to the method called is refused by name rather
   than silently discarded, across `predict`, `extract`, `fitted` and
   `residuals`.
-- An ordinal fit's R-visible spelling is `thresholds`, matching the engine
-  and C API's `ordinalThresholds`.
 
 An ordered-factor predictor is its own column kind, not a bare ordinal
 predictor: it splits on the midpoints between consecutive declared levels
@@ -60,38 +57,45 @@ posterior-changing for any fit carrying one
 
 ## 3. Breaking changes for linked packages
 
-`dbarts.h` is the whole contract, and its head comment is the authority on
-the three classes a non-void return can belong to: VALUE, TRANSACTION
-result, CAPABILITY STATUS. Below is only what changed.
+The main branch ships a C++ ABI, `inst/include/dbarts/*.hpp`, with a
+C-callable face over it, `R_C_interface.hpp`, whose sampler entries take a
+`dbarts::BARTFit*` and whose setters return `void` apart from the predictor
+setters' rollback flag, failing through `Rf_error`. Both are gone. `dbarts.h`
+is the whole contract, and its head comment is the authority on the three
+classes a non-void return can belong to: VALUE, TRANSACTION result,
+CAPABILITY STATUS. Below is what a caller of `R_C_interface.hpp` meets.
 
-- Seven setters went `void` -> `int`: `setResponse`, `setOffset`,
-  `setWeights`, `setSigma`, `setTestPredictors`, `setTestOffset`, `predict`.
+- Six entries that were `void` on `R_C_interface.hpp` return `int` on
+  `dbarts.h`: `setResponse`, `setOffset`, `setSigma`, `setTestPredictors`
+  (singular `setTestPredictor` there), `setTestOffset`, `predict`.
   Source-compatible everywhere; the answer is a fixed property of the
-  sampler, so probe once at setup.
-- `forest` is argument 2 on `dbarts_sampler_getTrees` and
-  `dbarts_sampler_printTrees`, the last two entries where it followed
-  `useLiveTrees`. A pointer where an integer is now expected fails to
-  compile in C++ but may only warn in C; the ABI hash is the backstop.
+  sampler, so probe once at setup. `setWeights` is new to the C API - it had
+  no C entry point, only `dbarts::BARTFit::setWeights` behind the C++ ABI.
+- `dbarts_sampler_getTrees` and `dbarts_sampler_printTrees` take `forest` as
+  argument 2; a single-forest caller passes 0. The ABI hash is the backstop
+  against a stale call site that a C compiler only warns about.
 - `dbarts_sampler_setWeights` answers CAPABILITY STATUS 0 for probit,
   ordinal, aft and nbinom, none of which carries a weight to change, and
   raises on an out-of-support logistic count or gaussian weight.
-- `dbarts_predictor_source` gains `denseCodes` and `numDenseCodeColumns`,
-  appended after the fields a 1.0-0 consumer compiles against, so an
-  existing caller's layout is unchanged and a null `denseCodes` stays
-  valid.
-- `dbarts.h` no longer defines `USE_FC_LEN_T` nor includes `<Rversion.h>`; a
-  consumer that relied on that pull-in must include it itself.
-- `DBARTS_C_API_MAJOR 1` and `DBARTS_C_API_MINOR 0` do not move.
+- `dbarts_predictor_source` is the predictor-input struct for every
+  predictor-taking entry, `structSize`-versioned: the caller sets
+  `structSize` and may leave `denseCodes` null. Build the dense case with
+  `dbarts_dense_predictor_source()`.
+- Unlike the deleted `R_C_interface.hpp`, `dbarts.h` neither includes
+  `<Rversion.h>` nor defines `USE_FC_LEN_T`; a consumer that relied on that
+  pull-in must include it itself.
+- `DBARTS_C_API_MAJOR` is 1 and `DBARTS_C_API_MINOR` is 0.
   `DBARTS_C_API_HASH` is recomputed at every ABI change - a signature,
   struct field, enumerator or callback parameter, not a header edit alone -
-  so read it from the header at the merge tip.
+  so read it from the header at the merge tip rather than from this
+  document.
 
 Migration runs in lockstep, once dbarts installs clean
-(`docs/plans/capi-shape.md` s11):
+(`docs/plans/capi-shape.md` section 11):
 
 | consumer | mandatory source edits |
 |---|---|
-| stan4bart, branch `bartcore` | two: the `getTrees` and `printTrees` call sites in `src/init.cpp`. It carries `DBARTS_REQUIRE_EXACT_ABI`, so a later hash change forces only a rebuild |
+| stan4bart, branch `bartcore` | none: it already passes `forest`. It carries `DBARTS_REQUIRE_EXACT_ABI`, so a later hash change forces only a rebuild |
 | treatSens, branch `dbarts-1.0` | none: it calls no reordered entry. Not R-API-only, though - its main branch links the deleted C++ ABI |
 | bartCause, branch `dbarts-1.0` | none: R API only, no `src/`, no `dbarts_` symbols |
 | bairrtt, no compat branch | none: R API only, with no dbarts linkage in its `src/` |
@@ -121,12 +125,12 @@ z over posterior summaries, is a weaker fallback that cannot gate on its own
 (`docs/plans/bcf-cross-host.md`). Within one host, reproducibility is
 bitwise across every SIMD dispatch path.
 
-The rewritten engine has also been checked against the shipped one: the
+The rewritten engine matches the shipped one where the priors match: the
 equivalence harness's statistical mode ran released 0.9-34 against this
-branch over 20 scenarios, 10 at high precision, with zero unexplained
+branch over 16 scenarios, 4 at high precision, with zero unexplained
 disagreements, every large z tracing to a documented change
-(`docs/plans/release-candidate-review.md`, the Calibration lane paragraph of
-the second whole-branch review).
+(`docs/plans/review-2026-08-24/anchor-main.md`, sections 4 "Explained
+differences" and 5 "Unexplained disagreements").
 
 ## 5. What is not checked
 
@@ -152,14 +156,15 @@ Things that could be wrong and would not be caught:
   that family's calibration.
 - Warm start and grow-from-root are unrefused and untested at two forests.
 - The cross-host tier-2 bar is weak by construction: it tolerates a shift of
-  about 1.4 posterior standard deviations, and a probe confirmed it passes a
-  20 percent node-prior widening that tier 1 fails. Its fix, independent
-  per-scenario seeds rather than one chain's autocorrelated draws, waits
-  until after the release candidate (`TODO`'s
-  `equivalence-harness-seeds-axis`).
+  about 1.4 posterior standard deviations; a 20 percent node-prior widening
+  passes tier 2 and fails tier 1. Its fix, independent per-scenario seeds
+  rather than one chain's autocorrelated draws, waits until after the
+  release candidate (`TODO`'s `equivalence-harness-seeds-axis`).
 - The C++ mutation record,
-  `docs/plans/review-2026-08-24/mutation-B-findings.md`, has not been re-run
-  against this tip, so the gaps it measured are not confirmed closed.
+  `docs/plans/review-2026-08-24/mutation-B-findings.md`, which planted 80
+  deliberate engine mutations and recorded which ones the C++ component
+  suite missed, has not been re-run against this tip, so those gaps are not
+  confirmed closed.
 - Nothing tests that `setState` itself honours the containment verdict -
   that a restored state's splits stay inside the columns the model allows
   (`sampler.hpp`'s `allValid = columnMaskOk`).
@@ -176,34 +181,28 @@ Things that could be wrong and would not be caught:
 
 ## 6. Decided, open, and more expensive after the merge
 
-Four scope questions are settled and need no ruling: `updateScale` stays
-refused on every multi-forest family, keyed on the sampler's forest count
-rather than its family; real-valued nbinom dispersion and weighted binary are
-scheduled after 1.0-0; and formal heredity is the first work after 1.0-0.
-`TODO` carries the last three as `negbin-real-dispersion`, `weighted-binary`
-and `interaction-constraints`.
+Four scope questions are decided: `updateScale` is refused on every
+multi-forest family, keyed on the sampler's forest count rather than its
+family; real-valued nbinom dispersion and weighted binary are scheduled
+after 1.0-0; formal heredity is the first work after 1.0-0. `TODO` carries
+the last three as `negbin-real-dispersion`, `weighted-binary` and
+`interaction-constraints`.
 
 One question is open: whether to declare the release candidate (`TODO`'s
 `rc-gate` item).
 
-Nothing shipped is cheaper to change now than after the release. The four
-candidates the earlier review named have each been settled: `gp()` is
-calibrated at 25 trees, inside the range its man page recommends (a GP leaf
-earns its keep at tens of trees, not hundreds), in four configurations
-including the one where a tree holds both GP and constant-fallback leaves
-(`docs/plans/sbc-calibration.md`, Tier C); the pointwise log-likelihood on
-a BCF fit is pinned against a hand computation in all three families; the
-heteroscedastic swap under `updateScale = TRUE` is refused, not stale; and a
-sampled GP lengthscale would be an additive state block, not a format break.
+No shipped surface still needs changing before the release. The four that
+would be expensive to change after it are each in their final form:
+`gp()` is calibrated at 25 trees, inside the range its man page recommends
+(a GP leaf earns its keep at tens of trees, not hundreds), in four
+configurations including the one where a tree holds both GP and
+constant-fallback leaves (`docs/plans/sbc-calibration.md`, Tier C); the
+pointwise log-likelihood on a BCF fit is pinned against a hand computation
+in all three families; the heteroscedastic swap under `updateScale = TRUE`
+is refused; and a sampled GP lengthscale would be an additive state block,
+not a format break.
 
 ## Appendix A. Reading the code
-
-Two renames make a grep of the old tree mislead. `BCFForestCombiner` is now
-`AmplitudeForestCombiner` in `combiner.hpp`, saved-state key `"glue"` for
-`"bcf"`, after the per-forest amplitude scalars that glue the forests into
-one fit; the old names find nothing, which does not mean BCF was removed.
-And `bartcore_createMultinomial` and its `Counts` variant are retired,
-multinomial creating through `bartcore_create` like every other family.
 
 The walk is ordered by what a linked package can be broken by.
 
@@ -211,8 +210,9 @@ ABI - `inst/include/dbarts/dbarts.h`, `src/C_interface.cpp`. The head
 comment's contract list, then the X-macro entry table. Judge whether every
 non-void entry says which of the three return classes it is, and whether a
 discarded capability 0 is a failure mode you accept: it leaves the sampler
-unchanged and the run conditioned on what it held before, quieter than the
-old longjmp. `docs/plans/capi-shape.md` s0, s13.
+unchanged and the run conditioned on what it held before, quieter than
+`R_C_interface.hpp`'s `Rf_error` longjmp. `docs/plans/capi-shape.md`
+sections 0 and 13.
 
 Engine - `facade.hpp`, `sampler.hpp`, `chain.hpp`. `SamplerBase` and its
 pure virtuals, `SamplerFacade`, the `create*Sampler` factories; `Sampler`,
@@ -222,9 +222,10 @@ Judge the exhaustive `ResponseFamily` switch, which carries no `default:`
 arm anywhere, and that state restore is semantic, not bitwise. Prefer
 `docs/architecture.md` on RNG and threading.
 
-Multi-forest - `combiner.hpp`: `ForestCombiner`, `AmplitudeForestCombiner`,
-`MultinomialForestCombiner`. BCF's `a*mu + b_z*tau` is the two-forest
-instance of the amplitude-and-basis family
+Multi-forest - `combiner.hpp`: `ForestCombiner`, `AmplitudeForestCombiner`
+(saved-state key `"glue"`, after the per-forest amplitude scalars that glue
+the forests into one fit), `MultinomialForestCombiner`. BCF's `a*mu + b_z*tau`
+is the two-forest instance of the amplitude-and-basis family
 `docs/design/multiplier-combiner.md` sets out. Judge which mutations the
 combiner refuses and why; the mutation-legality table in
 `docs/design/bart-as-a-component.md` comes first.
@@ -252,8 +253,8 @@ read the kind); and the doubled entry layout `scanOrdinalCuts` uses for a
 node holding missing members.
 
 The build support files - `configure`, `tools`, `src/misc`, `src/external` -
-are skim-only; the one thing worth a look is `simd.c`'s fix for AVX2
-misdetected as AVX.
+are skim-only; the one thing worth a look is `simd.c`'s `cpuid`, which
+requests subleaf 0 so that AVX2 is not misdetected as AVX as it is in 0.9-x.
 
 ## Appendix B. Other documents
 
@@ -270,24 +271,23 @@ misdetected as AVX.
 - root `TODO` - an alphabetical backlog, some items scheduled after 1.0-0.
   Its `release` item is the one ordered procedure.
 
-The four design documents are proposals with landing notes; the current
-design is these sections, about 4,200 of their 15,100 words, and the rest
-can be skipped.
+In the four design documents, only these sections state the current design -
+about 4,100 of their 16,000 words; the rest can be skipped.
 
 - `docs/design/bart-as-a-component.md`, sections 2 "Which mutations are legal
   between sweeps" and 3 "What engine state does not carry, and who
-  reinstalls it", about 890 words: which mutations a multi-forest sampler
+  reinstalls it", about 850 words: which mutations a multi-forest sampler
   admits, and the two state gaps, the per-forest weight and the active-row
   mask.
 - `docs/design/multiplier-combiner.md`, the preamble's first paragraph, then
   "The model", "The amplitude layout", "The reparameterization", "The
   amplitude conditional", "bcf as the K = 2 instance", "Surfaces" and "What
-  this family does not do", about 1,600 words: what the basis-and-amplitude
+  this family does not do", about 1,490 words: what the basis-and-amplitude
   family is, and where BCF sits in it.
-- `docs/design/empty-leaf-veto.md`, the preamble's "Correction (2026-07-15)",
-  then "Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)",
-  "What counts as empty: the weight law (2026-08-12)" and "Which weights the
-  predicate sees", about 1,370 words: the member-empty versus weight-empty
+- `docs/design/empty-leaf-veto.md`, "Where the constant is read", then "Is
+  vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)", "What
+  counts as empty: the weight law (2026-08-12)" and "Which weights the
+  predicate sees", about 1,410 words: the member-empty versus weight-empty
   ranking.
 - `docs/design/bcf.md`, the preamble's model equation and "The multiplier
   snap and the per-forest weight (2026-08-10)", about 355 words: why a row

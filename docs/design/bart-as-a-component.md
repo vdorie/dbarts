@@ -52,15 +52,14 @@ the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
 true ([[combiner.hpp#AmplitudeForestCombiner::supportsResponseMutation]]); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
 that no flat conduit can carry, so its refusal names the counts channel
-instead. There is no `family_ == gaussian` conjunct: it was removed when
-`setResponse` began passing `combinedFits()` rather than forest 0's bare
-totals, so a latent family refreshes its latents against the combined location
-and the reason for the conjunct went with it. What remains is the scale clause:
-a response or offset swap is admitted only at `updateScale == FALSE`, which
-pins the response transform the per-forest leaf calibrations are stated
-against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
-default the argument to FALSE. The weight conduit has no scale to pin and skips
-the clause.
+instead. There is no `family_ == gaussian` conjunct: `setResponse` passes
+`combinedFits()` rather than forest 0's bare totals, so a latent family
+refreshes its latents against the combined location. The one further clause is
+the scale clause: a response or offset swap is admitted only at
+`updateScale == FALSE`, which pins the response transform the per-forest leaf
+calibrations are stated against. The test is `updateScale != FALSE`, so NA
+refuses too; the R5 methods default the argument to FALSE. The weight conduit
+has no scale to pin and skips the clause.
 
 `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
@@ -85,10 +84,9 @@ The predictor surface carries NO multi-forest guard, at any entry, and this is
 a decision rather than an omission: the transactional update revalidates every
 forest and the variance forest and rolls the whole change back if any leaf of
 any tree would empty, and the per-observation session's cell guard caches
-every forest pruned to the trees the column can move. A guard named for the
-transactional path existed and was retired when those paths learned to loop
-the forests. So `setPredictor`, whole-matrix and column-granular and
-per-observation, is open at every sampler shape.
+every forest pruned to the trees the column can move. So `setPredictor`,
+whole-matrix and column-granular and per-observation, is open at every sampler
+shape.
 
 ## The mutation-legality table
 
@@ -145,9 +143,9 @@ them again, and who does that depends on the layer:
   re-apply afterwards (`reapplyForestWeights`, [[dbarts.R#reapplyForestWeights]]). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
-- Two holes remain, both known. A per-forest weight is not part of the state,
-  so a pipeline that discards the R5 holder and installs a DONOR's state into
-  a fresh engine starts with no per-forest weight whatever the donor had, and
+- Two holes remain. A per-forest weight is not part of the state, so a
+  pipeline that discards the R5 holder and installs a DONOR's state into a
+  fresh engine starts with no per-forest weight whatever the donor had, and
   the two stored states compare equal while the fits diverge. This is a
   contract item, decided in [[docs/design/bcf.md#The multiplier snap and the per-forest weight (2026-08-10)]] and pinned for the same-holder
   round trip in `inst/tinytest/test-forest-weights.R`. An active-row mask is
