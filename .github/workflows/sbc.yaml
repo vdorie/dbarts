@@ -76,6 +76,11 @@ jobs:
             samples: 150
             thin: 30
             timeout: 180
+            # r/agg.psi: adjudicated MIXING, an identifiability ridge, not a
+            # defect (docs/plans/sbc-family-tiers.md Step 3; confirmed
+            # 2026-08-18). Waiver is per functional, not per arm: any other
+            # FLAG in this arm still fails.
+            SBC_EXPECTED_FLAGS: r,agg.psi
           - config: t
             reps: 200
             samples: 150
@@ -107,6 +112,8 @@ jobs:
         run: R CMD INSTALL .
 
       - name: Run the SBC calibration check
+        env:
+          SBC_EXPECTED_FLAGS: ${{ matrix.SBC_EXPECTED_FLAGS }}
         run: >
           Rscript benchmarks/R/sbc.R
           ${{ matrix.config }} ${{ matrix.reps }}

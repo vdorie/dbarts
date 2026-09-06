@@ -24,6 +24,13 @@
 # SBC_FAIL_ON_FLAG=1 (env var, opt-in) makes the CLI exit status 1 if any
 # functional's verdict is FLAG; unset, the CLI always exits 0 (unchanged
 # default). Only affects Rscript use; source() usage is untouched.
+# SBC_EXPECTED_FLAGS (env var, opt-in) is a comma-separated list of functional
+# names allowed to FLAG without failing SBC_FAIL_ON_FLAG -- e.g. nbinom's r
+# and agg.psi trade off on an adjudicated identifiability ridge, not a defect
+# (docs/plans/sbc-family-tiers.md Step 3; confirmed 2026-08-18). A listed
+# functional that FLAGs prints "FLAG (expected)" and is excluded from the exit
+# check; one that PASSES is unaffected; any FLAG outside the list still fails
+# as before. Only the CLI reads this variable; source() usage is untouched.
 #
 # SELF-CONSISTENCY is the whole game: theta0 must come from the same prior the
 # sampler assumes in its posterior. The forest/leaf draw uses the sampler's own
@@ -1970,7 +1977,12 @@ sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
 # alpha is the ecdf band's level; the CI matrix Bonferroni's it (see
 # sbcMatrixAlpha) so that a whole matrix of arms passes with probability ~0.95
 # rather than each arm alarming at its own nominal 5%.
-sbcReport <- function(fit, nBins = 20L, alpha = 0.05) {
+sbcReport <- function(
+  fit,
+  nBins = 20L,
+  alpha = 0.05,
+  expectedFlags = character(0)
+) {
   cat(sprintf(
     "\nSBC report: family=%s n=%d p=%d nTrees=%d | R=%d L=%d thin=%d burn=%d\n",
     fit$config$family,
@@ -2006,7 +2018,13 @@ sbcReport <- function(fit, nBins = 20L, alpha = 0.05) {
       nBins = nBins,
       alpha = alpha
     )
-    verdicts[i] <- if (u$pass) "PASS" else "FLAG"
+    verdicts[i] <- if (u$pass) {
+      "PASS"
+    } else if (funcs[i] %in% expectedFlags) {
+      "FLAG (expected)" # pre-adjudicated; excluded from the SBC_FAIL_ON_FLAG gate
+    } else {
+      "FLAG"
+    }
     cat(sprintf(
       "%-10s %8.3f %8.3f %9.4f %8.4f %6s\n",
       funcs[i],
@@ -2016,6 +2034,13 @@ sbcReport <- function(fit, nBins = 20L, alpha = 0.05) {
       u$ecdfBand,
       verdicts[i]
     ))
+    if (identical(verdicts[i], "FLAG (expected)")) {
+      cat(
+        "  pre-adjudicated flag, excluded from the exit check; the ",
+        "adjudication is cited where SBC_EXPECTED_FLAGS is set\n",
+        sep = ""
+      )
+    }
   }
   cat("\nRank histograms:\n")
   for (i in seq_along(funcs)) {
@@ -2331,9 +2356,12 @@ if (sys.nframe() == 0L) {
   }
   # matrix arms are admitted at the Bonferroni'd level; every other config keeps
   # the per-functional 5% band its recorded result was read at
+  expectedFlags <- strsplit(Sys.getenv("SBC_EXPECTED_FLAGS", ""), ",")[[1]]
+  expectedFlags <- trimws(expectedFlags[nzchar(trimws(expectedFlags))])
   verdicts <- sbcReport(
     fit,
-    alpha = if (which %in% sbcMatrixConfigs) sbcMatrixAlpha else 0.05
+    alpha = if (which %in% sbcMatrixConfigs) sbcMatrixAlpha else 0.05,
+    expectedFlags = expectedFlags
   )
   if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && any(verdicts == "FLAG")) {
     quit(status = 1L, save = "no")
