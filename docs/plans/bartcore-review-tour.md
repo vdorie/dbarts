@@ -42,18 +42,15 @@ most likely to bite a real script:
   rebuild, not a reload.
 - `bart2` and `rbart_vi` default to `combineChains = TRUE`.
 - Unordered factors split on subsets of their levels, and an ordered factor
-  becomes a single ordinal column by default.
+  becomes a single column split at the midpoints between its consecutive
+  declared levels, where 0.9-x expanded both into indicator columns; either
+  is posterior-changing for a fit carrying one
+  (`docs/plans/column-kind-consolidation.md`, sections 1 and 6).
 - A new `missing` argument keeps rows with missing predictors instead of
   dropping them.
 - An argument name foreign to the method called is refused by name rather
   than silently discarded, across `predict`, `extract`, `fitted` and
   `residuals`.
-
-An ordered-factor predictor is its own column kind, not a bare ordinal
-predictor: it splits on the midpoints between consecutive declared levels
-rather than on `n.cuts` uniform cuts over the observed codes, which is
-posterior-changing for any fit carrying one
-(`docs/plans/column-kind-consolidation.md`, sections 1 and 6).
 
 ## 3. Breaking changes for linked packages
 
@@ -66,11 +63,14 @@ classes a non-void return can belong to: VALUE, TRANSACTION result,
 CAPABILITY STATUS. Below is what a caller of `R_C_interface.hpp` meets.
 
 - Six entries that were `void` on `R_C_interface.hpp` return `int` on
-  `dbarts.h`: `setResponse`, `setOffset`, `setSigma`, `setTestPredictors`
-  (singular `setTestPredictor` there), `setTestOffset`, `predict`.
-  Source-compatible everywhere; the answer is a fixed property of the
-  sampler, so probe once at setup. `setWeights` is new to the C API - it had
-  no C entry point, only `dbarts::BARTFit::setWeights` behind the C++ ABI.
+  `dbarts.h`, where every sampler entry is spelled `dbarts_sampler_<name>`:
+  `setResponse`, `setOffset`, `setSigma`, `setTestPredictors` (singular
+  `setTestPredictor` there), `setTestOffset`, `predict`. All six return
+  CAPABILITY STATUS: 0 means the sampler cannot do this at all and nothing
+  was touched, a fixed property of the sampler, so probe once at setup; a
+  caller that ignores the return still compiles. `setWeights` is new to the
+  C API - it had no C entry point, only `dbarts::BARTFit::setWeights` behind
+  the C++ ABI.
 - `dbarts_sampler_getTrees` and `dbarts_sampler_printTrees` take `forest` as
   argument 2; a single-forest caller passes 0. The ABI hash is the backstop
   against a stale call site that a C compiler only warns about.
@@ -96,7 +96,7 @@ Migration runs in lockstep, once dbarts installs clean
 | consumer | mandatory source edits |
 |---|---|
 | stan4bart, branch `bartcore` | none: it already passes `forest`. It carries `DBARTS_REQUIRE_EXACT_ABI`, so a later hash change forces only a rebuild |
-| treatSens, branch `dbarts-1.0` | none: it calls no reordered entry. Not R-API-only, though - its main branch links the deleted C++ ABI |
+| treatSens, branch `dbarts-1.0` | none: it calls neither `getTrees` nor `printTrees`. Not R-API-only, though - its main branch links the deleted C++ ABI |
 | bartCause, branch `dbarts-1.0` | none: R API only, no `src/`, no `dbarts_` symbols |
 | bairrtt, no compat branch | none: R API only, with no dbarts linkage in its `src/` |
 
@@ -114,7 +114,7 @@ A green gate proves what its row says and no more.
 | `exact-gates` quick | 21 exact-posterior and move-balance scripts, against closed forms rather than snapshots |
 | `exact-gates` cross-host | bcf and multinomial equivalence at tier 1 |
 | `equivalence.R` gaussian | 51 scenarios reproduce bitwise on one host |
-| `sbc.R` | simulation-based calibration (SBC) over five family arms and 30 functionals, Bonferroni-corrected |
+| `sbc.R` | simulation-based calibration (SBC) over five family arms (gaussian, ordinal, nbinom, Student-t, multinomial) and 30 functionals, Bonferroni-corrected |
 | `rchk` | PROTECT balance |
 | `valgrind` | leaks and out-of-bounds reads |
 | `revdep-smoke` | reverse dependencies install and run |
@@ -172,7 +172,7 @@ Things that could be wrong and would not be caught:
   themselves gates and have one recorded run each, and the ratios
   `grouped-mixing.R` measures now already disagree with its own header's
   figures, undetected because nothing re-runs it.
-- `setForestBasis(k, ~var)` evaluates the formula in `environment(basis)`
+- `setForestBasis(k, ~var)` evaluates the formula in its own environment
   with no data attached, so a column living only in a data frame is not
   found.
 - A per-forest weight is not part of saved state, and an active-row mask is
@@ -182,8 +182,8 @@ Things that could be wrong and would not be caught:
 ## 6. Decided, open, and more expensive after the merge
 
 Four scope questions are decided: `updateScale` is refused on every
-multi-forest family, keyed on the sampler's forest count rather than its
-family; real-valued nbinom dispersion and weighted binary are scheduled
+multi-forest sampler, whatever its family, by a guard that reads the forest
+count; real-valued nbinom dispersion and weighted binary are scheduled
 after 1.0-0; formal heredity is the first work after 1.0-0. `TODO` carries
 the last three as `negbin-real-dispersion`, `weighted-binary` and
 `interaction-constraints`.
@@ -191,16 +191,16 @@ the last three as `negbin-real-dispersion`, `weighted-binary` and
 One question is open: whether to declare the release candidate (`TODO`'s
 `rc-gate` item).
 
-No shipped surface still needs changing before the release. The four that
-would be expensive to change after it are each in their final form:
+No shipped surface still needs changing before the release. Four surfaces
+would be expensive to change after it, and each is in its final form:
 `gp()` is calibrated at 25 trees, inside the range its man page recommends
 (a GP leaf earns its keep at tens of trees, not hundreds), in four
 configurations including the one where a tree holds both GP and
 constant-fallback leaves (`docs/plans/sbc-calibration.md`, Tier C); the
 pointwise log-likelihood on a BCF fit is pinned against a hand computation
-in all three families; the heteroscedastic swap under `updateScale = TRUE`
-is refused; and a sampled GP lengthscale would be an additive state block,
-not a format break.
+in all three families BCF supports, gaussian, probit and logistic; the
+heteroscedastic swap under `updateScale = TRUE` is refused; and a sampled GP
+lengthscale would be an additive state block, not a format break.
 
 ## Appendix A. Reading the code
 
@@ -235,8 +235,8 @@ setters, `_storeState`, `_setState`, `_installForests`, `_predict`,
 `_predictPerForest`, `_getTrees`, then the shared guards
 `refusedAmplitudeFamilyReason`, `refuseMultiForestMutation`,
 `refuseUndefinedTestFits`, `refusePinnedSigmaChange`, `refuseNonBinaryMask`.
-Judge `refusePinnedSigmaChange`'s own comment, the tree's clearest statement
-of why a guard is keyed on family rather than an internal flag.
+Judge `refusePinnedSigmaChange`'s own comment, the source's clearest
+statement of why a guard is keyed on family rather than an internal flag.
 `tests/cpp/test_facade.cpp` is the facade's conformance test, one row per
 `SamplerBase` virtual driven through the base.
 
