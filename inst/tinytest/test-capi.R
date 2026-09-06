@@ -105,9 +105,12 @@ expect_false(identical(hashes$text, "0xe14b499a84f501d2"))
 # and again when the code channel gained the width that bounds it: a second
 # appended field moves the same size the first did
 expect_false(identical(hashes$text, "0x37288e7c56449b34"))
+# and again when dbarts_results LOST two fields: a pre-1.0-0 removal shifts
+# every field below it and shrinks the struct, both of which the fold sees
+expect_false(identical(hashes$text, "0xca7b56a64c812b8d"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xca7b56a64c812b8d")
+expect_identical(hashes$text, "0x616ffcda8c947777")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -909,39 +912,6 @@ ptrMT <- CALL("capi_create", specMT$control, specMT$model, specMT$data, "")
 expect_error(
   CALL("capi_run_with_callback", ptrMT, 0L, 2L, NULL, -1L),
   "dbarts_sampler_setCallback: a per-sweep callback requires chains to run inline"
-)
-
-# tau/groupEffects on a grouped random-intercept fit, configured through the
-# internal control attribute rbart_vi's in-core path sets
-numGroups <- 3L
-controlG <- spec$control
-attr(controlG, "bartcore.groups") <- list(
-  indices = as.integer(rep_len(seq_len(numGroups), n)),
-  n.groups = numGroups,
-  prior = "cauchy",
-  rel.scale = sd(y),
-  n.steps = 1L
-)
-ptrG <- CALL("capi_create", controlG, spec$model, spec$data, "")
-rG <- CALL("capi_run_grouped", ptrG, 5L, 4L, numGroups)
-expect_equal(length(rG$tau), 4L)
-expect_true(all(is.finite(rG$tau)) && all(rG$tau > 0))
-expect_equal(length(rG$ranef), numGroups * 4L)
-expect_true(all(is.finite(rG$ranef)))
-
-# grouped random effects plus a variance forest: the same unadjudicated
-# composition R/spec.R refuses, closed here for the flat entrance - the
-# create-path backstop is this attribute pair's only coverage
-controlGV <- controlG
-attr(controlGV, "bartcore.variance") <- list(
-  n.trees = 10L,
-  base = 0.95,
-  power = 2,
-  columns = NULL
-)
-expect_error(
-  CALL("capi_create", controlGV, spec$model, spec$data, ""),
-  "not supported with a heteroscedastic variance forest"
 )
 
 # the predictor entries take a design carrying a CSC-backed CATEGORICAL

@@ -211,8 +211,7 @@ expect_error(
 )
 
 # a mixed dense/sparse container takes column-granular AND whole-matrix
-# mutation, maintained R-side; whole-data replacement stays fixed at creation,
-# and grouped rbart_vi is reserved
+# mutation, maintained R-side; whole-data replacement stays fixed at creation
 sampler <- dbarts(x.frame, y, control = control)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
@@ -365,20 +364,6 @@ expect_error(
   ),
   pattern = "has levels not present in the"
 )
-expect_error(
-  rbart_vi(
-    x.frame,
-    y,
-    group.by = rep_len(1:4, n),
-    n.samples = 5L,
-    n.burn = 5L,
-    n.trees = 25L,
-    n.chains = 1L,
-    n.threads = 1L
-  ),
-  pattern = "sparse"
-)
-
 # save/load: sampler re-creation from the stored container restores state
 control.state <- dbartsControl(
   n.samples = 10L,

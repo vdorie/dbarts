@@ -130,7 +130,7 @@ resolveSamplerSpec <- function(
   family <- resolveClassificationFamily(
     data,
     family,
-    "dbarts()/rbart_vi()/bart()/xbart",
+    "dbarts()/bart()/xbart",
     c("gaussian", "aft", "nbinom"),
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
@@ -432,8 +432,7 @@ resolveSamplerSpec <- function(
   # constraint or a non-constant leaf selects an instantiation the multinomial
   # factory does not build, a DART prior and a drawn k are unadjudicated
   # against the map's fixed anchor, the map owns every leaf scale so a named
-  # prior.scale has nowhere to land, and the grouped decorator wraps ONE
-  # response model, which a K-forest blend is not. Every one of these would
+  # prior.scale has nowhere to land. Every one of these would
   # otherwise be dropped in silence, changing the fitted model without a word;
   # name each one instead. The bridge keeps its own backstops for the callers
   # that reach it without this layer.
@@ -446,7 +445,6 @@ resolveSamplerSpec <- function(
       "a Gaussian-process node prior" = is(priors$node.prior, "dbartsGPPrior"),
       "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
       "a named 'prior.scale'" = !is.na(model@prior.scale),
-      "grouped random effects" = !is.null(attr(control, "bartcore.groups")),
       "storage = \"single\"" = identical(control@storage, "single")
     )
     if (any(unsupportedMultinomial)) {
@@ -462,7 +460,7 @@ resolveSamplerSpec <- function(
   }
 
   # the AFT survival family reads its per-observation status off this control
-  # attribute (the bartcore.groups precedent); the C bridge validates it
+  # attribute; the C bridge validates it
   if (!is.null(survivalStatus)) {
     if (length(survivalStatus) != length(data@y)) {
       stop("survival status must have length ", length(data@y))
@@ -526,18 +524,6 @@ resolveSamplerSpec <- function(
       stop(
         "a variance forest does not support Student-t residuals: the two ",
         "are not yet shown to compose"
-      )
-    }
-    # rbart_vi's group block draws b_j at the SCALAR residual scale the chain
-    # carries, which a variance forest pins at 1 while s^2(x) holds the residual
-    # scale row by row; the group effects would condition on a residual variance
-    # the fitted model does not have. Refuse rather than fit a composition whose
-    # Gibbs blocks disagree.
-    if (!is.null(attr(control, "bartcore.groups"))) {
-      stop(
-        "a variance forest does not support grouped random effects: the group ",
-        "effects draw at a scalar residual scale, which the variance forest ",
-        "replaces row by row"
       )
     }
     if (!is.null(monotoneDirections)) {
@@ -645,7 +631,7 @@ resolveSamplerSpec <- function(
     # The amplitude chain builds every forest from its own calibration map (fixed
     # k = 1, leaf scales from the family's own latent scale) and reads neither
     # the DART machinery, the split probabilities, the monotone directions, a
-    # non-constant leaf, the grouped decorator, a variance forest, an fp32
+    # non-constant leaf, a variance forest, an fp32
     # residual, a per-column cut cap, nor the Student-t error law. Every one of
     # those would otherwise be dropped in silence, changing the fitted model
     # without a word; name each one instead.
@@ -675,7 +661,6 @@ resolveSamplerSpec <- function(
       "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
         !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs)),
       "Student-t residuals" = !is.null(residDf),
-      "grouped random effects" = !is.null(attr(control, "bartcore.groups")),
       "'variance'" = !is.null(varianceColumns),
       "storage = \"single\"" = identical(control@storage, "single"),
       "per-column 'n.cuts'" = length(unique(data@n.cuts)) > 1L,

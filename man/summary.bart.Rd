@@ -1,11 +1,8 @@
 \name{summary.bart}
 \alias{summary.bart}
-\alias{summary.rbart}
 \alias{print.summary.bart}
 \alias{as_draws_array.bart}
-\alias{as_draws_array.rbart}
 \alias{as_draws_df.bart}
-\alias{as_draws_df.rbart}
 \alias{as_draws_array.bartMultinomial}
 \alias{as_draws_array.bartOrdinal}
 \alias{as_draws_array.bartNegbin}
@@ -17,8 +14,7 @@
 \title{Convergence Diagnostics and Posterior-Package Draws for BART Fits}
 \description{
   \code{summary} reports a per-variable posterior summary of the scalar
-  parameters (\code{sigma}, \code{k}, and, for \code{\link{rbart_vi}}
-  fits, \code{tau}) of a \code{bart}/\code{bart2}/\code{rbart_vi} fit,
+  parameters (\code{sigma} and \code{k}) of a \code{bart}/\code{bart2} fit,
   along with split-\eqn{\hat{R}}{Rhat} and effective sample size when
   the \pkg{posterior} package is installed. A heteroscedastic fit
   (\code{\link{dbarts}}'s \code{variance}) has no scalar residual scale
@@ -42,13 +38,10 @@
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "tau"), \dots)
-\method{summary}{rbart}(object, vars = c("sigma", "k", "tau"), \dots)
 \method{print}{summary.bart}(x, \dots)
 
 \method{as_draws_array}{bart}(x, vars = c("sigma", "k", "tau"), \dots)
-\method{as_draws_array}{rbart}(x, vars = c("sigma", "k", "tau"), \dots)
 \method{as_draws_df}{bart}(x, vars = c("sigma", "k", "tau"), \dots)
-\method{as_draws_df}{rbart}(x, vars = c("sigma", "k", "tau"), \dots)
 
 \method{as_draws_array}{bartMultinomial}(x, vars = "meanProb", \dots)
 \method{as_draws_df}{bartMultinomial}(x, vars = "meanProb", \dots)
@@ -65,18 +58,18 @@
 }
 \arguments{
   \item{object, x}{
-    An object of class \code{bart} or \code{rbart}, as returned by
-    \code{\link{bart}}, \code{\link{bart2}}, or \code{\link{rbart_vi}};
+    An object of class \code{bart}, as returned by
+    \code{\link{bart}} or \code{\link{bart2}};
     for the four own-class methods, a \code{bart2} fit of the matching
     class.
   }
   \item{vars}{
     Character vector of fields to gather. Requested fields absent from
-    \code{object} (e.g. \code{k} when unmodeled, \code{tau} for a plain
-    \code{bart}/\code{bart2} fit) are silently dropped. \code{sigma},
+    \code{object} (e.g. \code{k} when unmodeled, or \code{tau}, which no
+    shipped family carries) are silently dropped. \code{sigma},
     \code{k}, and \code{tau} contribute one draws variable each; any
     other field (\code{varcount}, \code{varprobs}, \code{yhat.train},
-    \code{yhat.test}, \code{ranef}) contributes one variable per
+    \code{yhat.test}) contributes one variable per
     column, named \code{"field[column]"}. \eqn{f(x)} draws
     (\code{yhat.*}) are reachable this way but are not summarized
     automatically, as they carry one variable per observation.
@@ -128,7 +121,7 @@
   same convention over their own family-scoped \code{vars}.
 }
 \seealso{
-\code{\link{bart}}, \code{\link{rbart_vi}}
+\code{\link{bart}}, \code{\link{bart2}}
 }
 \examples{
 \donttest{

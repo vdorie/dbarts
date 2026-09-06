@@ -50,9 +50,10 @@ do not introduce them now).
 
 - Conformance: `"'weights' must have the same length as 'y'"`
   ([[R/data.R#"'weights' must have the same length as 'y'"]]).
-- Violation, since reworded: `"chainNum must be a single chain index in
-  [1, ...]"` was bare; [[R/generics.R#"'chainNum' must be a single chain index in [1, "]]
-  now reads `stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")`.
+- Violation, since reworded and then removed outright: `"chainNum must be a
+  single chain index in [1, ...]"` was bare, and its reworded form
+  retired: [[R/generics.R#"'chainNum' must be a single chain index in [1, "]]
+  went with the grouped surface that raised it.
 
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
@@ -189,8 +190,8 @@ majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
 Keep `sprintf()` as the accepted alternate when one clause interpolates two or
 more values ([[R/augmentation.R#augVector]]); do not introduce
 `paste0()`/`gettextf()` (0 uses of either today). Conformance:
-`stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")`
-([[R/generics.R#"'chainNum' must be a single chain index in [1, "]]). The
+`stop("'chainNums' must be in [1, ", control@n.chains, "]")`
+([[R/dbarts.R#"'chainNums' must be in [1, "]]). The
 example this rule first cited, `"invalid monotone direction '", value, "'; use
 -1, 0, or +1"`, did not survive: R12's rewording left [[R/model.R#parseMonotoneSign]]
 a fixed two-literal message that interpolates nothing.
@@ -374,13 +375,12 @@ Two sub-shapes, tracking two different R predicates. **Value present but
 NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
 Conformance: `"x.test cannot be NULL"` ([[R/dbarts.R#"x.test cannot be NULL"]]).
 **Argument omitted from the call** (R `missing(x)`, no C analogue):
-`"'<name>' must be specified"`. Conformance: `"'group.by' must be specified to
-use rbart_vi"` ([[R/rbart.R#"'group.by' must be specified to use rbart_vi"]]).
-The former violation, `"'group.by' must be supplied when 'newdata' is given"`,
-is retired - the formal moved after `...`, so
-[[R/bart.R#"'group.by' must be given by name when 'newdata' is given"]]'s
-`missing()` test now means "not name-matched", and the message says so -
-`"'group.by' must be given by name when 'newdata' is given"`.
+`"'<name>' must be specified"`. The sub-shape has no live instance left: both
+the conformance site, [[R/rbart.R:127@c585ba2c]], and the
+name-matching variant it was contrasted with,
+retired: [[R/bart.R#"'group.by' must be given by name when 'newdata' is given"]],
+were removed with the grouped surface. The rule stands for the next site
+that needs it.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -611,22 +611,15 @@ unused-`...`-argument, and sigma-fallback warnings
 is a defect under this rule wherever `R/` can reach it. `<Thing>` names the
 CONDITION being reported, not the call site: two sites that report the same
 condition through different messages share one class, the way a sampler
-that is not keeping trees, a `bart` fit that was not kept, and a test set
-given without its own grouping factor all report "the input supplied
-cannot serve this call as given, so one was substituted" under one
-`dbartsFallbackWarning`
-([[R/partialDependence.R#pdbart.prologue]], [[R/rbart.R#rbart_vi]]).
+that is not keeping trees and a `bart` fit that was not kept both report
+"the input supplied cannot serve this call as given, so one was
+substituted" under one `dbartsFallbackWarning`
+([[R/partialDependence.R#pdbart.prologue]]).
 Conversely, sites a caller would want to catch apart do not share a class
-however similar their prose: a cluster that will not start leaves the
-results untouched and only the execution serial
-(`dbartsThreadFallbackWarning`), and an exhausted rejection loop returns
-the starting value as the draw, so the chain does not move
-(`dbartsDrawFallbackWarning`) - neither is the input problem the two
-`pdbart` sites report, and promoting one to an error with
+however similar their prose, and promoting one to an error with
 `options(warn = 2)` should not promote the others. A subclass is for a
-condition that is honestly a narrower case of its parent's: both of those
-are fallbacks and are signaled under `dbartsFallbackWarning` as well, the
-way `dbartsSparseSigmaFallbackWarning` narrows `dbartsSigmaFallbackWarning`
+condition that is honestly a narrower case of its parent's, the way
+`dbartsSparseSigmaFallbackWarning` narrows `dbartsSigmaFallbackWarning`
 ([[R/utility.R#estimateSigmaFromLinearModel]]).
 
 The message body is unaffected by this rule and keeps following R1-R6
@@ -642,12 +635,10 @@ discusses the behavior in question, following the precedent
 `dbartsFamilyGatedWarning` and `dbartsUnusedArgsWarning` set: "... warns
 (class `dbartsXWarning`)" folded into existing prose, no dedicated help
 topic. A warning raised inside an internal helper is documented on the
-exported function a user actually calls to reach it
-([[R/sliceSample.R#sliceSample]], reached through
-[[R/rbart.R#rbart_vi_run]] and documented on `rbart_vi`'s own help page);
-a helper no current call site can make an exported function reach is
-still classed, just left undocumented, rather than inventing help text
-for behavior no one can trigger.
+exported function a user actually calls to reach it; a helper no current
+call site can make an exported function reach is still classed, just left
+undocumented, rather than inventing help text for behavior no one can
+trigger.
 
 `warnOnce`'s session-scoped key ([[R/utility.R#onceWarnState]]) is a
 separate mechanism from the class, not a substitute for one: the key
@@ -668,10 +659,7 @@ over unchanged):
 | `dbartsSparseSigmaFallbackWarning` | [[R/utility.R#estimateSigmaFromLinearModel]] |
 | `dbartsPositionalArgsWarning` | [[R/dbarts.R#dbartsSampler$setResponse]] |
 | `dbartsIgnoredArgWarning` | [[R/dbarts.R#dbartsSampler$printTrees]] |
-| `dbartsUnmeasuredLevelsWarning` | [[R/rbart.R#packageRbartResults]] |
 | `dbartsFallbackWarning` | [[R/partialDependence.R#pdbart.prologue]] |
-| `dbartsThreadFallbackWarning` | [[R/rbart.R#rbart_vi]] |
-| `dbartsDrawFallbackWarning` | [[R/sliceSample.R#sliceSample]] |
 | `dbartsDegenerateResponseWarning` | [[R/data.R#dbartsData]] |
 | `dbartsDuplicateNameWarning` | [[R/multipleAssignment.R#"[<-.lval"]] |
 

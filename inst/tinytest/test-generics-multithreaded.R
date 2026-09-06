@@ -239,40 +239,7 @@ expect_identical(
 )
 expect_identical(partition(2L, n.samples), partitionOK)
 
-# ---- rbart_vi ----
-set.seed(919)
-nRe <- 80L
-xRe <- matrix(runif(nRe * 2L), nRe, 2L)
-g <- factor(rep_len(seq_len(4L), nRe))
-yRe <- xRe[, 1L] + rnorm(4L)[g] + rnorm(nRe, 0, 0.3)
-rbartFit <- dbarts::rbart_vi(
-  xRe,
-  yRe,
-  group.by = g,
-  n.trees = 5L,
-  n.samples = n.samples,
-  n.burn = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  keepTrees = TRUE,
-  verbose = FALSE
-)
-expect_identical(
-  predict(rbartFit, xRe, group.by = g, n.threads = 1L),
-  predict(rbartFit, xRe, group.by = g, n.threads = 2L)
-)
-# rbart's Gibbs loop advances its sampler one draw at a time, so its store
-# holds a single slab: the worker count is clamped to it rather than spawning
-# an idle second worker
-expect_identical(partition(2L, 1L), partitionOK)
-# group.by follows '...', so it is matched by name only on every call
-expect_identical(
-  predict(rbartFit, xRe, group.by = g, n.threads = 2L),
-  predict(rbartFit, xRe, group.by = g, n.threads = 2L)
-)
-
-# ---- n.threads is LAST on every predict method; rbart's own group.by
-# ---- trails '...', so it, not n.threads, is rbart's final formal ----
+# ---- n.threads is LAST on every predict method ----
 for (method in c(
   "predict.bart",
   "predict.bartMultinomial",
@@ -286,19 +253,6 @@ for (method in c(
     c("n.threads", "...")
   )
 }
-rbartFormalNames <- names(formals(utils::getFromNamespace(
-  "predict.rbart",
-  "dbarts"
-)))
-expect_identical(
-  rbartFormalNames[c(
-    length(rbartFormalNames) - 2L,
-    length(rbartFormalNames) - 1L,
-    length(rbartFormalNames)
-  )],
-  c("n.threads", "...", "group.by")
-)
-
 # ---- refusals, by name and echoing the value ----
 # a fractional value used to truncate silently via as.integer() despite the
 # message's own "single positive integer" wording
@@ -376,11 +330,6 @@ rm(
   bcfSampler,
   bcfBurn,
   bcfFit,
-  nRe,
-  xRe,
-  yRe,
-  g,
-  rbartFit,
   method,
   formalNames,
   bad

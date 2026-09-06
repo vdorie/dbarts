@@ -205,7 +205,7 @@ the gaussian stream (GaussianResponse::refreshLatents stays a no-op,
   (30 vs 100 indistinguishable with few outliers); cap the grid, the prior
   matters.
 - Reporting trap. getSigmas reports the CONDITIONAL scale; sigma^2 is NOT the
-  marginal residual variance (nu/(nu-2) sigma^2). Consumers (stan4bart, rbart)
+  marginal residual variance (nu/(nu-2) sigma^2). Consumers (stan4bart)
   may misread it -- document, or expose the marginal.
 - Zero user weights compose cleanly: c_i = 0, lambda_i draws from its prior, and
   numPositiveWeights excludes the row ([[src/bartcore/model.hpp#GaussianResponse::countPositiveWeights]]), so the sigma df is right.

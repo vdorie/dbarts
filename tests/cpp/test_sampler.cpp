@@ -1914,63 +1914,6 @@ static void testActiveRows() {
   }
   ext_rng_destroy(rngPlain);
 
-  // ---- grouped intercepts delegate, with no edit of their own ----
-  // drawGroupEffects already weights its per-group sums by workingWeights(),
-  // so an inactive row leaves its group's mean and precision; a group whose
-  // every row is inactive falls back to its prior through the same formula,
-  // which is coherent and is NOT what deleting the group would do. Pinned
-  // BITWISE against setWeights(w * a) rather than for finiteness: a mask that
-  // never reached the per-group sums would still run finite.
-  {
-    std::vector<std::uint32_t> groups(n);
-    for (size_t i = 0; i < n; ++i)
-      groups[i] = static_cast<std::uint32_t>(i % 5);
-    std::vector<double> groupMask(n), groupComposed(n);
-    for (size_t i = 0; i < n; ++i) {
-      // group 0 entirely inactive, plus a scatter of rows elsewhere
-      groupMask[i] = (groups[i] == 0 || i % 7 == 3) ? 0.0 : 1.0;
-      groupComposed[i] = weights[i] * groupMask[i];
-    }
-
-    SamplerOptions groupedOptions = options;
-    groupedOptions.groupIndices = groups.data();
-    groupedOptions.numGroups = 5;
-    ext_rng* rngMasked = makeSeededRng();
-    ext_rng* rngComposed = makeSeededRng();
-    ConstantLeafSampler grouped(x.data(), y.data(), n, 2, weights.data(),
-                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
-                                0.37804942330213542, groupedOptions,
-                                &rngMasked);
-    ConstantLeafSampler composedGrouped(
-      x.data(), y.data(), n, 2, groupComposed.data(), nullptr,
-      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, groupedOptions,
-      &rngComposed);
-    check(grouped.supportsActiveRows() &&
-            grouped.setActiveRows(groupMask.data()),
-          "a grouped sampler forwards the mask to its base family");
-
-    std::vector<double> effects(5 * numSamples),
-      effectsComposed(5 * numSamples), trainComposed(n * numSamples),
-      sigmaComposed(numSamples);
-    Results groupedResults(resultsOther), composedResults;
-    groupedResults.groupEffects = effects.data();
-    composedResults.sigma = sigmaComposed.data();
-    composedResults.trainingFits = trainComposed.data();
-    composedResults.groupEffects = effectsComposed.data();
-    grouped.run(20, numSamples, groupedResults);
-    composedGrouped.run(20, numSamples, composedResults);
-    bool finite = true;
-    for (double effect : effects) finite = finite && std::isfinite(effect);
-    check(finite,
-          "an entirely inactive group draws its effect from the prior, finite");
-    check(effects == effectsComposed && trainOther == trainComposed &&
-            sigmaOther == sigmaComposed,
-          "a masked grouped sampler is bitwise setWeights(w * a), effects and "
-          "all");
-    ext_rng_destroy(rngComposed);
-    ext_rng_destroy(rngMasked);
-  }
-
   // ---- the vector leaf: a mid-run install must drop the U'WU cache ----
   // Both arms move the same weights by the same values and both invalidate,
   // so their draws agree bitwise; the mask install moves no MEMBERSHIP, so a

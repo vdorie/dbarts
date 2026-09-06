@@ -44,20 +44,10 @@ if (requireNamespace("survival", quietly = TRUE)) {
   # before dbartsData's ingestion is ever reached, so it legitimately fits
   # rather than refusing; xbart has no such special case
   expect_error(dbarts::xbart(x, survY), "'y' is a survival response \\(Surv\\)")
-  groupBy <- factor(rep(seq_len(4L), length.out = n))
-  expect_error(
-    dbarts::rbart_vi(x, survY, group.by = groupBy),
-    "'y' is a survival response \\(Surv\\)"
-  )
 }
 
 expect_error(dbarts::dbarts(x, nx2), "'y' is an n x 2 matrix")
 expect_error(dbarts::xbart(x, nx2), "'y' is an n x 2 matrix")
-groupBy <- factor(rep(seq_len(4L), length.out = n))
-expect_error(
-  dbarts::rbart_vi(x, nx2, group.by = groupBy),
-  "'y' is an n x 2 matrix"
-)
 
 # --- the formula interface reaches the same guards ---------------------------
 # A cbind(...) left-hand side is a multi-column response like any other. The
@@ -89,28 +79,4 @@ expect_error(
   "'offset.test' must be a numeric vector"
 )
 
-# the aft route's own bare (time, status) left-hand side is rewritten ahead of
-# the guard, so it still fits (bart2's multinomial cbind() count response is
-# pinned in test-multinomial-surface.R)
-aftFrame <- data.frame(
-  time = exp(abs(testData$y) + 1),
-  status = rep_len(c(1L, 0L), n),
-  p = x[, 1L],
-  q = x[, 2L]
-)
-aftFit <- dbarts::rbart_vi(
-  cbind(time, status) ~ p + q,
-  data = aftFrame,
-  group.by = groupBy,
-  family = "aft",
-  n.samples = 5L,
-  n.burn = 2L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 5L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-expect_identical(aftFit$family, "aft")
-
-rm(x, n, nx2, nxK, groupBy, frm, aftFrame, aftFit)
+rm(x, n, nx2, nxK, frm)

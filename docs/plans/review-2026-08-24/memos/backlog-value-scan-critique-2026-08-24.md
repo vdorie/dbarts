@@ -101,7 +101,7 @@ public surface" slice, `git show --stat 5a3bc276`: R/ +723, one test file +537, 
 7. survival `entry=`. Value clause SURVIVES ("staggered-entry registry/EHR cohorts are hand-expanded
    today"). New defaulted formal = ADDITIVE-LATER. ~60 R optimistic against 47-82 sites plus a
    family gate and `warnFamilyGatedArgs`; reprice ~150.
-8. sparse-extensions halves. Refusals verified live ([[rbart.R:302-307@5a3bc276]], [[model.R:215-220@5a3bc276]] and [[model.R:255-265@5a3bc276]],
+8. sparse-extensions halves. Refusals verified live ([[R/rbart.R:302-307@5a3bc276]], [[model.R:215-220@5a3bc276]] and [[model.R:255-265@5a3bc276]],
    engine reason [[data.hpp:287-292@5a3bc276]]). Removing a refusal is ADDITIVE-LATER by construction - the memo
    concedes this in its own last clause. NOT pre-RC on a window argument.
 9. rbart_vi logistic token. "Grouped binary silently gets probit" is QUALIFIED - p10.R:

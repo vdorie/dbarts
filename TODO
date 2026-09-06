@@ -57,7 +57,8 @@ items
     than opened it.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
-    the outer sampler (the rbart_vi pattern); EXACT pure-AR-1 errors
+    the outer sampler, driven through the setOffset conduit; EXACT
+    pure-AR-1 errors
     are a deferred ENGINE door - banded residual precision plus
     cross-leaf GLS leaf updates break per-leaf independence. It opens
     on a consumer demanding exact AR-1 errors. Record:
@@ -84,15 +85,6 @@ items
     informed-kernel and preconditioned-CG prototypes
     (docs/design/parallel-bart-frontier.md sec 5). Memo and falsifiers:
     docs/design/gpu-bart.md.
-  group-by-exposure: a public group.by beyond rbart_vi - a new formal
-    on dbarts() and bart2(), which is an API commitment that cannot be
-    walked back after release (naming reserved;
-    docs/design/grouped-random-effects.md, plan
-    docs/plans/group-by-exposure.md). Value holds: clustered /
-    multi-site causal survival (riAFTBART's shape) plus grouped
-    discrete-time hazard, which docs/design/survival.md sec 6 calls
-    feasible by construction with only surface work left. Pairs with
-    sparse-extensions' rbart_vi-on-sparse half. decision-gated.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
   interaction-constraints: formal heredity (an ensemble lattice prior)
@@ -144,8 +136,8 @@ items
     is the pattern to adopt if wanted. A dbarts.h creation path -
     construction is R-bridge-only (docs/design/feature-matrix.md
     [f4]); opens on a flat-C consumer wanting multinomial. The family
-    token in bart, rbart_vi, and xbart - per-entry-point scoping
-    choices, xbart additionally needing a multinomial loss defined.
+    token in bart and xbart - per-entry-point scoping choices, xbart
+    additionally needing a multinomial loss defined.
     Per-forest masking is NOT a door - permanently refused, a
     category's margin being a log-sum-exp over the other K - 1
     forests. consumer-gated.
@@ -157,8 +149,8 @@ items
     dbarts' first documented-approximate family (truncated gamma-sum,
     bias bounded ~1e-3 at K = 200), which the record calls its own arc
     rather than a rider, and which equally gates weighted-binary's
-    fractional weights. The engine seams are in place. Poisson family
-    and grouped NB are companion doors. Records:
+    fractional weights. The engine seams are in place. A Poisson family
+    is the companion door. Records:
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
@@ -204,10 +196,9 @@ items
     updateScale, not updateState) once callers have had a full minor cycle
     to move to named arguments. Scheduled for 1.2-0 (VD 2026-09-01).
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
-    Status list. rbart_vi / linear leaf on sparse: value gate lifted
-    (grouped random effects on high-dimensional sparse designs, the
-    riAFTBART shape meeting the sparse store; pairs with
-    group-by-exposure). Streaming range kernel and per-column u8
+    Status list. Linear leaf on sparse: value gate lifted (a linear
+    leaf over high-dimensional sparse designs). Streaming range kernel
+    and per-column u8
     widths: gate STANDS - perf/memory only with no measured win;
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
@@ -219,10 +210,9 @@ items
     docs/plans/archive/multinomial-counts-mutation.md, and the two move
     together), left truncation / delayed entry (value lifted; the
     cheapest door, a one-argument expander change), a long-format
-    ingestion mode for time-varying covariates, grouped frailty
-    (surface only - the decorator already ships and is generic over
-    its base family), and cloglog link (gate stands - awaits a cloglog
-    binary family). Continuous-time models are AFT, which ships.
+    ingestion mode for time-varying covariates, and cloglog link
+    (gate stands - awaits a cloglog binary family). Continuous-time
+    models are AFT, which ships.
     low-ranked.
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move

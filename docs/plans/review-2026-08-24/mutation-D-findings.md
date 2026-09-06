@@ -182,7 +182,7 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
    length-p vector (`splitprobs = rep(1, ncol(x))`).  agent-fix
 
 10. MINOR  [[R/rbart.R:1201@b102e17c]] vs [[R/rbart.R:1269@b102e17c]]  the two arms of rbart_vi's `$varprobs` assembly are
-    separately unpinned: [[test-rbart-options.R:167-168@b102e17c]] exercises the DART report at
+    separately unpinned: [[inst/tinytest/test-rbart-options.R:167-168@b102e17c]] exercises the DART report at
     n.chains = 1, so the mutation aimed at the multi-chain arm moved nothing. The
     single-chain replant was queued and did not run inside the budget.  defer
 

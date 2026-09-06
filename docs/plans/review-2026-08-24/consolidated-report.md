@@ -610,13 +610,13 @@ finding to whole-suite.
 - **NARROWED by the replant: the leg's file-level finding stands, the tree-level one does not.**
   - `gs1` (`setResponse(updateScale = TRUE)`'s R-layer refusal deleted) is KILLED whole-suite by
     `test-bcf-r5-surface.R` and `test-forest-basis-r5.R`. Leg C's claim that the R guard is "unheld" is
-    REFUTED at tree scope; what survives is that `[[test-grouped-swap.R:64-74@b102e17c]]`, written to hold exactly it,
+    REFUTED at tree scope; what survives is that `[[inst/tinytest/test-grouped-swap.R:64-74@b102e17c]]`, written to hold exactly it,
     does not - its three `expect_error`s pass on the C bridge's message. [C 5 narrowed to a misplaced-gate
     finding]
   - `se1` (`$sampleTreesFromPrior()` made a no-op) and `dcm2` (`validateXYOffset` returning NULL) are both
     KILLED whole-suite. Leg C said as much for `se1`; for `dcm2` the tree catches it downstream (`cannot
     replicate NULL to a non-zero length`). What stands in both cases is the FILE:
-    `test-generics-sequentialExecution.R` is 2 assertions, one of them `expect_inherits`, and its `[[test-grouped-swap.R:42@b102e17c]]`
+    `test-generics-sequentialExecution.R` is 2 assertions, one of them `expect_inherits`, and its `[[inst/tinytest/test-grouped-swap.R:42@b102e17c]]`
     comparison is common-mode blind because BOTH sides call the mutated function;
     `test-data-compatibility.R` is 8 `expect_` with 7 `expect_inherits` and `test-data-formula.R` 13 with 11
     (both verified), so neither can see whether the offset/weights/subset they ingest arrived. [C 6, C 7
@@ -629,7 +629,7 @@ finding to whole-suite.
     `expect_inherits` file that cannot fail, but the capability is gated. [D 6 narrowed]
   - `x05`/`x03`/`x04` were never zero-killer: leg D's own run shows `test-xbart-oracle.R` catching each. The
     findings are that `test-xbart-method.R`'s section headed "test that k-fold subdivides data correctly
-    when data do not divide evenly by k" (verified at `[[test-grouped-swap.R:114@b102e17c]]`) asserts only `expect_inherits(xval, "array")`,
+    when data do not divide evenly by k" (verified at `[[inst/tinytest/test-grouped-swap.R:114@b102e17c]]`) asserts only `expect_inherits(xval, "array")`,
     and that `test-xbart-loss.R`'s 8 assertions never read a loss value. MISPLACED GATES, not coverage
     holes. [D 2, D 3]
 - **PROVEN NOT GAPS - six of leg D's ten "unproven GAP" files.** Their aimed mutations, run here for the
@@ -659,7 +659,7 @@ finding to whole-suite.
 - `[[R/model.R:1614-1627@b102e17c]]` `student()`'s own `df <= 0.0` refusal is redundant with `dbartsStudentDist` S4
   validity (`rb2` SURVIVED the whole suite; the S4 twin `st2` is caught). Keep and pin, or delete - same
   shape as M20's R-side logistic check. DEFER. [D 7]
-- Equivalent mutants, recorded so a later leg does not re-file them: `[[sliceSample.R:185@b102e17c]]`'s upper clamp
+- Equivalent mutants, recorded so a later leg does not re-file them: `[[R/sliceSample.R:185@b102e17c]]`'s upper clamp
   (`s02` SURVIVED - the beta target is 0 outside [0, 1], so every out-of-range proposal is shrunk away),
   `stateFormatVersion` 3 -> 4 (writer and reader move together, which is what
   `minReadableStateFormatVersion` is for), and leg A's `formForestVetoWeights` snap seen a third time (leg

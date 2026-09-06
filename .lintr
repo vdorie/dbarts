@@ -43,8 +43,9 @@ linters: local({
       commas_linter = NULL,
       indentation_linter = NULL,
       # Allowed name styles. The base three (camelCase, dotted.case, symbols)
-      # plus snake_case (exported names like rbart_vi) and UPPERCASE (matrix and
-      # constant names like X, A, ORDINAL_VARIABLE). The mixedDottedCase regex
+      # plus snake_case (registered methods like as_draws_array.bart) and
+      # UPPERCASE (matrix and constant names like X, A,
+      # ORDINAL_VARIABLE). The mixedDottedCase regex
       # admits the test-suite convention of a camelCase or snake_case head with
       # dotted suffixes (e.g. bcSampler.binary, x.jointA, testData_df, df.allNA).
       object_name_linter(
@@ -57,8 +58,8 @@ linters: local({
       # cannot be renamed (e.g. bartcoreUpdatePredictorPerObservationJointly, 44).
       object_length_linter(length = 45L),
       commented_code_linter = NULL,
-      # <<- is used deliberately for closure state (rbart_vi's chain-loop
-      # closures, test callbacks); pin the permission explicitly so a lintr
+      # <<- is used deliberately for closure state (xbart's fold closures,
+      # test callbacks); pin the permission explicitly so a lintr
       # release changing the default does not re-flag it.
       assignment_linter(operator = c("<-", "<<-"))
     )

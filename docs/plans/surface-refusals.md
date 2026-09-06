@@ -413,7 +413,7 @@ What breaks: `fitted(fit, "ev", "train")` now binds `"train"` to `ci.level` and 
 `"'ci.level' must be a single number in (0, 1)"` ([[man/bart.Rd:184@9d0ee10f]]) - loud, not silent. Positional slot-3 `fitted` call
 sites in the repo: ZERO (section 13's parse). Every in-repo `fitted(..., sample = )` names it:
 [[test-generics-correctValues.R:53@9d0ee10f]], [[test-generics-posteriorPredictiveDistribution.R:125@9d0ee10f]],
-[[test-rbart-generics.R:137@9d0ee10f]], [[test-rbart-groupby.R:184@9d0ee10f]], [[test-rbart-groupby.R:192@9d0ee10f]], [[test-rbart-groupby.R:242@9d0ee10f]], [[test-rbart-groupby.R:250@9d0ee10f]], [[test-rbart-groupby.R:292@9d0ee10f]], and the three refusal probes at
+[[inst/tinytest/test-rbart-generics.R:137@9d0ee10f]], [[inst/tinytest/test-rbart-groupby.R:184@9d0ee10f]], [[inst/tinytest/test-rbart-groupby.R:192@9d0ee10f]], [[inst/tinytest/test-rbart-groupby.R:242@9d0ee10f]], [[inst/tinytest/test-rbart-groupby.R:250@9d0ee10f]], [[inst/tinytest/test-rbart-groupby.R:292@9d0ee10f]], and the three refusal probes at
 [[test-multinomial-generics.R:445@9d0ee10f]], [[test-ordinal.R:488@9d0ee10f]], [[test-nbinom.R:469@9d0ee10f]].
 
 ## 9. `plot.bartMultinomial`'s argument order

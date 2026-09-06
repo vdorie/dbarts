@@ -401,34 +401,6 @@ makeScenarios <- function() {
     )
   )
 
-  # grouped random intercepts (rbart_vi's in-core Gibbs blocks) under
-  # NON-UNIT weights: the weighted group-precision accumulation (poison 12
-  # was cpp-only; no grouped scenario existed and the tinytest "catch" was a
-  # hang). The gamma tau prior, NOT the half-Cauchy default: an SBC
-  # experiment found the half-Cauchy tail can stall the tau slice sampler at
-  # extreme draws. Weights spread over [0.5, 3] so the per-group weight sum
-  # differs materially from the member count.
-  set.seed(5119L)
-  x <- matrix(runif(400L * 10L), 400L)
-  groups <- factor(sample(8L, 400L, replace = TRUE))
-  groupEffects <- rnorm(8L, 0, 1.5)
-  weights <- runif(400L, 0.5, 3)
-  result$grouped <- list(
-    x = x,
-    y = friedman(x) +
-      groupEffects[as.integer(groups)] +
-      rnorm(400L) / sqrt(weights),
-    weights = weights,
-    group.by = groups,
-    group.by.test = factor(
-      sample(8L, n.test, replace = TRUE),
-      levels = levels(groups)
-    ),
-    x.test = matrix(runif(n.test * 10L), n.test),
-    binary = FALSE,
-    rbart = TRUE
-  )
-
   # chi hyperprior with a df where the chi-k SHAPE term is statistically
   # separable (poison 8, the shape mislabel 0.5(M + 2 nu - 1) for
   # 0.5(M + nu), was invisible at nu = 1.5: a +0.25 shift against M ~ 500
@@ -450,32 +422,25 @@ makeScenarios <- function() {
     samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50, Inf)))
   )
 
-  # grouped AFT survival: GroupedResponse(AFTResponse), riAFTBART's model,
-  # newly reachable from rbart_vi via family = "aft". Random intercepts and
-  # right-censoring together, on the log-time scale (a modest signal keeps
-  # exp(log T) finite). Gamma tau prior, in-core fast path, no weights (aft
-  # refuses them). Added after equivalence-de67cbb.rds, so a compare against
-  # that baseline reports it as skipped; the anchor re-records at landing.
+  # AFT (log-normal accelerated failure time) survival, family = "aft" on a
+  # (time, status) two-column response: the censored-latent redraw and the
+  # log-time transform, on a modest signal that keeps exp(log T) finite.
+  # AFT refuses weights, so this scenario carries none. Recorded channels
+  # add the survival surface at three horizons, so the transform is pinned
+  # as well as the linear predictor.
   set.seed(5121L)
   x <- matrix(runif(400L * 10L), 400L)
-  groups <- factor(sample(8L, 400L, replace = TRUE))
-  groupEffects <- rnorm(8L, 0, 0.8)
-  log.t <- 0.05 * friedman(x) + groupEffects[as.integer(groups)] + rnorm(400L)
+  log.t <- 0.05 * friedman(x) + rnorm(400L)
   cens.t <- 0.05 * friedman(x) + quantile(rnorm(4000L), 0.7) + rnorm(400L)
   status <- as.numeric(log.t <= cens.t)
-  result$grouped_aft <- list(
+  result$aft <- list(
     x = x,
     y = exp(ifelse(status == 1, log.t, cens.t)),
     status = status,
-    group.by = groups,
-    group.by.test = factor(
-      sample(8L, n.test, replace = TRUE),
-      levels = levels(groups)
-    ),
     x.test = matrix(runif(n.test * 10L), n.test),
+    aftTimes = as.numeric(quantile(exp(log.t), c(0.25, 0.5, 0.75))),
     binary = FALSE,
-    rbart = TRUE,
-    aft = TRUE
+    aftFit = TRUE
   )
 
   # Student-t (robust) residuals in the estimated-nu mode (TResponse,
@@ -1400,10 +1365,8 @@ makeScenarios <- function() {
 
 # benign warnings the fitting paths emit for legitimate scenarios: test-data
 # weights (no posterior-predictive use here), zero training weights
-# (deliberate in the zero-weight scenario), and the rbart_vi formula path's
-# positional test-column matching and test-weight handling (the grouped
-# scenario's test data carries no weights by design). Muffle only these so
-# real ones stay visible.
+# (deliberate in the zero-weight scenario), and a formula path's positional
+# test-column matching. Muffle only these so real ones stay visible.
 muffleBenignWarning <- function(w) {
   msg <- conditionMessage(w)
   if (
@@ -1842,70 +1805,35 @@ fitViaXbart <- function(scenario) {
   setNames(as.vector(loss), paste0("loss.", seq_along(loss)))
 }
 
-# runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
-# single chain, no thinning, the harness's global budget. Draw matrices come
-# back sample-major except varcount (predictor x sample), transposed here so
-# fitSummaries sees the bart() orientation.
-fitViaRbart <- function(scenario) {
-  fit <- if (isTRUE(scenario$aft)) {
-    # grouped AFT survival (riAFTBART's model): the response enters as a Surv
-    # on the formula's left-hand side - inlined (as the gaussian branch's
-    # response is) so no intermediate reads as unused - and aft refuses
-    # weights, so this scenario carries none; status rides scenario$status and
-    # the observed time scenario$y. Still the in-core fast path (gamma prior).
-    withCallingHandlers(
-      rbart_vi(
-        structure(
-          cbind(time = scenario$y, status = scenario$status),
-          class = "Surv",
-          type = "right"
-        ) ~
-          scenario$x,
-        test = scenario$x.test,
-        group.by = scenario$group.by,
-        group.by.test = scenario$group.by.test,
-        family = "aft",
-        prior = gamma,
-        n.samples = ndpost,
-        n.burn = nskip,
-        n.thin = 1L,
-        n.chains = 1L,
-        n.threads = 1L,
-        n.trees = ntree,
-        keepTrees = FALSE,
-        keepTestFits = TRUE,
-        verbose = FALSE
-      ),
-      warning = muffleBenignWarning
-    )
-  } else {
-    withCallingHandlers(
-      rbart_vi(
-        scenario$y ~ scenario$x,
-        test = scenario$x.test,
-        weights = scenario$weights,
-        group.by = scenario$group.by,
-        group.by.test = scenario$group.by.test,
-        prior = gamma,
-        n.samples = ndpost,
-        n.burn = nskip,
-        n.thin = 1L,
-        n.chains = 1L,
-        n.threads = 1L,
-        n.trees = ntree,
-        keepTrees = FALSE,
-        keepTestFits = TRUE,
-        verbose = FALSE
-      ),
-      warning = muffleBenignWarning
-    )
-  }
+# runs bart2's AFT survival path: the observed time and its censoring
+# indicator enter as the two-column (time, status) response, and the fit is
+# on the log-time scale. keepTrees so survivalProbabilities can replay the
+# saved forest at the held-out rows; the survival surface is recorded beside
+# the linear predictor so the transform is pinned too.
+fitViaAft <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    cbind(scenario$y, scenario$status),
+    family = "aft",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  sp <- survivalProbabilities(
+    fit,
+    scenario$aftTimes,
+    newdata = scenario$x.test
+  )
   list(
-    yhat.test = fit$yhat.test,
-    varcount = t(fit$varcount),
+    yhat.test = predict(fit, scenario$x.test, type = "ev"),
+    varcount = fit$varcount,
     sigma = as.vector(fit$sigma),
-    tau = as.vector(fit$tau),
-    ranef = fit$ranef
+    surv.test = apply(sp, c(2L, 3L), mean)
   )
 }
 
@@ -1931,8 +1859,8 @@ fitSummaries <- function(scenario, seed) {
   if (!is.null(scenario$multinomialFit)) {
     return(fitViaBart2Multinomial(scenario))
   }
-  fit <- if (!is.null(scenario$rbart)) {
-    fitViaRbart(scenario)
+  fit <- if (!is.null(scenario$aftFit)) {
+    fitViaAft(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
     fitViaOrdinal(scenario)
   } else if (!is.null(scenario$nbinomFit)) {
@@ -1996,15 +1924,6 @@ fitSummaries <- function(scenario, seed) {
   if (!is.null(fit$k)) {
     result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
   }
-  if (!is.null(fit$tau)) {
-    result <- c(result, tau.mean = mean(fit$tau), tau.sd = sd(fit$tau))
-  }
-  if (!is.null(fit$ranef)) {
-    result <- c(
-      result,
-      setNames(colMeans(fit$ranef), paste0("ranef.", seq_len(ncol(fit$ranef))))
-    )
-  }
   # ordinal-only channels (fitViaOrdinal); NULL - and so absent - for every
   # other fitter, leaving the existing scenarios' summary vectors untouched.
   # cutpoint.*.1 is the pinned gamma_1 = 0 (a constant across seeds: its Welch
@@ -2023,7 +1942,7 @@ fitSummaries <- function(scenario, seed) {
       result,
       setNames(
         as.vector(probMeans),
-        paste0("prob.test.", seq_len(length(probMeans)))
+        paste0("prob.test.", seq_along(probMeans))
       )
     )
   }

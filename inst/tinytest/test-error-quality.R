@@ -35,7 +35,7 @@ expect_error(
 )
 
 # (c) a zero (or thinned-to-zero) sample count is named, by one shared
-# message across bart2/xbart/rbart_vi (dbarts()/dbartsControl() accept it -
+# message across bart2/xbart (dbarts()/dbartsControl() accept it -
 # a host-loop-driven sampler - so the message states the split too)
 zeroSampleMessage <- paste0(
   "'n.samples' must leave at least one draw after thinning \\(n.samples ",
@@ -55,19 +55,6 @@ expect_error(
   dbarts::xbart(testData$x, testData$y, n.samples = 0L, n.burn = c(0L, 0L)),
   zeroSampleMessage
 )
-groupBy <- factor(rep(seq_len(4L), length.out = length(testData$y)))
-expect_error(
-  dbarts::rbart_vi(
-    testData$x,
-    testData$y,
-    group.by = groupBy,
-    n.samples = 0L,
-    n.burn = 0L,
-    verbose = FALSE
-  ),
-  zeroSampleMessage
-)
-
 # (d) a newdata variable missing from a formula fit is named, even when it
 # collides with a base object (here 'c') that the model-frame eval would
 # otherwise silently resolve

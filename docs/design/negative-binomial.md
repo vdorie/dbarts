@@ -471,15 +471,13 @@ extract does), computed per draw as r_draw * exp(f + o). predict requires
 keepTrees (the predict.bart guard). A "prob-like" latent p = plogis(eta) may also
 be exposed for diagnostics but the reported deliverable is the mean count.
 
-**xbart / rbart_vi refusals.** xbart's mechanism is match.arg over its family
+**xbart refusal.** xbart's mechanism is match.arg over its family
 vector `c("auto", "gaussian", "probit", "logistic")` ([[R/xbart.R#xbart]], matched at
 [[R/xbart.R#xbart]]): omitting "nbinom" from the vector makes match.arg itself the refusal,
 BEFORE resolveClassificationFamily ([[R/xbart.R#xbart]]) ever sees the value - and its losses
 are misclassification/continuous, so a count loss (NB deviance / log-loss) is a
-separate xbart pass. rbart_vi likewise omits "nbinom" from its family vector
-([[R/rbart.R#rbart_vi]]) so its match.arg refuses, ahead of the group attribute build -
-grouped NB is out of scope (section 7). Both refusals are the vector-omission
-mechanism, the ordinal precedent.
+separate xbart pass. The refusal is the vector-omission mechanism, the
+ordinal precedent.
 
 ## 5. State and mutation
 
@@ -639,15 +637,8 @@ primitive only if the (B) door opens).
   sequencing); a Poisson family is a separate log-mean augmentation (no PG shape
   parameter), revisited after NB. Recorded.
 
-- **Grouped / mixed-model NB (rbart_vi + nbinom).** Refused cleanly at the R
-  layer ([[R/rbart.R#rbart_vi]]) before the group attribute builds; rbart_vi's family
-  vector omits "nbinom" for v1. The door is real and FEASIBLE: GroupedResponse is
-  a base-response decorator whose conjugate group update needs a Gaussian working
-  response on the latent scale ([[src/bartcore/model.hpp#GroupedResponse]]), and NB HAS one - the PG working
-  response z_i = kappa_i/omega_i is Gaussian given omega, exactly as logistic's
-  is - so grouped NB is a coherent future once the r block and the group block are
-  shown to interleave (the group draw would condition on the current omega and r).
-  v1 refuses; the composition is recorded as feasible, the ordinal precedent.
+- **Mixed-model NB.** Not dbarts's: multilevel structure is stan4bart's
+  ([[docs/design/retire-grouped-random-effects.md#The decision]]).
 
 - **Real (continuous) r.** THE door this note's fork creates. Fork (A) defers
   real r pending one of two unlocks: an exact real-shape PG primitive (a

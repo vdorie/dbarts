@@ -93,18 +93,6 @@ struct SamplerOptions {
   const double* gpLengthscales = nullptr;
   std::size_t gpMaxLeafSize = 256;
 
-  // grouped random intercepts (rbart_vi's Gibbs blocks in-core): one group
-  // index 0..numGroups-1 per training observation (borrowed; consumed during
-  // construction). numGroups == 0 leaves the response ungrouped.
-  // tauPriorScale is the original-scale relative scale (sd(y) continuous,
-  // 0.5 binary); tauSliceSteps is the per-update slice-step count, the R
-  // loop's n.thin coupling.
-  const std::uint32_t* groupIndices = nullptr;
-  std::size_t numGroups = 0;
-  TauPriorKind tauPriorKind = TauPriorKind::cauchy;
-  double tauPriorScale = 1.0;
-  std::size_t tauSliceSteps = 1;
-
   // AFT survival: per-observation status (1 = uncensored event, 0 = right-
   // censored) required when family is aft, ignored otherwise. Borrowed; the
   // response copies it during construction (see AFTResponse). The y creation
@@ -308,10 +296,6 @@ struct Results {
   double* k = nullptr;              // numSamples, or null; only when k sampled
   // numPredictors x numSamples, or null; filled only under DART
   double* splitProbabilities = nullptr;
-  // grouped samplers only, both on the original response scale:
-  // tau is numSamples, groupEffects numGroups x numSamples
-  double* tau = nullptr;
-  double* groupEffects = nullptr;
   // per-draw training log-likelihood, numObservations x numSamples, or null;
   // gaussian and binary families, NaN under BCF
   double* logLikelihood = nullptr;
@@ -360,7 +344,7 @@ struct Results {
   // for a multi-forest amplitude model (BCF). The run bridge sizes
   // variableCounts by it, Sampler strides per chain by it, and storeSample
   // writes exactly this many slabs per sample, so a caller that leaves it at 1
-  // - the flat C API, rbart_vi's callback loop - keeps the single-slab layout
+  // - the flat C API, an embedded callback loop - keeps the single-slab layout
   // its buffer is sized for and reads the reported (prognostic) forest.
   // Sampler::run clamps it to the combiner's own count once, up front, so the
   // stride and the writes cannot disagree.
@@ -623,14 +607,6 @@ public:
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
-    // grouped random intercepts decorate the base family; initialization
-    // draws b from its prior through this chain's generator
-    if (options.numGroups > 0)
-      response_ = std::make_unique<GroupedResponse>(
-        std::move(response_), numObservations, options.groupIndices,
-        options.numGroups, options.tauPriorKind, options.tauPriorScale,
-        options.tauSliceSteps, rng);
-    options_.groupIndices = nullptr;  // consumed above
 
     forest.leaf.scale = resolvedNodeScale(options.nodeScale,
                                           options.priorScale) /
@@ -3067,15 +3043,6 @@ public:
     state.dispersion = response_->carriesDispersion()
                          ? response_->dispersion()
                          : std::numeric_limits<double>::quiet_NaN();
-    if (response_->numGroupEffects() > 0) {
-      state.groupEffects.assign(
-        response_->groupEffects(),
-        response_->groupEffects() + response_->numGroupEffects());
-      state.groupTau = response_->groupTau();
-    } else {
-      state.groupEffects.clear();
-      state.groupTau = 0.0;
-    }
     if (forest.useDart) {
       state.dartProbabilities = forest.dart.probabilities;
       state.dartAlpha = forest.dart.alpha;
@@ -3241,10 +3208,6 @@ public:
     if (response_->carriesDispersion() &&
         (state.latents.size() != n || !(state.dispersion > 0.0) ||
          !std::isfinite(state.dispersion)))
-      return false;
-    // grouped states must carry a full effects vector for the chain's
-    // groups; ungrouped states and chains both hold zero of them
-    if (state.groupEffects.size() != response_->numGroupEffects())
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
@@ -3579,7 +3542,7 @@ public:
   }
 
   /// Warm start: seed the live forest(s), sigma, and k from a donor's flat
-  /// trees, leaving this chain's rng, latents, group effects, and saved-tree
+  /// trees, leaving this chain's rng, latents, and saved-tree
   /// buffer untouched - the donor supplies a starting position, not a
   /// continuation. Callers guarantee shape compatibility; false signals only a
   /// flat tree that failed to rebuild. donorCutPoints null installs the donor's
@@ -3724,9 +3687,6 @@ public:
     // ordinal sampler; z was restored above under these same cutpoints
     if (response_->carriesOrdinalThresholds())
       response_->restoreOrdinalThresholds(state.ordinalThresholds.data());
-    if (!state.groupEffects.empty())
-      response_->restoreGroupEffects(state.groupEffects.data(),
-                                     state.groupTau);
     Forest<L, ResidT>& forest = forests_[0];
     if (forest.useDart && !state.dartProbabilities.empty()) {
       // the tree prior points at this vector's storage; overwrite in place
@@ -3951,7 +3911,8 @@ private:
   /// transform's multiplier converts it, and a non-finite one leaves the
   /// family-keyed nodeScale alone. The divisor is never zero - every family's
   /// rescale() ran in its own constructor and its degenerate guards floor the
-  /// range at 1 - and the grouped decorator delegates the transform it wraps.
+  /// range at 1 - and any response decoration delegates the transform it
+  /// wraps.
   double resolvedNodeScale(double nodeScale, double priorScale) const {
     return std::isfinite(priorScale) ? priorScale / response_->fitScale()
                                      : nodeScale;
@@ -5351,19 +5312,6 @@ private:
         results.splitProbabilities + sampleNum * data_.numPredictors;
       std::memcpy(out, forest.dart.probabilities.data(),
                   data_.numPredictors * sizeof(double));
-    }
-
-    // grouped channels de-scale like sigma: b is a deviation, so no shift
-    if (results.tau != nullptr)
-      results.tau[sampleNum] = response_->groupTau() * response_->sigmaScale();
-
-    if (results.groupEffects != nullptr) {
-      std::size_t numGroups = response_->numGroupEffects();
-      double* out = results.groupEffects + sampleNum * numGroups;
-      const double* effects = response_->groupEffects();
-      double sigmaScale = response_->sigmaScale();
-      for (std::size_t j = 0; j < numGroups; ++j)
-        out[j] = effects[j] * sigmaScale;
     }
 
     // the K-1 ordinal thresholds, aligned with this sweep's latent draw; the

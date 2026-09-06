@@ -27,7 +27,7 @@ Path aliases used in cites:
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
     FAC   src/bartcore/facade.hpp           COM   src/bartcore/combiner.hpp
     MOV   src/bartcore/moves.hpp            SAM   src/bartcore/sampler.hpp
-    bart.R, dbarts.R, spec.R, rbart.R, xbart.R, data.R, generics.R,
+    bart.R, dbarts.R, spec.R, xbart.R, data.R, generics.R,
     A_class.R, bartcore.R, formulaTerms.R    -> R/<name>
     C_interface.cpp -> src/C_interface.cpp (the flat C entry points)
     test-*.R -> inst/tinytest/test-*.R
@@ -37,7 +37,7 @@ Cites are by symbol and are existence-checked by `tools/check-doc-freshness.R`; 
 
 ## Rows
 
-Thirteen rows. The first nine are response models proper; the last four are
+Twelve rows. The first nine are response models proper; the last three are
 compositions, couplings or decorations over a base response that a user
 selects the same way and schedules against the same way, so they earn rows.
 Hurdle is one of the four: it has no sampler of its own and is an R-side
@@ -56,13 +56,12 @@ composition of two ordinary fits ([f12]).
 | hazard | Discrete-time hazard (person-period sugar, [[dbarts.R#expandDiscreteTimeHazard]]) |
 | hurdle | Hurdle / two-part semicontinuous (R-side composition, [[bart.R#bart2Hurdle]]) |
 | bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance ([[COM#AmplitudeForestCombiner]]) |
-| grouped | Grouped random intercepts ([[MOD#GroupedResponse]]) |
 | hetero | Heteroscedastic variance forest ([[CH#buildVarianceForest]]) |
 
 The engine's `ResponseFamily` enum has only six tokens ([[MOD#ResponseFamily]]:
-gaussian, probit, logistic, aft, ordinal, nbinom); student, hazard, hurdle, bcf,
-grouped and hetero are all reached some other way, which is exactly why they
-need rows here rather than an enum read.
+gaussian, probit, logistic, aft, ordinal, nbinom); student, hazard, hurdle, bcf
+and hetero are all reached some other way, which is exactly why they need rows
+here rather than an enum read.
 
 Two rows sit on a COMBINER, equivalently a COUPLING: an object holding K
 forests and the rule that combines their fits into one location per
@@ -82,21 +81,20 @@ rows; where a leaf model gates a capability the cell says so.
 
 ## 1. Construction surfaces
 
-| model | `bart()` | `bart2()` | `dbarts()` + R5 | `rbart_vi()` | `xbart()` | flat C `dbarts.h` |
-|---|---|---|---|---|---|---|
-| gaussian | S [[bart.R#bart]] | S [[bart.R#bart2, gaussian]] | S [[dbarts.R#dbarts, gaussian]] | S [[rbart.R#rbart_vi, gaussian]] | S [[xbart.R#xbart, gaussian]] | S [[CAPI#DBARTS_FAMILY_GAUSSIAN]] |
-| student | S [[bart.R#residDist]] | S [[bart.R#bart2, resid.dist]] | S [[dbarts.R#dbarts, resid.dist]] | M [[rbart.R#rbart_vi]] | M [[xbart.R#xbart]] | S [[RIB#parseSamplerSpecification, residualDf]] [f2] |
-| probit | S [[bart.Rd#y.train]] | S [[bart.R#bart2, probit]] | S [[dbarts.R#dbarts, probit]] | S [[data.R#resolveClassificationFamily]] | S [[xbart.R#xbart, probit]] | S [[CAPI#DBARTS_FAMILY_PROBIT]] |
-| logistic | S [[bart.R#bart, logistic]] [f1] | S [[bart.R#bart2, logistic]] | S [[dbarts.R#dbarts, logistic]] | M [[rbart.R#rbart_vi]] | S [[xbart.R#xbart, logistic]] | S [[RIB#resolveFamily, logistic]] |
-| ordinal | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Ordinal]] | S [[dbarts.R#dbarts, ordinal]] | R [[data.R#resolveClassificationFamily]] | R [[data.R#resolveClassificationFamily]] | S [[RIB#resolveFamily, ordinal]] [f3] |
-| nbinom | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Negbin]] | S [[dbarts.R#dbarts, nbinom]] | M [[rbart.R#rbart_vi]] | M [[xbart.R#xbart]] | S [[RIB#resolveFamily, nbinom]] [f3] |
-| multinom | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Multinomial]] | S [[dbarts.R#dbarts, multinomial]] [f4] | R [[data.R#resolveClassificationFamily]] | R [[data.R#resolveClassificationFamily]] | M [f4] |
-| aft | S [[bart.R#bart, aft]] [f1] [f5] | S [[bart.R#bart2, aft]] | S [[dbarts.R#dbarts, aft]] | S [[rbart.R#rbart_vi, aft]] | M [[xbart.R#xbart]] | S [[CAPI#DBARTS_FAMILY_AFT]] |
-| hazard | R [[bart.R#refuseBartRedirectedFamily]] [f1] | S [[bart.R#bart2, hazard]] | S [[dbarts.R#dbarts, hazardTokens]] | M [[rbart.R#rbart_vi]] | M [[xbart.R#xbart]] | M [f6] |
-| hurdle | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Hurdle]] | R [[dbarts.R#"is only available through bart2()"]] | M | M | M [f6] |
-| bcf | - [f1] | S [[formulaTerms.R#ingestFormulaTerms]] [f7] | S [[dbarts.R#dbarts, forests]] | M [[rbart.R#rbart_vi]] | M | S [[CAPI#dbarts_sampler_create]] |
-| grouped | - [f1] | M [f8] | M [f8] | S [[rbart.R#"bartcore.groups"]] | M | S [[RIB#applyGroupAttribute]] [f3] |
-| hetero | - [f1] | S [[bart.R#bart2, variance]] | S [[dbarts.R#dbarts, variance]] | M [[rbart.R#rbart_vi]] | M | S [[RIB#applyVarianceAttributes]] [f3] |
+| model | `bart()` | `bart2()` | `dbarts()` + R5 | `xbart()` | flat C `dbarts.h` |
+|---|---|---|---|---|---|
+| gaussian | S [[bart.R#bart]] | S [[bart.R#bart2, gaussian]] | S [[dbarts.R#dbarts, gaussian]] | S [[xbart.R#xbart, gaussian]] | S [[CAPI#DBARTS_FAMILY_GAUSSIAN]] |
+| student | S [[bart.R#residDist]] | S [[bart.R#bart2, resid.dist]] | S [[dbarts.R#dbarts, resid.dist]] | M [[xbart.R#xbart]] | S [[RIB#parseSamplerSpecification, residualDf]] [f2] |
+| probit | S [[bart.Rd#y.train]] | S [[bart.R#bart2, probit]] | S [[dbarts.R#dbarts, probit]] | S [[xbart.R#xbart, probit]] | S [[CAPI#DBARTS_FAMILY_PROBIT]] |
+| logistic | S [[bart.R#bart, logistic]] [f1] | S [[bart.R#bart2, logistic]] | S [[dbarts.R#dbarts, logistic]] | S [[xbart.R#xbart, logistic]] | S [[RIB#resolveFamily, logistic]] |
+| ordinal | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Ordinal]] | S [[dbarts.R#dbarts, ordinal]] | R [[data.R#resolveClassificationFamily]] | S [[RIB#resolveFamily, ordinal]] [f3] |
+| nbinom | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Negbin]] | S [[dbarts.R#dbarts, nbinom]] | M [[xbart.R#xbart]] | S [[RIB#resolveFamily, nbinom]] [f3] |
+| multinom | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Multinomial]] | S [[dbarts.R#dbarts, multinomial]] [f4] | R [[data.R#resolveClassificationFamily]] | M [f4] |
+| aft | S [[bart.R#bart, aft]] [f1] [f5] | S [[bart.R#bart2, aft]] | S [[dbarts.R#dbarts, aft]] | M [[xbart.R#xbart]] | S [[CAPI#DBARTS_FAMILY_AFT]] |
+| hazard | R [[bart.R#refuseBartRedirectedFamily]] [f1] | S [[bart.R#bart2, hazard]] | S [[dbarts.R#dbarts, hazardTokens]] | M [[xbart.R#xbart]] | M [f6] |
+| hurdle | R [[bart.R#refuseBartOwnClassFamily]] [f1] | S [[bart.R#bart2Hurdle]] | R [[dbarts.R#"is only available through bart2()"]] | M | M [f6] |
+| bcf | - [f1] | S [[formulaTerms.R#ingestFormulaTerms]] [f7] | S [[dbarts.R#dbarts, forests]] | M | S [[CAPI#dbarts_sampler_create]] |
+| hetero | - [f1] | S [[bart.R#bart2, variance]] | S [[dbarts.R#dbarts, variance]] | M | S [[RIB#applyVarianceAttributes]] [f3] |
 
 [[spec.R#dbartsSpec]] resolves the seven single-forest tokens - auto,
 gaussian, probit, logistic, aft, ordinal, nbinom - plus the K-forest amplitude
@@ -107,7 +105,7 @@ the scalar the forest's fit is multiplied by. A variance forest comes through
 `variance =` ([[spec.R#dbartsSpec, variance]]), and the `family` formal also
 accepts `"multinomial"` directly ([[spec.R#dbartsSpec, multinomial]], with
 dedicated body logic in [[spec.R#resolveSamplerSpec, unsupportedMultinomial]]);
-only hazard, hurdle and grouped stay out of `dbartsSpec()`'s reach. A
+only hazard and hurdle stay out of `dbartsSpec()`'s reach. A
 `forests =` fit resolves **gaussian, probit or logistic**; aft, ordinal and
 nbinom are refused there by name, each stating what it is missing
 ([[spec.R#"a treatment forest does not support family"]], whose `multinomial =`
@@ -146,13 +144,11 @@ weights are its Polya-Gamma trial counts and stay open ([f10]).
 | hazard | S [[MOD#ProbitResponse::setResponse]] [f6] | S [[MOD#ProbitResponse::setOffset]] | - [f9] | S [[RIB#bartcore_setPredictor]] | R [[RIB#refuseBinaryWeightChange]] | R [[RIB#refusePinnedSigmaChange]] | S [[RIB#bartcore_setTestPredictor]] |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
 | bcf | S [[CH#Chain::setResponse]] [f48] | S [[CH#Chain::setOffset]] [f48] | R [[bartcore.R#refuseAmplitudeMutation]] [f48] | S [[RIB#bartcore_setPredictor, bartcore_updatePredictorPerObservation]] | S [[RIB#bartcore_setWeights]] [f48 by family] | S [[RIB#bartcore_setSigma]] [f48 by family] | R [[RIB#refuseUndefinedTestFits]] [f49] |
-| grouped | S [[MOD#GroupedResponse::setResponse]] [f13] | S [[MOD#GroupedResponse::setOffset]] | R [[RIB#refuseGroupedScaleUpdate]] [f13 by family] | S [[RIB#bartcore_setPredictor]] | S [[MOD#GroupedResponse::setWeights]] [f14 by family] | S [[RIB#bartcore_setSigma]] [f14 by family] | S [[RIB#bartcore_setTestPredictor]] |
 | hetero | S [[RIB#bartcore_setResponse]] | S [[RIB#bartcore_setOffset]] | R [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setPredictor, bartcore_updatePredictorPerObservation]] | S [[RIB#bartcore_setWeights]] | R [[RIB#refusePinnedSigmaChange]] | S [[RIB#bartcore_setTestPredictor]] |
 
 `setData` (whole-data replacement, n free) is dense-store and single-forest
 only ([[RIB#refusePredictorMutation, refuseMultiForestMutation]]) and is
-refused for grouped ([[RIB#"grouped random effects fix the data at creation"]])
-and aft ([[RIB#"fix the censoring structure at creation"]]);
+refused for aft ([[RIB#"fix the censoring structure at creation"]]);
 BCF/multinomial whole-data `setData` is undesigned (model-space-survey.md,
 open questions 1 and 3).
 
@@ -176,26 +172,24 @@ calibration" is a named leaf-prior scale in response units ([f16]).
 | hazard | R [[RIB#enforceBinaryWeightPolicy]] [f6] | S [[MOD#ProbitResponse::setActiveRows]] [f6] | S [[MOD#ProbitResponse::latents]] | S [[generics.R#pointwiseLogLikelihood]] [f24] | S [[dbarts.R#getCalibration, setCalibration]] [f6] |
 | hurdle | R [[bart.R#"does not support 'weights'"]] | - [f12] | - [f12] | S [[generics.R#hurdleLogLik]] [f25] | - [f12] |
 | bcf | S [[COM#AmplitudeForestCombiner::formForestResponse]] [f17] [f48 by family] | S [[MOD#GaussianResponse::setActiveRows]], [[CH#composeForestWeights]] [f26] | S [[CH#Chain::latents]] [f18 by family] | S [[generics.R#pointwiseLogLikelihood]], [[test-bcf-loglik.R#"the COMBINED one"]] | R [f23] |
-| grouped | S [[MOD#drawGroupEffects]] | S [[MOD#GroupedResponse::setActiveRows]] [f27] | S [[MOD#GroupedResponse::latents]] | S [[generics.R#pointwiseLogLikelihood]] | S [[MOD#GroupedResponse::fitScale, GroupedResponse::fitShift]] [f27] |
 | hetero | S [[CH#sweepVarianceForest]], [[MOD#ConstantVarianceLeaf::accumulate]] | S [[CH#formMeanWeights]] [f27] | - [f18] | S [[generics.R#heteroscedasticScale]] [f28] | S [[CH#Chain::resolvedNodeScale]], [[CH#Chain::forestCalibration, Chain::setForestPriorScale]] [f29] |
 
 ## 4. Model composition
 
-| model | variance forest | grouped ranef | DART | warm start | grow-from-root |
-|---|---|---|---|---|---|
-| gaussian | S [[FAC#createSampler]] | S [[CH#GroupedResponse]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| student | R [[spec.R#"does not support Student-t residuals"]] [f30] | S [[CH#GroupedResponse]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| probit | R [[spec.R#"a variance forest requires family"]] | S [[CH#GroupedResponse]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| logistic | R [[spec.R#"a variance forest requires family"]] | S [[CH#GroupedResponse]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| ordinal | R [[spec.R#"a variance forest requires family"]] | M [[RIB#"not supported for ordinal responses"]] [f31] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| nbinom | R [[spec.R#"a variance forest requires family"]] | M [[RIB#"not supported for count (nbinom) responses"]] [f31] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| multinom | R [[bart.R#unsupported]] | M [[RIB#applyGroupAttribute]] [f32] | R [[bart.R#"'dart' or a DART 'tree.prior'"]] [f33] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| aft | R [[spec.R#"a variance forest requires family"]] | S [[CH#GroupedResponse]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| hazard | R [[spec.R#"a variance forest requires family"]] | M [[rbart.R#rbart_vi]] [f6] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
-| hurdle | R [[spec.R#"a variance forest requires family"]] [f34] | M | S [[bart.R#redirectCall]] [f35] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
-| bcf | R [[FAC#createAmplitudeSampler]] [f48] | R [[RIB#refuseUnsupportedAmplitudeComposition]] | R [[spec.R#"a DART tree prior"]] | S [[SAM#Sampler::installForests]] [f36] | S [[CH#growForestFromRoot]] [f36] |
-| grouped | R [[spec.R#"does not support grouped random effects"]] [f30] | - | S [[rbart.R#usesDart]] | M [[rbart.R#rbart_vi]] [f37] | M [[rbart.R#rbart_vi]] [f37] |
-| hetero | - | R [[spec.R#"does not support grouped random effects"]] [f30] | S [[CH#useDart]] [f38] | S [[SAM#Sampler::installForests]] | S [[CH#growForestFromRoot]] |
+| model | variance forest | DART | warm start | grow-from-root |
+|---|---|---|---|---|
+| gaussian | S [[FAC#createSampler]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| student | R [[spec.R#"does not support Student-t residuals"]] [f30] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| probit | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| logistic | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| ordinal | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
+| nbinom | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
+| multinom | R [[bart.R#unsupported]] | R [[bart.R#"'dart' or a DART 'tree.prior'"]] [f33] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
+| aft | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| hazard | R [[spec.R#"a variance forest requires family"]] | S [[CH#useDart]] | S [[bart.R#warm.start]] | S [[dbarts.R#growFromRoot]] |
+| hurdle | R [[spec.R#"a variance forest requires family"]] [f34] | S [[bart.R#redirectCall]] [f35] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] | M [[bart.R#checkFamilyUnsupportedArgs]] [f50] |
+| bcf | R [[FAC#createAmplitudeSampler]] [f48] | R [[spec.R#"a DART tree prior"]] | S [[SAM#Sampler::installForests]] [f36] | S [[CH#growForestFromRoot]] [f36] |
+| hetero | - | S [[CH#useDart]] [f38] | S [[SAM#Sampler::installForests]] | S [[CH#growForestFromRoot]] |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
 are refused in [[dbarts.R#growFromRoot]] and a no-op in
@@ -213,11 +207,10 @@ reads "constant leaf" in that column.
 | ordinal | `ordinal`, `maskordinal` | 9/10 [f41] | test-ordinal.R only |
 | nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R, test-dispersion-channel.R |
 | multinom | 11 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
-| aft | `grouped_aft` only [f44] | OUT [f45] | test-aft.R, test-rbart-aft.R |
+| aft | `aft` | OUT [f45] | test-aft.R only |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
 | bcf | 12 scenarios, own harness, gaussian only [f48] | PASS, gaussian only [f46] | 9 (test-bcf*.R) |
-| grouped | `grouped`, `grouped_aft` | PASS (tier A) | 14 (test-rbart-*.R) |
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
 The rows are keyed by response model; predictor SHAPE cuts across them. Eight
@@ -231,9 +224,9 @@ predictor, so the ordered-factor cut grid rests on those plus
 
 `inst/tinytest/test-capi.R` drives the whole single-forest family list through
 `dbarts_sampler_create` - `""`/`"probit"`, logistic, ordinal, aft and nbinom,
-each run and checked for finite, correctly-shaped output - plus grouped
-([[test-capi.R#"bartcore.groups"]]) and heteroscedastic
-([[test-capi.R#"bartcore.variance"]]) by control attribute, and BCF
+each run and checked for finite, correctly-shaped output - plus
+heteroscedastic ([[test-capi.R#"bartcore.variance"]]) by control attribute,
+and BCF
 ([[test-capi.R#"zBCF"]]) through `forests = list(forest(basis = ...))`.
 Multinomial has no flat-C creation path to test ([f4]).
 
@@ -254,9 +247,9 @@ and five more - `"gaussian"`, `"probit"`, `"hazard.probit"`, `"hazard"` and
 `"auto"` already gives no extra capability and the last two because the
 discrete-time expansion needs `breaks`/`max.rows`, which `bart()` has no formal
 for (both reasons stated in man/bart.Rd's `family` item). `hazard`'s section-1
-`bart()` cell therefore reads `R`, deliberately refused by name. `bcf`,
-`grouped` and `hetero` are not `family` tokens at all and stay out of reach by
-signature, which is why their cells read `-`.
+`bart()` cell therefore reads `R`, deliberately refused by name. `bcf` and
+`hetero` are not `family` tokens at all and stay out of reach by signature,
+which is why their cells read `-`.
 
 [f2] Student-t is not a `family` token on any R entry point, and it is not in
 `dbarts_sampler_create`'s admission list: it is selected instead by a finite
@@ -270,14 +263,13 @@ the per-observation augmentation entries read. The engine family stays
 2-4.
 
 [f3] Ordinal and nbinom are reachable through `dbarts_sampler_create` and ship
-a `DBARTS_FAMILY_*` enumerator each; grouped and heteroscedastic are
-decorations with no enumerator of their own, selected instead by a control
-attribute. None of the four selecting control attributes is documented in the
-shipped header: ordinal's `bartcore.n.categories`
+a `DBARTS_FAMILY_*` enumerator each; heteroscedastic is a decoration with no
+enumerator of its own, selected instead by a control attribute. None of the
+three selecting control attributes is documented in the shipped header:
+ordinal's `bartcore.n.categories`
 ([[RIB#parseControl, bartcore.n.categories]]), nbinom's `bartcore.dispersion`
-([[RIB#parseControl, bartcore.dispersion]]), grouped's `bartcore.groups`
-([[RIB#applyGroupAttribute]]) and heteroscedastic's `bartcore.variance`
-([[RIB#applyVarianceAttributes]]).
+([[RIB#parseControl, bartcore.dispersion]]) and heteroscedastic's
+`bartcore.variance` ([[RIB#applyVarianceAttributes]]).
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
 counts matrix or a factor/character/integer-code response, one-hot expanded
@@ -323,12 +315,6 @@ not the capability: `bcf()` and `bartBCF` ship in **bartCause**, not dbarts
 `update.amplitude` knobs have no term spelling, so they do not reach a term's
 forest the way `forests =` on `dbarts()` does.
 
-[f8] `bartcore.groups` is written at exactly one site in `R/`,
-[[rbart.R#"bartcore.groups"]] (two tinytest files also set the attribute
-directly for engine-level tests), and no other
-entry point carries a `group.by` formal, so grouped random effects are an
-`rbart_vi()`-only surface.
-
 [f9] `updateScale` re-derives the internal response transform. The latent
 families have `fitScale() == 1` and `fitShift() == 0` by definition, so there
 is no transform to re-anchor and the flag is ignored rather than refused.
@@ -367,21 +353,6 @@ composes two ordinary `bart2()` fits - an occupancy probit and a lognormal
 positive part, both built through [[bart.R#redirectCall]] - glued at report
 time. The channel questions resolve on the
 probit and gaussian rows of the two components.
-
-[f13] A grouped sampler accepts a same-length `setResponse` and `setOffset` at
-the fixed scale by faithful delegation ([[MOD#GroupedResponse::setResponse]]).
-[[RIB#refuseGroupedScaleUpdate]] refuses `updateScale != FALSE` only under a
-base family with a data-derived transform (gaussian, which is Student-t's
-report, and aft): b and tau are held on the base's internal scale and converted
-by nothing, so a re-anchoring swap would silently restate both in response
-units. Grouped probit and logistic take `updateScale = TRUE` as the no-op it
-is under any latent family ([f9]). The flat C API guards through the same call
-([[C_interface.cpp#refuseGroupedScaleUpdate]]); `setData` stays refused.
-
-[f14] Reads off the BASE family: grouped gaussian takes `setWeights`
-([[MOD#GroupedResponse::setWeights]]) and `setSigma`; grouped probit is refused
-on both ([[RIB#refuseBinaryWeightChange]], [[RIB#refusePinnedSigmaChange]]);
-grouped aft takes `setSigma` and refuses `setWeights`.
 
 [f15] `setActiveRows` is a first-class 0/1 per-observation mask
 (docs/plans/latent-subset-mask.md): one validating and normalizing scan owns it
@@ -532,24 +503,15 @@ and in the sigma df, while a zeroed composed weight does reach that forest's
 empty-leaf veto). See
 [[docs/design/bcf.md#The multiplier snap and the per-forest weight]].
 
-[f27] Delegating decorations: both columns fall out of the base family's
-implementation. `GroupedResponse` forwards `setActiveRows`
-([[MOD#GroupedResponse::setActiveRows]]) exactly as it forwards `setWeights`
-([[MOD#GroupedResponse::setWeights]]), advertising the base's capability
-([[MOD#GroupedResponse::supportsActiveRows]]), and [[MOD#drawGroupEffects]]
-weights its per-group sums by `workingWeights()`, so an inactive row leaves its
-group's mean and precision and an all-inactive group falls back to its prior
-through the same formula. [[MOD#GroupedResponse::fitScale, GroupedResponse::fitShift]]
-forward to the base likewise, so the creation-time and mid-chain calibration
-conversions ([f16]) run exactly as they do for the undecorated family. The
-heteroscedastic [[CH#formMeanWeights]] reads `response_->workingWeights()` -
-the COMPOSED `w * a` while a mask is installed - and divides by `s^2(x_i)`, so
-a zero stays a zero. Both are tested bitwise against a composed-weight sampler
-([[tests/cpp/test_sampler.cpp#testActiveRows]],
+[f27] A delegating decoration: both columns fall out of the base family's
+implementation. The heteroscedastic [[CH#formMeanWeights]] reads
+`response_->workingWeights()` - the COMPOSED `w * a` while a mask is installed
+- and divides by `s^2(x_i)`, so a zero stays a zero. It is tested bitwise
+against a composed-weight sampler ([[tests/cpp/test_sampler.cpp#testActiveRows]],
 [[test-active-rows-pins.R#"heteroSampler"]],
-[[test-active-rows-pins.R#"draws.hetero$varcount"]]), and grouped's
-creation-time calibration is one of nine family and decoration paths a shared
-test measures ([[test-calibration-prior-draws.R#"grouped = anchorSampler"]]).
+[[test-active-rows-pins.R#"draws.hetero$varcount"]]), and its creation-time
+calibration is one of the family and decoration paths a shared test measures
+([[test-calibration-prior-draws.R#"heteroscedastic = anchorSampler"]]).
 
 [f28] A heteroscedastic fit also records `family = "gaussian"`, but the same
 gaussian branch of `pointwiseLogLikelihood` reads its `s.train` surface first:
@@ -581,26 +543,8 @@ the same generic mechanism as every other single-forest family.
 [[spec.R#"does not support Student-t residuals"]] - "the two are not yet shown
 to compose" - a validation error only; the formal stays, and adjudicating the
 composition of two scale mixtures on the same precision channel would reopen
-it. grouped with `variance =` and hetero with grouped ranef are the same
-construction reached from either spelling ([[CH#GroupedResponse]] decorates
-before [[CH#buildVarianceForest]] builds the variance forest) and are refused
-at [[spec.R#"does not support grouped random effects"]], because the group
-effects draw at a scalar residual scale that the variance forest replaces row
-by row, with a [[RIB#createHolder]] backstop closing the entrances that never
-reach spec.R. [[docs/design/heteroscedastic.md#refused with a variance forest]]
-records what either adjudication would need.
-
-[f31] Recorded but UNBUILT extensions, refused with that reason in the comment:
-grouped ordinal because the cutpoint block and the group block are not yet shown
-to interleave ([[RIB#"not supported for ordinal responses"]], ordinal.md
-section 8), grouped nbinom the same for the dispersion block
-([[RIB#"not supported for count (nbinom) responses"]], negative-binomial.md
-section 7).
-
-[f32] No surface at all: [[RIB#applyGroupAttribute]] is called from exactly
-one site, in [[RIB#createHolder]], on the single-forest holder path, so
-`bartcore.groups` is
-never read for a multinomial sampler.
+it. [[docs/design/heteroscedastic.md#Student-t residuals refused]] records
+the refusal and what lifting it would take.
 
 [f33] [[CH#buildMultinomialForest]] hard-sets
 `forest.useDart = false`, and [[RIB#buildMultinomialSampler]] copies only
@@ -630,11 +574,6 @@ variance-forest pre-step above the loop. Neither is exercised by a BCF test,
 and BCF has no `bart2()` surface, so both are reached only through the R5
 [[dbarts.R#installTrees]] / [[dbarts.R#growFromRoot]].
 
-[f37] `rbart_vi()` carries no `warm.start` or `n.grow.sweeps` formal and no
-`...` formal at all ([[rbart.R#rbart_vi]]), so either argument hits ordinary R
-argument matching ("unused argument"). The underlying R5 sampler carries no
-group gate on either path, so this is a surface gap, not an engine one.
-
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 ([[CH#buildVarianceForest]] never sets `useDart`, whose default is false in
 [[CH#SamplerOptions]]).
@@ -655,7 +594,7 @@ posterior draws is uniform. A fraction here counts FUNCTIONALS - how many of
 the family's checked functionals land inside the band - and the verdicts are
 recorded in docs/plans/sbc-family-tiers.md (status BUILT) and
 docs/plans/sbc-calibration.md (DONE). The A/B/C "tiers" in the latter are
-FEATURE tiers (A baselines/DART/grouped/weighted/BCF, B linear leaf, C GP
+FEATURE tiers (A baselines/DART/weighted/BCF, B linear leaf, C GP
 leaf), not family tiers: there is no per-family tier ladder, only the
 per-family verdicts this column carries.
 
@@ -675,11 +614,6 @@ the functionals at band 0.1282 and the three cells at 0.0688/0.0824/0.0675
 [[benchmarks/R/sbc.R#cellNames]] is the function that ranks the cells).
 [[COM#MultinomialForestCombiner::afterCombine]] draws the level from its exact
 leaf-space conditional.
-
-[f44] AFT is exercised only in combination, through the `grouped_aft` scenario
-([[benchmarks/R/equivalence.R#grouped_aft]]). There is no standalone AFT
-equivalence scenario; the
-separate exact oracle benchmarks/R/aft-exact.R is not a MANIFEST entry.
 
 [f45] Out of the SBC matrix by scope, each for its own recorded reason
 ([[docs/plans/sbc-family-tiers.md#Decision - scope]]): aft because its
@@ -765,48 +699,39 @@ REFUSED cells are deliberately absent - they are part of the models.
 
 **gaussian.** None; every column is S or an intentional `-`.
 
-**student (Gaussian + Student-t residuals).** No `rbart_vi()` and no `xbart()`
-surface ([[rbart.R#rbart_vi]], [[xbart.R#xbart]]). Only one dedicated tinytest
-file.
+**student (Gaussian + Student-t residuals).** No `xbart()` surface
+([[xbart.R#xbart]]). Only one dedicated tinytest file.
 
 **probit.** None.
 
-**logistic.** No `rbart_vi()` token ([[rbart.R#rbart_vi]]), so grouped logistic
-is engine-reachable but not R-reachable.
-
-**ordinal.** Grouped ordinal is a recorded unbuilt item
-([[RIB#"not supported for ordinal responses"]]), and `warm.start` /
-`n.grow.sweeps` are unbuilt for the arc ([f50]). Its selecting control
+**ordinal.** `warm.start` / `n.grow.sweeps` are unbuilt for the arc ([f50]). Its selecting control
 attribute is undocumented in the shipped header ([f3]). One dedicated tinytest
 file, in which pointwise loglik is exercised only for shape. SBC gamma3
 resolved but not re-run at full R.
 
-**nbinom.** No `rbart_vi()` and no `xbart()` token. Grouped nbinom is a
-recorded unbuilt item
-([[RIB#"not supported for count (nbinom) responses"]]), and warm start /
-grow-from-root are unbuilt ([f50]). Header attribute undocumented ([f3]). SBC
+**nbinom.** No `xbart()` token, and warm start / grow-from-root are unbuilt
+([f50]). Header attribute undocumented ([f3]). SBC
 `r`/`agg.psi` flag standing, read as slow mixing along the r-psi ridge, with a
 third, longer run owed ([f42]). Real-valued dispersion remains a recorded open
 item (TODO's `negbin-real-dispersion` item).
 
 **multinomial.** No flat-C creation path at all ([f4]). No `getLatents`
-([f22]), no grouped surface ([f32]), no warm start or grow-from-root ([f50]).
+([f22]), and no warm start or grow-from-root ([f50]).
 The ENGINE's own per-observation log-likelihood channel stays undefined for
 this family; `extract(type = "loglik")` scores the multinomial log-pmf on the
 REPORTED probabilities instead ([[generics.R#multinomialLogLik]]).
 
-**aft.** No `xbart()` token, and no standalone equivalence scenario ([f44]).
-Out of the SBC matrix because the censoring status is fixed at creation; a
-status setter is the named enabler ([f45]).
+**aft.** No `xbart()` token. Out of the SBC matrix because the censoring
+status is fixed at creation; a status setter is the named enabler ([f45]). The
+separate exact oracle benchmarks/R/aft-exact.R is not a MANIFEST entry.
 
 **hazard.** No flat-C token and no engine code of its own ([f6]); no
-`rbart_vi()` or `xbart()` reach, and no grouped surface. Out of SBC by design
-([f45]). One dedicated tinytest file.
+`xbart()` reach. Out of SBC by design ([f45]). One dedicated tinytest file.
 
-**hurdle.** No `rbart_vi()`, `xbart()` or flat-C reach, no grouped surface, and
-no warm start or grow-from-root ([f50]).
+**hurdle.** No `xbart()` or flat-C reach, and no warm start or
+grow-from-root ([f50]).
 
-**bcf.** No `rbart_vi()` ([[rbart.R#rbart_vi]]) and no `xbart()` reach. The
+**bcf.** No `xbart()` reach. The
 NAMED `bcf()` causal verb is bartCause's, not dbarts's; the K-forest amplitude
 capability itself is reachable from `bart2()`'s formula interface ([f7]).
 Warm start and grow-from-root are unrefused and untested for two forests
@@ -815,10 +740,6 @@ model-space survey, docs/design/model-space-survey.md). The probit and logistic
 cases have no equivalence scenario, no SBC coverage and no measured active-rows
 mask ([f48], [f26]).
 
-**grouped.** `rbart_vi()`-only surface ([f8]): no `bart2()`, `dbarts()`,
-`xbart()` or `dbartsSpec()` reach, and no `warm.start` / `n.grow.sweeps`
-formals ([f37]) though the engine paths carry no group gate.
-
-**heteroscedastic.** No `rbart_vi()` and no `xbart()` reach. Selecting
+**heteroscedastic.** No `xbart()` reach. Selecting
 attribute undocumented in the header ([f3]). Out of the SBC matrix, deferred
 not blocked ([f47]).

@@ -1,8 +1,11 @@
 # Forest-ranef confounding: a joint / interweaving move (design)
 
-Status: NO-GO now, recorded door (2026-07-20; blind critique SOUND WITH
-CAVEATS - see section 9, authoritative, which corrects the section-2 magnitude
-framing and the section-3.2 cost framing)
+Status: SUPERSEDED 2026-09-06 - grouped random intercepts are removed from
+dbarts, so the door this note held open is closed; see
+[[docs/design/retire-grouped-random-effects.md#The decision]]. It was NO-GO
+when recorded (2026-07-20; blind critique SOUND WITH CAVEATS - see section 9,
+authoritative, which corrects the section-2 magnitude framing and the
+section-3.2 cost framing).
 
 The in-engine grouped sampler (rbart_vi with a built-in tau prior, the
 GroupedResponse path) fits y_i = f(x_i) + b_{g(i)} + eps_i with b_j ~ N(0,
@@ -78,24 +81,24 @@ narrow corner (section 6). That tension is the go/no-go.
 The Gibbs blocks per raw sweep, as run() drives them:
 
 1. `f | b` -- one tree sweep of the mean forest against the working response
-   `z_i - b_{g(i)}` ([[model.hpp#GroupedResponse::workingResponse]]),
+   `z_i - b_{g(i)}` (retired: [[model.hpp#GroupedResponse::workingResponse]]),
    backfit tree-by-tree ([[chain.hpp#Chain::run]]). This is where f sees the group
    intercepts subtracted, so f fits the residual-of-b.
 2. `b | f` -- refreshLatents ([[chain.hpp#Chain::run]]) calls GroupedResponse::
-   refreshLatents ([[model.hpp#GroupedResponse::refreshLatents]]), which draws b_j conjugately from the
+   refreshLatents (retired: [[model.hpp#GroupedResponse::refreshLatents]]), which draws b_j conjugately from the
    group means of `z_i - F_i` with F = f-only fits (drawGroupEffects,
-   [[model.hpp#drawGroupEffects]]; called from [[model.hpp#GroupedResponse::refreshLatents]] with the combined = f-only fits).
+   retired: [[model.hpp#drawGroupEffects]]; called from retired: [[model.hpp#GroupedResponse::refreshLatents]] with the combined = f-only fits).
 3. `tau | b` -- exact Makalic-Schmidt cauchy draw (drawTauCauchyExactIG,
-   [[model.hpp#drawTauCauchyExactIG]]) or slice for the gamma prior.
+   retired: [[model.hpp#drawTauCauchyExactIG]]) or slice for the gamma prior.
 4. `sigma | f, b` -- drawSigma on the shifted fits ([[chain.hpp#Chain::run]],
-   [[model.hpp#GroupedResponse::drawSigma]]).
+   retired: [[model.hpp#GroupedResponse::drawSigma]]).
 
 Blocks 1 and 2 are the ridge: f conditions on the current b, b conditions on the
 current f, and neither integrates the other out. When x carries group-level
 structure (the common applied case: groups correlate with covariates), f can
 absorb part of each `fbar_j` and b absorbs the rest; the pair traverses the
 `fbar_j + b_j = const` ridge one block at a time, slowly. The GroupedResponse
-decorator ([[model.hpp#GroupedResponse]]) presents only `(z, w)` to the forest, so it CANNOT
+decorator (retired: [[model.hpp#GroupedResponse]]) presents only `(z, w)` to the forest, so it CANNOT
 see the coupling -- the collapse cannot live in the decorator (section 3).
 
 ## 2. The measured bottleneck (HEAD, benchmarks/R/grouped-mixing.R)
@@ -332,7 +335,7 @@ Per review section 5 (the migration battery), unchanged in shape:
   equivalence scenarios use the GAMMA prior (tau-cauchy-exact-ig.md);
   a cauchy-branch collapse would need a cauchy-grouped z-summary added, or the
   scenarios re-recorded under cauchy.
-- The custom-prior R loop ([[rbart.R#rbart_vi_fit]]) stays untouched and must keep
+- The custom-prior R loop ([[R/rbart.R:892@c585ba2c]]) stays untouched and must keep
   working -- a custom prior forcing the cauchy density is the cross-check the
   grouped landing used.
 - grouped-mixing.R (this arc's gate) re-run: the collapse must drop the Part B

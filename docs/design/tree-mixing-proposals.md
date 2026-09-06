@@ -494,7 +494,7 @@ rather than being navigated.
 **Two variants, and they are genuinely different candidates.**
 
 - **Outer composition**: a separate parametric block alternating with the
-  forest. This is stan4bart's shape and rbart_vi's random intercept is its
+  forest. This is stan4bart's shape, of which a random intercept is the
   degenerate case.
 - **Inner composition**: the parametric part lives in the *leaves* - dbarts'
   landed linear leaves (`linear-leaves.md`) and GP leaves (`gp-leaves.md`);
@@ -670,13 +670,11 @@ because every arm already exists.**
 |---|---|---|
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
-| outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
 | outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` ([[R/dbarts.R#dbartsSampler$setOffset]]), and `dbarts_sampler_setOffset` in the shipped C API ([[inst/include/dbarts/dbarts.h#dbarts_sampler_setOffset]]) | shipped, supported |
 | inner composition | `node.prior = linear(columns)` / `gp(columns)` ([[R/model.R#dbartsModel]]) | shipped |
 
-The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
-harness), `benchmarks/R/forest-ranef-collapse-proto.R` (the isolated ridge
-surrogate), the XOR scenario from the grow-from-root study, the pooled
+The probes exist too: the XOR scenario from the grow-from-root study, the
+pooled
 inclusion-dispersion statistic, and plateau prediction error. So does the
 substrate: `inst/common/friedmanData.R` ships a DGP that is exactly one
 interaction term (`10 sin(pi x1 x2)`) plus three separable terms
@@ -1407,8 +1405,8 @@ means fix the kernel, not drop the candidate.
 
 ### 6.3 Stage 2 - benefit, with matched exposure
 
-Four arms, matched seeds, paired (the `grouped-mixing.R` idiom: data seed
-`BASE_SEED + s`, sampler seed `s`, shared `s` across a pair).
+Four arms, matched seeds, paired (data seed `BASE_SEED + s`, sampler seed
+`s`, shared `s` across a pair).
 
 | arm | what it runs | purpose |
 |---|---|---|
@@ -1485,7 +1483,7 @@ not pricing the decision.
 | Stage 0 driver | ~250 lines | new |
 | the kernel | ~120-160 lines, +15 for the window ratio | 6 files; default weight 0 |
 | `perturb-balance.R` | ~400-600 lines | the single largest artifact; not skippable |
-| Stage 2 harness | ~400 lines | reuses the `grouped-mixing.R` seed idiom |
+| Stage 2 harness | ~400 lines | reuses the matched-pair seed idiom |
 | compute | Stage 0 hours; Stage 2 on the order of a day | 4 arms x 4 cells x 20 pairs plus re-runs, against the grow-from-root study's 1.93 h floor |
 
 Total: **a week of implementation, not a day**. The kernel is the cheap
@@ -1661,7 +1659,7 @@ be verified directly rather than toward citations.
 |---|---|
 | `docs/design/forest-ranef-interweaving.md` sec 0, 2, 5, 6, 9 | Read in full at `d3cb94b`. The 56.1 / 9.3 / 114.6 prototype table, the with-f/no-f attribution, the "no cheap ASIS/PX" structural argument, and section 9's authoritative corrections are all quoted from it directly. This is the load-bearing evidence for the hazard. |
 | `LinearGaussianLeaf::logIntegratedLikelihoodForNode` [[src/bartcore/model.hpp#LinearGaussianLeaf::logIntegratedLikelihoodForNode]] (linear leaf integrated likelihood) | Read. Confirms the inner variant marginalizes leaf coefficients out of the structural score. |
-| `dbartsSampler$setOffset` [[R/dbarts.R#dbartsSampler$setOffset]], `dbarts_sampler_setOffset` [[inst/include/dbarts/dbarts.h#dbarts_sampler_setOffset]], `dbartsModel`'s linear/gp node-prior checks [[R/model.R#dbartsModel]], `rbart_vi` [[R/rbart.R#rbart_vi]] | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
+| `dbartsSampler$setOffset` [[R/dbarts.R#dbartsSampler$setOffset]], `dbarts_sampler_setOffset` [[inst/include/dbarts/dbarts.h#dbarts_sampler_setOffset]], `dbartsModel`'s linear/gp node-prior checks [[R/model.R#dbartsModel]] | Read. Confirms the composition surface is public on both the R and C sides. |
 | `inst/common/friedmanData.R` | Read. Confirms the probe DGP decomposes into one interaction plus three separable terms. |
 | stan4bart's `src/init.cpp` (out-of-repo), `docs/design/walnuts.md` | Read in the live tree (0.0.14 installed). Confirms the 1:1 two-block Gibbs alternation and that no mixing diagnostic is reported. |
 | Hahn, Carvalho, Puelz, He, Bayesian Analysis 13(1):163-182, 2018 | Full text (arXiv 1602.02176v3): the RIC definition, the competing-criteria mechanism, the closed-form bias (2.3), the reparameterization (2.5)-(2.6), and the appendix's extra alpha step added "to improve mixing". |

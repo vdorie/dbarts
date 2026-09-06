@@ -112,7 +112,7 @@ the column lacks NAs).
 
 - Ingestion: dbartsData accepts NAs in predictors (train and test) when
   the engine does. Add missing = c("incorporate", "error") to dbartsData
-  and thread it through dbarts/bart2/xbart/rbart_vi like factors. The
+  and thread it through dbarts/bart2/xbart like factors. The
   value is named for what happens - missingness is incorporated into the
   split rules - rather than for the MIA acronym (DECIDED 2026-07-04,
   Vincent: the name and the default are both "incorporate"; "error" is
@@ -142,8 +142,8 @@ hasMissing branch should be unmeasurable; verify). New coverage: MIA
 fits recover a signal carried by missingness (y depends on is.na(x1)),
 NA routing consistency between getTrees counts, predict, and an R-side
 replay, state round-trip with flags, views over NA data, and test-data
-NAs. xbart/rbart_vi/bart2 smoke tests with NAs once the argument
-threads through.
+NAs. xbart/bart2 smoke tests with NAs once the argument threads
+through.
 
 ## Out of scope
 

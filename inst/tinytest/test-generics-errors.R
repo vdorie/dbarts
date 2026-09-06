@@ -81,40 +81,9 @@ expect_error(
   fixed = TRUE
 )
 
-rbartFitNoTrees <- dbarts::rbart_vi(
-  testData$y ~ testData$x,
-  group.by = rep(1:2, length.out = nrow(testData$x)),
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = FALSE
-)
-expect_error(
-  predict(
-    rbartFitNoTrees,
-    testData$x,
-    group.by = rep(1:2, length.out = nrow(testData$x))
-  ),
-  "requires the fit's saved trees; refit with keepTrees = TRUE",
-  fixed = TRUE
-)
-expect_error(
-  extract(rbartFitNoTrees, type = "trees"),
-  "requires the fit's saved trees; refit with keepTrees = TRUE",
-  fixed = TRUE
-)
-expect_error(
-  plotTree(rbartFitNoTrees),
-  "requires the fit's saved trees; refit with keepTrees = TRUE",
-  fixed = TRUE
-)
-
 rm(bartFit, bart2Fit)
 
-# predict.bart/predict.rbart did not call refuseUnusedGenericArgs: a caller
+# predict.bart did not call refuseUnusedGenericArgs: a caller
 # typing the sibling family's offset formal name ('offset.test', used by
 # predict.bartNegbin) instead of this fit's own 'offset' had it silently
 # vanish into '...' instead of applied
@@ -146,13 +115,7 @@ expect_error(
   "'contribution' is not used by predict on a bart fit: the per-observation contribution decomposition belongs to extract(type = \"forest\")",
   fixed = TRUE
 )
-expect_error(
-  predict(bart2FitKT, testData$x, group.by = 1L),
-  "'group.by' is not used by predict on a bart fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
-  fixed = TRUE
-)
-# 'value' was predict.rbart's pre-1.0 name for 'type'; refused on every
-# predict method, not only rbart's own
+# 'value' was a pre-1.0 name for 'type'; refused on every predict method
 expect_error(
   predict(bart2FitKT, testData$x, value = "ppd"),
   "'value' is not used by predict on a bart fit: predict's channel argument is named 'type'",
@@ -220,79 +183,6 @@ rm(
   predSubclass
 )
 
-groupBy <- rep(1:2, length.out = nrow(testData$x))
-rbartFitKT <- dbarts::rbart_vi(
-  testData$y ~ testData$x,
-  group.by = groupBy,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.trees = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = TRUE
-)
-expect_error(
-  predict(
-    rbartFitKT,
-    testData$x,
-    group.by = groupBy,
-    offset.test = rep(0.1, nrow(testData$x))
-  ),
-  "'offset.test' is not used by predict on a rbart fit",
-  fixed = TRUE
-)
-# group.by follows '...' now: a positional third argument binds to 'type'
-# instead, and a missing one - named or positional - is refused by name
-expect_error(
-  predict(rbartFitKT, testData$x, groupBy),
-  "'group.by' must be given by name",
-  fixed = TRUE
-)
-expect_error(
-  predict(rbartFitKT, testData$x, type = "ev"),
-  "'group.by' must be given by name",
-  fixed = TRUE
-)
-# the pre-1.0 'value' shim is deleted; the old spelling is refused by name
-# rather than accepted and folded onto 'type'
-expect_error(
-  predict(rbartFitKT, testData$x, group.by = groupBy, value = "ev"),
-  "'value' is not used by predict on a rbart fit: predict's channel argument is named 'type'",
-  fixed = TRUE
-)
-# the derived surface vocabulary: a name foreign to predict.rbart is refused,
-# 'forest'/'contribution' by the same single-forest reason ordinal/negbin/
-# hurdle already carry
-expect_error(
-  predict(rbartFitKT, testData$x, group.by = groupBy, sample = "train"),
-  "'sample' is not used by predict on a rbart fit: the fit's stored train and test channels are extract's 'sample'",
-  fixed = TRUE
-)
-expect_error(
-  predict(rbartFitKT, testData$x, group.by = groupBy, bases = list()),
-  "'bases' is not used by predict on a rbart fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
-  fixed = TRUE
-)
-expect_error(
-  predict(rbartFitKT, testData$x, group.by = groupBy, forest = 1L),
-  "'forest' is not used by predict on a rbart fit: this selects among an amplitude-coupled fit's co-fit forests; this fit has a single forest",
-  fixed = TRUE
-)
-expect_error(
-  predict(rbartFitKT, testData$x, group.by = groupBy, contribution = TRUE),
-  "'contribution' is not used by predict on a rbart fit: this selects among an amplitude-coupled fit's co-fit forests; this fit has a single forest",
-  fixed = TRUE
-)
-# 'group.by' is rbart's own formal, so it is NOT foreign here - the derived
-# refusal above must not fire on the one method that declares it
-expect_true(is.numeric(predict(
-  rbartFitKT,
-  testData$x,
-  group.by = groupBy,
-  type = "ev"
-)))
-
 # extend the offset.test refusal to the four own-class fits, and add the
 # 'weights' and offset-channel refusals the same signature reshape gained
 n <- 40L
@@ -332,11 +222,6 @@ expect_error(
 expect_error(
   predict(multinomialFitKT, xSmall, bases = list()),
   "'bases' is not used by predict on a bartMultinomial fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
-  fixed = TRUE
-)
-expect_error(
-  predict(multinomialFitKT, xSmall, group.by = 1L),
-  "'group.by' is not used by predict on a bartMultinomial fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
 
@@ -384,11 +269,6 @@ expect_error(
   "'bases' is not used by predict on a bartOrdinal fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
-expect_error(
-  predict(ordinalFitKT, xSmall, group.by = 1L),
-  "'group.by' is not used by predict on a bartOrdinal fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
-  fixed = TRUE
-)
 
 negbinFitKT <- dbarts::bart2(
   xSmall,
@@ -424,11 +304,6 @@ expect_error(
 expect_error(
   predict(negbinFitKT, xSmall, bases = list()),
   "'bases' is not used by predict on a bartNegbin fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
-  fixed = TRUE
-)
-expect_error(
-  predict(negbinFitKT, xSmall, group.by = 1L),
-  "'group.by' is not used by predict on a bartNegbin fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
   fixed = TRUE
 )
 
@@ -473,14 +348,9 @@ expect_error(
   "'bases' is not used by predict on a bartHurdle fit: only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   fixed = TRUE
 )
-expect_error(
-  predict(hurdleFitKT, xSmall, group.by = 1L),
-  "'group.by' is not used by predict on a bartHurdle fit: 'group.by' is the grouped (rbart_vi) fit's own predict argument",
-  fixed = TRUE
-)
 
-# --- extract arm: ci.level/newdata/n.threads refused on extract.bart and
-# --- extract.rbart, BELOW the type == "trees" branch, and a representative
+# --- extract arm: ci.level/newdata/n.threads refused on extract.bart,
+# --- BELOW the type == "trees" branch, and a representative
 # --- foreign name on each own-class extract ---
 expect_error(
   extract(bart2FitKT, type = "ev", ci.level = 0.9),
@@ -508,23 +378,6 @@ treesAtNewdata <- extract(
 )
 expect_equal(max(treesAtNewdata$n), 5L)
 rm(bart2FitKT)
-
-expect_error(
-  extract(rbartFitKT, type = "ev", ci.level = 0.9),
-  "'ci.level' is not used by extract on a rbart fit: extract returns the draws that fitted() and predict() take a band over",
-  fixed = TRUE
-)
-expect_error(
-  extract(rbartFitKT, type = "ev", newdata = testData$x),
-  "'newdata' is not used by extract on a rbart fit: predict(object, newdata) is the read at new rows",
-  fixed = TRUE
-)
-expect_error(
-  extract(rbartFitKT, type = "ev", n.threads = 1L),
-  "'n.threads' is not used by extract on a rbart fit: extract reads stored channels and replays nothing",
-  fixed = TRUE
-)
-rm(rbartFitKT, groupBy)
 
 expect_error(
   extract(multinomialFitKT, type = "ev", ci.level = 0.9),
@@ -638,18 +491,6 @@ expect_error(
   fixed = TRUE
 )
 rm(bartFitPlain)
-
-expect_error(
-  fitted(rbartFitNoTrees, combineChains = FALSE),
-  "'combineChains' is not used by fitted on a rbart fit: the per-chain draws are extract(object, combineChains = FALSE)",
-  fixed = TRUE
-)
-expect_error(
-  residuals(rbartFitNoTrees, ci.level = 0.9),
-  "'ci.level' is not used by residuals on a rbart fit: residuals are the observed response minus the posterior-mean fit",
-  fixed = TRUE
-)
-rm(rbartFitNoTrees)
 
 expect_error(
   fitted(multinomialFitKT, combineChains = FALSE),

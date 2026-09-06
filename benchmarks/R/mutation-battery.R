@@ -259,15 +259,9 @@ mutations <- list(
     "poison 11: logistic response reports omega^2 as its working weight, though the working response itself still divides by the true omega (was model.hpp:2180)"
   ),
 
-  mk(
-    "m12",
-    "src/bartcore/model.hpp",
-    "    weightScratch[j] += w;",
-    "    weightScratch[j] += 1.0;",
-    "KILL_EXPECTED",
-    kEquiv("grouped"),
-    "poison 12: grouped-intercept precision counts members, not their weight (was model.hpp:2334); gate-hardening-1.0 added the grouped scenario for exactly this"
-  ),
+  # m12 retired, id left unassigned rather than reused: it targeted the
+  # grouped-intercept precision accumulation in GroupedResponse, which is
+  # deleted. No surviving site carries the same defect.
 
   mk(
     "m13",

@@ -598,9 +598,8 @@ first - the multinomial coupling's channel, at a coupling whose
 `numReportedLocations` stays 1, which is exactly why the two axes are keyed
 separately. The width a run actually writes is the CALLER's declared
 `Results::numVariableCountForests`, clamped once to this count in
-`Sampler::run`; a caller declaring one (the flat C API, rbart_vi's callback
-loop) gets slot 0, the reported forest, in exactly the bytes a one-forest
-declaration receives.
+`Sampler::run`; a caller declaring one (the flat C API) gets slot 0, the
+reported forest, in exactly the bytes a one-forest declaration receives.
 
 ## What this family does not do
 

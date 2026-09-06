@@ -25,7 +25,7 @@ and any latents - is a runtime virtual, chosen once per chain.
 Three counts are easy to conflate. The engine enumerates six response
 families - gaussian, probit, logistic, aft, ordinal, nbinom - in
 `src/bartcore/model.hpp`'s `ResponseFamily`. Everything else called a family
-here (multinomial, bcf, grouped, heteroscedastic, student, hazard, hurdle)
+here (multinomial, bcf, heteroscedastic, student, hazard, hurdle)
 composes or reduces to those six. And `docs/design/feature-matrix.md` scores
 13 rows, counting each composition a user selects as its own model.
 
@@ -41,7 +41,7 @@ most likely to bite a real script:
   0.9-x.
 - Saved sampler states and `dbartsData` objects need a version-matched
   rebuild, not a reload.
-- `bart2` and `rbart_vi` default to `combineChains = TRUE`.
+- `bart2` defaults to `combineChains = TRUE`.
 - Unordered factors split on subsets of their levels, and an ordered factor
   becomes a single column split at the midpoints between its consecutive
   declared levels, where 0.9-x expanded both into indicator columns; either
@@ -172,10 +172,9 @@ Things that could be wrong and would not be caught:
 - Nothing tests that `setState` itself honours the containment verdict -
   that a restored state's splits stay inside the columns the model allows
   (`sampler.hpp`'s `allValid = columnMaskOk`).
-- Five `benchmarks/R` harnesses run in no workflow; three of them call
-  themselves gates and have one recorded run each, and the ratios
-  `grouped-mixing.R` measures now already disagree with its own header's
-  figures, undetected because nothing re-runs it.
+- Three `benchmarks/R` harnesses run in no workflow, one of them calling
+  itself a gate, so drift in what they measure goes undetected because
+  nothing re-runs them.
 - `setForestBasis(k, ~var)` evaluates the formula in its own environment
   with no data attached, so a column living only in a data frame is not
   found.

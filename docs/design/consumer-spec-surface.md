@@ -35,10 +35,10 @@ no supported alternative.
 
 ## 2. What already resolves where
 
-`dbarts()` is the single choke point: `bart2()` and `rbart_vi()` both reach the
-engine by `redirectCall`ing into it, and only the multi-forest hosts (BCF,
-multinomial, hurdle) build samplers another way. Its body divides cleanly at the
-point where the response is materialized:
+`dbarts()` is the single choke point: `bart2()` reaches the engine by
+`redirectCall`ing into it, and only the multi-forest hosts (BCF, multinomial,
+hurdle) build samplers another way. Its body divides cleanly at the point
+where the response is materialized:
 
 - INGESTION (formula/matrix dispatch, `Surv` parsing, discrete-time hazard
   expansion, the `dbartsData` call) - formula-interface concerns, upstream of the

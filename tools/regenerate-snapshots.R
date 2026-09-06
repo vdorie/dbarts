@@ -26,7 +26,6 @@ files <- file.path(
     "test-reproducibility-continuousResponse-singleThreaded.R",
     "test-reproducibility-continuousResponse-multithreaded.R",
     "test-reproducibility-binaryResponse.R",
-    "test-reproducibility-rbart.R",
     "test-reproducibility-xbart.R"
   )
 )

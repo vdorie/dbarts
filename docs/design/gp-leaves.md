@@ -16,7 +16,7 @@ closed-form marginal - the IntegrableLeafModel concept - not a cheap
 one.
 
 A GP leaf under any working-Gaussian response (gaussian, probit,
-logistic via Polya-Gamma, grouped decorations) IS integrable: with
+logistic via Polya-Gamma) IS integrable: with
 f_leaf ~ GP(0, tau^2 K) over the leaf's rows and working response z
 with weights w,
 
@@ -112,8 +112,7 @@ nothing bounds them. Guardrails, in order of preference:
 - Lengthscales theta: v1 fixes them at creation from the data scale
   (e.g. the median pairwise distance heuristic per designated column,
   computed once on standardized values), exposed as an argument.
-  Slice-sampling theta per iteration is a mechanical follow-up (the
-  grouped-effects sliceSampleOnce is a free function already) but
+  Slice-sampling theta per iteration is a mechanical follow-up but
   changes the draw count per sweep, so it lands separately if wanted.
 - k: fixed-k works exactly as the other leaves (prior variance scales
   by (scale/k)^2). The chi-k hyperprior needs a sum-of-squares
@@ -381,7 +380,7 @@ on dbarts() and xbart(). Facts vs the plan:
   standardization constants from the full data (the linear precedent)
   while HEURISTIC lengthscales recompute over each fold's rows -
   supply lengthscale explicitly for exact cross-fold calibration.
-- rbart_vi/bart/bart2 build normal(k) internally, as with linear.
+- bart/bart2 build normal(k) internally, as with linear.
   Sparse and sparse-backed mixed columns refuse through the shared
   resolveLeafCovariates paths.
 - Docs: dbartsPriors.Rd gained the gp entry (and linear's stale

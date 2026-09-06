@@ -1,7 +1,7 @@
 # Survival models: design
 
-Status: AFT log-normal LANDED 2026-07-10 (f0efc03; grouped rbart_vi support
-ac6ec2c). Discrete-time hazard LANDED 2026-07-18 (4bcdccf; the section below).
+Status: AFT log-normal LANDED 2026-07-10 (f0efc03). Discrete-time hazard
+LANDED 2026-07-18 (4bcdccf; the section below).
 First survival families for 1.0-x. Companion to the roadmap in
 docs/plans/archive/survival-models.md and the extensions table in
 docs/design/core-generalization.md ("Survival (AFT, discrete-time hazard),
@@ -16,9 +16,8 @@ landed.
 ## Which model first
 
 AFT log-normal, per the plan's default. It is the survival family the
-ResponseModel latent seam already provisions for, it reduces exactly to
-the Gaussian path (a free correctness gate), and it is riAFTBART's model,
-the named consumer whose outer loop the grouped decorator replaces.
+ResponseModel latent seam already provisions for, and it reduces exactly
+to the Gaussian path (a free correctness gate).
 
 ## Model
 
@@ -117,9 +116,8 @@ them be decided one at a time.
      One small R helper combines the lp draws with the sigma draws over
      a user time grid, rather than overloading predict with a type
      argument, and stays out of the engine. It is the S3 generic
-     survivalProbabilities, with a bart method and an rbart method - the
-     grouped one sources the "ev" channel, so the drawn group intercepts
-     enter the curve, and both refuse a non-aft fit. It returns DRAWS
+     survivalProbabilities, with a bart method that refuses a non-aft
+     fit. It returns DRAWS
      (draws x times x observations; a chain margin under combineChains =
      FALSE) per the package's extract-draws / fitted-mean /
      ci.level-interval tiers, computed in the uncombined convention
@@ -140,21 +138,6 @@ them be decided one at a time.
    likelihood at this scale, and riAFTBART does not need it. The
    uncensored path could carry Gaussian weights, but mixing weighted and
    truncated draws is deferred rather than half-specified.
-
-## riAFTBART composition check
-
-riAFTBART's model is AFT with random intercepts per cluster; its outer
-loop alternates a BART AFT fit with a Gibbs draw of the cluster
-intercepts. That is exactly GroupedResponse decorating AFTResponse:
-GroupedResponse::refreshLatents calls base_->refreshLatents against
-f + b (so censored latents are drawn against the group-adjusted fit),
-draws the intercepts against the fresh working response with null
-weights (drawGroupEffects handles null = unit weights), then drawSigma
-delegates to the base against f + b. The composition is generic over the
-base family (it already carries probit and Gaussian), so AFT slots in
-with no GroupedResponse change, replacing riAFTBART's R outer loop like
-rbart_vi's. Confirmed by construction; gated by a grouped-composition
-test in stage 3.
 
 ## Out of scope (v1)
 
@@ -459,10 +442,9 @@ for. Strongest counter, upgraded by the survey: the one shipped
 discrete-time BART picks its link by argument (type = "pbart"/"lbart"),
 so a surv.bart migrant would find Alternative A the familiar shape. The
 tokens are added to the dbarts and bart2 family vectors
-([[R/dbarts.R#dbarts]], [[R/bart.R#bart2]]) and remapped as above; xbart and
-rbart_vi omit them (their match.arg vectors, [[R/xbart.R#xbart]], [[R/rbart.R#rbart_vi]],
-ARE the refusal, the ordinal/nbinom precedent) - grouped hazard is
-section 6.
+([[R/dbarts.R#dbarts]], [[R/bart.R#bart2]]) and remapped as above; xbart
+omits them (its match.arg vector, [[R/xbart.R#xbart]], IS the refusal, the
+ordinal/nbinom precedent).
 
 **Where expansion happens (settled: an R helper at ingest).** The
 person-period expander is a pure R transform invoked during ingestion,
@@ -473,10 +455,8 @@ subject's at-risk periods with the ordinal period column appended, y' the
 per-period indicators. With the remap done (family now reads "probit" or
 "logistic"), that design flows through the dbarts -> dbartsData -> bridge
 -> binary-family path with no change downstream of the remap point. The
-engine, the bridge (resolveFamily, applyGroupAttribute,
-applySurvivalAttribute -
+engine, the bridge (resolveFamily, applySurvivalAttribute -
 [[src/R_interface_bartcore.cpp#resolveFamily]],
-[[src/R_interface_bartcore.cpp#applyGroupAttribute]],
 [[src/R_interface_bartcore.cpp#applySurvivalAttribute]]), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
@@ -706,21 +686,10 @@ smoke beyond the reduction gate.
   of the expander (an entry-time input), strictly cheaper than the others.
   Out of the minimal v1 surface, but flagged as near-term and low-cost.
 
-- **Grouped / frailty (OUT of v1 surface; composition already exists).** A
-  random-intercept (shared-frailty) discrete-time hazard is GroupedResponse
-  decorating the binary family on the expanded data - and that decorator is
-  generic over its base family and already ships and is gated for probit
-  (grouped-random-effects.md; the AFT note's riAFTBART composition check
-  above, "generic over the base family ... already carries probit and
-  Gaussian"), with grouped logistic feasible on the same seam (logistic has
-  a Gaussian working response). So grouped hazard is reachable the moment the
-  expander feeds rbart_vi - whose family vector ([[R/rbart.R#rbart_vi]]) would grow the
-  hazard token as it grew "aft". The only work is surface, exactly
-  paralleling the AFT grouped follow-up
-  (docs/plans/archive/survival-grouped-surface.md). v1 ships the ungrouped hazard on
-  dbarts/bart2; grouped hazard (rbart_vi + hazard expansion +
-  survivalProbabilities.rbart cumulating hazards) is a recorded follow-up,
-  feasible by construction.
+- **Shared frailty (OUT; not dbarts's).** A random-intercept
+  (shared-frailty) discrete-time hazard needs multilevel structure, which
+  is stan4bart's rather than dbarts's
+  ([[docs/design/retire-grouped-random-effects.md#The decision]]).
 
 - **cloglog link (OUT; door).** Section 3: not needed for a valid v1, and a
   future cloglog binary family becomes a hazard link for free.

@@ -166,36 +166,6 @@ rm(
   n
 )
 
-# 5. rbart_vi: multi-chain ppd shape and the same layout invariance
-set.seed(5, sample.kind = "Rejection")
-n <- 60L
-x <- matrix(runif(n * 2L), n, 2L)
-g <- factor(rep_len(1:4, n))
-y <- x[, 1L] + rnorm(4L, 0, 1)[as.integer(g)] + rnorm(n, 0, 0.4)
-
-fit.r <- rbart_vi(
-  y ~ x,
-  group.by = g,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 2L,
-  n.trees = 15L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-
-set.seed(0L)
-ppd.r.split <- extract(fit.r, type = "ppd", combineChains = FALSE)
-set.seed(0L)
-ppd.r.comb <- extract(fit.r, type = "ppd")
-
-expect_equal(dim(ppd.r.split), c(2L, 10L, n))
-expect_equal(dim(ppd.r.comb), c(20L, n))
-expect_identical(dbarts:::combineChains(ppd.r.split), ppd.r.comb)
-
-rm(fit.r, ppd.r.split, ppd.r.comb, x, y, g, n)
-
 # 6. binary layout invariance: the binary branches draw rbinom against the
 # split-layout probabilities and reshape the outcome (the draw depends on ev,
 # so it cannot be reshaped after the fact), so a combined and a split ppd

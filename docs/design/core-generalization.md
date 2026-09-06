@@ -114,10 +114,8 @@ template instantiation plus a factory registry entry.
   the response model. Gaussian: identity, hooks are no-ops. Probit:
   truncated-normal latents (current behavior). Logistic: Polya-Gamma omega_i
   become weights plus working response, riding the existing weighted kernels
-  untouched. Grouped random effects: a decorator Gibbs-sampling per-group
-  intercepts into the offset between tree sweeps (rbart_vi moved in-core,
-  composing with any response model). Models with no working-Gaussian form
-  use a non-conjugate MoveStrategy instead.
+  untouched. Models with no working-Gaussian form use a non-conjugate
+  MoveStrategy instead.
 - **LeafModel** (concept; refined by `IntegrableLeaf`): declares
   `SufficientStat`, `accumulate`, `logMarginal` (if integrable), parameter
   type, tree-level parameter draw, `predict(param, x_row)`. Constant leaf:
@@ -204,7 +202,7 @@ order-preservation requirements to be settled by prototype.
 | Survival (AFT, discrete-time hazard), ordinal, quantile | ResponseModel latents; person-period expansion at ingest |
 | Grouped/structured DART, interaction constraints | SplitSelector |
 | Missingness (MIA) | reserved NA code + rule direction bit |
-| Spatial/GP residuals | partially: grouped effects in-core; full GLS is a stretch goal |
+| Spatial/GP residuals | partially: GP leaves; full GLS is a stretch goal |
 
 Explicitly out of scope: soft BART (probabilistic routing replaces index-set
 partitioning entirely; a different library sharing only the tree structure).
@@ -529,12 +527,11 @@ partitioning entirely; a different library sharing only the tree structure).
    the bartcore engine with node.scale = pi * sqrt(3)); the slot drives
    the bridge's family argument including pointer re-creation after
    save/load, and setControl preserves it like `binary`. The wrappers'
-   probability transforms are link-aware (2026-07-03): packaged bart and
-   rbart results carry a `family` element, and
+   probability transforms are link-aware (2026-07-03): packaged bart
+   results carry a `family` element, and
    predict/extract/fitted/plot transform latents through it
    (probabilityFromLatents in generics.R; missing element = probit, so
-   old saved fits keep their meaning). rbart remains probit-only by
-   construction - its ranef update is a normal-conjugate step.
+   old saved fits keep their meaning).
    xbart backend (DONE 2026-07-03): the C++ crossvalidation monolith
    (crossvalidate.cpp, R_interface_crossvalidate.cpp) is deleted and
    xbart is an R-level driver over the dbartsSampler mutation API
@@ -566,8 +563,9 @@ partitioning entirely; a different library sharing only the tree structure).
    flushed out parity gaps the R5 harness never saw because it compares
    test fits, not training fits, and never exercised some paths:
    (1) recorded training fits omitted the offset while the classic
-   engine includes it - rbart's ranef Gibbs reads train - ranef, so the
-   ranef re-entered the residual and diverged geometrically (the
+   engine includes it - the grouped Gibbs loop then in R read
+   train - ranef, so the ranef re-entered the residual and diverged
+   geometrically (the
    "hang"); fixed engine-side (ResponseModel::offset(), added back in
    storeSample, symmetric with test fits). (2) control@seed (rngSeed
    at the time) was ignored: now a single chain seeds R's generator
@@ -580,7 +578,7 @@ partitioning entirely; a different library sharing only the tree structure).
    refused on bartcore. (3) test data could not be removed - bart2/bart
    null out test predictors for burn-in; buildTest(NULL, 0) transitions
    to the supported no-test state, offset cleared. (4) getLatents
-   refused preallocated results, which rbart fills in place; the bridge
+   refused preallocated results, which an outer loop fills in place; the bridge
    now honors the classic storeLatents contract. (5) setResponse and
    setOffset skipped length validation (numeric(0) segfaulted).
    (6) copy() walked classic dbartsState slots; the bartcore branch
@@ -592,7 +590,7 @@ partitioning entirely; a different library sharing only the tree structure).
    alike; classic ignored the value at create and installed it as an sd
    in setModel - not replicated. Mutation-error messages align with
    classic's wording. RNG-locked snapshots regenerated
-   (binary/continuous regression, rbart, xbart); classic-mechanics
+   (binary/continuous regression, xbart); classic-mechanics
    tests (customMCMC's state cutPoints, rng kind semantics) pin
    engine = "classic" until removal; a knife-edge statistical bound
    (flat-hyperprior median k < 3; cross-seed medians 2.5-69 on BOTH
@@ -776,7 +774,7 @@ partitioning entirely; a different library sharing only the tree structure).
 
    setControl + setModel + getSumsOfSquaredResiduals (DONE 2026-07-02,
    final R5 parity slice; every dbartsSampler method now runs on the
-   flag). setControl covers what the bart/rbart/pdbart wrappers change
+   flag). setControl covers what the bart/pdbart wrappers change
    mid-flight - keepTrainingFits, keepTrees flips (saved-tree storage
    reallocates and the write position resets; a no-op reconfiguration
    preserves stored samples), n.threads, n.thin, and the R-side-only
@@ -814,10 +812,8 @@ partitioning entirely; a different library sharing only the tree structure).
 
    Remaining unsupported surface: weights + binary (by design) and
    setControl changes to creation-fixed settings.
-5. **Wave 2 models**: linear leaves (LANDED in full, linear-leaves.md);
-   in-core grouped random effects retiring the rbart_vi R loop for the
-   built-in tau priors (LANDED, grouped-random-effects.md). Wave 2 is
-   complete.
+5. **Wave 2 models**: linear leaves (LANDED in full, linear-leaves.md).
+   Wave 2 is complete.
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
 7. **Cutover** (DONE 2026-07-03): new core is the only engine, the classic
    engine deleted, and the flat C API (`dbarts.h`) published for LinkingTo -

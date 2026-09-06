@@ -313,8 +313,6 @@ SEXP capi_run_guard(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.varcount = (uint32_t*) poison;
   results.k = poison;
   results.varprobs = poison;
-  results.tau = poison;
-  results.groupEffects = poison;
 
   dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
 
@@ -406,8 +404,6 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   results.varcount = varcount;
   results.k = NULL;
   results.varprobs = NULL;
-  results.tau = NULL;
-  results.groupEffects = NULL;
 
   dbarts_sampler_setCallback(sampler, sweepCallback, &state);
   dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
@@ -429,49 +425,6 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("varcount"));
   SET_STRING_ELT(namesExpr, 3, Rf_mkChar("count"));
-  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
-
-  UNPROTECT(5);
-  return resultExpr;
-}
-
-/* a grouped run: fills and returns tau (numSamples x chains) and groupEffects
- * (numGroups x numSamples x chains), the buffers dbarts_results now carries */
-SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
-                      SEXP numGroupsExpr) {
-  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
-  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
-  size_t numGroups = (size_t) Rf_asInteger(numGroupsExpr);
-  size_t chains = dbarts_sampler_numChains(sampler);
-
-  SEXP sigmaExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
-  SEXP tauExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
-  SEXP ranefExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (numGroups * numSamples * chains)));
-
-  dbarts_results results = DBARTS_RESULTS_INIT;
-  results.sigma = REAL(sigmaExpr);
-  results.train = NULL;
-  results.test = NULL;
-  results.varcount = NULL;
-  results.k = NULL;
-  results.varprobs = NULL;
-  results.tau = REAL(tauExpr);
-  results.groupEffects = REAL(ranefExpr);
-
-  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
-
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
-  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
-  SET_VECTOR_ELT(resultExpr, 1, tauExpr);
-  SET_VECTOR_ELT(resultExpr, 2, ranefExpr);
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
-  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("tau"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("ranef"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
   UNPROTECT(5);

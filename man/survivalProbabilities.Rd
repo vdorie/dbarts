@@ -2,7 +2,6 @@
 \title{Survival Probability Draws from a Survival Fit}
 \alias{survivalProbabilities}
 \alias{survivalProbabilities.bart}
-\alias{survivalProbabilities.rbart}
 \alias{survivalProbabilities.bartMultinomial}
 \alias{survivalProbabilities.bartOrdinal}
 \alias{survivalProbabilities.bartNegbin}
@@ -10,9 +9,8 @@
 \description{
   Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
-  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"}, the
-  grouped (random-intercept) AFT fit produced by \code{\link{rbart_vi}} with
-  \code{family = "aft"}, or a discrete-time hazard fit produced by
+  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"},
+  or a discrete-time hazard fit produced by
   \code{\link{bart2}} with \code{family = "hazard"} (or
   \code{"hazard.logistic"}).
 
@@ -32,15 +30,6 @@ survivalProbabilities(object, ...)
   ...
 )
 
-\method{survivalProbabilities}{rbart}(
-  object,
-  times,
-  newdata = NULL,
-  combineChains = TRUE,
-  ...,
-  group.by
-)
-
 \method{survivalProbabilities}{bartMultinomial}(object, ...)
 
 \method{survivalProbabilities}{bartOrdinal}(object, ...)
@@ -51,7 +40,7 @@ survivalProbabilities(object, ...)
 }
 \arguments{
   \item{object}{
-    A fitted \code{bart} or \code{rbart} object from a survival model: an AFT
+    A fitted \code{bart} object from a survival model: an AFT
     model (its \code{family} element equals \code{"aft"}) or a discrete-time
     hazard model (it carries a \code{$periods} grid; its \code{family} records
     the binary link). A hazard fit must have been made with
@@ -68,21 +57,12 @@ survivalProbabilities(object, ...)
     observations are used; otherwise \code{object} must have been fit with
     \code{keepTrees = TRUE}.
   }
-  \item{group.by}{
-    For the \code{rbart} method with \code{newdata}, the grouping factor for
-    the new observations, as in \code{\link[=predict.rbart]{predict}}. A group
-    not seen in training draws its intercept from \eqn{N(0, \tau)}. Ignored
-    (and unnecessary) when \code{newdata} is \code{NULL}. Supplied by name
-    only - it follows \code{\dots} in the signature, so it is never matched
-    positionally; a missing one is refused, naming itself. Refused by name on
-    the \code{bart} method, which has no grouping.
-  }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.
   }
   \item{...}{
-    Not a formal on either method: a name belonging to a sibling generic
+    Not a formal on the method: a name belonging to a sibling generic
     (\code{type}, \code{sample}, \code{ci.level}, \code{offset},
     \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
     \code{bases}) is refused by name rather than silently ignored, since this
@@ -100,13 +80,6 @@ survivalProbabilities(object, ...)
   at every posterior draw of \eqn{f(x)} and \eqn{\sigma}, following the
   package's convention that draw-level functions return draws: take means or
   quantiles over the draw margin for point estimates and credible bands.
-
-  For a grouped fit from \code{\link{rbart_vi}} with \code{family = "aft"},
-  the \code{rbart} method uses the same formula, with \eqn{f(x)} replaced by
-  the linear predictor \eqn{E[\log T \mid x, g] = f(x) + \alpha_{g}} that
-  includes the drawn random intercept for the observation's group. It is
-  sourced from the expected-value (\code{"ev"}) channel, so dropping the
-  intercepts (which would misplace every grouped curve) is not possible.
 
   For a discrete-time hazard fit, the survival function is the cumulative
   product
@@ -129,7 +102,7 @@ survivalProbabilities(object, ...)
   \code{NULL}.
 }
 \seealso{
-  \code{\link{bart2}}, \code{\link{rbart_vi}},
+  \code{\link{bart2}},
   \code{\link[=predict.bart]{predict}}, \code{\link[=extract.bart]{extract}}
 }
 \examples{

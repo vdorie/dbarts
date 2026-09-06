@@ -23,7 +23,6 @@ X <- data.frame(v1 = runif(n), v2 = runif(n), v3 = runif(n))
 z <- rbinom(n, 1L, 0.5)
 y <- 2 * X$v1 - X$v2 + z + rnorm(n, sd = 0.5)
 wts <- runif(n, 0.5, 2)
-groups <- factor(rep_len(seq_len(4L), n))
 # built once so it can also ride ... into the warm-start donor builder
 linearLeaf <- dbarts:::linear("v3")
 
@@ -38,19 +37,6 @@ ctl <- function(n.chains = 1L, n.trees = 8L, ...) {
     updateState = FALSE,
     ...
   )
-}
-groupedCtl <- function(...) {
-  # rbart_vi's internal control attribute is the only route to a grouped
-  # in-core sampler
-  cc <- ctl(...)
-  attr(cc, "bartcore.groups") <- list(
-    indices = as.integer(groups),
-    n.groups = nlevels(groups),
-    prior = "cauchy",
-    rel.scale = sd(y),
-    n.steps = 1L
-  )
-  cc
 }
 bcfSampler <- function(...) {
   dbarts(
@@ -456,9 +442,6 @@ continuationArms <- list(
   },
   weighted = function() {
     continuationArm(function() dbarts(X, y, weights = wts, control = ctl()))
-  },
-  grouped = function() {
-    continuationArm(function() dbarts(X, y, control = groupedCtl()))
   },
   bcf = function() continuationArm(bcfSampler),
   multinomial = function() {

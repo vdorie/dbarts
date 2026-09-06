@@ -27,7 +27,7 @@ allTrees <- dbarts::extract(fit, "trees")
 expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
 expect_true(!("chain" %in% colnames(allTrees)))
 # chain-first column order (trivially satisfied here: no chain column, so
-# sample leads), matching getTrees/extract.rbart's convention
+# sample leads), matching getTrees/extract.bart's convention
 expect_equal(colnames(allTrees)[1:2], c("sample", "tree"))
 
 combinations <- data.frame(
@@ -147,119 +147,6 @@ expect_equal(
 )
 
 rm(n.trees, fitKeepSampler, currentTrees, fitKept, keptTrees)
-
-
-n.g <- 5L
-g <- sample(n.g, length(testData$y), replace = TRUE)
-
-sigma.b <- 1.5
-b <- rnorm(n.g, 0, sigma.b)
-
-df$y <- df$y + b[g]
-df$g <- g
-rm(g, b, sigma.b, n.g)
-
-# test that rbart extracts trees correctly
-n.trees <- 3L
-n.samples <- 4L
-n.chains <- 2L
-fit <- dbarts::rbart_vi(
-  y ~ .,
-  df,
-  group.by = g,
-  n.threads = 1L,
-  n.trees = n.trees,
-  n.burn = 0L,
-  n.thin = 1L,
-  n.chains = n.chains,
-  n.samples = n.samples,
-  keepTrees = TRUE,
-  verbose = FALSE
-)
-allTrees <- dbarts::extract(fit, "trees")
-
-expect_true(all(c("sample", "chain", "tree") %in% colnames(allTrees)))
-# chain-first column order everywhere (matches extract.bart/getTrees)
-expect_equal(colnames(allTrees)[1:3], c("chain", "sample", "tree"))
-
-combinations <- data.frame(
-  chain = rep(seq_len(n.chains), each = n.trees * n.samples),
-  sample = rep(rep(seq_len(n.samples), each = n.trees), times = n.chains),
-  tree = rep(rep(seq_len(n.trees), times = n.samples), times = n.chains)
-)
-expect_true(all(
-  paste0(combinations$sample, ";", combinations$tree) %in%
-    paste0(allTrees$sample, ";", allTrees$tree)
-))
-
-individualSamples <- lapply(
-  seq_len(n.chains),
-  function(i) extract(fit, "trees", chainNums = i)
-)
-individualSamples <- Reduce(rbind, individualSamples)
-row.names(individualSamples) <- as.character(seq_len(nrow(individualSamples)))
-
-expect_equal(allTrees, individualSamples)
-
-# a fractional chainNums selector is refused, naming the argument, rather
-# than silently truncated (coerceOrError's integer branch); this is
-# extract.rbart's own per-chain-fit selector, not getTrees's chainNums
-expect_error(
-  extract(fit, "trees", chainNums = 1.5),
-  "'chainNums' must be a whole number; got '1.5'",
-  fixed = TRUE
-)
-
-# extract.rbart's own formals (sample, combineChains) collapse the same way
-# extract.bart's do; rbart has no forest/contribution formal to collide with.
-expect_error(
-  extract(fit, type = "trees", sample = "train"),
-  treesArgReason("sample"),
-  fixed = TRUE
-)
-expect_error(
-  extract(fit, type = "trees", combineChains = FALSE),
-  treesArgReason("combineChains"),
-  fixed = TRUE
-)
-
-rm(individualSamples, combinations, allTrees, fit)
-rm(n.chains, n.samples, n.trees)
-
-# extract(rbartFit, "trees") for a single-chain fit: getTrees omits the
-# "chain" column entirely (there is only one), so the varOrder reorder must
-# not require it - this used to raise "undefined columns selected"
-n.trees <- 3L
-n.samples <- 4L
-fit <- dbarts::rbart_vi(
-  y ~ .,
-  df,
-  group.by = g,
-  n.threads = 1L,
-  n.trees = n.trees,
-  n.burn = 0L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.samples = n.samples,
-  keepTrees = TRUE,
-  verbose = FALSE
-)
-allTrees <- dbarts::extract(fit, "trees")
-
-expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
-expect_true(!("chain" %in% colnames(allTrees)))
-expect_equal(colnames(allTrees)[1:2], c("sample", "tree"))
-
-combinations <- data.frame(
-  sample = rep(seq_len(n.samples), each = n.trees),
-  tree = rep(seq_len(n.trees), times = n.samples)
-)
-expect_true(all(
-  paste0(combinations$sample, ";", combinations$tree) %in%
-    paste0(allTrees$sample, ";", allTrees$tree)
-))
-
-rm(fit, allTrees, combinations, n.trees, n.samples)
 
 
 ## ---------------------------------------------------------------------------

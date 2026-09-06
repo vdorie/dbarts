@@ -130,7 +130,7 @@ for (chain in seq_len(2L)) {
   )
 }
 
-# --- null by default: a single-forest sampler's result list is the exact eight
+# --- null by default: a single-forest sampler's result list is the exact six
 # slots it always was, so nothing is allocated or computed for either channel ---
 plain <- dbarts(x, y, control = reportingControl(n.chains = 1L))
 plainResult <- plain$run(0L, 2L)
@@ -138,7 +138,7 @@ expect_null(plainResult$forestFits)
 expect_null(plainResult$glue)
 expect_identical(
   names(plainResult),
-  c("sigma", "train", "test", "varcount", "k", "varprobs", "tau", "ranef")
+  c("sigma", "train", "test", "varcount", "k", "varprobs")
 )
 
 # --- and a K-forest sampler allocates nothing either: the channels follow the

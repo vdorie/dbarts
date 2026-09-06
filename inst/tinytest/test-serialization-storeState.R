@@ -56,24 +56,3 @@ bart2Fit$fit$storeState()
 expect_true(!is.null(bart2Fit$fit$state))
 preds.new <- predict(roundTripStoreState(bart2Fit), x)
 expect_equal(preds.old, preds.new)
-
-# --- rbart_vi (built-in tau prior: in-core / bartcore path) ---------------
-n.g <- 5L
-g <- factor(rep_len(seq_len(n.g), length(y)))
-
-set.seed(0L)
-rbartFit <- dbarts::rbart_vi(
-  y ~ x,
-  group.by = g,
-  n.samples = 7L,
-  n.burn = 0L,
-  n.thin = 1L,
-  n.chains = 2L,
-  n.trees = 25L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-preds.old <- predict(rbartFit, x, group.by = g)
-invisible(lapply(rbartFit$fit, function(f) f$storeState()))
-preds.new <- predict(roundTripStoreState(rbartFit), x, group.by = g)
-expect_equal(preds.old, preds.new)

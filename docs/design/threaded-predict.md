@@ -163,19 +163,19 @@ point directly) gain the argument; `R/partialDependence.R`'s five
 from the caller.
 
 The formal is appended **last**, after every existing positional
-formal and before `...`, on all six generics: bartCause's
-`predict.bartcFit` calls `predict.rbart` positionally, ending in
-`group.by, combineChains = FALSE, ...`, so inserting `n.threads`
-before `group.by` would pass a factor as a thread count.
+formal and before `...`, on all five generics: bartCause's
+`predict.bartcFit` called the grouped fit's predict method positionally,
+ending in `group.by, combineChains = FALSE, ...`, so inserting `n.threads`
+before `group.by` would have passed a factor as a thread count.
 
 The formal is appended last, before `...`, and `...` is no longer inert:
 every predict method refuses by name the arguments belonging to a
-sibling method of this surface ("'group.by' is not used by predict on a
+sibling method of this surface ("'forest' is not used by extract on a
 bart fit: ...") along with any unnamed extra, then warns once, under
 condition class `dbartsUnusedArgsWarning`, on every other unknown name
 rather than discarding it. A warning rather than a refusal there is
 what lets a subclass method forward its own formals through
-`NextMethod()`'s `...`. `n.threads` is a formal on all six, so it
+`NextMethod()`'s `...`. `n.threads` is a formal on all five, so it
 reaches neither path.
 
 | generic | anchor | default expression |
@@ -185,7 +185,6 @@ reaches neither path.
 | predict.bartOrdinal | [[R/generics.R#predict.bartOrdinal]] | `object$fit$control@n.threads` |
 | predict.bartNegbin | [[R/generics.R#predict.bartNegbin]] | `object$fit$control@n.threads` |
 | predict.bartHurdle | [[R/generics.R#predict.bartHurdle]] | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
-| predict.rbart | [[R/generics.R#predict.rbart]] | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
 
 `predict.bart`'s validation moved above the two early returns that
 preceded it - `return(predictForest(...))` and `return(predictBlend(...))`
@@ -200,8 +199,9 @@ the default, and affirms that `_R_CHECK_LIMIT_CORES_` (read only by
 keeps the inert wording (door D1).
 
 The chosen R default is the fit's own thread count, and that exposure
-is stated plainly: 117 of 307 `bart2`/`rbart_vi` calls across
-inst/tinytest declare no thread argument, 50 with `n.chains > 1` or
+is stated plainly: as measured when this landed, 117 of 307 `bart2` and
+grouped-fit calls across inst/tinytest declared no thread argument, 50
+with `n.chains > 1` or
 defaulted, so their `control@n.threads` is `min(guessNumCores(),
 n.chains)`, up to 4 on a CI box ([[R/bart.R#bart2]]), and under this default
 every `predict()` becomes multi-worker on those fits, a posture
@@ -226,7 +226,7 @@ stan4bart's single call site is one line - the extra `numThreads`
 argument on its `dbarts_sampler_predict` call - plus a rebuild forced
 by its hash pin (`dbarts_apiHash() == DBARTS_C_API_HASH`, checked at
 load). bartCause needs zero lines, since `predict.bartcFit` forwards
-`...` into dbarts' `predict.bart`/`predict.rbart` - but only under the
+`...` into dbarts' `predict.bart` - but only under the
 append-last rule above, since its positional call would otherwise
 misread an inserted argument as `group.by`.
 

@@ -344,7 +344,7 @@ expect_silent(bartcoreSetCutPoints(bc.mn, list(c(1 / 3, 2 / 3)), 1L))
 expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
 
 # the same guard is inert on a single-forest sampler: these mutations still
-# work, including setOffset at updateScale = TRUE (rbart_vi's warmup rescale)
+# work, including setOffset at updateScale = TRUE (a warmup rescale)
 expect_silent(bartcoreSetResponse(bc.one, y + 1))
 expect_silent(bartcoreSetWeights(bc.one, runif(n, 0.5, 1.5)))
 expect_silent(bartcoreSetOffset(bc.one, rep(0.2, n)))

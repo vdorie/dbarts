@@ -393,8 +393,101 @@ fit.miss <- bart2(y ~ x + g, df.miss, n.trees = 10L, n.chains = 1L,
 
 `g` above ingests as one categorical predictor with three levels rather than two indicator columns, and the ten missing values of `x` are incorporated rather than dropped.
 
+## A Random-Intercept Model Through `setOffset`
+
+The response-side conduit carries a whole outer block just as `setPredictor` carries the predictor side. A random-intercept model
+$$
+y_i = f(x_i) + b_{g(i)} + \epsilon_i, \quad
+\epsilon_i \sim N(0, \sigma^2), \quad
+b_j \sim N(0, \tau^2)
+$$
+is the smallest worked example: $b$ and $\tau$ are two Gibbs blocks the outer
+loop owns, and BART sees them only as an offset. Each sweep draws $b$ from its
+conjugate normal against the current residual, installs $f$'s new offset with
+`setOffset`, runs one sweep, subtracts the offset back off the reported fit,
+and then draws $\tau$.
+
+`setOffset(offset, updateScale)` takes `updateScale = FALSE` after warmup: the
+response transform BART calibrated at creation must stay put, or $b$ and
+$\tau$ - which the outer loop holds in response units - would come to mean
+something else from one sweep to the next.
+
+```{r random_intercept}
+set.seed(24)
+n_ri     <- 200L
+n_groups <- 8L
+g        <- rep_len(seq_len(n_groups), n_ri)
+x_ri     <- matrix(runif(n_ri * 3L), n_ri, 3L)
+b_true   <- rnorm(n_groups, 0, 0.8)
+y_ri     <- sin(pi * x_ri[, 1L]) + 2 * x_ri[, 2L] + b_true[g] + rnorm(n_ri, 0, 0.5)
+
+n_warmup_ri  <- 200L
+n_samples_ri <- 500L
+
+control_ri <- dbartsControl(updateState = FALSE, verbose = FALSE,
+                            n.burn = 0L, n.samples = 1L, n.chains = 1L,
+                            n.threads = 1L, n.trees = 50L)
+sampler_ri <- dbarts(x_ri, y_ri, control = control_ri)
+
+# rows of each group, and its size; the conjugate draw needs both
+rows_of  <- split(seq_len(n_ri), g)
+size_of  <- lengths(rows_of)
+
+# Half-Cauchy(0, 2.5 sd(y)) on tau, sampled by a random-walk Metropolis step
+tau_scale <- 2.5 * sd(y_ri)
+log_tau_posterior <- function(tau, b) {
+  if (tau <= 0) return(-Inf)
+  -n_groups * log(tau) - 0.5 * sum(b^2) / tau^2 +
+    dcauchy(tau, 0, tau_scale, log = TRUE)
+}
+
+b     <- rnorm(n_groups, 0, tau_scale / 5)
+tau   <- tau_scale / 5
+sigma <- sd(y_ri)
+f_hat <- rep_len(0, n_ri)
+
+samples_b   <- matrix(NA_real_, n_samples_ri, n_groups)
+samples_tau <- rep_len(NA_real_, n_samples_ri)
+
+for (i in seq_len(n_warmup_ri + n_samples_ri)) {
+  # b | f, sigma, tau: independent normals, one per group
+  resid     <- y_ri - f_hat
+  post_var  <- 1 / (size_of / sigma^2 + 1 / tau^2)
+  post_mean <- post_var * (vapply(rows_of, function(rows) sum(resid[rows]), 0) /
+                             sigma^2)
+  b <- rnorm(n_groups, post_mean, sqrt(post_var))
+
+  # f, sigma | b: one BART sweep against the intercepts as an offset. The
+  # scale re-anchors during warmup only, and is pinned for every kept draw.
+  sampler_ri$setOffset(b[g], updateScale = i <= n_warmup_ri)
+  draw  <- sampler_ri$run()
+  f_hat <- as.vector(draw$train) - b[g]
+  sigma <- draw$sigma[1L]
+
+  # tau | b: a random-walk Metropolis step on the log scale
+  proposal <- tau * exp(rnorm(1, 0, 0.2))
+  logRatio <- log_tau_posterior(proposal, b) - log_tau_posterior(tau, b) +
+    log(proposal) - log(tau)
+  if (log(runif(1)) < logRatio) tau <- proposal
+
+  if (i > n_warmup_ri) {
+    samples_b[i - n_warmup_ri, ] <- b
+    samples_tau[i - n_warmup_ri] <- tau
+  }
+}
+
+# the group intercepts and their scale are only identified up to a shared
+# level, which the forest absorbs, so compare them centered
+cor(colMeans(samples_b) - mean(colMeans(samples_b)), b_true - mean(b_true))
+```
+
+The same shape carries any outer block whose contribution to the linear
+predictor is a per-observation vector: a parametric term, a spatial effect, a
+frailty. `setResponse` is the companion for a block that changes $y$ itself
+rather than shifting it.
+
 ## Multiple Threading
 
-When implementing a Gibbs sampler using `dbarts` in R, it is most often the case that multiple threads will need to be handled by creating separate copies of the sampler and data. While `dbartsSampler`s are natively multithreaded, few of their slots are stored independently across chains. For an example of this approach and a more complete implementation of the principles in this document, consult the implementation of [rbart_vi](https://github.com/vdorie/dbarts/blob/master/R/rbart.R).
+When implementing a Gibbs sampler using `dbarts` in R, it is most often the case that multiple threads will need to be handled by creating separate copies of the sampler and data. While `dbartsSampler`s are natively multithreaded, few of their slots are stored independently across chains, so an outer loop that owns per-chain state runs one single-chain sampler per chain and threads them itself.
 
-This custom-loop bookkeeping is only needed when embedding BART in a larger sampler. A plain multi-chain `bart2`/`rbart_vi` fit already tracks its chain dimension: `summary()` reports split-R-hat and effective sample size for the scalar parameters (`sigma`, `k`, and, for `rbart_vi`, `tau`) when the `posterior` package is installed, and `as_draws_array`/`as_draws_df` convert its chain-dimensioned draws to `posterior`'s array/data frame conventions.
+This custom-loop bookkeeping is only needed when embedding BART in a larger sampler. A plain multi-chain `bart2` fit already tracks its chain dimension: `summary()` reports split-R-hat and effective sample size for the scalar parameters (`sigma` and `k`) when the `posterior` package is installed, and `as_draws_array`/`as_draws_df` convert its chain-dimensioned draws to `posterior`'s array/data frame conventions.

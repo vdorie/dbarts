@@ -95,8 +95,7 @@ expect_equal(ncol(fit.test$yhat.test), 20L)
 
 # the sampler surface: response-side mutation stays open; a sparse column
 # accepts column-granular and whole-matrix between-sweep mutation;
-# per-observation and whole-data replacement stay fixed at creation, and
-# grouped rbart_vi is reserved
+# per-observation and whole-data replacement stay fixed at creation
 control <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,
@@ -156,21 +155,6 @@ expect_error(
   dbarts(x.sparse, y, node.prior = linear(c("x1", "x2"))),
   pattern = "sparse"
 )
-# the refusal names the wrappers that do accept sparse, rather than dead-ending
-expect_error(
-  rbart_vi(
-    x.sparse,
-    y,
-    group.by = rep_len(1:4, n),
-    n.samples = 5L,
-    n.burn = 5L,
-    n.trees = 25L,
-    n.chains = 1L,
-    n.threads = 1L
-  ),
-  pattern = "dbarts.* and bart2.* do"
-)
-
 # save/load: sampler re-creation from the stored dgCMatrix restores state
 control.state <- dbartsControl(
   n.samples = 10L,

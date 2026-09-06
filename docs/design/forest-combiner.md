@@ -21,11 +21,11 @@ per-forest residual formation, the coupling draw, the combined per-observation
 location, and per-forest reporting addressing. Before this refactor that
 somewhere was Chain itself, hardcoded to forest 0 = mu / forest 1 = tau at
 every touchpoint - workable for exactly one multi-forest model, but a wall for
-the next one (multinomial, heteroscedastic, hurdle) and for composing a
-multi-forest model with GroupedResponse. The combiner gives multi-forest
-coupling an owner with a virtual surface a second model can implement, while
-costing the single-forest chain nothing: combiner_ is null off BCF, and every
-touchpoint collapses to the direct forest-0 path with no virtual call.
+the next one (multinomial, heteroscedastic, hurdle). The combiner gives
+multi-forest coupling an owner with a virtual surface a second model can
+implement, while costing the single-forest chain nothing: combiner_ is null off
+BCF, and every touchpoint collapses to the direct forest-0 path with no virtual
+call.
 
 ## The ForestCombiner<L> hierarchy
 
@@ -299,14 +299,6 @@ What still does NOT generalize, after M4:
   conditionally independent, so hurdle composes two ordinary fits glued at
   report time and this Chain break stays UNBUILT; the engine two-response route
   awaits a genuinely coupled model - zero-inflation or Heckman selection.)
-- Grouped-x-multi-forest: GroupedResponse decorates the response chain BELOW
-  combining - the sweep feeds the combiner `y = response_->workingResponse()`,
-  already group-adjusted if response_ is a GroupedResponse - so a grouped
-  decorator and a combiner compose without either knowing the other. This is
-  the composition architecture-numerical-review.md's debt #1 flagged as
-  impossible while BCF was a hardcoded Chain special case; this refactor makes
-  it expressible. It does not build grouped-BCF or any grouped-multi-forest
-  model.
 
 ## Post-mutation fit rebuild was forest-0-only (CLOSED)
 
@@ -344,9 +336,8 @@ forest-vector methods and the leaf-type template onto every single-forest
 response family (Gaussian, probit, logistic, AFT) to serve a case none of
 them need. Keeping the two orthogonal - Chain feeds the combiner
 `y = response_->workingResponse()`, already whatever response_ decorates it
-into - is exactly what lets a combiner and a grouped decorator compose without
-a class per pairing, the point the "anticipated, not built" section above
-relies on.
+into - is what lets a combiner compose with any response-side decorator
+without a class per pairing.
 
 ## Header location
 

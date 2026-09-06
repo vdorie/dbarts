@@ -63,14 +63,6 @@ Dirichlet split-probability update until the forest has had time to
 become informed by the data, because a cold, uniform-probability forest
 under an immediately-sampled concentration is bistable.
 
-## tau slice steps (grouped random effects)
-
-`n.thin`. `rbart_vi`'s R loop reused the thinning interval as the slice
-sampler's step count - a convention (matching tau's refresh cadence to
-however many tree sweeps separate two kept draws elsewhere in the
-chain), not a derived mixing requirement. The in-core engine reproduces
-the count exactly (see `docs/design/grouped-random-effects.md`).
-
 ## Response scaling
 
 Continuous responses are range-scaled: `y` (net of offset) is mapped to

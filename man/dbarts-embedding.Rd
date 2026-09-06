@@ -11,7 +11,7 @@
 \details{
   A \code{\linkS4class{dbartsSampler}} is created once by \code{\link{dbarts}} and then run one
   sweep at a time with \code{run(0L, 1L)}, its inputs replaced between sweeps. The fitting
-  functions \code{\link{bart}}, \code{\link{bart2}} and \code{\link{rbart_vi}} own their own loop
+  functions \code{\link{bart}} and \code{\link{bart2}} own their own loop
   and are not the surface for this; they return fit objects, and the R modelling accessors
   (\code{\link{fitted}}, \code{\link{predict}}, \code{\link{extract}}) apply to those.
 

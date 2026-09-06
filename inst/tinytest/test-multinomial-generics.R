@@ -467,7 +467,7 @@ expect_error(
 
 expect_error(
   plotTree(fitCombined),
-  "plotTree is defined for bart, rbart_vi and dbartsSampler fits",
+  "plotTree is defined for bart and dbartsSampler fits",
   fixed = TRUE
 )
 expect_error(

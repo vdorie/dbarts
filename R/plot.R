@@ -1,5 +1,5 @@
-# Shared left-hand sigma-trace panel for plot.bart, plot.rbart and
-# plot.bartHurdle: splits the device into a 1x2 layout and draws the
+# Shared left-hand sigma-trace panel for plot.bart and plot.bartHurdle:
+# splits the device into a 1x2 layout and draws the
 # residual-scale trace. A matrix-shaped 'sigma' (multiple chains) is drawn as
 # one line per chain bridging the burn-in ('first.sigma', red) into the
 # sampling run; a vector is a single scatter. The posterior-interval panel is
@@ -117,79 +117,6 @@ plot.bart <- function(
       lines(rep(qm[i], 2), c(ql[i], qu[i]), col = cols[1])
     }
     abline(0, 1, lty = 2, col = cols[2])
-  }
-}
-
-plot.rbart <- function(
-  x,
-  plquants = c(0.05, 0.95),
-  cols = c("blue", "black"),
-  ...
-) {
-  if (is.null(x[["yhat.train"]])) {
-    stop("plot requires rbart_vi to be called with 'keepTrainingFits' == TRUE")
-  }
-
-  oldpar <- par(no.readonly = TRUE)
-  on.exit(par(oldpar), add = TRUE)
-
-  if ("sigma" %in% names(x)) {
-    par(mfrow = c(1L, 2L))
-    plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
-  }
-
-  if (length(dim(x$ranef)) > 2L) {
-    ranef <- x$ranef[,, as.integer(x$group.by)]
-  } else {
-    ranef <- x$ranef[, as.integer(x$group.by)]
-  }
-  yhat.train <- x$yhat.train + ranef
-
-  if ("sigma" %in% names(x)) {
-    ql <- apply(
-      yhat.train,
-      length(dim(yhat.train)),
-      quantile,
-      probs = plquants[1L]
-    )
-    qm <- apply(yhat.train, length(dim(yhat.train)), quantile, probs = .5)
-    qu <- apply(
-      yhat.train,
-      length(dim(yhat.train)),
-      quantile,
-      probs = plquants[2L]
-    )
-    plot(
-      x$y,
-      qm,
-      ylim = range(ql, qu),
-      xlab = "y",
-      ylab = "posterior interval for E(Y | x)",
-      ...
-    )
-
-    for (i in seq_along(qm)) {
-      lines(rep(x$y[i], 2L), c(ql[i], qu[i]), col = cols[1L])
-    }
-    abline(0, 1, lty = 2L, col = cols[2L])
-  } else {
-    ## shouldn't happen for now
-    pdrs <- probabilityFromLatents(yhat.train, x) #draws of p(Y=1 | x)
-    ql <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[1L])
-    qm <- apply(pdrs, length(dim(pdrs)), quantile, probs = .5)
-    qu <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[2L])
-    plot(
-      qm,
-      qm,
-      ylim = range(ql, qu),
-      xlab = "median of p",
-      ylab = "posterior interval for P(Y = 1|  x)",
-      ...
-    )
-    for (i in seq_along(qm)) {
-      lines(rep(qm[i], 2L), c(ql[i], qu[i]), col = cols[1L])
-    }
-    abline(0, 1, lty = 2L, col = cols[2L])
   }
 }
 

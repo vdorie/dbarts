@@ -31,8 +31,6 @@ struct SamplerShape {
   /// Forest count: 1 for single-forest samplers, 2 for BCF (prognostic +
   /// treatment), K for a K-category multinomial.
   std::size_t numForests;
-  /// Grouped random intercepts: the group count, 0 when ungrouped.
-  std::size_t numGroups;
   /// The leaf covariate designation (linear and GP leaves); 0/null for
   /// scalar leaf models. The columns are borrowed from the leaf model and
   /// stay valid for the sampler's lifetime.
@@ -429,7 +427,6 @@ public:
     s.numThreads = impl_.numThreads();
     s.numTrees = impl_.numTrees();
     s.numForests = impl_.numForests();
-    s.numGroups = impl_.numGroups();
     s.numLeafCovariates = impl_.numLeafCovariates();
     s.leafCovariateColumns = impl_.leafCovariateColumns();
     s.numReportedLocations = impl_.numReportedLocations();

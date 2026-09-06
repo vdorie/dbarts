@@ -29,7 +29,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| tau-slice-review.md | REFERENCE (review) | Reviewed the grouped tau slice sampler; keeps it as the default, recommends an exact inverse-gamma replacement only for the cauchy prior. |
+| tau-slice-review.md | RETIRED, 2026-09-06 | Reviewed the grouped tau slice sampler; the sampler it reviews is removed from dbarts (retire-grouped-random-effects.md). |
 
 ## SIMD / x86 cluster
 
@@ -67,7 +67,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| group-by-exposure.md | RESEARCH-OPEN | A placeholder decision memo on exposing grouped random effects beyond `rbart_vi()`; blocked on demand, not yet written. |
+| group-by-exposure.md | RETIRED, 2026-09-06 | A placeholder decision memo on exposing grouped random effects beyond `rbart_vi()`; there is nothing left to expose (retire-grouped-random-effects.md). |
 | retire-grouped-random-effects.md | READY, 2026-09-06; deletion proceeds; two sister-repo prerequisites gate the release | Deletes the whole grouped-random-intercept path - engine decorator, bridge, R surface, tests, benchmarks and docs - re-records the equivalence baseline at 50 scenarios, and points users at stan4bart. |
 
 ## API-surface cluster

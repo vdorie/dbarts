@@ -224,8 +224,6 @@ expect_equal(
     "varcount",
     "k",
     "varprobs",
-    "tau",
-    "ranef",
     "variance",
     "varianceTest"
   )
@@ -255,8 +253,6 @@ expect_equal(
     "varcount",
     "k",
     "varprobs",
-    "tau",
-    "ranef",
     "forestFits",
     "glue"
   )
@@ -266,7 +262,7 @@ expect_equal(dim(rBcf$forestFits), c(n, 2L, 2L))
 expect_true(!is.null(rBcf$glue))
 expect_equal(dim(rBcf$glue), c(3L, 2L))
 
-# --- the nbinom run list itself: the slot lands after ranef, named
+# --- the nbinom run list itself: the slot lands after varprobs, named
 
 expect_equal(
   names(rMulti),
@@ -277,8 +273,6 @@ expect_equal(
     "varcount",
     "k",
     "varprobs",
-    "tau",
-    "ranef",
     "dispersion"
   )
 )

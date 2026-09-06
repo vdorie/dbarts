@@ -251,10 +251,10 @@ three proposed remedies outright - the design below is what was left after
 that filtering, not what was first proposed.
 
 **What survived.** Paired warm-cold contrasts sharing a seed (data seed
-`BASE_SEED + s`, sampler seed `s`, both arms of a pair share `s`, per the
-`grouped-mixing.R` idiom) so every contrast is a matched-pair difference,
-not two independent samples. Stratification on n (SMALL: n<=5000, LARGE:
-n=50000) with INDEPENDENT verdicts, because a probe found the plateau cost
+`BASE_SEED + s`, sampler seed `s`, both arms of a pair share `s`) so every
+contrast is a matched-pair difference, not two independent samples.
+Stratification on n (SMALL: n<=5000, LARGE: n=50000) with INDEPENDENT
+verdicts, because a probe found the plateau cost
 at +0.4% (n=2000) growing to +4.2% (n=20000) on the same metric - a pooled
 verdict would average away the only regime where the cost appears. A hard
 PREMISE GATE (M0) run first (~8 minutes) that can stop the whole study
@@ -945,8 +945,7 @@ stump, `sampleTreesFromPrior`) is unchanged.
   future opt-in guidance: B2 was still falling at the largest grid value
   tested.
 - Family consistency (four bart2 families refuse `n.grow.sweeps` via
-  [[bart.R#checkFamilyUnsupportedArgs]]; `rbart_vi` has no
-  `n.grow.sweeps` formal at all) is now an ordinary opt-in-surface
+  [[bart.R#checkFamilyUnsupportedArgs]]) is now an ordinary opt-in-surface
   question - extend the surface or document the gap - independent of this
   verdict, low priority, unscheduled.
 
@@ -1069,9 +1068,9 @@ without a rewrite. Reconstructing it means, in order:
 1. Re-read the pre-registration in full (`docs/plans/
    grow-from-root-default-study.md`) for the metric definitions (M0a-c,
    B1, B2, C1-C4, S1m/S2m, X1/X2), the scenario constructors (S1-S7,
-   section "Scenarios and run plan"), and the seed convention
-   (`grouped-mixing.R`'s idiom: data `set.seed(BASE_SEED + s)`, sampler
-   `seed = s`, shared `s` per paired arm).
+   section "Scenarios and run plan"), and the seed convention (data
+   `set.seed(BASE_SEED + s)`, sampler `seed = s`, shared `s` per paired
+   arm).
 2. Re-run Stage 0 (the calibration pilot, R=8 warm k=4, plus the M0 grid
    at R=20 and the invariance diagnostic) to get FRESH per-replicate SDs;
    do not reuse this document's frozen thresholds verbatim unless

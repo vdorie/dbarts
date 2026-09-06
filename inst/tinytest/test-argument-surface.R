@@ -134,30 +134,6 @@ expect_silent(dbarts::bart(
   verbose = FALSE
 ))
 
-# rbart_vi warns on its resolved probit path
-group <- factor(rep(1:4, length.out = n))
-warnings.rbartProbit <- captureWarnings(
-  dbarts::rbart_vi(
-    x,
-    factor(y.binary),
-    group.by = group,
-    sigest = 5,
-    n.thin = 1L,
-    n.trees = 3L,
-    n.samples = 5L,
-    n.burn = 2L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  )
-)
-expect_equal(length(warnings.rbartProbit), 1L)
-expect_match(
-  conditionMessage(warnings.rbartProbit[[1L]]),
-  "family = \"probit\" has no use for 'sigest'"
-)
-expect_inherits(warnings.rbartProbit[[1L]], "dbartsFamilyGatedWarning")
-
 # monotonicity: already-loud refusals keep their severity and message
 expect_error(
   fit2(y.multi, family = "multinomial", weights = rep(1, n)),
@@ -233,16 +209,14 @@ expect_equal(diverged, character(0))
 # split.probs is not a shared-default-text exception (nor a candidate row):
 # dbarts() has no split.probs formal of its own (its tree.prior = cgm takes
 # the value through the object instead), so the shared-default-text loop
-# above never compares it. bart2/rbart_vi's own default text moves to NULL,
+# above never compares it. bart2's own default text moves to NULL,
 # identical by construction to the old 1 / num.vars (resolveSplitProbabilities
 # treats a NULL spec and a length-one spec the same way: uniform, dropped).
 # existence asserted before the value: formals(f)[["nosuch"]] is also NULL,
 # so the identity check alone would pass just as well if the formal were
 # removed outright
 expect_true("split.probs" %in% names(formals(dbarts::bart2)))
-expect_true("split.probs" %in% names(formals(dbarts::rbart_vi)))
 expect_identical(formals(dbarts::bart2)[["split.probs"]], NULL)
-expect_identical(formals(dbarts::rbart_vi)[["split.probs"]], NULL)
 
 # match.arg error messages for bad tokens: bart2 resolves factors/missing in
 # its own frame before forwarding, so a bad token errors here, naming the
@@ -297,38 +271,6 @@ expect_true(sameDraws(defaultedMissing, explicitMissing))
 # defaulted bart2 call still composes with monotone
 expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
 
-# rbart_vi shares the pattern for factors/missing only (no proposal.probs
-# formal)
-defaultedRbart <- dbarts::rbart_vi(
-  x,
-  y.gaussian,
-  group.by = group,
-  n.trees = 3L,
-  n.samples = 5L,
-  n.burn = 2L,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.thin = 1L,
-  verbose = FALSE,
-  seed = 77L
-)
-explicitRbart <- dbarts::rbart_vi(
-  x,
-  y.gaussian,
-  group.by = group,
-  n.trees = 3L,
-  n.samples = 5L,
-  n.burn = 2L,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.thin = 1L,
-  verbose = FALSE,
-  seed = 77L,
-  factors = "categorical",
-  missing = "incorporate"
-)
-expect_true(sameDraws(defaultedRbart, explicitRbart))
-
 # storage/updateState are the last two formals of both entry points; there
 # is no trailing '...' to skip past any more.
 
@@ -337,7 +279,6 @@ lastTwoNamed <- function(fn) {
   fnFormals[length(fnFormals) - c(1L, 0L)]
 }
 expect_equal(lastTwoNamed(dbarts::bart2), c("storage", "updateState"))
-expect_equal(lastTwoNamed(dbarts::rbart_vi), c("storage", "updateState"))
 
 # storage/updateState reach the control with explicit, non-default values
 explicitControl <- fit2(
@@ -352,45 +293,16 @@ defaultControl <- fit2(y.gaussian, samplerOnly = TRUE)
 expect_equal(defaultControl$control@storage, "double")
 expect_equal(defaultControl$control@updateState, TRUE)
 
-rbartControlFit <- dbarts::rbart_vi(
-  x,
-  y.gaussian,
-  group.by = group,
-  storage = "single",
-  updateState = FALSE,
-  seed = 314L,
-  keepSampler = TRUE,
-  n.trees = 3L,
-  n.samples = 5L,
-  n.burn = 2L,
-  n.chains = 1L,
-  n.threads = 1L,
-  n.thin = 1L,
-  verbose = FALSE
-)
-rbartControl <- rbartControlFit$fit[[1L]]$control
-expect_equal(rbartControl@storage, "single")
-expect_equal(rbartControl@updateState, FALSE)
-expect_equal(rbartControl@seed, 314L)
-
-# no dots channel: bart2/rbart_vi have no '...' formal at all, so an unknown
+# no dots channel: bart2 has no '...' formal at all, so an unknown
 # name is R's own "unused argument" wall, unsuggested - the same wall
 # dbarts()/dbartsSpec()/xbart() already stood behind
 expect_error(fit2(y.gaussian, n.tres = 5), pattern = "unused argument")
-expect_error(
-  dbarts::rbart_vi(x, y.gaussian, group.by = group, n.tres = 5),
-  pattern = "unused argument"
-)
 expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "unused argument")
 
 # rngSeed: no retired-spelling channel survives the dots removal either -
 # it is simply an unused argument like any other now
 expect_error(
   fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE),
-  pattern = "unused argument"
-)
-expect_error(
-  dbarts::rbart_vi(x, y.gaussian, group.by = group, rngSeed = 99L),
   pattern = "unused argument"
 )
 
@@ -432,10 +344,6 @@ expect_equal(
 )
 expect_true(setequal(
   intersect(controlFormals1_0_0, names(formals(dbarts::bart2))),
-  controlFormals1_0_0
-))
-expect_true(setequal(
-  intersect(controlFormals1_0_0, names(formals(dbarts::rbart_vi))),
   controlFormals1_0_0
 ))
 

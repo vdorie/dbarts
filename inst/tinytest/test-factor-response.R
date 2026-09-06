@@ -104,7 +104,7 @@ expect_error(
   ),
   "multinomial"
 )
-# xbart and rbart_vi resolve an EXPLICIT family, so they refuse under their
+# xbart resolves an EXPLICIT family, so it refuses under its
 # own caller-naming text rather than the family = "auto" arm's
 expect_error(
   xbart(
@@ -118,21 +118,6 @@ expect_error(
   ),
   "xbart does not fit a 3-level factor response"
 )
-expect_error(
-  rbart_vi(
-    y3 ~ x1 + x2 + x3,
-    df,
-    group.by = rep_len(seq_len(4L), n),
-    n.samples = 5L,
-    n.burn = 0L,
-    n.trees = 10L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  ),
-  "rbart_vi does not fit a 3-level factor response"
-)
-
 # --- bart2: formula + 2-level factor probit matches x/y bit for bit ---
 b.args <- list(
   n.trees = 20L,
@@ -170,26 +155,3 @@ set.seed(11)
 m.exp <- do.call(bart2, c(list(x, y3, family = "multinomial"), m.args))
 expect_inherits(m.auto, "bartMultinomial")
 expect_identical(m.auto$yhat.train, m.exp$yhat.train)
-
-# --- rbart_vi: 2-level factor fits probit (== x/y), 3-level errors ---
-g <- sample(1:6, n, replace = TRUE)
-r.args <- list(
-  group.by = g,
-  n.samples = 12L,
-  n.burn = 12L,
-  n.trees = 20L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE,
-  seed = 22L
-)
-r.form <- suppressMessages(
-  do.call(rbart_vi, c(list(yf2 ~ x1 + x2 + x3, df), r.args))
-)
-r.xy <- suppressMessages(do.call(rbart_vi, c(list(x, yf2), r.args)))
-expect_true(r.form$fit[[1L]]$control@binary)
-expect_identical(r.form$yhat.train, r.xy$yhat.train)
-expect_error(
-  do.call(rbart_vi, c(list(y3 ~ x1 + x2 + x3, df), r.args)),
-  "multinomial"
-)

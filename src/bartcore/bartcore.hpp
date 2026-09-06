@@ -5,7 +5,7 @@
 // Gaussian-process leaves; ordinal and categorical split rules; Gaussian,
 // probit, logistic, AFT (survival), ordinal, and negative-binomial response
 // families, with Student-t continuous errors by scale mixture; heteroscedastic
-// variance forests; grouped random intercepts; DART split-variable selection;
+// variance forests; DART split-variable selection;
 // BCF two-forest and multinomial softmax forest couplings; and sparse-column
 // ingestion.
 

@@ -110,31 +110,6 @@ expect_error(
   "none of 'vars' \\(sigma, k, tau\\) are present on this fit"
 )
 
-# rbart_vi contributes tau alongside sigma
-# combineChains = FALSE pinned deliberately, same reason as the bart2 fit
-# above: this checks the uncombined (n.chains x n.samples) tau shape
-n.g <- 5L
-g <- factor(sample(n.g, length(testData$y), replace = TRUE))
-y.grouped <- testData$y + rnorm(n.g, 0, 1)[g]
-rfit <- dbarts::rbart_vi(
-  y.grouped ~ testData$x,
-  group.by = g,
-  n.samples = 15L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 2L,
-  n.trees = 5L,
-  n.threads = 1L,
-  verbose = FALSE,
-  combineChains = FALSE
-)
-expect_equal(dim(rfit$tau), c(2L, 15L))
-rArr <- dbarts:::bartDrawsArray(rfit, c("sigma", "tau"))
-expect_equal(dim(rArr), c(15L, 2L, 2L))
-expect_equal(sort(dimnames(rArr)[[3L]]), c("sigma", "tau"))
-sr <- summary(rfit)
-expect_equal(sort(sr$stats$variable), c("sigma", "tau"))
-
 # print.summary.bart's notes, checked directly against handcrafted stats so
 # the assertion does not depend on any particular fit crossing 1.01 by chance
 poorFit <- structure(
@@ -219,12 +194,6 @@ rm(
   y.bin,
   noScalarFit,
   s0,
-  n.g,
-  g,
-  y.grouped,
-  rfit,
-  rArr,
-  sr,
   poorFit,
   goodFit,
   havePosterior
@@ -266,51 +235,6 @@ sVcUncombined <- summary(uncombinedVc, vars = "varcount")$stats
 expect_equal(nrow(sVcCombined), ncol(testData$x))
 expect_equal(sVcCombined, sVcUncombined)
 rm(combinedVc, uncombinedVc, sVcCombined, sVcUncombined)
-
-# same defect, rbart_vi's ranef: one variable per group, not one pooled
-# across every draw and every group
-n.g2 <- 6L
-g2 <- factor(rep(seq_len(n.g2), each = 10L))
-x2 <- rnorm(length(g2))
-y2 <- x2 + rnorm(n.g2, 0, 1)[g2] + rnorm(length(g2), 0, 0.5)
-rCombined <- dbarts::rbart_vi(
-  y2 ~ x2,
-  group.by = g2,
-  n.samples = 6L,
-  n.burn = 4L,
-  n.thin = 1L,
-  n.trees = 5L,
-  n.chains = 3L,
-  n.threads = 1L,
-  verbose = FALSE,
-  seed = 8L
-)
-rUncombined <- dbarts::rbart_vi(
-  y2 ~ x2,
-  group.by = g2,
-  n.samples = 6L,
-  n.burn = 4L,
-  n.thin = 1L,
-  n.trees = 5L,
-  n.chains = 3L,
-  n.threads = 1L,
-  verbose = FALSE,
-  seed = 8L,
-  combineChains = FALSE
-)
-sRanefCombined <- summary(rCombined, vars = "ranef")$stats
-sRanefUncombined <- summary(rUncombined, vars = "ranef")$stats
-expect_equal(nrow(sRanefCombined), n.g2)
-expect_equal(sRanefCombined, sRanefUncombined)
-# posterior::as_draws_df is the other documented reader of the same shape
-if (requireNamespace("posterior", quietly = TRUE)) {
-  ddfCombined <- posterior::as_draws_df(rCombined, vars = c("sigma", "ranef"))
-  expect_equal(sum(grepl("^ranef\\[", names(ddfCombined))), n.g2)
-}
-rm(n.g2, g2, x2, y2, rCombined, rUncombined, sRanefCombined, sRanefUncombined)
-if (exists("ddfCombined")) {
-  rm(ddfCombined)
-}
 
 # scalarFields must list every scalar-per-draw field, not just sigma/k/tau:
 # on a multi-chain, uncombined fit, first.sigma and resid.df are stored

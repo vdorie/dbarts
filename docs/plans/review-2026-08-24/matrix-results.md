@@ -205,7 +205,7 @@ rbart_vi(x, Surv(time, status), group.by = g, family = "aft", ...)
 `x` has 40 rows and `Surv(time, status)` also reports 40 (`NROW`/`length`
 agree) - the message is simply wrong about what's wrong. Root cause: R/rbart.R's
 own comment says "rbart_vi's matrix interface has no survival form; aft
-enters only through the formula" - a real, and correctly documented ([[rbart.Rd:95@b102e17c]]),
+enters only through the formula" - a real, and correctly documented ([[man/rbart.Rd:95@b102e17c]]),
 restriction - but nothing enforces it explicitly on the matrix path. The raw
 `Surv` object gets forwarded straight into `dbartsData(formula=x, data=Surv,
 ...)`, which has no survival-response handling at all (unlike

@@ -155,42 +155,6 @@ expect_equal(masked$getLatents()[1:5], rep(1, 5L))
 expect_true(all(masked$getLatents()[-(1:5)] > 0))
 expect_false(any(masked$getLatents()[-(1:5)] == 1))
 
-# --- grouped random effects ------------------------------------------------
-# rbart_vi's decorator delegates the swap to its base family and draws NOTHING
-# of its own: b and tau are the sweep's blocks, not the swap's, exactly as they
-# are under setResponse.
-groupControl <- dbartsControl(
-  n.chains = 1L,
-  n.threads = 1L,
-  n.trees = 15L,
-  updateState = FALSE,
-  seed = 41L
-)
-attr(groupControl, "bartcore.groups") <- list(
-  indices = rep_len(1:3, n),
-  n.groups = 3L,
-  prior = "cauchy",
-  rel.scale = 0.5,
-  n.steps = 1L
-)
-grouped <- dbarts(
-  x,
-  y,
-  weights = w1,
-  family = "logistic",
-  control = groupControl
-)
-invisible(grouped$run(3L, 1L))
-grouped$storeState()
-groupedBefore <- grouped$state[[1L]]
-grouped$setWeights(w2)
-grouped$storeState()
-groupedAfter <- grouped$state[[1L]]
-expect_identical(groupedAfter$ranef, groupedBefore$ranef)
-expect_identical(groupedAfter$tau, groupedBefore$tau)
-expect_false(identical(groupedAfter$latents, groupedBefore$latents))
-expect_true(all(is.finite(grouped$run(0L, 1L)$train)))
-
 # --- what a count may not be, on both conduits -----------------------------
 countRefusal <- "must be positive integers"
 pinned <- logisticSamplerWeightSwap(w2)
@@ -307,10 +271,6 @@ rm(
   flatFit,
   masked,
   mask,
-  groupControl,
-  grouped,
-  groupedBefore,
-  groupedAfter,
   countRefusal,
   pinned,
   zeroWarnings,

@@ -3688,9 +3688,9 @@ TODAY on shipped surface.
   fitted values at 5 fixed held-out rows. **Reported:** IACT and out-of-sample
   RMSE against the true `mu` and `(b1-b0)tau` surfaces, averaged over seeds
   with the spread printed. **IACT estimator, named:** `coda::effectiveSize`
-  (AR-spectral), IACT = N/ESS, per `[[grouped-mixing.R:68-77@4c018187]]`; `coda` is NOT in
+  (AR-spectral), IACT = N/ESS, per `[[benchmarks/R/grouped-mixing.R:68-77@4c018187]]`; `coda` is NOT in
   `DESCRIPTION` Suggests, so the harness `requireNamespace`-guards it and stops
-  with a message as `[[grouped-mixing.R:39-41@4c018187]]` does (the only ESS estimator with
+  with a message as `[[benchmarks/R/grouped-mixing.R:39-41@4c018187]]` does (the only ESS estimator with
   a declared dependency is `posterior::ess_bulk`, `[[R/diagnostics.R:95@4c018187]], [[R/diagnostics.R:100@4c018187]], [[R/diagnostics.R:127@4c018187]]`
   - a promoted harness is the moment to consider switching). Report lag-1
   autocorrelation beside IACT; single-run IACT is recorded as unstable in two

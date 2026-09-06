@@ -6,7 +6,7 @@ it are in docs/design/, anchored by core-generalization.md.
 
 ## Layering
 
-    R/                        bart, bart2, dbarts, xbart, rbart_vi;
+    R/                        bart, bart2, dbarts, xbart;
                                the dbartsSampler reference class (R/dbarts.R)
                                |
                                v  method calls
@@ -137,10 +137,7 @@ aft, ordinal, nbinom }`) inside `Chain`'s constructor
 (`src/bartcore/chain.hpp`). Two paths sit off the enum: the gaussian arm
 yields `TResponse` instead of `GaussianResponse` when Student-t residuals are
 requested, and the multinomial model installs `MultinomialResponse` through
-its own construction path. When `options.numGroups > 0` the chosen family is
-wrapped in `GroupedResponse`, a decorator that Gibbs-samples per-group
-intercepts into the offset between tree sweeps and forwards everything else
-to the wrapped model. Every chain in a sampler shares the same family.
+its own construction path. Every chain in a sampler shares the same family.
 
 **Split-variable selection**: `CGMTreePrior` (model.hpp) owns the
 depth-decaying growth probability and the split-variable log-probability -
@@ -456,7 +453,7 @@ below-cutoff path. `numThreads = 0` floors to the sampler's own thread count
 - docs/design/public-surface.md - what the R and C surfaces expose;
   consumer-spec-surface.md - the exported `dbartsSpec()` resolution surface.
 - docs/design/pooled-masks.md, sparse-columns.md, mia-missingness.md,
-  linear-leaves.md, gp-leaves.md, grouped-random-effects.md, bcf.md,
+  linear-leaves.md, gp-leaves.md, bcf.md,
   multinomial.md, monotone.md, heteroscedastic.md, grow-from-root.md,
   reduced-precision-storage.md - design and landing notes for each extension
   mentioned above.

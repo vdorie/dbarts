@@ -15,7 +15,6 @@ reference:
   contents:
   - bart
   - bart2
-  - rbart
   - xbart
   - pdbart
 - title: The mutable sampler

@@ -26,9 +26,7 @@ family configurations accept response/offset/sigma/predictor mutation
 (census, ~60 cells adversarially re-run, none mismarked). The one real
 hole is multinomial, whose response side is sealed (the response is
 the combiner-owned counts matrix); the fix is the committed
-multinomial-counts-mutation plan. A bridge nit: grouped samplers
-refuse setResponse at the bridge while GroupedResponse::setResponse
-delegates correctly.
+multinomial-counts-mutation plan.
 
 **Half 2 - true of exactly one of three residualization routes.**
 - Swapping the response to a residual (y minus another block) is
@@ -36,11 +34,11 @@ delegates correctly.
   latent-family samplers ACCEPT out-of-support responses (see
   "Defects" below).
 - The OFFSET channel is family-generic residualization, measured, with
-  production precedent (rbart_vi's own R loop for probit and aft;
-  stan4bart's bernoulli path). Route-(b) compositions reach oracle
-  accuracy for probit, logistic and negative binomial (critique probes
-  B/D, E3, F; the nbinom route uses the shipped per-sweep state-read
-  of the dispersion, the same idiom bart2Negbin itself uses).
+  production precedent (stan4bart's bernoulli path). Route-(b)
+  compositions reach oracle accuracy for probit, logistic and negative
+  binomial (critique probes B/D, E3, F; the nbinom route uses the
+  shipped per-sweep state-read of the dispersion, the same idiom
+  bart2Negbin itself uses).
 - Splitting the mean across K samplers is NOT Gaussian-only and NOT
   broken: a host that draws the latents against the COMBINED fit (or
   lets each block draw its own latents against cross-offsets) targets
@@ -254,7 +252,7 @@ budgets)
   motivated it corrects from "four independent codebases hand-write
   train - offset today" to three packages under one author - the
   demand is real but narrower than first stated.
-- Six small census items, itemized: G1 (setResponse support
+- Five small census items, itemized: G1 (setResponse support
   validation), G5 (the weight-refusal message) and G11 (the
   variance-forest updateScale guard) are DONE at 33f6fdc (see
   "Defects"). G2 (getLatents location-vs-precision docs, the wrong
@@ -263,12 +261,9 @@ budgets)
   dispersion r per draw as a first-class surface (a run-result slot or
   getter, dbarts.h plus R5) in place of the bart2Negbin per-sweep
   state-read idiom; small pre-release slice, scheduled after the
-  getLatents docs slice. G10: relax the bridge-only refusal of
-  setResponse on a GroupedResponse sampler - the model already
-  delegates correctly, a bridge nit this arc recorded; small
-  pre-release slice, same era. No VD fork: every remaining item
-  carries a surface and a nameable value, so all schedule pre-release
-  under the recorded frame.
+  getLatents docs slice. No VD fork: every remaining item carries a
+  surface and a nameable value, so all schedule pre-release under the
+  recorded frame.
 
 ## Fork implications (docs/plans/archive/multiforest-extension-surface.md,
 Open decisions) - ALL FOUR RESOLVED (VD 2026-08-11)
@@ -404,15 +399,13 @@ covers all four, and this is the record that makes the coverage
 deliberate rather than inherited.
 
 LANDED d0701a6a (2026-08-24), logistic build. A swap replaces omega (the
-count is the PG SHAPE, so a stale one is a WRONG draw, not an old one),
-the working response, the masked composite, and the borrowed weight
-pointer - the last making the family override mandatory, since the bridge
-frees the previous vector as it retains the new one. `GroupedResponse`
-delegates the swap against f + b without drawing its own group effects or
-tau block, those staying a sweep concern. The refresh is IMMEDIATE: a
-sweep draws its TREES first and refreshes after, so an outer sampler at
-run(0, 1) per iteration would otherwise move every tree under the
-previous counts. It draws from the CHAIN generators in a serial per-chain
+count is the PG SHAPE, so a stale one is a WRONG draw, not an old one), the
+working response, the masked composite, and the borrowed weight pointer -
+the last making the family override mandatory, since the bridge frees the
+previous vector as it retains the new one. The refresh is IMMEDIATE: a sweep
+draws its TREES first and refreshes after, so an outer sampler at run(0, 1)
+per iteration would otherwise move every tree under the previous counts.
+It draws from the CHAIN generators in a serial per-chain
 fan-out, so consumption is independent of n.threads and R's stream never
 moves. Under a mask only ACTIVE rows are drawn for - variates for an
 inactive row would desynchronize the stream against a sampler built on

@@ -308,8 +308,8 @@ won has landed, so this paragraph is the pre-landing baseline, not the live
 tree). An ordered K >= 3 factor then took two different paths.
 bart2(family = "auto") routed it through detectAutoMultinomial, whose type
 match included "ordered factor" at n.levels >= 3, and SILENTLY fit an unordered
-multinomial, discarding the ordering. The single-forest entries (dbarts, xbart,
-rbart_vi) errored in resolveClassificationFamily's K >= 3 refusal
+multinomial, discarding the ordering. The single-forest entries (dbarts and
+xbart) errored in resolveClassificationFamily's K >= 3 refusal
 ([[R/data.R#resolveClassificationFamily]]). So EVERY option below - explicit-only
 included - had to split ordered factors out of detectAutoMultinomial, and
 bart2's behavior on ordered responses changed whichever option won; there was
@@ -505,17 +505,9 @@ robust-errors precedent (docs/design/robust-errors.md section 6).
   overlap - the dispatch key is is.ordered() - which is why ordinal is a
   single-forest cumulative probit and not a second multi-forest model.
 
-- **Grouped / mixed-model ordinal (rbart_vi + ordinal).** Refused cleanly at the
-  R layer, at the resolveClassificationFamily call in rbart_vi
-  ([[R/rbart.R#rbart_vi]]), before the group attribute is built; rbart_vi's
-  family vector ([[R/rbart.R#rbart_vi]]) omits "ordinal" for v1. The door is
-  real: GroupedResponse is a base-response decorator whose conjugate group
-  update needs a Gaussian working response with the group intercept on the
-  latent scale ([[src/bartcore/model.hpp#drawGroupEffects]] over
-  base_->workingResponse()), and ordinal HAS exactly that - z is Gaussian given
-  the cutpoints - so grouped ordinal is a coherent future once the cutpoint block
-  and the group block are shown to interleave cleanly. v1 refuses; the composition
-  is recorded as feasible.
+- **Mixed-model ordinal.** Not dbarts's: multilevel structure is
+  stan4bart's
+  ([[docs/design/retire-grouped-random-effects.md#The decision]]).
 
 - **xbart ordinal loss.** Out of scope, follow-up. The natural cross-validation
   metric for ordered categories is an order-aware loss (ranked probability score),

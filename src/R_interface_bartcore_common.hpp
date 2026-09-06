@@ -159,23 +159,6 @@ void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
                                      const char* caller,
                                      ResponseConduit conduit, int updateScale);
 
-/// Errors when a grouped (random-intercept) sampler's response-side conduit was
-/// asked to re-anchor the response transform (updateScale = TRUE) under a base
-/// family that has one to re-anchor: the group effects b and their scale tau are
-/// held on the base model's INTERNAL scale, and the decorator converts neither,
-/// so a re-anchored transform silently restates both on the original scale while
-/// sigma and the residual prior ARE converted. gaussian (Student-t included,
-/// which reports gaussian) and aft carry such a transform; probit and logistic
-/// have none, so a grouped binary sampler takes updateScale = TRUE as the no-op
-/// it already is. updateScale = FALSE pins the transform and is the supported
-/// grouped response and offset swap; only setData, which may move the group
-/// structure out from under the fixed per-observation indices, stays refused
-/// outright. Both the R bridge and the flat C API guard with this. caller labels
-/// the error.
-void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
-                              const char* caller, ResponseConduit conduit,
-                              int updateScale);
-
 /// Errors on a weight vector its family cannot carry: probit outright (a
 /// weighted probit has no tractable latent-variable form), logistic on any
 /// element that is not a positive integer, since its weights are observation

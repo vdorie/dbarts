@@ -4,9 +4,9 @@ Wave-2 item, the last one (core-generalization.md section "Wave 2
 models"): move rbart_vi's random-intercept Gibbs loop from R into the
 engine, composing with any response family.
 
-LANDED 2026-07-04, as proposed with the open decisions per their
-recommendations; deltas from this proposal are collected in "Landing
-notes" at the end.
+RETIRED 2026-09-06: grouped random intercepts are removed from dbarts; see
+[[docs/design/retire-grouped-random-effects.md#The decision]]. What follows is
+the historical record of the feature that was landed 2026-07-04.
 
 ## Model
 

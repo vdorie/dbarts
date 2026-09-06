@@ -1,8 +1,8 @@
 # The public bart2(family = "hurdle.lognormal") surface: family-token
 # routing (both spellings), the y >= 0 / require-a-zero / require-a-positive
 # validation errors, and the family-vector refusals shared with every
-# composed family (dbarts() cannot express two samplers; xbart and rbart_vi
-# omit the token). The analytic combine/retransform oracle, predict-on-
+# composed family (dbarts() cannot express two samplers; xbart omits the
+# token). The analytic combine/retransform oracle, predict-on-
 # newdata, save/load, and the recovery smoke live in test-hurdle.R.
 
 set.seed(4401L)
@@ -69,17 +69,9 @@ expect_error(
 expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart2")
 expect_error(dbarts(x, y, family = "twopart"), "bart2")
 
-# --- xbart and rbart_vi do not fit it (their family vectors are the
-# refusal, the nbinom/hazard precedent) ---
+# --- xbart does not fit it (its family vector is the refusal, the
+# nbinom/hazard precedent) ---
 expect_error(
   xbart(x, y, family = "hurdle.lognormal", n.samples = 10L, n.reps = 1L),
-  "should be one of"
-)
-expect_error(
-  rbart_vi(
-    y ~ x,
-    family = "hurdle.lognormal",
-    group.by = rep(1:4, length.out = n)
-  ),
   "should be one of"
 )

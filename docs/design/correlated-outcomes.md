@@ -38,11 +38,10 @@ conditioning conduit:
   sampler owns sigma.
 - run(0, 1) / dbarts_sampler_run: one sweep, returns the train fits the outer
   sampler differences into residuals.
-- A per-sweep conditioning callback: dbarts_sampler_setCallback in dbarts.h, and
-  the internal R-level C_dbarts_bartcore_runWithCallback (R_interface_bartcore.cpp,
-  registered in R_interface.cpp) that rbart_vi already drives (R/rbart.R: a
-  preStep that draws random intercepts and calls setOffset before each sweep) -
-  one engine run with an R closure per sweep instead of a run(0,1) round trip.
+- A per-sweep conditioning callback: dbarts_sampler_setCallback in dbarts.h,
+  and the internal R-level C_dbarts_bartcore_runWithCallback
+  (R_interface_bartcore.cpp, registered in R_interface.cpp) - one engine run
+  with an R closure per sweep instead of a run(0,1) round trip.
 
 What the conduit CANNOT express: a non-diagonal precision. Nothing accepts one,
 and the constant-leaf sufficient statistics (sumWeights / residualVariance) are
@@ -79,12 +78,13 @@ cannot pre-whiten and hand the result to dbarts. Three routes:
   white-noise nugget. y_t = f(x_t) + u_t + nu_t, u_t = rho u_{t-1} + eta_t. The
   outer sampler draws u by FFBS/HMC and (rho, variances) conjugately; the dbarts
   step is an ordinary iid-error BART fit conditioned on u via setOffset(u) and
-  the nugget sd via setSigma/fixed(). This is literally the rbart_vi loop with
-  the random intercept replaced by an AR process (docs/design/grouped-random-
-  effects.md is the in-engine precedent). Caveat: this is AR-1-PLUS-NUGGET (the
-  measurement-error model BSTS/CausalImpact use), not pure AR-1 errors, and f/u
-  compete for the residual (the mixing hazard forest-ranef-interweaving.md
-  studied for intercepts) - expect slow mixing as the nugget shrinks or rho -> 1.
+  the nugget sd via setSigma/fixed(). This mirrors the sweep loop dbarts's
+  retired rbart_vi used, with the random intercept replaced by an AR process
+  (docs/design/grouped-random-effects.md records the precedent). Caveat: this is
+  AR-1-PLUS-NUGGET (the measurement-error model BSTS/CausalImpact use), not pure
+  AR-1 errors, and f/u compete for the residual (the mixing hazard
+  forest-ranef-interweaving.md studied for intercepts) - expect slow mixing as
+  the nugget shrinks or rho -> 1.
 - REJECTED: a pseudo-Gibbs conditional offset using the previous sweep's f - not
   a valid MCMC scheme (f in its own conditioning offset).
 - EXACT pure-AR-1 (engine door, deferred): a GLS leaf update. For a fixed tree
@@ -99,21 +99,21 @@ cannot pre-whiten and hand the result to dbarts. Three routes:
 
 ## Priority and recommendation
 
-- By raw demand, A leads (panel/DiD are ubiquitous) - but rbart_vi / stan4bart
-  random intercepts already absorb the exchangeable share of within-unit
-  correlation, blunting the worst of the BDM problem; AR-1 sharpens it mainly for
-  longer panels. By value-per-new-code, B leads decisively (free, and unlocks
+- By raw demand, A leads (panel/DiD are ubiquitous) - but stan4bart's random
+  intercepts already absorb the exchangeable share of within-unit correlation,
+  blunting the worst of the BDM problem; AR-1 sharpens it mainly for longer
+  panels. By value-per-new-code, B leads decisively (free, and unlocks
   mediation-with-sensitivity, a recurring bartCause/bairrtt ask).
 - Sequencing: (B) ship as a validated composition recipe (a bartCause/bairrtt-
   side function or vignette, gated against a linear-SUR oracle) now; (A) add the
   AR-1 latent state to stan4bart/WALNUTS's parametric vocabulary (dbarts
   unchanged); leave exact pure-AR-1 as the recorded engine door above.
 - Smallest dbarts-side enabler (only if profiling demands it): export the
-  per-sweep R callback rbart_vi uses internally (C_dbarts_bartcore_runWithCallback)
-  as a callback argument on dbartsSampler$run - it removes the per-sweep round-
+  internal per-sweep R callback (C_dbarts_bartcore_runWithCallback) as a
+  callback argument on dbartsSampler$run - it removes the per-sweep round-
   trip cost for every R-side outer-Gibbs composition (the multivariate recipe,
-  custom rbart loops, AR prototypes) without touching the engine or the shipped C
-  ABI, whose analogue dbarts_sampler_setCallback already exists.
+  custom outer-Gibbs loops, AR prototypes) without touching the engine or the
+  shipped C ABI, whose analogue dbarts_sampler_setCallback already exists.
 
 Hypothesis CONFIRMED: the existing weighted-fit + between-sample-swap conduit
 covers everything whose conditional precision is diagonal, and both models
@@ -127,8 +127,8 @@ covariance belongs in the WALNUTS outer sampler.
   cleanly overrides a fixed() creation value.
 - Scale anchoring: the internal [-0.5, 0.5] response rescale keys off
   creation-time min/max; a latent u or offset m_k growing beyond that range
-  could compress the working scale. rbart_vi uses updateScale during warmup only
-  - the recipes should adopt that convention; the failure mode is untested.
+  could compress the working scale. updateScale should be confined to warmup
+  - the failure mode outside that window is untested.
   COST (2026-08-06): a BCF host cannot adopt it. setOffset(updateScale = TRUE)
   is now refused on any multi-forest sampler, because both forests' leaf scales
   are calibrated against the creation-time transform and do not ride a rescale.

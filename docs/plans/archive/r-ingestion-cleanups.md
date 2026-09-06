@@ -13,7 +13,7 @@ not cover.
 ## Findings
 
 1. Classification-family routing duplicated with drifted wording
-   across [[dbarts.R:294-333@474c55f0]], [[xbart.R:78-113@474c55f0]], [[rbart.R:332-358@474c55f0]] (the
+   across [[dbarts.R:294-333@474c55f0]], [[xbart.R:78-113@474c55f0]], [[R/rbart.R:332-358@474c55f0]] (the
    2-vs-3-level check, auto->probit resolution, conflict errors; only
    classifyResponse/announceAutoFamily are shared). Fix: one
    resolveClassificationFamily(data, family, caller) helper; align

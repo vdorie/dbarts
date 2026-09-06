@@ -20,7 +20,6 @@
 #include "makeModelMatrixFromDataFrame.h"
 
 #include "R_interface_bartcore.hpp"
-#include "R_interface_rbart.hpp"
 
 using std::size_t;
 using std::uint32_t;
@@ -256,7 +255,6 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
   DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
 
-  DEF_FUNC("rbart_fitted", rbart_getFitted, 4),
   {NULL, NULL, 0}
 };
 

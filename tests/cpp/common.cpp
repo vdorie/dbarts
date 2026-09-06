@@ -56,7 +56,7 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 // are let through rather than guessed at. Honest, not airtight - a small field
 // can hide in existing padding - which is why the table-driven coverage test
 // beside the fuzz snapshot exists as well.
-static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 416,
+static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 384,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
 static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 160,
@@ -94,7 +94,7 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
     if (x.varianceTreeMasks != y.varianceTreeMasks ||
         x.savedVarianceTreeMasks != y.savedVarianceTreeMasks)
       return false;
-    if (x.latents != y.latents || x.groupEffects != y.groupEffects ||
+    if (x.latents != y.latents ||
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)
       return false;
@@ -112,7 +112,7 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
       std::isnan(x.dispersion) && std::isnan(y.dispersion);
     if (!bothDispersion && x.dispersion != y.dispersion) return false;
     if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
-        x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
+        x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
       return false;
     if (x.hasAmplitudes != y.hasAmplitudes ||

@@ -576,15 +576,14 @@ codeResponse <- function(y) {
 # Resolve family for a categorical (factor/logical/character) response ahead
 # of a single-forest fit: a 2-level response is a binary classification
 # (family = "auto" fits probit); 3+ levels is multinomial, which none of
-# dbarts()/xbart()/rbart_vi() implement (only bart2(family = "multinomial")
+# dbarts()/xbart() implement (only bart2(family = "multinomial")
 # does). A numeric response is returned unchanged - a caller that also
 # resolves the 0/1-vs-continuous ambiguity for numeric responses does so
-# itself afterward (dbarts()/xbart() do; rbart_vi() defers it to the
-# per-chain dbarts() call, since there is no message to deduplicate there).
+# itself afterward (dbarts()/xbart() do).
 #
 # `caller` names the entry point for the 2-level conflict message and the
 # non-split multinomial message ("CALLER does not fit a K-level ..."), used
-# as-is by xbart() and rbart_vi(): each is reached only directly, so the
+# as-is by xbart(): it is reached only directly, so the
 # auto/explicit distinction adds nothing at K >= 3 (every family choice is
 # equally invalid). dbarts() passes splitMultinomialMessage = TRUE instead,
 # because it is also reached anonymously through bart() (which never sets an
@@ -625,7 +624,7 @@ resolveClassificationFamily <- function(
   }
   if (K >= 3L) {
     # a 3+-level ORDERED factor is ordinal (reached here only from an entry that
-    # cannot fit it - xbart, rbart_vi; dbarts/bart2 route ordinal above); every
+    # cannot fit it - xbart; dbarts/bart2 route ordinal above); every
     # other 3+-level factor/character is unordered multinomial
     isOrdered <- identical(responseType, "ordered factor")
     model <- if (isOrdered) "ordinal" else "multinomial"

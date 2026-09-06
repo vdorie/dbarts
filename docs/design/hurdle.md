@@ -267,8 +267,8 @@ across the two fits, and predict on new data.
   surv.bart-flavored alternative - a single "hurdle" token plus a
   `hurdle.positive = c("lognormal", ...)` argument (the type = "pbart"/"lbart" shape) -
   is recorded but not recommended, on the same internal-consistency grounds hazard
-  settled (survival.md section 2). xbart / rbart_vi omit the token (their match.arg
-  vectors are the refusal, the nbinom precedent).
+  settled (survival.md section 2). xbart omits the token (its match.arg
+  vector is the refusal, the nbinom precedent).
 - **The response.** A non-negative outcome with exact zeros (semicontinuous: a spike at
   0 plus a continuous positive part). The wrapper splits it R-side at ingest: the
   occupancy response is z = 1{y > 0} over all n; the positive response is log(y[S]) over
@@ -322,9 +322,6 @@ member perturb the single-forest hot path" risk that heteroscedastic's equivalen
   accepts it family-agnostically as "hurdle.nbinom". negative-binomial.md filed it.
 - **Gamma positive part.** A new continuous positive family; token door.
 - **Logistic occupancy link.** "hurdle.logistic", one token away (section 6).
-- **Grouped hurdle (random effects on either part).** Each part is a shipped family that
-  GroupedResponse already decorates (rbart_vi); a grouped hurdle composes two grouped
-  fits R-side, exactly as v1 composes two ungrouped fits. Surface-only follow-up.
 - **Smearing retransformation.** Duan's distribution-free E[y | y > 0] estimator as a
   predict option beside the parametric lognormal mean (section 6).
 - **Zero-INFLATION and sample-selection (the coupled cousins - where the engine finally

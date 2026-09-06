@@ -27,19 +27,10 @@ control <- dbartsControl(
   seed = 271L
 )
 
-aftSampler <- function(y, status, weights = NULL, groups = NULL) {
+aftSampler <- function(y, status, weights = NULL) {
   sampler <- dbarts(x, y, weights = weights, control = control)
   ctrl <- sampler$control
   attr(ctrl, "bartcore.survival") <- as.numeric(status)
-  if (!is.null(groups)) {
-    attr(ctrl, "bartcore.groups") <- list(
-      indices = as.integer(groups),
-      n.groups = nlevels(factor(groups)),
-      prior = "cauchy",
-      rel.scale = sd(y),
-      n.steps = 1L
-    )
-  }
   sampler$control <- ctrl
   dbarts:::bartcoreSampler(sampler, family = "aft")
 }
@@ -121,21 +112,6 @@ expect_equal(dim(res.mut$train), c(n, 20L))
 lat.mut <- bartcoreGetLatents(bc.mut)
 expect_true(all(lat.mut[status == 0] >= obs.log.t[status == 0] + 1 - 1e-8))
 expect_equal(lat.mut[status == 1], obs.log.t[status == 1] + 1)
-
-# ---- grouped composition smoke: AFT + random intercepts (riAFTBART) ----
-
-groups <- rep(1:8, length.out = n)
-group.shift <- rnorm(8L, 0, 0.5)[groups]
-log.t.g <- f + group.shift + sigma.true * rnorm(n)
-cens.g <- f + 0.4 + sigma.true * rnorm(n)
-status.g <- as.numeric(log.t.g <= cens.g)
-obs.g <- ifelse(status.g == 1, log.t.g, cens.g)
-bc.grouped <- aftSampler(obs.g, status.g, groups = groups)
-res.grouped <- bartcoreRun(bc.grouped, 100L, 100L)
-expect_equal(dim(res.grouped$train), c(n, 100L))
-expect_true(all(is.finite(res.grouped$train)))
-expect_true(!is.null(res.grouped$ranef))
-expect_equal(dim(res.grouped$ranef), c(8L, 100L))
 
 # ---- refusals: weights and post-creation setData on an AFT sampler ----
 
@@ -277,10 +253,6 @@ if (requireNamespace("survival", quietly = TRUE)) {
     "matrix interface"
   )
 }
-
-# the rbart method refuses: rbart_vi cannot fit an aft model
-rbart.stub <- structure(list(), class = "rbart")
-expect_error(survivalProbabilities(rbart.stub, times = 1), "rbart")
 
 # non-aft fits are refused by the bart method
 fit.gauss <- bart2(

@@ -42,7 +42,6 @@ using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
-using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseNonBinaryMask;
@@ -2094,63 +2093,6 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
   return rngs;
 }
 
-// rbart_vi's in-core Gibbs path passes its grouping through an internal
-// attribute on the control object: 1-based per-observation group indices,
-// the group count, the built-in tau prior's name and original-scale
-// relative scale, and the slice-step count. Public surfaces never set the
-// attribute, and only full creation reads it (setControl ignores it; the
-// group structure is fixed at creation). groupIndices outlives the options
-// borrow: the chains copy it during construction.
-void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
-                         bartcore::SamplerOptions& options,
-                         std::vector<std::uint32_t>& groupIndices) {
-  SEXP groupsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.groups"));
-  if (Rf_isNull(groupsExpr)) return;
-
-  SEXP indicesExpr = rc_getListElement(groupsExpr, "indices");
-  SEXP numGroupsExpr = rc_getListElement(groupsExpr, "n.groups");
-  SEXP priorExpr = rc_getListElement(groupsExpr, "prior");
-  SEXP scaleExpr = rc_getListElement(groupsExpr, "rel.scale");
-  SEXP stepsExpr = rc_getListElement(groupsExpr, "n.steps");
-  if (!Rf_isInteger(indicesExpr) ||
-      static_cast<size_t>(Rf_xlength(indicesExpr)) != numObservations ||
-      !Rf_isInteger(numGroupsExpr) || Rf_xlength(numGroupsExpr) != 1 ||
-      !Rf_isString(priorExpr) || Rf_xlength(priorExpr) != 1 ||
-      !Rf_isReal(scaleExpr) || Rf_xlength(scaleExpr) != 1 ||
-      !Rf_isInteger(stepsExpr) || Rf_xlength(stepsExpr) != 1)
-    Rf_error("malformed grouped random effects specification");
-
-  int numGroups = INTEGER(numGroupsExpr)[0];
-  if (numGroups < 1)
-    Rf_error("grouped random effects require at least one group");
-  groupIndices.resize(numObservations);
-  for (size_t i = 0; i < numObservations; ++i) {
-    int index = INTEGER(indicesExpr)[i];
-    if (index < 1 || index > numGroups)
-      Rf_error("group indices must be in [1, number of groups]");
-    groupIndices[i] = static_cast<std::uint32_t>(index - 1);
-  }
-
-  const char* priorName = CHAR(STRING_ELT(priorExpr, 0));
-  if (std::strcmp(priorName, "cauchy") == 0) {
-    options.tauPriorKind = bartcore::TauPriorKind::cauchy;
-  } else if (std::strcmp(priorName, "gamma") == 0) {
-    options.tauPriorKind = bartcore::TauPriorKind::gamma;
-  } else {
-    Rf_error("unrecognized tau prior for grouped random effects");
-  }
-
-  double relScale = REAL(scaleExpr)[0];
-  if (!(relScale > 0.0)) Rf_error("tau prior scale must be positive");
-  int numSteps = INTEGER(stepsExpr)[0];
-  if (numSteps < 1) Rf_error("tau slice steps must be at least 1");
-
-  options.groupIndices = groupIndices.data();
-  options.numGroups = static_cast<size_t>(numGroups);
-  options.tauPriorScale = relScale;
-  options.tauSliceSteps = static_cast<size_t>(numSteps);
-}
-
 // AFT survival status arrives on an internal control attribute alongside the
 // log-time response (the y creation argument): a per-observation numeric
 // vector, 1 for an uncensored event, 0 for a right-censored observation. Only
@@ -2506,8 +2448,8 @@ double defaultNodeScale(bartcore::ResponseFamily family) {
 // Every option the amplitude chain constructor does not read, refused rather
 // than dropped in silence: the calibration map fixes every forest's leaf scale
 // and k, buildSpecifiedForest takes no DART or split probabilities, the
-// constant leaf is the single instantiation, the grouped decorator and the
-// variance forest are built only by the single-forest constructor, the cut cap
+// constant leaf is the single instantiation, the variance forest is built
+// only by the single-forest constructor, the cut cap
 // and the test surface are left undefined, and the gaussian response law is
 // not the Student-t mixture. The R surface refuses the same list ahead of this
 // backstop, which is what a direct dbarts.h consumer meets.
@@ -2537,7 +2479,6 @@ void refuseUnsupportedAmplitudeComposition(
            model.birthProbability != 0.5)
     offender = "non-default proposal probabilities";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
-  else if (options.numGroups > 0) offender = "grouped random effects";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
   else if (options.fp32Residual) offender = "single-precision storage";
   else if (data.numTestObservations > 0) offender = "test predictors";
@@ -2802,7 +2743,7 @@ namespace bartcore_bridge {
 // fixed-n one would silently re-pair the old bases with new rows - a lifted
 // refusal must take the bases in the same call.
 // Refuse it; a multi-forest sampler
-// fixes its data and prior at creation, as grouped/sparse/aft samplers do.
+// fixes its data and prior at creation, as sparse/aft samplers do.
 // setForestBasis, the one supported multi-forest data swap, routes through the
 // combiner and stays allowed; setResponse is opt-in and scale-pinned rather
 // than refused, and carries its own condition in
@@ -2909,41 +2850,6 @@ void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
   Rf_error("%s: a heteroscedastic sampler's variance forest is calibrated "
            "against the response transform fixed at creation, so %s swap is "
            "supported only with updateScale = FALSE, which pins it", caller,
-           conduit == ResponseConduit::response ? "a response" : "an offset");
-}
-
-// The grouped analogue of the two scale pins above, and the one place the
-// random-intercept decorator is not scale-transparent: GroupedResponse holds b,
-// tau and the tau prior scale on the BASE MODEL'S INTERNAL scale (its class
-// comment, and the constructor's single division by sigmaScale), and its
-// setResponse/setOffset delegate to the base and rebuild the working response
-// without touching any of the three. At updateScale = TRUE a re-anchoring base
-// recomputes its range and converts exactly sigma and the residual prior scale,
-// so b and tau silently come to mean something else on the original scale while
-// nothing reports the move - the same defect class as the two guards above.
-// Keyed on the family for refusePinnedSigmaChange's reason and with its exact
-// two-way shape: gaussian and aft are the families whose transform is derived
-// from the data, ResponseFamily reports gaussian for a Student-t sampler (so it
-// is covered here without a member of its own), and probit and logistic have a
-// transform fixed by the link that updateScale does not touch at all, leaving a
-// grouped binary sampler's TRUE the documented no-op it already is. Anything
-// but FALSE is refused, the sibling guard's condition-keying: the two surfaces
-// convert to the engine's bool differently (the R bridge on == TRUE, the flat
-// API on != 0), so only the value both read as "pin it" is let through.
-// Weights carry no transform and never reach here. External linkage: the flat
-// C API reuses this guard on its own setResponse and setOffset entries.
-void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
-                              const char* caller, ResponseConduit conduit,
-                              int updateScale) {
-  if (conduit == ResponseConduit::weights || updateScale == FALSE) return;
-  bartcore::SamplerShape shape = sampler.shape();
-  if (shape.numGroups == 0) return;
-  if (shape.family != bartcore::ResponseFamily::gaussian &&
-      shape.family != bartcore::ResponseFamily::aft) return;
-  Rf_error("%s: a grouped sampler holds its random intercepts b and their "
-           "scale tau against the response transform fixed at creation and "
-           "converts neither, so %s swap is supported only with "
-           "updateScale = FALSE, which pins it", caller,
            conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
@@ -3254,7 +3160,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{},
-                 groupIndices = std::vector<std::uint32_t>{},
                  survivalStatus = std::vector<double>{},
                  varianceColumns = std::vector<std::size_t>{},
                  amplitudeSpec = bartcore::AmplitudeSpec{},
@@ -3270,36 +3175,14 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
 
-    // grouped random intercepts (rbart_vi's in-core path) arrive on an
-    // internal control attribute; the chains copy the indices at construction
-    applyGroupAttribute(controlExpr, data.numObservations, options,
-                        groupIndices);
-    // grouped ordinal is a recorded but unbuilt door: the threshold block and
-    // the group block are not yet shown to interleave, so refuse the
-    // composition here, the host backstop the R surface (rbart_vi) mirrors
-    if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
-      Rf_error("grouped random effects are not supported for ordinal responses");
-    // grouped nbinom is a recorded but unbuilt door: the dispersion block
-    // and the group block are not yet shown to interleave, so refuse the
-    // composition here, the backstop rbart_vi mirrors
-    if (family == bartcore::ResponseFamily::nbinom && options.numGroups > 0)
-      Rf_error("grouped random effects are not supported for count (nbinom) responses");
-    // AFT survival status arrives the same way; the response copies it
+    // AFT survival status arrives on an internal control attribute; the
+    // response copies it
     applySurvivalAttribute(controlExpr, data.numObservations, family, options,
                            survivalStatus);
     // the heteroscedastic variance forest arrives on a control attribute; the
     // factory refuses it for non-gaussian or non-constant-leaf models
     applyVarianceAttributes(controlExpr, data.numPredictors, options,
                             varianceColumns);
-    // grouped random effects and a variance forest is an unadjudicated
-    // composition: the group block draws b at the scalar sigma a variance
-    // forest pins at 1, so the effects condition on a residual variance the
-    // model does not have. Backstop for the entrances that skip the R
-    // surface's own refusal.
-    if (options.numGroups > 0 && options.numVarianceTrees > 0)
-      Rf_error("grouped random effects are not supported with a "
-               "heteroscedastic variance forest");
-
     // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
     // PLAIN constant-leaf path; refuse
     // every other model rather than silently ignore the request. The monotone
@@ -4601,7 +4484,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // a Student-t error law appends its per-draw df nu next, on the same
   // arithmetic; no response carries both, but the count composes regardless
   bool hasResidualDf = shape.carriesResidualDf;
-  int numResultSlots = 8 + (hasOrdinalThresholds ? 1 : 0) +
+  int numResultSlots = 6 + (hasOrdinalThresholds ? 1 : 0) +
                        (hasDispersion ? 1 : 0) + (hasResidualDf ? 1 : 0) +
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
@@ -4644,11 +4527,6 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP varprobsExpr = installChannel(
     "varprobs",
     !shape.usesDart ? R_NilValue : allocChannel(REALSXP, {numPredictors}));
-  size_t numGroups = shape.numGroups;
-  SEXP tauExpr =
-    installChannel("tau", numGroups == 0 ? R_NilValue : allocScalarChannel());
-  SEXP ranefExpr = installChannel(
-    "ranef", numGroups == 0 ? R_NilValue : allocChannel(REALSXP, {numGroups}));
   SEXP ordinalThresholdsExpr = !hasOrdinalThresholds
     ? R_NilValue
     : installChannel("thresholds",
@@ -4697,8 +4575,6 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.variableCounts = variableCounts.data();
   results.k = shape.kIsSampled ? REAL(kExpr) : NULL;
   results.splitProbabilities = shape.usesDart ? REAL(varprobsExpr) : NULL;
-  results.tau = numGroups > 0 ? REAL(tauExpr) : NULL;
-  results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
   // one per-observation fits channel per reported location; 1 for every
   // additive model, K for multinomial. The location stride drives the
   // chain-major slabbing (multiple chains).
@@ -4747,7 +4623,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return resultExpr;
 }
 
-// rbart_vi's custom-prior Gibbs sampler: one run with a per-sweep R closure in
+// An embedded Gibbs loop's driver: one run with a per-sweep R closure in
 // place of a run(0, 1) per kept sample. results is a named list of caller-owned
 // per-sweep buffers the engine fills (sigma, train, test, k, varprobs reals; an
 // integer varcount whose storage aliases the engine's uint32 slots, valid
@@ -4755,10 +4631,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 // channel. Single chain only, so the closure runs inline.
 //
 // No GetRNGstate/PutRNGstate: the chain's generator never touches R's stream,
-// while the closure draws from it (the random intercepts and the tau slice
-// sampler), so R must own .Random.seed throughout. The closure is evaluated
-// under R_tryEval so an error cannot longjmp across Chain::run's C++ frames; it
-// becomes a cooperative stop, re-raised in R from the closure's own handler.
+// while the closure may draw from it, so R must own .Random.seed throughout.
+// The closure is evaluated under R_tryEval so an error cannot longjmp across
+// Chain::run's C++ frames; it becomes a cooperative stop, re-raised in R from
+// the closure's own handler.
 SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
                               SEXP numSamplesExpr, SEXP resultsExpr,
                               SEXP callbackExpr, SEXP rhoExpr) {
@@ -4790,14 +4666,11 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   // single chain here, so the location stride only shapes the fits buffers the
   // caller allocated; 1 for every model today (n x numSamples)
   results.numReportedLocations = shape.numReportedLocations;
-  // rbart_vi's caller-owned varcount buffer is single-slab (R/rbart.R sizes it
-  // numPredictors x n.samples), so the count is PINNED to 1 here rather than
-  // read off the shape: the layout is then true at this site whatever a future
-  // slice widens upstream, and the two guards that keep a multi-forest sampler
-  // off this path - setOffset's BCF refusal on the R-loop path, and the grouped
-  // refusal in R/spec.R on the in-core one - stop being load-bearing for
-  // MEMORY SAFETY. A multi-forest sampler that ever reached here would report
-  // its prognostic forest, exactly as the flat C API does.
+  // the caller-owned varcount buffer is single-slab, so the count is PINNED
+  // to 1 here rather than read off the shape: the layout is then true at this
+  // site whatever a future slice widens upstream, and no upstream guard is
+  // load-bearing for MEMORY SAFETY. A multi-forest sampler that ever reached
+  // here would report its prognostic forest, exactly as the flat C API does.
   results.numVariableCountForests = 1;
 
   bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
@@ -4819,7 +4692,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
                                bartcore_userInterrupted, onSweep);
   if (callbackErrored)
-    Rf_error("error evaluating the rbart_vi sweep callback");
+    Rf_error("error evaluating the sweep callback");
   if (cancelled && !closureStopped) Rf_error("sampler run interrupted");
   return R_NilValue;
 }
@@ -4865,8 +4738,6 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
                                     ResponseConduit::offset, updateScale);
   refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setOffset",
                                   ResponseConduit::offset, updateScale);
-  refuseGroupedScaleUpdate(*holder.sampler, "bartcore_setOffset",
-                           ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -4885,8 +4756,6 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
                                     ResponseConduit::response, updateScale);
   refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setResponse",
                                   ResponseConduit::response, updateScale);
-  refuseGroupedScaleUpdate(*holder.sampler, "bartcore_setResponse",
-                           ResponseConduit::response, updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
@@ -4915,9 +4784,6 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
-  if (shape.numGroups > 0)
-    Rf_error("grouped random effects fix the data at creation; make a new "
-             "sampler instead");
   if (shape.family == bartcore::ResponseFamily::aft)
     Rf_error("aft (survival) models fix the censoring structure at creation; "
              "make a new sampler instead");
@@ -5631,7 +5497,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 // State serialization. The returned object is engine-specific and opaque: one
 // list per chain (flattened live and saved trees with each forest's k and leaf
 // scale, original-scale sigma, the response transform at capture, latents and
-// their per-family companions, group, glue and dart state, and the serialized
+// their per-family companions, glue and dart state, and the serialized
 // rng), with the store's cut points, the saved-tree write position, the draws
 // it is read against, and the format version as attributes. Restore reinstalls
 // the captured transform - a scale setOffset(updateScale) moved after creation
@@ -6395,7 +6261,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
 }
 
 // resultExpr, when non-null, is a preallocated numeric filled in place rather
-// than a fresh allocation, which is what rbart_vi's per-sweep loop relies on.
+// than a fresh allocation, which is what an embedded per-sweep loop relies on.
 SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->latents(0) == NULL) return R_NilValue;
@@ -6779,7 +6645,6 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // flattened trees.
   enum {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
-    SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
     SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_THRESHOLDS, SLOT_DISPERSION,
     SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
@@ -6791,7 +6656,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   };
   static const char* slotNames[SLOT_COUNT] = {
     "forests", "sigma", "fit.scale",
-    "latents", "ranef", "tau",
+    "latents",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
     "rng.state", "glue", "resid.df", "thresholds", "dispersion",
     "variance.vars", "variance.values", "variance.sizes", "variance.flags",
@@ -6880,17 +6745,6 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_LATENTS)),
                   chainState.latents.data(),
                   numObservations * sizeof(double));
-    }
-
-    if (!chainState.groupEffects.empty()) {
-      SET_VECTOR_ELT(chainExpr, SLOT_RANEF,
-                     Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
-                                      chainState.groupEffects.size())));
-      std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_RANEF)),
-                  chainState.groupEffects.data(),
-                  chainState.groupEffects.size() * sizeof(double));
-      SET_VECTOR_ELT(chainExpr, SLOT_TAU,
-                     Rf_ScalarReal(chainState.groupTau));
     }
 
     if (!chainState.dartProbabilities.empty()) {
@@ -7353,19 +7207,6 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         REAL(latentsExpr), REAL(latentsExpr) + Rf_xlength(latentsExpr));
     }
 
-    SEXP ranefExpr = rc_getListElement(chainExpr, "ranef");
-    if (!Rf_isNull(ranefExpr)) {
-      SEXP tauExpr = rc_getListElement(chainExpr, "tau");
-      if (!Rf_isReal(ranefExpr) || !Rf_isReal(tauExpr) ||
-          Rf_xlength(tauExpr) != 1) {
-        errorMessage = "malformed grouped effects in bartcore state";
-        break;
-      }
-      chainState.groupEffects.assign(
-        REAL(ranefExpr), REAL(ranefExpr) + Rf_xlength(ranefExpr));
-      chainState.groupTau = REAL(tauExpr)[0];
-    }
-
     SEXP dartProbabilitiesExpr =
       rc_getListElement(chainExpr, "dart.probabilities");
     if (!Rf_isNull(dartProbabilitiesExpr)) {
@@ -7468,8 +7309,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
 // validating flat trees against the destination sampler's data. Only the
 // channels a warm start consumes are read (trees, leaf params, masks, k,
-// sigma, the fit scale, DART, and the amplitude glue); latents, group effects,
-// rng are left for the destination to redraw. Function-leaf donors seed from
+// sigma, the fit scale, DART, and the amplitude glue); latents and rng are
+// left for the destination to redraw. Function-leaf donors seed from
 // their live trees, so their saved channel is skipped. The donor's own chain
 // count is honored (a short donor may seed many chains). Returns an error
 // string, or NULL, rather than longjmping so the caller can free state first.

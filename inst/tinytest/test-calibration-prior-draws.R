@@ -189,8 +189,7 @@ expect_true(diff(range(standardizedMean)) > 1)
 # --- the anchor is honored on every family and decoration the single-forest
 # conversion serves, each measured against its own response transform. The
 # binary families carry latent units (transform 1), so the named scale IS the
-# latent-scale prior sd; aft carries log-time units; the grouped decorator
-# delegates the transform it wraps. ---
+# latent-scale prior sd; aft carries log-time units. ---
 familyDraws <- 800L
 familyBand <- 0.09
 anchorRow <- x[1L, , drop = FALSE]
@@ -216,15 +215,6 @@ yOrdered <- factor(
   cut(x[, 1L] - x[, 2L], breaks = c(-Inf, -0.3, 0.3, Inf), labels = FALSE),
   ordered = TRUE
 )
-groupControl <- priorControl()
-attr(groupControl, "bartcore.groups") <- list(
-  indices = rep_len(c(1L, 2L), n),
-  n.groups = 2L,
-  prior = "cauchy",
-  rel.scale = 1,
-  n.steps = 1L
-)
-
 anchorSamplers <- list(
   gaussian = anchorSampler(y, control = priorControl()),
   # resid.dist is NSE and cannot be forwarded through a helper's dots
@@ -235,7 +225,6 @@ anchorSamplers <- list(
     resid.dist = student(5),
     node.prior = normal(k = fixedK, scale = namedScale)
   ),
-  grouped = anchorSampler(y, control = groupControl),
   aft = anchorSampler(
     cbind(yPositive, rep(1L, n)),
     control = priorControl(),

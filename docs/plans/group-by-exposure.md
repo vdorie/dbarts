@@ -6,8 +6,11 @@ budget: decision memo first
 
 ## Goal
 
-A recorded decision on exposing grouped random effects beyond rbart_vi
-(a group.by argument on dbarts()/bart2), currently internal by design.
+RETIRED 2026-09-06: grouped random intercepts are removed from dbarts, so
+there is nothing left to expose; see
+[[docs/design/retire-grouped-random-effects.md#The decision]]. The item asked
+for a recorded decision on exposing grouped random effects beyond rbart_vi (a
+group.by argument on dbarts()/bart2).
 
 ## Context
 

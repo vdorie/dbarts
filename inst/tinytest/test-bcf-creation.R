@@ -612,20 +612,6 @@ expect_error(
   dbartsSpec(unevenCuts, seededControlBcfCreation()),
   "per-column 'n.cuts'"
 )
-# grouped random effects reach creation on rbart_vi's internal control
-# attribute; the composition with a second forest is a door, not a build
-groupedControl <- seededControlBcfCreation()
-attr(groupedControl, "bartcore.groups") <- list(
-  indices = rep(1L, n),
-  n.groups = 1L,
-  prior = "cauchy",
-  rel.scale = 1,
-  n.steps = 1L
-)
-expect_error(
-  dbartsSpec(dbartsData(x, y, bases = list(NULL, zBasis)), groupedControl),
-  "grouped random effects"
-)
 # the doors: a family whose own parameter block is not shown to interleave with
 # the amplitude block refuses by name. (The binary families are no longer among
 # them - they build, and test-bcf-family.R is where that surface is pinned.)

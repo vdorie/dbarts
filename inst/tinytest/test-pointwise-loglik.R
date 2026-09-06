@@ -151,44 +151,6 @@ expect_identical(ll.l[, j1], dbinom(y.b[j1], 1L, ev.l[, j1], log = TRUE))
 
 rm(ll.l, ev.l, fit.l, j5, j1, w.l, y.b)
 
-# 5. rbart_vi: the location conditions on the drawn group intercepts
-set.seed(5, sample.kind = "Rejection")
-g <- factor(rep_len(1:5, n))
-y.r <- y + rnorm(5L, 0, 1.5)[as.integer(g)]
-fit.r <- rbart_vi(
-  y.r ~ x,
-  group.by = g,
-  n.samples = 40L,
-  n.burn = 20L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 25L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-ll.r <- extract(fit.r, type = "loglik")
-ev.r <- extract(fit.r, type = "ev")
-bart.r <- extract(fit.r, type = "bart")
-ranef.r <- extract(fit.r, type = "ranef")
-
-expect_equal(dim(ll.r), dim(ev.r))
-i <- 3L
-expect_identical(
-  ll.r[, i],
-  dnorm(
-    y.r[i],
-    bart.r[, i] + ranef.r[, as.character(g[i])],
-    fit.r$sigma,
-    log = TRUE
-  )
-)
-expect_error(
-  extract(fit.r, type = "loglik", sample = "test"),
-  pattern = "no test response"
-)
-
-rm(ll.r, ev.r, bart.r, ranef.r, fit.r, y.r, g, i)
-
 # 6. multi-chain shape conventions follow "ev" in both chain layouts, each
 # chain pairs with its own sigma draws, and the stored layout does not
 # matter (combineChains at fit time only changes packaging)

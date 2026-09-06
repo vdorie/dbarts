@@ -182,8 +182,8 @@ multiplicative, [[chain.hpp:400-407@b102e17c]]), logged as open debt in [[docs/d
   sites docs/plans/release-candidate-review.md's rchk note ([[R_interface_bartcore.cpp:1138-1173@b102e17c]], [[R_interface_bartcore.cpp:1300-1330@b102e17c]]) records, and
   all are distinct from the two `setState` rchk BAILOUTS the note calls already-balanced. The
   finding is the inconsistency, not the PROTECTs. Medium.
-- V5. `rbart_getFitted`'s two PROTECTs ([[R_interface_rbart.cpp:16-17@b102e17c]]): both dims are reduced to raw
-  `int*` at [[R_interface_rbart.cpp:19-20@b102e17c]] and last read at [[R_interface_rbart.cpp:40-42@b102e17c]], and the only allocation is `rc_newReal(n)` at [[R_interface_rbart.cpp:44@b102e17c]].
+- V5. `rbart_getFitted`'s two PROTECTs ([[src/R_interface_rbart.cpp:16-17@b102e17c]]): both dims are reduced to raw
+  `int*` at [[src/R_interface_rbart.cpp:19-20@b102e17c]] and last read at [[src/R_interface_rbart.cpp:40-42@b102e17c]], and the only allocation is `rc_newReal(n)` at [[src/R_interface_rbart.cpp:44@b102e17c]].
   Untouched by the rchk commit. Medium - defensible only if `rc_getDims` can itself allocate.
 - V6. NOT dead, keep. `setState`'s three "already-non-null" guards ([[R_interface_bartcore.cpp:6799@b102e17c]], [[R_interface_bartcore.cpp:6813@b102e17c]], [[R_interface_bartcore.cpp:6830@b102e17c]]) make the
   null branch in `readFunctionTreeParams` ([[R_interface_bartcore.cpp:5490@b102e17c]]), `readTreeParams` ([[R_interface_bartcore.cpp:5469@b102e17c]]) and `readTreeMasks`

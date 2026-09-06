@@ -264,7 +264,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   join" - `bart2(y ~ x1 + x2 + z:forest(x2), family=F)` accepted for
   auto/gaussian/probit/logistic, refused by name for the other nine; and "no
   `forests =` formal of its own" - `unknown argument 'forests'` on all 13.
-- `[[rbart.Rd:95@b102e17c]]` survival "do not support `weights` or `subset` ... and enter only
+- `[[man/rbart.Rd:95@b102e17c]]` survival "do not support `weights` or `subset` ... and enter only
   through the formula interface" - formula route accepted, weights and subset
   refused by name, bare `cbind(t, s)` + explicit `family="aft"` accepted.
 - `[[dbartsSpec.Rd:25@b102e17c]]` counts data resolves to multinomial from `"auto"`, refused

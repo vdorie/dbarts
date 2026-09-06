@@ -1,5 +1,5 @@
 # smoke coverage for the plotting generics: plot.bart on a gaussian fit, on a
-# binary bart2 fit, and plot.rbart on a grouped fit. Rendered to a null device;
+# binary bart2 fit. Rendered to a null device;
 # each plot is silent (no output, message, or warning) at these small sizes.
 
 set.seed(5)
@@ -40,23 +40,7 @@ pdf(NULL)
 expect_silent(plot(fit.bart2))
 dev.off()
 
-# grouped rbart_vi
-fit.rbart <- rbart_vi(
-  y.cont ~ x,
-  group.by = g,
-  n.samples = 8L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 10L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-pdf(NULL)
-expect_silent(plot(fit.rbart))
-dev.off()
-
-# plot.bart/plot.rbart set par(mfrow) to draw the sigma-trace and interval
+# plot.bart sets par(mfrow) to draw the sigma-trace and interval
 # panels side by side; the caller's par is restored afterward - assert
 # restoration against a sentinel value distinct from both the plot's own
 # layout and the device default
@@ -66,17 +50,10 @@ plot(fit.bart)
 restoredMfrow.bart <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow.bart, c(3L, 3L))
-
-pdf(NULL)
-par(mfrow = c(3L, 3L))
-plot(fit.rbart)
-restoredMfrow.rbart <- par("mfrow")
-dev.off()
-expect_equal(restoredMfrow.rbart, c(3L, 3L))
-rm(restoredMfrow.bart, restoredMfrow.rbart)
+rm(restoredMfrow.bart)
 
 # plotTree now dispatches at the fit level (previously reachable only through
-# $fit$plotTree). Kept bart, bart2, and rbart fits plot a single tree, the
+# $fit$plotTree). Kept bart and bart2 fits plot a single tree, the
 # sampler dispatches directly, and a fit without kept trees errors.
 pt.bart2 <- bart2(
   x,
@@ -89,46 +66,22 @@ pt.bart2 <- bart2(
   verbose = FALSE,
   keepTrees = TRUE
 )
-pt.rbart <- rbart_vi(
-  y.cont ~ x,
-  group.by = g,
-  n.samples = 8L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 10L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrees = TRUE
-)
 pdf(NULL)
 expect_silent(plotTree(fit.bart, treeNum = 1L))
 expect_silent(plotTree(fit.bart$fit, treeNum = 2L))
 expect_silent(plotTree(pt.bart2, treeNum = 1L, chainNum = 2L, sampleNum = 5L))
-expect_silent(plotTree(pt.rbart, treeNum = 1L))
 dev.off()
 
 expect_error(
   plotTree(fit.bart2, treeNum = 1L),
   pattern = "saved trees"
 )
-expect_error(
-  plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
-  pattern = "'chainNum' must be a single chain index"
-)
-# a fractional chainNum is refused, naming the argument, rather than
-# silently truncated (coerceOrError's integer branch)
-expect_error(
-  plotTree(pt.rbart, treeNum = 1L, chainNum = 1.5),
-  "'chainNum' must be a whole number; got '1.5'",
-  fixed = TRUE
-)
 
 # plotTree builds its call to the sampler's own plotTree via do.call(args =
 # list(treeNum = , ...)), so a caller writing the extract/fitted vocabulary's
 # 'sample'/'chain' - instead of this method's own 'sampleNum'/'chainNum' -
 # used to partial-match the wrong formal and silently draw a different tree;
-# both are now refused by name before dispatch, on both bart and rbart fits
+# both are now refused by name before dispatch
 expect_error(
   plotTree(pt.bart2, sample = 5L),
   "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
@@ -136,16 +89,6 @@ expect_error(
 )
 expect_error(
   plotTree(pt.bart2, chain = 2L),
-  "'chain' is not used by plotTree; the saved chain is 'chainNum'",
-  fixed = TRUE
-)
-expect_error(
-  plotTree(pt.rbart, sample = 5L),
-  "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
-  fixed = TRUE
-)
-expect_error(
-  plotTree(pt.rbart, chain = 1L),
   "'chain' is not used by plotTree; the saved chain is 'chainNum'",
   fixed = TRUE
 )
@@ -202,16 +145,6 @@ expect_equal(
     "kept draws (per chain): 20"
   )
 )
-expect_equal(
-  tail(capture.output(print(fit.rbart)), 5L),
-  c(
-    "family: gaussian",
-    "n.chains: 1",
-    "n.trees: 10",
-    "n.burn: 5",
-    "kept draws (per chain): 8"
-  )
-)
 # a fit with no kept trees keeps no control, so the two control-borne lines
 # drop out - and the family line is still the fit's own, not gaussian
 expect_equal(
@@ -252,26 +185,10 @@ expect_error(plot(fit.noTrainFits), pattern = "keepTrainingFits")
 expect_error(fitted(fit.noTrainFits), pattern = "keepTrainingFits")
 expect_error(residuals(fit.noTrainFits), pattern = "keepTrainingFits")
 
-fit.rbart.noTrainFits <- rbart_vi(
-  y.cont ~ x,
-  group.by = g,
-  n.samples = 8L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 10L,
-  n.threads = 1L,
-  verbose = FALSE,
-  keepTrainingFits = FALSE
-)
-expect_error(plot(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
-expect_error(fitted(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
-expect_error(residuals(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
-
-rm(fit.noTrainFits, fit.rbart.noTrainFits)
+rm(fit.noTrainFits)
 
 # residuals is always against the training response; a caller-supplied
-# 'sample' collided with the fixed sample = "train" residuals.bart/.rbart
+# 'sample' collided with the fixed sample = "train" residuals.bart
 # forward to fitted, raising a raw 'formal argument "sample" matched by
 # multiple actual arguments' - refused by name instead
 residualsSampleReason <- paste0(
@@ -283,14 +200,9 @@ expect_error(
   residualsSampleReason,
   fixed = TRUE
 )
-expect_error(
-  residuals(fit.rbart, sample = "train"),
-  residualsSampleReason,
-  fixed = TRUE
-)
 rm(residualsSampleReason)
 
-rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart)
+rm(fit.bart, fit.bart2, pt.bart2)
 
 
 # multi-chain fits carry a matrix-shaped 'sigma', so the trace panel draws one
@@ -309,39 +221,7 @@ pdf(NULL)
 expect_silent(plot(fit.chains))
 dev.off()
 
-fit.rbart.chains <- rbart_vi(
-  y.cont ~ x,
-  group.by = g,
-  n.samples = 20L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 2L,
-  n.trees = 10L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-pdf(NULL)
-expect_silent(plot(fit.rbart.chains))
-dev.off()
-
-# a binary grouped fit has no residual scale, so plot.rbart takes its
-# probability-interval branch instead of the E(Y | x) one
-fit.rbart.bin <- rbart_vi(
-  z.bin ~ x,
-  group.by = g,
-  n.samples = 20L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 10L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-pdf(NULL)
-expect_silent(plot(fit.rbart.bin))
-dev.off()
-
-rm(fit.chains, fit.rbart.chains, fit.rbart.bin)
+rm(fit.chains)
 
 
 # a namespace-qualified call stores the `dbarts::bart` call in call[[1L]],

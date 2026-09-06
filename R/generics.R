@@ -1,4 +1,4 @@
-# predict, extract, fitted, and residuals methods for bart, rbart, and the
+# predict, extract, fitted, and residuals methods for bart and the
 # multinomial, ordinal, nbinom, and hurdle fit objects
 
 extract <- function(object, ...) UseMethod("extract")
@@ -264,7 +264,7 @@ validatePredictThreads <- function(n.threads) {
 }
 
 # One offset spelling is live across every predict method - 'offset'. The
-# fit-time channels keep 'offset.test' (dbartsData, bart2, rbart_vi, and the
+# fit-time channels keep 'offset.test' (dbartsData, bart2, and the
 # sampler's own $predict), so a caller carrying that name here would otherwise
 # vanish into '...' with the offset silently dropped instead of applied.
 predictOffsetUnusedArgs <- list(
@@ -283,7 +283,7 @@ refuseWithoutTrees <- function(what, keepTrees = "keepTrees") {
   )
 }
 
-# bart spells it 'keeptrees', bart2 and rbart_vi 'keepTrees'. A fit kept with
+# bart spells it 'keeptrees', bart2 'keepTrees'. A fit kept with
 # keepCall = FALSE stores call("NULL") and names neither, so it takes bart's
 # spelling, which is the surface such a fit most likely came from.
 bartKeepTreesArgument <- function(object) {
@@ -2032,7 +2032,7 @@ foldTypeAliases <- function(type) {
 # Fold the response/link aliases, then validate the requested type against the
 # method's allowed set (its own 'type' formal, evaluated once at the call site
 # and passed in) and return the canonical scalar. Centralizes the fold +
-# %not_in% + stop shared by the bart/rbart predict/extract/fitted methods.
+# %not_in% + stop shared by the bart predict/extract/fitted methods.
 validateType <- function(type, allowed) {
   type <- foldTypeAliases(type)
   if (!is.character(type) || length(type) == 0L || type[1L] %not_in% allowed) {
@@ -2137,7 +2137,7 @@ refuseClassCiLevel <- function(type, ci.level) {
 }
 
 # Every own-class family has its own list of names its K-widened or two-part
-# shape has no room for; bart and rbart did not, so the two names a
+# shape has no room for; bart did not, so the two names a
 # fit-reduction never selects among had nowhere to be refused.
 bartUnusedArgs <- list(
   forest = paste0(
@@ -2149,23 +2149,18 @@ bartUnusedArgs <- list(
     "reduction here is over the combined location"
   )
 )
-rbartUnusedArgs <- list(
-  forest = singleForestReason,
-  contribution = singleForestReason
-)
 
 # The derived reason tables the surface's predict/extract/fitted/residuals
 # methods compose via foreignArgsFor above, one entry per name that is a
 # formal on some method of the generic and foreign on another. Composed
 # AFTER a method's own class list (multinomialUnusedArgs and siblings,
-# bartUnusedArgs, rbartUnusedArgs), so a class-specific reason for the same
+# bartUnusedArgs), so a class-specific reason for the same
 # name still wins - refuseUnusedGenericArgs reports the first hit in
 # 'reasons', and composition order is priority order.
 predictForeignReasons <- list(
   sample = "the fit's stored train and test channels are extract's 'sample'",
   weights = "this family's posterior-predictive draw takes no per-observation weight",
   bases = "only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
-  group.by = "'group.by' is the grouped (rbart_vi) fit's own predict argument",
   contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")",
   value = "predict's channel argument is named 'type'"
 )
@@ -2188,8 +2183,7 @@ extractForeignReasons <- list(
   offset = extractReplaysNothingReason,
   weights = extractReplaysNothingReason,
   n.threads = extractReplaysNothingReason,
-  bases = extractReplaysNothingReason,
-  group.by = "the stored channels already carry the fit's own grouping"
+  bases = extractReplaysNothingReason
 )
 
 fittedSummarizesNothingReason <- "fitted summarizes stored channels and replays nothing"
@@ -2200,8 +2194,7 @@ fittedForeignReasons <- list(
   offset = fittedSummarizesNothingReason,
   weights = fittedSummarizesNothingReason,
   n.threads = fittedSummarizesNothingReason,
-  bases = fittedSummarizesNothingReason,
-  group.by = "the stored channels already carry the fit's own grouping"
+  bases = fittedSummarizesNothingReason
 )
 
 residualsSummarizeNothingReason <- "residuals summarize stored channels and replay nothing"
@@ -2212,14 +2205,12 @@ residualsForeignReasons <- list(
   offset = residualsSummarizeNothingReason,
   weights = residualsSummarizeNothingReason,
   n.threads = residualsSummarizeNothingReason,
-  bases = residualsSummarizeNothingReason,
-  group.by = "the stored channels already carry the fit's own grouping"
+  bases = residualsSummarizeNothingReason
 )
 
 survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
 survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times' and 'newdata' alone"
 survivalProbabilitiesForeignReasons <- list(
-  group.by = "'group.by' is the grouped (rbart_vi) fit's own argument",
   type = survivalProbabilitiesDrawsReason,
   sample = survivalProbabilitiesDrawsReason,
   ci.level = survivalProbabilitiesDrawsReason,
@@ -2523,412 +2514,6 @@ print.bartHurdle <- function(x, ...) {
   invisible(x)
 }
 
-predict.rbart <- function(
-  object,
-  newdata,
-  type = c("ev", "ppd", "bart", "ranef"),
-  offset = NULL,
-  weights = NULL,
-  combineChains = TRUE,
-  ci.level = NULL,
-  n.threads = object$fit[[1L]]$control@n.threads,
-  ...,
-  group.by
-) {
-  if (is.null(object$fit)) {
-    refuseWithoutTrees("predict")
-  }
-  if (missing(group.by)) {
-    stop(
-      "'group.by' must be given by name: predict on an rbart fit needs the ",
-      "test rows' grouping factor, and it is no longer the third positional ",
-      "argument"
-    )
-  }
-  n.threads <- validatePredictThreads(n.threads)
-
-  type <- validateType(type, eval(formals(predict.rbart)$type))
-  refuseUnusedGenericArgs(
-    list(...),
-    "predict",
-    "rbart",
-    c(
-      predictOffsetUnusedArgs,
-      rbartUnusedArgs,
-      foreignArgsFor(predictForeignReasons, names(formals(predict.rbart)))
-    )
-  )
-  warnUnusedDots(list(...), "predict", "rbart")
-
-  n.chains <- if (is.null(object$n.chains)) {
-    length(object$fit)
-  } else {
-    object$n.chains
-  }
-  n.samples <- object$fit[[1L]]$control@n.samples
-
-  # coerce as rbart_vi does at fit time so numeric or character group.by carry
-  # levels; unlike fitting, unused factor levels are kept, so out-of-sample
-  # groups present only in the supplied factor still receive prior draws
-  group.by <- as.factor(group.by)
-
-  nonParametricPart <- 0
-  # collects results in an array of n.obs x n.samples x n.chains, default for
-  # internal sampler
-  #
-  # read n.obs off the sampler's prediction output (its first dimension),
-  # since we would otherwise have to build the test matrix ourselves
-  if (type != "ranef") {
-    if (n.chains > 1L) {
-      if (length(object$fit) == 1L) {
-        # the in-core Gibbs path keeps one multi-chain sampler, whose
-        # predictions already carry the chain dimension
-        nonParametricPart <- object$fit[[1L]]$predict(
-          newdata,
-          offset,
-          n.threads
-        )
-        n.obs <- dim(nonParametricPart)[1L]
-      } else {
-        n.obs <- NULL
-        nonParametricPart <- array(
-          sapply(seq_len(n.chains), function(i) {
-            res <- object$fit[[i]]$predict(newdata, offset, n.threads)
-            if (is.null(n.obs)) {
-              n.obs <<- dim(res)[1L]
-            }
-            res
-          }),
-          c(n.obs, n.samples, n.chains)
-        )
-      }
-    } else {
-      nonParametricPart <- object$fit[[1L]]$predict(newdata, offset, n.threads)
-      n.obs <- nrow(nonParametricPart)
-    }
-    if (n.obs != length(group.by)) {
-      stop("length of group.by not equal to number of rows in test")
-    }
-
-    nonParametricPart <- convertSamplesFromDbartsToBart(
-      nonParametricPart,
-      n.chains,
-      combineChains
-    )
-  }
-
-  if (type == "bart") {
-    if (!is.null(ci.level)) {
-      return(posteriorInterval(nonParametricPart, ci.level))
-    }
-    return(nonParametricPart)
-  }
-
-  ranef <- 0
-  if (type != "bart") {
-    ranefNames.test <- levels(group.by)
-    ranefNames.train <- if (length(dim(object$ranef)) > 2L) {
-      dimnames(object$ranef)[[3L]]
-    } else {
-      dimnames(object$ranef)[[2L]]
-    }
-
-    ranef <- object$ranef
-    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-
-    if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
-      # shared with rbart_vi's own fit-time version of this condition
-      # (packageRbartResults): the response family and call site differ, but
-      # the reported condition - a test group.by level absent from training -
-      # is the same one
-      warning(warningCondition(
-        paste0(
-          "test includes random effect levels not present in training (",
-          paste0(ranefNames.test[!measuredLevels], collapse = ", "),
-          "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance, and may not be the same across future calls to 'predict'"
-        ),
-        class = c("dbartsUnmeasuredLevelsWarning", "dbartsWarning")
-      ))
-      n.unmeasured <- sum(!measuredLevels)
-      if (n.chains > 1L) {
-        # object$tau may be stored combined (flat, chain-major) or split
-        # ((n.chains x) n.samples matrix, chain-fastest); normalize to the
-        # split matrix once, then flatten to whichever order this call's
-        # own (un)combined 'ranef' needs below
-        tauMat <- if (is.null(dim(object$tau))) {
-          uncombineChains(as.vector(object$tau), n.chains)
-        } else {
-          object$tau
-        }
-        if (!combineChains) {
-          unmeasuredRanef <- array(
-            rnorm(
-              n.chains * n.samples * n.unmeasured,
-              0,
-              rep.int(as.vector(tauMat), n.unmeasured)
-            ),
-            c(n.chains, n.samples, n.unmeasured),
-            dimnames = list(NULL, NULL, ranefNames.test[!measuredLevels])
-          )
-        } else {
-          unmeasuredRanef <- matrix(
-            rnorm(
-              n.chains * n.samples * n.unmeasured,
-              0,
-              rep.int(as.vector(t(tauMat)), n.unmeasured)
-            ),
-            n.chains * n.samples,
-            n.unmeasured,
-            dimnames = list(NULL, ranefNames.test[!measuredLevels])
-          )
-        }
-        # branch on ranef's current shape (already reshaped above to match
-        # this call's combineChains, which is what unmeasuredRanef was just
-        # built against) rather than object$ranef's stored shape - those two
-        # can disagree whenever the fit's own combineChains default differs
-        # from the one requested here
-        if (length(dim(ranef)) == 2L) {
-          ranef <- cbind(ranef, unmeasuredRanef)
-        } else {
-          # ranef are n.chains x n.samples x n.group
-          ranef <- array(
-            c(ranef, unmeasuredRanef),
-            c(n.chains, n.samples, dim(ranef)[3L] + n.unmeasured),
-
-            dimnames = list(
-              NULL,
-              NULL,
-              c(dimnames(ranef)[[3L]], dimnames(unmeasuredRanef)[[3L]])
-            )
-          )
-        }
-      } else {
-        unmeasuredRanef <- matrix(
-          rnorm(n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-          n.samples,
-          n.unmeasured,
-          dimnames = list(NULL, ranefNames.test[!measuredLevels])
-        )
-        ranef <- cbind(ranef, unmeasuredRanef)
-      }
-    }
-  }
-
-  if (type == "ranef") {
-    ranef <- if (length(dim(ranef)) > 2L) {
-      ranef[,, ranefNames.test, drop = FALSE]
-    } else {
-      ranef[, ranefNames.test, drop = FALSE]
-    }
-    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-    if (!is.null(ci.level)) {
-      return(posteriorInterval(ranef, ci.level))
-    }
-    return(ranef)
-  }
-
-  ranef <- unname(
-    if (length(dim(ranef)) > 2L) {
-      ranef[,, as.character(group.by), drop = FALSE]
-    } else {
-      ranef[, as.character(group.by), drop = FALSE]
-    }
-  )
-  ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-
-  if (
-    length(dim(nonParametricPart)) != length(dim(ranef)) ||
-      any(dim(nonParametricPart) != dim(ranef))
-  ) {
-    stop(
-      "internal error: fixed and random effect predictions have ",
-      "mismatched dimensions"
-    )
-  }
-  result <- nonParametricPart + ranef
-
-  responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) {
-    result <- probabilityFromLatents(result, object)
-  }
-
-  if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights, n.chains)
-  }
-
-  if (!is.null(ci.level)) {
-    return(posteriorInterval(result, ci.level))
-  }
-
-  if (exists("unmeasuredRanef", inherits = FALSE)) {
-    attr(result, "ranef") <- unmeasuredRanef
-  }
-
-  result
-}
-
-extract.rbart <- function(
-  object,
-  type = c("ev", "ppd", "bart", "loglik", "ranef", "trees"),
-  sample = c("train", "test"),
-  combineChains = TRUE,
-  ...
-) {
-  type <- validateType(type, eval(formals(extract.rbart)$type))
-
-  n.chains <- if (is.null(object$n.chains)) {
-    length(object$fit)
-  } else {
-    object$n.chains
-  }
-
-  if (type == "trees") {
-    if (is.null(object$fit)) {
-      refuseWithoutTrees("extract(type = \"trees\")")
-    }
-    treesCall <- match.call()
-    refuseTreesArguments(treesCall, c("sample", "combineChains"))
-    # the in-core Gibbs path keeps one multi-chain sampler: route chain
-    # selection through its chainNums argument instead of the fit list
-    singleFit <- length(object$fit) == 1L && n.chains > 1L
-    target <- quote(object$fit[[i]]$getTrees)
-    target[[2L]][[2L]][[2L]] <- treesCall$object
-    if (singleFit) {
-      target[[2L]][[3L]] <- 1L
-    }
-    treesCall[[1L]] <- target
-    treesCall$object <- NULL
-    treesCall$type <- NULL
-    treesCall$chainNums <- if (singleFit) quote(i) else NULL
-    evalEnv <- parent.frame()
-    dotsList <- list(...)
-    chainNums <- if ("chainNums" %in% names(dotsList)) {
-      dotsList[["chainNums"]]
-    } else {
-      seq_len(n.chains)
-    }
-    chainNums <- coerceOrError(chainNums, "integer")
-    varOrder <- c("chain", "sample", "tree", "n", "var", "value")
-    allTrees <- lapply(chainNums, function(i) {
-      result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)
-      if (n.chains > 1L) {
-        result_i$chain <- i
-      }
-      # varOrder's "chain" is absent for single-chain fits (getTrees omits
-      # it); reorder only the columns that exist and keep any others
-      # (directions/missing/beta.*) trailing in their original order
-      knownOrder <- varOrder[varOrder %in% colnames(result_i)]
-      result_i[, c(knownOrder, setdiff(colnames(result_i), knownOrder))]
-    })
-    if (length(allTrees) > 1L) {
-      allTrees <- Reduce(rbind, allTrees)
-    } else {
-      allTrees <- allTrees[[1L]]
-    }
-    row.names(allTrees) <- as.character(seq_len(nrow(allTrees)))
-    return(allTrees)
-  }
-
-  # below the type == "trees" branch and its own refuseTreesArguments, so
-  # extract(type = "trees", newdata = ) keeps forwarding to getTrees instead
-  # of being refused here for a name that arm alone accepts
-  refuseUnusedGenericArgs(
-    list(...),
-    "extract",
-    "rbart",
-    c(
-      rbartUnusedArgs,
-      foreignArgsFor(extractForeignReasons, names(formals(extract.rbart)))
-    )
-  )
-
-  sample <- validateSample(sample, eval(formals(extract.rbart)$sample))
-
-  # the log-likelihood is against the stored training response; there is no
-  # test response to evaluate
-  if (type == "loglik" && sample == "test") {
-    stop("cannot extract a test sample log-likelihood; no test response exists")
-  }
-
-  if (sample == "test" && is.null(object[["yhat.test"]])) {
-    stop(
-      "cannot extract test sample predictions if no test data exists; use 'predict' instead"
-    )
-  }
-
-  if (type == "ranef") {
-    ranefNames <- if (sample == "train") {
-      levels(object$group.by)
-    } else {
-      levels(object$group.by.test)
-    }
-    ranef <- if (length(dim(object$ranef)) > 2L) {
-      object$ranef[,, ranefNames, drop = FALSE]
-    } else {
-      object$ranef[, ranefNames, drop = FALSE]
-    }
-    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-
-    return(ranef)
-  }
-
-  if (sample == "train" && is.null(object[["yhat.train"]])) {
-    stop(
-      "cannot extract train sample predictions; rbart_vi must be called with 'keepTrainingFits' == TRUE"
-    )
-  }
-
-  # the "ev" draws are the fit's per-draw location (BART component plus the
-  # drawn group intercepts), so the log-likelihood conditions on both
-  if (type == "loglik") {
-    ev <- extract.rbart(
-      object,
-      type = "ev",
-      sample = "train",
-      combineChains = FALSE
-    )
-    result <- pointwiseLogLikelihood(object, ev)
-    return(combineOrUncombineChains(result, n.chains, combineChains))
-  }
-
-  result <- if (sample == "train") object$yhat.train else object$yhat.test
-  weights <- if (sample == "train") object$weights else object$weights.test
-  # if necessary, recover chain information or throw it away
-  result <- combineOrUncombineChains(result, n.chains, combineChains)
-
-  if (type == "bart") {
-    return(result)
-  }
-
-  ranefNames <- if (sample == "train") {
-    as.character(object$group.by)
-  } else {
-    as.character(object$group.by.test)
-  }
-  ranef <- unname(
-    if (length(dim(object$ranef)) > 2L) {
-      object$ranef[,, ranefNames, drop = FALSE]
-    } else {
-      object$ranef[, ranefNames, drop = FALSE]
-    }
-  )
-
-  ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-
-  result <- result + ranef
-
-  responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) {
-    result <- probabilityFromLatents(result, object)
-  }
-
-  if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights, n.chains)
-  }
-
-  result
-}
-
 # this method's '...' forwards nowhere and nothing delegates through it, so a
 # caller-supplied argument of any kind - named or positional - is refused
 # rather than the generic's own "on a <class> fit" wording, which reads wrong
@@ -2963,90 +2548,8 @@ extract.dbartsSampler <- function(object, type = "predictors", ...) {
   if (inherits(x, "dbartsMixedMatrix")) as.matrix(x) else x
 }
 
-fitted.rbart <- function(
-  object,
-  type = c("ev", "ppd", "bart", "ranef"),
-  ci.level = NULL,
-  sample = c("train", "test"),
-  ...
-) {
-  type <- validateType(type, eval(formals(fitted.rbart)$type))
-  sample <- validateSample(sample, eval(formals(fitted.rbart)$sample))
-  refuseUnusedGenericArgs(
-    list(...),
-    "fitted",
-    "rbart",
-    c(
-      rbartUnusedArgs,
-      foreignArgsFor(fittedForeignReasons, names(formals(fitted.rbart)))
-    )
-  )
-
-  if (sample == "train" && type != "ranef" && is.null(object[["yhat.train"]])) {
-    stop(
-      "cannot extract train sample predictions; rbart_vi must be called with 'keepTrainingFits' == TRUE"
-    )
-  }
-
-  # ci.level routes through the draws (extract) rather than the mean-only C
-  # fast path below, then summarizes to est + credible band (kind follows type)
-  if (!is.null(ci.level)) {
-    return(posteriorInterval(extract(object, type, sample), ci.level))
-  }
-
-  if (type == "ev") {
-    ranefNames <- dimnames(object$ranef)
-    ranefNames <- ranefNames[[length(ranefNames)]]
-    groupByName <- if (sample == "train") "group.by" else "group.by.test"
-    groupByMatch <- match(object[[groupByName]], ranefNames)
-    # C_rbart_fitted indexes the group dimension of 'ranef' by this vector
-    # directly, so a label with no column - a fit whose 'ranef' dimnames were
-    # stripped or do not cover every group - has to be refused here
-    if (anyNA(groupByMatch)) {
-      stop(
-        "'",
-        groupByName,
-        "' must name groups present in the 'ranef' dimnames"
-      )
-    }
-    result <- .Call(
-      C_rbart_fitted,
-      if (sample == "train") object$yhat.train else object$yhat.test,
-      object$ranef,
-      groupByMatch,
-      is.null(object[["sigma"]])
-    )
-  } else {
-    result <- extract(object, type, sample)
-
-    result <- if (!is.null(dim(result))) {
-      apply(result, length(dim(result)), mean)
-    } else {
-      mean(result)
-    }
-  }
-
-  result
-}
-
-residuals.rbart <- function(object, type = "ev", ...) {
-  # as residuals.bart: type reaches fitted for link-scale residuals, sample
-  # is pinned to the training response
-  refuseResidualsSample(list(...))
-  refuseUnusedGenericArgs(
-    list(...),
-    "residuals",
-    "rbart",
-    c(
-      rbartUnusedArgs,
-      foreignArgsFor(residualsForeignReasons, names(formals(residuals.rbart)))
-    )
-  )
-  object$y - fitted.rbart(object, type = type, sample = "train")
-}
-
-# fit-level dispatch for the sampler's plotTree method, so a kept bart or
-# rbart fit can be plotted directly instead of reaching into $fit; chainNum
+# fit-level dispatch for the sampler's plotTree method, so a kept bart fit
+# can be plotted directly instead of reaching into $fit; chainNum
 # and sampleNum forward only when supplied, since the method detects them by
 # their absence
 plotTree.dbartsSampler <- function(object, ...) {
@@ -3091,53 +2594,13 @@ plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
   invisible(do.call(object$fit$plotTree, args))
 }
 
-plotTree.rbart <- function(
-  object,
-  treeNum = 1L,
-  chainNum = 1L,
-  sampleNum,
-  ...
-) {
-  refusePlotTreeArgs(sys.call())
-  if (is.null(object[["fit"]])) {
-    refuseWithoutTrees("plotTree")
-  }
-  n.chains <- if (is.null(object$n.chains)) {
-    length(object$fit)
-  } else {
-    object$n.chains
-  }
-  chainNum <- coerceOrError(chainNum, "integer")
-  if (
-    length(chainNum) != 1L ||
-      is.na(chainNum) ||
-      chainNum < 1L ||
-      chainNum > n.chains
-  ) {
-    stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")
-  }
-  # the in-core Gibbs path keeps one multi-chain sampler (select the chain
-  # through its own chainNum); the R-loop path keeps one sampler per chain
-  singleFit <- length(object$fit) == 1L && n.chains > 1L
-  sampler <- if (singleFit) object$fit[[1L]] else object$fit[[chainNum]]
-  args <- list(
-    treeNum = treeNum,
-    chainNum = if (singleFit) chainNum else 1L,
-    ...
-  )
-  if (!missing(sampleNum)) {
-    args$sampleNum <- sampleNum
-  }
-  invisible(do.call(sampler$plotTree, args))
-}
-
-# plotTree.bart/.rbart read the trees off object$fit; a K-widened or two-part
+# plotTree.bart reads the trees off object$fit; a K-widened or two-part
 # own-class fit has no single sampler that reads that way (bartHurdle has
 # two), so each refuses by name instead of falling through to "no applicable
 # method", pointing at the sampler(s) that do carry the trees.
 refusePlotTreeMethod <- function(class, hint) {
   stop(
-    "plotTree is defined for bart, rbart_vi and dbartsSampler fits; a ",
+    "plotTree is defined for bart and dbartsSampler fits; a ",
     class,
     " fit's trees live on its sampler - call ",
     hint
@@ -3159,7 +2622,7 @@ plotTree.bartHurdle <- function(object, ...) {
   )
 }
 
-# survivalProbabilities.bart/.rbart dispatch on an aft or discrete-time hazard
+# survivalProbabilities.bart dispatches on an aft or discrete-time hazard
 # fit; none of the four own-class families is either, so each refuses by name
 # instead of falling through to "no applicable method".
 refuseSurvivalProbabilitiesMethod <- function(class) {
@@ -3342,35 +2805,17 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
   result
 }
 
-# family/chain-count/tree-count/burn-in/kept-draws synopsis for print.bart
-# and print.rbart, built only from fields that exist regardless of
-# keepCall, keepSampler, and (for rbart) whether one sampler is kept per
-# chain or a single in-core Gibbs sampler handles them all - so a fit
-# created with keepCall = FALSE still prints something useful. n.trees and
+# family/chain-count/tree-count/burn-in/kept-draws synopsis for print.bart,
+# built only from fields that exist regardless of keepCall and keepSampler -
+# so a fit created with keepCall = FALSE still prints something useful. n.trees and
 # n.burn are only recoverable when the sampler itself was kept (keepTrees/
 # keepSampler = TRUE); they are omitted otherwise, since the fit object
 # does not retain them on its own.
 fitSynopsis <- function(x) {
   fit <- x[["fit"]]
-  fitIsList <- !is.null(fit) && is.list(fit)
 
-  n.chains <- if (fitIsList) {
-    # rbart: object$n.chains, when present, is authoritative even when the
-    # kept sampler list has only one element - the in-core Gibbs path keeps
-    # one multi-chain sampler and stores n.chains alongside it (matches the
-    # n.chains idiom in predict.rbart/extract.rbart/plotTree.rbart)
-    if (is.null(x[["n.chains"]])) length(fit) else x$n.chains
-  } else if (!is.null(fit)) {
-    fit$control@n.chains
-  } else {
-    x$n.chains
-  }
-
-  control <- if (!is.null(fit)) {
-    if (fitIsList) fit[[1L]]$control else fit$control
-  } else {
-    NULL
-  }
+  n.chains <- if (!is.null(fit)) fit$control@n.chains else x$n.chains
+  control <- if (!is.null(fit)) fit$control else NULL
 
   varcountDims <- dim(x[["varcount"]])
   # a multi-forest fit's varcount carries a trailing forest margin (the
@@ -3410,12 +2855,6 @@ fitSynopsis <- function(x) {
 }
 
 print.bart <- function(x, ...) {
-  printCall(x)
-  fitSynopsis(x)
-  invisible(x)
-}
-
-print.rbart <- function(x, ...) {
   printCall(x)
   fitSynopsis(x)
   invisible(x)

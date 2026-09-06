@@ -112,46 +112,6 @@ expect_true(any(lci[, "ci.lower"] < 0) || any(lci[, "ci.upper"] > 1))
 rm(fit, pci, lci, X, Z)
 rm(testData)
 
-
-source(
-  system.file("common", "friedmanData.R", package = "dbarts"),
-  local = TRUE
-)
-
-g <- rep_len(seq_len(5L), length(testData$y))
-rfit <- rbart_vi(
-  testData$y ~ testData$x,
-  group.by = g,
-  n.samples = 40L,
-  n.burn = 20L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 20L,
-  n.threads = 1L,
-  keepTrees = TRUE,
-  verbose = FALSE
-)
-
-# rbart fitted/predict carry ci.level; est matches the mean-only fitted
-rci <- fitted(rfit, ci.level = 0.9)
-expect_equal(colnames(rci), c("est", "ci.lower", "ci.upper"))
-expect_equal(unname(rci[, "est"]), unname(fitted(rfit)), tolerance = 1.0e-6)
-expect_true(is.matrix(predict(
-  rfit,
-  testData$x[1:4, ],
-  group.by = g[1:4],
-  ci.level = 0.9
-)))
-
-# as above: fitted.rbart's positional slot 3 is now ci.level too
-expect_identical(
-  fitted(rfit, "ev", 0.9),
-  fitted(rfit, type = "ev", ci.level = 0.9)
-)
-
-rm(rfit, rci, g)
-rm(testData)
-
 # the remaining three classes' fitted() already had ci.level third before
 # this slice, so the identity below asserts nothing this slice could break -
 # a plain regression guard, kept for symmetry with the three above

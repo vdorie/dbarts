@@ -1196,10 +1196,10 @@ refusal misreported K on the public route) -> fixes -> reviewer LAND
 (all cures re-measured; empirical entry sweep: every exported
 single-location packager refuses a counts-carrying dbartsData -
 bart/bart2/xbart by the new gate, its mutation proof failing exactly
-the 5 pins, rbart_vi by the groups gate now pinned, pdbart by its
-type check). The lesson the pin carries: family = "auto" resolution
-makes a new family reachable from EVERY dbartsData-accepting entry,
-not just the ones the slice built.
+the 5 pins, pdbart by its type check, and - at the time, before its
+retirement - rbart_vi by its groups gate). The lesson the pin carries:
+family = "auto" resolution makes a new family reachable from EVERY
+dbartsData-accepting entry, not just the ones the slice built.
 
 Gating on the final tree (landed as 5a3bc276 after a
 patch-id-identical rebase onto the docs-only records tip): two

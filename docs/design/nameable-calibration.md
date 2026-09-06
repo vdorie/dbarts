@@ -41,8 +41,8 @@ and is not addressable - a door, not coverage).
 Creation, `docs/design/prior-defaults.md` for the defaults it overrides: a
 `prior.scale` slot on `dbartsModel`, spelled `node.prior = normal(scale =)` -
 also `linear(scale =)` and `gp(scale =)`, and `sd =` for the same quantity at
-the resolved `k` - and a `prior.scale` formal of `bart`, `bart2` and
-`rbart_vi`. Unset it is `NA` and nothing changes.
+the resolved `k` - and a `prior.scale` formal of `bart` and `bart2`. Unset it
+is `NA` and nothing changes.
 
 Mid-chain, over every chain:
 
@@ -69,7 +69,6 @@ branch.
 | gaussian | response | `range_` | `range_*0.5 + min_` |
 | aft | log survival time, anchored on the OBSERVED log times at creation and never re-anchored as censored latents are imputed | `range_(log T)` | `range_*0.5 + min_` |
 | Student-t | response (delegates) | `range_` | as gaussian |
-| grouped | response (delegates); the tau prior is a separate object | `range_` | as base |
 | probit, weighted binary | probit latent | 1 | 0 |
 | ordinal | probit latent, relative to the pinned first cutpoint | 1 | 0 |
 | logistic | logistic latent (log-odds) | 1 | 0 |

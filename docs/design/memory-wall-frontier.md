@@ -54,11 +54,11 @@ attacks it - convert the random gather into a streaming reduce, fewer elements,
 or sublinear-in-n work.
 
 Exactness note, used throughout: any change that regroups the suffstat sum is
-the "shifting" RNG class - ungrouped fits stay bitwise, grouped/all draws shift
-once, a one-time equivalence + snapshot re-record (VD has accepted this class
-before). A SCALAR fixed-order regroup preserves the within-host cross-ISA
-bitwise contract (no SIMD-lane reassociation); a precision change or a
-SIMD-lane reduce does not.
+the "shifting" RNG class - unaffected fits stay bitwise, affected fits' draws
+shift once, a one-time equivalence + snapshot re-record (VD has accepted this
+class before). A SCALAR fixed-order regroup preserves the within-host
+cross-ISA bitwise contract (no SIMD-lane reassociation); a precision change or
+a SIMD-lane reduce does not.
 
 ## 2. Killing the gather: candidate designs
 
@@ -576,10 +576,11 @@ the ~5% arm64 no-signal loss; the pre-registered arm re-run stands.
 The roll expressions are bitwise identical to rollTreeResidual,
 enforced by a Chain test hook that runs fused and stock per tree over
 the same entering residual, so the suffstat summation association is
-the only draw change anywhere. Probit, ordinal, AFT/survival, and
-grouped random effects ride the fused path (null workingWeights);
-BCF, multinomial, logistic, negbin, t, and the heteroscedastic mean
-forest decline through their always-on weights.
+the only draw change anywhere. Probit, ordinal, and AFT/survival ride
+the fused path (null workingWeights), as did grouped random effects
+before their retirement; BCF, multinomial, logistic, negbin, t, and
+the heteroscedastic mean forest decline through their always-on
+weights.
 
 Gates at landing, run independently of the implementer: tests/cpp
 plain and ASAN/UBSAN clean from make clean; tinytest 3659/0;

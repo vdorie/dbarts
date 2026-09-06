@@ -410,21 +410,6 @@ expect_error(
   bart(countsData, ndpost = 4L, nskip = 2L, ntree = 10L, verbose = FALSE),
   "does not support a data object carrying an n x K count matrix"
 )
-# rbart_vi needs no gate of its own: grouped random effects and the softmax's
-# own augmentation are not shown to interleave, so spec resolution refuses the
-# composition by name before any packaging sees a K-location fit
-expect_error(
-  rbart_vi(
-    countsData,
-    group.by = rep_len(1L:3L, n),
-    n.samples = 20L,
-    n.burn = 10L,
-    n.chains = 1L,
-    n.trees = 10L,
-    verbose = FALSE
-  ),
-  "grouped random effects"
-)
 # an ordinary data object is untouched by the gate
 expect_silent(invisible(bart2(
   x,

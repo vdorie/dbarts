@@ -137,12 +137,12 @@ killer elsewhere, or an equivalent mutant worth a decision.
    not fit a 3-level factor")`.  agent-fix
 5. MAJOR  [[R/bartcore.R:407-414@b102e17c]]  `setResponse(updateScale = TRUE)`'s refusal under an
    amplitude-carrying or grouped sampler can be deleted with all 51 green (wide).
-   [[test-grouped-swap.R:64-74@b102e17c]] is written to hold exactly this ("updateScale = TRUE is refused
+   [[inst/tinytest/test-grouped-swap.R:64-74@b102e17c]] is written to hold exactly this ("updateScale = TRUE is refused
    on both response-side conduits, and the refusal names the two quantities it is
    protecting", three expect_error calls with pattern "tau") - and they still pass, because
    the C bridge refuses independently with a message that also contains "tau". The R-layer
    guard, which is the one that names the calibration anchor, is unheld.
-   SHOULD EXIST [[test-grouped-swap.R:67@b102e17c]]: pin the R text that distinguishes the two,
+   SHOULD EXIST [[inst/tinytest/test-grouped-swap.R:67@b102e17c]]: pin the R text that distinguishes the two,
    `pattern = "leaf calibration stated against the anchor"`.  agent-fix
 6. MAJOR  test-generics-sequentialExecution.R (2 assertions, the leg's only GAP)  making
    `$sampleTreesFromPrior()` a complete no-op (se1: drop the `.Call`) leaves both assertions

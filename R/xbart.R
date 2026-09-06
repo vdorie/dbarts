@@ -99,7 +99,7 @@ xbart <- function(
     control@call <- matchedCall
   }
 
-  # named ahead of the data build, matching bart2()/dbarts()/rbart_vi(), so
+  # named ahead of the data build, matching bart2()/dbarts(), so
   # a bad family is refused before the response is ingested rather than after
   family <- match.arg(family)
 

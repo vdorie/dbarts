@@ -44,7 +44,7 @@ Method: (1) read the three door records and the surrounding engine code to
 establish what the mutation surface already serves, because a door's value is
 only its delta over that; (2) enumerate candidate classes from the causal/BART
 literature, from the ecosystem dbarts already serves (stan4bart, bairrtt,
-bartCause, treatSens, rbart_vi), and from the repo's own design docs, several of
+bartCause, treatSens), and from the repo's own design docs, several of
 which had already argued the model-space question without being read as survey
 input; (3) per class, ask what update shape it needs, whether dbarts expresses it
 today and how awkwardly, and its value under an R-user-need lens; (4) map the
@@ -651,24 +651,21 @@ lifts; the critique cut that to **~8 effective**, and this record follows the
 critique. The proposed entry edits are in
 an untracked todo-draft memo.
 
-**Lifted (8 rows, 6 entries), each naming the model that lifts it:**
+**Lifted (7 rows, 5 entries), each naming the model that lifts it:**
 `gp-followups` (GP-leaf BART as a sequential-design surrogate, where a fixed
-lengthscale asks the user to know what they are estimating); `group-by-exposure`
-(clustered/multi-site causal survival - riAFTBART does this on CRAN today
-[verified: https://cran.r-project.org/web/packages/riAFTBART/index.html]);
+lengthscale asks the user to know what they are estimating);
 `interaction-constraints`' formal-heredity half (functional-ANOVA BART
 [verified: https://arxiv.org/abs/2509.03317]); `multiforest-mutation-gaps` door 2
 (mixture-cure BCF - value only, shape unresolved); `multiforest-mutation-gaps`'
-n x K multinomial offset (subsumed into D2); `sparse-extensions`' rbart_vi /
-linear-leaf-on-sparse half (grouped random effects on high-dimensional sparse
+n x K multinomial offset (subsumed into D2); `sparse-extensions`'
+linear-leaf-on-sparse half (a linear leaf over high-dimensional sparse
 designs); `survival-followups` competing risks (which moves with D2) and left
 truncation (registry/EHR staggered entry, which survival.md already calls the
 cheapest door).
 
 **Gates that stand (with their reason, not a shrug):** `bcf-sigma-tail-mixing`
 (a considered narrowness finding plus no principled remedy);
-`forest-ranef-interweaving` (measured NO-GO with a benchmark gate and a reopen
-clause); `interaction-constraints`' soft path-dependent penalties (a knob on an
+`interaction-constraints`' soft path-dependent penalties (a knob on an
 existing constraint, not a model); `multiforest-mutation-gaps` door 1 and
 `typed-ingestion` door 3 (both now gated on a *considered failure to find an
 enabled model*, which is the licensed form, rather than on absent demand);

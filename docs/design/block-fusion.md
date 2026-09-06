@@ -448,7 +448,7 @@ forest. Generalization order, template = the U'WU cache:
 - PROBIT / LOGISTIC latents: the latent refresh (refreshLatents) rewrites y (and
   weights) once per sweep, OUTSIDE the blocks. The block just rebuilds g at entry
   from the current working response -- no special handling; v1 covers binary BART.
-- GROUPED RANDOM EFFECTS / BCF: each forest sub-sweeps its own residual
+- BCF: each forest sub-sweeps its own residual
   (formForestResponse, [[src/bartcore/chain.hpp#Chain::run]]); blocks are per-forest, g uses the
   forest's response net of the other forest's scaled contribution. The glue/ridge
   interweave ([[src/bartcore/chain.hpp#Chain::interweaveGlueRidgeForTesting]]) runs once per sweep outside blocks. Compatible;
@@ -570,7 +570,7 @@ within-chain threading composition (section 6), GPU seam.
    n >= 1e5. VD's call on whether b is a fixed default or n-adaptive (n-adaptive
    complicates the equivalence anchor -- see Q4).
 2. SCOPE of response families in v1. Recommendation: constant-leaf Gaussian only
-   (covers stock BART, binary via latents, weights, BCF/grouped-RE forests);
+   (covers stock BART, binary via latents, weights, BCF forests);
    defer linear/GP (their U'WU cache already gives per-leaf reuse). Confirm v1 is
    constant-leaf only.
 3. RE-RECORD timing. Stage A is bit-identical (no re-record); stage B carries the
@@ -607,7 +607,7 @@ WHAT SHIPPED
   function-param GP leaves - they keep the legacy writer), and the atom path is
   wired only in run()'s steady-state loop, never the grow-from-root warm start
   (which calls setNodeAverages directly). Categorical / sparse / MIA / weighted /
-  probit-logistic latents / BCF-grouped are covered (the aggregation just calls
+  probit-logistic latents are covered (the aggregation just calls
   the same kernel over the same members; g rebuilds from the working response
   each sweep; the A cache drops on any working-weight change).
 - DESIGN A (section 2.4, 4.4) is the resolved implementer decision: `members`

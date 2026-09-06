@@ -180,23 +180,6 @@ expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
 expect_equal(cell$fits + offBcf, cell$train)
 
-# --- grouped random intercepts (rbart_vi's internal control attribute)
-
-groupedControl <- samplerControlFitsWithoutOffset()
-attr(groupedControl, "bartcore.groups") <- list(
-  indices = rep(seq_len(4L), length.out = n),
-  n.groups = 4L,
-  prior = "cauchy",
-  rel.scale = sd(yGauss),
-  n.steps = 1L
-)
-cell <- fitIdentity(
-  dbarts(x, yGauss, offset = offGauss, control = groupedControl)
-)
-expect_true(!is.null(cell$fits))
-expect_equal(dim(cell$fits), cell$shape)
-expect_equal(cell$fits + offGauss, cell$train)
-
 # --- heteroscedastic: the variance forest is a second reporting surface and
 # must not leak into the location channel
 

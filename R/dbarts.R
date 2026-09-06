@@ -533,8 +533,8 @@ dbarts <- function(
     # the survival response is consumed; do not let the aft block fire on it
     responseIsSurv <- FALSE
   }
-  # aft is reachable through the direct-response form, or through the internal
-  # rbart channel, which pre-sets the status on control@bartcore.survival and
+  # aft is reachable through the direct-response form, or through an internal
+  # channel that pre-sets the status on control@bartcore.survival and
   # passes a ready dbartsData; every other indirect route (the public formula
   # interface) is refused up front, before the response is materialized,
   # rather than failing hostilely downstream
@@ -1170,7 +1170,7 @@ dbartsSampler <- setRefClass(
 
       newControl@binary <- control@binary
       newControl@call <- control@call
-      # bartcore.* attributes (the BCF, variance, grouped, survival and
+      # bartcore.* attributes (the BCF, variance, survival and
       # ordinal/nbinom configuration resolveSamplerSpec attaches at creation)
       # live outside the S4 slots newControl replaces
       # wholesale; a freshly built dbartsControl() never carries them, so

@@ -475,8 +475,8 @@ into an older reader, and only an encoding below
 `minReadableStateFormatVersion` is refused. Preserve that when you add a
 block - name it, default it, do not reorder. Predictors are not serialized
 in state; `getPointer()` re-creation rebuilds the store from the stored
-data object (the grouped/CSC precedent), which is why CSC samplers
-save/load without resident raw.
+data object (the CSC precedent), which is why CSC samplers save/load
+without resident raw.
 
 ## Where deeper detail lives
 

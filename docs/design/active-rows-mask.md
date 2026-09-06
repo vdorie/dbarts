@@ -152,9 +152,7 @@ up from the precision the sweep hands its per-forest response, which scales it
 by the squared forest multiplier
 ([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::formForestResponse]]).
 The heteroscedastic mean weights divide that same composed precision by the
-variance surface ([[src/bartcore/chain.hpp#formMeanWeights]]). A grouped
-random-intercept response delegates to its base family
-([[src/bartcore/model.hpp#GroupedResponse::setActiveRows]]).
+variance surface ([[src/bartcore/chain.hpp#formMeanWeights]]).
 
 ## Reporting, and what the mask is not
 
@@ -214,7 +212,7 @@ grown into the rows the mask removes
 responses at the inactive rows leaving every active row's recorded draw bitwise
 ([[inst/tinytest/test-active-rows-pins.R#"logistic, nbinom and aft"]],
 [[inst/tinytest/test-active-rows-pins.R#"multinomial, GLOBAL only"]]); the
-gaussian, Student-t, BCF, heteroscedastic and grouped arms bitwise against
+gaussian, Student-t, BCF and heteroscedastic arms bitwise against
 `setWeights(w * a)` ([[inst/tinytest/test-active-rows-pins.R#"heteroSampler"]]);
 and the flat C pins for the all-ones no-op, the NULL clear and the fractional
 refusal ([[inst/tinytest/test-capi.R#"capi_set_active_rows"]]).

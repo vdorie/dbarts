@@ -1,7 +1,6 @@
 \name{plotTree}
 \alias{plotTree}
 \alias{plotTree.bart}
-\alias{plotTree.rbart}
 \alias{plotTree.dbartsSampler}
 \alias{plotTree.bartMultinomial}
 \alias{plotTree.bartOrdinal}
@@ -10,8 +9,8 @@
 \title{Plot a Single Tree From a Fitted BART Model}
 \description{
   Minimalist visualization of the branching and leaf contents of one tree
-  in a fitted \code{\link{bart}}/\code{\link{bart2}} or
-  \code{\link{rbart_vi}} model, or in a \code{\linkS4class{dbartsSampler}}.
+  in a fitted \code{\link{bart}}/\code{\link{bart2}} model, or in a
+  \code{\linkS4class{dbartsSampler}}.
   A fit-level convenience wrapper around the sampler's \code{plotTree}
   method, so the trees can be plotted without reaching into the sampler
   stored on the fit.
@@ -28,8 +27,6 @@ plotTree(object, \dots)
 
 \method{plotTree}{bart}(object, treeNum = 1L, chainNum, sampleNum, \dots)
 
-\method{plotTree}{rbart}(object, treeNum = 1L, chainNum = 1L, sampleNum, \dots)
-
 \method{plotTree}{dbartsSampler}(object, \dots)
 
 \method{plotTree}{bartMultinomial}(object, \dots)
@@ -43,7 +40,7 @@ plotTree(object, \dots)
 \arguments{
   \item{object}{
     A fitted model of class \code{bart} (from \code{\link{bart}} or
-    \code{\link{bart2}}) or \code{rbart} (from \code{\link{rbart_vi}}), or a
+    \code{\link{bart2}}), or a
     \code{\linkS4class{dbartsSampler}}. Fits must have been made with the
     trees kept (\code{keeptrees}/\code{keepTrees} equal to \code{TRUE}).
   }
@@ -52,8 +49,7 @@ plotTree(object, \dots)
   }
   \item{chainNum}{
     An integer, the index of the chain to plot from. For a \code{bart} fit
-    with a single chain it may be omitted; for \code{rbart} it selects the
-    chain and defaults to the first.
+    with a single chain it may be omitted.
   }
   \item{sampleNum}{
     An integer, the index of the saved sample to plot from. When omitted,
@@ -80,7 +76,7 @@ plotTree(object, \dots)
   \code{object$fit$plotTree(\dots)} for a \code{bart} fit.
 }
 \seealso{
-  \code{\link{bart}}, \code{\link{rbart_vi}}, \code{\linkS4class{dbartsSampler}}
+  \code{\link{bart}}, \code{\linkS4class{dbartsSampler}}
 }
 \examples{
 f <- function(x)

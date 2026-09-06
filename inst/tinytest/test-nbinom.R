@@ -219,17 +219,7 @@ expect_error(
 samplerW1 <- dbarts(x, y, family = "nbinom", weights = rep(1, n))
 expect_null(samplerW1$data@weights)
 
-# rbart_vi and xbart refuse the count family (family-vector omission)
-expect_error(
-  rbart_vi(
-    y ~ x,
-    group.by = rep(1:4, each = 50L),
-    family = "nbinom",
-    n.samples = 10L,
-    n.burn = 5L
-  ),
-  "'arg' should be one of"
-)
+# xbart refuses the count family (family-vector omission)
 expect_error(
   xbart(x, y, family = "nbinom", n.samples = 10L, n.reps = 1L),
   "'arg' should be one of"
@@ -476,7 +466,7 @@ expect_error(
   fixed = TRUE
 )
 
-# --- own-class extract's 'sample' validation shares bart/rbart's wording ---
+# --- own-class extract's 'sample' validation shares bart's wording ---
 
 expect_error(extract(fit, sample = "bogus"), "sample must be in 'train'")
 
@@ -484,7 +474,7 @@ expect_error(extract(fit, sample = "bogus"), "sample must be in 'train'")
 
 expect_error(
   plotTree(fit),
-  "plotTree is defined for bart, rbart_vi and dbartsSampler fits",
+  "plotTree is defined for bart and dbartsSampler fits",
   fixed = TRUE
 )
 expect_error(

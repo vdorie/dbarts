@@ -217,7 +217,7 @@ is invisible to the gates in shipped behavior.
     made `+` ([[test-bcf-forest-channel.R:90@658869ac]]); b06 the interaction subtree walk
     ([[test-interactions.R:96@658869ac]]); b07 bart2's grow-from-root falling back to the prior draw
     ([[test-bart2-grow-from-root.R:107@658869ac]], [[test-grow-from-root-categorical.R:75@658869ac]]); b15 rbart_vi's
-    group.by type refusal ([[test-rbart-error.R:26@658869ac]]); d06 xbart's rmse weights
+    group.by type refusal ([[inst/tinytest/test-rbart-error.R:26@658869ac]]); d06 xbart's rmse weights
     ([[test-xbart-oracle.R:79@658869ac]]); d03 the BCF snap band (tests/cpp only).  defer
 
 ## Real defects exposed incidentally

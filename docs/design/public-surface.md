@@ -17,8 +17,8 @@ changes regenerate test snapshots.
 
 ## 1. Engine selection and cutover sequencing
 
-Every wrapper already routes through `dbartsControl` (bart, bart2, rbart_vi,
-and pdbart construct one internally; xbart accepts one as an argument), so
+Every wrapper already routes through `dbartsControl` (bart, bart2 and
+pdbart construct one internally; xbart accepts one as an argument), so
 engine selection needs no new public arguments: flip the `engine` default to
 `"bartcore"` and everything follows.
 
@@ -98,10 +98,10 @@ Landed 2026-07-03 (step 2, the flip): `dbartsControl` defaults to
 `dbarts`/`dbartsData`/`bart2`/`xbart` (which gained the argument); `bart`
 stays the frozen shim (indicators, probit, but the new engine). The flip
 flushed out and fixed real parity gaps the R5 harness missed: recorded
-training fits omitted the offset (diverging rbart's ranef Gibbs),
-`seed` (`rngSeed` at the time) was ignored, test data could not be
-removed (bart2's burn-in dance), `getLatents` refused preallocated
-results (rbart's in-place contract), `setResponse`/`setOffset`
+training fits omitted the offset (diverging an outer sampler's Gibbs
+blocks), `seed` (`rngSeed` at the time) was ignored, test data could not
+be removed (bart2's burn-in dance), `getLatents` refused preallocated
+results (an outer loop's in-place contract), `setResponse`/`setOffset`
 skipped length validation
 (segfault), `copy()` walked classic state slots, and the state was not
 lazily materialized for saveRDS. Fixed residual priors now work on
@@ -234,8 +234,7 @@ probit's 3.0 widened by the logistic latent sd. The R5 surface reports
 binary fits on the latent scale. The wrappers' probability transforms
 (predict/extract/fitted/plot) went link-aware 2026-07-03: packaged fits
 carry a `family` element and transform through it (fits saved without
-one are probit). rbart's ranef Gibbs step assumes normal latents, so
-binary still resolves to probit, but `rbart_vi` now carries its own `family` argument (auto/gaussian/aft, [[rbart.R#rbart_vi]]) rather than rejecting one.
+one are probit).
 
 ## 3a. Prior specification
 
@@ -482,8 +481,8 @@ version bump. Full detail: docs/plans/archive/dbarts-h-reshape.md.
   rank bitmap below 20 percent density and densifies above it, cuts and
   codes matching a dense build of the same values exactly. The raw-x
   mutation surface is fixed at creation; state serialization and the
-  data-handle/xbart path (views densify) compose. rbart_vi and linear
-  leaves refuse sparse inputs for now. Per-column u8 code widths remain
+  data-handle/xbart path (views densify) compose. Linear leaves refuse
+  sparse inputs for now. Per-column u8 code widths remain
   future work. Mixed dense/sparse input LANDED 2026-07-04 (same doc): a
   data frame may hold sparseVector/dgCMatrix columns alongside ordinary
   ones; dense-backed columns keep categorical splits and linear-leaf
@@ -491,19 +490,11 @@ version bump. Full detail: docs/plans/archive/dbarts-h-reshape.md.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
   mia-missingness.md; surface is missing = c("incorporate", "error"),
   incorporate the default).
-- Wave-2 models (linear leaves, in-core grouped random effects retiring the
-  rbart_vi R loop): engine work, independent of this document except that
-  rbart_vi's public signature would eventually gain the in-core option.
-  Linear leaves are LANDED in full (linear-leaves.md, 2026-07-04): a
-  designated column set per leaf regression via node.prior =
+- Wave-2 models (linear leaves): engine work, independent of this
+  document. Linear leaves are LANDED in full (linear-leaves.md,
+  2026-07-04): a designated column set per leaf regression via node.prior =
   linear(columns, k) on dbarts() and xbart(), including data-handle views
-  (section 5 update). Grouped random effects are LANDED
-  (grouped-random-effects.md, proposal + landing notes, 2026-07-04): a
-  ResponseModel decorator runs rbart_vi's Gibbs blocks in-core for the
-  built-in tau priors - one multi-chain sampler, chains on worker
-  threads - with the R loop retained for custom priors and callbacks.
-  Grouping stays internal (an attribute on the control object); no
-  public group.by exposure beyond rbart_vi yet.
+  (section 5 update).
 
 ## 8. Multi-forest models: the `forests =` creation surface
 

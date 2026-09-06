@@ -8,7 +8,6 @@
     ns <- asNamespace("posterior")
     classes <- c(
       "bart",
-      "rbart",
       "bartMultinomial",
       "bartOrdinal",
       "bartNegbin",

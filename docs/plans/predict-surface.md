@@ -640,7 +640,7 @@ Files that MUST change, with the reason:
   `extract(fit, "trees", "train")` ([[test-sampler-trees.R:77@74e2e050]], extract's own unchanged order), plus
   `predict(fitted, x, bases = fitted$bases, ...)` ([[test-predict-blend.R:83@74e2e050]], a helper forwarding `...`), plus the three internal
   `extract(object, type, sample, ...)` calls in R/generics.R. No `survivalProbabilities` call passes `group.by` positionally:
-  [[test-rbart-aft.R:100@74e2e050]] and [[test-rbart-aft.R:112@74e2e050]] already name it.
+  [[inst/tinytest/test-rbart-aft.R:100@74e2e050]] and [[inst/tinytest/test-rbart-aft.R:112@74e2e050]] already name it.
 - [[inst/tinytest/test-nbinom.R:110@74e2e050]] - `offset.test = rep(log(2), 10L)` becomes `offset =`.
 - [[inst/tinytest/test-predict-blend.R:376@74e2e050]], [[inst/tinytest/test-predict-blend.R:380@74e2e050]] - `pattern = "requires 'keeptrees'/'keepTrees'"` no longer matches; use
   `pattern = "saved trees"`.

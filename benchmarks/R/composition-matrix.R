@@ -57,14 +57,13 @@ rowKeys <- c(
   "hazard",
   "hurdle",
   "bcf",
-  "grouped",
   "hetero"
 )
 # transcribed once from the doc's table headers (docs/design/feature-matrix.md
 # section titles), used only as dispatch keys and a header sanity check - the
 # cell VALUES themselves are read out of the file, not transcribed
 tableCols <- list(
-  bart.R = c("bart", "bart2", "dbarts5", "rbart_vi", "xbart", "flatc"),
+  bart.R = c("bart", "bart2", "dbarts5", "xbart", "flatc"),
   R.R = c(
     "setResponse",
     "setOffset",
@@ -83,7 +82,6 @@ tableCols <- list(
   ),
   R.R3 = c(
     "varianceForest",
-    "groupedRanef",
     "dart",
     "warmStart",
     "growFromRoot"
@@ -274,17 +272,6 @@ buildBase <- function(family, seed, extra = list()) {
       forests = list(forest(), forest(basis = ~ factor(d$z))),
       control = ctl(seed)
     ),
-    grouped = {
-      control <- ctl(seed)
-      attr(control, "bartcore.groups") <- list(
-        indices = as.integer(d$group),
-        n.groups = nlevels(factor(d$group)),
-        prior = "cauchy",
-        rel.scale = sd(d$y),
-        n.steps = 1L
-      )
-      list(d$x, d$y, test = d$x[1:5, , drop = FALSE], control = control)
-    },
     hetero = list(
       d$x,
       d$y,
@@ -419,43 +406,6 @@ probeBart2 <- function(family, seed) {
   do.call(bart2, c(args, a()))
 }
 
-probeRbart <- function(family, seed) {
-  d <- mkXY(seed)
-  grp <- factor(d$group)
-  a <- function(...) {
-    list(
-      n.trees = 3L,
-      n.burn = 0L,
-      n.samples = 1L,
-      n.chains = 1L,
-      n.threads = 1L,
-      n.thin = 1L,
-      verbose = FALSE,
-      group.by = grp,
-      ...
-    )
-  }
-  switch(
-    family,
-    gaussian = do.call(rbart_vi, c(list(d$x, d$y), a())),
-    probit = do.call(rbart_vi, c(list(d$x, d$yBin), a())),
-    aft = {
-      df <- data.frame(
-        x1 = d$x[, 1L],
-        x2 = d$x[, 2L],
-        time = d$time,
-        status = d$status
-      )
-      do.call(
-        rbart_vi,
-        c(list(survival::Surv(time, status) ~ x1 + x2, df, family = "aft"), a())
-      )
-    },
-    grouped = do.call(rbart_vi, c(list(d$x, d$y), a())),
-    stop("composition-matrix: no rbart_vi() recipe for '", family, "'")
-  )
-}
-
 probeXbart <- function(family, seed) {
   d <- mkXY(seed)
   df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L])
@@ -543,7 +493,6 @@ table1Probes <- list(
   bart = probeBart1,
   bart2 = probeBart2,
   dbarts5 = function(family, seed) buildBase(family, seed),
-  rbart_vi = probeRbart,
   xbart = probeXbart,
   flatc = probeFlatC
 )
@@ -587,7 +536,7 @@ hurdleDart <- function(seed) {
 }
 
 # pointwise loglik (table 3) dispatches on a bart-classed FIT object
-# (extract.bart / extract.rbart), not the raw R5 sampler every other probe
+# (extract.bart), not the raw R5 sampler every other probe
 # below mutates - its own small per-family fixture builder
 pointwiseLoglik <- function(family, seed) {
   d <- mkXY(seed)
@@ -601,13 +550,6 @@ pointwiseLoglik <- function(family, seed) {
       verbose = FALSE,
       ...
     )
-  }
-  if (family == "grouped") {
-    fit <- do.call(
-      rbart_vi,
-      c(list(d$x, d$y, group.by = factor(d$group), n.thin = 1L), a())
-    )
-    return(extract(fit, type = "loglik"))
   }
   args <- bart2Args(family, d)
   if (is.null(args)) {
@@ -649,7 +591,6 @@ mutate <- list(
   getLatents = function(s, d) s$getLatents(),
   calibration = function(s, d) s$setCalibration(prior.scale = 1.2),
   varianceForest = "extra:variance",
-  groupedRanef = "extra:groups",
   dart = "extra:dart",
   warmStart = function(s, d) {
     donor <- buildBase(d$family, d$seed + 1000L)
@@ -688,18 +629,6 @@ runProbe <- function(family, capability, seed) {
       seed,
       list(variance = varianceForest(n.trees = 3L))
     )))
-  }
-  if (identical(probe, "extra:groups")) {
-    grp <- mkXY(seed)$group
-    control <- ctl(seed)
-    attr(control, "bartcore.groups") <- list(
-      indices = as.integer(grp),
-      n.groups = nlevels(factor(grp)),
-      prior = "cauchy",
-      rel.scale = 1,
-      n.steps = 1L
-    )
-    return(attempt(buildBase(family, seed, list(control = control))))
   }
   if (identical(probe, "extra:dart")) {
     return(attempt(buildBase(family, seed, list(tree.prior = dbarts:::dart()))))

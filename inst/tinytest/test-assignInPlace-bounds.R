@@ -1,7 +1,7 @@
 # C_dbarts_assignInPlace validates its R-supplied index and source before the
-# per-iteration in-place write (the rbart/partialDependence hot path). The
-# valid callers are exercised throughout the rbart and partial-dependence
-# tests; here we pin the guards it adds on bad input.
+# per-iteration in-place write (the partialDependence hot path). The valid
+# callers are exercised throughout the partial-dependence tests; here we pin
+# the guards it adds on bad input.
 assignInPlace <- dbarts:::C_dbarts_assignInPlace
 
 target <- matrix(0, 3L, 2L)

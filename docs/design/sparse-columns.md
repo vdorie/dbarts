@@ -162,24 +162,24 @@ of a wide sparse design pay a transient dense-codes copy.
 The raw-x mutation surface - setPredictor, updatePredictor, the
 per-observation sessions, setData - is refused for CSC-built stores in
 v1 ("sparse predictors fix the design at creation; make a new sampler
-instead", the grouped-random-effects precedent). The existing view
-guard already fires on x == null; the bridge distinguishes the two
-cases for the message and, unlike views, ALLOWS setState and
-setCutPoints on CSC stores: quantizeColumn is storage-aware, and
-getPointer() re-creation from the stored dbartsData (which holds the
-dgCMatrix) rebuilds the sampler, so save/load works exactly as it does
-for grouped fits. In-place nonzero-value mutation and pattern rebuilds
-(the sketch's O(n/64 + nnz) path) wait for a consumer.
+instead"). The existing view guard already fires on x == null; the
+bridge distinguishes the two cases for the message and, unlike views,
+ALLOWS setState and setCutPoints on CSC stores: quantizeColumn is
+storage-aware, and getPointer() re-creation from the stored dbartsData
+(which holds the dgCMatrix) rebuilds the sampler, so save/load works
+as it does for any other store. In-place nonzero-value mutation and
+pattern rebuilds (the sketch's O(n/64 + nnz) path) wait for a
+consumer.
 
 ### R surface
 
 dbartsData accepts a dgCMatrix as x (the x slot widens to ANY with the
 class checked in validity; x.test stays dense). All columns are ordinal
 - factors do not ride numeric sparse matrices - and the sigma estimate
-falls back to sd(y). dbarts, bart2, rbart_vi, and xbart inherit
-acceptance through dbartsData; node.prior = linear() with sparse x is
-refused when columns are designated. The bridge's parseData reads the
-i/p/x slots directly (borrowed for the sampler's lifetime, like dense x
+falls back to sd(y). dbarts, bart2, and xbart inherit acceptance
+through dbartsData; node.prior = linear() with sparse x is refused
+when columns are designated. The bridge's parseData reads the i/p/x
+slots directly (borrowed for the sampler's lifetime, like dense x
 today) and hands them to the engine through SamplerOptions. Matrix goes
 to Suggests.
 
@@ -228,9 +228,9 @@ Landed per the plan; deltas and specifics:
   component test (testSparseEndToEnd part 1).
 - setState snapshots sparseColumns alongside codes for its rollback;
   save/load works through getPointer() re-creation from the stored
-  dbartsData holding the dgCMatrix (the grouped/n.cuts precedent),
-  with the bridge's view refusal split so setState/setCutPoints stay
-  open on CSC-built samplers (refuseViewSamplerOnly) while the raw-x
+  dbartsData holding the dgCMatrix (the n.cuts precedent), with the
+  bridge's view refusal split so setState/setCutPoints stay open on
+  CSC-built samplers (refuseViewSamplerOnly) while the raw-x
   surface refuses with "sparse predictors fix the design at creation".
 - R surface: dbartsData's x slot widened to ANY with validity checking
   matrix-or-dgCMatrix (a slot union cannot name a Suggests class at
@@ -252,11 +252,11 @@ Landed per the plan; deltas and specifics:
   paths are layout-refactored only); speed at baseline; R CMD check
   --as-cran Status OK.
 
-Still open, by design: rbart_vi and linear-leaf support, per-column u8
-code widths, a streaming range kernel for root-sized segments, and any
-public exposure of the density threshold. (In-place nonzero-value mutation
-and pattern rebuilds LANDED as extension (i), 2026-07-22 - see the section
-below. Sparse x.test LANDED later still: the test store carries its own
+Still open, by design: linear-leaf support, per-column u8 code widths, a
+streaming range kernel for root-sized segments, and any public exposure of
+the density threshold. (In-place nonzero-value mutation and pattern
+rebuilds LANDED as extension (i), 2026-07-22 - see the section below.
+Sparse x.test LANDED later still: the test store carries its own
 per-column typed fields over the training grid, and a sparse or mixed test
 source stays resident through creation, setTestPredictor and predict.)
 
@@ -310,8 +310,7 @@ where the source allows:
 - Mutation: store-wide refusal stays while any CSC-backed column
   exists (the transactional paths are column-granular, so a later
   relaxation to dense-backed columns is mechanical, but it needs a
-  consumer). rbart_vi keeps its refusal (the R loop predicts over
-  data@x) until the in-core path takes sparse.
+  consumer).
 
 Order of work when picked up: buildMixed + component test (mixed store
 bitwise vs a two-store reference), the container + ingestion
@@ -374,8 +373,8 @@ Implemented per the plan above; deltas and specifics:
   replacement data. refuseViewSampler needed no change (mixed stores
   are builtFromCsc, so the sparse message applies).
 - resolveLeafCovariates allows containers but refuses sparse-backed
-  designations ("leaf covariates must be dense columns ..."); rbart_vi
-  and the setPredictor guard refuse via the existing !is.matrix checks.
+  designations ("leaf covariates must be dense columns ..."); the
+  setPredictor guard refuses via the existing !is.matrix check.
 - Tests: component testMixedColumnStore/EndToEnd/LinearLeaves/
   StateRoundTrip (41 total now) - the store and both samplers (constant
   and linear leaf) verify BITWISE against a dense build of the same

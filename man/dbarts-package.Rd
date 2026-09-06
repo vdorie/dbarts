@@ -13,7 +13,6 @@
   \itemize{
     \item \code{\link{bart}} - the \pkg{BayesTree}-compatible interface, kept at its historical defaults (200 trees, one chain, factors expanded to indicator columns, binary responses probit, missing data rejected).
     \item \code{\link{bart2}} - the current interface, taking a formula or matrices and reaching the full feature set, including every response \code{family}. This is the one to reach for first.
-    \item \code{\link{rbart_vi}} - adds a random intercept per group to the model of \code{bart2}.
     \item \code{\link{xbart}} - crossvalidates over \code{k}, \code{power}, \code{base}, and the tree count.
     \item \code{\link{pdbart}} - partial dependence plots for one or two variables.
   }

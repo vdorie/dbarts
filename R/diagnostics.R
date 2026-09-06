@@ -1,5 +1,5 @@
 # convergence diagnostics: posterior-package draws accessors and a
-# summary() method for the scalar parameters of bart/bart2/rbart fits.
+# summary() method for the scalar parameters of bart/bart2 fits.
 # posterior is Suggests-only; as_draws_array/as_draws_df are registered
 # for it conditionally in hooks.R. summary() itself is a base generic and
 # degrades to a plain quantile table when posterior is unavailable.
@@ -9,10 +9,7 @@
 posteriorAvailable <- function() requireNamespace("posterior", quietly = TRUE)
 
 # n.chains survives on the object whether or not the sampler was kept (see
-# packageBartResults/packageRbartResults); fit is a single dbartsSampler for
-# bart/bart2 and a list of them for rbart (length n.chains on the general
-# path, length 1 - one multi-chain sampler standing in for every chain - on
-# the in-core path)
+# packageBartResults); fit is a single dbartsSampler
 fitNChains <- function(object) {
   if (!is.null(object[["n.chains"]])) {
     return(object[["n.chains"]])
@@ -27,9 +24,9 @@ fitNChains <- function(object) {
 # - to posterior's (iteration, chain, variable) array. uncombineChains
 # already knows how to invert the flattening; only the trailing transpose
 # is new here. isScalar disambiguates the two shapes a combined,
-# multi-chain, 2-D field can have: a scalar field (sigma/k/tau) stores
+# multi-chain, 2-D field can have: a scalar field (sigma/k) stores
 # uncombined as (n.chains, n.samples); a per-variable field (varcount,
-# yhat.train, ranef, ...) stores COMBINED (the default) as
+# yhat.train, ...) stores COMBINED (the default) as
 # (n.chains * n.samples, n.vars) - dim length 2 either way.
 toDrawsArray <- function(x, n.chains, isScalar) {
   d <- dim(x)
@@ -64,7 +61,7 @@ toDrawsArray <- function(x, n.chains, isScalar) {
 }
 
 # fields with no per-variable axis; every other requested field (varcount,
-# varprobs, yhat.train, yhat.test, ranef, ..., and nbinom's 'dispersion') has
+# varprobs, yhat.train, yhat.test, ..., and nbinom's 'dispersion') has
 # the same (n.chains-combined-or-not) scalar shape as sigma - one draws
 # variable per column/observation, named "field[inner]"
 scalarFields <- c(
@@ -139,7 +136,7 @@ ordinalThresholdsArray <- function(object) {
   arr
 }
 
-# gathers one or more chain-dimensioned fields off a bart/bart2/rbart fit
+# gathers one or more chain-dimensioned fields off a bart/bart2 fit
 # into a single (iteration, chain, variable) base array. 'thresholds'
 # (bartOrdinal only) is the one field whose shape toDrawsArray cannot read
 # directly and so is special-cased to ordinalThresholdsArray, already named.
@@ -177,12 +174,10 @@ bartDrawsArray <- function(object, vars) {
 as_draws_array.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
   posterior::as_draws_array(bartDrawsArray(x, vars))
 }
-as_draws_array.rbart <- as_draws_array.bart
 
 as_draws_df.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
   posterior::as_draws_df(bartDrawsArray(x, vars))
 }
-as_draws_df.rbart <- as_draws_df.bart
 
 # matches summary.bartOrdinal's own default 'vars'; bartDrawsArray already
 # special-cases "thresholds" to ordinalThresholdsArray.
@@ -297,7 +292,6 @@ summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
     class = "summary.bart"
   )
 }
-summary.rbart <- summary.bart
 
 # bart2(family = "ordinal")'s scalar summary is the K - 1 thresholds, the only
 # parameters this family's outer fit carries beyond whatever mean-function

@@ -83,9 +83,6 @@ struct ChainStateData {
   // an NB sampler refuses a state lacking one.
   // omega rides the latents block above; this is its companion scalar.
   double dispersion = std::numeric_limits<double>::quiet_NaN();
-  // grouped samplers only, internal scale so restores are exact
-  std::vector<double> groupEffects;
-  double groupTau = 0.0;
   std::vector<double> dartProbabilities;  // empty when DART is off
   double dartAlpha = 1.0;
   size_t dartNumUpdatesSkipped = 0;
@@ -655,7 +652,7 @@ struct ForestCombiner {
   /// storeSample loops its varcount writes over the CALLER's declared
   /// Results::numVariableCountForests, which Sampler::run clamps to this count
   /// once and the run bridge sizes the varcount array by, so a caller
-  /// declaring 1 (the flat C API, rbart_vi's callback loop) still gets slot 0
+  /// declaring 1 (the flat C API, an embedded callback loop) still gets slot 0
   /// and the single-forest byte layout its buffer is sized for. Distinct from
   /// numReportedLocations (softmax output channels): a model's fits-location
   /// count may diverge from its forest count - the amplitude coupling reports

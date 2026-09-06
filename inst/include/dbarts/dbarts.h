@@ -186,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xca7b56a64c812b8dULL
+#  define DBARTS_C_API_HASH 0x616ffcda8c947777ULL
 #endif
 
 #ifdef __cplusplus
@@ -210,19 +210,23 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// past. Fields append monotonically below the marked boundary and never
 /// reorder across releases; an append after 1.0-0 bumps DBARTS_C_API_MINOR,
 /// while a pre-1.0-0 append extends the initial field set and moves no version
-/// constant. A field is
+/// constant. REMOVING a field is a pre-1.0-0 action only: the initial field
+/// set is still being fixed, so a removal shifts every field below it, shrinks
+/// sizeof, re-bakes DBARTS_C_API_HASH and moves no version constant - and the
+/// structSize contract does NOT cover it, since a stale caller passes a LARGER
+/// structSize and the library then fills the shifted fields at the caller's
+/// old offsets. Rebuild every consumer against the new header. After 1.0-0 no
+/// field is ever removed. A field is
 /// filled only when both present-by-size and non-null: a null member skips
 /// that quantity, and a zero or unset structSize makes dbarts_sampler_run error
 /// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
-/// (dbarts_sampler_usesDart), tau/groupEffects a grouped
-/// random-intercept sampler, dispersion a count (nbinom) response, and
+/// (dbarts_sampler_usesDart), dispersion a count (nbinom) response, and
 /// residualDf a Student-t residual law; each is
 /// left untouched otherwise. logLikelihood
 /// carries the per-draw training-data log-likelihood for the gaussian,
 /// binary, and aft families; aft reports the log density for events and the
-/// log survival tail for right-censored observations, and a grouped
-/// (random-intercept) sampler composes it over the per-group fits. It is
+/// log survival tail for right-censored observations. It is
 /// NaN-filled wherever the combined per-observation location is not visible to
 /// the response model to score - any sampler whose forests combine through
 /// amplitudes, at any forest count, and the multinomial softmax - and skipping
@@ -243,8 +247,6 @@ typedef struct dbarts_results_t {
   uint32_t* varcount; ///< numPredictors x numSamples x numChains
   double* k;          ///< numSamples x numChains
   double* varprobs;   ///< numPredictors x numSamples x numChains
-  double* tau;        ///< numSamples x numChains
-  double* groupEffects; ///< numGroups x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
   double* dispersion;    ///< numSamples x numChains, the nbinom r per draw
   double* residualDf;    ///< numSamples x numChains, the Student-t nu per draw
@@ -273,7 +275,7 @@ typedef struct dbarts_results_t {
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
 #define DBARTS_RESULTS_INIT \
   { sizeof(dbarts_results), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
-    NULL, NULL, NULL }
+    NULL }
 
 /// A predictor column's type. Ordinal columns are cut on their values;
 /// categorical ones carry 0-based category codes and split by subset mask;

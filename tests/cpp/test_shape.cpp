@@ -33,7 +33,6 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(numThreads);
   CHECK_SHAPE_FIELD(numTrees);
   CHECK_SHAPE_FIELD(numForests);
-  CHECK_SHAPE_FIELD(numGroups);
   CHECK_SHAPE_FIELD(numLeafCovariates);
   CHECK_SHAPE_FIELD(leafCovariateColumns);
   CHECK_SHAPE_FIELD(numReportedLocations);
@@ -61,15 +60,13 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
 struct ShapeFixture {
   static constexpr size_t n = 150, p = 4;
   std::vector<double> x, y, xTest, z;
-  std::vector<std::uint32_t> groups;
 
-  ShapeFixture() : x(n * p), y(n), xTest(20 * p), z(n), groups(n) {
+  ShapeFixture() : x(n * p), y(n), xTest(20 * p), z(n) {
     for (double& v : x) v = runif01();
     for (double& v : xTest) v = runif01();
     for (size_t i = 0; i < n; ++i) {
       z[i] = runif01() < 0.5 ? 1.0 : 0.0;
       y[i] = std::sin(3.0 * x[i]) + x[i + n] + z[i] + 0.2 * runif01();
-      groups[i] = static_cast<std::uint32_t>(i % 5);
     }
   }
 };
@@ -101,7 +98,7 @@ void runBriefly(SamplerFacade<L>& facade, size_t numTestObservations) {
 
 // The plain constant-leaf gaussian sampler, in the configuration that moves
 // the most fields at once: several chains, saved trees, dart, a sampled k,
-// grouped intercepts, and a test set.
+// and a test set.
 void testConstantGaussian(ShapeFixture& fixture) {
   const size_t numChains = 2, numTest = 20;
   ext_rng* rngs[numChains];
@@ -117,8 +114,6 @@ void testConstantGaussian(ShapeFixture& fixture) {
   options.numSamplesToStore = 4;
   options.useDart = true;
   options.updateK = true;
-  options.groupIndices = fixture.groups.data();
-  options.numGroups = 5;
 
   SamplerFacade<ConstantGaussianLeaf> facade(
     fixture.x.data(), fixture.y.data(), ShapeFixture::n, ShapeFixture::p,
@@ -138,7 +133,6 @@ void testConstantGaussian(ShapeFixture& fixture) {
         "shape: a single-forest sampler owns no count response");
   check(shape.supportsActiveRows,
         "shape: a gaussian sampler accepts an active-row mask");
-  check(shape.numGroups == 5, "shape: grouped intercept count");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");
   check(!shape.usesFunctionLeaves, "shape: constant leaf is not function-valued");
   check(shape.leafModel == LeafModelKind::constant,
@@ -299,7 +293,7 @@ void testBCF(ShapeFixture& fixture) {
 
 // The LEGACY varcount contract on a multi-forest sampler (FB19 legs (i) and
 // (ii)): a caller that declares no forest count - the flat C API, whose
-// dbarts_results has no field for one, and rbart_vi's callback loop - must get
+// dbarts_results has no field for one, and an embedded callback loop - must get
 // exactly the single prognostic slab per sample its buffer is sized for. The
 // buffer here is a std::vector, so it is malloc'd, redzoned and container-
 // annotated: a storeSample that took the count from the COMBINER instead would

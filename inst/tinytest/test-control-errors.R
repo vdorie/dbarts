@@ -248,9 +248,8 @@ expect_error(
   "'numcut' must be a whole number; got '50.5'",
   fixed = TRUE
 )
-gTiny <- rep(1:2, length.out = 20L)
 expect_error(
-  dbarts::rbart_vi(yTiny ~ xTiny, group.by = gTiny, n.chains = 2.5),
+  dbarts::bart2(yTiny ~ xTiny, n.chains = 2.5),
   "'n.chains' must be a whole number; got '2.5'",
   fixed = TRUE
 )
@@ -265,4 +264,4 @@ expect_true(methods::is(
   dbarts::dbarts(xTiny, yTiny, n.samples = 5),
   "dbartsSampler"
 ))
-rm(xTiny, yTiny, gTiny)
+rm(xTiny, yTiny)

@@ -948,7 +948,7 @@ move.**
 ## F5. UPHELD: the rbart group-by preamble, character-identical in 10 files
 
 `test-rbart-{bartcore,error,example,generics,groupby,multithreaded,options,reproducibility,weights}.R:1-27`
-and `[[test-reproducibility-rbart.R:6-27@3080a9c5]]` are byte-for-byte identical (modulo one
+and `[[inst/tinytest/test-reproducibility-rbart.R:6-27@3080a9c5]]` are byte-for-byte identical (modulo one
 extra `source(captureWarnings.R)` in two of them): the Friedman source, the
 `RNGkind(sample.kind = "Rounding")` dance, the group draw, `sigma.b <- 1.5`,
 the `b[g]` shift and the `rm()`.

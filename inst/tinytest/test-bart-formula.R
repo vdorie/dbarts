@@ -50,21 +50,6 @@ expect_error(
   "xbart() requires a two-sided formula",
   fixed = TRUE
 )
-expect_error(
-  dbarts::rbart_vi(
-    ~ x.1 + x.2,
-    data,
-    group.by = rep(1:2, length.out = nrow(data)),
-    n.samples = 3L,
-    n.burn = 3L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  ),
-  "rbart_vi() requires a two-sided formula",
-  fixed = TRUE
-)
-
 # a ':'/'*' term expands to a term.labels entry the model frame never
 # carries, dying inside makeModelMatrix with R's own "undefined columns
 # selected"; refused by name instead, naming what IS supported

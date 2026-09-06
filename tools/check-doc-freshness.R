@@ -171,7 +171,6 @@ R_ALIAS_FILES <- c(
   "bart.R",
   "dbarts.R",
   "spec.R",
-  "rbart.R",
   "xbart.R",
   "data.R",
   "generics.R",

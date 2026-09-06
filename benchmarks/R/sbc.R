@@ -13,7 +13,6 @@
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
-#   Rscript benchmarks/R/sbc.R grouped-gaussian-swap 200 200 30  # the swap arm
 #   Rscript benchmarks/R/sbc.R aft 200 200 30       # aft/survival, rebuilt
 #   Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 # GP/constant mix
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
@@ -191,13 +190,9 @@ sbcDiscreteSelfCheck <- function(
 # f0Train is on the reported scale predict() returns; binary families threshold
 # it through their link. Weighted gaussian scales the noise by 1/sqrt(weight)
 # (the engine's per-row precision), zero-weight rows carry pure prior noise the
-# fit ignores. Grouped models add the drawn per-row group intercept before the
-# family draw.
+# fit ignores.
 sbcSimulate <- function(config, f0Train, sig0) {
   mu <- f0Train
-  if (!is.null(config$groupIntercepts)) {
-    mu <- mu + config$groupIntercepts[config$group]
-  }
   switch(
     config$family,
     gaussian = {
@@ -219,7 +214,7 @@ sbcSimulate <- function(config, f0Train, sig0) {
 
 # A configuration bundles everything a run needs: the fixed design, the model
 # priors, and family-specific prior draw / likelihood / functional logic. New
-# configurations (linear/gp leaf, grouped, BCF, DART, weighted) extend the same
+# configurations (linear/gp leaf, BCF, DART, weighted) extend the same
 # shape; this tier exercises gaussian, probit, logistic, DART, weighted.
 # numCategories is K for the two categorical families (ordinal's ordered levels,
 # multinomial's softmax categories) and is ignored elsewhere.
@@ -309,28 +304,6 @@ sbcConfig <- function(
 # the host in the K-forest softmax sampler), everything else names itself.
 sbcSamplerFamily <- function(config) {
   switch(config$family, t = "gaussian", multinomial = "gaussian", config$family)
-}
-
-# Add grouped random intercepts to a base config: a fixed grouping assigned
-# independently of x, a fixed tau relative scale, and optionally a fraction of
-# zero-weight rows (dropped by the likelihood -- a review-3 self-consistency
-# target). Returns the extended config for runSbcGrouped.
-sbcAddGrouping <- function(
-  config,
-  nGroups = 8L,
-  relScale = 0.5,
-  zeroWeightFrac = 0
-) {
-  set.seed(101L)
-  config$nGroups <- nGroups
-  config$group <- as.integer(sample.int(nGroups, config$n, replace = TRUE))
-  config$relScale <- relScale
-  if (zeroWeightFrac > 0) {
-    w <- rep_len(1, config$n)
-    w[sample.int(config$n, floor(zeroWeightFrac * config$n))] <- 0
-    config$weights <- w
-  }
-  config
 }
 
 # Inject NA values into designated columns of the fixed design (missing =
@@ -824,223 +797,6 @@ runSbcDart <- function(
   )
 }
 
-# --- grouped random intercepts ---------------------------------------------
-
-# Grouped-tau prior (rbart_vi's in-core path). The engine offers two (model.hpp
-# logTauPrior): reported tau ~ half-Cauchy(0, 2.5*rel.scale) or Gamma(shape=2.5,
-# scale=2.5*rel.scale); both are reported-scale and fitScale-independent (the
-# internal fitScale cancels on report, like sigma), and group effects
-# b_g ~ N(0, tau^2). SBC uses the GAMMA prior: the half-Cauchy's infinite-
-# variance tail produces occasional astronomically large tau0 that inflate the
-# response scale and stall the engine's tau slice sampler (stepping out by a
-# fixed width over a range up to 1e6+), making brute-force SBC intractable. The
-# gamma prior is light-tailed, engine-supported, and gives a clean well-posed
-# calibration. The default arm REBUILDS the fit each replication; swap = TRUE
-# instead keeps one fit and swaps the response into it, the arm that gates the
-# bridge's grouped setResponse (see runSbcGrouped). Groups are
-# assigned independently of x so the smooth f and the categorical b_g stay
-# orthogonal -- the f/b partition is then clean regardless of the f-prior scale.
-
-sbcTauDraw <- function(relScale) {
-  function(nDraws = 1L) rgamma(nDraws, shape = 2.5, scale = 2.5 * relScale)
-}
-
-# Moment check: Gamma(2.5, 2.5*rel.scale) has mean 6.25*rel.scale and
-# variance 2.5*(2.5*rel.scale)^2.
-sbcCheckTau <- function(relScale, nDraws = 2e5L) {
-  d <- sbcTauDraw(relScale)(nDraws)
-  meanTheory <- 2.5 * (2.5 * relScale)
-  varTheory <- 2.5 * (2.5 * relScale)^2
-  list(
-    meanEmp = mean(d),
-    meanTheory = meanTheory,
-    varEmp = var(d),
-    varTheory = varTheory,
-    pass = abs(mean(d) / meanTheory - 1) < 0.02 &&
-      abs(var(d) / varTheory - 1) < 0.05
-  )
-}
-
-# Reusable f-only generator: a plain (ungrouped) sampler at the config's family
-# and build scale. sampleTreesFromPrior + predict give a fresh prior f0.
-sbcMakeGroupGenerator <- function(config) {
-  ctrl <- dbartsControl(
-    n.trees = config$nTrees,
-    n.chains = 1L,
-    n.threads = 1L,
-    n.samples = 1L,
-    updateState = FALSE,
-    verbose = FALSE,
-    keepTrainingFits = TRUE
-  )
-  family <- if (config$family == "gaussian") "gaussian" else config$family
-  dbarts(
-    config$x,
-    config$yBuild,
-    test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
-    node.prior = config$nodePrior,
-    sigma = config$sigest,
-    control = ctrl,
-    family = family
-  )
-}
-
-# Grouped fit built fresh for one y0: the bartcore.groups attribute carries the
-# fixed grouping and a fixed rel.scale (NOT recomputed from y0, for self-
-# consistency). n.steps is the per-sweep tau slice count.
-sbcMakeGroupedFit <- function(config, y0, L, thin) {
-  ctrl <- dbartsControl(
-    n.trees = config$nTrees,
-    n.chains = 1L,
-    n.threads = 1L,
-    n.samples = L,
-    n.thin = thin,
-    updateState = FALSE,
-    verbose = FALSE,
-    keepTrainingFits = TRUE
-  )
-  attr(ctrl, "bartcore.groups") <- list(
-    indices = config$group,
-    n.groups = config$nGroups,
-    prior = "gamma",
-    rel.scale = config$relScale,
-    n.steps = 5L
-  )
-  family <- if (config$family == "gaussian") "gaussian" else config$family
-  args <- list(
-    config$x,
-    y0,
-    test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
-    node.prior = config$nodePrior,
-    sigma = config$sigest,
-    control = ctrl,
-    family = family
-  )
-  if (!is.null(config$weights)) {
-    args$weights <- config$weights
-  }
-  # zero-weight rows and weights-on-test warn benignly for this construction
-  suppressWarnings(do.call(dbarts, args))
-}
-
-# swap = TRUE is the calibration gate on the bridge's grouped setResponse: one
-# fit serves every replication, re-initialised through the STATE INSTALL rather
-# than rebuilt. state0 is the pristine post-build state - two lines, because
-# $storeState() returns invisible(NULL) and sbcMakeGroupedFit sets updateState =
-# FALSE, so the field is filled by nothing else - and it is the only channel
-# that returns b and tau to a y0-independent start (there is no $setTau). That
-# start is CONSTANT rather than a fresh prior draw for tau: SBC needs
-# independence from y0, not a prior draw, and the constancy is the one thing
-# this arm does not randomize. The fixed build response also pins the internal
-# scale for every replication, which is what setResponse(updateScale = FALSE)
-# keeps -- the same self-consistency runSbc gets from its reused sampler. The
-# state carries the chain rng too, so every replication restarts it at the same
-# point; the draws still differ, since each conditions on its own y0, and each
-# rank is marginally uniform, which is what rankUniformity tests.
-runSbcGrouped <- function(
-  config,
-  R = 200L,
-  L = 200L,
-  thin = 30L,
-  # in absolute sweeps: the BCF sigma transient is tree-STRUCTURE mixing
-  # under strong prognostic signal (settle ~72k sweeps at the Cauchy tail;
-  # bcf-sigma-residual), so the default pins sweeps, not thinned units
-  burn = as.integer(ceiling(72000 / thin)),
-  seed = 20260709L,
-  report = 25L,
-  swap = FALSE
-) {
-  set.seed(seed)
-  gen <- sbcMakeGroupGenerator(config)
-  drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
-  drawTau <- sbcTauDraw(config$relScale)
-  fit <- NULL
-  state0 <- NULL
-  if (swap) {
-    fit <- sbcMakeGroupedFit(config, config$yBuild, L, thin)
-    fit$storeState()
-    state0 <- fit$state
-  }
-  ranks <- NULL
-  started <- proc.time()[["elapsed"]]
-  for (r in seq_len(R)) {
-    gen$sampleTreesFromPrior()
-    gen$sampleNodeParametersFromPrior()
-    f0Train <- as.numeric(gen$predict(config$x))
-    f0Test <- as.numeric(gen$predict(config$xTest))
-    tau0 <- drawTau(1L)
-    b0 <- rnorm(config$nGroups, 0, tau0)
-    sig0 <- if (config$hasSigma) drawSigma(1L) else 1.0
-    avgF0 <- mean(f0Train)
-
-    cfgLocal <- config
-    cfgLocal$groupIntercepts <- b0
-    y0 <- sbcSimulate(cfgLocal, f0Train, sig0)
-
-    if (swap) {
-      # the same overdispersed init the rebuild arm gets from a fresh sampler:
-      # a state install, then a second independent prior draw for the forest
-      fit$setState(state0)
-      fit$sampleTreesFromPrior()
-      fit$sampleNodeParametersFromPrior()
-      if (config$hasSigma) {
-        fit$setSigma(config$sigest)
-      }
-      fit$setResponse(y0, updateScale = FALSE)
-    } else {
-      fit <- sbcMakeGroupedFit(config, y0, L, thin)
-    }
-    res <- fit$run(burn, L)
-
-    row <- c(
-      tau = sum(as.numeric(res$tau) < tau0),
-      b1 = sum(res$ranef[1, ] < b0[1]),
-      b2 = sum(res$ranef[2, ] < b0[2]),
-      avg.f = sum(colMeans(res$train) < avgF0)
-    )
-    if (config$hasSigma) {
-      row["sigma"] <- sum(as.numeric(res$sigma) < sig0)
-    }
-    for (j in seq_len(config$nTest)) {
-      row[paste0("f.star", j)] <- sum(res$test[j, ] < f0Test[j])
-    }
-    if (is.null(ranks)) {
-      ranks <- matrix(
-        NA_integer_,
-        R,
-        length(row),
-        dimnames = list(NULL, names(row))
-      )
-    }
-    ranks[r, ] <- row
-    if (report > 0L && (r %% report == 0L || r == R)) {
-      elapsed <- proc.time()[["elapsed"]] - started
-      cat(sprintf(
-        "  [grouped-%s G=%d] rep %d/%d  %.1fs  %.2fs/rep\n",
-        config$family,
-        config$nGroups,
-        r,
-        R,
-        elapsed,
-        elapsed / r
-      ))
-    }
-  }
-  elapsed <- proc.time()[["elapsed"]] - started
-  list(
-    ranks = ranks,
-    L = L,
-    thin = thin,
-    burn = burn,
-    R = R,
-    config = config,
-    elapsed = elapsed,
-    perRep = elapsed / R
-  )
-}
-
 # --- aft (accelerated failure time / survival) ------------------------------
 
 # The engine's aft sampler (docs/design/survival.md) is a log-normal
@@ -1068,7 +824,7 @@ runSbcGrouped <- function(
 .aftSetTestOffset <- bartcoreSetTestOffset
 
 # Fixed per-row right-censoring log-times: a design choice independent of any
-# prior draw, pinned once (like sbcAddGrouping's grouping) so only the drawn
+# prior draw, pinned once so only the drawn
 # log-time and the status it implies move across replications.
 sbcAddCensoring <- function(config, shift = 1.0, sd = 1.2) {
   set.seed(505L)
@@ -2349,16 +2105,6 @@ if (sys.nframe() == 0L) {
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
-  # "-swap" runs the same configuration through the response-swap arm; it is a
-  # one-time local adjudication of the bridge's grouped setResponse and is
-  # deliberately NOT in sbc.yaml's matrix
-  isGrouped <- which %in%
-    c(
-      "grouped-gaussian",
-      "grouped-probit",
-      "grouped-gaussian-swap",
-      "grouped-probit-swap"
-    )
   isBCF <- which %in% c("bcf", "bcf-weak")
   isAft <- which == "aft"
   isLinear <- which %in%
@@ -2380,19 +2126,6 @@ if (sys.nframe() == 0L) {
     cfg <- sbcConfig(family = "gaussian")
     set.seed(7L)
     cfg$weights <- rgamma(cfg$n, 2, 2) # known, positive, mean 1
-    cfg
-  } else if (isGrouped) {
-    base <- if (startsWith(which, "grouped-probit")) "probit" else "gaussian"
-    zw <- if (startsWith(which, "grouped-gaussian")) 0.2 else 0
-    cfg <- sbcAddGrouping(
-      sbcConfig(family = base, n = 160L),
-      nGroups = 8L,
-      relScale = 0.2,
-      zeroWeightFrac = zw
-    )
-    # pin: score every rebuild against the anchor's own leaf prior instead of
-    # each replication's own y0 range (retires the sigma-functional FLAG)
-    cfg$nodePrior <- dbartsPriors$normal(cfg$k, scale = sbcAnchorScale(cfg))
     cfg
   } else if (isBCF) {
     # prior-weak = small n so the a-glue prior term dominates the likelihood
@@ -2474,18 +2207,6 @@ if (sys.nframe() == 0L) {
       d$varTheory,
       if (d$pass) "PASS" else "NOTE(floor)"
     ))
-  }
-  if (isGrouped) {
-    tc <- sbcCheckTau(config$relScale)
-    cat(sprintf(
-      "  tau: gamma mean %.4f vs %.4f; var %.4f vs %.4f -> %s\n",
-      tc$meanEmp,
-      tc$meanTheory,
-      tc$varEmp,
-      tc$varTheory,
-      if (tc$pass) "PASS" else "FAIL"
-    ))
-    selfCheckPass["tau"] <- isTRUE(tc$pass)
   }
   if (isBCF) {
     gc <- sbcCheckBCFGlue(config$sdControl, config$bPriorVariance)
@@ -2585,14 +2306,6 @@ if (sys.nframe() == 0L) {
     }
   } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
-  } else if (isGrouped) {
-    runSbcGrouped(
-      config,
-      R = R,
-      L = L,
-      thin = thin,
-      swap = endsWith(which, "-swap")
-    )
   } else if (isBCF) {
     runSbcBCF(config, R = R, L = L, thin = thin)
   } else if (isAft) {

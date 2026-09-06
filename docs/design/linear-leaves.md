@@ -45,10 +45,10 @@ Stage-4 (R surface) notes:
   1-based indices, duplicates and categorical columns rejected via
   data@varTypes - an ordered factor is eligible, its codes being ordered -
   at most 8). An unresolved designation cannot enter
-  dbartsModel directly, mirroring the split.probs guard. bart2 and
-  rbart_vi construct node.prior = normal(k) internally and do not
-  reach linear; xbart had no node.prior and the data-handle creation
-  path refused designations outright (both lifted by stage 5).
+  dbartsModel directly, mirroring the split.probs guard. bart2
+  constructs node.prior = normal(k) internally and does not reach
+  linear; xbart had no node.prior and the data-handle creation path
+  refused designations outright (both lifted by stage 5).
 - The bridge dispatches through bartcore::createSampler (both
   instantiations now ship; speed compare stayed at-or-below baseline,
   .so 442 -> 529KB total including the format code). parseModel reads
@@ -226,8 +226,8 @@ Original proposal follows.
 
 - The leaf model is the node prior: dbartsPriors gains
   linear(columns, k = 2), accepted by node.prior everywhere normal(k)
-  is; bart2 and rbart_vi reach it through their existing prior-object
-  plumbing. columns is a character or integer vector naming predictor
+  is; bart2 reaches it through its existing prior-object plumbing.
+  columns is a character or integer vector naming predictor
   columns; with factors as categorical an unordered factor column is a
   single (rejected) column and an ordered one a single accepted column,
   while under indicators its dummies are ordinary ordinal columns and legal.

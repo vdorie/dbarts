@@ -7,9 +7,9 @@
 # when combineChains is TRUE and n.chains > 1, the chain margin collapses
 # chain-major regardless of n.pars: chain 1's whole run, then chain 2's,
 # and so on - so a combined draw index means the same thing for every
-# field a fit returns (sigma, k, tau, yhat.train, varcount, ranef, ...)
+# field a fit returns (sigma, k, yhat.train, varcount, ...)
 #
-# preserves the per-parameter dimnames if they exist (for ranef)
+# preserves the per-parameter dimnames if they exist
 convertSamplesFromDbartsToBart <-
   function(
     samples,
@@ -413,8 +413,8 @@ packageBartResults <- function(
   invisible(result)
 }
 
-## Builds the quoted tree/node/resid prior calls that bart, bart2, and
-## rbart_vi hand to dbarts. nodeK is the node prior's k argument exactly as
+## Builds the quoted tree/node/resid prior calls the entry points hand to
+## dbarts. nodeK is the node prior's k argument exactly as
 ## it should enter the call - unevaluated for functions that redirect their
 ## matched call, evaluated for those that forward through do.call from
 ## internal frames - or NULL for no node prior. dart may be FALSE, TRUE, or
@@ -2299,7 +2299,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   xPositive <- formula[split$positive, , drop = FALSE]
 
   # independent per-component seeds derived deterministically from the
-  # user's seed (the per-chain seed derivation rbart_vi uses); politely
+  # user's seed (the per-chain seed derivation); politely
   # restore the caller's RNG stream afterward
   seeds <- if (!is.na(seed)) {
     withFixedSeed(seed, sample.int(.Machine$integer.max, 2L))
@@ -2357,9 +2357,8 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
 # S(t | x) draws from an AFT linear predictor and its per-draw sigma, in the
 # uncombined convention (chains x samples x observations) where the sigma
 # draws align with the fit draws unambiguously - the loglik channel's
-# approach. Shared by the bart and rbart methods; the caller supplies the
-# linear predictor (BART component for bart, BART + drawn intercepts for
-# rbart) and combines the chain margin at the end.
+# approach. The caller supplies the linear predictor and combines the chain
+# margin at the end.
 survivalProbabilitiesFromDraws <- function(
   linearPredictor,
   sigma,
@@ -2549,70 +2548,6 @@ survivalProbabilities.bart <- function(
     extract(object, type = "bart", sample = "train", combineChains = FALSE)
   } else {
     predict(object, newdata, type = "bart", combineChains = FALSE)
-  }
-
-  survivalProbabilitiesFromDraws(
-    linearPredictor,
-    object[["sigma"]],
-    times,
-    n.chains,
-    combineChains
-  )
-}
-
-# Grouped (random-intercept) AFT survival curves (riAFTBART's model). The
-# linear predictor is E[log T | x, group] = f(x) plus
-# the drawn group intercept - sourced from the "ev" channel (extract for the
-# training data, predict for newdata), NOT the bare BART component, so the
-# intercepts enter the curve. "ev" is on the log scale here (aft carries
-# sigma, so it is not probability-transformed). newdata needs group.by (an
-# unseen group draws its intercept from N(0, tau), inherited from predict).
-survivalProbabilities.rbart <- function(
-  object,
-  times,
-  newdata = NULL,
-  combineChains = TRUE,
-  ...,
-  group.by
-) {
-  refuseUnusedGenericArgs(
-    list(...),
-    "survivalProbabilities",
-    "rbart",
-    foreignArgsFor(
-      survivalProbabilitiesForeignReasons,
-      names(formals(survivalProbabilities.rbart))
-    )
-  )
-  if (!identical(object[["family"]], "aft")) {
-    stop("survivalProbabilities requires an aft (survival) rbart fit")
-  }
-  times <- as.double(times)
-  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
-    stop("'times' must be finite and positive")
-  }
-
-  n.chains <- if (is.null(object$n.chains)) {
-    length(object$fit)
-  } else {
-    object$n.chains
-  }
-
-  linearPredictor <- if (is.null(newdata)) {
-    extract(object, type = "ev", sample = "train", combineChains = FALSE)
-  } else {
-    if (missing(group.by)) {
-      stop("'group.by' must be given by name when 'newdata' is given")
-    }
-    # predict.rbart maps intercepts through the factor levels (an unseen
-    # level draws from N(0, tau)); coerce as rbart_vi does its group.by
-    predict(
-      object,
-      newdata,
-      group.by = as.factor(group.by),
-      type = "ev",
-      combineChains = FALSE
-    )
   }
 
   survivalProbabilitiesFromDraws(

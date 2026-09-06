@@ -35,7 +35,7 @@ source. Every internal data@x consumer is routed or retained by verdict.
   ORDINAL/CATEGORICAL ([[A_class.R:394@7842e2f2]]; data.hpp ColumnType). Dense
   categorical already rides buildMixed's per-column dispatch.
 - factors = "categorical" is ALREADY the default in dbartsData / dbarts /
-  bart2 / rbart ([[data.R:273@7842e2f2]], [[dbarts.R:188@7842e2f2]], [[bart.R:377@7842e2f2]], [[rbart.R:47@7842e2f2]]). The
+  bart2 / rbart ([[data.R:273@7842e2f2]], [[dbarts.R:188@7842e2f2]], [[bart.R:377@7842e2f2]], [[R/rbart.R:47@7842e2f2]]). The
   dummy -> single-categorical model change landed with the categorical
   engine, NOT here; plan 2 preserves it bitwise. "indicators" remains the
   opt-out. No new posterior decision.

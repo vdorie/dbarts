@@ -349,16 +349,8 @@ fit.gauss <- bart2(
   seed = 7L
 )
 expect_error(survivalProbabilities(fit.gauss, times = 1), "aft")
-# xbart and rbart_vi do not fit hazard (their family vectors are the refusal)
+# xbart does not fit hazard (its family vector is the refusal)
 expect_error(xbart(x, f + rnorm(n), family = "hazard"), "should be one of")
-expect_error(
-  rbart_vi(
-    (f + rnorm(n)) ~ x,
-    family = "hazard",
-    group.by = rep(1:4, length.out = n)
-  ),
-  "should be one of"
-)
 
 # ---- seeded recovery: fitted survival tracks the truth ----
 set.seed(202L)

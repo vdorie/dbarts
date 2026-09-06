@@ -30,7 +30,6 @@ using bartcore_bridge::familyCarriesNoWeights;
 using bartcore_bridge::isMultiForest;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
-using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refuseSparseLeafCovariate;
@@ -396,12 +395,10 @@ static_assert(offsetof(dbarts_results, test) == sizeof(size_t) + 2 * sizeof(doub
 static_assert(offsetof(dbarts_results, varcount) == sizeof(size_t) + 3 * sizeof(double*));
 static_assert(offsetof(dbarts_results, k) == sizeof(size_t) + 4 * sizeof(double*));
 static_assert(offsetof(dbarts_results, varprobs) == sizeof(size_t) + 5 * sizeof(double*));
-static_assert(offsetof(dbarts_results, tau) == sizeof(size_t) + 6 * sizeof(double*));
-static_assert(offsetof(dbarts_results, groupEffects) == sizeof(size_t) + 7 * sizeof(double*));
-static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 8 * sizeof(double*));
-static_assert(offsetof(dbarts_results, dispersion) == sizeof(size_t) + 9 * sizeof(double*));
-static_assert(offsetof(dbarts_results, residualDf) == sizeof(size_t) + 10 * sizeof(double*));
-static_assert(sizeof(dbarts_results) == sizeof(size_t) + 11 * sizeof(double*),
+static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 6 * sizeof(double*));
+static_assert(offsetof(dbarts_results, dispersion) == sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_results, residualDf) == sizeof(size_t) + 8 * sizeof(double*));
+static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_results layout changed; update these offsets, and bump "
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
@@ -506,7 +503,7 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
 // pointer-width, which the alignment asserts hold a future author to.
 #define DBARTS_RESULTS_FIELDS(X) \
   X(structSize) X(sigma) X(train) X(test) X(varcount) X(k) X(varprobs) \
-  X(tau) X(groupEffects) X(logLikelihood) X(dispersion) X(residualDf)
+  X(logLikelihood) X(dispersion) X(residualDf)
 #define DBARTS_PREDICTOR_SOURCE_FIELDS(X) \
   X(structSize) X(numRows) X(numColumns) X(denseValues) X(numCscColumns) \
   X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
@@ -641,8 +638,6 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     FILL(varcount, variableCounts);
     FILL(k, k);
     FILL(varprobs, splitProbabilities);
-    FILL(tau, tau);
-    FILL(groupEffects, groupEffects);
     FILL(logLikelihood, logLikelihood);
     FILL(dispersion, dispersion);
     FILL(residualDf, residualDf);
@@ -707,10 +702,6 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   refuseVarianceForestScaleUpdate(samplerOf(sampler),
                                   "dbarts_sampler_setResponse",
                                   ResponseConduit::response, updateScale);
-  // reachable here: this entry's control carries whatever bartcore.groups
-  // attribute the consumer put on it, so a flat-API sampler can be grouped
-  refuseGroupedScaleUpdate(samplerOf(sampler), "dbarts_sampler_setResponse",
-                           ResponseConduit::response, updateScale);
   // the one place minimal validation is not enough: an out-of-support y is a
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
@@ -733,8 +724,6 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseVarianceForestScaleUpdate(samplerOf(sampler),
                                   "dbarts_sampler_setOffset",
                                   ResponseConduit::offset, updateScale);
-  refuseGroupedScaleUpdate(samplerOf(sampler), "dbarts_sampler_setOffset",
-                           ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(offset, updateScale != 0);
   return 1;
 }

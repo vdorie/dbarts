@@ -70,7 +70,7 @@ public engine instead of writing tree code?
 
 "As it stands" means the surface in THIS worktree (the pre-1.0 bartcore line:
 gaussian, Student-t, probit, logistic, ordinal, nbinom, multinomial, AFT,
-hazard, hurdle, BCF, grouped, heteroscedastic - `feature-matrix.md`), not CRAN
+hazard, hurdle, BCF, heteroscedastic - `feature-matrix.md`), not CRAN
 0.9-33, which is gaussian plus binary probit (verified: its `R/A_class.R`
 carries a single `binary` logical). Most authors below had only the CRAN line,
 so each (A) says whether the recipe would have worked on what they had. Where
@@ -116,11 +116,11 @@ offset, weights, sigma, treatment and (on the tip) model swap between sweeps,
 so the forest sits inside somebody else's Gibbs sampler. Ten CRAN packages
 import it and one (`stan4bart`) links to it - the largest reverse-dependency
 footprint of any BART engine, at ~1.7x bartMachine's downloads. The 1.0 line
-has absorbed much of the model space too (13 rows in `feature-matrix.md`,
-including BCF, ordinal, negative binomial, AFT, grouped intercepts, variance
-forests, and four leaf models - constant, monotone, linear, GP - a combination
-no other engine carries; stochtree pairs constant with regression leaves, but
-nobody else ships the GP one). Gaps against this landscape: no soft trees, no
+has absorbed much of the model space too (twelve rows in `feature-matrix.md`,
+including BCF, ordinal, negative binomial, AFT and variance forests, and four
+leaf models - constant, monotone, linear, GP - a combination no other engine
+carries; stochtree pairs constant with regression leaves, but nobody else
+ships the GP one). Gaps against this landscape: no soft trees, no
 graph-structured categorical splits, no horseshoe leaf prior, no JSON
 serialization, no Python. *Verified:* CRAN reverse-dependency lists; this
 worktree's `man/` and `feature-matrix.md`.
@@ -201,7 +201,8 @@ engine. Its own paper's Table 1 gives the "C/C++ API" row exactly one check
 (its own) and the "Random effects" row exactly one, and its prose calls dbarts
 "a limited interface for interchanging a forest MCMC step with other
 samplers"; dbarts ships `inst/include/dbarts/dbarts.h` (39 entries in
-`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* stochtree's `R/data.R`,
+`DBARTS_C_API_LIST`), and at this snapshot also shipped `rbart_vi`.
+*Verified:* stochtree's `R/data.R`,
 `R/model.R`, `R/bart.R`,
 `src/include/stochtree/leaf_model.h`, NAMESPACE; arXiv 2512.12051v1
 Section 1.2 and Table 1 fetched and converted to text.
@@ -604,7 +605,7 @@ Five things the entry-by-entry pass shows that a headline count does not.
    refutable against the contemporaneous CRAN releases the papers cite
    (SoftBart 0.9-22, stochtree 0.9-28): that header layout predates both -
    0.9-33 still installs `inst/include/dbarts/`, `R_C_interface.hpp` included,
-   which is exactly how stan4bart links to it - and `rbart_vi` ships. So the
+   which is exactly how stan4bart links to it - and 0.9-33 ships `rbart_vi`. So the
    honest reading is narrow: the prose is grudging, the table is mostly fair,
    and two rows are wrong. Meanwhile SoftBart already exposes the named
    leaf-prior scale this program's calibration wall is about, and stochtree

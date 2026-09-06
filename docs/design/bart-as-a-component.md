@@ -127,8 +127,8 @@ quantized cut grid, the pinned response transform (gaussian's offset-adjusted
 min and max), the tree structure, and the rng position. A response, offset,
 weight or sigma swap leaves all four untouched. `updateScale = TRUE` rebuilds
 the transform and re-anchors sigma and the variance prior through it, which is
-exactly why it is refused wherever a per-forest, variance-forest or grouped
-calibration was stated against the old one.
+exactly why it is refused wherever a per-forest or variance-forest calibration
+was stated against the old one.
 
 The serialized state carries the derived quantities and NOT the raw ones. It
 holds forests, sigma, the transform's endpoints, latents, cut points, DART
@@ -177,9 +177,10 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` ([[R_interface_bartcore.cpp#bartcore_runWithCallback]]) is the
-internal single-chain R hook behind `rbart_vi`'s Gibbs loop. It refuses more
-than one chain outright, hands the closure one argument - the 0-based sweep
+`bartcore_runWithCallback` ([[R_interface_bartcore.cpp#bartcore_runWithCallback]]) was the
+internal single-chain R hook behind rbart_vi's Gibbs loop; rbart_vi is
+retired and the hook is otherwise unused. It refuses more than one chain
+outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the
 chain's generator never touches R's stream while the closure draws from it, so
 R owns `.Random.seed` throughout. The closure is evaluated under `R_tryEval`,
