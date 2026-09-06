@@ -3,8 +3,9 @@
 Current at 58812b7f (bartcore), 2026-09-03.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
-are the decision; the appendices are for a reader who opens the code. Code
-is cited by symbol, not by line number.
+are the decision; Appendix A is the tour, what to read and in what order,
+for a reader who opens the code. Code is cited by symbol, not by line
+number.
 
 ## 1. What bartcore replaces
 
@@ -205,94 +206,133 @@ in all three families BCF supports, gaussian, probit and logistic; the
 heteroscedastic swap under `updateScale = TRUE` is refused; and a sampled GP
 lengthscale would be an additive state block, not a format break.
 
-## Appendix A. Reading the code
+## Appendix A. The tour: what to read, in order
 
-The walk is ordered by what a linked package can be broken by.
+This is the reading order for a reviewer who opens the code and the
+documents after sections 1 to 6. It is ordered by what a linked package can
+be broken by, and each document is placed at the stop where its subject
+comes up. Word counts are given where they are known, so you can budget by
+them. In the four design documents, only the sections named below state
+the current design - about 4,100 of their 16,000 words; the rest can be
+skipped.
 
-ABI - `inst/include/dbarts/dbarts.h`, `src/C_interface.cpp`. The head
-comment's contract list, then the X-macro entry table. Judge whether every
-non-void entry says which of the three return classes it is, and whether a
-discarded capability 0 is a failure mode you accept: it leaves the sampler
-unchanged and the run conditioned on what it held before, quieter than
-`R_C_interface.hpp`'s `Rf_error` longjmp. `docs/plans/capi-shape.md`
-sections 0 and 13.
+### 1. Orientation
 
-Engine - `facade.hpp`, `sampler.hpp`, `chain.hpp`. `SamplerBase` and its
-pure virtuals, `SamplerFacade`, the `create*Sampler` factories; `Sampler`,
-`run`, `predictColumns` fanning out over `std::thread` workers via
+Open: `docs/architecture.md` - the current state, not a history; prefer it
+to any paraphrase where the two overlap. It is the one document to read
+whole before any code.
+
+Then: the code walk starts at the surface a linked package compiles
+against.
+
+### 2. The C API
+
+Open: `inst/include/dbarts/dbarts.h`, `src/C_interface.cpp` - the head
+comment's contract list, then the X-macro entry table - and
+`docs/plans/capi-shape.md` sections 0 and 13.
+
+Judge: whether every non-void entry says which of the three return classes
+it is, and whether a discarded capability 0 is a failure mode you accept:
+it leaves the sampler unchanged and the run conditioned on what it held
+before, quieter than `R_C_interface.hpp`'s `Rf_error` longjmp.
+
+Then: behind that surface is the engine those entries call into.
+
+### 3. The engine
+
+Open: `facade.hpp`, `sampler.hpp`, `chain.hpp` - `SamplerBase` and its pure
+virtuals, `SamplerFacade`, the `create*Sampler` factories; `Sampler`, `run`,
+`predictColumns` fanning out over `std::thread` workers via
 `fanOutPredictSlabs`; `Chain`, `setActiveRows`, `columnMaskStateFeasible`.
-Judge the exhaustive `ResponseFamily` switch, which carries no `default:`
-arm anywhere, and that state restore is semantic, not bitwise. Prefer
-`docs/architecture.md` on RNG and threading.
+Prefer `docs/architecture.md` on RNG and threading.
 
-Multi-forest - `combiner.hpp`: `ForestCombiner`, `AmplitudeForestCombiner`
-(saved-state key `"glue"`, after the per-forest amplitude scalars that glue
-the forests into one fit), `MultinomialForestCombiner`. BCF's `a*mu + b_z*tau`
-is the two-forest instance of the amplitude-and-basis family
-`docs/design/multiplier-combiner.md` sets out. Judge which mutations the
-combiner refuses and why; the mutation-legality table in
-`docs/design/bart-as-a-component.md` comes first.
+Judge: the exhaustive `ResponseFamily` switch, which carries no `default:`
+arm anywhere, and that state restore is semantic, not bitwise.
 
-Bridge - `src/R_interface_bartcore.cpp`: `bartcore_create`, `_run`, the
+### 4. Multiple forests
+
+Open: the mutation-legality table first, then the code that enforces it,
+then the one weight that code does not save.
+
+- `docs/design/bart-as-a-component.md`, sections 2 "Which mutations are
+  legal between sweeps" and 3 "What engine state does not carry, and who
+  reinstalls it", about 850 words: which mutations a multi-forest sampler
+  admits, and the two state gaps, the per-forest weight and the active-row
+  mask.
+- `docs/design/multiplier-combiner.md`, the preamble's first paragraph,
+  then "The model", "The amplitude layout", "The reparameterization", "The
+  amplitude conditional", "bcf as the K = 2 instance", "Surfaces" and "What
+  this family does not do", about 1,490 words: what the basis-and-amplitude
+  family is, and where BCF sits in it.
+- `combiner.hpp`: `ForestCombiner`, `AmplitudeForestCombiner` (saved-state
+  key `"glue"`, after the per-forest amplitude scalars that glue the
+  forests into one fit), `MultinomialForestCombiner`. BCF's `a*mu + b_z*tau`
+  is the two-forest instance of the amplitude-and-basis family
+  `docs/design/multiplier-combiner.md` sets out.
+- `docs/design/bcf.md`, the preamble's model equation and "The multiplier
+  snap and the per-forest weight (2026-08-10)", about 355 words: why a row
+  can carry an exact-zero weight in one forest, and why that weight is not
+  saved state.
+
+Judge: which mutations the combiner refuses and why.
+
+### 5. The R bridge
+
+Open: `src/R_interface_bartcore.cpp` - `bartcore_create`, `_run`, the
 setters, `_storeState`, `_setState`, `_installForests`, `_predict`,
 `_predictPerForest`, `_getTrees`, then the shared guards
 `refusedAmplitudeFamilyReason`, `refuseMultiForestMutation`,
 `refuseUndefinedTestFits`, `refusePinnedSigmaChange`, `refuseNonBinaryMask`.
-Judge `refusePinnedSigmaChange`'s own comment, the source's clearest
-statement of why a guard is keyed on family rather than an internal flag.
 `tests/cpp/test_facade.cpp` is the facade's conformance test, one row per
 `SamplerBase` virtual driven through the base.
 
-Moves and data - `moves.hpp`, `tree.hpp`, `scan.hpp`, `grow.hpp`,
-`data.hpp`: `metropolisJumpForTree`; `Tree`, `columnMaskSubtreeIsValid`;
+Judge: `refusePinnedSigmaChange`'s own comment, the source's clearest
+statement of why a guard is keyed on family rather than an internal flag.
+
+### 6. Tree moves and data
+
+Open: `docs/design/empty-leaf-veto.md`, "Where the constant is read", then
+"Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)",
+"What counts as empty: the weight law (2026-08-12)" and "Which weights the
+predicate sees", about 1,410 words: the member-empty versus weight-empty
+ranking. Then `moves.hpp`, `tree.hpp`, `scan.hpp`, `grow.hpp`, `data.hpp`:
+`metropolisJumpForTree`; `Tree`, `columnMaskSubtreeIsValid`;
 `scanOrdinalCuts`, `growTreeFromRoot`; `ColumnStore`, `ScopedCutGrid`,
-`ColumnKind` and the derived `kindSplitsBySubset`. Judge change-move
-detailed balance; the ranked empty-leaf veto in `Tree::leafVetoRank` and
-`resolveVetoRank`, where a member-empty leaf vetoes absolutely and a
-weight-empty leaf is only penalized (`docs/architecture.md`'s "Tree moves");
-whether the semantic kind axis and the mechanical `splitsBySubset` axis stay
-separate (only grid construction, ingestion validation and reporting may
-read the kind); and the doubled entry layout `scanOrdinalCuts` uses for a
-node holding missing members.
+`ColumnKind` and the derived `kindSplitsBySubset`.
 
-The build support files - `configure`, `tools`, `src/misc`, `src/external` -
-are skim-only; the one thing worth a look is `simd.c`'s `cpuid`, which
-requests subleaf 0 so that AVX2 is not misdetected as AVX as it is in 0.9-x.
+Judge: change-move detailed balance; the ranked empty-leaf veto in
+`Tree::leafVetoRank` and `resolveVetoRank`, where a member-empty leaf
+vetoes absolutely and a weight-empty leaf is only penalized
+(`docs/architecture.md`'s "Tree moves"); whether the semantic kind axis and
+the mechanical `splitsBySubset` axis stay separate (only grid construction,
+ingestion validation and reporting may read the kind); and the doubled
+entry layout `scanOrdinalCuts` uses for a node holding missing members.
 
-## Appendix B. Other documents
+Then: with the mechanisms read, the grid that scores them can be judged.
 
-- `docs/architecture.md` - the current state, not a history; prefer it to
-  any paraphrase where the two overlap.
-- `docs/design/feature-matrix.md` - the one deep read: the per-model
-  capability grid, and a Gaps section collecting every missing cell as a
-  candidate work item. Its cites are machine-checked; its cell values are
-  judgments.
+### 7. The capability grid
+
+Open: `docs/design/feature-matrix.md` - the one deep read: the per-model
+capability grid, and a Gaps section collecting every missing cell as a
+candidate work item.
+
+Judge: the cell values. Its cites are machine-checked; its cell values are
+judgments.
+
+### 8. Build support
+
+Open: the build support files - `configure`, `tools`, `src/misc`,
+`src/external` - are skim-only; the one thing worth a look is `simd.c`'s
+`cpuid`, which requests subleaf 0 so that AVX2 is not misdetected as AVX as
+it is in 0.9-x.
+
+### 9. Reference, not reading
+
+Open as the questions arise, not in order:
+
 - `docs/design/INDEX.md`, `docs/plans/INDEX.md` - complete manifests,
   refused and closed items included.
 - `docs/plans/release-candidate-review.md` - the pre-release review's master
   log, newest first.
 - root `TODO` - an alphabetical backlog, some items scheduled after 1.0-0.
   Its `release` item is the one ordered procedure.
-
-In the four design documents, only these sections state the current design -
-about 4,100 of their 16,000 words; the rest can be skipped.
-
-- `docs/design/bart-as-a-component.md`, sections 2 "Which mutations are legal
-  between sweeps" and 3 "What engine state does not carry, and who
-  reinstalls it", about 850 words: which mutations a multi-forest sampler
-  admits, and the two state gaps, the per-forest weight and the active-row
-  mask.
-- `docs/design/multiplier-combiner.md`, the preamble's first paragraph, then
-  "The model", "The amplitude layout", "The reparameterization", "The
-  amplitude conditional", "bcf as the K = 2 instance", "Surfaces" and "What
-  this family does not do", about 1,490 words: what the basis-and-amplitude
-  family is, and where BCF sits in it.
-- `docs/design/empty-leaf-veto.md`, "Where the constant is read", then "Is
-  vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)", "What
-  counts as empty: the weight law (2026-08-12)" and "Which weights the
-  predicate sees", about 1,410 words: the member-empty versus weight-empty
-  ranking.
-- `docs/design/bcf.md`, the preamble's model equation and "The multiplier
-  snap and the per-forest weight (2026-08-10)", about 355 words: why a row
-  can carry an exact-zero weight in one forest, and why that weight is not
-  saved state.
