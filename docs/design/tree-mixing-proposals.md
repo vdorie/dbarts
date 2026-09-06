@@ -7,7 +7,11 @@ sec 5.4), amends sec 3.1, and adjudicates fourteen new candidates;
 **section 13 is a measured move-set A/B, 2026-09-06**, which reproduces
 Tan et al.'s null on this package's own kernel and, with a one-paragraph
 addendum in sec 6.1, supplies the per-move acceptance rates the move
-census asked for. No work proposed, nothing scheduled, no source touched. TODO
+census asked for; **section 14 measures recovery after a response swap,
+2026-09-06**, which finds that section 13's null does NOT extend to a moving
+response - dropping the change move costs 20 to 25 percent more sweeps to
+re-adapt after a large swap, while dropping swap costs nothing. No work
+proposed, nothing scheduled, no source touched. TODO
 `tree-mixing-proposals` (VD 2026-08-09: "I'm interested in the ways in
 which the posterior is sticky and if we can come up with some other
 proposal mechanisms to help BART explore and mix better"). Likely
@@ -2705,4 +2709,232 @@ caveat        the host carried a load average of 9 to 16 throughout. Absolute
               and all 25 pairs, which is what carries the wall-time claim.
 scripts       run out of repo and not preserved; every input is named above
               and the grid is reproducible from `proposal.probs` alone
+```
+
+---
+
+## 14. Recovery after a response swap (2026-09-06)
+
+### 14.1 The question
+
+Section 13 measured three proposal mixtures on five one-shot designs and
+found no difference. Every one of those designs fits a fixed response once.
+dbarts' distinguishing use is not that: it is a `dbartsSampler`
+([[R/dbarts.R#dbartsSampler]]) inside a larger Gibbs loop whose response
+moves between sweeps, which is what stan4bart and bartCause do and what
+section 3.2's scope note already names as the regime where a stale build
+scale bites ("`setResponse(updateScale=FALSE)` inside a larger Gibbs
+sampler"). How fast the trees re-adapt after the response moves is measured
+by none of the three cited sources and by none of section 13's designs. It
+is the criterion on which change and swap should be kept or dropped for
+THIS package, and it is reachable the same cheap way section 13 was:
+through `proposal.probs` ([[R/dbarts.R#dbarts]],
+[[R/model.R#defaultProposalProbs]]), with no engine change.
+
+### 14.2 Design
+
+Section 13's three arms, unchanged:
+
+    A   birth_death 0.5, swap 0.1, change 0.4, birth 0.5   the shipped default
+    B   birth_death 1.0, swap 0.0, change 0.0, birth 0.5   birth/death only
+    C   birth_death 0.6, swap 0.0, change 0.4, birth 0.5   change, no swap
+
+n = 2000, p = 10 uniform predictors, 200 trees, one chain, one thread,
+`keepTrees` FALSE. Burn 1000 sweeps on y1 = Friedman(x) + N(0, sigma^2),
+then `setResponse(y2, updateScale = FALSE)`
+([[R/dbarts.R#setResponse]]) and 400 sweeps ONE AT A TIME, reading the
+current fit after each. Four shifts, y2 carrying the SAME noise draw as y1
+so the response moves because the outer block moved and not because the
+data were redrawn:
+
+    control  f2 = f1                                 no swap; the level to recover to
+    small    f2 = f1 + 2 x6                          a new linear term on a noise variable
+    large    f2 = Friedman with x6..x10 in x1..x5's roles
+    offset   f2 = f1 + b_g, 20 groups, b_g ~ N(0, 1) a random-intercept block's shape
+
+Two noise levels, sigma = 1 and sigma = 0.25, and section 6.3's matched-seed
+idiom: data seed indexed by replicate, sampler seed the replicate, both
+shared across arms, so every contrast is paired. The test set is 1000 rows
+drawn once and held fixed across every arm, seed and shift; 25 evenly spaced
+rows of it carry the ESS.
+
+Recovery sweeps is the first sweep t >= 10 at which the 10-sweep median
+window of the RMSE trajectory comes within 10 percent of a target. Two
+targets are reported: the arm's OWN mean over sweeps 300-400, and a COMMON
+one pooled over the three arms within (shift, sigma, seed). The common
+target is the honest one, since an arm that settles at a worse level would
+otherwise look fast for recovering to its own worse level; the two agree on
+every ranking below. ESS is `posterior::ess_basic` over post-swap sweeps
+200-400, median over the 25 points. Wall time is 400 sweeps issued in one
+`run` call after the measured loop, so the per-call R overhead is out of the
+ratio.
+
+### 14.3 The confirmation set
+
+The first grid - four shifts, two sigmas, three arms, five matched seeds,
+120 fits - found exactly one cell where the arms can differ: the large
+shift, the only shift whose post-swap trajectory has a transient at all.
+There arm B was slower and worse than A in 5 of 5 seeds on every level
+metric at both noise levels, largest |t| 6.37 on 4 df, and nothing survived
+Holm over the 144-contrast family (smallest adjusted p 0.448) or over the
+36-contrast large-shift family (0.112).
+
+That cell was then re-run on 15 FRESH seeds, independent of the five that
+selected it, with the primary contrasts fixed in writing before the run:
+B - A on recovery-to-common-target and on RMSE at post-swap sweep 50, at
+each sigma, four tests, Holm over the four, predicted direction positive.
+C - A on the same four, the ESS and the remaining level metrics were
+secondary and not gating.
+
+### 14.4 Tables
+
+Mean over seeds, min-max in parentheses. Control, small and offset are the
+five seeds; large is all twenty.
+
+    recovery sweeps to a common target, train RMSE
+    sigma shift     n     A                B                C
+    1     control   5   10.0(10-10)      10.0(10-10)      10.0(10-10)
+    1     small     5   10.0(10-10)      10.0(10-10)      10.0(10-10)
+    1     offset    5   10.0(10-10)      10.0(10-10)      10.0(10-10)
+    1     large    20   72.0(52-89)      89.1(58-124)     80.8(55-121)
+    0.25  control   5   10.0(10-10)      10.0(10-10)      10.0(10-10)
+    0.25  small     5   10.4(10-12)      10.6(10-13)      10.4(10-11)
+    0.25  offset    5   10.0(10-10)      10.0(10-10)      10.0(10-10)
+    0.25  large    20  213.5(163-264)   238.7(177-299)   214.4(166-289)
+
+    post-swap ESS, sweeps 200-400, median over the 25 fixed test points
+    sigma shift     n     A                B                C
+    1     control   5   11.0(7.9-12.6)   11.1(8.3-13.4)   11.5(9.3-16.0)
+    1     small     5    9.2(5.0-11.7)    8.7(4.5-12.6)   10.9(7.8-15.1)
+    1     offset    5   10.0(5.9-14.4)   13.0(6.8-17.0)    9.8(5.2-14.8)
+    1     large    20   10.3(5.4-16.6)   11.3(6.9-16.8)    8.8(3.8-11.5)
+    0.25  control   5   12.4(9.3-14.7)   13.1(8.2-21.9)    9.9(7.8-11.9)
+    0.25  small     5    9.2(6.1-12.5)    9.9(5.5-13.1)   11.2(4.6-14.4)
+    0.25  offset    5    9.1(4.6-13.2)    9.2(4.7-12.0)   13.2(8.1-17.8)
+    0.25  large    20    6.8(2.9-14.3)    8.3(4.1-15.0)    7.6(4.2-12.3)
+
+Test RMSE against the true f2 along the transient, and the steady state the
+matching no-swap control holds:
+
+    sigma shift  arm    @10    @50   @100   @400   control steady state
+    1     large  A     1.479  0.897  0.790  0.747  0.734
+    1     large  B     1.539  0.925  0.800  0.745  0.728
+    1     large  C     1.493  0.896  0.806  0.744  0.747
+    0.25  large  A     1.447  0.686  0.505  0.354  0.321
+    0.25  large  B     1.605  0.802  0.558  0.378  0.322
+    0.25  large  C     1.452  0.706  0.521  0.365  0.315
+
+The four primary contrasts on the confirmation seeds, 14 df, Holm over the
+four:
+
+    contrast                       sigma    diff       se     t       Holm p
+    B - A, recovery(common target)  1      +16.07    4.10   3.92     0.005  *
+    B - A, RMSE at sweep 50         0.25    +0.108   0.025  4.28     0.003  *
+    B - A, recovery(common target)  0.25   +24.67   10.53   2.34     0.069
+    B - A, RMSE at sweep 50         1       +0.017   0.021  0.79     0.443
+
+C - A on the same four: +7.67 (p 0.17), -3.53 (0.81), +0.0018 (0.93),
++0.019 (0.32).
+
+### 14.5 What separated and what did not
+
+**Three of the four shifts have no transient at all.** The small shift, the
+offset shift and the no-swap control fire the recovery criterion in the
+first available 10-sweep window, in every arm, at both noise levels, in
+every seed. A new linear term on a variable the forest was not splitting on
+is absorbed by leaf redraws; the group offsets are not a function of any
+predictor, so the forest cannot represent them and absorbs them into sigma
+(which rises to 1.25 at sigma = 1 and 0.89 at sigma = 0.25) rather than into
+the trees. There is no move-set question in these cells, because there is no
+structural work for a move to do.
+
+**The large shift separates, and B is the arm that loses.** Retargeting the
+signal onto five variables the forest was not splitting on is the only shift
+that makes structural work, and there birth/death only takes 16 more sweeps
+to recover at sigma = 1 (Holm p 0.005) and sits 0.108 higher in RMSE at
+post-swap sweep 50 at sigma = 0.25 (Holm p 0.003). The direction is the same
+in every level metric at both noise levels and in the recovery metric under
+either target.
+
+**The gain belongs to change, not to swap.** Arm C carries change at the
+same 0.4 weight with swap set to zero and is indistinguishable from A on all
+four primary contrasts and on every secondary one, in either direction; B,
+which drops both moves, is the only arm that separates. Swap contributes
+nothing measurable to recovery, which is what section 6.1's addendum already
+predicts from the other side: 73.0 percent of swap proposals are no-ops
+([[src/bartcore/moves.hpp#swapMove]]).
+
+**Recovered mixing does not separate.** Post-swap ESS is flat across arms in
+all eight shift x sigma cells; the largest |t| on ESS anywhere in the
+confirmation set is 1.38 on 14 df. The move set changes how fast the trees
+get back, not how well they mix once back.
+
+**Wall time reproduces section 13 exactly.** Over the 120-fit grid B costs
+0.887x arm A and C costs 0.993x, and the per-pair B/A ratio is below 1 in
+all 40 pairs. So B trades an 11 percent sweep saving for a 20 to 25 percent
+longer recovery on the one shift that needs one.
+
+### 14.6 Reading
+
+Section 13's null holds for a fixed response and does not extend to a moving
+one. On the criterion that matters for this package's distinguishing use,
+the change move earns its 0.4 and the swap move does not earn its 0.1: the
+one place the arms separate is a large response swap, and the arm that
+carries change without swap matches the shipped default there. That is
+consistent with section 2's mechanics - change is the only shipped kernel
+that can install a new split VARIABLE at an existing interior node
+([[src/bartcore/moves.hpp#changeMove]]), which is precisely the edit a
+retargeted signal demands, while swap only exchanges a parent's rule with a
+child's and cannot introduce a variable the tree does not already carry
+([[src/bartcore/moves.hpp#metropolisJumpForTree]]).
+
+This does not move the shipped default, which already contains change. It
+changes what the ledger says about dropping it: a user who sets
+`proposal.probs` to birth/death only gets section 13's same answers 8 to 16
+percent faster on a fixed response, and pays 20 to 25 percent more sweeps to
+re-adapt when the response moves under a sampler embedded in an outer loop.
+
+### 14.7 What this does not settle
+
+- One chain per fit, so nothing between-chain, exactly as in section 13.
+- 400 post-swap sweeps is not enough at sigma = 0.25: no arm returns to its
+  control's steady-state RMSE by sweep 400 (0.354, 0.378, 0.365 against
+  0.321, 0.322, 0.315), so that cell ranks an unfinished transient. At
+  sigma = 1 every arm has returned.
+- The large shift is a TOTAL retarget of the signal. A real Gibbs loop's
+  sweep-to-sweep response move is small, and the two shifts here that are
+  closer to that size show no arm effect because they show no transient.
+  What is established is that the move set matters when the response moves
+  far enough to require new split variables, not that stan4bart's or
+  bartCause's own sweep-to-sweep moves are that large. Measuring the size of
+  move those samplers actually produce is the obvious next question and is
+  not asked here.
+- Five seeds outside the large shift. Those cells rule out effects the size
+  of the large-shift effect, not small ones.
+- The arms are mixtures over the SHIPPED kernels. Nothing here speaks to a
+  new kernel, and in particular nothing here bears on the section 4.2 cut
+  move, whose premise is that change is badly aimed rather than absent.
+- Recovery is measured on RMSE against the true f2. No coverage, no
+  variable inclusion, no sigma-chain readout is taken along the transient.
+
+### 14.8 Provenance
+
+```
+branch        bartcore
+measured at   edf5a85b (section 13's own landing tip; no source touched
+              since, so the measurement is live at that tip)
+build         private library installed from a clean `git archive HEAD`
+              export; dbarts 1.0.0, R 4.6.1, posterior 1.7.0, arm64 macOS
+grid          120 fits (3 arms x 4 shifts x 2 sigmas x 5 seeds) plus a
+              90-fit confirmation set (3 arms x 1 shift x 2 sigmas x
+              15 fresh seeds), run in the foreground, single-threaded;
+              1801 sweeps and about 3.5 s per fit
+scope         measurement only - no source change, no default change,
+              nothing scheduled
+caveat        the host carried a load average of 8 to 28 throughout.
+              Absolute seconds are indicative; the wall-time claim rests
+              on the per-pair B/A ratio, below 1 in all 40 pairs
+scripts       run out of repo and not preserved; every input is named
+              above and the grid is reproducible from `proposal.probs`,
+              `setResponse` and the four shift definitions alone
 ```
