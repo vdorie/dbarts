@@ -55,6 +55,14 @@ items
     owes its own, which is why
     docs/plans/archive/binary-kforest-prior-default.md refused rather
     than opened it.
+  capi-unwind-protect: three raise sites hold C++ heap owners across a
+    longjmp and leak on the error path, none reachable by an ordinary
+    refusal: dbarts_sampler_run's sweep callback (a host callback that
+    raises, or an engine throw, needs R_UnwindProtect around the whole
+    run); createChainRngs' vector buffer on an allocation failure; and
+    the engine's own throws from deep frames (fanOutPredictSlabs,
+    chain.hpp). Fix shape: unwind-protect the run entry; the rest are
+    out-of-memory paths.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
     the outer sampler, driven through the setOffset conduit; EXACT

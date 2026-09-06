@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 58812b7f (bartcore), 2026-09-03.
+Current at bd91c5e2 (bartcore), 2026-09-06.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
 are the decision; Appendix A is the tour, what to read and in what order,
@@ -118,7 +118,7 @@ A green gate proves what its row says and no more.
 | `exact-gates` quick | 21 exact-posterior and move-balance scripts, against closed forms rather than snapshots |
 | `exact-gates` cross-host | bcf and multinomial equivalence at tier 1 |
 | `equivalence.R` gaussian | 50 scenarios reproduce bitwise on one host |
-| `sbc.R` | simulation-based calibration (SBC) over five family arms (gaussian, ordinal, nbinom, Student-t, multinomial) and 30 functionals, Bonferroni-corrected |
+| `sbc.R` | simulation-based calibration (SBC) over five family arms (gaussian, ordinal, nbinom, Student-t, multinomial) and 30 functionals, Bonferroni-corrected, with nbinom's two dispersion functionals waived as an adjudicated mixing ridge |
 | `rchk` | PROTECT balance |
 | `valgrind` | leaks and out-of-bounds reads |
 | `revdep-smoke` | reverse dependencies install and run |
@@ -138,13 +138,21 @@ differences" and 5 "Unexplained disagreements").
 
 ## 5. What is not checked
 
-Five workflows are `schedule` plus `workflow_dispatch` only - `equivalence`,
-`sbc`, `rchk`, `valgrind`, `revdep-smoke` - and have never run, by any
-trigger, on any branch: GitHub binds both triggers to the default branch,
-which does not carry these files. Every clean rchk, valgrind, equivalence
-and SBC claim above rests on a manual local run, recorded in
-`docs/plans/release-candidate-review.md`. Merging to main registers them
-(`TODO`'s `release` item).
+Five workflows - `equivalence`, `sbc`, `rchk`, `valgrind`, `revdep-smoke` -
+are `schedule` plus `workflow_dispatch`, and GitHub binds both triggers to
+the default branch, which does not carry them. On bartcore each fires only
+from a push that touches its own file, and each has run once that way.
+`equivalence` and `revdep-smoke` passed. `rchk` reported eight unprotected
+uses of a data frame's names attribute in the model-matrix code and one
+multi-argument slot read in the multinomial bridge, false positives on the
+running program that are protected anyway; the same image now reports zero
+findings. `valgrind` found a 48-byte leak on the C API's test-missingness
+refusal, a C++ object destroyed by a longjmp, since fixed; the full suite is
+clean under it. `sbc` flags the nbinom dispersion functionals on the
+identifiability ridge `docs/plans/sbc-family-tiers.md` adjudicates as mixing
+rather than miscalibration, so that arm waives those two by name and fails
+on any other. Merging to main registers the schedules (`TODO`'s `release`
+item).
 
 Things that could be wrong and would not be caught:
 
