@@ -1248,3 +1248,309 @@ cost model    "unit fit" = the n 2000, p 10, m 200, 3000-sweep single-
               are estimates scaled from that anchor by n and sweeps, not
               measurements
 ```
+
+---
+
+## 10. Pilot results (2026-09-06)
+
+Section 6.5 named P2, P6 and P5 as the three to run first and C1 as the core
+cell to gate on. This is that run, against the shipped default sampler.
+Sections 1 to 9 are the survey as written and are unchanged. The cells live
+in `benchmarks/R/surfaces`, one script each plus a shared
+`surfaces-common.R`; every generating process there is transcribed from the
+primary source and carries its citation.
+
+Two corrections to the survey's transcriptions came out of re-reading the
+sources before the run, and both change what gets generated.
+
+- **P2's covariates.** Section 1.2 gives x1 and x3 in two blocks each and is
+  silent on x2. The paper draws x2 in THREE blocks:
+  `x2 ~ unif(0.1,0.4)` for i <= 100, `unif(0.6,0.9)` for i = 101..200 and
+  `unif(0.1,0.9)` for i = 201..300 [verified: arXiv 1312.1895 sec 2.3]. A
+  uniform x2 is a different problem: the mean function's second level is
+  defined by a cut on x2 at 0.5, and the block structure is what aligns it
+  with the x1/x3 confounding. The cell uses the paper's version.
+- **C1's Single index gamma.** Section 1.4 gives one gamma, Linear's. Table
+  1 gives Single index its own, `gamma_j = -1.5 + (j-1)/3`, against Linear's
+  `gamma_j = -2 + 4(j-1)/(d-1)` [verified: arXiv 2002.03375v4 Table 1]. The
+  cell uses the Table 1 pair. Table 4's noise levels are also
+  `kappa` in {1, 2}, not section 4.1's {1, 10}.
+
+### 10.1 P2, the confounded step function
+
+Five matched data seeds, 8 chains, m = 1, 1000 burn-in and 2000 kept at
+`n.thin = 1`, two arms through `proposal.probs`. Mean over seeds, min-max in
+parentheses. The acceptance proxy is the share of sweeps on which the tree
+structure differs from the previous sweep's, which at one tree and no
+thinning is exactly the share on which a structural move was accepted.
+
+    design      arm          between-chain sd    pooled p(root x1)   share on x1 given {x1,x3}
+    confounded  default      0.501(0.470-0.518)  0.431(0.361-0.625)  0.513(0.375-0.625)
+    confounded  birth/death  0.455(0.354-0.535)  0.350(0.125-0.625)  0.504(0.167-0.833)
+    duplicate   default      0.051(0.017-0.075)  0.499(0.481-0.512)  -
+    duplicate   birth/death  0.492(0.354-0.535)  0.425(0.125-0.625)  -
+
+    design      arm          acceptance proxy       root switches/chain  min switches
+    confounded  default      0.0584(0.0520-0.0632)  0.7(0.0-1.2)         0
+    confounded  birth/death  0.0298(0.0222-0.0355)  0.0(0.0-0.0)         0
+    duplicate   default      0.1030(0.0907-0.1132)  78.5(70.2-85.0)      38
+    duplicate   birth/death  0.0097(0.0061-0.0140)  0.0(0.0-0.0)         0
+
+| statistic | published | measured, shipped default | verdict |
+|---|---|---|---|
+| acceptance rate of tree moves after burn-in | 0 | 0.058 (0.052-0.063) of sweeps change the tree | does not, literally |
+| root variable moves per chain per 2000 sweeps | implied 0 | 0.7 (0.0-1.25); at least one chain never moves in all 5 seeds, no chain moves at all in 1 of them | reproduces |
+| between-chain sd of p(root on x1), primary | mixing null near 0 | 0.501 (0.470-0.518) | reproduces |
+| pooled share on x1 among {x1, x3} draws | 0.5 exactly | 0.513 (0.375-0.625) | reproduces, pooled only |
+
+**Verdict: reproduces, with the published number corrected.** The acceptance
+rate is not zero - the tree changes on about one sweep in seventeen - but
+what it never changes is the root variable. A chain visits 1.3 root
+variables on average over two thousand sweeps, and the between-chain sd of
+0.501 is 94 percent of the 0.535 a 0/1 statistic can reach at eight chains.
+The exact 0.5 symmetry is satisfied only after pooling the eight. That is
+representation multimodality read directly, and it is the failure Pratola's
+sentence describes even though the number in it does not survive.
+
+**Arm contrast.** Birth/death only halves the structural acceptance rate
+(0.030 against 0.058) and moves the root variable zero times in 40 of 40
+chains, against 0.7 per chain for the shipped mixture. Neither arm mixes
+between representations on the confounded design at this length, so the
+pathology itself does not separate them. The null control does. With two
+exactly duplicated columns - likelihood and prior ratios both exactly 1 -
+the shipped mixture returns a pooled 0.499 with 78.5 switches per chain and
+never fewer than 38, while birth/death only returns 0 switches in every
+chain and a between-chain sd of 0.49. **Birth/death only fails the null
+control this cell requires; the shipped mixture passes it.** The change move
+is what supplies variable switching at one tree, and death-then-rebirth does
+not substitute for it even when the two representations are exactly
+exchangeable. Note that the null control's columns are drawn on a
+four-value grid: with continuous duplicates a rule-changing proposal has to
+hit the twin column at the same cut out of the whole grid, which makes the
+switch rare for a reason unrelated to the kernel.
+
+### 10.2 P6, the diagonal shelf with targeted selection
+
+200 replications, n = 250, true effect -1, shipped defaults, ATE read off
+the counterfactual contrast. The BCF arm is dbarts' own: an estimated
+propensity added as a covariate and a `forest()` term the treatment
+indicator modulates.
+
+    reconstruction  arm   bias   coverage  rmse   interval length
+    figure          bart  0.314  0.590     0.366  0.695
+    figure          bcf   0.100  0.885     0.214  0.729
+    shelf 0.15      bart  0.592  0.260     0.643  0.821
+    shelf 0.40      bart  0.172  0.840     0.235  0.672
+
+| statistic | published | measured, figure reconstruction | verdict |
+|---|---|---|---|
+| BART ATE bias, primary | 0.27 | 0.314 | partial |
+| BART 95% coverage, primary | 0.65 | 0.590 | partial |
+| BART RMSE | 0.31 | 0.366 | partial |
+| BCF ATE bias | 0.14 | 0.100 | partial |
+| BCF 95% coverage | 0.95 | 0.885 | partial |
+| BCF RMSE | 0.21 | 0.214 | partial |
+
+**Verdict: partial, and the reason is the source, not the sampler.** Every
+measured value sits within 0.07 of its published counterpart, and the
+BART-to-BCF gap - bias 0.31 to 0.10, coverage 0.59 to 0.89 - is the gap the
+paper reports. But the paper never prints its prognostic function. Section
+3.5 recorded that; what this run adds is what it costs. Across three
+reconstructions that all satisfy the paper's stated constraints, BART's bias
+runs from 0.17 to 0.59 and its coverage from 0.84 to 0.26. The
+figure-calibrated one agrees with the published row because it was built to
+agree with the figure the published row came from, so the agreement
+calibrates the reconstruction and cannot on its own confirm the sampler.
+
+Two source findings worth carrying. First, the printed propensity is
+incomplete. The equation reads
+`0.8 Phi(mu / (0.1(2 - x1 - x2) + 0.25)) + 0.025(x1 + x2) + 0.05`, but the
+paper's own LaTeX source carries the generating expression one line above it
+as a comment, `0.8*pnorm(m/3, 0, 0.1*(2-xtilde)+0.25) + 0.025*xtilde + 0.05`,
+which divides mu by 3 first. Only the commented form reproduces the paper's
+Figure 4: it puts the propensity near 0.21 at mu = -1 and near 0.10 at
+mu = -1.9, where the printed form puts it near 0.08 and 0.05. Second,
+Figure 4 pins mu harder than the captions do - a realized range of about
+-1.9 to 3.0, not the symmetric -3 to 3 the Figure 3 caption states, and a
+median well below zero. That is why no member of the symmetric near-step
+family the captions describe can be made to fit, and why the `figure`
+reconstruction is asymmetric.
+
+### 10.3 P5, the checkerboard on an autocorrelated design
+
+Twenty matched seeds, n = 1600, p = 40, 8 chains, 1000 burn-in and 2000
+kept, shipped defaults. There is no published dbarts number; the oracle is
+the inclusion truth and its near-decoys.
+
+    statistic                                  measured
+    between-chain sd of inclusion, true cols   0.0109(0.0080-0.0154)
+    its mixing null, sd/sqrt(ESS)              0.0064(0.0055-0.0074)
+    ratio to the null, true cols               1.72(1.19-2.52)
+    ratio to the null, immediate decoys        1.61(1.29-1.93)
+    summed inclusion share, 4 true cols        0.510(0.490-0.534)
+    summed inclusion share, 8 decoys           0.176(0.152-0.199)
+    largest non-true column's inclusion        0.030(0.024-0.040)
+    non-true columns above the weakest true    0.0(0.0-0.0)
+    95% pointwise coverage of true f           0.984(0.975-0.991)
+    held-out RMSE                              0.704(0.609-0.909)
+
+| statistic | reference | measured | verdict |
+|---|---|---|---|
+| between-chain sd of inclusion, primary | 1.0x its own mixing null if chains agree | 1.72x (1.19-2.52) | partial |
+| inclusion oracle, {x5, x10, x15, x20} | exact | all four top the ranking in 20 of 20 seeds; no other column outranks the weakest true one | reproduces the truth |
+
+**Verdict: the pathology does not appear at the shipped default.** Tan et
+al.'s Theorem 5.2 bounds the hitting time for a pure interaction when the
+change move is disallowed; the shipped mixture is not that, and this cell is
+where the gap gets tested. It comes out clean. Each true column carries
+about 0.128 of the splits against 0.022 for its correlated-0.9 neighbours
+and 0.010 for the far columns; the four true columns take 0.51 of all splits
+between them; and in all twenty replicates none of the other thirty-six
+columns outranks the weakest true one. Coverage is 0.98 against a nominal
+0.95,
+so the intervals are conservative rather than short. The one thing not
+clean is the between-chain spread: chains disagree about inclusion by 1.7
+times their own Monte Carlo resolution, and by about the same factor on the
+decoys as on the true columns, so the disagreement is a shared-splits effect
+across the correlated block rather than a wrong answer.
+
+### 10.4 C1, the He and Hahn factorial
+
+Twenty matched seeds per cell, n = 10000, p = 30, kappa = 1, one chain, 1000
+burn-in and 2500 kept - the paper's own chain length. Coverage, length and
+RMSE are of the true f at the 10000 training rows, which is the readout the
+published table uses; the held-out column is the survey's own pre-registered
+thousand-row version, and it agrees with the in-sample one to within 0.01
+throughout. Section 5 of the paper, which carries Table 4, fixes the sample
+size, the noise level and the chain length but says neither which of section
+4.1's two predictor arms it used nor how many trees, so both are varied as
+diagnostic arms beside the pre-registered one.
+
+    mean fn      arm             95% coverage        interval length     RMSE                min ESS
+    trigpoly     correlated 75   0.850(0.763-0.912)  3.76(3.45-4.04)     1.26(1.17-1.39)     2(1-5)
+    trigpoly     correlated 200  0.957(0.916-0.979)  5.19(4.96-5.46)     1.26(1.13-1.36)     5(1-13)
+    trigpoly     independent 75  0.822(0.786-0.862)  3.32(3.13-3.56)     1.25(1.20-1.30)     2(1-4)
+    trigpoly     independent 200 0.922(0.902-0.943)  4.13(3.99-4.29)     1.20(1.15-1.28)     2(1-4)
+    singleindex  correlated 75   0.893(0.852-0.926)  8.96(8.60-9.43)     2.60(2.46-2.79)     2(1-4)
+    singleindex  correlated 200  0.965(0.945-0.982)  11.25(10.69-11.77)  2.54(2.36-2.80)     3(2-4)
+    singleindex  independent 75  0.822(0.771-0.858)  5.78(5.47-6.22)     2.10(2.05-2.21)     2(1-3)
+    singleindex  independent 200 0.924(0.894-0.935)  6.96(6.74-7.20)     1.93(1.84-2.09)     4(2-6)
+
+| statistic | published | measured, pre-registered arm (correlated, 75) | measured, closest arm (independent, 75) | verdict |
+|---|---|---|---|---|
+| Trig+poly 95% coverage, primary | 0.74 | 0.850 | 0.822 | partial |
+| Trig+poly interval length | 2.89 | 3.76 | 3.32 | partial |
+| Trig+poly RMSE | 1.27 | 1.26 | 1.25 | reproduces |
+| Single index 95% coverage, primary | 0.73 | 0.893 | 0.822 | partial |
+| Single index interval length | 4.62 | 8.96 | 5.78 | does not / partial |
+| Single index RMSE | 2.08 | 2.60 | 2.10 | does not / reproduces |
+
+**Verdict: partial, and the pre-registered predictor arm is the wrong one.**
+The evidence is Single index's RMSE. On the correlated-factor design dbarts
+returns 2.60 against a published 2.08 and an interval nearly twice the
+published length; on the independent design it returns 2.10 and 5.78.
+Trig+poly's RMSE matches on both designs (1.25 to 1.26 against 1.27), so it
+does not discriminate, but Single index does, and it says Table 4 was run on
+the independent standard-normal predictor arm. Section 6.2's instruction to run
+the correlated arm should be read as a choice this battery makes for
+realism, not as a reproduction of the paper's setting.
+
+At the setting closest to the paper's - independent design, shipped 75 trees
+- the coverage deficit reproduces in direction and about half in size: 0.82
+against a nominal 0.95 on both mean functions, where the paper reports 0.73
+and 0.74. dbarts is better calibrated than the published BART at the same
+point accuracy: its intervals are 15 percent longer on Trig+poly and 25
+percent longer on Single index at the same RMSE.
+Raising the tree count to 200 buys 10 points of coverage on both functions
+and costs nothing in RMSE.
+
+The secondary is worth stating plainly because it is the same number in
+every shipped-default arm: **the minimum effective sample size over 25 fixed
+points is 2, out of 2500 kept draws.** Not 2 percent - two draws. Coverage
+near nominal at 200 trees and an ESS of 2 to 5 are both true of the same
+chain.
+
+### 10.5 What the four cells say about the shipped kernel
+
+Facts only, against the rule in section 6.1.
+
+- **The pilot establishes levels, not verdicts.** The rule accepts a change
+  only on a paired contrast, and only P2 was run paired. Nothing here
+  accepts or refuses anything.
+- **P2 is the first design in this house where two shipped move-set arms
+  separate at all.** Section 13 ran three mixtures over five Friedman-family
+  designs and found no separation on any of seven metrics; section 13.7
+  named the missing statistic as a structural one read between chains, and
+  that is exactly the statistic that separates them here. What separates
+  them is not the pathology - neither arm escapes the confounded design's
+  two modes - but the null control, where the shipped mixture switches
+  representation 78.5 times per chain and birth/death only switches zero.
+- **The move set is not the missing term on the pathology itself.** Both
+  arms lock. That extends section 13.6's reading of Pratola's low-noise
+  collapse from coverage to representation: restoring or removing change and
+  swap does not repair either.
+- **P5 is currently a null.** It has an exact oracle and the shipped kernel
+  answers it in 20 of 20 seeds. Theorem 5.2's premise is `pi_c = 0` and the
+  default is not that, so this is the outcome the theory allows; but a cell
+  the control arm passes cleanly cannot discriminate until some arm fails
+  it. Its live statistic is the between-chain spread at 1.7x the mixing
+  null.
+- **The largest reproduced deficit is C1's coverage, and it is smaller than
+  published.** 0.82 against a nominal 0.95 at n = 10000 and moderate noise,
+  where He and Hahn report 0.73 to 0.74. Section 6.5 said that reproducing
+  0.74 would establish in this house that the deficit is not a low-noise
+  curiosity, and that failing to reproduce it would be the more interesting
+  result. It is the second: the deficit is real and it is not low-noise, but
+  at 13 points rather than 21, and 10 of those 13 are bought back by raising
+  the tree count to 200.
+- **The one large within-package gap is P6's, and it is not a kernel gap.**
+  On the same 200 data sets the shipped default returns bias 0.31 and
+  coverage 0.59 where dbarts' own propensity-augmented `forest()` surface
+  returns 0.10 and 0.89.
+- **Two internal validity checks fired correctly**: P2's duplicate-column
+  null under the shipped mixture, and P5's inclusion oracle. Both are
+  cheap, both have exact answers, and both should stay attached to their
+  cells.
+
+### 10.6 What the pilot could not do
+
+- **No paired contrast on P6, P5 or C1.** One arm each. Section 6.4's
+  twenty matched pairs per cell is a paired-contrast count and is not met
+  by twenty matched seeds of a single arm.
+- **P1 was not run**, so section 6.4's absolute gate - the n = 2000,
+  sigma = 0.25 rung's 90 percent coverage sitting near 0.71 in the control
+  arm - is not in force behind any verdict above. Each cell's own
+  published-number check and the two internal oracles stood in for it.
+- **P6's prognostic function is a reconstruction** and cannot be made
+  otherwise from the published record.
+- **C1's predictor arm and tree count are inferred**, from RMSE agreement,
+  not stated by the source.
+- **No between-chain statistic on C1**, which ran one chain per fit, so the
+  coverage deficit is not attributed to mixing here - only measured.
+- **No fresh-seed re-run** of any cell, which section 6.1 requires before a
+  flag counts. Nothing was flagged, because nothing was contrasted.
+- **Eight cells remain unbuilt**: P1, P3, P4, P7, P8, C2, C3 and C4.
+- **Wall times are indicative only.** The host carried a load average
+  between 6 and 136 across the run, none of it this measurement's.
+
+### 10.7 Provenance
+
+```
+repo          /Users/vdorie/Repositories/dbarts, worktree on bartcore
+measured at   fdba3809
+build         private library installed from the worktree; dbarts 1.0.0,
+              R 4.6.1, posterior 1.7.0, arm64 macOS, single-threaded
+grid          P2   2 designs x 2 arms x 5 seeds x 8 chains          7 s
+              P5   20 seeds x 8 chains                          5 m 19 s
+              P6   3 reconstructions x 200 reps, plus a BCF arm  13 m 22 s
+              C1   2 mean functions x 4 arms x 20 seeds             43 m
+scope         measurement only - no source change, no default change,
+              nothing scheduled. Sections 1 to 9 unchanged.
+sources       every generating process was re-read from the primary source
+              in this arc before the run, not taken from sections 1 to 5.
+              The P6 propensity correction comes from the arXiv LaTeX
+              source of 1706.09523; the P6 mu constraints from that
+              paper's figures, read directly
+scripts       benchmarks/R/surfaces, one per cell plus surfaces-common.R
+              and a README; results written outside the working tree
+```
