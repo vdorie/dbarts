@@ -1566,6 +1566,145 @@ Makevars appending to `CPPFLAGS` under `R_MAKEVARS_USER`, installed to a
 private library so the ordinary one is untouched. The runner's header
 carries the exact commands and the record format.
 
+**Addendum (2026-09-07): the census re-ran at the two-move kernel.** The
+swap move is removed
+([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)),
+so `metropolisJumpForTree` now dispatches to birth/death or change only, at
+`birth_death = 0.6, change = 0.4, birth = 0.5`. Same instrumentation, same
+runner, same four cells, same seeds, same 200 burn plus 500 sampled sweeps:
+52500 proposals per single-forest cell, 87500 for BCF. Sampling takes 2.2 to
+3.1 seconds per cell, same as the three-move run. Every table below drops
+the swap row and column outright; there is no swap move to report.
+
+Per move: proposals made, the share that never reached a score, and
+acceptance on both denominators (percent).
+
+    cell      move   proposals  no-op  accept  scored    burn
+    default   birth      11573   0.00   10.39   10.39   15.52
+              change     14919   2.46    3.77    3.87    5.85
+              death      11008   0.00   10.88   10.88   13.17
+              all        37500   0.98    7.90    7.98   10.95
+    lownoise  birth      11291   0.00    5.46    5.46   12.26
+              change     14969   0.73    1.66    1.67    4.54
+              death      11240   0.00    5.26    5.26    8.72
+              all        37500   0.29    3.88    3.89    8.15
+    wide      birth      12136   0.00   12.62   12.62   21.29
+              change     14874   7.56    6.06    6.55   13.17
+              death      10490   0.00   14.43   14.43   23.93
+              all        37500   3.00   10.53   10.85   18.70
+    bcf       birth      25525   0.00    5.63    5.63    8.75
+              change     25086  36.96    2.88    4.57    4.53
+              death      11889   0.00   12.13   12.13   15.04
+              all        62500  14.84    5.76    6.77    8.27
+
+Pooled (scored) against the three-move figure: default 7.98 vs 7.82,
+lownoise 3.89 vs 3.67, wide 10.85 vs 9.30, bcf 6.77 vs 6.67. Burn is higher
+than sampled in every cell and every move now, with no exception - the
+three-move run's one exception was `default`'s swap, which is gone.
+
+The log-likelihood difference among REJECTED proposals, in log units
+(cell/move as above; the veto's -Inf is excluded, 0.13 to 0.27 percent of a
+cell's rejections pooled, against 0.07 to 0.25 before).
+
+    cell      move    rejected         q05      q25       q50     q75
+    default   birth      10371     -3.35    -2.84    -2.31   -1.64
+              change     13989   -299.21  -122.47   -62.34  -23.84
+              death       9810   -247.06  -103.28   -48.93  -18.33
+              all        34170   -229.08   -84.68   -24.68   -2.82
+    lownoise  birth      10675     -4.05    -3.51    -2.87   -2.15
+              change     14611   -809.48  -336.50  -143.45  -52.71
+              death      10649   -520.59  -201.74   -77.13  -27.04
+              all        35935   -589.19  -188.75   -46.95   -3.64
+    wide      birth      10604     -3.47    -2.97    -2.48   -1.83
+              change     12848   -375.24  -149.74   -63.16  -23.12
+              death       8976   -279.13  -123.94   -49.63  -21.21
+              all        32428   -275.35   -91.68   -23.32   -2.78
+    bcf       birth      24088     -3.62    -3.19    -2.63   -1.91
+              change     15091   -443.94  -164.05   -75.90  -27.69
+              death      10447   -293.45  -108.22   -52.28  -19.51
+              all        49626   -272.02   -67.93    -4.04   -2.60
+
+Pooled median against the three-move figure: default -24.68 vs -25.78,
+lownoise -46.95 vs -54.87, wide -23.32 vs -32.70, bcf -4.04 vs -9.84 -
+every cell's rejected mass sits closer to zero with swap's long left tail
+gone. The fork still answers the same way: birth's rejections stay small
+(median -2.31 to -2.87 across cells) while change's and death's stay large
+(change's median -62.34 to -143.45).
+
+Share of those rejections within 1, 2 and 5 log units of zero (percent).
+
+    cell        birth              change            death
+                1     2     5      1    2    5      1    2    5
+    default   10.44 37.45  99.96  0.87 2.12 6.52  1.19 2.55  8.44
+    lownoise   5.67 21.28 100.00  0.25 0.72 2.20  0.07 0.46  3.66
+    wide       7.60 30.69  99.92  1.34 3.72 9.67  2.31 4.66 10.15
+    bcf        8.36 27.33  99.43  0.93 2.14 5.66  0.38 1.18  6.20
+
+Pooled over the three move types, against the four-move figure: 3.86 /
+12.94 / 35.37 percent at `default` (was 3.43 / 11.76 / 32.69), 1.80 / 6.73 /
+31.61 at `lownoise` (was 1.64 / 6.44 / 28.93), 3.65 / 12.79 / 39.27 at
+`wide` (was 3.27 / 11.25 / 33.60), 4.42 / 14.16 / 51.26 at `bcf` (was 4.77 /
+14.76 / 46.23).
+
+Change proposals and acceptances by the depth of the node whose rule is
+redrawn, scored proposals only.
+
+    cell      depth  proposals  accepted  accept
+    default       0      10125       249    2.46
+                  1       3404       233    6.84
+                  2        711        60    8.44
+                  3        268        19    7.09
+                  4         43         1    2.33
+                  5          1         1  100.00
+    lownoise      0       8187        37    0.45
+                  1       4197       123    2.93
+                  2       1668        49    2.94
+                  3        547        24    4.39
+                  4        184        11    5.98
+                  5         72         2    2.78
+                  6          2         0    0.00
+                  7          2         2  100.00
+    wide          0      10282       618    6.01
+                  1       2866       221    7.71
+                  2        511        51    9.98
+                  3         76         8   10.53
+                  4         11         2   18.18
+                  5          3         1   33.33
+    bcf           0       9947       347    3.49
+                  1       3863       240    6.21
+                  2       1475        98    6.64
+                  3        464        28    6.03
+                  4         65        10   15.38
+
+Depth 0 to depth 1 rise, against the three-move figure: default 2.46 -> 6.84
+(was 2.91 -> 6.83), lownoise 0.45 -> 2.93 (was 0.51 -> 1.98), wide 6.01 ->
+7.71 (was 4.38 -> 10.64), bcf 3.49 -> 6.21 (was 2.88 -> 5.86). The rise from
+depth 0 to depth 1 still holds in every cell.
+
+The same-variable cut move, priced but never run, unchanged in method from
+the three-move addendum.
+
+    cell         |1|    |2|    |4|    |8|  probes at |1|  median log ratio at |1|
+    default    40.65  24.06  11.94   6.81          28682                    -1.53
+    lownoise   27.15  13.73   5.63   3.07          29221                    -4.83
+    wide       51.38  34.82  20.77  12.91          27281                    -0.76
+    bcf        33.34  21.09  12.31   8.09          31266                    -2.46
+
+Displacement-1 acceptance and median log ratio, against the three-move
+figure: default 40.65 / -1.53 (was 38.34 / -1.83), lownoise 27.15 / -4.83
+(was 26.43 / -4.44), wide 51.38 / -0.76 (was 47.50 / -1.04), bcf 33.34 /
+-2.46 (was 34.08 / -2.40).
+
+Nothing moved beyond what the mixture change alone predicts: birth and
+death's combined proposal share rises by 9.4 to 10.4 points in every cell,
+matching the 9.8 to 10.0 points swap held (change's own share is flat, 39.3
+to 40.2 percent under either kernel), and every move's conditional numbers
+above - accept/scored, the rejected-difference quantiles, the depth curve,
+the |1| cut acceptance - sit within a couple of points of the three-move
+figures in every cell, `bcf`'s birth taking more of the gain than death only
+because its two forests already carried different tree counts (75 against
+50), not because the kernel changed.
+
 ### 6.2 Stage 1 - correctness (`perturb-balance.R`, new)
 
 A per-kernel exact-posterior gate on the **within-variable cut
