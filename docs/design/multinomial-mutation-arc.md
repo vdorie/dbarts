@@ -78,7 +78,7 @@ The four sites are NOT one shape. No shipped doc states this.
 a fully correct, fully mutable sampler of the right family - the same
 object `dbarts(x, y, family = "ordinal")` returns, whose whole
 single-forest mutation surface is SHIPPED
-([[docs/design/feature-matrix.md#Mutation channels on the R5 dbartsSampler]]).
+([[docs/design/feature-matrix.md#1. Structural signature]]).
 `bartcoreSampler(sampler, family = ...)` then builds a SECOND engine from
 that same `(control, model, data)` triple and the first is abandoned.
 MEASURED: `model@family` on an ordinal host reads `"ordinal"` and the

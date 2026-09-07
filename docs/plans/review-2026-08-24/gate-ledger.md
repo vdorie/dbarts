@@ -272,3 +272,93 @@ would silently launder a real regression into a new "expected" value.
 13. All 64 recorded baselines are single-host (arm64 macOS) - none on x86 or Linux (dbarts-x86-bench-
     box note). RECOMMEND: no action while the x86 box is unavailable; CI's ubuntu/windows legs are
     host-portable by design but carry no bitwise baseline comparison.
+
+## 9. Per-model evidence
+
+As of a3bae0fe. Carried over from docs/design/feature-matrix.md, whose own
+"Evidence" section now points here.
+
+| model | equivalence baseline [f39] | SBC verdict [f40] | dedicated tinytest files |
+|---|---|---|---|
+| gaussian | 33 scenarios (friedman, weighted, splitprobs, chains, setdata, wtoffset, quants, categorical, missing, dart, linear, gp, zeroweights, sparse, wtgp, chik2, predswap, predcol, predpartial, predreject, predforce, ordfactor, nafactor, sparsefactor, testswap, leaffactor, leaffactormixed, factorpartial, xbartmixed, xbart, bart2gauss, bart2twoforest, mixedmatrix) | PASS 7/7 | ~20 (test-sampler-*.R, test-bart-bart2.R, test-zero-weights.R) |
+| student | `student` | PASS 4/4 | test-robust-errors.R only |
+| probit | `probit`, `chik`, `maskprobit`, `bart2probit` | PASS | test-binaryResponse-hyperprior.R, test-family.R, test-weighted-binary-ppd.R |
+| logistic | `logistic`, `wtlogistic` | PASS 6/6 | test-weighted-logistic.R, test-family.R |
+| ordinal | `ordinal`, `maskordinal` | 9/10 [f41] | test-ordinal.R only |
+| nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R, test-dispersion-channel.R |
+| multinom | 11 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
+| aft | `aft` | OUT [f45] | test-aft.R only |
+| hazard | `hazard` | OUT [f45] | test-hazard.R only |
+| hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
+| bcf | 12 scenarios, own harness, gaussian only (family reach: docs/design/feature-matrix.md) | PASS, gaussian only [f46] | 9 (test-bcf*.R) |
+| hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
+
+The rows are keyed by response model; predictor SHAPE cuts across them. Eight
+gaussian scenarios carry the factor shapes - `ordfactor`, `nafactor` (the
+anchor for MIA, missingness incorporated in attributes,
+[[docs/design/mia-missingness.md#Model]]), `sparsefactor`, and the five
+store-path scenarios `testswap`, `leaffactor`, `leaffactormixed`,
+`factorpartial` and `xbartmixed` - four of them carrying an ordered-factor
+predictor, so the ordered-factor cut grid rests on those plus
+`benchmarks/R/categorical-exact.R`'s ordered-factor case.
+
+`inst/tinytest/test-capi.R` drives the whole single-forest family list through
+`dbarts_sampler_create` - `""`/`"probit"`, logistic, ordinal, aft and nbinom,
+each run and checked for finite, correctly-shaped output - plus
+heteroscedastic ([[test-capi.R#"bartcore.variance"]]) by control attribute,
+and BCF
+([[test-capi.R#"zBCF"]]) through `forests = list(forest(basis = ...))`.
+Multinomial has no flat-C creation path to test (docs/design/feature-matrix.md).
+
+[f39] The equivalence gate replays a fixed scenario set against a recorded
+baseline and requires BITWISE-identical draws
+([[docs/plans/README.md#RNG classes and their gates]]). Current baselines:
+`equivalence-1e5f80b2.rds` (50 scenarios),
+`bcf-equivalence-3c81d6df.rds` (12) and
+`multinomial-equivalence-4d9a3337.rds` (11) - benchmarks/baselines/MANIFEST.
+The names in this column are the keys in
+[[benchmarks/R/equivalence.R#makeScenarios]]; each row lists only the scenarios
+whose family it is.
+
+[f40] SBC is simulation-based calibration: draw parameters from the prior,
+simulate data, refit, and check that each true value's rank within its
+posterior draws is uniform. A fraction here counts FUNCTIONALS - how many of
+the family's checked functionals land inside the band - and the verdicts are
+recorded in docs/plans/sbc-family-tiers.md (status BUILT) and
+docs/plans/sbc-calibration.md (DONE). The A/B/C "tiers" in the latter are
+FEATURE tiers (A baselines/DART/weighted/BCF, B linear leaf, C GP
+leaf), not family tiers: there is no per-family tier ladder, only the
+per-family verdicts this column carries.
+
+[f41] gamma3 flagged in one stream and RESOLVED as the cutpoint-vs-mean-level
+ridge mixing slowly: it does not reproduce across streams and sits at 0.31 of
+the band at 3x the chain length. The cutpoint block, the latent eta and all K
+category probabilities calibrate.
+
+[f42] `avg.mu` - the identified mean - passes cleanly; `r` and `agg.psi` flag at
+thin = 30 and cross into the band at 5x the spacing, read as slow mixing along
+the r-psi ridge. Measured at two thinning settings rather than three; a third,
+longer run is still owed.
+
+[f43] Aggregate `p_k(x*)` and the three raw per-forest `f_ik` cells all pass,
+the functionals at band 0.1282 and the three cells at 0.0688/0.0824/0.0675
+(the acceptance run `Rscript benchmarks/R/sbc.R multinom 200 150 30`;
+[[benchmarks/R/sbc.R#cellNames]] is the function that ranks the cells).
+[[COM#MultinomialForestCombiner::afterCombine]] draws the level from its exact
+leaf-space conditional.
+
+[f45] Out of the SBC matrix by scope, each for its own recorded reason
+([[docs/plans/sbc-family-tiers.md#Decision - scope]]): aft because its
+censoring status is fixed at
+creation, so a prior-draw replication cannot vary it (the enabler is a status
+setter); hazard and hurdle because their person-period / two-part designs depend
+on `y0`, which breaks exchangeability, and because neither owns any sampling
+code.
+
+[f46] Tier A PASS, with the sigma channel resolved as slow mixing along the
+(a, mu) ridge ([[docs/plans/sbc-calibration.md#Final summary]]). Explicitly out
+of the family-tiers matrix.
+
+[f47] OUT but DEFERRED rather than blocked: prior draws never reach
+`varianceForest_` today, and the capability is liftable R-side through `setState`
+([[docs/plans/sbc-family-tiers.md#Decision - scope]]).
