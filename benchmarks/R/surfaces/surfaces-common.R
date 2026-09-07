@@ -435,6 +435,68 @@ surfacesRange <- function(x, digits = 3L) {
   sprintf(fmt, mean(x), min(x), max(x))
 }
 
+# A paired difference against a control arm, replicate by replicate, in the
+# shape the move-set tables quote a raw signal in: mean, standard deviation,
+# the count of replicates on which the difference is positive, and the t
+# statistic of the mean against zero. The t is what the battery's margins are
+# read against, so it is printed beside the mean rather than left to be
+# recomputed from it.
+surfacesPairedDifference <- function(x, digits = 3L) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2L) {
+    return("      -")
+  }
+  se <- sd(x) / sqrt(length(x))
+  fmt <- paste0("%+.", digits, "f +/- %.", digits, "f (%d/%d) t %s")
+  sprintf(
+    fmt,
+    mean(x),
+    sd(x),
+    sum(x > 0),
+    length(x),
+    if (se > 0) sprintf("%.2f", mean(x) / se) else "-"
+  )
+}
+
+# The battery flags a regression only when BOTH of its conditions hold: the
+# paired mean difference is worse than the margin, AND its one-sided 95%
+# bound excludes the null, so that a noisy cell cannot flag on its point
+# estimate alone. `worse` is the sign of a difference that counts as a
+# regression: -1 where a smaller value is worse (coverage, an inclusion
+# share) and +1 where a larger one is (any error).
+surfacesMarginVerdict <- function(x, margin, worse) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2L) {
+    return("-")
+  }
+  loss <- worse * mean(x)
+  se <- sd(x) / sqrt(length(x))
+  if (loss <= abs(margin)) {
+    return("within margin")
+  }
+  if (loss - 1.645 * se > 0) {
+    return("FLAG")
+  }
+  "past margin, not separated"
+}
+
+# The mirror image, and deliberately harder: "better on at least one
+# pathology" means a paired improvement on the pre-registered primary
+# exceeding FOUR times the paired standard error. `better` is the sign of an
+# improving difference.
+surfacesImprovementVerdict <- function(x, better) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2L) {
+    return("-")
+  }
+  se <- sd(x) / sqrt(length(x))
+  if (!(se > 0)) {
+    return("no spread")
+  }
+  t <- better * mean(x) / se
+  sprintf("%s (t %.2f)", if (t > 4) "clears 4x SE" else "below 4x SE", t)
+}
+
 surfacesHeader <- function(title) {
   cat(sprintf("\n== %s ==\n", title))
 }

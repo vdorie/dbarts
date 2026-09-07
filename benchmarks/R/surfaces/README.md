@@ -102,6 +102,18 @@ prognostic shelf running along x1 = x2. The estimand is the outer one.
   are run: one calibrated to the paper's own Figure 4, and two widths of the
   symmetric near-step family its Figure 3 caption describes. No arm of this
   cell can carry a reproduction verdict on its own.
+- Three move-set arms on the same matched seeds, differing only in
+  `proposal.probs`: `default` (unset, which is the shipped mixture),
+  `birthdeath` (birth/death only) and `swap` (the former default, carrying
+  swap at 0.1). `default` is re-run beside the other two so the contrast is
+  paired within one session, and they report the per-replication paired
+  difference in ATE estimate, coverage and squared error against it, with
+  each metric read against its frozen margin. Naming arms as further
+  command-line words runs only those.
+- The mixture applies to every `bart2` call an arm makes, which confines the
+  contrast to the `bart` estimator: a treatment forest refuses a non-default
+  `proposal.probs`, so `bcf` runs under the shipped mixture alone and has no
+  paired move-set arm.
 
 ### P5, the checkerboard on an autocorrelated design
 
@@ -115,6 +127,15 @@ it.
   against a mixing null computed from the same draws.
 - Published reference: none for dbarts. The oracle is the exact inclusion
   truth and its near-decoys.
+- Three move-set arms on the same matched seeds, differing only in
+  `proposal.probs`: `default` (unset, which is the shipped mixture),
+  `birthdeath` (birth/death only, which is the `pi_c = 0` premise Tan et
+  al.'s Theorem 5.2 bounds the hitting time under) and `swap` (the former
+  default, carrying swap at 0.1). `default` is re-run beside the other two
+  so the contrast is paired within one session, and they report the per-seed
+  paired difference in between-chain sd, inclusion share, coverage and RMSE
+  against it, with each metric read against its frozen margin. Naming arms
+  as further command-line words runs only those.
 
 ### C1, the He and Hahn factorial
 
