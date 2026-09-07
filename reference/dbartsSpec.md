@@ -43,10 +43,13 @@ dbartsSpec(
   proposal.probs, monotone, interactions, blocks, variance, forests,
   sigma, seed, family, dispersion:
 
-  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  The prior arguments are evaluated in dbarts's own prior vocabulary, so
-  bare expressions such as `normal(k = chi(1.25, Inf))` resolve
-  regardless of what the caller has attached. A
+  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  including the frozen `proposal.probs` mixture - all four structural
+  probabilities zero, which proposes no structure and draws only the
+  leaf values, `sigma` and the family's latents. The prior arguments are
+  evaluated in dbarts's own prior vocabulary, so bare expressions such
+  as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
+  has attached. A
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   `basis` given as a one-sided formula is evaluated in `parentEnv`, this
   surface performing no data ingestion of its own; the data object's

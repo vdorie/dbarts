@@ -382,7 +382,11 @@ residuals(object, type = "ev", ...)
   proposals, and `"birth"` to give the relative frequency of birth/death
   in the `"birth_death"` step. The default is
   `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`.
-  A `"swap"` element exchanges a parent's split rule with a child's; it
+  All four structural probabilities zero is the frozen mixture: no
+  structural proposal is made, the tree structures stand where they are,
+  and only the leaf values, `sigma` and the family's latents keep being
+  drawn, which is how a fitted forest is re-sampled as a fixed basis. A
+  `"swap"` element exchanges a parent's split rule with a child's; it
   defaults to zero because at production forest sizes it measures as a
   no-op, but with `n.trees = 1` it is the only move that rotates a rule
   up the tree, so single-tree fits should set it positive (0.1 was the
@@ -1114,7 +1118,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.176009
+#> total seconds in loop: 0.149174
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 

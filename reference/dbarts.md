@@ -215,7 +215,11 @@ dbarts(
   `"swap"`, `"change"` and `"perturb"` to control tree structure
   proposals, and `"birth"` to give the relative frequency of birth/death
   in the `"birth_death"` step. The four structural probabilities must
-  sum to one. An unnamed `"perturb"` is taken as zero and resolved
+  sum to one. All four structural probabilities zero is the frozen
+  mixture: no structural proposal is made, the tree structures stand
+  where they are, and only the leaf values, `sigma` and the family's
+  latents keep being drawn, which is how a fitted forest is re-sampled
+  as a fixed basis. An unnamed `"perturb"` is taken as zero and resolved
   before the rest; an unnamed `"swap"` is taken as zero, and a single
   remaining unnamed element takes the residual, so
   `c(birth_death = 0.7)` is birth/death 0.7, swap 0, change 0.3, perturb

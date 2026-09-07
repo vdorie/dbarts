@@ -525,7 +525,11 @@ print(x, ...)
   `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`,
   identical to
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
-  default. A `"swap"` element exchanges a parent's split rule with a
+  default. All four structural probabilities zero is the frozen mixture:
+  no structural proposal is made, the tree structures stand where they
+  are, and only the leaf values, `sigma` and the family's latents keep
+  being drawn, which is how a fitted forest is re-sampled as a fixed
+  basis. A `"swap"` element exchanges a parent's split rule with a
   child's; it defaults to zero because at production forest sizes it
   measures as a no-op, but with `n.trees = 1` it is the only move that
   rotates a rule up the tree, so single-tree fits should set it positive
@@ -1542,7 +1546,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001181
+#> total seconds in loop: 0.001010
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1589,7 +1593,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001345
+#> total seconds in loop: 0.001199
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
