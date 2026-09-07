@@ -554,6 +554,33 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The swap proposal: removed, then restored at a default of zero (fbff1989 to 7f7d4c93; 3ecd7f47 + 4153970d + 6934e487, 2026-09-07)
+
+Queue item 4. fbff1989 deleted the swap move and moved the default mixture to
+birth_death 0.6, change 0.4, birth 0.5 (docs/design/swap-removal.md);
+ff1d18ee re-recorded the three equivalence baselines at that tip under a
+bitwise oracle (the old kernel at swap 0 replays the new kernel draw for
+draw, 50/12/11); 28bbfa7f restated the docs, 1b95b7ff named the baselines
+by their landed sha, 7f7d4c93 re-ran the move census at the two-move
+default. The full-mode exact-gate sweep then failed benchmarks/R/hazard-exact.R
+at the two-move kernel: max hazard gap 0.0120 against 0.004, where the
+three-move kernel reads 0.0008 (20 of 21 gates against 21 of 21). At one
+tree the change move cannot re-root once the splits beneath the root depend
+on its variable, and swap is the only move that rotates a rule up. VD ruled
+the partial reversal: 3ecd7f47 restores the move, its tests, swap-balance.R
+and the `swap` name with the shipped default unchanged at swap 0, and every
+one-tree exact gate whose creation path takes a caller mixture sets swap
+0.1 (the BCF two-forest path and the monotone rewrite cannot, so bcf-exact,
+bcf-exact-weak, bcf-exact-restricted, bcf-latent-exact and
+monotone-reference remain the recorded one-tree exposure); 4153970d records
+it as swap-removal.md section 9; 6934e487 fills an unnamed swap with zero
+so a single named structural element resolves. Gates: tests/cpp 278, ASAN
+and UBSAN clean; tinytest 7467/0; equivalence trio bitwise 50/12/11 against
+the fbff1989 baselines, which stand unchanged; the 23-gate sweep in full
+mode all green; lint 0; R CMD check --as-cran OK, zero notes; NEWS 295
+entries; API hash unchanged. Owed: the bench-sampler compare on a quiet
+machine, since the default moved at fbff1989 and nothing has timed it.
+
 ### AFT: a live censoring-status setter (fcd60feb + e20c6462 + f9bc9260, 2026-09-07)
 
 Slice 1 of docs/design/aft-status-setter.md: `$setResponse(y, status = )` takes a new per-observation
