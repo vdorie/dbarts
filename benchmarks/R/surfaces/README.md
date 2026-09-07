@@ -17,6 +17,7 @@ the working tree. Append `quick` for a smoke run at reduced replicate counts
 and chain lengths.
 
     Rscript benchmarks/R/surfaces/P2-confounded-step.R /path/to/output
+    Rscript benchmarks/R/surfaces/P2-null-at-scale.R  /path/to/output
     Rscript benchmarks/R/surfaces/P6-diagonal-shelf.R /path/to/output
     Rscript benchmarks/R/surfaces/P5-checkerboard.R  /path/to/output
     Rscript benchmarks/R/surfaces/C1-he-hahn.R       /path/to/output quick
@@ -44,6 +45,10 @@ two exactly equiprobable representations of the same fitted function.
 - Runs with its own null control, a design with two exactly duplicated
   predictor columns on a four-value grid, where the pooled fraction on the
   first of the pair is 1/2 by construction and switching must occur.
+- `P2-null-at-scale.R` re-runs that null control at production tree counts
+  (50 and 200, default and no-swap arms only), reading a tree-level root
+  share instead of a chain-level one: does the single-tree stuck-on-x3
+  representation survive an ensemble, or does the ensemble wash it out.
 
 ### P6, the diagonal shelf with targeted selection
 
@@ -87,6 +92,9 @@ Trig+poly for the interaction and Single index for the rotated ridge.
 - The paper's section 5 does not say which predictor arm or how many trees
   its Table 4 used, so both are run as diagnostic arms beside the
   pre-registered correlated-design, default-tree-count one.
+- A fifth arm, `correlated75grow`, adds the opt-in XBART grow-from-root
+  warm start (`n.grow.sweeps = 5`) to the pre-registered arm's settings,
+  paired on the same seeds.
 
 ## Conventions
 

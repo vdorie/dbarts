@@ -26,10 +26,16 @@
 # predictor arms it used, and not the tree count. Both are therefore run as
 # diagnostic arms alongside the pre-registered one:
 #
-#   correlated75    correlated factor design, shipped default tree count
-#   correlated200   correlated factor design, 200 trees
-#   independent75   independent standard normal design, shipped default
-#   independent200  independent standard normal design, 200 trees
+#   correlated75      correlated factor design, shipped default tree count
+#   correlated75grow  correlated75 plus n.grow.sweeps = 5 (XBART grow-from-root
+#                     warm start; k = 5 is stochtree's own default, num_gfr,
+#                     the only published ecosystem default for this count -
+#                     docs/design/grow-from-root-default.md - and is used here
+#                     since neither man/bart2.Rd nor docs/design/grow-from-
+#                     root.md names a study value of its own)
+#   correlated200     correlated factor design, 200 trees
+#   independent75     independent standard normal design, shipped default
+#   independent200    independent standard normal design, 200 trees
 #
 # Chain length follows the paper: one chain, 1000 burn-in, 2500 kept.
 #
@@ -65,10 +71,11 @@ published <- data.frame(
 )
 
 arms <- list(
-  correlated75 = list(design = "correlated", nTrees = 75L),
-  correlated200 = list(design = "correlated", nTrees = 200L),
-  independent75 = list(design = "independent", nTrees = 75L),
-  independent200 = list(design = "independent", nTrees = 200L)
+  correlated75 = list(design = "correlated", nTrees = 75L, growSweeps = 0L),
+  correlated75grow = list(design = "correlated", nTrees = 75L, growSweeps = 5L),
+  correlated200 = list(design = "correlated", nTrees = 200L, growSweeps = 0L),
+  independent75 = list(design = "independent", nTrees = 75L, growSweeps = 0L),
+  independent200 = list(design = "independent", nTrees = 200L, growSweeps = 0L)
 )
 
 # 25 evenly spaced held-out rows carry the ESS, as the move-set grid does.
@@ -94,6 +101,7 @@ for (which in meanFunctions) {
         n.samples = nSamples,
         n.thin = 1L,
         n.threads = 1L,
+        n.grow.sweeps = arm$growSweeps,
         verbose = FALSE,
         seed = surfacesSamplerSeed(replicate)
       )

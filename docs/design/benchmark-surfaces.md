@@ -1347,6 +1347,20 @@ is the only move that rotates a child's rule up to the root
 ([`swapMove`](../../src/bartcore/moves.hpp)). On this null control change alone
 does not carry representation switching; swap does the rule rotation.
 
+**At production tree counts.** `P2-null-at-scale.R` re-runs the
+duplicate-column null at m = 50 and m = 200 trees, default and no-swap
+arms only, 5 seeds x 8 chains x 2000 kept sweeps, reading a tree-level
+root share instead of a chain-level one. Mean x3 share (min-max over
+chains), between-chain sd of the x3 share, total stuck-on-x3 trees over
+all chains: default 50 0.281(0.266-0.299), 0.008(0.005-0.010), 0; default
+200 0.323(0.313-0.331), 0.003(0.002-0.005), 0; no-swap 50
+0.283(0.268-0.305), 0.009(0.007-0.012), 0; no-swap 200 0.323(0.317-0.330),
+0.003(0.002-0.004), 0. The duplicated pair's own mean share sits at
+0.307-0.330 across the same four cells. The single-tree stuck-on-x3
+representation does not survive at either tree count: zero trees, in
+every arm and both tree counts, hold an x3 root for every kept draw of
+their chain.
+
 ### 10.2 P6, the diagonal shelf with targeted selection
 
 200 replications, n = 250, true effect -1, shipped defaults, ATE read off
@@ -1487,6 +1501,21 @@ every shipped-default arm: **the minimum effective sample size over 25 fixed
 points is 2, out of 2500 kept draws.** Not 2 percent - two draws. Coverage
 near nominal at 200 trees and an ESS of 2 to 5 are both true of the same
 chain.
+
+**Grow-from-root arm.** `correlated75grow` is the pre-registered
+`correlated75` arm's settings plus `n.grow.sweeps = 5` (k = 5, stochtree's
+own default; neither `man/bart2.Rd` nor `grow-from-root.md` names a study
+value of its own - `grow-from-root-default.md`), the same twenty seeds.
+Trig+poly: 95% coverage 0.856(0.792-0.917), interval length
+3.80(3.59-4.12), RMSE 1.26(1.17-1.38), min ESS 2(1-5). Single index: 95%
+coverage 0.881(0.839-0.915), interval length 8.80(8.19-9.26), RMSE
+2.63(2.45-2.82), min ESS 2(2-5). Paired `correlated75`: Trig+poly
+0.850(0.763-0.912), 3.76(3.45-4.04), 1.26(1.17-1.39), 2(1-5); Single index
+0.893(0.852-0.926), 8.96(8.60-9.43), 2.60(2.46-2.79), 2(1-4). Mean wall
+time per fit is 9.4s against 8.3s for the no-grow arm. He and Hahn report
+0.91-0.96 coverage for their own warm start (Table 4, WS-BART, k = 2). The
+grow-from-root arm moves coverage, RMSE and minimum ESS by less than the
+no-grow arm's own seed-to-seed range on both mean functions.
 
 ### 10.5 What the four cells say about the shipped kernel
 
