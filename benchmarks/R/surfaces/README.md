@@ -97,6 +97,14 @@ Trig+poly for the interaction and Single index for the rotated ridge.
   warm start (`n.grow.sweeps = 5`) to the pre-registered arm's settings,
   paired on the same seeds. A sixth, `independent75grow`, pairs the same
   warm start with the independent design instead, against `independent75`.
+- Three chain-configuration arms on the independent design at 75 trees,
+  the same seeds: `independent75pool4` (four chains of 500 + 500, pooled -
+  `bart2`'s shipped default), `independent75pool4long` (four chains of
+  1000 + 2500, pooled) and `independent75long` (one chain of 1000 + 25000,
+  with coverage also read on its first 2500 kept draws). Pooled arms report
+  per-chain minimum ESS summed and a between-chain ratio: the median over
+  the ESS points of the between-chain sd of each chain's posterior mean
+  over the pooled posterior sd.
 
 ## Conventions
 

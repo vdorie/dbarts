@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### C1 chain configuration: the coverage deficit is exploration (fef6dca6, 2026-09-07)
+
+The He and Hahn cell had run one chain of 2500 kept draws, the paper's
+configuration, and read 95 percent coverage 0.82 at 75 trees with a minimum
+ESS of 2. Three arms on the same twenty seeds, independent design, 75
+trees, at the shipped kernel: four pooled chains at bart2's default 500 +
+500 read 0.961 (Trig+poly) and 0.895 (Single index) at equal or better
+RMSE, with a between-chain ratio of 0.5 to 0.8 (each chain in its own
+place, pooling widening the interval); four chains of 1000 + 2500 match
+that at five times the cost; one chain of 25000 kept climbs within the fit
+from 0.82 to 0.90 while its ESS stays at 2 to 3. Reading: the posterior is
+right and the sampler is slow; chain count, not chain length or tree count,
+is the active ingredient, and the shipped four-chain default already
+carries most of the remedy. The tree-count default stays as it is; the
+statistic a kernel change has to move on this cell is per-chain ESS
+(docs/design/benchmark-surfaces.md 10.4, "Chain configuration"). Script
+only, no engine change; the six recorded arms replay byte-identically.
+
 ### The swap proposal: removed, then restored at a default of zero (fbff1989 to 7f7d4c93; 3ecd7f47 + 4153970d + 6934e487, 2026-09-07)
 
 Queue item 4. fbff1989 deleted the swap move and moved the default mixture to

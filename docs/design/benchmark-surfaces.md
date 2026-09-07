@@ -1545,6 +1545,51 @@ the no-grow arm. The grow-from-root arm moves coverage, RMSE and minimum
 ESS by less than the no-grow arm's own seed-to-seed range on both mean
 functions.
 
+**Chain configuration (2026-09-07).** Every arm above ran ONE chain of 2500
+kept draws, the paper's configuration; `bart2`'s shipped default is four
+chains of 500 burn-in and 500 kept, pooled. Three arms were added to the
+independent design at 75 trees on the same twenty seeds, at the kernel that
+ships (swap at zero; the recorded arms above were measured with swap at
+0.1, and the 2500-draw prefix of the long chain re-reads 0.818 and 0.817
+against their 0.822, inside the seed range): `independent75pool4`, four
+chains of 500 + 500 pooled, the shipped default exactly;
+`independent75pool4long`, four chains of 1000 + 2500 pooled; and
+`independent75long`, one chain of 1000 + 25000. Coverage, interval length
+and RMSE are of the pooled draws; minimum ESS is per chain and summed;
+"between" is the median over the 25 ESS points of the between-chain
+standard deviation of each chain's posterior mean divided by the pooled
+posterior standard deviation, near 0 when the chains agree and near 1 when
+each sits in its own place.
+
+    mean fn      arm                     95% coverage        length  RMSE   min ESS (sum)  per chain  between
+    trigpoly     independent75pool4      0.961(0.945-0.977)  4.61    1.12   15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4long  0.959(0.937-0.975)  4.19    1.04   18(9-46)       2(1-2)     0.65
+    trigpoly     independent75long       0.902(0.858-0.928)  3.72    1.16   2(1-3)         2(1-3)     -
+    singleindex  independent75pool4      0.895(0.878-0.915)  6.45    1.92   21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4long  0.905(0.886-0.930)  6.62    1.94   18(10-27)      2(1-2)     0.49
+    singleindex  independent75long       0.888(0.860-0.914)  6.45    2.00   3(2-10)        3(2-10)    -
+
+Within the long chain, read on the same fit: Trig+poly 0.818 (0.770-0.866)
+at 2500 kept draws and 0.902 (0.858-0.928) at 25000; Single index 0.817
+(0.759-0.871) and 0.888 (0.860-0.914).
+
+Two readings, both against the single-chain deficit of 0.82. First, the
+deficit is chain exploration, and the shipped default already carries most
+of the remedy: four pooled chains at the default length lift coverage to
+0.96 on Trig+poly and 0.90 on Single index at equal or better RMSE, the
+between-chain ratio of 0.5 to 0.8 says each chain sits in its own place so
+that pooling is what widens the interval, and the 500 + 500 configuration
+matches the 1000 + 2500 one at a fifth of the compute, so chain count and
+not chain length is the active ingredient. Second, the posterior is right
+and the sampler is slow: within one fit coverage climbs from 0.82 to 0.90
+as the chain runs ten times longer while its minimum ESS stays at 2 to 3,
+and that tenfold chain buys less than four short chains buy at a fifth of
+its cost. The tree-count contrast above is the same mechanism seen from
+the prior's side and is not a default question; the measure a kernel
+change has to move on this cell is the per-chain ESS. The host carried a
+1-minute load of 8 to 15 throughout, so the wall times in the script's
+output carry no timing claim.
+
 ### 10.5 What the four cells say about the kernel that was measured
 
 Facts only, against the rule in section 6.1.
