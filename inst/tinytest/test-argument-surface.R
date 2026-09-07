@@ -345,14 +345,21 @@ controlFormals1_0_0 <- c(
   "seed",
   "updateState"
 )
+# formals added after the 1.0-0 freeze. They carry the same parity contract -
+# every one is a bart2 formal, spelled identically - but stay off the frozen
+# list, which is what keeps that list a snapshot rather than a ratchet.
+controlFormalsAdded <- c(
+  "levelGibbs"
+)
 expect_equal(
   sort(names(formals(dbarts::dbartsControl))),
-  sort(controlFormals1_0_0)
+  sort(c(controlFormals1_0_0, controlFormalsAdded))
 )
 expect_true(setequal(
   intersect(controlFormals1_0_0, names(formals(dbarts::bart2))),
   controlFormals1_0_0
 ))
+expect_true(all(controlFormalsAdded %in% names(formals(dbarts::bart2))))
 
 # The variance quartet collapses to a dedicated varianceForest() constructor;
 # variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)

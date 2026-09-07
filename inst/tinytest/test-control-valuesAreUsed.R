@@ -15,7 +15,8 @@ control <- dbarts::dbartsControl(
   n.trees = n.trees,
   n.cuts = n.cuts,
   n.chains = n.chains,
-  n.threads = n.threads
+  n.threads = n.threads,
+  levelGibbs = TRUE
 )
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 
@@ -25,6 +26,8 @@ expect_equal(sampler$control@n.samples, n.samples)
 expect_true(all(sampler$data@n.cuts == n.cuts))
 expect_equal(sampler$control@n.chains, n.chains)
 expect_equal(sampler$control@n.threads, n.threads)
+expect_true(sampler$control@levelGibbs)
+expect_false(dbarts::dbartsControl()@levelGibbs)
 
 rm(
   sampler,

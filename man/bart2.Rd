@@ -44,7 +44,7 @@ bart2(
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
-    n.cuts = 100L, useQuantiles = FALSE,
+    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
@@ -246,6 +246,9 @@ bart2(
    }
    \item{useQuantiles}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable. See \code{\link{bart}}'s \sQuote{Decision Rules} details.
+   }
+   \item{levelGibbs}{
+     Logical, passed through to \code{\link{dbartsControl}}. When \code{TRUE}, each sampler iteration takes one extra Gibbs step before the trees are updated, adding a constant to every occupied leaf of each tree with the constants summing to zero over the trees: the sum-of-trees function is unchanged, the individual leaf values move, and the posterior being sampled is the same. Off by default, where the draws are those of previous versions. See \code{dbartsControl}'s \code{levelGibbs} item.
    }
    \item{n.thin}{
      Every \code{n.thin} draw is kept to be returned to the user. Useful for \dQuote{thinning} samples against serial correlation; see \code{n.samples} above for how the two combine.

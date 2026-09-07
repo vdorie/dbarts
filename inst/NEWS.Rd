@@ -248,6 +248,24 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
+            adding one Gibbs step per sampler iteration, taken before the
+            trees are updated: a constant is added to every occupied leaf of
+            each tree, with the constants summing to zero over the trees. The
+            sum-of-trees function is therefore unchanged - the fits, the
+            residual variance and any latent variables see exactly the state
+            they would have - while the individual leaf values move, which
+            can improve mixing where the ensemble's overall level is split
+            among many trees. The shift is drawn from its exact conditional
+            distribution, so the posterior is the same either way. It
+            defaults to \code{FALSE}, and off, every fit draws exactly the
+            values it drew before. \code{bart2} takes it as a formal;
+            \code{bart} takes the default. It applies to forests with the
+            default constant leaves, the monotone constraint and every
+            binary, count or survival family among them; linear and
+            Gaussian-process leaves and the heteroscedastic variance forest
+            ignore it. Like \code{useQuantiles}, it is fixed when a sampler
+            is created, so \code{$setControl} refuses a change to it.
       \item \code{proposal.probs} gains a fifth structural proposal,
             \code{"rule_gibbs"}: at a nog node - an interior node whose two
             children are both leaves - it replaces the node's split rule with

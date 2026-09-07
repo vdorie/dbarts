@@ -214,6 +214,7 @@ dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
   useQuantiles = FALSE,
+  levelGibbs = FALSE,
   keepTrees = FALSE,
   storage = c("double", "single"),
   n.samples = NA_integer_,
@@ -234,6 +235,7 @@ dbartsControl <- function(
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
     useQuantiles = as.logical(useQuantiles),
+    levelGibbs = as.logical(levelGibbs),
     keepTrees = as.logical(keepTrees),
     storage = storage,
     n.samples = coerceOrError(n.samples, "integer"),
@@ -1202,6 +1204,7 @@ dbartsSampler <- setRefClass(
         "n.trees",
         "n.chains",
         "useQuantiles",
+        "levelGibbs",
         "seed"
       )) {
         if (!identical(slot(newControl, slotName), slot(control, slotName))) {

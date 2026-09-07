@@ -232,6 +232,7 @@ methods::setClass(
     verbose = "logical",
     keepTrainingFits = "logical",
     useQuantiles = "logical",
+    levelGibbs = "logical",
     keepTrees = "logical",
     storage = "character",
     n.samples = "integer",
@@ -252,6 +253,7 @@ methods::setClass(
     verbose = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles = FALSE,
+    levelGibbs = FALSE,
     keepTrees = FALSE,
     storage = "double",
     n.samples = NA_integer_,
@@ -278,6 +280,9 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (length(object@useQuantiles) != 1L) {
     return("'useQuantiles' must be of length 1")
+  }
+  if (length(object@levelGibbs) != 1L) {
+    return("'levelGibbs' must be of length 1")
   }
   if (length(object@keepTrees) != 1L) {
     return("'keepTrees' must be of length 1")
@@ -324,6 +329,9 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (is.na(object@useQuantiles)) {
     return("'useQuantiles' must be TRUE/FALSE")
+  }
+  if (is.na(object@levelGibbs)) {
+    return("'levelGibbs' must be TRUE/FALSE")
   }
   if (is.na(object@keepTrees)) {
     return("'keepTrees' must be TRUE/FALSE")

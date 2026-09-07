@@ -55,6 +55,16 @@ struct SamplerOptions {
   double perturbProbability = 0.0;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
+  // an exact Gibbs step on each forest's LEVEL fibre, taken once per sweep
+  // ahead of the tree loop: c_t added to every occupied leaf of tree t with
+  // sum_t c_t = 0 leaves the fitted function unchanged, so the conditional of
+  // the shift is the leaf prior restricted to that subspace and is closed
+  // form. Off by default and guarded before any generator call, so the
+  // default draw sequence is byte-for-byte unchanged. Constant-leaf forests
+  // only: a vector or function leaf keeps no leaf table for the shift to
+  // write, and the variance forest's fibre is multiplicative rather than
+  // additive, so both ignore it.
+  bool levelGibbs = false;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
@@ -1379,6 +1389,17 @@ public:
         formMeanWeights();
         weights = meanWeights_.data();
       }
+
+      // the level-fibre draw, ahead of the forest loop and so ahead of every
+      // channel the sweep writes: kSumSquaredParams is zeroed below and
+      // re-accumulated against the shifted leaves, the roll rebuilds tree 0's
+      // residual from totalFits (which the zero-sum shift leaves correct), and
+      // any keepTrees record is flattened after the shift rather than around
+      // it. Per forest, each forest's own shift leaving its own fits invariant
+      // whatever multiplier a combiner applies. Guarded here, before any
+      // generator call, so the default consumes nothing.
+      if (options_.levelGibbs)
+        for (Forest<L, ResidT>& forest : forests_) drawLevelShift(forest);
 
       for (size_t f = 0; f < forests_.size(); ++f) {
         Forest<L, ResidT>& forest = forests_[f];
@@ -3891,6 +3912,20 @@ public:
     return FunctionLeafDrawStats{forest.kSumSquaredParams, forest.kNumLeaves};
   }
 
+  /// Test hook: forest 0's level-fibre shift, drawn once against the leaf
+  /// tables as they stand and applied to them. shiftOut receives one c_t per
+  /// tree, zero where the tree declined; the return says whether the forest
+  /// as a whole was eligible. Nothing else reaches the step outside a sweep.
+  bool drawLevelShiftForTesting(double* shiftOut) {
+    return drawLevelShift(forests_[0], shiftOut);
+  }
+
+  /// Test hook: forest 0's tree t leaf table, writable, so a distributional
+  /// gate can restore a frozen leaf state between repeated draws.
+  std::vector<double>& muByTreeForTesting(size_t t) {
+    return forests_[0].muByTree[t];
+  }
+
   /// Diagnostic: (tree, sweep) bodies that took the fused roll + suffstat
   /// pass since this chain was built. Monotone, so tests read differences.
   size_t fusedSuffstatRunsForTesting() const { return fusedSuffstatRuns_; }
@@ -4912,6 +4947,133 @@ private:
     }
   }
 
+  /// One exact Gibbs draw on this forest's LEVEL fibre: add c_t to every
+  /// OCCUPIED leaf of tree t, the c_t summing to zero across the forest's
+  /// trees. The fitted function is then unchanged exactly, so the likelihood
+  /// is constant along the fibre and the conditional of the shift is the leaf
+  /// prior restricted to it.
+  ///
+  /// Over tree t's occupied leaves, with the leaf prior's per-leaf sd tau_l,
+  /// P_t = sum_l 1/tau_l^2 and Q_t = sum_l mu_l/tau_l^2. The log prior in c is
+  /// -0.5 sum_t (P_t c_t^2 + 2 Q_t c_t) and factorizes, so the unconstrained
+  /// conditional is independent per tree, u_t ~ N(-Q_t/P_t, 1/P_t), and
+  /// conditioning it on 1'u = 0 gives c = u - v (1'u)/(1'v) componentwise in
+  /// v_t = 1/P_t. The draw is m - 1 dimensional: the intercept directions
+  /// alone, which are a subspace of ker(Z) chosen by the CONDITIONED
+  /// variables, so the target is left invariant whether or not they are all
+  /// of it.
+  ///
+  /// Occupied leaves only, and the reason is the pin rather than the test
+  /// rows: sampleParametersAndSetFits pins an empty leaf at zero instead of
+  /// drawing it, so a shifted empty leaf would sit outside the target's
+  /// support. Ahead of the tree loop, every leaf - an empty one back to zero
+  /// - is reassigned before any test fit is written, and training rows route
+  /// only to occupied leaves, so nothing reported reads a shifted empty leaf.
+  ///
+  /// muByTree is the only thing written. totalFits is the cached sum of tree
+  /// fits and is stale by sum_t c_t, which is zero, so it already describes
+  /// the shifted state; the roll then rebuilds tree 0's residual from it and
+  /// carries the shift into the next sweep's structural scores with no
+  /// bookkeeping of its own. f is exact in the algebra and holds to rounding
+  /// in the arithmetic, sum_t c_t being zero only to the projection's accuracy,
+  /// and that residual rides in totalFits for the rest of the run rather than
+  /// clearing at the next sweep. All of it holds only where tree t's
+  /// obs-to-leaf map is current, which is what the decline below is for.
+  ///
+  /// A no-op consuming no rng below two eligible trees, the shape
+  /// rescaleAmplitudeRidge's own two-leaf guard takes. shiftOut, when
+  /// non-null, receives numTrees shifts, zero for a tree that declined.
+  bool drawLevelShift(Forest<L, ResidT>& forest, double* shiftOut = nullptr) {
+    if constexpr (!leafIsConstant) {
+      // a vector or function leaf keeps its fits in the dense slab, which the
+      // residual roll and the totalFits rebuild both read, so a shift written
+      // to the parameter block alone would cancel itself: out of scope here
+      (void) forest;
+      (void) shiftOut;
+      return false;
+    } else {
+      size_t m = forest.numTrees;
+      if (shiftOut != nullptr) misc_setVectorToConstant(shiftOut, m, 0.0);
+      // m = 1 is a zero-dimensional fibre
+      if (m < 2) return false;
+
+      levelVariance_.assign(m, 0.0);
+      levelDraw_.assign(m, 0.0);
+      size_t numEligible = 0;
+      for (size_t t = 0; t < m; ++t) {
+        // A tree marked for rebuild declines. The step is fit-preserving only
+        // because the roll reads tree t's cached old fits as mu[leafOf], and a
+        // stale map does not name this tree's leaves at all: it is all-root,
+        // which the roll reads as a cached zero. Shifting the leaves under it
+        // would leave a constant in the residual that totalFits then carries
+        // for the rest of the run. Rebuilding here instead is refused - it
+        // clears the mark, which makes the fused suffstat pass eligible a
+        // sweep early and moves every draw after it.
+        if (forest.leafOfStale[t] != 0) continue;
+        Tree& tree(forest.trees[t]);
+        const std::vector<double>& mu(forest.muByTree[t]);
+        assert(mu.size() >= tree.nodes.size());
+        // the bottom lists are left in each tree's scratch for the apply pass
+        tree.bottomScratch.clear();
+        tree.fillBottom(0, tree.bottomScratch);
+        double precisionSum = 0.0, weightedSum = 0.0;
+        bool eligible = true;
+        for (int32_t nodeIndex : tree.bottomScratch) {
+          if (tree.at(nodeIndex).numObservations() == 0) {
+            if constexpr (ConstrainedLeafModel<L>) {
+              // pinned at zero AND a hard bound on its occupied neighbors, so
+              // an occupied-only shift can leave the cone: the tree sits out
+              eligible = false;
+              break;
+            }
+            continue;
+          }
+          double sd;
+          if constexpr (ConstrainedLeafModel<L>)
+            sd = forest.leaf.priorSdForLeaf(tree, tree.bottomScratch, nodeIndex,
+                                            mu.data(), forest.k);
+          else
+            sd = forest.leaf.scale / forest.k;
+          if (!(sd > 0.0)) {
+            eligible = false;
+            break;
+          }
+          double precision = 1.0 / (sd * sd);
+          precisionSum += precision;
+          weightedSum += mu[static_cast<size_t>(nodeIndex)] * precision;
+        }
+        if (!eligible || !(precisionSum > 0.0)) continue;
+        // v_t doubles as the eligibility mark: a declined tree keeps zero
+        levelVariance_[t] = 1.0 / precisionSum;
+        levelDraw_[t] = -weightedSum / precisionSum;
+        ++numEligible;
+      }
+      if (numEligible < 2) return false;
+
+      double sumDraw = 0.0, sumVariance = 0.0;
+      for (size_t t = 0; t < m; ++t) {
+        if (!(levelVariance_[t] > 0.0)) continue;
+        levelDraw_[t] += std::sqrt(levelVariance_[t]) *
+                         ext_rng_simulateStandardNormal(rng_);
+        sumDraw += levelDraw_[t];
+        sumVariance += levelVariance_[t];
+      }
+
+      double ratio = sumDraw / sumVariance;
+      for (size_t t = 0; t < m; ++t) {
+        if (!(levelVariance_[t] > 0.0)) continue;
+        double shift = levelDraw_[t] - levelVariance_[t] * ratio;
+        if (shiftOut != nullptr) shiftOut[t] = shift;
+        Tree& tree(forest.trees[t]);
+        std::vector<double>& mu(forest.muByTree[t]);
+        for (int32_t nodeIndex : tree.bottomScratch)
+          if (tree.at(nodeIndex).numObservations() != 0)
+            mu[static_cast<size_t>(nodeIndex)] += shift;
+      }
+      return true;
+    }
+  }
+
   void sampleParametersAndSetFits(Forest<L, ResidT>& forest, size_t t, double* fits,
                                   bool updateTestFits) {
     Tree& tree(forest.trees[t]);
@@ -5512,6 +5674,12 @@ private:
   // because a chain's sweep is sequential, and any future in-chain parallelism
   // has to privatize it.
   std::vector<double> fusedAcc_;
+  // Level-fibre scratch, one entry per tree of whichever forest is being
+  // shifted: the per-tree conditional variance v_t (zero marks a tree that
+  // declined, which is what the projection and the apply pass skip on) and
+  // the unconstrained draw u_t. Chain-owned so the step allocates nothing
+  // after the first sweep.
+  std::vector<double> levelVariance_, levelDraw_;
   // Diagnostic only, never read by the sampler: how many (tree, sweep) bodies
   // took the fused pass. Every eligibility clause is otherwise a silent
   // decline, which would let a refactor give back the gather unnoticed.

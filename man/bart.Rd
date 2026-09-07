@@ -258,6 +258,8 @@ extract(object, \dots)
     Every chain runs its own pseudo random number generator, so worker threads never touch R's generator and results do not depend on the thread count. Without a \code{seed}, chain generators are seeded from R's stream when the sampler is created, so calling \code{\link{set.seed}} beforehand makes results reproducible. Sampling itself never advances R's stream: after a fit, \code{\link{.Random.seed}} has moved only by the draws taken at creation.
 
     Setting \code{seed} makes results reproducible without involving R's stream at all: the seed drives a dedicated generator that hands each chain its own seed. A single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed.
+
+    \code{bart} takes the default for \code{\link{dbartsControl}}'s \code{levelGibbs}, the optional level-shifting Gibbs step, which is off; it has no formal for it, and its draws are those of previous versions. The step is reachable from \code{\link{bart2}} and from a \code{\link{dbarts}} sampler's control object, and turning it on changes the sampled values (the posterior is the same, the stream is not).
   }
 
   \subsection{Extracting Trees}{

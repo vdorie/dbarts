@@ -152,6 +152,24 @@ concept ParamScoringLeafModel =
       -> std::same_as<double>;
   };
 
+/// Optional seam for a leaf whose leaves are coupled by an ORDER constraint,
+/// so a per-leaf prior sd varies within the tree (the monotone leaf's
+/// c-inflation: a leaf with a constrained neighbor draws at
+/// cInflation * scale / k and the rest at scale / k). A leaf-level shift
+/// reads the per-leaf sd through it, and a tree carrying an empty leaf is
+/// out of its reach: the empty leaf is pinned at zero and bounds its
+/// occupied neighbors, so a shift restricted to the occupied ones can leave
+/// the cone. No unconstrained leaf declares it, and the seam compiles out to
+/// the common scale / k.
+template <typename L>
+concept ConstrainedLeafModel =
+  requires(const L leaf, const Tree& tree,
+           const std::vector<std::int32_t>& bottoms, std::int32_t node,
+           const double* mu, double k) {
+    { leaf.priorSdForLeaf(tree, bottoms, node, mu, k) }
+      -> std::same_as<double>;
+  };
+
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
@@ -523,6 +541,19 @@ struct MonotoneConstantGaussianLeaf {
 
   double priorSd(double k, bool constrained) const {
     return (constrained ? cInflation : 1.0) * scale / k;
+  }
+  /// The ConstrainedLeafModel seam: leaf `node`'s own prior sd, read off the
+  /// cone geometry rather than assumed common over the tree. `mu` supplies
+  /// the neighbor values the bound walk reads; only the constrained/free
+  /// verdict is used here, and that is a function of the structure alone.
+  double priorSdForLeaf(const Tree& tree,
+                        const std::vector<std::int32_t>& bottoms,
+                        std::int32_t node, const double* mu, double k) const {
+    double a, b;
+    bool constrained;
+    monotoneNeighborBounds(tree, *data, directions.data(), bottoms, node, mu,
+                           nullptr, 0, scratch, &a, &b, &constrained);
+    return priorSd(k, constrained);
   }
   void posterior(double sumWeights, double sumWeightedResponse,
                  double residualVariance, double priorStdDev, double* mean,

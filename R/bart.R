@@ -660,6 +660,7 @@ bart2 <- function(
   combineChains = TRUE,
   n.cuts = 100L,
   useQuantiles = FALSE,
+  levelGibbs = FALSE,
   n.thin = 1L,
   keepTrainingFits = TRUE,
   printEvery = 100L,

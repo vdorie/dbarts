@@ -169,6 +169,9 @@ struct ParsedControl {
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
+  // the level-fibre Gibbs step (control@levelGibbs); creation-time, like
+  // useQuantiles, so bartcore_setControl never pushes it
+  bool levelGibbs = false;
   bool keepTrees = false;
   // opt-in fp32 running residual (control@storage == "single"); the
   // createSampler gate refuses it for anything but a gaussian constant-leaf
@@ -412,6 +415,10 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   control.useQuantiles = rc_getBool(slotExpr, "use quantiles",
                                     RC_LENGTH | RC_EQ, rc_asRLength(1),
                                     RC_END);
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "levelGibbs", slotIndex);
+  control.levelGibbs = rc_getBool(slotExpr, "level gibbs", RC_LENGTH | RC_EQ,
+                                  rc_asRLength(1), RC_END);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "keepTrees", slotIndex);
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
@@ -1665,6 +1672,8 @@ void printInitialSummary(const ParsedControl& control,
   }
   ext_printf("\tuse quantiles for rule cut points: %s\n",
              control.useQuantiles ? "true" : "false");
+  ext_printf("\tlevel fibre gibbs step: %s\n",
+             control.levelGibbs ? "true" : "false");
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
     "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",
@@ -1993,6 +2002,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
   options.useQuantiles = control.useQuantiles;
+  options.levelGibbs = control.levelGibbs;
   // one borrowed view carries the storage and the typing channel (types,
   // declared level counts, CSC reference codes); consumed at build
   options.predictors = data.predictors;
