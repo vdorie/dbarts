@@ -295,6 +295,55 @@ surfacesHeHahn <- function(n, nTest, p, which, kappa, design = "correlated") {
   )
 }
 
+# --- P1: the low-noise Friedman emulator -----------------------------------
+
+# Friedman (1991) five-dimensional test function on p iid uniform(0, 1)
+# columns, as Chipman, George and McCulloch (2010) carry it (arXiv 0806.3286
+# equations 26-27):
+#
+#   f(x) = 10 sin(pi x1 x2) + 20 (x3 - 0.5)^2 + 10 x4 + 5 x5
+#
+# Pratola (2016), "Efficient Metropolis-Hastings proposal mechanisms for
+# Bayesian regression tree models", Bayesian Analysis 11(3), takes the same
+# function as a deterministic simulator eta and observes it with noise,
+# y(x) = eta(x) + eps, eps ~ N(0, sigma^2), at n = 5000 settings with m = 200
+# trees. The section carrying that example is 2.2 in arXiv 1312.1895, which is
+# the numbering the rest of this battery cites; the published version numbers
+# it 2.3 and the confounded step function 2.2.
+#
+# His printed eta is 10 sin(2 pi x1 x2) + 20 (x3 - 0.5)^2 + 10 x4 + 5 x5, a
+# full period in x1 x2 rather than Friedman's half, and the paper does not say
+# which of the two his acceptance and coverage figures were taken on.
+# `frequency` selects: 1 is Friedman's function, 2 is Pratola's as printed.
+surfacesFriedmanMean <- function(x, frequency = 1) {
+  10 *
+    sin(frequency * pi * x[, 1L] * x[, 2L]) +
+    20 * (x[, 3L] - 0.5)^2 +
+    10 * x[, 4L] +
+    5 * x[, 5L]
+}
+
+surfacesFriedman <- function(
+  n,
+  nTest = 1000L,
+  p = 10L,
+  sigma = 1,
+  frequency = 1
+) {
+  x <- matrix(runif((n + nTest) * p), n + nTest, p)
+  colnames(x) <- paste0("x", seq_len(p))
+  f <- surfacesFriedmanMean(x, frequency)
+  train <- seq_len(n)
+  list(
+    x = x[train, , drop = FALSE],
+    y = f[train] + rnorm(n, 0, sigma),
+    f = f[train],
+    xTest = x[-train, , drop = FALSE],
+    fTest = f[-train],
+    sigma = sigma
+  )
+}
+
 # --- readouts --------------------------------------------------------------
 
 # Rows of a bart2 draw matrix belonging to one chain. The combined layout is

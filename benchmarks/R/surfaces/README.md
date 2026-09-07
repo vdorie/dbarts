@@ -12,21 +12,57 @@ dbarts, so build first:
     R CMD INSTALL .
 
 Each script takes an output directory as its first argument and writes one
-`.rds` there; with no argument it writes to a scratch directory, never into
+`.rds` there (P1 one per rung); with no argument it writes to a scratch directory, never into
 the working tree. Append `quick` for a smoke run at reduced replicate counts
 and chain lengths.
 
+    Rscript benchmarks/R/surfaces/P1-friedman.R        /path/to/output house
     Rscript benchmarks/R/surfaces/P2-confounded-step.R /path/to/output
     Rscript benchmarks/R/surfaces/P2-null-at-scale.R  /path/to/output
     Rscript benchmarks/R/surfaces/P6-diagonal-shelf.R /path/to/output
     Rscript benchmarks/R/surfaces/P5-checkerboard.R  /path/to/output
     Rscript benchmarks/R/surfaces/C1-he-hahn.R       /path/to/output quick
 
+`P1-friedman-census.R` is the one script here that does not run against an
+ordinary build: it reads per-move acceptance out of the instrumented library
+`benchmarks/R/move-census.R` documents.
+
 `surfaces-common.R` holds the generating processes, the matched-seed idiom
 and the readouts; the cell scripts source it and are the only things meant to
 be run.
 
 ## The cells
+
+### P1, the low-noise Friedman emulator
+
+Pratola (2016) section 2.2, the battery's known-positive control and its
+absolute gate. Two rungs. Pratola's own: Friedman's function observed with
+noise on ten uniform columns, n = 5000, 200 trees, 5000 burn-in and 5000
+kept, at sigma^2 = 1 and sigma^2 = 0.1. The house rung: the cheaper cell the
+move-set A/B measured, n = 2000 and sigma = 0.25, 1000 burn-in and 2000 kept.
+
+- Primary statistic: 90% pointwise coverage of the true f, at the training
+  points and on 1000 held-out rows drawn with each replicate.
+- Published reference (arXiv 1312.1895 section 2.2, birth/death only):
+  acceptance around 18% and coverage 81% at sigma^2 = 1; acceptance around
+  4% and coverage 53.8% at sigma^2 = 0.1. Both are read as in-sample - the
+  section reports them without qualification and its figure plots the
+  intervals against the fitted settings, where the paper's section 6 names
+  its out-of-sample coverage as such. The response is eta plus noise, not
+  the deterministic simulator output.
+- The house rung is the gate the rest of the battery depends on: its default
+  arm must sit near the 0.71 that all three mixtures of the move-set A/B
+  read, or no verdict from any other cell is valid.
+- Three arms on matched seeds, all through `proposal.probs`: the shipped
+  mixture, birth/death only (Pratola's own arm), and the historical mixture
+  carrying swap at 0.1.
+- Pratola prints the mean function with `10 sin(2 pi x1 x2)` where Friedman
+  (1991) has `10 sin(pi x1 x2)`, and does not say which his figures were
+  taken on. His rung is run on the printed one, with the sigma^2 = 0.1 cell
+  run a second time on Friedman's own frequency under the birth/death arm so
+  that the ambiguity is measured rather than assumed.
+- `P1-friedman-census.R` carries the structural readout, one seed of each
+  rung and arm under the instrumented build, reporting acceptance per move.
 
 ### P2, the confounded step function
 
