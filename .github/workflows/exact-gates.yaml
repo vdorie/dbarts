@@ -27,7 +27,12 @@
 #
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
-# compile instead of recompiling per gate. Every gate runs even if an earlier
+# compile instead of recompiling per gate. bcf-latent-exact.R is the long
+# pole by an order of magnitude -- its glue quadrature and its nine sampler
+# configurations are most of the suite's quick-mode runtime -- so it is the
+# first place to look if this job starts approaching its timeout, and it is
+# the one gate mode=full does not lengthen: its full grid is ~40 minutes on
+# its own and would blow the job timeout, so it stays a local run. Every gate runs even if an earlier
 # one fails (so all failures surface in one run); a failing gate is emitted as
 # an ::error:: annotation and the job exits nonzero. Dispatch with mode=full
 # for the long (non-quick) grid, or run `Rscript benchmarks/R/<gate>.R`
@@ -115,6 +120,7 @@ jobs:
           gates="
             bd-balance.R change-balance.R swap-balance.R
             aft-exact.R aft-hetero-pit.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
+            bcf-latent-exact.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R
             multinomial-exact.R negbin-exact.R ordinal-exact.R t-exact.R
@@ -123,8 +129,11 @@ jobs:
           "
           fail=0
           for g in $gates; do
+            # the one exception to mode=full, for the reason in the header
+            arg=${GATE_ARG}
+            if [ "$g" = "bcf-latent-exact.R" ]; then arg=quick; fi
             echo "::group::$g"
-            if Rscript "benchmarks/R/$g" ${GATE_ARG}; then
+            if Rscript "benchmarks/R/$g" ${arg}; then
               echo "PASS $g"
             else
               echo "::error::gate $g FAILED"
