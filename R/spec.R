@@ -118,6 +118,11 @@ resolveSamplerSpec <- function(
   forests,
   evalEnv
 ) {
+  # ahead of the monotone rewrite below, which discards a swap-carrying vector
+  # that matches the new default, and of the two-forest refusal, which would
+  # report a sum instead
+  refuseRemovedProposalNames(proposal.probs)
+
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
   # are multinomial, which only bart2(family = "multinomial") implements. A
@@ -349,12 +354,12 @@ resolveSamplerSpec <- function(
     priors$tree.prior@power <- firstForest$power
   }
 
-  # A monotone constraint restricts the forest to birth/death proposals (change
-  # and swap would need a > 2-D constrained integral): a defaulted
+  # A monotone constraint restricts the forest to birth/death proposals (a
+  # change would need a > 2-D constrained integral): a defaulted
   # proposal.probs is forced to birth/death-only, an explicit
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
-    defaultProbs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
+    defaultProbs <- c(birth_death = 0.6, change = 0.4, birth = 0.5)
     if (
       !is.null(proposal.probs) &&
         !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs))
@@ -364,7 +369,7 @@ resolveSamplerSpec <- function(
         "'proposal.probs' cannot be honored under the constraint"
       )
     }
-    proposal.probs <- c(birth_death = 1, swap = 0, change = 0, birth = 0.5)
+    proposal.probs <- c(birth_death = 1, change = 0, birth = 0.5)
   }
 
   model <- newValidated(
@@ -776,7 +781,7 @@ dbartsSpec <- function(
   node.prior = normal,
   resid.prior = chisq,
   resid.dist = gaussian,
-  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+  proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,

@@ -894,10 +894,16 @@ const Row rows[] = {
   }},
   {FacadeVirtual::installForests, "installForests", [](Fixtures& f) {
     Results results;
-    f.gt.impl().run(0, 2, results);  // move the twin off the donor first
     SamplerStateData donor;
     f.g.impl().getState(donor);
     std::uint64_t target = treeStructureSignature(f.g.impl().chain(1).tree(0));
+    // move the twin off the donor first; how many sweeps that takes is a
+    // property of the proposal mixture, so sweep until it moves rather than
+    // pinning a count that a mixture change would silently invalidate
+    for (int sweep = 0; sweep < 50 &&
+         treeStructureSignature(f.gt.impl().chain(1).tree(0)) == target;
+         ++sweep)
+      f.gt.impl().run(0, 1, results);
     check(treeStructureSignature(f.gt.impl().chain(1).tree(0)) != target,
           "facade installForests: the twin's trees start elsewhere");
     std::vector<std::pair<std::size_t, int>> map = {{0, -1}, {1, -1}};

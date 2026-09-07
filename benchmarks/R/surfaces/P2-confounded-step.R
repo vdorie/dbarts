@@ -21,12 +21,14 @@
 # with no thinning one kept draw is one sweep, so the tree structure differs
 # from the previous draw's exactly when a structural move was accepted.
 #
-# Three arms on matched seeds, all reachable at runtime through
+# Two arms on matched seeds, both reachable at runtime through
 # proposal.probs, so the contrast costs a grid of fits and nothing else:
 #
-#   default        birth_death 0.5, swap 0.1, change 0.4, birth 0.5
-#   birth/death    birth_death 1.0, swap 0.0, change 0.0, birth 0.5
-#   noswap         birth_death 0.6, swap 0.0, change 0.4, birth 0.5
+#   birth/death    birth_death 1.0, change 0.0, birth 0.5
+#   noswap         birth_death 0.6, change 0.4, birth 0.5
+#
+# The swap-carrying arm the cell was first run with is not reachable: the
+# kernel has no swap move, and noswap is now the shipped default.
 #
 # The duplicate-column design is the null control the battery requires
 # alongside this cell: two exactly identical predictor columns, where the
@@ -54,9 +56,8 @@ nBurn <- 1000L
 nSamples <- if (quick) 500L else 2000L
 
 arms <- list(
-  default = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-  birthdeath = c(birth_death = 1, swap = 0, change = 0, birth = 0.5),
-  noswap = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
+  birthdeath = c(birth_death = 1, change = 0, birth = 0.5),
+  noswap = c(birth_death = 0.6, change = 0.4, birth = 0.5)
 )
 
 designs <- list(

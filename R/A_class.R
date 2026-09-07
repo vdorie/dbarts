@@ -384,7 +384,6 @@ methods::setClass(
   "dbartsModel",
   slots = list(
     p.birth_death = "numeric",
-    p.swap = "numeric",
     p.change = "numeric",
 
     p.birth = "numeric",
@@ -406,7 +405,6 @@ methods::setClass(
   ),
   prototype = list(
     p.birth_death = 1.0,
-    p.swap = 0.0,
     p.change = 0.0,
     p.birth = 0.5,
     node.scale = 0.5,
@@ -419,7 +417,7 @@ methods::setClass(
   )
 )
 methods::setValidity("dbartsModel", function(object) {
-  proposalProbs <- c(object@p.birth_death, object@p.swap, object@p.change)
+  proposalProbs <- c(object@p.birth_death, object@p.change)
   if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) {
     return("rule proposal probabilities must be in [0, 1]")
   }

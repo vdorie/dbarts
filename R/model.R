@@ -1,13 +1,31 @@
-## The default tree-proposal mixture: P(birth/death), P(swap), P(change) select
-## the structure move, and P(birth) splits birth vs. death within a birth/death
+## The default tree-proposal mixture: P(birth/death) and P(change) select the
+## structure move, and P(birth) splits birth vs. death within a birth/death
 ## move. One source for the formal default, the is.null reset, and the all-NA
 ## fallbacks below.
 defaultProposalProbs <- c(
-  birth_death = 0.5,
-  swap = 0.1,
+  birth_death = 0.6,
   change = 0.4,
   birth = 0.5
 )
+
+## The kernel has two structural proposals, so a 'proposal.probs' still naming
+## "swap" is refused by name rather than dropped, zeroed or folded into
+## birth_death: ignoring it would run a mixture the caller did not ask for, and
+## letting it fall through reports only a sum that does not add to one, which
+## names nothing about the missing move. Every entry point funnels through
+## here - resolveSamplerSpec ahead of the monotone rewrite, which would
+## otherwise discard the name silently, and the dbartsModel initializer for a
+## model built directly.
+refuseRemovedProposalNames <- function(proposal.probs) {
+  if (any(names(proposal.probs) == "swap")) {
+    stop(
+      "'proposal.probs' names \"swap\", a tree proposal this version does ",
+      "not have; name only 'birth_death', 'change' and 'birth' (the default ",
+      "is c(birth_death = 0.6, change = 0.4, birth = 0.5))"
+    )
+  }
+  invisible(NULL)
+}
 
 setMethod(
   "initialize",
@@ -57,20 +75,20 @@ setMethod(
       .Object@resid.prior <- resid.prior
     }
 
+    refuseRemovedProposalNames(proposal.probs)
     if (is.null(proposal.probs)) {
       proposal.probs <- defaultProposalProbs
     }
 
-    probs <- proposal.probs[c("birth_death", "swap", "change")]
+    probs <- proposal.probs[c("birth_death", "change")]
     if (sum(is.na(probs)) == 1L) {
       probs[is.na(probs)] <- 1 - sum(probs[!is.na(probs)])
-      names(probs) <- c("birth_death", "swap", "change")
+      names(probs) <- c("birth_death", "change")
     } else if (all(is.na(probs))) {
-      probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
+      probs <- defaultProposalProbs[c("birth_death", "change")]
     }
 
     .Object@p.birth_death <- probs[["birth_death"]]
-    .Object@p.swap <- probs[["swap"]]
     .Object@p.change <- probs[["change"]]
 
     probs <- proposal.probs["birth"]

@@ -39,7 +39,6 @@ makeModel <- function(delta) {
     "dbartsModel",
     proposal.probs = c(
       birth_death = 1.0 - delta,
-      swap = 0.0,
       change = 0.0,
       birth = 0.5
     )

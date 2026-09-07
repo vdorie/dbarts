@@ -295,8 +295,7 @@ struct ParsedData {
 };
 
 struct ParsedModel {
-  double birthOrDeathProbability = 0.5;
-  double swapProbability = 0.1;
+  double birthOrDeathProbability = 0.6;
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
@@ -1344,18 +1343,13 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LEQ, 1.0, RC_END);
 
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.swap", slotIndex);
-  model.swapProbability = rc_getDouble(
-    slotExpr, "probability of swap rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-
   REPROTECT_SLOT(slotExpr, modelExpr, "p.change", slotIndex);
   model.changeProbability = rc_getDouble(
     slotExpr, "probability of change rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  if (std::fabs(model.birthOrDeathProbability + model.swapProbability +
-                model.changeProbability - 1.0) >= sumToOneTolerance)
+  if (std::fabs(model.birthOrDeathProbability + model.changeProbability -
+                1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
 
   REPROTECT_SLOT(slotExpr, modelExpr, "p.birth", slotIndex);
@@ -1648,10 +1642,9 @@ void printInitialSummary(const ParsedControl& control,
   ext_printf("\tuse quantiles for rule cut points: %s\n",
              control.useQuantiles ? "true" : "false");
   ext_printf(
-    "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f; "
-    "birth %.2f\n",
-    model.birthOrDeathProbability, model.swapProbability,
-    model.changeProbability, model.birthProbability);
+    "\tproposal probabilities: birth/death %.2f, change %.2f; birth %.2f\n",
+    model.birthOrDeathProbability, model.changeProbability,
+    model.birthProbability);
 
   ext_printf("data:\n");
   ext_printf("\tnumber of training observations: %lu\n",
@@ -1967,7 +1960,6 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.base = model.base;
   options.power = model.power;
   options.birthOrDeathProbability = model.birthOrDeathProbability;
-  options.swapProbability = model.swapProbability;
   options.changeProbability = model.changeProbability;
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
@@ -2482,9 +2474,8 @@ void refuseUnsupportedAmplitudeComposition(
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
   else if (std::isfinite(model.priorScale)) offender = "a named 'prior.scale'";
-  else if (model.birthOrDeathProbability != 0.5 ||
-           model.swapProbability != 0.1 || model.changeProbability != 0.4 ||
-           model.birthProbability != 0.5)
+  else if (model.birthOrDeathProbability != 0.6 ||
+           model.changeProbability != 0.4 || model.birthProbability != 0.5)
     offender = "non-default proposal probabilities";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
@@ -3503,7 +3494,6 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.base = model.base;
   spec.forest.power = model.power;
   spec.forest.birthOrDeathProbability = model.birthOrDeathProbability;
-  spec.forest.swapProbability = model.swapProbability;
   spec.forest.changeProbability = model.changeProbability;
   spec.forest.birthProbability = model.birthProbability;
 
@@ -5168,7 +5158,6 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
     parameters.power = model.power;
     parameters.splitProbabilities = model.splitProbabilities;
     parameters.birthOrDeathProbability = model.birthOrDeathProbability;
-    parameters.swapProbability = model.swapProbability;
     parameters.changeProbability = model.changeProbability;
     parameters.birthProbability = model.birthProbability;
     parameters.nodeScale = model.nodeScale;

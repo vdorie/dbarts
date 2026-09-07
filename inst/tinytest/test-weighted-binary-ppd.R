@@ -7,8 +7,10 @@
 set.seed(2, sample.kind = "Rejection")
 n <- 200L
 x <- matrix(runif(n * 2L), n, 2L)
-# a moderate slope keeps p away from 0/1, so a w=5 column's intermediate
-# counts (1..4) are near-certain across hundreds of draws, not a coin flip
+# a moderate slope keeps the TRUE p away from 0/1; the fitted probability of
+# an individual row can still sit at the boundary, where an intermediate
+# count is not near-certain, so the check below reads only the rows whose
+# posterior mean probability is interior
 f <- 0.6 * x[, 1L] - 0.3
 p <- plogis(f)
 y <- rbinom(n, 1L, p)
@@ -31,8 +33,10 @@ set.seed(11)
 ppd <- extract(fit, type = "ppd")
 ev <- extract(fit, type = "ev")
 
-# 1. every column's draws stay within [0, w], and a w=5 column hits at least
-# one intermediate value (not just the endpoints 0 and 5)
+# 1. every column's draws stay within [0, w], and an interior w=5 column hits
+# at least one intermediate value (not just the endpoints 0 and 5). The old
+# degenerate {0, w} draw produced NO intermediate value on any column, so
+# restricting to interior columns keeps the discrimination whole.
 inRange <- vapply(
   seq_len(n),
   function(j) all(ppd[, j] >= 0 & ppd[, j] <= w[j]),
@@ -41,8 +45,13 @@ inRange <- vapply(
 expect_true(all(inRange))
 
 w5cols <- which(w == 5L)
+interior <- w5cols[
+  colMeans(ev[, w5cols, drop = FALSE]) > 0.1 &
+    colMeans(ev[, w5cols, drop = FALSE]) < 0.9
+]
+expect_true(length(interior) >= 20L)
 hitsIntermediate <- vapply(
-  w5cols,
+  interior,
   function(j) any(ppd[, j] %in% 1:4),
   logical(1L)
 )

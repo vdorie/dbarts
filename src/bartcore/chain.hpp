@@ -49,8 +49,7 @@ struct SamplerOptions {
   // read it, so the bridge refuses a named value there rather than dropping it.
   double priorScale = std::numeric_limits<double>::quiet_NaN();
   double base = 0.95, power = 2.0;
-  double birthOrDeathProbability = 0.5;
-  double swapProbability = 0.1;
+  double birthOrDeathProbability = 0.6;
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   std::uint32_t maxNumCuts = 100;
@@ -208,8 +207,7 @@ struct ProgressSink {
 /// creating with it.
 struct ModelParameters {
   double base = 0.95, power = 2.0;
-  double birthOrDeathProbability = 0.5;
-  double swapProbability = 0.1;
+  double birthOrDeathProbability = 0.6;
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
@@ -374,8 +372,8 @@ using SweepCallback =
 /// Chain holds it as a nullable member, not another Forest<L, ResidT>. Gaussian only.
 struct VarianceForest {
   std::size_t numTrees = 0;
-  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
-         changeProbability = 0.4, birthProbability = 0.5;
+  double birthOrDeathProbability = 0.6, changeProbability = 0.4,
+         birthProbability = 0.5;
   ConstantVarianceLeaf leaf;
   CGMTreePrior treePrior;
   std::vector<Tree> trees;
@@ -548,7 +546,6 @@ public:
     Forest<L, ResidT>& forest = forests_.back();
     forest.numTrees = options.numTrees;
     forest.birthOrDeathProbability = options.birthOrDeathProbability;
-    forest.swapProbability = options.swapProbability;
     forest.changeProbability = options.changeProbability;
     forest.birthProbability = options.birthProbability;
     forest.updateK = options.updateK;
@@ -1393,7 +1390,6 @@ public:
         MoveContext ctx{data_,
                         forest.treePrior,
                         forest.birthOrDeathProbability,
-                        forest.swapProbability,
                         forest.birthProbability,
                         forestWeights,
                         forest.k,
@@ -1706,7 +1702,6 @@ public:
     forest.treePrior.base = model.base;
     forest.treePrior.power = model.power;
     forest.birthOrDeathProbability = model.birthOrDeathProbability;
-    forest.swapProbability = model.swapProbability;
     forest.changeProbability = model.changeProbability;
     forest.birthProbability = model.birthProbability;
     // the same conversion creation runs, re-derived against the CURRENT
@@ -4146,7 +4141,6 @@ private:
     varianceForest_ = std::make_unique<VarianceForest>();
     VarianceForest& vf = *varianceForest_;
     vf.birthOrDeathProbability = options.birthOrDeathProbability;
-    vf.swapProbability = options.swapProbability;
     vf.changeProbability = options.changeProbability;
     vf.birthProbability = options.birthProbability;
     vf.treePrior.base = options.varianceBase;
@@ -4211,7 +4205,6 @@ private:
       MoveContext ctx{data_,
                       vf.treePrior,
                       vf.birthOrDeathProbability,
-                      vf.swapProbability,
                       vf.birthProbability,
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal
@@ -5129,7 +5122,6 @@ private:
     Forest<L, ResidT>& forest = forests_.back();
     forest.numTrees = spec.numTrees;
     forest.birthOrDeathProbability = spec.birthOrDeathProbability;
-    forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
@@ -5193,7 +5185,6 @@ private:
     Forest<L, ResidT>& forest = forests_.back();
     forest.numTrees = spec.numTrees;
     forest.birthOrDeathProbability = spec.birthOrDeathProbability;
-    forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;

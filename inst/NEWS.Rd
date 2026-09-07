@@ -18,6 +18,17 @@
             unseeded ones follow \code{set.seed}. Sampling no longer advances
             R's stream (chain generators are seeded from it at creation), so
             R-level draws made after a fit also change.
+      \item The swap tree proposal is removed. \code{proposal.probs} now
+            takes two structural names, \code{"birth_death"} and
+            \code{"change"}, defaulting to
+            \code{c(birth_death = 0.6, change = 0.4, birth = 0.5)}; a vector
+            naming \code{"swap"} - including 0.9-x's own
+            \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)}
+            - is an error rather than silently ignored. The move was very
+            nearly a no-op: over 70 percent of its proposals never reached a
+            score, and dropping it costs nothing measurable on accuracy,
+            coverage, effective sample size, variable inclusion, or
+            re-adaptation after a response swap. Draws move for every fit.
       \item The binary default for \code{k} on \code{dbarts} and
             \code{bart2} is the proper \code{chi(1.5, 2)} rather than
             the improper 0.9-x default, spelled \code{chi(1.25, Inf)} there
@@ -248,9 +259,8 @@
       \item Sampling is faster: the benchmark run scenarios measure 25 to
             30 percent faster per iteration than the pre-1.0 engine,
             the gap widening with the number of observations. The run
-            loop keeps a running residual across each sweep, and change
-            and swap proposals score the tree prior on the modified
-            subtree alone. For large problems, \code{storage = "single"}
+            loop keeps a running residual across each sweep, and a change
+            proposal scores the tree prior on the modified subtree alone. For large problems, \code{storage = "single"}
             in \code{dbartsControl}, \code{bart}, \code{bart2},
             and \code{xbart} additionally stores
             the running residual in single precision (fp32) while
@@ -1600,8 +1610,8 @@
             \code{dbarts}'s own default silently applying instead) whenever
             the caller left it unsupplied. \code{proposal.probs}'s default
             is now stated directly in the signature - the named vector
-            \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth =
-            0.5)} \code{dbarts} already used - rather than \code{NULL}.
+            \code{c(birth_death = 0.6, change = 0.4, birth = 0.5)}
+            \code{dbarts} also uses - rather than \code{NULL}.
             Every resolved
             value already matched what applied before, so no fit's draws
             change.

@@ -19,7 +19,7 @@
 #include "model.hpp"
 #include "tree.hpp"
 
-// The conjugate Metropolis-Hastings tree moves: birth/death, change, and swap
+// The conjugate Metropolis-Hastings tree moves: birth/death and change
 // proposals with their acceptance ratios.
 
 namespace bartcore {
@@ -40,7 +40,6 @@ struct MoveContext {
   const ColumnStore& data;
   const CGMTreePrior& treePrior;
   double birthOrDeathProbability;
-  double swapProbability;
   double birthProbability;
   const double* weights;
   double k;
@@ -153,9 +152,9 @@ inline void resolveVetoRank(const BranchScore& current,
 //
 // A 'p' record's three log terms are that move's own acceptance expression:
 // the veto-resolved log-likelihood difference, the log prior ratio (birth and
-// death the growth factors, change the subtree strictly below the node, swap
-// the swapped subtree), and the surviving proposal-density ratio (birth and
-// death the transition ratio, change logProposalCorrection, swap 0). All three
+// death the growth factors, change the subtree strictly below the node), and
+// the surviving proposal-density ratio (birth and death the transition ratio,
+// change logProposalCorrection). All three
 // are NA when the proposal never reached a score (noop = 1: pi(T') = 0, an
 // unsatisfiable rule draw, or no eligible node), where nodeDepth is -1 if it
 // had no target node. treeDepth and interior are the shape the proposal saw,
@@ -931,125 +930,11 @@ inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIn
   return ordinalRuleIsValid(tree, nodeIndex, variableIndex, leftIndex, rightIndex);
 }
 
-template <MoveScorableLeafModel L, typename ResidT = double>
-double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
-                const ResidT* y, double sigma, bool* stepTaken,
-                int32_t* changedNode = nullptr) {
-  *stepTaken = false;
-
-  std::vector<int32_t>& swappable(ctx.scratch.nodeScratch);
-  swappable.clear();
-  tree.fillSwappable(0, swappable);
-  if (swappable.empty()) {
-    BARTCORE_CENSUS_NOOP("swap", tree, invalidNode);
-    return -1.0;
-  }
-
-  size_t nodeNumber =
-    ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, swappable.size());
-  int32_t parent = swappable[nodeNumber];
-  BARTCORE_CENSUS_SHAPE(tree, parent);
-  int32_t leftChild = tree.at(parent).leftChild;
-  int32_t rightChild = leftChild + 1;
-
-  bool leftHasRule = !tree.at(leftChild).isBottom();
-  bool rightHasRule = !tree.at(rightChild).isBottom();
-  bool childrenHaveSameRule = leftHasRule && rightHasRule &&
-    tree.rulesAreEqual(ctx.data, tree.at(leftChild).rule,
-                       tree.at(rightChild).rule);
-
-  double alpha;
-
-  // The swap gives the parent a child's rule and each swapped child the
-  // parent's. When the two children share a rule both are swapped; otherwise
-  // one is picked (a fair coin when both carry a rule, else the only one that
-  // does). Either way every swapped child's original rule is childRule, so the
-  // two cases differ only in which children move - captured in swapChildren.
-  Rule parentRule = tree.at(parent).rule;
-  Rule childRule;
-  int32_t swapChildren[2];
-  int numSwapChildren;
-  if (!childrenHaveSameRule) {
-    int32_t child;
-    if (leftHasRule && rightHasRule) {
-      child = ext_rng_simulateBernoulli(rng, 0.5) == 1 ? leftChild : rightChild;
-    } else {
-      child = leftHasRule ? leftChild : rightChild;
-    }
-    childRule = tree.at(child).rule;
-    swapChildren[0] = child;
-    numSwapChildren = 1;
-  } else {
-    childRule = tree.at(leftChild).rule;
-    swapChildren[0] = leftChild;
-    swapChildren[1] = rightChild;
-    numSwapChildren = 2;
-  }
-
-  auto applySwap = [&]() {
-    tree.at(parent).rule = childRule;
-    for (int i = 0; i < numSwapChildren; ++i)
-      tree.at(swapChildren[i]).rule = parentRule;
-  };
-  auto undoSwap = [&]() {
-    tree.at(parent).rule = parentRule;
-    for (int i = 0; i < numSwapChildren; ++i)
-      tree.at(swapChildren[i]).rule = childRule;
-  };
-
-  // test the swap for logical consistency before scoring it
-  applySwap();
-  bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
-  if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
-    swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
-  // interaction is a WHOLE-subtree, all-variables property the per-variable
-  // ruleIsValid checks above cannot see (the swap sibling-strand break): a
-  // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
-  // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
-  if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
-  undoSwap();
-
-  if (!swapIsSensible) {
-    BARTCORE_CENSUS_NOOP("swap", tree, parent);
-    return -1.0;
-  }
-
-  // as in changeMove, prior terms outside the swapped subtree cancel
-  double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-  BranchScore xScore =
-    logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
-
-  tree.snapshotSubtree(parent, ctx.scratch.snapshot);
-  applySwap();
-  tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
-
-  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-  BranchScore yScore =
-    logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
-
-  // as in changeMove, the veto gates the existing single exp
-  double xLogL, yLogL;
-  resolveVetoRank(xScore, yScore, &xLogL, &yLogL);
-  alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
-  alpha = alpha > 1.0 ? 1.0 : alpha;
-
-  if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
-    *stepTaken = true;
-    if (changedNode != nullptr) *changedNode = parent;
-  } else {
-    tree.restoreSubtree(ctx.scratch.snapshot);
-  }
-  BARTCORE_CENSUS_PROPOSAL("swap", false, *stepTaken, yLogL - xLogL,
-                           yLogPi - xLogPi, 0.0);
-
-  return alpha;
-}
-
-enum class StepType { birth, death, swap, change };
+enum class StepType { birth, death, change };
 
 /// changedNode, when non-null, receives the index of the node whose subtree an
-/// ACCEPTED move repartitioned (the birthed/died node, or the changed/swapped
-/// subtree root); untouched on rejection or no-op, so gate reads on stepTaken.
+/// ACCEPTED move repartitioned (the birthed/died node, or the changed subtree
+/// root); untouched on rejection or no-op, so gate reads on stepTaken.
 template <MoveScorableLeafModel L, typename ResidT = double>
 double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                              Tree& tree, const ResidT* y, double sigma,
@@ -1063,9 +948,6 @@ double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng
     alpha = birthOrDeathMove(ctx, leaf, rng, tree, y, sigma, stepTaken, &birthed,
                              changedNode);
     *stepType = birthed ? StepType::birth : StepType::death;
-  } else if (u < ctx.birthOrDeathProbability + ctx.swapProbability) {
-    alpha = swapMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
-    *stepType = StepType::swap;
   } else {
     alpha = changeMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::change;

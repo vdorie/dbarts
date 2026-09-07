@@ -994,8 +994,7 @@ static void testEmptyLeafVetoCountsWeight() {
   check(tree.at(left).sumWeights == 0.0,
         "veto fixture: the zero-weight leaf holds no weight");
 
-  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.5,
-                      zeroed.data(), k,   scratch};
+  MoveContext zeroCtx{store, prior, 0.5, 0.5, zeroed.data(), k, scratch};
   BranchScore zeroScore =
     logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma);
   check(zeroScore.rank == 1,
@@ -1004,8 +1003,8 @@ static void testEmptyLeafVetoCountsWeight() {
         "the vetoed branch's finite part skips the vetoed leaf");
 
   buildSplit(positive.data());
-  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.5,
-                          positive.data(), k,     scratch};
+  MoveContext positiveCtx{store, prior, 0.5, 0.5, positive.data(), k,
+                          scratch};
   BranchScore positiveScore =
     logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma);
   check(positiveScore.rank == 0 && std::isfinite(positiveScore.logLikelihood),
@@ -1015,7 +1014,7 @@ static void testEmptyLeafVetoCountsWeight() {
   // bitwise the sum of its leaves' marginals, and the veto there is still the
   // member count
   buildSplit(nullptr);
-  MoveContext nullCtx{store, prior, 0.5, 0.1, 0.5, nullptr, k, scratch};
+  MoveContext nullCtx{store, prior, 0.5, 0.5, nullptr, k, scratch};
   std::vector<int32_t> bottoms;
   tree.fillBottom(0, bottoms);
   double reference = 0.0;
@@ -1045,7 +1044,7 @@ static void testEmptyLeafVetoCountsWeight() {
   auto driveChain = [&](const double* weights) {
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), weights);
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.5, weights, k, scratch};
     size_t violations = 0, accepted = 0;
     for (int iter = 0; iter < 4000; ++iter) {
       bool stepTaken = false;
@@ -1120,7 +1119,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     ext_rng_setSeed(rng, seed);
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), ones.data());
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, ones.data(), k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.5, ones.data(), k, scratch};
     for (int iter = 0; iter < 3000; ++iter) {
       bool stepTaken = false;
       StepType stepType;
@@ -1146,7 +1145,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     int absorbed = -1;  // first sweep at which no leaf is vetoed
   };
   auto drive = [&](const double* weights, int iterations) {
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.5, weights, k, scratch};
     Driven driven;
     std::uint64_t signature = treeStructureSignature(tree);
     std::vector<int32_t> bottoms;
@@ -1323,7 +1322,7 @@ static void testEqualRankOneComparison() {
           tree.leafVetoRank(leftChild + 1, zeros.data()) == 1,
         "equal-rank fixture: both children are weight-vetoed, neither empty");
 
-  MoveContext ctx{store, growPrior, 1.0, 0.0, 0.5, zeros.data(), k, scratch};
+  MoveContext ctx{store, growPrior, 1.0, 0.5, zeros.data(), k, scratch};
   BranchScore splitScore =
     logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
   check(splitScore.rank == 1 && splitScore.logLikelihood == 0.0,
@@ -1367,8 +1366,8 @@ static void testEqualRankOneComparison() {
                       double leafSigma, double leafK) {
     ext_rng_setSeed(rng, 20260819u);
     buildRoot();
-    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.5,
-                       zeros.data(), leafK,     scratch};
+    MoveContext armCtx{store, growPrior, 1.0, 0.5, zeros.data(), leafK,
+                       scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
                                  leafSigma, &out.stepTaken, &out.wasBirth);
@@ -1395,8 +1394,8 @@ static void testEqualRankOneComparison() {
   auto runDeath = [&](const auto& leafModel) {
     ext_rng_setSeed(rng, 20260820u);
     buildSplit();
-    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.5,
-                       zeros.data(), k,          scratch};
+    MoveContext armCtx{store, prunePrior, 1.0, 0.5, zeros.data(), k,
+                       scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, y.data(), sigma,
                                  &out.stepTaken, &out.wasBirth);
@@ -1414,8 +1413,8 @@ static void testEqualRankOneComparison() {
   // acceptance is the equal-rank-1 likelihood by itself
   ext_rng_setSeed(rng, 20260821u);
   buildSplit();
-  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0,
-                        zeros.data(), k,         scratch};
+  MoveContext changeCtx{store, growPrior, 0.0, 0.0, zeros.data(), k,
+                        scratch};
   bool changeTaken = false;
   double changeAlpha = changeMove(changeCtx, constant, rng, tree, y.data(),
                                   sigma, &changeTaken);
@@ -1771,7 +1770,7 @@ static void testMoveValidityPredicates() {
   // and the same through the dispatcher, which reads the interval itself
   MoveScratch scratch;
   CGMTreePrior prior;
-  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.5, nullptr, 2.0,
+  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.5, nullptr, 2.0,
                          scratch};
   check(ruleIsValid(ordinalCtx, tree, 0, 0),
         "ruleIsValid accepts the well-formed ordinal subtree");
@@ -1812,8 +1811,8 @@ static void testMoveValidityPredicates() {
         "a mask reaching outside the reachable set is not");
 
   categoricalValid(0x3u);
-  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.5, nullptr,
-                            2.0, scratch};
+  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.5, nullptr, 2.0,
+                             scratch};
   check(ruleIsValid(categoricalCtx, categoricalTree, 0, 0),
         "ruleIsValid accepts the well-formed categorical subtree");
   categoricalValid(reachable);

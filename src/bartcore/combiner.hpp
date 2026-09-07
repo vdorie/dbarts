@@ -138,8 +138,7 @@ struct Forest {
   // per-forest options: tree count, tree-move probabilities, the k
   // hyperprior, and whether the split selector is DART
   size_t numTrees = 200;
-  double birthOrDeathProbability = 0.5;
-  double swapProbability = 0.1;
+  double birthOrDeathProbability = 0.6;
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   bool updateK = false;
@@ -235,8 +234,8 @@ struct Forest {
 struct ForestStructureSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
-  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
-         changeProbability = 0.4, birthProbability = 0.5;
+  double birthOrDeathProbability = 0.6, changeProbability = 0.4,
+         birthProbability = 0.5;
   // optional split-variable restriction (borrowed 0-based column indices,
   // consumed at construction): the columns this forest may split on. Null or
   // count 0 leaves every column available - the default, byte-for-byte
@@ -373,8 +372,8 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
 struct MultinomialForestSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
-  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
-         changeProbability = 0.4, birthProbability = 0.5;
+  double birthOrDeathProbability = 0.6, changeProbability = 0.4,
+         birthProbability = 0.5;
 };
 
 /// The specification a multinomial (softmax) chain is built from: K symmetric
