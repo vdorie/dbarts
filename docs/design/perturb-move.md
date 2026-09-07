@@ -341,10 +341,12 @@ construction, and 6.2 asks for the exact posterior by name. An occupancy arm on 
 
 ## 5. Benefit, pre-registered
 
-**Two prerequisites, both outside this design.** First, the battery's absolute gate has no script: benchmarks/R/surfaces/ holds C1,
-both P2s, P5 and P6 and no P1, so benchmarks/R/surfaces/P1-low-noise-friedman.R must exist and must return 90 percent coverage near
-0.71 in the control arm before any verdict here is valid
-([6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)).
+**Two prerequisites, both outside this design.** First, the battery's absolute gate: `benchmarks/R/surfaces/P1-friedman.R` must
+return 90 percent coverage near 0.71 in the control arm before any verdict here is valid
+([6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically));
+it now exists and reads 0.725 held-out at the shipped default
+([10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07)),
+so the gate is in force.
 Second, the chain configuration of the primary cell, which is now settled and is what the rest of this section is built on.
 
 ### 5.1 The chain configuration, and what it makes the primary statistic
@@ -560,8 +562,9 @@ reads the census's two-move re-run rather than the three-move figures beside it.
    [9. Reversal: the move returns at default zero](swap-removal.md#9-reversal-the-move-returns-at-default-zero)), together with the
    structural fill rule it needed (6934e487). Section 3's enumeration counts against that tree and nothing below is startable
    against another.
-2. **benchmarks/R/surfaces/P1-low-noise-friedman.R**, the battery's absolute gate, which does not exist yet. It blocks slice 3 only,
-   but it blocks it completely: without 0.71 in the control arm no cell's verdict is valid.
+2. **benchmarks/R/surfaces/P1-friedman.R, the battery's absolute gate, MET** (0.725 held-out in the control arm,
+   [10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07)).
+   Slice 3 re-runs that rung as its own control arm at the time it runs.
 3. **The C1 chain configuration, SETTLED** (section 5.1): the benefit cell runs the shipped four chains at 500 + 500 and reads
    summed minimum ESS. This fixes slice 3's primary statistic and its bar.
 4. **The census's `vetoed.pct` column**, re-summarized from the existing census files (section 7). It blocks slice 3: the selection

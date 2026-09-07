@@ -554,6 +554,22 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P1, the battery's known-positive control, built and run (27685833, 2026-09-07)
+
+benchmarks/R/surfaces/P1-friedman.R and P1-friedman-census.R, with a
+Friedman generator in surfaces-common.R: Pratola's low-noise emulator on two
+rungs (the house n = 2000, sigma = 0.25 cell and his n = 5000 cell at
+sigma^2 in {1, 0.1}), three mixtures on twenty matched seeds, plus a
+census-build acceptance readout. The absolute gate of
+docs/design/benchmark-surfaces.md 6.4 is now in force: the shipped default
+reads 90 percent held-out coverage 0.725 (0.682-0.760) on the house rung
+against the 0.71 it must sit near. Pratola's birth/death acceptance
+reproduces (15.6 and 5.3 percent against his 18 and 4); his coverage
+collapse reproduces in direction but is 0.13 shallower here (0.674 train
+against 0.538). Recorded as 10.8 with the section 6.4 and 10.6 sentences
+restated; the perturb design's prerequisite 2 is met. Script only, no
+engine change.
+
 ### C1 chain configuration: the coverage deficit is exploration (fef6dca6, 2026-09-07)
 
 The He and Hahn cell had run one chain of 2500 kept draws, the paper's

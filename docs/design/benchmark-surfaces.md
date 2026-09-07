@@ -1058,7 +1058,9 @@ under `benchmarks/R/equivalence.R`, not merely statistically equal. A
 statistical pass with a bitwise failure means the change is not what it
 claims to be. Second, **P1 must still fail**: if the
 n = 2000, `sigma = 0.25` rung's 90% coverage does not sit near 0.71 in the
-control arm, the harness is mismeasuring and no verdict is valid.
+control arm, the harness is mismeasuring and no verdict is valid (measured
+0.725 held-out at the shipped default,
+[10.8 P1, the low-noise Friedman emulator (2026-09-07)](#108-p1-the-low-noise-friedman-emulator-2026-09-07)).
 
 "Better on at least one pathology" is the mirror image, and is
 deliberately harder than the no-regression bar: a paired improvement on
@@ -1637,10 +1639,12 @@ Facts only, against the rule in section 6.1.
 - **No paired contrast on P6, P5 or C1.** One arm each. Section 6.4's
   twenty matched pairs per cell is a paired-contrast count and is not met
   by twenty matched seeds of a single arm.
-- **P1 was not run**, so section 6.4's absolute gate - the n = 2000,
-  sigma = 0.25 rung's 90 percent coverage sitting near 0.71 in the control
-  arm - is not in force behind any verdict above. Each cell's own
-  published-number check and the two internal oracles stood in for it.
+- **P1 was not run** at the time, so section 6.4's absolute gate - the
+  n = 2000, sigma = 0.25 rung's 90 percent coverage sitting near 0.71 in the
+  control arm - was not in force behind any verdict above; each cell's own
+  published-number check and the two internal oracles stood in for it. It
+  has since run (10.8) and reads 0.725, so the gate is in force from
+  2026-09-07 on.
 - **P6's prognostic function is a reconstruction** and cannot be made
   otherwise from the published record.
 - **C1's predictor arm and tree count are inferred**, from RMSE agreement,
@@ -1674,3 +1678,64 @@ sources       every generating process was re-read from the primary source
 scripts       benchmarks/R/surfaces, one per cell plus surfaces-common.R
               and a README; results written outside the working tree
 ```
+
+### 10.8 P1, the low-noise Friedman emulator (2026-09-07)
+
+Built and run after the pilot, as the battery's known-positive control
+(6.3) and absolute gate (6.4). `P1-friedman.R` runs two rungs on twenty
+matched seeds, one chain per fit, three arms through `proposal.probs`:
+`default` (the shipped mixture, birth_death 0.6, swap 0, change 0.4),
+`birthdeath` (Pratola's own arm) and `swap` (the former default, swap 0.1).
+The house rung is section 13's cell, n = 2000, 200 trees, sigma = 0.25,
+1000 burn-in and 2000 kept; Pratola's rung is n = 5000, 200 trees, 5000
+burn-in and 5000 kept at sigma^2 in {1, 0.1}. Pratola's text prints
+`10 sin(2 pi x1 x2)` where Friedman's function has `pi`, so his rung runs
+his frequency, with one diagnostic arm (`variance01friedman`) at Friedman's;
+his y is the function plus noise, not the deterministic simulator, and his
+coverages are read as in-sample. In the published Bayesian Analysis text
+the emulator is section 2.3 and the confounded step function 2.2, the
+reverse of the arXiv numbering section 1.2 cites. Mean over seeds (min-max);
+90 percent pointwise coverage of the true f.
+
+    house rung (n 2000, sigma 0.25)
+    arm         train                held-out             RMSE   min ESS
+    default     0.782(0.743-0.812)   0.725(0.682-0.760)   0.260   1
+    birthdeath  0.780(0.755-0.813)   0.709(0.657-0.737)   0.268   2
+    swap        0.787(0.752-0.818)   0.728(0.684-0.775)   0.259   1
+
+    Pratola's rung (n 5000)
+    design              arm         train                held-out             RMSE   min ESS
+    variance1           default     0.802(0.764-0.816)   0.791(0.753-0.830)   0.487   2
+    variance1           birthdeath  0.799(0.761-0.824)   0.784(0.739-0.822)   0.488   2
+    variance1           swap        0.805(0.779-0.842)   0.797(0.754-0.833)   0.481   2
+    variance01          default     0.675(0.649-0.713)   0.622(0.569-0.681)   0.291   2
+    variance01          birthdeath  0.674(0.637-0.708)   0.622(0.573-0.661)   0.292   2
+    variance01          swap        0.667(0.633-0.689)   0.612(0.569-0.650)   0.295   2
+    variance01friedman  birthdeath  0.710(0.671-0.734)   0.680(0.615-0.732)   0.207   2
+
+**The absolute gate is in force.** Section 6.4 requires the house rung's
+90 percent coverage to sit near 0.71 in the control arm; section 13 read
+0.714, 0.725 and 0.714 held-out for its three mixtures, and the shipped
+default now reads 0.725 (0.682-0.760) held-out on the same design. The
+three mixtures remain indistinguishable, as section 13 found.
+
+**Per-move acceptance**, from `P1-friedman-census.R` on a
+`-DBARTCORE_MOVE_CENSUS` build, one seed, 200 sampled sweeps after each
+rung's burn-in, as a share of proposals made: sigma^2 = 1, birth/death
+arm, birth 14.3 / death 17.1 / all 15.6 percent (published about 18);
+sigma^2 = 0.1, birth/death arm, birth 5.1 / death 5.6 / all 5.3 (published
+about 4); sigma^2 = 0.1, default arm, birth 5.7 / death 6.0 / change 2.1 /
+all 4.3; the swap arm's swap move accepts 1.0 percent at 74 percent no-op;
+house rung, default arm, birth 10.2 / death 11.8 / change 4.7 / all 8.4.
+
+| statistic (birth/death arm) | published | measured | verdict |
+|---|---|---|---|
+| acceptance, sigma^2 = 1 | ~18% | 15.6% | reproduces |
+| acceptance, sigma^2 = 0.1 | ~4% | 5.3% | reproduces |
+| 90% coverage, sigma^2 = 1 | 0.81 | 0.799 train, 0.784 held-out | reproduces |
+| 90% coverage, sigma^2 = 0.1 | 0.538 | 0.674 train, 0.622 held-out | direction reproduces; the collapse is 0.13 shallower here |
+
+The frequency transcription does not explain the shallower collapse:
+Friedman's own frequency reads 0.710 train at RMSE 0.207, no closer to
+0.538 than the doubled one. Wall times are not recorded as measurements;
+the host carried a 1-minute load of 12 to 18 throughout.
