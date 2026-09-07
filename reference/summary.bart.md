@@ -145,7 +145,8 @@ summary(fit)
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
 #>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
 #>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, 
-#>     swap = 0, change = 0.4, perturb = 0, birth = 0.5))
+#>     swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5
+#>     ))
 #> 
 #> # A tibble: 1 × 10
 #>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail

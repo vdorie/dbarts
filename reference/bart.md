@@ -378,10 +378,10 @@ residuals(object, type = "ev", ...)
 
   Named numeric vector or `NULL`, optionally specifying the proposal
   rules and their probabilities. Elements should be `"birth_death"`,
-  `"swap"`, `"change"` and `"perturb"` to control tree structure
-  proposals, and `"birth"` to give the relative frequency of birth/death
-  in the `"birth_death"` step. The default is
-  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`.
+  `"swap"`, `"change"`, `"perturb"` and `"rule_gibbs"` to control tree
+  structure proposals, and `"birth"` to give the relative frequency of
+  birth/death in the `"birth_death"` step. The default is
+  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`.
   All four structural probabilities zero is the frozen mixture: no
   structural proposal is made, the tree structures stand where they are,
   and only the leaf values, `sigma` and the family's latents keep being
@@ -393,7 +393,12 @@ residuals(object, type = "ev", ...)
   historical default). A `"perturb"` element displaces one node's split
   point by a single cut position while keeping its variable and the
   tree's shape; it defaults to zero, and only ordinal (numeric) columns
-  can be perturbed.
+  can be perturbed. A `"rule_gibbs"` element replaces one nog node's
+  rule - a node whose two children are both leaves - with a draw from
+  that rule's own full conditional over the available ordinal variables
+  and their admissible cuts, so its acceptance is one; it defaults to
+  zero, it acts only where the node's own rule is ordinal, and it is
+  inert on an all-categorical design.
 
 - keepsampler:
 
@@ -1095,7 +1100,7 @@ bartFit <- bart(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -1118,7 +1123,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.149174
+#> total seconds in loop: 0.200953
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 

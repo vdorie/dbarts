@@ -13,7 +13,8 @@ dbarts(
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     resid.dist = gaussian,
     proposal.probs = c(
-        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5),
+        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
+        rule_gibbs = 0, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -212,21 +213,22 @@ dbarts(
 
   Named numeric vector or `NULL`, optionally specifying the proposal
   rules and their probabilities. Elements should be `"birth_death"`,
-  `"swap"`, `"change"` and `"perturb"` to control tree structure
-  proposals, and `"birth"` to give the relative frequency of birth/death
-  in the `"birth_death"` step. The four structural probabilities must
-  sum to one. All four structural probabilities zero is the frozen
-  mixture: no structural proposal is made, the tree structures stand
-  where they are, and only the leaf values, `sigma` and the family's
-  latents keep being drawn, which is how a fitted forest is re-sampled
-  as a fixed basis. An unnamed `"perturb"` is taken as zero and resolved
-  before the rest; an unnamed `"swap"` is taken as zero, and a single
-  remaining unnamed element takes the residual, so
-  `c(birth_death = 0.7)` is birth/death 0.7, swap 0, change 0.3, perturb
-  0 and `c(birth_death = 0.5, change = 0.4)` is swap 0.1; naming only
-  `"swap"` and `"perturb"` leaves the birth/death-versus-change split
+  `"swap"`, `"change"`, `"perturb"` and `"rule_gibbs"` to control tree
+  structure proposals, and `"birth"` to give the relative frequency of
+  birth/death in the `"birth_death"` step. The five structural
+  probabilities must sum to one. All five structural probabilities zero
+  is the frozen mixture: no structural proposal is made, the tree
+  structures stand where they are, and only the leaf values, `sigma` and
+  the family's latents keep being drawn, which is how a fitted forest is
+  re-sampled as a fixed basis. An unnamed `"perturb"` or `"rule_gibbs"`
+  is taken as zero and resolved before the rest; an unnamed `"swap"` is
+  taken as zero, and a single remaining unnamed element takes the
+  residual, so `c(birth_death = 0.7)` is birth/death 0.7, swap 0, change
+  0.3, perturb 0, rule_gibbs 0 and `c(birth_death = 0.5, change = 0.4)`
+  is swap 0.1; naming only the zero-default moves `"swap"`, `"perturb"`
+  and `"rule_gibbs"` leaves the birth/death-versus-change split
   undetermined and is an error. The default is
-  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`.
+  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`.
   A `"swap"` element exchanges a parent's split rule with a child's; it
   defaults to zero because at production forest sizes it measures as a
   no-op, but with `n.trees = 1` it is the only move that rotates a rule
@@ -234,7 +236,12 @@ dbarts(
   historical default). A `"perturb"` element displaces one node's split
   point by a single cut position while keeping its variable and the
   tree's shape; it defaults to zero, and only ordinal (numeric) columns
-  can be perturbed.
+  can be perturbed. A `"rule_gibbs"` element replaces one nog node's
+  rule - a node whose two children are both leaves - with a draw from
+  that rule's own full conditional over the available ordinal variables
+  and their admissible cuts, so its acceptance is one; it defaults to
+  zero, it acts only where the node's own rule is ordinal, and it is
+  inert on an all-categorical design.
 
 - monotone:
 

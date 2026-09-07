@@ -61,7 +61,8 @@
 <span>    keepCall <span class="op">=</span> <span class="cn">TRUE</span>, samplerOnly <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    proposal.probs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>        birth_death <span class="op">=</span> <span class="fl">0.6</span>, swap <span class="op">=</span> <span class="fl">0</span>, change <span class="op">=</span> <span class="fl">0.4</span>, perturb <span class="op">=</span> <span class="fl">0</span>, birth <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>        birth_death <span class="op">=</span> <span class="fl">0.6</span>, swap <span class="op">=</span> <span class="fl">0</span>, change <span class="op">=</span> <span class="fl">0.4</span>, perturb <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>        rule_gibbs <span class="op">=</span> <span class="fl">0</span>, birth <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>    monotone <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    interactions <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -312,7 +313,7 @@
 <dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. A <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility; supplying <code>seed</code> instead gives reproducible results without touching R's stream. See <code><a href="bart.html">bart</a></code>'s Reproducibility section.</p></dd>
 
    <dt id="arg-proposal-probs">proposal.probs<a class="anchor" aria-label="anchor" href="#arg-proposal-probs"></a></dt>
-<dd><p>Named numeric vector, optionally specifying the proposal rules and their probabilities. Elements should be <code>"birth_death"</code>, <code>"swap"</code>, <code>"change"</code> and <code>"perturb"</code> to control tree structure proposals, and <code>"birth"</code> to give the relative frequency of birth/death in the <code>"birth_death"</code> step. The default is the named vector <code>c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)</code>, identical to <code><a href="dbarts.html">dbarts</a></code>'s own default. All four structural probabilities zero is the frozen mixture: no structural proposal is made, the tree structures stand where they are, and only the leaf values, <code>sigma</code> and the family's latents keep being drawn, which is how a fitted forest is re-sampled as a fixed basis. A <code>"swap"</code> element exchanges a parent's split rule with a child's; it defaults to zero because at production forest sizes it measures as a no-op, but with <code>n.trees = 1</code> it is the only move that rotates a rule up the tree, so single-tree fits should set it positive (0.1 was the historical default). A <code>"perturb"</code> element displaces one node's split point by a single cut position while keeping its variable and the tree's shape; it defaults to zero, and only ordinal (numeric) columns can be perturbed.</p></dd>
+<dd><p>Named numeric vector, optionally specifying the proposal rules and their probabilities. Elements should be <code>"birth_death"</code>, <code>"swap"</code>, <code>"change"</code>, <code>"perturb"</code> and <code>"rule_gibbs"</code> to control tree structure proposals, and <code>"birth"</code> to give the relative frequency of birth/death in the <code>"birth_death"</code> step. The default is the named vector <code>c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)</code>, identical to <code><a href="dbarts.html">dbarts</a></code>'s own default. All four structural probabilities zero is the frozen mixture: no structural proposal is made, the tree structures stand where they are, and only the leaf values, <code>sigma</code> and the family's latents keep being drawn, which is how a fitted forest is re-sampled as a fixed basis. A <code>"swap"</code> element exchanges a parent's split rule with a child's; it defaults to zero because at production forest sizes it measures as a no-op, but with <code>n.trees = 1</code> it is the only move that rotates a rule up the tree, so single-tree fits should set it positive (0.1 was the historical default). A <code>"perturb"</code> element displaces one node's split point by a single cut position while keeping its variable and the tree's shape; it defaults to zero, and only ordinal (numeric) columns can be perturbed. A <code>"rule_gibbs"</code> element replaces one nog node's rule - a node whose two children are both leaves - with a draw from that rule's own full conditional over the available ordinal variables and their admissible cuts, so its acceptance is one; it defaults to zero, it acts only where the node's own rule is ordinal, and it is inert on an all-categorical design.</p></dd>
 
    <dt id="arg-monotone">monotone<a class="anchor" aria-label="anchor" href="#arg-monotone"></a></dt>
 <dd><p>Optional per-predictor monotonicity constraints, passed through to <code><a href="dbarts.html">dbarts</a></code>; see its <code>monotone</code> argument. A named vector selects predictors by model-matrix column name, each direction one of <code>"+"</code>/<code>"increasing"</code>/<code>1</code> or <code>"-"</code>/<code>"decreasing"</code>/<code>-1</code> - matching is case-insensitive, so <code>"Increasing"</code> is accepted; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed <code>k = 2</code>. <code>NULL</code> (the default) fits the unconstrained model.</p></dd>
@@ -474,7 +475,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 60</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of test observations: 0</span>
@@ -484,7 +485,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001394</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -520,7 +521,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	scale in sigma prior: 0.011208</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 60</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of test observations: 0</span>
@@ -531,7 +532,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001199</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001609</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 2 3 3 2 2 2 2 </span>

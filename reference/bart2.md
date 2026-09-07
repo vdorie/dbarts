@@ -39,7 +39,8 @@ bart2(
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
     proposal.probs = c(
-        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5),
+        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
+        rule_gibbs = 0, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -519,10 +520,10 @@ print(x, ...)
 
   Named numeric vector, optionally specifying the proposal rules and
   their probabilities. Elements should be `"birth_death"`, `"swap"`,
-  `"change"` and `"perturb"` to control tree structure proposals, and
-  `"birth"` to give the relative frequency of birth/death in the
-  `"birth_death"` step. The default is the named vector
-  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`,
+  `"change"`, `"perturb"` and `"rule_gibbs"` to control tree structure
+  proposals, and `"birth"` to give the relative frequency of birth/death
+  in the `"birth_death"` step. The default is the named vector
+  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`,
   identical to
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
   default. All four structural probabilities zero is the frozen mixture:
@@ -536,7 +537,12 @@ print(x, ...)
   (0.1 was the historical default). A `"perturb"` element displaces one
   node's split point by a single cut position while keeping its variable
   and the tree's shape; it defaults to zero, and only ordinal (numeric)
-  columns can be perturbed.
+  columns can be perturbed. A `"rule_gibbs"` element replaces one nog
+  node's rule - a node whose two children are both leaves - with a draw
+  from that rule's own full conditional over the available ordinal
+  variables and their admissible cuts, so its acceptance is one; it
+  defaults to zero, it acts only where the node's own rule is ordinal,
+  and it is inert on an all-categorical design.
 
 - monotone:
 
@@ -1536,7 +1542,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -1546,7 +1552,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001010
+#> total seconds in loop: 0.001394
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1582,7 +1588,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #>  scale in sigma prior: 0.011208
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -1593,7 +1599,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001199
+#> total seconds in loop: 0.001609
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
