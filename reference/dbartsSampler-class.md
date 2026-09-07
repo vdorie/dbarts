@@ -164,9 +164,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An object inheriting from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
   When passed to `setControl`, it cannot change `n.trees`, `n.chains`,
-  `useQuantiles`, or `seed` from the values the sampler was created
-  with, and cannot set `keepTrees = TRUE` without also giving
-  `n.samples`; either is an error.
+  `useQuantiles`, `levelGibbs`, or `seed` from the values the sampler
+  was created with, and cannot set `keepTrees = TRUE` without also
+  giving `n.samples`; either is an error.
 
 - newModel:
 

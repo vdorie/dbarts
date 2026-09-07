@@ -54,7 +54,7 @@
 <span>    n.samples <span class="op">=</span> <span class="fl">500L</span>, n.burn <span class="op">=</span> <span class="fl">500L</span>,</span>
 <span>    n.chains <span class="op">=</span> <span class="fl">4L</span>, n.threads <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">n.chains</span><span class="op">)</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>    n.cuts <span class="op">=</span> <span class="fl">100L</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>    n.cuts <span class="op">=</span> <span class="fl">100L</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>, levelGibbs <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    n.thin <span class="op">=</span> <span class="fl">1L</span>, keepTrainingFits <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    printEvery <span class="op">=</span> <span class="fl">100L</span>, printCutoffs <span class="op">=</span> <span class="fl">0L</span>,</span>
 <span>    verbose <span class="op">=</span> <span class="cn">TRUE</span>, keepTrees <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -285,6 +285,9 @@
    <dt id="arg-usequantiles">useQuantiles<a class="anchor" aria-label="anchor" href="#arg-usequantiles"></a></dt>
 <dd><p>When <code>TRUE</code>, determine tree decision rules using estimated quantiles derived from the predictor variables. When <code>FALSE</code>, splits are determined using values equally spaced across the range of a variable. See <code><a href="bart.html">bart</a></code>'s ‘Decision Rules’ details.</p></dd>
 
+   <dt id="arg-levelgibbs">levelGibbs<a class="anchor" aria-label="anchor" href="#arg-levelgibbs"></a></dt>
+<dd><p>Logical, passed through to <code><a href="dbartsControl.html">dbartsControl</a></code>. When <code>TRUE</code>, each sampler iteration takes one extra Gibbs step before the trees are updated, adding a constant to every occupied leaf of each tree with the constants summing to zero over the trees: the sum-of-trees function is unchanged, the individual leaf values move, and the posterior being sampled is the same. Off by default, where the draws are those of previous versions. See <code>dbartsControl</code>'s <code>levelGibbs</code> item.</p></dd>
+
    <dt id="arg-n-thin">n.thin<a class="anchor" aria-label="anchor" href="#arg-n-thin"></a></dt>
 <dd><p>Every <code>n.thin</code> draw is kept to be returned to the user. Useful for “thinning” samples against serial correlation; see <code>n.samples</code> above for how the two combine.</p></dd>
 
@@ -475,6 +478,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	level fibre gibbs step: false</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 60</span>
@@ -485,7 +489,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001446</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001484</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -521,6 +525,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	scale in sigma prior: 0.011208</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	level fibre gibbs step: false</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 60</span>
@@ -532,7 +537,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001692</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001702</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 2 3 3 2 2 2 2 </span>

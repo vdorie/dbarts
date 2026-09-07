@@ -762,6 +762,16 @@ at all: the seed drives a dedicated generator that hands each chain its
 own seed. A single-chain run with a given seed reproduces the first
 chain of a multi-chain run with the same seed.
 
+`bart` takes the default for
+[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+`levelGibbs`, the optional level-shifting Gibbs step, which is off; it
+has no formal for it, and its draws are those of previous versions. The
+step is reachable from
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and from a
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+sampler's control object, and turning it on changes the sampled values
+(the posterior is the same, the stream is not).
+
 ### Extracting Trees
 
 When a model is fit with `keeptrees` (`bart`) or `keepTrees` (`bart2`)
@@ -1100,6 +1110,7 @@ bartFit <- bart(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
+#>  level fibre gibbs step: false
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
@@ -1123,7 +1134,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.215709
+#> total seconds in loop: 0.214643
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 

@@ -32,7 +32,7 @@ bart2(
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
-    n.cuts = 100L, useQuantiles = FALSE,
+    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
@@ -464,6 +464,18 @@ print(x, ...)
   determined using values equally spaced across the range of a variable.
   See [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   ‘Decision Rules’ details.
+
+- levelGibbs:
+
+  Logical, passed through to
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  When `TRUE`, each sampler iteration takes one extra Gibbs step before
+  the trees are updated, adding a constant to every occupied leaf of
+  each tree with the constants summing to zero over the trees: the
+  sum-of-trees function is unchanged, the individual leaf values move,
+  and the posterior being sampled is the same. Off by default, where the
+  draws are those of previous versions. See `dbartsControl`'s
+  `levelGibbs` item.
 
 - n.thin:
 
@@ -1542,6 +1554,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
+#>  level fibre gibbs step: false
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
@@ -1552,7 +1565,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001446
+#> total seconds in loop: 0.001484
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1588,6 +1601,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #>  scale in sigma prior: 0.011208
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
+#>  level fibre gibbs step: false
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
@@ -1599,7 +1613,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001692
+#> total seconds in loop: 0.001702
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
