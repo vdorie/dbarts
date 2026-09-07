@@ -205,20 +205,25 @@ interaction-constraints.md for containment.
 
 ## Tree moves
 
-`src/bartcore/moves.hpp` holds four structural moves: birth/death, change,
-swap and perturb, the conjugate Metropolis-Hastings proposals and their
-acceptance ratios, as free functions templated on `MoveScorableLeafModel`.
-`metropolisJumpForTree` (a free function in moves.hpp, called from `Chain`)
-is the per-iteration, per-tree entry: it draws a step type
-(`StepType::birth/death/swap/change/perturb`) and dispatches to the
-corresponding move function. Swap and perturb both ship at probability 0.
-Swap - at production forest sizes it is nearly all no-op - is the only move
-that rotates a child's rule up the tree, so a single-tree fit wanting to
-cross between rootings sets it positive through `proposal.probs`. Perturb
-displaces one interior node's ordinal cut by a single grid position, keeping
-its split variable and the tree's shape; it ships at zero pending a benefit
-measurement (docs/design/perturb-move.md). All four structural probabilities
-exactly zero freezes the structures: [`Chain::run`](../src/bartcore/chain.hpp)
+`src/bartcore/moves.hpp` holds five structural moves: birth/death, change,
+swap, perturb and rule_gibbs, the conjugate Metropolis-Hastings proposals and
+their acceptance ratios, as free functions templated on
+`MoveScorableLeafModel`. `metropolisJumpForTree` (a free function in
+moves.hpp, called from `Chain`) is the per-iteration, per-tree entry: it
+draws a step type (`StepType::birth/death/swap/change/perturb/ruleGibbs`) and
+dispatches to the corresponding move function. Swap, perturb and rule_gibbs
+all ship at probability 0. Swap - at production forest sizes it is nearly
+all no-op - is the only move that rotates a child's rule up the tree, so a
+single-tree fit wanting to cross between rootings sets it positive through
+`proposal.probs`. Perturb displaces one interior node's ordinal cut by a
+single grid position, keeping its split variable and the tree's shape; it
+ships at zero pending a benefit measurement (docs/design/perturb-move.md).
+Rule_gibbs replaces the split rule at a nog node - an interior node whose two
+children are both leaves - with an exact draw from that rule's own full
+conditional over the available ordinal variables and their admissible cuts,
+at acceptance one; it ships at zero pending a benefit measurement
+(docs/design/nog-gibbs.md). All five structural probabilities exactly zero
+freezes the structures: [`Chain::run`](../src/bartcore/chain.hpp)
 reads [`structureIsFrozen`](../src/bartcore/moves.hpp) once per forest and
 skips `metropolisJumpForTree` for every tree of the mean and variance
 forests, so no move is proposed and none of its randomness is drawn, while

@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -476,6 +476,25 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    variance-forest guards; and **a Gibbs-dominant walk on a two-column design small enough for the conditional to be enumerated in
    the test, where the realized draw frequencies must match it** - itself a correctness gate at the kernel level, and the one that
    would catch a mis-assembled weight before any script runs.
+
+   **Landed** (7fb166ca, 2026-09-07). Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
+   emits the branch rank alone - the max of the two sides - with the marginal summed over the rank-0 sides, not the two
+   sides' own ranks as section 2.2 specified; that pair is all section 2.2's law consumes. (2) The cut-only variant of
+   section 2.4 was not built - not free, only cheaper than the full draw, and slice 1 took 2.4's own recommendation to
+   build the full rule draw first. (3) [`census::nogProbe`](../../src/bartcore/moves.hpp) now calls the shared enumerator
+   for its weights, but its own eligibility gate is left at section 2.3's option A (every available variable ordinal)
+   rather than moved to the kernel's option C, so the census numbers already recorded stay comparable while the kernel
+   itself ships option C.
+
+   Gates (independent run): tests/cpp 281, including a rule_gibbs test covering the census identity at 1.25e-16 against
+   an independent reference assembly, candidate-by-candidate rank agreement on plain and weight-stranded fixtures, an
+   all-categorical no-op, and a Gibbs-dominant walk on an enumerable two-column design (chi-square 8.41 on 7 df against
+   24.32, the same counts scoring 88 against a uniform draw), ASAN/UBSAN and census builds clean; tinytest 7947/0 (a
+   rule_gibbs-dominant one-tree run that changes rules only at nog nodes and never a categorical rule, and an
+   explicit-zero-versus-default `identical()` probe); equivalence trio bitwise 50/12/11 against the fbff1989 baselines,
+   which stand; 20 quick exact gates green; the census package build reproduces the default cell's own 7.98 percent and
+   -62.34; lint 0; R CMD check --as-cran OK, zero notes; NEWS 298 entries; API hash unchanged. Not landed:
+   `rule-gibbs-balance.R` (slice 2) and the Stage 2 benefit run (slice 3).
 2. **`rule-gibbs-balance.R`.** The prior-only arm on the 6-by-2 factorial at `power = 0.5`, the exact-posterior confirmation arm, both
    poisons. Roughly 450 to 550 lines; not startable before slice 1, and it is slice 1's rank-aware scan that makes the prior-only arm
    exist at all.

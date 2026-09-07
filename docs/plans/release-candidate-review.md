@@ -554,6 +554,26 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rule_gibbs: an exact draw of a nog node's split rule at default zero (7fb166ca, 2026-09-07)
+
+Slice 1 of docs/design/nog-gibbs.md: ruleGibbsMove (src/bartcore/moves.hpp)
+draws a nog node's split rule - an interior node whose two children are both
+leaves - from its own full conditional over the available ordinal variables
+and admissible cuts, weighted by scanOrdinalCuts's rank-admitted marginal and
+the rule prior; acceptance one, no reverse count, a categorical incumbent a
+fixed point. scanOrdinalCuts gains an optional per-candidate branch rank, the
+max of the two sides rather than each side separately, which is all the
+kernel's law consumes. proposal.probs gains rule_gibbs as a fifth structural
+probability at zero, dispatched fourth (birth/death + swap + perturb +
+rule_gibbs, change the else), so the added test is the perturb test in IEEE
+and no baseline moves. Gates: tests/cpp 281 (census identity 1.25e-16, a
+Gibbs-dominant walk chi-square 8.41 on 7 df against 24.32); ASAN/UBSAN and
+census builds clean; tinytest 7947/0; equivalence trio bitwise 50/12/11
+against the fbff1989 baselines, which stand; 20 quick exact gates green;
+census reproduces 7.98 percent and -62.34; lint 0; as-cran OK, zero notes;
+NEWS 298; API hash unchanged. Not here: rule-gibbs-balance.R (slice 2) and
+the minimum-ESS benefit study (slice 3).
+
 ### perturb's benefit stage runs and kills the move at w = 1, d = 0.16 (d73fb4e0, 2026-09-07)
 
 C1-he-hahn.R gains a sham arm (the control against itself at sampler

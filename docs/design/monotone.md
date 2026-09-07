@@ -343,9 +343,9 @@ plus the single-site leaf Gibbs - exactly mBART's examples ("in all our examples
 we use birth/death moves and draws of a single mu component," paper Section 4.3).
 Set the constrained forest's move mix to birth/death only
 (birthOrDeathProbability = 1, [`SamplerOptions::birthOrDeathProbability`](../../src/bartcore/chain.hpp)), a legitimate difference from the
-unconstrained default mix (0.6/0.4/0.0/0.0 birth-death/change/swap/perturb).
+unconstrained default mix (0.6/0.4/0.0/0.0/0.0 birth-death/change/swap/perturb/rule_gibbs).
 This overrides the user-facing `proposal.probs` (default c(birth_death = 0.6,
-swap = 0, change = 0.4, perturb = 0, birth = 0.5), [`dbarts`](../../R/dbarts.R)): resolve the clash by ERRORING at spec
+swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5), [`dbarts`](../../R/dbarts.R)): resolve the clash by ERRORING at spec
 time when `monotone` meets an EXPLICIT non-default `proposal.probs` (the user
 asked for swap/change the constrained sampler cannot honor), and forcing
 birth/death only, silently, when `proposal.probs` is left at its default.

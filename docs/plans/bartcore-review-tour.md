@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at 08fe426a (bartcore), 2026-09-07.
+Current at 7fb166ca (bartcore), 2026-09-07.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
 are the decision; Appendix A is the tour, what to read and in what order,
