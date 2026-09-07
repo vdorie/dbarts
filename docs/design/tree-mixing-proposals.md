@@ -1,21 +1,25 @@
 # tree-mixing-proposals: how the BART posterior is sticky, and what could move it
 
 Status: COMPLETE (survey with an adjudicated evidence base), 2026-08-09;
-**section 12 is an addendum from a second research cycle, 2026-08-10**,
-which refutes one of this document's recorded inferences (erratum in
-sec 5.4), amends sec 3.1, and adjudicates fourteen new candidates;
-**section 13 is a measured move-set A/B, 2026-09-06**, which reproduces
-Tan et al.'s null on this package's own kernel and, with a one-paragraph
-addendum in sec 6.1, supplies the per-move acceptance rates the move
-census asked for; **section 14 measures recovery after a response swap,
-2026-09-06**, which finds that section 13's null does NOT extend to a moving
+**section 12 is an addendum, 2026-08-10**; **section 13 is a measured
+move-set A/B, 2026-09-06**; **section 14 measures recovery after a response
+swap, 2026-09-06**; **section 15 is a four-lens proposal brainstorm with a
+refutation pass, 2026-09-07**. Section 12 refutes one of this document's
+recorded inferences (erratum in sec 5.4), amends sec 3.1, and adjudicates
+fourteen new candidates. Section 13 reproduces Tan et al.'s null on this
+package's own kernel and, with a one-paragraph addendum in sec 6.1,
+supplies the per-move acceptance rates the move census asked for.
+Section 14 finds that section 13's null does NOT extend to a moving
 response - dropping the change move costs 20 to 25 percent more sweeps to
 re-adapt after a large swap, while dropping swap costs nothing. That last
 finding was acted on: the shipped default now sets swap to zero, the move
 itself staying in the kernel for the single-tree case
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)),
 so every "shipped default" in this document describes the mixture in force
-when it was written, not the one that ships. Nothing else here is proposed
+when it was written, not the one that ships. Section 15 ranks ten proposal
+mechanisms across four lenses, marks each with a refutation verdict, and
+recommends none of them; two of its findings landed as sentence corrections
+in `benchmark-surfaces.md`. Nothing else here is proposed
 or scheduled. TODO
 `tree-mixing-proposals` (VD 2026-08-09: "I'm interested in the ways in
 which the posterior is sticky and if we can come up with some other
@@ -3265,3 +3269,251 @@ scripts       run out of repo and not preserved; every input is named
               above and the grid is reproducible from `proposal.probs`,
               `setResponse` and the four shift definitions alone
 ```
+
+---
+
+## 15. Proposal brainstorm: geometry, latents, informed moves, rotated inputs (2026-09-07)
+
+### 15.1 The question and the four lenses
+
+VD, 2026-09-07: "I still wonder if there aren't proposals that use
+geometry, latents, and least-favorable-directions or something like that."
+Four independent lens surveys were run against sections 2 to 7 and 12, the
+move census in sec 6.1, and `benchmark-surfaces.md` sec 10: tree and
+partition geometry; latent and auxiliary constructions; informed and
+gradient-like proposals; rotations of the input space. Each had to state a
+proposal precisely enough to write its Metropolis-Hastings correction, say
+why it is valid, price it against one cut scan, name a measured deficit,
+and supply a falsifier runnable in a day.
+
+**This was a literature-anchored pass**, and the novelty column of sec 15.3
+reports what that produced honestly: most rows are known elsewhere, several
+are standard MCMC constructions with no tree-ensemble instance the four
+searches could find, and none is new outright. A first-principles round -
+mechanisms derived from dbarts' own structure with the literature held out -
+is the natural sequel and has not been run. A refutation pass then checked
+each lens's load-bearing claim against source or arithmetic, and its
+verdicts ride the last column. **No recommendation to build follows**; the
+ranking is by (evidence + mechanism) / cost and nothing here is scheduled.
+
+### 15.2 The two facts the lenses agreed on
+
+**(A) The posterior lives on the partition of the rows, so a
+partition-preserving move has likelihood ratio exactly 1.**
+[`ConstantGaussianLeaf`](../../src/bartcore/model.hpp) scores a leaf through
+`(sumWeights, sumWeightedResponse)` and nothing else, and the raw sum of
+squares it drops is additive over the members, so it cancels under any
+repartition. The refutation pass extended this rather than assuming it, and
+it holds for every other integrable leaf on its own statistic:
+[`ConstantVarianceLeaf`](../../src/bartcore/model.hpp) on `(n, ssr)`,
+[`LinearGaussianLeaf`](../../src/bartcore/model.hpp) on `(U'WU, U'Wz, z'Wz)`,
+[`GPGaussianLeaf`](../../src/bartcore/model.hpp) on the leaf's own rows - all
+functions of the member set alone, the response families changing only the
+working response and weights those statistics read. **The exception is
+the monotone leaf**: [`MonotoneConstantGaussianLeaf`](../../src/bartcore/model.hpp)
+adds a truncation term whose bounds come from
+[`monotoneNeighborBounds`](../../src/bartcore/model.hpp), which reads leaf BOXES
+through [`monotoneLeafBox`](../../src/bartcore/model.hpp) and the frozen values of
+the other leaves - both of which a rule set can move while holding the row
+partition fixed. A fibre move must scope monotone forests out, the exclusion
+[12.6 Ranked disposition](#126-ranked-disposition) already writes for the
+regrow census.
+
+So representation multimodality
+([3.1 Many tree arrangements, one fitted function (ESTABLISHED)](#31-many-tree-arrangements-one-fitted-function-established))
+and the rooting lock of
+[10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)
+are connectivity failures on the fibre, not likelihood barriers, and a fibre
+move's acceptance is prior ratio times transition ratio, both already in
+[`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp). dbarts owns one
+such move and ships it at zero: in [`swapMove`](../../src/bartcore/moves.hpp)'s
+both-children-share-a-rule branch the four grandchild cells are preserved as
+a set with the two cross cells exchanging slots, so where those slots are
+leaves the partition and the likelihood are untouched. It fires only when
+[`Tree::rulesAreEqual`](../../src/bartcore/tree.hpp) holds for two siblings, which
+is rare by construction and counted nowhere.
+
+**(B) dbarts gets exact neighbourhood scores where the discrete-MCMC
+literature pays a Taylor surrogate for them.** Gibbs-with-gradients and the
+discrete Langevin family spend a first-order expansion to avoid `O(d)` exact
+evaluations; [`scanOrdinalCuts`](../../src/bartcore/scan.hpp) returns the collapsed
+marginal for EVERY cut of one variable in one pass over a node's members,
+scoring the missing-direction bit rather than drawing it, so importing the
+approximation would be strictly worse. Three boundaries the refutation pass
+fixed. It is ordinal-only:
+[`scanCategoricalPartitions`](../../src/bartcore/scan.hpp) is marked INIT-ONLY and
+"not a valid Metropolis-Hastings neighborhood and must not be reused as
+one", so on a mixed design the conditional over rules is not enumerable in
+`p` scans at all. It is scalar-leaf-only, being templated on
+`ScalarLeafModel`. And it is exact only at a node whose two children are
+leaves (a "nog" node), where the score is a two-way partition of the node's
+members; below that frontier a moved cut reroutes members through a fixed
+skeleton and no prefix scan exists. Neither this document nor
+`perturb-move.md` had drawn that line.
+
+### 15.3 Cross-lens ranking
+
+Cost is per proposal in cut-scan units (one
+[`scanOrdinalCuts`](../../src/bartcore/scan.hpp) pass over a node's members for one
+variable); a sweep makes `m` proposals, 0.4 of them changes. Novelty is
+"known elsewhere" (named), "new to BART" (a standard construction with no
+tree-ensemble instance found) or "new outright"; nothing here is new
+outright.
+
+| # | mechanism | what it is | validity | cost | deficit | novelty | one-day falsifier | refutation |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Rule Gibbs at a nog node | scan all `p` variables over a nog node's members, draw the rule from prior x marginal | Gibbs, acceptance 1 - the neighbourhood is closed | `p` scans; sec 4.5's measured 10.4x at `p` = 10, 53-56x at `p` = 50 | change's aim (3.77 percent accepted, median rejected -62.34 default, -143.45 lownoise) and 3.2's low-noise freeze | new to BART: collapsed Gibbs on a closed discrete neighbourhood | extend [`cutProbe`](../../src/bartcore/moves.hpp) to log the weight entropy, P(incumbent) and the nog share; P(incumbent) near 1 at `lownoise` kills it | CONFIRMED for ordinal availability sets; REFUTED where any available variable is categorical, and for every leaf model the scan cannot serve |
+| 2 | Cut Gibbs at a nog node | item 1 restricted to the incumbent variable | Gibbs, acceptance 1 | 1 scan - the pass change already makes | same | new to BART, as item 1 | rides item 1's probe | as item 1; it dominates perturb at `w` = 1 only if the conditional is not a point mass, which is unmeasured |
+| 3 | Informed death, uniform birth | weight each nog node by `sqrt` of its pruned posterior ratio; leave birth alone | ordinary MH: the forward gains `w(v)/W(T)`, the reverse is unchanged | 0 scans; `O(#nog)` arithmetic plus three availability walks per candidate | death's median rejected -48.93 default, -77.13 lownoise, at 10.88 percent; and 3.5's size walk | new to BART: one-sided locally-balanced weighting | log the full nog weight vector and the realized uniform pick at every death; dead if the uniform pick already sits near the weighted mode | CONFIRMED for the constant leaf; the cited "[`Tree::computeLeafStats`](../../src/bartcore/tree.hpp) already forms a parent as left + right" is REFUTED - it accumulates over the index span |
+| 4 | DART-on census re-run | re-run the census with `dart = TRUE`, which already routes `splitProbabilities` into change's variable redraw | shipped and valid | 0 | the variable half of change's aim | known elsewhere: Linero 2018, shipped here | one census re-run, no engine work | code claim CONFIRMED; the inference is REFUTED - DART changes the target, so this is not a decomposition |
+| 5 | Same-variable rotation | rotate a parent-child interior pair splitting on one ordinal variable | fibre move: likelihood exactly 1, the correction is the rotatable-node count | 0 scans; one index permutation plus `O(#subtree)` prior factors | the rooting lock | known elsewhere: tgp's `rotate`, which Pratola dismisses without a number | count parent-child interior pairs sharing a split variable per sweep in the four cells; kill under ~1 percent of proposals | CONFIRMED as arithmetic - three cuts on one axis re-bracket the same intervals, so no merge enumeration exists; the rate is unmeasured |
+| 6 | Partition-preserving restructure | hold the leaf blocks, re-derive the whole rule set top-down | fibre move; `q` factorizes over nodes and is re-run on `T'` | `O(p)` interval scans per interior node, no likelihood evaluation | the rooting lock at `m` = 1, and 3.1 | known elsewhere: Wu, Tjelmeland and West, already set aside in sec 5.2 | on P2's five seeds compute both rootings' leaf partitions and their variation of information; VI > 0 kills the fibre program for that cell | CONFIRMED as a construction; whether the fibre is larger than a point at production scale is unmeasured |
+| 7 | Rows-crossed step dial | size a displacement window so a target number of ROWS crosses, not a target number of grid positions | valid if the width is a deterministic function of the current state, recomputed at `T'`; a chain-history average is adaptation | free rider on the scan | change's aim, and sec 6.1's window grid, which is in grid positions | new to BART: state-dependent step size | add a rows-reassigned column to [`cutProbe`](../../src/bartcore/moves.hpp) and re-run the four cells | the metric is CONFIRMED to leading order in `1/sigma^2`; its pooling prediction across birth, death and change is REFUTED - a leaf-count change leaves an Occam term that does not cancel |
+| 8 | Conditional SMC as a mixture component | with probability `p_pg` one tree's step is a conditional-SMC sweep with the incumbent clamped | a mixture of pi-invariant kernels; no correction at the mixture level | `C` x (#interior) scans on the sweeps it fires, about 40 at `C` = 10 | change's aim, and the He-Hahn ESS | known elsewhere: PG-BART, PyMC-BART; the mixture framing is new to BART | generator-only: run the build, log the returned particle against the clamped one, discard; above ~95 percent retention it is overhead | CONFIRMED, with two conditions the lens omits: `p_pg` must not depend on the state, and the build must respect the veto's support |
+| 9 | Fixed oblique augmentation | fit on `[X, XW]` with `W` fixed before the run | exact - the kernel is untouched; the MODEL changes | 0 in the proposal; per-node availability goes `O(p)` to `O(p+K)` | P6's outer failure, measured here at 0.314 bias and 0.590 coverage | known elsewhere: rotation forests, feature augmentation | add oracle and random-20 arms to the P6 script on matched seeds, with a mandatory harm clause on P2's duplicate-column null | premise CONFIRMED: P6's mu has a shelf at the line `x1 = x2`; but P6 is not the only oblique cell - P7's setting A is a function of a linear index |
+| 10 | Outer projection step | propose `W'` under a Stiefel prior, install `XW'` through `$setPredictor`, accept on the fit | valid: `W` to partition is deterministic, `q` symmetric, rollback exact | `O(m n)` per outer step; budget one extra sweep, not a proposal | none measured; a model extension at the package's design centre | known elsewhere as Bayesian single-index / projection pursuit; new to BART as a forest-conditional | grid small `W` perturbations on an oblique surface, recording what fraction `$setPredictor(forceUpdate = FALSE)` accepts | "prior ratio 1 iff the grid is pinned" is REFINED - the CGM prior reads no predictor value at all, so pinning gives 1 for every column - and the "only if" is REFUTED: what breaks under a re-derived grid is a non-invertible remap |
+
+Runners-up, below the ten on cost or on target and not re-argued here:
+rotated-PAIR split rules under an angle prior (GP-BART's construction, the
+only rotation item with a mixing story); a Jain-Neal restricted-Gibbs launch
+for categorical rules, where
+[`drawCategoricalRuleFromPrior`](../../src/bartcore/moves.hpp) is the worst-aimed
+draw in the kernel; a nog-shaped surrogate scan with exact MH below the nog
+frontier; multiple-try Metropolis where no scan exists; locally-balanced
+birth over the whole tree, which is
+[4.5 Informed birth/death over the shared cut scan](#45-informed-birthdeath-over-the-shared-cut-scan)
+unchanged and which the census de-prioritizes because birth is already a
+near miss; one private rotation per tree; full oblique rules in the engine;
+a soft-gate bridge; and Linero's retrospective auxiliary leaf values.
+
+### 15.4 The readings taken of "least-favorable directions"
+
+- **Steepest-change / locally-informed.** Three lenses took it; it yields
+  items 1, 2, 3 and 7. Its exact content is that a deterministic argmax edit
+  has no reverse density, so the reversible softening is a balancing
+  function - and on a CLOSED neighbourhood that function is the identity,
+  which makes the move a Gibbs step rather than an informed proposal at all.
+- **Flat directions, the fibre.** The geometric lens inverted the phrase and
+  asked which directions the posterior does not see. This produced the most:
+  items 5 and 6, fact (A), and the observation that a shipped move already
+  sits on the fibre. It is the opposite of a least-favorable direction in
+  the information-geometry sense.
+- **The semiparametric least-favorable submodel.** No proposal: it describes
+  an estimator's fluctuation, not a transition kernel, and MH restores the
+  target whatever direction one aims at. What it supplies is a READOUT, and
+  [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s
+  minimum ESS over 25 fixed points is that idea already, by brute force.
+- **Adversarial mode targeting.** Requires knowing the modes, i.e. sec
+  12.5's A5 mode atlas, adaptive and stale by construction.
+- **Directions in the INPUT space**, the rotation lens's reading: a model
+  question rather than a kernel one, producing items 9 and 10.
+
+### 15.5 Refuted along the way
+
+- **BHV tree space, geodesics and Riemann-manifold methods.** BHV
+  coordinates are interior edge lengths over a fixed leaf-label set, which
+  regression trees do not have, and the collapsed marginal is piecewise
+  constant between adjacent order statistics, so the Fisher information is
+  degenerate. Tree kernels and leaf-assignment embeddings fail next door: a
+  point in embedding space cannot be decoded to an admissible tree without
+  an enumerator, and once that exists it is item 6.
+- **Mask complement as a move.** Complementing a categorical direction mask
+  and swapping the two child subtrees preserves partition, depth and prior
+  exactly - a free `Z2` relabelling the canonical gauge does not quotient,
+  changing no fit. A caution that an informed categorical scan must not
+  double-count, not a move.
+- **C1's Single index as the rotation falsifier**, and **a learned rotation
+  as a cure for the He-Hahn ESS.** The first is radial and exactly
+  rotation-invariant on the independent design, which is what the two
+  sentence corrections in `benchmark-surfaces.md` sec 2.2 and 6.3 record;
+  the second misreads a chain-exploration deficit, since a
+  reparameterization leaving an equally multimodal posterior does not move a
+  chain that sits in one place.
+- **Per-observation latent leaf membership, and a shadow forest sampled from
+  a flattened target.** Not every membership vector is realizable by an
+  axis-aligned tree and the realization map's density is intractable; the
+  exchange algorithm needs an exact draw from the auxiliary model, and no
+  exact tree-posterior sampler exists.
+- **A latent per-tree temperature, and pseudo-marginal for the Gaussian
+  leaf.** Trees share sigma and are exchangeable, so a per-tree exponent has
+  no Gibbs conditional and breaks the target; the Gaussian marginal is exact
+  and closed form, so an unbiased estimator only adds variance.
+- **Gibbs-with-gradients' central trick** (unnecessary here, for fact (B));
+  **delayed rejection for change** (no cost control where the first stage
+  rejects 96 percent of what it scores - delayed ACCEPTANCE is the live
+  direction, for the expensive leaf models); **a latent continuous cut
+  location** (the one-position probe already accepts 40.65 / 27.15 / 51.38 /
+  33.34 percent, so the grid is not the binding constraint); **treed models
+  with linear splits as prior art** (there are none); **informed hyperplane
+  proposals**, whose one published attempt reports the opposite of the
+  intuition; and **tempering**, again.
+
+### 15.6 What this could not settle
+
+- **The nog share of interior nodes at production settings**, on which items
+  1, 2 and 3 all live: for a tree with `L` leaves it lies between 1 and
+  `L/2`, and nobody has counted. **Whether the nog conditional is a point
+  mass at the incumbent** decides items 1 and 2, and the perturb probe's
+  median log ratio is a displacement statistic, not the conditional.
+- **Whether P2's two rootings induce the SAME leaf partition**, on which
+  item 6 rests and where the record says only "exactly equiprobable"; and
+  the rate of same-variable parent-child interior pairs, which prices item 5
+  and which Pratola calls "usually not satisfied" with no number and no
+  stated `p`.
+- **Whether a valid categorical neighbourhood can be enumerated cheaply at
+  all.** Fact (B) says the shipped scan cannot supply one and the exact
+  space is `2^R - 2`.
+- **Whether the leading-order partition metric survives the `lownoise`
+  cell**, where the exponent is largest and the sampler worst; until item
+  7's falsifier runs, items 5 to 7 share an unverified first-order argument.
+- **Whether PG's ensemble advantage survives at 75 trees.** Its evidence is
+  `n` = 2000 at 200 trees; sec 5.3's pre-registered read, effective samples
+  per second, is still right and still unmeasured.
+- **Whether the empty-leaf veto locks an outer `W` step**, the veto being a
+  hard support constraint on `W` given the forest; whether GP-BART's rotated
+  splits were ever ablated from its GP leaves; and whether any published
+  work puts a prior on a full rotation MATRIX sampled jointly with a forest.
+  Both rotation search legs found none: apparently nonexistent, not verified
+  absent.
+
+### 15.7 Provenance
+
+```
+inputs        four independent lens surveys, 2026-09-07 (tree and partition
+              geometry; latents and auxiliary constructions; informed and
+              gradient-like proposals; rotations of the input space), then
+              a refutation and synthesis pass over the same records
+base          cd32e6d0
+scope         ranking and evidence only. No code, no default, no schedule.
+              Two sentence corrections land with this section, in
+              benchmark-surfaces.md sec 2.2 and 6.3, both consequences of
+              the Single index finding
+```
+
+Literature verified during this arc; a source that could not be fetched is
+named at the end and nothing above rests on it alone.
+
+| # | Source | Verified | Where |
+|---|---|---|---|
+| 1 | He and Hahn, XBART factorial | Full text, sec 4.1 Table 1: "10 sqrt(a) + sin (5a); a = sum (x_j - gamma_j)^2", and "each element of X is drawn independently from a standard Gaussian distribution". The basis of the radial finding | arXiv 2002.03375v4 |
+| 2 | Wu, Tjelmeland and West, Bayesian CART | "the likelihood function depends on T only through the induced partition of observations to leaves"; the move leaves "unchanged the partition of observations into terminal nodes"; "The computational cost of this is proportional to the number of candidate predictor variables p" | www2.stat.duke.edu/~scs/Projects/Trees/BayesianCART/WuWestPaper.pdf |
+| 3 | Gramacy, Bayesian treed Gaussian process models | "Since the partitions at the leaves remain unchanged, the likelihood ratio of a proposed rotate is always 1. The only 'active' part of the MH acceptance ratio is the prior on T" | bobby.gramacy.com/prepo/gra2005-02.pdf |
+| 4 | Pratola 2016 | rotate "efficiently traverses disparate regions of the model space along contours of equal probability"; on tgp's version, "it requires that all 3 internal nodes involved in a rotation split on the same variable. This constraint in general will usually not be satisfied" | arXiv 1312.1895 |
+| 5 | Zanella, informed proposals | "Qg,s(x,dy) = g(pi(y)/pi(x))Ks(x,dy) / Zg(x)"; the condition "g(t) = t g(1/t) for all t > 0"; the "'naively informed' choice ... when g(t) = t"; "also the computational cost of sampling from the pointwise informed proposals increases" | arXiv 1711.07424 |
+| 6 | Jain and Neal, split-merge | "Split-merge moves are produced by exploiting properties of a restricted Gibbs sampling scan"; the launch rule, quoted from a citing source, "It is only the last restricted Gibbs sweep which is used to compute the transition probability" | projecteuclid.org 10.1214/07-BA219 ; ar5iv 1406.0071 |
+| 7 | Kim and Rockova, mixing rates for Bayesian CART | "locally informed proposal schemes leverage posterior information in the vicinity of the current state to propose the next state"; the twig move "attaches/detaches entire twigs (not just single nodes)" | ar5iv 2306.00126 |
+| 8 | The discrete-MCMC surrogate family | Grathwohl et al., "We use a Taylor series computed on the underlying continuous function to estimate likelihood ratios of making discrete moves"; Rhodes and Gutmann, "the cost is O(d) evaluations of f for a d-dimensional problem"; Zhang, Liu and Liu, "DLP is able to update all coordinates in parallel in a single step"; Sun et al., an informed proposal "requires evaluating all energy changes in the neighborhood" | arXiv 2102.04509 ; 2208.00040 ; 2206.09914 ; iclr.cc/virtual/2022/spotlight/7061 |
+| 9 | Lakshminarayanan, Roy and Teh, PG-BART | "it can mix faster since it can propose a completely different tree that explains the data"; "a change in an internal node that leaves any of the nodes in the subtree below empty will be rejected"; "We set the number of particles C = 10" | arXiv 1502.04622 |
+| 10 | Linero, Generalized BART | "these auxiliaries end up canceling in the Metropolis-Hastings acceptance ratio"; "data augmentation can slow down mixing substantially, especially in cases where the outcome distribution is highly imbalanced"; and against itself, the RJMCMC algorithm "should be inferior in terms of mixing to the algorithm of Chipman et al. (2010)" | arXiv 2202.09924 |
+| 11 | Linero and Yang, SoftBART | "SBART requires computing a likelihood contribution for each leaf-observation pair, whereas BART only requires a single likelihood contribution for each tree"; the reversible-jump latent over the number of trees "resulted in poor mixing" | arXiv 1707.09461 |
+| 12 | Nguyen, Yee and Deshpande, oblique BART | "we choose to propose decision rules in grow moves from the prior"; "drawing overly-informed proposals can result in even slower MCMC exploration than drawing proposals from the prior"; "obliqueBART was about twice as slow as BART"; "the smallest overall average SMSE (0.296)"; "the smallest classification accuracy (0.846)". No ESS or mixing diagnostic anywhere | arXiv 2411.08849 |
+| 13 | Maia, Murphy and Parnell, GP-BART | "an angle theta is sampled with equal probability from a predefined grid of 20 equally spaced values within the interval [0,pi]", through grow-rotate and change-rotate. The only published prior on a rotation sampled jointly with a forest | arXiv 2204.02112 |
+| 14 | Blaser and Fryzlewicz, random rotation ensembles | "The best overall average rank of 6.10 (of 15)"; "in 67.8% of cases, random forests without rotation in 64.3% of cases"; "For categorical variables, rotation is unnecessary and ill-defined" | jmlr.org/papers/volume17/blaser16a/blaser16a.pdf |
+| 15 | Jauch, Hoff and Dunson | "we parametrize the Stiefel and Grassmann manifolds ... using the Cayley transform. We derive the necessary Jacobian terms for change of variables formulas" | arXiv 1810.02881 |
+
+NOT VERIFIED, and load-bearing for nothing above: Liu, Liang and Wong -
+both reachable scans lack a text layer, so the multiple-try weight and
+acceptance form come from a secondary source; Christen and Fox (2005)
+delayed acceptance - no primary source fetched; Hohna and Drummond, Syst
+Biol 61 - abstract only, the guiding weight paywalled; Rodriguez, Kuncheva
+and Alonso, Rotation Forest - abstract only.

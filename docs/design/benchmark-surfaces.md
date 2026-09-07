@@ -379,13 +379,19 @@ function plus a realistic set of nuisance columns, which is what section
 Section 1.8's twonorm/threenorm/ringnorm are the canonical axis-alignment
 stressors, with Breiman's own warning that they are variance problems and
 therefore partly cured by any ensemble. The regression analogue that is
-NOT cured that way is a smooth ridge in a rotated coordinate: XBART's
+NOT cured that way is a RADIAL surface: XBART's
 **Single index** function, `10 sqrt(a) + sin(5a)` with
 `a = sum_{j=1..10} (x_j - gamma_j)^2`, makes the response depend on a
-radial coordinate of ten predictors at once, so every axis-aligned split
-captures a vanishing share of the variation. It is the cheapest published
-rotated-signal regression surface, it comes with (n, p) settings and a
-coverage number for BART, and it sits in the same factory as the other
+squared distance in ten predictors at once, so its level sets are spheres
+about `gamma`, no hyperplane arrangement of finite size represents them,
+and every axis-aligned split captures a vanishing share of the variation.
+It is not a ridge and not a rotated coordinate: `a` is invariant under any
+rotation of those ten axes, and on the independent-normal design so is the
+predictors' joint law, so the cell is unchanged in distribution by every
+rotation and can neither be helped by one nor discriminate one. It is the
+cheapest published non-axis-aligned regression surface, it comes with
+(n, p) settings and a coverage number for BART, and it sits in the same
+factory as the other
 three He and Hahn functions.
 
 The other useful ridge is Tan et al.'s **Low-Dimensional Smooth**
@@ -1022,8 +1028,13 @@ stan4bart's users actually hit.
 effects (section 2.3) is a tree-count question rather than a kernel
 question, so it belongs in a `m` sweep attached to C1 rather than in its
 own cell. Oblique classification boundaries (twonorm/threenorm/ringnorm)
-are subsumed by P6 and the Single index arm of C1, with Breiman's own
-caveat that an ensemble already fixes most of them. The banana ridge is
+are subsumed by P6, which carries the battery's one genuinely LINEAR
+boundary - the shelf at the line `x1 = x2` - with Breiman's own caveat that
+an ensemble already fixes most of them. The Single index arm of C1 does not
+belong in that list: it is radial, hence rotation-invariant on the
+independent design (section 2.2), so it neither tests nor rewards an
+oblique rule. P7's setting A is the battery's other oblique structure, both
+of its surfaces being functions of one linear index. The banana ridge is
 subsumed by C4, which has the ridge and an estimand.
 
 ### 6.4 What "no regression on the core" means numerically
