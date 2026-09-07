@@ -1517,6 +1517,19 @@ time per fit is 9.4s against 8.3s for the no-grow arm. He and Hahn report
 grow-from-root arm moves coverage, RMSE and minimum ESS by less than the
 no-grow arm's own seed-to-seed range on both mean functions.
 
+**Independent-design grow arm.** `independent75grow` is the `independent75`
+arm's settings plus `n.grow.sweeps = 5`, the same k = 5 rationale as
+`correlated75grow`, the same twenty seeds. Trig+poly: 95% coverage
+0.797(0.747-0.838), interval length 3.20(3.00-3.37), RMSE 1.28(1.21-1.37),
+min ESS 2(1-5). Single index: 95% coverage 0.803(0.758-0.830), interval
+length 5.65(5.44-5.95), RMSE 2.13(2.05-2.28), min ESS 2(1-3). Paired
+`independent75`: Trig+poly 0.822(0.786-0.862), 3.32(3.13-3.56),
+1.25(1.20-1.30), 2(1-4); Single index 0.822(0.771-0.858), 5.78(5.47-6.22),
+2.10(2.05-2.21), 2(1-3). Mean wall time per fit is 9.3s against 8.0s for
+the no-grow arm. The grow-from-root arm moves coverage, RMSE and minimum
+ESS by less than the no-grow arm's own seed-to-seed range on both mean
+functions.
+
 ### 10.5 What the four cells say about the shipped kernel
 
 Facts only, against the rule in section 6.1.

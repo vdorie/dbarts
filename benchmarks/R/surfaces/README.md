@@ -94,7 +94,8 @@ Trig+poly for the interaction and Single index for the rotated ridge.
   pre-registered correlated-design, default-tree-count one.
 - A fifth arm, `correlated75grow`, adds the opt-in XBART grow-from-root
   warm start (`n.grow.sweeps = 5`) to the pre-registered arm's settings,
-  paired on the same seeds.
+  paired on the same seeds. A sixth, `independent75grow`, pairs the same
+  warm start with the independent design instead, against `independent75`.
 
 ## Conventions
 

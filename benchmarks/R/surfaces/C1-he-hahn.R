@@ -35,11 +35,13 @@
 #                     root.md names a study value of its own)
 #   correlated200     correlated factor design, 200 trees
 #   independent75     independent standard normal design, shipped default
+#   independent75grow independent75 plus n.grow.sweeps = 5, same rationale
+#                     as correlated75grow
 #   independent200    independent standard normal design, 200 trees
 #
 # Chain length follows the paper: one chain, 1000 burn-in, 2500 kept.
 #
-# Usage: Rscript C1-he-hahn.R [outputDir] [quick]
+# Usage: Rscript C1-he-hahn.R [outputDir] [quick] [arm ...]
 
 source(
   file.path(
@@ -51,7 +53,6 @@ source(
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-outputDir <- surfacesOutputDir(args, flags = "quick")
 
 nReplicates <- if (quick) 2L else 20L
 n <- if (quick) 2000L else 10000L
@@ -75,8 +76,19 @@ arms <- list(
   correlated75grow = list(design = "correlated", nTrees = 75L, growSweeps = 5L),
   correlated200 = list(design = "correlated", nTrees = 200L, growSweeps = 0L),
   independent75 = list(design = "independent", nTrees = 75L, growSweeps = 0L),
+  independent75grow = list(
+    design = "independent",
+    nTrees = 75L,
+    growSweeps = 5L
+  ),
   independent200 = list(design = "independent", nTrees = 200L, growSweeps = 0L)
 )
+selectedArms <- intersect(names(arms), args)
+if (length(selectedArms) > 0L) {
+  arms <- arms[selectedArms]
+}
+
+outputDir <- surfacesOutputDir(args, flags = c("quick", names(arms)))
 
 # 25 evenly spaced held-out rows carry the ESS, as the move-set grid does.
 essPoints <- as.integer(round(seq(1, nTest, length.out = 25L)))
