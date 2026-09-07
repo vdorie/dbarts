@@ -554,6 +554,18 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P5: the two birth/death-only flags reproduce on fresh seeds (ec2d9d19, 2026-09-07)
+
+benchmarks/R/surfaces/P5-checkerboard.R gains a `block2` seed block (seeds
+21 to 40; the default block's outputs are unchanged), and `default` against
+`birthdeath` was re-run on it, 20 matched pairs, 8 chains: inclusion share
+on the true columns -0.027 (0 of 20 seeds positive, t -10.2) against the
+-0.010 margin and held-out RMSE ratio 1.039 (19 of 20, t +5.4) against
+1.02, both with the one-sided bound excluding the null, so both flags now
+count under 6.1's rule; coverage within margin; the primary does not
+separate; the inclusion oracle holds in every seed of both arms. Recorded
+at 10.3. Script only, no engine change.
+
 ### P5 and P6 get the paired move-set arms they were missing (587efe31, 2026-09-07)
 
 Both cells ran one arm at the pilot; each now takes three

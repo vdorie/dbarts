@@ -1563,8 +1563,35 @@ theorem's premise gives up.
 
 Per [6.1 The rule, stated operationally](#61-the-rule-stated-operationally),
 a flag counts only after a mandatory fresh-seed re-run of the flagged
-cell; that re-run has not been run, so `birthdeath`'s two flags stand as
-measured findings pending it, not as accepted verdicts.
+cell. That re-run has been done: `P5-checkerboard.R` gained a second seed
+block (`block2`, seeds 21 to 40, the default block's outputs unchanged) and
+`default` against `birthdeath` was run again on it, 20 matched pairs, 8
+chains.
+
+    statistic                    default                birthdeath
+    between-chain sd, true cols  0.0115(0.0088-0.0139)  0.0124(0.0081-0.0164)
+    ratio to the mixing null     1.91(1.30-2.40)        1.81(1.17-2.75)
+    between-chain sd, decoys     0.0060(0.0044-0.0072)  0.0076(0.0064-0.0099)
+    inclusion share, true cols   0.503(0.481-0.549)     0.476(0.453-0.504)
+    95% coverage of true f       0.984(0.971-0.992)     0.985(0.974-0.994)
+    held-out RMSE                0.705(0.622-0.853)     0.733(0.660-0.888)
+
+    paired, birthdeath - default   mean     sd      positive  t       one-sided 95% bound
+    primary, between-chain sd     +0.0009  0.0022  15/20     +1.87   no margin; not an improvement
+    decoy between-chain sd        +0.0016  0.0012  17/20     +6.01   no margin
+    inclusion share, true cols    -0.0267  0.0117   0/20    -10.21   0.022 worse vs margin 0.010: FLAG
+    95% coverage                  +0.0003  0.0039  10/20     +0.29   within margin
+    held-out RMSE                 +0.0276  0.0228  19/20     +5.43   ratio 1.039 vs 1.02: FLAG
+
+Both flags REPRODUCE on fresh seeds under 6.4's two conditions (the paired
+mean worse than the margin and the one-sided bound excluding the null), so
+they count: on this cell birth/death only loses 0.027 of the true columns'
+inclusion share and 3.9 percent of held-out RMSE against the shipped
+mixture. Coverage stays within margin; the primary again fails to separate
+as an improvement and leans the wrong way (+0.0009, t +1.87, after +0.0006
+in the first block), so `birthdeath` has twice failed the four-times-SE bar
+it would need to win this pathology; the decoy spread is worse (t +6.01).
+The inclusion oracle holds in 20 of 20 fresh seeds in both arms.
 
 ### 10.4 C1, the He and Hahn factorial
 
