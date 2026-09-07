@@ -1164,6 +1164,30 @@
             model this sweep. \code{NULL} clears; an all-ones mask is
             treated as no mask; fractional or \code{NA} values are refused.
             Independent of \code{setWeights} and composes with it.
+      \item An \code{aft} (survival) sampler's censoring structure is no
+            longer fixed at creation: \code{$setResponse(y, status = )} takes
+            a replacement per-observation status (1 an event, 0
+            right-censored) alongside the response, in one call and at the
+            same number of observations. The status goes first, so each row
+            newly censored is bounded at its own new observed log time and
+            redrawn above it, while a row that becomes an event is restored to
+            that time - data, not a draw; a status-only change is
+            \code{$setResponse(sampler$data@y, status = s)}. \code{NULL},
+            the default, is the response-only call every other family makes,
+            and a non-null status is refused by name off \code{aft}. The
+            status is validated before anything installs and mirrored onto the
+            sampler's \code{control} only after the engine accepts it, so
+            re-creation after save and load carries the current censoring.
+            The status is not in the saved \code{state}, but a digest of the
+            one in force when it was stored is: \code{setState} compares it
+            against the destination's own and, where the two disagree,
+            redraws the censored latents off the restored generators, as it
+            does for the weights. A restored state no longer overwrites an
+            event row's observed log time, which is data the state has no
+            business carrying. \code{$setData} still refuses an \code{aft}
+            sampler - a whole-data replacement may change the number of
+            observations the status is stated over - and names this channel
+            instead.
       \item A sampler reports its combined per-observation location on the
             response scale WITHOUT the installed offset
             (\code{$getFitsWithoutOffset()}), which is what an outer block
