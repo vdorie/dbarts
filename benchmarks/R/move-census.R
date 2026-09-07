@@ -29,7 +29,7 @@
 # a diagnostic if the first cell writes no census file, which is what an
 # uninstrumented library looks like from R.
 #
-# Four cells, 200 burn-in plus 500 sampled sweeps, one chain, one thread,
+# Five cells, 200 burn-in plus 500 sampled sweeps, one chain, one thread,
 # fixed seeds:
 #
 #   default   dbarts defaults: Friedman, n = 5000, p = 10, m = 75, sigma = 1
@@ -41,12 +41,25 @@
 #             amplitude 8 sigma, which is docs/design/bcf.md's strong-|a|
 #             regime (|a|/sigma large, where the mu forest's structure mixes
 #             slowly at high SNR)
+#   c1        the He-Hahn independent design, n = 10000, p = 30, Trig+poly at
+#             kappa = 1, the primary benefit cell of the surface battery
+#
+# Beyond the per-proposal records the census has always taken, the build logs
+# four generator-only probes: the closed rule neighbourhood at a nog node
+# (weight entropy, the incumbent's share and rank, both jointly over the
+# available variables and restricted to the incumbent's), the informed-death
+# weights over the nog nodes against the realized uniform pick, the perturb
+# proposal's signed displacement, and every tree's settled leaf count. Nothing
+# there draws or changes a draw; the record format lives in moves.hpp.
 #
 # Usage:
 #   Rscript move-census.R                          run every cell, summarize
 #   Rscript move-census.R run [dir] [cell ...]     run cells, write census
 #   Rscript move-census.R summarize [dir]          summarize existing files
 # Append 'quick' for a smoke test (fewer sweeps, smaller n; not comparable).
+# Append 'perturb' to run the perturb-carrying mixture instead of the shipped
+# one, which is the only way the signed-displacement probe records anything;
+# it skips the bcf cell, whose treatment forest refuses the argument.
 #
 # One cell runs per R process, spawned by the run mode: the engine opens the
 # census file once, on the first record, so a second cell in the same process
@@ -60,6 +73,8 @@ suppressPackageStartupMessages(library(dbarts))
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
+perturbing <- "perturb" %in% args
+args <- setdiff(args, "perturb")
 modes <- c("run", "summarize", "runcell")
 mode <- if (length(args) >= 1L && args[[1L]] %in% modes) args[[1L]] else "both"
 args <- setdiff(args, modes)
@@ -69,9 +84,18 @@ cellArgs <- if (length(args) >= 2L) args[-1L] else character()
 nBurn <- if (quick) 20L else 200L
 nSamples <- if (quick) 50L else 500L
 nObservations <- if (quick) 500L else 5000L
+nObservationsC1 <- if (quick) 500L else 10000L
 nTrees <- 75L
 dataSeed <- 20260907L
 samplerSeed <- 7L
+
+scriptDirectory <- function() {
+  file <- sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))
+  if (length(file) != 1L) {
+    stop("this script needs its own path; invoke it with Rscript")
+  }
+  dirname(file)
+}
 
 # ---------------------------------------------------------------- generators
 
@@ -98,6 +122,17 @@ genCausal <- function(n, p, sigma, strength) {
   list(x = x, z = z, y = mu + z * tau + rnorm(n, sd = sigma))
 }
 
+# The shipped mixture, or the perturb-carrying one the signed-displacement
+# probe needs: perturb never fires at its shipped zero, so the run-length
+# question cannot be asked of the default kernel at all.
+censusProposalProbs <- function() {
+  if (perturbing) {
+    c(birth_death = 0.5, swap = 0, change = 0.34, perturb = 0.16, birth = 0.5)
+  } else {
+    c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)
+  }
+}
+
 censusControl <- function() {
   dbartsControl(
     verbose = FALSE,
@@ -115,15 +150,30 @@ censusControl <- function() {
 cells <- list(
   default = function() {
     data <- genFriedman(nObservations, 10L, 1)
-    dbarts(data$x, data$y, control = censusControl())
+    dbarts(
+      data$x,
+      data$y,
+      proposal.probs = censusProposalProbs(),
+      control = censusControl()
+    )
   },
   lownoise = function() {
     data <- genFriedman(nObservations, 10L, sqrt(0.1))
-    dbarts(data$x, data$y, control = censusControl())
+    dbarts(
+      data$x,
+      data$y,
+      proposal.probs = censusProposalProbs(),
+      control = censusControl()
+    )
   },
   wide = function() {
     data <- genFriedman(nObservations, 50L, 1)
-    dbarts(data$x, data$y, control = censusControl())
+    dbarts(
+      data$x,
+      data$y,
+      proposal.probs = censusProposalProbs(),
+      control = censusControl()
+    )
   },
   bcf = function() {
     data <- genCausal(nObservations, 10L, 1, strength = 8)
@@ -132,6 +182,27 @@ cells <- list(
       data$x,
       data$y,
       forests = list(forest(), forest(basis = ~ factor(z))),
+      proposal.probs = censusProposalProbs(),
+      control = censusControl()
+    )
+  },
+  c1 = function() {
+    source(
+      file.path(scriptDirectory(), "surfaces", "surfaces-common.R"),
+      chdir = FALSE
+    )
+    data <- surfacesHeHahn(
+      nObservationsC1,
+      0L,
+      30L,
+      "trigpoly",
+      1,
+      design = "independent"
+    )
+    dbarts(
+      data$x,
+      data$y,
+      proposal.probs = censusProposalProbs(),
       control = censusControl()
     )
   }
@@ -196,6 +267,65 @@ cutNames <- c(
   "displacement",
   "logRatio"
 )
+nogNames <- c(
+  "kind",
+  "sweep",
+  "forest",
+  "tree",
+  "node",
+  "nodeDepth",
+  "isNog",
+  "interior",
+  "nog",
+  "scanned",
+  "jointCandidates",
+  "jointEntropy",
+  "jointIncumbent",
+  "jointMaximum",
+  "jointRank",
+  "cutCandidates",
+  "cutEntropy",
+  "cutIncumbent",
+  "cutMaximum",
+  "cutRank"
+)
+deathNames <- c(
+  "kind",
+  "sweep",
+  "forest",
+  "tree",
+  "candidates",
+  "entropy",
+  "pickWeight",
+  "pickRank",
+  "maxWeight"
+)
+runNames <- c(
+  "kind",
+  "sweep",
+  "forest",
+  "tree",
+  "node",
+  "current",
+  "target",
+  "accepted"
+)
+shapeNames <- c("kind", "sweep", "forest", "tree", "leaves", "interior", "nog")
+
+# an absent record kind is an empty frame with the right columns, not an
+# error: perturb records nothing at the shipped mixture, and the neighbourhood
+# probe writes nothing for a leaf model the cut scan cannot score
+readRecords <- function(lines, names) {
+  if (length(lines) == 0L) {
+    frame <- as.data.frame(
+      matrix(numeric(0L), 0L, length(names) - 1L),
+      stringsAsFactors = FALSE
+    )
+    names(frame) <- names[-1L]
+    return(frame)
+  }
+  read.csv(text = lines, header = FALSE, col.names = names)[, -1L]
+}
 
 readCensus <- function(file) {
   lines <- readLines(file)
@@ -210,7 +340,11 @@ readCensus <- function(file) {
       text = lines[kind == "d"],
       header = FALSE,
       col.names = cutNames
-    )
+    ),
+    nog = readRecords(lines[kind == "g"], nogNames),
+    deaths = readRecords(lines[kind == "x"], deathNames),
+    runs = readRecords(lines[kind == "r"], runNames),
+    shapes = readRecords(lines[kind == "t"], shapeNames)
   )
 }
 
@@ -331,6 +465,218 @@ cutTable <- function(d) {
   )
 }
 
+# Section 15.3 rows 1 to 3: the closed rule neighbourhood at a nog node, priced at
+# every change proposal. A collapsed Gibbs draw there is worth making only if
+# the conditional is not already sitting on the incumbent, so the readout is
+# the entropy in nats, P(incumbent) and how often the incumbent is the mode.
+# "joint" ranges over the available variables and their cuts, "cut" over the
+# incumbent variable's cuts alone.
+nogTable <- function(g) {
+  if (nrow(g) == 0L) {
+    return(NULL)
+  }
+  scanned <- g[g$scanned == 1L, ]
+  if (nrow(scanned) == 0L) {
+    return(NULL)
+  }
+  summary <- function(forest, label, f, prefix) {
+    data.frame(
+      forest = forest,
+      neighbourhood = label,
+      proposals = nrow(f),
+      candidates = median(f[[paste0(prefix, "Candidates")]]),
+      entropy = median(f[[paste0(prefix, "Entropy")]]),
+      p.incumbent = median(f[[paste0(prefix, "Incumbent")]]),
+      incumbent.top.pct = 100 * mean(f[[paste0(prefix, "Rank")]] == 1),
+      rank = median(f[[paste0(prefix, "Rank")]]),
+      max.weight = median(f[[paste0(prefix, "Maximum")]]),
+      stringsAsFactors = FALSE
+    )
+  }
+  by <- split(scanned, scanned$forest)
+  do.call(
+    rbind,
+    lapply(names(by), function(forest) {
+      f <- by[[forest]]
+      rbind(
+        summary(as.integer(forest), "joint", f, "joint"),
+        summary(as.integer(forest), "cut-only", f, "cut")
+      )
+    })
+  )
+}
+
+# The two shares the neighbourhood table is conditional on: how often a change
+# proposal lands on a nog node at all, and how much of the tree is nog.
+nogShareTable <- function(g) {
+  if (nrow(g) == 0L) {
+    return(NULL)
+  }
+  by <- split(g, g$forest)
+  do.call(
+    rbind,
+    lapply(names(by), function(forest) {
+      f <- by[[forest]]
+      data.frame(
+        forest = as.integer(forest),
+        proposals = nrow(f),
+        target.nog.pct = 100 * mean(f$isNog == 1L),
+        nog.share.pct = 100 * sum(f$nog) / sum(f$interior),
+        scanned.pct = 100 * mean(f$scanned == 1L),
+        stringsAsFactors = FALSE
+      )
+    })
+  )
+}
+
+# Section 15.3 row 3: informed death. The nog nodes weighted by exp of the merged-leaf
+# marginal ratio, against the uniform pick the kernel actually made. A uniform
+# pick already sitting at the weighted mode leaves the weighting nothing to buy.
+deathTable <- function(x) {
+  if (nrow(x) == 0L) {
+    return(NULL)
+  }
+  scored <- x[!is.na(x$entropy), ]
+  if (nrow(scored) == 0L) {
+    return(NULL)
+  }
+  row <- function(forest, label, f) {
+    data.frame(
+      forest = forest,
+      nog = label,
+      proposals = nrow(f),
+      candidates = median(f$candidates),
+      entropy = median(f$entropy),
+      pick.weight = median(f$pickWeight),
+      pick.rank = median(f$pickRank),
+      pick.top.pct = 100 * mean(f$pickRank == 1),
+      max.weight = median(f$maxWeight),
+      stringsAsFactors = FALSE
+    )
+  }
+  by <- split(scored, scored$forest)
+  do.call(
+    rbind,
+    lapply(names(by), function(forest) {
+      f <- by[[forest]]
+      # a tree with one nog node leaves the uniform pick nothing to be wrong
+      # about, so the weighting can only pay where there are at least two
+      several <- f[f$candidates >= 2, ]
+      rows <- row(as.integer(forest), "all", f)
+      if (nrow(several) > 0L) {
+        rows <- rbind(rows, row(as.integer(forest), ">= 2", several))
+      }
+      rows
+    })
+  )
+}
+
+# Section 16.3 row 2: whether accepted cut displacements at one node run in the same
+# direction. A run continues only while the next accepted displacement starts
+# where the last one landed, which is what keeps a reused arena slot or an
+# intervening change move from splicing two nodes' histories together. Under a
+# reversible walk the sign is a fair coin, so run lengths are geometric with
+# P(k) = 2^-k and mean 2.
+runPairs <- function(r) {
+  accepted <- r[r$accepted == 1L, ]
+  if (nrow(accepted) < 2L) {
+    return(NULL)
+  }
+  accepted <- accepted[
+    order(accepted$forest, accepted$tree, accepted$node, accepted$sweep),
+  ]
+  n <- nrow(accepted)
+  direction <- sign(accepted$target - accepted$current)
+  list(
+    # the chain continued: same node, and the next displacement starts where
+    # the last one landed
+    continues = accepted$forest[-1L] == accepted$forest[-n] &
+      accepted$tree[-1L] == accepted$tree[-n] &
+      accepted$node[-1L] == accepted$node[-n] &
+      accepted$current[-1L] == accepted$target[-n],
+    same = direction[-1L] == direction[-n]
+  )
+}
+
+# The pairwise form of the same question, immune to the censoring below: over
+# consecutive accepted displacements that DID continue the chain, a reversible
+# walk makes the direction a fair coin.
+continuationTable <- function(r) {
+  pairs <- runPairs(r)
+  if (is.null(pairs) || sum(pairs$continues) == 0L) {
+    return(NULL)
+  }
+  data.frame(
+    pairs = sum(pairs$continues),
+    same.direction.pct = 100 * mean(pairs$same[pairs$continues]),
+    reversible.pct = 50,
+    stringsAsFactors = FALSE
+  )
+}
+
+# Run length as a HAZARD rather than a distribution: a streak the chain broke
+# under - an intervening change move, a reused arena slot, the end of the
+# record - is censored, and censoring falls on long streaks, so the run-length
+# histogram itself is not readable against any null. What is readable is the
+# chance a streak already k displacements long extends by one more, taken over
+# the pairs where the chain did continue. The geometric null a reversible walk
+# implies is 50 percent at every k, and the run-length distribution it carries
+# is P(k) = 2^-k.
+runTable <- function(r) {
+  pairs <- runPairs(r)
+  if (is.null(pairs) || sum(pairs$continues) == 0L) {
+    return(NULL)
+  }
+  extends <- pairs$continues & pairs$same
+  starts <- which(!c(FALSE, extends))
+  position <- sequence(diff(c(starts, length(extends) + 2L)))
+  at <- pmin(position[-length(position)], 5L)[pairs$continues]
+  extended <- pairs$same[pairs$continues]
+  do.call(
+    rbind,
+    lapply(sort(unique(at)), function(k) {
+      data.frame(
+        length = if (k < 5L) as.character(k) else "5+",
+        streaks = sum(at == k),
+        extends.pct = 100 * mean(extended[at == k]),
+        reversible.pct = 50,
+        stringsAsFactors = FALSE
+      )
+    })
+  )
+}
+
+# Section 16.4: the leaf count itself, which section 16.2 could only bound by Jensen.
+# One record per tree per sweep, so the quantiles are over trees and sweeps
+# together and the mean column is the mean of the per-sweep means.
+leafTable <- function(t) {
+  if (nrow(t) == 0L) {
+    return(NULL)
+  }
+  by <- split(t, t$forest)
+  do.call(
+    rbind,
+    lapply(names(by), function(forest) {
+      f <- by[[forest]]
+      q <- quantile(f$leaves, c(0.05, 0.5, 0.95), names = FALSE)
+      perSweep <- tapply(f$leaves, f$sweep, mean)
+      data.frame(
+        forest = as.integer(forest),
+        trees = length(unique(f$tree)),
+        mean.leaves = mean(perSweep),
+        sd.sweep.mean = sd(perSweep),
+        q05 = q[1L],
+        q50 = q[2L],
+        q95 = q[3L],
+        max = max(f$leaves),
+        stump.pct = 100 * mean(f$leaves == 1L),
+        nog.share.pct = 100 * sum(f$nog) / sum(f$interior),
+        stringsAsFactors = FALSE
+      )
+    })
+  )
+}
+
 roundFrame <- function(x, digits = 3L) {
   numeric <- vapply(x, is.numeric, logical(1L))
   x[numeric] <- lapply(x[numeric], round, digits)
@@ -346,6 +692,10 @@ summarizeCell <- function(dir, cell) {
   census <- readCensus(file)
   p <- census$proposals
   d <- census$cuts
+  g <- census$nog
+  x <- census$deaths
+  r <- census$runs
+  shapes <- census$shapes
   sampled <- p$sweep >= nBurn
   cat(
     "\n== ",
@@ -365,6 +715,10 @@ summarizeCell <- function(dir, cell) {
   print(roundFrame(moveTable(p[!sampled, ]), 2L), row.names = FALSE)
   p <- p[sampled, ]
   d <- d[d$sweep >= nBurn, ]
+  g <- g[g$sweep >= nBurn, ]
+  x <- x[x$sweep >= nBurn, ]
+  r <- r[r$sweep >= nBurn, ]
+  shapes <- shapes[shapes$sweep >= nBurn, ]
 
   cat("\nper move, sampled sweeps:\n")
   print(roundFrame(moveTable(p), 2L), row.names = FALSE)
@@ -374,6 +728,19 @@ summarizeCell <- function(dir, cell) {
   print(roundFrame(changeDepthTable(p), 2L), row.names = FALSE)
   cat("\nsame-variable cut move, acceptance against displacement:\n")
   print(roundFrame(cutTable(d), 2L), row.names = FALSE)
+
+  cat("\nchange target and the tree's nog share:\n")
+  print(roundFrame(nogShareTable(g), 2L), row.names = FALSE)
+  cat("\nclosed rule neighbourhood at a nog node:\n")
+  print(roundFrame(nogTable(g), 4L), row.names = FALSE)
+  cat("\ninformed-death weights against the uniform pick:\n")
+  print(roundFrame(deathTable(x), 4L), row.names = FALSE)
+  cat("\nperturb: direction of consecutive accepted displacements:\n")
+  print(roundFrame(continuationTable(r), 2L), row.names = FALSE)
+  cat("\nperturb: streak extension by streak length so far:\n")
+  print(roundFrame(runTable(r), 2L), row.names = FALSE)
+  cat("\nleaves per tree:\n")
+  print(roundFrame(leafTable(shapes), 2L), row.names = FALSE)
   invisible(NULL)
 }
 
@@ -381,6 +748,10 @@ summarizeCell <- function(dir, cell) {
 
 selected <- if (length(cellArgs) > 0L) {
   intersect(names(cells), cellArgs)
+} else if (perturbing) {
+  # a treatment forest refuses a non-default 'proposal.probs' outright, so the
+  # perturb-carrying mixture cannot be put to the causal-forest cell at all
+  setdiff(names(cells), "bcf")
 } else {
   names(cells)
 }
@@ -393,13 +764,17 @@ if (length(selected) == 0L) {
 
 # one cell per process; see the header
 spawnCell <- function(dir, cell) {
-  file <- sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))
-  if (length(file) != 1L) {
-    stop("run mode needs the script's path; invoke it with Rscript")
-  }
+  file <- file.path(scriptDirectory(), "move-census.R")
   status <- system2(
     file.path(R.home("bin"), "Rscript"),
-    c(file, "runcell", dir, cell, if (quick) "quick")
+    c(
+      file,
+      "runcell",
+      dir,
+      cell,
+      if (quick) "quick",
+      if (perturbing) "perturb"
+    )
   )
   if (status != 0L) {
     stop("cell '", cell, "' failed")

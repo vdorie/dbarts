@@ -1447,6 +1447,8 @@ public:
           metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
                                 forest.treeY.data(), sigma_, &stepTaken,
                                 &stepType, &changedNode);
+          // move-census scaffolding: the settled shape, nothing else
+          BARTCORE_CENSUS_TREE(forest.trees[t]);
           // accepted changes and deaths strand pooled mask words; no rule
           // copies are live here, so this is a safe point to reclaim them
           if (data_.hasPooledCategorical)
@@ -4233,6 +4235,7 @@ private:
       metropolisJumpForTree(ctx, vf.leaf, rng_, vf.trees[j],
                             vf.treeResidual.data(), 1.0, &stepTaken, &stepType,
                             &changedNode);
+      BARTCORE_CENSUS_TREE(vf.trees[j]);
       if (data_.hasPooledCategorical)
         vf.trees[j].compactMaskPoolIfNeeded(data_);
 

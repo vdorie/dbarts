@@ -19,6 +19,10 @@
 #include "model.hpp"
 #include "tree.hpp"
 
+#ifdef BARTCORE_MOVE_CENSUS
+#include "scan.hpp"
+#endif
+
 // The conjugate Metropolis-Hastings tree moves: birth/death, change, swap and
 // perturb proposals with their acceptance ratios.
 
@@ -146,11 +150,17 @@ inline void resolveVetoRank(const BranchScore& current,
 //
 // One comma-separated line per structural proposal is appended to the file
 // named by BARTCORE_MOVE_CENSUS_FILE; with the variable unset nothing is
-// written. Two record kinds, told apart by the first field:
+// written. Six record kinds, told apart by the first field:
 //
 //   p,sweep,forest,tree,move,noop,accepted,nodeDepth,treeDepth,interior,
 //     logLikelihood,logPrior,logCorrection
 //   d,sweep,forest,tree,nodeDepth,displacement,logRatio
+//   g,sweep,forest,tree,node,nodeDepth,isNog,interior,nog,scanned,
+//     jointCandidates,jointEntropy,jointIncumbent,jointMaximum,jointRank,
+//     cutCandidates,cutEntropy,cutIncumbent,cutMaximum,cutRank
+//   x,sweep,forest,tree,candidates,entropy,pickWeight,pickRank,maxWeight
+//   r,sweep,forest,tree,node,current,target,accepted
+//   t,sweep,forest,tree,leaves,interior,nog
 //
 // A 'p' record's three log terms are that move's own acceptance expression:
 // the veto-resolved log-likelihood difference, the log prior ratio (birth and
@@ -169,6 +179,33 @@ inline void resolveVetoRank(const BranchScore& current,
 // the correction of the move being priced is identically 1 and the log ratio
 // is the subtree-below prior difference plus the resolved likelihood
 // difference.
+//
+// A 'g' record rides the same change proposal and prices the CLOSED
+// neighbourhood a collapsed rule draw at a nog node would have: every
+// (available ordinal variable, admissible cut) pair, weighted by the cut
+// scan's collapsed marginal times the prior factors that survive - the node's
+// own rule prior 1/|SI| (its split-variable factor is uniform over the
+// available set and cancels, and both children being leaves the good set IS
+// the ancestor interval, so no proposal count enters) and the two
+// log(1 - growth(child)) terms that are exactly changeMove's below-node prior.
+// jointRank is the incumbent's position by weight, 1 being the largest. The
+// cut* fields repeat the summary restricted to the incumbent variable.
+// scanned is 0 - and the ten summary fields NA - when the node is not a nog
+// node, when any variable available there is categorical, or when the leaf
+// model carries no scalar (sum w, sum wz) marginal for the scan to score.
+//
+// An 'x' record prices informed death: at every death proposal the nog nodes
+// are weighted by exp of the merged-leaf marginal ratio, the merged leaf's
+// statistic formed as the two children's sum (computeLeafStats re-accumulates
+// over a node's index span instead, which needs a pass this probe does not
+// take), and the realized uniform pick is located in that distribution.
+//
+// An 'r' record carries the perturb proposal's node and its signed
+// displacement, so a run of same-direction accepted displacements at one node
+// can be counted offline. Node ids are arena slots a released pair can reuse,
+// so a run is only as long as the tree's own identity holds.
+//
+// A 't' record is per tree per sweep, written after the tree's move settles.
 //
 // The location, the shape and the probe's snapshot are per-thread singletons,
 // so a threaded run is correct but writes every chain's records to the one
@@ -303,6 +340,279 @@ void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
   }
 }
 
+/// Leaf models the neighbourhood probes can enumerate: the cut scan's scalar
+/// marginal over a (sum w, sum wz) pair, which neither a vector-parameter leaf
+/// nor the scale leaf carries.
+template <typename L>
+concept ScannableLeafModel =
+  ScalarLeafModel<L> && requires(const L leaf, double d) {
+    { leaf.logIntegratedLikelihood(d, d, d, d) } -> std::same_as<double>;
+  };
+
+/// A discrete neighbourhood, summarized: how many candidates carry finite
+/// weight, the entropy of the normalized weights in nats, the incumbent's
+/// share and its rank by weight (1 the largest), and the largest share.
+struct Neighbourhood {
+  double candidates = 0.0;
+  double entropy = 0.0;
+  double incumbent = 0.0;
+  double maximum = 0.0;
+  double rank = 0.0;
+};
+
+/// Normalize log weights and summarize them. A candidate whose weight is the
+/// scan's occupancy sentinel counts for nothing: the empty-leaf veto scores it
+/// -inf, so it is in the neighbourhood at weight zero. Entries are restricted
+/// to those tagged `tag` when that is non-negative, which is how the
+/// single-variable neighbourhood reuses the joint enumeration.
+inline Neighbourhood summarizeNeighbourhood(const std::vector<double>& logWeight,
+                                            const std::vector<int32_t>& tags,
+                                            int32_t tag,
+                                            std::size_t incumbentIndex) {
+  Neighbourhood out;
+  double largest = -HUGE_VAL;
+  for (std::size_t i = 0; i < logWeight.size(); ++i) {
+    if (tag >= 0 && tags[i] != tag) continue;
+    if (!std::isfinite(logWeight[i])) continue;
+    out.candidates += 1.0;
+    if (logWeight[i] > largest) largest = logWeight[i];
+  }
+  if (out.candidates == 0.0) return out;
+
+  double total = 0.0;
+  for (std::size_t i = 0; i < logWeight.size(); ++i) {
+    if (tag >= 0 && tags[i] != tag) continue;
+    if (!std::isfinite(logWeight[i])) continue;
+    total += std::exp(logWeight[i] - largest);
+  }
+  double incumbentWeight = std::isfinite(logWeight[incumbentIndex])
+    ? std::exp(logWeight[incumbentIndex] - largest) / total
+    : 0.0;
+  double entropy = 0.0;
+  double rank = 1.0;
+  for (std::size_t i = 0; i < logWeight.size(); ++i) {
+    if (tag >= 0 && tags[i] != tag) continue;
+    if (!std::isfinite(logWeight[i])) continue;
+    double p = std::exp(logWeight[i] - largest) / total;
+    if (p > 0.0) entropy -= p * std::log(p);
+    if (p > incumbentWeight) rank += 1.0;
+  }
+  out.entropy = entropy;
+  out.incumbent = incumbentWeight;
+  out.maximum = std::exp(0.0) / total;
+  out.rank = rank;
+  return out;
+}
+
+inline void countShape(const Tree& tree, int32_t i, int* leaves, int* interior,
+                       int* nog) {
+  if (tree.at(i).isBottom()) {
+    ++*leaves;
+    return;
+  }
+  ++*interior;
+  if (tree.childrenAreBottom(i)) ++*nog;
+  countShape(tree, tree.at(i).leftChild, leaves, interior, nog);
+  countShape(tree, tree.at(i).leftChild + 1, leaves, interior, nog);
+}
+
+/// The closed rule neighbourhood at the change proposal's target node, priced
+/// but not drawn from. Enumerates (available ordinal variable, admissible cut)
+/// and weights each by the cut scan's collapsed marginal times the surviving
+/// prior factors; the node's rule is written and restored, and no membership,
+/// leaf statistic or draw is touched.
+template <MoveScorableLeafModel L, typename ResidT>
+void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
+              const ResidT* y, double sigma) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+
+  int leaves = 0, interior = 0, nog = 0;
+  countShape(tree, 0, &leaves, &interior, &nog);
+  bool isNog = tree.childrenAreBottom(node);
+  bool scanned = false;
+  Neighbourhood joint, cut;
+
+  if constexpr (ScannableLeafModel<L>) {
+    const ColumnStore& data(ctx.data);
+    static thread_local std::vector<std::uint8_t> available;
+    static thread_local std::vector<ConstantLeafScanBin> bins;
+    static thread_local std::vector<double> scanScores;
+    static thread_local std::vector<double> logWeight;
+    static thread_local std::vector<int32_t> tags;
+
+    available.resize(data.numPredictors);
+    std::size_t numAvailable =
+      tree.collectAvailableVariables(data, node, available.data());
+    bool allOrdinal = isNog && numAvailable > 0;
+    for (std::size_t j = 0; allOrdinal && j < data.numPredictors; ++j)
+      if (available[j] != 0 && data.splitsBySubset(j)) allOrdinal = false;
+
+    if (allOrdinal) {
+      const Node& target(tree.at(node));
+      const index_t* members = tree.indices + target.begin;
+      std::size_t numMembers = target.numObservations();
+      int32_t leftChild = target.leftChild;
+      const Rule incumbent = target.rule;
+      std::size_t incumbentIndex = 0;
+      bool foundIncumbent = false;
+      logWeight.clear();
+      tags.clear();
+
+      for (std::size_t j = 0; j < data.numPredictors; ++j) {
+        if (available[j] == 0) continue;
+        int32_t low, high;
+        tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
+        if (high < low) continue;
+        std::size_t numCuts = static_cast<std::size_t>(data.numCuts[j]);
+        scanScores.assign(2 * numCuts, 0.0);
+        std::size_t written =
+          scanOrdinalCuts(data, j, members, numMembers, y, ctx.weights, leaf,
+                          ctx.k, sigma * sigma, bins, scanScores.data());
+        // the doubled layout means the node routes missing rows, so the rule's
+        // missing direction is part of the candidate and the rule prior widens
+        // by the same factor two the candidate count does
+        bool doubled = numCuts > 0 && written == 2 * numCuts;
+        double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -
+                              (doubled ? std::log(2.0) : 0.0);
+        int directions = doubled ? 2 : 1;
+        for (int32_t c = low; c <= high; ++c) {
+          for (int direction = 0; direction < directions; ++direction) {
+            Rule& rule(tree.at(node).rule);
+            rule.variableIndex = static_cast<int32_t>(j);
+            rule.setSplitIndex(c);
+            if (doubled) rule.setMissingGoesRight(direction == 1);
+            // both children are leaves, so the below-node prior is exactly
+            // changeMove's two log(1 - growth) terms
+            double below =
+              std::log(1.0 -
+                       ctx.treePrior.growthProbability(tree, data, leftChild)) +
+              std::log(1.0 - ctx.treePrior.growthProbability(tree, data,
+                                                             leftChild + 1));
+            if (!foundIncumbent &&
+                static_cast<int32_t>(j) == incumbent.variableIndex &&
+                c == incumbent.splitIndex() &&
+                (!doubled || (direction == 1) == incumbent.missingGoesRight())) {
+              incumbentIndex = logWeight.size();
+              foundIncumbent = true;
+            }
+            std::size_t entry =
+              doubled ? 2 * static_cast<std::size_t>(c) +
+                          static_cast<std::size_t>(direction)
+                      : static_cast<std::size_t>(c);
+            logWeight.push_back(scanScores[entry] + logRulePrior + below);
+            tags.push_back(static_cast<int32_t>(j));
+          }
+        }
+      }
+      tree.at(node).rule = incumbent;
+
+      if (foundIncumbent) {
+        joint = summarizeNeighbourhood(logWeight, tags, -1, incumbentIndex);
+        cut = summarizeNeighbourhood(logWeight, tags, incumbent.variableIndex,
+                                     incumbentIndex);
+        scanned = true;
+      }
+    }
+  }
+
+  const State& s = state();
+  double na = std::nan("");
+  char b[10][32];
+  std::fprintf(file,
+               "g,%ld,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+               s.sweep, s.forest, s.tree, node,
+               static_cast<int>(tree.depthOf(node)), isNog ? 1 : 0, interior,
+               nog, scanned ? 1 : 0,
+               number(scanned ? joint.candidates : na, b[0], sizeof(b[0])),
+               number(scanned ? joint.entropy : na, b[1], sizeof(b[1])),
+               number(scanned ? joint.incumbent : na, b[2], sizeof(b[2])),
+               number(scanned ? joint.maximum : na, b[3], sizeof(b[3])),
+               number(scanned ? joint.rank : na, b[4], sizeof(b[4])),
+               number(scanned ? cut.candidates : na, b[5], sizeof(b[5])),
+               number(scanned ? cut.entropy : na, b[6], sizeof(b[6])),
+               number(scanned ? cut.incumbent : na, b[7], sizeof(b[7])),
+               number(scanned ? cut.maximum : na, b[8], sizeof(b[8])),
+               number(scanned ? cut.rank : na, b[9], sizeof(b[9])));
+}
+
+/// Informed death, priced but not drawn from: the nog nodes weighted by exp of
+/// the merged-leaf marginal ratio, with the uniform pick located in that
+/// distribution. Pure arithmetic on the cached leaf statistics - the merged
+/// leaf's pair is the two children's sum, which is what makes the weight
+/// vector free.
+template <MoveScorableLeafModel L>
+void deathProbe(const MoveContext& ctx, const L& leaf, const Tree& tree,
+                int32_t picked, double sigma) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+
+  bool scored = false;
+  Neighbourhood out;
+  if constexpr (ScannableLeafModel<L>) {
+    static thread_local std::vector<int32_t> nogNodes;
+    static thread_local std::vector<double> logWeight;
+    static thread_local std::vector<int32_t> tags;
+    nogNodes.clear();
+    tree.fillNoGrand(0, nogNodes);
+    logWeight.clear();
+    tags.clear();
+    std::size_t incumbentIndex = 0;
+    double residualVariance = sigma * sigma;
+    for (int32_t v : nogNodes) {
+      const Node& left(tree.at(tree.at(v).leftChild));
+      const Node& right(tree.at(tree.at(v).leftChild + 1));
+      double merged = leaf.logIntegratedLikelihood(
+        ctx.k, residualVariance, left.sumWeights + right.sumWeights,
+        left.sumWeightedResponse + right.sumWeightedResponse);
+      double split =
+        leaf.logIntegratedLikelihood(ctx.k, residualVariance, left.sumWeights,
+                                     left.sumWeightedResponse) +
+        leaf.logIntegratedLikelihood(ctx.k, residualVariance, right.sumWeights,
+                                     right.sumWeightedResponse);
+      if (v == picked) incumbentIndex = logWeight.size();
+      logWeight.push_back(merged - split);
+      tags.push_back(-1);
+    }
+    if (!logWeight.empty()) {
+      out = summarizeNeighbourhood(logWeight, tags, -1, incumbentIndex);
+      scored = true;
+    }
+  }
+
+  const State& s = state();
+  double na = std::nan("");
+  char b[5][32];
+  std::fprintf(file, "x,%ld,%d,%d,%s,%s,%s,%s,%s\n", s.sweep, s.forest, s.tree,
+               number(scored ? out.candidates : na, b[0], sizeof(b[0])),
+               number(scored ? out.entropy : na, b[1], sizeof(b[1])),
+               number(scored ? out.incumbent : na, b[2], sizeof(b[2])),
+               number(scored ? out.rank : na, b[3], sizeof(b[3])),
+               number(scored ? out.maximum : na, b[4], sizeof(b[4])));
+}
+
+/// The perturb proposal's node and signed displacement, so consecutive
+/// same-direction accepted displacements at one node can be counted offline.
+inline void perturbProbe(int32_t node, int32_t current, int32_t target,
+                         bool accepted) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  const State& s = state();
+  std::fprintf(file, "r,%ld,%d,%d,%d,%d,%d,%d\n", s.sweep, s.forest, s.tree,
+               node, current, target, accepted ? 1 : 0);
+}
+
+/// One tree's settled shape, written once per tree per sweep.
+inline void treeShape(const Tree& tree) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  int leaves = 0, interior = 0, nog = 0;
+  countShape(tree, 0, &leaves, &interior, &nog);
+  const State& s = state();
+  std::fprintf(file, "t,%ld,%d,%d,%d,%d,%d\n", s.sweep, s.forest, s.tree,
+               leaves, interior, nog);
+}
+
 }  // namespace census
 
 #define BARTCORE_CENSUS_NOOP(move, tree, node) census::noop(move, tree, node)
@@ -310,12 +620,20 @@ void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
 #define BARTCORE_CENSUS_PROPOSAL(...) census::proposal(__VA_ARGS__)
 #define BARTCORE_CENSUS_CUTS(...) census::cutProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_LOCATION(...) census::setLocation(__VA_ARGS__)
+#define BARTCORE_CENSUS_NOG(...) census::nogProbe(__VA_ARGS__)
+#define BARTCORE_CENSUS_DEATHS(...) census::deathProbe(__VA_ARGS__)
+#define BARTCORE_CENSUS_PERTURB(...) census::perturbProbe(__VA_ARGS__)
+#define BARTCORE_CENSUS_TREE(tree) census::treeShape(tree)
 #else
 #define BARTCORE_CENSUS_NOOP(move, tree, node) ((void)0)
 #define BARTCORE_CENSUS_SHAPE(tree, node) ((void)0)
 #define BARTCORE_CENSUS_PROPOSAL(...) ((void)0)
 #define BARTCORE_CENSUS_CUTS(...) ((void)0)
 #define BARTCORE_CENSUS_LOCATION(...) ((void)0)
+#define BARTCORE_CENSUS_NOG(...) ((void)0)
+#define BARTCORE_CENSUS_DEATHS(...) ((void)0)
+#define BARTCORE_CENSUS_PERTURB(...) ((void)0)
+#define BARTCORE_CENSUS_TREE(tree) ((void)0)
 #endif  // BARTCORE_MOVE_CENSUS
 
 inline double probabilityOfBirthStep(const MoveContext& ctx, const Tree& tree,
@@ -490,6 +808,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       1.0 / static_cast<double>(noGrand.size());
     nodeToChange = noGrand[index];
     BARTCORE_CENSUS_SHAPE(tree, nodeToChange);
+    BARTCORE_CENSUS_DEATHS(ctx, leaf, tree, nodeToChange, sigma);
 
     double parentPriorGrowthProbability =
       ctx.treePrior.growthProbability(tree, ctx.data, nodeToChange);
@@ -684,6 +1003,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, notBottom.size());
   int32_t nodeToChange = notBottom[nodeNumber];
   BARTCORE_CENSUS_CUTS(ctx, leaf, tree, nodeToChange, y, sigma);
+  BARTCORE_CENSUS_NOG(ctx, leaf, tree, nodeToChange, y, sigma);
   BARTCORE_CENSUS_SHAPE(tree, nodeToChange);
 
   int32_t newVariableIndex =
@@ -1175,6 +1495,7 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
   }
   BARTCORE_CENSUS_PROPOSAL("perturb", false, *stepTaken, yLogL - xLogL,
                            belowY - belowX, logProposalCorrection);
+  BARTCORE_CENSUS_PERTURB(nodeToPerturb, current, target, *stepTaken);
   return alpha;
 }
 
