@@ -21,7 +21,7 @@
       \item The default tree-proposal mixture drops the swap proposal to
             zero: \code{proposal.probs} now defaults to
             \code{c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
-            birth = 0.5)} rather than 0.9-x's
+            rule_gibbs = 0, birth = 0.5)} rather than 0.9-x's
             \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)},
             swap's mass going to \code{"birth_death"}. At production forest
             sizes the move is very nearly a no-op - over 70 percent of its
@@ -248,6 +248,20 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{proposal.probs} gains a fifth structural proposal,
+            \code{"rule_gibbs"}: at a nog node - an interior node whose two
+            children are both leaves - it replaces the node's split rule with
+            a draw from that rule's own full conditional, enumerated over the
+            available ordinal variables and their admissible cuts, so the
+            move has no acceptance test and never rejects. A node whose own
+            rule is categorical is left alone, so the move is inert on an
+            all-categorical design, and a monotone fit or a variance forest
+            does not run it at all. It defaults to zero, so no fit's draws
+            change unless it is asked for; a positive value takes its share
+            from the other structural probabilities, which must still sum to
+            one. An unnamed \code{"rule_gibbs"} resolves to zero ahead of the
+            residual fill, so every vector that resolved before resolves
+            identically now.
       \item \code{proposal.probs} gains a fourth structural proposal,
             \code{"perturb"}: a same-variable cut move that displaces one
             node's split point by a single grid position, keeping its split
@@ -259,7 +273,7 @@
             one. An unnamed \code{"perturb"} resolves to zero ahead of the
             residual fill, so every vector that resolved before resolves
             identically now.
-      \item \code{proposal.probs} accepts a frozen mixture: all four
+      \item \code{proposal.probs} accepts a frozen mixture: all five
             structural probabilities exactly zero proposes no structure at
             all, so the tree structures stand where they are while the leaf
             values, \code{sigma} and the family's latents keep being drawn.
@@ -1634,7 +1648,8 @@
             the caller left it unsupplied. \code{proposal.probs}'s default
             is now stated directly in the signature - the named vector
             \code{c(birth_death = 0.6, swap = 0, change = 0.4,
-            perturb = 0, birth = 0.5)} \code{dbarts} also uses - rather
+            perturb = 0, rule_gibbs = 0, birth = 0.5)} \code{dbarts} also
+            uses - rather
             than \code{NULL}.
             Every resolved
             value already matched what applied before, so no fit's draws

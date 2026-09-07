@@ -66,6 +66,7 @@ expect_equal(
 expect_equal(monotoneSpec$model@p.birth_death, 1.0)
 expect_equal(monotoneSpec$model@p.swap, 0.0)
 expect_equal(monotoneSpec$model@p.perturb, 0.0)
+expect_equal(monotoneSpec$model@p.rule_gibbs, 0.0)
 
 additiveSpec <- dbarts::dbartsSpec(
   data,

@@ -628,6 +628,22 @@ expect_error(
     x,
     y,
     forests = twoForests,
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.24,
+      rule_gibbs = 0.16,
+      birth = 0.5
+    ),
+    control = control
+  ),
+  "non-default 'proposal.probs'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = twoForests,
     resid.dist = student(5),
     control = control
   ),

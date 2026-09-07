@@ -674,6 +674,7 @@ bart2 <- function(
     swap = 0,
     change = 0.4,
     perturb = 0,
+    rule_gibbs = 0,
     birth = 0.5
   ),
   monotone = NULL,

@@ -1,8 +1,8 @@
-# The `proposal.probs` surface at four structural names. Swap and perturb ship
-# at zero but stay legal names: a caller who asks for either gets it, and the
-# one-NA fill and the sum-to-one rule run over all four. Perturb resolves ahead
-# of the fill, so every resolution the three-name rule pinned is preserved
-# element for element.
+# The `proposal.probs` surface at five structural names. Swap, perturb and
+# rule_gibbs ship at zero but stay legal names: a caller who asks for any of
+# them gets it, and the one-NA fill and the sum-to-one rule run over all five.
+# The two zero-default moves resolve ahead of the fill, so every resolution the
+# three-name rule pinned is preserved element for element.
 
 set.seed(31L)
 n <- 60L
@@ -26,20 +26,30 @@ expect_equal(defaulted@p.birth_death, 0.6)
 expect_equal(defaulted@p.swap, 0)
 expect_equal(defaulted@p.change, 0.4)
 expect_equal(defaulted@p.perturb, 0)
+expect_equal(defaulted@p.rule_gibbs, 0)
 
 # spelling the default explicitly agrees with defaulting it
 explicit <- fit(
-  c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)
+  c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
+  )
 )$model
 expect_equal(explicit@p.birth_death, 0.6)
 expect_equal(explicit@p.swap, 0)
 expect_equal(explicit@p.change, 0.4)
 expect_equal(explicit@p.perturb, 0)
+expect_equal(explicit@p.rule_gibbs, 0)
 
-# and so does the four-name spelling that omits perturb, which is the one
-# every consumer forwarding the documented default writes
+# and so does the four-name spelling that omits both moves shipping at zero,
+# which is the one every consumer forwarding the documented default writes
 omitted <- fit(c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5))$model
 expect_equal(omitted@p.perturb, 0)
+expect_equal(omitted@p.rule_gibbs, 0)
 
 # ---- a caller-supplied three-move mixture ----------------------------------
 
@@ -82,7 +92,10 @@ printed <- capture.output(
   )
 )
 expect_true(any(grepl(
-  "birth/death 0.50, swap 0.10, change 0.40, perturb 0.00; birth 0.50",
+  paste(
+    "birth/death 0.50, swap 0.10, change 0.40, perturb 0.00,",
+    "rule_gibbs 0.00; birth 0.50"
+  ),
   printed,
   fixed = TRUE
 )))
@@ -111,12 +124,18 @@ expect_equal(changeOnly@p.change, 0.25)
 expect_error(fit(c(swap = 0.1)), "name at least one of")
 expect_error(fit(c(perturb = 0.16)), "name at least one of")
 expect_error(fit(c(swap = 0.1, perturb = 0.16)), "name at least one of")
+expect_error(fit(c(rule_gibbs = 0.16)), "name at least one of")
+expect_error(
+  fit(c(perturb = 0.16, rule_gibbs = 0.16)),
+  "name at least one of"
+)
 
 # all three unnamed falls back to the default
 expect_equal(fit(c(birth = 0.25))$model@p.birth_death, 0.6)
 expect_equal(fit(c(birth = 0.25))$model@p.swap, 0)
 expect_equal(fit(c(birth = 0.25))$model@p.change, 0.4)
 expect_equal(fit(c(birth = 0.25))$model@p.perturb, 0)
+expect_equal(fit(c(birth = 0.25))$model@p.rule_gibbs, 0)
 expect_equal(fit(c(birth = 0.25))$model@p.birth, 0.25)
 
 # perturb resolves BEFORE the fill: it takes its zero rather than the
@@ -129,6 +148,18 @@ expect_equal(twoUnnamed@p.swap, 0)
 expect_equal(twoUnnamed@p.change, 0)
 expect_equal(twoUnnamed@p.perturb, 0.16)
 
+# and the same for rule_gibbs, alone and beside perturb: the residual is
+# taken against 1 minus their sum
+withGibbs <- fit(c(birth_death = 0.5, change = 0.34, rule_gibbs = 0.16))$model
+expect_equal(withGibbs@p.swap, 0)
+expect_equal(withGibbs@p.rule_gibbs, 0.16)
+bothZeroDefault <- fit(
+  c(birth_death = 0.5, change = 0.18, perturb = 0.16, rule_gibbs = 0.16)
+)$model
+expect_equal(bothZeroDefault@p.swap, 0)
+expect_equal(bothZeroDefault@p.perturb, 0.16)
+expect_equal(bothZeroDefault@p.rule_gibbs, 0.16)
+
 # all four named must sum to one
 expect_error(
   fit(c(birth_death = 0.7, swap = 0.1, change = 0.4)),
@@ -136,6 +167,10 @@ expect_error(
 )
 expect_error(
   fit(c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0.1)),
+  "sum to 1"
+)
+expect_error(
+  fit(c(birth_death = 0.6, swap = 0, change = 0.4, rule_gibbs = 0.1)),
   "sum to 1"
 )
 
@@ -150,16 +185,25 @@ expect_equal(forced@p.birth_death, 1)
 expect_equal(forced@p.swap, 0)
 expect_equal(forced@p.change, 0)
 expect_equal(forced@p.perturb, 0)
+expect_equal(forced@p.rule_gibbs, 0)
 expect_error(fit(threeMove, monotone = c(a = "+")), "proposal.probs")
 
 # the refusal must not fire on a caller who spells the documented default and
 # omits the move that ships at zero: the comparison fills it first
-forcedFive <- fit(
-  c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5),
+forcedFull <- fit(
+  c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
+  ),
   monotone = c(a = "+")
 )$model
-expect_equal(forcedFive@p.birth_death, 1)
-expect_equal(forcedFive@p.perturb, 0)
+expect_equal(forcedFull@p.birth_death, 1)
+expect_equal(forcedFull@p.perturb, 0)
+expect_equal(forcedFull@p.rule_gibbs, 0)
 
 # ---- a perturb-dominant run --------------------------------------------
 
@@ -331,3 +375,111 @@ replayB <- dbarts::dbarts(
 )$run()
 expect_identical(replayA$train, replayB$train)
 expect_identical(replayA$sigma, replayB$sigma)
+
+# ---- a rule_gibbs-dominant run ---------------------------------------------
+
+# One tree on a mixed design, most of its proposals exact rule draws. Only one
+# proposal is made per tree per sweep, so consecutive draws holding the node
+# count fixed took a rule draw or nothing: the shape must agree exactly, every
+# rule that moved must sit at a nog node - an interior node whose two children
+# are both leaves - and no categorical rule may move at all, a node carrying
+# one being a fixed point of this move.
+gibbsX <- data.frame(
+  a = runif(n),
+  b = runif(n),
+  f = factor(sample(letters[1:3L], n, replace = TRUE))
+)
+gibbsY <- gibbsX$a -
+  0.5 * gibbsX$b +
+  as.integer(gibbsX$f) / 3 +
+  rnorm(n, 0, 0.2)
+gibbsControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 1L,
+  n.burn = 0L,
+  n.samples = 80L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+gibbsSampler <- dbarts::dbarts(
+  gibbsY ~ .,
+  gibbsX,
+  control = gibbsControl,
+  proposal.probs = c(
+    birth_death = 0.2,
+    swap = 0,
+    change = 0,
+    perturb = 0,
+    rule_gibbs = 0.8,
+    birth = 0.5
+  )
+)
+set.seed(43L)
+gibbsSamples <- gibbsSampler$run()
+expect_true(all(is.finite(gibbsSamples$train)))
+expect_true(all(is.finite(gibbsSamples$sigma)))
+
+# the nog nodes of a depth-first (parent, left subtree, right subtree) listing,
+# read off the leaf pattern alone
+nogNodes <- function(isLeaf) {
+  nog <- logical(length(isLeaf))
+  position <- 1L
+  walk <- function() {
+    here <- position
+    position <<- position + 1L
+    if (isLeaf[here]) {
+      return(TRUE)
+    }
+    leftIsLeaf <- walk()
+    rightIsLeaf <- walk()
+    nog[here] <<- leftIsLeaf && rightIsLeaf
+    FALSE
+  }
+  walk()
+  nog
+}
+
+sameOrBothMissing <- function(before, after) {
+  (is.na(before) & is.na(after)) |
+    (!is.na(before) & !is.na(after) & before == after)
+}
+
+gibbsTrees <- gibbsSampler$getTrees()
+byGibbsDraw <- split(gibbsTrees, gibbsTrees$sample)
+heldShape <- 0L
+ruleMoves <- 0L
+categoricalRules <- 0L
+for (i in seq_len(length(byGibbsDraw) - 1L)) {
+  before <- byGibbsDraw[[i]]
+  after <- byGibbsDraw[[i + 1L]]
+  categoricalRules <- categoricalRules +
+    sum(before$var != -1L & is.na(before$value))
+  if (nrow(before) != nrow(after)) {
+    next
+  }
+  heldShape <- heldShape + 1L
+  # one proposal per sweep, so an unchanged node count is an unchanged shape
+  expect_identical(before$var == -1L, after$var == -1L)
+  interior <- before$var != -1L
+  # a categorical rule reports its split in 'directions' and no cut value, an
+  # ordinal one the other way round, so every column decides and each of them
+  # is NA where the other kind of rule (or a leaf) sits
+  sameRule <- sameOrBothMissing(before$var, after$var) &
+    sameOrBothMissing(before$value, after$value)
+  if (!is.null(before$directions)) {
+    sameRule <- sameRule &
+      sameOrBothMissing(before$directions, after$directions)
+  }
+  moved <- interior & !sameRule
+  expect_true(sum(moved) <= 1L)
+  expect_true(all(nogNodes(before$var == -1L)[moved]))
+  expect_true(!any(is.na(before$value[moved])))
+  ruleMoves <- ruleMoves + sum(moved)
+}
+# the run exercised both arms, and the design put categorical rules in front of
+# the move for it to leave alone
+expect_true(length(unique(vapply(byGibbsDraw, nrow, 0L))) > 1L)
+expect_true(heldShape > 10L)
+expect_true(ruleMoves > 0L)
+expect_true(categoricalRules > 0L)

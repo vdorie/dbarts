@@ -48,9 +48,10 @@ makeModel <- function(delta) {
 expect_inherits(makeModel(1e-9), "dbartsModel")
 expect_error(makeModel(1e-7), "rule proposal probabilities must sum to 1")
 
-# the same pair with every structural name spelled, perturb included: an
-# unnamed perturb is resolved to zero ahead of the fill and never takes the
-# residual, so naming it changes neither verdict
+# the same pair with every structural name spelled, the two zero-default
+# moves included: an unnamed perturb or rule_gibbs is resolved to zero ahead
+# of the fill and never takes the residual, so naming them changes neither
+# verdict
 makeFullModel <- function(delta) {
   methods::new(
     "dbartsModel",
@@ -59,6 +60,7 @@ makeFullModel <- function(delta) {
       swap = 0.0,
       change = 0.0,
       perturb = 0.0,
+      rule_gibbs = 0.0,
       birth = 0.5
     )
   )

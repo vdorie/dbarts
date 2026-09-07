@@ -53,6 +53,7 @@ struct SamplerOptions {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
@@ -213,6 +214,7 @@ struct ModelParameters {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
   // the named calibration, matching SamplerOptions: finite overrides nodeScale
@@ -378,7 +380,7 @@ struct VarianceForest {
   std::size_t numTrees = 0;
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
-         birthProbability = 0.5;
+         ruleGibbsProbability = 0.0, birthProbability = 0.5;
   ConstantVarianceLeaf leaf;
   CGMTreePrior treePrior;
   std::vector<Tree> trees;
@@ -554,6 +556,7 @@ public:
     forest.swapProbability = options.swapProbability;
     forest.changeProbability = options.changeProbability;
     forest.perturbProbability = options.perturbProbability;
+    forest.ruleGibbsProbability = options.ruleGibbsProbability;
     forest.birthProbability = options.birthProbability;
     forest.updateK = options.updateK;
     forest.kHyperprior = options.kHyperprior;
@@ -1399,6 +1402,7 @@ public:
                         forest.birthOrDeathProbability,
                         forest.swapProbability,
                         forest.perturbProbability,
+                        forest.ruleGibbsProbability,
                         forest.birthProbability,
                         forestWeights,
                         forest.k,
@@ -1410,7 +1414,8 @@ public:
         // propose keeps its draw sequence exactly.
         const bool structureFrozen = structureIsFrozen(
           forest.birthOrDeathProbability, forest.swapProbability,
-          forest.changeProbability, forest.perturbProbability);
+          forest.changeProbability, forest.perturbProbability,
+          forest.ruleGibbsProbability);
 
         forest.kSumSquaredParams = 0.0;
         forest.kNumLeaves = 0.0;
@@ -1726,6 +1731,7 @@ public:
     forest.swapProbability = model.swapProbability;
     forest.changeProbability = model.changeProbability;
     forest.perturbProbability = model.perturbProbability;
+    forest.ruleGibbsProbability = model.ruleGibbsProbability;
     forest.birthProbability = model.birthProbability;
     // the same conversion creation runs, re-derived against the CURRENT
     // transform: without it a round trip through the model SEXP would revert a
@@ -4167,6 +4173,7 @@ private:
     vf.swapProbability = options.swapProbability;
     vf.changeProbability = options.changeProbability;
     vf.perturbProbability = options.perturbProbability;
+    vf.ruleGibbsProbability = options.ruleGibbsProbability;
     vf.birthProbability = options.birthProbability;
     vf.treePrior.base = options.varianceBase;
     vf.treePrior.power = options.variancePower;
@@ -4229,7 +4236,7 @@ private:
     // all-zero one freezes both; its leaf factors keep being drawn
     const bool structureFrozen = structureIsFrozen(
       vf.birthOrDeathProbability, vf.swapProbability, vf.changeProbability,
-      vf.perturbProbability);
+      vf.perturbProbability, vf.ruleGibbsProbability);
 
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       vf.formTreeResidual(j, vf.meanResidual.data());
@@ -4238,6 +4245,7 @@ private:
                       vf.birthOrDeathProbability,
                       vf.swapProbability,
                       vf.perturbProbability,
+                      vf.ruleGibbsProbability,
                       vf.birthProbability,
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal
@@ -5162,6 +5170,7 @@ private:
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.perturbProbability = spec.perturbProbability;
+    forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
     forest.useDart = false;
@@ -5227,6 +5236,7 @@ private:
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.perturbProbability = spec.perturbProbability;
+    forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
     forest.useDart = false;

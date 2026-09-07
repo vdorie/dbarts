@@ -17,16 +17,36 @@
 
 #include "data.hpp"
 #include "model.hpp"
+#include "scan.hpp"
 #include "tree.hpp"
 
-#ifdef BARTCORE_MOVE_CENSUS
-#include "scan.hpp"
-#endif
-
-// The conjugate Metropolis-Hastings tree moves: birth/death, change, swap and
-// perturb proposals with their acceptance ratios.
+// The conjugate Metropolis-Hastings tree moves: birth/death, change, swap,
+// perturb and the nog-node rule draw, with their acceptance ratios.
 
 namespace bartcore {
+
+/// Leaf models a cut scan can score: a scalar leaf carrying the four-argument
+/// (k, sigma^2, sum w, sum wz) marginal, which neither a vector-parameter leaf
+/// (linear, GP) nor the variance forest's scale leaf has.
+template <typename L>
+concept ScannableLeafModel =
+  ScalarLeafModel<L> && requires(const L leaf, double d) {
+    { leaf.logIntegratedLikelihood(d, d, d, d) } -> std::same_as<double>;
+  };
+
+/// One candidate rule in a nog node's closed neighbourhood: an ordinal
+/// (variable, cut) pair, the missing direction where the node routes a missing
+/// row, the branch veto rank the split would carry, and the enumeration's log
+/// weight. missingDirection is -1 where the scan did not score the direction,
+/// which is where the node holds no missing member and the direction is drawn
+/// from its own conditional afterwards.
+struct NogRuleCandidate {
+  int32_t variableIndex;
+  int32_t splitIndex;
+  int missingDirection;
+  int rank;
+  double logWeight;
+};
 
 /// Per-chain scratch for the moves; reused across calls to avoid allocation.
 struct MoveScratch {
@@ -38,6 +58,14 @@ struct MoveScratch {
   std::vector<std::uint64_t> reachableWords;
   std::vector<std::uint64_t> patternWords;
   std::vector<std::uint64_t> maskArena;
+  // the nog neighbourhood: the candidates, the per-variable availability flags
+  // and the cut scan's own buffers, each grown once to the widest column and
+  // reused, so an enumeration allocates nothing
+  std::vector<NogRuleCandidate> candidates;
+  std::vector<std::uint8_t> available;
+  std::vector<ConstantLeafScanBin> scanBins;
+  std::vector<double> scanScores;
+  std::vector<int> scanRanks;
 };
 
 struct MoveContext {
@@ -46,6 +74,7 @@ struct MoveContext {
   double birthOrDeathProbability;
   double swapProbability;
   double perturbProbability;
+  double ruleGibbsProbability;
   double birthProbability;
   const double* weights;
   double k;
@@ -139,6 +168,143 @@ inline void resolveVetoRank(const BranchScore& current,
     *currentLogLikelihood = 0.0;
 }
 
+/// Enumerate the closed rule neighbourhood at a nog node - an interior node
+/// whose two children are both leaves - into ctx.scratch.candidates, and
+/// return the smallest branch veto rank the survivors carry (-1 when none
+/// does). The candidates are every (available ORDINAL variable, admissible
+/// cut) pair, with the missing direction joining the pair wherever the node
+/// routes a missing row; the categorical variables are left out, which is what
+/// makes a node whose own rule is categorical a fixed point of the move rather
+/// than a node it approximates.
+///
+/// The set reads ANCESTORS only. Tree::collectAvailableVariables and
+/// Tree::splitInterval both ignore the node's own rule, and at a nog node
+/// there is no descendant to keep satisfiable, so findGoodOrdinalRules
+/// coincides with splitInterval and the enumeration is identical from every
+/// state in it. Neither does the node's member set move: a rule change
+/// repartitions those rows, it does not change which rows are there. That is
+/// what closes the neighbourhood, and it is why the caller needs no reverse
+/// count.
+///
+/// A candidate's weight is the tree posterior restricted to the node's rule,
+/// every factor that does not read it having cancelled:
+///
+///     log w = S                                the scan's rank-admitted
+///                                              marginal over the two children
+///           + log P(split variable)            constant unless DART is on
+///           - log |SI| (- log 2 if routed)     the node's own rule prior
+///           + log(1 - growth(left))
+///           + log(1 - growth(right))           the prior strictly below
+///
+/// What cancels: growth at the node itself, every prior factor at or above it,
+/// the marginals of every other leaf, and the residual sum of squares the scan
+/// omits, which is additive over any partition of a fixed member set. Where
+/// the node holds no missing member the two directions score identically, so
+/// the cut is enumerated ONCE at prior 1/|SI| - the exact collapsed weight -
+/// and the direction is left to its own conditional afterwards; that is why
+/// this differs by log 2 per such variable from
+/// CGMTreePrior::ruleForVariableLogProbability, which takes its factor two
+/// from the COLUMN rather than the node.
+///
+/// Ranks come from the scan and are the veto's, not the occupancy sentinel's
+/// (scanOrdinalCuts). A rank-2 candidate is dropped absolutely, no move being
+/// allowed to install a member-empty leaf even from a vetoed state; the caller
+/// draws over the smallest surviving rank alone.
+template <ScannableLeafModel L, typename ResidT = double>
+int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
+                                  Tree& tree, int32_t node, const ResidT* y,
+                                  double sigma,
+                                  std::size_t* numVariablesScanned = nullptr) {
+  const ColumnStore& data(ctx.data);
+  MoveScratch& scratch(ctx.scratch);
+  scratch.candidates.clear();
+  if (numVariablesScanned != nullptr) *numVariablesScanned = 0;
+
+  scratch.available.resize(data.numPredictors);
+  std::uint8_t* available = scratch.available.data();
+  tree.collectAvailableVariables(data, node, available);
+
+  const Node& target(tree.at(node));
+  const index_t* members = tree.indices + target.begin;
+  std::size_t numMembers = target.numObservations();
+  int32_t leftChild = target.leftChild;
+  const Rule incumbent = target.rule;
+
+  // the split-variable prior normalizes over the whole available set, the
+  // categorical variables included, so under the uniform prior it is one
+  // constant across the candidates and drops out of the normalization; under
+  // DART it varies by variable and does not
+  double totalSplitProbability = 0.0;
+  if (ctx.treePrior.splitProbabilities != nullptr)
+    for (std::size_t j = 0; j < data.numPredictors; ++j)
+      if (available[j] != 0)
+        totalSplitProbability += ctx.treePrior.splitProbabilities[j];
+
+  int minimumRank = 2;  // no rank-2 candidate is ever pushed
+  for (std::size_t j = 0; j < data.numPredictors; ++j) {
+    if (available[j] == 0 || data.splitsBySubset(j)) continue;
+    int32_t low, high;
+    tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
+    if (high < low) continue;  // availability is this test; belt and braces
+
+    std::size_t numCuts = static_cast<std::size_t>(data.numCuts[j]);
+    if (scratch.scanScores.size() < 2 * numCuts) {
+      scratch.scanScores.resize(2 * numCuts);
+      scratch.scanRanks.resize(2 * numCuts);
+    }
+    std::size_t written = scanOrdinalCuts(
+      data, j, members, numMembers, y, ctx.weights, leaf, ctx.k, sigma * sigma,
+      scratch.scanBins, scratch.scanScores.data(), scratch.scanRanks.data());
+    if (numVariablesScanned != nullptr) ++*numVariablesScanned;
+
+    // the doubled layout says the node routes missing rows, so the direction
+    // is part of the candidate and the rule prior widens by the same factor
+    // two the candidate count does
+    bool doubled = numCuts > 0 && written == 2 * numCuts;
+    double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -
+                          (doubled ? std::log(2.0) : 0.0);
+    double logVariablePrior =
+      ctx.treePrior.splitProbabilities == nullptr
+        ? 0.0
+        : std::log(ctx.treePrior.splitProbabilities[j] / totalSplitProbability);
+    int directions = doubled ? 2 : 1;
+
+    for (int32_t c = low; c <= high; ++c) {
+      for (int direction = 0; direction < directions; ++direction) {
+        std::size_t entry =
+          doubled ? 2 * static_cast<std::size_t>(c) +
+                      static_cast<std::size_t>(direction)
+                  : static_cast<std::size_t>(c);
+        int rank = scratch.scanRanks[entry];
+        if (rank > 1) continue;  // the membership law admits no such rule
+
+        // the below-node prior reads the node's rule through the children's
+        // availability, so the candidate is installed to score it and the
+        // incumbent restored once the enumeration ends; nothing else here
+        // touches membership, a leaf statistic or a draw
+        Rule& rule(tree.at(node).rule);
+        rule.variableIndex = static_cast<int32_t>(j);
+        rule.setSplitIndex(c);
+        if (doubled) rule.setMissingGoesRight(direction == 1);
+        double below =
+          std::log(1.0 -
+                   ctx.treePrior.growthProbability(tree, data, leftChild)) +
+          std::log(1.0 - ctx.treePrior.growthProbability(tree, data,
+                                                         leftChild + 1));
+        scratch.candidates.push_back(
+          NogRuleCandidate{static_cast<int32_t>(j), c,
+                           doubled ? direction : -1, rank,
+                           scratch.scanScores[entry] + logVariablePrior +
+                             logRulePrior + below});
+        if (rank < minimumRank) minimumRank = rank;
+      }
+    }
+  }
+  tree.at(node).rule = incumbent;
+
+  return scratch.candidates.empty() ? -1 : minimumRank;
+}
+
 #ifdef BARTCORE_MOVE_CENSUS
 // ===========================================================================
 // Stage 0 move census: SCAFFOLDING, not part of the sampler.
@@ -160,6 +326,7 @@ inline void resolveVetoRank(const BranchScore& current,
 //     cutCandidates,cutEntropy,cutIncumbent,cutMaximum,cutRank
 //   x,sweep,forest,tree,candidates,entropy,pickWeight,pickRank,maxWeight
 //   r,sweep,forest,tree,node,current,target,accepted
+//   n,sweep,forest,tree,eligible,scanned,candidates,stratum
 //   t,sweep,forest,tree,leaves,interior,nog
 //
 // A 'p' record's three log terms are that move's own acceptance expression:
@@ -199,6 +366,16 @@ inline void resolveVetoRank(const BranchScore& current,
 // statistic formed as the two children's sum (computeLeafStats re-accumulates
 // over a node's index span instead, which needs a pass this probe does not
 // take), and the realized uniform pick is located in that distribution.
+//
+// An 'n' record is written once per rule_gibbs proposal, no-ops included: the
+// eligible nog nodes, the ordinal variables scanned at the chosen one, the
+// candidates that survived the rank drop and the stratum drawn over. It is the
+// move's cost instrument - the first two multiplied and summed over a sweep
+// are its cut-scan count - and it is the only record that carries it, the 'g'
+// probe riding changeMove, which a nonzero rule_gibbs share is the branch the
+// dispatch does not take. A rule_gibbs 'p' record carries no log terms: the
+// draw is exact and its acceptance is one, so there is no acceptance
+// expression to decompose.
 //
 // An 'r' record carries the perturb proposal's node and its signed
 // displacement, so a run of same-direction accepted displacements at one node
@@ -340,15 +517,6 @@ void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
   }
 }
 
-/// Leaf models the neighbourhood probes can enumerate: the cut scan's scalar
-/// marginal over a (sum w, sum wz) pair, which neither a vector-parameter leaf
-/// nor the scale leaf carries.
-template <typename L>
-concept ScannableLeafModel =
-  ScalarLeafModel<L> && requires(const L leaf, double d) {
-    { leaf.logIntegratedLikelihood(d, d, d, d) } -> std::same_as<double>;
-  };
-
 /// A discrete neighbourhood, summarized: how many candidates carry finite
 /// weight, the entropy of the normalized weights in nats, the incumbent's
 /// share and its rank by weight (1 the largest), and the largest share.
@@ -436,8 +604,6 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
   if constexpr (ScannableLeafModel<L>) {
     const ColumnStore& data(ctx.data);
     static thread_local std::vector<std::uint8_t> available;
-    static thread_local std::vector<ConstantLeafScanBin> bins;
-    static thread_local std::vector<double> scanScores;
     static thread_local std::vector<double> logWeight;
     static thread_local std::vector<int32_t> tags;
 
@@ -449,63 +615,30 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
       if (available[j] != 0 && data.splitsBySubset(j)) allOrdinal = false;
 
     if (allOrdinal) {
-      const Node& target(tree.at(node));
-      const index_t* members = tree.indices + target.begin;
-      std::size_t numMembers = target.numObservations();
-      int32_t leftChild = target.leftChild;
-      const Rule incumbent = target.rule;
+      // the kernel's own enumeration, so the probe cannot drift from the
+      // weights the move draws from; the summary restricts to the rank
+      // stratum the draw runs over
+      const Rule incumbent = tree.at(node).rule;
+      int stratum =
+        enumerateNogRuleNeighbourhood(ctx, leaf, tree, node, y, sigma);
       std::size_t incumbentIndex = 0;
       bool foundIncumbent = false;
       logWeight.clear();
       tags.clear();
-
-      for (std::size_t j = 0; j < data.numPredictors; ++j) {
-        if (available[j] == 0) continue;
-        int32_t low, high;
-        tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
-        if (high < low) continue;
-        std::size_t numCuts = static_cast<std::size_t>(data.numCuts[j]);
-        scanScores.assign(2 * numCuts, 0.0);
-        std::size_t written =
-          scanOrdinalCuts(data, j, members, numMembers, y, ctx.weights, leaf,
-                          ctx.k, sigma * sigma, bins, scanScores.data());
-        // the doubled layout means the node routes missing rows, so the rule's
-        // missing direction is part of the candidate and the rule prior widens
-        // by the same factor two the candidate count does
-        bool doubled = numCuts > 0 && written == 2 * numCuts;
-        double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -
-                              (doubled ? std::log(2.0) : 0.0);
-        int directions = doubled ? 2 : 1;
-        for (int32_t c = low; c <= high; ++c) {
-          for (int direction = 0; direction < directions; ++direction) {
-            Rule& rule(tree.at(node).rule);
-            rule.variableIndex = static_cast<int32_t>(j);
-            rule.setSplitIndex(c);
-            if (doubled) rule.setMissingGoesRight(direction == 1);
-            // both children are leaves, so the below-node prior is exactly
-            // changeMove's two log(1 - growth) terms
-            double below =
-              std::log(1.0 -
-                       ctx.treePrior.growthProbability(tree, data, leftChild)) +
-              std::log(1.0 - ctx.treePrior.growthProbability(tree, data,
-                                                             leftChild + 1));
-            if (!foundIncumbent &&
-                static_cast<int32_t>(j) == incumbent.variableIndex &&
-                c == incumbent.splitIndex() &&
-                (!doubled || (direction == 1) == incumbent.missingGoesRight())) {
-              incumbentIndex = logWeight.size();
-              foundIncumbent = true;
-            }
-            std::size_t entry =
-              doubled ? 2 * static_cast<std::size_t>(c) +
-                          static_cast<std::size_t>(direction)
-                      : static_cast<std::size_t>(c);
-            logWeight.push_back(scanScores[entry] + logRulePrior + below);
-            tags.push_back(static_cast<int32_t>(j));
-          }
+      for (const NogRuleCandidate& candidate : ctx.scratch.candidates) {
+        if (candidate.rank != stratum) continue;
+        if (!foundIncumbent &&
+            candidate.variableIndex == incumbent.variableIndex &&
+            candidate.splitIndex == incumbent.splitIndex() &&
+            (candidate.missingDirection < 0 ||
+             (candidate.missingDirection == 1) ==
+               incumbent.missingGoesRight())) {
+          incumbentIndex = logWeight.size();
+          foundIncumbent = true;
         }
+        logWeight.push_back(candidate.logWeight);
+        tags.push_back(candidate.variableIndex);
       }
-      tree.at(node).rule = incumbent;
 
       if (foundIncumbent) {
         joint = summarizeNeighbourhood(logWeight, tags, -1, incumbentIndex);
@@ -602,6 +735,24 @@ inline void perturbProbe(int32_t node, int32_t current, int32_t target,
                node, current, target, accepted ? 1 : 0);
 }
 
+/// The rule-Gibbs kernel's own cost record: the eligible nog nodes the
+/// proposal chose among, the ordinal variables it scanned at the node it
+/// chose, the candidates that enumeration left standing and the rank stratum
+/// the draw ran over (-1 where there was nothing to draw from). The product of
+/// the first two summed over a sweep is the move's cut-scan cost, which no
+/// other record carries: the 'g' probe rides changeMove, which a nonzero
+/// rule_gibbs share is the branch the dispatch does not take.
+inline void gibbsProbe(std::size_t eligible, std::size_t scanned,
+                       std::size_t candidates, int stratum) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  const State& s = state();
+  std::fprintf(file, "n,%ld,%d,%d,%lu,%lu,%lu,%d\n", s.sweep, s.forest, s.tree,
+               static_cast<unsigned long>(eligible),
+               static_cast<unsigned long>(scanned),
+               static_cast<unsigned long>(candidates), stratum);
+}
+
 /// One tree's settled shape, written once per tree per sweep.
 inline void treeShape(const Tree& tree) {
   std::FILE* file = stream();
@@ -623,6 +774,7 @@ inline void treeShape(const Tree& tree) {
 #define BARTCORE_CENSUS_NOG(...) census::nogProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_DEATHS(...) census::deathProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_PERTURB(...) census::perturbProbe(__VA_ARGS__)
+#define BARTCORE_CENSUS_GIBBS(...) census::gibbsProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_TREE(tree) census::treeShape(tree)
 #else
 #define BARTCORE_CENSUS_NOOP(move, tree, node) ((void)0)
@@ -633,6 +785,7 @@ inline void treeShape(const Tree& tree) {
 #define BARTCORE_CENSUS_NOG(...) ((void)0)
 #define BARTCORE_CENSUS_DEATHS(...) ((void)0)
 #define BARTCORE_CENSUS_PERTURB(...) ((void)0)
+#define BARTCORE_CENSUS_GIBBS(...) ((void)0)
 #define BARTCORE_CENSUS_TREE(tree) ((void)0)
 #endif  // BARTCORE_MOVE_CENSUS
 
@@ -1499,7 +1652,145 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
   return alpha;
 }
 
-enum class StepType { birth, death, swap, change, perturb };
+/// Rule-Gibbs kernel: replace the split rule at a nog node - an interior node
+/// whose two children are both leaves - with a draw from its own full
+/// conditional. There is no acceptance test and no reverse count.
+///
+/// The neighbourhood enumerateNogRuleNeighbourhood builds is closed: it reads
+/// ancestors only, so it is identical from every state in it, its normalizer
+/// is the same before and after the draw, and no proposal count survives into
+/// an acceptance. The node is drawn uniformly among the eligible nog nodes and
+/// that reciprocal cancels too, the set being invariant under the move - the
+/// shape is preserved, so fillNoGrand's set does not move; no nog node is an
+/// ancestor of another, so no other node's availability moves either; and the
+/// drawn rule is ordinal, so the eligibility filter holds.
+///
+/// The draw runs over ONE branch-rank stratum, the smallest rank the
+/// candidates carry, and that is what makes it exact under a weight mask or a
+/// routed missing row. Where the stratum is the incumbent's own rank it
+/// contains the incumbent and the draw IS the full conditional restricted to
+/// it, acceptance one. Where it is strictly better the incumbent is outside
+/// it and this is a Metropolis-within-Gibbs step with acceptance one, valid
+/// for the reason resolveVetoRank accepts every rank-improving proposal
+/// outright: the better stratum is absorbing, so the chain enters it in one
+/// step and is stationary there. The stratum is never empty and never worse
+/// than the incumbent's rank, the incumbent being a candidate of rank at most
+/// 1 wherever its own variable is still available.
+///
+/// Three of changeMove's guards drop. No mask pool, an ordinal rule
+/// allocating no words. No stranding walk. And no interaction walk: that
+/// exists because a redrawn variable can strand a descendant SPLIT, and a nog
+/// node has none, so collectAvailableVariables's own interaction test at the
+/// node is the whole constraint.
+///
+/// Eligible nodes are the nog nodes whose own rule is ORDINAL. A categorical
+/// rule is a fixed point of this component - the restricted candidate set is
+/// still ancestor-determined, so the draw is a Gibbs step on the rule
+/// conditional on the rule being ordinal - and the move is inert on an
+/// all-categorical design, exactly as perturb is. The leaf model must carry
+/// the scan's scalar marginal and must not score against the leaf-parameter
+/// vector: the monotone leaf's branch score is a constrained joint over the
+/// touched leaves given frozen neighbours and NOT the sum of two unconstrained
+/// scan entries, and the variance forest's scale leaf has no such marginal at
+/// all. Both are a no-op here that consumes no draw.
+template <MoveScorableLeafModel L, typename ResidT = double>
+double ruleGibbsMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
+                     Tree& tree, const ResidT* y, double sigma,
+                     bool* stepTaken, int32_t* changedNode = nullptr) {
+  *stepTaken = false;
+
+  if constexpr (!ScannableLeafModel<L> || ParamScoringLeafModel<L>) {
+    (void)ctx;
+    (void)leaf;
+    (void)rng;
+    (void)tree;
+    (void)y;
+    (void)sigma;
+    (void)changedNode;
+    BARTCORE_CENSUS_NOOP("rule_gibbs", tree, invalidNode);
+    BARTCORE_CENSUS_GIBBS(0, 0, 0, -1);
+    return -1.0;
+  } else {
+    std::vector<int32_t>& eligible(ctx.scratch.nodeScratch);
+    eligible.clear();
+    tree.fillNoGrand(0, eligible);
+    size_t numEligible = 0;
+    for (int32_t i : eligible)
+      if (!ctx.data.splitsBySubset(
+            static_cast<size_t>(tree.at(i).rule.variableIndex)))
+        eligible[numEligible++] = i;
+    eligible.resize(numEligible);
+    if (eligible.empty()) {
+      BARTCORE_CENSUS_NOOP("rule_gibbs", tree, invalidNode);
+      BARTCORE_CENSUS_GIBBS(0, 0, 0, -1);
+      return -1.0;
+    }
+
+    size_t nodeNumber =
+      ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, eligible.size());
+    int32_t nodeToDraw = eligible[nodeNumber];
+    BARTCORE_CENSUS_SHAPE(tree, nodeToDraw);
+
+    std::size_t numScanned = 0;
+    int stratum = enumerateNogRuleNeighbourhood(ctx, leaf, tree, nodeToDraw, y,
+                                                sigma, &numScanned);
+    const std::vector<NogRuleCandidate>& candidates(ctx.scratch.candidates);
+    if (stratum < 0) {
+      // no admissible rule at all: only a column mask barring every variable
+      // the node could split on gets here, the incumbent otherwise being a
+      // candidate of its own
+      BARTCORE_CENSUS_NOOP("rule_gibbs", tree, nodeToDraw);
+      BARTCORE_CENSUS_GIBBS(numEligible, numScanned, candidates.size(),
+                            stratum);
+      return -1.0;
+    }
+
+    // one uniform over the stratum's normalized weights, max-shifted
+    double largest = -HUGE_VAL;
+    for (const NogRuleCandidate& candidate : candidates)
+      if (candidate.rank == stratum && candidate.logWeight > largest)
+        largest = candidate.logWeight;
+    double total = 0.0;
+    for (const NogRuleCandidate& candidate : candidates)
+      if (candidate.rank == stratum)
+        total += std::exp(candidate.logWeight - largest);
+
+    double cutoff = ext_rng_simulateContinuousUniform(rng) * total;
+    double running = 0.0;
+    const NogRuleCandidate* drawn = nullptr;
+    for (const NogRuleCandidate& candidate : candidates) {
+      if (candidate.rank != stratum) continue;
+      drawn = &candidate;  // the last stratum member takes any residual slack
+      running += std::exp(candidate.logWeight - largest);
+      if (running >= cutoff) break;
+    }
+
+    Rule newRule;
+    newRule.variableIndex = drawn->variableIndex;
+    newRule.setSplitIndex(drawn->splitIndex);
+    if (drawn->missingDirection >= 0) {
+      newRule.setMissingGoesRight(drawn->missingDirection == 1);
+    } else if (ctx.data.hasMissing[static_cast<size_t>(
+                 drawn->variableIndex)]) {
+      // the node routes no missing row, so the two directions carry the same
+      // collapsed weight and the direction is drawn from its own conditional:
+      // the fair coin the birth and change draws take on the same column
+      newRule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
+    }
+
+    tree.at(nodeToDraw).rule = newRule;
+    tree.refreshSubtree(ctx.data, nodeToDraw, y, ctx.weights);
+    *stepTaken = true;
+    if (changedNode != nullptr) *changedNode = nodeToDraw;
+
+    BARTCORE_CENSUS_PROPOSAL("rule_gibbs", false, true, std::nan(""),
+                             std::nan(""), std::nan(""));
+    BARTCORE_CENSUS_GIBBS(numEligible, numScanned, candidates.size(), stratum);
+    return 1.0;
+  }
+}
+
+enum class StepType { birth, death, swap, change, perturb, ruleGibbs };
 
 /// True when the move mixture proposes no structure at all: every structural
 /// probability is exactly zero, so the trees stand as they are and only the
@@ -1508,9 +1799,11 @@ enum class StepType { birth, death, swap, change, perturb };
 /// where it holds - the frozen path draws no uniform for the move choice.
 inline bool structureIsFrozen(double birthOrDeathProbability,
                               double swapProbability, double changeProbability,
-                              double perturbProbability) {
+                              double perturbProbability,
+                              double ruleGibbsProbability) {
   return birthOrDeathProbability == 0.0 && swapProbability == 0.0 &&
-         changeProbability == 0.0 && perturbProbability == 0.0;
+         changeProbability == 0.0 && perturbProbability == 0.0 &&
+         ruleGibbsProbability == 0.0;
 }
 
 /// changedNode, when non-null, receives the index of the node whose subtree an
@@ -1518,10 +1811,11 @@ inline bool structureIsFrozen(double birthOrDeathProbability,
 /// or perturbed subtree root); untouched on rejection or no-op, so gate reads
 /// on stepTaken.
 ///
-/// The perturb branch tests at birthOrDeath + swap + perturb and change stays
-/// the else, so at a perturb probability of exactly zero the added test IS the
-/// swap test in IEEE, fails wherever that one failed, and control reaches
-/// changeMove at the same stream position.
+/// The perturb branch tests at birthOrDeath + swap + perturb and the
+/// rule_gibbs branch at that sum plus rule_gibbs, with change left as the
+/// else, so at a probability of exactly zero each added test IS the test above
+/// it in IEEE, fails wherever that one failed, and control reaches changeMove
+/// at the same stream position.
 template <MoveScorableLeafModel L, typename ResidT = double>
 double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                              Tree& tree, const ResidT* y, double sigma,
@@ -1542,6 +1836,11 @@ double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng
                    ctx.perturbProbability) {
     alpha = perturbMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::perturb;
+  } else if (u < ctx.birthOrDeathProbability + ctx.swapProbability +
+                   ctx.perturbProbability + ctx.ruleGibbsProbability) {
+    alpha =
+      ruleGibbsMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
+    *stepType = StepType::ruleGibbs;
   } else {
     alpha = changeMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::change;

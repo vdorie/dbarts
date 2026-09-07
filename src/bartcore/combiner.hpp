@@ -142,6 +142,7 @@ struct Forest {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   bool updateK = false;
   ChiKHyperprior kHyperprior;
@@ -238,7 +239,7 @@ struct ForestStructureSpec {
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
-         birthProbability = 0.5;
+         ruleGibbsProbability = 0.0, birthProbability = 0.5;
   // optional split-variable restriction (borrowed 0-based column indices,
   // consumed at construction): the columns this forest may split on. Null or
   // count 0 leaves every column available - the default, byte-for-byte
@@ -377,7 +378,7 @@ struct MultinomialForestSpec {
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
-         birthProbability = 0.5;
+         ruleGibbsProbability = 0.0, birthProbability = 0.5;
 };
 
 /// The specification a multinomial (softmax) chain is built from: K symmetric

@@ -45,11 +45,12 @@
 #             kappa = 1, the primary benefit cell of the surface battery
 #
 # Beyond the per-proposal records the census has always taken, the build logs
-# four generator-only probes: the closed rule neighbourhood at a nog node
+# five generator-only probes: the closed rule neighbourhood at a nog node
 # (weight entropy, the incumbent's share and rank, both jointly over the
 # available variables and restricted to the incumbent's), the informed-death
 # weights over the nog nodes against the realized uniform pick, the perturb
-# proposal's signed displacement, and every tree's settled leaf count. Nothing
+# proposal's signed displacement, the rule_gibbs kernel's own cut-scan cost,
+# and every tree's settled leaf count. Nothing
 # there draws or changes a draw; the record format lives in moves.hpp.
 #
 # Usage:
@@ -58,8 +59,10 @@
 #   Rscript move-census.R summarize [dir]          summarize existing files
 # Append 'quick' for a smoke test (fewer sweeps, smaller n; not comparable).
 # Append 'perturb' to run the perturb-carrying mixture instead of the shipped
-# one, which is the only way the signed-displacement probe records anything;
-# it skips the bcf cell, whose treatment forest refuses the argument.
+# one, which is the only way the signed-displacement probe records anything, or
+# 'gibbs' for the rule_gibbs-carrying one, which is the only way the cut-scan
+# cost records anything; both skip the bcf cell, whose treatment forest refuses
+# the argument.
 #
 # One cell runs per R process, spawned by the run mode: the engine opens the
 # census file once, on the first record, so a second cell in the same process
@@ -75,6 +78,8 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 perturbing <- "perturb" %in% args
 args <- setdiff(args, "perturb")
+drawingRules <- "gibbs" %in% args
+args <- setdiff(args, "gibbs")
 modes <- c("run", "summarize", "runcell")
 mode <- if (length(args) >= 1L && args[[1L]] %in% modes) args[[1L]] else "both"
 args <- setdiff(args, modes)
@@ -122,12 +127,21 @@ genCausal <- function(n, p, sigma, strength) {
   list(x = x, z = z, y = mu + z * tau + rnorm(n, sd = sigma))
 }
 
-# The shipped mixture, or the perturb-carrying one the signed-displacement
-# probe needs: perturb never fires at its shipped zero, so the run-length
-# question cannot be asked of the default kernel at all.
+# The shipped mixture, or one of the two carrying a move that ships at zero:
+# neither perturb nor rule_gibbs ever fires at its shipped zero, so neither the
+# run-length question nor the cut-scan cost can be asked of the default kernel
+# at all.
 censusProposalProbs <- function() {
   if (perturbing) {
     c(birth_death = 0.5, swap = 0, change = 0.34, perturb = 0.16, birth = 0.5)
+  } else if (drawingRules) {
+    c(
+      birth_death = 0.5,
+      swap = 0,
+      change = 0.34,
+      rule_gibbs = 0.16,
+      birth = 0.5
+    )
   } else {
     c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)
   }
@@ -310,6 +324,16 @@ runNames <- c(
   "target",
   "accepted"
 )
+gibbsNames <- c(
+  "kind",
+  "sweep",
+  "forest",
+  "tree",
+  "eligible",
+  "scanned",
+  "candidates",
+  "stratum"
+)
 shapeNames <- c("kind", "sweep", "forest", "tree", "leaves", "interior", "nog")
 
 # an absent record kind is an empty frame with the right columns, not an
@@ -344,6 +368,7 @@ readCensus <- function(file) {
     nog = readRecords(lines[kind == "g"], nogNames),
     deaths = readRecords(lines[kind == "x"], deathNames),
     runs = readRecords(lines[kind == "r"], runNames),
+    gibbs = readRecords(lines[kind == "n"], gibbsNames),
     shapes = readRecords(lines[kind == "t"], shapeNames)
   )
 }
@@ -677,6 +702,40 @@ leafTable <- function(t) {
   )
 }
 
+# The rule_gibbs kernel's cost, which no other record carries: its own probe
+# rides changeMove, the branch a nonzero rule_gibbs share does not take. One
+# cut-scan unit is one scanOrdinalCuts pass over the chosen node's members, so
+# the move's cost per sweep is the eligible-node reach times the variables
+# scanned there, summed over the trees a sweep touches.
+gibbsCostTable <- function(g) {
+  if (nrow(g) == 0L) {
+    return(NULL)
+  }
+  by <- split(g, g$forest)
+  do.call(
+    rbind,
+    lapply(names(by), function(forest) {
+      f <- by[[forest]]
+      reached <- f[f$eligible > 0L & f$scanned > 0L, ]
+      data.frame(
+        forest = as.integer(forest),
+        proposals = nrow(f),
+        reach.pct = 100 * mean(f$eligible > 0L),
+        eligible = median(f$eligible),
+        scanned = if (nrow(reached) > 0L) median(reached$scanned) else NA,
+        candidates = if (nrow(reached) > 0L) {
+          median(reached$candidates)
+        } else {
+          NA
+        },
+        vetoed.pct = 100 * mean(f$stratum > 0L),
+        scans.per.sweep = sum(f$scanned) / length(unique(f$sweep)),
+        stringsAsFactors = FALSE
+      )
+    })
+  )
+}
+
 roundFrame <- function(x, digits = 3L) {
   numeric <- vapply(x, is.numeric, logical(1L))
   x[numeric] <- lapply(x[numeric], round, digits)
@@ -695,6 +754,7 @@ summarizeCell <- function(dir, cell) {
   g <- census$nog
   x <- census$deaths
   r <- census$runs
+  gibbs <- census$gibbs
   shapes <- census$shapes
   sampled <- p$sweep >= nBurn
   cat(
@@ -718,6 +778,7 @@ summarizeCell <- function(dir, cell) {
   g <- g[g$sweep >= nBurn, ]
   x <- x[x$sweep >= nBurn, ]
   r <- r[r$sweep >= nBurn, ]
+  gibbs <- gibbs[gibbs$sweep >= nBurn, ]
   shapes <- shapes[shapes$sweep >= nBurn, ]
 
   cat("\nper move, sampled sweeps:\n")
@@ -739,6 +800,8 @@ summarizeCell <- function(dir, cell) {
   print(roundFrame(continuationTable(r), 2L), row.names = FALSE)
   cat("\nperturb: streak extension by streak length so far:\n")
   print(roundFrame(runTable(r), 2L), row.names = FALSE)
+  cat("\nrule_gibbs: nodes reached and cut scans taken:\n")
+  print(roundFrame(gibbsCostTable(gibbs), 2L), row.names = FALSE)
   cat("\nleaves per tree:\n")
   print(roundFrame(leafTable(shapes), 2L), row.names = FALSE)
   invisible(NULL)
@@ -748,9 +811,10 @@ summarizeCell <- function(dir, cell) {
 
 selected <- if (length(cellArgs) > 0L) {
   intersect(names(cells), cellArgs)
-} else if (perturbing) {
-  # a treatment forest refuses a non-default 'proposal.probs' outright, so the
-  # perturb-carrying mixture cannot be put to the causal-forest cell at all
+} else if (perturbing || drawingRules) {
+  # a treatment forest refuses a non-default 'proposal.probs' outright, so a
+  # mixture carrying either zero-default move cannot be put to the
+  # causal-forest cell at all
   setdiff(names(cells), "bcf")
 } else {
   names(cells)
@@ -773,7 +837,8 @@ spawnCell <- function(dir, cell) {
       dir,
       cell,
       if (quick) "quick",
-      if (perturbing) "perturb"
+      if (perturbing) "perturb",
+      if (drawingRules) "gibbs"
     )
   )
   if (status != 0L) {

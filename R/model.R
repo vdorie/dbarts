@@ -1,25 +1,35 @@
-## The default tree-proposal mixture: P(birth/death), P(swap), P(change) and
-## P(perturb) select the structure move, and P(birth) splits birth vs. death
-## within a birth/death move. Swap ships at zero because at production forest
-## sizes it is nearly all no-op, but the move stays reachable: it alone rotates
-## a child's rule up the tree, which is how a single-tree fit crosses between
-## rootings. Perturb ships at zero pending its benefit measurement. One source
-## for the formal default, the is.null reset, and the all-NA fallbacks below.
+## The default tree-proposal mixture: P(birth/death), P(swap), P(change),
+## P(perturb) and P(rule_gibbs) select the structure move, and P(birth) splits
+## birth vs. death within a birth/death move. Swap ships at zero because at
+## production forest sizes it is nearly all no-op, but the move stays
+## reachable: it alone rotates a child's rule up the tree, which is how a
+## single-tree fit crosses between rootings. Perturb and rule_gibbs ship at
+## zero pending their benefit measurements. One source for the formal default,
+## the is.null reset, and the all-NA fallbacks below.
 defaultProposalProbs <- c(
   birth_death = 0.6,
   swap = 0,
   change = 0.4,
   perturb = 0,
+  rule_gibbs = 0,
   birth = 0.5
 )
 
+## The moves whose default is a NUMBER rather than a share of what is left:
+## they resolve ahead of the fill below and never enter it.
+zeroDefaultProposalNames <- c("perturb", "rule_gibbs")
+
 ## A caller vector that omits a move whose default is a number rather than a
 ## share still spells the default mixture, so any comparison against
-## `defaultProposalProbs` must fill that name before it reads NA and refuses a
-## documented spelling.
+## `defaultProposalProbs` must fill those names before it reads NA and refuses
+## a documented spelling.
 fillZeroDefaultProposalProbs <- function(probs) {
-  if (!is.null(probs) && is.na(probs["perturb"])) {
-    probs["perturb"] <- defaultProposalProbs[["perturb"]]
+  if (!is.null(probs)) {
+    for (name in zeroDefaultProposalNames) {
+      if (is.na(probs[name])) {
+        probs[name] <- defaultProposalProbs[[name]]
+      }
+    }
   }
   probs
 }
@@ -76,17 +86,26 @@ setMethod(
       proposal.probs <- defaultProposalProbs
     }
 
-    ## Perturb resolves AHEAD of the fill and never enters it. Its default
-    ## is a number rather than a share, so an unnamed one is zero and the
-    ## residual below is taken against 1 - perturb. Widening the fill's name
-    ## set instead would silently re-resolve every vector leaving two of the
-    ## widened set unnamed: c(birth_death = 0.5, change = 0.4) resolves swap
-    ## to 0.1 and would resolve perturb to it as well.
-    perturb <- proposal.probs["perturb"]
-    if (is.na(perturb)) {
-      perturb <- defaultProposalProbs["perturb"]
-    }
-    perturb <- perturb[[1L]]
+    ## Perturb and rule_gibbs resolve AHEAD of the fill and never enter it.
+    ## Their defaults are numbers rather than shares, so an unnamed one is
+    ## zero and the residual below is taken against 1 minus their sum.
+    ## Widening the fill's name set instead would silently re-resolve every
+    ## vector leaving two of the widened set unnamed:
+    ## c(birth_death = 0.5, change = 0.4) resolves swap to 0.1 and would
+    ## resolve the zero-default moves to it as well.
+    zeroDefaults <- vapply(
+      zeroDefaultProposalNames,
+      function(name) {
+        value <- proposal.probs[name]
+        if (is.na(value)) {
+          value <- defaultProposalProbs[name]
+        }
+        value[[1L]]
+      },
+      0.0
+    )
+    perturb <- zeroDefaults[["perturb"]]
+    rule_gibbs <- zeroDefaults[["rule_gibbs"]]
 
     ## The fill, over the three structural names. One unnamed element takes
     ## the residual. Two unnamed, one of them swap, resolve as well: swap is
@@ -97,37 +116,44 @@ setMethod(
     ## none of them is the default. No branch may leave an NA for a slot.
     ##
     ## The residual is a share of structural mass and an all-zero mixture has
-    ## none: with birth/death and change both named zero and perturb zero
-    ## there is nothing to distribute, so an unnamed swap keeps its zero
-    ## rather than taking the whole of it, and the mixture stays frozen - no
-    ## structural proposal is made at all. An unnamed birth/death or change
+    ## none: with birth/death and change both named zero and the zero-default
+    ## moves zero there is nothing to distribute, so an unnamed swap keeps its
+    ## zero rather than taking the whole of it, and the mixture stays frozen -
+    ## no structural proposal is made at all. An unnamed birth/death or change
     ## still takes the residual, so c(change = 0) is birth/death 1 as before.
+    zeroDefaultTotal <- sum(zeroDefaults)
     probs <- proposal.probs[c("birth_death", "swap", "change")]
     names(probs) <- c("birth_death", "swap", "change")
     unnamed <- is.na(probs)
-    if (all(unnamed) && perturb == 0) {
+    if (all(unnamed) && zeroDefaultTotal == 0) {
       probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
     } else if (unnamed[["birth_death"]] && unnamed[["change"]]) {
       stop(
-        "'proposal.probs' names only the zero-default moves 'swap' and ",
-        "'perturb'; name at least one of 'birth_death' and 'change'"
+        "'proposal.probs' names only the zero-default moves 'swap', ",
+        "'perturb' and 'rule_gibbs'; name at least one of 'birth_death' ",
+        "and 'change'"
       )
     } else {
       if (sum(unnamed) == 2L) {
         probs[["swap"]] <- 0
       }
       named <- probs[!is.na(probs)]
-      frozen <- perturb == 0 &&
+      frozen <- zeroDefaultTotal == 0 &&
         !unnamed[["birth_death"]] &&
         !unnamed[["change"]] &&
         all(named == 0)
-      probs[is.na(probs)] <- if (frozen) 0 else 1 - (perturb + sum(named))
+      probs[is.na(probs)] <- if (frozen) {
+        0
+      } else {
+        1 - (zeroDefaultTotal + sum(named))
+      }
     }
 
     .Object@p.birth_death <- probs[["birth_death"]]
     .Object@p.swap <- probs[["swap"]]
     .Object@p.change <- probs[["change"]]
     .Object@p.perturb <- perturb
+    .Object@p.rule_gibbs <- rule_gibbs
 
     probs <- proposal.probs["birth"]
     if (is.na(probs)) {

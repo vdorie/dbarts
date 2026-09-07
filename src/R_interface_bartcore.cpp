@@ -299,6 +299,7 @@ struct ParsedModel {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
   // the model's prior.scale slot: the NAMED leaf calibration in response
@@ -1360,11 +1361,17 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "probability of perturb rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  // all four exactly zero is the frozen mixture: no structural proposal is
+  REPROTECT_SLOT(slotExpr, modelExpr, "p.rule_gibbs", slotIndex);
+  model.ruleGibbsProbability = rc_getDouble(
+    slotExpr, "probability of rule_gibbs rule", RC_LENGTH | RC_EQ,
+    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+
+  // all five exactly zero is the frozen mixture: no structural proposal is
   // made and the tree structures stand, so there is no share to normalize
   const double structuralProbability =
     model.birthOrDeathProbability + model.swapProbability +
-    model.changeProbability + model.perturbProbability;
+    model.changeProbability + model.perturbProbability +
+    model.ruleGibbsProbability;
   if (structuralProbability != 0.0 &&
       std::fabs(structuralProbability - 1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
@@ -1660,10 +1667,10 @@ void printInitialSummary(const ParsedControl& control,
              control.useQuantiles ? "true" : "false");
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
-    "perturb %.2f; birth %.2f\n",
+    "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",
     model.birthOrDeathProbability, model.swapProbability,
     model.changeProbability, model.perturbProbability,
-    model.birthProbability);
+    model.ruleGibbsProbability, model.birthProbability);
 
   ext_printf("data:\n");
   ext_printf("\tnumber of training observations: %lu\n",
@@ -1982,6 +1989,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.swapProbability = model.swapProbability;
   options.changeProbability = model.changeProbability;
   options.perturbProbability = model.perturbProbability;
+  options.ruleGibbsProbability = model.ruleGibbsProbability;
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
   options.useQuantiles = control.useQuantiles;
@@ -2498,6 +2506,7 @@ void refuseUnsupportedAmplitudeComposition(
   else if (model.birthOrDeathProbability != 0.6 ||
            model.swapProbability != 0.0 || model.changeProbability != 0.4 ||
            model.perturbProbability != 0.0 ||
+           model.ruleGibbsProbability != 0.0 ||
            model.birthProbability != 0.5)
     offender = "non-default proposal probabilities";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
@@ -3520,6 +3529,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.swapProbability = model.swapProbability;
   spec.forest.changeProbability = model.changeProbability;
   spec.forest.perturbProbability = model.perturbProbability;
+  spec.forest.ruleGibbsProbability = model.ruleGibbsProbability;
   spec.forest.birthProbability = model.birthProbability;
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
@@ -5186,6 +5196,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
     parameters.swapProbability = model.swapProbability;
     parameters.changeProbability = model.changeProbability;
     parameters.perturbProbability = model.perturbProbability;
+    parameters.ruleGibbsProbability = model.ruleGibbsProbability;
     parameters.birthProbability = model.birthProbability;
     parameters.nodeScale = model.nodeScale;
     // carried so the install re-derives the named calibration against the

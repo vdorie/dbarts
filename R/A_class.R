@@ -387,6 +387,7 @@ methods::setClass(
     p.swap = "numeric",
     p.change = "numeric",
     p.perturb = "numeric",
+    p.rule_gibbs = "numeric",
 
     p.birth = "numeric",
 
@@ -410,6 +411,7 @@ methods::setClass(
     p.swap = 0.0,
     p.change = 0.0,
     p.perturb = 0.0,
+    p.rule_gibbs = 0.0,
     p.birth = 0.5,
     node.scale = 0.5,
     prior.scale = NA_real_,
@@ -425,12 +427,13 @@ methods::setValidity("dbartsModel", function(object) {
     object@p.birth_death,
     object@p.swap,
     object@p.change,
-    object@p.perturb
+    object@p.perturb,
+    object@p.rule_gibbs
   )
   if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) {
     return("rule proposal probabilities must be in [0, 1]")
   }
-  # all four exactly zero is the frozen mixture: no structural proposal is
+  # all five exactly zero is the frozen mixture: no structural proposal is
   # made, so there is no share to normalize
   if (
     sum(proposalProbs) != 0.0 &&

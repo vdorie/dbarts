@@ -18,6 +18,7 @@ monotoneOf <- function(...) {
     p.swap = sampler$model@p.swap,
     p.change = sampler$model@p.change,
     p.perturb = sampler$model@p.perturb,
+    p.rule_gibbs = sampler$model@p.rule_gibbs,
     k = sampler$model@node.hyperprior
   )
 }
@@ -65,6 +66,7 @@ expect_equal(forced$p.birth_death, 1)
 expect_equal(forced$p.swap, 0)
 expect_equal(forced$p.change, 0)
 expect_equal(forced$p.perturb, 0)
+expect_equal(forced$p.rule_gibbs, 0)
 expect_inherits(forced$k, "dbartsFixedHyperprior")
 expect_equal(forced$k@k, 2)
 

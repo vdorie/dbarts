@@ -6729,14 +6729,16 @@ static void testFitsWithoutOffset() {
   printf("ok: fitsWithoutOffset (scale %.4f)\n", sampler.fitScale());
 }
 
-// The frozen mixture: all four structural probabilities exactly zero, so no
+// The frozen mixture: all five structural probabilities exactly zero, so no
 // move is proposed and the trees stand at whatever structure they were left
 // with while the leaf values and sigma keep being drawn.
 static void testFrozenForest() {
-  check(structureIsFrozen(0.0, 0.0, 0.0, 0.0), "all-zero is frozen");
-  check(!structureIsFrozen(0.6, 0.0, 0.4, 0.0), "the shipped mixture is not");
-  check(!structureIsFrozen(0.0, 0.0, 1.0, 0.0), "change-only is not");
-  check(!structureIsFrozen(0.0, 0.0, 0.0, 1.0), "perturb-only is not");
+  check(structureIsFrozen(0.0, 0.0, 0.0, 0.0, 0.0), "all-zero is frozen");
+  check(!structureIsFrozen(0.6, 0.0, 0.4, 0.0, 0.0),
+        "the shipped mixture is not");
+  check(!structureIsFrozen(0.0, 0.0, 1.0, 0.0, 0.0), "change-only is not");
+  check(!structureIsFrozen(0.0, 0.0, 0.0, 1.0, 0.0), "perturb-only is not");
+  check(!structureIsFrozen(0.0, 0.0, 0.0, 0.0, 1.0), "rule_gibbs-only is not");
 
   const size_t n = 200, p = 2, numTrees = 10;
   std::vector<double> x, y;
@@ -6777,6 +6779,7 @@ static void testFrozenForest() {
   model.swapProbability = 0.0;
   model.changeProbability = 0.0;
   model.perturbProbability = 0.0;
+  model.ruleGibbsProbability = 0.0;
   model.sigmaEstimate = 1.0;
   model.sigmaDf = 3.0;
   model.sigmaRawScale = 0.37804942330213542;

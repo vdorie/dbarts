@@ -994,7 +994,7 @@ static void testEmptyLeafVetoCountsWeight() {
   check(tree.at(left).sumWeights == 0.0,
         "veto fixture: the zero-weight leaf holds no weight");
 
-  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.0, 0.5,
+  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.0, 0.0, 0.5,
                       zeroed.data(), k,   scratch};
   BranchScore zeroScore =
     logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma);
@@ -1004,7 +1004,7 @@ static void testEmptyLeafVetoCountsWeight() {
         "the vetoed branch's finite part skips the vetoed leaf");
 
   buildSplit(positive.data());
-  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.0, 0.5,
+  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.0, 0.0, 0.5,
                           positive.data(), k,     scratch};
   BranchScore positiveScore =
     logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma);
@@ -1015,7 +1015,8 @@ static void testEmptyLeafVetoCountsWeight() {
   // bitwise the sum of its leaves' marginals, and the veto there is still the
   // member count
   buildSplit(nullptr);
-  MoveContext nullCtx{store, prior, 0.5, 0.1, 0.0, 0.5, nullptr, k, scratch};
+  MoveContext nullCtx{store,   prior, 0.5, 0.1, 0.0, 0.0, 0.5,
+                      nullptr, k,     scratch};
   std::vector<int32_t> bottoms;
   tree.fillBottom(0, bottoms);
   double reference = 0.0;
@@ -1045,7 +1046,7 @@ static void testEmptyLeafVetoCountsWeight() {
   auto driveChain = [&](const double* weights) {
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), weights);
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.0, 0.5, weights, k, scratch};
     size_t violations = 0, accepted = 0;
     for (int iter = 0; iter < 4000; ++iter) {
       bool stepTaken = false;
@@ -1120,7 +1121,8 @@ static void testVetoRankUnfreezesStrandedTree() {
     ext_rng_setSeed(rng, seed);
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), ones.data());
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, ones.data(), k, scratch};
+    MoveContext ctx{store,       prior, 0.5, 0.1, 0.0, 0.0, 0.5,
+                    ones.data(), k,     scratch};
     for (int iter = 0; iter < 3000; ++iter) {
       bool stepTaken = false;
       StepType stepType;
@@ -1146,7 +1148,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     int absorbed = -1;  // first sweep at which no leaf is vetoed
   };
   auto drive = [&](const double* weights, int iterations) {
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.0, 0.5, weights, k, scratch};
     Driven driven;
     std::uint64_t signature = treeStructureSignature(tree);
     std::vector<int32_t> bottoms;
@@ -1323,7 +1325,7 @@ static void testEqualRankOneComparison() {
           tree.leafVetoRank(leftChild + 1, zeros.data()) == 1,
         "equal-rank fixture: both children are weight-vetoed, neither empty");
 
-  MoveContext ctx{store,        growPrior, 1.0, 0.0, 0.0, 0.5,
+  MoveContext ctx{store,        growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                   zeros.data(), k,         scratch};
   BranchScore splitScore =
     logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
@@ -1368,7 +1370,7 @@ static void testEqualRankOneComparison() {
                       double leafSigma, double leafK) {
     ext_rng_setSeed(rng, 20260819u);
     buildRoot();
-    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.0, 0.5,
+    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                        zeros.data(), leafK,     scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
@@ -1396,7 +1398,7 @@ static void testEqualRankOneComparison() {
   auto runDeath = [&](const auto& leafModel) {
     ext_rng_setSeed(rng, 20260820u);
     buildSplit();
-    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.0, 0.5,
+    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                        zeros.data(), k,          scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, y.data(), sigma,
@@ -1415,7 +1417,7 @@ static void testEqualRankOneComparison() {
   // acceptance is the equal-rank-1 likelihood by itself
   ext_rng_setSeed(rng, 20260821u);
   buildSplit();
-  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0, 0.0,
+  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0, 0.0, 0.0,
                         zeros.data(), k,         scratch};
   bool changeTaken = false;
   double changeAlpha = changeMove(changeCtx, constant, rng, tree, y.data(),
@@ -1772,8 +1774,8 @@ static void testMoveValidityPredicates() {
   // and the same through the dispatcher, which reads the interval itself
   MoveScratch scratch;
   CGMTreePrior prior;
-  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.0, 0.5, nullptr, 2.0,
-                         scratch};
+  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.0, 0.0, 0.5,
+                         nullptr,      2.0,   scratch};
   check(ruleIsValid(ordinalCtx, tree, 0, 0),
         "ruleIsValid accepts the well-formed ordinal subtree");
   tree.at(left).rule.setSplitIndex(60);  // outside [0, 48]
@@ -1813,7 +1815,7 @@ static void testMoveValidityPredicates() {
         "a mask reaching outside the reachable set is not");
 
   categoricalValid(0x3u);
-  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.0, 0.5,
+  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.0, 0.0, 0.5,
                              nullptr, 2.0, scratch};
   check(ruleIsValid(categoricalCtx, categoricalTree, 0, 0),
         "ruleIsValid accepts the well-formed categorical subtree");
@@ -1874,7 +1876,8 @@ static void testPerturbMove() {
   split(middle, 0, 3);
   split(tree.at(middle).leftChild, 0, 1);
 
-  MoveContext ctx{store, prior, 0.0, 0.0, 1.0, 0.5, ones.data(), 2.0, scratch};
+  MoveContext ctx{store,       prior, 0.0, 0.0, 1.0, 0.0, 0.5,
+                  ones.data(), 2.0,   scratch};
   int32_t lower, upper;
   findGoodOrdinalRules(ctx, tree, middle, 0, &lower, &upper);
   check(lower == 2 && upper == 5,
@@ -1991,8 +1994,9 @@ static void testPerturbMove() {
   categoricalRule.setCategoryDirections(0x3u);
   categoricalTree.birth(categoricalStore, 0, categoricalRule, y.data(),
                         ones.data());
-  MoveContext categoricalCtx{categoricalStore, prior, 0.0,         0.0, 1.0,
-                             0.5,              ones.data(), 2.0,   scratch};
+  MoveContext categoricalCtx{categoricalStore, prior,       0.0, 0.0, 1.0,
+                             0.0,              0.5,         ones.data(), 2.0,
+                             scratch};
   ext_rng* categoricalRng =
     ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(categoricalRng, 20260908u);
@@ -2007,6 +2011,297 @@ static void testPerturbMove() {
   printf("ok: perturb move (interval invariance over %d installed rules, "
          "%d of 400 proposals accepted, longest displacement %d)\n",
          upper - lower + 1, accepted, longest);
+}
+
+
+// ---------------------------------------------------------------------------
+// The rule-Gibbs move: an exact draw of the split rule at a nog node.
+//
+// Four claims. FIRST, the neighbourhood identity: the kernel's own log weights
+// must agree, candidate for candidate, with a reference assembly that installs
+// each rule, refreshes the subtree and reads CGMTreePrior and
+// logLikelihoodForBranch directly - the same (rank, log-likelihood) pair the
+// acceptance would have compared. SECOND, the veto's law rather than the scan's
+// occupancy sentinel: under a weight vector that strands one side of a cut, the
+// candidate carries rank 1 and the surviving side's marginal, and the draw runs
+// over the rank-0 stratum alone. THIRD, closure: the enumeration reads ancestors
+// only, so installing any candidate at the node leaves the candidate set where
+// it was, which is what lets the draw skip a reverse count. FOURTH, the draw
+// itself: at a one-split tree the conditional is fixed and enumerable, so the
+// realized frequencies over a long walk must match it.
+// ---------------------------------------------------------------------------
+static void testRuleGibbsMove() {
+  const size_t n = 240, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 8) / 8.0;
+    x[i + n] = static_cast<double>((i / 8) % 8) / 8.0;
+    y[i] = 0.3 * x[i] - 0.25 * x[i + n] + 0.05 * static_cast<double>(i % 5);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 4u, false));
+  check(store.numCuts[0] == 4 && store.numCuts[1] == 4,
+        "rule_gibbs fixture: four cuts per ordinal column");
+
+  std::vector<double> ones(n, 1.0);
+  MoveScratch scratch;
+  CGMTreePrior prior;
+  ConstantGaussianLeaf constant{0.7};
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), ones.data());
+  Rule rootRule;
+  rootRule.variableIndex = 0;
+  rootRule.setSplitIndex(1);
+  tree.birth(store, 0, rootRule, y.data(), ones.data());
+  check(tree.childrenAreBottom(0), "the fixture's root is a nog node");
+
+  MoveContext ctx{store,       prior, 0.0, 0.0, 0.0, 1.0, 0.5,
+                  ones.data(), 2.0,   scratch};
+  const double sigma = 1.0;
+
+  // the reference assembly, candidate by candidate: the node's own prior
+  // factors, the prior strictly below it and the branch's veto-ranked score,
+  // read off the tree with the candidate installed
+  auto reference = [&](const MoveContext& context, std::vector<int>* ranks) {
+    std::vector<double> out;
+    int32_t leftChild = tree.at(0).leftChild;
+    Rule incumbent = tree.at(0).rule;
+    Tree::SubtreeSnapshot snapshot;
+    for (const NogRuleCandidate& candidate : scratch.candidates) {
+      tree.snapshotSubtree(0, snapshot);
+      Rule rule;
+      rule.variableIndex = candidate.variableIndex;
+      rule.setSplitIndex(candidate.splitIndex);
+      if (candidate.missingDirection >= 0)
+        rule.setMissingGoesRight(candidate.missingDirection == 1);
+      tree.at(0).rule = rule;
+      tree.refreshSubtree(store, 0, y.data(), context.weights);
+      BranchScore score =
+        logLikelihoodForBranch(context, constant, tree, 0, y.data(), sigma);
+      out.push_back(prior.splitVariableLogProbability(tree, store, 0) +
+                    prior.ruleForVariableLogProbability(tree, store, 0) +
+                    prior.treeLogProbability(tree, store, leftChild) +
+                    prior.treeLogProbability(tree, store, leftChild + 1) +
+                    score.logLikelihood);
+      if (ranks != nullptr) ranks->push_back(score.rank);
+      tree.restoreSubtree(snapshot);
+      tree.at(0).rule = incumbent;
+    }
+    return out;
+  };
+
+  // normalized over one rank stratum, which is what the draw runs over
+  auto normalize = [&](const std::vector<double>& logWeight, int stratum) {
+    std::vector<double> out(logWeight.size(), 0.0);
+    double largest = -HUGE_VAL, total = 0.0;
+    for (size_t i = 0; i < logWeight.size(); ++i)
+      if (scratch.candidates[i].rank == stratum && logWeight[i] > largest)
+        largest = logWeight[i];
+    for (size_t i = 0; i < logWeight.size(); ++i)
+      if (scratch.candidates[i].rank == stratum)
+        total += std::exp(logWeight[i] - largest);
+    for (size_t i = 0; i < logWeight.size(); ++i)
+      if (scratch.candidates[i].rank == stratum)
+        out[i] = std::exp(logWeight[i] - largest) / total;
+    return out;
+  };
+
+  // ---- the neighbourhood identity ----
+  int stratum = enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(),
+                                              sigma);
+  check(stratum == 0, "with every member weighted the stratum is rank 0");
+  check(scratch.candidates.size() == 8,
+        "two variables at four cuts each, none of them occupancy-empty");
+
+  std::vector<int> referenceRanks;
+  std::vector<double> referenceWeight = reference(ctx, &referenceRanks);
+  std::vector<double> kernelWeight;
+  for (const NogRuleCandidate& candidate : scratch.candidates)
+    kernelWeight.push_back(candidate.logWeight);
+  std::vector<double> kernelProbability = normalize(kernelWeight, stratum);
+  std::vector<double> referenceProbability = normalize(referenceWeight, stratum);
+  double worstIdentity = 0.0;
+  bool ranksAgree = true;
+  for (size_t i = 0; i < kernelWeight.size(); ++i) {
+    double gap =
+      std::fabs(kernelProbability[i] - referenceProbability[i]);
+    if (gap > worstIdentity) worstIdentity = gap;
+    ranksAgree &= referenceRanks[i] == scratch.candidates[i].rank;
+  }
+  check(ranksAgree,
+        "every candidate's scan rank is logLikelihoodForBranch's branch rank");
+  check(worstIdentity < 1e-12,
+        "the kernel's normalized weights are the reference assembly's");
+
+  // ---- closure: the candidate set does not read the node's own rule ----
+  std::vector<NogRuleCandidate> fromIncumbent(scratch.candidates);
+  Rule other;
+  other.variableIndex = 1;
+  other.setSplitIndex(2);
+  tree.at(0).rule = other;
+  tree.refreshSubtree(store, 0, y.data(), ctx.weights);
+  enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
+  bool sameSet = fromIncumbent.size() == scratch.candidates.size();
+  double worstWeightGap = 0.0;
+  for (size_t i = 0; sameSet && i < fromIncumbent.size(); ++i) {
+    sameSet &= fromIncumbent[i].variableIndex ==
+                 scratch.candidates[i].variableIndex &&
+               fromIncumbent[i].splitIndex == scratch.candidates[i].splitIndex &&
+               fromIncumbent[i].rank == scratch.candidates[i].rank;
+    double gap = std::fabs(fromIncumbent[i].logWeight -
+                           scratch.candidates[i].logWeight);
+    if (gap > worstWeightGap) worstWeightGap = gap;
+  }
+  check(sameSet && worstWeightGap < 1e-9,
+        "the neighbourhood is the same from every state in it");
+  tree.at(0).rule = rootRule;
+  tree.refreshSubtree(store, 0, y.data(), ctx.weights);
+
+  // ---- the veto's law, where the scan's occupancy test disagrees ----
+  // zeroing every member of the first bin leaves the cut at index 0 a left
+  // side holding members but no weight: rank 1, not the sentinel's nothing,
+  // and its right side's marginal is the branch's whole score
+  std::vector<double> masked(ones);
+  for (size_t i = 0; i < n; ++i)
+    if (store.codeAt(0, i) == 0) masked[i] = 0.0;
+  MoveContext maskedCtx{store,         prior, 0.0, 0.0, 0.0, 1.0, 0.5,
+                        masked.data(), 2.0,   scratch};
+  tree.refreshSubtree(store, 0, y.data(), maskedCtx.weights);
+  int maskedStratum = enumerateNogRuleNeighbourhood(maskedCtx, constant, tree, 0,
+                                                    y.data(), sigma);
+  check(maskedStratum == 0, "the stratum is still the incumbent's rank 0");
+  int rankOneCandidates = 0;
+  for (const NogRuleCandidate& candidate : scratch.candidates)
+    if (candidate.rank == 1) ++rankOneCandidates;
+  check(rankOneCandidates == 1,
+        "the stranded cut is enumerated at rank 1 rather than dropped");
+  std::vector<int> maskedReferenceRanks;
+  std::vector<double> maskedReference =
+    reference(maskedCtx, &maskedReferenceRanks);
+  bool maskedRanksAgree = true;
+  double worstMaskedGap = 0.0;
+  for (size_t i = 0; i < scratch.candidates.size(); ++i) {
+    maskedRanksAgree &=
+      maskedReferenceRanks[i] == scratch.candidates[i].rank;
+    double gap = std::fabs((maskedReference[i] - maskedReference[0]) -
+                           (scratch.candidates[i].logWeight -
+                            scratch.candidates[0].logWeight));
+    if (gap > worstMaskedGap) worstMaskedGap = gap;
+  }
+  check(maskedRanksAgree,
+        "a stranded side's rank is the branch rank at every candidate");
+  check(worstMaskedGap < 1e-12,
+        "a rank-1 candidate's weight is its rank-0 side's marginal");
+  tree.refreshSubtree(store, 0, y.data(), ctx.weights);
+
+  // ---- the draw: a fixed conditional, and the frequencies that match it ----
+  // the tree keeps its shape and its member set, so the conditional does not
+  // move between steps and the walk is an iid sample from it
+  enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
+  std::vector<double> expected = normalize(reference(ctx, nullptr), 0);
+  std::vector<NogRuleCandidate> states(scratch.candidates);
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260907u);
+  const int numSteps = 8000;
+  std::vector<int> counts(states.size(), 0);
+  bool dispatchedGibbs = true, shapePreserved = true, alwaysAccepts = true;
+  for (int step = 0; step < numSteps; ++step) {
+    bool stepTaken = false;
+    StepType stepType = StepType::change;
+    double alpha = metropolisJumpForTree(ctx, constant, rng, tree, y.data(),
+                                         sigma, &stepTaken, &stepType);
+    dispatchedGibbs &= stepType == StepType::ruleGibbs;
+    alwaysAccepts &= alpha == 1.0 && stepTaken;
+    shapePreserved &= tree.childrenAreBottom(0);
+    const Rule& settled(tree.at(0).rule);
+    for (size_t i = 0; i < states.size(); ++i)
+      if (states[i].variableIndex == settled.variableIndex &&
+          states[i].splitIndex == settled.splitIndex())
+        ++counts[i];
+  }
+  ext_rng_destroy(rng);
+  check(dispatchedGibbs,
+        "the dispatch reaches ruleGibbsMove at a rule_gibbs probability of one");
+  check(alwaysAccepts, "the draw is exact: every step is taken at alpha 1");
+  check(shapePreserved, "the draw preserves the node's shape");
+
+  double chiSquare = 0.0;
+  int drawn = 0;
+  for (size_t i = 0; i < states.size(); ++i) {
+    double expectedCount = expected[i] * static_cast<double>(numSteps);
+    double residual = static_cast<double>(counts[i]) - expectedCount;
+    chiSquare += residual * residual / expectedCount;
+    drawn += counts[i] > 0 ? 1 : 0;
+  }
+  // 7 degrees of freedom at alpha = 0.001. The fixture's signal is weak on
+  // purpose, so every state carries at least a tenth of the mass and no cell
+  // is pooled; the conditional still spreads 0.107 to 0.143, and the same
+  // counts scored against a uniform draw sit at 88, so the cell has power
+  // over the weights it is asserting
+  check(drawn == static_cast<int>(states.size()),
+        "the walk visits every candidate the conditional gives mass");
+  check(chiSquare < 24.322,
+        "the realized frequencies match the enumerated conditional");
+
+  // ---- an all-categorical design offers no eligible node, and draws ----
+  ColumnKind type = ColumnKind::categorical;
+  std::vector<double> xCategorical(n);
+  for (size_t i = 0; i < n; ++i)
+    xCategorical[i] = static_cast<double>(i % 4);
+  ColumnStore categoricalStore;
+  PredictorSource source =
+    densePredictorSource(xCategorical.data(), n, 1, &type);
+  built(categoricalStore.build(source, nullptr, 100, false));
+
+  Tree categoricalTree;
+  categoricalTree.initialize(indexBuffer.data(), n);
+  categoricalTree.computeLeafStats(0, y.data(), ones.data());
+  Rule categoricalRule;
+  categoricalRule.variableIndex = 0;
+  categoricalRule.setCategoryDirections(0x3u);
+  categoricalTree.birth(categoricalStore, 0, categoricalRule, y.data(),
+                        ones.data());
+  MoveContext categoricalCtx{categoricalStore, prior, 0.0, 0.0, 0.0, 1.0, 0.5,
+                             ones.data(),      2.0,   scratch};
+  ext_rng* categoricalRng =
+    ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(categoricalRng, 20260908u);
+  bool categoricalStepTaken = true;
+  double categoricalAlpha =
+    ruleGibbsMove(categoricalCtx, constant, categoricalRng, categoricalTree,
+                  y.data(), sigma, &categoricalStepTaken);
+  // the scale leaf carries no scalar marginal for the scan and the monotone
+  // leaf scores against the leaf-parameter vector rather than integrating,
+  // so neither may run this move at all
+  ConstantVarianceLeaf variance;
+  bool varianceStepTaken = true;
+  double varianceAlpha =
+    ruleGibbsMove(categoricalCtx, variance, categoricalRng, categoricalTree,
+                  y.data(), sigma, &varianceStepTaken);
+  double afterNoops = ext_rng_simulateContinuousUniform(categoricalRng);
+  ext_rng_destroy(categoricalRng);
+  ext_rng* freshRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(freshRng, 20260908u);
+  double untouched = ext_rng_simulateContinuousUniform(freshRng);
+  ext_rng_destroy(freshRng);
+  check(categoricalAlpha == -1.0 && !categoricalStepTaken,
+        "an all-categorical tree offers rule_gibbs no eligible node");
+  check(varianceAlpha == -1.0 && !varianceStepTaken,
+        "a leaf model the scan cannot score is a no-op");
+  check(afterNoops == untouched, "neither no-op consumes a draw");
+  static_assert(!ScannableLeafModel<ConstantVarianceLeaf>,
+                "the variance forest's scale leaf carries no scan marginal");
+  static_assert(ScannableLeafModel<MonotoneConstantGaussianLeaf> &&
+                  ParamScoringLeafModel<MonotoneConstantGaussianLeaf>,
+                "the monotone leaf is excluded on the scoring conjunct, not "
+                "the scan predicate");
+
+  printf("ok: rule_gibbs move (%d candidates, identity %.2e, chi-square %.2f "
+         "over %d draws)\n",
+         static_cast<int>(states.size()), worstIdentity, chiSquare, numSteps);
 }
 
 void runMovesTests(ext_rng* rng) {
@@ -2035,4 +2330,5 @@ void runMovesTests(ext_rng* rng) {
   testEqualRankOneComparison();
   testMoveValidityPredicates();
   testPerturbMove();
+  testRuleGibbsMove();
 }
