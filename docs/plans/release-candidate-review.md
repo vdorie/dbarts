@@ -554,6 +554,25 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Generator-only move-census probes for the round's falsifiers (8bf40fc8, 2026-09-07)
+
+The nog-node rule neighbourhood, informed death's weight vector, perturb's
+signed displacement, and every tree's settled leaf count - the two
+brainstorm rounds' one-day falsifiers - now compute, log and restore under
+-DBARTCORE_MOVE_CENSUS; the default build compiles none of it and the
+existing p/d records are byte-identical before and after, 208126 lines. The
+runner grows a c1 cell (He-Hahn independent design, n = 10000, p = 30,
+Trig+poly, kappa = 1) and a perturb-carrying mixture arm. Findings: the nog
+Gibbs step has least to buy at lownoise and most at c1; informed death is a
+point mass everywhere, nothing left to inform; perturb's accepted
+displacements anti-correlate (36.6-43.1 percent same-direction against a 50
+percent null), so a lift would lose; c1 is the loosest cell on structural
+acceptance yet keeps a minimum ESS of 2, elevating 16.3 row 1's
+frozen-structure test over a structural-acceptance account. Records:
+tree-mixing-proposals.md sec 6.1's third addendum, secs 15.3 and 16.3's
+refutation cells, sec 16.4. Gates: default build bitwise; tests/cpp 279,
+tinytest 7605, equivalence trio 50-12-11, all green.
+
 ### perturb-balance.R: the detailed-balance gate for the perturb move (30472110, 2026-09-07)
 
 Slice 2 of docs/design/perturb-move.md. A prior-only arm installs an all-zero

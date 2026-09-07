@@ -1713,6 +1713,144 @@ figures in every cell, `bcf`'s birth taking more of the gain than death only
 because its two forests already carried different tree counts (75 against
 50), not because the kernel changed.
 
+**Addendum (2026-09-07): the generator-only probes.** Four measurements the
+two proposal-brainstorm rounds named as their one-day falsifiers -
+[15.3 Cross-lens ranking](#153-cross-lens-ranking) rows 1 to 3 and
+[16.3 Ranking](#163-ranking) row 2 - are now taken, all generator-only:
+nothing draws, nothing changes the RNG stream, and every hook computes, logs
+and restores. [`census::nogProbe`](../../src/bartcore/moves.hpp) rides
+`changeMove`'s target node and prices the closed rule neighbourhood a
+collapsed Gibbs draw would score there - every (available ordinal variable,
+admissible cut) pair weighted by the cut scan's collapsed marginal, the
+node's own rule prior `1/|SI|` and the two `log(1 - growth(child))` terms
+that are exactly `changeMove`'s below-node prior, the split-variable factor
+itself cancelling since it is uniform over the available set - and logs the
+weight entropy, the incumbent's share and its rank, both jointly over the
+available variables and restricted to the incumbent's own.
+[`census::deathProbe`](../../src/bartcore/moves.hpp) rides
+`birthOrDeathMove`'s death branch and weighs every nog node by the
+merged-leaf marginal ratio against the uniform pick the kernel actually
+made. [`census::perturbProbe`](../../src/bartcore/moves.hpp) logs the
+perturb move's node and its signed displacement (target minus current), and
+[`census::treeShape`](../../src/bartcore/moves.hpp), hooked at both forest
+sweep loops in [chain.hpp](../../src/bartcore/chain.hpp), logs every tree's
+settled leaf count once its move has settled. All four compile only under
+`-DBARTCORE_MOVE_CENSUS`; the default build carries none of it, and the
+existing `p` and `d` records are byte-identical before and after the
+instrumentation, 208126 lines.
+
+The runner grows a fifth cell, `c1`: the He and Hahn independent design at
+n = 10000, p = 30, Trig+poly, kappa = 1, 75 trees
+([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)),
+the surface battery's primary-benefit cell, at the same 200 burn plus 500
+sampled sweeps, one chain. It ran twice: once at the shipped mixture
+(birth_death 0.6, change 0.4), which is what the nog, death and shape
+tables below read, and once under
+[`censusProposalProbs`](../../benchmarks/R/move-census.R)'s
+perturb-carrying mixture (birth_death 0.5, change 0.34, perturb 0.16) - the
+only way a signed displacement is ever recorded, since perturb never fires
+at its shipped zero - which the perturb table reads; `bcf`'s treatment
+forest refuses a non-default `proposal.probs` outright, so it has no
+perturb row. The `default` cell reproduces the second 2026-09-07 addendum's
+per-move table exactly.
+
+Closed rule neighbourhood at a nog node, sampled sweeps only (`nog%` the
+share of interior nodes that are nog, `target-nog%` the share of change
+proposals landing on one, `H` the median weight entropy in nats, `P(inc)`
+the median incumbent probability under the normalized weights, `top%` the
+share of nog proposals where the incumbent already holds the top weight;
+"joint" ranges over the available variables and their cuts, "cut" over the
+incumbent variable's cuts alone):
+
+    cell        nog%  target-nog%   joint H  P(inc)  top%   cut H  P(inc)  top%
+    default     57.6      71.9        0.911  0.361   50.4   0.894  0.379   52.0
+    lownoise    48.5      62.7        0.334  0.737   60.1   0.328  0.746   60.6
+    wide        64.1      76.5        1.066  0.079   27.3   1.059  0.110   29.9
+    bcf f0      52.2      65.0        0.689  0.522   57.1   0.682  0.539   57.9
+    bcf f1      98.3      99.1        1.659  0.130   37.6   1.579  0.164   39.5
+    c1          65.2      77.3        6.425  0.0017  27.4   3.426  0.034   31.9
+
+`c1`'s incumbent has a median rank of 26.5 of up to 3000 candidates jointly
+and 4 of 100 on the cut axis alone - the Gibbs step has the most to buy
+there, in entropy and in how far the current rule sits from the mode.
+`lownoise` is the opposite pole: the smallest joint entropy and the highest
+`P(inc)` and top-share of any single-forest cell, so the incumbent already
+sits close to what a Gibbs draw would pick - the least there is to buy. That
+is where 15.3's falsifier ("`P(incumbent)` near 1 at `lownoise` kills it")
+was aimed; measured, it is 0.737, not near 1, so the falsifier's kill
+condition does not fire anywhere in this grid, though the ordering it
+predicted holds. A temporary assertion cross-checking the scan's incumbent
+entry against the kernel's own cached branch score agreed to 3.7e-13 over
+the run, so the probe is pricing the same rule the kernel actually holds.
+
+Informed death (15.3 row 3): among death proposals seeing two or more nog
+nodes - 5.7 (`c1`) to 32.3 (`lownoise`) percent of death proposals by cell,
+the rest (68 to 94 percent) seeing exactly one, where the uniform pick has
+nothing to be wrong about - the normalized merged-marginal weight vector is
+a point mass: median entropy 3e-5 nats at `c1` down to 5e-20 at `lownoise`,
+median max weight 1.000000, the uniform pick's median rank 1 in every cell.
+It already sits at the weighted mode 83.1 to 97.1 percent of proposals
+overall, falling to 47.7 to 49.9 percent - indistinguishable from choosing
+at random - once there are two or more candidates. There is nothing here
+for a weighting to inform: one nog node's merged statistic dominates the
+others so completely that the uniform draw already lands on it almost every
+time it could matter.
+
+Perturb signed runs, from the perturb-carrying mixture, among consecutive
+accepted displacements at one node (`pairs` the count of such consecutive
+pairs; `reversible%` the null a reversible walk implies):
+
+    cell      pairs  same-direction%  reversible%
+    default    1266             36.6           50
+    lownoise    528             38.1           50
+    wide       1265             38.7           50
+    c1         1611             43.1           50
+
+Every cell sits below the reversible null, not above it - accepted
+displacements tend to REVERSE, not continue - and the extension hazard (the
+chance a streak already k long extends by one more) is flat in streak
+length rather than rising, so there is no persistence to exploit.
+16.3 row 2 pitched a lifted cut displacement as a gain if same-direction
+runs exist; measured, the opposite holds, and a lift - which spends its
+whole saving forcing continuation in one direction - would spend it
+fighting a chain that already prefers to turn around. Perturb's own scored
+acceptance in this run is 29.7 (`default`), 13.2 (`lownoise`), 34.2
+(`wide`) and 54.2 (`c1`) percent.
+
+Leaves per tree, sampled sweeps, shipped mixture (mean of the per-sweep
+means; quantiles over trees and sweeps together):
+
+    cell      mean   q05  q50  q95   max  stump%
+    default   2.83     2    3    5     8     2.4
+    lownoise  3.79     2    3    8    13     0.5
+    wide      2.53     1    2    5     7     7.5
+    bcf f0    3.36     2    3    6     9     1.6
+    bcf f1    1.11     1    1    2     4    89.5
+    c1        2.52     1    2    4     8     6.1
+
+Every mean sits just above 16.2's Jensen bound for its cell (2.44 / 2.82 /
+2.34 / 2.59) - shipped trees really do carry two to three leaves, `bcf`'s
+treatment forest closer to one.
+
+`c1` as a census cell, shipped mixture, sampled sweeps: scored acceptance is
+25.9 (birth), 20.7 (change), 29.2 (death), pooled 24.9 percent, against the
+`default` cell's 7.98. `c1` is not a sticky regime by this measure - it is
+the loosest of the five cells on every move - which means
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s
+minimum effective sample size of 2 out of 2500 kept draws cannot be a
+structural-acceptance deficit: the trees move freely and the deficit
+survives it untouched. That is what elevates 16.3 row 1's frozen-structure
+ESS test over the rest of this round's ranking - if leaf values alone,
+structure held fixed, already carry an ESS this low, the bottleneck is the
+fibre row 1 targets, not which moves the kernel proposes.
+
+Not run: 16.3 row 4's pair-transfer probe. Pricing a transfer needs the
+residual net of the other `m - 2` trees and the partner tree's own leaf
+statistics, neither of which `changeMove` or `birthOrDeathMove` sees; it
+needs a [chain.hpp](../../src/bartcore/chain.hpp) block scoring the joint
+`L_j + L_k` system row 4's refutation already describes, not a hook inside
+one of the moves this round's other three probes reused.
+
 ### 6.2 Stage 1 - correctness (`perturb-balance.R`, new)
 
 A per-kernel exact-posterior gate on the **within-variable cut
@@ -3367,13 +3505,13 @@ outright.
 
 | # | mechanism | what it is | validity | cost | deficit | novelty | one-day falsifier | refutation |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Rule Gibbs at a nog node | scan all `p` variables over a nog node's members, draw the rule from prior x marginal | Gibbs, acceptance 1 - the neighbourhood is closed | `p` scans; sec 4.5's measured 10.4x at `p` = 10, 53-56x at `p` = 50 | change's aim (3.77 percent accepted, median rejected -62.34 default, -143.45 lownoise) and 3.2's low-noise freeze | new to BART: collapsed Gibbs on a closed discrete neighbourhood | extend [`cutProbe`](../../src/bartcore/moves.hpp) to log the weight entropy, P(incumbent) and the nog share; P(incumbent) near 1 at `lownoise` kills it | CONFIRMED for ordinal availability sets; REFUTED where any available variable is categorical, and for every leaf model the scan cannot serve |
-| 2 | Cut Gibbs at a nog node | item 1 restricted to the incumbent variable | Gibbs, acceptance 1 | 1 scan - the pass change already makes | same | new to BART, as item 1 | rides item 1's probe | as item 1; it dominates perturb at `w` = 1 only if the conditional is not a point mass, which is unmeasured |
-| 3 | Informed death, uniform birth | weight each nog node by `sqrt` of its pruned posterior ratio; leave birth alone | ordinary MH: the forward gains `w(v)/W(T)`, the reverse is unchanged | 0 scans; `O(#nog)` arithmetic plus three availability walks per candidate | death's median rejected -48.93 default, -77.13 lownoise, at 10.88 percent; and 3.5's size walk | new to BART: one-sided locally-balanced weighting | log the full nog weight vector and the realized uniform pick at every death; dead if the uniform pick already sits near the weighted mode | CONFIRMED for the constant leaf; the cited "[`Tree::computeLeafStats`](../../src/bartcore/tree.hpp) already forms a parent as left + right" is REFUTED - it accumulates over the index span |
+| 1 | Rule Gibbs at a nog node | scan all `p` variables over a nog node's members, draw the rule from prior x marginal | Gibbs, acceptance 1 - the neighbourhood is closed | `p` scans; sec 4.5's measured 10.4x at `p` = 10, 53-56x at `p` = 50 | change's aim (3.77 percent accepted, median rejected -62.34 default, -143.45 lownoise) and 3.2's low-noise freeze | new to BART: collapsed Gibbs on a closed discrete neighbourhood | extend [`cutProbe`](../../src/bartcore/moves.hpp) to log the weight entropy, P(incumbent) and the nog share; P(incumbent) near 1 at `lownoise` kills it | CONFIRMED for ordinal availability sets; REFUTED where any available variable is categorical, and for every leaf model the scan cannot serve. MEASURED (sec 6.1's third 2026-09-07 addendum): joint weight entropy and P(incumbent) at a nog node range from 0.334 nats / 0.737 at `lownoise`, the least there is to buy, to 6.425 nats / 0.0017 (median rank 26.5 of up to 3000) at `c1`, the most; the falsifier's near-1 kill condition does not occur in any cell measured |
+| 2 | Cut Gibbs at a nog node | item 1 restricted to the incumbent variable | Gibbs, acceptance 1 | 1 scan - the pass change already makes | same | new to BART, as item 1 | rides item 1's probe | as item 1; it dominates perturb at `w` = 1 only if the conditional is not a point mass. MEASURED: the cut-restricted entropy is never near zero (0.328 to 3.426 nats across cells) and P(incumbent) never near 1 (0.034 to 0.746), so the conditional is not a point mass anywhere in this grid, and item 2 dominates a `w` = 1 perturb everywhere measured, most narrowly at `lownoise` |
+| 3 | Informed death, uniform birth | weight each nog node by `sqrt` of its pruned posterior ratio; leave birth alone | ordinary MH: the forward gains `w(v)/W(T)`, the reverse is unchanged | 0 scans; `O(#nog)` arithmetic plus three availability walks per candidate | death's median rejected -48.93 default, -77.13 lownoise, at 10.88 percent; and 3.5's size walk | new to BART: one-sided locally-balanced weighting | log the full nog weight vector and the realized uniform pick at every death; dead if the uniform pick already sits near the weighted mode | CONFIRMED for the constant leaf; the cited "[`Tree::computeLeafStats`](../../src/bartcore/tree.hpp) already forms a parent as left + right" is REFUTED - it accumulates over the index span. MEASURED, and DEAD by its own kill criterion: the normalized weight vector over nog nodes is a near point mass everywhere - median entropy 3e-5 nats at `c1` to 5e-20 at `lownoise` - and the uniform pick already sits at that mode 83.1 to 97.1 percent of proposals overall, falling to 47.7 to 49.9 percent (indistinguishable from chance) once there are two or more candidates; the weighting has nothing left to inform |
 | 4 | DART-on census re-run | re-run the census with `dart = TRUE`, which already routes `splitProbabilities` into change's variable redraw | shipped and valid | 0 | the variable half of change's aim | known elsewhere: Linero 2018, shipped here | one census re-run, no engine work | code claim CONFIRMED; the inference is REFUTED - DART changes the target, so this is not a decomposition |
 | 5 | Same-variable rotation | rotate a parent-child interior pair splitting on one ordinal variable | fibre move: likelihood exactly 1, the correction is the rotatable-node count | 0 scans; one index permutation plus `O(#subtree)` prior factors | the rooting lock | known elsewhere: tgp's `rotate`, which Pratola dismisses without a number | count parent-child interior pairs sharing a split variable per sweep in the four cells; kill under ~1 percent of proposals | CONFIRMED as arithmetic - three cuts on one axis re-bracket the same intervals, so no merge enumeration exists; the rate is unmeasured |
 | 6 | Partition-preserving restructure | hold the leaf blocks, re-derive the whole rule set top-down | fibre move; `q` factorizes over nodes and is re-run on `T'` | `O(p)` interval scans per interior node, no likelihood evaluation | the rooting lock at `m` = 1, and 3.1 | known elsewhere: Wu, Tjelmeland and West, already set aside in sec 5.2 | on P2's five seeds compute both rootings' leaf partitions and their variation of information; VI > 0 kills the fibre program for that cell | CONFIRMED as a construction; whether the fibre is larger than a point at production scale is unmeasured |
-| 7 | Rows-crossed step dial | size a displacement window so a target number of ROWS crosses, not a target number of grid positions | valid if the width is a deterministic function of the current state, recomputed at `T'`; a chain-history average is adaptation | free rider on the scan | change's aim, and sec 6.1's window grid, which is in grid positions | new to BART: state-dependent step size | add a rows-reassigned column to [`cutProbe`](../../src/bartcore/moves.hpp) and re-run the four cells | the metric is CONFIRMED to leading order in `1/sigma^2`; its pooling prediction across birth, death and change is REFUTED - a leaf-count change leaves an Occam term that does not cancel |
+| 7 | Rows-crossed step dial | size a displacement window so a target number of ROWS crosses, not a target number of grid positions | valid if the width is a deterministic function of the current state, recomputed at `T'`; a chain-history average is adaptation | free rider on the scan | change's aim, and sec 6.1's window grid, which is in grid positions | new to BART: state-dependent step size | add a rows-reassigned column to [`cutProbe`](../../src/bartcore/moves.hpp) and re-run the four cells | the metric is CONFIRMED to leading order in `1/sigma^2`; its pooling prediction across birth, death and change is REFUTED - a leaf-count change leaves an Occam term that does not cancel. The leaf-count spread behind that term is now MEASURED directly (sec 6.1's third 2026-09-07 addendum) rather than asserted - mean leaves per tree runs 2.5 to 3.8 across the four cells, 1.1 on the BCF treatment forest - which is the size the pooling prediction would have to absorb |
 | 8 | Conditional SMC as a mixture component | with probability `p_pg` one tree's step is a conditional-SMC sweep with the incumbent clamped | a mixture of pi-invariant kernels; no correction at the mixture level | `C` x (#interior) scans on the sweeps it fires, about 40 at `C` = 10 | change's aim, and the He-Hahn ESS | known elsewhere: PG-BART, PyMC-BART; the mixture framing is new to BART | generator-only: run the build, log the returned particle against the clamped one, discard; above ~95 percent retention it is overhead | CONFIRMED, with two conditions the lens omits: `p_pg` must not depend on the state, and the build must respect the veto's support |
 | 9 | Fixed oblique augmentation | fit on `[X, XW]` with `W` fixed before the run | exact - the kernel is untouched; the MODEL changes | 0 in the proposal; per-node availability goes `O(p)` to `O(p+K)` | P6's outer failure, measured here at 0.314 bias and 0.590 coverage | known elsewhere: rotation forests, feature augmentation | add oracle and random-20 arms to the P6 script on matched seeds, with a mandatory harm clause on P2's duplicate-column null | premise CONFIRMED: P6's mu has a shelf at the line `x1 = x2`; but P6 is not the only oblique cell - P7's setting A is a function of a linear index |
 | 10 | Outer projection step | propose `W'` under a Stiefel prior, install `XW'` through `$setPredictor`, accept on the fit | valid: `W` to partition is deterministic, `q` symmetric, rollback exact | `O(m n)` per outer step; budget one extra sweep, not a proposal | none measured; a model extension at the package's design centre | known elsewhere as Bayesian single-index / projection pursuit; new to BART as a forest-conditional | grid small `W` perturbations on an oblique surface, recording what fraction `$setPredictor(forceUpdate = FALSE)` accepts | "prior ratio 1 iff the grid is pinned" is REFINED - the CGM prior reads no predictor value at all, so pinning gives 1 for every column - and the "only if" is REFUTED: what breaks under a re-derived grid is a non-invertible remap |
@@ -3588,10 +3726,10 @@ is about `L` units, and `L` is 2.3 to 2.8 by the fact above.
 | # | mechanism | what it is | validity | cost | deficit | novelty | one-day falsifier | refutation |
 |---|---|---|---|---|---|---|---|---|
 | 1 | Exact draw on the level fibre | add `c_t` to every leaf of tree `t` with `sum_t c_t = 0`; `f` is unchanged exactly, so the conditional on that subspace is the leaf prior alone. Draw `u_t ~ N(-S_t/L_t, tau^2/L_t)` with `S_t` the tree's leaf sum, then `c = u - v (1'u)/(1'v)`, `v_t = tau^2/L_t` | exact Gibbs, acceptance identically 1: no likelihood is evaluated, nothing is tuned | `sum_t L_t` additions, no data pass - under 1/100 of a cut scan | [3.1 Many tree arrangements, one fitted function (ESTABLISHED)](#31-many-tree-arrangements-one-fitted-function-established)'s second clause, quantified as mode F in sec 12.2 and never given a fix | new to BART: the construction is Hastie and Tibshirani's backfitting centering, whose own version CHANGES the target | freeze the forest at a posterior draw through [`Sampler::setState`](../../src/bartcore/sampler.hpp), run leaf and sigma draws only, read ESS of `f` at [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s 25 points; ESS already 2 with structure frozen and leaf space is the program | derivation CONFIRMED, dimension `m-1` and generically ALL of `ker(Z)` (col(Z) is a sum of `m` subspaces each holding `1_n`, so `rank Z <= sum L_t - (m-1)`). The second-order claim is CONFIRMED and exact: [`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp) reduces to `0.5 log(P/(P+Q)) + 0.5 b^2/(s^4 (P+Q))`, so shifting a residual by `c_t` moves every `b` and no birth, death or change ratio is invariant. The "1.7 sweeps at default" timescale is REFUTED as a scale mismatch - `tau = 0.0289` is on the internal response scale ([`GaussianResponse::fitScale`](../../src/bartcore/model.hpp) returns the range) while the quoted `s = 1` is the original one; corrected, the number can only be larger, and it is unmeasured |
-| 2 | Lifted cut displacement | carry a bit `d` per interior node; propose into the ONE-SIDED window `{j in [lo,hi] : 0 < d(j-c) <= 1}` from [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp); keep `d` on acceptance, flip it on rejection and at an interval end | skew-detailed balance against `(T,d) -> (T,-d)`; the mixture stays invariant because [`changeMove`](../../src/bartcore/moves.hpp) redraws the node's `d` from its uniform marginal and [`birthOrDeathMove`](../../src/bartcore/moves.hpp) draws a new node's bit uniformly, whose `1/2` cancels the extended target's `2^-I(T)` exactly | zero scans, one bit per interior node - CHEAPER than the reversible perturb | change's aim (sec 3.3) and sec 3.5's cut axis | new to BART: lifting is canonical general MCMC and no tree sampler carries it | already priced; the open question is whether same-direction RUNS exist - add a signed column to [`cutProbe`](../../src/bartcore/moves.hpp) and count consecutive same-sign improvements | the WINDOW correction is CONFIRMED identically 1 at `w = 1`: the one-sided window holds exactly one index each way and `[lo,hi]` is identical on `T` and `T'`. The claim that the PRIOR ratio is 1 is REFUTED - [2.2 Acceptance, the veto, and the grid](perturb-move.md#22-acceptance-the-veto-and-the-grid) already records that the subtree strictly below the node contributes a non-zero prior difference. The `1/(1-a)` gain reproduces exactly (1.68 / 1.37 / 2.06 / 1.50) but it is this house's own arithmetic for a homogeneous walk at state-independent acceptance, not a literature bound, and the probe measured `a` in a chain where perturb never fires |
+| 2 | Lifted cut displacement | carry a bit `d` per interior node; propose into the ONE-SIDED window `{j in [lo,hi] : 0 < d(j-c) <= 1}` from [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp); keep `d` on acceptance, flip it on rejection and at an interval end | skew-detailed balance against `(T,d) -> (T,-d)`; the mixture stays invariant because [`changeMove`](../../src/bartcore/moves.hpp) redraws the node's `d` from its uniform marginal and [`birthOrDeathMove`](../../src/bartcore/moves.hpp) draws a new node's bit uniformly, whose `1/2` cancels the extended target's `2^-I(T)` exactly | zero scans, one bit per interior node - CHEAPER than the reversible perturb | change's aim (sec 3.3) and sec 3.5's cut axis | new to BART: lifting is canonical general MCMC and no tree sampler carries it | already priced; the open question is whether same-direction RUNS exist - add a signed column to [`cutProbe`](../../src/bartcore/moves.hpp) and count consecutive same-sign improvements | the WINDOW correction is CONFIRMED identically 1 at `w = 1`: the one-sided window holds exactly one index each way and `[lo,hi]` is identical on `T` and `T'`. The claim that the PRIOR ratio is 1 is REFUTED - [2.2 Acceptance, the veto, and the grid](perturb-move.md#22-acceptance-the-veto-and-the-grid) already records that the subtree strictly below the node contributes a non-zero prior difference. The `1/(1-a)` gain reproduces exactly (1.68 / 1.37 / 2.06 / 1.50) but it is this house's own arithmetic for a homogeneous walk at state-independent acceptance, not a literature bound, and the probe measured `a` in a chain where perturb never fires. MEASURED AGAINST: same-direction runs do not exist - consecutive accepted displacements at one node continue in the same direction only 36.6 to 43.1 percent of the time, below the reversible null of 50, with a streak-extension hazard flat in streak length. REFUTED as a source of gain: a lift spends its saving forcing continuation in a direction the chain already prefers to reverse |
 | 3 | Same-temperature one-tree exchange between chains | draw chains `A != B` and indices `j, k`, swap the two structures with leaves integrated out and redrawn after; `alpha = L_A(T_{B,k}) L_B(T_{A,j}) / (L_A(T_{A,j}) L_B(T_{B,k}))`, the four collapsed marginals of each tree against each chain's own residual and sigma | ordinary symmetric-proposal MH on the product target `prod_c pi(theta_c)`; the swap is a deterministic involution and the two tree priors cancel by (S1) | 2 to 4 passes over `n`, 3 to 13 percent of a sweep; the real price is (S2)'s barrier | 10.4's per-chain ESS of 2 with a between-chain ratio of 0.5 to 0.8 - the deficit nothing in section 15 targets | FOUND for a single tree, unfound for an ensemble | 8 chains stepped by `$run(0,1)`, structures read out per sweep and the four marginals scored offline; a MANDATORY harm clause - per-chain ESS must RISE against 2 while pooled coverage holds against 0.961 / 0.895 | algebra CONFIRMED. Prior art is CLOSER than either lens allowed: Rigat's cross-chain CART sampler carries a component swap AND "a whole tree swap between chains", so only the ENSEMBLE instance is unfound. Harm CONFIRMED verbatim - 10.4 says "pooling is what widens the interval", and an exchange is a coupling that drives "between" toward 0. The sizing "one tree's worth = `2^depth` = 16-32x a leaf's worth" is REFUTED by 16.2's third fact: it is 2.3 to 2.8x |
-| 4 | Pairwise-collapsed split transfer | pick trees `(j,k)`, delete the children of a nog node `v` of `T_j` and install `v`'s rule at an admitting leaf of `T_k`; score by the JOINT collapsed marginal of the pair, which needs only the `L_j x L_k` weight contingency table plus the cached leaf statistics | MH on the block `(T_j, T_k)` with both leaf vectors integrated out; the empty-leaf veto applies at both ends | one pass over `n` for the table (`~L` units) plus one leaf scan; the `(L_j+L_k)^3` Cholesky is noise at `L ~ 2.5` | 3.1's FIRST clause - a split leaves one tree and enters another without either passing through a stump | new outright as far as two search legs reach | generator-only, the shape of [`cutProbe`](../../src/bartcore/moves.hpp): each sweep score one candidate transfer, log the pair-collapsed ratio, RESTORE. A median where change's sits kills it | computability CONFIRMED - the table is one pass over the [`rebuildLeafOf`](../../src/bartcore/chain.hpp) maps, and `r'Wr` cancels because both states share the residual net of the other `m-2` trees. The stated `q` ratio `(N_j M_k)/(N'_k M'_j)` is REFUTED as incomplete: the pair is drawn from the set of trees SHARING a split variable, which the move itself changes, so that selection density does not cancel and both normalizers must be computed. Repairable, and cheap over variable-usage bitmasks |
-| 5 | Lifted birth/death | carry a bit `v` per tree; at `+1` the move is a birth, at `-1` a death; flip on rejection. Against [`birthOrDeathMove`](../../src/bartcore/moves.hpp) this deletes both [`probabilityOfBirthStep`](../../src/bartcore/moves.hpp) factors from the transition ratio and replaces the Bernoulli with a read of `v` | row 2's argument with the birth/death involution; the boundary cases (stump, saturated tree) become reflecting and leave the ratio | negative - one bit per tree, one fewer Bernoulli | 3.5, tree size as a random walk | new to BART | recompute `1/(1-a)` per cell from the shipped census; below ~1.3 everywhere, do not write it | code claims CONFIRMED. The price is REFUTED as quoted: the reports read the SUPERSEDED three-move census. Recomputed at the two-move kernel the gain is 1.12 / 1.06 / 1.14 / 1.06 on birth and 1.12 / 1.06 / 1.17 / 1.14 on death - 1.06 to 1.17, a rider on an aim improvement and nothing alone. The lift is on the SIZE axis only; at fixed size the walk over WHICH nodes is untouched |
+| 4 | Pairwise-collapsed split transfer | pick trees `(j,k)`, delete the children of a nog node `v` of `T_j` and install `v`'s rule at an admitting leaf of `T_k`; score by the JOINT collapsed marginal of the pair, which needs only the `L_j x L_k` weight contingency table plus the cached leaf statistics | MH on the block `(T_j, T_k)` with both leaf vectors integrated out; the empty-leaf veto applies at both ends | one pass over `n` for the table (`~L` units) plus one leaf scan; the `(L_j+L_k)^3` Cholesky is noise at `L ~ 2.5` | 3.1's FIRST clause - a split leaves one tree and enters another without either passing through a stump | new outright as far as two search legs reach | generator-only, the shape of [`cutProbe`](../../src/bartcore/moves.hpp): each sweep score one candidate transfer, log the pair-collapsed ratio, RESTORE. A median where change's sits kills it | computability CONFIRMED - the table is one pass over the [`rebuildLeafOf`](../../src/bartcore/chain.hpp) maps, and `r'Wr` cancels because both states share the residual net of the other `m-2` trees. The stated `q` ratio `(N_j M_k)/(N'_k M'_j)` is REFUTED as incomplete: the pair is drawn from the set of trees SHARING a split variable, which the move itself changes, so that selection density does not cancel and both normalizers must be computed. Repairable, and cheap over variable-usage bitmasks. NOT RUN this round: pricing a transfer needs the residual net of the other `m-2` trees and the partner tree's own leaf statistics, which neither `changeMove` nor `birthOrDeathMove` sees, so it needs a dedicated `chain.hpp` block scoring the joint `L_j + L_k` system rather than a hook inside one of the moves this round's other three probes reused |
+| 5 | Lifted birth/death | carry a bit `v` per tree; at `+1` the move is a birth, at `-1` a death; flip on rejection. Against [`birthOrDeathMove`](../../src/bartcore/moves.hpp) this deletes both [`probabilityOfBirthStep`](../../src/bartcore/moves.hpp) factors from the transition ratio and replaces the Bernoulli with a read of `v` | row 2's argument with the birth/death involution; the boundary cases (stump, saturated tree) become reflecting and leave the ratio | negative - one bit per tree, one fewer Bernoulli | 3.5, tree size as a random walk | new to BART | recompute `1/(1-a)` per cell from the shipped census; below ~1.3 everywhere, do not write it | code claims CONFIRMED. The price is REFUTED as quoted: the reports read the SUPERSEDED three-move census. Recomputed at the two-move kernel the gain is 1.12 / 1.06 / 1.14 / 1.06 on birth and 1.12 / 1.06 / 1.17 / 1.14 on death - 1.06 to 1.17, a rider on an aim improvement and nothing alone. The lift is on the SIZE axis only; at fixed size the walk over WHICH nodes is untouched. UNCHANGED by this round's probes: they price the cut-displacement axis (row 2) and the nog neighbourhood (15.3 rows 1-3), not the birth/death step itself |
 | 6 | Variance-forest-weighted birth leaf | where a variance forest is in the model, choose the birth leaf with weight proportional to the leaf mean of the fitted `s^2(x)`, corrected by the ratio of normalizers | an informed weight that is a deterministic function of the current state; the reverse is the uniform nog draw, computable at `T'`. Fitting a variance forest AS a proposal device off chain history would be adaptation | zero - one accumulator in the leaf-stat pass the sweep already makes | the steepest-change reading of least-favorable directions | new outright | fit a He-Hahn cell with a variance forest and correlate `s^2(x_i)` against `abs(f - fhat)`; near-zero correlation and the weight carries no signal | validity CONFIRMED and the HBART contrast is exact - there `s^2(x)` enters the mean forest only as a precision weight. Two objections. The direction is UNDERDETERMINED: that same precision weight already FLATTENS the mean likelihood exactly where this would aim more proposals. And 10.4 is homoscedastic and fitted without a variance forest, so at the deficit it names this is a MODEL change, not a kernel change |
 | 7 | Outer Metropolis on a per-column warp | put a prior on a per-column monotone warp of `x`, install through `$setPredictor`, accept on the fit, roll back on rejection | valid as a model extension; by (S1) the tree prior ratio is exactly 1 whenever the grid SHAPE is held, for every column and even though every cut VALUE moved | one full forest refit per proposal - a whole sweep, so a low-rate outer move | the rooting lock of [10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function) and P6's shelf | new to BART; Snoek's input warping is the GP construction | R-only: apply a fixed monotone warp to P2's confounded columns on the five stuck seeds and see whether the two rootings stop being equiprobable | prior-ratio-1 CONFIRMED and it RECONCILES with 15.3 item 10's verdict (h) rather than extending it: both say pinning the shape gives 1. The claim that a re-derived grid costs only "one `treeLogProbability` call per tree" is REFUTED - [`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp) is a many-to-one nearest-cut remap that collapses starved subtrees, so the proposal is not a bijection and no reverse density exists at all. The bounding negative CONFIRMED: under a re-derived quantile grid codes are ranks, the partition is exactly invariant, and `alpha` collapses to the warp prior |
 | 8 | Per-leaf per-variable histograms | cache the binned `(count, sum w, sum wz)` per leaf per variable; a node's histogram is the sum of its children's, a sibling's the parent's minus the other child's | not a proposal - it changes how a number is obtained, no draw | claims a (#leaves)-fold cut in the scan surface's cost | nothing directly; it decides whether the informed constructions of 15.3 are affordable | new to Bayesian tree MCMC (the subtraction trick is LightGBM's docs, not Ke et al.) | microbenchmark against `benchmarks/kernels`, half a day, no engine change | the SIZE of the saving is REFUTED. A scan is over a NODE's members ([`scanOrdinalCuts`](../../src/bartcore/scan.hpp)), so scanning every leaf for every variable already costs `O(n p)` in total, not `O(n p)` per leaf; the histogram wins only on the scan-EVERY-NODE workload and the factor there is depth-fold, about 2 at 16.2's measured tree size, not 16-32. The associativity objection CONFIRMED and unavoidable: a summed or subtracted histogram rounds differently from a member pass, so `equivalence.R` breaks either way |
@@ -3616,7 +3754,10 @@ engine change: row 1's frozen-structure ESS, which reorders every item in
 all six reports and which nothing on disk answers; row 3's per-tree fit
 pre-check across chains; row 7's fixed warp on P2. Needing code before any
 evidence exists: rows 1, 2, 3 and 5 as kernels, row 8 as a cost model, and
-row 4 beyond its probe. Nothing here is scheduled.
+row 4 beyond its probe. Nothing here is scheduled. Of the four, three have
+now run - the nog probe, the signed run-length column and the
+leaves-per-tree count (sec 6.1's third 2026-09-07 addendum) - leaving row
+4's pair-collapsed probe as the one generator-only item still not built.
 
 ### 16.5 Discarded across both reports
 
