@@ -1,21 +1,23 @@
 # perturb: a same-variable cut move
 
-Status: PROPOSED, 2026-09-07.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS).
 
 A fourth tree kernel that keeps a node's split variable and displaces only its cut, by a small fixed number of grid positions.
 [4.2 A same-variable cut move ("perturb") - the first tree-space candidate](tree-mixing-proposals.md#42-a-same-variable-cut-move-perturb---the-first-tree-space-candidate)
 ranked it first among tree-space candidates on a first-principles argument and weak external evidence; Stage 0 has since run and its
-cut probe prices the move directly on this sampler, in section 6.1's 2026-09-07 addendum
+cut probe prices the move directly on this sampler
 ([6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)).
-Every census number below is from it.
+Every census number below is from 6.1's SECOND 2026-09-07 addendum, the re-run at the two-move kernel - which IS the shipped kernel,
+swap dispatching at a probability of zero - and not from the three-move run beside it.
 
 **Premise, not reopened here.** The swap slice landed first and took the one bundled baseline re-record
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)). It dropped swap out of the DEFAULT and then
-put the move back at that default of zero, so the mixture is `birth_death 0.6, swap 0, change 0.4, birth 0.5`, `perturb` the FIFTH
-named element of `proposal.probs` and the FOURTH structural probability, and Stage 2's control arm that mixture. Every count below
-was written while the removal stood, against a tree with no swap; with the move restored a `perturbProbability` does not refill a
-`swapProbability` site but sits beside it, so each count below is a count of NEW sites and each dispatch and initializer named gains
-one element rather than replacing one.
+put the move back at that default of zero
+([9. Reversal: the move returns at default zero](swap-removal.md#9-reversal-the-move-returns-at-default-zero)), so the mixture is
+`birth_death 0.6, swap 0, change 0.4, birth 0.5`, `perturb` the FIFTH named element of `proposal.probs` and the FOURTH structural
+probability, and Stage 2's control arm that mixture. Every count in section 3 is a count against that restored tree: a
+`perturbProbability` does not refill a `swapProbability` site but sits beside it, so each is a count of NEW sites and each dispatch,
+initializer and literal named gains one element rather than replacing one.
 
 ## 1. What change does, and why a displacement is a different move
 
@@ -24,29 +26,29 @@ one element rather than replacing one.
 the skeleton below held fixed. A pure cut move happens only when the redraw lands back on the incumbent, about `1/p_avail` per
 proposal ([2. What the sampler can and cannot do today](tree-mixing-proposals.md#2-what-the-sampler-can-and-cannot-do-today)).
 
-The census measured what that costs. Change accepts 4.07 percent of its proposals at the default cell, 1.61 at low noise, 5.37 at
-wide, 2.80 at the causal-forest cell, and its rejections are not close calls: the median LOG-LIKELIHOOD difference among REJECTED
+The census measured what that costs. Change accepts 3.77 percent of its proposals at the default cell, 1.66 at low noise, 6.06 at
+wide, 2.88 at the causal-forest cell, and its rejections are not close calls: the median LOG-LIKELIHOOD difference among REJECTED
 scored change proposals - what [`rejectionTable`](../../benchmarks/R/move-census.R) reports, likelihood only, conditional on
-rejection - is -56.61 at the default cell and -135.19 at low noise, 0.78 and 0.27 percent of them within one log unit of zero. That
+rejection - is -62.34 at the default cell and -143.45 at low noise, 0.87 and 0.25 percent of them within one log unit of zero. That
 answers the fork 6.1 pre-registered against the temperature family: the bottleneck is proposal accuracy, not scale. The same run
 probed the displacement - at each interior node a change proposal visited, hold the variable, move the cut +/-1, 2, 4, 8 positions
 on a snapshot, take the FULL MH log ratio (subtree-below prior plus resolved likelihood), restore:
 
     cell       |1|    |2|    |4|    |8|   median full log ratio at |1|
-    default   38.34  23.76  12.46  7.69                          -1.83
-    lownoise  26.43  14.75   6.88  3.83                          -4.44
-    wide      47.50  30.74  17.40 10.20                          -1.04
-    bcf       34.08  21.02  10.91  7.17                          -2.40
+    default   40.65  24.06  11.94  6.81                          -1.53
+    lownoise  27.15  13.73   5.63  3.07                          -4.83
+    wide      51.38  34.82  20.77 12.91                          -0.76
+    bcf       33.34  21.09  12.31  8.09                          -2.46
 
 The two are not the same statistic - the probe's is unconditional and carries the prior term, change's is conditional on rejection
 and carries none - but they are comparable in the direction that matters, since change rejects 96 percent of its scored proposals so
 its unconditional median sits near its rejected one, and an O(1) prior term cannot close a gap in the tens. One position sits in a
-workable 26 to 48 percent band in every cell, two only at `wide`, so the displacement buys back roughly 50 to 130 log units: the
+workable 27 to 51 percent band in every cell, two only at `wide`, so the displacement buys back roughly 60 to 140 log units: the
 random-walk Metropolis tuning argument made concrete, step size being the only free parameter any dbarts structural move has.
 
-Two findings are not in the move's favour. Change acceptance RISES from depth 0 to depth 1 in every cell - 2.91 to 6.83 percent at
-the default cell, and on to 7.55 and 9.21 at depths 2 and 3 there, though `wide` falls back to 2.01 at depth 3 on 149 proposals -
-the opposite of what
+Two findings are not in the move's favour. Change acceptance RISES from depth 0 to depth 1 in every cell - 2.46 to 6.84 percent at
+the default cell, and on to 8.44 at depth 2 there, though it falls back to 7.09 at depth 3 on 268 proposals - the opposite of
+what
 [3.3 A high split cannot be changed once the tree is deep (CODE-DERIVED HYPOTHESIS)](tree-mixing-proposals.md#33-a-high-split-cannot-be-changed-once-the-tree-is-deep-code-derived-hypothesis)
 predicts, so a cut move cannot be sold on unfreezing high nodes; and `wide`, where two positions also works, is where change ALREADY
 does best, so a width rule keyed to it would be keyed to the easy cell. What survives is
@@ -70,8 +72,9 @@ size moves with the proposal and `1/|S|` stops cancelling; the same construction
 
 A categorical rule has no cut to displace; its analogue, a single-category flip in the direction mask, needs its own validity walk
 ([`categoricalSubtreeIsValid`](../../src/bartcore/moves.hpp)) and correction, and is not proposed here - so perturb is INERT on an
-all-categorical design, the null control
-[6.3 Stage 2 - benefit, with matched exposure](tree-mixing-proposals.md#63-stage-2---benefit-with-matched-exposure) requires.
+all-categorical design. That is what
+[6.3 Stage 2 - benefit, with matched exposure](tree-mixing-proposals.md#63-stage-2---benefit-with-matched-exposure) asks a null
+control to exploit; section 5 explains why the arm that takes its share from change cannot be that control, and what replaces it.
 
 ### 2.1 The proposal, and the boundary
 
@@ -95,7 +98,7 @@ really is symmetric with correction 1, but a step off the end returns the node t
 proposals on self-transitions that A converts into real moves. **C, propose on `{-w..w}\{0}` and no-op outside `[lo, hi]`:**
 symmetric on its support, correction identically 1, fewest lines, but it throws proposals away exactly where the interval is narrow,
 a cut pinned by a descendant and a nudge worth most. **D, uniform over the whole valid interval:** correction identically 1 and no
-window, but this is the change move restricted to one variable, rejections at -56.61. **RECOMMEND A**: it wastes no proposal, its
+window, but this is the change move restricted to one variable, rejections at -62.34. **RECOMMEND A**: it wastes no proposal, its
 counts come from a function the move already calls, and at `w = 1` the correction cannot exceed `log 2`. Its cost is an arithmetic
 path firing only at the interval ends, which is why section 4's gate must place cuts there. The missing-value direction bit
 ([`Rule`](../../src/bartcore/tree.hpp)) carries over unchanged, contributing `log 2` to both sides of the prior ratio.
@@ -124,8 +127,8 @@ rank in [`resolveVetoRank`](../../src/bartcore/moves.hpp) and driving `alpha` to
 one ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)); from an
 already-vetoed state the ordering runs the other way and a rank-improving proposal is accepted outright. At `w = 1` only one cut
 bin's rows cross, so the exposure is small, and it is inside the probe's band, which folded `resolveVetoRank`'s `-Inf` into its log
-ratio. PERTURB'S OWN veto share is the unrecorded `vetoed.pct` column of section 7; the 0.07 to 0.25 percent of a cell's rejections
-6.1 reports is birth, death, change and swap's, quoted here only as an order of magnitude.
+ratio. PERTURB'S OWN veto share is the unrecorded `vetoed.pct` column of section 7; the 0.13 to 0.27 percent of a cell's rejections
+6.1's two-move re-run reports is birth, death and change's, quoted here only as an order of magnitude.
 
 `w` counts GRID POSITIONS, and the default `useQuantiles = FALSE` lays `n.cuts` uniform cuts over the observed range whatever a
 column's distinct-value count ([`fillCutsOverRange`](../../src/bartcore/data.hpp)). On a coarse or discrete column ADJACENT SPLIT
@@ -143,7 +146,7 @@ reaches it free.
 **A, a compile-time constant `w = 1`**, the only value in the census band in all four cells; cost, no runtime grid, so a width arm
 needs a private build. **B, a fraction of the node's interval** (OpenBT ships 10 percent, Pratola fixes 85, no comparison anywhere);
 cost, the census measured POSITIONS, so a fraction reproduces none of its numbers, and 10 percent of the FULL default grid is about
-ten positions, where acceptance is 3.83 to 10.20 percent - though an interior node's interval is narrower than the grid, so the
+ten positions, where acceptance is 3.07 to 12.91 percent - though an interior node's interval is narrower than the grid, so the
 identification is loose. **C, a user knob** (`perturb.width`, a new formal and slot); cost, a knob no user can set from evidence,
 plus its Rd, validity and refusals. **RECOMMEND A**, any width arm run on a private `-D` build as the census itself ran
 (`R_MAKEVARS_USER` appending to `CPPFLAGS`, a private library); C stays additive and pre-release costs nothing if a confirmatory
@@ -151,56 +154,99 @@ width ever proves cell-dependent.
 
 ## 3. The mixture, and the surface
 
-`proposal.probs` gains `perturb` beside `birth_death`, `change` and `birth`.
+`proposal.probs` gains `perturb` beside `birth_death`, `swap`, `change` and `birth`: the FIFTH name and the FOURTH structural
+probability.
 
-**Where the share comes from. A, from change** - `birth_death 0.6, change 0.4 - d, perturb d`, proposal count fixed. **B, from
-birth_death**: costs the only dimension-changing moves, already at 10 to 13 percent acceptance. **C, an extra pass on top**
+**Where the share comes from. A, from change** - `birth_death 0.6, swap 0, change 0.4 - d, perturb d`, proposal count fixed. **B,
+from birth_death**: costs the only dimension-changing moves, already at 10 to 13 percent acceptance. **C, an extra pass on top**
 (OpenBT's shape): [`metropolisJumpForTree`](../../src/bartcore/moves.hpp) runs exactly once per tree per sweep in
 [`Chain`](../../src/bartcore/chain.hpp)'s loop, so a second pass is a second call site - an engine change with its own surface and
-slice. **RECOMMEND A**; C is dropped, and section 5 drops the arms that depended on it.
+slice, priced and declined in section 5. **RECOMMEND A.**
 
 **Default share: 0**, bitwise-neutral (section 6), which satisfies
 [6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
 absolute null-control gate by construction.
 
-Surface. SIX R spellings of the mixture: [`defaultProposalProbs`](../../R/model.R); the [`dbarts`](../../R/dbarts.R), `bart2`
-(R/bart.R) and [`dbartsSpec`](../../R/spec.R) formals; and TWO literals inside the monotone branch - the comparison default and the
-birth/death-only rewrite (["'monotone' forces birth/death-only proposals"](../../R/spec.R)), the first of which does NOT read
-`defaultProposalProbs`, so leaving it stale makes the refusal compare against a vector that no longer exists. Both `all.equal`
-branches, monotone and treatment-forest, live in [`resolveSamplerSpec`](../../R/spec.R), which `dbarts()`, `bart2()` and
-`dbartsSpec()` all route through, so a defect there fires from every entry point; only the treatment-forest branch reads
-`defaultProposalProbs`. [`dbartsModel`](../../R/A_class.R) gains a `p.perturb` slot, prototype and sum-to-one validity. In C++, a
-`perturbProbability` takes the eight sites the removal emptied in [`parseModel`](../../src/R_interface_bartcore.cpp)'s file (parsed
-struct, read, sum check, creation printout, options copy, two-forest refusal, forest spec, multinomial parameters), the ten across
-[`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp), and the three in
-[`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp) - `Forest` being what
-[`MoveContext`](../../src/bartcore/moves.hpp) is built from, so without it the kernel is unreachable and without the two specs it is
-silently zero in BCF and multinomial fits. Four Rd files: ["proposal.probs"](../../man/dbarts.Rd),
-["proposal.probs"](../../man/bart2.Rd), man/dbartsSpec.Rd and ["proposalprobs"](../../man/bart.Rd) (`bart()` itself takes `NULL`, so
-the Rd alone). Plus tests/cpp/test_moves.cpp for the interval-invariance assertion, inst/NEWS.Rd, and five tinytest files: the
-pinned default vector in test-argument-surface.R, the two-forest refusal's own literal in test-bcf-creation.R, the monotone slot
-reads in test-spec.R and test-monotone.R, and test-sum-to-one-tolerance.R below. **At least twenty files, not eleven.** The mixture
-rides none of the stored state - `storeState` writes forests, sigma, scale, latents, DART, RNG, glue and the digests, and no
-proposal probability among them - so `stateFormatVersion` does not move.
+### 3.1 Every site, enumerated
+
+The removal record lists the analogous sites for swap ([2. What is removed](swap-removal.md#2-what-is-removed),
+[3. The surface](swap-removal.md#3-the-surface)) and the restore put every one of them back, so the enumeration below is that list
+read as an addition.
+
+**R, five files, six default vectors.** [`defaultProposalProbs`](../../R/model.R); the [`dbarts`](../../R/dbarts.R), `bart2`
+(R/bart.R) and [`dbartsSpec`](../../R/spec.R) formals; and TWO literals inside the monotone branch of
+[`resolveSamplerSpec`](../../R/spec.R) - the comparison default and the birth/death-only rewrite
+(["'monotone' forces birth/death-only proposals"](../../R/spec.R)). The first of those does NOT read `defaultProposalProbs`, so
+leaving it stale makes the refusal compare against a vector that no longer exists. Both `all.equal` branches, monotone and
+treatment-forest, live in `resolveSamplerSpec`, which `dbarts()`, `bart2()` and `dbartsSpec()` all route through, so a defect there
+fires from every entry point; only the treatment-forest branch reads `defaultProposalProbs`, and it needs no edit.
+[`dbartsModel`](../../R/A_class.R) gains a `p.perturb` slot, a prototype of 0 and a fourth term in validity's sum. Four further
+literals carry the structural name set inside R/model.R's initializer - the subset, the `names(probs) <-` assignment, the all-NA
+fallback subset and the slot write - plus the fill rule below.
+
+**How a fifth name enters the fill.** The rule landed at 6934e487 runs over three names: one unnamed structural element takes the
+residual, two unnamed with `swap` among them still resolve because swap takes its zero and the other the residual
+(["two unnamed, one of them swap"](../../inst/tinytest/test-proposal-probs.R)), and `swap` named alone is an error because the
+birth/death-versus-change split is undetermined. A fourth structural name cannot simply join that set:
+`c(birth_death = 0.5, change = 0.4)` resolves today to `swap 0.1`, and under a naive widening it would present TWO unnamed
+elements and land at 0 and 0, a vector summing to 0.9 that fails `setValidity`. **RECOMMEND: `perturb` resolves BEFORE the
+three-name fill and never enters it.** An unnamed `perturb` is 0 - its default is a number, not a share - the residual is then taken
+against `1 - perturb` rather than 1, and the existing three-name rule runs verbatim. Every resolution above is preserved element for
+element, and the only widening is the error: `c(perturb = 0.16)` alone leaves the same split undetermined as `swap` alone, so that
+message names both zero-default moves. The alternative, folding `perturb` into the fill's name set and zeroing the surplus unnamed
+elements, is rejected for the `c(birth_death = 0.5, change = 0.4)` regression.
+
+**C++: the kernel's own file, and TWENTY-ONE probability sites outside it.** In src/bartcore/moves.hpp: `perturbMove` beside
+[`swapMove`](../../src/bartcore/moves.hpp), a `perturbProbability` on [`MoveContext`](../../src/bartcore/moves.hpp) - which carries
+birth/death, swap and birth today and not change, so a fourth field really does have to reach it - a fifth enumerator on
+[`StepType`](../../src/bartcore/moves.hpp), the dispatch branch (section 6), the three census hooks the other kernels carry (a
+no-op record on the degenerate interval, a shape record and a proposal record on the scored one) and the census legend that names
+the moves. Then TEN in [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp): three struct
+fields, four copies into a forest (creation, `setModel`, `buildSpecifiedForest`, `buildMultinomialForest`), the variance forest's
+copy and the two `MoveContext` initializers. THREE in
+[`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp) - `Forest` being what `MoveContext` is
+built from, so without it the kernel is unreachable, and without the two specs it is silently zero in BCF and multinomial fits.
+EIGHT in [`parseModel`, `refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp): the parsed struct's field, the
+`p.perturb` slot read, the sum check's fourth term, the creation printout's format string and its argument, the `SamplerOptions`
+copy, the two-forest refusal's hard-coded mixture, the forest spec copy and `setModel`'s `ModelParameters` copy.
+
+**tests/cpp, two files.** FIFTEEN positional `MoveContext` initializers - twelve in tests/cpp/test_moves.cpp, three in
+tests/cpp/test_interaction.cpp - each of which must gain an element. The probability block sits ahead of `const double* weights`, so
+an initializer left short binds that pointer to a `double`: a hard compile error, not a silent zero, which is what makes this count
+safe to trust. The five loose probability assignments (three in tests/cpp/test_model.cpp, two in tests/cpp/test_sampler.cpp) need no
+twin, a new field with a zero default resolving itself. tests/cpp/test_moves.cpp also carries slice 1's interval-invariance
+assertion.
+
+**Four Rd files**: ["proposal.probs"](../../man/dbarts.Rd), ["proposal.probs"](../../man/bart2.Rd) and man/dbartsSpec.Rd - usage
+line and argument text in each - and ["proposalprobs"](../../man/bart.Rd), where `bart()` takes `NULL` so the Rd alone moves.
+**SIX tinytest files**: ["a caller-supplied three-move mixture"](../../inst/tinytest/test-proposal-probs.R), the surface's own test
+and the one that pins the fill; the pinned default vector in test-argument-surface.R; the two-forest refusal's literal in
+test-bcf-creation.R; the slot reads in test-spec.R and test-monotone.R; and test-sum-to-one-tolerance.R below. **Plus inst/NEWS.Rd.**
+
+**Twenty-two files**: four C++, five R, four Rd, six tinytest, two tests/cpp and NEWS. Roughly 150 lines of kernel including
+section 2.1's window ratio, about 60 more spread across the twenty-one surface sites, and 120 of tests. The benchmark harnesses are
+not shipped surface and mostly do not move: the eleven one-tree exact-posterior gates that pass an explicit mixture name three
+structural probabilities and keep working, `perturb` filling 0 under the rule above; section 4's arm is a new mixture, and section
+5's arms are new files.
 
 **Three traps.** First, the `all.equal` comparison: widening `defaultProbs` makes `proposal.probs[names(defaultProbs)]` return `NA`
 for any caller vector lacking `perturb` - verified in R - so the refusal fires SPURIOUSLY on every caller passing the documented
 default, which man/dbarts.Rd, man/bart2.Rd and inst/tinytest/test-argument-surface.R all spell out and which stan4bart forwards
 verbatim from `bart_args`. (inst/tinytest/test-monotone.R spells a NON-default vector, deliberately, to trigger the refusal.)
-Compare the RESOLVED slots, or fill the missing name first. Second, the engine-side twin, src/R_interface_bartcore.cpp's two-forest
-refusal, hard-codes the values and is staled by both the removal and the new name; not a leak, sum-to-one making a nonzero `perturb`
-beside two defaults unrepresentable, but it must be restated or it refuses the new default. Third, the one-NA fill, which breaks in
-BOTH directions. Post-removal `initialize` selects `c("birth_death", "change")` and perturb makes that THREE names. A caller naming
-exactly ONE presents two `NA`s, the branch does not fire, and they reach the slots and fail `setValidity`. A caller naming TWO gets
-`perturb` filled with the residual, which is worse because it is silent: **inst/tinytest/test-sum-to-one-tolerance.R is the gate
-that must keep failing**, and its `makeModel(1e-7)` names `birth_death` and `change` and expects a sum error - under a naive
-widening `perturb` becomes the single `NA`, is filled with `1e-7`, the sum is exact and the expected error disappears. Default
-`perturb` to 0 when absent BEFORE the fill, and both that test and today's behaviour are preserved.
+Compare the RESOLVED slots, or fill the missing name first. Second, the engine-side twin,
+[`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp)'s two-forest refusal, hard-codes the mixture and is
+staled by the new name; not a leak, sum-to-one making a nonzero `perturb` beside three defaults unrepresentable, but it must be
+restated or it refuses the new default. Third, the fill, which breaks silently rather than loudly:
+**inst/tinytest/test-sum-to-one-tolerance.R is the gate that must keep failing**, and its `makeModel(1e-7)` names all THREE
+structural probabilities and expects a sum error - under a naive widening `perturb` becomes the single `NA`, is filled with `1e-7`,
+the sum is exact and the expected error disappears. Resolving `perturb` to 0 ahead of the fill preserves it.
 
 **The flat C header does not move.** `dbarts_sampler_create` takes the model as a `SEXP`, so the mixture never crosses the C ABI and
 [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) stays as it is: no `LinkingTo` consumer
-recompiles. stan4bart on bartcore uses `formals(dbarts::dbartsSpec)` only for the allowed name set and forwards values from
-`bart_args`, so an unnamed caller inherits the new default; bartCause on dbarts-1.0 names no proposal argument at all.
+recompiles. Nor does the stored state: `storeState` writes forests, sigma, scale, latents, DART, RNG, glue and the digests, and no
+proposal probability among them, so `stateFormatVersion` does not move. stan4bart on bartcore uses `formals(dbarts::dbartsSpec)`
+only for the allowed name set and forwards values from `bart_args`, so an unnamed caller inherits the new default; bartCause on
+dbarts-1.0 names no proposal argument at all.
 
 ## 4. Correctness: `perturb-balance.R`
 
@@ -236,7 +282,9 @@ states at root cut 1 and 2, dropping the seven at 3 and 4. Family size `m = 21`;
 thresholds running from `|z| = 1.96` (least strict) to `|z| = 3.04` (strictest, on the most extreme test). Run length 4 chains x
 250,000 kept draws at `n.thin = 20`, batch means over 500 batches per chain: even at an autocorrelation time of 20 that is ~50,000
 effective draws against the ~630 statistic 1 needs for poison (i) at `|z| = 3.04`, and ~245 expected counts in the smallest retained
-state. The arm's mixture is `birth_death 0.10, change 0.10, perturb 0.80` - change retained because it moves the root's VARIABLE
+state; the margin is deliberate, poison (i)'s 37 percent being the perturb-only limit and the arm's change and birth/death shares
+pulling the realized shift back toward the true law. The length is affordable because the likelihood is never evaluated under the
+mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is `birth_death 0.10, change 0.10, perturb 0.80` - change retained because it moves the root's VARIABLE
 directly (a perturb-only chain would have to pass through a stump, 5 percent of the prior mass) and birth/death because statistic 2
 moves through nothing else, both at the smallest share keeping their own statistic non-degenerate while leaving perturb dominant on
 statistics 1 and 3. `changeMove` is separately gated ([The gate](change-move-balance.md#the-gate)), so borrowing it proves nothing
@@ -246,7 +294,10 @@ about it.
 moves OUT of an end are over-accepted and moves INTO one under-accepted and the boundary cuts starve. The effect is computable in
 advance: on the two-leaf shape, 0.55 of the prior mass, `pi(c)` is uniform over x1's five cuts, so the poisoned conditional law is
 `(1,2,2,2,1)/8` against a true 0.2 each - the end states fall to 0.125, a 37 percent relative shift, diluted by the arm's change and
-birth/death shares. (ii) A one-sided `+w` window, which drives the cut to `hi` and shifts far more. Both must fail statistic 1. A
+birth/death shares. (ii) A one-sided `+w` window. `|W|` is then 1 everywhere but at `hi`, where it is 0, so on the same two-leaf shape every proposal
+is `c -> c+1` at `alpha = 1` and the cut is absorbed at the top: x1's five cuts go from 0.2 each to a law whose lower four states
+hold only the mass change and birth/death re-seed them with, an order of magnitude past poison (i)'s 37 percent. Both must fail
+statistic 1. A
 third check is a tests/cpp assertion rather than a poison: `findGoodOrdinalRules` must return the same pair before and after any
 in-interval rule is installed at the node, the invariance the reverse count rests on.
 
@@ -259,100 +310,170 @@ construction, and 6.2 asks for the exact posterior by name. An occupancy arm on 
 
 ## 5. Benefit, pre-registered
 
-**Two arms**, matched seeds, paired: **A**, the post-removal control `birth_death 0.6, change 0.4, perturb 0`; **B**, `perturb d`
-taken from change. 6.3's arms C and D are DROPPED - C is an extra `metropolisJumpForTree` pass, an engine change with no surface
-here and no slice, and D exists only to price C. The alternative, pricing them as a fifth slice, is not recommended: it doubles the
-engine work to measure a dosage no default would ship at.
+**Two prerequisites, both outside this design.** First, the battery's absolute gate has no script: benchmarks/R/surfaces/ holds C1,
+both P2s, P5 and P6 and no P1, so benchmarks/R/surfaces/P1-low-noise-friedman.R must exist and must return 90 percent coverage near
+0.71 in the control arm before any verdict here is valid
+([6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)).
+Second, the chain configuration of the primary cell, which is now settled and is what the rest of this section is built on.
+
+### 5.1 The chain configuration, and what it makes the primary statistic
+
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s 0.822 is a SINGLE-chain reading at
+the paper's 1000 burn-in and 2500 kept. Three chain-configuration arms were run on 2026-09-07 over the same twenty seeds, the same
+independent design and the same 75 trees, varying nothing else. Trig+poly; min ESS is over C1's own 25 fixed points, summed over
+chains, and the between-chain column is the across-chain sd of a chain's posterior mean of `f` over the pooled posterior sd, median
+over those points - near 0 the chains agree, near 1 each sits in its own place and pooling is what widens the interval.
+
+    chains       95% coverage        min ESS summed  per-chain min ESS  between-chain      wall s
+    1 x 2500     0.822(0.786-0.862)  2(1-4)          2                  -                    8.0
+    4 x 500      0.961(0.945-0.977)  15(8-31)        2(1-2)             0.78(0.65-0.87)      9.1
+    4 x 2500     0.959(0.937-0.975)  18(9-46)        2(1-2)             0.65(0.44-0.79)     35.0
+    1 x 25000    0.902(0.858-0.928)  2(1-3)          2(1-3)             -                   59.1
+
+Three readings, all of which bear on this design. **The shipped four-chain default reaches nominal coverage at 75 trees**, and a
+single chain does not, even at ten times the paper's length; read at its own first 2500 draws the long chain returns 0.818, so the
+gain is chain length and not a different fit. **So coverage is not the statistic this benefit stage can win on**: arm A sits at
+0.961 against a nominal 0.95 with no headroom left. **And the mixing symptom survives the pooling intact.** A chain's own minimum
+ESS is 2 whether it is 500 draws long or 25000; only adding chains moves the summed figure, and five times the length moves it from
+15 to 18. That is a statistic counting how many separate places the chains find, which is what a proposal mixture acts on, and it
+reads 15 out of 2000 kept draws. The He-Hahn coverage deficit is read as a MIXING symptom and mixing is the lever (VD, 2026-09-07),
+so
+**the primary is the minimum ESS over C1's 25 fixed points, summed over four chains, on the independent design at 75 trees,
+Trig+poly**, and the benefit cell runs the SHIPPED four-chain configuration, `n.chains = 4` at 500 burn-in and 500 kept - the
+cheapest of the four arms above as well as the one that reads the symptom. Single
+index is reported beside it and is not gated. The tree-count arm stays in the battery as a comparison only; the default is parked.
+
+The three arms are `independent75pool4`, `independent75pool4long` and `independent75long` in
+[`arms`](../../benchmarks/R/surfaces/C1-he-hahn.R), landed with their readouts at fef6dca6; slice 3's harness reuses the first as
+the benefit cell rather than adding one.
+
+**The bar the cell can resolve.** [`surfacesRange`](../../benchmarks/R/surfaces/surfaces-common.R) prints mean and min-max over the
+twenty seeds, so 15(8-31) is a range of 23. At `E[range] = 3.735 sd` for twenty draws that is sd 6.2, a per-arm SE of 1.4 on the
+twenty-seed mean, and a paired-difference SE bounded above by `sqrt(2) x 1.4 = 2.0`, attained only at zero seed correlation and
+strictly smaller under matched seeds. **Four times that bound is +7.8, so the bar is +8 summed minimum ESS**, 15 to 23, a ratio of
+1.5. Two caveats, both stated rather than buried: the range-to-sd conversion assumes normality and minimum ESS is right-skewed, so
+6.2 overstates the spread and the bar is conservative in the direction that costs the move; and 6.4's "four times the measured
+per-replicate standard error" is read here as four times the twenty-PAIR standard error, as every margin 6.4 itself tabulates is,
+four times a per-replicate sd being 25 - larger than the statistic's whole observed range.
+
+### 5.2 Arms, dosage, and cells
+
+**Two arms**, matched seeds, paired: **A**, the shipped mixture `birth_death 0.6, swap 0, change 0.4, perturb 0`; **B**, `perturb d`
+taken from change. 6.3's arms C and D are DROPPED, and priced first so the drop is a decision rather than an omission. Arm C is an
+OpenBT-style extra perturb pass, and it is an engine change, not a mixture setting: [`Chain`](../../src/bartcore/chain.hpp) calls
+[`metropolisJumpForTree`](../../src/bartcore/moves.hpp) exactly once per tree per sweep, so a second pass is a second call site
+carrying a `perturb.passes` control with its own formal, slot, validity, Rd and bitwise-neutrality argument at zero passes - a fifth
+slice of perhaps 60 to 80 engine lines and a surface tour of its own - and arm D, which exists only to spend C's extra
+compute on plain sweeps, doubles the Stage 2 run. **RECOMMEND dropping both.** They measure a dosage no default would ship at, and
+6.4's kill is a CONJUNCTION over B and C, so dropping C makes the kill a single condition and therefore STRICTER than the criterion
+it departs from, not looser.
 
 **Dosage grid: `d` in `{0.04, 0.10, 0.16}`**, one move per tree per sweep making `d` exactly attempts per tree per sweep, so it
-spans the survey's band. `d = 0.40` is EXCLUDED because it leaves change at 0, making arm B birth/death-only in every respect the
-two null controls measure, so both would fail by construction rather than on the estimator
-([10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function) records birth/death-only failing
-that control outright). **Width: `w = 1` only.** The selection rule below already resolves the width from Stage 0's frozen table, so
-a `w = 2` build is exploratory and is not priced in the confirmatory run.
+spans the survey's band. `d = 0.40` is EXCLUDED because it leaves change at 0, and change is the only move that supplies variable
+switching at one tree: cell 3's must-not-degrade gate would then fail outright rather than on the estimator
+([10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function) records birth/death-only at 0
+switches in 40 of 40 chains). **Width: `w = 1` only.** The selection rule below resolves the width from Stage 0's frozen table, so a
+`w = 2` build is exploratory and is not priced in the confirmatory run.
 
 **The selection rule, fixed before Stage 1.** The confirmatory `(w, d)` maximizes `d x accept(w)`, expected accepted perturbs per
 tree per sweep at the low-noise cell, subject to `accept(w) >= 0.25` and `d <= 0.16`. Stage 0's table resolves it now: `accept(1) =
-0.2643` passes, `accept(2) = 0.1475` does not, so `w = 1, d = 0.16`.
+0.2715` passes, `accept(2) = 0.1373` does not, so `w = 1, d = 0.16`. The rule is written with the table in hand and clears `w = 1`
+by 0.0215, so it selects rather than discovers; that is the point of freezing it here, and it is why the confirmatory run needs one
+build and not two.
 
-**Four cells.** These replace 6.3's four survey cells, which predate the battery.
+**Three cells.** These replace 6.3's four survey cells, which predate the battery.
 
-1. **C1's independent design at 75 trees, the PRIMARY, on Trig+poly.**
-   [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial) establishes that the pre-registered
-   correlated arm is not the published setting and that this one is where the coverage deficit reproduces with headroom - 0.822
-   against a nominal 0.95, the correlated 200-tree arm at 0.957 with none. The statistic is C1's OWN 95 percent pointwise coverage
-   of true `f`; Single index is reported beside it and is not gated. A HARM is
+1. **C1's independent design at 75 trees, the PRIMARY, on Trig+poly**, four chains at 500 + 500, twenty matched pairs. The primary
+   is 5.1's summed minimum ESS at the +8 bar. Four secondaries, each at
    [6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
-   -0.010 core margin. 2. **P1, section 13's rung** (n = 2000, m = 200, `sigma = 0.25`), the known-positive control: it must return
-   90 percent coverage near 0.71 or no verdict is valid, which is the rung 6.4's absolute gate names. Not Pratola's n = 5000,
-   `sigma^2 = 0.1` rung, whose 0.71 this is not. No win is claimed here -
+   own margin, all must-not-degrade: 95 percent coverage at -0.010 absolute (arm A at 0.961), held-out RMSE at a ratio above 1.02,
+   interval length reported, and wall time per sweep at a ratio above 1.05 - the last of which is what stops an ESS win bought
+   purely with compute, and is why the primary is stated in draws rather than per second.
+2. **P1, the prerequisite absolute gate, not a win cell.** Section 13's rung, n = 2000, m = 200, `sigma = 0.25`: its 90 percent
+   coverage must return near 0.71 in the control arm or no verdict from any cell is valid. Not Pratola's n = 5000, `sigma^2 = 0.1`
+   rung, whose published 53 percent this is not. No win is claimed here -
    [6.3 The pathologies](benchmark-surfaces.md#63-the-pathologies) records three shipped proposal mixtures indistinguishable on it,
-   and perturb is a proposal-mixture change. 3. **P2's duplicate-column null**, must-not-degrade, carrying two facts. Arm A is
-   ALREADY degraded on it: 10.1's no-swap arm returns 70.8 mean switches per chain but a minimum of 0, 5 of 40 chains parked at an
-   x3 root, between-chain sd 0.149 against the default's 0.051. And the cell IS section 2.2's null-move hazard -
-   `surfacesDuplicateColumnNull` draws a four-value grid and the harness calls `bart2` at `n.cuts = 100L, useQuantiles = FALSE`, so
-   100 uniform cuts sit over four values and about 98 percent of `w = 1` displacements re-route zero rows. **Alternative i, run the
-   nulls at `useQuantiles = TRUE`**, four values giving three cuts so perturb is a real move; cost, the cell leaves 10.1's recorded
+   and perturb is a proposal-mixture change.
+3. **P2's duplicate-column cell, must-not-degrade, and it is honestly compromised in two ways.** Arm A is ALREADY degraded on it:
+   10.1's no-swap arm - numerically the shipped mixture - returns 70.8 mean switches per chain but a MINIMUM of 0, 5 of 40 chains
+   parked at an x3 root, between-chain sd 0.149 against the swap-carrying 0.051. And the cell IS section 2.2's null-move hazard:
+   [`surfacesDuplicateColumnNull`](../../benchmarks/R/surfaces/surfaces-common.R) draws a four-value grid and the harness calls
+   `bart2` at `n.cuts = 100L, useQuantiles = FALSE`, so 100 uniform cuts sit over four values, only two of the 99 adjacent index
+   pairs straddle a value, and about 98 percent of `w = 1` displacements re-route zero rows. **Alternative i, run the cell at
+   `useQuantiles = TRUE`**, four values giving three cuts so perturb is a real move; cost, the cell leaves 10.1's recorded
    configuration and arm A's level must be re-measured, about 3 unit fits. **Alternative ii, keep the shipped grid**, in which case
    what the cell measures is the cost of spending change's share on accepted null moves - a real shipped-configuration cost, not a
-   test of mixing. **RECOMMEND i for the gate, ii beside it as a labelled arm**, three unit fits buying that cost as a measurement
-   rather than an assumption. Threshold for both: arm B's mean switches within arm A's own seed range, no more than 10 of 40 chains
-   parked against arm A's 5, pooled p(root on x1) within Monte Carlo error of 0.5. 4. **The all-categorical null**, where perturb is
-   inert by construction - but arm B is not the control there, since it cuts change from 0.40 to 0.24 and discards 16 percent of
-   every tree's proposals. The cell therefore runs against its OWN control, `birth_death 0.6, change 0.24` with 0.16 discarded, and
-   every metric must sit within Monte Carlo error of it. Read against arm A instead, a failure would void the estimator family for
-   arm B's construction rather than the estimator.
+   test of mixing. **RECOMMEND i for the gate, ii beside it as a labelled arm.** The threshold cannot be stated on the minimum,
+   which arm A already reads 0: arm B's mean switches per chain within arm A's own seed range, chains parked no more than 10 of 40
+   against arm A's 5 (a two-standard-error allowance at that binomial), and pooled p(root on x1) within Monte Carlo error of 0.5.
 
-**What arm B must produce, in arithmetic.** At `w = 1, d = 0.16`, against the POST-REMOVAL control - the census's per-move rates
-recomposed at the shipping shares, `0.6 x 5.145% + 0.4 x 1.61%` at low noise, not at the mixture that carried swap - arm A sits at
-0.0373 accepted structural moves per tree per sweep and arm B at `0.0373 - 0.16 x 0.0161 + 0.16 x 0.9961 x 0.2643 = 0.0769`, 2.1x;
-at the default cell 0.0771 to 0.1303, 1.7x. The required coverage effect comes from C1's OWN twenty-seed spread, not 6.4's imported
-0.010: [`surfacesRange`](../../benchmarks/R/surfaces/surfaces-common.R) prints mean and min-max, so 10.4's independent-75 Trig+poly
-range of 0.076 implies sd 0.0203 (`E[range] = 3.735 sd`), a per-arm SE of 0.0045 on the 20-seed mean, and a paired-difference SE
-bounded by `sqrt(2) x 0.0045 = 0.0064`, attained only at zero seed correlation. **A WIN is therefore +0.026 absolute**, four times
-that bound, moving Trig+poly 0.822 to 0.848 against the 0.100 that 75 to 200 trees buys on the same arm. What the chain lacks:
-`accept(1)` and the 0.9961 factor are low-noise FRIEDMAN numbers applied to a C1 target the census never ran, and nothing anywhere
-connects a 2.1x accepted-move rate to a coverage move. The design does not predict the bar will be met, and says so here so Stage 2
-can fail honestly.
+**The controls, replacing 6.3's all-categorical null.** 6.3 asks for a cell where the move provably cannot act and voids the
+estimator family if the arms differ there. Arm B cannot pass such a cell, and the reason is where its share comes from: perturb is
+inert on an all-categorical design (section 2), but arm B still cuts change from 0.40 to 0.24 and discards 16 percent of every
+tree's proposals, so any difference is arm B's construction and not the estimator's. Taking the share from birth_death instead only
+moves which move is diluted. The null is therefore taken in two pieces the move can pass. **(a) The bitwise null**, which is 6.4's
+own first absolute gate and is strictly stronger than a statistical one: at `perturb 0` arm B must be BITWISE identical to arm A
+under benchmarks/R/equivalence.R. Slice 1 already runs it. **(b) A sham comparison**, arm A against arm A at twenty FRESH sampler
+seeds on cell 1, whose paired minimum-ESS difference must sit inside the +8 bar - the only control that calibrates the bar against
+the harness rather than against a formula, at the cost of twenty more fits. The all-categorical cell stays, RELABELLED a dilution
+arm rather than a null: arm B against `birth_death 0.6, swap 0, change 0.24` with 0.16 discarded, measuring what a discarded
+proposal share costs where perturb cannot act. It reports; it gates nothing and voids nothing.
+
+### 5.3 What arm B must produce, and the kill
+
+**In arithmetic.** The two-move re-run measures arm A directly - it IS arm A's kernel - so nothing has to be recomposed: its pooled
+acceptance is 0.0388 accepted structural moves per tree per sweep at low noise and 0.0790 at the default cell, one proposal per tree
+per sweep making the pooled rate exactly that. At `w = 1, d = 0.16` arm B is
+`0.0388 - 0.16 x 0.0166 + 0.16 x 0.9927 x 0.2715 = 0.0793` at low noise, 2.0x, and
+`0.0790 - 0.16 x 0.0377 + 0.16 x 0.9754 x 0.4065 = 0.1364` at the default cell, 1.7x - the forgone change term at its measured
+acceptance, then the perturb term at `d` times the eligible share (one minus change's no-op rate) times `accept(1)`. What the chain
+lacks is worse for a minimum-ESS primary than it was for coverage: every factor above is a FRIEDMAN number, at low noise and at the
+default cell, applied to a C1 target the census never ran, and nothing anywhere connects a 2.0x accepted-move rate to a move in the
+minimum ESS over 25 fixed points. The design does not predict the bar will be met, and says so here so slice 3 can fail honestly.
 
 **Kill criterion.** This is the design's own, derived from
 [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered) with every departure stated. **KILL
-if, at `w = 1, d = 0.16`, arm B does not improve cell 1's 95 percent coverage over arm A by more than +0.026, over at least 20
-matched pairs, with a mandatory fresh-seed re-run of any flagged cell before a flag counts.** Four departures. (a) The cell is C1,
-not the low-noise cell 6.4 names, because P1 could not separate three shipped mixtures and this design claims no win there; quoting
-6.4 verbatim would fire the kill by construction. (b) 6.4's second conjunct, arm C against arm D, is dropped with arm C, which makes
-the kill a single condition and therefore STRICTER than 6.4's disjunction. (c) "four times the measured per-replicate standard
-error" is read as four times the twenty-PAIR standard error; four times the per-replicate sd would be 0.081, which no local move
-could reach and which 6.4's own 0.010 scaling shows was not the intent. (d) 6.4's "KILL the default question independently" clause
-needs plateau prediction error in the noise-heavy or large-n stratum; no cell here is either and none measures it, so that clause
-belongs to slice 4, not to slice 3.
+if, at `w = 1, d = 0.16` on the shipped four-chain configuration, arm B does not improve cell 1's summed minimum ESS over arm A by
+more than +8, over at least 20 matched pairs, with wall time per sweep no worse than 6.4's 1.05 ratio, and with a mandatory
+fresh-seed re-run of any flagged cell before a flag counts.** Five departures. (a) The statistic is minimum ESS, not coverage,
+the He-Hahn deficit being read as a mixing symptom (VD, 2026-09-07); at the shipped chain configuration coverage is 0.961 and has
+no headroom to win in. (b) The cell is C1, not the low-noise cell 6.4 names, because P1 could not separate three shipped mixtures and
+this design claims no win there; quoting 6.4 verbatim would fire the kill by construction. (c) 6.4's second conjunct, arm C against
+arm D, is dropped with arm C, which makes the kill a single condition and therefore STRICTER than 6.4's disjunction. (d) "four times
+the measured per-replicate standard error" is read as four times the twenty-PAIR standard error, derived in 5.1 from the cell's own
+recorded spread rather than imported from 6.4's 0.010. (e) 6.4's "KILL the default question independently" clause needs plateau
+prediction error in the noise-heavy or large-n stratum; no cell here is either and none measures it, so that clause belongs to
+slice 4, not to slice 3.
 
 The asymmetry stands: passing justifies shipping the move opt-in at weight 0. Flipping the default needs the grow-from-root harm
-battery, which is not in `benchmarks/` and must be reconstructed
+battery, which is not in benchmarks/ and must be reconstructed
 ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)).
 
 [6.5 Cost, honestly](tree-mixing-proposals.md#65-cost-honestly) repriced. Stage 0's instrumentation and driver are spent, both
-landed. The kernel is 120 to 160 lines including 6.5's separate +15 for the window ratio, but across at least twenty files rather
-than six. `perturb-balance.R` is 400 to 500 with the confirmation arm. The Stage 2 harness stays at 6.5's ~400; what 6.5 did not
-price is the private-library build any width arm needs, which the confirmatory run avoids by fixing `w = 1`. Compute is unchanged,
-on the order of a day.
+landed. The kernel is 120 to 160 lines including 6.5's separate +15 for the window ratio, but across twenty-two files rather than
+six. `perturb-balance.R` is 400 to 500 with the confirmation arm. The Stage 2 harness stays at 6.5's ~400, and now carries the
+sham arm and the P2 quantile-grid arm as well; the four-chain C1 arm it reuses is already landed. What 6.5 did not price is the private-library build any width
+arm needs, which the confirmatory run avoids by fixing `w = 1`. Compute is unchanged, on the order of a day: cell 1 is 20 pairs at
+about 9 seconds a fit and the sham arm is 20 more.
 
 ## 6. RNG and baselines
 
-After the removal the dispatch is `if (u < bd) ... else change`, so the perturb branch goes in SECOND, at threshold `birthOrDeath +
-perturb`, with `changeMove` remaining the `else`. That is what makes `perturb = 0.0` bitwise-neutral: `bd + 0.0` is exactly `bd` in
-IEEE for any finite `bd`, so the new test is the old one and control reaches `changeMove` at the same stream position. Giving change
-the threshold and perturb the `else` would instead rest neutrality on the probabilities summing to exactly 1.0 and the uniform never
+The restored dispatch is `if (u < bd) ... else if (u < bd + swap) ... else change`
+([`metropolisJumpForTree`](../../src/bartcore/moves.hpp)), so the perturb branch goes in THIRD, at threshold `birthOrDeath + swap +
+perturb`, with `changeMove` remaining the `else`. That is what makes `perturb = 0.0` bitwise-neutral: `(bd + swap) + 0.0` is exactly
+`bd + swap` in IEEE for any finite sum, so the new test IS the second test, it fails wherever that one failed, and control reaches
+`changeMove` at the same stream position. It is the identity the restore already used in the other direction
+([9. Reversal: the move returns at default zero](swap-removal.md#9-reversal-the-move-returns-at-default-zero)). Giving change the
+threshold and perturb the `else` would instead rest neutrality on the probabilities summing to exactly 1.0 and the uniform never
 returning 1.0 - a coincidence, not a construction. The move-type SELECTION consumes one uniform per tree per sweep whichever branch
-it takes ([`metropolisJumpForTree`](../../src/bartcore/moves.hpp); the kernels draw more), so at weight 0 no stream moves and
-`benchmarks/R/equivalence.R` stays green by construction, which is what makes the correctness gate runnable before anything changes
-for users.
+it takes (the kernels draw more), so at weight 0 no stream moves and benchmarks/R/equivalence.R stays green by construction, which
+is what makes the correctness gate runnable before anything changes for users.
 
-The stream shift belongs to the swap removal, which lands first and takes the one bundled re-record of every baseline and every
-hardcoded tinytest snapshot. A nonzero perturb default would be a SECOND shift, so if one is ever adopted it lands inside that same
-re-record rather than paying its own. Stage 2's arm A is therefore the mixture that will ship: measuring perturb against a mixture
-the release does not contain would price it against a kernel no user will run, which is also why section 5's arithmetic recomposes
-the census's per-move rates at the post-removal shares.
+**No baseline is re-recorded.** The removal took the one bundled re-record of every baseline and every hardcoded tinytest snapshot,
+and the restore, resting on the same identity, took none. Slice 1 takes none either. A nonzero perturb default would be a stream
+shift of its own and is slice 4's to pay for. Stage 2's arm A is therefore the mixture that will ship: measuring perturb against a
+mixture the release does not contain would price it against a kernel no user will run, which is also why section 5's arithmetic
+reads the census's two-move re-run rather than the three-move figures beside it.
 
 ## 7. What the census does not settle
 
@@ -361,33 +482,50 @@ the census's per-move rates at the post-removal shares.
   this move clips, and it weights records not nodes.** A clamped step gives the recommended window's targets at `w = 1`, not at `w
   >= 2`. `cutProbe` writes one record per distinct displacement, so an interior node contributes two `|1|` records and a boundary
   node one, and `cutTable`'s per-record mean UNDER-WEIGHTS the boundary about 2x - exactly where the omitted correction applies;
-  degenerate-interval nodes leave the denominator entirely, so the 0.9961 eligibility factor misses them. Magnitudes 3, 5, 6 and 7
+  degenerate-interval nodes leave the denominator entirely, so section 5's eligibility factor misses them. Magnitudes 3, 5, 6 and 7
   come from narrow intervals only, 139 to 1140 probes against ~28000 per power of two, so acceptance at a narrow interval is
   unmeasured. - **The probe took no move**, being a one-step acceptance on the chain the SHIPPED mixture produced; a chain running
   perturb visits different trees, so its realized rate is not this one. Nor is there a depth breakdown, so whether perturb's
   acceptance rises with depth as change's does is unknown. - **Acceptance is not mixing.** Stage 0 measured no coverage, effective
-  sample size, inclusion or error, and had no kill criterion. That is section 5's job. - **The veto's share of the probes WAS
+  sample size, inclusion or error, and had no kill criterion. That is section 5's job, and section 5.1's chain-configuration run is
+  what turned its primary from coverage into minimum ESS. - **The veto's share of the probes WAS
   separated and not recorded.** [`cutTable`](../../benchmarks/R/move-census.R) computes `vetoed.pct` per magnitude; the 6.1
   addendum's table omits the column. Re-summarizing the existing census files records it, and slice 2 should not start without it. -
   **One grid, one tree count, one chain, no categorical and no coarse cell.** Default `n.cuts`, 75 trees (50 in the causal cell's
-  treatment forest), 200 burn plus 500 sampled sweeps, continuous columns throughout - so 6.3's all-categorical null has no pilot,
-  and section 2.2's null-move hazard has none either, though section 5 cell 3 is where it would be piloted.
+  treatment forest), 200 burn plus 500 sampled sweeps, continuous columns throughout - so section 5's dilution arm has no
+  pilot, and section 2.2's null-move hazard has none either, though section 5 cell 3 is now where it is piloted, and the price of
+  not piloting it first is that the cell's gate runs on a grid 10.1 never measured arm A on.
 
 ## 8. Slices
 
-0. **The swap removal**, a blocking prerequisite for every slice below and the source of every count in this document. DONE: it is
-   recorded and landed ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)) and it took the bundled
-   re-record.
+**Prerequisites and order.**
+
+1. **The swap restore, LANDED** (3ecd7f47, recorded at
+   [9. Reversal: the move returns at default zero](swap-removal.md#9-reversal-the-move-returns-at-default-zero)), together with the
+   structural fill rule it needed (6934e487). Section 3's enumeration counts against that tree and nothing below is startable
+   against another.
+2. **benchmarks/R/surfaces/P1-low-noise-friedman.R**, the battery's absolute gate, which does not exist yet. It blocks slice 3 only,
+   but it blocks it completely: without 0.71 in the control arm no cell's verdict is valid.
+3. **The C1 chain configuration, SETTLED** (section 5.1): the benefit cell runs the shipped four chains at 500 + 500 and reads
+   summed minimum ESS. This fixes slice 3's primary statistic and its bar.
+4. **The census's `vetoed.pct` column**, re-summarized from the existing census files (section 7). It blocks slice 2.
+
+Then, in order:
+
 1. **The kernel, at default weight 0.** `perturbMove`, a shortened [`changeMove`](../../src/bartcore/moves.hpp), the dispatch branch
-   and `StepType` enumerator, `MoveContext`; ten `chain.hpp` and three `combiner.hpp` sites; eight bridge sites including the
-   two-forest refusal; six R spellings, the new slot and validity, the guarded one-NA fill, `resolveSamplerSpec`'s two `all.equal`
-   comparisons; four Rd files; five tinytest files, tests/cpp/test_moves.cpp and inst/NEWS.Rd - at least twenty files. Roughly 150
-   lines of code and 120 of tests: bitwise neutrality, the spurious-refusal regression under `monotone` and a treatment forest,
-   test-sum-to-one-tolerance.R still failing where it fails today, a perturb-dominant run that changes cuts and never a variable or
-   a shape, and the interval-invariance assertion.
+   and `StepType` enumerator, `MoveContext`'s fourth probability; ten `chain.hpp` and three `combiner.hpp` sites; eight bridge sites
+   including the two-forest refusal; six R default vectors, the new slot, prototype and validity term, `perturb` resolved ahead of
+   the three-name fill, `resolveSamplerSpec`'s two `all.equal` comparisons; fifteen positional `MoveContext` initializers in
+   tests/cpp; four Rd files; six tinytest files and inst/NEWS.Rd - twenty-two files (section 3.1). Roughly 150 lines of code and 120
+   of tests: bitwise neutrality, the spurious-refusal regression under `monotone` and a treatment forest,
+   test-sum-to-one-tolerance.R still failing where it fails today, the fill preserving every resolution
+   test-proposal-probs.R pins, a perturb-dominant run that changes cuts and never a variable or a shape, and the
+   interval-invariance assertion.
 2. **`perturb-balance.R`.** The prior-only arm on the full factorial, the exact-posterior confirmation arm, both poisons. Roughly
-   400 to 500 lines; not startable before slice 1, or before the `vetoed.pct` column is recorded.
-3. **The Stage 2 harness and run.** Two arms, the four named cells at `w = 1, d = 0.16`, twenty matched pairs. Roughly 400 lines
-   plus a day of compute; the verdict is recorded here.
-4. **The default share, if slice 3 passes**, carrying 6.4's second kill clause, which needs the reconstructed grow-from-root harm
-   battery and lands inside the swap-removal re-record rather than after it.
+   400 to 500 lines; not startable before slice 1 or before prerequisite 4.
+3. **The Stage 2 harness and run.** Two arms, the three named cells and the two controls at `w = 1, d = 0.16`, twenty matched pairs,
+   reusing the landed four-chain C1 arm. Roughly 400 lines plus a day of compute; not startable before prerequisite 2.
+   The verdict is recorded here.
+4. **The default share, if slice 3 passes**, carrying 6.4's second kill clause. That clause needs plateau prediction error in the
+   noise-heavy or large-n stratum, which no cell of slice 3 measures, and therefore the reconstructed grow-from-root harm battery;
+   it belongs here and nowhere earlier. A nonzero default is a stream shift and pays for its own re-record.
