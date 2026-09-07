@@ -3727,7 +3727,7 @@ is about `L` units, and `L` is 2.3 to 2.8 by the fact above.
 |---|---|---|---|---|---|---|---|---|
 | 1 | Exact draw on the level fibre | add `c_t` to every leaf of tree `t` with `sum_t c_t = 0`; `f` is unchanged exactly, so the conditional on that subspace is the leaf prior alone. Draw `u_t ~ N(-S_t/L_t, tau^2/L_t)` with `S_t` the tree's leaf sum, then `c = u - v (1'u)/(1'v)`, `v_t = tau^2/L_t` | exact Gibbs, acceptance identically 1: no likelihood is evaluated, nothing is tuned | `sum_t L_t` additions, no data pass - under 1/100 of a cut scan | [3.1 Many tree arrangements, one fitted function (ESTABLISHED)](#31-many-tree-arrangements-one-fitted-function-established)'s second clause, quantified as mode F in sec 12.2 and never given a fix | new to BART: the construction is Hastie and Tibshirani's backfitting centering, whose own version CHANGES the target | freeze the forest at a posterior draw through [`Sampler::setState`](../../src/bartcore/sampler.hpp), run leaf and sigma draws only, read ESS of `f` at [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s 25 points; ESS already 2 with structure frozen and leaf space is the program | derivation CONFIRMED, dimension `m-1` and generically ALL of `ker(Z)` (col(Z) is a sum of `m` subspaces each holding `1_n`, so `rank Z <= sum L_t - (m-1)`). The second-order claim is CONFIRMED and exact: [`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp) reduces to `0.5 log(P/(P+Q)) + 0.5 b^2/(s^4 (P+Q))`, so shifting a residual by `c_t` moves every `b` and no birth, death or change ratio is invariant. The "1.7 sweeps at default" timescale is REFUTED as a scale mismatch - `tau = 0.0289` is on the internal response scale ([`GaussianResponse::fitScale`](../../src/bartcore/model.hpp) returns the range) while the quoted `s = 1` is the original one; corrected, the number can only be larger, and it is unmeasured |
 | 2 | Lifted cut displacement | carry a bit `d` per interior node; propose into the ONE-SIDED window `{j in [lo,hi] : 0 < d(j-c) <= 1}` from [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp); keep `d` on acceptance, flip it on rejection and at an interval end | skew-detailed balance against `(T,d) -> (T,-d)`; the mixture stays invariant because [`changeMove`](../../src/bartcore/moves.hpp) redraws the node's `d` from its uniform marginal and [`birthOrDeathMove`](../../src/bartcore/moves.hpp) draws a new node's bit uniformly, whose `1/2` cancels the extended target's `2^-I(T)` exactly | zero scans, one bit per interior node - CHEAPER than the reversible perturb | change's aim (sec 3.3) and sec 3.5's cut axis | new to BART: lifting is canonical general MCMC and no tree sampler carries it | already priced; the open question is whether same-direction RUNS exist - add a signed column to [`cutProbe`](../../src/bartcore/moves.hpp) and count consecutive same-sign improvements | the WINDOW correction is CONFIRMED identically 1 at `w = 1`: the one-sided window holds exactly one index each way and `[lo,hi]` is identical on `T` and `T'`. The claim that the PRIOR ratio is 1 is REFUTED - [2.2 Acceptance, the veto, and the grid](perturb-move.md#22-acceptance-the-veto-and-the-grid) already records that the subtree strictly below the node contributes a non-zero prior difference. The `1/(1-a)` gain reproduces exactly (1.68 / 1.37 / 2.06 / 1.50) but it is this house's own arithmetic for a homogeneous walk at state-independent acceptance, not a literature bound, and the probe measured `a` in a chain where perturb never fires. MEASURED AGAINST: same-direction runs do not exist - consecutive accepted displacements at one node continue in the same direction only 36.6 to 43.1 percent of the time, below the reversible null of 50, with a streak-extension hazard flat in streak length. REFUTED as a source of gain: a lift spends its saving forcing continuation in a direction the chain already prefers to reverse |
-| 3 | Same-temperature one-tree exchange between chains | draw chains `A != B` and indices `j, k`, swap the two structures with leaves integrated out and redrawn after; `alpha = L_A(T_{B,k}) L_B(T_{A,j}) / (L_A(T_{A,j}) L_B(T_{B,k}))`, the four collapsed marginals of each tree against each chain's own residual and sigma | ordinary symmetric-proposal MH on the product target `prod_c pi(theta_c)`; the swap is a deterministic involution and the two tree priors cancel by (S1) | 2 to 4 passes over `n`, 3 to 13 percent of a sweep; the real price is (S2)'s barrier | 10.4's per-chain ESS of 2 with a between-chain ratio of 0.5 to 0.8 - the deficit nothing in section 15 targets | FOUND for a single tree, unfound for an ensemble | 8 chains stepped by `$run(0,1)`, structures read out per sweep and the four marginals scored offline; a MANDATORY harm clause - per-chain ESS must RISE against 2 while pooled coverage holds against 0.961 / 0.895 | algebra CONFIRMED. Prior art is CLOSER than either lens allowed: Rigat's cross-chain CART sampler carries a component swap AND "a whole tree swap between chains", so only the ENSEMBLE instance is unfound. Harm CONFIRMED verbatim - 10.4 says "pooling is what widens the interval", and an exchange is a coupling that drives "between" toward 0. The sizing "one tree's worth = `2^depth` = 16-32x a leaf's worth" is REFUTED by 16.2's third fact: it is 2.3 to 2.8x |
+| 3 | Same-temperature one-tree exchange between chains | draw chains `A != B` and indices `j, k`, swap the two structures with leaves integrated out and redrawn after; `alpha = L_A(T_{B,k}) L_B(T_{A,j}) / (L_A(T_{A,j}) L_B(T_{B,k}))`, the four collapsed marginals of each tree against each chain's own residual and sigma | ordinary symmetric-proposal MH on the product target `prod_c pi(theta_c)`; the swap is a deterministic involution and the two tree priors cancel by (S1) | 2 to 4 passes over `n`, 3 to 13 percent of a sweep; the real price is (S2)'s barrier | 10.4's per-chain ESS of 2 with a between-chain ratio of 0.5 to 0.8 - the deficit nothing in section 15 targets | FOUND for a single tree, unfound for an ensemble | RUN 2026-09-07: 8 chains in one sampler, 500 burn sweeps then 100 states 5 apart, uniform and matched-index exchanges scored offline against each chain's own collapsed marginal (acceptance table in the paragraph below); the MANDATORY harm clause never gets invoked - acceptance is already under half the kernel's own scored rate at `c1` and four to eight orders of magnitude short of it at `lownoise` - KILLED | algebra CONFIRMED. Prior art is CLOSER than either lens allowed: Rigat's cross-chain CART sampler carries a component swap AND "a whole tree swap between chains", so only the ENSEMBLE instance is unfound. Harm CONFIRMED verbatim - 10.4 says "pooling is what widens the interval", and an exchange is a coupling that drives "between" toward 0. The sizing "one tree's worth = `2^depth` = 16-32x a leaf's worth" is REFUTED by 16.2's third fact: it is 2.3 to 2.8x. MEASURED (2026-09-07): acceptance is 10.1 to 11.7 percent at `c1`'s two seeds, 4.4e-8 to 2e-4 at `lownoise`; it lives entirely on the one- and two-split trees birth/death already reaches and vanishes on the multi-split trees the move is sized for, and it is highest exactly on the couplings that would collapse the between-chain spread pooling converts into 10.4's coverage. KILLED |
 | 4 | Pairwise-collapsed split transfer | pick trees `(j,k)`, delete the children of a nog node `v` of `T_j` and install `v`'s rule at an admitting leaf of `T_k`; score by the JOINT collapsed marginal of the pair, which needs only the `L_j x L_k` weight contingency table plus the cached leaf statistics | MH on the block `(T_j, T_k)` with both leaf vectors integrated out; the empty-leaf veto applies at both ends | one pass over `n` for the table (`~L` units) plus one leaf scan; the `(L_j+L_k)^3` Cholesky is noise at `L ~ 2.5` | 3.1's FIRST clause - a split leaves one tree and enters another without either passing through a stump | new outright as far as two search legs reach | generator-only, the shape of [`cutProbe`](../../src/bartcore/moves.hpp): each sweep score one candidate transfer, log the pair-collapsed ratio, RESTORE. A median where change's sits kills it | computability CONFIRMED - the table is one pass over the [`rebuildLeafOf`](../../src/bartcore/chain.hpp) maps, and `r'Wr` cancels because both states share the residual net of the other `m-2` trees. The stated `q` ratio `(N_j M_k)/(N'_k M'_j)` is REFUTED as incomplete: the pair is drawn from the set of trees SHARING a split variable, which the move itself changes, so that selection density does not cancel and both normalizers must be computed. Repairable, and cheap over variable-usage bitmasks. NOT RUN this round: pricing a transfer needs the residual net of the other `m-2` trees and the partner tree's own leaf statistics, which neither `changeMove` nor `birthOrDeathMove` sees, so it needs a dedicated `chain.hpp` block scoring the joint `L_j + L_k` system rather than a hook inside one of the moves this round's other three probes reused |
 | 5 | Lifted birth/death | carry a bit `v` per tree; at `+1` the move is a birth, at `-1` a death; flip on rejection. Against [`birthOrDeathMove`](../../src/bartcore/moves.hpp) this deletes both [`probabilityOfBirthStep`](../../src/bartcore/moves.hpp) factors from the transition ratio and replaces the Bernoulli with a read of `v` | row 2's argument with the birth/death involution; the boundary cases (stump, saturated tree) become reflecting and leave the ratio | negative - one bit per tree, one fewer Bernoulli | 3.5, tree size as a random walk | new to BART | recompute `1/(1-a)` per cell from the shipped census; below ~1.3 everywhere, do not write it | code claims CONFIRMED. The price is REFUTED as quoted: the reports read the SUPERSEDED three-move census. Recomputed at the two-move kernel the gain is 1.12 / 1.06 / 1.14 / 1.06 on birth and 1.12 / 1.06 / 1.17 / 1.14 on death - 1.06 to 1.17, a rider on an aim improvement and nothing alone. The lift is on the SIZE axis only; at fixed size the walk over WHICH nodes is untouched. UNCHANGED by this round's probes: they price the cut-displacement axis (row 2) and the nog neighbourhood (15.3 rows 1-3), not the birth/death step itself |
 | 6 | Variance-forest-weighted birth leaf | where a variance forest is in the model, choose the birth leaf with weight proportional to the leaf mean of the fitted `s^2(x)`, corrected by the ratio of normalizers | an informed weight that is a deterministic function of the current state; the reverse is the uniform nog draw, computable at `T'`. Fitting a variance forest AS a proposal device off chain history would be adaptation | zero - one accumulator in the leaf-stat pass the sweep already makes | the steepest-change reading of least-favorable directions | new outright | fit a He-Hahn cell with a variance forest and correlate `s^2(x_i)` against `abs(f - fhat)`; near-zero correlation and the weight carries no signal | validity CONFIRMED and the HBART contrast is exact - there `s^2(x)` enters the mean forest only as a precision weight. Two objections. The direction is UNDERDETERMINED: that same precision weight already FLATTENS the mean likelihood exactly where this would aim more proposals. And 10.4 is homoscedastic and fitted without a variance forest, so at the deficit it names this is a MODEL change, not a kernel change |
@@ -3742,6 +3742,78 @@ interweaving against BART leaf values; warped, latent and
 errors-in-variables covariates under trees; variance forests as proposal
 devices; and histogram sufficient statistics against XBART, bartz,
 flexBART, stochtree, PyMC-BART, bartMachine and PG-BART.
+
+**Addendum (2026-09-07): row 3 priced at `m = 75`.**
+[`C1-cross-chain-probe.R`](../../benchmarks/R/surfaces/C1-cross-chain-probe.R)
+runs eight chains in one sampler on `c1` (He-Hahn independent design,
+Trig+poly, n = 10000, p = 30, 75 trees, two data seeds) and on the
+move census's `lownoise` cell (Friedman, n = 5000, p = 10, 75 trees,
+sigma^2 = 0.1): 500 burn sweeps, then 100 states five sweeps apart, 50
+uniform (chain pair, tree pair) exchanges plus 25 matched-index
+(`k = j`) exchanges scored per state from the four collapsed marginals
+in closed form
+([`probeLogMarginal`, `probeLogMarginalNumeric`, `probeAssignLeaves`, `probeStructureKeys`](../../benchmarks/R/surfaces/C1-cross-chain-probe.R)
+do the scoring, the numerical cross-check and the structure
+bookkeeping) - generator-only throughout: nothing draws, nothing is
+proposed, the sampler runs its shipped moves untouched.
+
+Acceptance of min(1, alpha) (`excl.` drops exchanges between
+identical structures, `ident` is that share, all proportions):
+
+    cell      design    n     accept   excl.    medianLogAlpha  ident
+    c1 seed1  uniform  5000   0.1074   0.1034      -53.64       0.0044
+    c1 seed1  matched  2500   0.1136   0.1111      -47.86       0.0028
+    c1 seed2  uniform  5000   0.1037   0.1012      -49.87       0.0028
+    c1 seed2  matched  2500   0.1169   0.1134      -49.33       0.0040
+    lownoise  uniform  5000   2.0e-4   4.4e-8     -1374.00       0.0002
+    lownoise  matched  2500   4.1e-8   4.1e-8     -1394.00       0.0000
+
+By leaf-count pair (`c1` seed 1, uniform; flat across the run's four
+sweep blocks, and only smaller with more splits on either side):
+
+    pair    accept
+    1-2     0.331
+    1-3     0.170
+    2-2     0.164
+    2-3     0.073
+    3-3     0.031
+    4-4     0.028
+    5+-5+   4e-22
+
+Shared structure, mean over states and chains:
+
+    cell      shared  non-stump  stump   meanLeaves
+    c1 seed1   0.290    0.248    0.057     2.59
+    c1 seed2   0.283    0.241    0.055     2.55
+    lownoise   0.056    0.054    0.002     4.06
+
+consistent with 16.2's third fact and with 6.1's fourth addendum,
+where `lownoise` also carries the deepest trees of any single-forest
+cell. Checks: the closed form against
+numerical integration on all 15 leaves scored agrees to max |diff|
+2.2e-11; the leaf assignment reproduces `getTrees`' own `n` column for
+all 600 trees of a state; summed per-tree internal leaf values
+reproduce the fitted values to 2.2e-15 to 6.6e-15, pinning the
+internal scale, `tau = 0.028868`; and one whole-tree brute-force log
+alpha (90.21401) reproduces the closed-form value digit for digit.
+
+The positive tail is real - P(log alpha > 20) is 0.0052 (`c1` seed 1,
+uniform) against a stationary bound of 2.06e-9 - and the brute-force
+check's own donor and acceptor chains differ in internal sigma by
+about 5 percent (0.0846 against 0.079-0.081 for the other six), the
+same likelihood-side signal that the chains sit apart.
+
+Reading: not worth building. At `c1` the exchange accepts at under
+half the kernel's own scored acceptance (24.9 percent, 6.1's fourth
+addendum) in the same cell; the acceptance lives on the one- and
+two-split trees birth/death already reaches and vanishes on the
+multi-split trees that are the move's own justification; at
+`lownoise`, the regime where structure freezing is established, it is
+unavailable; and the accepted exchanges are exactly the couplings
+that would collapse the between-chain spread that pooling converts
+into
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s
+coverage.
 
 ### 16.4 Merged view across the two rounds
 
@@ -3817,8 +3889,10 @@ leaves-per-tree count (sec 6.1's third 2026-09-07 addendum) - leaving row
   known to be the generic floor, reached exactly unless two trees'
   partitions coincide or nest, so the excess is a count of coincidences
   rather than the full Gram the geometry lens assumed.
-- **Whether exchange acceptance survives at `m = 75`**, the premise being
-  measured and the acceptance not.
+- ~~**Whether exchange acceptance survives at `m = 75`**, the premise
+  being measured and the acceptance not.~~ SETTLED (2026-09-07): it does
+  not, at either cell tried - see the addendum after
+  [16.3 Ranking](#163-ranking)'s table.
 - **Whether same-direction cut RUNS exist**, without which row 2 collapses
   onto the reversible perturb at no loss and no gain; and whether tree size
   is a slow coordinate at all, on which row 5's whole value rests.

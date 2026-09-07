@@ -554,6 +554,22 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The cross-chain exchange priced generator-only at m = 75 (c7f5c7c1, 2026-09-07)
+
+benchmarks/R/surfaces/C1-cross-chain-probe.R runs eight chains in one
+sampler on `c1` (He-Hahn independent Trig+poly, n = 10000, p = 30, 75
+trees, two data seeds) and the census's `lownoise` cell (n = 5000,
+p = 10, 75 trees, sigma^2 = 0.1): 500 burn sweeps then 100 states five
+apart, 50 uniform plus 25 matched-index exchanges scored per state
+from the four collapsed marginals in closed form, checked against
+numerical integration (max diff 2.2e-11) and a whole-tree brute-force
+log alpha (90.21401, digit for digit). Acceptance 10.1-11.7 percent at
+`c1`'s two seeds, 4e-8 to 2e-4 at `lownoise` - under half the kernel's
+own scored rate at `c1`, unavailable at `lownoise` - concentrated on
+one- and two-split trees and vanishing on the multi-split trees the
+move is sized for. Records: tree-mixing-proposals.md sec 16.3 row 3
+and sec 16.6. Killed. Script only, no engine change.
+
 ### C1 move-set arms measured at the four-chain configuration (ba1fb081, 2026-09-07)
 
 Four arms added to benchmarks/R/surfaces/C1-he-hahn.R hold the shipped
