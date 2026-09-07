@@ -1,6 +1,6 @@
 # level: an exact Gibbs draw on the level fibre
 
-Status: PROPOSED, 2026-09-07.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit).
 
 A leaf-value step, not a tree kernel. Add a constant `c_t` to every occupied leaf of tree `t`, with the constants summing to zero
 across the forest's trees: the fitted function is unchanged exactly, so the conditional of the shift vector on that subspace is the
@@ -18,12 +18,16 @@ birth 0.5`, and perturb's own benefit run was KILLED on this cell
 ([5.3 What arm B must produce, and the kill](perturb-move.md#53-what-arm-b-must-produce-and-the-kill)). Nothing here takes a share
 from any structural move: the step is an addition to the sweep, not a redistribution inside it, and it changes no rule.
 
-**The house already ships two moves of this shape, and they are the template.**
+**The house already ships two leaf-table moves, and they are HALF the template.**
 [`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) draws the common level the softmax cannot identify
-from the leaf prior restricted to that direction, absorbs it uniformly over each forest's trees, skips empty leaves, and carries no
-flag at all; [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) travels the multiplicative amplitude ridge with a GIG draw
-on the same principle. This is the ADDITIVE within-forest sibling of the first, over the `m - 1` directions a single forest carries,
-and section 1's arithmetic reduces to the multinomial one under its own direction - the cheapest check that it is right.
+from the leaf prior restricted to that direction and absorbs it uniformly over each forest's trees, skipping empty leaves;
+[`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) travels the multiplicative amplitude ridge with a GIG draw on the same
+principle. What the first shares with this design is the ACCUMULATION: its `prec` and `num` are section 1's `(P_t, Q_t)` read
+along the uniform-absorption direction, so reducing section 1's arithmetic to it is the cheapest check on that half. It is
+otherwise a different animal - one-dimensional, UNCONSTRAINED, with no projection at all - and it MOVES `f`
+(`forest.totalFits[i] += c`) rather than fixing it, being the identifiability step a softmax chain cannot run without. That is
+also why its carrying no flag is no precedent for an optional accelerator. The projection is the half nothing shipped exercises,
+and section 5's two poisons stand in for the precedent it does not supply.
 
 ## 1. The draw
 
@@ -62,8 +66,8 @@ Sigma, the latents and the response families see only `f`, and see it unchanged.
 sum and `b` its weighted residual sum. Tree `t`'s residual next sweep is its old one plus `c_t` (section 2), so every node of that
 tree has `b -> b + c_t W`. `P` and `Q` read `W` only, so for a birth splitting `v` into `(l, r)` the likelihood ratio picks up
 
-    linear:     (2 c_t / s^4) [ b_l W_l/(P+Q_l) + b_r W_r/(P+Q_r) - b_v W_v/(P+Q_v) ]
-    quadratic:  (c_t^2 / s^4) [ W_l^2/(P+Q_l) + W_r^2/(P+Q_r) - W_v^2/(P+Q_v) ]
+    linear:     (c_t / s^4) [ b_l W_l/(P+Q_l) + b_r W_r/(P+Q_r) - b_v W_v/(P+Q_v) ]
+    quadratic:  (0.5 c_t^2 / s^4) [ W_l^2/(P+Q_l) + W_r^2/(P+Q_r) - W_v^2/(P+Q_v) ]
 
 with `b_v = b_l + b_r`, `W_v = W_l + W_r`. `W^2/(P + W/s^2)` is convex in `W` and vanishes at zero, hence superadditive, so the
 quadratic bracket is at most zero: a nonzero `c_t` PENALIZES births at tree `t` by `c_t^2` times a structure-dependent constant, and
@@ -101,19 +105,27 @@ than continuing the stale one, so `treeY` is dead across the sweep boundary and 
 sweep is written after the shift. **RECOMMEND B.** It also composes cleanly with the two existing orbit moves, both of which fire in
 the previous sweep's tail.
 
-**No data pass, and no fits update.** `totalFits` is the cached `sum_t f_t` and is stale by `sum_t c_t`, which is zero, so it is
-already correct for the shifted state. The roll then reads it and reconstructs tree 0's residual as `y - sum_{t>0} f_t^{new}` =
-`y - sum_{t>0} f_t^{old} + c_0` - exactly right, and the reason the shift reaches the next sweep's structural scores with no
-bookkeeping. Test fits are untouched, `f` being unchanged. So the step writes `forest.muByTree[t]` and nothing else, the same
-wholesale-leaf-table write [`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) makes.
+**No data pass, and no fits update - where the leaf is a constant one.** `totalFits` is the cached `sum_t f_t` and is stale by
+`sum_t c_t`, which is zero, so it is already correct for the shifted state. The roll then reads it and reconstructs tree 0's
+residual as `y - sum_{t>0} f_t^{new}` = `y - sum_{t>0} f_t^{old} + c_0` - exactly right, and the reason the shift reaches the next
+sweep's structural scores with no bookkeeping. Test fits are untouched, `f` being unchanged. So the step writes
+`forest.muByTree[t]` and nothing else, the same wholesale-leaf-table write
+[`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) makes. That holds exactly where
+[`Chain::leafIsConstant`](../../src/bartcore/chain.hpp) holds, and it is what scopes section 3's linear leaf out: a
+vector-parameter leaf keeps no `muByTree` at all, its fits live in the dense `forest.treeFits` slab, and both
+[`rollTreeResidual`](../../src/bartcore/chain.hpp) and [`finalizeTotalFits`](../../src/bartcore/chain.hpp) read the SLAB rather
+than the parameters there - so a shift written to the parameter block alone would reach no residual and would not survive the next
+`totalFits` rebuild.
 
 **Cost.** One pass over the leaf tables to accumulate `(P_t, Q_t)`, `m` standard normals, one pass to apply: `2 sum_t L_t` leaf
 touches plus `m` draws plus `O(m)` arithmetic. At C1's shape (`m = 75`, 2.52 leaves per tree by
 [16.2 The two structural facts this round rests on](tree-mixing-proposals.md#162-the-two-structural-facts-this-round-rests-on)'s
-third fact) that is about 450 operations against a sweep's own `3 m n = 2.3e6` row touches: **1/5000 of a sweep**. Against ONE cut
-scan at a nog node (about `2n/L = 7900` members) it is 1/18, not 16.3's "under 1/100 of a cut scan"; the sweep-level conclusion is
-unchanged and the row's cost column is optimistic by about 5x. Under multiple chains it is per chain, inside each chain's own loop
-and on its own generator, so no barrier and no thread-count dependence.
+third fact) that is about 450 operations against a sweep's own `3 m n = 2.3e6` row touches: **1/5000 of a sweep**. 16.3 fixes its
+own unit ("one full pass over `n` is about `L` units"), so a cut-scan unit is `n/L = 3968` rows and the step is about 1/9 of one
+against a row reading "under 1/100 of a cut scan": that cost column is optimistic by about 11x, not by the 5x pricing it against a
+nog node's `2n/L = 7900` members (two units, and 1/18 of them) would suggest. The sweep-level conclusion is unchanged. Under
+multiple chains it is per chain, inside each chain's own loop and on its own generator, so no barrier and no thread-count
+dependence.
 
 **Degenerate cases.** `m = 1` gives a zero-dimensional fibre and the step is a no-op; a tree with no occupied leaf drops out and the
 projection runs over the rest; fewer than two eligible trees is a no-op, mirroring `rescaleAmplitudeRidge`'s own `numLeaves < 2`
@@ -121,12 +133,16 @@ guard. The step fires in the sampling loop only, not in the grow-from-root warm 
 
 ## 3. Leaf models and response families
 
-**Occupied leaves only, and that is not a detail.** An empty leaf is forced to `0` by
-[`sampleParametersAndSetFits`](../../src/bartcore/chain.hpp) rather than drawn, and a TEST row routed to it reads that zero. Shifting
-it would move predictions at new `x` while leaving the training fit alone. So `L_t`, `S_t`, `P_t` and `Q_t` are over occupied leaves
-and the empty ones keep their convention - which is also what
-[`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) and
-[`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) already do, in the same words.
+**Occupied leaves only, and the reason is the zero pin, not the test rows.** Shifting EVERY leaf, empty ones included, would
+leave `f(x)` fixed at every `x` and not merely at the training rows, `sum_t c_t` being zero; it is the restriction to occupied
+leaves that moves a test row routed through an empty leaf, by minus that tree's own `c_t`. The restriction is nonetheless
+REQUIRED, for the other reason: [`sampleParametersAndSetFits`](../../src/bartcore/chain.hpp) PINS an empty leaf at `0` rather
+than drawing it, so a shifted empty leaf sits outside the target's support and the step stops being a Gibbs draw from it. The
+test-row cost is then moot in the sweep, which is section 2's placement doing a second job: the shift is ahead of the tree loop,
+every leaf is re-assigned - an empty one back to `0` - before any test fit is written, so no reported prediction reads a shifted
+empty leaf. Training rows route only to occupied leaves, so the training fit is exact either way. `L_t`, `S_t`, `P_t` and `Q_t`
+are therefore over occupied leaves, the convention [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) and
+[`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) already keep, in the same words.
 
 - **Constant gaussian leaf: YES**, unchanged, the derivation of section 1.
 - **Latent families (probit, logistic, multinomial, ordinal, nbinom, hurdle, t, AFT, hazard): YES**, unchanged. The leaves fit the
@@ -144,9 +160,12 @@ and the empty ones keep their convention - which is also what
   manifold, with no closed-form projection and no gaussian to condition. **A, skip.** **B, a PAIRWISE variant**: pick two variance
   trees, multiply one by `g` and the other by `1/g`; the conditional of `g` is then
   `g^{(L_k - L_j) nu'/2} exp(-b_j/g - b_k g)`, a generalized inverse gaussian, drawable with the
-  `ext_rng_simulateGeneralizedInverseGaussian` the amplitude ridge already calls. **RECOMMEND A for this design**, B recorded as a
-  door with its draw written out: the variance forest is a second forest whose mixing nothing has measured, and adding an untested
-  kernel there would be priced against no deficit.
+  `ext_rng_simulateGeneralizedInverseGaussian` the amplitude ridge already calls. B also inherits an empty-leaf question the mean
+  forest does not have: an empty variance leaf is not pinned, its `(n, ssr)` being `(0, 0)`, so
+  [`ConstantVarianceLeaf`](../../src/bartcore/model.hpp)'s posterior draw falls through to the PRIOR draw rather than to a
+  constant, and whether a multiplicative factor may touch it is a separate ruling from section 1's. **RECOMMEND A for this
+  design**, B recorded as a door with its draw written out and that question named: the variance forest is a second forest whose
+  mixing nothing has measured, and adding an untested kernel there would be priced against no deficit.
 - **Monotone leaves: YES, with the per-leaf precision, and 15.2's exclusion does not bite.**
   [15.2 The two facts the lenses agreed on](tree-mixing-proposals.md#152-the-two-facts-the-lenses-agreed-on) scopes monotone forests
   out of fibre moves because the truncation reads leaf boxes and frozen neighbour values, both of which a REPARTITIONING move
@@ -159,10 +178,15 @@ and the empty ones keep their convention - which is also what
   occupied-only shift can leave the cone. Truncating the shift instead is refused: a truncated `c` is not a draw from the restricted
   prior and breaks the Gibbs law, which is the same reason the constrained prior draw uses rejection rather than a sweep of
   truncated conditionals.
-- **Linear leaves: YES, restricted to the intercept.** [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s
-  `fitForObservation` is `params[0] + sum_j beta_j u_ij`, so `params[0]` adds to every row of the leaf and is the level; the slope
-  block is not. Every coordinate shares the `scale / k` prior sd and the prior is independent across coordinates, so conditioning on
-  the slopes leaves the intercepts' restricted conditional exactly section 1's, with `L_t` the occupied leaf count.
+- **Linear leaves: the ALGEBRA is section 1's, but they are OUT of slice 1 and recorded as a door.**
+  [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s `fitForObservation` is `params[0] + sum_j beta_j u_ij`, so `params[0]`
+  adds to every row of the leaf and is the level; the slope block is not. Every coordinate shares the `scale / k` prior sd and the
+  prior is independent across coordinates, so conditioning on the slopes leaves the intercepts' restricted conditional exactly
+  section 1's, with `L_t` the occupied leaf count. What holds it back is section 2's bookkeeping and not the draw: the leaf is a
+  vector-parameter one, so the shift must also add `c_t` to all `n` rows of tree `t`'s slab row, or the residual roll and the
+  `totalFits` rebuild both read the unshifted fits and the shift cancels itself. That is `m n = 7.5e5` touches at C1's shape,
+  about a THIRD of a sweep against the constant leaf's 1/5000 - a price to be measured rather than assumed, and the reason it is
+  a door and not a bullet in slice 1.
 - **GP leaves: SKIPPED, and not on cost.** The parameters ARE the fitted values at the leaf's rows, and
   [`GPGaussianLeaf`](../../src/bartcore/model.hpp)'s `fitForTestObservationForNode` predicts a test row as
   `sum_r exp(-d^2/2) alpha_r` with `alpha = K^{-1}` times the drawn values. Kriging weights do not sum to one, so adding `c` to every
@@ -189,16 +213,22 @@ logical at `FALSE` is a far smaller residue than a fifth element in a probabilit
 benefit is in hand, which is what slice 4 is.
 
 **Every site.** **R, three files.** [`dbartsControl`](../../R/A_class.R)'s slot, prototype and a validity length check;
-[`dbartsControl`](../../R/dbarts.R)'s formal and its `newValidated` argument; [`bart2`](../../R/bart.R)'s formal and the control it
-builds. `bart()` takes the default and only its Rd moves; `dbartsSpec` resolves the (control, model, data) triple and passes the
-control through unchanged, so nothing in R/spec.R moves. **C++, two files.** A `SamplerOptions` field and the step itself in
+[`dbartsControl`](../../R/dbarts.R)'s formal and its `newValidated` argument, and in that same file the fixed-at-creation list in
+[`dbartsSampler$setControl`](../../R/dbarts.R), which today refuses a change to `n.trees`, `n.chains`, `useQuantiles` and `seed`
+and must refuse this one; [`bart2`](../../R/bart.R)'s formal and the control it builds. `bart()` takes the default and only its Rd
+moves; `dbartsSpec` resolves the (control, model, data) triple and passes the control through unchanged, so nothing in R/spec.R
+moves. **C++, two files.** A `SamplerOptions` field and the step itself in
 [`Chain::run`](../../src/bartcore/chain.hpp); a `ParsedControl` field, the [`parseControl`](../../src/R_interface_bartcore.cpp) read,
 the `SamplerOptions` copy and the verbose creation printout in the bridge. **It is a CREATION-TIME setting**, like `useQuantiles`
 and `n.cuts`: [`bartcore_setControl`](../../src/R_interface_bartcore.cpp) pushes four settings through `SamplerBase` setters and
-ignores the rest, so the flag needs NO new facade virtual and no `--preclean` hazard. **Rd, three files**: man/dbartsControl.Rd,
-man/bart2.Rd (usage line and argument), man/bart.Rd's mention. **tinytest, three**: a new gate file, the control round-trip in
-test-control-valuesAreUsed.R, and test-argument-surface.R's pinned formals. **tests/cpp, one**: test_ensemble.cpp. **Plus
-inst/NEWS.Rd.** Thirteen files, roughly 60 lines of engine and 40 of surface.
+ignores the rest, so the flag needs NO new facade virtual and no `--preclean` hazard - and, for the same reason, MUST join that
+fixed-at-creation list. Left off it, a `$setControl` carrying a changed `levelGibbs` is dropped by the engine while the R-side
+control records the new value, and `$getPointer`'s re-creation branch rebuilds the sampler FROM that control, so the flag would
+come back on across a save and load. `useQuantiles`, the analogy above, is precisely a slot that is guarded. **Rd, three files**:
+man/dbartsControl.Rd, man/bart2.Rd (usage line and argument), man/bart.Rd's mention. **tinytest, three**: a new gate file, the
+control round-trip in test-control-valuesAreUsed.R, and test-argument-surface.R's pinned formals. **tests/cpp, one**:
+test_ensemble.cpp. **Plus
+inst/NEWS.Rd.** Thirteen files - the site list gains one, the file count does not - roughly 60 lines of engine and 40 of surface.
 
 **Neither the ABI nor the state moves.** The flat C header takes the control as a `SEXP`, so `DBARTS_C_API_HASH` is unchanged and no
 `LinkingTo` consumer recompiles. `storeState` writes forests, sigma, scale, latents, DART, RNG, glue and digests and no sampler
@@ -214,10 +244,13 @@ test of the conditional's law, which is strictly more informative about a Gibbs 
 
 **(a) Invariance and law, tests/cpp.** [`runEnsembleTests`](../../tests/cpp/test_ensemble.cpp) already asserts
 `totalFits[i] == sum_t fits_t[i]` after every sweep at 200 trees, at a tolerance of `1e-11` against a measured worst deviation of
-`1.2e-15`; re-run with the step on it IS the invariance test, the shift adding `m` roundings of about `eps` times a leaf value
-(some `7e-16` at 200 trees), so it must hold at the same tolerance and within an order of magnitude of the recorded worst. A second
-test freezes one forest, calls the step some `2e5` times against a seeded generator, and
-scores the empirical mean and covariance of `c` against section 1's closed form, per-coordinate `z` at a pre-stated threshold, plus
+`1.2e-15`; re-run with the step on, it must hold at the same tolerance and within an order of magnitude of that worst, the shift
+adding `m` roundings of about `eps` times a leaf value (some `7e-16` at 200 trees). What that re-run checks is NARROW and worth
+saying: the assertion fires at the END of a sweep, by which point every leaf has been redrawn, so all that reaches it is the
+projection's own arithmetic residual `sum_t c_t` riding in through `totalFits`, of order `m eps tau`. It sizes poison (i) - a
+missing projection puts 0.31 there, fourteen orders above the recorded worst - and it says nothing about whether the draw's LAW is right.
+A second test freezes one forest, calls the step some `2e5` times against a seeded generator, and scores the empirical mean and
+covariance of `c` against section 1's closed form, per-coordinate `z` at a pre-stated threshold, plus
 `|1'c| < 1e-12` on every draw. **(b) tinytest**: with the flag on, the per-draw sum over trees of `getTrees` leaf values must
 reproduce the recorded training fit (the deterministic precondition
 ["the gaussian backfit at ensemble scale"](../../benchmarks/R/backfit-exact.R) already runs), `predict` on held-out rows must agree
@@ -229,25 +262,46 @@ every row and the invariance identity fails by 14 orders. (ii) Drop the prior me
 empirical mean fails its `z` while the covariance passes - which is the poison that distinguishes a correct conditional from a
 correctly-shaped one.
 
-**(d) The exact-posterior gates, and one that cannot pass.** The 22 exact gates run at the default and are untouched at the flag off.
-At the flag ON, most are single-tree and the fibre is empty there, so they are inert rather than passing.
-["the gaussian backfit at ensemble scale"](../../benchmarks/R/backfit-exact.R) is the exception and **it cannot be exact with the
-step on, for a bookkeeping reason and not a correctness one**: its reference reconstructs tree `j`'s residual from the RECORDED
-trees, taking trees `j+1..m` from the PREVIOUS sweep's record, which is pre-shift, while the engine drew tree `j` against those
-values plus this sweep's shift. Trees `1..j-1` match, being recorded after it. So the reference is short by
-`sum_{t>j} c_t` and could only be repaired by recording the shift as an `m`-vector channel of its own - a door, not this design's.
-The gate therefore names the flag off explicitly and stays exactly as it is; the distributional test in (a) covers what it would
-have covered, and slice 4 must state this rather than discover it.
+**(d) The exact-posterior gates, and one that needs a repair.** The 22 exact gates run at the default and are untouched at the
+flag off. At the flag ON, most are single-tree and the fibre is empty there, so they are inert rather than passing.
+["the gaussian backfit at ensemble scale"](../../benchmarks/R/backfit-exact.R) is the exception and **as it stands it cannot be exact
+with the step on, for a bookkeeping reason and not a correctness one**: its reference reconstructs tree `j`'s residual from the
+RECORDED trees, taking trees `j+1..m` from the PREVIOUS sweep's record, which is pre-shift, while the engine drew tree `j`
+against those values plus this sweep's shift. Trees `1..j-1` match, being recorded after it. So the reference is off by
+`sum_{t>j} c_t`, which is ONE unknown scalar per (sweep, tree) and not a per-leaf unknown, and no new recorded channel is needed
+to repair it. A constant `d` added to tree `j`'s residual moves leaf `l`'s standardized pivot by `d` times the KNOWN coefficient
+`W_l / (s^2 sqrt(P + Q_l))`, so profiling `d` out - projecting the tree's pivot vector off that direction - leaves `L_t - 1`
+contrasts that are exactly iid standard normal under a correct draw. The gate as it stands names the flag off; slice 4 carries
+the profiled form, at the cost of one degree of freedom per tree and of the single-leaf trees entirely (tree `m` keeps all of
+its, its own `sum_{t>m} c_t` being empty), so the shipped default still holds a conditional-exactness gate on the leaf draw.
+The distributional test in (a) is not a substitute for it: (a) scores `c`'s own law against section 1, this scores the ENGINE's
+leaf posterior draw against an independently recomputed reference, and they are different oracles.
 
 ## 6. Benefit, pre-registered
 
-**The pilot runs FIRST, and it is the direct test.**
+**The pilot runs FIRST, and it tests ONE of the step's two channels.**
 ["How much of C1's autocorrelation lives in the leaf values"](../../benchmarks/R/surfaces/C1-frozen-ess.R) already reads the leaf
-Gibbs alone at five seeds and two freeze points, minimum ESS 1.6 unfrozen against 4 to 21 frozen. Re-run it with the step on, same
-seeds and same freeze points, paired. **Pilot kill: the paired ratio of frozen minimum ESS (on over off) must exceed 5 at both freeze
-points on at least 4 of the 5 seeds, with the median-point frozen ESS not falling below its recorded ~600.** Below that, the level
-fibre is not what pins the worst coordinate, the reading 16.3's row 1 rests on is refuted, and slice 3 does not run. It costs 10
-short fits against slice 3's day.
+Gibbs alone at five seeds and two freeze points, minimum ESS 1.6 unfrozen against 4 to 21 frozen. Re-run it with the step on,
+same seeds and same freeze points, paired, and with the step ENABLED ONLY AFTER THE FREEZE: both arms must reach the freeze point
+at the same structure, or the pairing compares two different frozen targets rather than two kernels on one.
+
+**What the frozen chain can and cannot see.** It zeroes all four structural probabilities, so
+[`structureIsFrozen`](../../src/bartcore/chain.hpp) suppresses every proposal and no
+[`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp) is scored: section 1's structural channel,
+`b -> b + c_t W` in the birth and change ratios, never fires in it. What remains is the RESIDUAL channel, and it is real - the shift rides into
+`totalFits` and the roll, so every tree drawn after it in the sweep draws its leaves against a residual the shift moved. So the
+pilot can falsify the leaf-space reading of 16.3's row 1 and nothing about the live kernel, and a pass predicts nothing about
+slice 3, which is why slice 3 carries its own arms.
+
+**Pilot bar, ADVISORY.** Read the frozen minimum ESS as a PAIRED DIFFERENCE at each freeze point, on minus off, over the five
+seeds, and report the median with its own paired standard error. The per-seed ratio is not the statistic: the recorded frozen
+minima span 5.5 to 162.7 at the 2500 freeze and 3.1 to 160.8 at the 1250 one, five seeds each, with medians 21.2 and 4.2 of 2500
+kept. A median moving to a few hundred at both points, with the median-point frozen ESS not falling below its recorded ~600,
+confirms the level-fibre reading. A median inside two paired standard errors of zero refutes it. Anything between confirms
+nothing either way - a five-fold rise is 106 and 21 of 2500 kept, still one to two orders short at the ranked coordinate, and
+a per-seed ratio bar of 5 would have licensed exactly that as a pass. The verdict is advisory and does not gate slice 3 by
+itself: a refutation, read with 10.4's finding that the median point's deficit is overwhelmingly structural, is grounds to stop.
+It costs 10 short fits against slice 3's day.
 
 **Slice 3, the confirmatory stage.** Arm A is the shipped kernel at the flag off; arm B is arm A plus the step, matched seeds,
 paired. **Primary: the minimum ESS over C1's 25 fixed points, summed over four chains, on the independent design at 75 trees,
@@ -268,9 +322,9 @@ or no verdict from any cell is valid.
 more than +8, over at least 20 matched pairs, with wall per sweep inside the 1.05 ratio, with the sham control inside the bar, and
 with a mandatory fresh-seed re-run of any flagged cell before a flag counts**
 ([6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally)). A must-not-degrade secondary past its
-own margin kills independently. The design does not predict the bar will be met: the pilot measures the leaf half in ISOLATION, and
-nothing connects a frozen-chain gain to the same gain under a live structural kernel, where 10.4 reads the median point's deficit as
-overwhelmingly structural.
+own margin kills independently. The design does not predict the bar will be met: the pilot measures one channel of the leaf half in
+ISOLATION, and nothing connects a frozen-chain gain to the same gain under a live structural kernel, where 10.4 reads the median
+point's deficit as overwhelmingly structural.
 
 **How to read it against the He-Hahn pooling finding.** 10.4's coverage of 0.961 comes from four chains sitting in DIFFERENT places
 (between-chain ratio 0.78) and pooling widening the interval. A level step mixes within a chain, so each chain should cover more of
@@ -312,17 +366,23 @@ identical draws.
 
 Then, in order:
 
-1. **The step behind the flag, at default off.** The draw and its projection at the top of the sweep, the `SamplerOptions` field,
-   the control slot and its four R sites, the bridge parse, three Rd files, NEWS; tests/cpp's ensemble invariance arm and the
-   frozen-forest distributional test with both poisons; tinytest's fit-sums-leaves precondition, predict agreement, state round trip
-   and control round trip. Roughly 60 lines of engine, 40 of surface, 150 of tests, thirteen files. Gates: tests/cpp green,
-   tinytest 0 fail, the equivalence trio bitwise against the standing baselines, the 22 exact gates unchanged, ASAN/UBSAN clean.
+1. **The step behind the flag, at default off, at the CONSTANT leaf only.** In scope: every forest whose leaf satisfies
+   [`Chain::leafIsConstant`](../../src/bartcore/chain.hpp) - the gaussian leaf, the monotone leaf under section 3's eligibility
+   test, and every latent family - all of which reach the step through `muByTree` alone. Out of scope and inert at the flag on:
+   the linear leaf (section 3's door and its `m n` slab pass), the variance forest, the GP leaf. The draw and its projection at
+   the top of the sweep, the `SamplerOptions` field, the control slot and its R sites, the fixed-at-creation list among them, the
+   bridge parse, three Rd files, NEWS; tests/cpp's ensemble invariance arm and the frozen-forest distributional test with both
+   poisons; tinytest's fit-sums-leaves precondition, predict agreement, state round trip, control round trip and the refusal a
+   changed `levelGibbs` must draw from `$setControl`. Roughly 60 lines of engine, 40 of surface, 150 of tests, thirteen files.
+   Gates: tests/cpp green, tinytest 0 fail, the equivalence trio bitwise against the standing baselines, the 22 exact gates
+   unchanged, ASAN/UBSAN clean.
 2. **The frozen-structure pilot.** `C1-frozen-ess.R` re-run with the step on, five seeds, two freeze points, paired against the
-   recorded table. Its kill is section 6's; nothing below runs if it fires. Ten fits.
+   recorded table. Its bar is section 6's and ADVISORY: a refutation is grounds to stop, a middling number is not a pass.
+   Ten fits.
 3. **The benefit run.** Two arms on C1's four-chain cell at twenty matched pairs, the sham arm, the P1 control rung, the P2
    must-not-degrade cell. About a day of compute; the verdict is recorded here.
 4. **The default flip, and the one re-record.** Only on a slice 3 pass. It carries section 7's bundle, the
-   backfit-exact.R clause of section 5 (d), and
+   backfit-exact.R repair of section 5 (d), and
    [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)'s independent default clause, which
    needs plateau prediction error in the noise-heavy or large-n stratum that no cell of slice 3 measures. On a slice 3 fail the step
    stays at default off as an opt-in whose measured benefit on the pre-registered cell is nil, and whether it is removed before
