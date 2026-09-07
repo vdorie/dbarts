@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -496,8 +496,32 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    -62.34; lint 0; R CMD check --as-cran OK, zero notes; NEWS 298 entries; API hash unchanged. Not landed:
    `rule-gibbs-balance.R` (slice 2) and the Stage 2 benefit run (slice 3).
 2. **`rule-gibbs-balance.R`.** The prior-only arm on the 6-by-2 factorial at `power = 0.5`, the exact-posterior confirmation arm, both
-   poisons. Roughly 450 to 550 lines; not startable before slice 1, and it is slice 1's rank-aware scan that makes the prior-only arm
-   exist at all.
+   poisons.
+
+   **Landed** (d888c9f3, 2026-09-07). Six design-versus-code points. (1) Section 5's `cgm(0.95, 0.5)` reads as (base, power)
+   while [`cgm`](../../R/model.R)'s own signature is `cgm(power, base)`; the script calls `cgm(power = power, base = base)`
+   at `power = 0.5, base = 0.95`, the pairing section 5's own arithmetic assumes. (2) Family size is `m = 23`, not the
+   section's `m = 24`, strictest Holm threshold `|z| = 3.07`: the twelve-leaf state carries prior mass 0.00147, under the
+   pre-stated 0.004 floor, so statistic 2 keeps ten singletons plus a pooled `leaves >= 11` bin. (3) Burn-in is 100,000
+   sweeps per chain, not the section's 20,000, and is sized off the autocorrelation ladder rather than the leaf count: at
+   `power = 0.5` the slowest series is the root's x2 cut indicator, at about 52 kept-draw lags to `acf < 0.1`. (4) Quick
+   mode batches 125 x 400 rather than full mode's 500 x 500, batch LENGTH rather than count being what has to clear the
+   roughly 30-draw integrated autocorrelation. (5) Section 5's constants otherwise reproduce exactly against the engine:
+   0.095 / 0.475 / 0.05, the `(0.2981, 0.1346, 0.1346, 0.1346, 0.2981)` child law, the leaf-count dynamic program, and the
+   undiluted detection floors. (6) Length 1012 lines against the section's 450 to 550 estimate,
+   [`perturb-balance.R`](../../benchmarks/R/perturb-balance.R)'s shape. The gate is a nominal alpha-0.05 family-wise test:
+   an off-seed probe produced one Holm rejection in one of four alternate seeds (`|z|` 3.31), no bias when the four are
+   pooled, and the shipped seed passes both modes with margin.
+
+   Gates (independent run): quick mode 16 seconds, prior-only arm worst `|z|` 1.17 (`x1c4|nog`), 0 of 23 Holm rejections;
+   confirmation arm worst `|z|` 1.11 (`x2c1`), 0 of 7. Full mode 32 seconds, burn-in 100,000 sweeps (5,000 kept), slowest
+   `acf < 0.1` lag 52 (root:x2c1) against the need of `<= 100`; prior-only worst `|z|` 1.74 (root `x1c3`), 0 of 23;
+   confirmation worst `|z|` 1.64 (`x1c4`), 0 of 7, power against the prior marginal `|z|` 65.9; statistic 3's conditioning
+   mass 0.0967 (realized 0.0964). Poison 1 (the two `1 - growth` factors dropped) FAILS as required, worst `|z|` 66.69, 5
+   of 23; poison 2 (`1/|SI_v|` dropped) FAILS, worst `|z|` 111.66, 6 of 23. The matching engine mutations, m26 and m27 in
+   `benchmarks/R/mutation-battery.R`, are both KILLED with this gate as sole killer (m26's confirmation arm alone would
+   have passed at `|z|` 2.25, which is why the prior-only arm exists). lint 0, air clean, yaml parses, verify-anchors
+   clean. Not landed: the Stage 2 benefit run (slice 3).
 3. **The Stage 2 harness and run.** Two arms at `d` in `{0.16, 0.32}`, C1's four-chain cell, the sham arm, P1's rung, P2's
    duplicate-column cell as a control, the equal-cost arm, and the cut-scan count read off a census build at the arms' own seeds.
    Roughly 400 lines; compute on the order of a day plus the equal-cost arm's quiet machine. The verdict is recorded here.

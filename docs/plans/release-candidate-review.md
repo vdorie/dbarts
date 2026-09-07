@@ -554,6 +554,23 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rule_gibbs gets its detailed-balance gate (d888c9f3, 2026-09-07)
+
+Slice 2 of docs/design/nog-gibbs.md. A prior-only arm installs an all-zero
+weight vector, putting every member-occupied leaf at veto rank 1 so the
+draw is the prior conditional on the rule at a nog node. Three statistics
+(root (variable, cut), leaf count, the depth-1 child's cut conditional on
+being a nog node) score as one 23-state Holm family at cgm(power = 0.5,
+base = 0.95), mixture birth_death 0.10, change 0.10, rule_gibbs 0.80. That
+arm never reads a scan entry, so a confirmation arm scores the same grid
+with positive weights against an exact region dynamic program. Two poisons
+- the two 1 - growth factors dropped, the 1/|SI_v| rule factor dropped -
+and the matching mutation-battery.R entries (m26, m27) cover them. Gates:
+quick PASS (worst |z| 1.17 / 1.11, 16 s); full PASS in 32 s (burn-in
+100,000 sweeps), worst |z| 1.74 prior-only, 1.64 confirmation, 0 of 23/7
+rejected either arm; both poisons FAIL (66.69, 111.66) and both mutations
+are KILLED. Not landed: the Stage 2 benefit run (slice 3).
+
 ### rule_gibbs: an exact draw of a nog node's split rule at default zero (7fb166ca, 2026-09-07)
 
 Slice 1 of docs/design/nog-gibbs.md: ruleGibbsMove (src/bartcore/moves.hpp)
