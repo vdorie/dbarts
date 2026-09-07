@@ -13,12 +13,13 @@
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
-#   Rscript benchmarks/R/sbc.R aft 200 200 30       # aft/survival, rebuilt
+#   Rscript benchmarks/R/sbc.R aft 200 150 30 <burn> # aft/survival, reused
 #   Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 # GP/constant mix
 #   Rscript benchmarks/R/sbc.R bcf-probit 200 150 30 <burn> # latent BCF arms
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
 #   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
 #   Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24 # its repriced ladder
+#   Rscript benchmarks/R/sbc.R burn-aft 20000 3     # the aft arm's own
 # Positional args: config R L thin, plus an optional 5th, the burn in absolute
 # sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
 # the API:
@@ -356,29 +357,6 @@ sbcAddBCF <- function(
   config$sdModerate <- sdModerate
   config$bPriorVariance <- bPriorVariance
   config
-}
-
-# The creation-time leaf-scale pin: what a plain sampler's own calibration
-# resolves prior.scale to off a config's fixed build response. A rebuild that
-# NAMES this as its own node.prior scale (dbartsPriors$normal(k, scale = )) is
-# scored against the SAME response-unit leaf prior every replication, instead
-# of one each rebuild's own y range would silently re-derive -- the transform
-# is what moves per rebuild, never the leaf scale itself, so naming the
-# transform's anchor is what holds the prior fixed (chain.hpp's
-# resolvedNodeScale).
-sbcAnchorScale <- function(config) {
-  anchor <- dbarts(
-    config$x,
-    config$yBuild,
-    control = dbartsControl(
-      n.trees = config$nTrees,
-      n.chains = 1L,
-      n.threads = 1L,
-      updateState = FALSE,
-      verbose = FALSE
-    )
-  )
-  anchor$getCalibration(1L)[1L, "prior.scale"]
 }
 
 # Build the reusable sampler for a configuration. One sampler serves all
@@ -820,26 +798,32 @@ runSbcDart <- function(
 # The engine's aft sampler (docs/design/survival.md) is a log-normal
 # survival model: log T = f(x) + sigma*eps, uncensored rows enter as gaussian
 # data on log T and right-censored ones contribute the upper normal tail past
-# their log censoring time. Per-row censoring status is STRUCTURAL -- baked
-# into the handle at construction (the bartcore.survival control attribute) --
-# so unlike every other arm here the fit is REBUILT every replication rather
-# than reused through setResponse; a drawn theta0 changes which rows censor.
-# node.prior carries the ANCHOR scale (sbcAnchorScale, off the fixed build
-# response) so every rebuild scores its draws against the prior theta0 came
-# from rather than one its own y0 range would re-derive. The offset channel
-# then pins the shift the same way: the build response is symmetric about 0,
-# so the generator's own in-force prior.mean is 0, and zeroing each rebuild's
-# prior.mean (setOffset(rep_len(-prior.mean, n), updateScale = FALSE), the
-# documented recipe on $setCalibration) matches it. sigma is drawn
-# conjugately exactly as gaussian's (chain.hpp), so it is this arm's log-time
-# scale-parameter functional, ranked the same way avg.f/f.star are.
-
-.aftMake <- getFromNamespace("bartcoreSampler", "dbarts")
-.aftRun <- bartcoreRun
-.aftPredict <- bartcorePredict
-.aftCal <- bartcoreForestCalibration
-.aftSetOffset <- bartcoreSetOffset
-.aftSetTestOffset <- bartcoreSetTestOffset
+# their log censoring time. ONE sampler serves every replication, the shape
+# every other reused arm has: $setResponse(y0, status = status0) installs the
+# observed log times and the censoring structure they imply in a single call,
+# so a drawn theta0 censors whatever rows it likes without a rebuild.
+#
+# That retires the two pins the rebuilt arm carried, both of which existed
+# only because a rebuild re-derived the response transform from range(y0): an
+# anchor leaf scale named as node.prior held the leaf prior against it, and an
+# offset zeroing each rebuild's prior.mean held the shift. One build fixes the
+# transform once -- off the symmetric build response, response.shift 0 and
+# response.scale 5, so prior.mean is already 0 and prior.scale already what
+# the anchor named -- and updateScale = FALSE keeps it, so the prior draw and
+# the posterior share one transform with nothing left to pin.
+#
+# sigma is drawn conjugately exactly as gaussian's (chain.hpp), so it is this
+# arm's log-time scale functional, ranked the same way avg.f and f.star are.
+# Two functionals are this family's alone. S(t0 | x*) = 1 - Phi((log t0 -
+# f(x*)) / sigma) is the reported survival deliverable, at the t0 pinned below
+# and the first test point. And logT0[i] at the LOWEST-INDEXED censored row is
+# ranked against that row's own posterior latents, read with $getLatents one
+# retained sample at a time: it is the only functional that ranks the
+# truncated-normal imputation, every other one reading a channel the
+# imputation moves only through the fit. The censored set is the replication's
+# own draw and can be empty; such a replication contributes NO rank there (an
+# NA the driver leaves alone) and that functional's own R is reported
+# separately.
 
 # Fixed per-row right-censoring log-times: a design choice independent of any
 # prior draw, pinned once so only the drawn
@@ -850,179 +834,50 @@ sbcAddCensoring <- function(config, shift = 1.0, sd = 1.2) {
   config
 }
 
-# The arm's fixed config: a continuous, symmetric-about-0 build response (so
-# the shift pin's target is exactly 0), m = 50 trees, the anchor scale named
-# as node.prior, and the fixed censoring fixture above.
+# The arm's fixed config: a continuous, symmetric-about-0 build response,
+# m = 50 trees, the censoring fixture above, and the survival deliverable's
+# own time. t0 is the build response's median survival time exp(0) = 1, the
+# transform's centre, so (log t0 - f(x*)) / sigma is centred at 0 under the
+# prior draw and S(t0 | x*) spreads over (0, 1) rather than piling into a tail
+# it would eventually underflow to an atom in.
 sbcConfigAft <- function(n = 150L, nTrees = 50L) {
   config <- sbcConfig(family = "gaussian", n = n, nTrees = nTrees)
   config <- sbcAddCensoring(config)
-  config$nodePrior <- dbartsPriors$normal(
-    config$k,
-    scale = sbcAnchorScale(config)
-  )
+  config$t0 <- 1
   config$family <- "aft"
   config
 }
 
-# The f-only generator theta0 is drawn from: a plain sampler (response family
-# is irrelevant -- only sampleTreesFromPrior/predict are used) at the
-# config's pinned node.prior and fixed build response.
-sbcMakeAftGenerator <- function(config) {
-  dbarts(
-    config$x,
-    config$yBuild,
-    test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
-    node.prior = config$nodePrior,
-    sigma = config$sigest,
-    control = dbartsControl(
-      n.trees = config$nTrees,
-      n.chains = 1L,
-      n.threads = 1L,
-      n.samples = 1L,
-      updateState = FALSE,
-      verbose = FALSE,
-      keepTrainingFits = TRUE
-    )
-  )
-}
-
-# A fresh aft handle for one y0/status0 pair (observed log-time, event
-# indicator): pinned node.prior scale, then the shift pin above. Returns the
-# handle with the applied offset, since bartcorePredict never reads a
-# handle's own offset back (a caller must restate it) and the run's train and
-# test channels are SEPARATE offset stores that both need the same value.
-sbcMakeAftFit <- function(config, y, status, L, thin) {
+# The arm's one sampler, generator and fit both. An aft response is a
+# (time, status) pair, so the build times are exp(yBuild) -- the engine fits
+# the log times, which is what the transform is derived from -- and the build
+# status is all events, the structure the first $setResponse replaces.
+sbcMakeAftSampler <- function(config, thin) {
   ctrl <- dbartsControl(
     n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
-    n.samples = L,
+    n.samples = 1L,
     n.thin = thin,
     updateState = FALSE,
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
-  s <- dbarts(
+  dbarts(
     config$x,
-    y,
+    cbind(exp(config$yBuild), rep_len(1, config$n)),
     test = config$xTest,
     resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
     node.prior = config$nodePrior,
     sigma = config$sigest,
-    control = ctrl
-  )
-  c2 <- s$control
-  attr(c2, "bartcore.survival") <- as.numeric(status)
-  s$control <- c2
-  bc <- .aftMake(s, family = "aft")
-  off <- -.aftCal(bc, 0L)[1L, "prior.mean"]
-  .aftSetOffset(bc, rep_len(off, config$n), FALSE)
-  .aftSetTestOffset(bc, rep_len(off, nrow(config$xTest)))
-  list(bc = bc, off = off)
-}
-
-# predict() vs the recorded fit at one state -- the same wiring check every
-# other arm runs before trusting its ranks (sbcCheckFitConsistency,
-# sbcCheckLatentConsistency). y is the build response SHIFTED (not the build
-# response itself, which is already centred at the pin's target) so the shift
-# pin's offset is genuinely non-zero here, exercising the train/test offset
-# pairing sbcMakeAftFit relies on rather than the degenerate zero-offset case.
-sbcCheckAftFitConsistency <- function(config, seed = 99L) {
-  set.seed(seed)
-  built <- sbcMakeAftFit(
-    config,
-    config$yBuild + 3,
-    rep_len(1, config$n),
-    1L,
-    1L
-  )
-  bc <- built$bc
-  res <- .aftRun(bc, 0L, 1L)
-  offTrain <- rep_len(built$off, config$n)
-  offTest <- rep_len(built$off, nrow(config$xTest))
-  maxDiff <- max(abs(res$train[, 1] - .aftPredict(bc, config$x, offTrain)))
-  maxDiffTest <- max(abs(
-    res$test[, 1] - .aftPredict(bc, config$xTest, offTest)
-  ))
-  list(
-    maxDiff = maxDiff,
-    maxDiffTest = maxDiffTest,
-    pass = maxDiff < 1e-8 && maxDiffTest < 1e-8
+    control = ctrl,
+    family = "aft"
   )
 }
 
-runSbcAft <- function(
-  config,
-  R = 200L,
-  L = 200L,
-  thin = 30L,
-  burn = as.integer(ceiling(72000 / thin)),
-  seed = 20260709L,
-  report = 25L
-) {
-  set.seed(seed)
-  gen <- sbcMakeAftGenerator(config)
-  drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
-  ranks <- NULL
-  nCensored <- 0L
-  started <- proc.time()[["elapsed"]]
-  for (r in seq_len(R)) {
-    gen$sampleTreesFromPrior()
-    gen$sampleNodeParametersFromPrior()
-    f0Train <- as.numeric(gen$predict(config$x))
-    f0Test <- as.numeric(gen$predict(config$xTest))
-    sig0 <- drawSigma(1L)
-    avgF0 <- mean(f0Train)
-
-    logT0 <- f0Train + sig0 * rnorm(config$n)
-    status0 <- as.numeric(logT0 <= config$logC)
-    y0 <- ifelse(status0 == 1, logT0, config$logC)
-    nCensored <- nCensored + sum(status0 == 0)
-
-    bc <- sbcMakeAftFit(config, y0, status0, L, thin)$bc
-    res <- .aftRun(bc, burn, L)
-
-    row <- c(
-      avg.f = sum(colMeans(res$train) < avgF0),
-      sigma = sum(as.numeric(res$sigma) < sig0)
-    )
-    for (j in seq_len(config$nTest)) {
-      row[paste0("f.star", j)] <- sum(res$test[j, ] < f0Test[j])
-    }
-    if (is.null(ranks)) {
-      ranks <- matrix(
-        NA_integer_,
-        R,
-        length(row),
-        dimnames = list(NULL, names(row))
-      )
-    }
-    ranks[r, ] <- row
-    if (report > 0L && (r %% report == 0L || r == R)) {
-      elapsed <- proc.time()[["elapsed"]] - started
-      cat(sprintf(
-        "  [aft] rep %d/%d  %.1fs  %.2fs/rep  censoring %.3f\n",
-        r,
-        R,
-        elapsed,
-        elapsed / r,
-        nCensored / (r * config$n)
-      ))
-    }
-  }
-  elapsed <- proc.time()[["elapsed"]] - started
-  list(
-    ranks = ranks,
-    L = L,
-    thin = thin,
-    burn = burn,
-    R = R,
-    config = config,
-    elapsed = elapsed,
-    perRep = elapsed / R,
-    censoringRate = nCensored / (R * config$n)
-  )
+# S(t | x) under the log-normal model, the arm's reported deliverable.
+sbcAftSurvival <- function(t0, f, sigma) {
+  1 - pnorm((log(t0) - f) / sigma)
 }
 
 # --- BCF (Bayesian causal forest glue) -------------------------------------
@@ -1802,6 +1657,74 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
         c(colMeans(probs[idx, , drop = FALSE]), forestFits(f)[cells])
       }
     )
+  } else if (config$family == "aft") {
+    # ONE pinned sampler serves as generator and fit, the Student-t arm's
+    # shape: $setResponse(y, status = ) replaces the censoring structure along
+    # with the response, so nothing is rebuilt and updateScale = FALSE keeps
+    # the build transform the prior draw shares. The fresh prior draw before
+    # it is the overdispersed start.
+    sampler <- sbcMakeAftSampler(config, thin)
+    drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+    # the row the censored-latent functional reads: closure state, since only
+    # draw() knows the replication's status and only sample() reads latents.
+    # NA_integer_ when nothing censored, which is the no-rank case
+    censoredRow <- NA_integer_
+    spec <- list(
+      draw = function() {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleNodeParametersFromPrior()
+        f0 <- as.numeric(sampler$predict(config$x))
+        f0Test <- as.numeric(sampler$predict(config$xTest))
+        sig0 <- drawSigma(1L)
+        # the latent log times, then what the pinned censoring fixture leaves
+        # observable of them: an event row reports its own log time, a
+        # censored one reports its censoring time and the fact it was passed
+        logT0 <- f0 + sig0 * rnorm(config$n)
+        status0 <- as.numeric(logT0 <= config$logC)
+        y0 <- pmin(logT0, config$logC)
+        censored <- which(status0 == 0)
+        censoredRow <<- if (length(censored) > 0L) {
+          censored[1L]
+        } else {
+          NA_integer_
+        }
+        list(
+          y = cbind(y0, status0),
+          theta = c(
+            sigma = sig0,
+            avg.f = mean(f0),
+            setNames(f0Test, paste0("f.star", seq_along(f0Test))),
+            S.star1 = sbcAftSurvival(config$t0, f0Test[1L], sig0),
+            logT.cens = if (is.na(censoredRow)) {
+              NA_real_
+            } else {
+              logT0[censoredRow]
+            }
+          )
+        )
+      },
+      fit = function(y) {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleNodeParametersFromPrior()
+        sampler$setSigma(config$sigest)
+        sampler$setResponse(y[, 1L], updateScale = FALSE, status = y[, 2L])
+        sampler
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        sigma <- as.numeric(res$sigma)[1L]
+        c(
+          sigma,
+          mean(res$train[, 1]),
+          res$test[, 1],
+          sbcAftSurvival(config$t0, res$test[1L, 1L], sigma),
+          # the imputed log survival time at the censored row, the draw the
+          # generator's own logT0[i] is ranked among
+          if (is.na(censoredRow)) NA_real_ else f$getLatents()[censoredRow]
+        )
+      }
+    )
   } else {
     stop("no family spec for \"", config$family, "\"")
   }
@@ -1851,6 +1774,7 @@ sbcFamilyConfig <- function(family) {
     t = sbcConfig(family = "t"),
     multinom = ,
     multinomial = sbcConfig(family = "multinomial", numCategories = 3L),
+    aft = sbcConfigAft(),
     "bcf-probit" = sbcBCFLatentConfig("probit"),
     "bcf-logistic" = sbcBCFLatentConfig("logistic"),
     stop("no family config for \"", family, "\"")
@@ -1873,6 +1797,33 @@ sbcCheckLatentConsistency <- function(config, seed = 99L) {
     maxDiff = maxDiff,
     maxDiffTest = maxDiffTest,
     pass = maxDiff < 1e-8 && maxDiffTest < 1e-8
+  )
+}
+
+# The aft arm's own wiring check, on the channel only its censored-latent
+# functional reads. $getLatents reports aft's imputed log survival time, so at
+# an EVENT row it must be exactly the observed log time the response carries -
+# data, not a draw - and at a CENSORED row it must sit strictly above that
+# row's bound, which is the lower truncation the functional ranks theta0's
+# logT0 against. A latent that was neither would make the rank compare two
+# different quantities. Reports the drawn censored count too, the fixture's
+# censoring rate at one replication.
+sbcCheckAftLatents <- function(config, seed = 99L) {
+  set.seed(seed)
+  spec <- sbcFamilySpec(config, 1L, seed)
+  drawn <- spec$draw()
+  fit <- spec$fit(drawn$y)
+  invisible(fit$run(0L, 1L))
+  latents <- fit$getLatents()
+  y <- drawn$y[, 1L]
+  event <- drawn$y[, 2L] == 1
+  eventDiff <- max(abs(latents[event] - y[event]))
+  censoredGap <- if (any(!event)) min(latents[!event] - y[!event]) else NA_real_
+  list(
+    maxEventDiff = eventDiff,
+    minCensoredGap = censoredGap,
+    nCensored = sum(!event),
+    pass = eventDiff == 0 && isTRUE(censoredGap > 0)
   )
 }
 
@@ -1913,12 +1864,16 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # 72000 is the (a, mu) amplitude ridge co-relaxing with tree-structure mixing,
 # READ THROUGH sigma; pinning sigma removes the readout, not the ridge, and the
 # misfit it absorbed lands in the index that these arms rank instead. Their
-# ladder run fills these two in.
+# ladder run fills these two in. The aft arm carries none either: a sweep is a
+# gaussian one plus a truncated-normal draw per censored row, which argues for
+# a gaussian-like cost and a t-like burn but measures neither, and the
+# imputation is a second block the transient has to clear.
 sbcBurnSweeps <- c(
   ordinal = 36000,
   nbinom = 24000,
   t = 12000,
   multinomial = 6000,
+  aft = NA_real_,
   "bcf-probit" = NA_real_,
   "bcf-logistic" = NA_real_
 )
@@ -1963,6 +1918,13 @@ runSbcFamily <- function(
     row <- integer(length(theta))
     names(row) <- names(theta)
     for (j in seq_along(theta)) {
+      # a functional this replication does not define -- the aft arm's
+      # censored latent when nothing censored -- contributes no rank and
+      # stays NA; the report ranks the rest and says on how many replications
+      if (is.na(theta[[j]])) {
+        row[j] <- NA_integer_
+        next
+      }
       # every functional is ranked with the tie-break: it reduces to
       # #{draws < theta0} (and consumes no rng) unless the law has an atom, and
       # both a grid parameter and an underflowed tail probability do
@@ -2189,6 +2151,10 @@ rankUniformity <- function(
   alpha = 0.05,
   seed = 1L
 ) {
+  # a replication that does not define the functional (the aft arm's censored
+  # latent, with nothing censored) carries NA and is not a rank: it leaves the
+  # tabulation, the band's own R and the reported mean alike
+  ranks <- ranks[!is.na(ranks)]
   R <- length(ranks)
   # chi-square on nBins equal-width bins of {0, ..., L}
   edges <- seq(0, L + 1L, length.out = nBins + 1L)
@@ -2321,8 +2287,25 @@ sbcReport <- function(
   ))
   verdicts <- character(length(funcs))
   for (i in seq_along(funcs)) {
+    ranked <- fit$ranks[!is.na(fit$ranks[, funcs[i]]), funcs[i]]
+    # a functional no replication defined has nothing to test; NONE is not a
+    # FLAG, so the exit gate does not read it
+    if (length(ranked) == 0L) {
+      verdicts[i] <- "NONE"
+      cat(sprintf(
+        "%-10s %8s %8s %9s %8s %6s\n",
+        funcs[i],
+        "",
+        "",
+        "",
+        "",
+        "NONE"
+      ))
+      cat("  no replication defined this functional; nothing ranked\n")
+      next
+    }
     u <- rankUniformity(
-      fit$ranks[, funcs[i]],
+      ranked,
       fit$L,
       nBins = nBins,
       alpha = alpha
@@ -2343,6 +2326,17 @@ sbcReport <- function(
       u$ecdfBand,
       verdicts[i]
     ))
+    if (length(ranked) < fit$R) {
+      # the functional's own R, reported separately because it is not the
+      # run's: the aft arm's censored latent is undefined whenever the
+      # replication drew no censored row
+      cat(sprintf(
+        "  ranked on %d of %d replications; %d did not define it\n",
+        length(ranked),
+        fit$R,
+        fit$R - length(ranked)
+      ))
+    }
     if (identical(verdicts[i], "FLAG (expected)")) {
       cat(
         "  pre-adjudicated flag, excluded from the exit check; the ",
@@ -2353,8 +2347,12 @@ sbcReport <- function(
   }
   cat("\nRank histograms:\n")
   for (i in seq_along(funcs)) {
+    ranked <- fit$ranks[!is.na(fit$ranks[, funcs[i]]), funcs[i]]
+    if (length(ranked) == 0L) {
+      next
+    }
     cat(sprintf("\n[%s]\n", funcs[i]))
-    cat(sbcAsciiHistogram(fit$ranks[, funcs[i]], fit$L, nBins = nBins), "\n")
+    cat(sbcAsciiHistogram(ranked, fit$L, nBins = nBins), "\n")
   }
   invisible(verdicts)
 }
@@ -2441,12 +2439,11 @@ if (sys.nframe() == 0L) {
   isWeighted <- which == "weighted"
   isLatentBCF <- which %in% c("bcf-probit", "bcf-logistic")
   isBCF <- which %in% c("bcf", "bcf-weak", "bcf-probit", "bcf-logistic")
-  isAft <- which == "aft"
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
   isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted", "gp-mixed")
   isFamilyTier <- which %in%
-    c("ordinal", "nbinom", "t", "multinom", "multinomial")
+    c("ordinal", "nbinom", "t", "multinom", "multinomial", "aft")
 
   config <- if (isFamilyTier || isLatentBCF) {
     sbcFamilyConfig(which)
@@ -2466,8 +2463,6 @@ if (sys.nframe() == 0L) {
     # prior-weak = small n so the a-glue prior term dominates the likelihood
     nBcf <- if (which == "bcf-weak") 40L else 200L
     sbcAddBCF(sbcConfig(family = "gaussian", n = nBcf))
-  } else if (isAft) {
-    sbcConfigAft()
   } else if (isLinear) {
     # columns 1:2 fit linearly inside leaves; column 3 is split-only
     cfg <- sbcConfig(
@@ -2608,6 +2603,17 @@ if (sys.nframe() == 0L) {
       ))
       selfCheckPass["grid"] <- isTRUE(gp$pass)
     }
+    if (config$family == "aft") {
+      al <- sbcCheckAftLatents(config)
+      cat(sprintf(
+        "  latents: max |event - y| %.2e; min censored gap %.4f over %d rows -> %s\n",
+        al$maxEventDiff,
+        al$minCensoredGap,
+        al$nCensored,
+        if (al$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["latents"] <- isTRUE(al$pass)
+    }
     if (config$family == "multinomial") {
       mc <- sbcCheckMultinomialProbs(config)
       cat(sprintf(
@@ -2637,17 +2643,6 @@ if (sys.nframe() == 0L) {
     ))
     selfCheckPass["fit"] <- isTRUE(fc$pass)
   }
-  if (isAft) {
-    ac <- sbcCheckAftFitConsistency(config)
-    cat(sprintf(
-      "  predict vs recorded fits: train %.2e, test %.2e -> %s\n",
-      ac$maxDiff,
-      ac$maxDiffTest,
-      if (ac$pass) "PASS" else "FAIL"
-    ))
-    selfCheckPass["fit"] <- isTRUE(ac$pass)
-  }
-
   # Harness integrity: a failed self-check means the prior/fit reference is
   # miscalibrated, so the SBC result would be meaningless (or falsely clean).
   # Abort unconditionally - unlike the functional FLAG gate below, this is not
@@ -2681,8 +2676,6 @@ if (sys.nframe() == 0L) {
       bcfArgs$burn <- as.integer(ceiling(burnSweeps / thin))
     }
     do.call(runSbcBCF, bcfArgs)
-  } else if (isAft) {
-    runSbcAft(config, R = R, L = L, thin = thin)
   } else {
     plainArgs <- list(config, R = R, L = L, thin = thin)
     if (!is.null(burnSweeps)) {
@@ -2698,9 +2691,6 @@ if (sys.nframe() == 0L) {
       "\nfloor incidence: %.3f of s0 components pinned at 1e-300\n",
       fit$floorFrac
     ))
-  }
-  if (isAft) {
-    cat(sprintf("\ncensoring rate: %.3f\n", fit$censoringRate))
   }
   # matrix arms are admitted at the Bonferroni'd level; every other config keeps
   # the per-functional 5% band its recorded result was read at

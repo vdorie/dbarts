@@ -1,6 +1,7 @@
 # An AFT censoring-status setter, and the SBC arms it enables
 
-Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260); slices 2-4 remain PROPOSED.
+Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), and slice 2's harness half, 2026-09-07;
+the aft arm's matrix admission and slices 3-4 remain PROPOSED.
 
 Lets a live `family = "aft"` sampler take a new per-observation censoring status, so the censoring structure stops being
 fixed at creation. The enabled item is SBC coverage: aft is out of the matrix for exactly this reason
@@ -133,28 +134,35 @@ now serves the caller.
 
 ## 6. SBC
 
-An aft arm already exists and REBUILDS its fit every replication ([`sbcMakeAftFit`](../../benchmarks/R/sbc.R) inside
-[`runSbcAft`](../../benchmarks/R/sbc.R)), which is why it needs [`sbcAnchorScale`](../../benchmarks/R/sbc.R) to pin the leaf
-prior and an offset to pin the shift against a transform every rebuild re-derives from `range(y0)`. It is in neither
+The aft arm REBUILT its fit every replication, alone among the arms, which is why it needed an anchor leaf scale named as
+its own `node.prior` and an offset zeroing each rebuild's `prior.mean`: the two pinned the leaf prior and the shift against
+a transform every rebuild re-derived from `range(y0)`. Both went with the conversion below. It is in neither
 [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R) nor the workflow matrix
-(["config: gaussian"](../../.github/workflows/sbc.yaml) is the nearest arm).
+(["config: gaussian"](../../.github/workflows/sbc.yaml) is the nearest arm), and stays out of both until its ladder and its
+R = 200 run are read.
 
 **The aft arm.** The setter converts it to the reused-sampler shape every other arm has: one sampler built once at a fixed
-build response through `dbartsSpec(family = "aft")`; per replication a prior draw of `(f, sigma)`, then
+build response through `dbarts(x, cbind(time, status), family = "aft")`; per replication a prior draw of `(f, sigma)`, then
 `logT0 = f0 + sigma0 * eps`, `status0 = logT0 <= logC` against the censoring times
 [`sbcAddCensoring`](../../benchmarks/R/sbc.R) pins, `y0 = pmin(logT0, logC)`, an overdispersed second prior draw,
-`$setResponse(y0, status = status0, updateScale = FALSE)` and one `$run`. The transform never re-anchors, so both pins go. Functionals: `avg.f`, `sigma`, `f.star` at the five test points,
-and two only this family has - `S(t0 | x*) = 1 - Phi((log t0 - f(x*)) / sigma)` at a fixed `t0`, the reported deliverable,
-and `logT0[i]` at the LOWEST-INDEXED censored row, ranked against that row's posterior latents read with `getLatents` by the
-per-sample `run(0, 1)` idiom the discrete functionals use. The censored set is random per replication and can be empty; such
-a replication contributes no rank there and that functional's R is reported separately. It alone ranks the truncated-normal
-imputation.
+`$setResponse(y0, status = status0, updateScale = FALSE)` and one `$run`. The transform never re-anchors, so both pins go.
+Nine functionals: `avg.f`, `sigma`, `f.star` at the five test points, and two only this family has -
+`S(t0 | x*) = 1 - Phi((log t0 - f(x*)) / sigma)`, the reported deliverable, at the first test point and `t0 = 1`, the build
+response's own median survival time, which centres the ratio at 0 under the prior draw rather than in a tail S would
+eventually underflow to an atom in; and `logT0[i]` at the LOWEST-INDEXED censored row, ranked against that row's posterior
+latents read with `getLatents` by the per-sample `run(0, 1)` idiom the discrete functionals use. The censored set is random
+per replication and can be empty; such a replication contributes no rank there and that functional's R is reported
+separately. It alone ranks the truncated-normal imputation, whose channel [`sbcCheckAftLatents`](../../benchmarks/R/sbc.R)
+gates beside the other arms' wiring checks: an event row's latent is its observed log time exactly, a censored row's sits
+strictly above its bound.
 
 Budget: measure a burn ladder first, which needs an aft branch in [`sbcFamilySpec`](../../benchmarks/R/sbc.R) - draw, fit,
 burnRun, sample - and not only an entry in [`sbcFamilyConfig`](../../benchmarks/R/sbc.R), since
-[`sbcBurnLadder`](../../benchmarks/R/sbc.R) dispatches through the former. That branch IS the reuse conversion. A sweep is a
-gaussian one plus a truncated-normal draw per censored row; at a gaussian-like cost and a t-like burn, R=200, L=150, thin=30
-lands near 5-10 minutes, hence a 20-30 minute timeout at the workflow's ~3x rule. The arm's functionals raise
+[`sbcBurnLadder`](../../benchmarks/R/sbc.R) dispatches through the former. That branch IS the reuse conversion, and it lands
+with no burn pre-registered: [`sbcBurnSweeps`](../../benchmarks/R/sbc.R) carries NA for the arm, so the verdict run refuses
+by name until `burn-aft` is read, as the two latent BCF arms do. A sweep is a gaussian one plus a truncated-normal draw per
+censored row; at a gaussian-like cost and a t-like burn, R=200, L=150, thin=30 lands near 5-10 minutes, hence a 20-30 minute
+timeout at the workflow's ~3x rule. The arm's functionals raise
 [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) and widen the Bonferroni'd band for every arm, which stales the M = 30
 prose in the workflow and the harness comment beside the constant; a wider band can only turn a FLAG into a PASS, so
 recorded verdicts stay readable.
@@ -244,3 +252,12 @@ differences from the recommendation above: `AFTResponse` gained three facade vir
 refusal keeps the fragment (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp)) and restates
 only its tail; and gate (d)'s [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp) gained an alone-path assertion,
 since the joint call's own bound refresh hides the rebuild's bounds.
+
+Slice 2's harness half: the reuse conversion, the [`sbcFamilySpec`](../../benchmarks/R/sbc.R) branch and
+[`sbcFamilyConfig`](../../benchmarks/R/sbc.R) entry, the nine functionals and the NA burn. What remains of the slice is the
+admission - the measured burn, the R = 200 verdict run, the [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R) entry with the
+M = 30 prose it stales, and the workflow matrix row. Two differences from section 6 as proposed: the sampler is built
+through `dbarts()` with a `(time, status)` response, `dbartsSpec` being a specification builder rather than a route to a
+sampler; and an empty censored set costs more than a dropped rank - [`runSbcFamily`](../../benchmarks/R/sbc.R),
+[`rankUniformity`](../../benchmarks/R/sbc.R) and [`sbcReport`](../../benchmarks/R/sbc.R) all had to learn to carry an NA
+rank, which is what "reported separately" is made of.
