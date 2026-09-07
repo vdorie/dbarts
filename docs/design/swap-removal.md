@@ -228,19 +228,19 @@ default.
 
 ## 8. Landing
 
-Three commits on 2026-09-07: 643fb617 the kernel, the surface and the tests; e82b2d73 the bundled re-record; the third this
+Three commits on 2026-09-07: fbff1989 the kernel, the surface and the tests; ff1d18ee the bundled re-record; the third this
 document and the rest of section 6.
 
 **The oracle held.** A throwaway library at the parent commit 39692087, with only the mixture defaults moved and `swapMove` and
-its dispatch left standing, recorded all three equivalence baselines; `compare` from 643fb617 reported "identical draws (same RNG
+its dispatch left standing, recorded all three equivalence baselines; `compare` from fbff1989 reported "identical draws (same RNG
 stream)" on every scenario of all three - gaussian 50 compared / 0 skipped with zero `max |z|` lines, BCF 12 compared / 0 skipped
 every channel bitwise, multinomial 11 compared / 0 skipped every channel bitwise. So the deletion moved no draw the mixture change
 did not. The poison fired as designed: the same compare against the outgoing baselines, recorded at swap 0.1, fell back to the
 statistical mode on every scenario of all three with zero identical streams. The gaussian partition against 1e5f80b2 is max
 |z| = 3.73 over 3687 summaries, 17 with |z| > 3 and none at |z| > 4.
 
-**The shipped baselines** are `equivalence-643fb617.rds`, `bcf-equivalence-643fb617.rds` and
-`multinomial-equivalence-643fb617.rds`, recorded at 643fb617 and replayed 50/50, 12/12 and 11/11 from a second `--preclean`
+**The shipped baselines** are `equivalence-fbff1989.rds`, `bcf-equivalence-fbff1989.rds` and
+`multinomial-equivalence-fbff1989.rds`, recorded at fbff1989 and replayed 50/50, 12/12 and 11/11 from a second `--preclean`
 install. The BCF and multinomial harnesses replicate no seed, so their draws-axis fallback against the outgoing baselines reports
 large |z| (up to 20.82 and 9.31) that is not a calibrated posterior comparison; their MANIFEST rows say so and rest on the bitwise
 identity plus the four exact-posterior gates, all of which PASS at this tip in quick mode - bcf-exact E[mu] gap 0.0005,

@@ -313,9 +313,9 @@ Multinomial has no flat-C creation path to test (docs/design/feature-matrix.md).
 [f39] The equivalence gate replays a fixed scenario set against a recorded
 baseline and requires BITWISE-identical draws
 ([RNG classes and their gates](../README.md#rng-classes-and-their-gates)). Current baselines:
-`equivalence-643fb617.rds` (50 scenarios),
-`bcf-equivalence-643fb617.rds` (12) and
-`multinomial-equivalence-643fb617.rds` (11) - benchmarks/baselines/MANIFEST.
+`equivalence-fbff1989.rds` (50 scenarios),
+`bcf-equivalence-fbff1989.rds` (12) and
+`multinomial-equivalence-fbff1989.rds` (11) - benchmarks/baselines/MANIFEST.
 The names in this column are the keys in
 [`makeScenarios`](../../../benchmarks/R/equivalence.R); each row lists only the scenarios
 whose family it is.

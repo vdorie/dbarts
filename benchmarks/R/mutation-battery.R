@@ -38,7 +38,7 @@ scriptDir <- dirname(sub(
   grep("--file=", commandArgs(), value = TRUE)
 ))
 repoRoot <- normalizePath(file.path(scriptDir, "..", ".."))
-equivBaseline <- "benchmarks/baselines/equivalence-643fb617.rds"
+equivBaseline <- "benchmarks/baselines/equivalence-fbff1989.rds"
 
 ## ---- mutation-list constructors -------------------------------------------
 
