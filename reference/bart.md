@@ -378,15 +378,18 @@ residuals(object, type = "ev", ...)
 
   Named numeric vector or `NULL`, optionally specifying the proposal
   rules and their probabilities. Elements should be `"birth_death"`,
-  `"swap"` and `"change"` to control tree structure proposals, and
-  `"birth"` to give the relative frequency of birth/death in the
-  `"birth_death"` step. The default is
-  `c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)`. A
-  `"swap"` element exchanges a parent's split rule with a child's; it
+  `"swap"`, `"change"` and `"perturb"` to control tree structure
+  proposals, and `"birth"` to give the relative frequency of birth/death
+  in the `"birth_death"` step. The default is
+  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)`.
+  A `"swap"` element exchanges a parent's split rule with a child's; it
   defaults to zero because at production forest sizes it measures as a
   no-op, but with `n.trees = 1` it is the only move that rotates a rule
   up the tree, so single-tree fits should set it positive (0.1 was the
-  historical default).
+  historical default). A `"perturb"` element displaces one node's split
+  point by a single cut position while keeping its variable and the
+  tree's shape; it defaults to zero, and only ordinal (numeric) columns
+  can be perturbed.
 
 - keepsampler:
 
@@ -1088,7 +1091,7 @@ bartFit <- bart(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -1111,7 +1114,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.173325
+#> total seconds in loop: 0.216496
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 
