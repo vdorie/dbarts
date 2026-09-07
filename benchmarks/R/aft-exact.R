@@ -16,6 +16,10 @@
 # leaf conjugacy is wrong (the poison test in the header of the design work
 # perturbs the truncation bound and this gate catches it).
 #
+# A second arm re-runs the same enumeration through a DEGENERATE variance
+# forest, which is the only end-to-end check of the heteroscedastic wiring:
+# surface versus pinned 1, and working versus original scale, chain-wide.
+#
 # Usage: Rscript aft-exact.R [quick]
 
 source(
@@ -183,9 +187,63 @@ fitSingleTree <- function(seed) {
   rowMeans(r$train[reps, , drop = FALSE])
 }
 
+# ---- the same enumeration through a degenerate variance forest ----
+
+# Under a variance forest the scalar sigma is pinned at 1 on the WORKING scale
+# and the surface carries the residual variance, so the mean weights, the
+# censored redraw and the leaf posterior all read a quantity the homoscedastic
+# arm never exercises. Make the surface degenerate at the SAME known sigma and
+# the exact posterior above is again the target: one variance tree (where the
+# leaf calibration reproduces the residual prior exactly) under a chisq prior
+# at a large df, with the data's sigma anchored at sigmaFixed, leaves the scale
+# leaf prior-dominated at sigmaFixed^2.
+#
+# NOT resid.prior = fixed(), which under a variance forest fixes nothing: the
+# fixed arm sets only the fixed-sigma flag and its value, leaving the degrees
+# of freedom and raw scale at their defaults, so the scale leaf would still be
+# calibrated at df 3 and the data would dominate it.
+varianceDf <- 1e6
+
+fitVarianceTree <- function(seed) {
+  set.seed(seed)
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 1L,
+    n.cuts = 3L,
+    updateState = FALSE
+  )
+  sampler <- dbarts(
+    x1,
+    obsLogT,
+    control = control,
+    node.prior = normal(k),
+    tree.prior = cgm(power, base),
+    resid.prior = chisq(df = varianceDf, quant = 0.9),
+    variance = varianceForest(n.trees = 1L),
+    sigma = sigmaFixed
+  )
+  sampler$model@node.scale <- nodeScale
+  ctrl <- sampler$control
+  attr(ctrl, "bartcore.survival") <- status
+  sampler$control <- ctrl
+  bc <- dbarts:::bartcoreSampler(sampler, family = "aft")
+  r <- bartcoreRun(bc, 5000L, exactNdpost)
+  reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
+  list(
+    fit = rowMeans(r$train[reps, , drop = FALSE]),
+    s = mean(sqrt(r$variance))
+  )
+}
+
 exact <- exactCellFits()
 fit <- colMeans(do.call(rbind, lapply(seq_len(exactSeeds), fitSingleTree)))
 gap <- max(abs(fit - exact))
+
+varianceRuns <- lapply(seq_len(exactSeeds), fitVarianceTree)
+fitVariance <- colMeans(do.call(rbind, lapply(varianceRuns, `[[`, "fit")))
+sVariance <- mean(vapply(varianceRuns, `[[`, 0, "s"))
+gapVariance <- max(abs(fitVariance - exact))
 
 cat(sprintf(
   "aft exact  %s | sampler %s | max gap %.4f%s\n",
@@ -194,8 +252,30 @@ cat(sprintf(
   gap,
   if (gap > exactTolerance) " <- FAIL" else ""
 ))
+cat(sprintf(
+  "aft hetero %s | sampler %s | max gap %.4f%s | s %.4f (target %.4f)\n",
+  paste(sprintf("%.4f", exact), collapse = " "),
+  paste(sprintf("%.4f", fitVariance), collapse = " "),
+  gapVariance,
+  if (gapVariance > exactTolerance) " <- FAIL" else "",
+  sVariance,
+  sigmaFixed
+))
 
-if (gap > exactTolerance) {
+# the surface must actually be degenerate at the known sigma, or the arm is
+# comparing against the wrong exact posterior
+sTolerance <- 0.01 * sigmaFixed
+if (abs(sVariance - sigmaFixed) > sTolerance) {
+  cat(sprintf(
+    "variance surface off its pinned level by %.4f (tolerance %.4f) <- FAIL\n",
+    abs(sVariance - sigmaFixed),
+    sTolerance
+  ))
   quit(status = 1L)
 }
-cat("\nOK: aft sampler matches the exact posterior\n")
+
+if (gap > exactTolerance || gapVariance > exactTolerance) {
+  quit(status = 1L)
+}
+cat("\nOK: aft sampler matches the exact posterior, homoscedastic and with a\n")
+cat("degenerate variance forest\n")

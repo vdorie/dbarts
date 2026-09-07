@@ -2363,11 +2363,16 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   result
 }
 
-# S(t | x) draws from an AFT linear predictor and its per-draw sigma, in the
-# uncombined convention (chains x samples x observations) where the sigma
+# S(t | x) draws from an AFT linear predictor and its residual scale, in the
+# uncombined convention (chains x samples x observations) where the scale
 # draws align with the fit draws unambiguously - the loglik channel's
 # approach. The caller supplies the linear predictor and combines the chain
 # margin at the end.
+#
+# 'sigma' is one scalar per draw for a homoscedastic fit and one value per draw
+# AND observation for a heteroscedastic one, laid out as the linear predictor
+# is; the first recycles across the observation margin, the second pairs with
+# it element for element, and both are the same as.vector() enumeration.
 survivalProbabilitiesFromDraws <- function(
   linearPredictor,
   sigma,
@@ -2383,13 +2388,14 @@ survivalProbabilitiesFromDraws <- function(
   drawDims <- lpDims[-length(lpDims)]
   numObservations <- lpDims[length(lpDims)]
   numTimes <- length(times)
-  if (prod(drawDims) != length(sigma)) {
-    stop("the fit's draw count does not match its sigma draws")
+  numDraws <- prod(drawDims)
+  if (!length(sigma) %in% c(numDraws, numDraws * numObservations)) {
+    stop("the fit's draw count does not match its residual scale draws")
   }
 
   result <- array(0, c(drawDims, numTimes, numObservations))
-  # in column-major order the draw margins vary fastest, so the sigma draws
-  # recycle across observations exactly as pointwiseLogLikelihood's do
+  # in column-major order the draw margins vary fastest, so a scalar-per-draw
+  # scale recycles across observations exactly as pointwiseLogLikelihood's does
   scale <- as.vector(sigma)
   if (length(drawDims) == 1L) {
     for (j in seq_len(numTimes)) {
@@ -2506,9 +2512,11 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
 }
 
 # Survival-probability draws from an AFT fit. Under the log-normal model
-# log T = f(x) + sigma eps, S(t | x) =
-# 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
-# and sigma. Returns draws per the package's three-tier convention
+# log T = f(x) + s(x) eps, S(t | x) =
+# 1 - Phi((log t - f(x)) / s(x)), evaluated at every posterior draw of f
+# and of the residual scale - the scalar sigma homoscedastically, the variance
+# surface s(x) under a variance forest, where the scale is per draw AND per
+# observation. Returns draws per the package's three-tier convention
 # (extract = draws, fitted = mean, ci.level = interval): users take means
 # and quantiles over the draw margin themselves. newdata predicts out of
 # sample (requires a fit kept with keepTrees); NULL uses the training fits.
@@ -2559,9 +2567,31 @@ survivalProbabilities.bart <- function(
     predict(object, newdata, type = "bart", combineChains = FALSE)
   }
 
+  # The scale the normal tail divides by. A homoscedastic fit's is the stored
+  # per-draw sigma at any rows; a heteroscedastic fit's is the surface, which
+  # the training rows read off s.train and 'newdata' off the replay predict
+  # parks on its result. A sampler that replays no variance surface has no
+  # scale at those rows, so the curves are refused rather than drawn at the
+  # pinned sigma - the wording the ppd branch uses for the same gap.
+  scale <- if (is.null(object[["s.train"]])) {
+    object[["sigma"]]
+  } else if (is.null(newdata)) {
+    heteroscedasticScale(object[["s.train"]], n.chains)
+  } else {
+    replayed <- attr(linearPredictor, "s")
+    if (is.null(replayed)) {
+      stop(
+        "survival probabilities at 'newdata' are not available on a ",
+        "heteroscedastic fit whose sampler replays no variance surface; ",
+        "refit with keepTrees = TRUE"
+      )
+    }
+    heteroscedasticScale(replayed, n.chains)
+  }
+
   survivalProbabilitiesFromDraws(
     linearPredictor,
-    object[["sigma"]],
+    scale,
     times,
     n.chains,
     combineChains

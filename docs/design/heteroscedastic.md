@@ -270,7 +270,10 @@ construction-time refusal shape monotone uses for categorical columns
 borrowed user weights ([[src/bartcore/model.hpp#GaussianResponse::workingWeights]]), leaves the channel available to carry
 w_i / s^2(x_i). (Heteroscedastic probit/logistic - modeling a variance surface under
 a latent link - is a real model but needs a distinct latent-plus-scale plumbing out
-of v1 scope, section 11.)
+of v1 scope, section 11.) The aft family later joined Gaussian on the admitted
+side: its contained Gaussian carries a null weight pointer, so the channel is free
+there too, and its censored latents redraw at the row's own scale
+([[docs/design/aft-variance-forest.md#Why the stated reason is false for aft]]).
 
 Tradeoffs vs a DEDICATED sigma-vector (a per-observation residualVariance threaded
 through every leaf marginal/draw):

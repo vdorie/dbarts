@@ -41,9 +41,12 @@ varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
   A second ensemble models the residual variance surface \eqn{s^2(x)} as a
   product of scaled-inverse-chi-squared (multiplicative) leaves, so
   \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}, coupled to the mean forest through
-  the per-observation precision. Gaussian responses and constant leaves only;
-  monotone constraints are not supported. Every value is validated when a
-  sampler is built.
+  the per-observation precision. Gaussian and \code{"aft"} (survival)
+  responses and constant leaves only - the latent families route their own
+  precisions through the same channel; monotone constraints are not supported.
+  Under \code{"aft"} the surface is the dispersion of log survival time, and
+  a right-censored observation's latent log-time is redrawn at its own
+  \eqn{s(x_i)}. Every value is validated when a sampler is built.
 }
 \value{
   A \code{dbartsVarianceForest} specification object, resolved when a

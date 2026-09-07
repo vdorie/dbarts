@@ -510,9 +510,10 @@ resolveSamplerSpec <- function(
     varianceArgument
   )
   if (!is.null(varianceColumns)) {
-    if (family != "gaussian") {
+    if (!family %in% c("gaussian", "aft")) {
       stop(
-        "a variance forest requires family = \"gaussian\"; family \"",
+        "a variance forest requires family = \"gaussian\" or \"aft\"; ",
+        "family \"",
         requestedFamily,
         "\" routes precision through its own latent channel instead"
       )

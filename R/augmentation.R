@@ -96,6 +96,18 @@ dbartsDrawLatents <- function(
     df <- augScalar(df, "df")
   }
   if (!is.null(sigma)) {
+    # A heteroscedastic aft sampler draws each censored latent at its own row's
+    # s(x), but this replay stays scalar: the flat C API's dbarts_drawLatents
+    # takes one 'double sigma', and widening the R helper alone would fork the
+    # two replays. Refused by name rather than through augScalar's generic
+    # length complaint, since a per-observation scale is a coherent request
+    # with a workaround: call once per row.
+    if (is.numeric(sigma) && length(sigma) > 1L) {
+      stop(
+        "'sigma' is a single residual scale for every row; a per-observation ",
+        "scale (a heteroscedastic fit's s(x)) is drawn one row at a time"
+      )
+    }
     sigma <- augScalar(sigma, "sigma")
   }
   if (!is.null(thresholds)) {

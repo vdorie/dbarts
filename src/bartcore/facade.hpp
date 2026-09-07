@@ -795,18 +795,23 @@ inline bool monotoneConstraintIsActive(const SamplerOptions& options,
 }
 
 /// Whether a heteroscedastic variance forest is refused for this model. The
-/// forest is gaussian-plus-plain-constant-leaf only: the latent families own
-/// the weight channel it routes through (a collision), the Student-t
-/// augmentation shares that same channel while reporting the gaussian family
-/// (so a finite residualDf is its own term rather than a family test), and v1
-/// keeps the mean leaf constant, the monotone instantiation included. Every
-/// sampler factory that can build one asks here, so the two cannot drift.
-/// False off a variance forest, which short-circuits the monotone scan.
+/// forest routes through the per-observation weight channel, so it is admitted
+/// exactly where that channel is free: gaussian, and aft, whose contained
+/// Gaussian carries a null weight pointer and whose censored latents are drawn
+/// at the row's own scale rather than a shared sigma. Refused for probit,
+/// logistic, ordinal and nbinom, which own that channel as their latent
+/// precisions (a collision); for the Student-t augmentation, which shares it
+/// while reporting the gaussian family (so a finite residualDf is its own term
+/// rather than a family test); and for a non-constant mean leaf, the monotone
+/// instantiation included. Every sampler factory that can build one asks here,
+/// so the two cannot drift. False off a variance forest, which short-circuits
+/// the monotone scan.
 inline bool varianceForestIsRefused(const SamplerOptions& options,
                                     ResponseFamily family,
                                     std::size_t numPredictors) {
   if (options.numVarianceTrees == 0) return false;
-  return family != ResponseFamily::gaussian ||
+  return (family != ResponseFamily::gaussian &&
+          family != ResponseFamily::aft) ||
          options.numLeafCovariates != 0 ||
          std::isfinite(options.residualDf) ||
          monotoneConstraintIsActive(options, numPredictors);

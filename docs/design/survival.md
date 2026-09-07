@@ -34,7 +34,10 @@ normal already in external/random.h
 (ext_rng_simulateLowerTruncatedNormal). Uncensored observations
 (status_i = 1) carry log T_i fixed at the observed log event time and
 enter as ordinary Gaussian data. Right-censoring only in v1; the latent
-code must not preclude left/interval censoring later.
+code must not preclude left/interval censoring later. The scalar sigma
+becomes a covariate-dependent s(x_i) under a variance forest, each
+censored latent then redrawn at its own row's scale
+([[docs/design/aft-variance-forest.md#Heteroscedastic AFT]]).
 
 ## Engine: AFTResponse (src/bartcore/model.hpp)
 

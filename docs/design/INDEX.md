@@ -28,6 +28,7 @@ Columns: `file | STATUS | one-liner`.
 | multinomial.md | LANDED, 2026-07-15/17 | Adds multinomial responses (`family = "multinomial"`): K constant-leaf forests coupled by a softmax link. |
 | negative-binomial.md | LANDED, 2026-07-18 | Adds negative-binomial counts (`family = "nbinom"`) via Polya-Gamma augmentation; the dispersion `r` is a positive integer only, real-valued `r` deferred. |
 | survival.md | LANDED | Adds two survival families: AFT log-normal (`family = "aft"`) and discrete-time hazard (`family = "hazard"`, a person-period expansion over the binary families). |
+| aft-variance-forest.md | LANDED, 2026-09-06 | Lifts the refusal of a variance forest under `family = "aft"`, so log-normal AFT carries a covariate-dependent dispersion s(x); the latent-channel reason the refusal gave does not hold for aft. |
 | hurdle.md | LANDED, 2026-07-20 | Adds semicontinuous two-part/hurdle responses (`family = "hurdle.lognormal"`), composed in R from two ordinary fits with no engine changes. |
 | weighted-logistic.md | LANDED, 2026-07-05 | Lets logistic responses take observation weights as positive-integer replicate counts. |
 | grouped-random-effects.md | RETIRED, 2026-09-06 | Historical record of the in-engine random-intercept sampler; grouped random effects are removed from dbarts (retire-grouped-random-effects.md). |

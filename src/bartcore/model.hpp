@@ -2684,6 +2684,22 @@ public:
   virtual void setSigmaPrior(double /*sigmaEstimate*/, double /*degreesOfFreedom*/,
                              double /*rawScale*/) {}
 
+  /// Install (or clear, at a null pointer) the heteroscedastic variance
+  /// surface s^2(x_i), length numObservations, on the WORKING scale and
+  /// BORROWED: under a variance forest the scalar sigma is pinned at 1 and
+  /// this vector carries the residual variance row by row, so a family that
+  /// draws a latent or reports a density at the residual scale reads
+  /// sqrt(s^2(x_i)) where it would read sigma. The host installs it at every
+  /// allocation of the forest's combined-variance storage, so the pointer
+  /// cannot go stale; the values move under it each sweep, which is the
+  /// point. Default: ignore it, for a family that reads no residual scale.
+  virtual void setVarianceSurface(const double* /*variance*/) {}
+
+  /// Test hook: the surface last installed, so the pointer-identity assertion
+  /// at each of the host's allocation points has something to read. Null for a
+  /// family that keeps none.
+  virtual const double* varianceSurfaceForTesting() const { return nullptr; }
+
   virtual const double* latents() const { return nullptr; }
 
   /// The current training offset (borrowed), or null. Recorded training
@@ -2871,6 +2887,14 @@ public:
     sigmaSqPrior_.scale = sigmaInternal * sigmaInternal * rawScale;
   }
 
+  /// Only computeLogLikelihood reads it: the residual sd the density scores
+  /// at. drawSigma is gated off by the host under a variance forest, and the
+  /// working response the mean forest backfits against carries no scale.
+  void setVarianceSurface(const double* variance) override {
+    variance_ = variance;
+  }
+  const double* varianceSurfaceForTesting() const override { return variance_; }
+
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
     if (updateScale) {
@@ -2905,6 +2929,11 @@ public:
   /// y | x ~ N(f(x) + offset, sigma^2 / w_i). A row whose composed weight is
   /// zero is not in the model at all, so its entry is NaN - the channel's own
   /// "unavailable" flag - rather than the -Inf an infinite sd would give.
+  ///
+  /// Under a variance surface the scalar sigma is the pinned 1 and carries no
+  /// residual scale, so the row's own sqrt(s^2(x_i)) supplies it; without one
+  /// the expression is the literal scalar product, so a homoscedastic report
+  /// is bit-for-bit what it was.
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
@@ -2917,8 +2946,11 @@ public:
       }
       double mu = range_ * totalFits[i] + shift +
                   (offset_ != nullptr ? offset_[i] : 0.0);
-      double sd = weights_ != nullptr ? sigmaOriginal / std::sqrt(weights_[i])
-                                      : sigmaOriginal;
+      double residualSd = variance_ != nullptr
+                            ? std::sqrt(variance_[i]) * range_
+                            : sigmaOriginal;
+      double sd = weights_ != nullptr ? residualSd / std::sqrt(weights_[i])
+                                      : residualSd;
       out[i] = Rf_dnorm4(y_[i], mu, sd, 1);
     }
   }
@@ -3024,6 +3056,9 @@ private:
   std::vector<double> activeRows_;  // the raw 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = w_i a_i, served while masked
   std::vector<double> yRescaled_;
+  // the host's variance surface s^2(x) on the working scale, or null when
+  // homoscedastic; borrowed, and re-installed at every reallocation
+  const double* variance_ = nullptr;
   double min_ = 0.0, max_ = 0.0, range_ = 1.0;
   double initialSigma_ = 1.0;
   ChiSquaredScalePrior sigmaSqPrior_;
@@ -3798,12 +3833,17 @@ public:
   }
   const double* offset() const override { return gaussian_->offset(); }
 
-  /// Redraw each censored log-time from N(f + offset, sigma^2) truncated below
+  /// Redraw each censored log-time from N(f + offset, s_i^2) truncated below
   /// at its log censoring time, mapping the internal-scale fit back to the log
   /// scale through the public accessors, then rebuild the working response
   /// under the fixed scale. A no-op with no censored observations. An inactive
   /// censored row's redraw is SKIPPED for probit's reason (the truncated-normal
   /// primitive is a rejection sampler), leaving its log-time stale but finite.
+  ///
+  /// s_i is the row's own sqrt(s^2(x_i)) under a variance surface - the exact
+  /// conditional, the rows being conditionally independent given (f, s) - and
+  /// the literal scalar sigma * scale without one, so the homoscedastic draw
+  /// stream is untouched.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double sigma) override {
     if (censoredIndices_.empty()) return;
@@ -3816,12 +3856,23 @@ public:
       if (!isActive(i)) continue;
       double mean = scale * totalFits[i] + shift +
                     (offset != nullptr ? offset[i] : 0.0);
+      double rowSd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale : sd;
       double draw =
-        ext_rng_simulateLowerTruncatedNormal(rng, mean, sd, censorBound_[k]);
+        ext_rng_simulateLowerTruncatedNormal(rng, mean, rowSd, censorBound_[k]);
       logT_[i] = !std::isnan(draw) ? draw : censorBound_[k];
     }
     rebuildWorking();
   }
+
+  /// The surface AFT's three residual-scale readers take in place of the
+  /// pinned sigma: the censored redraw here and in setResponse, and the
+  /// log-likelihood. NOT forwarded to the contained Gaussian, whose density is
+  /// unreachable through this model - only its transform and working response
+  /// are used.
+  void setVarianceSurface(const double* variance) override {
+    variance_ = variance;
+  }
+  const double* varianceSurfaceForTesting() const override { return variance_; }
 
   bool supportsActiveRows() const override { return true; }
 
@@ -3910,8 +3961,10 @@ public:
 
   /// log density of the observed log event time for an event, log survival
   /// past the log censoring bound for a censored observation, both on the log
-  /// scale with mu the original-scale fit and sigma the log-scale residual sd.
-  /// An inactive row is not in the model, so its entry is NaN.
+  /// scale with mu the original-scale fit and the log-scale residual sd the
+  /// row's own sqrt(s^2(x_i)) under a variance surface, the literal
+  /// sigma * scale without one. An inactive row is not in the model, so its
+  /// entry is NaN.
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
@@ -3926,15 +3979,19 @@ public:
       }
       double mu =
         scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
-      out[i] = Rf_dnorm4(logT_[i], mu, sigmaLog, 1);
+      double sd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale
+                                       : sigmaLog;
+      out[i] = Rf_dnorm4(logT_[i], mu, sd, 1);
     }
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
       std::size_t i = censoredIndices_[k];
       if (!isActive(i)) continue;
       double mu =
         scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
+      double sd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale
+                                       : sigmaLog;
       // log P(log T > log C) = log upper normal tail
-      out[i] = Rf_pnorm5(censorBound_[k], mu, sigmaLog, 0, 1);
+      out[i] = Rf_pnorm5(censorBound_[k], mu, sd, 0, 1);
     }
   }
 
@@ -3959,6 +4016,9 @@ private:
   std::vector<std::size_t> censoredIndices_;
   std::vector<double> censorBound_;      // log censoring time, per censored index
   std::vector<double> activeRows_;       // the 0/1 mask; empty when none
+  // the host's variance surface s^2(x) on the working scale, or null when
+  // homoscedastic; borrowed, and re-installed at every reallocation
+  const double* variance_ = nullptr;
 };
 
 /// Sampled residual degrees of freedom nu on a fixed capped grid under a

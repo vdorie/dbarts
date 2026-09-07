@@ -689,9 +689,9 @@
             \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
             \code{predict} attaches \eqn{s(x)} at new data as an
             \code{"s"} attribute, which requires \code{keepTrees}. Gaussian
-            responses only, and \code{resid.dist = student()} residuals
-            alongside \code{variance} are refused at sampler creation on every
-            entrance, the flat C API included. \code{$setPredictor} - whole
+            and \code{"aft"} responses only, and \code{resid.dist =
+            student()} residuals alongside \code{variance} are refused at
+            sampler creation on every entrance, the flat C API included. \code{$setPredictor} - whole
             matrix or single column, transactional or forced - together with
             \code{$setCutPoints} and \code{$setData} (the last including a
             replacement data set of a different length) re-route the variance
@@ -714,6 +714,23 @@
             \code{samplePriorPredictive(type = "ppd")} is refused on a
             heteroscedastic sampler, whose residual scale is a variance forest
             rather than a single sigma; \code{type = "ev"} is unaffected.
+      \item A variance forest composes with \code{family = "aft"}, giving the
+            log-normal survival model a covariate-dependent dispersion:
+            \eqn{\log T = f(x) + s(x)\epsilon}{log T = f(x) + s(x) eps}, so
+            the spread of the survival distribution varies with \eqn{x} and
+            not only its location. Each right-censored observation's latent
+            log-time is redrawn at its own \eqn{s(x_i)}{s(x_i)} rather than a
+            shared sigma, and \code{\link{survivalProbabilities}},
+            \code{extract(type = "loglik")} and \code{type = "ppd"} all
+            divide by that surface; survival curves at \code{newdata} need
+            \code{keepTrees}, the replayed surface being the scale there. Such
+            a fit carries the heteroscedastic refusals rather than aft's:
+            \code{$setSigma} and \code{updateScale = TRUE} are refused as on
+            any heteroscedastic sampler, and \code{$setWeights} and
+            \code{$setData} as on any aft one. The other latent families
+            (\code{"probit"}, \code{"logistic"}, \code{"ordinal"},
+            \code{"nbinom"}) still refuse a variance forest, routing their own
+            precisions through the channel it divides into.
       \item Two new node priors fit smooth, rather than constant, leaf
             functions, through the \code{node.prior} argument of
             \code{dbarts}, \code{bart2}, \code{xbart}, and

@@ -2130,10 +2130,11 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
 // attribute `bartcore.variance`: a list carrying the
 // tree count, the tree-structure prior (base/power), and optional 1-based
 // column indices (the `variance = ~ subset` selector; null spans all mean
-// predictors). Absent leaves the fit homoscedastic. The factory refuses the
-// combination for non-gaussian or non-constant-leaf models; the R surface
-// mirrors that refusal. columns outlives the options borrow (captured by value
-// in createHolder's lambda).
+// predictors). Absent leaves the fit homoscedastic. There is no family test
+// here: the factory refuses the combination outside the gaussian and aft
+// families, and outside the plain constant leaf, and the R surface mirrors
+// that refusal. columns outlives the options borrow (captured by value in
+// createHolder's lambda).
 void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
                              bartcore::SamplerOptions& options,
                              std::vector<std::size_t>& columns) {
@@ -3204,7 +3205,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     applySurvivalAttribute(controlExpr, data.numObservations, family, options,
                            survivalStatus);
     // the heteroscedastic variance forest arrives on a control attribute; the
-    // factory refuses it for non-gaussian or non-constant-leaf models
+    // factory refuses it outside the gaussian and aft families, and outside
+    // the plain constant leaf
     applyVarianceAttributes(controlExpr, data.numPredictors, options,
                             varianceColumns);
     // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
@@ -3281,9 +3283,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  ? "invalid forest specification"
                  : "invalid sampler specification: either the leaf covariate "
                    "designation is not one the leaf models can take, or a "
-                   "variance forest is combined with a non-gaussian family, "
-                   "Student-t residuals, leaf covariates, or a monotone "
-                   "constraint");
+                   "variance forest is combined with a family other than "
+                   "gaussian or aft, Student-t residuals, leaf covariates, or "
+                   "a monotone constraint");
     }
 
     if (data.numTestObservations > 0) {

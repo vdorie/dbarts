@@ -875,11 +875,13 @@ uint64_t dbarts_apiHash(void);
 ///   positive) and "columns" (INTSXP of 1-based predictor indices the variance
 ///   forest may split on, or R_NilValue for all of them). Selects the
 ///   HETEROSCEDASTIC composition: a second forest modelling s^2(x), which owns
-///   the residual variance row by row. Gaussian constant-leaf models only, and
-///   refused with Student-t residuals, a monotone constraint or a leaf
-///   covariate; the sampler still answers DBARTS_FAMILY_GAUSSIAN and still
-///   requires a resolved data@sigma. Any missing or malformed element raises,
-///   as does a column index outside [1, numPredictors].
+///   the residual variance row by row. DBARTS_FAMILY_GAUSSIAN and
+///   DBARTS_FAMILY_AFT constant-leaf models only, and refused with Student-t
+///   residuals, a monotone constraint or a leaf covariate; the sampler still
+///   answers its own family and still requires a resolved data@sigma. Under
+///   DBARTS_FAMILY_AFT each censored latent is redrawn at its own row's s(x)
+///   rather than a shared sigma. Any missing or malformed element raises, as
+///   does a column index outside [1, numPredictors].
 /// - "bartcore.forests": VECSXP with named elements "params", "vars",
 ///   "interactions" and "blocks". "params" is a VECSXP of K >= 2 length-8
 ///   REALSXPs, one per forest: tree count, base, power, the calibration map's

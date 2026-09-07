@@ -4108,7 +4108,105 @@ static void testAFTReduction(ext_rng*) {
 
   ext_rng_destroy(rngG);
   ext_rng_destroy(rngA);
-  printf("ok: aft reduction to gaussian\n");
+
+  // The same reduction WITH a variance forest on both arms: an uncensored aft
+  // reaches no truncated draw, refreshLatents returns before drawing, and
+  // every other hook delegates, so the heteroscedastic pair must agree
+  // bitwise on the fits AND on the variance surface too.
+  optG.numVarianceTrees = 8;
+  optA.numVarianceTrees = 8;
+  ext_rng* rngGV = seededRng(31337);
+  ext_rng* rngAV = seededRng(31337);
+  std::unique_ptr<SamplerBase> sampGV = createSampler(
+    x.data(), logT.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, optG, &rngGV);
+  std::unique_ptr<SamplerBase> sampAV = createSampler(
+    x.data(), logT.data(), n, p, nullptr, nullptr, ResponseFamily::aft,
+    1.0, 3.0, 0.37804942330213542, optA, &rngAV);
+  check(sampGV != nullptr && sampAV != nullptr,
+        "the factory admits a variance forest on gaussian and aft alike");
+
+  std::vector<double> fitGV(n * numSamples), fitAV(n * numSamples);
+  std::vector<double> varGV(n * numSamples), varAV(n * numSamples);
+  Results rGV, rAV;
+  rGV.trainingFits = fitGV.data();
+  rGV.varianceFits = varGV.data();
+  rAV.trainingFits = fitAV.data();
+  rAV.varianceFits = varAV.data();
+  sampGV->run(numBurnIn, numSamples, rGV);
+  sampAV->run(numBurnIn, numSamples, rAV);
+  check(fitGV == fitAV && varGV == varAV,
+        "aft reduction: uncensored heteroscedastic fit is bitwise gaussian");
+  // and the surface is not a constant, so the equality is over a forest that
+  // actually moved
+  bool varianceMoved = false;
+  for (size_t i = 1; i < n; ++i)
+    if (varAV[i] != varAV[0]) { varianceMoved = true; break; }
+  check(varianceMoved, "the variance surface is non-constant on that fixture");
+
+  ext_rng_destroy(rngGV);
+  ext_rng_destroy(rngAV);
+  printf("ok: aft reduction to gaussian (homoscedastic and heteroscedastic)\n");
+}
+
+// The response reads the residual scale through a BORROWED pointer into the
+// variance forest's combined-variance vector, so every reallocation of that
+// vector must reinstall it (Chain::installVarianceSurface). Both allocation
+// points are asserted here: the build at creation, and the resize a
+// whole-data replacement of a different observation count runs. The second
+// arm also pins the log-likelihood channel at the surface rather than at the
+// pinned sigma of 1.
+static void testVarianceSurfaceInstall(ext_rng* rng) {
+  const size_t n = 200, n2 = 320;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = 6;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, size_t(2), nullptr,
+                              nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  check(sampler.chain(0).installedVarianceSurfaceForTesting() ==
+          sampler.chain(0).varianceFits(),
+        "the variance surface is installed at creation");
+  Results empty;
+  sampler.run(50, 0, empty);
+
+  std::vector<double> x2, y2;
+  makeMutationData(x2, y2, n2);
+  check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
+        "setData ingests the longer replacement");
+  check(sampler.chain(0).installedVarianceSurfaceForTesting() ==
+          sampler.chain(0).varianceFits(),
+        "and is re-installed where the resize moved the storage");
+
+  const size_t numSamples = 4;
+  std::vector<double> fits(n2 * numSamples), variance(n2 * numSamples),
+    loglik(n2 * numSamples);
+  Results results;
+  results.trainingFits = fits.data();
+  results.varianceFits = variance.data();
+  results.logLikelihood = loglik.data();
+  sampler.run(10, numSamples, results);
+
+  // every channel is on the ORIGINAL scale, so the density recomputes here
+  // from the reported fit and surface with no engine-internal quantity
+  bool scored = true;
+  for (size_t s = 0; s < numSamples && scored; ++s)
+    for (size_t i = 0; i < n2; i += 7) {
+      double expected = Rf_dnorm4(y2[i], fits[s * n2 + i],
+                                  std::sqrt(variance[s * n2 + i]), 1);
+      double got = loglik[s * n2 + i];
+      if (std::fabs(got - expected) > 1e-9 * (1.0 + std::fabs(expected))) {
+        scored = false;
+        break;
+      }
+    }
+  check(scored,
+        "the gaussian log-likelihood scores at s(x_i), not at the pinned 1");
+
+  printf("ok: variance surface install and heteroscedastic log-likelihood\n");
 }
 
 static void testAFTCensoredMoments(ext_rng* rng) {
@@ -4149,7 +4247,83 @@ static void testAFTCensoredMoments(ext_rng* rng) {
   check(allAbove, "aft censored latents stay above the bound; events fixed");
   checkNear(sum / static_cast<double>(reps), truncatedMean, 0.02,
             "aft censored latent mean at the truncated-normal mean");
-  printf("ok: aft censored latent moments\n");
+
+  // Per-OBSERVATION scale: two censored rows under a variance surface whose
+  // levels differ by a factor of four in sd, arranged so both carry the same
+  // (bound - mean) gap - the only thing separating them is the scale. Each
+  // row's empirical mean and sd must match the lower-truncated normal at THAT
+  // row's sd; the POOLED sd, which a per-fit rather than per-observation
+  // redraw would use, must miss both. That is what separates a
+  // censored-index/row-index confusion from a correct install.
+  const size_t m2 = 6;
+  std::vector<double> logTime2 = {0.2, 0.5, 1.0, 1.5, 2.0, 0.8};
+  std::vector<double> status2 = {1.0, 1.0, 0.0, 1.0, 1.0, 0.0};
+  AFTResponse resp2(logTime2.data(), status2.data(), nullptr, m2, 1.0, 3.0,
+                    0.37804942330213542);
+  const size_t rows[2] = {2, 5};
+  const double scale2 = resp2.fitScale(), shift2 = resp2.fitShift();
+  const double sd2[2] = {0.25, 1.0};   // log-scale sds, a factor of four apart
+  const double gap = 0.3;              // bound - mean, identical on both rows
+
+  std::vector<double> variance(m2, 1.0), fits2(m2, 0.0);
+  for (size_t k = 0; k < 2; ++k) {
+    size_t i = rows[k];
+    double working = sd2[k] / scale2;
+    variance[i] = working * working;
+    fits2[i] = (logTime2[i] - gap - shift2) / scale2;
+  }
+  resp2.setVarianceSurface(variance.data());
+
+  const size_t reps2 = 60000;
+  double sum2[2] = {0.0, 0.0}, sumSq2[2] = {0.0, 0.0};
+  for (size_t r = 0; r < reps2; ++r) {
+    resp2.refreshLatents(rng, fits2.data(), 1.0);
+    for (size_t k = 0; k < 2; ++k) {
+      double v = resp2.latents()[rows[k]];
+      sum2[k] += v;
+      sumSq2[k] += v * v;
+    }
+  }
+
+  // the lower-truncated normal's first two moments at truncation ratio alpha
+  auto truncatedMoments = [](double mean, double sd, double bound,
+                             double& tm, double& tsd) {
+    double alpha = (bound - mean) / sd;
+    double lambda =
+      standardNormalPdf(alpha) / (1.0 - standardNormalCdf(alpha));
+    tm = mean + sd * lambda;
+    tsd = sd * std::sqrt(1.0 + alpha * lambda - lambda * lambda);
+  };
+  double pooledSd = 0.5 * (sd2[0] + sd2[1]);
+  for (size_t k = 0; k < 2; ++k) {
+    size_t i = rows[k];
+    double mean = scale2 * fits2[i] + shift2;
+    double expectedMean, expectedSd;
+    truncatedMoments(mean, sd2[k], logTime2[i], expectedMean, expectedSd);
+    double empiricalMean = sum2[k] / static_cast<double>(reps2);
+    double empiricalSd = std::sqrt(
+      sumSq2[k] / static_cast<double>(reps2) - empiricalMean * empiricalMean);
+    checkNear(empiricalMean, expectedMean, 0.03,
+              "aft censored latent mean at THIS row's scale");
+    checkNear(empiricalSd, expectedSd, 0.03,
+              "aft censored latent sd at THIS row's scale");
+    // the poison arm, kept as a negative expectation: the pooled scale is a
+    // different distribution on both rows, so a gate that passed under it
+    // would be blind to the per-observation install
+    double poisonMean, poisonSd;
+    truncatedMoments(mean, pooledSd, logTime2[i], poisonMean, poisonSd);
+    check(std::fabs(empiricalMean - poisonMean) > 0.03 &&
+            std::fabs(empiricalSd - poisonSd) > 0.03,
+          "and NOT at the pooled scale a per-fit redraw would use");
+  }
+
+  // clearing the surface returns the model to the scalar sigma it had
+  resp2.setVarianceSurface(nullptr);
+  resp2.refreshLatents(rng, fits2.data(), 1.0);
+  check(resp2.latents()[rows[0]] >= logTime2[rows[0]] - 1e-9,
+        "a cleared surface leaves the scalar-sigma draw intact");
+
+  printf("ok: aft censored latent moments (scalar and per-observation)\n");
 }
 
 static void testAFTStateRoundTrip() {
@@ -6840,6 +7014,7 @@ void runModelTests(ext_rng* rng) {
   testLinearLeafFormats(rng);
   testLinearLeafViews();
   testAFTReduction(rng);
+  testVarianceSurfaceInstall(rng);
   testAFTCensoredMoments(rng);
   testAFTStateRoundTrip();
   testTLambdaMoments(rng);

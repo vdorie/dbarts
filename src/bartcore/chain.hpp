@@ -684,12 +684,16 @@ public:
                                  std::vector<double>(forest.leaf.numParams(), 0.0));
 
     // heteroscedastic: a second, distinctly typed variance forest coupled to
-    // this constant-leaf gaussian mean forest through the weight channel. Built
-    // only for the plain constant leaf and gaussian family (the factory refuses
-    // every other combination); homoscedastic leaves varianceForest_ null and
-    // this whole path compiled/branched out, so the mean sweep is byte-identical.
+    // this constant-leaf mean forest through the weight channel. Built only for
+    // the plain constant leaf and the two families whose weight channel is free
+    // - gaussian, and aft, whose contained Gaussian carries no latent precision
+    // of its own (the factory refuses every other combination); homoscedastic
+    // leaves varianceForest_ null and this whole path compiled/branched out, so
+    // the mean sweep is byte-identical.
     if constexpr (std::is_same_v<L, ConstantGaussianLeaf>)
-      if (family == ResponseFamily::gaussian && options.numVarianceTrees > 0)
+      if ((family == ResponseFamily::gaussian ||
+           family == ResponseFamily::aft) &&
+          options.numVarianceTrees > 0)
         buildVarianceForest(options, sigmaDf, sigmaRawScale);
 
     resizeTestStorage();
@@ -860,6 +864,12 @@ public:
   bool hasVarianceForest() const { return varianceForest_ != nullptr; }
   std::size_t numVarianceTrees() const {
     return varianceForest_ ? varianceForest_->numTrees : 0;
+  }
+  /// Test hook: the surface the response model holds, which must be
+  /// varianceFits() by pointer identity after every allocation of the
+  /// combined-variance storage (installVarianceSurface is what keeps it so).
+  const double* installedVarianceSurfaceForTesting() const {
+    return response_->varianceSurfaceForTesting();
   }
 
   /// s^2(x) on the ORIGINAL scale for new rows of a Columns predictor source
@@ -3679,6 +3689,11 @@ public:
       response_->restoreDispersion(state.dispersion);
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
+    // RESTORE CONTRACT: a heteroscedastic aft restores its censored latents
+    // HERE, ahead of the rebuildVarianceForest below that recomputes s^2(x) -
+    // admissible only because AFTResponse::restoreLatents is a memcpy plus a
+    // working-response rebuild reading NEITHER sigma nor the surface. Keep it
+    // surface-free, or move the variance rebuild ahead of it.
     // stateIsValid guaranteed a positive df for a t sampler; fixed mode
     // reinstalls its constant, estimated mode its last grid draw
     if (response_->carriesResidualDf())
@@ -4132,6 +4147,19 @@ private:
     sigmaIsFixed_ = true;
     sigma_ = 1.0;
     meanWeights_.assign(n, 0.0);
+    installVarianceSurface();
+  }
+
+  /// Hand the response model the combined-variance vector it reads the
+  /// residual scale from (aft's censored redraw and both log-likelihoods),
+  /// pinned to the TRAIN surface. Called from the two - and only two - places
+  /// that allocate that storage, so the borrowed pointer cannot outlive its
+  /// buffer: initialize() here at creation, and resizeVarianceStorage under a
+  /// whole-data replacement. combinedVarianceTest is deliberately not
+  /// installed: resizeTestStorage reallocates it, and no latent draw or
+  /// training density reads a test row.
+  void installVarianceSurface() {
+    response_->setVarianceSurface(varianceForest_->combinedVariance.data());
   }
 
   /// Divide the user precisions by the current variance surface for the mean
@@ -4337,6 +4365,7 @@ private:
     vf.divisor.assign(n, 1.0);
     vf.treeResidual.assign(n, 0.0);
     meanWeights_.assign(n, 0.0);
+    installVarianceSurface();  // combinedVariance just moved
   }
 
   /// Re-anchor the variance forest to the store after a mutation moved the

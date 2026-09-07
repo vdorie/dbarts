@@ -51,8 +51,8 @@ heteroscedasticScale <- function(s, n.chains) {
 # logistic (probit never stores weights); aft the log density for events and
 # the log survival tail for right-censored rows, mirroring the engine's
 # AFTResponse::computeLogLikelihood. Any other family errors rather than
-# reporting a wrong number. A heteroscedastic gaussian fit scores at its own
-# per-observation s(x) instead of the scalar (heteroscedasticScale below).
+# reporting a wrong number. A heteroscedastic gaussian or aft fit scores at its
+# own per-observation s(x) instead of the scalar (heteroscedasticScale below).
 pointwiseLogLikelihood <- function(object, ev) {
   y <- object[["y"]]
   if (is.null(y)) {
@@ -136,10 +136,20 @@ pointwiseLogLikelihood <- function(object, ev) {
         "cannot compute the aft log-likelihood; fit does not store the censoring status"
       )
     }
-    # sigma and y are on the log-time scale (y is log event time for an event,
-    # log censoring time for a censored row); events keep the normal density,
-    # censored rows take the log upper survival tail log P(log T > log C)
-    sd <- rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+    # the residual scale and y are on the log-time scale (y is log event time
+    # for an event, log censoring time for a censored row); events keep the
+    # normal density, censored rows take the log upper survival tail
+    # log P(log T > log C). A heteroscedastic aft fit's scale is per draw AND
+    # per observation, so it pairs with ev directly where the scalar sigma
+    # recycles - the gaussian branch's split, under the same length check
+    s <- heteroscedasticScale(object[["s.train"]], n.chains)
+    sd <- if (is.null(s)) {
+      rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+    } else if (length(s) != length(ev)) {
+      stop("the fit's 's.train' draws do not match its fitted draws")
+    } else {
+      as.vector(s)
+    }
     location <- as.vector(ev)
     result <- dnorm(y, location, sd, log = TRUE)
     censored <- rep(status, each = n.draws) == 0
