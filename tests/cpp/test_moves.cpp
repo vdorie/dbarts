@@ -994,7 +994,7 @@ static void testEmptyLeafVetoCountsWeight() {
   check(tree.at(left).sumWeights == 0.0,
         "veto fixture: the zero-weight leaf holds no weight");
 
-  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.5,
+  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.0, 0.5,
                       zeroed.data(), k,   scratch};
   BranchScore zeroScore =
     logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma);
@@ -1004,7 +1004,7 @@ static void testEmptyLeafVetoCountsWeight() {
         "the vetoed branch's finite part skips the vetoed leaf");
 
   buildSplit(positive.data());
-  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.5,
+  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.0, 0.5,
                           positive.data(), k,     scratch};
   BranchScore positiveScore =
     logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma);
@@ -1015,7 +1015,7 @@ static void testEmptyLeafVetoCountsWeight() {
   // bitwise the sum of its leaves' marginals, and the veto there is still the
   // member count
   buildSplit(nullptr);
-  MoveContext nullCtx{store, prior, 0.5, 0.1, 0.5, nullptr, k, scratch};
+  MoveContext nullCtx{store, prior, 0.5, 0.1, 0.0, 0.5, nullptr, k, scratch};
   std::vector<int32_t> bottoms;
   tree.fillBottom(0, bottoms);
   double reference = 0.0;
@@ -1045,7 +1045,7 @@ static void testEmptyLeafVetoCountsWeight() {
   auto driveChain = [&](const double* weights) {
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), weights);
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, weights, k, scratch};
     size_t violations = 0, accepted = 0;
     for (int iter = 0; iter < 4000; ++iter) {
       bool stepTaken = false;
@@ -1120,7 +1120,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     ext_rng_setSeed(rng, seed);
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), ones.data());
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, ones.data(), k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, ones.data(), k, scratch};
     for (int iter = 0; iter < 3000; ++iter) {
       bool stepTaken = false;
       StepType stepType;
@@ -1146,7 +1146,7 @@ static void testVetoRankUnfreezesStrandedTree() {
     int absorbed = -1;  // first sweep at which no leaf is vetoed
   };
   auto drive = [&](const double* weights, int iterations) {
-    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.5, weights, k, scratch};
     Driven driven;
     std::uint64_t signature = treeStructureSignature(tree);
     std::vector<int32_t> bottoms;
@@ -1323,7 +1323,8 @@ static void testEqualRankOneComparison() {
           tree.leafVetoRank(leftChild + 1, zeros.data()) == 1,
         "equal-rank fixture: both children are weight-vetoed, neither empty");
 
-  MoveContext ctx{store, growPrior, 1.0, 0.0, 0.5, zeros.data(), k, scratch};
+  MoveContext ctx{store,        growPrior, 1.0, 0.0, 0.0, 0.5,
+                  zeros.data(), k,         scratch};
   BranchScore splitScore =
     logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
   check(splitScore.rank == 1 && splitScore.logLikelihood == 0.0,
@@ -1367,7 +1368,7 @@ static void testEqualRankOneComparison() {
                       double leafSigma, double leafK) {
     ext_rng_setSeed(rng, 20260819u);
     buildRoot();
-    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.5,
+    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.0, 0.5,
                        zeros.data(), leafK,     scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
@@ -1395,7 +1396,7 @@ static void testEqualRankOneComparison() {
   auto runDeath = [&](const auto& leafModel) {
     ext_rng_setSeed(rng, 20260820u);
     buildSplit();
-    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.5,
+    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.0, 0.5,
                        zeros.data(), k,          scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, y.data(), sigma,
@@ -1414,7 +1415,7 @@ static void testEqualRankOneComparison() {
   // acceptance is the equal-rank-1 likelihood by itself
   ext_rng_setSeed(rng, 20260821u);
   buildSplit();
-  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0,
+  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0, 0.0,
                         zeros.data(), k,         scratch};
   bool changeTaken = false;
   double changeAlpha = changeMove(changeCtx, constant, rng, tree, y.data(),
@@ -1771,7 +1772,7 @@ static void testMoveValidityPredicates() {
   // and the same through the dispatcher, which reads the interval itself
   MoveScratch scratch;
   CGMTreePrior prior;
-  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.5, nullptr, 2.0,
+  MoveContext ordinalCtx{ordinalStore, prior, 0.5, 0.1, 0.0, 0.5, nullptr, 2.0,
                          scratch};
   check(ruleIsValid(ordinalCtx, tree, 0, 0),
         "ruleIsValid accepts the well-formed ordinal subtree");
@@ -1812,8 +1813,8 @@ static void testMoveValidityPredicates() {
         "a mask reaching outside the reachable set is not");
 
   categoricalValid(0x3u);
-  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.5, nullptr,
-                            2.0, scratch};
+  MoveContext categoricalCtx{categoricalStore, prior, 0.5, 0.1, 0.0, 0.5,
+                             nullptr, 2.0, scratch};
   check(ruleIsValid(categoricalCtx, categoricalTree, 0, 0),
         "ruleIsValid accepts the well-formed categorical subtree");
   categoricalValid(reachable);
@@ -1821,6 +1822,191 @@ static void testMoveValidityPredicates() {
         "ruleIsValid refuses a rule at the reachable set");
 
   printf("ok: move validity predicates\n");
+}
+
+// ---------------------------------------------------------------------------
+// The perturb move: a same-variable cut displacement, at most perturbWidth grid
+// positions.
+//
+// Two claims are checked here. FIRST, the interval invariance the reverse
+// window count rests on: findGoodOrdinalRules reads ancestors and descendants
+// and never the node's own rule, so installing ANY in-interval cut at the node
+// must leave [lo, hi] exactly where it was - which is what lets the move take
+// |W(c')| on the unmodified tree instead of re-enumerating on T'. SECOND, what
+// the move may change: the split VARIABLE of every node and the tree's SHAPE
+// are invariant, at most one cut moves per accepted proposal, and it moves by
+// at most perturbWidth. A categorical rule has no cut to displace and is never
+// eligible, so an all-categorical tree is a no-op.
+// ---------------------------------------------------------------------------
+static void testPerturbMove() {
+  const size_t n = 240, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i) / static_cast<double>(n);
+    x[i + n] = static_cast<double>((i * 7) % n) / static_cast<double>(n);
+    y[i] = 2.0 * x[i] - x[i + n] + 0.01 * static_cast<double>(i % 13);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 10u, false));
+  check(store.numCuts[0] == 10 && store.numCuts[1] == 10,
+        "perturb fixture: ten cuts per ordinal column");
+
+  std::vector<double> ones(n, 1.0);
+  MoveScratch scratch;
+  CGMTreePrior prior;
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  auto split = [&](int32_t node, int32_t variable, int32_t index) {
+    Rule rule;
+    rule.variableIndex = variable;
+    rule.setSplitIndex(index);
+    tree.birth(store, node, rule, y.data(), ones.data());
+  };
+
+  // ---- the interval invariance ----
+  // A chain of three splits on the SAME column: the middle node carries an
+  // ancestor above it and a descendant below, so its interval is pinned on
+  // both sides and neither bound is the column's own.
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), ones.data());
+  split(0, 0, 6);
+  int32_t middle = tree.at(0).leftChild;
+  split(middle, 0, 3);
+  split(tree.at(middle).leftChild, 0, 1);
+
+  MoveContext ctx{store, prior, 0.0, 0.0, 1.0, 0.5, ones.data(), 2.0, scratch};
+  int32_t lower, upper;
+  findGoodOrdinalRules(ctx, tree, middle, 0, &lower, &upper);
+  check(lower == 2 && upper == 5,
+        "the middle node's descendant-valid interval is [2, 5]");
+  check(tree.at(middle).rule.splitIndex() >= lower &&
+          tree.at(middle).rule.splitIndex() <= upper,
+        "the current rule lies inside its own valid interval");
+
+  int32_t restore = tree.at(middle).rule.splitIndex();
+  bool invariant = true;
+  for (int32_t j = lower; j <= upper; ++j) {
+    tree.at(middle).rule.setSplitIndex(j);
+    int32_t installedLower, installedUpper;
+    findGoodOrdinalRules(ctx, tree, middle, 0, &installedLower,
+                         &installedUpper);
+    invariant &= installedLower == lower && installedUpper == upper;
+  }
+  tree.at(middle).rule.setSplitIndex(restore);
+  check(invariant,
+        "findGoodOrdinalRules returns the same pair for every in-interval rule "
+        "installed at the node");
+
+  // the window counts that invariance makes exact, at the clipped end and away
+  // from it: |W(3)| is {2, 4} and |W(2)| is {3} alone
+  auto windowSize = [&](int32_t c) {
+    return std::min(upper, c + perturbWidth) - std::max(lower, c - perturbWidth);
+  };
+  check(windowSize(3) == 2 && windowSize(2) == 1 && windowSize(5) == 1,
+        "the window is two positions in the interior and one at each end");
+
+  // ---- the walk: cuts move, variables and shape do not ----
+  auto shapeAndVariables = [&]() {
+    std::vector<int32_t> subtree, digest;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree) {
+      digest.push_back(i);
+      digest.push_back(tree.at(i).isBottom() ? -1 : tree.at(i).rule.variableIndex);
+    }
+    return digest;
+  };
+  auto cuts = [&]() {
+    std::vector<int32_t> subtree, indices;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree)
+      indices.push_back(tree.at(i).isBottom() ? -1
+                                             : tree.at(i).rule.splitIndex());
+    return indices;
+  };
+
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), ones.data());
+  split(0, 0, 5);
+  split(tree.at(0).leftChild, 1, 4);
+  split(tree.at(0).leftChild + 1, 0, 8);
+  split(tree.at(tree.at(0).leftChild).leftChild, 1, 1);
+
+  ConstantGaussianLeaf constant{0.7};
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260907u);
+
+  std::vector<int32_t> reference = shapeAndVariables();
+  int accepted = 0, moved = 0, longest = 0;
+  bool structurePreserved = true, dispatchedPerturb = true;
+  for (int step = 0; step < 400; ++step) {
+    std::vector<int32_t> before = cuts();
+    bool stepTaken = false;
+    StepType stepType = StepType::change;
+    // birth/death 0, swap 0, perturb 1: the dispatch's third branch is the
+    // only reachable one
+    metropolisJumpForTree(ctx, constant, rng, tree, y.data(), 1.0, &stepTaken,
+                          &stepType);
+    dispatchedPerturb &= stepType == StepType::perturb;
+    structurePreserved &= shapeAndVariables() == reference;
+    std::vector<int32_t> after = cuts();
+    int changes = 0;
+    for (size_t i = 0; i < after.size(); ++i) {
+      if (after[i] == before[i]) continue;
+      ++changes;
+      int displacement = std::abs(after[i] - before[i]);
+      if (displacement > longest) longest = displacement;
+    }
+    if (stepTaken) ++accepted;
+    if (changes > 0) ++moved;
+    check(changes <= 1, "a perturb proposal displaces at most one cut");
+    check(changes == 0 || stepTaken,
+          "a rejected perturb restores the rule it displaced");
+  }
+  ext_rng_destroy(rng);
+
+  check(dispatchedPerturb,
+        "the dispatch reaches perturbMove at a perturb probability of one");
+  check(structurePreserved,
+        "no perturb changes a split variable or the tree's shape");
+  check(moved > 0, "the walk actually displaces cuts");
+  check(moved == accepted, "every displacement left standing was accepted");
+  check(longest > 0 && longest <= perturbWidth,
+        "no accepted perturb moves a cut by more than perturbWidth");
+
+  // ---- a categorical rule has no cut, so it is never eligible ----
+  ColumnKind type = ColumnKind::categorical;
+  std::vector<double> xCategorical(n);
+  for (size_t i = 0; i < n; ++i)
+    xCategorical[i] = static_cast<double>(i % 4);
+  ColumnStore categoricalStore;
+  PredictorSource source =
+    densePredictorSource(xCategorical.data(), n, 1, &type);
+  built(categoricalStore.build(source, nullptr, 100, false));
+
+  Tree categoricalTree;
+  categoricalTree.initialize(indexBuffer.data(), n);
+  categoricalTree.computeLeafStats(0, y.data(), ones.data());
+  Rule categoricalRule;
+  categoricalRule.variableIndex = 0;
+  categoricalRule.setCategoryDirections(0x3u);
+  categoricalTree.birth(categoricalStore, 0, categoricalRule, y.data(),
+                        ones.data());
+  MoveContext categoricalCtx{categoricalStore, prior, 0.0,         0.0, 1.0,
+                             0.5,              ones.data(), 2.0,   scratch};
+  ext_rng* categoricalRng =
+    ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(categoricalRng, 20260908u);
+  bool categoricalStepTaken = true;
+  double categoricalAlpha =
+    perturbMove(categoricalCtx, constant, categoricalRng, categoricalTree,
+                y.data(), 1.0, &categoricalStepTaken);
+  ext_rng_destroy(categoricalRng);
+  check(categoricalAlpha == -1.0 && !categoricalStepTaken,
+        "an all-categorical tree offers perturb no eligible node");
+
+  printf("ok: perturb move (interval invariance over %d installed rules, "
+         "%d of 400 proposals accepted, longest displacement %d)\n",
+         upper - lower + 1, accepted, longest);
 }
 
 void runMovesTests(ext_rng* rng) {
@@ -1848,4 +2034,5 @@ void runMovesTests(ext_rng* rng) {
   testVetoRankUnfreezesStrandedTree();
   testEqualRankOneComparison();
   testMoveValidityPredicates();
+  testPerturbMove();
 }

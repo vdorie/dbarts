@@ -19,8 +19,8 @@
 #include "model.hpp"
 #include "tree.hpp"
 
-// The conjugate Metropolis-Hastings tree moves: birth/death, change, and swap
-// proposals with their acceptance ratios.
+// The conjugate Metropolis-Hastings tree moves: birth/death, change, swap and
+// perturb proposals with their acceptance ratios.
 
 namespace bartcore {
 
@@ -41,6 +41,7 @@ struct MoveContext {
   const CGMTreePrior& treePrior;
   double birthOrDeathProbability;
   double swapProbability;
+  double perturbProbability;
   double birthProbability;
   const double* weights;
   double k;
@@ -153,9 +154,10 @@ inline void resolveVetoRank(const BranchScore& current,
 //
 // A 'p' record's three log terms are that move's own acceptance expression:
 // the veto-resolved log-likelihood difference, the log prior ratio (birth and
-// death the growth factors, change the subtree strictly below the node, swap
-// the swapped subtree), and the surviving proposal-density ratio (birth and
-// death the transition ratio, change logProposalCorrection, swap 0). All three
+// death the growth factors, change and perturb the subtree strictly below the
+// node, swap the swapped subtree), and the surviving proposal-density ratio
+// (birth and death the transition ratio, change and perturb
+// logProposalCorrection, swap 0). All three
 // are NA when the proposal never reached a score (noop = 1: pi(T') = 0, an
 // unsatisfiable rule draw, or no eligible node), where nodeDepth is -1 if it
 // had no target node. treeDepth and interior are the shape the proposal saw,
@@ -1045,11 +1047,148 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   return alpha;
 }
 
-enum class StepType { birth, death, swap, change };
+/// Window half-width for the perturb move, in GRID POSITIONS: a displacement
+/// is drawn from the cuts within perturbWidth of the current one. A
+/// compile-time constant rather than a knob - acceptance falls off steeply
+/// with the displacement and no caller can set it from evidence - and a width
+/// arm therefore needs a private build.
+inline constexpr int32_t perturbWidth = 1;
+
+/// Perturb-move proposal kernel: displace one interior node's ordinal cut by
+/// at most perturbWidth grid positions, keeping its split VARIABLE and the
+/// whole tree's shape. The acceptance is changeMove's with the node's own
+/// prior factors cancelling exactly rather than against a proposal density:
+///   alpha = exp( B(T') - B(T) + yLogL - xLogL + logProposalCorrection ),
+/// where B is the tree-prior log-probability of the subtree STRICTLY BELOW the
+/// node. splitVariableLogProbability reads ancestors only and the rule prior
+/// normalizes over the ancestor-constrained interval, both of which an
+/// unchanged variable leaves fixed, so changeMove's per-side |Valid|/|SI|
+/// machinery collapses to the window ratio alone:
+///   W(c) = { j in [lo, hi] : 0 < |j - c| <= w },  |W(c)| = min(hi, c + w) -
+///                                                          max(lo, c - w),
+///   logProposalCorrection = log|W(c)| - log|W(c')|.
+/// The correction is exact and needs no re-enumeration on T': splitInterval
+/// and findGoodOrdinalRules both ignore the node's OWN rule and read only
+/// ancestors and descendants, neither of which a displacement touches, so
+/// [lo, hi] is identical on T and T' and the reverse count is taken on the
+/// unmodified tree. Equalling or crossing an ancestor's or a descendant's cut
+/// on the same variable is impossible rather than handled, [lo, hi] being set
+/// one index inside both. hi == lo leaves an empty window and a no-op.
+///
+/// Eligible nodes are the interior nodes on an ORDINAL column, and the filter
+/// is not an optimization: the selected set must be a tree function a
+/// displacement cannot move, or its reciprocal stops cancelling between T and
+/// T'. For the same reason no width filter may skip a node - a degenerate
+/// interval is a no-op INSIDE the kernel. A categorical rule has no cut to
+/// displace and is never proposed, so the move is inert on an all-categorical
+/// design.
+///
+/// Three of changeMove's checks drop with the variable held: no mask pool (an
+/// ordinal rule allocates no words), no interaction walk (co-occurrence and
+/// order are properties of the split VARIABLES), and no stranding check
+/// ([lo, hi] strands none). The missing direction rides the displaced rule
+/// unchanged - setSplitIndex preserves it - and contributes log 2 to both
+/// sides of the prior ratio. [lo, hi] guarantees satisfiability but never
+/// occupancy, so a displaced cut can still empty a descendant leaf; the veto
+/// resolves that as it does for change.
+template <MoveScorableLeafModel L, typename ResidT = double>
+double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
+                   Tree& tree, const ResidT* y, double sigma, bool* stepTaken,
+                   int32_t* changedNode = nullptr) {
+  *stepTaken = false;
+
+  std::vector<int32_t>& eligible(ctx.scratch.nodeScratch);
+  eligible.clear();
+  tree.fillNotBottom(0, eligible);
+  size_t numEligible = 0;
+  for (int32_t i : eligible)
+    if (!ctx.data.splitsBySubset(
+          static_cast<size_t>(tree.at(i).rule.variableIndex)))
+      eligible[numEligible++] = i;
+  eligible.resize(numEligible);
+  if (eligible.empty()) {
+    BARTCORE_CENSUS_NOOP("perturb", tree, invalidNode);
+    return -1.0;
+  }
+
+  size_t nodeNumber =
+    ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, eligible.size());
+  int32_t nodeToPerturb = eligible[nodeNumber];
+  BARTCORE_CENSUS_SHAPE(tree, nodeToPerturb);
+
+  int32_t variableIndex = tree.at(nodeToPerturb).rule.variableIndex;
+  int32_t current = tree.at(nodeToPerturb).rule.splitIndex();
+  int32_t lower, upper;
+  findGoodOrdinalRules(ctx, tree, nodeToPerturb, variableIndex, &lower, &upper);
+
+  // |W(c)|, the window less the current cut; zero at a degenerate interval
+  int32_t forwardLow = std::max(lower, current - perturbWidth);
+  int32_t forwardCount = std::min(upper, current + perturbWidth) - forwardLow;
+  if (forwardCount <= 0) {
+    BARTCORE_CENSUS_NOOP("perturb", tree, nodeToPerturb);
+    return -1.0;
+  }
+
+  // one draw over W(c), the current cut skipped by shifting the upper half up
+  int32_t target = forwardLow + static_cast<int32_t>(
+    ext_rng_simulateIntegerUniformInRange(rng, 0, forwardCount));
+  if (target >= current) ++target;
+
+  int32_t reverseCount = std::min(upper, target + perturbWidth) -
+                         std::max(lower, target - perturbWidth);
+  double logProposalCorrection =
+    std::log(static_cast<double>(forwardCount)) -
+    std::log(static_cast<double>(reverseCount));
+
+  // the node's own split-variable and rule-prior factors cancel exactly, so
+  // the pi ratio reduces to the subtree strictly below the perturbed node
+  int32_t leftChild = tree.at(nodeToPerturb).leftChild;
+  double belowX =
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
+  BranchScore xScore =
+    logLikelihoodForBranch(ctx, leaf, tree, nodeToPerturb, y, sigma);
+
+  tree.snapshotSubtree(nodeToPerturb, ctx.scratch.snapshot);
+
+  tree.at(nodeToPerturb).rule.setSplitIndex(target);
+  tree.refreshSubtree(ctx.data, nodeToPerturb, y, ctx.weights);
+
+  double belowY =
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
+  BranchScore yScore =
+    logLikelihoodForBranch(ctx, leaf, tree, nodeToPerturb, y, sigma);
+
+  // as in changeMove, the veto gates the single exp the acceptance takes
+  double xLogL, yLogL;
+  resolveVetoRank(xScore, yScore, &xLogL, &yLogL);
+  double alpha =
+    std::exp((belowY - belowX) + (yLogL - xLogL) + logProposalCorrection);
+  alpha = alpha > 1.0 ? 1.0 : alpha;
+
+  if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
+    *stepTaken = true;
+    if (changedNode != nullptr) *changedNode = nodeToPerturb;
+  } else {
+    tree.restoreSubtree(ctx.scratch.snapshot);
+  }
+  BARTCORE_CENSUS_PROPOSAL("perturb", false, *stepTaken, yLogL - xLogL,
+                           belowY - belowX, logProposalCorrection);
+  return alpha;
+}
+
+enum class StepType { birth, death, swap, change, perturb };
 
 /// changedNode, when non-null, receives the index of the node whose subtree an
-/// ACCEPTED move repartitioned (the birthed/died node, or the changed/swapped
-/// subtree root); untouched on rejection or no-op, so gate reads on stepTaken.
+/// ACCEPTED move repartitioned (the birthed/died node, or the changed, swapped
+/// or perturbed subtree root); untouched on rejection or no-op, so gate reads
+/// on stepTaken.
+///
+/// The perturb branch tests at birthOrDeath + swap + perturb and change stays
+/// the else, so at a perturb probability of exactly zero the added test IS the
+/// swap test in IEEE, fails wherever that one failed, and control reaches
+/// changeMove at the same stream position.
 template <MoveScorableLeafModel L, typename ResidT = double>
 double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                              Tree& tree, const ResidT* y, double sigma,
@@ -1066,6 +1205,10 @@ double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng
   } else if (u < ctx.birthOrDeathProbability + ctx.swapProbability) {
     alpha = swapMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::swap;
+  } else if (u < ctx.birthOrDeathProbability + ctx.swapProbability +
+                   ctx.perturbProbability) {
+    alpha = perturbMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
+    *stepType = StepType::perturb;
   } else {
     alpha = changeMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::change;

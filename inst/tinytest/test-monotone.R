@@ -17,6 +17,7 @@ monotoneOf <- function(...) {
     p.birth_death = sampler$model@p.birth_death,
     p.swap = sampler$model@p.swap,
     p.change = sampler$model@p.change,
+    p.perturb = sampler$model@p.perturb,
     k = sampler$model@node.hyperprior
   )
 }
@@ -63,6 +64,7 @@ forced <- monotoneOf(x, y, monotone = c(a = "+"))
 expect_equal(forced$p.birth_death, 1)
 expect_equal(forced$p.swap, 0)
 expect_equal(forced$p.change, 0)
+expect_equal(forced$p.perturb, 0)
 expect_inherits(forced$k, "dbartsFixedHyperprior")
 expect_equal(forced$k@k, 2)
 
@@ -117,6 +119,24 @@ expect_error(
     control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
   ),
   "proposal.probs"
+)
+
+# but a caller spelling the documented default and omitting the move that
+# ships at zero is not a non-default vector: the refusal fills the name it
+# compares before reading it, so this is rewritten rather than refused
+expect_equal(
+  monotoneOf(
+    x,
+    y,
+    monotone = c(a = "+"),
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.4,
+      birth = 0.5
+    )
+  )$p.birth_death,
+  1
 )
 
 # an explicit proposal.probs = NULL is treated as absent: it succeeds

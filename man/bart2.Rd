@@ -50,7 +50,8 @@ bart2(
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
-    proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+    proposal.probs = c(
+        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -273,7 +274,7 @@ bart2(
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See \code{\link{bart}}'s Reproducibility section.
    }
    \item{proposal.probs}{
-     Named numeric vector, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"swap"} and \code{"change"} to control tree structure proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. The default is the named vector \code{c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)}, identical to \code{\link{dbarts}}'s own default. A \code{"swap"} element exchanges a parent's split rule with a child's; it defaults to zero because at production forest sizes it measures as a no-op, but with \code{n.trees = 1} it is the only move that rotates a rule up the tree, so single-tree fits should set it positive (0.1 was the historical default).
+     Named numeric vector, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"swap"}, \code{"change"} and \code{"perturb"} to control tree structure proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. The default is the named vector \code{c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5)}, identical to \code{\link{dbarts}}'s own default. A \code{"swap"} element exchanges a parent's split rule with a child's; it defaults to zero because at production forest sizes it measures as a no-op, but with \code{n.trees = 1} it is the only move that rotates a rule up the tree, so single-tree fits should set it positive (0.1 was the historical default). A \code{"perturb"} element displaces one node's split point by a single cut position while keeping its variable and the tree's shape; it defaults to zero, and only ordinal (numeric) columns can be perturbed.
    }
    \item{monotone}{
      Optional per-predictor monotonicity constraints, passed through to \code{\link{dbarts}}; see its \code{monotone} argument. A named vector selects predictors by model-matrix column name, each direction one of \code{"+"}/\code{"increasing"}/\code{1} or \code{"-"}/\code{"decreasing"}/\code{-1} - matching is case-insensitive, so \code{"Increasing"} is accepted; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed \code{k = 2}. \code{NULL} (the default) fits the unconstrained model.

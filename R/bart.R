@@ -669,7 +669,13 @@ bart2 <- function(
   keepCall = TRUE,
   samplerOnly = FALSE,
   seed = NA_integer_,
-  proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+  proposal.probs = c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    birth = 0.5
+  ),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,

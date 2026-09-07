@@ -20,8 +20,8 @@
             R-level draws made after a fit also change.
       \item The default tree-proposal mixture drops the swap proposal to
             zero: \code{proposal.probs} now defaults to
-            \code{c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)}
-            rather than 0.9-x's
+            \code{c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
+            birth = 0.5)} rather than 0.9-x's
             \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)},
             swap's mass going to \code{"birth_death"}. At production forest
             sizes the move is very nearly a no-op - over 70 percent of its
@@ -248,6 +248,17 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{proposal.probs} gains a fourth structural proposal,
+            \code{"perturb"}: a same-variable cut move that displaces one
+            node's split point by a single grid position, keeping its split
+            variable and the tree's shape. Only ordinal (numeric) columns
+            carry a cut to displace, so the move is inert on an
+            all-categorical design. It defaults to zero, so no fit's draws
+            change unless it is asked for; a positive value takes its share
+            from the other structural probabilities, which must still sum to
+            one. An unnamed \code{"perturb"} resolves to zero ahead of the
+            residual fill, so every vector that resolved before resolves
+            identically now.
       \item The rewritten engine replaces the pre-1.0 engine: every
             fitting function runs on it. Fits are not draw-for-draw
             identical to the pre-1.0 engine's, and the corrections listed
@@ -1614,8 +1625,9 @@
             \code{dbarts}'s own default silently applying instead) whenever
             the caller left it unsupplied. \code{proposal.probs}'s default
             is now stated directly in the signature - the named vector
-            \code{c(birth_death = 0.6, swap = 0, change = 0.4, birth =
-            0.5)} \code{dbarts} also uses - rather than \code{NULL}.
+            \code{c(birth_death = 0.6, swap = 0, change = 0.4,
+            perturb = 0, birth = 0.5)} \code{dbarts} also uses - rather
+            than \code{NULL}.
             Every resolved
             value already matched what applied before, so no fit's draws
             change.

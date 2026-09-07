@@ -354,17 +354,32 @@ resolveSamplerSpec <- function(
   # proposal.probs is forced to birth/death-only, an explicit
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
-    defaultProbs <- c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
+    defaultProbs <- c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.4,
+      perturb = 0,
+      birth = 0.5
+    )
     if (
       !is.null(proposal.probs) &&
-        !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs))
+        !isTRUE(all.equal(
+          fillZeroDefaultProposalProbs(proposal.probs)[names(defaultProbs)],
+          defaultProbs
+        ))
     ) {
       stop(
         "'monotone' forces birth/death-only proposals; a non-default ",
         "'proposal.probs' cannot be honored under the constraint"
       )
     }
-    proposal.probs <- c(birth_death = 1, swap = 0, change = 0, birth = 0.5)
+    proposal.probs <- c(
+      birth_death = 1,
+      swap = 0,
+      change = 0,
+      perturb = 0,
+      birth = 0.5
+    )
   }
 
   model <- newValidated(
@@ -660,7 +675,10 @@ resolveSamplerSpec <- function(
       # a monotone constraint rewrites proposal.probs above, so only an
       # unconstrained fit's is the caller's own
       "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
-        !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs)),
+        !isTRUE(all.equal(
+          fillZeroDefaultProposalProbs(proposal.probs)[names(defaultProbs)],
+          defaultProbs
+        )),
       "Student-t residuals" = !is.null(residDf),
       "'variance'" = !is.null(varianceColumns),
       "storage = \"single\"" = identical(control@storage, "single"),
@@ -776,7 +794,13 @@ dbartsSpec <- function(
   node.prior = normal,
   resid.prior = chisq,
   resid.dist = gaussian,
-  proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+  proposal.probs = c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    birth = 0.5
+  ),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,

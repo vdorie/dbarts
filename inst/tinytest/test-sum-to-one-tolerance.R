@@ -48,6 +48,24 @@ makeModel <- function(delta) {
 expect_inherits(makeModel(1e-9), "dbartsModel")
 expect_error(makeModel(1e-7), "rule proposal probabilities must sum to 1")
 
+# the same pair with every structural name spelled, perturb included: an
+# unnamed perturb is resolved to zero ahead of the fill and never takes the
+# residual, so naming it changes neither verdict
+makeFullModel <- function(delta) {
+  methods::new(
+    "dbartsModel",
+    proposal.probs = c(
+      birth_death = 1.0 - delta,
+      swap = 0.0,
+      change = 0.0,
+      perturb = 0.0,
+      birth = 0.5
+    )
+  )
+}
+expect_inherits(makeFullModel(1e-9), "dbartsModel")
+expect_error(makeFullModel(1e-7), "rule proposal probabilities must sum to 1")
+
 # --- bartcore bridge, parseModel: rule proposal probabilities -------------
 # Reached directly via a mutated copy of a valid model, bypassing R
 # validity (plain slot assignment does not call it) so the C-side check is

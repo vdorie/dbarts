@@ -52,6 +52,7 @@ struct SamplerOptions {
   double birthOrDeathProbability = 0.6;
   double swapProbability = 0.0;
   double changeProbability = 0.4;
+  double perturbProbability = 0.0;
   double birthProbability = 0.5;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
@@ -211,6 +212,7 @@ struct ModelParameters {
   double birthOrDeathProbability = 0.6;
   double swapProbability = 0.0;
   double changeProbability = 0.4;
+  double perturbProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
   // the named calibration, matching SamplerOptions: finite overrides nodeScale
@@ -375,7 +377,8 @@ using SweepCallback =
 struct VarianceForest {
   std::size_t numTrees = 0;
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
-         changeProbability = 0.4, birthProbability = 0.5;
+         changeProbability = 0.4, perturbProbability = 0.0,
+         birthProbability = 0.5;
   ConstantVarianceLeaf leaf;
   CGMTreePrior treePrior;
   std::vector<Tree> trees;
@@ -550,6 +553,7 @@ public:
     forest.birthOrDeathProbability = options.birthOrDeathProbability;
     forest.swapProbability = options.swapProbability;
     forest.changeProbability = options.changeProbability;
+    forest.perturbProbability = options.perturbProbability;
     forest.birthProbability = options.birthProbability;
     forest.updateK = options.updateK;
     forest.kHyperprior = options.kHyperprior;
@@ -1394,6 +1398,7 @@ public:
                         forest.treePrior,
                         forest.birthOrDeathProbability,
                         forest.swapProbability,
+                        forest.perturbProbability,
                         forest.birthProbability,
                         forestWeights,
                         forest.k,
@@ -1708,6 +1713,7 @@ public:
     forest.birthOrDeathProbability = model.birthOrDeathProbability;
     forest.swapProbability = model.swapProbability;
     forest.changeProbability = model.changeProbability;
+    forest.perturbProbability = model.perturbProbability;
     forest.birthProbability = model.birthProbability;
     // the same conversion creation runs, re-derived against the CURRENT
     // transform: without it a round trip through the model SEXP would revert a
@@ -4148,6 +4154,7 @@ private:
     vf.birthOrDeathProbability = options.birthOrDeathProbability;
     vf.swapProbability = options.swapProbability;
     vf.changeProbability = options.changeProbability;
+    vf.perturbProbability = options.perturbProbability;
     vf.birthProbability = options.birthProbability;
     vf.treePrior.base = options.varianceBase;
     vf.treePrior.power = options.variancePower;
@@ -4212,6 +4219,7 @@ private:
                       vf.treePrior,
                       vf.birthOrDeathProbability,
                       vf.swapProbability,
+                      vf.perturbProbability,
                       vf.birthProbability,
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal
@@ -5131,6 +5139,7 @@ private:
     forest.birthOrDeathProbability = spec.birthOrDeathProbability;
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
+    forest.perturbProbability = spec.perturbProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
     forest.useDart = false;
@@ -5195,6 +5204,7 @@ private:
     forest.birthOrDeathProbability = spec.birthOrDeathProbability;
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
+    forest.perturbProbability = spec.perturbProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
     forest.useDart = false;

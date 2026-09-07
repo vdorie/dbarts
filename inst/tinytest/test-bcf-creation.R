@@ -590,6 +590,39 @@ expect_error(
   ),
   "non-default 'proposal.probs'"
 )
+# a caller who spells the documented default and omits the move that ships at
+# zero is passing the default, not a non-default one: the refusal fills the
+# missing name before comparing, so this creates
+expect_silent(
+  dbarts(
+    x,
+    y,
+    forests = twoForests,
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.4,
+      birth = 0.5
+    ),
+    control = control
+  )
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = twoForests,
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.24,
+      perturb = 0.16,
+      birth = 0.5
+    ),
+    control = control
+  ),
+  "non-default 'proposal.probs'"
+)
 expect_error(
   dbarts(
     x,
