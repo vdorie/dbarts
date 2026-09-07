@@ -85,8 +85,10 @@ follow from no column:
   although the channel is open ([`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp)).
 - Whole-data `setData` (n free) is narrower than `setPredictor`: it needs a sampler that owns
   its predictors ([`refusePredictorMutation`](../../src/R_interface_bartcore.cpp) refuses a data-handle view and a CSC-built
-  design), and is refused above one forest ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) and for aft
-  (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp)).
+  design), and is refused above one forest ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) and, since a
+  replacement may change n, for aft too
+  (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp) on that conduit; the status itself moves
+  through `$setResponse(y, status = )`).
 - Hurdle's `-` cells are not "ask the two components": `bart2()` refuses `weights`, `subset`
   and `offset`/`offset.test` on that family at its own entrance
   (["does not support 'weights'"](../../R/bart.R)).
@@ -202,7 +204,7 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
-| A censoring-status setter, the SBC-coverage enabler | aft, heteroscedastic aft | docs/plans/sbc-family-tiers.md |
+| The aft SBC arm, and the heteroscedastic arms behind the variance-forest prior draw | aft, heteroscedastic aft | docs/design/aft-status-setter.md, slices 2-4 |
 | Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |
@@ -294,5 +296,7 @@ slot's trees but the donor's LIVE amplitudes, and nothing tests the result above
 [f13] A variance forest is built over gaussian or aft ([`varianceForestIsRefused`](../../src/bartcore/facade.hpp)); its
 row's channels otherwise follow the base family's own row, except sigma and `updateScale`,
 which the variance forest pins or refuses for both regardless of family. `setData` stays
-refused under aft as always (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp)).
+refused under aft as always, since a whole-data replacement may change n
+(["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp) on that conduit); the status itself moves
+through `$setResponse(y, status = )`.
 

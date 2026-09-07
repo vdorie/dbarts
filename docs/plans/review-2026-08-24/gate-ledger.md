@@ -287,7 +287,7 @@ As of a3bae0fe. Carried over from docs/design/feature-matrix.md, whose own
 | ordinal | `ordinal`, `maskordinal` | 9/10 [f41] | test-ordinal.R only |
 | nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R, test-dispersion-channel.R |
 | multinom | 11 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
-| aft | `aft` | OUT [f45] | test-aft.R only |
+| aft | `aft` | OUT [f45] | test-aft.R only [f48] |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
 | bcf | 12 scenarios, own harness, gaussian only (family reach: docs/design/feature-matrix.md) | PASS, gaussian only [f46] | 9 (test-bcf*.R) |
@@ -362,3 +362,12 @@ of the family-tiers matrix.
 [f47] OUT but DEFERRED rather than blocked: prior draws never reach
 `varianceForest_` today, and the capability is liftable R-side through `setState`
 ([Decision - scope](../sbc-family-tiers.md#decision---scope)).
+
+[f48] At HEAD, past this snapshot: the censoring-status setter (docs/design/aft-status-setter.md
+slice 1, landed fcd60feb, e20c6462, f9bc9260, 2026-09-07) adds its own gates - creation parity
+bitwise through both the R5 and handle surfaces; the cpp ordering/bound gate; the joint
+y-and-status gate; the redraw law; the refusals; the store/load handshake in both flip
+directions; seven poisons caught - and a mutation probe `test-aft.R` catches at the
+index-restricted `restoreLatents`. tests/cpp 278; tinytest 7448/0 (70 in test-aft.R);
+equivalence trio bitwise 50/12/11; ASAN/UBSAN clean; R CMD check --as-cran OK, zero notes;
+NEWS 294 entries; API hash `0x616ffcda8c947777` unchanged.

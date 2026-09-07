@@ -554,6 +554,18 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### AFT: a live censoring-status setter (fcd60feb + e20c6462 + f9bc9260, 2026-09-07)
+
+Slice 1 of docs/design/aft-status-setter.md: `$setResponse(y, status = )` takes a new per-observation
+censoring status before the response, through a non-pure `ResponseModel::setSurvivalStatus` that
+`AFTResponse` overrides alongside `survivalDigest`/`reapplySurvivalStatus` (the
+`weightsDigest`/`reapplyWeights` shape), an index-restricted `restoreLatents`, and a `survival.digest`
+state attribute the R5 mirror and handle both reconcile against; `setData`'s aft refusal is restated,
+not lifted, since a whole-data replacement may still change n. Gates: tests/cpp 278 clean; tinytest
+7448/0 (70 in test-aft.R); equivalence trio bitwise 50/12/11; ASAN/UBSAN clean; R CMD check --as-cran
+OK, zero notes; NEWS 294 entries; API hash 0x616ffcda8c947777 unchanged. Slices 2-4 (the aft SBC arm
+and the heteroscedastic arms) remain open.
+
 ### Documentation cites become markdown links (0b60c4a7, 2026-09-07)
 
 The double-bracket cite notation did not render on GitHub. Every cite

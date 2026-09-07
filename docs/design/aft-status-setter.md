@@ -1,6 +1,6 @@
 # An AFT censoring-status setter, and the SBC arms it enables
 
-Status: PROPOSED, 2026-09-07
+Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260); slices 2-4 remain PROPOSED.
 
 Lets a live `family = "aft"` sampler take a new per-observation censoring status, so the censoring structure stops being
 fixed at creation. The enabled item is SBC coverage: aft is out of the matrix for exactly this reason
@@ -60,10 +60,13 @@ The interface is a fork. **(i) Widen the pure virtual:** `ResponseModel::setResp
 (gaussian, probit, ordinal, logistic, multinomial, aft, t, nbinom), and a default argument does not help, being statically
 bound; all eight change signature, as do `Chain`, `Sampler`, [`SamplerBase`](../../src/bartcore/facade.hpp) and
 `dbarts_sampler_setResponse`'s site in src/C_interface.cpp. **(ii) A separate non-pure `ResponseModel::setSurvivalStatus`,**
-default no-op with one `AFTResponse` override - the [`ResponseModel::setVarianceSurface`](../../src/bartcore/model.hpp)
+default no-op with an `AFTResponse` override - the [`ResponseModel::setVarianceSurface`](../../src/bartcore/model.hpp)
 shape - called by the widened `bartcore_setResponse` BEFORE `setResponse`. RECOMMEND (ii): it edits one response model
 instead of eight, and ordering it first gives the joint call exactly one latent redraw and one working-response rebuild; the
-facade virtual and src/C_interface.cpp stay untouched.
+`setResponse` facade virtual and src/C_interface.cpp stay untouched (landed: the state handshake below needs its own digest
+and reapply pair, so `AFTResponse` ends up with three overrides - `setSurvivalStatus`, `survivalDigest`,
+`reapplySurvivalStatus` - not one, each a new [`SamplerBase`](../../src/bartcore/facade.hpp) virtual on
+`weightsDigest`/`reapplyWeights`'s shape).
 
 The override rebuilds `censoredIndices_` and `censorBound_` from the status and the observed times in force -
 `censorBound_[k]` where currently censored, `logT_[i]` where not - into temporaries swapped in once the pass succeeds, so it
@@ -211,7 +214,9 @@ that newly censors a row, its redraws match the lower-truncated normal at ITS bo
 [test-aft.R](../../inst/tinytest/test-aft.R): (a) through the handle; the refusals (off aft, a wrong length, a non-real
 vector on the handle path, a value neither 0 nor 1, `NA`); and, R5 only, the handshake - set a status, store state,
 invalidate the pointer, check the re-created sampler continues from the observed times, not stale latents. Poison: drop the
-`survival.digest` write, and a row censored at store time and an event after comes back fitted to a latent draw.
+`survival.digest` write, and a row that was an event at store time and is censored after comes back sitting exactly at its
+bound instead of being redrawn. That is the digest's own case, the reverse flip: the index-restricted `restoreLatents` is
+what protects a row censored at store time and an event after, regardless of the digest.
 
 ## 8. Slices
 
@@ -232,3 +237,10 @@ Matrix cells, in [feature-matrix.md](feature-matrix.md): the `setData` bullet's 
 quote the message slice 1 restates; the Gaps row naming the setter as the SBC-coverage enabler closes with slices 1 and 2;
 and the row calling heteroscedastic SBC coverage liftable via `setState` is OVERTURNED by slice 3, which the edit says
 rather than restating.
+
+**Landed.** Slice 1: fcd60feb (code, tests), e20c6462 (Rd, NEWS), f9bc9260 (null-status no-op); tip f9bc9260. Three
+differences from the recommendation above: `AFTResponse` gained three facade virtuals rather than one -
+`setSurvivalStatus`, `survivalDigest`, `reapplySurvivalStatus`, the `weightsDigest`/`reapplyWeights` shape; the `setData`
+refusal keeps the fragment (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp)) and restates
+only its tail; and gate (d)'s [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp) gained an alone-path assertion,
+since the joint call's own bound refresh hides the rebuild's bounds.
