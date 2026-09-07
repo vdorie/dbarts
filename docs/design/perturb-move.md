@@ -8,7 +8,8 @@ ranked it first among tree-space candidates on a first-principles argument and w
 cut probe prices the move directly on this sampler
 ([6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)).
 Every census number below is from 6.1's SECOND 2026-09-07 addendum, the re-run at the two-move kernel - which IS the shipped kernel,
-swap dispatching at a probability of zero - and not from the three-move run beside it.
+swap dispatching at a probability of zero - and not from the three-move run beside it. The one exception is marked where it stands,
+in section 7: the clipped-magnitude probe counts, which only the three-move addendum reports.
 
 **Premise, not reopened here.** The swap slice landed first and took the one bundled baseline re-record
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)). It dropped swap out of the DEFAULT and then
@@ -34,16 +35,17 @@ answers the fork 6.1 pre-registered against the temperature family: the bottlene
 probed the displacement - at each interior node a change proposal visited, hold the variable, move the cut +/-1, 2, 4, 8 positions
 on a snapshot, take the FULL MH log ratio (subtree-below prior plus resolved likelihood), restore:
 
-    cell       |1|    |2|    |4|    |8|   median full log ratio at |1|
-    default   40.65  24.06  11.94  6.81                          -1.53
-    lownoise  27.15  13.73   5.63  3.07                          -4.83
-    wide      51.38  34.82  20.77 12.91                          -0.76
-    bcf       33.34  21.09  12.31  8.09                          -2.46
+    cell       |1|    |2|    |4|    |8|   median log ratio at |1|
+    default   40.65  24.06  11.94  6.81                     -1.53
+    lownoise  27.15  13.73   5.63  3.07                     -4.83
+    wide      51.38  34.82  20.77 12.91                     -0.76
+    bcf       33.34  21.09  12.31  8.09                     -2.46
 
 The two are not the same statistic - the probe's is unconditional and carries the prior term, change's is conditional on rejection
-and carries none - but they are comparable in the direction that matters, since change rejects 96 percent of its scored proposals so
-its unconditional median sits near its rejected one, and an O(1) prior term cannot close a gap in the tens. One position sits in a
-workable 27 to 51 percent band in every cell, two only at `wide`, so the displacement buys back roughly 60 to 140 log units: the
+and carries none - but they are comparable in the direction that matters, since change rejects 96.1 percent of its scored proposals
+at the default cell and 93.5 to 98.3 percent across the four, so its unconditional median sits near its rejected one, and an O(1)
+prior term cannot close a gap in the tens. One position sits in a workable 27 to 51 percent band in every cell, two only at
+`wide`, so the displacement buys back roughly 60 to 140 log units: the
 random-walk Metropolis tuning argument made concrete, step size being the only free parameter any dbarts structural move has.
 
 Two findings are not in the move's favour. Change acceptance RISES from depth 0 to depth 1 in every cell - 2.46 to 6.84 percent at
@@ -179,7 +181,8 @@ read as an addition.
 (["'monotone' forces birth/death-only proposals"](../../R/spec.R)). The first of those does NOT read `defaultProposalProbs`, so
 leaving it stale makes the refusal compare against a vector that no longer exists. Both `all.equal` branches, monotone and
 treatment-forest, live in `resolveSamplerSpec`, which `dbarts()`, `bart2()` and `dbartsSpec()` all route through, so a defect there
-fires from every entry point; only the treatment-forest branch reads `defaultProposalProbs`, and it needs no edit.
+fires from every entry point; only the treatment-forest branch reads `defaultProposalProbs`, which is what widens its comparison
+under the caller's feet - trap 1 below.
 [`dbartsModel`](../../R/A_class.R) gains a `p.perturb` slot, a prototype of 0 and a fourth term in validity's sum. Four further
 literals carry the structural name set inside R/model.R's initializer - the subset, the `names(probs) <-` assignment, the all-NA
 fallback subset and the slot write - plus the fill rule below.
@@ -187,28 +190,33 @@ fallback subset and the slot write - plus the fill rule below.
 **How a fifth name enters the fill.** The rule landed at 6934e487 runs over three names: one unnamed structural element takes the
 residual, two unnamed with `swap` among them still resolve because swap takes its zero and the other the residual
 (["two unnamed, one of them swap"](../../inst/tinytest/test-proposal-probs.R)), and `swap` named alone is an error because the
-birth/death-versus-change split is undetermined. A fourth structural name cannot simply join that set:
-`c(birth_death = 0.5, change = 0.4)` resolves today to `swap 0.1`, and under a naive widening it would present TWO unnamed
-elements and land at 0 and 0, a vector summing to 0.9 that fails `setValidity`. **RECOMMEND: `perturb` resolves BEFORE the
+birth/death-versus-change split is undetermined. A fourth structural name cannot simply join that set, and the way it fails is
+SILENT. `c(birth_death = 0.5, change = 0.4)` resolves today to `swap 0.1`. Widen the subset to four names and that same call
+presents TWO unnamed elements, so `sum(unnamed) == 2L` still zeroes `swap` and the residual then falls to the one `NA` left:
+`perturb 0.1`, a vector summing to 1 that `setValidity` accepts and no test reads - a nonzero perturb default nobody asked for. The
+variant that zeroes BOTH zero-default names instead lands at `swap 0, perturb 0` and a sum of 0.9, which `setValidity` does catch;
+that one is loud, and it is not the hazard. **RECOMMEND: `perturb` resolves BEFORE the
 three-name fill and never enters it.** An unnamed `perturb` is 0 - its default is a number, not a share - the residual is then taken
 against `1 - perturb` rather than 1, and the existing three-name rule runs verbatim. Every resolution above is preserved element for
 element, and the only widening is the error: `c(perturb = 0.16)` alone leaves the same split undetermined as `swap` alone, so that
 message names both zero-default moves. The alternative, folding `perturb` into the fill's name set and zeroing the surplus unnamed
-elements, is rejected for the `c(birth_death = 0.5, change = 0.4)` regression.
+elements, is rejected for the `c(birth_death = 0.5, change = 0.4)` regression in either of its forms.
 
 **C++: the kernel's own file, and TWENTY-ONE probability sites outside it.** In src/bartcore/moves.hpp: `perturbMove` beside
 [`swapMove`](../../src/bartcore/moves.hpp), a `perturbProbability` on [`MoveContext`](../../src/bartcore/moves.hpp) - which carries
 birth/death, swap and birth today and not change, so a fourth field really does have to reach it - a fifth enumerator on
-[`StepType`](../../src/bartcore/moves.hpp), the dispatch branch (section 6), the three census hooks the other kernels carry (a
-no-op record on the degenerate interval, a shape record and a proposal record on the scored one) and the census legend that names
-the moves. Then TEN in [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp): three struct
+[`StepType`](../../src/bartcore/moves.hpp), the dispatch branch (section 6), the census hooks the other kernels carry - a
+[`BARTCORE_CENSUS_NOOP`](../../src/bartcore/moves.hpp) record at each early return, of which `changeMove` has four and `swapMove`
+two, plus one shape record and one proposal record on the scored path - and the census legend that names the moves. Then TEN in
+[`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp): three struct
 fields, four copies into a forest (creation, `setModel`, `buildSpecifiedForest`, `buildMultinomialForest`), the variance forest's
 copy and the two `MoveContext` initializers. THREE in
 [`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp) - `Forest` being what `MoveContext` is
 built from, so without it the kernel is unreachable, and without the two specs it is silently zero in BCF and multinomial fits.
 EIGHT in [`parseModel`, `refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp): the parsed struct's field, the
-`p.perturb` slot read, the sum check's fourth term, the creation printout's format string and its argument, the `SamplerOptions`
-copy, the two-forest refusal's hard-coded mixture, the forest spec copy and `setModel`'s `ModelParameters` copy.
+`p.perturb` slot read, the sum check's fourth term, the creation printout - one `ext_printf`, format string and argument list
+together - the `SamplerOptions` copy, the two-forest refusal's hard-coded mixture, the forest spec copy and `setModel`'s
+`ModelParameters` copy.
 
 **tests/cpp, two files.** FIFTEEN positional `MoveContext` initializers - twelve in tests/cpp/test_moves.cpp, three in
 tests/cpp/test_interaction.cpp - each of which must gain an element. The probability block sits ahead of `const double* weights`, so
@@ -235,9 +243,11 @@ default, which man/dbarts.Rd, man/bart2.Rd and inst/tinytest/test-argument-surfa
 verbatim from `bart_args`. (inst/tinytest/test-monotone.R spells a NON-default vector, deliberately, to trigger the refusal.)
 Compare the RESOLVED slots, or fill the missing name first. Second, the engine-side twin,
 [`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp)'s two-forest refusal, hard-codes the mixture and is
-staled by the new name; not a leak, sum-to-one making a nonzero `perturb` beside three defaults unrepresentable, but it must be
-restated or it refuses the new default. Third, the fill, which breaks silently rather than loudly:
-**inst/tinytest/test-sum-to-one-tolerance.R is the gate that must keep failing**, and its `makeModel(1e-7)` names all THREE
+staled by the new name - but staled only in what it says, not in what it does. It tests the four probabilities it names, so the new
+default passes it exactly as today, `perturb 0` being untested; and sum-to-one makes a nonzero `perturb` beside three unchanged
+defaults unrepresentable, so a nonzero one always trips a term already there. It neither leaks nor refuses the new default.
+Restating it is completeness - the refusal should name the probability it now omits - not correctness. Third, the fill, which
+breaks silently rather than loudly: **inst/tinytest/test-sum-to-one-tolerance.R is the gate that must keep failing**, and its `makeModel(1e-7)` names all THREE
 structural probabilities and expects a sum error - under a naive widening `perturb` becomes the single `NA`, is filled with `1e-7`,
 the sum is exact and the expected error disappears. Resolving `perturb` to 0 ahead of the fill preserves it.
 
@@ -272,7 +282,12 @@ rather than a prior draw under an all-zero composed vector, so the run needs a b
 trees. (1) The root's (variable, cut) marginal plus the stump, NINE states, closed form `P(grow) x P(v) x 1/|SI_v|`: 0.095 for each
 of x1's five cuts, 0.158333 for each of x2's three, 0.05 for the stump. (2) The leaf count, from a dynamic program whose state is
 (remaining x1 cuts, remaining x2 cuts, DEPTH) - `growthProbability` is `base/(1 + depth)^power`, so remaining cuts alone does not
-define the recursion; it gives 0.0500, 0.5523, 0.2796, 0.0913, 0.0219 for one to five leaves over a support of 1..24. (3) The (root
+define the recursion; it gives 0.0500, 0.5523, 0.2796, 0.0913, 0.0219 for one to five leaves over a support of 1..24. Both closed
+forms and the program draw the split VARIABLE uniformly among the variables that still have a cut at the node, which is what
+[`CGMTreePrior::drawSplitVariable`](../../src/bartcore/model.hpp) does with no `splitProbabilities` set: it counts the available
+variables with `collectAvailableVariables` and picks one of that count. A variable exhausted below its ancestors drops out of the
+draw rather than wasting it, and the vector above reproduces only under that convention: drawing uniformly over both columns
+regardless of availability moves every state from three leaves up, which is where the two conventions first differ. (3) The (root
 cut, left-child cut) joint on the SAME variable, thirteen states, closed form - the descendant-valid interval and the clipped
 window, which nothing gates today.
 
@@ -282,13 +297,29 @@ states at root cut 1 and 2, dropping the seven at 3 and 4. Family size `m = 21`;
 thresholds running from `|z| = 1.96` (least strict) to `|z| = 3.04` (strictest, on the most extreme test). Run length 4 chains x
 250,000 kept draws at `n.thin = 20`, batch means over 500 batches per chain: even at an autocorrelation time of 20 that is ~50,000
 effective draws against the ~630 statistic 1 needs for poison (i) at `|z| = 3.04`, and ~245 expected counts in the smallest retained
-state; the margin is deliberate, poison (i)'s 37 percent being the perturb-only limit and the arm's change and birth/death shares
-pulling the realized shift back toward the true law. The length is affordable because the likelihood is never evaluated under the
-mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is `birth_death 0.10, change 0.10, perturb 0.80` - change retained because it moves the root's VARIABLE
+state. That 630 is the UNDILUTED floor - it is what a 37 percent shift needs - and the realized shift is smaller, poison (i)'s 37
+percent being the perturb-only limit and the arm's change and birth/death shares pulling the chain back toward the true law, so the
+margin above the floor is deliberate rather than slack. The length is affordable because the likelihood is never evaluated under the
+mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is
+`birth_death 0.10, change 0.10, perturb 0.80` - change retained because it moves the root's VARIABLE
 directly (a perturb-only chain would have to pass through a stump, 5 percent of the prior mass) and birth/death because statistic 2
 moves through nothing else, both at the smallest share keeping their own statistic non-degenerate while leaving perturb dominant on
 statistics 1 and 3. `changeMove` is separately gated ([The gate](change-move-balance.md#the-gate)), so borrowing it proves nothing
 about it.
+
+**The z, and the burn-in.** A state's indicator is averaged within a chain over 500 batches of 500 consecutive kept draws; `s_c` is
+the standard deviation of chain `c`'s 500 batch means, so that chain's null variance is `s_c^2 / 500`, batching rather than a
+binomial formula being what absorbs the within-chain autocorrelation
+([`batchMeanSE`](../../benchmarks/R/change-balance.R) is the same estimator at one chain and 400 batches). The four chains are
+independent, so they pool as the mean of the four estimates against `sqrt(sum_c s_c^2 / 500) / 4`, and `z` is the pooled deviation
+from the closed-form or dynamic-program mass over that. **Burn-in: 20,000 sweeps per chain**, 1,000 kept draws, discarded before
+the batching. It is sized off the LEAF COUNT, the slowest statistic in the family: birth/death holds 0.10 of the one proposal a tree
+gets per sweep, so a dimension change is offered about once in ten sweeps and the leaf count is the only statistic that has to
+random-walk out of the stump the initializer leaves, while statistics 1 and 3 move on every accepted perturb. 20,000 sweeps is
+roughly 2,000 dimension proposals against a support of 1..24, and it costs 0.4 percent of the chain. The script does not assume it:
+it reads the first lag at which each statistic's kept-draw autocorrelation falls under 0.1, the ladder
+[`firstUnder`](../../benchmarks/R/sbc.R) uses, and refuses to score a run whose burn-in is under fifty of those lags for any
+statistic, doubling and re-running instead.
 
 **Poisons.** (i) Drop `logProposalCorrection`. The uncorrected chain is then reversible for `p(c)` proportional to `pi(c)|W(c)|`, so
 moves OUT of an end are over-accepted and moves INTO one under-accepted and the boundary cuts starve. The effect is computable in
@@ -324,37 +355,53 @@ independent design and the same 75 trees, varying nothing else. Trig+poly; min E
 chains, and the between-chain column is the across-chain sd of a chain's posterior mean of `f` over the pooled posterior sd, median
 over those points - near 0 the chains agree, near 1 each sits in its own place and pooling is what widens the interval.
 
-    chains       95% coverage        min ESS summed  per-chain min ESS  between-chain      wall s
-    1 x 2500     0.822(0.786-0.862)  2(1-4)          2                  -                    8.0
-    4 x 500      0.961(0.945-0.977)  15(8-31)        2(1-2)             0.78(0.65-0.87)      9.1
-    4 x 2500     0.959(0.937-0.975)  18(9-46)        2(1-2)             0.65(0.44-0.79)     35.0
-    1 x 25000    0.902(0.858-0.928)  2(1-3)          2(1-3)             -                   59.1
+    chains                 95% coverage        min ESS summed  per-chain min ESS  between-chain
+    4 x 500                0.961(0.945-0.977)  15(8-31)        2(1-2)             0.78
+    4 x 2500               0.959(0.937-0.975)  18(9-46)        2(1-2)             0.65
+    1 x 25000              0.902(0.858-0.928)  2(1-3)          2(1-3)             -
+    1 x 25000, first 2500  0.818(0.770-0.866)  -               -                  -
+
+The fourth row is the third one's own fit read at its first 2500 draws, the single-chain reading at THIS kernel; 10.4's recorded
+single-chain arm reads 0.822 with a summed and per-chain minimum ESS of 2(1-4), but it was measured at swap 0.1 and is not a row of
+this comparison. There is no wall column: 10.4's host carried a 1-minute load of 8 to 15 throughout, so the script's times carry no
+timing claim there and none is made here.
 
 Three readings, all of which bear on this design. **The shipped four-chain default reaches nominal coverage at 75 trees**, and a
-single chain does not, even at ten times the paper's length; read at its own first 2500 draws the long chain returns 0.818, so the
-gain is chain length and not a different fit. **So coverage is not the statistic this benefit stage can win on**: arm A sits at
+single chain does not, even at ten times the paper's length; the same fit read at its first 2500 draws returns 0.818, so the gain is
+chain length and not a different fit. **So coverage is not the statistic this benefit stage can win on**: arm A sits at
 0.961 against a nominal 0.95 with no headroom left. **And the mixing symptom survives the pooling intact.** A chain's own minimum
-ESS is 2 whether it is 500 draws long or 25000; only adding chains moves the summed figure, and five times the length moves it from
-15 to 18. That is a statistic counting how many separate places the chains find, which is what a proposal mixture acts on, and it
-reads 15 out of 2000 kept draws. The He-Hahn coverage deficit is read as a MIXING symptom and mixing is the lever (VD, 2026-09-07),
-so
+ESS is 2 whether it is 500 draws long or 25000, and five times the length moves the summed figure only from 15 to 18. That is a
+statistic counting how many separate places the chains find, which is what a proposal mixture acts on, and it reads 15 out of 2000
+kept draws. The He-Hahn coverage deficit is read as a MIXING symptom and mixing is the lever (VD, 2026-09-07), so
 **the primary is the minimum ESS over C1's 25 fixed points, summed over four chains, on the independent design at 75 trees,
-Trig+poly**, and the benefit cell runs the SHIPPED four-chain configuration, `n.chains = 4` at 500 burn-in and 500 kept - the
-cheapest of the four arms above as well as the one that reads the symptom. Single
+Trig+poly**, and the benefit cell runs the SHIPPED four-chain configuration, `n.chains = 4` at 500 burn-in and 500 kept - a fifth of
+the compute of the 1000 + 2500 configuration it matches, and the one that reads the symptom. Single
 index is reported beside it and is not gated. The tree-count arm stays in the battery as a comparison only; the default is parked.
 
+**Summed, against 10.4's own sentence.** 10.4 closes "the measure a kernel change has to move on this cell is the per-chain ESS",
+and this design gates the summed figure instead. The two are the same measurement at two scales: the chain count is FIXED at four
+by this pre-registration, the same four in arm A and arm B, so the summed figure is the per-chain ESS added over a constant, and
+adding chains cannot move it because no arm may add one. What differs is resolution. The per-chain column reads 2(1-2) in every
+four-chain arm - one integer, a range of one, no spread a paired difference can be taken over - while the summed column reads
+15(8-31) and 18(9-46), a spread the +8 bar below is derived from and can resolve. So the per-chain figure is what 10.4's sentence
+warns is not to be inflated by chain count, and holding the count fixed is how that warning is honoured; the summed figure is the
+readable form of it. The per-chain minimum is reported beside the primary in every cell, and a summed gain that leaves it at 2 is
+reported as such.
+
 The three arms are `independent75pool4`, `independent75pool4long` and `independent75long` in
-[`arms`](../../benchmarks/R/surfaces/C1-he-hahn.R), landed with their readouts at fef6dca6; slice 3's harness reuses the first as
-the benefit cell rather than adding one.
+[`arms`](../../benchmarks/R/surfaces/C1-he-hahn.R), landed at fef6dca6 and their readouts recorded at 4cf7b94b; slice 3's harness
+reuses the first as the benefit cell rather than adding one.
 
 **The bar the cell can resolve.** [`surfacesRange`](../../benchmarks/R/surfaces/surfaces-common.R) prints mean and min-max over the
 twenty seeds, so 15(8-31) is a range of 23. At `E[range] = 3.735 sd` for twenty draws that is sd 6.2, a per-arm SE of 1.4 on the
 twenty-seed mean, and a paired-difference SE bounded above by `sqrt(2) x 1.4 = 2.0`, attained only at zero seed correlation and
 strictly smaller under matched seeds. **Four times that bound is +7.8, so the bar is +8 summed minimum ESS**, 15 to 23, a ratio of
 1.5. Two caveats, both stated rather than buried: the range-to-sd conversion assumes normality and minimum ESS is right-skewed, so
-6.2 overstates the spread and the bar is conservative in the direction that costs the move; and 6.4's "four times the measured
-per-replicate standard error" is read here as four times the twenty-PAIR standard error, as every margin 6.4 itself tabulates is,
-four times a per-replicate sd being 25 - larger than the statistic's whole observed range.
+6.2 overstates the spread and the bar is conservative in the direction that costs the move; and
+[6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)'s "four times the measured
+per-replicate standard error" is read here as four times the twenty-PAIR standard error, which is the scale every margin
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)
+tabulates is stated at, four times a per-replicate sd being 25 - larger than the statistic's whole observed range.
 
 ### 5.2 Arms, dosage, and cells
 
@@ -365,8 +412,9 @@ OpenBT-style extra perturb pass, and it is an engine change, not a mixture setti
 carrying a `perturb.passes` control with its own formal, slot, validity, Rd and bitwise-neutrality argument at zero passes - a fifth
 slice of perhaps 60 to 80 engine lines and a surface tour of its own - and arm D, which exists only to spend C's extra
 compute on plain sweeps, doubles the Stage 2 run. **RECOMMEND dropping both.** They measure a dosage no default would ship at, and
-6.4's kill is a CONJUNCTION over B and C, so dropping C makes the kill a single condition and therefore STRICTER than the criterion
-it departs from, not looser.
+6.4's kill is a CONJUNCTION of two failures - B fails to beat A AND C fails to beat D - so surviving it needs only one of the two
+to succeed. Dropping C leaves a single failure condition, which the move must clear on its own: STRICTER than the criterion it
+departs from, not looser.
 
 **Dosage grid: `d` in `{0.04, 0.10, 0.16}`**, one move per tree per sweep making `d` exactly attempts per tree per sweep, so it
 spans the survey's band. `d = 0.40` is EXCLUDED because it leaves change at 0, and change is the only move that supplies variable
@@ -392,14 +440,15 @@ build and not two.
 2. **P1, the prerequisite absolute gate, not a win cell.** Section 13's rung, n = 2000, m = 200, `sigma = 0.25`: its 90 percent
    coverage must return near 0.71 in the control arm or no verdict from any cell is valid. Not Pratola's n = 5000, `sigma^2 = 0.1`
    rung, whose published 53 percent this is not. No win is claimed here -
-   [6.3 The pathologies](benchmark-surfaces.md#63-the-pathologies) records three shipped proposal mixtures indistinguishable on it,
+   [6.3 The pathologies](benchmark-surfaces.md#63-the-pathologies) records three proposal mixtures indistinguishable on it,
    and perturb is a proposal-mixture change.
 3. **P2's duplicate-column cell, must-not-degrade, and it is honestly compromised in two ways.** Arm A is ALREADY degraded on it:
    10.1's no-swap arm - numerically the shipped mixture - returns 70.8 mean switches per chain but a MINIMUM of 0, 5 of 40 chains
    parked at an x3 root, between-chain sd 0.149 against the swap-carrying 0.051. And the cell IS section 2.2's null-move hazard:
    [`surfacesDuplicateColumnNull`](../../benchmarks/R/surfaces/surfaces-common.R) draws a four-value grid and the harness calls
-   `bart2` at `n.cuts = 100L, useQuantiles = FALSE`, so 100 uniform cuts sit over four values, only two of the 99 adjacent index
-   pairs straddle a value, and about 98 percent of `w = 1` displacements re-route zero rows. **Alternative i, run the cell at
+   `bart2` at bart2's defaults, naming neither `n.cuts` nor `useQuantiles`, so the 100 uniform cuts of `n.cuts = 100L` and
+   `useQuantiles = FALSE` sit over four values, only two of the 99 adjacent index pairs straddle a value, and about 98 percent
+   of `w = 1` displacements re-route zero rows. **Alternative i, run the cell at
    `useQuantiles = TRUE`**, four values giving three cuts so perturb is a real move; cost, the cell leaves 10.1's recorded
    configuration and arm A's level must be re-measured, about 3 unit fits. **Alternative ii, keep the shipped grid**, in which case
    what the cell measures is the cost of spending change's share on accepted null moves - a real shipped-configuration cost, not a
@@ -439,10 +488,12 @@ fresh-seed re-run of any flagged cell before a flag counts.** Five departures. (
 the He-Hahn deficit being read as a mixing symptom (VD, 2026-09-07); at the shipped chain configuration coverage is 0.961 and has
 no headroom to win in. (b) The cell is C1, not the low-noise cell 6.4 names, because P1 could not separate three shipped mixtures and
 this design claims no win there; quoting 6.4 verbatim would fire the kill by construction. (c) 6.4's second conjunct, arm C against
-arm D, is dropped with arm C, which makes the kill a single condition and therefore STRICTER than 6.4's disjunction. (d) "four times
-the measured per-replicate standard error" is read as four times the twenty-PAIR standard error, derived in 5.1 from the cell's own
-recorded spread rather than imported from 6.4's 0.010. (e) 6.4's "KILL the default question independently" clause needs plateau
-prediction error in the noise-heavy or large-n stratum; no cell here is either and none measures it, so that clause belongs to
+arm D, is dropped with arm C, so the kill fires on B's failure alone rather than on B's and C's together, and the move can no longer
+survive on the conjunct it is not running: STRICTER than 6.4. (d) "four times the measured per-replicate standard error" is read as
+four times the twenty-PAIR standard error, derived in 5.1 from the cell's own recorded spread rather than imported from
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
+0.010, which is benchmark-surfaces' coverage margin and not this statistic's. (e) 6.4's "KILL the default question
+independently" clause needs plateau prediction error in the noise-heavy or large-n stratum; no cell here is either and none measures it, so that clause belongs to
 slice 4, not to slice 3.
 
 The asymmetry stands: passing justifies shipping the move opt-in at weight 0. Flipping the default needs the grow-from-root harm
@@ -450,11 +501,13 @@ battery, which is not in benchmarks/ and must be reconstructed
 ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)).
 
 [6.5 Cost, honestly](tree-mixing-proposals.md#65-cost-honestly) repriced. Stage 0's instrumentation and driver are spent, both
-landed. The kernel is 120 to 160 lines including 6.5's separate +15 for the window ratio, but across twenty-two files rather than
-six. `perturb-balance.R` is 400 to 500 with the confirmation arm. The Stage 2 harness stays at 6.5's ~400, and now carries the
+landed. The kernel is 135 to 175 lines - 6.5's 120 to 160 plus its separate +15 for the window ratio - across twenty-two files
+rather than six. `perturb-balance.R` is 400 to 500 with the confirmation arm, the lower half of 6.5's 400 to 600, narrowed because
+the prior-only arm needs no likelihood oracle of its own. The Stage 2 harness stays at 6.5's ~400, and now carries the
 sham arm and the P2 quantile-grid arm as well; the four-chain C1 arm it reuses is already landed. What 6.5 did not price is the private-library build any width
-arm needs, which the confirmatory run avoids by fixing `w = 1`. Compute is unchanged, on the order of a day: cell 1 is 20 pairs at
-about 9 seconds a fit and the sham arm is 20 more.
+arm needs, which the confirmatory run avoids by fixing `w = 1`. Compute is unchanged, on the order of a day: cell 1 is 20 matched
+pairs of four-chain fits at 500 + 500, the sham arm is 20 more, and cell 3's re-measurement of arm A is 3. No per-fit time is
+quoted; 10.4's host was loaded throughout its run and its times carry no claim.
 
 ## 6. RNG and baselines
 
@@ -483,14 +536,17 @@ reads the census's two-move re-run rather than the three-move figures beside it.
   >= 2`. `cutProbe` writes one record per distinct displacement, so an interior node contributes two `|1|` records and a boundary
   node one, and `cutTable`'s per-record mean UNDER-WEIGHTS the boundary about 2x - exactly where the omitted correction applies;
   degenerate-interval nodes leave the denominator entirely, so section 5's eligibility factor misses them. Magnitudes 3, 5, 6 and 7
-  come from narrow intervals only, 139 to 1140 probes against ~28000 per power of two, so acceptance at a narrow interval is
-  unmeasured. - **The probe took no move**, being a one-step acceptance on the chain the SHIPPED mixture produced; a chain running
-  perturb visits different trees, so its realized rate is not this one. Nor is there a depth breakdown, so whether perturb's
+  come from narrow intervals only - 139 to 1140 probes against ~28000 per power of two, the one figure here taken from the
+  THREE-move addendum, the two-move re-run tabulating no count off the powers of two - so acceptance at a narrow interval is
+  unmeasured either way. - **The probe took no move**, being a one-step acceptance on the chain the SHIPPED mixture produced; a
+  chain running perturb visits different trees, so its realized rate is not this one. Nor is there a depth breakdown, so whether perturb's
   acceptance rises with depth as change's does is unknown. - **Acceptance is not mixing.** Stage 0 measured no coverage, effective
   sample size, inclusion or error, and had no kill criterion. That is section 5's job, and section 5.1's chain-configuration run is
   what turned its primary from coverage into minimum ESS. - **The veto's share of the probes WAS
   separated and not recorded.** [`cutTable`](../../benchmarks/R/move-census.R) computes `vetoed.pct` per magnitude; the 6.1
-  addendum's table omits the column. Re-summarizing the existing census files records it, and slice 2 should not start without it. -
+  addendum's table omits the column. Re-summarizing the existing census files records it. It bears on SLICE 3, not slice 2: it says
+  what share of the `accept(1) = 0.2715` the selection rule clears its threshold on is veto rather than likelihood, and slice 2's
+  own veto exposure is fixed by occupancy alone under the all-zero mask, which the design makes vacuous by construction. -
   **One grid, one tree count, one chain, no categorical and no coarse cell.** Default `n.cuts`, 75 trees (50 in the causal cell's
   treatment forest), 200 burn plus 500 sampled sweeps, continuous columns throughout - so section 5's dilution arm has no
   pilot, and section 2.2's null-move hazard has none either, though section 5 cell 3 is now where it is piloted, and the price of
@@ -508,7 +564,9 @@ reads the census's two-move re-run rather than the three-move figures beside it.
    but it blocks it completely: without 0.71 in the control arm no cell's verdict is valid.
 3. **The C1 chain configuration, SETTLED** (section 5.1): the benefit cell runs the shipped four chains at 500 + 500 and reads
    summed minimum ESS. This fixes slice 3's primary statistic and its bar.
-4. **The census's `vetoed.pct` column**, re-summarized from the existing census files (section 7). It blocks slice 2.
+4. **The census's `vetoed.pct` column**, re-summarized from the existing census files (section 7). It blocks slice 3: the selection
+   rule reads `accept(1)` against a 0.25 threshold and this says how much of that acceptance is the veto. Slice 2 does not wait on
+   it, its own veto exposure being fixed by occupancy under the all-zero mask.
 
 Then, in order:
 
@@ -522,10 +580,14 @@ Then, in order:
    test-proposal-probs.R pins, a perturb-dominant run that changes cuts and never a variable or a shape, and the
    interval-invariance assertion.
 2. **`perturb-balance.R`.** The prior-only arm on the full factorial, the exact-posterior confirmation arm, both poisons. Roughly
-   400 to 500 lines; not startable before slice 1 or before prerequisite 4.
+   400 to 500 lines; not startable before slice 1.
 3. **The Stage 2 harness and run.** Two arms, the three named cells and the two controls at `w = 1, d = 0.16`, twenty matched pairs,
-   reusing the landed four-chain C1 arm. Roughly 400 lines plus a day of compute; not startable before prerequisite 2.
+   reusing the landed four-chain C1 arm. Roughly 400 lines; compute is a day for cell 1 and the sham arm plus the 3 unit fits that
+   re-measure cell 3's arm A at `useQuantiles = TRUE` (section 5 cell 3, alternative i). Not startable before prerequisites 2 and 4.
    The verdict is recorded here.
-4. **The default share, if slice 3 passes**, carrying 6.4's second kill clause. That clause needs plateau prediction error in the
-   noise-heavy or large-n stratum, which no cell of slice 3 measures, and therefore the reconstructed grow-from-root harm battery;
-   it belongs here and nowhere earlier. A nonzero default is a stream shift and pays for its own re-record.
+4. **The default share, if slice 3 passes** - POST-RELEASE, and its gate does not exist. It carries 6.4's second kill clause, which
+   needs plateau prediction error in the noise-heavy or large-n stratum; no cell of slice 3 measures that, and the battery that does
+   is the grow-from-root harm battery
+   ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)), which benchmarks/ does not contain. So
+   slice 4 is not startable until that battery is rebuilt, and rebuilding it is not designed here or anywhere else. A nonzero
+   default is also a stream shift and pays for its own re-record.
