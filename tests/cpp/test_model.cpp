@@ -6386,6 +6386,7 @@ static void testMonotoneFeasibility() {
   SamplerOptions options;
   options.numTrees = 40;
   options.birthOrDeathProbability = 1.0;  // v1 constrained move set
+  options.swapProbability = 0.0;
   options.changeProbability = 0.0;
   options.monotoneDirections = dir.data();
   Sampler<MonotoneConstantGaussianLeaf> sampler(
@@ -6411,7 +6412,7 @@ static void testMonotoneFeasibility() {
   check(descents == 0, "monotone end-to-end: fitted mean is non-decreasing");
 
   // empty cone: a leaf pinned between a high below-neighbor and a low above-
-  // neighbor scores the sentinel (the change infeasibility path)
+  // neighbor scores the sentinel (the change/swap infeasibility path)
   const size_t m = 300;
   std::vector<double> xg(m);
   for (size_t i = 0; i < m; ++i) xg[i] = static_cast<double>(i) / (m - 1);
@@ -6519,6 +6520,7 @@ static void testMonotoneInteractionCoexistence() {
   SamplerOptions options;
   options.numTrees = 40;
   options.birthOrDeathProbability = 1.0;  // the monotone constrained move set
+  options.swapProbability = 0.0;
   options.changeProbability = 0.0;
   options.monotoneDirections = dir.data();
   options.interactionMaxOrder = 2;
@@ -6620,6 +6622,7 @@ static void testMonotonePriorDraw() {
   SamplerOptions options;
   options.numTrees = 25;
   options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
   options.changeProbability = 0.0;
   options.monotoneDirections = dir.data();
   Sampler<MonotoneConstantGaussianLeaf> sampler(

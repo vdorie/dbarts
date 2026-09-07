@@ -82,12 +82,12 @@ kTinytest <- function(testFile) {
 }
 
 ## ---- the mutation list -----------------------------------------------------
-## KILL_EXPECTED entries m01-m16 are 15 of the 16 poisons of the July sweep -
-## m05 went with the swap move it poisoned, the one retirement; every site
-## below was re-derived by symbol and still encodes the same semantic
-## breakage, though several moved file or function under refactors (e.g. the
-## BCF glue left chain.hpp for the new combiner.hpp). m17-m20 extend the
-## battery to R/. m21-m23 are the SURVIVE_DOCUMENTED trio.
+## KILL_EXPECTED entries m01-m16 are the 16 poisons of the July sweep, all
+## still live (none retired: every site below was re-derived by symbol and
+## still encodes the same semantic breakage, though several moved file or
+## function under refactors - e.g. the BCF glue left chain.hpp for the new
+## combiner.hpp). m17-m20 extend the battery to R/. m21-m23 are the
+## SURVIVE_DOCUMENTED trio.
 
 mutations <- list(
   mk(
@@ -173,6 +173,25 @@ mutations <- list(
     "KILL_EXPECTED",
     kScript("benchmarks/R/change-balance.R", "quick"),
     "poison 4: change move's reverse (old-side) proposal correction dropped (was moves.hpp ~474)"
+  ),
+
+  mk(
+    "m05",
+    "src/bartcore/moves.hpp",
+    paste0(
+      "  bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);\n",
+      "  if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)\n",
+      "    swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);\n",
+      "  // interaction is a WHOLE-subtree, all-variables property the per-variable\n",
+      "  // ruleIsValid checks above cannot see (the swap sibling-strand break): a\n",
+      "  // swap that lifts x2 above x3 co-occurs a forbidden pair with neither\n",
+      "  // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).\n",
+      "  if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);"
+    ),
+    "  bool swapIsSensible = true;",
+    "KILL_EXPECTED",
+    kCpp(),
+    "poison 5: swap move's descendant-validity walk skipped outright (was moves.hpp ~634; July's cpp arm caught this as a crash)"
   ),
 
   mk(

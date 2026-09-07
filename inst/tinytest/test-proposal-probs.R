@@ -1,10 +1,6 @@
-# The `proposal.probs` surface at two structural names. The swap proposal is
-# gone from the kernel, so a vector still naming it is refused BY NAME at every
-# entry point rather than dropped, zeroed or folded into birth_death; the check
-# runs ahead of both the monotone rewrite (which would discard a swap-carrying
-# vector matching the new default) and the two-forest refusal (which would
-# report only a sum). What survives is the one-NA fill over the two names and
-# the sum-to-one rule.
+# The `proposal.probs` surface at three structural names. Swap ships at zero
+# but stays a legal name: a caller who asks for it gets it, and the one-NA fill
+# and the sum-to-one rule run over all three.
 
 set.seed(31L)
 n <- 60L
@@ -21,63 +17,92 @@ fit <- function(probs, ...) {
   dbarts::dbarts(x, y, control = control, proposal.probs = probs, ...)
 }
 
-removed <- "swap"
+# ---- the shipped default ---------------------------------------------------
 
-# ---- refused by name, with and without a monotone constraint --------------
+defaulted <- dbarts::dbarts(x, y, control = control)$model
+expect_equal(defaulted@p.birth_death, 0.6)
+expect_equal(defaulted@p.swap, 0)
+expect_equal(defaulted@p.change, 0.4)
 
-# the old documented default
-oldDefault <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
-expect_error(fit(oldDefault), removed)
-expect_error(fit(oldDefault, monotone = c(a = "+")), removed)
+# spelling the default explicitly agrees with defaulting it
+explicit <- fit(c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5))$model
+expect_equal(explicit@p.birth_death, 0.6)
+expect_equal(explicit@p.swap, 0)
+expect_equal(explicit@p.change, 0.4)
 
-# a vector semantically identical to the new default, but naming the move
-zeroed <- c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
-expect_error(fit(zeroed), removed)
-expect_error(fit(zeroed, monotone = c(a = "+")), removed)
+# ---- a caller-supplied three-move mixture ----------------------------------
 
-# the name alone
-expect_error(fit(c(swap = 0.1)), removed)
-expect_error(fit(c(swap = 0.1), monotone = c(a = "+")), removed)
-
-# the same message reaches dbartsSpec() and a directly built model
-expect_error(
-  dbarts::dbartsSpec(
-    dbarts::dbartsData(x, y),
-    control = control,
-    proposal.probs = oldDefault
-  ),
-  removed
+# swap is the only move that rotates a child's rule up the tree, so a
+# single-tree fit is the case that needs it positive
+threeMove <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
+oneTree <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 1L,
+  n.burn = 0L,
+  n.samples = 20L,
+  updateState = FALSE
 )
-expect_error(
-  methods::new("dbartsModel", proposal.probs = oldDefault),
-  removed
+sampler <- dbarts::dbarts(x, y, control = oneTree, proposal.probs = threeMove)
+expect_equal(sampler$model@p.birth_death, 0.5)
+expect_equal(sampler$model@p.swap, 0.1)
+expect_equal(sampler$model@p.change, 0.4)
+
+set.seed(9L)
+samples <- sampler$run()
+expect_true(all(is.finite(samples$train)))
+expect_true(all(is.finite(samples$sigma)))
+# the mixture the sampler was created with survives the run
+expect_equal(sampler$model@p.swap, 0.1)
+
+# the creation printout names all three probabilities
+printed <- capture.output(
+  dbarts::dbarts(
+    x,
+    y,
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 1L,
+      updateState = FALSE,
+      verbose = TRUE
+    ),
+    proposal.probs = threeMove
+  )
 )
+expect_true(any(grepl(
+  "birth/death 0.50, swap 0.10, change 0.40",
+  printed,
+  fixed = TRUE
+)))
 
-# ---- accepted --------------------------------------------------------------
+# ---- the fill and the sum --------------------------------------------------
 
-# the new default proceeds, and under a constraint is rewritten silently
-newDefault <- c(birth_death = 0.6, change = 0.4, birth = 0.5)
-expect_equal(fit(newDefault)$model@p.birth_death, 0.6)
-expect_equal(fit(newDefault)$model@p.change, 0.4)
-forced <- fit(newDefault, monotone = c(a = "+"))$model
-expect_equal(forced@p.birth_death, 1)
-expect_equal(forced@p.change, 0)
-
-# one name fills the other in from the residual
-partial <- fit(c(birth_death = 0.7))$model
+# one missing name takes the residual
+partial <- fit(c(birth_death = 0.7, swap = 0))$model
 expect_equal(partial@p.birth_death, 0.7)
+expect_equal(partial@p.swap, 0)
 expect_equal(partial@p.change, 0.3)
-expect_equal(fit(c(change = 0.25))$model@p.birth_death, 0.75)
+expect_equal(fit(c(birth_death = 0.5, change = 0.4))$model@p.swap, 0.1)
 
-# a partial vector is not the default vector, so it still trips the monotone
-# stop rather than being rewritten
+# all three missing falls back to the default
+expect_equal(fit(c(birth = 0.25))$model@p.birth_death, 0.6)
+expect_equal(fit(c(birth = 0.25))$model@p.birth, 0.25)
+
+# more than one missing name is not a fill, and the remainder must sum to one
 expect_error(
-  fit(c(birth_death = 0.7), monotone = c(a = "+")),
-  "proposal.probs"
+  fit(c(birth_death = 0.7, swap = 0.1, change = 0.4)),
+  "sum to 1"
 )
 
-# the defaulted call and the explicit new default agree
-expect_equal(
-  dbarts::dbarts(x, y, control = control)$model@p.birth_death,
-  0.6
-)
+# ---- the monotone rewrite --------------------------------------------------
+
+# a defaulted mixture is rewritten birth/death-only; a non-default one errors
+forced <- fit(
+  c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+  monotone = c(a = "+")
+)$model
+expect_equal(forced@p.birth_death, 1)
+expect_equal(forced@p.swap, 0)
+expect_equal(forced@p.change, 0)
+expect_error(fit(threeMove, monotone = c(a = "+")), "proposal.probs")

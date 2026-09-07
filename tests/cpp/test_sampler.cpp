@@ -1417,8 +1417,8 @@ static void testWideCategorical(ext_rng* rng) {
           rule.categoryDirections(),
         "right child reaches the mask's categories");
 
-  // equals must compare the full mask width; ordinal rules zero the high
-  // word at construction
+  // equals must compare the full mask width (the swap move's same-rule
+  // test); ordinal rules zero the high word at construction
   Rule wideA, wideB;
   wideA.variableIndex = wideB.variableIndex = 0;
   wideA.setCategoryDirections(1ull | (1ull << 40));
@@ -2177,6 +2177,7 @@ static void testSetControlAndModel() {
   optionsA.base = 0.8;
   optionsA.power = 1.5;
   optionsA.birthOrDeathProbability = 0.6;
+  optionsA.swapProbability = 0.1;
   optionsA.changeProbability = 0.3;
   optionsA.birthProbability = 0.4;
   optionsA.splitProbabilities = splitProbabilities;
@@ -2195,6 +2196,7 @@ static void testSetControlAndModel() {
   model.base = 0.8;
   model.power = 1.5;
   model.birthOrDeathProbability = 0.6;
+  model.swapProbability = 0.1;
   model.changeProbability = 0.3;
   model.birthProbability = 0.4;
   model.nodeScale = 0.7;

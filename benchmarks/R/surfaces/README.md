@@ -40,13 +40,14 @@ two exactly equiprobable representations of the same fitted function.
   supplies.
 - Published reference: "the acceptance rate of tree moves (after the initial
   few steps of the sampler) was 0" (arXiv 1312.1895 section 2.3).
-- Two arms on matched seeds, both reachable through `proposal.probs`: the
-  shipped mixture (birth/death and change) and birth/death only.
+- Three arms on matched seeds, all reachable through `proposal.probs`: the
+  shipped mixture (birth/death and change, swap at zero), birth/death only,
+  and the same mixture with swap set to 0.1.
 - Runs with its own null control, a design with two exactly duplicated
   predictor columns on a four-value grid, where the pooled fraction on the
   first of the pair is 1/2 by construction and switching must occur.
 - `P2-null-at-scale.R` re-runs that null control at production tree counts
-  (50 and 200, the shipped mixture only), reading a tree-level root
+  (50 and 200, the shipped and swap-carrying arms), reading a tree-level root
   share instead of a chain-level one: does the single-tree stuck-on-x3
   representation survive an ensemble, or does the ensemble wash it out.
 

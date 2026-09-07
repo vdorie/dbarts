@@ -581,7 +581,8 @@ expect_error(
     y,
     forests = twoForests,
     proposal.probs = c(
-      birth_death = 0.7,
+      birth_death = 0.6,
+      swap = 0.1,
       change = 0.3,
       birth = 0.5
     ),

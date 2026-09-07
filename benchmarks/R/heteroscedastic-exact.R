@@ -22,6 +22,14 @@
 #       the quadrature. A self-consistently wrong divisor (s^2 instead of s^2_{-j})
 #       fails here.
 #
+#
+# The single-tree fits below run swap at 0.1 rather than the shipped zero:
+# swap is the only proposal that rotates a child's rule up the tree, and with
+# one tree the change move cannot re-root once the splits beneath the root
+# depend on the root's own variable, so nothing else crosses between
+# rootings. The kernel's correctness at the shipped mixture is the balance
+# gates' job, not this one's.
+#
 # Usage: Rscript heteroscedastic-exact.R [quick]
 
 suppressPackageStartupMessages(library(dbarts))
@@ -314,6 +322,12 @@ partB <- function() {
       control = ctl,
       tree.prior = cgm(power, base),
       resid.prior = chisq(sigdf, sigquant),
+      proposal.probs = c(
+        birth_death = 0.5,
+        swap = 0.1,
+        change = 0.4,
+        birth = 0.5
+      ),
       variance = varianceForest(n.trees = 2L, base = base, power = power)
     )
     sigest <- sampler$data@sigma

@@ -332,6 +332,18 @@ public:
       return maskTestBit(maskWordsFor(rule), data.categoryCounts[j]);
     return rule.missingGoesRight();
   }
+  bool rulesAreEqual(const ColumnStore& data, const Rule& a,
+                     const Rule& b) const {
+    if (a.variableIndex != b.variableIndex) return false;
+    if (a.variableIndex != invalidVariable &&
+        data.columnIsPooled(static_cast<size_t>(a.variableIndex)))
+      return maskEquals(
+        maskWordsFor(a), maskWordsFor(b),
+        maskWordsForCount(
+          data.categoryCounts[static_cast<size_t>(a.variableIndex)]));
+    return a.bits == b.bits;
+  }
+
   Node& at(int32_t i) { return nodes[static_cast<size_t>(i)]; }
   const Node& at(int32_t i) const { return nodes[static_cast<size_t>(i)]; }
 
@@ -397,6 +409,13 @@ public:
     if (childrenAreBottom(i)) { out.push_back(i); return; }
     fillNoGrand(at(i).leftChild, out);
     fillNoGrand(at(i).leftChild + 1, out);
+  }
+  // Swappable: internal node with at least one internal child.
+  void fillSwappable(int32_t i, std::vector<int32_t>& out) const {
+    if (at(i).isBottom() || childrenAreBottom(i)) return;
+    out.push_back(i);
+    fillSwappable(at(i).leftChild, out);
+    fillSwappable(at(i).leftChild + 1, out);
   }
   void fillSubtree(int32_t i, std::vector<int32_t>& out) const {
     out.push_back(i);
@@ -560,10 +579,10 @@ public:
   /// (seeded from subtreeRoot's own ancestors) and reject if ANY node's split
   /// variable violates the order cap or a forbidden co-occurrence. Unlike the
   /// per-variable categoricalSubtreeIsValid / ordinalRuleIsValid, this couples
-  /// DIFFERENT variables: a rule lifted above a sibling path could co-occur a
-  /// forbidden pair there, so every node must be tested. Trivially true when
-  /// the constraint is inactive, so the change move may call it
-  /// unconditionally.
+  /// DIFFERENT variables: a swap that re-checked only the swapped pair could
+  /// miss a sibling-path violation, so every node must be tested. Trivially
+  /// true when the constraint is inactive, so the change/swap moves may call
+  /// it unconditionally.
   bool interactionSubtreeIsValid(int32_t subtreeRoot) const {
     if (interaction_ == nullptr) return true;
     interactionWalkScratch_.resize(interaction_->numWords);
@@ -1013,7 +1032,7 @@ public:
 
   void releasePair(int32_t pair) { freePairs.push_back(pair); }
 
-  /// Snapshot/restore of a subtree for the change move's rollback: node structs
+  /// Snapshot/restore of a subtree for change/swap rollback: node structs
   /// plus the index-segment content the repartition scrambles.
   struct SubtreeSnapshot {
     std::vector<int32_t> nodeIds;

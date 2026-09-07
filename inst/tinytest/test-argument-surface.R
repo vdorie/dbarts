@@ -240,7 +240,7 @@ sameDraws <- function(a, b) {
 defaultedProbs <- fit2(y.gaussian, seed = 77L)
 explicitProbs <- fit2(
   y.gaussian,
-  proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
+  proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
   seed = 77L
 )
 expect_true(sameDraws(defaultedProbs, explicitProbs))

@@ -118,7 +118,7 @@ concept ScaleLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
     { leaf.drawFromPrior(rng) } -> std::same_as<double>;
   };
 
-/// Leaf models whose birth/death/change structure moves the conjugate
+/// Leaf models whose birth/death/change/swap structure moves the conjugate
 /// machinery can score: any integrable leaf, plus the scale leaf. The scale
 /// leaf falls through the SAME per-leaf marginal sum (logLikelihoodForBranch)
 /// with a scale statistic in place of a location one; only the leaf parameter
@@ -757,9 +757,9 @@ struct MonotoneConstantGaussianLeaf {
       }
     }
     // one leaf (birth-old / death-new), two on an unconstrained split, or the
-    // >2 of a change (outside the v1 move set): a product of independent
+    // >2 of a change/swap (outside the v1 move set): a product of independent
     // 1-D constrained marginals over the frozen outside neighbors. Exact for
-    // the birth/death cases; for change it still rejects an infeasible
+    // the birth/death cases; for change/swap it still rejects an infeasible
     // arrangement (any empty bound gives the sentinel).
     double sum = 0.0;
     for (std::int32_t leaf : scratch.branch) {

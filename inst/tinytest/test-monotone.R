@@ -15,6 +15,7 @@ monotoneOf <- function(...) {
   list(
     directions = attr(sampler$model, "monotone"),
     p.birth_death = sampler$model@p.birth_death,
+    p.swap = sampler$model@p.swap,
     p.change = sampler$model@p.change,
     k = sampler$model@node.hyperprior
   )
@@ -60,6 +61,7 @@ expect_equal(
 # a monotone fit is forced to birth/death-only, fixed k = 2
 forced <- monotoneOf(x, y, monotone = c(a = "+"))
 expect_equal(forced$p.birth_death, 1)
+expect_equal(forced$p.swap, 0)
 expect_equal(forced$p.change, 0)
 expect_inherits(forced$k, "dbartsFixedHyperprior")
 expect_equal(forced$k@k, 2)
@@ -108,6 +110,7 @@ expect_error(
     monotone = c(a = "+"),
     proposal.probs = c(
       birth_death = 0.6,
+      swap = 0.1,
       change = 0.3,
       birth = 0.5
     ),

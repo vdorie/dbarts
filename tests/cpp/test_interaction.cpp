@@ -1,6 +1,7 @@
 // Interaction-constraint tests (docs/design/interaction-constraints.md,
-// deliverable B): the availability-predicate oracle, a change-strand
-// feasibility invariant, and an enumerable exact-posterior structure match. Needs the data/tree/model/moves layers but
+// deliverable B): the availability-predicate oracle, the swap sibling-strand
+// de-risk toy, a change-strand feasibility invariant, and an enumerable
+// exact-posterior structure match. Needs the data/tree/model/moves layers but
 // not chain/sampler/facade, so a touch there does not force a recompile.
 #include "assert.hpp"
 
@@ -146,7 +147,83 @@ void testAvailabilityOracle() {
 }
 
 // ---------------------------------------------------------------------------
-// (2) change-strand feasibility invariant. Forbid (x0, x2); a change at an
+// (2) DE-RISK: the swap sibling-strand toy. Forbid (x1, x2); root=x0, left=x1,
+// right=x2 (0-based; the memo's forbid (x2,x3), root x1, children x2/x3). A
+// swap that lifts x1 above x2 co-occurs the forbidden pair on the x2 sibling
+// path - with NEITHER swapped variable equal to the stranded x2, so the
+// per-variable ruleIsValid checks miss it and only the whole-subtree walk
+// catches it. Every swap from this tree must be rejected.
+// ---------------------------------------------------------------------------
+void testSwapSiblingStrand(ext_rng* rng) {
+  const size_t n = 240, p = 3;
+  std::vector<double> x(n * p), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 2);          // x0
+    x[i + n] = static_cast<double>((i / 2) % 2);  // x1
+    x[i + 2 * n] = static_cast<double>((i / 4) % 2);  // x2
+    y[i] = static_cast<double>((i % 2) + (i / 4) % 2);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 1));  // 2 values/column -> 1 cut each
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), weights.data());
+
+  // root x0; left child x1, right child x2, each with two leaves below
+  birthOrdinal(tree, store, 0, 0, 0, y.data(), weights.data());
+  int32_t left = tree.at(0).leftChild, right = left + 1;
+  birthOrdinal(tree, store, left, 1, 0, y.data(), weights.data());
+  birthOrdinal(tree, store, right, 2, 0, y.data(), weights.data());
+
+  size_t pair[] = {1, 2};
+  InteractionConstraint constraint;
+  constraint.build(p, 0, pair, 1);  // forbid (x1, x2), no order cap
+  tree.setInteractionConstraint(&constraint);
+
+  // the original tree is feasible; both candidate swaps strand a sibling
+  check(tree.interactionSubtreeIsValid(0),
+        "swap-strand: original tree is interaction-feasible");
+
+  // direct check: lifting x1 to the root strands the x2 sibling
+  Rule rootRule = tree.at(0).rule, leftRule = tree.at(left).rule;
+  tree.at(0).rule = leftRule;   // root <- x1
+  tree.at(left).rule = rootRule;  // left <- x0
+  check(!tree.interactionSubtreeIsValid(0),
+        "swap-strand: x1 at root strands the x2 sibling (rejected)");
+  tree.at(0).rule = rootRule;
+  tree.at(left).rule = leftRule;
+
+  // integration: the only swappable node is the root, and BOTH child choices
+  // strand a sibling, so every swap must be a no-op that leaves the tree fixed
+  CGMTreePrior prior;
+  prior.base = 0.95;
+  prior.power = 2.0;
+  ConstantGaussianLeaf leaf{0.5};
+  MoveScratch scratch;
+  MoveContext ctx{store, prior, 0.5, 1.0, 0.5, weights.data(), 2.0, scratch};
+
+  bool everTaken = false, stayedValid = true;
+  for (int iter = 0; iter < 500; ++iter) {
+    bool stepTaken = false;
+    swapMove(ctx, leaf, rng, tree, y.data(), 0.5, &stepTaken);
+    everTaken |= stepTaken;
+    stayedValid &= tree.interactionSubtreeIsValid(0);
+    // structure must be unchanged: root x0, children x1 / x2
+    stayedValid &= tree.at(0).rule.variableIndex == 0 &&
+                   tree.at(left).rule.variableIndex == 1 &&
+                   tree.at(right).rule.variableIndex == 2;
+  }
+  check(!everTaken, "swap-strand: every stranding swap rejected");
+  check(stayedValid, "swap-strand: tree stays feasible and unchanged");
+
+  tree.setInteractionConstraint(nullptr);
+  printf("ok: swap sibling-strand de-risk\n");
+}
+
+// ---------------------------------------------------------------------------
+// (3) change-strand feasibility invariant. Forbid (x0, x2); a change at an
 // ancestor that redraws it to x2 would strand a descendant x0. Assert the
 // direct rejection and that a long move chain never leaves an infeasible tree.
 // ---------------------------------------------------------------------------
@@ -195,7 +272,7 @@ void testChangeStrandInvariant(ext_rng* rng) {
   prior.power = 2.0;
   ConstantGaussianLeaf leaf{0.5};
   MoveScratch scratch;
-  MoveContext ctx{store, prior, 0.5, 0.5, weights.data(), 2.0, scratch};
+  MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights.data(), 2.0, scratch};
 
   bool alwaysValid = true;
   for (int iter = 0; iter < 20000; ++iter) {
@@ -225,7 +302,7 @@ int classifyStructure(const Tree& tree) {
 }
 
 // ---------------------------------------------------------------------------
-// (3) exact-posterior gate. p = 2, one cut each, max.order = 1: the ONLY legal
+// (4) exact-posterior gate. p = 2, one cut each, max.order = 1: the ONLY legal
 // structures are {root leaf, split x0, split x1}. The constrained tree prior
 // is pi = (1 - g0, g0/2, g0/2); the marginal is the ordinary conjugate
 // Gaussian one (leaf model untouched). The birth/death/change kernel's
@@ -299,7 +376,7 @@ void testExactPosterior(ext_rng* rng) {
   prior.base = base;
   prior.power = power;
   MoveScratch scratch;
-  MoveContext ctx{store, prior, 0.5, 0.5, nullptr, k, scratch};
+  MoveContext ctx{store, prior, 0.5, 0.1, 0.5, nullptr, k, scratch};
 
   const int numBurn = 5000, numDraws = 1500000;
   for (int iter = 0; iter < numBurn; ++iter) {
@@ -340,6 +417,7 @@ void testExactPosterior(ext_rng* rng) {
 
 void runInteractionTests(ext_rng* rng) {
   testAvailabilityOracle();
+  testSwapSiblingStrand(rng);
   testChangeStrandInvariant(rng);
   testExactPosterior(rng);
 }

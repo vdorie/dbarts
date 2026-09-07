@@ -206,7 +206,7 @@ sampler <- dbarts(
   tree.prior = cgm(power, base),
   node.prior = normal(kLeaf),
   resid.prior = fixed(1),
-  proposal.probs = c(birth_death = 0.99, change = 0.01, birth = 0.5)
+  proposal.probs = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5)
 )
 stopifnot(is.null(sampler$data@offset))
 

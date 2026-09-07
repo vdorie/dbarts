@@ -20,6 +20,13 @@
 # forest, which is the only end-to-end check of the heteroscedastic wiring:
 # surface versus pinned 1, and working versus original scale, chain-wide.
 #
+# The single-tree fits below run swap at 0.1 rather than the shipped zero:
+# swap is the only proposal that rotates a child's rule up the tree, and with
+# one tree the change move cannot re-root once the splits beneath the root
+# depend on the root's own variable, so nothing else crosses between
+# rootings. The kernel's correctness at the shipped mixture is the balance
+# gates' job, not this one's.
+#
 # Usage: Rscript aft-exact.R [quick]
 
 source(
@@ -173,6 +180,12 @@ fitSingleTree <- function(seed) {
     obsLogT,
     control = control,
     node.prior = normal(k),
+    proposal.probs = c(
+      birth_death = 0.5,
+      swap = 0.1,
+      change = 0.4,
+      birth = 0.5
+    ),
     tree.prior = cgm(power, base),
     resid.prior = fixed(sigmaFixed^2)
   )
@@ -218,6 +231,12 @@ fitVarianceTree <- function(seed) {
     obsLogT,
     control = control,
     node.prior = normal(k),
+    proposal.probs = c(
+      birth_death = 0.5,
+      swap = 0.1,
+      change = 0.4,
+      birth = 0.5
+    ),
     tree.prior = cgm(power, base),
     resid.prior = chisq(df = varianceDf, quant = 0.9),
     variance = varianceForest(n.trees = 1L),

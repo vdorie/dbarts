@@ -3,15 +3,17 @@
 # P2's null control, re-run at production tree counts. P2-confounded-step.R
 # runs the duplicate-column null (surfacesDuplicateColumnNull, two exactly
 # identical columns x1/x2 and one irrelevant column x3) at m = 1, where the
-# no-swap move set leaves a minority of chains stuck at an x3 root for the
-# whole chain. A single tree is the setting where a stuck root is visible at
-# all; an ensemble can self-average a stuck tree's label away without any
-# chain ever "mixing" it. This cell asks whether the x3-root representation
-# survives at production tree counts or is washed out by the ensemble.
+# swap-carrying mixture switches representation freely (78.5 switches per
+# chain) and the shipped no-swap move set leaves a minority of chains stuck
+# at an x3 root for the whole chain. A single tree is the setting where a
+# stuck root is visible at all; an ensemble can self-average a stuck tree's
+# label away without any chain ever "mixing" it. This cell asks whether the
+# x3-root representation survives at production tree counts or is washed out
+# by the ensemble.
 #
-# Same duplicate-column design, same matched-seed idiom, the no-swap arm
-# alone - now the shipped mixture, birth/death being P2's own contrast and
-# not part of the tree-count question - n.trees in {50, 200}.
+# Same duplicate-column design, same matched-seed idiom, two of P2's three
+# move-set arms (swap and no-swap only - birth/death is P2's own contrast,
+# not part of the tree-count question), n.trees in {50, 200}.
 #
 # Readout is tree-level, not chain-level: for every (arm, n.trees, replicate,
 # chain), the share of (draw, tree) roots landing on x3 (the irrelevant
@@ -40,7 +42,8 @@ nSamples <- if (quick) 500L else 2000L
 treeCounts <- c(50L, 200L)
 
 arms <- list(
-  noswap = c(birth_death = 0.6, change = 0.4, birth = 0.5)
+  swap = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+  noswap = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
 )
 
 surfacesUptime("uptime before")
@@ -162,8 +165,8 @@ for (armName in names(arms)) {
 }
 
 surfacesHeader("published reference")
-cat("P2-confounded-step.R, m = 1: no-swap 5 stuck-on-x3 chains of 40 ")
-cat("(docs/design/benchmark-surfaces.md sec 10.1)\n")
+cat("P2-confounded-step.R, m = 1: swap 0 stuck-on-x3 chains of 40, ")
+cat("no-swap 5 of 40 (docs/design/benchmark-surfaces.md sec 10.1)\n")
 
 surfacesUptime("uptime after")
 surfacesSave(
