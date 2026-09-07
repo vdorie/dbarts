@@ -178,12 +178,54 @@ A `K = 3`, mode-1-only arm at each link - five trees per forest, 25 configuratio
 depth-decay and cut-selection coverage. Left uncovered, by design: the basis forest's ridge (`ridgeB` ships off, and mode
 2b holds the prognostic block) and the multiplier snap's near-tolerance boundary (mode 1 fires it on every control row,
 modes 2a and 2b never).
-Cost, estimated here and measured in the slice: the quadrature is about a minute per link at full settings, the sampler
-side dominates, the per-sweep cost at `n = 400` with one tree per forest being the latent refresh, one truncated normal
-or Polya-Gamma draw per row. Nine sampler configurations (three modes x two links, the aggregated arm and the two `K = 3`
-arms) at three seeds put the full grid near 12 minutes and quick near 3, so quick is what CI runs inside exact-gates.yaml's shared
-30-minute job while the full grid is workflow_dispatch. Harness about 600 lines in a new
-`benchmarks/R/bcf-latent-exact.R`, against [`exactBCF`](../../benchmarks/R/bcf-exact.R)'s 446 for gaussian, closed-form and one link.
+Cost, measured in the slice on an arm64 laptop against the installed build. Quick is 3 min 20 s: 53 s of glue
+quadrature and its refinement - the sampler-independent half, identical in both modes - and 147 s over the nine sampler
+configurations. Full is 36 min 25 s, 57 s of that same quadrature plus 2128 s of sampler, of which the two logistic
+mode-2b and `K = 3` arms are half: a logistic sweep at `n = 400` costs about 3x a probit one, the Polya-Gamma draw per
+row against a truncated normal. Quick runs at 12500 kept draws by thin 5 (mode 2b 750 by 200 over four seeds) and not
+the 25000 by 5 estimated here. At 25000 the gate is 5 min 44 s and the whole exact-gates quick suite 9 min 18 s on that
+machine, against 3 min 19 s for its other 22 gates; that leaves too little margin under the shared 30-minute job once a
+hosted runner's slower single-core rate and the ~4-minute install are counted. At the landed setting the gate is 3 min
+20 s and the suite 6 min 42 s. The full grid does NOT fit that job, so `bcf-latent-exact.R` is the one gate `mode=full`
+does not lengthen (["arg=quick"](../../.github/workflows/exact-gates.yaml)) and its long-run arms are a local run.
+Harness 1002 lines in a new [`exactLatentBCF`](../../benchmarks/R/bcf-latent-exact.R), against
+[`exactBCF`](../../benchmarks/R/bcf-exact.R)'s 446 for gaussian, closed-form and one link.
+
+Landed (2026-09-07). Four things measured differently from the estimates above, and one verdict.
+
+The realized design. At the pinned data seed the group counts are `(40, 73, 60, 86)` under probit and `(40, 63, 54, 71)`
+under logistic, giving configuration weights `(0.0005, 0.0003, 0.9500, 0.0492)` and `(0.0322, 0.0024, 0.9156, 0.0499)` in
+the order above. The runner-up is 0.049 and 0.050, clear of the 0.02 floor, and the largest is 0.950 and 0.916 - the
+probit realization would have been refused by the 0.9 cap this plan discarded, at the very first seed tried. The two
+`K = 3` arms carry 25 configurations whose top two are exactly TIED, at 0.3623 (probit) and 0.3075 (logistic): the
+three-leaf partition is reachable by two distinct trees - root cut 1 then cut 2, or root cut 2 then cut 1 - of equal CGM
+mass and identical likelihood, so the runner-up there is the leader's twin and the guard is really reading the third
+weight, 0.089 and 0.273.
+
+The glue axes. The `b` axes are spectral as claimed: at 81 nodes the 121-node refinement moves 1.7e-9 (probit) and
+5.2e-8 (logistic) over every reported quantity. The `a` axis is NOT. Its integrand vanishes linearly at `t = +-pi/2` and
+is not periodic, so the open trapezoid converges as `h^2`, and at 101 points the 401-point refinement moves 2.0e-8
+(probit) and 4.5e-7 (logistic) - both under the 1e-6 bar, the logistic one by a factor of two. The self-check runs over
+the whole configuration mixture rather than the dim-3 configuration alone: stricter, and no dearer to state.
+
+The gating statistic. A FIXED batch count is not honest at this design, and the pre-registered one fails a correct
+sampler. The mode-2a chain is metastable - its `(a, mu)` state sits in one place for of order 1e5 kept draws, and the
+conditional `E[a mu]` differs between such states by up to 0.32 - so at 100000 kept draws thinned by 10 a 400-batch se
+understates the spread of independent seeds by 8x to 30x, and the gate reports `|z|` up to 34 on a correct sampler. The
+`K = 3` probit arm understates by 2x to 3x for the same reason at the tree-partition scale. What landed raises the batch
+LENGTH until the batch means decorrelate (400, 200, 100, 50 then 25 batches), charges the residual lag-1 correlation as
+an AR(1) inflation capped at 0.95, and floors the pooled se by the spread of the seed means themselves - a floor that can
+only widen the interval. Against 20 independent seeds at 50000 kept draws mode 2a then sits at `z = 0.8` on `E[a mu]` and
+3.1 to 3.2 on `E[tau]`, the residual being the excursions' own upward pull on tau; at three seeds every channel of every
+configuration is under 2.3. The price is power: mode 2a's `E[a mu]` carries a three-seed se near 3e-2, so that arm gates
+gross errors in the `a` channel only. Poison (ii) is one, and it lands because the chain it scores is the well-mixing
+fixed-`a` one.
+
+Mode 2b keeps 5000 draws at thin 200, not 100000: 100000 at thin 200 would be 2e7 sweeps a seed and eight seeds a link.
+5000 by 200 holds the per-seed SWEEP budget equal to mode 1's 100000 by 10.
+
+Verdict: all 80 matched quantities inside `|z| <= 4` in all nine sampler configurations - worst 2.23 at full settings and
+1.96 at quick - with the glue-axis refinement under 1e-6 and the runner-up configuration at 0.049 and 0.050.
 
 ## Decision 3 - the independent derivation
 
@@ -226,6 +268,20 @@ reading of "gaussian's anchor" - the engine's own, the sd of the cold-start work
 land, the logistic one at 0.8x the threshold and realization-sensitive. (iv) Score the AGGREGATED logistic arm against
 an oracle built at unit counts, two rows per group in place of the
 true trial counts: it must fail, or that arm gates the row layout, not the counts.
+
+Run 2026-09-07, each once against the landed harness in quick mode, the edit reverted after. (i) lands hard. Scoring
+probit against the logistic oracle every leaf channel and all four probability channels fail, worst `|z|` 649 on `E[tau]`
+at a gap of 0.561; the other direction is worst `|z|` 275 at a gap of 0.324, with two of its four probability channels
+inside the bound - the reported surface is the least link-sensitive quantity the gate carries, and the leaf channels are
+what name the link. (ii) lands on BOTH named quantities in both links: `E[a mu]` at `|z|` 37.6 and 22.7 under probit
+(gaps 2.6e-2 and 2.6e-2) and 88.3 and 9.7 under logistic (8.5e-2 and 1.3e-2); `E[tau]` at 6.8 and 1.5 under probit
+(5.9e-3 and 1.4e-3) and 35.9 and 28.4 under logistic (4.2e-2 and 3.5e-2). Three of the four `E[tau]` cells land and
+probit's cell 2 does not, so `E[tau]` is named as a channel, not cell by cell. (iii) lands in every one of the nine
+sampler configurations, worst `|z|` 9.6 to 65.8; the poisoned anchor is 0.478 at this realization (probit, a factor of
+2.09) and 0.496 (logistic, 3.66). Not every matched quantity fails - probit `E[mu_2]` sits at `|z|` 1.7 - so this poison
+too is named per configuration and not per quantity. (iv) lands on the aggregated arm ALONE, all eight of its quantities,
+worst `|z|` 954: the unit-count oracle collapses to the prior, `E[mu] = E[tau] = 0` and `E[F] = 0.5`. Every other
+configuration passes unchanged, so that arm gates the counts and nothing else.
 
 SBC arms. (i) Simulate `y0` through `plogis` while fitting probit: `p_j` and `prog_j` must FLAG. (ii) Draw theta0's glue
 at gaussian's `sd.control = 2` while the sampler runs at the family default 1, so every replication's `a` comes from the
