@@ -261,21 +261,26 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 
 1. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
    (`formMeanWeights`); the global sigma stays fixed at 1.
-2. For each forest in turn, and for each of its trees: roll the running
+2. Where `levelGibbs` is set, draw each constant-leaf forest's level shift
+   (`drawLevelShift`): a constant added to every occupied leaf of a tree, the
+   constants summing to zero across the forest's trees, leaving the fitted
+   function unchanged. It runs ahead of every channel the rest of the sweep
+   writes; off by default and consuming no generator draw when off.
+3. For each forest in turn, and for each of its trees: roll the running
    residual so `treeY` holds the response net of every other tree's current
    fits, propose one move with `metropolisJumpForTree` and accept or reject
    it, then draw the tree's leaf values and write its fits
    (`sampleParametersAndSetFits`). A multi-forest chain asks the combiner for
    this forest's own response and precisions first.
-3. Rebuild the forest's `totalFits` once the tree loop ends
+4. Rebuild the forest's `totalFits` once the tree loop ends
    (`finalizeTotalFits`).
-4. Refresh the response family's latents against the combined location
+5. Refresh the response family's latents against the combined location
    (`ResponseModel::refreshLatents`) and, where sigma is a free parameter,
    draw it (`drawSigma`).
-5. Draw the combiner's glue and its post-combine move; sweep the variance
+6. Draw the combiner's glue and its post-combine move; sweep the variance
    forest against the mean residual (`sweepVarianceForest`); draw each
    forest's `k` and, under DART, its split weights.
-6. Record the sample if this iteration is a kept one.
+7. Record the sample if this iteration is a kept one.
 
 Every draw there reads the chain's own generator. The one thing in the loop
 that touches R is the sweep callback: `bartcore_runWithCallback` installs an

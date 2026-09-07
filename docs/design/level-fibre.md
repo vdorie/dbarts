@@ -1,6 +1,6 @@
 # level: an exact Gibbs draw on the level fibre
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534).
 
 A leaf-value step, not a tree kernel. Add a constant `c_t` to every occupied leaf of tree `t`, with the constants summing to zero
 across the forest's trees: the fitted function is unchanged exactly, so the conditional of the shift vector on that subspace is the
@@ -376,6 +376,38 @@ Then, in order:
    changed `levelGibbs` must draw from `$setControl`. Roughly 60 lines of engine, 40 of surface, 150 of tests, thirteen files.
    Gates: tests/cpp green, tinytest 0 fail, the equivalence trio bitwise against the standing baselines, the 22 exact gates
    unchanged, ASAN/UBSAN clean.
+
+   **Landed** (cbe80534, 2026-09-07). Six design-versus-code points. (1) The step does not leave `totalFits` correct
+   unconditionally: section 2's argument holds only where tree `t`'s obs-to-leaf map is current. After
+   `sampleTreesFromPrior` - `bart2`'s default initialization - every map is marked for rebuild and reads as all-root,
+   which the residual roll takes as a cached zero, so shifting under it leaves a constant in the residual that
+   `totalFits` carries for the whole run (measured 1.0157 on the response scale in a 25-tree fit); a tree with a stale
+   map now declines the sweep, pinned by the prior-draw arm in tests/cpp, rebuilding the map instead being refused
+   since clearing the mark makes the fused suffstat pass eligible a sweep early and moves every draw after it. (2)
+   Fifteen files, not thirteen: [`ConstrainedLeafModel`](../../src/bartcore/model.hpp) is a new seam so `chain.hpp`
+   does not reach into monotone internals, and man/dbartsSampler-class.Rd enumerates the fixed-at-creation slots. (3)
+   The projection's rounding residual in `totalFits` accumulates as a random walk rather than clearing - 4.9e-12 at
+   the first kept draw, 1.0e-11 at 400 sweeps, 9.0e-11 at 3400 sweeps, at a fit scale of 62 - within section 5(a)'s
+   per-sweep order of magnitude; `totalFits` is never rebuilt from scratch. (4) inst/tinytest/test-argument-surface.R's
+   `dbartsControl` formals pin was an exact-equality ratchet; it is split into the frozen 1.0-0 list plus a
+   post-freeze list. (5) Section 2's "a tree with no occupied leaf drops out" is unreachable for `n > 0` (the root
+   holds every row); the code keeps it as the precision-sum guard. (6) Two engine test hooks the design did not
+   enumerate, beside the existing ForTesting cluster.
+
+   Gates (independent run): tests/cpp 282 ok on the plain, ASAN/UBSAN and move-census builds; the level-fibre test:
+   worst `|1'c|` 2.91e-16 (bar 1e-12), mean z 1.75 and covariance z 2.92 at a pre-stated 4.5 over 65 statistics,
+   200000 draws at 10 trees; poison (i) no projection worst `|1'u|` 0.546; poison (ii) no prior mean: mean z 647
+   fails, covariance z 2.54 passes; ensemble identity with the flag on worst fit 3.72e-15, residual 3.73e-15,
+   1.26e-15 entered from a prior tree draw (0.025 with the stale-map decline removed); tinytest 7990/0; equivalence
+   trio bitwise 50/12/11 against the fbff1989 baselines, which stand; 24 quick exact gates green plus both cross-host
+   compares at 0.0 deviation (the 25th, rule-gibbs-balance.R, landed on the base after this commit's battery and is
+   unaffected at the default); lint 0, air clean, doc-freshness and rc-codoc OK, NEWS 299, R CMD check --as-cran
+   Status OK zero notes, DBARTS_C_API_HASH unchanged; a `bart2` probe: `levelGibbs = FALSE` `identical()` to the flag
+   omitted, `TRUE` differs and is finite, and at `n.trees = 1` `TRUE` equals `FALSE`. Also from the implementer's own
+   run: exact gates forced on through their `dbartsControl` calls - linear-exact, t-exact, categorical-exact,
+   bd-balance quick each byte-identical to the flag off (single tree), backfit-exact FAILS forced on at tree-mean z
+   -18.3 / -15.7 exactly as section 5(d) predicts, the profiled repair being slice 4's. Not landed: the
+   frozen-structure pilot (slice 2), the benefit run (slice 3), the default flip (slice 4).
 2. **The frozen-structure pilot.** `C1-frozen-ess.R` re-run with the step on, five seeds, two freeze points, paired against the
    recorded table. Its bar is section 6's and ADVISORY: a refutation is grounds to stop, a middling number is not a pass.
    Ten fits.

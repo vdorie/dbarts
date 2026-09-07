@@ -554,6 +554,30 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The level-fibre Gibbs step lands behind a flag at default off (cbe80534, 2026-09-07)
+
+Slice 1 of docs/design/level-fibre.md: Chain::drawLevelShift
+(src/bartcore/chain.hpp) adds a constant c_t to every occupied leaf of tree
+t, the constants summing to zero across a forest's trees, once per sweep
+ahead of the tree loop; the fitted function is unchanged exactly, so the
+leaf prior restricted to that subspace is the whole conditional, closed
+form, acceptance one. Two declines are load-bearing: a tree with a stale
+obs-to-leaf map sits the sweep out, since its cached fits read as an
+all-root zero that would leave a constant in the residual for the run;
+under an order constraint a tree carrying an empty leaf sits out too, that
+leaf being a hard bound on its occupied neighbours. Scope is every
+constant-leaf forest - the gaussian leaf, the monotone leaf through a new
+ConstrainedLeafModel seam, and every latent family; the linear leaf, the GP
+leaf and the heteroscedastic variance forest are inert rather than
+refused. The surface is dbartsControl$levelGibbs, fixed at sampler
+creation like useQuantiles and refused by $setControl; default FALSE,
+guarded before any generator call, so the baselines replay bitwise. Gates:
+tests/cpp 282, ASAN/UBSAN and move-census builds clean; tinytest 7990/0;
+equivalence trio bitwise 50/12/11 against the fbff1989 baselines; 24 quick
+exact gates green; NEWS 299; API hash unchanged. Not here: the
+frozen-structure pilot (slice 2), the benefit run (slice 3), the default
+flip (slice 4).
+
 ### rule_gibbs gets its detailed-balance gate (d888c9f3, 2026-09-07)
 
 Slice 2 of docs/design/nog-gibbs.md. A prior-only arm installs an all-zero

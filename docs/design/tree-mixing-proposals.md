@@ -3825,8 +3825,11 @@ only bound by Jensen, and which prices rows 3, 4 and 8 at once. R-only, no
 engine change: row 1's frozen-structure ESS, which reorders every item in
 all six reports and which nothing on disk answers; row 3's per-tree fit
 pre-check across chains; row 7's fixed warp on P2. Needing code before any
-evidence exists: rows 1, 2, 3 and 5 as kernels, row 8 as a cost model, and
-row 4 beyond its probe. Nothing here is scheduled. Of the four, three have
+evidence exists: rows 2, 3 and 5 as kernels (row 1's kernel: slice 1 landed
+cbe80534, benefit pending - see
+[level: an exact Gibbs draw on the level fibre](level-fibre.md#level-an-exact-gibbs-draw-on-the-level-fibre)),
+row 8 as a cost model, and row 4 beyond its probe. Nothing here is
+scheduled. Of the four, three have
 now run - the nog probe, the signed run-length column and the
 leaves-per-tree count (sec 6.1's third 2026-09-07 addendum) - leaving row
 4's pair-collapsed probe as the one generator-only item still not built.
