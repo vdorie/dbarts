@@ -51,6 +51,23 @@
 #                           also read off the first 2500 of those draws so the
 #                           length effect is visible inside a single fit
 #
+# Three further arms sit on that same shipped four-chain configuration and the
+# same twenty seeds, varying only the proposal mixture, so the move-set
+# contrast is read where the shipped chain default reads it rather than at the
+# one-chain configuration the earlier move-set grid used:
+#
+#   independent75pool4bd       birth_death 1, swap 0, change 0
+#   independent75pool4swap     birth_death 0.5, swap 0.1, change 0.4, the
+#                              former default
+#   independent75pool4perturb  birth_death 0.5, swap 0, change 0.34,
+#                              perturb 0.16
+#
+# independent75pool4 is their control and is re-run beside them so the
+# contrast is paired within one session. The perturb arm is a PILOT level: it
+# reads perturb at 0.16 on the former default's 0.5 birth/death base, not the
+# perturb design's own arm B, which takes the same 0.16 out of change alone at
+# birth_death 0.6.
+#
 # Every arm's chain settings live in the arms list, so the six above keep the
 # paper's single chain. Pooled arms are fit with combineChains = FALSE and
 # report, beside the pooled coverage: minimum ESS summed over chains, the
@@ -92,7 +109,8 @@ published <- data.frame(
 
 # Arms carry their own chain settings; omitting them takes the paper's single
 # chain at the top-level burn-in and sample counts. `prefix` asks for a second
-# set of readouts from the first that many kept draws of each chain.
+# set of readouts from the first that many kept draws of each chain. `probs`
+# is a proposal mixture; NULL leaves it unset, which is the shipped one.
 armSpec <- function(
   design,
   nTrees,
@@ -100,7 +118,8 @@ armSpec <- function(
   nChains = 1L,
   armBurn = nBurn,
   armSamples = nSamples,
-  prefix = NA_integer_
+  prefix = NA_integer_,
+  probs = NULL
 ) {
   list(
     design = design,
@@ -109,9 +128,12 @@ armSpec <- function(
     nChains = nChains,
     nBurn = armBurn,
     nSamples = armSamples,
-    prefix = prefix
+    prefix = prefix,
+    probs = probs
   )
 }
+
+pool4Samples <- if (quick) 100L else 500L
 
 arms <- list(
   correlated75 = armSpec("correlated", 75L),
@@ -125,7 +147,7 @@ arms <- list(
     75L,
     nChains = 4L,
     armBurn = 500L,
-    armSamples = if (quick) 100L else 500L
+    armSamples = pool4Samples
   ),
   independent75pool4long = armSpec("independent", 75L, nChains = 4L),
   independent75long = armSpec(
@@ -133,7 +155,52 @@ arms <- list(
     75L,
     armSamples = if (quick) 2000L else 25000L,
     prefix = if (quick) 500L else 2500L
+  ),
+  independent75pool4bd = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(birth_death = 1, swap = 0, change = 0, perturb = 0, birth = 0.5)
+  ),
+  independent75pool4swap = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.5,
+      swap = 0.1,
+      change = 0.4,
+      perturb = 0,
+      birth = 0.5
+    )
+  ),
+  independent75pool4perturb = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.5,
+      swap = 0,
+      change = 0.34,
+      perturb = 0.16,
+      birth = 0.5
+    )
   )
+)
+
+# The move-set arms above are read against the shipped mixture at the same
+# chain configuration, so that arm is their paired control.
+movesetControl <- "independent75pool4"
+movesetArms <- c(
+  "independent75pool4bd",
+  "independent75pool4swap",
+  "independent75pool4perturb"
 )
 selectedArms <- intersect(names(arms), args)
 if (length(selectedArms) > 0L) {
@@ -210,17 +277,70 @@ armInterval <- function(draws) {
   apply(draws, 2L, quantile, probs = c(0.025, 0.975), names = FALSE)
 }
 
+# The pooled interval taken apart chain by chain: each chain's own posterior
+# mean of f and its own 95% interval at the ESS points, as points x chains.
+# The between-chain ratio above says how far the chain means sit apart in
+# units of the pooled spread; this says whether the intervals themselves
+# still meet.
+armChainSummary <- function(draws, nChains, nSamples, points) {
+  means <- matrix(NA_real_, length(points), nChains)
+  lower <- means
+  upper <- means
+  for (chain in seq_len(nChains)) {
+    chainDraws <- armChainDraws(draws, chain, nSamples)[, points, drop = FALSE]
+    interval <- armInterval(chainDraws)
+    means[, chain] <- colMeans(chainDraws)
+    lower[, chain] <- interval[1L, ]
+    upper[, chain] <- interval[2L, ]
+  }
+  list(mean = means, lower = lower, upper = upper)
+}
+
+# How much two chains' intervals share at one point: the length they have in
+# common over the length they span together, 0 when they are disjoint and 1
+# when they coincide. Reported per point as the mean over the chain pairs and
+# as the share of pairs that meet at all.
+armIntervalOverlap <- function(summary) {
+  pairs <- combn(ncol(summary$mean), 2L)
+  shared <- vapply(
+    seq_len(ncol(pairs)),
+    function(k) {
+      a <- pairs[1L, k]
+      b <- pairs[2L, k]
+      common <- pmin(summary$upper[, a], summary$upper[, b]) -
+        pmax(summary$lower[, a], summary$lower[, b])
+      spanned <- pmax(summary$upper[, a], summary$upper[, b]) -
+        pmin(summary$lower[, a], summary$lower[, b])
+      pmax(common, 0) / spanned
+    },
+    numeric(nrow(summary$mean))
+  )
+  list(shared = rowMeans(shared), meeting = rowMeans(shared > 0))
+}
+
+# A paired difference against the control arm, in the shape the move-set
+# tables quote raw signals in: mean, standard deviation, and the count of
+# seeds on which the difference is positive.
+armPairedDifference <- function(x, digits = 2L) {
+  x <- x[is.finite(x)]
+  if (length(x) == 0L) {
+    return("      -")
+  }
+  fmt <- paste0("%+.", digits, "f +/- %.", digits, "f (%d/%d)")
+  sprintf(fmt, mean(x), sd(x), sum(x > 0), length(x))
+}
+
 surfacesUptime("uptime before")
 
 rows <- list()
+chainSummaries <- list()
 for (which in meanFunctions) {
   for (armName in names(arms)) {
     arm <- arms[[armName]]
     for (replicate in seq_len(nReplicates)) {
       set.seed(surfacesDataSeed("C1", paste0(which, arm$design), replicate))
       data <- surfacesHeHahn(n, nTest, p, which, kappa, design = arm$design)
-      startedAt <- proc.time()
-      fit <- bart2(
+      call <- list(
         data$x,
         data$y,
         test = data$xTest,
@@ -235,12 +355,40 @@ for (which in meanFunctions) {
         verbose = FALSE,
         seed = surfacesSamplerSeed(replicate)
       )
+      if (!is.null(arm$probs)) {
+        call$proposal.probs <- arm$probs
+      }
+      startedAt <- proc.time()
+      fit <- do.call(bart2, call)
       elapsed <- (proc.time() - startedAt)[["elapsed"]]
       # Both extractions pool; the chains are recovered by row block below.
       trainDraws <- extract(fit, type = "ev", sample = "train")
       testDraws <- extract(fit, type = "ev", sample = "test")
       trainInterval <- armInterval(trainDraws)
       ess <- armChainEss(testDraws, arm$nChains, arm$nSamples, essPoints)
+      # The chain-by-chain intervals are kept for the control arm alone, which
+      # is the one the move-set arms are read against.
+      chainSummary <- if (armName == movesetControl && arm$nChains > 1L) {
+        armChainSummary(testDraws, arm$nChains, arm$nSamples, essPoints)
+      } else {
+        NULL
+      }
+      overlap <- if (is.null(chainSummary)) {
+        NULL
+      } else {
+        armIntervalOverlap(chainSummary)
+      }
+      if (!is.null(chainSummary)) {
+        chainSummaries[[length(chainSummaries) + 1L]] <- list(
+          meanFunction = which,
+          arm = armName,
+          replicate = replicate,
+          points = essPoints,
+          mean = chainSummary$mean,
+          lower = chainSummary$lower,
+          upper = chainSummary$upper
+        )
+      }
       prefixRows <- if (is.na(arm$prefix)) {
         integer(0)
       } else {
@@ -274,6 +422,16 @@ for (which in meanFunctions) {
           arm$nSamples,
           essPoints
         ),
+        chainOverlap = if (is.null(overlap)) {
+          NA_real_
+        } else {
+          median(overlap$shared)
+        },
+        chainOverlapMeeting = if (is.null(overlap)) {
+          NA_real_
+        } else {
+          median(overlap$meeting)
+        },
         prefixSamples = arm$prefix,
         coveragePrefixTrain = if (is.null(prefixInterval)) {
           NA_real_
@@ -324,7 +482,7 @@ results <- do.call(rbind, rows)
 
 surfacesHeader("C1 He and Hahn: mean over seeds (min-max), in-sample f")
 cat(sprintf(
-  "%-12s %-22s %-20s %-20s %-20s %-16s %s\n",
+  "%-12s %-26s %-20s %-20s %-20s %-16s %s\n",
   "mean fn",
   "arm",
   "95% coverage",
@@ -337,7 +495,7 @@ for (which in meanFunctions) {
   for (armName in names(arms)) {
     keep <- results$meanFunction == which & results$arm == armName
     cat(sprintf(
-      "%-12s %-22s %-20s %-20s %-20s %-16s %s\n",
+      "%-12s %-26s %-20s %-20s %-20s %-16s %s\n",
       which,
       armName,
       surfacesRange(results$coverageTrain[keep]),
@@ -351,7 +509,7 @@ for (which in meanFunctions) {
 
 surfacesHeader("C1 chain diagnostics: mean over seeds (min-max)")
 cat(sprintf(
-  "%-12s %-22s %-9s %-16s %-16s %-16s %s\n",
+  "%-12s %-26s %-9s %-16s %-16s %-16s %s\n",
   "mean fn",
   "arm",
   "chains",
@@ -364,7 +522,7 @@ for (which in meanFunctions) {
   for (armName in names(arms)) {
     keep <- results$meanFunction == which & results$arm == armName
     cat(sprintf(
-      "%-12s %-22s %-9s %-16s %-16s %-16s %.1f\n",
+      "%-12s %-26s %-9s %-16s %-16s %-16s %.1f\n",
       which,
       armName,
       sprintf("%d x %d", arms[[armName]]$nChains, arms[[armName]]$nSamples),
@@ -380,7 +538,7 @@ prefixArms <- names(arms)[vapply(arms, function(a) !is.na(a$prefix), TRUE)]
 if (length(prefixArms) > 0L) {
   surfacesHeader("C1 chain length within one fit: first draws against all kept")
   cat(sprintf(
-    "%-12s %-22s %-9s %-20s %-20s %-20s %s\n",
+    "%-12s %-26s %-9s %-20s %-20s %-20s %s\n",
     "mean fn",
     "arm",
     "draws",
@@ -397,7 +555,7 @@ if (length(prefixArms) > 0L) {
       }
       spec <- arms[[armName]]
       cat(sprintf(
-        "%-12s %-22s %-9d %-20s %-20s %-20s %s\n",
+        "%-12s %-26s %-9d %-20s %-20s %-20s %s\n",
         which,
         armName,
         spec$prefix * spec$nChains,
@@ -407,7 +565,7 @@ if (length(prefixArms) > 0L) {
         surfacesRange(results$coveragePrefixTest[keep])
       ))
       cat(sprintf(
-        "%-12s %-22s %-9d %-20s %-20s %-20s %s\n",
+        "%-12s %-26s %-9d %-20s %-20s %-20s %s\n",
         which,
         armName,
         spec$nSamples * spec$nChains,
@@ -417,6 +575,76 @@ if (length(prefixArms) > 0L) {
         surfacesRange(results$coverageTest[keep])
       ))
     }
+  }
+}
+
+contrastArms <- intersect(movesetArms, names(arms))
+if (movesetControl %in% names(arms) && length(contrastArms) > 0L) {
+  surfacesHeader(sprintf(
+    "C1 move sets: paired difference against %s, seed by seed",
+    movesetControl
+  ))
+  cat(sprintf(
+    "%-12s %-26s %-26s %-26s %s\n",
+    "mean fn",
+    "arm",
+    "summed min ESS",
+    "95% coverage",
+    "RMSE"
+  ))
+  for (which in meanFunctions) {
+    control <- results[
+      results$meanFunction == which & results$arm == movesetControl,
+    ]
+    for (armName in contrastArms) {
+      contrast <- results[
+        results$meanFunction == which & results$arm == armName,
+      ]
+      paired <- match(control$replicate, contrast$replicate)
+      contrast <- contrast[paired[!is.na(paired)], ]
+      base <- control[!is.na(paired), ]
+      if (nrow(contrast) == 0L) {
+        next
+      }
+      cat(sprintf(
+        "%-12s %-26s %-26s %-26s %s\n",
+        which,
+        armName,
+        armPairedDifference(contrast$minEss - base$minEss, digits = 1L),
+        armPairedDifference(
+          contrast$coverageTrain - base$coverageTrain,
+          digits = 3L
+        ),
+        armPairedDifference(contrast$rmseTrain - base$rmseTrain, digits = 3L)
+      ))
+    }
+  }
+}
+
+if (any(is.finite(results$chainOverlap))) {
+  surfacesHeader(sprintf(
+    "C1 chain agreement at the 25 ESS points: %s",
+    movesetControl
+  ))
+  cat(sprintf(
+    "%-12s %-26s %-24s %s\n",
+    "mean fn",
+    "arm",
+    "interval overlap",
+    "pairs that meet"
+  ))
+  for (which in meanFunctions) {
+    keep <- results$meanFunction == which & is.finite(results$chainOverlap)
+    if (!any(keep)) {
+      next
+    }
+    cat(sprintf(
+      "%-12s %-26s %-24s %s\n",
+      which,
+      movesetControl,
+      surfacesRange(results$chainOverlap[keep], digits = 2L),
+      surfacesRange(results$chainOverlapMeeting[keep], digits = 2L)
+    ))
   }
 }
 
@@ -436,6 +664,7 @@ surfacesSave(
   list(
     results = results,
     published = published,
+    chainSummaries = chainSummaries,
     settings = list(
       nReplicates = nReplicates,
       n = n,
