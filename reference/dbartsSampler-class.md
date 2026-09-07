@@ -34,7 +34,9 @@ setModel(newModel)
 # S4 method for class 'dbartsSampler'
 setData(newData, updateState = NA)
 # S4 method for class 'dbartsSampler'
-setResponse(y, updateScale = FALSE, updateState = NA)
+setResponse(
+  y, updateScale = FALSE, updateState = NA, status = NULL
+)
 # S4 method for class 'dbartsSampler'
 setOffset(offset, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
@@ -187,6 +189,35 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   from the largest count, so a larger one allocates without bound).
   Values off the support are refused, as they are at creation;
   `gaussian` and `aft` (log survival times) constrain nothing.
+
+- status:
+
+  For `setResponse` on an `aft` (survival) sampler, a replacement
+  per-observation censoring status: a numeric vector of length equal to
+  that with which the sampler was created, 1 an uncensored event and 0 a
+  right-censored observation whose response value is its truncation
+  lower bound. `NULL` (the default) leaves the censoring structure in
+  force and is the call every other family makes; a non-null `status` on
+  any other family is refused by name. The response and the status
+  change in ONE call, and the status is installed first, so a row newly
+  censored is bounded at its own NEW observed log time and redrawn above
+  it against the current fit (the redraw `setResponse` performs for a
+  censored row in any case), while a row that becomes an event is
+  restored to that time - data, rather than a draw. A status-only change
+  is `setResponse(sampler$data@y, status = s)`. The number of
+  observations is fixed, the status being stated over it; `setData`,
+  whose replacement may change it, refuses an `aft` sampler and names
+  this channel instead. The vector is validated - real, of length \\n\\,
+  every element exactly 0 or 1, `NA` refused - before anything installs,
+  so a refused call leaves the sampler, `data@y` and the recorded status
+  exactly as they were; it is written to the sampler's `control` only
+  after the engine accepts it, so `getPointer`'s re-creation after save
+  and load carries the current censoring rather than the one the sampler
+  was created with. Under an installed mask (`active`) the response
+  install is mask-blind but the redraw is not, so this resets every
+  INACTIVE censored row's latent to its bound and leaves it there until
+  the mask clears; that is what `setResponse` does to such a row with or
+  without a status.
 
 - x:
 
@@ -885,7 +916,13 @@ state rather than the assigned one. Always route a restore through
 reconciled against the DESTINATION's own rather than governed by the
 source's: where they differ from the weights the state was stored under,
 the weight-dependent latents are re-derived against the destination's
-before `setState` returns (see `weights` above).
+before `setState` returns (see `weights` above). An `aft` sampler's
+censoring status is reconciled the same way and for the same reason - it
+too rides the sampler rather than the state - so where the status in
+force differs from the one the state was stored under, the censored
+latents are redrawn off the restored generators before `setState`
+returns; an event row's observed log time is data and is never
+overwritten by a state at all.
 
 ### Mutation cost
 
