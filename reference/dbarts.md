@@ -12,8 +12,7 @@ dbarts(
     verbose = FALSE, n.samples = 800L,
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     resid.dist = gaussian,
-    proposal.probs = c(
-        birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+    proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -211,10 +210,13 @@ dbarts(
 - proposal.probs:
 
   Named numeric vector or `NULL`, optionally specifying the proposal
-  rules and their probabilities. Elements should be `"birth_death"`,
-  `"change"`, and `"swap"` to control tree change proposals, and
-  `"birth"` to give the relative frequency of birth/death in the
-  `"birth_death"` step.
+  rules and their probabilities. Elements should be `"birth_death"` and
+  `"change"` to control tree structure proposals, and `"birth"` to give
+  the relative frequency of birth/death in the `"birth_death"` step. The
+  two structural probabilities must sum to one; naming only one of them
+  fills the other in. The default is
+  `c(birth_death = 0.6, change = 0.4, birth = 0.5)`. A `"swap"` element
+  is an error: the swap proposal was removed before 1.0.
 
 - monotone:
 
@@ -728,7 +730,7 @@ control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
 sampler <- dbarts(y ~ x, control = control)
 samples <- sampler$run(numBurnIn = 50L, numSamples = 1L)
 str(samples$train)
-#>  num [1:100, 1] 0.107 0.148 1.545 0.975 -0.282 ...
+#>  num [1:100, 1] 0.1826 0.3443 1.2289 0.8974 -0.0939 ...
 
 ## an outer step revises the response; the sampler picks it up on the next
 ## run() without being rebuilt. The prior scale set at creation stays locked

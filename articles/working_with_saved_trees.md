@@ -77,17 +77,17 @@ traversal.
 print(head(trees, n = 10))
 ```
 
-    ##    chain sample tree   n var        value
-    ## 1      1      1    1 100   5  0.172099022
-    ## 2      1      1    1  19  -1 -0.161987541
-    ## 3      1      1    1  81   2  0.415258286
-    ## 4      1      1    1  20  -1 -0.067348401
-    ## 5      1      1    1  61  -1  0.060031278
-    ## 6      1      1    2 100   4  0.849325015
-    ## 7      1      1    2  82   4  0.571833524
-    ## 8      1      1    2  51  -1 -0.008752156
-    ## 9      1      1    2  31  -1  0.192449201
-    ## 10     1      1    2  18  -1  0.315472253
+    ##    chain sample tree   n var       value
+    ## 1      1      1    1 100   1  0.19748211
+    ## 2      1      1    1  24  -1 -0.11033680
+    ## 3      1      1    1  76   2  0.23781997
+    ## 4      1      1    1  12  -1 -0.04867099
+    ## 5      1      1    1  64   1  0.40360013
+    ## 6      1      1    1  13  -1  0.06510259
+    ## 7      1      1    1  51  -1  0.15720545
+    ## 8      1      1    2 100   5  0.22049231
+    ## 9      1      1    2  28  -1 -0.14007951
+    ## 10     1      1    2  72   4  0.72493228
 
 The columns refer to:
 
@@ -141,8 +141,7 @@ print(subset(catTrees, var != -1))
 
     ##   sample tree  n var value directions
     ## 1      1    1 60   1    NA       LLRR
-    ## 4      1    2 60   1    NA       RLLR
-    ## 7      1    3 60   1    NA       LRRL
+    ## 5      1    3 60   1    NA       LLRR
 
 `g`’s levels are `"a"`, `"b"`, `"c"`, `"d"`, in that order, so the first
 tree’s `directions` of `"LLRR"` sends `a` and `b` left and `c` and `d`
@@ -213,46 +212,64 @@ print(rebuildTree(treeOfInterest, bartFit))
 ```
 
     ## $value
-    ## [1] 0.172099
+    ## [1] 0.1974821
     ## 
     ## $n
     ## [1] 100
     ## 
     ## $var
-    ## [1] "X5"
+    ## [1] "X1"
     ## 
     ## $left
     ## $left$value
-    ## [1] -0.1603787
+    ## [1] -0.1297579
     ## 
     ## $left$n
-    ## [1] 19
+    ## [1] 24
     ## 
     ## 
     ## $right
     ## $right$value
-    ## [1] 0.4152583
+    ## [1] 0.23782
     ## 
     ## $right$n
-    ## [1] 81
+    ## [1] 76
     ## 
     ## $right$var
     ## [1] "X2"
     ## 
     ## $right$left
     ## $right$left$value
-    ## [1] -0.1087984
+    ## [1] -0.0357392
     ## 
     ## $right$left$n
-    ## [1] 20
+    ## [1] 12
     ## 
     ## 
     ## $right$right
     ## $right$right$value
-    ## [1] 0.05573811
+    ## [1] 0.4036001
     ## 
     ## $right$right$n
-    ## [1] 61
+    ## [1] 64
+    ## 
+    ## $right$right$var
+    ## [1] "X1"
+    ## 
+    ## $right$right$left
+    ## $right$right$left$value
+    ## [1] 0.03422186
+    ## 
+    ## $right$right$left$n
+    ## [1] 13
+    ## 
+    ## 
+    ## $right$right$right
+    ## $right$right$right$value
+    ## [1] 0.151229
+    ## 
+    ## $right$right$right$n
+    ## [1] 51
 
 Under a `linear` node prior, the same function attaches each leaf’s
 slopes as `$beta`:
@@ -275,7 +292,7 @@ print(rebuildTree(linearTrees, list(fit = linearFit)))
 ```
 
     ## $value
-    ## [1] 0.85091
+    ## [1] 0.3973814
     ## 
     ## $n
     ## [1] 60
@@ -285,24 +302,24 @@ print(rebuildTree(linearTrees, list(fit = linearFit)))
     ## 
     ## $left
     ## $left$value
-    ## [1] -0.09040705
+    ## [1] 0.0758541
     ## 
     ## $left$n
-    ## [1] 50
+    ## [1] 20
     ## 
     ## $left$beta
-    ## [1] 0.193001
+    ## [1] 0.343214
     ## 
     ## 
     ## $right
     ## $right$value
-    ## [1] 0.1956038
+    ## [1] -0.04398386
     ## 
     ## $right$n
-    ## [1] 10
+    ## [1] 40
     ## 
     ## $right$beta
-    ## [1] -0.01612203
+    ## [1] 0.2875415
 
 Using a `by` statement, it is possible to “rebuild” all trees at once:
 
@@ -373,7 +390,7 @@ getPredictionsForTree <- function(tree, x) {
 getPredictionsForTree(treeOfInterest, bartFit$fit$data@x[1:5,])
 ```
 
-    ## [1] -0.10879844  0.05573811  0.05573811 -0.16037867 -0.16037867
+    ## [1] -0.0357392 -0.1297579  0.1512290 -0.0357392  0.1512290
 
 A `by` statement can be used to obtain all predictions for all trees.
 
@@ -402,11 +419,13 @@ print(subset(newTrees, chain == 1))
 ```
 
     ##   chain sample tree n var       value
-    ## 1     1      3    1 5   5  0.17209902
-    ## 2     1      3    1 2  -1 -0.16037867
-    ## 3     1      3    1 3   2  0.41525829
-    ## 4     1      3    1 1  -1 -0.10879844
-    ## 5     1      3    1 2  -1  0.05573811
+    ## 1     1      3    1 5   1  0.19748211
+    ## 2     1      3    1 1  -1 -0.12975790
+    ## 3     1      3    1 4   2  0.23781997
+    ## 4     1      3    1 2  -1 -0.03573920
+    ## 5     1      3    1 2   1  0.40360013
+    ## 6     1      3    1 0  -1  0.03422186
+    ## 7     1      3    1 2  -1  0.15122897
 
 ## Advanced Traversal
 
@@ -522,11 +541,11 @@ print(interactionData$hasInteraction)
 
     ##         descendant
     ## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10
-    ##      X1  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X2  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X1   TRUE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X2   TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X4  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X5  FALSE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X5  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X6  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X7  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X8  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE

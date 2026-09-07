@@ -85,7 +85,7 @@ c(agreement = cor(rowMeans(composed), nativeFit),
 ```
 
     ## agreement    signal 
-    ## 0.9927251 0.9189458
+    ## 0.9928701 0.9222418
 
 Agreement, not identity: these are two chains of one posterior, so they
 differ by Monte Carlo error. The package’s tests state the tolerance.
@@ -136,7 +136,7 @@ c(mean = mean(keepAlpha), sd = sd(keepAlpha), truth = alphaTrue)
 ```
 
     ##       mean         sd      truth 
-    ## 1.24686941 0.03578089 1.25000000
+    ## 1.25913691 0.03649663 1.25000000
 
 ### Checking the composition
 
@@ -213,8 +213,8 @@ dbartsValidateComposition(drawPrior, simulateData, initState, step,
     ## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0
     ## 
     ##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict
-    ##       alpha      24.9    0.0843 0.223   0.723 0.884    PASS
-    ##      f.mean      23.0    0.1310 0.223   0.066 0.416    PASS
+    ##       alpha      24.6     0.109 0.223   0.395 0.664    PASS
+    ##      f.mean      22.1     0.153 0.223   0.522 0.202    PASS
 
 Reporting `v * sum(wSbc * (state$y - state$f)) / sigma0^2` in place of
 the draw – the defect this diagnostic exists to catch – flags `alpha`
@@ -289,7 +289,7 @@ c(composed = cor(rowMeans(total), fTrue),
 ```
 
     ##  composed    single 
-    ## 0.9673845 0.9557477
+    ## 0.9673282 0.9553002
 
 `setResponse` leaves the response transform where creation put it
 (`updateScale = FALSE`, the default), which is what makes a per-sweep
@@ -362,7 +362,7 @@ c(installed = sum(installed), accepted = sum(accept),
 ```
 
     ##   installed    accepted reinstalled           n 
-    ##          77          37          80          80
+    ##          77          40          80          80
 
 The second call returns every observation to the value the host settled
 on. It reverts rows to values the samplers already held, so it is
@@ -402,7 +402,7 @@ c(mean = mean(keepSigma), truth = 0.75)
 ```
 
     ##      mean     truth 
-    ## 0.6778657 0.7500000
+    ## 0.6693388 0.7500000
 
 The channel exists only where the model has a residual scale to own. A
 family that fixes it by definition refuses the write rather than
@@ -462,11 +462,11 @@ c(mean = mean(keepGamma), truth = gammaTrue,
 ```
 
     ##         mean        truth    shortfall 
-    ## 1.270524e+00 1.500000e+00 4.440892e-16
+    ## 1.371453e+00 1.500000e+00 4.440892e-16
 
 The last column is zero by construction, which is the point: `z - train`
 and `z - f` differ by the installed offset exactly. Substituting `train`
-for `f` above pulls the posterior mean of $`\gamma`$ from 1.27 to about
+for `f` above pulls the posterior mean of $`\gamma`$ from 1.37 to about
 0.29, roughly seventeen oracle standard errors below the truth, on a run
 that reports no error at all.
 

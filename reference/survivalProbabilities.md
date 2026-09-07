@@ -147,9 +147,9 @@ dim(surv) # draws x times x observations
 
 ## posterior-mean survival curve and 90% band for the first observation
 apply(surv[, , 1L], 2L, mean)
-#> [1] 0.9959171 0.9259428 0.5725221
+#> [1] 0.9959952 0.9183795 0.5364117
 apply(surv[, , 1L], 2L, quantile, probs = c(0.05, 0.95))
 #>          [,1]      [,2]      [,3]
-#> 5%  0.9874998 0.8314811 0.3862876
-#> 95% 0.9998579 0.9851896 0.7723411
+#> 5%  0.9882550 0.8365335 0.3201868
+#> 95% 0.9998016 0.9797861 0.7310204
 ```

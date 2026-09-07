@@ -377,11 +377,12 @@ residuals(object, type = "ev", ...)
 - proposalprobs:
 
   Named numeric vector or `NULL`, optionally specifying the proposal
-  rules and their probabilities. Elements should be `"birth_death"`,
-  `"change"`, and `"swap"` to control tree change proposals, and
-  `"birth"` to give the relative frequency of birth/death in the
-  `"birth_death"` step. The default is
-  `c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)`.
+  rules and their probabilities. Elements should be `"birth_death"` and
+  `"change"` to control tree structure proposals, and `"birth"` to give
+  the relative frequency of birth/death in the `"birth_death"` step. The
+  default is `c(birth_death = 0.6, change = 0.4, birth = 0.5)`. A
+  `"swap"` element is an error: the swap proposal was removed before
+  1.0.
 
 - keepsampler:
 
@@ -1083,7 +1084,7 @@ bartFit <- bart(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
+#>  proposal probabilities: birth/death 0.60, change 0.40; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -1106,24 +1107,24 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.138045
+#> total seconds in loop: 0.215548
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
-#> 2 2 4 2 2 3 3 2 2 2 2 3 2 2 2 1 3 3 2 2 
-#> 2 2 3 4 2 2 2 4 3 2 2 3 1 2 3 2 2 3 3 2 
-#> 3 2 2 2 2 3 2 2 3 2 2 2 2 2 2 2 2 3 2 2 
-#> 2 2 2 2 3 5 2 2 3 2 2 2 1 3 2 2 2 3 2 2 
-#> 1 2 5 1 3 3 3 4 2 2 2 2 3 2 2 2 2 2 2 1 
-#> 2 4 2 2 2 2 3 2 2 2 2 4 2 2 3 2 2 2 2 3 
-#> 2 3 2 2 2 2 2 1 2 4 4 3 2 4 4 3 2 1 2 3 
-#> 3 4 3 2 3 2 2 2 2 2 2 4 2 3 2 3 3 2 2 2 
-#> 3 2 2 3 2 2 2 4 4 2 3 1 3 2 2 2 1 3 2 4 
-#> 2 2 
+#> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 
+#> 3 2 3 2 3 3 3 2 2 4 2 2 2 3 2 2 5 2 2 4 
+#> 3 3 2 3 2 3 2 3 3 2 3 2 3 2 3 3 2 2 4 3 
+#> 3 2 2 2 2 2 4 2 2 2 2 2 2 2 2 2 2 2 2 2 
+#> 3 3 3 2 2 4 2 4 2 2 1 2 3 2 2 3 3 3 3 4 
+#> 2 2 4 2 1 2 3 3 2 3 2 2 3 3 3 4 2 2 4 3 
+#> 5 2 2 3 3 2 2 2 3 1 3 3 2 2 4 3 2 2 3 3 
+#> 2 1 6 1 3 2 2 2 3 2 3 3 3 2 2 2 2 2 4 3 
+#> 2 2 4 2 2 2 2 2 2 4 2 3 1 2 2 2 2 2 3 3 
+#> 3 2 3 2 2 2 2 2 2 2 2 2 2 3 3 3 1 1 2 2 
+#> 3 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 34) (2: 29) (3: 29) (4: 30) (5: 25) 
-#> (6: 25) (7: 36) (8: 21) (9: 28) (10: 16) 
+#> (1: 32) (2: 25) (3: 35) (4: 34) (5: 25) 
+#> (6: 32) (7: 34) (8: 22) (9: 24) (10: 32) 
 #> 
 #> DONE BART
 #> 
@@ -1138,10 +1139,10 @@ fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 #>              y        Ey        lm      bart
-#> y    1.0000000 0.9847984 0.8841787 0.9984931
-#> Ey   0.9847984 1.0000000 0.9009389 0.9886903
-#> lm   0.8841787 0.9009389 1.0000000 0.8975062
-#> bart 0.9984931 0.9886903 0.8975062 1.0000000
+#> y    1.0000000 0.9847984 0.8841787 0.9984610
+#> Ey   0.9847984 1.0000000 0.9009389 0.9885821
+#> lm   0.8841787 0.9009389 1.0000000 0.8975799
+#> bart 0.9984610 0.9885821 0.8975799 1.0000000
 
 ## fit with missing predictor values, using missing = "incorporate"
 ## (the default): every split rule learns a direction for NAs

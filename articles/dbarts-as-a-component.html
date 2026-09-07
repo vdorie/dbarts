@@ -153,7 +153,7 @@ choice.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>agreement <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">nativeFit</span><span class="op">)</span>,</span>
 <span>  signal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## agreement    signal </span></span>
-<span><span class="co">## 0.9927251 0.9189458</span></span></code></pre>
+<span><span class="co">## 0.9928701 0.9222418</span></span></code></pre>
 <p>Agreement, not identity: these are two chains of one posterior, so
 they differ by Monte Carlo error. The package’s tests state the
 tolerance.</p>
@@ -205,7 +205,7 @@ from the wrong conditional, and nothing later reports it.</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">keepAlpha</span><span class="op">)</span>, sd <span class="op">=</span> <span class="fu">sd</span><span class="op">(</span><span class="va">keepAlpha</span><span class="op">)</span>, truth <span class="op">=</span> <span class="va">alphaTrue</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##       mean         sd      truth </span></span>
-<span><span class="co">## 1.24686941 0.03578089 1.25000000</span></span></code></pre>
+<span><span class="co">## 1.25913691 0.03649663 1.25000000</span></span></code></pre>
 <div class="section level3">
 <h3 id="checking-the-composition">Checking the composition<a class="anchor" aria-label="anchor" href="#checking-the-composition"></a>
 </h3>
@@ -282,8 +282,8 @@ chain.</p>
 <span><span class="co">## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict</span></span>
-<span><span class="co">##       alpha      24.9    0.0843 0.223   0.723 0.884    PASS</span></span>
-<span><span class="co">##      f.mean      23.0    0.1310 0.223   0.066 0.416    PASS</span></span></code></pre>
+<span><span class="co">##       alpha      24.6     0.109 0.223   0.395 0.664    PASS</span></span>
+<span><span class="co">##      f.mean      22.1     0.153 0.223   0.522 0.202    PASS</span></span></code></pre>
 <p>Reporting <code>v * sum(wSbc * (state$y - state$f)) / sigma0^2</code>
 in place of the draw – the defect this diagnostic exists to catch –
 flags <code>alpha</code> here, and is a test cell of its own.</p>
@@ -357,7 +357,7 @@ it with a single sampler’s.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>composed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">total</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span>,</span>
 <span>  single <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">single</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="va">nBurn</span>, <span class="va">nDraws</span><span class="op">)</span><span class="op">$</span><span class="va">train</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##  composed    single </span></span>
-<span><span class="co">## 0.9673845 0.9557477</span></span></code></pre>
+<span><span class="co">## 0.9673282 0.9553002</span></span></code></pre>
 <p><code>setResponse</code> leaves the response transform where creation
 put it (<code>updateScale = FALSE</code>, the default), which is what
 makes a per-sweep swap coherent: every sweep’s partial residual is read
@@ -429,7 +429,7 @@ hold, silently and permanently.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>installed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">installed</span><span class="op">)</span>, accepted <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">accept</span><span class="op">)</span>,</span>
 <span>  reinstalled <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">reinstalled</span><span class="op">)</span>, n <span class="op">=</span> <span class="va">nJ</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##   installed    accepted reinstalled           n </span></span>
-<span><span class="co">##          77          37          80          80</span></span></code></pre>
+<span><span class="co">##          77          40          80          80</span></span></code></pre>
 <p>The second call returns every observation to the value the host
 settled on. It reverts rows to values the samplers already held, so it
 is expected to be total; check its mask rather than assume it, since a
@@ -466,7 +466,7 @@ stays written.</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">keepSigma</span><span class="op">)</span>, truth <span class="op">=</span> <span class="fl">0.75</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##      mean     truth </span></span>
-<span><span class="co">## 0.6778657 0.7500000</span></span></code></pre>
+<span><span class="co">## 0.6693388 0.7500000</span></span></code></pre>
 <p>The channel exists only where the model has a residual scale to own.
 A family that fixes it by definition refuses the write rather than
 accepting it and quietly rescaling every leaf posterior:</p>
@@ -519,13 +519,13 @@ offset’s own covariate recovers a coefficient shrunk toward zero.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">keepGamma</span><span class="op">)</span>, truth <span class="op">=</span> <span class="va">gammaTrue</span>,</span>
 <span>  shortfall <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">train</span><span class="op">)</span> <span class="op">-</span> <span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">f</span><span class="op">)</span> <span class="op">-</span> <span class="va">offset</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##         mean        truth    shortfall </span></span>
-<span><span class="co">## 1.270524e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
+<span><span class="co">## 1.371453e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
 <p>The last column is zero by construction, which is the point:
 <code>z - train</code> and <code>z - f</code> differ by the installed
 offset exactly. Substituting <code>train</code> for <code>f</code> above
 pulls the posterior mean of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>γ</mi><annotation encoding="application/x-tex">\gamma</annotation></semantics></math>
-from 1.27 to about 0.29, roughly seventeen oracle standard errors below
+from 1.37 to about 0.29, roughly seventeen oracle standard errors below
 the truth, on a run that reports no error at all.</p>
 </div>
 <div class="section level2">

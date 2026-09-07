@@ -216,13 +216,13 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <span class="r-out co"><span class="r-pr">#&gt;</span> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.threads = 1L, verbose = FALSE, factors = "categorical", </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     missing = "incorporate", proposal.probs = c(birth_death = 0.5, </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     swap = 0.1, change = 0.4, birth = 0.5))</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     change = 0.4, birth = 0.5))</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> sigma    0.993  0.985 0.068<span style="text-decoration: underline;">3</span> 0.076<span style="text-decoration: underline;">1</span> 0.888  1.10  1.01     45.2     30.7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> sigma    0.977  0.962 0.061<span style="text-decoration: underline;">5</span> 0.058<span style="text-decoration: underline;">9</span> 0.895  1.08  1.10     49.6     49.6</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Note: some R-hat values exceed 1.01; chains may not have converged.</span>
 <span class="r-in"><span></span></span>
@@ -244,11 +244,11 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          chain</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration    1    2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         1 0.99 0.92</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         2 0.89 1.06</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         3 0.88 1.04</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         4 1.01 0.97</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         5 1.00 0.97</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         1 0.89 0.90</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         2 1.00 0.95</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         3 0.95 0.90</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         4 0.95 0.94</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         5 0.94 0.93</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> # ... with 15 more iterations</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>

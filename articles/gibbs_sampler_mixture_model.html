@@ -413,7 +413,7 @@ at
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">keep.g2</span><span class="op">)</span>, <span class="va">g2.true</span><span class="op">)</span>, sigma <span class="op">=</span> <span class="va">sigma.mf</span>, truth <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##  recovery     sigma     truth </span></span>
-<span><span class="co">## 0.8833036 0.4429644 0.5000000</span></span></code></pre>
+<span><span class="co">## 0.8793565 0.4264378 0.5000000</span></span></code></pre>
 <div class="section level3">
 <h3 id="what-it-costs">What it costs<a class="anchor" aria-label="anchor" href="#what-it-costs"></a>
 </h3>
@@ -571,7 +571,7 @@ which doubles as a variable-importance diagnostic.</p>
 <span><span class="co"># One row per predictor, averaged over the retained samples: only the first</span></span>
 <span><span class="co"># column of x.dart drives y.dart, and its split probability dominates.</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">samples.dart</span><span class="op">$</span><span class="va">varprobs</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## [1] 0.681 0.117 0.008 0.013 0.007 0.017 0.012 0.145</span></span></code></pre>
+<pre><code><span><span class="co">## [1] 0.694 0.026 0.087 0.014 0.119 0.029 0.018 0.013</span></span></code></pre>
 <p>The Dirichlet concentration <code>alpha</code> is itself sampled by
 default (<code>update.alpha = TRUE</code>); a smaller <code>alpha</code>
 concentrates the split probabilities more aggressively.
@@ -714,7 +714,7 @@ something else from one sweep to the next.</p>
 <span><span class="co"># the group intercepts and their scale are only identified up to a shared</span></span>
 <span><span class="co"># level, which the forest absorbs, so compare them centered</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">samples_b</span><span class="op">)</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">samples_b</span><span class="op">)</span><span class="op">)</span>, <span class="va">b_true</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">b_true</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## [1] 0.9962625</span></span></code></pre>
+<pre><code><span><span class="co">## [1] 0.99589</span></span></code></pre>
 <p>The same shape carries any outer block whose contribution to the
 linear predictor is a per-observation vector: a parametric term, a
 spatial effect, a frailty. <code>setResponse</code> is the companion for

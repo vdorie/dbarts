@@ -1458,7 +1458,7 @@ sampler <- dbarts(
 ## first draw: response as given at creation
 samples <- sampler$run()
 str(samples$train) # a plain n.obs x n.samples matrix (n.chains == 1)
-#>  num [1:100, 1] -0.8207 0.8956 0.2326 -0.3679 0.0244 ...
+#>  num [1:100, 1] -0.709 0.304 0.291 -0.472 -0.126 ...
 
 ## an outer Gibbs step changes the response (e.g. after updating some
 ## other part of a joint model); the sampler picks the new target up on
@@ -1467,5 +1467,5 @@ newY <- y + rnorm(n, 0, 0.05)
 sampler$setResponse(newY)
 samples <- sampler$run()
 str(samples$train)
-#>  num [1:100, 1] -0.6833 0.6015 0.3523 -0.4685 -0.0563 ...
+#>  num [1:100, 1] -0.828054 0.520308 0.337472 -0.489366 0.000512 ...
 ```

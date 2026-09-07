@@ -144,13 +144,13 @@ summary(fit)
 #> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
 #>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
-#>     missing = "incorporate", proposal.probs = c(birth_death = 0.5, 
-#>     swap = 0.1, change = 0.4, birth = 0.5))
+#>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, 
+#>     change = 0.4, birth = 0.5))
 #> 
 #> # A tibble: 1 × 10
 #>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail
 #>   <chr>    <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-#> 1 sigma    0.993  0.985 0.0683 0.0761 0.888  1.10  1.01     45.2     30.7
+#> 1 sigma    0.977  0.962 0.0615 0.0589 0.895  1.08  1.10     49.6     49.6
 #> 
 #> Note: some R-hat values exceed 1.01; chains may not have converged.
 
@@ -172,11 +172,11 @@ if (requireNamespace("posterior", quietly = TRUE)) {
 #> 
 #>          chain
 #> iteration    1    2
-#>         1 0.99 0.92
-#>         2 0.89 1.06
-#>         3 0.88 1.04
-#>         4 1.01 0.97
-#>         5 1.00 0.97
+#>         1 0.89 0.90
+#>         2 1.00 0.95
+#>         3 0.95 0.90
+#>         4 0.95 0.94
+#>         5 0.94 0.93
 #> 
 #> # ... with 15 more iterations
 # }

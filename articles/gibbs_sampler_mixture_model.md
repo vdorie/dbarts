@@ -301,7 +301,7 @@ c(recovery = cor(rowMeans(keep.g2), g2.true), sigma = sigma.mf, truth = 0.5)
 ```
 
     ##  recovery     sigma     truth 
-    ## 0.8833036 0.4429644 0.5000000
+    ## 0.8793565 0.4264378 0.5000000
 
 ### What it costs
 
@@ -424,7 +424,7 @@ samples.dart <- fit.dart$run(100L, 30L)
 round(rowMeans(samples.dart$varprobs), 3)
 ```
 
-    ## [1] 0.681 0.117 0.008 0.013 0.007 0.017 0.012 0.145
+    ## [1] 0.694 0.026 0.087 0.014 0.119 0.029 0.018 0.013
 
 The Dirichlet concentration `alpha` is itself sampled by default
 (`update.alpha = TRUE`); a smaller `alpha` concentrates the split
@@ -562,7 +562,7 @@ for (i in seq_len(n_warmup_ri + n_samples_ri)) {
 cor(colMeans(samples_b) - mean(colMeans(samples_b)), b_true - mean(b_true))
 ```
 
-    ## [1] 0.9962625
+    ## [1] 0.99589
 
 The same shape carries any outer block whose contribution to the linear
 predictor is a per-observation vector: a parametric term, a spatial

@@ -38,7 +38,7 @@ bart2(
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
-    proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+    proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -517,14 +517,14 @@ print(x, ...)
 - proposal.probs:
 
   Named numeric vector, optionally specifying the proposal rules and
-  their probabilities. Elements should be `"birth_death"`, `"change"`,
-  and `"swap"` to control tree change proposals, and `"birth"` to give
-  the relative frequency of birth/death in the `"birth_death"` step. The
+  their probabilities. Elements should be `"birth_death"` and `"change"`
+  to control tree structure proposals, and `"birth"` to give the
+  relative frequency of birth/death in the `"birth_death"` step. The
   default is the named vector
-  `c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)`,
-  identical to
+  `c(birth_death = 0.6, change = 0.4, birth = 0.5)`, identical to
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
-  default.
+  default. A `"swap"` element is an error: the swap proposal was removed
+  before 1.0.
 
 - monotone:
 
@@ -1524,7 +1524,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
+#>  proposal probabilities: birth/death 0.60, change 0.40; birth 0.50
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -1534,14 +1534,14 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000971
+#> total seconds in loop: 0.001424
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
-#> 3 2 
+#> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
+#> 4 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 13) (2: 12) 
+#> (1: 14) (2: 13) 
 #> DONE BART
 #> 
 
@@ -1570,7 +1570,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #>  scale in sigma prior: 0.011208
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
+#>  proposal probabilities: birth/death 0.60, change 0.40; birth 0.50
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -1581,13 +1581,13 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001014
+#> total seconds in loop: 0.001702
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 2 3 3 2 2 1 2 3 
+#> [1] 3 2 2 2 3 3 2 2 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 4) (2: 8) 
+#> (1: 8) (2: 5) 
 #> DONE BART
 #> 
 fit.bcf$n.forests

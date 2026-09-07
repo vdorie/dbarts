@@ -293,5 +293,5 @@ sampler <- dbarts(data, control = dbartsControl(
   n.trees = 25L, updateState = FALSE))
 samples <- sampler$run()
 str(samples$test)
-#>  num [1:20, 1:10] 0.347 0.933 0.469 0.612 0.39 ...
+#>  num [1:20, 1:10] 0.226 0.57 0.623 0.605 0.292 ...
 ```
