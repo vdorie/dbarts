@@ -4555,6 +4555,17 @@ static void testAFTStatusSetter(ext_rng* rng) {
   check(jointCensored,
         "and bounds every censored row at the NEW response, not the old one");
 
+  // a null status is the base class's "ignore it": the structure it stands on
+  // - the censored set, its bounds, and every latent - is left alone, which
+  // the log-likelihood reads through all three
+  std::vector<double> heldLatents(joint.latents(), joint.latents() + n),
+    nullLogLik;
+  joint.setSurvivalStatus(nullptr);
+  logLikelihood(joint, nullLogLik);
+  check(nullLogLik == jointLogLik &&
+          std::equal(heldLatents.begin(), heldLatents.end(), joint.latents()),
+        "a null status leaves the censoring structure exactly as it stands");
+
   printf("ok: aft status setter (ordering, bounds, joint call)\n");
 }
 

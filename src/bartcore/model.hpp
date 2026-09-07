@@ -3929,8 +3929,11 @@ public:
   ///
   /// No redraw and no working-response rebuild: the setResponse that follows
   /// does both once for the pair, and its memcpy supersedes these bounds when
-  /// the log-times move too.
+  /// the log-times move too. A null status is the base class's "ignore it" and
+  /// leaves the structure exactly as it stands; the all-censored reading of a
+  /// null pointer is the CONSTRUCTOR's, where there is no structure to keep.
   void setSurvivalStatus(const double* status) override {
+    if (status == nullptr) return;
     std::vector<std::size_t> indices;
     std::vector<double> bounds;
     indices.reserve(censoredIndices_.size());
@@ -3942,7 +3945,7 @@ public:
         k < censoredIndices_.size() && censoredIndices_[k] == i;
       double observed = wasCensored ? censorBound_[k] : logT_[i];
       if (wasCensored) ++k;
-      if (status == nullptr || status[i] == 0.0) {
+      if (status[i] == 0.0) {
         indices.push_back(i);
         bounds.push_back(observed);
       } else if (wasCensored) {
