@@ -21,15 +21,25 @@
 # with no thinning one kept draw is one sweep, so the tree structure differs
 # from the previous draw's exactly when a structural move was accepted.
 #
-# Three arms on matched seeds, all reachable at runtime through
+# Four arms on matched seeds, all reachable at runtime through
 # proposal.probs, so the contrast costs a grid of fits and nothing else:
 #
 #   swap           birth_death 0.5, swap 0.1, change 0.4, birth 0.5
 #   birth/death    birth_death 1.0, swap 0.0, change 0.0, birth 0.5
 #   noswap         birth_death 0.6, swap 0.0, change 0.4, birth 0.5
+#   rulegibbs      birth_death 0.6, swap 0.0, change 0.24, rule_gibbs 0.16,
+#                  birth 0.5
 #
 # noswap is the shipped default; swap carries the move the shipped mixture
-# sets to zero.
+# sets to zero. rulegibbs is noswap with 0.16 of change's share spent on an
+# exact draw of a nog node's rule, and it is here as a must-not-degrade
+# control on the share taken away rather than as a candidate to win the cell:
+# at one tree the root is nog only while the tree carries a single split, and
+# the chains this cell records parked on an x3 root carry three or four
+# interior nodes, so the move does not reach them. What the arm has to hold
+# is the readouts below - mean root switches per chain inside noswap's own
+# seed range, the parked count no worse, the pooled share on x1 at 0.5, and
+# the duplicate-column null intact.
 #
 # The duplicate-column design is the null control the battery requires
 # alongside this cell: two exactly identical predictor columns, where the
@@ -59,7 +69,15 @@ nSamples <- if (quick) 500L else 2000L
 arms <- list(
   swap = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   birthdeath = c(birth_death = 1, swap = 0, change = 0, birth = 0.5),
-  noswap = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
+  noswap = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+  rulegibbs = c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.24,
+    perturb = 0,
+    rule_gibbs = 0.16,
+    birth = 0.5
+  )
 )
 
 designs <- list(

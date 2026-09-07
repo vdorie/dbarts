@@ -51,7 +51,7 @@
 #                           also read off the first 2500 of those draws so the
 #                           length effect is visible inside a single fit
 #
-# Four further arms sit on that same shipped four-chain configuration and the
+# Six further arms sit on that same shipped four-chain configuration and the
 # same twenty seeds, varying only the proposal mixture, so the move-set
 # contrast is read where the shipped chain default reads it rather than at the
 # one-chain configuration the earlier move-set grid used:
@@ -67,10 +67,19 @@
 #                                  change and birth/death both. It is NOT the
 #                                  arm above and its readouts do not stand in
 #                                  for it.
+#   independent75pool4ruleGibbsB   birth_death 0.6, swap 0, change 0.24,
+#                                  rule_gibbs 0.16, the same share taken out
+#                                  of change alone. This is the dosage the
+#                                  rule_gibbs benefit study's kill criterion
+#                                  turns on.
+#   independent75pool4ruleGibbs32  birth_death 0.6, swap 0, change 0.08,
+#                                  rule_gibbs 0.32, the second dosage of that
+#                                  study's grid. It is reported, not gated.
 #
 # independent75pool4 is their control and is re-run beside them so the
 # contrast is paired within one session. Both perturb arms are PILOT levels,
-# not a confirmatory run of the perturb design.
+# not a confirmatory run of the perturb design; the two rule_gibbs arms are
+# that design's own confirmatory run, its arm B being the first of them.
 #
 # A further arm changes no setting at all, only the seed:
 #
@@ -248,6 +257,36 @@ arms <- list(
       birth = 0.5
     )
   ),
+  independent75pool4ruleGibbsB = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.24,
+      perturb = 0,
+      rule_gibbs = 0.16,
+      birth = 0.5
+    )
+  ),
+  independent75pool4ruleGibbs32 = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.08,
+      perturb = 0,
+      rule_gibbs = 0.32,
+      birth = 0.5
+    )
+  ),
   independent75pool4sham = armSpec(
     "independent",
     75L,
@@ -268,6 +307,8 @@ movesetArms <- c(
   "independent75pool4swap",
   "independent75pool4perturbB",
   "independent75pool4perturbMixed",
+  "independent75pool4ruleGibbsB",
+  "independent75pool4ruleGibbs32",
   "independent75pool4sham"
 )
 armNames <- names(arms)
