@@ -187,8 +187,8 @@ K-forest chain takes its response model from `AmplitudeSpec::family`
 
 The per-model equivalence baseline, SBC verdict and tinytest inventory are
 [9. Per-model evidence](../plans/review-2026-08-24/gate-ledger.md#9-per-model-evidence). Three canonical baselines:
-`equivalence-1e5f80b2.rds` (50 scenarios), `bcf-equivalence-3c81d6df.rds` (12 scenarios) and
-`multinomial-equivalence-4d9a3337.rds` (11 scenarios), all in benchmarks/baselines/MANIFEST.
+`equivalence-643fb617.rds` (50 scenarios), `bcf-equivalence-643fb617.rds` (12 scenarios) and
+`multinomial-equivalence-643fb617.rds` (11 scenarios), all in benchmarks/baselines/MANIFEST.
 
 ## Gaps
 
