@@ -1,6 +1,6 @@
 # perturb: a same-variable cut move
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110); SLICE 3 RUN 2026-09-07: KILL at w = 1, d = 0.16 (d73fb4e0).
 
 A fourth tree kernel that keeps a node's split variable and displaces only its cut, by a small fixed number of grid positions.
 [4.2 A same-variable cut move ("perturb") - the first tree-space candidate](tree-mixing-proposals.md#42-a-same-variable-cut-move-perturb---the-first-tree-space-candidate)
@@ -515,9 +515,30 @@ quoted; 10.4's host was loaded throughout its run and its times carry no claim.
 the shipped four chains at 500 + 500, Trig+poly - over twenty matched pairs, as a PILOT ahead of slice 3 and not its confirmatory
 run ([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)). Summed minimum ESS moves +0.1
 +/- 8.1 against control (t 0.06), against the +8 bar above; RMSE ratio is 1.020 on Trig+poly and 1.030 on Single index. On these
-numbers the kill criterion above would fire. No verdict is recorded here: what slice 3 still owes before one can be are the sham
-arm (control (b) above), the P1 control rung (cell 2 above, re-run at the time slice 3 runs), and the fresh-seed re-run
-[6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally) requires of a flagged cell.
+numbers the kill criterion above would fire.
+
+**Verdict (2026-09-07).** What the pilot owed has now run. The sham arm - control (b), `independent75pool4sham`, the control
+against itself at sampler seeds offset 1000 on the same twenty data seeds - reads summed minimum ESS 14.82 against 12.51, a
+paired difference of -2.3 +/- 9.7 (8 of 20, t -1.07, paired SE 2.17), inside the +8 bar; the bar is four times that paired SE,
+which is 8.7, so +8 is marginally optimistic rather than wrong. The P1 control rung re-ran at 60 fits and reads default
+0.725 (0.682-0.760) held-out, birthdeath 0.709, swap 0.728, identical to
+[10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07),
+so the absolute gate stands. The mandatory fresh-seed re-run
+([6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally)), seeds 21 to 40, 80 fits:
+Trig+poly, the primary, reads summed minimum ESS 16.46 against 14.60, -1.9 +/- 6.5 (9 of 20, t -1.27), per-chain 1.55 against
+1.61 (+0.06, t 0.92), coverage -0.004 +/- 0.009 (t -2.00), RMSE ratio 1.042 (t 3.02), held-out RMSE ratio 1.032 (t 2.36), wall
+ratio 1.041 - it reproduces the pilot's null and sharpens it negative (the pilot read +0.1 +/- 8.1). Every clause of the kill
+criterion is satisfied: twenty matched pairs, twice; wall per sweep at 1.041 sits inside 6.4's 1.05 bar, so the criterion turns
+on ESS alone; the sham control passes inside the bar; the fresh-seed re-run reproduces the flagged null; the P1 gate is in
+force. Arm B does not improve cell 1's summed minimum ESS by more than +8 at either block, and held-out RMSE on the primary
+regresses to 1.032, past
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
+1.02 margin with the one-sided bound excluding the null. **KILL, at `w = 1, d = 0.16`.** Residue, recorded not as survival:
+Single index, ungated, gains +9.5 summed and +0.37 per chain on the fresh block (19 of 20, t 5.35 and t 6.47), with its own
+1.027 RMSE regression (t 6.72) - a gain the pilot's own Single index reading did not show (+1.9, t 0.74 there). Slice 4, a
+nonzero default share, is closed by this kill; the kernel stays in the tree at default weight 0 as an opt-in whose measured
+benefit on the pre-registered cell is nil. Whether it is removed before release is the maintainer's call and is not decided
+here.
 
 ## 6. RNG and baselines
 
@@ -633,9 +654,21 @@ Then, in order:
    reusing the landed four-chain C1 arm. Roughly 400 lines; compute is a day for cell 1 and the sham arm plus the 3 unit fits that
    re-measure cell 3's arm A at `useQuantiles = TRUE` (section 5 cell 3, alternative i). Not startable before prerequisites 2 and 4.
    The verdict is recorded here.
-4. **The default share, if slice 3 passes** - POST-RELEASE, and its gate does not exist. It carries 6.4's second kill clause, which
-   needs plateau prediction error in the noise-heavy or large-n stratum; no cell of slice 3 measures that, and the battery that does
-   is the grow-from-root harm battery
-   ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)), which benchmarks/ does not contain. So
-   slice 4 is not startable until that battery is rebuilt, and rebuilding it is not designed here or anywhere else. A nonzero
-   default is also a stream shift and pays for its own re-record.
+
+   **Run, KILLED** (d73fb4e0, 2026-09-07). `C1-he-hahn.R` gained the sham arm and a `seedBlock` option; cell 1's move-set arms
+   (already landed, ba1fb081) supplied arm B's pilot, and this run supplied the sham arm and the mandatory fresh-seed re-run.
+   Sham (control (b), same data seeds, sampler seeds offset 1000, 40 fits): summed minimum ESS 14.82 against 12.51,
+   -2.3 +/- 9.7 (8/20, t -1.07), inside the +8 bar. P1 house rung re-run (60 fits): default 0.725 (0.682-0.760) held-out,
+   matching [10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07)
+   digit for digit, gate in force. Fresh block (seeds 21 to 40, 80 fits), Trig+poly primary: summed minimum ESS 16.46 against 14.60, -1.9 +/- 6.5 (9/20,
+   t -1.27), wall ratio 1.041, held-out RMSE ratio 1.032 - past 6.4's 1.02 margin, one-sided bound excluding the null;
+   reproduces the pilot's null and sharpens it negative. Single index, ungated: +9.5 summed (19/20, t 5.35), RMSE ratio
+   1.027 (t 6.72), a gain the pilot did not show. Full verdict at
+   [5.3 What arm B must produce, and the kill](#53-what-arm-b-must-produce-and-the-kill).
+4. **The default share - CLOSED by the slice 3 kill (2026-09-07).** Slice 3 did not pass, so there is no benefit result to carry
+   a nonzero default share on; what follows records the shape the question would have taken, for the record only. It would have
+   carried 6.4's second kill clause, which needs plateau prediction error in the noise-heavy or large-n stratum; no cell of
+   slice 3 measured that, and the battery that does is the grow-from-root harm battery
+   ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)), which benchmarks/ does not contain. The
+   kernel stays in the tree at default weight 0, an opt-in whose measured benefit on the pre-registered cell is nil; whether it
+   is removed before release is the maintainer's call and is not decided here.

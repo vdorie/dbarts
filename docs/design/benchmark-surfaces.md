@@ -1790,6 +1790,24 @@ derived 2.0 bound on seven of the eight; the eighth, Single index against
 offsetting seeds rather than a shift in location. This is the calibration
 the +8 bar was set against.
 
+**Sham and fresh-seed re-run (2026-09-07).** perturb-move.md's slice 3 run adds a sham arm, `independent75pool4sham` - the
+control against itself at sampler seeds offset 1000, same twenty data seeds - and a fresh-seed block, seeds 21 to 40, both
+run through [`C1-he-hahn.R`](../../benchmarks/R/surfaces/C1-he-hahn.R)'s new `samplerOffset` and `seedBlock` options. Paired
+differences, mean +/- sd (seeds positive of 20), against each row's own control on its own seeds:
+
+    mean fn      arm                             seeds    d min ESS (sum)             d per-chain min ESS   d 95% coverage                   d RMSE, ratio
+    trigpoly     independent75pool4sham          1-20     -2.3 +/- 9.7 (8/20) t -1.07  -0.04 +/- 0.26        +0.001 +/- 0.009 (13/20)         -0.010 +/- 0.060, ratio 0.991
+    trigpoly     independent75pool4perturbB      21-40    -1.9 +/- 6.5 (9/20) t -1.27  +0.06 +/- 0.28 t 0.92 -0.004 +/- 0.009 (5/20) t -2.00  +0.046 +/- 0.068 t 3.02, ratio 1.042
+    singleindex  independent75pool4perturbB      21-40    +9.5 +/- 8.0 (19/20) t 5.35  +0.37 +/- 0.26 t 6.47 -0.005 +/- 0.011 (6/20)          +0.051 +/- 0.034 t 6.72, ratio 1.027
+
+Held-out RMSE ratio is 0.991 on the sham, 1.032 on the fresh-block Trig+poly contrast (t 2.36) and 1.028 on Single index
+(t 6.27); wall ratio is 0.997, 1.041 and 0.996. The sham's summed minimum ESS, 14.82 against 12.51, sits inside the +8 bar
+and is the harness's own calibration of it. **The fresh block reproduces the pilot's null on Trig+poly**: the pilot's own
++0.1 +/- 8.1 (t 0.06) against the same control, above, sharpens to -1.9 +/- 6.5 (t -1.27) at fresh seeds. It does not
+reproduce on Single index, where the pilot read +1.9 +/- 11.3 (t 0.74) and the fresh block reads +9.5 +/- 8.0 (t 5.35),
+separated from noise. Full verdict at
+[5.3 What arm B must produce, and the kill](perturb-move.md#53-what-arm-b-must-produce-and-the-kill).
+
 Chain overlap, `independent75pool4`: the median over the 25 ESS points of
 the mean pairwise shared-over-spanned interval length is 0.48
 (0.42-0.57) on Trig+poly and 0.58 (0.53-0.63) on Single index; every pair

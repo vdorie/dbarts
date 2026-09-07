@@ -227,8 +227,11 @@ items
     set would help? The move census ran; the same-variable cut redraw
     "perturb" is in the kernel at default weight zero (ab49f83a) with
     its detailed-balance gate (30472110). Its benefit stage (slice 3)
-    and a nonzero default share (slice 4) remain open and
-    decision-gated. Rotation, a Stage R0 generator-only regrow census,
+    has run and killed the move at the pre-registered w = 1, d = 0.16
+    (d73fb4e0): the kernel stays at default weight zero as an opt-in
+    with nil measured benefit, closing slice 4's nonzero default share;
+    whether the opt-in is removed before release is an open maintainer
+    decision. Rotation, a Stage R0 generator-only regrow census,
     the re-specified reallocation census and heated companion chains
     stay unscheduled, alongside the two brainstorm rounds (sec 15,
     16). Durable record docs/design/tree-mixing-proposals.md (ranking

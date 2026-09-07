@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### perturb's benefit stage runs and kills the move at w = 1, d = 0.16 (d73fb4e0, 2026-09-07)
+
+C1-he-hahn.R gains a sham arm (the control against itself at sampler
+seeds offset 1000) and a seedBlock option for a fresh-seed re-run, the
+two things slice 3's pilot flag still owed. Sham, 40 fits: summed
+minimum ESS 14.82 against 12.51, -2.3 +/- 9.7 (8/20, t -1.07), inside
+the +8 bar. P1 house rung re-run, 60 fits: default 0.725 held-out,
+matching 10.8 digit for digit, gate in force. Fresh block, seeds 21 to
+40, 80 fits, Trig+poly primary: summed minimum ESS 16.46 against 14.60,
+-1.9 +/- 6.5 (9/20, t -1.27), wall ratio 1.041 inside 6.4's 1.05,
+held-out RMSE ratio 1.032 past 6.4's 1.02 margin; reproduces the
+pilot's null and sharpens it negative. Every kill clause holds: KILLED
+at w = 1, d = 0.16. Residue: Single index, ungated, gains +9.5 summed
+(t 5.35) with its own 1.027 RMSE regression, a gain the pilot did not
+show. Slice 4 (a nonzero default share) closes; the kernel stays at
+default weight 0. Recorded at perturb-move.md 5.3, 8; benchmark-
+surfaces.md 10.4. Script only, no engine change.
+
 ### P5: the two birth/death-only flags reproduce on fresh seeds (ec2d9d19, 2026-09-07)
 
 benchmarks/R/surfaces/P5-checkerboard.R gains a `block2` seed block (seeds
