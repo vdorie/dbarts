@@ -198,7 +198,7 @@ The per-model equivalence baseline, SBC verdict and tinytest inventory are
 ## Gaps
 
 Candidate work items grouped by what would need to change, not by which model asks; scheduling
-is VD's and the orchestrator's. REFUSED (`R`) cells are absent, being part of the models.
+is VD's. REFUSED (`R`) cells are absent, being part of the models.
 
 | work item | unblocks | pointer |
 |---|---|---|

@@ -554,6 +554,35 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Matrix restructure and the P2 no-swap arm (a3bae0fe, cc2a28f0, 2026-09-06)
+
+Two docs-and-benchmarks landings ahead of the pre-1.0 queue's code items.
+1. P2's null control gained arm C of tree-mixing-proposals.md section
+   14.2 (birth_death 0.6, swap 0, change 0.4). On the duplicated-column
+   null the no-swap arm carries the MEAN root-variable switching (70.8
+   per chain against the default's 78.5, inside its seed range) but 5 of
+   40 chains never switch: each sits on an x3 root with 3 to 4 interior
+   nodes and a child split on x1, a representation no default chain
+   visits; between-chain sd 0.149 against 0.051. Change at such a root is
+   vetoed and swap is the only move that rotates a child's rule up
+   (docs/design/benchmark-surfaces.md, "No-swap arm"). The swap-removal
+   item's precondition - that change alone carries switching - is
+   therefore NOT met on this control; the queue item waits on VD.
+2. docs/design/feature-matrix.md restructured from 745 to 300 lines: a
+   12 x 5 structural-signature table (case weights, sigma, latents,
+   unit-scale transform, test fits; each cell cites the bridge or engine
+   predicate that decides it), a 12 x 2 reach table (xbart, flat C),
+   three prose blocks, Gaps rekeyed by work item with a Not-gaps list,
+   twelve footnotes. The per-model evidence table moved to
+   docs/plans/review-2026-08-24/gate-ledger.md section 9; the matrix
+   keeps the three baseline scenario counts the freshness guard recounts.
+   An independent cell-by-cell verification against the code found one
+   wrong cell (hazard.logistic remaps to logistic, so "as probit" holds
+   only for the probit spellings; f5 says which) and three miscites
+   (hurdle's flat-C footnote, the bcf DART builder, the per-forest mask
+   pointer), all fixed before landing; multinomial's getLatents cell
+   moved from M to R on the recorded decline.
+
 ### Nine rulings on the tour's open items (b7080267 to 58812b7f, 2026-09-03)
 
 VD took the decision points the day's reviews had raised, one at a time,
