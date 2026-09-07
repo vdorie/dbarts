@@ -87,7 +87,8 @@ kTinytest <- function(testFile) {
 ## still encodes the same semantic breakage, though several moved file or
 ## function under refactors - e.g. the BCF glue left chain.hpp for the new
 ## combiner.hpp). m17-m20 extend the battery to R/. m21-m23 are the
-## SURVIVE_DOCUMENTED trio. m24-m25 are the perturb kernel's two poisons.
+## SURVIVE_DOCUMENTED trio. m24-m25 are the perturb kernel's two poisons and
+## m26-m27 the rule_gibbs kernel's.
 
 mutations <- list(
   mk(
@@ -450,6 +451,35 @@ mutations <- list(
     "KILL_EXPECTED",
     kScript("benchmarks/R/perturb-balance.R"),
     "poison 25: perturb move's window made one-sided (+w only), so every proposal is c -> c+1 and the cut is absorbed at the top of the interval"
+  ),
+
+  mk(
+    "m26",
+    "src/bartcore/moves.hpp",
+    paste0(
+      "        double below =\n",
+      "          std::log(1.0 -\n",
+      "                   ctx.treePrior.growthProbability(tree, data, leftChild)) +\n",
+      "          std::log(1.0 - ctx.treePrior.growthProbability(tree, data,\n",
+      "                                                         leftChild + 1));"
+    ),
+    "        double below = 0.0;",
+    "KILL_EXPECTED",
+    kScript("benchmarks/R/rule-gibbs-balance.R"),
+    "poison 26: rule_gibbs neighbourhood weights lose the two log(1 - growth(child)) terms, so a candidate that strands a grandchild is no longer favoured"
+  ),
+
+  mk(
+    "m27",
+    "src/bartcore/moves.hpp",
+    paste0(
+      "    double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -\n",
+      "                          (doubled ? std::log(2.0) : 0.0);"
+    ),
+    "    double logRulePrior = (doubled ? -std::log(2.0) : 0.0);",
+    "KILL_EXPECTED",
+    kScript("benchmarks/R/rule-gibbs-balance.R"),
+    "poison 27: rule_gibbs neighbourhood weights lose the 1/|SI_v| rule factor, the low-cardinality bias change-balance.R's own gate repaired"
   )
 )
 names(mutations) <- vapply(mutations, `[[`, character(1), "id")
