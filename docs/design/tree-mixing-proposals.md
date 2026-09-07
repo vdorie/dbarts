@@ -1382,6 +1382,173 @@ proposals, change acceptance against node depth, and the
 displacement-versus-acceptance curve - remain unmeasured; none of them
 falls out of a counter at the veto call site.
 
+**Addendum (2026-09-07): the census ran, and the other three bullets are
+now measured.** Instrumentation that survives in the tree -
+[`cutProbe`](../../src/bartcore/moves.hpp) and the hooks around it, compiled
+only under a macro - records one line per structural proposal, and the runner
+[`runCell`](../../benchmarks/R/move-census.R) fits this section's four cells:
+Friedman n = 5000, p = 10, m = 75 at sigma = 1 (`default`) and at
+sigma^2 = 0.1 (`lownoise`); Friedman p = 50 with 45 noise columns (`wide`);
+and the causal-forest cell (`bcf`), two forests with the prognostic surface
+standardized to 8 sigma, which is the strong-|a| regime
+[Burn-in under strong prognostic signal (2026-07-10)](bcf.md#burn-in-under-strong-prognostic-signal-2026-07-10)
+records. Every cell ran 200 burn plus 500 sampled sweeps, one chain, one
+thread, fixed seeds: 52500 proposals per single-forest cell, 87500 for BCF,
+whose treatment forest carries 50 trees to the mean forest's 75. Sampling
+takes 2.2 to 3.1 seconds per cell. Every table below is the 500 SAMPLED
+sweeps; the burn column is acceptance per proposal over the 200 burn-in
+sweeps, which is higher than the sampled rate in every cell pooled and in
+every move but `default`'s swap.
+
+Per move: proposals made, the share that never reached a score, and
+acceptance on both denominators (percent).
+
+    cell      move   proposals  no-op  accept  scored  burn
+    default   birth       9613   0.00   10.05   10.05  14.95
+              change     14736   2.72    4.07    4.19   5.98
+              death       9403   0.00   10.24   10.24  12.59
+              swap        3748  71.48    4.30   15.06   3.18
+              all        37500   8.21    7.17    7.82   9.62
+    lownoise  birth       9483   0.00    5.25    5.25  13.85
+              change     14819   0.39    1.61    1.62   4.64
+              death       9518   0.00    5.04    5.04   8.78
+              swap        3680  70.14    1.71    5.73   2.71
+              all        37500   7.04    3.41    3.67   7.77
+    wide      birth       9886   0.00   11.64   11.64  21.88
+              change     15079   4.99    5.37    5.65  12.66
+              death       8826   0.00   12.70   12.70  25.26
+              swap        3709  74.55    2.10    8.26   5.09
+              all        37500   9.38    8.43    9.30  17.16
+    bcf       birth      20985   0.00    5.91    5.91   9.58
+              change     24948  34.32    2.80    4.27   4.63
+              death      10361   0.00   11.84   11.84  15.29
+              swap        6206  76.97    1.77    7.70   2.23
+              all        62500  21.34    5.24    6.67   7.82
+
+Swap's no-op share, 70 to 77 percent, reproduces the 73.0 percent the
+2026-09-06 counts recorded. Change's no-ops are stumps rather than
+unsatisfiable draws - 97 percent of them at `default` are trees with no
+interior node to change - and BCF's 34.32 percent belongs to the treatment
+forest alone: 8454 of that cell's 8562 change no-ops are forest 1, every one
+a stump, which its shallow prior leaves common. The pooled rate, 7.17
+percent at `default` against the 18.61 percent recorded at n = 2000 with
+200 trees, moves with n and with the tree count in the direction that
+record's own rows already show (18.61 at n = 2000, 10.92 at n = 10000,
+9.63 at 50 trees).
+
+The log-likelihood difference among REJECTED proposals, in log units.
+Quantiles and shares are over the finite differences; the veto's -Inf, which
+pooled over the moves is 0.07 to 0.25 percent of a cell's rejections, is
+excluded from both.
+
+    cell      move    rejected      q05      q25     q50    q75
+    default   birth       8647    -3.33    -2.85   -2.33  -1.66
+              change     13735  -402.60  -136.88  -56.61 -22.35
+              death       8440  -342.32  -104.92  -43.00 -17.36
+              swap         908  -335.04   -53.61  -22.53  -5.92
+              all        31730  -307.19   -85.09  -25.78  -2.98
+    lownoise  birth       8985    -3.98    -3.43   -2.81  -2.10
+              change     14522 -1073.72  -330.77 -135.19 -52.47
+              death       9038  -526.13  -182.60  -76.02 -27.71
+              swap        1036  -727.59  -200.17  -79.03 -30.10
+              all        33581  -677.65  -187.96  -54.87  -3.78
+    wide      birth       8735    -3.38    -2.92   -2.43  -1.78
+              change     13516  -351.32  -152.60  -80.14 -28.61
+              death       7705  -282.57  -126.46  -65.04 -23.07
+              swap         866  -246.36  -116.90  -34.75 -14.01
+              all        30822  -277.43  -109.35  -32.70  -2.96
+    bcf       birth      19744    -3.43    -2.98   -2.48  -1.74
+              change     15687  -364.85  -160.31  -71.97 -27.76
+              death       9134  -272.86  -111.78  -47.55 -19.87
+              swap        1319  -306.78  -106.15  -41.19 -13.86
+              all        45884  -262.38   -74.99   -9.84  -2.59
+
+Share of those rejections within 1, 2 and 5 log units of zero (percent).
+
+    cell        birth              change      death       swap
+                1     2     5      1    2   5   1    2   5   1     2     5
+    default   9.75 36.43 99.98  0.78 2.00 6.27 1.20 2.51 7.97 4.19 10.58 22.05
+    lownoise  5.50 22.32 99.94  0.27 0.70 2.27 0.03 0.30 3.78 1.35  3.29  8.02
+    wide      8.40 31.80 99.98  1.05 2.92 7.18 1.53 3.27 7.24 1.73  5.20 11.66
+    bcf      10.14 32.06 99.83  0.85 1.99 5.53 0.34 0.92 5.35 1.67  4.10 12.06
+
+Pooled over the four move types the shares are 3.43 / 11.76 / 32.69 percent
+at `default`, 1.64 / 6.44 / 28.93 at `lownoise`, 3.27 / 11.25 / 33.60 at
+`wide` and 4.77 / 14.76 / 46.23 at `bcf`.
+
+Change proposals and acceptances by the depth of the node whose rule is
+redrawn, scored proposals only. Depth is the target node's own depth; these
+trees reach depth 5.
+
+    cell      depth  proposals  accepted  accept
+    default       0       9869       287    2.91
+                  1       3483       238    6.83
+                  2        795        60    7.55
+                  3        152        14    9.21
+                  4         35         0    0.00
+                  5          1         1  100.00
+    lownoise      0       7237        37    0.51
+                  1       4906        97    1.98
+                  2       1873        73    3.90
+                  3        653        26    3.98
+                  4         84         5    5.95
+                  5          8         1   12.50
+    wide          0      11152       489    4.38
+                  1       2482       264   10.64
+                  2        542        53    9.78
+                  3        149         3    2.01
+                  4          1         1  100.00
+    bcf           0      10093       291    2.88
+                  1       4348       255    5.86
+                  2       1474       107    7.26
+                  3        401        44   10.97
+                  4         70         2    2.86
+
+The same-variable cut move, priced but never run: at each interior node a
+change proposal visited, the MH log ratio the move would have had with the
+variable held and the cut displaced, evaluated on a snapshot that is
+restored exactly and with no draw of its own. Acceptance is
+mean min(1, exp(log ratio)) over the probes at that displacement; the two
+signs are pooled by magnitude and are within a few hundred probes of each
+other everywhere.
+
+    cell      |1|   |2|   |4|   |8|   probes at |1|  median log ratio at |1|
+    default  38.34 23.76 12.46  7.69          28578                    -1.83
+    lownoise 26.43 14.75  6.88  3.83          29201                    -4.44
+    wide     47.50 30.74 17.40 10.20          28514                    -1.04
+    bcf      34.08 21.02 10.91  7.17          32439                    -2.40
+
+Magnitudes 3, 5, 6 and 7 also appear, at 139 to 1140 probes against ~28000
+for each power of two, because a requested displacement is clipped to the
+node's descendant-valid interval. They come only from nodes whose interval
+is narrower than the step asked for, so they are a biased subsample and are
+not comparable to the unclipped magnitudes.
+
+**Reading, against section 7's fork.** The rejected differences do not
+answer as one distribution: birth's are small - median -2.33 log units at
+`default`, and 99.98 percent of them within 5 - while change, death and swap
+are large, change's median -56.61 at `default` and -135.19 at `lownoise`
+with 0.78 and 0.27 percent within one log unit. Lowering the noise moves
+every stream further out and birth's least. Change acceptance does not fall
+with the depth of the node whose rule is redrawn: it rises from depth 0 to
+depth 1 in every cell - 2.91 to 6.83 percent at `default`, 0.51 to 1.98 at
+`lownoise`, 4.38 to 10.64 at `wide`, 2.88 to 5.86 at `bcf` - and keeps
+rising to depth 3 in three of them, falling back at `wide`'s depth 3 on 149
+proposals; depth 4 and below carries 84 proposals or fewer in every cell and
+cannot be read. What concentrates at depth 0 is the proposal mass, 69
+percent of scored change proposals at `default`, since most interior nodes
+are the root. Within the depths these trees reach, that is the opposite sign
+to the one section 3.3 predicts, and it leaves 3.3 untested below depth 5. A
+cut displacement of one position sits in the 25 to 50 percent band in every
+cell (38.34, 26.43, 47.50, 34.08); two positions holds only at `wide`
+(23.76, 14.75, 30.74, 21.02).
+
+The census build is not the shipped one: the instrumentation compiles only
+under `-DBARTCORE_MOVE_CENSUS`, which reaches the compile through a user
+Makevars appending to `CPPFLAGS` under `R_MAKEVARS_USER`, installed to a
+private library so the ordinary one is untouched. The runner's header
+carries the exact commands and the record format.
+
 ### 6.2 Stage 1 - correctness (`perturb-balance.R`, new)
 
 A per-kernel exact-posterior gate on the **within-variable cut

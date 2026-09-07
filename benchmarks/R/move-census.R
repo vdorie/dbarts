@@ -354,12 +354,15 @@ summarizeCell <- function(dir, cell) {
     format(nrow(p), big.mark = ","),
     " proposals, ",
     length(unique(p$forest)),
-    " forest(s), burn-in ",
-    "acceptance ",
-    round(100 * mean(p$accepted[!sampled] == 1L), 2),
-    "%)\n",
+    " forest(s), ",
+    sum(!sampled),
+    " burn-in and ",
+    sum(sampled),
+    " sampled)\n",
     sep = ""
   )
+  cat("\nper move, burn-in sweeps:\n")
+  print(roundFrame(moveTable(p[!sampled, ]), 2L), row.names = FALSE)
   p <- p[sampled, ]
   d <- d[d$sweep >= nBurn, ]
 

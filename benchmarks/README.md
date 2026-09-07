@@ -110,6 +110,23 @@ the settings guard refuses to compare them against a `quick` run. Contrast the
 STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the
 nominal level and stay schedule / workflow_dispatch only.
 
+## R/move-census.R - the move census (measurement, not a gate)
+
+Stage 0 of the tree-mixing falsifier (docs/design/tree-mixing-proposals.md
+section 6.1): per-move acceptance on both denominators, the log-likelihood
+difference among rejected structural proposals, change acceptance by node
+depth, and the acceptance a same-variable cut move would have had at a
+schedule of cut displacements. It reports; it never fails.
+
+Unlike everything else here it needs a SPECIAL BUILD, because the records
+come from scaffolding in the move kernels that compiles only under
+-DBARTCORE_MOVE_CENSUS. The script's header carries the install commands and
+the record format; the flag rides CPPFLAGS through R_MAKEVARS_USER and the
+build goes to a private library, so the ordinary one is untouched.
+
+    Rscript benchmarks/R/move-census.R                 # run, then summarize
+    Rscript benchmarks/R/move-census.R summarize DIR   # existing files
+
 ## tests/cpp - bartcore component tests
 
 C++-level exact tests of the new engine's math against independently coded
