@@ -1329,6 +1329,24 @@ four-value grid: with continuous duplicates a rule-changing proposal has to
 hit the twin column at the same cut out of the whole grid, which makes the
 switch rare for a reason unrelated to the kernel.
 
+**No-swap arm.** Arm C of
+[[docs/design/tree-mixing-proposals.md#14.2 Design]] (birth_death 0.6,
+swap 0, change 0.4, birth 0.5) was added to this cell and run on the same
+five seeds. Null control, pooled p(root x1), switches per chain (min-max),
+minimum switches, between-chain sd, chains parked off the pair (of 40):
+default 0.499 (0.481-0.512), 78.5 (70.2-85.0), 38, 0.051 (0.017-0.075), 0;
+birth/death only 0.425 (0.125-0.625), 0.0 (0.0-0.0), 0, 0.492 (0.354-0.535),
+12; no-swap 0.457 (0.359-0.555), 70.8 (57.9-81.2), 0, 0.149 (0.036-0.251), 5.
+No-swap's mean switches per chain falls inside the default's seed-to-seed
+range, but 5 of its 40 chains never switch at all: every one sits at an x3
+root with 3 to 4 interior nodes and a child already split on x1, a
+representation no default chain ever visits. Change at an x3 root is vetoed
+once a child splits on x1, and death of that child loses the signal rather
+than returning it to the root ([[src/bartcore/moves.hpp#changeMove]]); swap
+is the only move that rotates a child's rule up to the root
+([[src/bartcore/moves.hpp#swapMove]]). On this null control change alone
+does not carry representation switching; swap does the rule rotation.
+
 ### 10.2 P6, the diagonal shelf with targeted selection
 
 200 replications, n = 250, true effect -1, shipped defaults, ATE read off

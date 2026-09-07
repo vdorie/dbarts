@@ -21,11 +21,12 @@
 # with no thinning one kept draw is one sweep, so the tree structure differs
 # from the previous draw's exactly when a structural move was accepted.
 #
-# Two arms on matched seeds, both reachable at runtime through
+# Three arms on matched seeds, all reachable at runtime through
 # proposal.probs, so the contrast costs a grid of fits and nothing else:
 #
 #   default        birth_death 0.5, swap 0.1, change 0.4, birth 0.5
 #   birth/death    birth_death 1.0, swap 0.0, change 0.0, birth 0.5
+#   noswap         birth_death 0.6, swap 0.0, change 0.4, birth 0.5
 #
 # The duplicate-column design is the null control the battery requires
 # alongside this cell: two exactly identical predictor columns, where the
@@ -54,7 +55,8 @@ nSamples <- if (quick) 500L else 2000L
 
 arms <- list(
   default = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-  birthdeath = c(birth_death = 1, swap = 0, change = 0, birth = 0.5)
+  birthdeath = c(birth_death = 1, swap = 0, change = 0, birth = 0.5),
+  noswap = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
 )
 
 designs <- list(
@@ -103,6 +105,10 @@ for (designName in names(designs)) {
           fractionFirst = mean(v == pair[1L]),
           fractionSecond = mean(v == pair[2L]),
           fractionStump = mean(v == -1L),
+          # Share of draws rooted on a variable outside the confounded (or
+          # duplicated) pair and off the stump: a chain parked here holds a
+          # root representation neither pair statistic above can see.
+          fractionOffPair = mean(!(v %in% pair) & v != -1L),
           shareFirstGivenPair = if (any(onPair)) {
             mean(v[onPair] == pair[1L])
           } else {
@@ -125,6 +131,8 @@ for (designName in names(designs)) {
         maxChainFirst = max(perChain$fractionFirst),
         minSwitches = min(perChain$switches),
         meanSwitches = mean(perChain$switches),
+        meanOffPair = mean(perChain$fractionOffPair),
+        chainsOffPair = sum(perChain$fractionOffPair > 0.5),
         meanDistinctRoots = mean(perChain$distinctRoots),
         acceptanceProxy = surfacesStructureChangeRate(trees),
         wall = elapsed,
@@ -146,27 +154,31 @@ results <- do.call(rbind, rows)
 
 surfacesHeader("P2 confounded step: mean over seeds (min-max)")
 cat(sprintf(
-  "%-11s %-11s %-20s %-20s %-22s %-16s %s\n",
+  "%-11s %-11s %-20s %-20s %-22s %-16s %-14s %-20s %s\n",
   "design",
   "arm",
   "between-chain sd",
   "pooled p(root x1)",
   "acceptance proxy",
   "root switches",
-  "min switches"
+  "min switches",
+  "root off pair",
+  "chains off pair"
 ))
 for (designName in names(designs)) {
   for (armName in names(arms)) {
     keep <- results$design == designName & results$arm == armName
     cat(sprintf(
-      "%-11s %-11s %-20s %-20s %-22s %-16s %d\n",
+      "%-11s %-11s %-20s %-20s %-22s %-16s %-14d %-20s %d\n",
       designName,
       armName,
       surfacesRange(results$betweenChainSd[keep]),
       surfacesRange(results$pooledFirst[keep]),
       surfacesRange(results$acceptanceProxy[keep], digits = 4L),
       surfacesRange(results$meanSwitches[keep], digits = 1L),
-      min(results$minSwitches[keep])
+      min(results$minSwitches[keep]),
+      surfacesRange(results$meanOffPair[keep], digits = 3L),
+      sum(results$chainsOffPair[keep])
     ))
   }
 }
@@ -174,18 +186,24 @@ for (designName in names(designs)) {
 surfacesHeader("published reference")
 cat("Pratola 2016 sec 2.3: acceptance rate of tree moves 0 at m = 1\n")
 cat("symmetry oracle: pooled share on x1 among {x1, x3} draws = 0.5\n")
+armShares <- vapply(
+  names(arms),
+  function(armName) {
+    sprintf(
+      "%s (%s)",
+      surfacesRange(
+        results$pooledShareGivenPair[
+          results$design == "confounded" & results$arm == armName
+        ]
+      ),
+      armName
+    )
+  },
+  character(1L)
+)
 cat(sprintf(
-  "measured share on x1 given the pair, confounded design: %s (default), %s (birth/death)\n",
-  surfacesRange(
-    results$pooledShareGivenPair[
-      results$design == "confounded" & results$arm == "default"
-    ]
-  ),
-  surfacesRange(
-    results$pooledShareGivenPair[
-      results$design == "confounded" & results$arm == "birthdeath"
-    ]
-  )
+  "measured share on x1 given the pair, confounded design: %s\n",
+  paste(armShares, collapse = ", ")
 ))
 
 surfacesUptime("uptime after")
