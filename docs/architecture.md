@@ -217,7 +217,13 @@ that rotates a child's rule up the tree, so a single-tree fit wanting to
 cross between rootings sets it positive through `proposal.probs`. Perturb
 displaces one interior node's ordinal cut by a single grid position, keeping
 its split variable and the tree's shape; it ships at zero pending a benefit
-measurement (docs/design/perturb-move.md).
+measurement (docs/design/perturb-move.md). All four structural probabilities
+exactly zero freezes the structures: [`Chain::run`](../src/bartcore/chain.hpp)
+reads [`structureIsFrozen`](../src/bartcore/moves.hpp) once per forest and
+skips `metropolisJumpForTree` for every tree of the mean and variance
+forests, so no move is proposed and none of its randomness is drawn, while
+leaf values, sigma and the family's latents keep sampling - a fitted forest
+re-sampled as a fixed basis.
 
 Every candidate branch's empty-leaf veto is ranked
 (`Tree::leafVetoRank`, [`resolveVetoRank`](../src/bartcore/moves.hpp)): rank 2 is

@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### A frozen proposal mixture, and how much of C1's ESS is the leaf half (08fe426a + 545fc741, 2026-09-07)
+
+All four structural probabilities exactly zero is now legal and freezes
+the tree structures: Chain::run skips metropolisJumpForTree for every
+tree of the mean and variance forests while leaf values, sigma and the
+family's latents keep updating. The R validity, the bridge's sum check,
+the BCF two-forest path and a monotone constraint all treat it correctly;
+Rd text, a NEWS item, testFrozenForest and test-proposal-probs.R; every
+non-frozen mixture stays bitwise unchanged.
+benchmarks/R/surfaces/C1-frozen-ess.R uses the freeze to split C1's
+autocorrelation: at the recorded 75-tree independent arm's median point
+the deficit is structural (ESS 14.9 to about 670 of 2500 frozen), at its
+worst point it is the leaf Gibbs itself (1.6 to 4-21) - recorded at
+benchmark-surfaces.md sec 10.4 and tree-mixing-proposals.md sec 16.3 row
+1 and sec 16.6. Gates: tests/cpp 280, ASAN/UBSAN clean; tinytest 7626/0;
+equivalence 50/12/11; lint 0; as-cran OK 0 notes; NEWS 297; API hash
+unchanged.
+
 ### The cross-chain exchange priced generator-only at m = 75 (c7f5c7c1, 2026-09-07)
 
 benchmarks/R/surfaces/C1-cross-chain-probe.R runs eight chains in one

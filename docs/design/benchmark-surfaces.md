@@ -1677,6 +1677,36 @@ the mean pairwise shared-over-spanned interval length is 0.48
 of chains overlaps at every point of every seed. Host load ran 9 to 67
 throughout, so these wall times carry no timing claim either.
 
+**Frozen-structure ESS (2026-09-07).**
+[`C1-frozen-ess.R`](../../benchmarks/R/surfaces/C1-frozen-ess.R) separates
+the leaf half of the kernel from the structural half on the recorded C1 arm
+(Trig+poly, independent design, n = 10000, 75 trees, one chain, 1000
+burn-in and 2500 kept): at the first five seeds, the structural chain's own
+25-point minimum and median ESS and median lag-1 autocorrelation, against a
+chain frozen (all four structural probabilities zero) at the last kept
+draw and, separately, at the 1250th, then run for 2500 further draws with
+no burn-in of its own. Each cell is minimum ESS / median ESS / median
+lag-1 autocorrelation.
+
+    seed    structural                 frozen at 2500              frozen at 1250
+    1       1.2 / 10.8 / 0.71          19.6 / 841.9 / 0.32         4.1 / 794.9 / 0.39
+    2       1.8 / 14.9 / 0.70          5.5 / 694.1 / 0.38          3.1 / 580.8 / 0.30
+    3       1.9 / 16.2 / 0.68          25.1 / 623.3 / 0.33         4.2 / 532.6 / 0.40
+    4       1.6 / 6.1 / 0.72           21.2 / 710.6 / 0.34         160.8 / 723.4 / 0.41
+    5       1.4 / 28.2 / 0.63          162.7 / 603.3 / 0.37        81.3 / 646.8 / 0.45
+    median  1.6 / 14.9 / 0.70          21.2 / 694.1 / 0.34         4.2 / 646.8 / 0.40
+
+At a typical point the deficit is overwhelmingly structural: median-point
+ESS rises from 14.9 unfrozen to about 670 of 2500 frozen, and the lag-1
+autocorrelation drops from 0.70 to 0.34-0.40. At the worst point it is not:
+minimum ESS rises only from 1.6 to 4-21, still three orders below the 2500
+kept, and the worst frozen point carries two to three times the median
+posterior spread, so the leaf Gibbs itself is slow at that coordinate and
+[16.3 Ranking](tree-mixing-proposals.md#163-ranking)'s row 1 (the exact draw
+on the level fibre) bears on the ranked (minimum-ESS) statistic rather than
+the typical one. The two frozen start points agree in order of magnitude
+throughout.
+
 ### 10.5 What the four cells say about the kernel that was measured
 
 Facts only, against the rule in section 6.1.
