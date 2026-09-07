@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (31 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (32 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -18,6 +18,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | bcf-cross-host.md | LANDED 3f532af2, 2026-08-26 | Adds a `--cross-host` compare mode to the bcf and multinomial equivalence harnesses, gating cross-platform draws under a two-tier verdict (a tight bound as the real gate, a weaker statistical fallback labeled as such). |
+| bcf-latent-evidence.md | PROPOSED, 2026-09-07 | Extends the BCF calibration and exactness evidence to the probit and logistic sub-families: two SBC arms whose burn and matrix admission are earned from a repriced ladder rather than inherited, and an adaptive-quadrature exact-posterior gate over a two-cell design whose single-tree forests carry at most two leaves, with an aggregated arm for logistic trial counts. |
 
 ## Forest / multi-forest infrastructure
 
