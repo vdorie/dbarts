@@ -87,7 +87,7 @@ kTinytest <- function(testFile) {
 ## still encodes the same semantic breakage, though several moved file or
 ## function under refactors - e.g. the BCF glue left chain.hpp for the new
 ## combiner.hpp). m17-m20 extend the battery to R/. m21-m23 are the
-## SURVIVE_DOCUMENTED trio.
+## SURVIVE_DOCUMENTED trio. m24-m25 are the perturb kernel's two poisons.
 
 mutations <- list(
   mk(
@@ -419,6 +419,37 @@ mutations <- list(
     "SURVIVE_DOCUMENTED",
     c(kCpp(), kTinytest("inst/tinytest/test-warm-start.R")),
     "P7 readWarmStartState cluster (R_interface_bartcore.cpp:6709): a wrong-length k in a warm-start donor forest is silently truncated to its first element instead of refused"
+  ),
+
+  ## m24-m25 are the perturb kernel's two poisons: the whole Hastings term of a
+  ## cut displacement is the window ratio, which fires only at the ends of the
+  ## descendant-valid interval, so both defects are invisible in the middle of
+  ## it and only the cut-law gate reads them.
+
+  mk(
+    "m24",
+    "src/bartcore/moves.hpp",
+    paste0(
+      "  int32_t reverseCount = std::min(upper, target + perturbWidth) -\n",
+      "                         std::max(lower, target - perturbWidth);\n",
+      "  double logProposalCorrection =\n",
+      "    std::log(static_cast<double>(forwardCount)) -\n",
+      "    std::log(static_cast<double>(reverseCount));"
+    ),
+    "  double logProposalCorrection = 0.0;",
+    "KILL_EXPECTED",
+    kScript("benchmarks/R/perturb-balance.R"),
+    "poison 24: perturb move's window proposal correction dropped; the uncorrected chain is reversible for pi(c)|W(c)| and the boundary cuts starve"
+  ),
+
+  mk(
+    "m25",
+    "src/bartcore/moves.hpp",
+    "  int32_t forwardLow = std::max(lower, current - perturbWidth);",
+    "  int32_t forwardLow = current;",
+    "KILL_EXPECTED",
+    kScript("benchmarks/R/perturb-balance.R"),
+    "poison 25: perturb move's window made one-sided (+w only), so every proposal is c -> c+1 and the cut is absorbed at the top of the interval"
   )
 )
 names(mutations) <- vapply(mutations, `[[`, character(1), "id")
