@@ -511,6 +511,14 @@ arm needs, which the confirmatory run avoids by fixing `w = 1`. Compute is uncha
 pairs of four-chain fits at 500 + 500, the sham arm is 20 more, and cell 3's re-measurement of arm A is 3. No per-fit time is
 quoted; 10.4's host was loaded throughout its run and its times carry no claim.
 
+**Pilot measurement (2026-09-07).** Arm B has now been measured on cell 1 at the pre-registered configuration - `w = 1, d = 0.16`,
+the shipped four chains at 500 + 500, Trig+poly - over twenty matched pairs, as a PILOT ahead of slice 3 and not its confirmatory
+run ([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)). Summed minimum ESS moves +0.1
++/- 8.1 against control (t 0.06), against the +8 bar above; RMSE ratio is 1.020 on Trig+poly and 1.030 on Single index. On these
+numbers the kill criterion above would fire. No verdict is recorded here: what slice 3 still owes before one can be are the sham
+arm (control (b) above), the P1 control rung (cell 2 above, re-run at the time slice 3 runs), and the fresh-seed re-run
+[6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally) requires of a flagged cell.
+
 ## 6. RNG and baselines
 
 The restored dispatch is `if (u < bd) ... else if (u < bd + swap) ... else change`

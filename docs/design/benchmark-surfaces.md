@@ -1603,6 +1603,80 @@ change has to move on this cell is the per-chain ESS. The host carried a
 1-minute load of 8 to 15 throughout, so the wall times in the script's
 output carry no timing claim.
 
+**Move-set arms in the four-chain configuration (2026-09-07).** Four
+further arms hold the shipped four-chain configuration fixed and vary only
+`proposal.probs`, re-reading
+[13. Move-set A/B (2026-09-06)](tree-mixing-proposals.md#13-move-set-ab-2026-09-06)'s
+contrast at the chain count that ships rather than at that grid's one
+chain: `independent75pool4bd` (birth_death 1, birth/death only),
+`independent75pool4swap` (birth_death 0.5, swap 0.1, change 0.4, the
+former default), `independent75pool4perturbMixed` (birth_death 0.5, change
+0.34, perturb 0.16, the 0.16 taken from change and birth/death both) and
+`independent75pool4perturbB`
+([5.2 Arms, dosage, and cells](perturb-move.md#52-arms-dosage-and-cells)'s
+own arm B, birth_death 0.6, change 0.24, perturb 0.16 at `w = 1, d =
+0.16`, the 0.16 taken from change alone). `independent75pool4` is re-run
+in the same session as their paired control and reproduces the Chain
+configuration paragraph's own row digit for digit. Twenty matched seeds,
+both mean functions; columns as above.
+
+    mean fn      arm                             95% coverage        length  RMSE   min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              0.961(0.945-0.977)  4.61    1.12   15(8-31)        2(1-2)     0.78
+    trigpoly     independent75pool4bd            0.963(0.950-0.978)  4.98    1.20   15(7-30)        1(1-2)     0.81
+    trigpoly     independent75pool4swap          0.958(0.935-0.974)  4.70    1.18   14(7-23)        1(1-2)     0.81
+    trigpoly     independent75pool4perturbMixed  0.959(0.936-0.974)  4.63    1.14   18(6-32)        2(1-2)     0.67
+    trigpoly     independent75pool4perturbB      0.962(0.948-0.977)  4.66    1.14   15(9-24)        2(1-2)     0.67
+    singleindex  independent75pool4              0.895(0.878-0.915)  6.45    1.92   21(9-32)        2(1-2)     0.68
+    singleindex  independent75pool4bd            0.905(0.892-0.924)  6.56    1.88   19(10-28)       2(1-2)     0.74
+    singleindex  independent75pool4swap          0.894(0.864-0.913)  6.45    1.92   16(9-35)        2(1-2)     0.67
+    singleindex  independent75pool4perturbMixed  0.888(0.859-0.913)  6.42    1.98   20(10-32)       2(2-3)     0.49
+    singleindex  independent75pool4perturbB      0.889(0.856-0.912)  6.44    1.98   23(8-36)        2(1-3)     0.50
+
+Paired differences against `independent75pool4`, mean +/- sd (seeds
+positive of 20); a t is given only where it separates.
+
+    mean fn      arm                             d min ESS (sum)              d 95% coverage                 d RMSE
+    trigpoly     independent75pool4bd            -0.0 +/- 8.4 (10/20)         +0.002 +/- 0.008 (12/20)       +0.083 +/- 0.099 (16/20)
+    trigpoly     independent75pool4swap          -0.6 +/- 9.2 (11/20)         -0.003 +/- 0.009 (6/20)        +0.062 +/- 0.133 (15/20)
+    trigpoly     independent75pool4perturbMixed  +3.1 +/- 8.7 (12/20) t 1.57  -0.002 +/- 0.008 (9/20)        +0.023 +/- 0.077 (12/20)
+    trigpoly     independent75pool4perturbB      +0.1 +/- 8.1 (12/20) t 0.06  +0.001 +/- 0.007 (10/20) t 0.43 +0.023 +/- 0.069 (14/20) t 1.45, ratio 1.020
+    singleindex  independent75pool4bd            -2.1 +/- 8.6 (10/20)         +0.010 +/- 0.009 (18/20) t 5.2 -0.041 +/- 0.036 (3/20) t -5.0, ratio 0.979
+    singleindex  independent75pool4swap          -4.3 +/- 8.4 (7/20)          -0.000 +/- 0.010 (8/20)        +0.004 +/- 0.025 (13/20)
+    singleindex  independent75pool4perturbMixed  -0.5 +/- 9.6 (12/20)         -0.007 +/- 0.010 (4/20) t -2.9 +0.057 +/- 0.035 (20/20) t 7.2, ratio 1.030
+    singleindex  independent75pool4perturbB      +1.9 +/- 11.3 (10/20) t 0.74 -0.006 +/- 0.010 (7/20) t -2.71 +0.058 +/- 0.034 (19/20) t 7.63, ratio 1.030
+
+[13.5 What separated and what did not](tree-mixing-proposals.md#135-what-separated-and-what-did-not)'s
+null - no move set separates from another - reproduces inside this
+battery on its own primary cell and statistic: neither birth/death-only
+nor the former swap default moves summed minimum ESS on Trig+poly (t
+about 0 and -0.3). The two secondaries that do clear
+[6.4 What "no regression on the core" means numerically](#64-what-no-regression-on-the-core-means-numerically)'s
+margin both sit on the ungated Single index: birth/death-only is better, coverage
++0.010 (t 5.2) and RMSE ratio 0.979 (t -5.0); both perturb arms are
+worse, RMSE ratio 1.030 on Single index (t 7.2 Mixed, t 7.63 B), with
+Trig+poly close behind at a ratio of 1.020 for B (t 1.45). The two perturb
+arms land at the same Single index ratio whichever move the 0.16 share is
+drawn from - change alone for B, change and birth/death both for Mixed -
+so the penalty reads as the size of the discarded share, not its source.
+Both perturb arms also pull the between-chain ratio down without buying
+ESS: 0.67 and 0.50 against the control's 0.78 and 0.68, while their own
+summed minimum ESS differences from control (+3.1 and +0.1 on Trig+poly,
+-0.5 and +1.9 on Single index) stay inside noise.
+
+The paired standard error of summed minimum ESS runs 1.8 to 2.5 across
+the eight cells above, at or below
+[5.1 The chain configuration, and what it makes the primary statistic](perturb-move.md#51-the-chain-configuration-and-what-it-makes-the-primary-statistic)'s
+derived 2.0 bound on seven of the eight; the eighth, Single index against
+`independent75pool4perturbB`, reads 2.5, above the bound, off two large
+offsetting seeds rather than a shift in location. This is the calibration
+the +8 bar was set against.
+
+Chain overlap, `independent75pool4`: the median over the 25 ESS points of
+the mean pairwise shared-over-spanned interval length is 0.48
+(0.42-0.57) on Trig+poly and 0.58 (0.53-0.63) on Single index; every pair
+of chains overlaps at every point of every seed. Host load ran 9 to 67
+throughout, so these wall times carry no timing claim either.
+
 ### 10.5 What the four cells say about the kernel that was measured
 
 Facts only, against the rule in section 6.1.

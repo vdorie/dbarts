@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### C1 move-set arms measured at the four-chain configuration (ba1fb081, 2026-09-07)
+
+Four arms added to benchmarks/R/surfaces/C1-he-hahn.R hold the shipped
+four-chain configuration fixed and vary only proposal.probs: birth/death
+only, the former swap default, and two perturb mixtures at the design's
+own w = 1, d = 0.16, one taking the share from change alone (arm B) and
+one from change and birth/death both, each paired against the shipped
+default on the same twenty seeds. Section 13's null reproduces at this
+chain count on summed minimum ESS, Trig+poly. Two secondaries clear the
+6.4 margin, both on Single index: birth/death-only is better, coverage
++0.010 and RMSE ratio 0.979; both perturb arms are worse, RMSE ratio
+1.030, so the penalty is the discarded share's size, not its source. Arm
+B's own pilot misses its +8 summed-min-ESS bar by two orders of magnitude
+(+0.1, t 0.06): the design's kill criterion would fire on these numbers,
+though slice 3 still owes the sham arm, the P1 control rung and a
+fresh-seed re-run before a verdict is recorded. Recorded at 10.4 and 5.3;
+script only, no engine change.
+
 ### Generator-only move-census probes for the round's falsifiers (8bf40fc8, 2026-09-07)
 
 The nog-node rule neighbourhood, informed death's weight vector, perturb's
