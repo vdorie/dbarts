@@ -39,7 +39,12 @@
 # session, so the contrast is paired within one run; on matched seeds it
 # reproduces the single-arm run exactly.
 #
-# Usage: Rscript P5-checkerboard.R [outputDir] [quick] [arm ...]
+# A second block of seeds is available for the fresh-seed re-run the battery
+# requires before a flag counts: `block2` shifts both seed indices by a full
+# block of twenty, so the re-run shares no data set and no MCMC stream with
+# the first block.
+#
+# Usage: Rscript P5-checkerboard.R [outputDir] [quick] [block2] [arm ...]
 
 source(
   file.path(
@@ -59,6 +64,11 @@ nTest <- 1000L
 nChains <- 8L
 nBurn <- 1000L
 nSamples <- if (quick) 400L else 2000L
+
+# Seeds are indexed in blocks of twenty whatever `quick` sets, so the fresh
+# block is 21 to 40 in both modes.
+seedBlockSize <- 20L
+seedOffset <- if ("block2" %in% args) seedBlockSize else 0L
 
 # NULL leaves proposal.probs unset, which is the shipped mixture.
 arms <- list(
@@ -86,7 +96,7 @@ if (length(selectedArms) > 0L) {
 # The control every other arm is read against.
 armControl <- "default"
 
-outputDir <- surfacesOutputDir(args, flags = c("quick", armNames))
+outputDir <- surfacesOutputDir(args, flags = c("quick", "block2", armNames))
 
 signal <- surfacesCheckerboardSignal
 neighbours <- surfacesCheckerboardNeighbours(p)
@@ -99,7 +109,8 @@ perColumn <- list()
 for (armName in names(arms)) {
   probs <- arms[[armName]]
   for (replicate in seq_len(nReplicates)) {
-    set.seed(surfacesDataSeed("P5", "checkerboard", replicate))
+    seedIndex <- replicate + seedOffset
+    set.seed(surfacesDataSeed("P5", "checkerboard", seedIndex))
     data <- surfacesCheckerboard(n = n, p = p, nTest = nTest)
     call <- list(
       data$x,
@@ -111,7 +122,7 @@ for (armName in names(arms)) {
       n.thin = 1L,
       n.threads = 1L,
       verbose = FALSE,
-      seed = surfacesSamplerSeed(replicate)
+      seed = surfacesSamplerSeed(seedIndex)
     )
     if (!is.null(probs)) {
       call$proposal.probs <- probs
@@ -141,7 +152,7 @@ for (armName in names(arms)) {
 
     perColumn[[length(perColumn) + 1L]] <- data.frame(
       arm = armName,
-      replicate = replicate,
+      replicate = seedIndex,
       column = seq_len(p),
       inclusion = pooledInclusion,
       betweenChainSd = betweenSd,
@@ -150,7 +161,7 @@ for (armName in names(arms)) {
     )
     rows[[length(rows) + 1L]] <- data.frame(
       arm = armName,
-      replicate = replicate,
+      replicate = seedIndex,
       signalBetweenSd = mean(betweenSd[signal]),
       signalMixingNull = mean(mixingNull[signal]),
       signalRatio = mean(betweenSd[signal]) / mean(mixingNull[signal]),
@@ -169,7 +180,7 @@ for (armName in names(arms)) {
     cat(sprintf(
       "%-11s rep %2d  incl(true) %.3f  sd/null %.1f  decoys above weakest %d  cover %.3f  %.0fs\n",
       armName,
-      replicate,
+      seedIndex,
       rows[[length(rows)]]$inclusionSignal,
       rows[[length(rows)]]$signalRatio,
       rows[[length(rows)]]$decoysAboveWeakest,
@@ -400,5 +411,5 @@ surfacesSave(
     )
   ),
   outputDir,
-  "P5-checkerboard"
+  if (seedOffset > 0L) "P5-checkerboard-block2" else "P5-checkerboard"
 )

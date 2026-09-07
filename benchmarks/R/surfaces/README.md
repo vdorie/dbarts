@@ -136,6 +136,10 @@ it.
   paired difference in between-chain sd, inclusion share, coverage and RMSE
   against it, with each metric read against its frozen margin. Naming arms
   as further command-line words runs only those.
+- `block2` runs the cell on a second block of twenty seeds, 21 to 40, which
+  shares no data set and no MCMC stream with the default block; it saves to
+  `P5-checkerboard-block2.rds`. This is the fresh-seed re-run a flagged cell
+  needs before the flag counts.
 
 ### C1, the He and Hahn factorial
 
