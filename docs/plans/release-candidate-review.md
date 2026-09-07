@@ -554,6 +554,25 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Documentation cites become markdown links (0b60c4a7, 2026-09-07)
+
+The double-bracket cite notation did not render on GitHub. Every cite
+across docs/, README.md, man/ and vignettes/ (9693, in 173 files) is now an
+ordinary markdown link: a backticked symbol whose target is the file as a
+path relative to the citing document, a quoted fragment likewise, a heading
+text whose target is doc.md#slug (GitHub's slug rule), and a path:a-b text
+whose target is the blob URL at the full 40-hex sha with #La-Lb. The
+retired: and unresolved: markers stay as prose before the link. The alias
+table is retired; targets are real paths. tools/check-doc-freshness.R's
+Part 2 and residue self-check parse the new grammar with the same checks,
+and the residue check now fails a stray double-bracket cite and a link to
+a tracked file whose text is none of the four forms. Class counts before
+and after: symbol 1154 to 1139 (twelve lines of two adjacent same-file
+cites now count as one run, every name still checked), verbatim 96,
+doc-to-doc 92, history 8291, retired 60, unresolved 48; commit-hash
+tokens fall from 400 to 266 because the shas moved inside URLs, where the
+history check still resolves them.
+
 ### Heteroscedastic AFT: the variance forest admitted under family aft (2468e76f + 50379ef3, 2026-09-06)
 
 Queue item 1 was framed as a false-message repair (R/spec.R blamed a
