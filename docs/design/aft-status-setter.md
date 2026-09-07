@@ -136,10 +136,10 @@ now serves the caller.
 
 The aft arm REBUILT its fit every replication, alone among the arms, which is why it needed an anchor leaf scale named as
 its own `node.prior` and an offset zeroing each rebuild's `prior.mean`: the two pinned the leaf prior and the shift against
-a transform every rebuild re-derived from `range(y0)`. Both went with the conversion below. It is in neither
-[`sbcMatrixConfigs`](../../benchmarks/R/sbc.R) nor the workflow matrix
-(["config: gaussian"](../../.github/workflows/sbc.yaml) is the nearest arm), and stays out of both until its ladder and its
-R = 200 run are read.
+a transform every rebuild re-derived from `range(y0)`. Both went with the conversion below. It joined
+[`sbcMatrixConfigs`](../../benchmarks/R/sbc.R) and the workflow matrix
+(["config: gaussian"](../../.github/workflows/sbc.yaml) was the nearest arm) only once its ladder and its R = 200 run were
+read; the admission is in the landing note below.
 
 **The aft arm.** The setter converts it to the reused-sampler shape every other arm has: one sampler built once at a fixed
 build response through `dbarts(x, cbind(time, status), family = "aft")`; per replication a prior draw of `(f, sigma)`, then
@@ -159,8 +159,8 @@ strictly above its bound.
 Budget: measure a burn ladder first, which needs an aft branch in [`sbcFamilySpec`](../../benchmarks/R/sbc.R) - draw, fit,
 burnRun, sample - and not only an entry in [`sbcFamilyConfig`](../../benchmarks/R/sbc.R), since
 [`sbcBurnLadder`](../../benchmarks/R/sbc.R) dispatches through the former. That branch IS the reuse conversion, and it lands
-with no burn pre-registered: [`sbcBurnSweeps`](../../benchmarks/R/sbc.R) carries NA for the arm, so the verdict run refuses
-by name until `burn-aft` is read, as the two latent BCF arms do. A sweep is a gaussian one plus a truncated-normal draw per
+with no burn pre-registered: [`sbcBurnSweeps`](../../benchmarks/R/sbc.R) carried NA for the arm, so the verdict run refused
+by name until `burn-aft` was read, as the two latent BCF arms did. A sweep is a gaussian one plus a truncated-normal draw per
 censored row; at a gaussian-like cost and a t-like burn, R=200, L=150, thin=30 lands near 5-10 minutes, hence a 20-30 minute
 timeout at the workflow's ~3x rule. The arm's functionals raise
 [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) and widen the Bonferroni'd band for every arm, which stales the M = 30
@@ -254,10 +254,25 @@ only its tail; and gate (d)'s [`testAFTCensoredMoments`](../../tests/cpp/test_mo
 since the joint call's own bound refresh hides the rebuild's bounds.
 
 Slice 2's harness half: the reuse conversion, the [`sbcFamilySpec`](../../benchmarks/R/sbc.R) branch and
-[`sbcFamilyConfig`](../../benchmarks/R/sbc.R) entry, the nine functionals and the NA burn. What remains of the slice is the
-admission - the measured burn, the R = 200 verdict run, the [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R) entry with the
-M = 30 prose it stales, and the workflow matrix row. Two differences from section 6 as proposed: the sampler is built
-through `dbarts()` with a `(time, status)` response, `dbartsSpec` being a specification builder rather than a route to a
-sampler; and an empty censored set costs more than a dropped rank - [`runSbcFamily`](../../benchmarks/R/sbc.R),
-[`rankUniformity`](../../benchmarks/R/sbc.R) and [`sbcReport`](../../benchmarks/R/sbc.R) all had to learn to carry an NA
-rank, which is what "reported separately" is made of.
+[`sbcFamilyConfig`](../../benchmarks/R/sbc.R) entry, the nine functionals and the NA burn. Two differences from section 6 as
+proposed: the sampler is built through `dbarts()` with a `(time, status)` response, `dbartsSpec` being a specification
+builder rather than a route to a sampler; and an empty censored set costs more than a dropped rank -
+[`runSbcFamily`](../../benchmarks/R/sbc.R), [`rankUniformity`](../../benchmarks/R/sbc.R) and
+[`sbcReport`](../../benchmarks/R/sbc.R) all had to learn to carry an NA rank, which is what "reported separately" is made
+of.
+
+Slice 2's admission. The ladder read 40000 sweeps over 24 prior-drawn datasets. Every functional clears ACF 0.1 by lag 39 -
+sigma 39, `avg.f` 34, the five `f.star` cells 24 to 39, `S.star1` 35 and `logT.cens` 26, worst-case over the 24, with no
+dataset leaving one undecorrelated - and the block-mean z is flat from the first block at that resolution; re-read in
+400-sweep blocks only block 1 carries an offset (sigma +1.6, `S.star1` -4.9 mean signed z) and blocks 2 through 10 are flat.
+So thin 40 covers the worst lag and [`sbcBurnSweeps`](../../benchmarks/R/sbc.R) takes 4000 sweeps, a 10x margin on a
+transient that lives under 400 to 800.
+
+At `R = 200`, `L = 150`, thin 40 all nine functionals PASS, and at the per-functional 5% band (0.0924), which is stricter
+than the Bonferroni'd one the arm is admitted under: sigma 0.0620, `avg.f` 0.0635, the `f.star` cells 0.0377 to 0.0905,
+`S.star1` 0.0736, `logT.cens` 0.0571. No replication drew an empty censored set, so `logT.cens` carried all 200 ranks. The
+arm is in [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R), [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) is 39 and the
+gaussian arm replays its ranks against the wider band unchanged. The workflow row (["config: aft"](../../.github/workflows/sbc.yaml))
+runs thin 40 at a 15-minute timeout: section 6 priced 5-10 minutes at thin 30 and the run measures 79 s at the thin 40 the
+ladder requires, so the timeout is the gaussian row's rather than the ~3x rule's, that job's floor being the dependency
+install and the package build.

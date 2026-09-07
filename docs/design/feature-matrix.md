@@ -204,11 +204,11 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
-| The aft SBC arm, and the heteroscedastic arms behind the variance-forest prior draw | aft, heteroscedastic aft | docs/design/aft-status-setter.md, slices 2-4 |
+| The heteroscedastic arms behind the variance-forest prior draw | hetero, heteroscedastic aft | docs/design/aft-status-setter.md, slices 3-4 |
 | Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |
-| Equivalence, SBC and active-rows-mask evidence for the latent sub-families | bcf | gaussian sub-family only measured today |
+| Equivalence scenarios and active-rows-mask evidence for the latent sub-families | bcf | docs/plans/bcf-latent-evidence.md; the exact gate is recorded and SBC is measured, both latent arms a chain-length finding rather than a matrix member |
 | SBC coverage, deferred not blocked; liftable via `setState` | hetero | docs/plans/sbc-family-tiers.md |
 
 **Not gaps** - structurally impossible or settled by decision, not open work:

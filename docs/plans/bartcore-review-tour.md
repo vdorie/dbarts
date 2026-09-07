@@ -118,7 +118,7 @@ A green gate proves what its row says and no more.
 | `exact-gates` quick | 21 exact-posterior and move-balance scripts, against closed forms rather than snapshots |
 | `exact-gates` cross-host | bcf and multinomial equivalence at tier 1 |
 | `equivalence.R` gaussian | 50 scenarios reproduce bitwise on one host |
-| `sbc.R` | simulation-based calibration (SBC) over five family arms (gaussian, ordinal, nbinom, Student-t, multinomial) and 30 functionals, Bonferroni-corrected, with nbinom's two dispersion functionals waived as an adjudicated mixing ridge |
+| `sbc.R` | simulation-based calibration (SBC) over six family arms (gaussian, ordinal, nbinom, Student-t, multinomial, aft) and 39 functionals, Bonferroni-corrected, with nbinom's two dispersion functionals waived as an adjudicated mixing ridge |
 | `rchk` | PROTECT balance |
 | `valgrind` | leaks and out-of-bounds reads |
 | `revdep-smoke` | reverse dependencies install and run |
@@ -156,20 +156,22 @@ item).
 
 Things that could be wrong and would not be caught:
 
-- No equivalence scenario and no SBC coverage reaches a multi-forest
-  amplitude sampler - one whose forests enter the fit through per-forest
-  amplitude scalars, as BCF's `a*mu + b_z*tau` does - under a latent family,
-  probit or logistic; the BCF calibration evidence is gaussian-only
-  (`docs/plans/review-2026-08-24/calibration-sbc.md`).
-- aft and heteroscedastic are uncovered at ensemble scale, and both carry
-  sampling code that reduces to no covered family. Their composition, a
-  variance forest under `family = "aft"`, is checked by a bitwise reduction
-  to the heteroscedastic gaussian on uncensored data, a per-row truncated-
-  normal moments test and a latent-PIT gate on censored rows
-  (`benchmarks/R/aft-hetero-pit.R`), not by SBC. hazard and hurdle are not
-  scored directly either; their draws are checked to reproduce bitwise the
-  draws a covered family makes on the corresponding data, so they inherit
-  that family's calibration.
+- No equivalence scenario reaches a multi-forest amplitude sampler - one
+  whose forests enter the fit through per-forest amplitude scalars, as BCF's
+  `a*mu + b_z*tau` does - under a latent family, probit or logistic. SBC and a
+  deterministic exact-posterior gate now do, but neither latent SBC arm is
+  admitted to the matrix: their amplitude functionals stay correlated past lag
+  200 wherever the prognostic scalar is large, a recorded chain-length finding
+  (`docs/plans/bcf-latent-evidence.md`).
+- heteroscedastic is uncovered at ensemble scale; it and aft both carry
+  sampling code that reduces to no covered family, and aft alone is now an
+  admitted SBC arm. Their composition, a variance forest under
+  `family = "aft"`, is checked by a bitwise reduction to the heteroscedastic
+  gaussian on uncensored data, a per-row truncated-normal moments test and a
+  latent-PIT gate on censored rows (`benchmarks/R/aft-hetero-pit.R`), not by
+  SBC. hazard and hurdle are not scored directly either; their draws are
+  checked to reproduce bitwise the draws a covered family makes on the
+  corresponding data, so they inherit that family's calibration.
 - Mixing at scale is measured, not guaranteed: on the He and Hahn design at
   n = 10000 the minimum pointwise effective sample size in every default arm
   is 2 of 2500 draws, and 95 percent interval coverage sits at 0.82 against

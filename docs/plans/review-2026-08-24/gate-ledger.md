@@ -10,7 +10,8 @@ The central claim - that equivalence.yaml, sbc.yaml, rchk.yaml, valgrind.yaml
 and revdep-smoke.yaml have never run in CI - still holds: `gh run list
 --workflow=<file> --limit 2` returns "workflow not found on the default
 branch" for all five at HEAD, meaning GitHub has never registered a run for
-any of them.
+any of them. sbc.yaml carries a SEVENTH arm, aft, admitted past this snapshot, so
+section 5's arm count and f45's aft clause are superseded by [f49].
 
 Read-only. Every count below was produced in this pass by direct commands (git, gh api/run list, grep,
 wc) against the checkout and the GitHub API for vdorie/dbarts, not copied from
@@ -288,10 +289,10 @@ As of a3bae0fe. Carried over from docs/design/feature-matrix.md, whose own
 | ordinal | `ordinal`, `maskordinal` | 9/10 [f41] | test-ordinal.R only |
 | nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R, test-dispersion-channel.R |
 | multinom | 11 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
-| aft | `aft` | OUT [f45] | test-aft.R only [f48] |
+| aft | `aft` | PASS 9/9 [f49] | test-aft.R only [f48] |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
-| bcf | 12 scenarios, own harness, gaussian only (family reach: docs/design/feature-matrix.md) | PASS, gaussian only [f46] | 9 (test-bcf*.R) |
+| bcf | 12 scenarios, own harness, gaussian only (family reach: docs/design/feature-matrix.md) | PASS, gaussian only [f46]; the latent arms measured and not admitted [f50] | 9 (test-bcf*.R) |
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | 4 (test-heteroscedastic*.R) |
 
 The rows are keyed by response model; predictor SHAPE cuts across them. Eight
@@ -372,3 +373,22 @@ directions; seven poisons caught - and a mutation probe `test-aft.R` catches at 
 index-restricted `restoreLatents`. tests/cpp 278; tinytest 7448/0 (70 in test-aft.R);
 equivalence trio bitwise 50/12/11; ASAN/UBSAN clean; R CMD check --as-cran OK, zero notes;
 NEWS 294 entries; API hash `0x616ffcda8c947777` unchanged.
+
+[f49] At HEAD, past this snapshot: the aft SBC arm is ADMITTED
+(docs/design/aft-status-setter.md slice 2), the status setter of [f48] being what
+lets a replication vary the censoring. Its ladder read 40000 sweeps over 24
+prior-drawn datasets and fixes thin 40 and burn 4000; at R = 200, L = 150 all
+nine functionals PASS at the per-functional 5% band 0.0924, worst 0.0905, which
+is stricter than the Bonferroni'd band the arm is admitted under.
+`sbcMatrixFunctionals` is 39 rather than 30 and sbc.yaml runs the arm at a
+15-minute timeout.
+
+[f50] At HEAD, past this snapshot: the two latent BCF arms (bcf-probit,
+bcf-logistic) are MEASURED and NOT admitted
+(docs/plans/bcf-latent-evidence.md Decision 1). Their R = 200 verdicts are 12/13
+and 11/13 at the per-functional 5% band and every functional sits inside the
+matrix band, but the ladder leaves `a`, `abs.a` and `prog_j` correlated past lag
+200 at every |a| >= 5 stratum, prior mass 0.126, so both are a recorded
+chain-length finding rather than matrix members. A deterministic exact-posterior
+gate over a two-cell design covers the same conditional
+(benchmarks/R/bcf-latent-exact.R).

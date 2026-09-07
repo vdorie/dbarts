@@ -1,6 +1,7 @@
 # bcf-latent-evidence
 
-Status: PROPOSED, 2026-09-07
+Status: LANDED the exact gate, the derivation and the SBC measurement, 2026-09-07; neither latent arm was admitted to
+the SBC matrix, both being a recorded chain-length finding, and the three latent equivalence scenarios remain PROPOSED
 agent: opus for the oracle and the arms; the derivation check is a second, independent pass
 rng: neutral - `benchmarks/` and `.github/` only, so every baseline replays
 budget: one harness (~600 lines), ~160 lines in `sbc.R`, ~20 lines in `sbc.yaml` plus one word in
@@ -96,6 +97,74 @@ arm's controls, `fixedGlue = TRUE` isolating the backfit from the glue draw and 
 prior dominate, where an exactness error shows MORE and a ridge LESS. On a plateau the exact gate can exonerate only the
 single-tree, two-cell conditional it runs; a plateau surviving that points at ensemble scale or the continuous cut grid,
 and the next instrument is an independent derivation of the flagged conditional.
+
+Measured (2026-09-07), on the maintainer's arm64 laptop, one R process at a time.
+
+The ladders read 40000 sweeps over 24 prior-drawn datasets with the four prescribed `|a|` strata beside them, at 118
+us/sweep (probit) and 143 (logistic). Thin comes out at 50 on both arms and burn at 12000, and NEITHER is the admission
+criterion's number. The reported `p_j` deliverable decorrelates fast - worst ACF-under-0.1 lag 47 (probit) and 29
+(logistic) over the 24 draws - but `a`, `abs.a` and `prog_j` do not: `a`'s median lag is 93 and 88, and 15 of the 24
+datasets on each link leave it above 0.1 past lag 200. On the strata the failure is ordered in `|a|`: at 0.5 everything
+clears by lag 25 and 54; at 2 `a` sits at 109 and 186 with `prog_j` 52 to 143; at 5 and at 10 `a`, `abs.a` and every
+`prog_j` are past lag 200 on both links, their block means still drifting at z up to 214 over the whole 40000 sweeps. So
+the ladder clause fails at `|a| >= 5`, prior mass 0.126, and not at the `|a| >= 40` (0.016) this Decision pre-registered
+as the expected limit - an order of magnitude of prior mass earlier. 12000 sweeps is 7x the ~1600-sweep amplitude
+transient a 400-sweep-block re-read resolves, the affordable point the verdicts were recorded at rather than a burn that
+discharges the ridge, and [`sbcBurnSweeps`](../../benchmarks/R/sbc.R) says so where the entries sit.
+
+The verdicts, `R = 200`, `L = 150`, thin 50, read at the per-functional 5% band 0.0924. probit 12 of 13: `a` 0.0775,
+`abs.a` 0.0824, `b1.minus.b0` 0.0915, `abs.diff` 0.0971 FLAG, `prog_j` 0.0321/0.0861/0.0626, `eff_j`
+0.0912/0.0504/0.0783, `p_j` 0.0494/0.0705/0.0840. logistic 11 of 13: `a` 0.0494, `abs.a` 0.1235 FLAG, `b1.minus.b0`
+0.0990 FLAG, `abs.diff` 0.0350, `prog_j` 0.0655/0.0457/0.0560, `eff_j` 0.0520/0.0465/0.0434, `p_j`
+0.0693/0.0476/0.0552 - one of its two flags being the waived ill-posed pair's half. Every functional of both arms sits
+inside the matrix band the arms would have been admitted under (0.1282 at M = 30, 0.1445 today), logistic's `abs.a` the
+closest at 0.1235. The self-checks are exact: transform scale 1.000000000000, shift 5.5e-17, R2 1, sigma pinned, and
+combined fits against `a mu + b_z tau` at 2.2e-16.
+
+The controls, both at `R = 200` and thin 50. Holding the glue at the engine's initial (1, 0, 1) clears both arms' flags:
+probit's nine surviving functionals run 0.0374 to 0.0987, `eff1` (0.0984) and `p2` (0.0987) marginally over, and
+logistic's nine all PASS at 0.0339 to 0.0721. At `n = 40`, where the glue prior dominates the likelihood, probit flags
+`eff1` (0.0930) and `eff2` (0.0947) and logistic `abs.diff` (0.1084) and `prog3` (0.0973), while logistic's `abs.a` -
+0.1235 at `n = 200` - falls to 0.0453. An exactness error shows MORE at `n = 40` and a ridge LESS, so both controls read
+the same way: the flags are the glue path's mixing, not the backfit's law.
+
+The A4e point, at 3x the chain length (thin 150, burn 36000) and `R = 80`, band 0.1445, so `ecdfDiff / band` is what
+compares. Every functional that flagged at the recorded point SHRINKS: probit `abs.diff` 1.051 to 0.648, logistic
+`abs.a` 1.337 to 0.848 and `b1.minus.b0` 1.071 to 0.341. Three rise on the fresh stream - the raw `a` on both arms
+(0.839 to 0.991, 0.535 to 1.183) and probit `p1` (0.535 to 1.073) - the raw `a` being the ill-posed half. Monotone
+shrinkage on the flagged channels is H-MIX by the adjudication order above, not a defect candidate.
+
+The SBC poisons, one run each on bcf-probit at `R = 100`, thin 50, burn 12000, band 0.1332. (i) The wrong link reddens 8
+of 13 and lands on all three `p_j`, hardest of any channel (0.2174, 0.1946, 0.1873); `prog_j` does not reach the band at
+this `R` (0.1254, 0.1104, 0.1140) though all three are non-uniform on chi-square (0.007, 0.000, 0.001), the amplitude
+channel absorbing the swap instead (`abs.a` 0.3352, 2.5x the band). (ii) The generator's glue scale at gaussian's 2
+flags the raw `a` (0.1570) and `p1` (0.1336) and leaves the named `abs.a` at 0.1321 against 0.1332, 0.99 of the band, so
+it was re-run at `R = 200`, band 0.0924, where `abs.a` lands (0.1085) beside `a` (0.1385) and `prog2` (0.0938) and every
+`p_j` is non-uniform on chi-square (0.013, 0.087, 0.006) without reaching the band. That poison is named on `abs.a` and
+takes `R = 200` to land it. (iii) An unmodellable generator sigma flags the amplitude pair alone, `abs.a` 0.2117 and `a`
+0.1470, no `prog_j`, `eff_j` or `p_j` reaching the band: the noise inflates the index scale and the sampler absorbs it
+into `a`. Only (ii) is glue-targeted and only (ii) carries the held-glue control, which is inert in the strongest sense
+available - the same settings under a held glue with and without the poison agree byte for byte, every rank and every
+verdict, [`sbcBCFGlueDraw`](../../benchmarks/R/sbc.R) being replaced by the fixed triple before the poisoned scale is
+ever read. So (i) is named on `p_j`, (ii) on `abs.a` at `R = 200`, and (iii) on the amplitude pair; none is named on the
+whole functional set this Decision expected.
+
+The finding. Neither latent arm is admitted. [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R),
+[`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) and the workflow matrix are unchanged for them and neither gets
+`SBC_EXPECTED_FLAGS`; what lands instead is the exclusion note naming the stratum
+(["Not in the matrix: BCF"](../../.github/workflows/sbc.yaml)). The reading is chain length at large `|a|`, not the
+sampler's stationary law: the `R = 200` verdicts are near-clean at a band stricter than the matrix's, the two controls
+point at the glue path rather than the backfit, the A4e point shrinks every flagged channel, and the exact gate matches
+the same conditional at fixed glue to 7e-4 and 1.6e-3. What would overturn it is a burn that discharges the `(a, mu)`
+ridge at `|a| >= 5`, which 40000 sweeps does not.
+
+Four corrections to this Decision as written. The mixing limit is at `|a| >= 5`, not `|a| >= 40`. `bcf-weak` is the
+GAUSSIAN arm, so the weak control named above had no route until [`sbcBCFLatentConfig`](../../benchmarks/R/sbc.R) gained
+an `n` argument and `bcf-probit-weak` / `bcf-logistic-weak` were added at `n = 40`, the arm name kept so the burn key
+still resolves. [`sbcBurnLadder`](../../benchmarks/R/sbc.R) divided its per-sweep cost by the prior-drawn dataset count
+while the strata datasets swept too, so any arm carrying strata reported a cost inflated by (24 + 4) / 24; the
+family-tiers numbers are unaffected, those arms having no strata. And `sbcMatrixFunctionals` moves 30 to 39 rather than
+to 56: the nine functionals admitted here are the aft arm's, not these twenty-six.
 
 ## Decision 2 - the exact gate
 
@@ -329,7 +398,7 @@ gates every push, and it forces the derivation the SBC generator then reuses.
     Rscript benchmarks/R/bcf-latent-exact.R quick     # and without 'quick'
     Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/<new>.rds
     Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24     # and burn-bcf-logistic
-    Rscript benchmarks/R/sbc.R bcf-probit   200 150 <thin>  # and bcf-logistic
+    Rscript benchmarks/R/sbc.R bcf-probit   200 150 50      # and bcf-logistic
     Rscript benchmarks/R/sbc.R gaussian 100 200 30          # ranks byte-identical
     Rscript tools/check-doc-freshness.R .
 
