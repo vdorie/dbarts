@@ -205,11 +205,11 @@ interaction-constraints.md for containment.
 
 ## Tree moves
 
-`src/bartcore/moves.hpp` holds birth/death, change, and swap: the conjugate
+`src/bartcore/moves.hpp` holds birth/death and change: the conjugate
 Metropolis-Hastings proposals and their acceptance ratios, as free functions
 templated on `MoveScorableLeafModel`. `metropolisJumpForTree` (a free
 function in moves.hpp, called from `Chain`) is the per-iteration, per-tree
-entry: it draws a step type (`StepType::birth/death/swap/change`) and
+entry: it draws a step type (`StepType::birth/death/change`) and
 dispatches to the corresponding move function.
 
 Every candidate branch's empty-leaf veto is ranked

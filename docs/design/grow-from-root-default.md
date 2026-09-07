@@ -82,9 +82,10 @@ data-fitted init as a remedy, not a hazard.**
   recommendation list includes initializing "at an intelligent guess for
   the possible trees" - the second negative-result paper recommending a
   warm start.
-- dbarts has all four moves:
-  `enum class StepType { birth, death, swap, change };`
-  ([`StepType`](../../src/bartcore/moves.hpp)). Neither lower bound analyzes a sampler
+- dbarts has birth, death and change:
+  `enum class StepType { birth, death, change };`
+  ([`StepType`](../../src/bartcore/moves.hpp)); it had swap as well when this was
+  written. Neither lower bound analyzes a sampler
   dbarts runs, on a model (one tree, dyadic, two moves) dbarts fits.
 
 **What does support the stickiness premise is empirical, narrower, and

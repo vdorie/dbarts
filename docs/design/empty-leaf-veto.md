@@ -55,7 +55,7 @@ assigned `-HUGE_VAL` (not a finite literal), and ranks equal falls back
 to the finite log-likelihoods. Every conjugate move consumes this pair
 through `logLikelihoodForBranch` and `resolveVetoRank`: birth/death
 score the affected branch before and after and take
-exp(newLogLikelihood - oldLogLikelihood); change and swap do the same
+exp(newLogLikelihood - oldLogLikelihood); change does the same
 with exp(yLogL - xLogL).
 
 ## Which move paths can create an empty leaf
@@ -68,9 +68,6 @@ with exp(yLogL - xLogL).
   interval (logical descendant satisfiability), again occupancy-blind,
   and can empty any leaf below the changed node once observations
   re-route.
-- Swap re-routes observations through the swapped subtree; the validity
-  walk (ruleIsValid / ordinalRuleIsValid, categoricalSubtreeIsValid)
-  checks logical consistency and the categorical gauge, not occupancy.
 - Categorical draws are usually but not always occupancy-safe. The
   canonical gauge keeps at least one *reachable* category on each side
   (drawCategoryPattern rejects the two all-same patterns). "Reachable"
@@ -83,8 +80,8 @@ with exp(yLogL - xLogL).
   restored) is direct evidence the moves do emit such proposals.
 
 So the veto is the single, uniform backstop for ordinal and categorical
-proposals across birth, change, and swap. Death cannot create an empty
-leaf (it collapses two children into their non-empty parent).
+proposals across birth and change. Death cannot create an empty leaf (it
+collapses two children into their non-empty parent).
 
 ## Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)
 
@@ -177,14 +174,14 @@ correction terms. The cost was assessed and exceeds the item's budget:
   birthableNodeExists, probabilityOfBirthStep). Each term is a place a
   subtle posterior error can hide, catchable only by the exact-posterior
   gates after debugging.
-- Change and swap re-route through a whole subtree, so occupancy of a
-  deep leaf is not a simple interval. The ordinal change can be made
-  occupancy-aware as a rejection sampler whose good set depends only on
+- Change re-routes through a whole subtree, so occupancy of a deep leaf is
+  not a simple interval. The ordinal change can be made occupancy-aware as
+  a rejection sampler whose good set depends only on
   the node's fixed segment and its fixed descendants (invariant to the
   node's own rule, so forward and reverse cancel, mirroring the existing
   categorical flow) - but it must re-route and scan per attempt, and the
-  categorical change and both swap validity walks must switch from
-  reachable to occupied categories.
+  categorical change's validity walk must switch from reachable to
+  occupied categories.
 
 Taken together this is a 250-400 line, posterior-changing rewrite of the
 move kernels touching moves.hpp, model.hpp, and tree.hpp, plus
@@ -376,9 +373,10 @@ the scan.
 A scaffold build put namespace-scope counters at the four
 [`resolveVetoRank`](../../src/bartcore/moves.hpp) call sites - birth and death
 in [`birthOrDeathMove`](../../src/bartcore/moves.hpp), plus
-[`changeMove`](../../src/bartcore/moves.hpp) and
-[`swapMove`](../../src/bartcore/moves.hpp) - classifying every scored proposal
-by the rank pair its two [`BranchScore`](../../src/bartcore/moves.hpp)s carry
+[`changeMove`](../../src/bartcore/moves.hpp) and the swap move, since deleted
+(retired: [`swapMove`](../../src/bartcore/moves.hpp)) - classifying every
+scored proposal by the rank pair its two
+[`BranchScore`](../../src/bartcore/moves.hpp)s carry
 ([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) taken over the branch) and
 then by the move's outcome: rejected by the RANK (the proposal's rank
 strictly worse, so the likelihood ratio is exactly 0.0), rejected by the

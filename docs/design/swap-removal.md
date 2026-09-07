@@ -1,9 +1,10 @@
 # Removing the swap tree-proposal
 
-Status: PROPOSED, 2026-09-07 (decision recorded).
+Status: LANDED, 2026-09-07.
 
 The swap move is removed from the MCMC kernel before 1.0 (VD, 2026-09-07, option A of the fork the mixing survey left open). This
-record states the decision, its evidence and exactly what the slice does; it does not reargue the call.
+record states the decision, its evidence and exactly what the slice did; it does not reargue the call. Sections 2 to 5 are written
+in the present tense of the proposal and describe work that has since landed.
 
 ## 1. The decision, and its evidence
 
@@ -21,7 +22,7 @@ stuck trees in either arm and x3 root shares of 0.281 against 0.283 and 0.323 ag
 
 ## 2. What is removed
 
-**[`swapMove`](../../src/bartcore/moves.hpp)**, 115 lines with its template header, and everything only it uses: the swappable-node
+**retired: [`swapMove`](../../src/bartcore/moves.hpp)**, deleted, 115 lines with its template header, and everything only it uses: the swappable-node
 collection into `MoveScratch::nodeScratch`, the `swapIsSensible` pair of `ruleIsValid` calls and the whole-subtree
 `interactionSubtreeIsValid` check behind them, the `applySwap`/`undoSwap` lambdas, the snapshot-refresh-restore path, and its two
 census macro calls. Also in that file: [`MoveContext`](../../src/bartcore/moves.hpp)'s `swapProbability` field, the `swap`
@@ -33,7 +34,7 @@ comment naming three moves, and the census legend's two swap clauses.
                                                                             else changeMove;
     now  bd = ctx.birthOrDeathProbability;  if (u < bd) birthOrDeathMove;   else changeMove;
 
-**[`fillSwappable`, `rulesAreEqual`](../../src/bartcore/tree.hpp)**, 18 lines, both with `swapMove` as their only caller;
+**retired: [`fillSwappable`, `rulesAreEqual`](../../src/bartcore/tree.hpp)**, both deleted, 18 lines, both with `swapMove` as their only caller;
 `maskEquals` stays, the categorical change path and `Tree` itself reading it.
 **Ten sites in [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp)** - three struct fields, four
 copies into a forest (creation, `setModel`, `buildSpecifiedForest`, `buildMultinomialForest`), the variance forest's copy and the
@@ -55,16 +56,16 @@ the shipped header**: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/
 **tests/cpp: fourteen positional `MoveContext` initializers, plus five assignments.** The swap probability is the FOURTH element of
 a positional aggregate initializer, so dropping the field binds a `double` to `const double* weights` - a hard compile error, not a
 silent one. Twelve are in tests/cpp/test_moves.cpp, which the slice must edit though it names no swap move; two survive in
-tests/cpp/test_interaction.cpp and a third goes with **[`testSwapSiblingStrand`](../../tests/cpp/test_interaction.cpp), deleted**,
+tests/cpp/test_interaction.cpp and a third goes with **retired: [`testSwapSiblingStrand`](../../tests/cpp/test_interaction.cpp), deleted**,
 81 lines, whose shape - a swap co-occurring a forbidden pair with neither swapped variable the stranded one - is unreachable without
 the move, `testChangeStrandInvariant` keeping the walk gated. The five assignments are two in test_sampler.cpp, three in
 test_model.cpp.
 
 **benchmarks/R/swap-balance.R deleted**, 407 lines, the move's own exact-posterior detailed-balance gate. That takes TWO edits in
 .github/workflows/exact-gates.yaml - the gate-list token and the header comment's "(birth/death, change, swap detailed balance)" -
-plus benchmarks/README.md's balance-gate roster, which spells "swap-balance = swap" in prose, and strips poison
-["poison 5: swap move's descendant-validity walk skipped outright"](../../benchmarks/R/mutation-battery.R), whose `find` text is
-verbatim `swapMove`'s `swapIsSensible` block.
+plus benchmarks/README.md's balance-gate roster, which spells "swap-balance = swap" in prose, and strips poison 5, whose `find`
+text was verbatim `swapMove`'s `swapIsSensible` block
+(["m05 went with the swap move it poisoned"](../../benchmarks/R/mutation-battery.R)).
 
 ## 3. The surface
 
@@ -224,3 +225,56 @@ three re-recorded baselines. **It lands BEFORE the perturb kernel and before any
 new kernel once: perturb's default-weight-0 neutrality claim in
 [6. RNG and baselines](perturb-move.md#6-rng-and-baselines) is a claim about THIS dispatch chain, and Stage 2's control arm is this
 default.
+
+## 8. Landing
+
+Three commits on 2026-09-07: 643fb617 the kernel, the surface and the tests; e82b2d73 the bundled re-record; the third this
+document and the rest of section 6.
+
+**The oracle held.** A throwaway library at the parent commit 39692087, with only the mixture defaults moved and `swapMove` and
+its dispatch left standing, recorded all three equivalence baselines; `compare` from 643fb617 reported "identical draws (same RNG
+stream)" on every scenario of all three - gaussian 50 compared / 0 skipped with zero `max |z|` lines, BCF 12 compared / 0 skipped
+every channel bitwise, multinomial 11 compared / 0 skipped every channel bitwise. So the deletion moved no draw the mixture change
+did not. The poison fired as designed: the same compare against the outgoing baselines, recorded at swap 0.1, fell back to the
+statistical mode on every scenario of all three with zero identical streams. The gaussian partition against 1e5f80b2 is max
+|z| = 3.73 over 3687 summaries, 17 with |z| > 3 and none at |z| > 4.
+
+**The shipped baselines** are `equivalence-643fb617.rds`, `bcf-equivalence-643fb617.rds` and
+`multinomial-equivalence-643fb617.rds`, recorded at 643fb617 and replayed 50/50, 12/12 and 11/11 from a second `--preclean`
+install. The BCF and multinomial harnesses replicate no seed, so their draws-axis fallback against the outgoing baselines reports
+large |z| (up to 20.82 and 9.31) that is not a calibrated posterior comparison; their MANIFEST rows say so and rest on the bitwise
+identity plus the four exact-posterior gates, all of which PASS at this tip in quick mode - bcf-exact E[mu] gap 0.0005,
+bcf-exact-weak E[tau] 0.0012, bcf-exact-restricted E[mu] 0.0007, multinomial-exact all arms.
+
+**Gates.** tests/cpp 277 ok, all tests passed, and the same under `-fsanitize=address,undefined`; the count is 278 less
+`testSwapSiblingStrand`. tinytest 7449 tests, 0 failures. `air format --check`, `lintr::lint_package()`,
+`tools/check-doc-freshness.R` and `tools/check-rc-codoc.R` all clean. The refusal poison: deleting
+[`refuseRemovedProposalNames`](../../R/model.R) fails exactly the tinytest that pins it, and restoring it passes.
+`DBARTS_C_API_HASH` is unchanged.
+
+**Two tests were pinned on the old stream rather than on semantics** and were rewritten to their intent rather than re-valued:
+tests/cpp's `installForests` precondition swept a fixed two sweeps to move the twin's tree off the donor's and now sweeps until it
+moves, and test-weighted-binary-ppd.R required every `w = 5` column to draw an intermediate count where one column's posterior mean
+probability is 0.0005, so it now reads only the columns whose posterior mean probability is interior. Both keep the property they
+were written for.
+
+**The `default` arm of both P2 scripts is deleted**, being a mixture the kernel can no longer run. That costs
+[10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)'s `default` rows their
+reproducing script: those numbers stand as a record of the former kernel and cannot be re-derived from the tree. The `noswap` and
+`birthdeath` arms still run, and `noswap` is now the shipped mixture.
+
+**The P2 path check reproduces.** `P2-confounded-step.R` at the landed tip returns the duplicate-column null's no-swap row
+verbatim - pooled 0.457 (0.359-0.555), 70.8 (57.9-81.2) switches per chain, minimum 0, between-chain sd 0.149 (0.036-0.251), 5 of
+40 chains parked - and its birth/death rows likewise, on both designs. `P2-null-at-scale.R` returns 0.283 (0.268-0.305) at
+`m = 50` and 0.323 (0.317-0.330) at `m = 200`, between-chain sd 0.009 (0.007-0.012) and 0.003 (0.002-0.004), ZERO stuck-on-x3
+trees at either count. Every figure is 10.1's, to the digit. So the whole R-to-engine path carries the identity the three oracles
+test at the harness level.
+
+**Not done here, and owed.** Three things. The SPEED compare was not run: `bench-sampler.R` needs a quiet machine and the landing
+box was not one (1-minute load above 3, a virtual machine resident). Birth/death takes swap's 0.1 and is a scored move where 70 to
+77 percent of swaps were no-ops, so a small slowdown is expected and only an arm past the harness's 1.05 ratio would make this a
+re-record with its own MANIFEST row. The MOVE CENSUS has not been re-run at the new default: section 5 asks for
+[`moveTable`](../../benchmarks/R/move-census.R)'s per-move acceptance on a `-DBARTCORE_MOVE_CENSUS` build, recorded in 6.1's
+addendum, and [5. Benefit, pre-registered](perturb-move.md#5-benefit-pre-registered) still recomposes those rates arithmetically
+from the swap-carrying census. The SBC matrix has not been run since the landing; section 4 says it pins no ranks, so nothing is
+owed there beyond one run of the matrix and a verdict only where an arm flags.

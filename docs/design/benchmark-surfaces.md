@@ -959,10 +959,11 @@ must stay in the battery as the known-positive control. Run it on two
 rungs: Pratola's own cell (n = 5000, m = 200, `sigma^2 = 0.1`, published
 90% coverage 53% under birth/death only) and section 13's cheaper cell
 (n = 2000, m = 200, `sigma = 0.25`, measured here at 90% coverage 0.71
-under all three shipped mixtures). If the second rung does not come back
+under all three mixtures section 13 ran, one of which - the swap-carrying
+default - is no longer reachable). If the second rung does not come back
 near 0.71 in the control arm, the harness is broken and no verdict from any
-other cell is valid. Its weakness as a discriminator is established:
-three shipped proposal mixtures were indistinguishable on it.
+other cell is valid. Its weakness as a discriminator is established: three
+proposal mixtures were indistinguishable on it.
 
 **P2** is the highest-value pathology per second in this survey. Three
 columns, three hundred rows, one tree, a published acceptance rate of zero,
@@ -1090,7 +1091,7 @@ by cost.
                         readout needs new tooling
     5     P7      20    cheap and consumer-relevant, but its statistic
                         (interval width off-support) is soft
-    6     P1      80    known-positive control, but three shipped mixtures
+    6     P1      80    known-positive control, but three proposal mixtures
                         were indistinguishable on it
     7     C1     120    the largest published coverage deficit in this
                         survey (0.74-0.78 at 95% nominal), but it is a
@@ -1253,8 +1254,19 @@ cost model    "unit fit" = the n 2000, p 10, m 200, 3000-sweep single-
 
 ## 10. Pilot results (2026-09-06)
 
+**Every record in this section was measured at the mixture in force on
+2026-09-06, `birth_death 0.5, swap 0.1, change 0.4, birth 0.5`. The swap move
+has since been removed and the default is `birth_death 0.6, change 0.4,
+birth 0.5`
+([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)),
+which is this section's own `noswap` arm.** Nothing below was re-measured:
+"default", "shipped default" and "shipped mixture" in this section name the
+swap-carrying mixture these numbers were taken at, not the kernel that ships.
+The `default` arm is no longer reachable, so the rows that name it have no
+reproducing script; `noswap` and `birth/death` still run.
+
 Section 6.5 named P2, P6 and P5 as the three to run first and C1 as the core
-cell to gate on. This is that run, against the shipped default sampler.
+cell to gate on. This is that run, against the then-shipped default sampler.
 Sections 1 to 9 are the survey as written and are unchanged. The cells live
 in `benchmarks/R/surfaces`, one script each plus a shared
 `surfaces-common.R`; every generating process there is transcribed from the
@@ -1329,11 +1341,12 @@ four-value grid: with continuous duplicates a rule-changing proposal has to
 hit the twin column at the same cut out of the whole grid, which makes the
 switch rare for a reason unrelated to the kernel.
 
-**No-swap arm.** Arm C of
+**No-swap arm - now the shipped one.** Arm C of
 [14.2 Design](tree-mixing-proposals.md#142-design) (birth_death 0.6,
 swap 0, change 0.4, birth 0.5) was added to this cell and run on the same
-five seeds. Null control, pooled p(root x1), switches per chain (min-max),
-minimum switches, between-chain sd, chains parked off the pair (of 40):
+five seeds; it is the mixture that ships. Null control, pooled p(root x1),
+switches per chain (min-max), minimum switches, between-chain sd, chains
+parked off the pair (of 40):
 default 0.499 (0.481-0.512), 78.5 (70.2-85.0), 38, 0.051 (0.017-0.075), 0;
 birth/death only 0.425 (0.125-0.625), 0.0 (0.0-0.0), 0, 0.492 (0.354-0.535),
 12; no-swap 0.457 (0.359-0.555), 70.8 (57.9-81.2), 0, 0.149 (0.036-0.251), 5.
@@ -1343,14 +1356,16 @@ root with 3 to 4 interior nodes and a child already split on x1, a
 representation no default chain ever visits. Change at an x3 root is vetoed
 once a child splits on x1, and death of that child loses the signal rather
 than returning it to the root ([`changeMove`](../../src/bartcore/moves.hpp)); swap
-is the only move that rotates a child's rule up to the root
-([`swapMove`](../../src/bartcore/moves.hpp)). On this null control change alone
-does not carry representation switching; swap does the rule rotation.
+was the only move that rotated a child's rule up to the root, and is deleted
+(retired: [`swapMove`](../../src/bartcore/moves.hpp)). On this null control
+change alone does not carry representation switching; swap did the rule
+rotation. This is the one measured cost of the removal, and it is confined
+to m = 1: the paragraph below finds no stuck tree at 50 or 200.
 
 **At production tree counts.** `P2-null-at-scale.R` re-runs the
-duplicate-column null at m = 50 and m = 200 trees, default and no-swap
-arms only, 5 seeds x 8 chains x 2000 kept sweeps, reading a tree-level
-root share instead of a chain-level one. Mean x3 share (min-max over
+duplicate-column null at m = 50 and m = 200 trees - default and no-swap
+arms when it was run, the no-swap arm alone now - 5 seeds x 8 chains x 2000
+kept sweeps, reading a tree-level root share instead of a chain-level one. Mean x3 share (min-max over
 chains), between-chain sd of the x3 share, total stuck-on-x3 trees over
 all chains: default 50 0.281(0.266-0.299), 0.008(0.005-0.010), 0; default
 200 0.323(0.313-0.331), 0.003(0.002-0.005), 0; no-swap 50
@@ -1530,7 +1545,7 @@ the no-grow arm. The grow-from-root arm moves coverage, RMSE and minimum
 ESS by less than the no-grow arm's own seed-to-seed range on both mean
 functions.
 
-### 10.5 What the four cells say about the shipped kernel
+### 10.5 What the four cells say about the kernel that was measured
 
 Facts only, against the rule in section 6.1.
 

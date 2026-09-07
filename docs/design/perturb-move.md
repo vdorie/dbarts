@@ -9,11 +9,12 @@ cut probe prices the move directly on this sampler, in section 6.1's 2026-09-07 
 ([6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)).
 Every census number below is from it.
 
-**Premise, not reopened here.** The swap move is being removed pre-release (VD, 2026-09-07); its slice lands first, takes the one
-bundled baseline re-record, and blocks everything here (section 8). The mixture is therefore `birth_death 0.6, change 0.4, birth
-0.5`, `perturb` the fourth named element of `proposal.probs` and the third STRUCTURAL probability, and Stage 2's control arm that
-mixture. Every count is written against the post-removal tree: the surface work is the removal's inverse, so each `swapProbability`
-site named is one a `perturbProbability` takes.
+**Premise, not reopened here.** The swap move was removed pre-release (VD, 2026-09-07), its slice landing first and taking the one
+bundled baseline re-record
+([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)). The mixture is therefore `birth_death 0.6,
+change 0.4, birth 0.5`, `perturb` the fourth named element of `proposal.probs` and the third STRUCTURAL probability, and Stage 2's
+control arm that mixture. Every count below is written against the post-removal tree: the surface work is the removal's inverse, so
+each site the removal emptied is one a `perturbProbability` refills.
 
 ## 1. What change does, and why a displacement is a different move
 
@@ -113,7 +114,7 @@ with `B` the [`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) 
 out of availability below. Three of `changeMove`'s checks drop - no mask pool (an ordinal rule allocates no words), no interaction
 walk (`tree.interactionSubtreeIsValid` tests co-occurrence and order of split VARIABLES, which a displacement never moves), no
 stranding check (`[lo, hi]` strands none) - and [`maintainMonotoneLeafStore`](../../src/bartcore/chain.hpp) switches only on birth
-and death, so the new `StepType` falls through as swap and change do. The snapshot is
+and death, so the new `StepType` falls through as change does. The snapshot is
 [`SubtreeSnapshot`](../../src/bartcore/tree.hpp) from [`MoveScratch`](../../src/bartcore/moves.hpp), node CONTENTS for a fixed id
 set, all a shape-preserving move needs.
 
@@ -123,7 +124,7 @@ one ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-p
 already-vetoed state the ordering runs the other way and a rank-improving proposal is accepted outright. At `w = 1` only one cut
 bin's rows cross, so the exposure is small, and it is inside the probe's band, which folded `resolveVetoRank`'s `-Inf` into its log
 ratio. PERTURB'S OWN veto share is the unrecorded `vetoed.pct` column of section 7; the 0.07 to 0.25 percent of a cell's rejections
-6.1 reports is birth, death, change and swap's, quoted here only as an order of magnitude.
+6.1 reports is birth, death, change and the then-live swap's, quoted here only as an order of magnitude.
 
 `w` counts GRID POSITIONS, and the default `useQuantiles = FALSE` lays `n.cuts` uniform cuts over the observed range whatever a
 column's distinct-value count ([`fillCutsOverRange`](../../src/bartcore/data.hpp)). On a coarse or discrete column ADJACENT SPLIT
@@ -167,10 +168,10 @@ birth/death-only rewrite (["'monotone' forces birth/death-only proposals"](../..
 `defaultProposalProbs`, so leaving it stale makes the refusal compare against a vector that no longer exists. Both `all.equal`
 branches, monotone and treatment-forest, live in [`resolveSamplerSpec`](../../R/spec.R), which `dbarts()`, `bart2()` and
 `dbartsSpec()` all route through, so a defect there fires from every entry point; only the treatment-forest branch reads
-`defaultProposalProbs`. [`dbartsModel`](../../R/A_class.R) gains a `p.perturb` slot, prototype and sum-to-one validity. In C++,
-`swapProbability` has eight sites in [`parseModel`](../../src/R_interface_bartcore.cpp)'s file (parsed struct, read, sum check,
-creation printout, options copy, two-forest refusal, forest spec, multinomial parameters), ten across
-[`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp), and three in
+`defaultProposalProbs`. [`dbartsModel`](../../R/A_class.R) gains a `p.perturb` slot, prototype and sum-to-one validity. In C++, a
+`perturbProbability` takes the eight sites the removal emptied in [`parseModel`](../../src/R_interface_bartcore.cpp)'s file (parsed
+struct, read, sum check, creation printout, options copy, two-forest refusal, forest spec, multinomial parameters), the ten across
+[`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp), and the three in
 [`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp) - `Forest` being what
 [`MoveContext`](../../src/bartcore/moves.hpp) is built from, so without it the kernel is unreachable and without the two specs it is
 silently zero in BCF and multinomial fits. Four Rd files: ["proposal.probs"](../../man/dbarts.Rd),
@@ -373,8 +374,9 @@ the census's per-move rates at the post-removal shares.
 
 ## 8. Slices
 
-0. **The swap removal**, a blocking prerequisite for every slice below and the source of every count in this document. It is decided
-   (VD, 2026-09-07) but not yet written down in `docs/design/`; its own slice records it and takes the bundled re-record.
+0. **The swap removal**, a blocking prerequisite for every slice below and the source of every count in this document. DONE: it is
+   recorded and landed ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)) and it took the bundled
+   re-record.
 1. **The kernel, at default weight 0.** `perturbMove`, a shortened [`changeMove`](../../src/bartcore/moves.hpp), the dispatch branch
    and `StepType` enumerator, `MoveContext`; ten `chain.hpp` and three `combiner.hpp` sites; eight bridge sites including the
    two-forest refusal; six R spellings, the new slot and validity, the guarded one-NA fill, `resolveSamplerSpec`'s two `all.equal`
