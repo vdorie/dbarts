@@ -15,8 +15,10 @@
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R aft 200 200 30       # aft/survival, rebuilt
 #   Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 # GP/constant mix
+#   Rscript benchmarks/R/sbc.R bcf-probit 200 150 30 <burn> # latent BCF arms
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
 #   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
+#   Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24 # its repriced ladder
 # Positional args: config R L thin, plus an optional 5th, the burn in absolute
 # sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
 # the API:
@@ -31,6 +33,15 @@
 # functional that FLAGs prints "FLAG (expected)" and is excluded from the exit
 # check; one that PASSES is unaffected; any FLAG outside the list still fails
 # as before. Only the CLI reads this variable; source() usage is untouched.
+# SBC_POISON (env var, opt-in) names one or more deliberate generator/sampler
+# mismatches for the two latent BCF arms, comma-separated (sbcBCFPoisons):
+# "link" simulates through the OTHER link, "glue-sd" draws the glue at
+# gaussian's sd.control = 2 while the sampler runs at the family default 1, and
+# "sigma" adds latent noise the fit cannot model. Each is a by-hand
+# discrimination run whose functionals must FLAG, never a recorded verdict; an
+# unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
+# arm's glue at the engine's initial (1, 0, 1) - the control that isolates the
+# two-forest backfit from the glue draw, and the one "glue-sd" carries.
 #
 # SELF-CONSISTENCY is the whole game: theta0 must come from the same prior the
 # sampler assumes in its posterior. The forest/leaf draw uses the sampler's own
@@ -1028,6 +1039,20 @@ runSbcAft <- function(
 # each sign-invariant under (a, mu) -> (-a, -mu), so the CLEAN functionals are
 # the identified functions a*mu(x*) and (b1-b0)*tau(x*) at fixed points plus
 # sigma; the raw a and (b1-b0) are reported too but carry that sign caveat.
+#
+# The two LATENT arms (bcf-probit, bcf-logistic) share the machinery below and
+# differ in four places, one per thing a latent family makes new. Sigma is
+# pinned at exactly 1, so its functional and its moment check go and
+# sbcCheckBCFLatent replaces them; the reported/internal transform is the
+# identity, so the affine map sbcMakeBCF regresses is a self-check rather than
+# a conversion; y is Bernoulli at the link of the COMBINED index a mu + b_z tau,
+# the location the latent refresh runs against, with no offset and no noise;
+# and p_j, the link at each evaluation row's index, joins the ranked
+# functionals - the reported deliverable, bounded, and rank-equivalent to the
+# index itself because the link is increasing, where neither prog_j nor eff_j
+# alone is the index. Thirteen at nTest = 3: 4 glue, 3 prog, 3 eff, 3 p. Their
+# driver is runSbcFamily, off the sbcFamilySpec branch below, so one generator
+# serves both the burn ladder and the R-replication run.
 
 .bcfNew <- getFromNamespace("bartcoreBCFSampler", "dbarts")
 .bcfRun <- bartcoreRun
@@ -1089,6 +1114,86 @@ sbcCheckBCFGlue <- function(aPriorScale, bPriorVariance, nDraws = 2e5L) {
   )
 }
 
+# A BCF config whose family is one of the two latent links, as against the
+# gaussian arm's.
+sbcBCFLatent <- function(config) {
+  config$family %in% c("probit", "logistic")
+}
+
+# The link a latent arm simulates and reports through, and its opposite - the
+# generator half of poison (i).
+sbcBCFLink <- function(family) {
+  switch(
+    family,
+    probit = pnorm,
+    logistic = plogis,
+    stop("no link for family \"", family, "\"")
+  )
+}
+
+sbcBCFOtherLink <- function(family) {
+  sbcBCFLink(switch(family, probit = "logistic", logistic = "probit"))
+}
+
+# The named discrimination poisons (docs/plans/bcf-latent-evidence.md Decision
+# 4), each a deliberate mismatch between the generator and the sampler that
+# must redden the arm. They are run once by hand and never recorded as a
+# verdict, so the names are validated where they are read: a typo would
+# otherwise score a clean arm and read as a pass.
+sbcBCFPoisons <- c("link", "glue-sd", "sigma")
+
+sbcBCFPoison <- function(poison) {
+  if (is.null(poison)) {
+    return(character(0))
+  }
+  poison <- trimws(poison[nzchar(trimws(poison))])
+  unknown <- setdiff(poison, sbcBCFPoisons)
+  if (length(unknown) > 0L) {
+    stop(
+      "unknown SBC poison(s): ",
+      paste(unknown, collapse = ", "),
+      "; known: ",
+      paste(sbcBCFPoisons, collapse = ", ")
+    )
+  }
+  poison
+}
+
+# The latent arm's ranked functionals, from one (glue, mu, tau) - theta0's or a
+# posterior draw's, which is what makes the two comparable. Evaluation rows are
+# the first nTest TRAINING rows, the arm's idx convention, so z is theirs too.
+# Under a held glue the four glue functionals are degenerate constants and are
+# dropped rather than ranked.
+sbcBCFFunctionals <- function(
+  config,
+  glue,
+  mu,
+  tau,
+  idx,
+  link,
+  fixedGlue = FALSE
+) {
+  diff <- glue$b1 - glue$b0
+  out <- if (fixedGlue) {
+    numeric(0)
+  } else {
+    c(
+      a = glue$a,
+      abs.a = abs(glue$a),
+      b1.minus.b0 = diff,
+      abs.diff = abs(diff)
+    )
+  }
+  bz <- ifelse(config$z[idx] != 0, glue$b1, glue$b0)
+  index <- glue$a * mu[idx] + bz * tau[idx]
+  for (j in seq_along(idx)) {
+    out[paste0("prog", j)] <- glue$a * mu[idx[j]]
+    out[paste0("eff", j)] <- diff * tau[idx[j]]
+    out[paste0("p", j)] <- link(index[j])
+  }
+  out
+}
+
 # Build a BCF sampler on a fixed design and recover the reported <- internal
 # affine map (fitScale, fitShift) by regressing one run's reported combined
 # fits on the internal a*mu + b_z*tau. Returns the sampler, z, and the map.
@@ -1117,6 +1222,9 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   bcf <- .bcfNew(
     base,
     config$z,
+    # the family formal writes the link into the model copy the bridge reads;
+    # NULL, the default, leaves the host gaussian sampler's own
+    family = if (sbcBCFLatent(config)) config$family else NULL,
     sd.control = config$sdControl,
     sd.moderate = config$sdModerate,
     b.prior.variance = config$bPriorVariance,
@@ -1139,6 +1247,55 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
     fitShift = unname(coef(fit)[1L]),
     fitScale = unname(coef(fit)[2L]),
     mapR2 = summary(fit)$r.squared
+  )
+}
+
+# What replaces the gaussian arm's sigma moment check, and the reason the
+# regressed map is a self-check here. Three claims, read at the prior state and
+# again after a response swap: sigma is pinned at EXACTLY 1, the
+# reported/internal transform is the identity, and the recorded combined train
+# fits are a mu + b_z tau - the location the latent refresh runs against, which
+# is neither forest's own fits.
+sbcCheckBCFLatent <- function(config, seed = 99L) {
+  set.seed(seed)
+  built <- sbcMakeBCF(config, 1L, 1L, fixedGlue = isTRUE(config$fixedGlue))
+  bcf <- built$bcf
+  combined <- function() {
+    res <- .bcfRun(bcf, 0L, 1L)
+    glue <- .bcfGlue(bcf)
+    bz <- ifelse(config$z != 0, glue[3L], glue[2L])
+    mu <- .bcfForest(bcf, 0L)[, 1]
+    tau <- .bcfForest(bcf, 1L)[, 1]
+    list(
+      fits = res$train[, 1],
+      index = glue[1L] * mu + bz * tau,
+      sigma = as.numeric(res$sigma)[1L]
+    )
+  }
+  prior <- combined()
+  y0 <- as.double(rbinom(
+    config$n,
+    1L,
+    sbcBCFLink(config$family)(prior$index)
+  ))
+  .bcfSetResponse(bcf, y0, FALSE)
+  fitted <- combined()
+  maxDiff <- max(
+    abs(prior$fits - prior$index),
+    abs(fitted$fits - fitted$index)
+  )
+  maxSigma <- max(abs(c(prior$sigma, fitted$sigma) - 1))
+  list(
+    fitScale = built$fitScale,
+    fitShift = built$fitShift,
+    mapR2 = built$mapR2,
+    maxDiff = maxDiff,
+    maxSigma = maxSigma,
+    pass = maxDiff < 1e-12 &&
+      maxSigma == 0 &&
+      abs(built$fitScale - 1) < 1e-10 &&
+      abs(built$fitShift) < 1e-10 &&
+      abs(built$mapR2 - 1) < 1e-12
   )
 }
 
@@ -1386,7 +1543,89 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
   bcFits <- bartcoreForestFits
   K <- config$K
 
-  if (config$family == "ordinal") {
+  if (!is.null(config$z)) {
+    # A latent BCF arm - a config carrying a treatment vector is a BCF one.
+    # One handle serves as generator and fit, as the gaussian arm's does: numGroups == 0 makes setResponse legal, so the build scale the
+    # prior draw shares is never disturbed. Everything the arm needs beyond
+    # sbcAddBCF rides the config - `fixedGlue` holds the glue at the engine's
+    # initial (1, 0, 1), `poison` names a deliberate mismatch - so the burn
+    # ladder and the R-replication driver share one generator.
+    if (!sbcBCFLatent(config)) {
+      stop("the gaussian BCF arm's driver is runSbcBCF, not the family one")
+    }
+    poison <- sbcBCFPoison(config$poison)
+    fixedGlue <- isTRUE(config$fixedGlue)
+    link <- sbcBCFLink(config$family)
+    # poison (i): the generator's link, wrong on purpose
+    simLink <- if ("link" %in% poison) {
+      sbcBCFOtherLink(config$family)
+    } else {
+      link
+    }
+    # poison (ii): the generator's a-prior scale at gaussian's 2 while the
+    # sampler runs at the family default. Inert under a held glue, which is the
+    # control this poison carries and the other two do not
+    glueScale <- if ("glue-sd" %in% poison) 2 else config$sdControl
+    drawGlue <- if (fixedGlue) {
+      function() list(a = 1, b0 = 0, b1 = 1) # the engine's fixed initial glue
+    } else {
+      sbcBCFGlueDraw(glueScale, config$bPriorVariance)
+    }
+    # poison (iii): latent noise the fit cannot model, at the gaussian arm's
+    # own sigma prior
+    drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+    built <- sbcMakeBCF(config, 1L, thin, fixedGlue = fixedGlue)
+    bcf <- built$bcf
+    idx <- seq_len(config$nTest)
+    # `a` prescribes the prognostic scalar's MAGNITUDE (the ladder's strata);
+    # its sign is unidentified, so the positive representative is drawn
+    drawOne <- function(a = NULL) {
+      g0 <- drawGlue()
+      if (!is.null(a)) {
+        g0$a <- a
+      }
+      # the glue is installed BEFORE the forests: each forest's prior trees are
+      # drawn against its own veto vector, which the glue sets
+      sbcInstallBCFGlue(bcf, g0)
+      .Call(priorTrees, bcf$ptr)
+      .Call(priorNodes, bcf$ptr)
+      mu0 <- bcFits(bcf, 0L)[, 1]
+      tau0 <- bcFits(bcf, 1L)[, 1]
+      bz0 <- ifelse(config$z != 0, g0$b1, g0$b0)
+      index0 <- g0$a * mu0 + bz0 * tau0
+      if ("sigma" %in% poison) {
+        index0 <- index0 + drawSigma(1L) * rnorm(config$n)
+      }
+      list(
+        y = as.double(rbinom(config$n, 1L, simLink(index0))),
+        theta = sbcBCFFunctionals(config, g0, mu0, tau0, idx, link, fixedGlue)
+      )
+    }
+    spec <- list(
+      draw = drawOne,
+      drawAt = drawOne,
+      fit = function(y) {
+        .Call(priorTrees, bcf$ptr)
+        .Call(priorNodes, bcf$ptr)
+        .bcfSetResponse(bcf, y, FALSE)
+        bcf
+      },
+      burnRun = function(f, burn) bcRun(f, burn, 0L),
+      sample = function(f) {
+        bcRun(f, 0L, 1L)
+        glue <- .bcfGlue(f)
+        sbcBCFFunctionals(
+          config,
+          list(a = glue[1L], b0 = glue[2L], b1 = glue[3L]),
+          bcFits(f, 0L)[, 1],
+          bcFits(f, 1L)[, 1],
+          idx,
+          link,
+          fixedGlue
+        )
+      }
+    )
+  } else if (config$family == "ordinal") {
     gen <- sbcMakeSampler(config, 1L, 1L, seed)
     drawGamma <- sbcOrdinalCutpointDraw(K)
     freeCuts <- seq_len(K - 2L) + 1L
@@ -1569,6 +1808,33 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
   spec
 }
 
+# A latent BCF arm's configuration: the gaussian arm's n at nTest = 3, and
+# sd.control at the FAMILY default 1 rather than gaussian's 2 (bcf.md's
+# calibration section: under a latent family s is the link's own fixed error sd
+# and sigma is pinned, so 2 would assert a median prognostic signal twice the
+# noise). `arm` is what names it, since its family token is the link and the
+# plain probit arm already owns that.
+sbcBCFLatentConfig <- function(link) {
+  config <- sbcAddBCF(
+    sbcConfig(family = link, n = 200L, nTest = 3L),
+    sdControl = 1
+  )
+  config$arm <- paste0("bcf-", link)
+  # the ladder's PRESCRIBED |a| strata, run beside its prior-drawn datasets:
+  # the settle time scales in |a| (sigma being pinned), and the half-Cauchy at
+  # scale 1 reaches its own tail too rarely to measure the limit from draws
+  # alone
+  config$ladderStrata <- c(0.5, 2, 5, 10)
+  config
+}
+
+# An arm's own name. Only where an arm does not name itself by its family does
+# a config carry one: the two latent BCF arms share the plain probit arm's
+# family token, so keying anything per arm on the family would collide.
+sbcArmName <- function(config) {
+  if (is.null(config$arm)) config$family else config$arm
+}
+
 # The configuration each family arm runs at, in one place so the burn ladder,
 # the R=200 verdict run and the CI matrix cannot drift apart. Sizing notes:
 # ordinal takes K = 4 because gamma_1 is pinned at 0 and only gamma_2..gamma_K-1
@@ -1585,6 +1851,8 @@ sbcFamilyConfig <- function(family) {
     t = sbcConfig(family = "t"),
     multinom = ,
     multinomial = sbcConfig(family = "multinomial", numCategories = 3L),
+    "bcf-probit" = sbcBCFLatentConfig("probit"),
+    "bcf-logistic" = sbcBCFLatentConfig("logistic"),
     stop("no family config for \"", family, "\"")
   )
 }
@@ -1641,11 +1909,18 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # agg.psi mirror each other block for block; avg.mu clears 0.1 at LAG 1). The
 # Student-t settles in a couple of thousand sweeps with sigma/nu at lag ~40-60,
 # and multinomial mixes fastest of all (every functional under lag 10).
+# The two latent BCF arms carry NO pre-registered burn. The gaussian BCF arm's
+# 72000 is the (a, mu) amplitude ridge co-relaxing with tree-structure mixing,
+# READ THROUGH sigma; pinning sigma removes the readout, not the ridge, and the
+# misfit it absorbed lands in the index that these arms rank instead. Their
+# ladder run fills these two in.
 sbcBurnSweeps <- c(
   ordinal = 36000,
   nbinom = 24000,
   t = 12000,
-  multinomial = 6000
+  multinomial = 6000,
+  "bcf-probit" = NA_real_,
+  "bcf-logistic" = NA_real_
 )
 
 # Rank R replications of a family-spec configuration. The generic sibling of
@@ -1657,10 +1932,20 @@ runSbcFamily <- function(
   R = 200L,
   L = 150L,
   thin = 30L,
-  burnSweeps = sbcBurnSweeps[[config$family]],
+  burnSweeps = sbcBurnSweeps[[sbcArmName(config)]],
   seed = 20260709L,
   report = 25L
 ) {
+  if (!is.finite(burnSweeps)) {
+    stop(
+      "no measured burn for arm \"",
+      sbcArmName(config),
+      "\": run its ladder (sbc.R burn-",
+      sbcArmName(config),
+      ") and record the sweeps in sbcBurnSweeps, or pass the burn in sweeps ",
+      "as the 5th positional argument"
+    )
+  }
   burn <- as.integer(ceiling(burnSweeps / thin))
   set.seed(seed)
   spec <- sbcFamilySpec(config, thin, seed)
@@ -1696,7 +1981,7 @@ runSbcFamily <- function(
       elapsed <- proc.time()[["elapsed"]] - started
       cat(sprintf(
         "  [%s] rep %d/%d  %.1fs elapsed  %.2fs/rep\n",
-        config$family,
+        sbcArmName(config),
         r,
         R,
         elapsed,
@@ -1728,20 +2013,34 @@ runSbcFamily <- function(
 # block where |z| stops exceeding ~1 is where the chain has settled), and (b)
 # the first ACF lag under 0.1 on the trailing half (the thinning floor). It also
 # times the sweeps, which is the per-sweep cost measurement the budget needs.
+#
+# `strata` appends datasets drawn at a PRESCRIBED value of the arm's own
+# settle-driving parameter, after the prior-drawn ones - the latent BCF arms'
+# |a|, whose worst stratum the prior reaches too rarely to measure from draws
+# alone. Only a spec that offers drawAt can take them.
 sbcBurnLadder <- function(
   config,
   nSweep = 20000L,
   nDataset = 3L,
   nBlock = 10L,
-  seed = 20260804L
+  seed = 20260804L,
+  strata = config$ladderStrata
 ) {
   set.seed(seed)
   spec <- sbcFamilySpec(config, 1L, seed)
+  if (length(strata) > 0L && is.null(spec$drawAt)) {
+    stop("this family's spec cannot draw at a prescribed stratum")
+  }
   blockSize <- nSweep %/% nBlock
-  results <- vector("list", nDataset)
+  inputs <- c(rep(list(NULL), nDataset), as.list(strata))
+  results <- vector("list", length(inputs))
   totalElapsed <- 0
-  for (d in seq_len(nDataset)) {
-    drawn <- spec$draw()
+  for (d in seq_along(inputs)) {
+    drawn <- if (is.null(inputs[[d]])) {
+      spec$draw()
+    } else {
+      spec$drawAt(inputs[[d]])
+    }
     fit <- spec$fit(drawn$y)
     trace <- matrix(NA_real_, length(drawn$theta), nSweep)
     started <- proc.time()[["elapsed"]]
@@ -1768,10 +2067,15 @@ sbcBurnLadder <- function(
     }
     rownames(z) <- names(drawn$theta)
     names(firstUnder) <- names(drawn$theta)
-    results[[d]] <- list(z = z, firstUnder = firstUnder, blockSize = blockSize)
+    results[[d]] <- list(
+      z = z,
+      firstUnder = firstUnder,
+      blockSize = blockSize,
+      stratum = inputs[[d]]
+    )
   }
   list(
-    family = config$family,
+    family = sbcArmName(config),
     nSweep = nSweep,
     nBlock = nBlock,
     datasets = results,
@@ -1792,8 +2096,13 @@ sbcReportBurnLadder <- function(ladder) {
   for (d in seq_along(ladder$datasets)) {
     res <- ladder$datasets[[d]]
     cat(sprintf(
-      "\n dataset %d: block-mean z vs the final half (block = %d sweeps)\n",
+      "\n dataset %d%s: block-mean z vs the final half (block = %d sweeps)\n",
       d,
+      if (is.null(res$stratum)) {
+        ""
+      } else {
+        sprintf(" (prescribed |a| = %g)", res$stratum)
+      },
       res$blockSize
     ))
     cat(sprintf(
@@ -1985,7 +2294,7 @@ sbcReport <- function(
 ) {
   cat(sprintf(
     "\nSBC report: family=%s n=%d p=%d nTrees=%d | R=%d L=%d thin=%d burn=%d\n",
-    fit$config$family,
+    sbcArmName(fit$config),
     fit$config$n,
     fit$config$p,
     fit$config$nTrees,
@@ -2130,7 +2439,8 @@ if (sys.nframe() == 0L) {
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
-  isBCF <- which %in% c("bcf", "bcf-weak")
+  isLatentBCF <- which %in% c("bcf-probit", "bcf-logistic")
+  isBCF <- which %in% c("bcf", "bcf-weak", "bcf-probit", "bcf-logistic")
   isAft <- which == "aft"
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
@@ -2138,7 +2448,7 @@ if (sys.nframe() == 0L) {
   isFamilyTier <- which %in%
     c("ordinal", "nbinom", "t", "multinom", "multinomial")
 
-  config <- if (isFamilyTier) {
+  config <- if (isFamilyTier || isLatentBCF) {
     sbcFamilyConfig(which)
   } else if (isDart) {
     sbcConfig(
@@ -2209,6 +2519,18 @@ if (sys.nframe() == 0L) {
     sbcConfig(family = which)
   }
 
+  # The BCF arms' two by-hand controls, both opt-in and both off by default.
+  # A poison must redden the arm it names, so an unknown name or an arm that
+  # cannot carry one refuses the run rather than reporting a clean result.
+  poison <- sbcBCFPoison(strsplit(Sys.getenv("SBC_POISON", ""), ",")[[1]])
+  if (length(poison) > 0L && !isLatentBCF) {
+    stop("SBC_POISON applies to the latent BCF arms (bcf-probit, bcf-logistic)")
+  }
+  if (isBCF) {
+    config$poison <- poison
+    config$fixedGlue <- nzchar(Sys.getenv("SBC_FIXED_GLUE", ""))
+  }
+
   cat("== prior moment check ==\n")
   chk <- sbcCheckSigmaPrior(config$sigest, config$sigDf, config$sigQuant)
   cat(sprintf(
@@ -2244,6 +2566,22 @@ if (sys.nframe() == 0L) {
       if (gc$pass) "PASS" else "FAIL"
     ))
     selfCheckPass["glue"] <- isTRUE(gc$pass)
+  }
+  if (isLatentBCF) {
+    lb <- sbcCheckBCFLatent(config)
+    cat(sprintf(
+      "  transform: scale %.12f, shift %.2e, R2 %.12f; max |sigma - 1| %g\n",
+      lb$fitScale,
+      lb$fitShift,
+      lb$mapR2,
+      lb$maxSigma
+    ))
+    cat(sprintf(
+      "  combined fits vs a mu + b_z tau: %.2e -> %s\n",
+      lb$maxDiff,
+      if (lb$pass) "PASS" else "FAIL"
+    ))
+    selfCheckPass["latent"] <- isTRUE(lb$pass)
   }
   if (isFamilyTier) {
     if (config$family == "ordinal") {
@@ -2323,7 +2661,7 @@ if (sys.nframe() == 0L) {
   }
 
   cat(sprintf("\n== SBC run (%s R=%d L=%d thin=%d) ==\n", which, R, L, thin))
-  fit <- if (isFamilyTier) {
+  fit <- if (isFamilyTier || isLatentBCF) {
     if (is.null(burnSweeps)) {
       runSbcFamily(config, R = R, L = L, thin = thin)
     } else {
@@ -2332,7 +2670,17 @@ if (sys.nframe() == 0L) {
   } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
   } else if (isBCF) {
-    runSbcBCF(config, R = R, L = L, thin = thin)
+    bcfArgs <- list(
+      config,
+      R = R,
+      L = L,
+      thin = thin,
+      fixedGlue = isTRUE(config$fixedGlue)
+    )
+    if (!is.null(burnSweeps)) {
+      bcfArgs$burn <- as.integer(ceiling(burnSweeps / thin))
+    }
+    do.call(runSbcBCF, bcfArgs)
   } else if (isAft) {
     runSbcAft(config, R = R, L = L, thin = thin)
   } else {
