@@ -51,22 +51,26 @@
 #                           also read off the first 2500 of those draws so the
 #                           length effect is visible inside a single fit
 #
-# Three further arms sit on that same shipped four-chain configuration and the
+# Four further arms sit on that same shipped four-chain configuration and the
 # same twenty seeds, varying only the proposal mixture, so the move-set
 # contrast is read where the shipped chain default reads it rather than at the
 # one-chain configuration the earlier move-set grid used:
 #
-#   independent75pool4bd       birth_death 1, swap 0, change 0
-#   independent75pool4swap     birth_death 0.5, swap 0.1, change 0.4, the
-#                              former default
-#   independent75pool4perturb  birth_death 0.5, swap 0, change 0.34,
-#                              perturb 0.16
+#   independent75pool4bd           birth_death 1, swap 0, change 0
+#   independent75pool4swap         birth_death 0.5, swap 0.1, change 0.4, the
+#                                  former default
+#   independent75pool4perturbB     birth_death 0.6, swap 0, change 0.24,
+#                                  perturb 0.16, the shipped mixture with the
+#                                  0.16 taken out of change alone
+#   independent75pool4perturbMixed birth_death 0.5, swap 0, change 0.34,
+#                                  perturb 0.16, which takes the 0.16 out of
+#                                  change and birth/death both. It is NOT the
+#                                  arm above and its readouts do not stand in
+#                                  for it.
 #
 # independent75pool4 is their control and is re-run beside them so the
-# contrast is paired within one session. The perturb arm is a PILOT level: it
-# reads perturb at 0.16 on the former default's 0.5 birth/death base, not the
-# perturb design's own arm B, which takes the same 0.16 out of change alone at
-# birth_death 0.6.
+# contrast is paired within one session. Both perturb arms are PILOT levels,
+# not a confirmatory run of the perturb design.
 #
 # Every arm's chain settings live in the arms list, so the six above keep the
 # paper's single chain. Pooled arms are fit with combineChains = FALSE and
@@ -178,7 +182,21 @@ arms <- list(
       birth = 0.5
     )
   ),
-  independent75pool4perturb = armSpec(
+  independent75pool4perturbB = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.24,
+      perturb = 0.16,
+      birth = 0.5
+    )
+  ),
+  independent75pool4perturbMixed = armSpec(
     "independent",
     75L,
     nChains = 4L,
@@ -200,7 +218,8 @@ movesetControl <- "independent75pool4"
 movesetArms <- c(
   "independent75pool4bd",
   "independent75pool4swap",
-  "independent75pool4perturb"
+  "independent75pool4perturbB",
+  "independent75pool4perturbMixed"
 )
 selectedArms <- intersect(names(arms), args)
 if (length(selectedArms) > 0L) {
@@ -482,7 +501,7 @@ results <- do.call(rbind, rows)
 
 surfacesHeader("C1 He and Hahn: mean over seeds (min-max), in-sample f")
 cat(sprintf(
-  "%-12s %-26s %-20s %-20s %-20s %-16s %s\n",
+  "%-12s %-31s %-20s %-20s %-20s %-16s %s\n",
   "mean fn",
   "arm",
   "95% coverage",
@@ -495,7 +514,7 @@ for (which in meanFunctions) {
   for (armName in names(arms)) {
     keep <- results$meanFunction == which & results$arm == armName
     cat(sprintf(
-      "%-12s %-26s %-20s %-20s %-20s %-16s %s\n",
+      "%-12s %-31s %-20s %-20s %-20s %-16s %s\n",
       which,
       armName,
       surfacesRange(results$coverageTrain[keep]),
@@ -509,7 +528,7 @@ for (which in meanFunctions) {
 
 surfacesHeader("C1 chain diagnostics: mean over seeds (min-max)")
 cat(sprintf(
-  "%-12s %-26s %-9s %-16s %-16s %-16s %s\n",
+  "%-12s %-31s %-9s %-16s %-16s %-16s %s\n",
   "mean fn",
   "arm",
   "chains",
@@ -522,7 +541,7 @@ for (which in meanFunctions) {
   for (armName in names(arms)) {
     keep <- results$meanFunction == which & results$arm == armName
     cat(sprintf(
-      "%-12s %-26s %-9s %-16s %-16s %-16s %.1f\n",
+      "%-12s %-31s %-9s %-16s %-16s %-16s %.1f\n",
       which,
       armName,
       sprintf("%d x %d", arms[[armName]]$nChains, arms[[armName]]$nSamples),
@@ -538,7 +557,7 @@ prefixArms <- names(arms)[vapply(arms, function(a) !is.na(a$prefix), TRUE)]
 if (length(prefixArms) > 0L) {
   surfacesHeader("C1 chain length within one fit: first draws against all kept")
   cat(sprintf(
-    "%-12s %-26s %-9s %-20s %-20s %-20s %s\n",
+    "%-12s %-31s %-9s %-20s %-20s %-20s %s\n",
     "mean fn",
     "arm",
     "draws",
@@ -555,7 +574,7 @@ if (length(prefixArms) > 0L) {
       }
       spec <- arms[[armName]]
       cat(sprintf(
-        "%-12s %-26s %-9d %-20s %-20s %-20s %s\n",
+        "%-12s %-31s %-9d %-20s %-20s %-20s %s\n",
         which,
         armName,
         spec$prefix * spec$nChains,
@@ -565,7 +584,7 @@ if (length(prefixArms) > 0L) {
         surfacesRange(results$coveragePrefixTest[keep])
       ))
       cat(sprintf(
-        "%-12s %-26s %-9d %-20s %-20s %-20s %s\n",
+        "%-12s %-31s %-9d %-20s %-20s %-20s %s\n",
         which,
         armName,
         spec$nSamples * spec$nChains,
@@ -585,7 +604,7 @@ if (movesetControl %in% names(arms) && length(contrastArms) > 0L) {
     movesetControl
   ))
   cat(sprintf(
-    "%-12s %-26s %-26s %-26s %s\n",
+    "%-12s %-31s %-31s %-31s %s\n",
     "mean fn",
     "arm",
     "summed min ESS",
@@ -607,7 +626,7 @@ if (movesetControl %in% names(arms) && length(contrastArms) > 0L) {
         next
       }
       cat(sprintf(
-        "%-12s %-26s %-26s %-26s %s\n",
+        "%-12s %-31s %-31s %-31s %s\n",
         which,
         armName,
         armPairedDifference(contrast$minEss - base$minEss, digits = 1L),
@@ -627,7 +646,7 @@ if (any(is.finite(results$chainOverlap))) {
     movesetControl
   ))
   cat(sprintf(
-    "%-12s %-26s %-24s %s\n",
+    "%-12s %-31s %-24s %s\n",
     "mean fn",
     "arm",
     "interval overlap",
@@ -639,7 +658,7 @@ if (any(is.finite(results$chainOverlap))) {
       next
     }
     cat(sprintf(
-      "%-12s %-26s %-24s %s\n",
+      "%-12s %-31s %-24s %s\n",
       which,
       movesetControl,
       surfacesRange(results$chainOverlap[keep], digits = 2L),

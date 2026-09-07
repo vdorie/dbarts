@@ -141,17 +141,19 @@ Trig+poly for the interaction and Single index for the rotated ridge.
   per-chain minimum ESS summed and a between-chain ratio: the median over
   the ESS points of the between-chain sd of each chain's posterior mean
   over the pooled posterior sd.
-- Three move-set arms on that same four-chain configuration and the same
+- Four move-set arms on that same four-chain configuration and the same
   seeds, varying only `proposal.probs`: `independent75pool4bd` (birth/death
-  only), `independent75pool4swap` (the former default, carrying swap at 0.1)
-  and `independent75pool4perturb` (perturb at 0.16). `independent75pool4` is
-  their paired control and is re-run beside them, so the earlier move-set
-  grid's one-chain reading is retaken where the shipped chain default reads
-  it. They report, beside the pooled readouts, the per-seed paired
-  difference against the control in summed minimum ESS, coverage and RMSE,
-  and for the control arm alone the per-chain 95% intervals at the 25 ESS
-  points and how far they overlap. The perturb level is a pilot, not a
-  confirmatory run of the perturb design's own arm B.
+  only), `independent75pool4swap` (the former default, carrying swap at 0.1),
+  `independent75pool4perturbB` (perturb at 0.16 taken out of change alone)
+  and `independent75pool4perturbMixed` (the same 0.16 taken out of change and
+  birth/death both, which is a different mixture and not the arm above).
+  `independent75pool4` is their paired control and is re-run beside them, so
+  the earlier move-set grid's one-chain reading is retaken where the shipped
+  chain default reads it. They report, beside the pooled readouts, the
+  per-seed paired difference against the control in summed minimum ESS,
+  coverage and RMSE, and for the control arm alone the per-chain 95%
+  intervals at the 25 ESS points and how far they overlap. Both perturb
+  levels are pilots, not a confirmatory run of the perturb design.
 
 ## Conventions
 
