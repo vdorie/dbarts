@@ -1,14 +1,17 @@
 # Simulation-based calibration gate (benchmarks/R/sbc.R): a matrix over the
 # families with a recorded SBC verdict -- the gaussian constant-leaf baseline
-# plus the four family tiers (docs/plans/sbc-family-tiers.md). Rank uniformity
+# plus the five family tiers (docs/plans/sbc-family-tiers.md, and aft in
+# docs/design/aft-status-setter.md). Rank uniformity
 # is a statistical test that will occasionally false-alarm at its nominal level,
 # so this deliberately does NOT gate pull requests: only a scheduled,
 # workflow_dispatch-triggered run that turns visibly red on a FLAG.
 #
 # Admission: sbc.R Bonferroni's the ecdf band's alpha to 0.05/M over the
-# matrix's TOTAL functional count (M = 30), so a full matrix passes with
-# probability ~0.95 on a fresh stream rather than each of the five arms alarming
+# matrix's TOTAL functional count (M = 39), so a full matrix passes with
+# probability ~0.95 on a fresh stream rather than each of the six arms alarming
 # independently at 5%. fail-fast is off so one arm's FLAG never hides another's.
+# A widening M can only turn a recorded FLAG into a PASS, so admitting an arm
+# never invalidates a verdict already read.
 #
 # The seeds are pinned constants (sbcConfig's configSeed, the runners' seed), so
 # a healthy matrix replays identically; a draw-shifting commit or a re-rolled
@@ -16,13 +19,19 @@
 # the gate stays non-blocking.
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
-# laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min at
-# R=200; gaussian 27 s at R=100). nbinom is the expensive arm: its Polya-Gamma
-# draw loops sum(y_i + r) times per sweep.
+# laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min and
+# aft 79 s at R=200; gaussian 5 min at R=100). nbinom is the expensive arm: its
+# Polya-Gamma draw loops sum(y_i + r) times per sweep. aft takes the gaussian
+# row's 15 minutes rather than its own 3x: under a quarter hour the job's floor
+# is the dependency install and the package build, not the arm.
 #
-# Not in the matrix: BCF (bcf / bcf-weak), whose glue-on sigma channel is a
-# recorded slow-mixing finding rather than a defect (sbc-calibration.md A4e),
-# and the aft / hazard / hurdle / heteroscedastic / monotone families, which are
+# Not in the matrix: BCF, in both its gaussian arms (bcf / bcf-weak), whose
+# glue-on sigma channel is a recorded slow-mixing finding rather than a defect
+# (sbc-calibration.md A4e), and its two latent ones (bcf-probit / bcf-logistic),
+# whose amplitude functionals are measured undecorrelated past lag 200 at
+# |a| >= 5, a stratum the prior gives mass 0.126 (bcf-latent-evidence.md
+# Decision 1) -- a finding on chain length, the R=200 verdicts being near-clean.
+# And the hazard / hurdle / heteroscedastic / monotone families, which are
 # ill-posed or not yet liftable for SBC (sbc-family-tiers.md).
 #
 # NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
@@ -91,6 +100,16 @@ jobs:
             samples: 150
             thin: 30
             timeout: 40
+          # thin 40 clears the worst ACF-under-0.1 lag the ladder read, 39 over
+          # 24 prior-drawn datasets, and the burn the arm resolves from
+          # sbcBurnSweeps is 10x its transient. The censored-latent functional
+          # ranks only the replications drawing a non-empty censored set and
+          # reports its own R beside the others.
+          - config: aft
+            reps: 200
+            samples: 150
+            thin: 40
+            timeout: 15
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}

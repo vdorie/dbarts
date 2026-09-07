@@ -1736,10 +1736,13 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
 # calibration section: under a latent family s is the link's own fixed error sd
 # and sigma is pinned, so 2 would assert a median prognostic signal twice the
 # noise). `arm` is what names it, since its family token is the link and the
-# plain probit arm already owns that.
-sbcBCFLatentConfig <- function(link) {
+# plain probit arm already owns that - so the weak control below, which is the
+# same arm at the gaussian bcf-weak's n = 40 (the glue prior dominating the
+# likelihood, where an exactness error shows MORE and a ridge LESS), keys the
+# same measured burn.
+sbcBCFLatentConfig <- function(link, n = 200L) {
   config <- sbcAddBCF(
-    sbcConfig(family = link, n = 200L, nTest = 3L),
+    sbcConfig(family = link, n = n, nTest = 3L),
     sdControl = 1
   )
   config$arm <- paste0("bcf-", link)
@@ -1777,6 +1780,8 @@ sbcFamilyConfig <- function(family) {
     aft = sbcConfigAft(),
     "bcf-probit" = sbcBCFLatentConfig("probit"),
     "bcf-logistic" = sbcBCFLatentConfig("logistic"),
+    "bcf-probit-weak" = sbcBCFLatentConfig("probit", n = 40L),
+    "bcf-logistic-weak" = sbcBCFLatentConfig("logistic", n = 40L),
     stop("no family config for \"", family, "\"")
   )
 }
@@ -1860,22 +1865,31 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # agg.psi mirror each other block for block; avg.mu clears 0.1 at LAG 1). The
 # Student-t settles in a couple of thousand sweeps with sigma/nu at lag ~40-60,
 # and multinomial mixes fastest of all (every functional under lag 10).
-# The two latent BCF arms carry NO pre-registered burn. The gaussian BCF arm's
-# 72000 is the (a, mu) amplitude ridge co-relaxing with tree-structure mixing,
-# READ THROUGH sigma; pinning sigma removes the readout, not the ridge, and the
-# misfit it absorbed lands in the index that these arms rank instead. Their
-# ladder run fills these two in. The aft arm carries none either: a sweep is a
-# gaussian one plus a truncated-normal draw per censored row, which argues for
-# a gaussian-like cost and a t-like burn but measures neither, and the
-# imputation is a second block the transient has to clear.
+# The aft arm and the two latent BCF arms were measured at 40000 sweeps x 24
+# prior-drawn datasets, the BCF pair with their four prescribed |a| strata
+# beside them. aft's transient lives entirely in the first 400-sweep block and
+# every functional clears ACF 0.1 by lag 39 across the 24 datasets. The two
+# latent BCF arms do NOT clear: the reported p_j deliverable is under lag 47
+# everywhere, but a, abs.a and prog_j stay above 0.1 past lag 200 in half the
+# prior draws and at every |a| >= 5 stratum, whose block means do not settle in
+# 40000 sweeps either. That is the (a, mu) amplitude ridge the gaussian BCF
+# arm's 72000 was read through sigma; pinning sigma removes the readout, not
+# the ridge, and the misfit it absorbed lands in the index these arms rank. So
+# their entries are the affordable point the R=200 verdict was recorded at, not
+# a burn that discharges the ridge - both arms are recorded findings, not
+# matrix members.
 sbcBurnSweeps <- c(
   ordinal = 36000,
   nbinom = 24000,
   t = 12000,
   multinomial = 6000,
-  aft = NA_real_,
-  "bcf-probit" = NA_real_,
-  "bcf-logistic" = NA_real_
+  # 10x the transient the 400-sweep-block ladder resolves; thin 40 covers the
+  # worst ACF-under-0.1 lag, 39 over the 24 datasets
+  aft = 4000,
+  # 7x the ~1600-sweep amplitude transient; thin 50 covers p_j, worst lag 47,
+  # and nothing affordable covers prog_j
+  "bcf-probit" = 12000,
+  "bcf-logistic" = 12000
 )
 
 # Rank R replications of a family-spec configuration. The generic sibling of
@@ -2042,7 +2056,7 @@ sbcBurnLadder <- function(
     nBlock = nBlock,
     datasets = results,
     elapsed = totalElapsed,
-    perSweep = totalElapsed / (nDataset * nSweep)
+    perSweep = totalElapsed / (length(inputs) * nSweep)
   )
 }
 
@@ -2207,16 +2221,21 @@ rankUniformity <- function(
 # the ecdf band's alpha Bonferroni'd over the matrix's TOTAL functional count,
 # so a full-matrix pass has probability ~0.95 on a fresh stream rather than each
 # arm alarming independently at its own nominal 5%. M is
-# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6.
+# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9. aft counts
+# its censored-latent functional even though a replication that draws an empty
+# censored set contributes no rank there: the count is of functionals READ, not
+# of ranks collected, and an arm whose R varies by replication would otherwise
+# widen or narrow the whole matrix's band by the luck of one draw.
 sbcMatrixConfigs <- c(
   "gaussian",
   "ordinal",
   "nbinom",
   "t",
   "multinom",
-  "multinomial"
+  "multinomial",
+  "aft"
 )
-sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L
+sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L
 sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
 # A compact ASCII rank histogram with the +/- band around the uniform mean.
@@ -2437,8 +2456,9 @@ if (sys.nframe() == 0L) {
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
-  isLatentBCF <- which %in% c("bcf-probit", "bcf-logistic")
-  isBCF <- which %in% c("bcf", "bcf-weak", "bcf-probit", "bcf-logistic")
+  isLatentBCF <- which %in%
+    c("bcf-probit", "bcf-logistic", "bcf-probit-weak", "bcf-logistic-weak")
+  isBCF <- isLatentBCF || which %in% c("bcf", "bcf-weak")
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
   isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted", "gp-mixed")
