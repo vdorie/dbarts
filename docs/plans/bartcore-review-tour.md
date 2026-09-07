@@ -1,6 +1,6 @@
 # bartcore: the merge review
 
-Current at bd91c5e2 (bartcore), 2026-09-06.
+Current at 50379ef3 (bartcore), 2026-09-06.
 
 This is the case for merging the bartcore branch into main. Sections 1 to 6
 are the decision; Appendix A is the tour, what to read and in what order,
@@ -162,10 +162,19 @@ Things that could be wrong and would not be caught:
   probit or logistic; the BCF calibration evidence is gaussian-only
   (`docs/plans/review-2026-08-24/calibration-sbc.md`).
 - aft and heteroscedastic are uncovered at ensemble scale, and both carry
-  sampling code that reduces to no covered family. hazard and hurdle are not
+  sampling code that reduces to no covered family. Their composition, a
+  variance forest under `family = "aft"`, is checked by a bitwise reduction
+  to the heteroscedastic gaussian on uncensored data, a per-row truncated-
+  normal moments test and a latent-PIT gate on censored rows
+  (`benchmarks/R/aft-hetero-pit.R`), not by SBC. hazard and hurdle are not
   scored directly either; their draws are checked to reproduce bitwise the
   draws a covered family makes on the corresponding data, so they inherit
   that family's calibration.
+- Mixing at scale is measured, not guaranteed: on the He and Hahn design at
+  n = 10000 the minimum pointwise effective sample size in every default arm
+  is 2 of 2500 draws, and 95 percent interval coverage sits at 0.82 against
+  the nominal 0.95 (`docs/design/benchmark-surfaces.md`, cell C1). Nothing
+  in the gate battery scores mixing.
 - A donor warm start refuses at two or more forests rather than run there, so
   what R covers is the refusal; the install has no component pin above one
   forest either. Grow-from-root does run there, pinned from R and in tests/cpp,

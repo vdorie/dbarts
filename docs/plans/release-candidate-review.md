@@ -554,6 +554,29 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Heteroscedastic AFT: the variance forest admitted under family aft (2468e76f + 50379ef3, 2026-09-06)
+
+Queue item 1 was framed as a false-message repair (R/spec.R blamed a
+latent-channel collision that aft does not have) and landed as a lift, on
+the enabling-value rule. The real blocker was the scalar sigma in
+AFTResponse's censored redraw and log-likelihood while a variance forest
+pins sigma at 1 and carries s^2(x) per row. Design docs/design/
+aft-variance-forest.md (blind critique applied: an installed-pointer
+interface, ResponseModel::setVarianceSurface, TRAIN vector only, with a
+RESTORE CONTRACT at setState; the wiring gate rebuilt on a large-df chisq
+prior after fixed() was shown to fix nothing under a variance forest; a
+latent-PIT gate with a poison arm). The same change repairs
+GaussianResponse::computeLogLikelihood under a variance forest, which read
+the pinned sigma and is reachable only through the flat C API. Gates:
+tests/cpp 277 clean under ASAN/UBSAN; tinytest 7424/0 (31 new); equivalence
+trio bitwise 50/12/11 (no existing draw moves); aft-exact.R second arm and
+aft-hetero-pit.R both pass and both fail their row-constant-scale poison;
+R CMD check --as-cran OK; a mutation probe reverting the factory admission
+fails the new test file. The feature matrix's aft sigma and unit-scale
+cells are conditional on the variance forest, the hetero row is by-family
+(f13), and the tour's section 5 states the composition's evidence floor and
+the C1 pilot's mixing figure as measured weaknesses.
+
 ### Matrix restructure and the P2 no-swap arm (a3bae0fe, cc2a28f0, 2026-09-06)
 
 Two docs-and-benchmarks landings ahead of the pre-1.0 queue's code items.

@@ -1,6 +1,6 @@
 # Heteroscedastic AFT: lifting the variance-forest refusal
 
-Status: LANDED, 2026-09-06
+Status: LANDED, 2026-09-06 (2468e76f)
 
 Admits `variance =` under `family = "aft"`, giving log-normal AFT a covariate-dependent
 dispersion s(x) beside its mean surface. The refusal was R-side
