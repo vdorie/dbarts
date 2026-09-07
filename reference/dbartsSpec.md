@@ -13,7 +13,8 @@ dbartsSpec(
     data, control = dbarts::dbartsControl(),
     tree.prior = cgm, node.prior = normal,
     resid.prior = chisq, resid.dist = gaussian,
-    proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
+    proposal.probs = c(
+        birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
     forests = NULL,

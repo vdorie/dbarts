@@ -12,7 +12,8 @@ dbarts(
     verbose = FALSE, n.samples = 800L,
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     resid.dist = gaussian,
-    proposal.probs = c(birth_death = 0.6, change = 0.4, birth = 0.5),
+    proposal.probs = c(
+        birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -210,13 +211,22 @@ dbarts(
 - proposal.probs:
 
   Named numeric vector or `NULL`, optionally specifying the proposal
-  rules and their probabilities. Elements should be `"birth_death"` and
-  `"change"` to control tree structure proposals, and `"birth"` to give
-  the relative frequency of birth/death in the `"birth_death"` step. The
-  two structural probabilities must sum to one; naming only one of them
-  fills the other in. The default is
-  `c(birth_death = 0.6, change = 0.4, birth = 0.5)`. A `"swap"` element
-  is an error: the swap proposal was removed before 1.0.
+  rules and their probabilities. Elements should be `"birth_death"`,
+  `"swap"` and `"change"` to control tree structure proposals, and
+  `"birth"` to give the relative frequency of birth/death in the
+  `"birth_death"` step. The three structural probabilities must sum to
+  one. An unnamed `"swap"` is taken as zero, and a single remaining
+  unnamed element takes the residual, so `c(birth_death = 0.7)` is
+  birth/death 0.7, swap 0, change 0.3 and
+  `c(birth_death = 0.5, change = 0.4)` is swap 0.1; naming `"swap"`
+  alone leaves the birth/death-versus-change split undetermined and is
+  an error. The default is
+  `c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)`. A
+  `"swap"` element exchanges a parent's split rule with a child's; it
+  defaults to zero because at production forest sizes it measures as a
+  no-op, but with `n.trees = 1` it is the only move that rotates a rule
+  up the tree, so single-tree fits should set it positive (0.1 was the
+  historical default).
 
 - monotone:
 
