@@ -315,7 +315,9 @@ clause and benchmarks/README.md's roster line; and poison 5
 (["m05"](../../benchmarks/R/mutation-battery.R)). The surface keeps the new numbers everywhere: six R default vectors and the
 monotone comparison default at `birth_death 0.6, swap 0, change 0.4, birth 0.5`, the monotone rewrite at `birth_death 1, swap 0,
 change 0, birth 0.5`, [`dbartsModel`](../../R/A_class.R)'s `p.swap` slot back with prototype 0 and a three-term validity sum, and
-the one-NA fill and both sum-to-one tolerance paths over three names. `refuseRemovedProposalNames` is deleted, and
+the one-NA fill and both sum-to-one tolerance paths over three names. The fill resolves two unnamed elements as well when one of
+them is swap, which takes its zero so the other can take the residual - `c(birth_death = 0.7)` is 0.7 / 0 / 0.3 - while `swap`
+named alone leaves the birth/death-versus-change split undetermined and is an error. `refuseRemovedProposalNames` is deleted, and
 ["a caller-supplied three-move mixture"](../../inst/tinytest/test-proposal-probs.R) replaces the tinytest that pinned it: the
 three-name surface, a one-tree fit created and run at `swap = 0.1`, the printout, and the round trip.
 

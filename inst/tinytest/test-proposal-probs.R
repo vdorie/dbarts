@@ -78,18 +78,33 @@ expect_true(any(grepl(
 
 # ---- the fill and the sum --------------------------------------------------
 
-# one missing name takes the residual
+# one unnamed element takes the residual, whichever it is
 partial <- fit(c(birth_death = 0.7, swap = 0))$model
 expect_equal(partial@p.birth_death, 0.7)
 expect_equal(partial@p.swap, 0)
 expect_equal(partial@p.change, 0.3)
 expect_equal(fit(c(birth_death = 0.5, change = 0.4))$model@p.swap, 0.1)
 
-# all three missing falls back to the default
+# two unnamed, one of them swap: swap takes its zero and the other the residual
+bdOnly <- fit(c(birth_death = 0.7))$model
+expect_equal(bdOnly@p.birth_death, 0.7)
+expect_equal(bdOnly@p.swap, 0)
+expect_equal(bdOnly@p.change, 0.3)
+changeOnly <- fit(c(change = 0.25))$model
+expect_equal(changeOnly@p.birth_death, 0.75)
+expect_equal(changeOnly@p.swap, 0)
+expect_equal(changeOnly@p.change, 0.25)
+
+# swap alone leaves the birth/death-versus-change split undetermined
+expect_error(fit(c(swap = 0.1)), "names only 'swap'")
+
+# all three unnamed falls back to the default
 expect_equal(fit(c(birth = 0.25))$model@p.birth_death, 0.6)
+expect_equal(fit(c(birth = 0.25))$model@p.swap, 0)
+expect_equal(fit(c(birth = 0.25))$model@p.change, 0.4)
 expect_equal(fit(c(birth = 0.25))$model@p.birth, 0.25)
 
-# more than one missing name is not a fill, and the remainder must sum to one
+# all three named must sum to one
 expect_error(
   fit(c(birth_death = 0.7, swap = 0.1, change = 0.4)),
   "sum to 1"

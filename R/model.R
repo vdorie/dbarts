@@ -63,12 +63,28 @@ setMethod(
       proposal.probs <- defaultProposalProbs
     }
 
+    ## The fill, over the three structural names. One unnamed element takes
+    ## the residual. Two unnamed, one of them swap, resolve as well: swap is
+    ## the one whose default is a number rather than a share, so it takes its
+    ## zero and the other takes the residual. Naming swap alone leaves the
+    ## split between birth/death and change undetermined and is an error
+    ## rather than a silent choice, and naming none of the three is the
+    ## default. No branch may leave an NA for a slot.
     probs <- proposal.probs[c("birth_death", "swap", "change")]
-    if (sum(is.na(probs)) == 1L) {
-      probs[is.na(probs)] <- 1 - sum(probs[!is.na(probs)])
-      names(probs) <- c("birth_death", "swap", "change")
-    } else if (all(is.na(probs))) {
+    names(probs) <- c("birth_death", "swap", "change")
+    unnamed <- is.na(probs)
+    if (all(unnamed)) {
       probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
+    } else if (unnamed[["birth_death"]] && unnamed[["change"]]) {
+      stop(
+        "'proposal.probs' names only 'swap'; name at least one of ",
+        "'birth_death' and 'change'"
+      )
+    } else {
+      if (sum(unnamed) == 2L) {
+        probs[["swap"]] <- 0
+      }
+      probs[is.na(probs)] <- 1 - sum(probs[!is.na(probs)])
     }
 
     .Object@p.birth_death <- probs[["birth_death"]]
