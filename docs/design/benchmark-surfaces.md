@@ -1436,6 +1436,49 @@ median well below zero. That is why no member of the symmetric near-step
 family the captions describe can be made to fit, and why the `figure`
 reconstruction is asymmetric.
 
+**Move-set arms (2026-09-07).** The table above was measured at the
+mixture in force on 2026-09-06 (`birth_death 0.5, swap 0.1, change 0.4`),
+the former default section 10's preamble names, not the mixture that
+ships: its three `bart` rows reproduce digit for digit under this build's
+`swap` arm and not under `default` (`birth_death 0.6, swap 0, change
+0.4`), so "measured, figure reconstruction" above names the swap-carrying
+mixture at every `bart` row, not the shipped one. `P6-diagonal-shelf.R
+default birthdeath swap` reruns all three, paired, on the same 200
+replications per reconstruction:
+
+    reconstruction  moveset     bias   coverage  rmse
+    figure          default     0.314  0.600     0.366
+    figure          birthdeath  0.315  0.580     0.366
+    figure          swap        0.314  0.590     0.366
+    shelf 0.15      default     0.594  0.225     0.646
+    shelf 0.15      birthdeath  0.593  0.250     0.644
+    shelf 0.15      swap        0.592  0.260     0.643
+    shelf 0.40      default     0.173  0.850     0.236
+    shelf 0.40      birthdeath  0.173  0.840     0.236
+    shelf 0.40      swap        0.172  0.840     0.235
+
+Paired against `default`
+([`surfacesPairedDifference`](../../benchmarks/R/surfaces/surfaces-common.R),
+[`surfacesMarginVerdict`](../../benchmarks/R/surfaces/surfaces-common.R)),
+every `|bias|` and RMSE ratio sits at 0.993 to 1.003 against the 1.02
+margin - within margin in all six cells. Coverage's point estimate crosses
+the -0.010 margin in three cells (figure birthdeath -0.020 t -1.42, figure
+swap -0.010 t -0.71, shelf 0.40 swap -0.010 t -0.82) but none separates
+from zero at the required one-sided 95% bound, so each reads "past margin,
+not separated" rather than FLAG; the largest |t| anywhere is 2.36 (shelf
+0.15 swap coverage, +0.035), short of the four-times-SE improvement bar
+([`surfacesImprovementVerdict`](../../benchmarks/R/surfaces/surfaces-common.R))
+every cell reads below. Nothing is flagged and nothing clears the bar: the
+move set does not move this cell.
+
+`bcf` cannot take an arm - a treatment forest refuses a non-default
+`proposal.probs` outright - so it always runs at whatever
+`proposal.probs` resolves to be the default, and its row moves with the
+default's own change: the pilot's 0.100/0.885/0.214/0.729
+(bias/coverage/rmse/interval length, also the swap-carrying mixture) reads
+0.101/0.890/0.213/0.726 on this build. The BART-to-BCF gap the verdict
+above reads from is the same gap either way.
+
 ### 10.3 P5, the checkerboard on an autocorrelated design
 
 Twenty matched seeds, n = 1600, p = 40, 8 chains, 1000 burn-in and 2000
@@ -1473,6 +1516,55 @@ clean is the between-chain spread: chains disagree about inclusion by 1.7
 times their own Monte Carlo resolution, and by about the same factor on the
 decoys as on the true columns, so the disagreement is a shared-splits effect
 across the correlated block rather than a wrong answer.
+
+**Move-set arms (2026-09-07).** The table above was measured at the same
+mixture 10.2 was, the former default section 10's preamble names
+(`birth_death 0.5, swap 0.1, change 0.4`), not the mixture that ships: all
+ten of its statistics reproduce digit for digit under this build's `swap`
+arm and not under `default` (`birth_death 0.6, swap 0, change 0.4`), so
+every row above is the swap-carrying mixture, not the shipped one.
+`P5-checkerboard.R default birthdeath swap` reruns all three, paired, on
+the same twenty seeds:
+
+    arm         between-chain sd  ratio to null  inclusion share  coverage  RMSE
+    default     0.0117            1.84           0.501            0.984     0.710
+    birthdeath  0.0123            1.82           0.478            0.984     0.737
+    swap        0.0109            1.72           0.510            0.984     0.704
+
+(between-chain sd and its ratio to the mixing null are of inclusion on the
+four true columns; inclusion share is their summed share of all splits.)
+
+Paired against `default`
+([`surfacesPairedDifference`](../../benchmarks/R/surfaces/surfaces-common.R),
+[`surfacesMarginVerdict`](../../benchmarks/R/surfaces/surfaces-common.R)),
+`birthdeath` FLAGS on two of the three gated metrics: inclusion share
+-0.023 +/- 0.010 (0/20 seeds positive) t -10.14, past the -0.010 margin
+and separated; and held-out RMSE +0.028 t 4.44 (ratio 1.039), past the
+1.02 margin and separated. Its coverage is unchanged (+0.000). `swap`
+stays within margin on all three: inclusion +0.009 (15/20) t 3.16,
+coverage +0.000, RMSE -0.005 (ratio 0.993). On the primary - the
+between-chain sd itself - neither arm clears the four-times-SE improvement
+bar
+([`surfacesImprovementVerdict`](../../benchmarks/R/surfaces/surfaces-common.R)):
+`birthdeath` moves it +0.0006 (12/20) t 1.40, `swap` moves it -0.0008
+(7/20) t -1.21, both below 4x SE. The inclusion oracle holds in every arm -
+each true column carries 0.117 to 0.128 of the splits, and no decoy
+outranks the weakest true column in 20 of 20 seeds under any of the three.
+
+`birthdeath` is `pi_c = 0`, the premise
+[6.3 The pathologies](#63-the-pathologies) names for Tan et al.'s Theorem
+5.2, which bounds a pure interaction's hitting time when the change move
+is disallowed. This cell is where that premise's cost turns into a number:
+cutting the change move to zero does not break the inclusion oracle, but
+it costs 0.023 of the true columns' summed share and 3.9 percent of
+held-out RMSE, both separated from noise. On this correlated design the
+change move is what buys back the inclusion share and accuracy the
+theorem's premise gives up.
+
+Per [6.1 The rule, stated operationally](#61-the-rule-stated-operationally),
+a flag counts only after a mandatory fresh-seed re-run of the flagged
+cell; that re-run has not been run, so `birthdeath`'s two flags stand as
+measured findings pending it, not as accepted verdicts.
 
 ### 10.4 C1, the He and Hahn factorial
 
@@ -1751,9 +1843,18 @@ Facts only, against the rule in section 6.1.
 
 ### 10.6 What the pilot could not do
 
-- **No paired contrast on P6, P5 or C1.** One arm each. Section 6.4's
-  twenty matched pairs per cell is a paired-contrast count and is not met
-  by twenty matched seeds of a single arm.
+- **No paired contrast on P6, P5 or C1, at the time.** One arm each;
+  section 6.4's twenty matched pairs per cell is a paired-contrast count
+  and is not met by twenty matched seeds of a single arm. All three now
+  carry one, `default` rerun beside the added arms so the contrast is
+  paired within one session: P6 and P5 each took two more arms on their
+  own matched seeds
+  ([10.2 P6, the diagonal shelf with targeted selection](#102-p6-the-diagonal-shelf-with-targeted-selection),
+  [10.3 P5, the checkerboard on an autocorrelated design](#103-p5-the-checkerboard-on-an-autocorrelated-design)),
+  and C1 took four in its own four-chain configuration
+  ([10.4 C1, the He and Hahn factorial](#104-c1-the-he-and-hahn-factorial)).
+  P5's two flags are measured findings pending the fresh-seed re-run 6.1
+  requires before either counts, which has not been run.
 - **P1 was not run** at the time, so section 6.4's absolute gate - the
   n = 2000, sigma = 0.25 rung's 90 percent coverage sitting near 0.71 in the
   control arm - was not in force behind any verdict above; each cell's own

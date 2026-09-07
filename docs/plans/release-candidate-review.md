@@ -554,6 +554,24 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P5 and P6 get the paired move-set arms they were missing (587efe31, 2026-09-07)
+
+Both cells ran one arm at the pilot; each now takes three
+(default, birthdeath, swap) on its own matched seeds, default rerun beside
+them so the contrast is paired. Reproduction check first: 10.2's three
+bart rows and all ten of 10.3's statistics turn out to be the former
+default, swap-carrying mixture verbatim, not the shipped one - both
+sections now say so at the row and carry the current default beside it.
+P6: no flags on the bart estimator across three reconstructions, nothing
+clears the 4x-SE bar; bcf has no arm (a treatment forest refuses a
+non-default proposal.probs) and its own number moved a point with the
+default's own change. P5: birthdeath (pi_c = 0, Theorem 5.2's premise)
+FLAGS on inclusion share (-0.023) and held-out RMSE (ratio 1.039), both
+separated from noise; swap is within margin on all three; neither arm
+clears the 4x-SE bar on the primary. Neither flag has had its mandatory
+fresh-seed re-run yet. Recorded at 10.2, 10.3, 10.6. Script only, no
+engine change.
+
 ### A frozen proposal mixture, and how much of C1's ESS is the leaf half (08fe426a + 545fc741, 2026-09-07)
 
 All four structural probabilities exactly zero is now legal and freezes
