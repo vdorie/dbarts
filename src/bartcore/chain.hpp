@@ -1431,6 +1431,9 @@ public:
           bool stepTaken;
           StepType stepType;
           int32_t changedNode = invalidNode;
+          // move-census scaffolding: the record's location, nothing else
+          BARTCORE_CENSUS_LOCATION(static_cast<long>(iteration),
+                                   static_cast<int>(f), static_cast<int>(t));
           // hand a constrained-conjugate leaf its persistent mu block so a
           // branch score can read frozen neighbor values; compiled out for the
           // conjugate leaves, which read no leaf parameters
@@ -4216,6 +4219,9 @@ private:
       bool stepTaken;
       StepType stepType;
       int32_t changedNode = invalidNode;
+      // the variance forest takes forest index -1 in the census
+      BARTCORE_CENSUS_LOCATION(census::state().sweep, -1,
+                               static_cast<int>(j));
       metropolisJumpForTree(ctx, vf.leaf, rng_, vf.trees[j],
                             vf.treeResidual.data(), 1.0, &stepTaken, &stepType,
                             &changedNode);

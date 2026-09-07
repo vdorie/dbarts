@@ -8,6 +8,11 @@
 #include <cstdint>
 #include <vector>
 
+#ifdef BARTCORE_MOVE_CENSUS
+#include <cstdio>
+#include <cstdlib>
+#endif
+
 #include <external/random.h>
 
 #include "data.hpp"
@@ -129,6 +134,188 @@ inline void resolveVetoRank(const BranchScore& current,
     *currentLogLikelihood = 0.0;
 }
 
+#ifdef BARTCORE_MOVE_CENSUS
+// ===========================================================================
+// Stage 0 move census: SCAFFOLDING, not part of the sampler.
+//
+// Compiled only under -DBARTCORE_MOVE_CENSUS. With the macro unset every hook
+// expands to nothing and its arguments go unevaluated, so the ordinary build
+// carries no code and no cost. Nothing here draws and the probe restores every
+// byte it touches, so both builds walk the same RNG stream.
+//
+// One comma-separated line per structural proposal is appended to the file
+// named by BARTCORE_MOVE_CENSUS_FILE; with the variable unset nothing is
+// written. Two record kinds, told apart by the first field:
+//
+//   p,sweep,forest,tree,move,noop,accepted,nodeDepth,treeDepth,interior,
+//     logLikelihood,logPrior,logCorrection
+//   d,sweep,forest,tree,nodeDepth,displacement,logRatio
+//
+// A 'p' record's three log terms are that move's own acceptance expression:
+// the veto-resolved log-likelihood difference, the log prior ratio (birth and
+// death the growth factors, change the subtree strictly below the node, swap
+// the swapped subtree), and the surviving proposal-density ratio (birth and
+// death the transition ratio, change logProposalCorrection, swap 0). All three
+// are NA when the proposal never reached a score (noop = 1: pi(T') = 0, an
+// unsatisfiable rule draw, or no eligible node), where nodeDepth is -1 if it
+// had no target node. treeDepth and interior are the shape the proposal saw,
+// which for an accepted birth or death is not the shape it left.
+//
+// A 'd' record prices the same-variable cut move at a fixed schedule of signed
+// displacements of the change proposal's target node, clipped to that node's
+// descendant-valid interval and deduplicated after clipping. Same variable, so
+// the correction of the move being priced is identically 1 and the log ratio
+// is the subtree-below prior difference plus the resolved likelihood
+// difference.
+//
+// The location, the shape and the probe's snapshot are per-thread singletons,
+// so a threaded run is correct but writes every chain's records to the one
+// file interleaved: run the census one chain at a time.
+inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
+                                 int32_t nodeIndex, int32_t variableIndex,
+                                 int32_t* lower, int32_t* upper);
+
+namespace census {
+
+inline std::FILE* stream() {
+  static std::FILE* file = []() {
+    const char* path = std::getenv("BARTCORE_MOVE_CENSUS_FILE");
+    return path != nullptr ? std::fopen(path, "a") : nullptr;
+  }();
+  return file;
+}
+
+/// Where the current proposal sits and the shape it saw. The sweep loop sets
+/// the location; the hooks stash the shape before the move disturbs it.
+struct State {
+  long sweep = -1;
+  int forest = -1;
+  int tree = -1;
+  int nodeDepth = -1;
+  int treeDepth = 0;
+  int interior = 0;
+};
+
+inline State& state() {
+  static thread_local State s;
+  return s;
+}
+
+inline void setLocation(long sweep, int forest, int tree) {
+  State& s = state();
+  s.sweep = sweep;
+  s.forest = forest;
+  s.tree = tree;
+}
+
+inline void walk(const Tree& tree, int32_t i, int depth, State& s) {
+  if (depth > s.treeDepth) s.treeDepth = depth;
+  if (tree.at(i).isBottom()) return;
+  ++s.interior;
+  walk(tree, tree.at(i).leftChild, depth + 1, s);
+  walk(tree, tree.at(i).leftChild + 1, depth + 1, s);
+}
+
+inline void shape(const Tree& tree, int32_t node) {
+  State& s = state();
+  s.treeDepth = 0;
+  s.interior = 0;
+  s.nodeDepth = node == invalidNode ? -1 : static_cast<int>(tree.depthOf(node));
+  walk(tree, 0, 0, s);
+}
+
+/// R-readable numerics: NA for a term the proposal never had, Inf/-Inf for the
+/// veto's sentinel, %.17g otherwise.
+inline const char* number(double x, char* buffer, std::size_t size) {
+  if (std::isnan(x)) return "NA";
+  if (std::isinf(x)) return x > 0.0 ? "Inf" : "-Inf";
+  std::snprintf(buffer, size, "%.17g", x);
+  return buffer;
+}
+
+inline void proposal(const char* move, bool noop, bool accepted,
+                     double logLikelihood, double logPrior,
+                     double logCorrection) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  const State& s = state();
+  char b[3][32];
+  std::fprintf(file, "p,%ld,%d,%d,%s,%d,%d,%d,%d,%d,%s,%s,%s\n", s.sweep,
+               s.forest, s.tree, move, noop ? 1 : 0, accepted ? 1 : 0,
+               s.nodeDepth, s.treeDepth, s.interior,
+               number(logLikelihood, b[0], sizeof(b[0])),
+               number(logPrior, b[1], sizeof(b[1])),
+               number(logCorrection, b[2], sizeof(b[2])));
+}
+
+/// A proposal that never reached a score.
+inline void noop(const char* move, const Tree& tree, int32_t node) {
+  shape(tree, node);
+  double na = std::nan("");
+  proposal(move, true, false, na, na, na);
+}
+
+template <MoveScorableLeafModel L, typename ResidT>
+void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
+              const ResidT* y, double sigma) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  Rule rule = tree.at(node).rule;
+  if (ctx.data.splitsBySubset(static_cast<std::size_t>(rule.variableIndex)))
+    return;  // a first cut move is ordinal-only
+
+  int32_t lower, upper;
+  findGoodOrdinalRules(ctx, tree, node, rule.variableIndex, &lower, &upper);
+  if (upper < lower) return;
+  int32_t current = rule.splitIndex();
+  int32_t leftChild = tree.at(node).leftChild;
+
+  const CGMTreePrior& prior(ctx.treePrior);
+  double belowX = prior.treeLogProbability(tree, ctx.data, leftChild) +
+                  prior.treeLogProbability(tree, ctx.data, leftChild + 1);
+  BranchScore xScore = logLikelihoodForBranch(ctx, leaf, tree, node, y, sigma);
+
+  static thread_local Tree::SubtreeSnapshot snapshot;
+  const State& s = state();
+  char b[32];
+  int32_t last = 0;
+  for (int32_t step : {-8, -4, -2, -1, 1, 2, 4, 8}) {
+    int32_t target = std::clamp(current + step, lower, upper);
+    if (target - current == 0 || target - current == last) continue;
+    last = target - current;
+
+    tree.snapshotSubtree(node, snapshot);
+    tree.at(node).rule.setSplitIndex(target);
+    tree.refreshSubtree(ctx.data, node, y, ctx.weights);
+    double belowY = prior.treeLogProbability(tree, ctx.data, leftChild) +
+                    prior.treeLogProbability(tree, ctx.data, leftChild + 1);
+    BranchScore yScore =
+      logLikelihoodForBranch(ctx, leaf, tree, node, y, sigma);
+    double xLogL, yLogL;
+    resolveVetoRank(xScore, yScore, &xLogL, &yLogL);
+    tree.restoreSubtree(snapshot);
+
+    std::fprintf(file, "d,%ld,%d,%d,%d,%d,%s\n", s.sweep, s.forest, s.tree,
+                 static_cast<int>(tree.depthOf(node)), last,
+                 number((belowY - belowX) + (yLogL - xLogL), b, sizeof(b)));
+  }
+}
+
+}  // namespace census
+
+#define BARTCORE_CENSUS_NOOP(move, tree, node) census::noop(move, tree, node)
+#define BARTCORE_CENSUS_SHAPE(tree, node) census::shape(tree, node)
+#define BARTCORE_CENSUS_PROPOSAL(...) census::proposal(__VA_ARGS__)
+#define BARTCORE_CENSUS_CUTS(...) census::cutProbe(__VA_ARGS__)
+#define BARTCORE_CENSUS_LOCATION(...) census::setLocation(__VA_ARGS__)
+#else
+#define BARTCORE_CENSUS_NOOP(move, tree, node) ((void)0)
+#define BARTCORE_CENSUS_SHAPE(tree, node) ((void)0)
+#define BARTCORE_CENSUS_PROPOSAL(...) ((void)0)
+#define BARTCORE_CENSUS_CUTS(...) ((void)0)
+#define BARTCORE_CENSUS_LOCATION(...) ((void)0)
+#endif  // BARTCORE_MOVE_CENSUS
+
 inline double probabilityOfBirthStep(const MoveContext& ctx, const Tree& tree,
                                      bool birthableNodeExists) {
   if (!birthableNodeExists) return 0.0;
@@ -214,6 +401,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
   if (tree.hasSingleNode() && !birthableNodeExists(ctx, tree)) {
     *stepTaken = false;
     *stepWasBirth = false;
+    BARTCORE_CENSUS_NOOP("death", tree, invalidNode);
     return 0.0;
   }
 
@@ -228,6 +416,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
   if (ext_rng_simulateBernoulli(rng, transitionProbabilityOfBirthStep) == 1) {
     *stepWasBirth = true;
+    BARTCORE_CENSUS_SHAPE(tree, nodeToChange);
 
     double parentPriorGrowthProbability =
       ctx.treePrior.growthProbability(tree, ctx.data, nodeToChange);
@@ -281,6 +470,9 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
       *stepTaken = false;
     }
+    BARTCORE_CENSUS_PROPOSAL("birth", false, *stepTaken,
+                             newLogLikelihood - oldLogLikelihood,
+                             std::log(priorRatio), std::log(transitionRatio));
   } else {
     *stepWasBirth = false;
 
@@ -295,6 +487,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     transitionProbabilityOfSelectingNodeForDeath =
       1.0 / static_cast<double>(noGrand.size());
     nodeToChange = noGrand[index];
+    BARTCORE_CENSUS_SHAPE(tree, nodeToChange);
 
     double parentPriorGrowthProbability =
       ctx.treePrior.growthProbability(tree, ctx.data, nodeToChange);
@@ -338,6 +531,9 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree.at(nodeToChange) = oldNode;  // reattaches children unchanged
       *stepTaken = false;
     }
+    BARTCORE_CENSUS_PROPOSAL("death", false, *stepTaken,
+                             newLogLikelihood - oldLogLikelihood,
+                             std::log(priorRatio), std::log(transitionRatio));
   }
 
   return ratio < 1.0 ? ratio : 1.0;
@@ -477,11 +673,16 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   std::vector<int32_t>& notBottom(ctx.scratch.nodeScratch);
   notBottom.clear();
   tree.fillNotBottom(0, notBottom);
-  if (notBottom.empty()) return -1.0;
+  if (notBottom.empty()) {
+    BARTCORE_CENSUS_NOOP("change", tree, invalidNode);
+    return -1.0;
+  }
 
   size_t nodeNumber =
     ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, notBottom.size());
   int32_t nodeToChange = notBottom[nodeNumber];
+  BARTCORE_CENSUS_CUTS(ctx, leaf, tree, nodeToChange, y, sigma);
+  BARTCORE_CENSUS_SHAPE(tree, nodeToChange);
 
   int32_t newVariableIndex =
     ctx.treePrior.drawSplitVariable(tree, ctx.data, rng, nodeToChange);
@@ -506,14 +707,20 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     // so a categorical proposal draws from the prior; the density cancels the
     // node's rule prior and its side contributes no correction
     if (!drawCategoricalRuleFromPrior(ctx, rng, tree, nodeToChange,
-                                      newVariableIndex, newRule, maskPoolMark))
+                                      newVariableIndex, newRule,
+                                      maskPoolMark)) {
+      BARTCORE_CENSUS_NOOP("change", tree, nodeToChange);
       return -1.0;  // pi(T') = 0: an unsatisfiable prior draw is a no-op
+    }
   } else {
     int32_t left, right;
     tree.splitInterval(ctx.data, nodeToChange, newVariableIndex, &left, &right);
     int32_t lower, upper;
     findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
-    if (upper - lower + 1 <= 0) return -1.0;
+    if (upper - lower + 1 <= 0) {
+      BARTCORE_CENSUS_NOOP("change", tree, nodeToChange);
+      return -1.0;
+    }
 
     newRule.setSplitIndex(static_cast<int32_t>(
       ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1)));
@@ -554,6 +761,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     tree.at(nodeToChange).rule = savedRule;
     if (!valid) {
       tree.truncateMaskPool(maskPoolMark);
+      BARTCORE_CENSUS_NOOP("change", tree, nodeToChange);
       return -1.0;
     }
   }
@@ -612,6 +820,8 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     tree.restoreSubtree(ctx.scratch.snapshot);
     tree.truncateMaskPool(maskPoolMark);
   }
+  BARTCORE_CENSUS_PROPOSAL("change", false, *stepTaken, yLogL - xLogL,
+                           belowY - belowX, logProposalCorrection);
   return alpha;
 }
 
@@ -730,11 +940,15 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   std::vector<int32_t>& swappable(ctx.scratch.nodeScratch);
   swappable.clear();
   tree.fillSwappable(0, swappable);
-  if (swappable.empty()) return -1.0;
+  if (swappable.empty()) {
+    BARTCORE_CENSUS_NOOP("swap", tree, invalidNode);
+    return -1.0;
+  }
 
   size_t nodeNumber =
     ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, swappable.size());
   int32_t parent = swappable[nodeNumber];
+  BARTCORE_CENSUS_SHAPE(tree, parent);
   int32_t leftChild = tree.at(parent).leftChild;
   int32_t rightChild = leftChild + 1;
 
@@ -795,7 +1009,10 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
   undoSwap();
 
-  if (!swapIsSensible) return -1.0;
+  if (!swapIsSensible) {
+    BARTCORE_CENSUS_NOOP("swap", tree, parent);
+    return -1.0;
+  }
 
   // as in changeMove, prior terms outside the swapped subtree cancel
   double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
@@ -822,6 +1039,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   } else {
     tree.restoreSubtree(ctx.scratch.snapshot);
   }
+  BARTCORE_CENSUS_PROPOSAL("swap", false, *stepTaken, yLogL - xLogL,
+                           yLogPi - xLogPi, 0.0);
 
   return alpha;
 }

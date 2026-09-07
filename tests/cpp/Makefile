@@ -5,6 +5,10 @@ OPT ?= -O2 -g
 # external/io.h (ext_printf) pulls in R's print headers
 R_CPPFLAGS := $(shell R CMD config --cppflags)
 CPPFLAGS += -I../../src/include -I../../src $(R_CPPFLAGS)
+# Scaffolding builds append their own defines here rather than through
+# CPPFLAGS, which a command-line assignment would replace wholesale:
+#   make EXTRA_CPPFLAGS=-DBARTCORE_MOVE_CENSUS
+CPPFLAGS += $(EXTRA_CPPFLAGS)
 # -Werror=switch is a gate, not a style: the engine's switches over
 # ResponseFamily carry no default arm, so a new family that is not
 # classified at every one of them must break this build rather than
