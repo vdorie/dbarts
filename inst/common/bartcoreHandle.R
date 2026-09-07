@@ -245,12 +245,24 @@ bartcoreSetOffset <- function(bcSampler, offset, updateScale = FALSE) {
   ))
 }
 
-bartcoreSetResponse <- function(bcSampler, y, updateScale = FALSE) {
+# status is the aft censoring structure: a per-observation 0/1 vector, 1 an
+# event and 0 a right-censored observation, replacing the one in force at the
+# same n. NULL leaves it alone, which is the response-only call. It is passed
+# UNCOERCED, so the bridge's own type refusal is what a caller below the R5
+# class meets; the handle holds no mirror of it, unlike a dbartsSampler, so a
+# re-created engine here takes the creation status rather than this one.
+bartcoreSetResponse <- function(
+  bcSampler,
+  y,
+  updateScale = FALSE,
+  status = NULL
+) {
   invisible(.Call(
     dbarts:::C_dbarts_bartcore_setResponse,
     bcSampler$ptr,
     as.double(y),
-    as.logical(updateScale)
+    as.logical(updateScale),
+    status
   ))
 }
 

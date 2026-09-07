@@ -160,6 +160,24 @@ public:
   /// refused, because no weight changes - the guards a weight CHANGE carries
   /// do not apply. Consumes each chain's own generator.
   virtual void reapplyWeights() = 0;
+  /// Install a new per-observation right-censoring status (1 an event, 0 a
+  /// right-censored observation), length numObservations, on a family that
+  /// carries one; every other family drops it, the host having refused it by
+  /// family first. Nothing is drawn and no fit moves: call it BEFORE
+  /// setResponse, whose redraw then serves the pair once, and whose memcpy
+  /// supersedes the rebuilt bounds when the response moves too. The values are
+  /// read, not retained.
+  virtual void setSurvivalStatus(const double* status) = 0;
+  /// A digest of the censoring structure in force, on weightsDigest's terms
+  /// and stored beside a state for the same purpose: to tell, on restore,
+  /// whether the stored latents were shaped by the status now in force. Zero
+  /// for a family carrying none.
+  virtual std::uint64_t survivalDigest() const = 0;
+  /// Re-derive the censored latents against the status ALREADY in force, off
+  /// each chain's own generator: reapplyWeights's counterpart for a state
+  /// whose latents another status shaped. Nothing is refused, no status
+  /// changing.
+  virtual void reapplySurvivalStatus() = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
   /// Build the typed test store from a borrowed predictor view against the
   /// training cut grid, owning its raw. Returns false without touching the
@@ -468,6 +486,13 @@ public:
   }
   std::uint64_t weightsDigest() const override { return impl_.weightsDigest(); }
   void reapplyWeights() override { impl_.reapplyWeights(); }
+  void setSurvivalStatus(const double* status) override {
+    impl_.setSurvivalStatus(status);
+  }
+  std::uint64_t survivalDigest() const override {
+    return impl_.survivalDigest();
+  }
+  void reapplySurvivalStatus() override { impl_.reapplySurvivalStatus(); }
   void setSigma(double sigmaOriginalScale) override {
     impl_.setSigma(sigmaOriginalScale);
   }

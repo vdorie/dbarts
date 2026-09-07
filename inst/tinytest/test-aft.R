@@ -315,3 +315,129 @@ expect_equal(
     lower.tail = FALSE
   )
 )
+
+# ---- the censoring status is settable between draws ----
+
+set.seed(5L)
+cens.set <- f + 0.25 + sigma.true * rnorm(n)
+status.set <- as.numeric(log.t <= cens.set)
+obs.set <- ifelse(status.set == 1, log.t, cens.set)
+all.events <- rep(1, n)
+expect_true(sum(status.set == 0) > 10L)
+
+# creation parity, bitwise: nothing advances a generator when the target
+# status leaves no censored row, so a sampler created all-events and one
+# created censored and then set to all events at the same response draw the
+# same chain. Through the handle first.
+bc.created <- aftSampler(obs.set, all.events)
+bc.set <- aftSampler(obs.set, status.set)
+bartcoreSetResponse(bc.set, obs.set, status = all.events)
+res.created <- bartcoreRun(bc.created, 50L, 50L)
+res.set <- bartcoreRun(bc.set, 50L, 50L)
+expect_identical(res.created$train, res.set$train)
+expect_identical(res.created$sigma, res.set$sigma)
+# and the latents are the observed times, every row now an event
+expect_equal(bartcoreGetLatents(bc.set), obs.set)
+
+# the same parity through the dbartsSampler, whose two-column response the
+# public surface logs for itself
+r5.control <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 50L,
+  seed = 271L
+)
+r5.aft <- function(status) {
+  dbarts(x, cbind(exp(obs.set), status), family = "aft", control = r5.control)
+}
+s.created <- r5.aft(all.events)
+s.set <- r5.aft(status.set)
+s.set$setResponse(s.set$data@y, status = all.events)
+# the mirror the re-creation path reads, written only after the engine accepts
+expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
+run.created <- s.created$run(50L, 50L)
+run.set <- s.set$run(50L, 50L)
+expect_identical(run.created$train, run.set$train)
+expect_identical(run.created$sigma, run.set$sigma)
+
+# y and status in one call: the bounds follow the NEW response
+s.joint <- r5.aft(status.set)
+status.joint <- as.numeric(seq_len(n) %% 3L != 0L)
+s.joint$setResponse(s.joint$data@y + 0.75, status = status.joint)
+lat.joint <- s.joint$getLatents()
+y.joint <- s.joint$data@y
+expect_equal(lat.joint[status.joint == 1], y.joint[status.joint == 1])
+expect_true(all(lat.joint[status.joint == 0] >= y.joint[status.joint == 0]))
+
+# ---- refusals: the status is validated before anything installs ----
+
+s.gauss <- dbarts(x, log.t, control = r5.control)
+expect_error(s.gauss$setResponse(log.t, status = all.events), "non-aft")
+expect_error(
+  s.set$setResponse(s.set$data@y, status = all.events[-1L]),
+  "length"
+)
+bad.value <- status.set
+bad.value[3L] <- 2
+expect_error(s.set$setResponse(s.set$data@y, status = bad.value), "0 .*1")
+bad.na <- status.set
+bad.na[3L] <- NA_real_
+expect_error(s.set$setResponse(s.set$data@y, status = bad.na), "0 .*1")
+# a refusal installs nothing: the response and the mirror are the ones in force
+expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
+expect_equal(s.set$getLatents(), s.set$data@y)
+# the R5 method coerces, so an integer status reaches the engine as doubles;
+# the handle passes what it is given, and the bridge refuses a non-real vector
+expect_silent(s.set$setResponse(s.set$data@y, status = rep(1L, n)))
+expect_error(
+  bartcoreSetResponse(bc.set, obs.set, status = rep(1L, n)),
+  "numeric"
+)
+
+# ---- the state handshake: a status change after the state was stored ----
+
+set.seed(13L)
+cens.hs <- f + 0.1 + sigma.true * rnorm(n)
+status.hs <- as.numeric(log.t <= cens.hs)
+obs.hs <- ifelse(status.hs == 1, log.t, cens.hs)
+status.hs2 <- as.numeric(log.t <= cens.hs + 0.5)
+freed <- status.hs == 0 & status.hs2 == 1
+newly <- status.hs == 1 & status.hs2 == 0
+expect_true(any(freed))
+status.hs2[which(status.hs == 1)[1L:5L]] <- 0
+newly <- status.hs == 1 & status.hs2 == 0
+expect_true(any(newly))
+
+hs.control <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 25L,
+  seed = 909L
+)
+s.hs <- dbarts(
+  x,
+  cbind(exp(obs.hs), status.hs),
+  family = "aft",
+  control = hs.control
+)
+invisible(s.hs$run(50L, 10L))
+expect_inherits(s.hs$state, "bartcoreState")
+# the mutators store nothing without an explicit TRUE, so the saved state is
+# the one the OLD censoring structure shaped
+s.hs$setResponse(s.hs$data@y, status = status.hs2)
+hs.file <- tempfile(fileext = ".rds")
+saveRDS(s.hs, hs.file)
+s.reloaded <- readRDS(hs.file)
+unlink(hs.file)
+# getPointer re-creates the engine from the CURRENT status and installs the
+# stored state into it
+lat.hs <- s.reloaded$getLatents()
+y.hs <- s.hs$data@y
+# a row censored when the state was stored and an event after it keeps its
+# observed log event time: the state has no business overwriting data
+expect_equal(lat.hs[status.hs2 == 1], y.hs[status.hs2 == 1])
+# and a row that is an event in the state and censored here comes back
+# REDRAWN above its bound rather than sitting on it
+expect_true(all(lat.hs[newly] > y.hs[newly]))
+expect_true(all(lat.hs[status.hs2 == 0] >= y.hs[status.hs2 == 0]))
+expect_silent(invisible(s.reloaded$run(0L, 1L)))

@@ -400,10 +400,18 @@ bartcoreSamplerSetPredictor <- function(
   if (!forceUpdate) updateSuccessful else invisible(NULL)
 }
 
-bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
+bartcoreSamplerSetResponse <- function(
+  sampler,
+  y,
+  updateScale = FALSE,
+  status = NULL
+) {
   y <- as.double(y)
   if (anyNA(y)) {
     stop("response contains missing values")
+  }
+  if (!is.null(status)) {
+    status <- as.double(status)
   }
   if (isTRUE(updateScale)) {
     refuseAmplitudeMutation(
@@ -413,15 +421,25 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
       "fixed at creation; use updateScale = FALSE instead"
     )
   }
-  # validate (the C length check) before installing, so a rejected y never
-  # leaves data@y holding the bad replacement
+  # validate (the C length, family and support checks) before installing, so a
+  # rejected y or status never leaves data@y or the control attribute holding
+  # the bad replacement
   .Call(
     C_dbarts_bartcore_setResponse,
     sampler$getPointer(),
     y,
-    updateScale
+    updateScale,
+    status
   )
   sampler$data@y <- y
+  if (!is.null(status)) {
+    # re-creation after save and load rebuilds the sampler from the control,
+    # model and data it holds, so the status it reads must be the current one -
+    # data@y's rule, on the channel the status travels
+    newControl <- sampler$control
+    attr(newControl, "bartcore.survival") <- status
+    sampler$control <- newControl
+  }
   invisible(NULL)
 }
 

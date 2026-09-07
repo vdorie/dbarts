@@ -2094,6 +2094,21 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
   return rngs;
 }
 
+// The shape and support both survival entries state, creation's and the live
+// setter's: a real vector of length n whose every element is 0 or 1 (NaN fails
+// both tests, so it refuses too). Returns the borrowed values.
+const double* validateSurvivalStatus(SEXP statusExpr, size_t numObservations) {
+  if (!Rf_isReal(statusExpr) ||
+      static_cast<size_t>(Rf_xlength(statusExpr)) != numObservations)
+    Rf_error("survival status must be a numeric vector of length equal to the "
+             "number of observations");
+  const double* raw = REAL(statusExpr);
+  for (size_t i = 0; i < numObservations; ++i)
+    if (raw[i] != 0.0 && raw[i] != 1.0)
+      Rf_error("survival status must be 0 (censored) or 1 (event)");
+  return raw;
+}
+
 // AFT survival status arrives on an internal control attribute alongside the
 // log-time response (the y creation argument): a per-observation numeric
 // vector, 1 for an uncensored event, 0 for a right-censored observation. Only
@@ -2112,17 +2127,8 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
   }
   if (Rf_isNull(statusExpr))
     Rf_error("aft (survival) models require a status vector");
-  if (!Rf_isReal(statusExpr) ||
-      static_cast<size_t>(Rf_xlength(statusExpr)) != numObservations)
-    Rf_error("survival status must be a numeric vector of length equal to the "
-             "number of observations");
-  const double* raw = REAL(statusExpr);
-  status.resize(numObservations);
-  for (size_t i = 0; i < numObservations; ++i) {
-    if (raw[i] != 0.0 && raw[i] != 1.0)
-      Rf_error("survival status must be 0 (censored) or 1 (event)");
-    status[i] = raw[i];
-  }
+  const double* raw = validateSurvivalStatus(statusExpr, numObservations);
+  status.assign(raw, raw + numObservations);
   options.survivalStatus = status.data();
 }
 
@@ -4774,7 +4780,13 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   return R_NilValue;
 }
 
-SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
+// A null status is the response-only call, bit for bit. A non-null one is the
+// aft censoring structure, installed FIRST so the response change that follows
+// rebuilds the bounds against the new structure and redraws once for both; the
+// engine copies what it needs, so nothing is retained. Every check runs before
+// either install, so the pair is one transaction.
+SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
+                          SEXP statusExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
@@ -4790,7 +4802,14 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                           REAL(yExpr), shape.numObservations,
                           "bartcore_setResponse");
+  const double* status = NULL;
+  if (!Rf_isNull(statusExpr)) {
+    if (shape.family != bartcore::ResponseFamily::aft)
+      Rf_error("survival status supplied for a non-aft response family");
+    status = validateSurvivalStatus(statusExpr, shape.numObservations);
+  }
   GetRNGstate(); // probit latent redraw
+  if (status != NULL) holder.sampler->setSurvivalStatus(status);
   holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
   PutRNGstate();
   retain(ptrExpr, PROT_RESPONSE, yExpr);
@@ -4810,9 +4829,14 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
+  // the whole-data conduit may change the number of observations, which the
+  // status is stated over, so it stays refused; the response conduit takes a
+  // status of its own at a fixed n
   if (shape.family == bartcore::ResponseFamily::aft)
-    Rf_error("aft (survival) models fix the censoring structure at creation; "
-             "make a new sampler instead");
+    Rf_error("aft (survival) models fix the censoring structure at creation "
+             "on the whole-data conduit, whose replacement may change the "
+             "number of observations the status is stated over; change the "
+             "censoring with setResponse(y, status = ) instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
@@ -6599,10 +6623,11 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
-// ignores one it does not know. "weights.digest" is such an addition - a state
-// written before it carries none, and setState then behaves as it did before
-// the attribute existed. Making it REQUIRED behind a floor bump would buy no
-// compatibility and orphan in-flight states for nothing.
+// ignores one it does not know. "weights.digest" and "survival.digest" are
+// such additions - a state written before either carries none, and setState
+// then behaves as it did before the attribute existed. Making one REQUIRED
+// behind a floor bump would buy no compatibility and orphan in-flight states
+// for nothing.
 static const int stateFormatVersion = 1;
 
 // The oldest ENCODING this reader still understands: additive block additions
@@ -6611,26 +6636,27 @@ static const int stateFormatVersion = 1;
 // version attribute reads as 0 and is refused at the floor.
 static const int minReadableStateFormatVersion = 1;
 
-// The weights a state was stored under, as the 64-bit digest the engine
-// computes over their bytes, little-endian into 8 raw bytes. It travels at
-// TOP level rather than per chain because weights are chain-invariant. Its one
-// consumer is setState, which compares it against the DESTINATION's own live
-// digest: equal means the stored latents were shaped by the weights now in
-// force and install unchanged, different means they were not.
-static const std::size_t weightsDigestBytes = 8;
+// The conditions a state was stored under that do not themselves ride it - the
+// case weights, and the aft censoring status - as the 64-bit digests the
+// engine computes over their bytes, little-endian into 8 raw bytes each. They
+// travel at TOP level rather than per chain because both are chain-invariant.
+// Their one consumer is setState, which compares each against the
+// DESTINATION's own live digest: equal means the stored latents were shaped by
+// what is now in force and install unchanged, different means they were not.
+static const std::size_t stateDigestBytes = 8;
 
-SEXP encodeWeightsDigest(std::uint64_t digest) {
+SEXP encodeStateDigest(std::uint64_t digest) {
   SEXP result = Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(
-                                         weightsDigestBytes));
+                                         stateDigestBytes));
   Rbyte* bytes = RAW(result);
-  for (std::size_t i = 0; i < weightsDigestBytes; ++i)
+  for (std::size_t i = 0; i < stateDigestBytes; ++i)
     bytes[i] = static_cast<Rbyte>((digest >> (8 * i)) & 0xffULL);
   return result;
 }
 
-std::uint64_t decodeWeightsDigest(const Rbyte* bytes) {
+std::uint64_t decodeStateDigest(const Rbyte* bytes) {
   std::uint64_t digest = 0;
-  for (std::size_t i = 0; i < weightsDigestBytes; ++i)
+  for (std::size_t i = 0; i < stateDigestBytes; ++i)
     digest |= static_cast<std::uint64_t>(bytes[i]) << (8 * i);
   return digest;
 }
@@ -6863,7 +6889,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // restore can tell whether the latents it carries belong to the weights the
   // destination holds
   setAttribByName(resultExpr, "weights.digest",
-                  encodeWeightsDigest(sampler.weightsDigest()));
+                  encodeStateDigest(sampler.weightsDigest()));
+  // and the aft censoring status, on the same terms and for the same reason:
+  // it rides the sampler's own creation triple, not the state, so the two can
+  // disagree by the time a state is installed
+  setAttribByName(resultExpr, "survival.digest",
+                  encodeStateDigest(sampler.survivalDigest()));
   setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
@@ -6979,12 +7010,25 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     Rf_getAttrib(stateExpr, Rf_install("weights.digest"));
   if (!Rf_isNull(weightsDigestExpr)) {
     if (TYPEOF(weightsDigestExpr) != RAWSXP ||
-        static_cast<size_t>(Rf_xlength(weightsDigestExpr)) !=
-          weightsDigestBytes)
+        static_cast<size_t>(Rf_xlength(weightsDigestExpr)) != stateDigestBytes)
       errorMessage = "malformed weights digest in bartcore state";
     else
-      weightsDiffer = decodeWeightsDigest(RAW(weightsDigestExpr)) !=
+      weightsDiffer = decodeStateDigest(RAW(weightsDigestExpr)) !=
         sampler.weightsDigest();
+  }
+
+  // and the same question of the aft censoring status, absent again meaning
+  // no mismatch
+  bool survivalDiffers = false;
+  SEXP survivalDigestExpr =
+    Rf_getAttrib(stateExpr, Rf_install("survival.digest"));
+  if (errorMessage == NULL && !Rf_isNull(survivalDigestExpr)) {
+    if (TYPEOF(survivalDigestExpr) != RAWSXP ||
+        static_cast<size_t>(Rf_xlength(survivalDigestExpr)) != stateDigestBytes)
+      errorMessage = "malformed survival digest in bartcore state";
+    else
+      survivalDiffers = decodeStateDigest(RAW(survivalDigestExpr)) !=
+        sampler.survivalDigest();
   }
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
@@ -7326,6 +7370,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   // self-selecting, since for a family that states nothing against its
   // weights it is a measured no-op.
   if (weightsDiffer) sampler.reapplyWeights();
+  // the censoring structure reconciles the same way: a row the donor scored an
+  // event and this sampler censors comes back sitting exactly at its bound, so
+  // redraw the censored set off each chain's own restored generator. An event
+  // row is not reached at all - restoreLatents installs the censored rows
+  // only, an observed log-time being data no state overwrites.
+  if (survivalDiffers) sampler.reapplySurvivalStatus();
 }
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,

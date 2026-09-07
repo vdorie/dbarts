@@ -4323,6 +4323,60 @@ static void testAFTCensoredMoments(ext_rng* rng) {
   check(resp2.latents()[rows[0]] >= logTime2[rows[0]] - 1e-9,
         "a cleared surface leaves the scalar-sigma draw intact");
 
+  // A row the status setter NEWLY censors is truncated at its OWN observed
+  // log-time, not at the bound of the row that left the censored set. The two
+  // are far apart on this fixture, so the pre-flip bound is a visibly
+  // different law and the negative arm below says so.
+  const size_t m3 = 5;
+  std::vector<double> logTime3 = {0.2, 0.5, 1.0, 1.5, 2.0};
+  std::vector<double> status3 = {1.0, 1.0, 0.0, 1.0, 1.0};  // index 2 censored
+  std::vector<double> flipped3 = {1.0, 1.0, 1.0, 0.0, 1.0};  // index 3 instead
+  AFTResponse resp3(logTime3.data(), status3.data(), nullptr, m3, 1.0, 3.0,
+                    0.37804942330213542);
+  const size_t flipTo = 3, flipFrom = 2;
+  std::vector<double> fits3(m3, 0.0);
+  fits3[flipTo] = -0.5;  // pushes the fit well below the new bound
+  double sigma3 = 0.4, sigmaInOut3 = sigma3;
+  double scale3 = resp3.fitScale(), shift3 = resp3.fitShift();
+  double mean3 = scale3 * fits3[flipTo] + shift3, sd3 = sigma3 * scale3;
+
+  // the rebuild ALONE, before any response call: the row entering the censored
+  // set is bounded at its own observed log time, which is what the
+  // log-likelihood reads there. The response call that follows re-derives every
+  // bound by index, so this is the only place the reconstruction is visible.
+  resp3.setSurvivalStatus(flipped3.data());
+  std::vector<double> logLik3(m3, 0.0);
+  resp3.computeLogLikelihood(fits3.data(), sigma3, m3, logLik3.data());
+  check(logLik3[flipTo] == Rf_pnorm5(logTime3[flipTo], mean3, sd3, 0, 1),
+        "a status rebuild alone bounds the new censored row at its own "
+        "observed log time");
+
+  // and the pair the host issues: the response at the same observed times,
+  // which is what rebuilds the working response
+  resp3.setResponse(logTime3.data(), rng, fits3.data(), false, &sigmaInOut3);
+  check(resp3.latents()[flipFrom] == logTime3[flipFrom],
+        "a row leaving the censored set is back at its observed log-time");
+
+  double expectedMean3, expectedSd3, poisonMean3, poisonSd3;
+  truncatedMoments(mean3, sd3, logTime3[flipTo], expectedMean3, expectedSd3);
+  truncatedMoments(mean3, sd3, logTime3[flipFrom], poisonMean3, poisonSd3);
+
+  const size_t reps3 = 60000;
+  double sum3 = 0.0;
+  bool aboveNewBound = true;
+  for (size_t r = 0; r < reps3; ++r) {
+    resp3.refreshLatents(rng, fits3.data(), sigma3);
+    double v = resp3.latents()[flipTo];
+    if (v < logTime3[flipTo] - 1e-9) aboveNewBound = false;
+    sum3 += v;
+  }
+  double empiricalMean3 = sum3 / static_cast<double>(reps3);
+  check(aboveNewBound, "a newly censored row's draws stay above ITS bound");
+  checkNear(empiricalMean3, expectedMean3, 0.02,
+            "and follow the truncated normal at that bound");
+  check(std::fabs(empiricalMean3 - poisonMean3) > 0.02,
+        "and NOT the one the pre-flip bound would give");
+
   printf("ok: aft censored latent moments (scalar and per-observation)\n");
 }
 
@@ -4397,6 +4451,111 @@ static void testAFTStateRoundTrip() {
     ext_rng_destroy(rngs2[c]);
   }
   printf("ok: aft state round trip\n");
+}
+
+// The censoring status is settable between draws, so the structure the bounds
+// and the redraw are stated over moves under a live model. Two arms, neither
+// reading a draw:
+//
+// ORDERING AND BOUND EXACTNESS. A model set to a status is the model created
+// at it: at the same observed times, every event row's latent is that time and
+// every censored row's log-likelihood - which reads the BOUND, not the latent -
+// matches the created model's bit for bit. The residual degrees of freedom
+// count rows rather than events, so they do not move at all.
+//
+// ONE CALL. The response and the status change together: the bounds a status
+// rebuild lays down against the times in force must be superseded by the
+// response memcpy, so a joint call lands where creation at the new pair does.
+// Both arms are stated against models sharing one response transform, which
+// is what makes the log-likelihood comparison well posed.
+static void testAFTStatusSetter(ext_rng* rng) {
+  const std::size_t n = 24;
+  const double sigmaDf = 3.0, rawScale = 0.37804942330213542, sigma = 0.45;
+  std::vector<double> y1(n), y2(n), s1(n), s2(n), fits(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    y1[i] = 0.3 + 0.11 * static_cast<double>(i);
+    s1[i] = i % 3 == 0 ? 0.0 : 1.0;
+    s2[i] = i % 4 == 1 ? 0.0 : 1.0;  // overlaps s1 without matching it
+    fits[i] = 0.02 * static_cast<double>(i) - 0.6;
+  }
+  // the same values in the same range, so both transforms are identical and
+  // every row's observed time still moves
+  for (std::size_t i = 0; i < n; ++i) y2[i] = y1[n - 1 - i];
+
+  auto logLikelihood = [&](AFTResponse& model, std::vector<double>& out) {
+    out.assign(n, 0.0);
+    model.computeLogLikelihood(fits.data(), sigma, n, out.data());
+  };
+  auto transformsAgree = [](AFTResponse& a, AFTResponse& b) {
+    double minA, maxA, minB, maxB;
+    a.getScale(minA, maxA);
+    b.getScale(minB, maxB);
+    return minA == minB && maxA == maxB;
+  };
+
+  AFTResponse created(y1.data(), s2.data(), nullptr, n, 1.0, sigmaDf,
+                      rawScale);
+  AFTResponse set(y1.data(), s1.data(), nullptr, n, 1.0, sigmaDf, rawScale);
+  double dfBefore = set.sigmaDegreesOfFreedomForTesting();
+  double sigmaInOut = sigma;
+  set.setSurvivalStatus(s2.data());
+  set.setResponse(y1.data(), rng, fits.data(), false, &sigmaInOut);
+  check(transformsAgree(created, set),
+        "a status change leaves the response transform alone");
+
+  std::vector<double> createdLogLik, setLogLik;
+  logLikelihood(created, createdLogLik);
+  logLikelihood(set, setLogLik);
+  bool eventsExact = true, censoredExact = true, redrawn = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (s2[i] != 0.0) {
+      if (set.latents()[i] != y1[i]) eventsExact = false;
+    } else {
+      if (setLogLik[i] != createdLogLik[i]) censoredExact = false;
+      // a row s1 did not censor is redrawn here for the first time, which is
+      // the ordering the bound arithmetic alone cannot see
+      if (s1[i] != 0.0 && set.latents()[i] > y1[i]) redrawn = true;
+    }
+  }
+  check(eventsExact, "a set status leaves every event row at its observed "
+                     "log-time");
+  check(censoredExact,
+        "and every censored row's log-likelihood is the created model's");
+  check(redrawn, "a newly censored row is redrawn against the NEW structure");
+  check(set.sigmaDegreesOfFreedomForTesting() == dfBefore &&
+          set.sigmaDegreesOfFreedomForTesting() ==
+            created.sigmaDegreesOfFreedomForTesting(),
+        "the sigma degrees of freedom count rows, so a status move does not "
+        "touch them");
+
+  // the joint call, against creation at the pair it lands on
+  AFTResponse jointCreated(y2.data(), s2.data(), nullptr, n, 1.0, sigmaDf,
+                           rawScale);
+  AFTResponse joint(y1.data(), s1.data(), nullptr, n, 1.0, sigmaDf, rawScale);
+  sigmaInOut = sigma;
+  joint.setSurvivalStatus(s2.data());
+  joint.setResponse(y2.data(), rng, fits.data(), false, &sigmaInOut);
+  check(transformsAgree(jointCreated, joint),
+        "the reversed response spans the same range, so the pair share a "
+        "transform");
+
+  std::vector<double> jointCreatedLogLik, jointLogLik;
+  logLikelihood(jointCreated, jointCreatedLogLik);
+  logLikelihood(joint, jointLogLik);
+  bool jointEvents = true, jointCensored = true;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (s2[i] != 0.0) {
+      if (joint.latents()[i] != y2[i]) jointEvents = false;
+    } else if (jointLogLik[i] != jointCreatedLogLik[i]) {
+      jointCensored = false;
+    }
+  }
+  check(jointEvents, "a joint (y, status) call installs the new response at "
+                     "every event row");
+  check(jointCensored,
+        "and bounds every censored row at the NEW response, not the old one");
+
+  printf("ok: aft status setter (ordering, bounds, joint call)\n");
 }
 
 // lambda_i | z, f, sigma ~ Gamma((nu + 1)/2, rate (nu + w_i r_i^2/sigma^2)/2);
@@ -7017,6 +7176,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceSurfaceInstall(rng);
   testAFTCensoredMoments(rng);
   testAFTStateRoundTrip();
+  testAFTStatusSetter(rng);
   testTLambdaMoments(rng);
   testTNuGridPosterior(rng);
   testTCompositeWeightDelegation(rng);

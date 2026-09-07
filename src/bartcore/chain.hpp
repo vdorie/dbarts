@@ -1595,6 +1595,23 @@ public:
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }
+  /// Installs a new per-observation censoring status. Nothing is drawn and
+  /// the working response does not move: the setResponse the host issues next
+  /// serves both changes with one redraw, which is why the status goes first.
+  /// Families that carry no censoring take the base class's no-op.
+  void setSurvivalStatus(const double* status) {
+    response_->setSurvivalStatus(status);
+  }
+  /// A digest of the censoring structure in force; zero off a censored
+  /// family. The status fans to every chain, so chain 0 answers for all.
+  std::uint64_t survivalDigest() const { return response_->survivalDigest(); }
+  /// Re-derives the censored latents against the structure already in force,
+  /// off THIS chain's generator - reapplyWeights's reconciliation, for a state
+  /// whose latents another status shaped. The location is the COMBINED fit,
+  /// for the reason setResponse states.
+  void reapplySurvivalStatus() {
+    response_->reapplySurvivalStatus(rng_, combinedFits(), sigma_);
+  }
   /// Whether this chain's response family implements the active-row channel.
   /// setActiveRows refuses on this same predicate, so the advertised
   /// capability and the refusal cannot disagree.

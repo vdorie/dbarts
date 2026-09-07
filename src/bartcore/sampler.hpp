@@ -1198,6 +1198,22 @@ public:
   void reapplyWeights() {
     for (auto& chain : chains_) chain->reapplyWeights();
   }
+  /// A new per-observation censoring status, fanned to every chain: each
+  /// rebuilds its own censoring structure against its own observed times.
+  /// Nothing is drawn here; the setResponse that follows redraws each chain's
+  /// censored latents off its OWN generator, the setWeights rule.
+  void setSurvivalStatus(const double* status) {
+    for (auto& chain : chains_) chain->setSurvivalStatus(status);
+  }
+  /// A digest of the censoring structure in force. The status is
+  /// chain-invariant - setSurvivalStatus fans the same vector to every chain -
+  /// so chain 0 answers for all, as the weights digest does.
+  std::uint64_t survivalDigest() const { return chains_[0]->survivalDigest(); }
+  /// Re-derive every chain's censored latents against the structure already in
+  /// force, each off its OWN generator, exactly as reapplyWeights does.
+  void reapplySurvivalStatus() {
+    for (auto& chain : chains_) chain->reapplySurvivalStatus();
+  }
   void setSigma(double sigmaOriginalScale) {
     for (auto& chain : chains_) chain->setSigma(sigmaOriginalScale);
   }

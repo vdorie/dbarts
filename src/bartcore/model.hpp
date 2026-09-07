@@ -8,6 +8,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <cfloat>
 #include <limits>
@@ -2700,6 +2701,29 @@ public:
   /// family that keeps none.
   virtual const double* varianceSurfaceForTesting() const { return nullptr; }
 
+  /// Install a new per-observation right-censoring status, length
+  /// numObservations: 1 an uncensored event, 0 a right-censored observation.
+  /// The family rebuilds its censoring structure against the OBSERVED times in
+  /// force - an observation leaving the censored set is restored to its own
+  /// observed time, which is data rather than a draw - and the values are read
+  /// here, not retained. Neither the latents nor the working response move:
+  /// the host calls this BEFORE setResponse, whose redraw and rebuild then
+  /// serve both changes at once. Default: ignore it, for a family that carries
+  /// no censoring.
+  virtual void setSurvivalStatus(const double* /*status*/) {}
+
+  /// A digest of the censoring structure in force, on weightsDigest's terms: a
+  /// byte digest over the per-observation status, so no floating-point
+  /// reduction enters it. Zero for a family carrying no status, which makes
+  /// the host's comparison a measured no-op there.
+  virtual std::uint64_t survivalDigest() const { return 0; }
+
+  /// Re-derive the latents the censoring structure shapes against the
+  /// structure ALREADY in force: the counterpart to setSurvivalStatus for a
+  /// state whose latents were shaped by another status than this one. Consumes
+  /// the generator it is handed. Default: a no-op.
+  virtual void reapplySurvivalStatus(ext_rng*, const double*, double) {}
+
   virtual const double* latents() const { return nullptr; }
 
   /// The current training offset (borrowed), or null. Recorded training
@@ -3895,9 +3919,77 @@ public:
     return gaussian_->sigmaDegreesOfFreedomForTesting();
   }
 
-  /// Replaces the observed log-times; the censoring structure is fixed at
-  /// creation, so bounds refresh from the new times and the censored latents
-  /// redraw against the current fit (the probit pattern).
+  /// Rebuilds the censoring structure from a new status against the observed
+  /// times in force: row i's observed time is censorBound_[k] where it is
+  /// currently censored and logT_[i] where it is not, since the bound shadows
+  /// the observed time the latent overwrites. A row leaving the censored set
+  /// takes that time back - data, not a draw - and a row entering it takes it
+  /// as its bound. Both index vectors are built into temporaries and swapped
+  /// in, so a caller sees the old structure or the new one and never a mix.
+  ///
+  /// No redraw and no working-response rebuild: the setResponse that follows
+  /// does both once for the pair, and its memcpy supersedes these bounds when
+  /// the log-times move too.
+  void setSurvivalStatus(const double* status) override {
+    std::vector<std::size_t> indices;
+    std::vector<double> bounds;
+    indices.reserve(censoredIndices_.size());
+    bounds.reserve(censorBound_.size());
+    // censoredIndices_ is ascending, so one cursor pairs it with the row scan
+    std::size_t k = 0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      bool wasCensored =
+        k < censoredIndices_.size() && censoredIndices_[k] == i;
+      double observed = wasCensored ? censorBound_[k] : logT_[i];
+      if (wasCensored) ++k;
+      if (status == nullptr || status[i] == 0.0) {
+        indices.push_back(i);
+        bounds.push_back(observed);
+      } else if (wasCensored) {
+        logT_[i] = observed;
+      }
+    }
+    censoredIndices_.swap(indices);
+    censorBound_.swap(bounds);
+  }
+
+  /// FNV-1a over numObservations followed by the per-observation status
+  /// doubles, reconstructed from the censored set: the weights digest's
+  /// encoding, for the same reason (a byte digest moves where any two
+  /// structures differ, and no floating-point reduction enters it).
+  std::uint64_t survivalDigest() const override {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    auto append = [&hash](const void* bytes, std::size_t length) {
+      const unsigned char* p = static_cast<const unsigned char*>(bytes);
+      for (std::size_t i = 0; i < length; ++i) {
+        hash ^= p[i];
+        hash *= 0x100000001b3ULL;
+      }
+    };
+    std::uint64_t count = numObservations_;
+    append(&count, sizeof count);
+    double event = 1.0, censored = 0.0;
+    std::size_t k = 0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      bool isCensored = k < censoredIndices_.size() && censoredIndices_[k] == i;
+      if (isCensored) ++k;
+      append(isCensored ? &censored : &event, sizeof(double));
+    }
+    return hash;
+  }
+
+  /// A restored state's censored latents were shaped by the donor's status:
+  /// redraw them against this one, which is where the live conduit would have
+  /// left them. Reaches every censored row, including one the restore left
+  /// sitting exactly at its bound because the donor scored it an event.
+  void reapplySurvivalStatus(ext_rng* rng, const double* totalFits,
+                             double sigma) override {
+    refreshLatents(rng, totalFits, sigma);
+  }
+
+  /// Replaces the observed log-times; the censoring structure is whatever
+  /// setSurvivalStatus last left, so bounds refresh from the new times and the
+  /// censored latents redraw against the current fit (the probit pattern).
   void setResponse(const double* logTime, ext_rng* rng, const double* totalFits,
                    bool updateScale, double* sigmaInOut) override {
     std::memcpy(logT_.data(), logTime, numObservations_ * sizeof(double));
@@ -3942,8 +4034,14 @@ public:
   }
 
   const double* latents() const override { return logT_.data(); }
+  /// The CENSORED rows only: an event row's log-time is observed data, and a
+  /// state stored under another status carries a draw there. Restoring it
+  /// would lose that datum permanently - refreshLatents walks the censored
+  /// indices, so nothing would ever write the row back - and the
+  /// log-likelihood would score the fabricated time from then on.
   void restoreLatents(const double* latents) override {
-    std::memcpy(logT_.data(), latents, numObservations_ * sizeof(double));
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
+      logT_[censoredIndices_[k]] = latents[censoredIndices_[k]];
     rebuildWorking();
   }
 

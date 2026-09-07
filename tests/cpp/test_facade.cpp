@@ -1,7 +1,7 @@
 // Conformance gate for the type-erased boundary (bartcore/facade.hpp).
 //
 // SamplerBase is the one dispatch layer between the shipped flat C API and the
-// engine: 59 pure virtuals, each forwarded by SamplerFacade<L> to a Sampler<L>
+// engine: 62 pure virtuals, each forwarded by SamplerFacade<L> to a Sampler<L>
 // method of the same name. Every other test in this suite drives Sampler<L>
 // DIRECTLY, so a forwarder that drops an argument, inverts a flag, or reads the
 // wrong forest/chain/slot is invisible to them - the engine twin it should have
@@ -34,7 +34,8 @@ namespace {
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
   shape, run, setOffset, setResponse, setWeights, weightsDigest,
-  reapplyWeights, setSigma, setTestData, setTestOffset, setData, setPredictor,
+  reapplyWeights, setSurvivalStatus, survivalDigest, reapplySurvivalStatus,
+  setSigma, setTestData, setTestOffset, setData, setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
@@ -99,6 +100,9 @@ public:
   SPY_VOID(setWeights, (const double* w), (w))
   SPY_RET(std::uint64_t, weightsDigest, () const, ())
   SPY_VOID(reapplyWeights, (), ())
+  SPY_VOID(setSurvivalStatus, (const double* s), (s))
+  SPY_RET(std::uint64_t, survivalDigest, () const, ())
+  SPY_VOID(reapplySurvivalStatus, (), ())
   SPY_VOID(setSigma, (double s), (s))
   SPY_RET(bool, setTestData, (const PredictorSource& s), (s))
   SPY_VOID(setTestOffset, (const double* o), (o))
@@ -252,12 +256,12 @@ struct Fixtures {
   static constexpr std::size_t n = 120, p = 2, nTest = 6, K = 3, capacity = 3;
 
   std::vector<double> x, y, y3, xTest, xTest2, offset, offset3, weights,
-    yBinary, yCount, unitBasis, wideBasis, wideBasis2, categoryOffset,
+    yBinary, yCount, logTime, survivalStatus, survivalStatus2, unitBasis, wideBasis, wideBasis2, categoryOffset,
     testCategoryOffset, testOffset, newColumn, replacement;
   std::vector<int> counts, trials, counts0;
   std::vector<double> xPooled, newColumn2;
   std::vector<ext_rng*> rngs;
-  Fixture g, gt, d, b, m, v, l, nb;
+  Fixture g, gt, d, b, m, v, l, nb, af;
   FixtureT<LinearGaussianLeaf> lin;
   std::size_t leafCovariate = 0;
   SamplerOptions gaussianOptions;
@@ -280,6 +284,9 @@ struct Fixtures {
     weights.resize(n);
     yBinary.resize(n);
     yCount.resize(n);
+    logTime.resize(n);
+    survivalStatus.resize(n);
+    survivalStatus2.resize(n);
     unitBasis.assign(n, 1.0);
     wideBasis.resize(2 * n);
     wideBasis2.assign(2 * n, 3.0);
@@ -303,6 +310,9 @@ struct Fixtures {
       weights[i] = 1.0 + static_cast<double>(i % 3);
       yBinary[i] = y[i] > 0.0 ? 1.0 : 0.0;
       yCount[i] = static_cast<double>(i % 4);
+      logTime[i] = y[i];
+      survivalStatus[i] = i % 5 == 0 ? 0.0 : 1.0;   // every fifth censored
+      survivalStatus2[i] = i % 3 == 0 ? 0.0 : 1.0;  // a different structure
       newColumn[i] = runif01();
       newColumn2[i] = runif01();
       xPooled[i] = runif01();
@@ -332,6 +342,7 @@ struct Fixtures {
     buildVariance();
     buildLogistic();
     buildNegativeBinomial();
+    buildSurvival();
     buildVectorLeaf();
   }
 
@@ -447,6 +458,20 @@ struct Fixtures {
               &one);
     Results results;
     lin.impl().run(5, 2, results);
+  }
+
+  /// The one fixture carrying a censoring structure, which is what gives the
+  /// survival digest a non-zero value to report and the status setter
+  /// something to move.
+  void buildSurvival() {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.survivalStatus = survivalStatus.data();
+    ext_rng* one = newRng(51012u);
+    af.build(x.data(), logTime.data(), n, p, nullptr, nullptr,
+             ResponseFamily::aft, 1.0, 3.0, 0.37804942330213542, options, &one);
+    Results results;
+    af.impl().run(5, 1, results);
   }
 
   void buildNegativeBinomial() {
@@ -589,6 +614,39 @@ const Row rows[] = {
     for (std::size_t i = 0; i < Fixtures::n; ++i)
       moved |= f.l.impl().latents(0)[i] != before[i];
     check(moved, "facade reapplyWeights: the family redraws its latents");
+  }},
+  {FacadeVirtual::setSurvivalStatus, "setSurvivalStatus", [](Fixtures& f) {
+    std::uint64_t digest = f.af.impl().survivalDigest();
+    f.af.base().setSurvivalStatus(f.survivalStatus2.data());
+    check(f.af.impl().survivalDigest() != digest,
+          "facade setSurvivalStatus: the impl carries the installed status");
+    f.af.base().setSurvivalStatus(f.survivalStatus.data());
+    check(f.af.impl().survivalDigest() == digest,
+          "facade setSurvivalStatus: restoring it restores the digest");
+  }},
+  {FacadeVirtual::survivalDigest, "survivalDigest", [](Fixtures& f) {
+    check(f.af.base().survivalDigest() == f.af.impl().survivalDigest() &&
+            f.af.base().survivalDigest() != 0,
+          "facade survivalDigest: the boundary reports the impl's digest");
+    check(f.g.base().survivalDigest() == 0,
+          "facade survivalDigest: a family carrying no status digests as 0");
+  }},
+  {FacadeVirtual::reapplySurvivalStatus, "reapplySurvivalStatus",
+   [](Fixtures& f) {
+    // the censored rows redraw against the structure in force; the events are
+    // observed times and do not move
+    std::vector<double> before(f.af.impl().latents(0),
+                               f.af.impl().latents(0) + Fixtures::n);
+    f.af.base().reapplySurvivalStatus();
+    bool moved = false, eventsHeld = true;
+    for (std::size_t i = 0; i < Fixtures::n; ++i) {
+      if (f.survivalStatus[i] == 0.0)
+        moved |= f.af.impl().latents(0)[i] != before[i];
+      else if (f.af.impl().latents(0)[i] != before[i])
+        eventsHeld = false;
+    }
+    check(moved, "facade reapplySurvivalStatus: the censored latents redraw");
+    check(eventsHeld, "facade reapplySurvivalStatus: the event rows do not");
   }},
   {FacadeVirtual::setSigma, "setSigma", [](Fixtures& f) {
     f.g.base().setSigma(2.5);

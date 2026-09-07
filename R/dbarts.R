@@ -1291,8 +1291,13 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setResponse = function(y, updateScale = FALSE, updateState = NA) {
-      "Changes the response against which the sampler is fitted. updateState is opt-in; see setData."
+    setResponse = function(
+      y,
+      updateScale = FALSE,
+      updateState = NA,
+      status = NULL
+    ) {
+      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState is opt-in; see setData."
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
       # same position, now meaning updateScale; sys.call() carries the raw,
@@ -1330,7 +1335,7 @@ dbartsSampler <- setRefClass(
         "express and which a length-n integer vector would only be guessed ",
         "into; replace it with $setCounts"
       )
-      bartcoreSamplerSetResponse(.self, y, updateScale)
+      bartcoreSamplerSetResponse(.self, y, updateScale, status)
       if (identical(updateState, TRUE)) {
         storeState()
       }
