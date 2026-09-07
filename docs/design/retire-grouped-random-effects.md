@@ -5,7 +5,7 @@ bartCause group.by route remain release prerequisites, and revdep-smoke's
 bartCause leg is an accepted red until the second one lands
 
 Remove grouped random intercepts from dbarts entirely - the engine-side
-retired: [[MOD#GroupedResponse]] decorator and its tau block, the bridge that reaches
+retired: [`GroupedResponse`](../../src/bartcore/model.hpp) decorator and its tau block, the bridge that reaches
 them, `rbart_vi()` and its R Gibbs loop, `R/sliceSample.R`, the nine `.rbart`
 S3 methods, and the two `dbarts_results` fields - and let stan4bart be the
 home for multilevel structure. Grounded in the 2026-09-06 census of the whole
@@ -63,12 +63,12 @@ Against that:
   its own header's ratios. The default half-Cauchy tau prior is
   SBC-intractable through the engine's slice sampler, so the recorded SBC
   arms are gamma-prior runs of a prior users do not get by default.
-- **A NO-GO defect.** [[docs/design/forest-ranef-interweaving.md#0. The load-bearing finding: there is NO cheap interweave; the fix is a collapse]]
+- **A NO-GO defect.** [0. The load-bearing finding: there is NO cheap interweave; the fix is a collapse](forest-ranef-interweaving.md#0-the-load-bearing-finding-there-is-no-cheap-interweave-the-fix-is-a-collapse)
   measured forest-ranef confounding at 1.9-3.3x tau IACT and closed the door:
   a fix costs ~800-1300 engine lines and moves grouping off the decorator seam
   onto the constant-leaf hot path.
 - **Mutual refusal with the variance forest**
-  (retired: [[spec.R#"does not support grouped random effects"]]), so the feature is
+  (retired: ["does not support grouped random effects"](../../R/spec.R)), so the feature is
   already fenced off from the newest response decoration.
 - **A seam with one instantiation.** `GroupedResponse` is the only
   `ResponseModel` that holds a `std::unique_ptr<ResponseModel>`; nine other
@@ -141,48 +141,48 @@ is relocated and unbuilt, not abandoned. Accepted.
 
 **Engine** (428 lines).
 
-- `src/bartcore/model.hpp`: the retired: [[MOD#GroupedResponse]] class (227 lines with
+- `src/bartcore/model.hpp`: the retired: [`GroupedResponse`](../../src/bartcore/model.hpp) class (227 lines with
   its doc block); the free-function block
-  retired: [[MOD#TauPriorKind, logTauPrior, logTauPosterior, sliceSampleOnce, drawTauCauchyExactIG, drawGroupEffects]]
+  retired: [`TauPriorKind`](../../src/bartcore/model.hpp), [`logTauPrior`](../../src/bartcore/model.hpp), [`logTauPosterior`](../../src/bartcore/model.hpp), [`sliceSampleOnce`](../../src/bartcore/model.hpp), [`drawTauCauchyExactIG`](../../src/bartcore/model.hpp), [`drawGroupEffects`](../../src/bartcore/model.hpp)
   (129 lines - `sliceSampleOnce`'s only shipped caller is the gamma tau draw);
   the four base-class hooks
-  retired: [[MOD#ResponseModel::groupEffects, ResponseModel::numGroupEffects, ResponseModel::groupTau, ResponseModel::restoreGroupEffects]].
+  retired: [`ResponseModel::groupEffects`](../../src/bartcore/model.hpp), [`ResponseModel::numGroupEffects`](../../src/bartcore/model.hpp), [`ResponseModel::groupTau`](../../src/bartcore/model.hpp), [`ResponseModel::restoreGroupEffects`](../../src/bartcore/model.hpp).
 - `src/bartcore/chain.hpp` (~50): the five
-  retired: [[CH#SamplerOptions::groupIndices, SamplerOptions::numGroups, SamplerOptions::tauPriorKind, SamplerOptions::tauPriorScale, SamplerOptions::tauSliceSteps]]
-  fields, [[CH#Results]]'s `tau` and `groupEffects` members, the decorator
+  retired: [`SamplerOptions::groupIndices`](../../src/bartcore/chain.hpp), [`SamplerOptions::numGroups`](../../src/bartcore/chain.hpp), [`SamplerOptions::tauPriorKind`](../../src/bartcore/chain.hpp), [`SamplerOptions::tauPriorScale`](../../src/bartcore/chain.hpp), [`SamplerOptions::tauSliceSteps`](../../src/bartcore/chain.hpp)
+  fields, [`Results`](../../src/bartcore/chain.hpp)'s `tau` and `groupEffects` members, the decorator
   construction, the state save / shape check / restore arms, and the per-draw
-  record and de-scale in [[CH#Chain::storeSample]].
-- retired: [[SAM#Sampler::numGroups]] and its two call sites (6);
-  retired: [[FAC#SamplerShape::numGroups]] (3);
-  retired: [[COM#ChainStateData::groupEffects, ChainStateData::groupTau]] (3).
+  record and de-scale in [`Chain::storeSample`](../../src/bartcore/chain.hpp).
+- retired: [`Sampler::numGroups`](../../src/bartcore/sampler.hpp) and its two call sites (6);
+  retired: [`SamplerShape::numGroups`](../../src/bartcore/facade.hpp) (3);
+  retired: [`ChainStateData::groupEffects`](../../src/bartcore/combiner.hpp), [`ChainStateData::groupTau`](../../src/bartcore/combiner.hpp) (3).
 
 **Bridge** (~247 lines).
 
 - `src/R_interface_rbart.cpp` and `src/R_interface_rbart.hpp`, whole files -
-  `rbart_getFitted`, [[src/R_interface_rbart.cpp:21@916271f3]] - plus its
-  include and its retired: [[src/R_interface.cpp#rbart_fitted]] registration. This and
+  `rbart_getFitted`, [src/R_interface_rbart.cpp:21](https://github.com/vdorie/dbarts/blob/916271f39e3ab0da4dea930128c726212e9cba7a/src/R_interface_rbart.cpp#L21) - plus its
+  include and its retired: [`rbart_fitted`](../../src/R_interface.cpp) registration. This and
   the two below are history cites deliberately: a symbol cite into a file the
   change deletes cannot resolve afterwards, and `retired:` does not rescue it
   (the guard resolves the path first).
-- `src/R_interface_bartcore.cpp`: retired: [[RIB#applyGroupAttribute]] (56);
-  retired: [[RIB#refuseGroupedScaleUpdate]] and its declaration in
+- `src/R_interface_bartcore.cpp`: retired: [`applyGroupAttribute`](../../src/R_interface_bartcore.cpp) (56);
+  retired: [`refuseGroupedScaleUpdate`](../../src/R_interface_bartcore.cpp) and its declaration in
   `src/R_interface_bartcore_common.hpp` (~39); the ordinal, nbinom and
   variance-forest composition refusals and the
-  retired: [[RIB#"grouped random effects"]] offender string (~23); the `"tau"` and
+  retired: ["grouped random effects"](../../src/R_interface_bartcore.cpp) offender string (~23); the `"tau"` and
   `"ranef"` result channels (6); the two mutation guards and the
-  retired: [[RIB#"grouped random effects fix the data at creation"]] `setData` refusal
+  retired: ["grouped random effects fix the data at creation"](../../src/R_interface_bartcore.cpp) `setData` refusal
   (5); the `"ranef"`/`"tau"` state slots and their restore arm (~14).
 - `src/C_interface.cpp`: the `bartcore.groups` note, the two
-  retired: [[C_interface.cpp#refuseGroupedScaleUpdate]] calls in
+  retired: [`refuseGroupedScaleUpdate`](../../src/C_interface.cpp) calls in
   `dbarts_sampler_setResponse` and `dbarts_sampler_setOffset`, and the
   layout asserts below (~9). Two `tau` / `groupEffects` entries also leave
-  [[C_interface.cpp#DBARTS_RESULTS_FIELDS]], the list macro that drives both
+  [`DBARTS_RESULTS_FIELDS`](../../src/C_interface.cpp), the list macro that drives both
   the alignment asserts and the hash fold - a compile error if missed.
 
-**C API.** [[CAPI#dbarts_results]] loses `tau` and `groupEffects` and the
+**C API.** [`dbarts_results`](../../inst/include/dbarts/dbarts.h) loses `tau` and `groupEffects` and the
 sentence in its doc block that conditions them on a grouped sampler; the
 `logLikelihood` paragraph loses its grouped clause;
-[[CAPI#DBARTS_RESULTS_INIT]] drops two of its twelve positional initializers.
+[`DBARTS_RESULTS_INIT`](../../inst/include/dbarts/dbarts.h) drops two of its twelve positional initializers.
 The header's own field-discipline prose says fields "append monotonically
 below the marked boundary and never reorder" - it does not authorise a
 removal at all, so that paragraph is amended in the same edit to say what a
@@ -192,18 +192,18 @@ pre-1.0-0 removal does.
 
 - `R/rbart.R`, whole: `rbart_vi`, `rbart_vi_run`, `rbart_vi_fit_bartcore`,
   `rbart_vi_fit`, `packageRbartResults` and `rbart.priors`,
-  [[R/rbart.R:1-1334@916271f3]].
+  [R/rbart.R:1-1334](https://github.com/vdorie/dbarts/blob/916271f39e3ab0da4dea930128c726212e9cba7a/R/rbart.R#L1-L1334).
 - `R/sliceSample.R`, whole: `sliceSample` and `rejectionSample`,
-  [[R/sliceSample.R:1-300@916271f3]].
-- The nine methods: retired: [[generics.R#predict.rbart, extract.rbart, fitted.rbart, residuals.rbart, plotTree.rbart, print.rbart]],
-  retired: [[R/plot.R#plot.rbart]], retired: [[bart.R#survivalProbabilities.rbart]], and
-  retired: [[R/diagnostics.R#summary.rbart, as_draws_array.rbart, as_draws_df.rbart]].
+  [R/sliceSample.R:1-300](https://github.com/vdorie/dbarts/blob/916271f39e3ab0da4dea930128c726212e9cba7a/R/sliceSample.R#L1-L300).
+- The nine methods: retired: [`predict.rbart`](../../R/generics.R), [`extract.rbart`](../../R/generics.R), [`fitted.rbart`](../../R/generics.R), [`residuals.rbart`](../../R/generics.R), [`plotTree.rbart`](../../R/generics.R), [`print.rbart`](../../R/generics.R),
+  retired: [`plot.rbart`](../../R/plot.R), retired: [`survivalProbabilities.rbart`](../../R/bart.R), and
+  retired: [`summary.rbart`](../../R/diagnostics.R), [`as_draws_array.rbart`](../../R/diagnostics.R), [`as_draws_df.rbart`](../../R/diagnostics.R).
 - Beyond the methods, `R/generics.R` also carries
-  retired: [[generics.R#rbartUnusedArgs]] and its four dispatch references, and the
-  live user-facing string retired: [[generics.R#"is the grouped (rbart_vi) fit's own predict argument"]],
-  pinned by retired: [[test-generics-errors.R#"group.by"]].
-- Scattered awareness: the `"rbart"` entry in [[R/hooks.R#as_draws_array]]'s
-  class list, retired: [[spec.R#"dbarts()/rbart_vi()/bart()/xbart"]] and the
+  retired: [`rbartUnusedArgs`](../../R/generics.R) and its four dispatch references, and the
+  live user-facing string retired: ["is the grouped (rbart_vi) fit's own predict argument"](../../R/generics.R),
+  pinned by retired: ["group.by"](../../inst/tinytest/test-generics-errors.R).
+- Scattered awareness: the `"rbart"` entry in [`as_draws_array`](../../R/hooks.R)'s
+  class list, retired: ["dbarts()/rbart_vi()/bart()/xbart"](../../R/spec.R) and the
   variance-forest refusal comment, and comments or dispatch lists in
   `R/partialDependence.R`, `R/data.R`, `R/utility.R`, `R/xbart.R` and
   `R/dbarts.R`.
@@ -221,10 +221,10 @@ paragraph, `ranef`/`tau` in `run()`'s value docs), `bart2.Rd`, `plotTree.Rd`
 (its `.rbart` alias), `bart.Rd`, `dbarts.Rd`, `xbart.Rd`,
 `dbarts-embedding.Rd`, `dbartsControl.Rd`, `dbarts-package.Rd`. The `- rbart`
 reference entry in `_pkgdown.yml`. The user-facing feature bullet
-retired: [[./README.md#"Grouped random effects"]]. `docs/architecture.md`, which
+retired: ["Grouped random effects"](../../README.md). `docs/architecture.md`, which
 describes `GroupedResponse` as engine architecture and names `rbart_vi` in the
 `R/` layer map - outside `docs/design/`, so the thirty-doc sweep does not
-reach it. [[docs/plans/bartcore-review-tour.md#2. Breaking changes for R users]] in
+reach it. [2. Breaking changes for R users](../plans/bartcore-review-tour.md#2-breaking-changes-for-r-users) in
 three places, including the note that `grouped-mixing.R` disagrees with its
 own header.
 
@@ -239,42 +239,42 @@ for, and shipping it costs nothing.
 `test-rbart-*.R` plus `test-grouped-swap.R`, `test-slice-sample.R` and
 `test-reproducibility-rbart.R` - plus the shared fixture
 `inst/common/rbartGroupData.R`; the grouped block in 36 further tinytest
-files; the five retired: [[tests/cpp/test_model.cpp#testGroupedMath, testGroupedEndToEnd, testGroupedBinary, testGroupedResponseSwap, testGroupedStateRoundTrip]]
+files; the five retired: [`testGroupedMath`](../../tests/cpp/test_model.cpp), [`testGroupedEndToEnd`](../../tests/cpp/test_model.cpp), [`testGroupedBinary`](../../tests/cpp/test_model.cpp), [`testGroupedResponseSwap`](../../tests/cpp/test_model.cpp), [`testGroupedStateRoundTrip`](../../tests/cpp/test_model.cpp)
 functions and their registrations in `runModelTests`; the "grouped intercepts
-delegate" sub-block of [[tests/cpp/test_sampler.cpp#testActiveRows]]; the
-`numGroups` assertion in [[tests/cpp/test_shape.cpp#testConstantGaussian]];
+delegate" sub-block of [`testActiveRows`](../../tests/cpp/test_sampler.cpp); the
+`numGroups` assertion in [`testConstantGaussian`](../../tests/cpp/test_shape.cpp);
 and the `ChainStateData` equality helper's two grouped comparisons in
-retired: [[tests/cpp/common.cpp#groupEffects, groupTau]].
+retired: [`groupEffects`](../../tests/cpp/common.cpp), [`groupTau`](../../tests/cpp/common.cpp).
 
-The ABI test is its own build-breaking site: retired: [[inst/tinytest/capi/consumer.c#capi_run_grouped]]
+The ABI test is its own build-breaking site: retired: [`capi_run_grouped`](../../inst/tinytest/capi/consumer.c)
 is a whole grouped-run entry point setting `results.tau` / `results.groupEffects`
 and naming `"tau"` / `"ranef"` back to R, and the same two fields are poisoned
 in its structSize probes; it is driven from
-retired: [[test-capi.R#"capi_run_grouped"]], including a grouped-plus-variance-forest
+retired: ["capi_run_grouped"](../../inst/tinytest/test-capi.R), including a grouped-plus-variance-forest
 refusal. Being a C file compiled against the header, it belongs with the ABI
 edit, not with the R tests.
 
 **Benchmarks.** Two whole files: `benchmarks/R/grouped-mixing.R` (209 lines)
-and [[benchmarks/R/forest-ranef-collapse-proto.R:1-209@c585ba2c]] (209 lines, the
+and [benchmarks/R/forest-ranef-collapse-proto.R:1-209](https://github.com/vdorie/dbarts/blob/c585ba2c9bc6c6bf7b1c8b33aeda450d554e97d8/benchmarks/R/forest-ranef-collapse-proto.R#L1-L209) (209 lines, the
 isolation prototype behind the NO-GO doc being superseded). The `grouped` and
-`grouped_aft` scenarios and retired: [[benchmarks/R/equivalence.R#fitViaRbart]];
+`grouped_aft` scenarios and retired: [`fitViaRbart`](../../benchmarks/R/equivalence.R);
 `probeRbart` and the `"groupedRanef"` entry in
-retired: [[benchmarks/R/composition-matrix.R#probeRbart]]; the grouped poison test in
-retired: [[benchmarks/R/mutation-battery.R#"grouped-intercept precision counts members"]]
+retired: [`probeRbart`](../../benchmarks/R/composition-matrix.R); the grouped poison test in
+retired: ["grouped-intercept precision counts members"](../../benchmarks/R/mutation-battery.R)
 (that file also pins the current equivalence baseline - see Gates).
 
 `benchmarks/R/sbc.R`'s grouped surface is wider than the two functions its
 plan step names: beyond the four configs,
-retired: [[benchmarks/R/sbc.R#sbcMakeGroupedFit, runSbcGrouped]] and the config
-extender retired: [[benchmarks/R/sbc.R#sbcAddGrouping]], it carries the
-retired: [[benchmarks/R/sbc.R#isGrouped]] predicate and its four dispatch branches, the
+retired: [`sbcMakeGroupedFit`](../../benchmarks/R/sbc.R), [`runSbcGrouped`](../../benchmarks/R/sbc.R) and the config
+extender retired: [`sbcAddGrouping`](../../benchmarks/R/sbc.R), it carries the
+retired: [`isGrouped`](../../benchmarks/R/sbc.R) predicate and its four dispatch branches, the
 usage line in the module header, and four comment blocks. The Bonferroni
-denominator is unaffected: [[benchmarks/R/sbc.R#sbcMatrixFunctionals]] is a
+denominator is unaffected: [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) is a
 literal over the five matrix arms, none of them grouped, so no recorded SBC
 verdict moves.
 
 **Workflows.** No workflow names grouped. The one line that moves is the
-baseline pin in [[.github/workflows/equivalence.yaml#"--strict-coverage"]].
+baseline pin in ["--strict-coverage"](../../.github/workflows/equivalence.yaml).
 
 **Tooling.** `tools/regenerate-snapshots.R` hardcodes
 `"test-reproducibility-rbart.R"` in a file list; the pin-site note at the head
@@ -282,11 +282,11 @@ of `benchmarks/baselines/MANIFEST` names `test-rbart-loop-callback.R`; `.lintr`
 carries two rationale comments naming `rbart_vi` (cosmetic, but they cite a
 symbol that will not exist).
 
-**Docs and backlog.** [[docs/design/grouped-random-effects.md#In-core grouped random effects]]
-and [[docs/design/forest-ranef-interweaving.md#6. Recommendation: go/no-go]]
+**Docs and backlog.** [In-core grouped random effects](grouped-random-effects.md#in-core-grouped-random-effects)
+and [6. Recommendation: go/no-go](forest-ranef-interweaving.md#6-recommendation-gono-go)
 flip to RETIRED / SUPERSEDED with a one-line pointer here;
-[[docs/plans/group-by-exposure.md#Goal]] and
-[[docs/plans/tau-slice-review.md#VERDICT (summary; detail below)]] likewise. In
+[Goal](../plans/group-by-exposure.md#goal) and
+[VERDICT (summary; detail below)](../plans/tau-slice-review.md#verdict-summary-detail-below) likewise. In
 `docs/design/feature-matrix.md`: the `grouped` row in each of the five tables,
 the flat-C grouped cell, footnotes [f8], [f13], [f14], [f31], [f32], [f37] and
 [f44] entirely, the grouped clauses in [f1], [f3], [f27], [f30], [f40] and
@@ -322,7 +322,7 @@ and the 17 tinytest files. Everything else on this list is an edit.
   itself is what every external Gibbs consumer, stan4bart included, drives.
 - **The `ResponseModel` seam** and all eight concrete families. The decorator
   pattern is cited as load-bearing architecture past grouped
-  ([[docs/design/forest-combiner.md#A standalone hierarchy, not a ResponseModel subclass]]):
+  ([A standalone hierarchy, not a ResponseModel subclass](forest-combiner.md#a-standalone-hierarchy-not-a-responsemodel-subclass)):
   a combiner reads `response_->workingResponse()` whatever decorates it, and
   that property is what keeps a future decoration from needing a class per
   pairing. What retires is the one instantiation, not the seam.
@@ -358,7 +358,7 @@ the header offers is not armed there either. What actually protects it is the
 lockstep rebuild: the two release together, dbarts first, and stan4bart is
 recompiled against the new header before it ships.
 
-[[CAPI#DBARTS_C_API_HASH]] still moves, and should - it folds each struct's
+[`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) still moves, and should - it folds each struct's
 size and each field's name paired with its offset, so a removed field re-bakes
 the literal (currently `0xca7b56a64c812b8dULL`) while
 `dbarts_apiSignatureToken` does not, since no entry point's signature changes.

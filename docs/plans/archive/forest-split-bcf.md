@@ -184,7 +184,7 @@ tests:
    fixed 0/1 z balanced within each x cell, Gaussian response, two
    single-tree forests (host n.trees = 1, n.trees.treatment = 1).
    Enumerate each forest's tree space independently (the ordinal
-   analog, [[logistic-reference.R:63@4a521760]]); the joint space is the product.
+   analog, [benchmarks/R/logistic-reference.R:63](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/benchmarks/R/logistic-reference.R#L63)); the joint space is the product.
    Conditional on (a, b0, b1, sigma) the leaf parameters integrate in
    closed form (Gaussian block marginal); 1-D quadrature over sigma
    against the sampler's actual prior on the scaled response -
@@ -272,27 +272,27 @@ resolution and a benchmark/test consumer. Skip the compare.
   (4e1fb5b) gave BCFForestSpec columns/numColumns (the borrowed
   1-based-resolved column list), the BCF ctor installs it on the tau
   forest only (mu unrestricted), and bartcore_createBCF grew a trailing
-  moderatorsExpr argument parsed at [[src/R_interface_bartcore.cpp:1339@4a521760]]-
+  moderatorsExpr argument parsed at [src/R_interface_bartcore.cpp:1339](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1339)-
   1351 (range-checked, consumed at construction, -> spec.tau.columns).
   A tests/cpp test proves tau containment with mu reading the full
   store. The per-forest availability mask (step 1, f7763ba) is
   nullptr-guarded, so absent = the default draw byte-for-byte.
 - What does NOT exist yet, and is assigned here by data-ownership-4 Q2:
-  (a) any user-facing `moderators` surface - [[R/bartcore.R:485@4a521760]] passes a
+  (a) any user-facing `moderators` surface - [R/bartcore.R:485](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L485) passes a
   literal NULL placeholder to the moderatorsExpr slot; (b) the
   two-forest exact-posterior validation at a RESTRICTED moderator set.
   bcf-exact.R validates only the full-store two-forest posterior.
 - The BCF user surface is INTERNAL. bartcoreBCFSampler
-  ([[R/bartcore.R:453@4a521760]]) is the sole entry; it is unexported (not in
+  ([R/bartcore.R:453](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L453)) is the sole entry; it is unexported (not in
   NAMESPACE) and undocumented (no man/ topic). Consumers reach it via
   dbarts::: - inst/tinytest/test-bcf.R and bartCause. Public
   dbarts-level BCF exposure stays a deferred decision
   (public-surface.md section 5), so this phase lands the
   argument on the internal function, not on an exported wrapper.
 - Forest-addressed queries are partial. bartcore_getForestFits
-  ([[R_interface_bartcore.cpp:1653@4a521760]], R helper bartcoreForestFits) reads
+  ([src/R_interface_bartcore.cpp:1653](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1653), R helper bartcoreForestFits) reads
   fits for any forest index via forestTotalFits; but getTrees/varcount
-  address forest 0 only (getTrees at [[R_interface_bartcore.cpp:3907@4a521760]] loops sampler.numTrees()
+  address forest 0 only (getTrees at [src/R_interface_bartcore.cpp:3907](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L3907) loops sampler.numTrees()
   with no forest axis). So the tau forest's SPLIT VARIABLES are not
   yet R-observable - relevant to how C3 checks containment (Q-C).
 - Post-step-5 work not in this plan's earlier text but now in the tree
@@ -305,9 +305,9 @@ resolution and a benchmark/test consumer. Skip the compare.
 ### Steps
 
 C1. The `moderators` argument on bartcoreBCFSampler (R only). Add
-    `moderators = NULL` to bartcoreBCFSampler ([[R/bartcore.R:453@4a521760]]).
+    `moderators = NULL` to bartcoreBCFSampler ([R/bartcore.R:453](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L453)).
     Default NULL = all columns = today's byte-for-byte draw (the
-    literal NULL placeholder at [[R/bartcore.R:485@4a521760]] is replaced by the resolved
+    literal NULL placeholder at [R/bartcore.R:485](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L485) is replaced by the resolved
     value). Resolve against the sampler's built columns, which are the
     already-expanded design matrix sampler$data@x (dbarts()/bartCause
     ran makeModelMatrixFromDataFrame upstream; factor expansion is
@@ -453,7 +453,7 @@ C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
 
 - The step-3 interim "both forests read the full store (the moderator
   subset waits on data-ownership's views)" (recorded in Phase 1's
-  Landing above, [[chain.hpp:471@4a521760]]) is DISCHARGED: data-ownership-4 step 2
+  Landing above, [src/bartcore/chain.hpp:471](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L471)) is DISCHARGED: data-ownership-4 step 2
   (4e1fb5b) landed the mask and the moderatorsExpr slot. This phase
   consumes it; the earlier deferral no longer holds.
 - Gate baselines moved since step 5: the exactness/neutrality gates

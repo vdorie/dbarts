@@ -17,16 +17,16 @@ parked NT-store question with a real large-n profile.
 
 - C1 (P2): the leaf marginals carry sum wz^2 (z'Wz), a model-free data
   constant that is additive over any partition of a fixed member set and
-  so cancels in every MH comparison; [[scan.hpp:23-27@fc40a08a]], [[scan.hpp:68-70@fc40a08a]] already omits
+  so cancels in every MH comparison; [src/bartcore/scan.hpp:23-27](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/scan.hpp#L23-L27), [src/bartcore/scan.hpp:68-70](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/scan.hpp#L68-L70) already omits
   it. Drop it from ALL THREE marginals - constant
-  ([[model.hpp:109-126@fc40a08a]], [[model.hpp:146-154@fc40a08a]], concept at [[model.hpp:42@fc40a08a]]), linear ([[model.hpp:299@fc40a08a]],
-  318, computeProjection output [[model.hpp:371-412@fc40a08a]]), and GP ([[model.hpp:336-338@fc40a08a]]) - because
+  ([src/bartcore/model.hpp:109-126](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L109-L126), [src/bartcore/model.hpp:146-154](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L146-L154), concept at [src/bartcore/model.hpp:42](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L42)), linear ([src/bartcore/model.hpp:299](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L299),
+  318, computeProjection output [src/bartcore/model.hpp:371-412](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L371-L412)), and GP ([src/bartcore/model.hpp:336-338](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L336-L338)) - because
   the GP leaf delegates oversized nodes to the constant marginal
-  ([[model.hpp:693-698@fc40a08a]]): a constant-only drop would mix z'Wz-free and
+  ([src/bartcore/model.hpp:693-698](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L693-L698)): a constant-only drop would mix z'Wz-free and
   z'Wz-carrying marginals across the maxLeafSize_ boundary and change
-  the GP posterior. Also: [[tree.hpp:177@fc40a08a]], [[tree.hpp:497-523@fc40a08a]], [[tree.hpp:800-801@fc40a08a]]; moves.hpp:
-  215-216; the four kernel signatures [[moments.c:311-410@fc40a08a]] /
-  [[src/include/misc/stats.h:42-45@fc40a08a]] (internal, scalar, undispatched). The
+  the GP posterior. Also: [src/bartcore/tree.hpp:177](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/tree.hpp#L177), [src/bartcore/tree.hpp:497-523](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/tree.hpp#L497-L523), [src/bartcore/tree.hpp:800-801](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/tree.hpp#L800-L801); moves.hpp:
+  215-216; the four kernel signatures [src/misc/moments.c:311-410](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/misc/moments.c#L311-L410) /
+  [src/include/misc/stats.h:42-45](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/include/misc/stats.h#L42-L45) (internal, scalar, undispatched). The
   cross-model marginal tests (test_model.cpp) must pass UNEDITED once
   all marginals agree; an edit there means the drop is inconsistent.
   No serialization field carries it.
@@ -34,13 +34,13 @@ parked NT-store question with a real large-n profile.
   per-tree n-vector scatter (treeFits slab ~8x smaller; kills the
   recorded ~18.5% setIndexedVectorToConstant share). Sub-plan first.
 - C3 (P4): birth-move child-by-subtraction and partition/suffstat gather
-  fusion, [[tree.hpp:757-783@fc40a08a]]. Order-careful; rng-neutral.
-- C4 (Tier 4): E3 route combinedFits ([[combiner.hpp:668-682@fc40a08a]]) through
-  softmaxLocationMajor ([[combiner.hpp:561@fc40a08a]]), bitwise-neutral only if the
+  fusion, [src/bartcore/tree.hpp:757-783](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/tree.hpp#L757-L783). Order-careful; rng-neutral.
+- C4 (Tier 4): E3 route combinedFits ([src/bartcore/combiner.hpp:668-682](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/combiner.hpp#L668-L682)) through
+  softmaxLocationMajor ([src/bartcore/combiner.hpp:561](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/combiner.hpp#L561)), bitwise-neutral only if the
   arithmetic is identical - verify; E5 guard the n==0 OOB read at
-  [[model.hpp:2074-2079@fc40a08a]] (or prove the upstream reject); E1 confirm the
+  [src/bartcore/model.hpp:2074-2079](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/model.hpp#L2074-L2079) (or prove the upstream reject); E1 confirm the
   exact gate exercises unequal per-forest shrinkage in the
-  level-centering conditional ([[combiner.hpp:729-748@fc40a08a]]) - investigation,
+  level-centering conditional ([src/bartcore/combiner.hpp:729-748](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/combiner.hpp#L729-L748)) - investigation,
   change only on evidence.
 - C5 (P3): multinomial margins O(nK^2) -> O(nK) via prefix/suffix
   log-sum-exp (NOT subtract-exp: cancellation when the excluded category
@@ -56,7 +56,7 @@ parked NT-store question with a real large-n profile.
 - Sequence C1 -> C2 -> C3 -> C4 -> C5 -> C6; one implementer at a time.
 - C1's neutrality is a review claim, not structural: the sum wz^2
   rounding sits inside each node's marginal and cancels only
-  algebraically in the branch-sum ratio ([[moves.hpp:47-63@fc40a08a]], [[moves.hpp:507-517@fc40a08a]]). If
+  algebraically in the branch-sum ratio ([src/bartcore/moves.hpp:47-63](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/moves.hpp#L47-L63), [src/bartcore/moves.hpp:507-517](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/bartcore/moves.hpp#L507-L517)). If
   any anchor moves: STOP and report. Reclassification to shifting
   (posterior unchanged by the algebra) and any re-record are the
   orchestrator's call, never the implementer's.
@@ -119,7 +119,7 @@ marginal off by the FP reorder; parent - left is not the direct
 reduction) and was reverted at first divergence per protocol - it
 also couples birth() to a live parent-stats invariant several tests
 do not satisfy. Pass fusion audited as structurally non-neutral: the
-suffstat kernels ([[moments.c:331-405@fc40a08a]]) reduce remainder-first in 5-way
+suffstat kernels ([src/misc/moments.c:331-405](https://github.com/vdorie/dbarts/blob/fc40a08ac1fd4476cd6a4c2100cd5c40e6311867/src/misc/moments.c#L331-L405)) reduce remainder-first in 5-way
 groups over FINAL ascending buffer positions, while every partition
 variant (SIMD/scalar two-pointer, mask, wide-mask, sparse, MIA) is
 swap-based and does not finalize elements in that order, so in-loop

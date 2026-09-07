@@ -13,22 +13,22 @@ not cover.
 ## Findings
 
 1. Classification-family routing duplicated with drifted wording
-   across [[dbarts.R:294-333@474c55f0]], [[xbart.R:78-113@474c55f0]], [[R/rbart.R:332-358@474c55f0]] (the
+   across [R/dbarts.R:294-333](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/dbarts.R#L294-L333), [R/xbart.R:78-113](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/xbart.R#L78-L113), [R/rbart.R:332-358](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/rbart.R#L332-L358) (the
    2-vs-3-level check, auto->probit resolution, conflict errors; only
    classifyResponse/announceAutoFamily are shared). Fix: one
    resolveClassificationFamily(data, family, caller) helper; align
    the messages.
 2. Sparse test-data asymmetry: dbartsData validity accepts x.test as
-   matrix or dbartsMixedMatrix only ([[A_class.R:482-491@474c55f0]]), so
+   matrix or dbartsMixedMatrix only ([R/A_class.R:482-491](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/A_class.R#L482-L491)), so
    validateXTest silently densifies a bare dgCMatrix test set
-   ([[data.R:112-128@474c55f0]]) while mixed-container test data stays sparse; no
+   ([R/data.R:112-128](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/data.R#L112-L128)) while mixed-container test data stays sparse; no
    test covers the coercion. RESOLVED (VD 2026-07-18): accept
    dgCMatrix test input SYMMETRICALLY - a bare sparse x.test flows
    like the mixed container's, never silently densified. Add tests
    for the sparse-test path (train sparse + test sparse; train dense
    + test sparse behavior defined and tested, erroring informatively
    if the train store cannot serve it).
-3. The three copy-pasted NA-policy guards ([[dbarts.R:962-966@474c55f0]],
+3. The three copy-pasted NA-policy guards ([R/dbarts.R:962-966](https://github.com/vdorie/dbarts/blob/474c55f03f66ac46a15f46ae9fca23d60e517cef/R/dbarts.R#L962-L966),
    997-1001, 1010-1014): shared checkMissingPolicy() helper;
    cosmetic, ride along.
 

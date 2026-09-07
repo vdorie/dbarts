@@ -82,7 +82,7 @@ mechanism against regularization-induced confounding.
 
 This section is the 2026-07-07 proposal's recommendation, not a statement of
 shipped defaults: every declared forest defaults to `n.trees = 50L`, `base =
-0.25`, `power = 3` ([[R/model.R#forestParams]]), not the bcf-scale counts and
+0.25`, `power = 3` ([`forestParams`](../../R/model.R)), not the bcf-scale counts and
 tree priors below.
 
 BCF calibrates the forests differently; the note adopts its conventions, since
@@ -164,7 +164,7 @@ nothing to that forest's sufficient statistics instead of an
 amplified-and-cancelled near-zero contribution. The snap is local to the
 reparameterization: `combinedFits` and `drawGlue` keep the exact `b0`, and no
 snapped value is written back into the glue
-([[src/bartcore/combiner.hpp#formForestResponse]]).
+([`formForestResponse`](../../src/bartcore/combiner.hpp)).
 
 A caller-settable per-forest, per-observation weight composes with this
 multiplicatively: `forestWeights[i] = w_i * m_f^2 * s_{f,i}`, installed via
@@ -218,11 +218,11 @@ which entry points fan per forest.
 - setModel would need per-forest addressing (each forest has its own
   base/power, k, node scale, split probabilities), but the shipped engine
   refuses it on any sampler with numForests >= 2, BCF included:
-  `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]])
+  `refuseMultiForestMutation` ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp))
   fires on `bartcore_setModel`, so BCF cannot swap a forest's model
   between sweeps - only a fresh sampler can.
 - The DONOR warm start is refused at the same forest count setModel is:
-  `refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]])
+  `refuseMultiForestWarmStart` ([`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp))
   fires on `bartcore_installForests`, so BCF takes no donor's forests. Not a
   model refusal: the install reassembles the trees from a saved slot but takes
   the amplitudes off the donor's live state, pairing one draw's forests with
@@ -231,18 +231,18 @@ which entry points fan per forest.
   own sweep, covered from R and by `tests/cpp`'s `testBCFGrowForestFromRoot`.
 - predict is two entry points with opposite rules, and BCF gets the
   per-forest one. `bartcore_predictPerForest`
-  ([[R_interface_bartcore.cpp#bartcore_predictPerForest]]), behind
-  `$predictForests` ([[dbarts.R#predictForests]]), refuses on
+  ([`bartcore_predictPerForest`](../../src/R_interface_bartcore.cpp)), behind
+  `$predictForests` ([`predictForests`](../../R/dbarts.R)), refuses on
   `!forestReportingIsDefined`, which `AmplitudeForestCombiner` alone
   overrides true
-  ([[combiner.hpp#AmplitudeForestCombiner::forestReportingIsDefined]]),
+  ([`AmplitudeForestCombiner::forestReportingIsDefined`](../../src/bartcore/combiner.hpp)),
   so a caller does get tau's fit or mu's off BCF - and a K-forest
   multinomial is the shape refused there. The COMBINED `bartcore_predict`
   runs the other way: `refuseUndefinedTestFits`
-  ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) closes it on
+  ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp)) closes it on
   `numForests >= 2 && !testFitsAreDefined`, and
   `AmplitudeForestCombiner::testFitsAreDefined`
-  ([[combiner.hpp#AmplitudeForestCombiner::testFitsAreDefined]]) returns
+  ([`AmplitudeForestCombiner::testFitsAreDefined`](../../src/bartcore/combiner.hpp)) returns
   false: there is no off-sample a*mu + b_z*tau blend to score. So the
   forest-count generalization holds for setModel and not for predict.
   getTrees and printTrees remain genuinely per-forest (a 0-based forest
@@ -250,7 +250,7 @@ which entry points fan per forest.
   directly; setTreeStorage is not addressed by forest at all - it takes
   no forest argument (dbarts.h) and toggles the saved-tree store for the
   whole sampler, both forests at once. Each forest's own k draw
-  ([[chain.hpp#updateK]]) is per-forest too and unaffected by either
+  ([`updateK`](../../src/bartcore/chain.hpp)) is per-forest too and unaffected by either
   refusal.
 - Predictor mutation over shared views: setPredictor and family target a forest's
   view, but a mutation to a column both forests reference fans to both under the
@@ -391,7 +391,7 @@ restated here. bcf's TREATMENT forest now has its own move available
 in that same code (the b-move, docs/plans/archive/bcf-b-ridge.md), but it
 ships OFF: `AmplitudeSpec::ridgeB = false`, because enabling it consumes a
 GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
-own acceptance gate ([[docs/plans/archive/bcf-b-ridge.md:438-449@9cebb352]]) has not been run.
+own acceptance gate ([docs/plans/archive/bcf-b-ridge.md:438-449](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/docs/plans/archive/bcf-b-ridge.md#L438-L449)) has not been run.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
@@ -400,14 +400,14 @@ BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@bases` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.forests")` ([[spec.R#resolveSamplerSpec]], the `bartcore.variance`
+`attr(control, "bartcore.forests")` ([`resolveSamplerSpec`](../../R/spec.R), the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-([[R_interface_bartcore.cpp#createHolder]]). `$setForestBasis`, `$getForestFits`,
+([`createHolder`](../../src/R_interface_bartcore.cpp)). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; [[dbarts.R#setForestBasis, getForestFits, getForestAmplitudes, getForestVariableCounts]]). `dbarts_sampler_create` reaches
+339aeb0; [`setForestBasis`](../../R/dbarts.R), [`getForestFits`](../../R/dbarts.R), [`getForestAmplitudes`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R)). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
-entries ([[dbarts.h#dbarts_sampler_numForests, dbarts_sampler_setForestBasis, dbarts_sampler_getForestFits, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]), and `setResponse` takes an
+entries ([`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)), and `setResponse` takes an
 explicit `updateScale` argument. The flat surface carries no `setTreatment`
 and no `bcfGlue`: the first was re-signed as `setForestBasis(sampler, forest,
 basis, numColumns)` and the second replaced by the ragged

@@ -3,29 +3,43 @@
 # Guards the documentation's citations and manifests against silent drift.
 #
 # THE CITE GRAMMAR. Documentation cites code by SYMBOL, never by line
-# number. Every citation is delimited by double brackets so one regex
-# finds all of them, and the path is separated from what it names by
-# "#" so a C++ "::" qualification never collides with the path:
+# number. Every citation is an ordinary markdown link, so it renders and
+# resolves on GitHub: the TARGET says which file, written relative to
+# the citing document's own directory, and the TEXT says what in that
+# file is meant.
 #
-#   [[path#symbol]]        CURRENT STATE. The path resolves (alias,
-#                          repo path, or a basename unique in the
-#                          tracked inventory); the symbol, split on
-#                          "::" and "$", must occur in that file with
-#                          every component a whole-word token. A
-#                          trailing "()" is stripped. Several names in
-#                          one cite are separated by commas.
-#   [[path#"fragment"]]    VERBATIM. The quoted text must occur in the
+#   [`Sym`](../../src/f.hpp)  CURRENT STATE. The target resolves to a
+#                          file that exists; the symbol, split on "::"
+#                          and "$", must occur in it with every
+#                          component a whole-word token. A trailing
+#                          "()" is stripped. Several symbols of one
+#                          file are several links separated by ", ";
+#                          that run is one cite, counted and marked as
+#                          one.
+#   ["fragment"](f.R)      VERBATIM. The quoted text must occur in the
 #                          file as a literal substring. This is how a
 #                          file with no symbols to name - a tinytest
 #                          script - is cited; tests/cpp cites name their
-#                          test function instead.
-#   [[doc.md#Heading]]     DOC TO DOC. A ".md" target is always a
-#                          heading cite: the text must appear in one of
-#                          the target's markdown headings.
-#   [[path:line@sha]]      HISTORY. "line" or "a-b"; the sha is at least
-#   [[path:a-b@sha]]       8 hex digits and must be an ancestor of HEAD.
-#                          The claim is read AT THAT COMMIT, not against
-#                          the working tree: the path must exist in that
+#                          test function instead. A bracket inside the
+#                          fragment is backslash-escaped so the link
+#                          still parses.
+#   [Heading](doc.md#slug) DOC TO DOC. An ".md" target carrying a "#"
+#                          fragment is a heading cite: the fragment must
+#                          be GitHub's slug - lowercased, everything but
+#                          letters, digits, spaces, hyphens and
+#                          underscores dropped, spaces to hyphens - of
+#                          one of the target's markdown headings, and
+#                          the link text must be that heading. A heading
+#                          of the citing document itself is "(#slug)",
+#                          with no path.
+#   [path:a-b](blob URL)   HISTORY. The URL is
+#                          https://github.com/vdorie/dbarts/blob/<sha>/
+#                          <path>#L<a>-L<b>, "#L<a>" for a single line,
+#                          with the full 40-hex sha; the link text
+#                          repeats "path:a-b", the claim the URL makes.
+#                          The sha must be an ancestor of HEAD, and the
+#                          claim is read AT THAT COMMIT, not against the
+#                          working tree: the path must exist in that
 #                          commit's tree and the cited line must be
 #                          within the file's length there. A file
 #                          deleted since therefore still cites cleanly,
@@ -34,22 +48,25 @@
 #                          in which a line number may appear, and it is
 #                          what landing notes and a plan's "Landing"
 #                          section use.
-#   retired: [[...]]       The named CONSTRUCT is gone; its content
+#   retired: <link>        The named CONSTRUCT is gone; its content
 #                          check is skipped. The location must still be
-#                          real - the path resolves, and a history
+#                          real - the target resolves, and a history
 #                          cite's sha, path and line are checked as
 #                          usual. The surrounding prose must say the
 #                          thing is gone.
-#   unresolved: [[p:l@sha]] The LOCATION cannot be established: a
-#                          history cite in a frozen record whose target
-#                          could not be placed at any candidate commit.
-#                          The bracket must still parse and the sha must
-#                          still be an ancestor; the path and line are
-#                          not checked. History cites only.
+#   unresolved: <link>     The LOCATION cannot be established: a history
+#                          cite in a frozen record whose target could
+#                          not be placed at any candidate commit. The
+#                          link must still parse and the sha must still
+#                          be an ancestor; the path and line are not
+#                          checked. History cites only.
 #
-# Backticks around a cite are optional and accepted either way. A marker
-# binds only when it sits immediately before the cite, so "un-retired:"
-# and any other word ending in "retired:" does not disarm one.
+# A marker binds only when it sits immediately before the link, so
+# "un-retired:" and any other word ending in "retired:" does not disarm
+# one. A link whose text is its target's own path or basename is a plain
+# FILE LINK, not a cite, and is not checked; a link out of the
+# repository is left alone. Any OTHER link into a tracked file fails: it
+# reads as a cite and is checked by nothing.
 #
 # TWO STANDING LIMITS, both deliberate. Fenced code blocks are skipped
 # whole, for the cite check as well as the residue scan: a fence is a
@@ -60,27 +77,17 @@
 # more than once ("Class::method") so the token that answers is the one
 # the sentence means.
 #
-# RESIDUE SELF-CHECK. Every covered line is re-scanned, with the cites
+# RESIDUE SELF-CHECK. Every covered line is re-scanned, with the links
 # masked out, for a path-shaped token followed by ":digits", for a bare
 # ":digits" continuation, and for the unbracketed "path (symbol)" form.
 # Any hit is an unconverted citation and fails: no cite can slip through
-# unparsed by being written in a shape the cite regex does not see. A
-# "[[" left unclosed on its own line fails for the same reason - the
-# cite regex is per-line, so a cite hard-wrapped across a line break
-# would otherwise be invisible to every check here. A "[[...]]" span
-# carrying neither "#" nor ":line@sha", whose first token resolves to a
-# tracked file, fails too: it looks like a cite and is checked by
-# nothing.
-#
-# GIT HISTORY IS REQUIRED. Ancestry, the path-at-commit check and the
-# commit-hash check all read history, so a shallow or absent checkout
-# fails rather than skipping: a skip reads as coverage in the summary
-# while checking nothing.
-#
-# COVERAGE. Everything under docs/, the top-level README.md, man/*.Rd
-# and vignettes/*.Rmd. The last two carry no cites today and are guarded
-# so that drift cannot start there.
-#
+# unparsed by being written in a shape the link scanner does not see. A
+# surviving "[[path#symbol]]" or "[[path:line@sha]]" of the retired
+# double-bracket grammar fails for the same reason, as does a "[[" left
+# unclosed on its own line - the scan is per-line, so a cite hard-
+# wrapped across a line break would otherwise be invisible to every
+# check here - and a "[[...]]" span whose first token resolves to a
+# tracked file.
 # The other checks, none of which read a citation:
 #
 # 1. INDEX COMPLETENESS: every docs/design/*.md file is listed in
@@ -152,37 +159,8 @@ report <- function(file, msg) {
 }
 
 # ---------------------------------------------------------------------
-# Shared: path aliases, repo file inventory, per-file content cache
+# Shared: repo file inventory, per-file content cache
 # ---------------------------------------------------------------------
-
-# Path aliases, mirroring the "Path aliases used in cites" block at the
-# head of feature-matrix.md; keep in sync if that block changes.
-ALIAS_PATH <- c(
-  RIB = "src/R_interface_bartcore.cpp",
-  CAPI = "inst/include/dbarts/dbarts.h",
-  MOD = "src/bartcore/model.hpp",
-  CH = "src/bartcore/chain.hpp",
-  FAC = "src/bartcore/facade.hpp",
-  COM = "src/bartcore/combiner.hpp",
-  MOV = "src/bartcore/moves.hpp",
-  SAM = "src/bartcore/sampler.hpp"
-)
-R_ALIAS_FILES <- c(
-  "bart.R",
-  "dbarts.R",
-  "spec.R",
-  "xbart.R",
-  "data.R",
-  "generics.R",
-  "A_class.R",
-  "bartcore.R"
-)
-RD_ALIAS <- c(
-  sampler.Rd = "man/dbartsSampler-class.Rd",
-  bart.Rd = "man/bart.Rd",
-  bart2.Rd = "man/bart2.Rd",
-  bartcoreHandle.R = "inst/common/bartcoreHandle.R"
-)
 
 trackedFiles <- tryCatch(
   suppressWarnings(system2(
@@ -203,28 +181,24 @@ fileCache <- new.env(parent = emptyenv())
 getContent <- function(relPath) {
   if (!exists(relPath, envir = fileCache, inherits = FALSE)) {
     full <- p(relPath)
-    val <- if (file.exists(full)) readLines(full, warn = FALSE) else NA
+    val <- if (file.exists(full) && !dir.exists(full)) {
+      readLines(full, warn = FALSE)
+    } else {
+      NA
+    }
     assign(relPath, val, envir = fileCache)
   }
   get(relPath, envir = fileCache, inherits = FALSE)
 }
 fileExistsCached <- function(relPath) !identical(getContent(relPath), NA)
 
-# Resolution outcome: the repo-relative path, or one of the two refusal
-# codes, which the caller turns into a failure naming the reason.
+# Does a bare token name a tracked file? Answered for the residue scan,
+# which reads a path out of prose rather than out of a link: the
+# repo-relative path, or one of the two refusal codes.
 UNRESOLVED <- "\001unresolved"
 AMBIGUOUS <- "\001ambiguous"
 
 resolvePath <- function(tok) {
-  if (tok %in% names(ALIAS_PATH)) {
-    return(unname(ALIAS_PATH[tok]))
-  }
-  if (tok %in% names(RD_ALIAS)) {
-    return(unname(RD_ALIAS[tok]))
-  }
-  if (tok %in% R_ALIAS_FILES) {
-    return(file.path("R", tok))
-  }
   if (grepl("/", tok, fixed = TRUE)) {
     return(if (fileExistsCached(tok)) tok else UNRESOLVED)
   }
@@ -321,7 +295,19 @@ coveredDocs <- function() {
 
 docsRel <- coveredDocs()
 
-CITE_RE <- paste0(
+# An inline markdown link. The text may carry backslash-escaped brackets
+# (a verbatim fragment containing one) but no bare bracket; the target
+# holds no whitespace or parenthesis, which every path and every blob URL
+# here satisfies.
+LINK_RE <- "\\[((?:[^\\[\\]\\\\]|\\\\.)*)\\]\\(([^() \t]*)\\)"
+BLOB_PREFIX <- "https://github.com/vdorie/dbarts/blob/"
+BLOB_RE <- paste0(
+  "^https://github\\.com/vdorie/dbarts/blob/",
+  "([0-9a-f]{40})/([^#]+)#L([0-9]+)(?:-L([0-9]+))?$"
+)
+# The retired double-bracket cite, kept only so the residue scan can fail
+# on one that outlived the conversion to links.
+OLD_CITE_RE <- paste0(
   "\\[\\[([^\\]#:@]+)",
   "(?:#([^\\]]+)|:([0-9]+)(?:-([0-9]+))?@([0-9a-fA-F]{8,}))",
   "\\]\\]"
@@ -348,6 +334,154 @@ headingTexts <- function(content) {
   gsub("`", "", sub("^#{1,6} +", "", hits))
 }
 
+# GitHub's heading anchor: lowercased, every character but a letter,
+# digit, space, hyphen or underscore dropped, then spaces to hyphens.
+slugOf <- function(heading) {
+  s <- tolower(trimws(heading))
+  gsub(" ", "-", gsub("[^A-Za-z0-9 _-]", "", s, perl = TRUE), fixed = TRUE)
+}
+
+# A bracket inside a link's text is backslash-escaped so the link parses;
+# the cite means the character itself.
+unescapeText <- function(text) gsub("\\\\(.)", "\\1", text, perl = TRUE)
+
+# A relative target read from the citing document's own directory,
+# collapsed lexically rather than through the filesystem so a target that
+# climbs past the repo root is refused rather than silently rebased.
+lexicalPath <- function(dir, rel) {
+  full <- if (nzchar(dir) && !identical(dir, ".")) {
+    paste0(dir, "/", rel)
+  } else {
+    rel
+  }
+  out <- character(0L)
+  for (part in strsplit(full, "/", fixed = TRUE)[[1L]]) {
+    if (!nzchar(part) || identical(part, ".")) {
+      next
+    }
+    if (identical(part, "..")) {
+      if (length(out) == 0L) {
+        return(NA_character_)
+      }
+      out <- out[-length(out)]
+    } else {
+      out <- c(out, part)
+    }
+  }
+  paste(out, collapse = "/")
+}
+
+# Code spans are opaque to the link scanner: a "[" inside `back ticks`
+# opens nothing, exactly as GitHub renders it. A span may run across a
+# line break inside one paragraph, so the pairing is computed over the
+# whole paragraph and handed back line by line, each span's characters
+# replaced (newlines excepted, so the lines still split apart) by a
+# filler no link syntax can use.
+maskCodeSpans <- function(lines) {
+  if (!any(grepl("`", lines, fixed = TRUE))) {
+    return(lines)
+  }
+  blob <- paste(lines, collapse = "\n")
+  m <- gregexpr("`+", blob, perl = TRUE)[[1L]]
+  starts <- as.integer(m)
+  lens <- attr(m, "match.length")
+  chars <- strsplit(blob, "", fixed = TRUE)[[1L]]
+  used <- rep(FALSE, length(starts))
+  i <- 1L
+  while (i <= length(starts)) {
+    if (!used[i]) {
+      j <- i + 1L
+      while (j <= length(starts) && (used[j] || lens[j] != lens[i])) {
+        j <- j + 1L
+      }
+      if (j <= length(starts)) {
+        idx <- starts[i]:(starts[j] + lens[j] - 1L)
+        chars[idx[chars[idx] != "\n"]] <- "\001"
+        used[i] <- TRUE
+        used[j] <- TRUE
+        i <- j
+      }
+    }
+    i <- i + 1L
+  }
+  strsplit(paste(chars, collapse = ""), "\n", fixed = TRUE)[[1L]]
+}
+
+maskedLinesOf <- function(lines, skip) {
+  out <- lines
+  n <- length(lines)
+  i <- 1L
+  while (i <= n) {
+    if (skip[i] || !nzchar(trimws(lines[i]))) {
+      i <- i + 1L
+      next
+    }
+    j <- i
+    while (j < n && !skip[j + 1L] && nzchar(trimws(lines[j + 1L]))) {
+      j <- j + 1L
+    }
+    out[i:j] <- maskCodeSpans(lines[i:j])
+    i <- j + 1L
+  }
+  out
+}
+
+# What a link is, before any content is read. "external" and "file" are
+# the two non-cites: a link out of the repository, and a link whose text
+# is the target file's own name.
+classifyLink <- function(relDoc, docDir, text, target) {
+  if (grepl("^[a-zA-Z][a-zA-Z0-9+.-]*:", target, perl = TRUE)) {
+    g <- regmatches(target, regexec(BLOB_RE, target, perl = TRUE))[[1L]]
+    if (length(g) == 0L) {
+      if (startsWith(target, BLOB_PREFIX)) {
+        return(list(
+          kind = "bad",
+          msg = "is not a history cite - the URL needs a 40-hex sha and an #Lnn line anchor"
+        ))
+      }
+      return(list(kind = "external"))
+    }
+    return(list(
+      kind = "history",
+      sha = g[2L],
+      path = g[3L],
+      lo = as.integer(g[4L]),
+      hi = as.integer(if (nzchar(g[5L])) g[5L] else g[4L])
+    ))
+  }
+  parts <- strsplit(target, "#", fixed = TRUE)[[1L]]
+  pathPart <- if (length(parts) == 0L) "" else parts[1L]
+  frag <- if (length(parts) > 1L) paste(parts[-1L], collapse = "#") else ""
+  relPath <- if (!nzchar(pathPart)) relDoc else lexicalPath(docDir, pathPart)
+  if (is.na(relPath) || !nzchar(relPath) || !fileExistsCached(relPath)) {
+    return(list(kind = "bad", msg = "does not resolve to a file"))
+  }
+  if (grepl("\\.md$", relPath) && nzchar(frag)) {
+    return(list(kind = "doc", path = relPath, frag = frag))
+  }
+  bare <- trimws(gsub("`", "", text, fixed = TRUE))
+  if (grepl("^`.*`$", text)) {
+    if (identical(bare, pathPart) || identical(bare, relPath)) {
+      return(list(kind = "file"))
+    }
+    return(list(kind = "symbol", path = relPath))
+  }
+  if (grepl("^\".*\"$", text)) {
+    return(list(kind = "verbatim", path = relPath))
+  }
+  if (
+    identical(bare, pathPart) ||
+      identical(bare, relPath) ||
+      identical(bare, basename(relPath))
+  ) {
+    return(list(kind = "file"))
+  }
+  list(
+    kind = "bad",
+    msg = "names a tracked file but is no symbol, fragment, heading or path:line cite"
+  )
+}
+
 nSymbolCites <- 0L
 nQuoteCites <- 0L
 nDocCites <- 0L
@@ -366,14 +500,12 @@ RESIDUE_PATH_RE <- paste0(
   "(?<![A-Za-z0-9_.])",
   "(?:[A-Za-z0-9_.+-]+/)*[A-Za-z0-9_+-]+\\.[A-Za-z]{1,4}:[0-9]+"
 )
-RESIDUE_ALIAS_RE <- "\\b(?:RIB|CAPI|MOD|CH|FAC|COM|MOV|SAM|TODO):[0-9]+"
+RESIDUE_ALIAS_RE <- "\\bTODO:[0-9]+"
 # A wrapped citation can leave a bare ":NNN" as the very first thing on a
 # line, with no delimiter before it for the lookbehind to see. Match that
-# case too, but not a history-form ":NNN@sha" (wrapped or not - the sha
-# tail means a path is missing, not that the whole cite is bare) and not a
-# timestamp, which never starts a line at the colon itself. The digit and
-# range groups are possessive so a wrapped ":NNN-MMM@sha" tail cannot
-# satisfy the negative lookahead by backtracking off the end of the range.
+# case too, but not a timestamp, which never starts a line at the colon
+# itself. The digit and range groups are possessive so a wrapped range
+# cannot satisfy the negative lookahead by backtracking off its end.
 RESIDUE_BARE_RE <- paste0(
   "(?:^|(?<=[\\s`(|/,])):[0-9]{2,}+(?:-[0-9]++)?+",
   "(?!@[0-9a-fA-F]{8,})"
@@ -384,7 +516,7 @@ RESIDUE_PAREN_RE <- paste0(
 )
 KNOWN_EXT_RE <- "\\.(?:R|Rd|Rmd|md|hpp|cpp|cc|c|h|py|in|ac|yaml|yml|csv|rds)$"
 
-# Bracketed spans left after the cites are masked out: flagged only when
+# Bracketed spans left after the links are masked out: flagged only when
 # the first token resolves to a tracked file, which no R or C++ bracket
 # idiom does.
 payloadlessSpans <- function(line) {
@@ -393,6 +525,10 @@ payloadlessSpans <- function(line) {
   }
   m <- regmatches(line, gregexpr("\\[\\[[^][]*\\]\\]", line, perl = TRUE))[[1L]]
   m <- m[nzchar(m)]
+  if (length(m) == 0L) {
+    return(character(0L))
+  }
+  m <- m[!grepl(OLD_CITE_RE, m, perl = TRUE)]
   if (length(m) == 0L) {
     return(character(0L))
   }
@@ -410,8 +546,11 @@ payloadlessSpans <- function(line) {
 
 residueHits <- function(line) {
   out <- character(0L)
-  # An opener with no closer on the same line: a cite wrapped over a line
-  # break, which the per-line cite regex would never see.
+  # A double-bracket cite that outlived the conversion to links, and an
+  # opener with no closer on the same line: a cite wrapped over a line
+  # break, which the per-line scan would never see.
+  old <- regmatches(line, gregexpr(OLD_CITE_RE, line, perl = TRUE))[[1L]]
+  out <- c(out, old[nzchar(old)])
   openers <- if (grepl("[[", line, fixed = TRUE)) {
     gregexpr("\\[\\[", line, perl = TRUE)[[1L]]
   } else {
@@ -453,18 +592,25 @@ for (relDoc in docsRel) {
     next
   }
   isMarkdown <- grepl("\\.(md|Rmd)$", relDoc)
+  docDir <- dirname(relDoc)
+  skip <- logical(length(lines))
   inFence <- FALSE
   for (ln in seq_along(lines)) {
-    line <- lines[ln]
-    if (isMarkdown && grepl("^\\s*```", line)) {
+    if (isMarkdown && grepl("^\\s*```", lines[ln])) {
+      skip[ln] <- TRUE
       inFence <- !inFence
       next
     }
-    if (inFence) {
+    skip[ln] <- inFence
+  }
+  maskedLines <- maskedLinesOf(lines, skip)
+
+  for (ln in seq_along(lines)) {
+    if (skip[ln]) {
       next
     }
-
-    m <- gregexpr(CITE_RE, line, perl = TRUE)[[1L]]
+    line <- lines[ln]
+    m <- gregexpr(LINK_RE, maskedLines[ln], perl = TRUE)[[1L]]
     masked <- line
     if (m[1L] != -1L) {
       starts <- as.integer(m)
@@ -473,15 +619,19 @@ for (relDoc in docsRel) {
       capLen <- attr(m, "capture.length")
       grab <- function(k, g) {
         if (capLen[k, g] <= 0L) {
-          return(NA_character_)
+          return("")
         }
         substr(line, capStart[k, g], capStart[k, g] + capLen[k, g] - 1L)
       }
+      prevEnd <- -1L
+      prevTarget <- ""
+      prevSymbol <- FALSE
+      prevRetired <- FALSE
       for (k in seq_along(starts)) {
-        pathTok <- trimws(grab(k, 1L))
-        payload <- grab(k, 2L)
+        text <- grab(k, 1L)
+        target <- grab(k, 2L)
         cite <- substr(line, starts[k], starts[k] + lens[k] - 1L)
-        # A marker binds only immediately before the cite (one optional
+        # A marker binds only immediately before the link (one optional
         # backtick and any spaces between) and only as a whole word, so
         # a hyphenated "un-retired:" disarms nothing.
         lead <- sub("[` ]*$", "", substr(line, 1L, starts[k] - 1L))
@@ -492,8 +642,41 @@ for (relDoc in docsRel) {
           lead,
           perl = TRUE
         )
+        cl <- classifyLink(relDoc, docDir, text, target)
 
-        if (is.na(payload)) {
+        # Several symbols of one file are written as several links
+        # separated by ", ": the run is one cite, and a marker in front
+        # of it covers the whole of it.
+        inRun <- identical(cl$kind, "symbol") &&
+          prevSymbol &&
+          identical(target, prevTarget) &&
+          grepl(
+            "^, *$",
+            substr(line, prevEnd + 1L, starts[k] - 1L)
+          )
+        if (inRun) {
+          isRetired <- prevRetired
+        }
+        prevEnd <- starts[k] + lens[k] - 1L
+        prevTarget <- target
+        prevSymbol <- identical(cl$kind, "symbol")
+        prevRetired <- isRetired
+
+        if (identical(cl$kind, "external")) {
+          next
+        }
+        if (identical(cl$kind, "bad")) {
+          report(
+            relDoc,
+            sprintf("%s:%d: %s %s", relDoc, ln, cite, cl$msg)
+          )
+          next
+        }
+        if (identical(cl$kind, "file")) {
+          next
+        }
+
+        if (identical(cl$kind, "history")) {
           nHistoryCites <- nHistoryCites + 1L
           if (isRetired) {
             nRetiredCites <- nRetiredCites + 1L
@@ -501,15 +684,32 @@ for (relDoc in docsRel) {
           if (isUnresolved) {
             nUnresolvedCites <- nUnresolvedCites + 1L
           }
-          hiTok <- grab(k, 4L)
+          claim <- if (cl$lo == cl$hi) {
+            sprintf("%s:%d", cl$path, cl$lo)
+          } else {
+            sprintf("%s:%d-%d", cl$path, cl$lo, cl$hi)
+          }
+          if (!identical(text, claim)) {
+            report(
+              relDoc,
+              sprintf(
+                "%s:%d: %s - the link text must read `%s`, what the URL claims",
+                relDoc,
+                ln,
+                cite,
+                claim
+              )
+            )
+            next
+          }
           histRec[[length(histRec) + 1L]] <- list(
             doc = relDoc,
             line = ln,
             cite = cite,
-            path = pathTok,
-            lo = as.integer(grab(k, 3L)),
-            hi = as.integer(if (is.na(hiTok)) grab(k, 3L) else hiTok),
-            sha = tolower(grab(k, 5L)),
+            path = cl$path,
+            lo = cl$lo,
+            hi = cl$hi,
+            sha = cl$sha,
             skipPath = isUnresolved
           )
           next
@@ -527,39 +727,20 @@ for (relDoc in docsRel) {
           )
           next
         }
-
-        payload <- trimws(payload)
-        relPath <- resolvePath(pathTok)
-        if (identical(relPath, UNRESOLVED)) {
-          report(
-            relDoc,
-            sprintf("%s:%d: %s does not resolve to a file", relDoc, ln, cite)
-          )
-          next
-        }
-        if (identical(relPath, AMBIGUOUS)) {
-          report(
-            relDoc,
-            sprintf(
-              "%s:%d: %s is an ambiguous basename - spell the path",
-              relDoc,
-              ln,
-              cite
-            )
-          )
-          next
-        }
         if (isRetired) {
           # The construct is gone, so its content is not checked; the
-          # location it names still has to be real.
-          nRetiredCites <- nRetiredCites + 1L
+          # location it names still has to be real, which classifyLink
+          # has already established.
+          if (!inRun) {
+            nRetiredCites <- nRetiredCites + 1L
+          }
           next
         }
-        content <- getContent(relPath)
+        content <- getContent(cl$path)
 
-        if (grepl("^\".*\"$", payload)) {
+        if (identical(cl$kind, "verbatim")) {
           nQuoteCites <- nQuoteCites + 1L
-          frag <- substr(payload, 2L, nchar(payload) - 1L)
+          frag <- unescapeText(substr(text, 2L, nchar(text) - 1L))
           if (!any(grepl(frag, content, fixed = TRUE))) {
             report(
               relDoc,
@@ -568,17 +749,18 @@ for (relDoc in docsRel) {
                 relDoc,
                 ln,
                 cite,
-                relPath
+                cl$path
               )
             )
           }
           next
         }
 
-        if (grepl("\\.md$", relPath)) {
+        if (identical(cl$kind, "doc")) {
           nDocCites <- nDocCites + 1L
           heads <- headingTexts(content)
-          if (!any(grepl(payload, heads, fixed = TRUE))) {
+          named <- heads[slugOf(heads) == cl$frag]
+          if (length(named) == 0L) {
             report(
               relDoc,
               sprintf(
@@ -586,15 +768,28 @@ for (relDoc in docsRel) {
                 relDoc,
                 ln,
                 cite,
-                relPath
+                cl$path
+              )
+            )
+          } else if (!(trimws(unescapeText(text)) %in% trimws(named))) {
+            report(
+              relDoc,
+              sprintf(
+                "%s:%d: %s - the link text must be the heading it points at",
+                relDoc,
+                ln,
+                cite
               )
             )
           }
           next
         }
 
-        nSymbolCites <- nSymbolCites + 1L
-        names <- trimws(strsplit(payload, ",", fixed = TRUE)[[1L]])
+        if (!inRun) {
+          nSymbolCites <- nSymbolCites + 1L
+        }
+        names <- trimws(strsplit(text, ",", fixed = TRUE)[[1L]])
+        names <- gsub("^`|`$", "", names)
         names <- names[nzchar(names)]
         for (nm in names) {
           nm <- sub("\\(\\)$", "", nm)
@@ -617,7 +812,7 @@ for (relDoc in docsRel) {
                 ln,
                 cite,
                 paste(absent, collapse = "`, `"),
-                relPath
+                cl$path
               )
             )
           }
@@ -635,22 +830,22 @@ for (relDoc in docsRel) {
       report(
         relDoc,
         sprintf(
-          "%s:%d: unconverted citation '%s' - cite by symbol inside [[ ]]",
+          "%s:%d: unconverted citation '%s' - cite by symbol in a markdown link",
           relDoc,
           ln,
           hit
         )
       )
     }
-    # A bracketed span the cite regex did not match, whose first token
-    # nonetheless names a tracked file: it reads as a cite and is
-    # checked by nothing. R and C++ syntax ("[[1L]]", "[[nodiscard]]")
-    # never names one.
+    # A bracketed span no link matched, whose first token nonetheless
+    # names a tracked file: it reads as a cite and is checked by
+    # nothing. R and C++ syntax ("[[1L]]", "[[nodiscard]]") never names
+    # one.
     for (span in payloadlessSpans(masked)) {
       report(
         relDoc,
         sprintf(
-          "%s:%d: %s names a file but no symbol, fragment or :line@sha",
+          "%s:%d: %s names a file but no symbol, fragment or path:line",
           relDoc,
           ln,
           span
@@ -677,11 +872,9 @@ for (relDoc in docsRel) {
 # commit passes, and a converter that guessed the wrong file for a bare
 # ":NNN" leaves no trace. An `unresolved:` cite answers (a) only.
 #
-# A path is resolved the way a symbol cite's is - alias, repo path, or a
-# unique basename - except that a basename naming no file in the CURRENT
-# tree is passed through verbatim, since a history cite may legitimately
-# name a path that has since been deleted; git at that commit is then
-# the judge.
+# The path is the URL's own, read as written and never checked against
+# the current tree, since a history cite may legitimately name a path
+# that has since been deleted; git at that commit is the judge.
 
 haveGit <- tryCatch(
   identical(
@@ -839,27 +1032,8 @@ if (length(histRec) > 0L && historyUsable) {
   }
 
   # --- (b) and (c), over the distinct (sha, path) pairs ---
-  hPath <- vapply(
-    hTok,
-    function(tok) {
-      rp <- resolvePath(tok)
-      if (identical(rp, UNRESOLVED)) tok else rp
-    },
-    character(1L)
-  )
-  checkable <- unname(ancestor[hSha]) & !hSkip & hPath != AMBIGUOUS
-  for (i in which(!hSkip & hPath == AMBIGUOUS)) {
-    report(
-      hDoc[i],
-      sprintf(
-        "%s:%d: %s - '%s' is an ambiguous basename, spell the path",
-        hDoc[i],
-        hLine[i],
-        hCite[i],
-        hTok[i]
-      )
-    )
-  }
+  hPath <- hTok
+  checkable <- unname(ancestor[hSha]) & !hSkip
   if (any(checkable)) {
     specs <- unique(paste0(hSha[checkable], ":", hPath[checkable]))
     nHistoryPairs <- length(specs)

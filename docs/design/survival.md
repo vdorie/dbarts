@@ -37,7 +37,7 @@ enter as ordinary Gaussian data. Right-censoring only in v1; the latent
 code must not preclude left/interval censoring later. The scalar sigma
 becomes a covariate-dependent s(x_i) under a variance forest, each
 censored latent then redrawn at its own row's scale
-([[docs/design/aft-variance-forest.md#Heteroscedastic AFT]]).
+([Heteroscedastic AFT: lifting the variance-forest refusal](aft-variance-forest.md#heteroscedastic-aft-lifting-the-variance-forest-refusal)).
 
 ## Engine: AFTResponse (src/bartcore/model.hpp)
 
@@ -232,7 +232,7 @@ load-bearing - a threshold cut groups CONTIGUOUS periods, so adjacent
 periods share leaves and the leaf prior borrows strength across time,
 giving a smooth baseline rather than K independent hazards. Leaf-prior
 calibration is inherited from the chosen binary family (node.scale 3.0
-probit / pi*sqrt(3) logistic, [[R/model.R#defaultNodeScale]]); nothing new is
+probit / pi*sqrt(3) logistic, [`defaultNodeScale`](../../R/model.R)); nothing new is
 calibrated.
 
 The classical model instead uses a saturated set of K per-period intercepts
@@ -360,24 +360,24 @@ users via surv.bart, plus the dbarts house default).
 **What the user passes (reuse AFT's response shapes).** The response is the
 SAME (time, status) AFT takes - a survival::Surv object or a two-column
 (time, status) matrix / data frame - parsed by the existing
-extractSurvivalResponse ([[R/dbarts.R#extractSurvivalResponse]]), or a thin sibling of it that skips
-the log() transform (shipped as [[R/dbarts.R#extractSurvivalTimes]]) and returns the raw times and status for
+extractSurvivalResponse ([`extractSurvivalResponse`](../../R/dbarts.R)), or a thin sibling of it that skips
+the log() transform (shipped as [`extractSurvivalTimes`](../../R/dbarts.R)) and returns the raw times and status for
 expansion. Everything extractSurvivalResponse already enforces carries over
 (right-censoring only, status 0/1 or logical, the factor-status "mright"
 hint, positive times). A Surv response cannot AUTO-dispatch to the hazard
 model - family = "auto" with a Surv already selects aft (the auto-dispatch
-at [[R/dbarts.R#dbarts]]) - so the discrete-time model is always requested
+at [`dbarts`](../../R/dbarts.R)) - so the discrete-time model is always requested
 explicitly by family, and the Surv conflict guard must admit the hazard
 tokens (the remap block below).
 
 **The remap (settled; required whatever naming wins).** A hazard token
 CANNOT flow through the family-keyed resolution unchanged - verified
 against the code: node.scale is a switch(family, ...) with NO default
-([[R/model.R#defaultNodeScale]]), so an unknown token yields NULL; control@binary
-keys on family %in% c("probit", "logistic") ([[R/spec.R#isBinaryFamily]]), so the binary
-machinery would stay off; fixedUnitScale excludes it ([[R/spec.R#resolveSamplerSpec]]), so sigma
+([`defaultNodeScale`](../../R/model.R)), so an unknown token yields NULL; control@binary
+keys on family %in% c("probit", "logistic") ([`isBinaryFamily`](../../R/spec.R)), so the binary
+machinery would stay off; fixedUnitScale excludes it ([`resolveSamplerSpec`](../../R/spec.R)), so sigma
 would be ESTIMATED and the 0/1 response fit as gaussian; and the weight
-policy keys on the literal tokens ([[R/spec.R#enforceWeightPolicy]]). The design is therefore an
+policy keys on the literal tokens ([`enforceWeightPolicy`](../../R/spec.R)). The design is therefore an
 early REMAP: immediately after the ingestion resolves the hazard request
 and the expander runs, the R surface rewrites family to the underlying
 binary token ("probit" or "logistic"), BEFORE the node.scale /
@@ -386,7 +386,7 @@ of those switches, the model object (model@family records the binary
 token), the bridge, and the engine see an ordinary binary fit and are
 untouched. The hazard provenance survives R-side only: the ingestion
 parks the period grid where the wrapper packaging can reach it (the
-bartcore.survival -> $status precedent, [[R/bart.R#packageBartResults]]), and the
+bartcore.survival -> $status precedent, [`packageBartResults`](../../R/bart.R)), and the
 packaged fit carries it as the hazard marker (section 4). aft is the
 contrast: a real engine family with its own arm in each of those switches
 and a status vector threaded to C++; hazard takes an arm NOWHERE because
@@ -401,13 +401,13 @@ keeps selecting aft, the landed default; a hazard token selects
 discrete-time). Every naming form below needs this same guard edit, so it
 differentiates none of them. SHIPPED: the whitelist reads
 `c("auto", "aft", hazardTokens)`, with `hazardTokens` the three hazard
-spellings ([[R/dbarts.R#dbarts]]).
+spellings ([`dbarts`](../../R/dbarts.R)).
 
 **DECISION - naming. SETTLED as recommended below and SHIPPED: the two
-tokens plus the alias are in the family vector at [[R/dbarts.R#dbarts]]
+tokens plus the alias are in the family vector at [`dbarts`](../../R/dbarts.R)
 (entangled with section 3).** probit and
 logistic are already two family tokens for one Bernoulli model under two
-links ([[R/dbarts.R#dbarts]]); the hazard model, being sugar over exactly
+links ([`dbarts`](../../R/dbarts.R)); the hazard model, being sugar over exactly
 those, can be named the same way:
 
 - Recommend: two tokens, family = "hazard" (probit link, the house binary
@@ -430,7 +430,7 @@ those, can be named the same way:
   entangled with the response shape (discrete.time = TRUE on a
   non-survival response must be refused). An earlier draft rejected B for
   a claimed Surv-ambiguity against aft; that argument does not withstand
-  scrutiny - ALL three forms need the identical guard edit at [[R/dbarts.R#dbarts]], so
+  scrutiny - ALL three forms need the identical guard edit at [`dbarts`](../../R/dbarts.R), so
   the collision differentiates nothing, and B stands or falls on the
   argument-count trade alone.
 
@@ -445,13 +445,13 @@ for. Strongest counter, upgraded by the survey: the one shipped
 discrete-time BART picks its link by argument (type = "pbart"/"lbart"),
 so a surv.bart migrant would find Alternative A the familiar shape. The
 tokens are added to the dbarts and bart2 family vectors
-([[R/dbarts.R#dbarts]], [[R/bart.R#bart2]]) and remapped as above; xbart
-omits them (its match.arg vector, [[R/xbart.R#xbart]], IS the refusal, the
+([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)) and remapped as above; xbart
+omits them (its match.arg vector, [`xbart`](../../R/xbart.R), IS the refusal, the
 ordinal/nbinom precedent).
 
 **Where expansion happens (settled: an R helper at ingest).** The
 person-period expander is a pure R transform invoked during ingestion,
-exactly where extractSurvivalResponse is ([[R/dbarts.R#extractSurvivalResponse]]), BEFORE
+exactly where extractSurvivalResponse is ([`extractSurvivalResponse`](../../R/dbarts.R)), BEFORE
 dbartsData builds the model matrix. It consumes (x, time, status, grid) and
 emits an ordinary (X', y') binary problem: X' is x replicated down each
 subject's at-risk periods with the ordinal period column appended, y' the
@@ -459,11 +459,11 @@ per-period indicators. With the remap done (family now reads "probit" or
 "logistic"), that design flows through the dbarts -> dbartsData -> bridge
 -> binary-family path with no change downstream of the remap point. The
 engine, the bridge (resolveFamily, applySurvivalAttribute -
-[[src/R_interface_bartcore.cpp#resolveFamily]],
-[[src/R_interface_bartcore.cpp#applySurvivalAttribute]]), and
+[`resolveFamily`](../../src/R_interface_bartcore.cpp),
+[`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp)), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
-[[R/spec.R#resolveSamplerSpec]]) - the censoring is already baked into y'.
+[`resolveSamplerSpec`](../../R/spec.R)) - the censoring is already baked into y'.
 
 **The memory story (be honest).** The expanded design is
 N' = sum_i t_i = n * mean(t_i) rows by (p + 1) columns, and x is REPLICATED
@@ -481,8 +481,8 @@ Genuinely discrete data with a modest K never sees the guard.
 inherit the binary policy).** A per-subject offset o_i is a link-scale
 hazard shift replicated to all of subject i's rows; a per-subject weight
 likewise replicates and then follows the CHOSEN binary family's existing
-policy unchanged - probit refuses non-unit weights ([[R/spec.R#enforceWeightPolicy]]),
-logistic requires positive integer counts ([[R/spec.R#enforceWeightPolicy]]). No new offset or
+policy unchanged - probit refuses non-unit weights ([`enforceWeightPolicy`](../../R/spec.R)),
+logistic requires positive integer counts ([`enforceWeightPolicy`](../../R/spec.R)). No new offset or
 weight semantics are introduced; they are whatever the underlying binary fit
 already does, applied to the replicated rows. A time-VARYING offset (a
 distinct o_ik per period row) is the natural person-period generalization,
@@ -510,14 +510,14 @@ correctness, and the reduction gate (section 5) holds for either.
   type = "pbart" - the PROBIT link - so the only shipped discrete-time
   BART defaults to probit, and a BART user arriving from it gets exactly
   what they expect; probit is also dbarts's house binary default
-  (auto -> probit, [[R/spec.R#resolveSamplerSpec]]; node.scale 3.0, [[R/model.R#defaultNodeScale]]), aligning the
+  (auto -> probit, [`resolveSamplerSpec`](../../R/spec.R); node.scale 3.0, [`defaultNodeScale`](../../R/model.R)), aligning the
   family with the package's other fixed-unit-scale defaults.
 - Counter: the applied discrete-time-hazard literature is logit-dominant
   (Allison 1982; Singer-Willett 2003, logistic throughout - the survey's
   link-traditions finding), and the grouped-PH tradition expects cloglog
   (unavailable in v1, section below) - so a survival analyst from OUTSIDE
   the BART world expects logit (or cloglog), not probit; logistic's
-  node.scale is already provisioned (pi*sqrt(3), [[R/model.R#defaultNodeScale]]).
+  node.scale is already provisioned (pi*sqrt(3), [`defaultNodeScale`](../../R/model.R)).
 
 Probit it is: the two constituencies split (BART users -> probit, applied
 survival -> logit), so the tie-breaks were the house default and the
@@ -550,17 +550,17 @@ this cheap).
 packaged fit's $family element records the BINARY token ("probit" or
 "logistic") - the engine truth, and what the packaging already does for
 free, since the family element is read off fit$model@family
-([[R/bart.R#packageBartResults]]), which the remap set. The hazard provenance rides a
+([`packageBartResults`](../../R/bart.R)), which the remap set. The hazard provenance rides a
 separate marker: $periods, the ordered period grid, present only on
-hazard fits (the aft $status precedent, [[R/bart.R#packageBartResults]], and the
+hazard fits (the aft $status precedent, [`packageBartResults`](../../R/bart.R), and the
 bartOrdinal $levels precedent). This split is load-bearing, not
 bookkeeping: every generic that keys behavior on $family then does the
 right thing with ZERO modification. probabilityFromLatents selects its
 inverse link solely by identical(family, "logistic") and defaults to
-pnorm ([[R/generics.R#probabilityFromLatents]]) - had $family recorded a hazard token instead,
+pnorm ([`probabilityFromLatents`](../../R/generics.R)) - had $family recorded a hazard token instead,
 a logit-link hazard fit would take the probit transform SILENTLY, a wrong
 number with no error - and pointwiseLogLikelihood dispatches on $family
-and errors on families it does not know ([[R/generics.R#pointwiseLogLikelihood]]; its
+and errors on families it does not know ([`pointwiseLogLikelihood`](../../R/generics.R); its
 probit/logistic Bernoulli branch is exactly the per-row discrete-hazard
 log-likelihood, by the section-1 identity). The rejected alternative -
 recording a hazard token in $family and teaching each consumer the new
@@ -582,23 +582,23 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 (1 - hazard) over the periods up to t.
 
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
-path than aft's.** The generic ([[R/generics.R#survivalProbabilities]]) gains a hazard branch in
+path than aft's.** The generic ([`survivalProbabilities`](../../R/generics.R)) gains a hazard branch in
 survivalProbabilities.bart, keyed on the $periods marker beside the aft
-$family gate ([[R/bart.R#survivalProbabilities.bart]]), computing S by cumulative hazard products
+$family gate ([`survivalProbabilities.bart`](../../R/bart.R)), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under
 combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
 so the two survival families share ergonomics. The EVALUATION cannot
 mirror aft's training path, though: aft's newdata = NULL path reads one
 stored linear predictor per subject (extract type = "bart",
-sample = "train", [[R/bart.R#survivalProbabilities.bart]]) because every subject has exactly
+sample = "train", [`survivalProbabilities.bart`](../../R/bart.R)) because every subject has exactly
 one row, but the hazard training design is RAGGED - subject i has only
 t_i rows, so its stored training fits stop at its own event/censoring
 period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)
 needs hazards at EVERY requested period, and only tree replay provides
 them: the hazard method ALWAYS re-expands its subjects to the requested
 grid and predicts - training data included - and therefore requires
-keepTrees UNCONDITIONALLY (the predict.bart guard, [[R/generics.R#refuseWithoutTrees]]),
+keepTrees UNCONDITIONALLY (the predict.bart guard, [`refuseWithoutTrees`](../../R/generics.R)),
 where aft's training-data path never needs it. Requested `times` are grid
 periods; S cumulates (1 - h) through each. Both quantities are thus
 available: per-period hazards via the ordinary binary predict/extract,
@@ -692,7 +692,7 @@ smoke beyond the reduction gate.
 - **Shared frailty (OUT; not dbarts's).** A random-intercept
   (shared-frailty) discrete-time hazard needs multilevel structure, which
   is stan4bart's rather than dbarts's
-  ([[docs/design/retire-grouped-random-effects.md#The decision]]).
+  ([The decision](retire-grouped-random-effects.md#the-decision)).
 
 - **cloglog link (OUT; door).** Section 3: not needed for a valid v1, and a
   future cloglog binary family becomes a hazard link for free.

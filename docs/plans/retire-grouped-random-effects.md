@@ -17,20 +17,20 @@ per-sweep `setOffset`/`setResponse` conduit, the `ResponseModel` seam and the
 ## Context
 
 - The decision, its rationale, and the exhaustive site list:
-  [[docs/design/retire-grouped-random-effects.md#What goes]] and
-  [[docs/design/retire-grouped-random-effects.md#What stays, and why]].
+  [What goes](../design/retire-grouped-random-effects.md#what-goes) and
+  [What stays, and why](../design/retire-grouped-random-effects.md#what-stays-and-why).
 - What is being removed:
-  [[docs/design/grouped-random-effects.md#In-core grouped random effects]]
-  (the landing) and [[docs/plans/tau-slice-review.md#VERDICT (summary; detail below)]]
+  [In-core grouped random effects](../design/grouped-random-effects.md#in-core-grouped-random-effects)
+  (the landing) and [VERDICT (summary; detail below)](tau-slice-review.md#verdict-summary-detail-below)
   (the tau sampler review).
 - The confounding defect that will not be fixed:
-  [[docs/design/forest-ranef-interweaving.md#6. Recommendation: go/no-go]].
+  [6. Recommendation: go/no-go](../design/forest-ranef-interweaving.md#6-recommendation-gono-go).
 - ABI consequences and the structSize hole:
-  [[docs/design/retire-grouped-random-effects.md#ABI and saved state]].
+  [ABI and saved state](../design/retire-grouped-random-effects.md#abi-and-saved-state).
 - Consumer migration:
-  [[docs/design/retire-grouped-random-effects.md#Consumers]].
+  [Consumers](../design/retire-grouped-random-effects.md#consumers).
 - The speed comparison, its firing and the ruling that followed:
-  [[docs/design/retire-grouped-random-effects.md#The decision]].
+  [The decision](../design/retire-grouped-random-effects.md#the-decision).
 
 ## Constraints
 
@@ -50,7 +50,7 @@ per-sweep `setOffset`/`setResponse` conduit, the `ResponseModel` seam and the
   2. **bartCause, a `group.by` route.** Its stan4bart branch refuses
      `group.by` today, so the one consumer has no working path until that
      changes -
-     [[docs/design/retire-grouped-random-effects.md#Consumers]] enumerates
+     [Consumers](../design/retire-grouped-random-effects.md#consumers) enumerates
      the four pieces.
   dbarts ships first in the lockstep pair, so the ordering is the risk: once
   it is submitted neither prerequisite can be satisfied by delay.
@@ -167,8 +167,8 @@ stay green at each commit.
    `retired:` marker, so `retired:` cannot rescue a cite into a deleted file.
    Two conversions, applied across every document under `docs/`, plus
    `README.md`, `man/*.Rd` and `vignettes/*.Rmd`:
-   - a cite whose FILE is deleted becomes a history cite,
-     `[[path:line@sha]]` pinned to the pre-deletion tip;
+   - a cite whose FILE is deleted becomes a history cite, `path:line`
+     pinned to the pre-deletion tip;
    - a cite whose file survives but whose SYMBOL is deleted takes a
      `retired:` marker, with prose that says the construct is gone.
    Exposure measured at the tip: 45 breakable symbol cites in
@@ -199,13 +199,13 @@ stay green at each commit.
      clause from each.
    - LEAVE the 1 false positive, the "grouped-GAMI decomposition" item.
    Then add the UPGRADING line from
-   [[docs/design/retire-grouped-random-effects.md#The break versus 0.9-34]],
+   [The break versus 0.9-34](../design/retire-grouped-random-effects.md#the-break-versus-09-34),
    pointing users at stan4bart.
 
 ## Verification
 
 RNG gate class: **shifting**
-([[docs/plans/README.md#RNG classes and their gates]]). No surviving fit
+([RNG classes and their gates](README.md#rng-classes-and-their-gates)). No surviving fit
 changes a draw, so the class is earned by the baseline losing scenarios, not
 by a moved stream - which is exactly what the neutrality check below proves.
 

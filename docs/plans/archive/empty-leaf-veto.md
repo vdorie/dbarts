@@ -15,7 +15,7 @@ finite, load-bearing constant.
 
 ## Context
 
-- Veto: [[src/bartcore/moves.hpp:57-59@5659026f]], ported verbatim from classic
+- Veto: [src/bartcore/moves.hpp:57-59](https://github.com/vdorie/dbarts/blob/5659026f96b2e5bcffde11dd90230117d196088f/src/bartcore/moves.hpp#L57-L59), ported verbatim from classic
   likelihood.cpp. Categorical rules cannot produce empty sides
   (canonical gauge, docs/design/core-generalization.md); ordinal births
   draw occupancy-blind and rely on the veto.

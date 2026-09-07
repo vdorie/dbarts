@@ -102,7 +102,7 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   transactions, 3 with variance partitions to restore)"). The underlying
   rollback mechanism is unchanged; the test's discriminating power over it is
   narrower.
-- **A stale in-test cite, left as residue**: `[[inst/tinytest/test-blocks.R:309-310@c0ddd93e]]`'s
+- **A stale in-test cite, left as residue**: [inst/tinytest/test-blocks.R:309-310](https://github.com/vdorie/dbarts/blob/c0ddd93e8b5ca57c0d75b7144a63ff197895090c/inst/tinytest/test-blocks.R#L309-L310)'s
   comment ("the same mechanism and error text as the BCF columnMask refusal
   test in test-interactions.R") points at a test that
   `inst/tinytest/test-interactions.R` no longer carries under that
@@ -148,11 +148,11 @@ manual review, not deferred as residue. Landed 74e2e050 (section 3).
   resolvability) self-skips under CI's shallow checkout; `sbc.R` accepts 26 `which` values and
   `sbc.yaml` runs 6. None of these was wired or cut this round. Two items this
   bullet once listed have since been fixed by `8741e3cf`, outside this stack:
-  `benchmarks/R/backfit-exact.R` is wired into exact-gates.yaml ([[.github/workflows/exact-gates.yaml:116@297ef69f]];
+  `benchmarks/R/backfit-exact.R` is wired into exact-gates.yaml ([.github/workflows/exact-gates.yaml:116](https://github.com/vdorie/dbarts/blob/297ef69f2a90e887f00fcd763a664abb798ac285/.github/workflows/exact-gates.yaml#L116);
   the list now runs 21 scripts, not 20), and `bench-sampler.R`'s `biggrid` is
-  now stripped before mode dispatch ([[benchmarks/R/bench-sampler.R:33-34@297ef69f]]).
+  now stripped before mode dispatch ([benchmarks/R/bench-sampler.R:33-34](https://github.com/vdorie/dbarts/blob/297ef69f2a90e887f00fcd763a664abb798ac285/benchmarks/R/bench-sampler.R#L33-L34)).
   `mutation-battery.R` pins `equivalence-d4bca4ce.rds`
-  ([[benchmarks/R/mutation-battery.R:41@297ef69f]]), whose MANIFEST role is `current`,
+  ([benchmarks/R/mutation-battery.R:41](https://github.com/vdorie/dbarts/blob/297ef69f2a90e887f00fcd763a664abb798ac285/benchmarks/R/mutation-battery.R#L41)), whose MANIFEST role is `current`,
   not `historical`.
 - **The English word "cutpoint"/"cut points" in prose is kept, deliberately
   narrower than the rename.** 89577d7d's scope was the two colliding

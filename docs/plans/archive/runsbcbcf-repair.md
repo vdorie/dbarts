@@ -199,7 +199,7 @@ COUNTERFACTUAL (critique, patched scratch clone): the smoke
 `Rscript benchmarks/R/sbc.R bcf 3 10 1` RUNS, 15/15 PASS; equivalence
 27/27, bcf-equivalence 5/5, multinomial-equivalence 3/3 all identical
 (default draws bitwise-neutral); tinytest 1 fail of 3474, exactly the
-predicted refusal assertion at [[test-multi-forest-seam.R:75-78@3cc74634]] (flips
+predicted refusal assertion at [inst/tinytest/test-multi-forest-seam.R:75-78](https://github.com/vdorie/dbarts/blob/3cc746347e31ef2b77fb8390ce6a77d0cbe14195/inst/tinytest/test-multi-forest-seam.R#L75-L78) (flips
 to expect_silent in the implementation); tests/cpp pass; a short arm
 `bcf 25 100 10` gave 13/15 with both flags explained (the harness's
 documented sign-symmetric `a` functional, abs.a PASS; prog3 at ~1

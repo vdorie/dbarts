@@ -19,27 +19,27 @@ leaf's u_ matches its row access. data-store.md reflects each pass.
 
 docs/design/data-store.md is the spec. Anchors re-verified 2026-07-18:
 
-- Quantize twin: quantizeColumn ([[data.hpp:644-655@4a521760]]) rides
-  quantizeDenseInto; setColumnJournaled ([[data.hpp:1134-1162@4a521760]])
+- Quantize twin: quantizeColumn ([src/bartcore/data.hpp:644-655](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L644-L655)) rides
+  quantizeDenseInto; setColumnJournaled ([src/bartcore/data.hpp:1134-1162](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L1134-L1162))
   re-implements the same per-cell loop inline with journal bookkeeping.
-  Sole caller [[sampler.hpp:1096@4a521760]] (SubsetUpdate), reached once per external
+  Sole caller [src/bartcore/sampler.hpp:1096](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/sampler.hpp#L1096) (SubsetUpdate), reached once per external
   iteration via updatePredictor/updatePredictorPerObservationJointly.
-- isView: field [[data.hpp:214@4a521760]]; set at [[data.hpp:720@4a521760]], [[data.hpp:768@4a521760]], [[data.hpp:1001@4a521760]] (buildFromParent);
-  provenance reader suppliedStandardization ([[data.hpp:342@4a521760]], plus the
+- isView: field [src/bartcore/data.hpp:214](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L214); set at [src/bartcore/data.hpp:720](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L720), [src/bartcore/data.hpp:768](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L768), [src/bartcore/data.hpp:1001](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L1001) (buildFromParent);
+  provenance reader suppliedStandardization ([src/bartcore/data.hpp:342](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L342), plus the
   linear/GP reinitialize in model.hpp); capability readers
-  refuseViewSampler ([[R_interface_bartcore.cpp:1479-1487@4a521760]], ORs
+  refuseViewSampler ([src/R_interface_bartcore.cpp:1479-1487](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1479-L1487), ORs
   builtFromCsc, 5 mutation entry points) and refuseViewSamplerOnly
-  ([[R_interface_bartcore.cpp:1491-1496@4a521760]]; setCutPoints/setState/installForests);
-  [[tests/cpp/test_data.cpp:72@4a521760]]. Doc language: data-store.md "CodeBlock (train
+  ([src/R_interface_bartcore.cpp:1491-1496](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1491-L1496); setCutPoints/setState/installForests);
+  [tests/cpp/test_data.cpp:72](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/tests/cpp/test_data.cpp#L72). Doc language: data-store.md "CodeBlock (train
   and test)" and "View semantics (buildFromParent)".
-- Handle gather-all: [[R_interface_bartcore.cpp:2026-2034@4a521760]] in
-  bartcore_createDataHandle ([[R_interface_bartcore.cpp:1997@4a521760]]). The sampler ctor
-  ([[sampler.hpp:100-127@4a521760]]) and per-fold views (createFromHandle [[src/R_interface_bartcore.cpp:2145-2169@4a521760]]
-  -> buildFromParent [[data.hpp:995@4a521760]]) already gather conditionally on
+- Handle gather-all: [src/R_interface_bartcore.cpp:2026-2034](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L2026-L2034) in
+  bartcore_createDataHandle ([src/R_interface_bartcore.cpp:1997](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1997)). The sampler ctor
+  ([src/bartcore/sampler.hpp:100-127](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/sampler.hpp#L100-L127)) and per-fold views (createFromHandle [src/R_interface_bartcore.cpp:2145-2169](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L2145-L2169)
+  -> buildFromParent [src/bartcore/data.hpp:995](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L995)) already gather conditionally on
   options.leafCovariateColumns; the handle is the last unconditional
   site. buildFromParent already refuses designating ungathered columns.
-- u_: column-major ([[model.hpp:218@4a521760]] resize; layout comment [[model.hpp:538@4a521760]]);
-  per-member row gather at [[model.hpp:384@4a521760]] and [[model.hpp:401@4a521760]] strides numObservations_.
+- u_: column-major ([src/bartcore/model.hpp:218](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L218) resize; layout comment [src/bartcore/model.hpp:538](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L538));
+  per-member row gather at [src/bartcore/model.hpp:384](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L384) and [src/bartcore/model.hpp:401](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L401) strides numObservations_.
   Linear leaf only; GP leaf out of scope.
 
 ## Decision (handle gather)
@@ -59,8 +59,8 @@ constant-leaf case.
   (the u_ flip reorders storage, not the row fill arithmetic).
 - The quantize core's observer is a template parameter, inlined; no
   std::function or virtual on the cell loop.
-- data-store.md updated with each pass it describes ([[model.hpp:84-85@4a521760]] and
-  [[model.hpp:181-189@4a521760]] for isView; the handle/view sections; the [[model.hpp:358-361@4a521760]] residuals
+- data-store.md updated with each pass it describes ([src/bartcore/model.hpp:84-85](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L84-L85) and
+  [src/bartcore/model.hpp:181-189](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L181-L189) for isView; the handle/view sections; the [src/bartcore/model.hpp:358-361](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L358-L361) residuals
   list shrinks per pass).
 - No dbarts.h change. Pass order as in Steps (model.hpp last).
 
@@ -72,7 +72,7 @@ constant-leaf case.
 2. isView split: isView becomes pure provenance; capability predicates
    match the two refusal granularities (no raw at all vs retains a
    re-quantize source); rewire both helpers, their call sites,
-   [[test_data.cpp:72@4a521760]], and the doc language.
+   [tests/cpp/test_data.cpp:72](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/tests/cpp/test_data.cpp#L72), and the doc language.
 3. Conditional handle gather per the Decision block; a tinytest covers
    default-empty refusal and declared-column success.
 4. u_ row-major flip: storage and both gathers (model.hpp).

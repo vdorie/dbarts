@@ -29,27 +29,27 @@ reachable? Yes; the veto is a RANK (2026-08-18)" for the full argument.
 
 There is no literal -1e7, or any other finite veto constant, anywhere in
 `src/bartcore`. The predicate a leaf is scored under is
-`Tree::leafHasNoWeight` ([[tree.hpp#Tree::leafHasNoWeight]]): with no
+`Tree::leafHasNoWeight` ([`Tree::leafHasNoWeight`](../../src/bartcore/tree.hpp)): with no
 weight vector installed it is the member count
 (`numObservations() == 0`); with one installed, it scans the leaf's
 members and returns true only if none carries positive weight.
-`Tree::leafVetoRank` ([[tree.hpp#Tree::leafVetoRank]]) turns that
+`Tree::leafVetoRank` ([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp)) turns that
 predicate into the 2/1/0 rank - 2 for a leaf with no member at all
 (checked directly, ahead of and independent of the weight scan), 1 for
 `leafHasNoWeight`, 0 otherwise.
 
 The rank is resolved per branch, not per leaf: `logLikelihoodForBranch`
-([[moves.hpp#logLikelihoodForBranch]]) walks the branch's bottom nodes and
+([`logLikelihoodForBranch`](../../src/bartcore/moves.hpp)) walks the branch's bottom nodes and
 takes the worst `leafVetoRank` among them. The rank half is leaf-model
 independent; the likelihood half is not. Off a `ParamScoringLeafModel` -
 the conjugate leaves - it is the per-leaf marginal summed over the rank-0
 leaves alone. On one (the monotone constant leaf) the leaf owns the branch
 marginal outright and the value returned is
 `logLikelihoodForBranchWithParams`
-([[moves.hpp#logLikelihoodForBranchWithParams]]) over the whole branch,
+([`logLikelihoodForBranchWithParams`](../../src/bartcore/moves.hpp)) over the whole branch,
 with no per-leaf sum running at all. Either way rank and likelihood return
-together as a `BranchScore` ([[moves.hpp#BranchScore]]). `resolveVetoRank`
-([[moves.hpp#resolveVetoRank]]) then compares a branch's current and
+together as a `BranchScore` ([`BranchScore`](../../src/bartcore/moves.hpp)). `resolveVetoRank`
+([`resolveVetoRank`](../../src/bartcore/moves.hpp)) then compares a branch's current and
 proposed `BranchScore`s lexicographically: the worse-ranked side is
 assigned `-HUGE_VAL` (not a finite literal), and ranks equal falls back
 to the finite log-likelihoods. Every conjugate move consumes this pair
@@ -374,12 +374,12 @@ the scan.
 ### Measured occupancy rejection rate (2026-09-06)
 
 A scaffold build put namespace-scope counters at the four
-[[src/bartcore/moves.hpp#resolveVetoRank]] call sites - birth and death
-in [[src/bartcore/moves.hpp#birthOrDeathMove]], plus
-[[src/bartcore/moves.hpp#changeMove]] and
-[[src/bartcore/moves.hpp#swapMove]] - classifying every scored proposal
-by the rank pair its two [[src/bartcore/moves.hpp#BranchScore]]s carry
-([[src/bartcore/tree.hpp#Tree::leafVetoRank]] taken over the branch) and
+[`resolveVetoRank`](../../src/bartcore/moves.hpp) call sites - birth and death
+in [`birthOrDeathMove`](../../src/bartcore/moves.hpp), plus
+[`changeMove`](../../src/bartcore/moves.hpp) and
+[`swapMove`](../../src/bartcore/moves.hpp) - classifying every scored proposal
+by the rank pair its two [`BranchScore`](../../src/bartcore/moves.hpp)s carry
+([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) taken over the branch) and
 then by the move's outcome: rejected by the RANK (the proposal's rank
 strictly worse, so the likelihood ratio is exactly 0.0), rejected by the
 ordinary MH ratio at equal rank, or accepted. Proposals that never reach

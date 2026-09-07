@@ -71,10 +71,10 @@ corrected by the critique):
   `pointwiseLogLikelihood` now reads `object[["resid.dist"]]` and
   branches on it, and `ChainStateData::residualDf` carries the
   estimated df); student/grouped + variance = constructs were
-  unrefused and untested ([[R/spec.R:369-377@bf503e27]]) (since
+  unrefused and untested ([R/spec.R:369-377](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L369-L377)) (since
   repaired: `resolveSamplerSpec` refuses both - a variance forest with
-  Student-t residuals ([[R/spec.R:527@bf503e27]]) and a variance forest with
-  grouped random effects ([[R/spec.R:538@bf503e27]]) - each by name).
+  Student-t residuals ([R/spec.R:527](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L527)) and a variance forest with
+  grouped random effects ([R/spec.R:538](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L538)) - each by name).
 - At the 2026-08-17 census the tinytest suite was ~2% math-vs-code
   (~80 of 4204 assertions), 62% structural, 14% dbarts-vs-dbarts (the
   suite has since grown to 5552 `expect_*` calls). 225 equality assertions pass
@@ -136,7 +136,7 @@ Family 2 census, headline facts:
   evaluates to a chi hyperprior object, kIsGrid comes out FALSE, the
   cross-validation axis collapses to ONE cell, and k is then sampled
   within it - the k cross-validation the function exists to perform
-  does not happen, and the comment at [[R/xbart.R:311-312@bf503e27]] asserts the
+  does not happen, and the comment at [R/xbart.R:311-312](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/xbart.R#L311-L312) asserts the
   opposite (Fork 1).
 
 New review kinds this derivation adds to the seeds, both families:
@@ -627,7 +627,7 @@ each with alternatives, product tradeoffs and a recommendation.
    scores the combined location a*mu + (basis %*% b)*tau + shift +
    offset at the fit's sigma or link, in gaussian (with offset and case
    weights), probit and logistic, hand-vs-extract differences at 1e-14;
-   the matrix cell is S ([[inst/tinytest/test-bcf-loglik.R#"the COMBINED one"]], b7080267).
+   the matrix cell is S (["the COMBINED one"](../../inst/tinytest/test-bcf-loglik.R), b7080267).
 3. Heteroscedastic scale leaf under updateScale = TRUE: refused, not
    stale; refuseVarianceForestScaleUpdate on both setters, C API
    included, pinned in test-sampler-errors.R. The rescale door stays
@@ -685,14 +685,14 @@ and the facade's factory enumeration are gone (process, or a prose copy
 of a function); ColumnStore is a pointer at data-store.md plus four
 facts, and the one fact data-store.md lacked - a CSC column's train-side
 slice repointed at store-owned arrays on first write - now lives there
-([[src/bartcore/data.hpp#repointOwnedSlice]]); new sections "Forests
+([`repointOwnedSlice`](../../src/bartcore/data.hpp)); new sections "Forests
 and combiners" and "One sweep" define the combiner subsystem and walk
 one sweep from the bridge to the response draws; containment has a
 sentence; grow-from-root is described as initializing, not sampling;
 3,937 -> about 3,400 words.
 
 feature-matrix.md (47de768a): {ordinal, nbinom, multinom, hurdle} x
-{warm start, grow-from-root} recoded R -> M ([[R/bart.R#checkFamilyUnsupportedArgs]]
+{warm start, grow-from-root} recoded R -> M ([`checkFamilyUnsupportedArgs`](../../R/bart.R)
 carries no model reason); logistic/rbart_vi R -> M; bcf/pointwise loglik
 M -> ? (the call runs, unadjudicated); table 5 regains maskprobit,
 bart2probit and maskordinal; the hetero calibration cell cites the
@@ -703,7 +703,7 @@ gone; footnotes that narrated history state the constraint;
 
 Design docs and NEWS (4be8d448): empty-leaf-veto.md's "Where the
 constant is read" describes the shipped rank mechanism
-([[src/bartcore/moves.hpp#resolveVetoRank]]); bcf.md's "Mutation
+([`resolveVetoRank`](../../src/bartcore/moves.hpp)); bcf.md's "Mutation
 surface" states what the engine refuses; bart-as-a-component.md gains
 "The mutation-legality table", so the tour's name for it is literal;
 NEWS.Rd's UPGRADING cross-references four breaks that lived only under
@@ -753,7 +753,7 @@ docs/design/bart-as-a-component.md, where it lives. Appendix B carries
 the reading list for the four design docs: about 4,200 of their 15,100
 words. The critic caught one checkable claim the code contradicts -
 updateScale's refusal is keyed on the sampler's forest count
-([[src/R_interface_bartcore.cpp#responseConduitIsFixed]]), not on
+([`responseConduitIsFixed`](../../src/R_interface_bartcore.cpp)), not on
 bases - and an ambiguous heading anchor into this log, replaced by a
 plain pointer. check-doc-freshness OK; docs/plans/INDEX.md's row
 updated; the stamp stays 849f08ea, the last code commit.
@@ -765,8 +765,8 @@ refuses with "$setForestBasis is not available on a sampler that carries
 no forest amplitudes: amplitudes are fixed at creation; make a new
 sampler instead", the R14 mutation-guard shape, instead of "forest index
 out of range", which stays for a genuine out-of-range index on a sampler
-that does carry them ([[R/dbarts.R#dbartsSampler$setForestBasis]]; pinned
-in [[test-forest-basis-r5.R#"is not available on a sampler that carries no forest "]]). This was
+that does carry them ([`dbartsSampler$setForestBasis`](../../R/dbarts.R); pinned
+in ["is not available on a sampler that carries no forest "](../../inst/tinytest/test-forest-basis-r5.R)). This was
 the last live numbered finding of the 2026-08-24 review. The tour's
 section 4 bullet claiming that test-blocks.R cited a columnMask refusal
 test test-interactions.R no longer holds was itself wrong: the test is
@@ -802,7 +802,7 @@ family-token count and its [f3] header claims now match test-capi.R,
 `bartRedirectedFamilies` and dbarts.h. The consolidated report keeps its
 body as written at b102e17c under a header naming it a snapshot; the
 `setForestBasis` "forest index out of range" wording is the one numbered
-finding still live. [[tools/check-doc-freshness.R#RESIDUE_BARE_RE]] now
+finding still live. [`RESIDUE_BARE_RE`](../../tools/check-doc-freshness.R) now
 catches a bare reference at line start without matching a wrapped
 history-cite tail.
 
@@ -813,7 +813,7 @@ check-rc-codoc OK. The tour and the plans INDEX are stamped current at
 
 ### Every warning classed under dbartsWarning, rule R15 (be6e372b, dbb58595, 2026-09-02)
 
-Rule R15 of [[docs/design/error-style.md#R15. Warning classes]], ruled
+Rule R15 of [R15. Warning classes — every warning() carries a class under dbartsWarning — RULED](../design/error-style.md#r15-warning-classes--every-warning-carries-a-class-under-dbartswarning--ruled), ruled
 2026-09-02: every warning the package raises is signaled as a classed
 condition, `c("dbarts<Thing>Warning", "dbartsWarning")`, where Thing names
 the condition reported and sites reporting one condition share a class;
@@ -823,7 +823,7 @@ slice four classes existed and 25 sites raised bare `warning()` calls.
 
 Landed: eight new classes over those 25 sites - dbartsPositionalArgsWarning
 (`$setResponse`'s once-per-session positional warning through
-[[R/utility.R#warnOnce]], test columns matched by position, massign's
+[`warnOnce`](../../R/utility.R), test columns matched by position, massign's
 position-only case), dbartsIgnoredArgWarning, dbartsUnmeasuredLevelsWarning,
 dbartsFallbackWarning with the subclasses dbartsThreadFallbackWarning and
 dbartsDrawFallbackWarning, dbartsDegenerateResponseWarning and
@@ -845,8 +845,8 @@ change, so draws are untouched and no baseline was re-recorded.
 ### UBSAN null-source memcpy in the test-store build and the tree-column emit (05207e5e, 76936292, 2d254700, 2026-09-02)
 
 The sanitizer workflow went red on d28b087b with every test passing:
-`[[data.hpp:1883@d28b087b]]: runtime error: null pointer passed as argument 2, which
-is declared to never be null`, one finding on each of the gcc and clang
+[src/bartcore/data.hpp:1883](https://github.com/vdorie/dbarts/blob/d28b087b70661fff2f2f14ae1596d6aee10b8f5c/src/bartcore/data.hpp#L1883): runtime error: null pointer passed as argument 2, which
+is declared to never be null, one finding on each of the gcc and clang
 legs, raised during test-argument-surface.R.
 
 CAUSE, zero length rather than a broken contract. `bart2`'s burn-in run
@@ -891,7 +891,7 @@ build (so the owned buffers hold capacity, the shape that leaves a live
 destination beside an absent source), then the rowless dense build, then
 a rowless mapped view whose CSC column stores no nonzeros, and finally
 the mapped TRAINING build over that same view. Under ASAN+UBSAN before
-the fix it raises seven findings - the CI one at [[data.hpp:1883@d28b087b]], four at
+the fix it raises seven findings - the CI one at [src/bartcore/data.hpp:1883](https://github.com/vdorie/dbarts/blob/d28b087b70661fff2f2f14ae1596d6aee10b8f5c/src/bartcore/data.hpp#L1883), four at
 the two CSC copies, and two at the build arm's copy, whose destination is
 null as well on a store that owns no block yet; after it, clean. Three of
 the six guards stay uncovered by design: `materializePredictorSource` and
@@ -1560,7 +1560,7 @@ rewrite, four VD-ruled R-surface fixes, and four anchor re-pin passes.
   symbol exists somewhere in the file, not at the cited line. Also
   re-pinned in that sweep: the nameable-calibration dbarts.R cite (9
   rows), the S2 setActiveRows cites, the bcf row's updateScale and DART
-  cites, the multinomial pointwise-loglik cite, and a leftover [[RIB:6180@8e0b0e9e]]
+  cites, the multinomial pointwise-loglik cite, and a leftover [src/R_interface_bartcore.cpp:6180](https://github.com/vdorie/dbarts/blob/8e0b0e9e3c8b88f3599a69f2898b9474752b9dcc/src/R_interface_bartcore.cpp#L6180)
   anchor that never matched its getLatents R_NilValue return. Every other
   docs/design line the seven commits touched checked correct by content.
 
@@ -1837,7 +1837,7 @@ tool-verified; its 714-site figure counted the creators, the true scope is 559).
 tinytest 7040 -> 7181. Baselines UNCHANGED; no re-record; dbarts.h untouched.
 
 CI fire-and-cure: the clang-asan sanitizer job went RED on fdcbabe5 - a PRE-EXISTING
-pin (dbarts() on a constant response, [[test-multinomial-r5-surface.R:91@fdcbabe5]]) hit the
+pin (dbarts() on a constant response, [inst/tinytest/test-multinomial-r5-surface.R:91](https://github.com/vdorie/dbarts/blob/fdcbabe56880932a64ba93dc299d09c20ddaaa07/inst/tinytest/test-multinomial-r5-surface.R#L91)) hit the
 bridge's "sigma estimate must be greater than 0" - and GREEN on a rerun of the same
 commit and image. Diagnosed in the r-hub clang-asan container (OPENBLAS_CORETYPE
 sweep, fresh processes, allocator offsets): the starting estimate
@@ -1989,7 +1989,7 @@ The review-tour refresh and VD's human review follow.
 Lessons. The spot-check rule paid off: replanting a handful of leg C/D zero-killers
 whole-suite, instead of trusting the touched/half-suite score, found survivors the
 narrower scope had missed - why the consolidator widened to all 31 and replanted 32
-more. Assertions that cannot fail keep recurring: [[test-plot-generics.R:103-104@07ad73e4]]'s
+more. Assertions that cannot fail keep recurring: [inst/tinytest/test-plot-generics.R:103-104](https://github.com/vdorie/dbarts/blob/07ad73e403d77630c801a6705cf3afdd63f9bdd1/inst/tinytest/test-plot-generics.R#L103-L104)'s
 expect_true(is.character(capture.output(...))) literally cannot fail, and print.bart's
 family label was wrong under it. The facade is a sentinel-pattern gap like the
 ordinal deep-grow segfault the last cycle found: every other test drove the engine
@@ -2438,8 +2438,8 @@ rides data@bases - there is no treatment slot. Bitwise driver-loop
 identity was verified twice (implementer, then the gate-runner's own
 independent probe, all identical() TRUE with the n.thin-mismatch
 negative half discriminating). Residue for the error-style slice:
-two stale comments found in existing files ([[R/bartcore.R:167@bf503e27]];
-[[src/R_interface_bartcore_common.hpp:105-108@bf503e27]] predicate listing).
+two stale comments found in existing files ([R/bartcore.R:167](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/bartcore.R#L167);
+[src/R_interface_bartcore_common.hpp:105-108](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore_common.hpp#L105-L108) predicate listing).
 
 CI FIRE AND CURE: cf4a290c went red on the three ubuntu R-CMD-check
 jobs and both sanitizer jobs - one site, test-boundary-inputs.R's
@@ -2638,7 +2638,7 @@ fallback, stock R 4.3.3, the r-hub amd64 image crashes under
 emulation; VALGRIND_OPTS matching the workflow): zero invalid
 reads/writes, zero uninitialised uses, but ONE definite leak (2464
 bytes in 7 blocks) allocated at applyBCFSpec
-([[R_interface_bartcore.cpp:2173@bf503e27]], spec.forests.assign) via
+([src/R_interface_bartcore.cpp:2173](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore.cpp#L2173), spec.forests.assign) via
 createHolder's unwindProtect lambda on the BCF creation path - fix
 slice in flight; and on that R 4.3.3 the test-bart-bart2.R
 extra-factor-level expect_error did not fire, halting tinytest partway
@@ -2698,13 +2698,13 @@ prediction confirmed in practice; R CMD check --as-cran from a
 clean-copy tarball Status OK; air/lintr clean; NEWS parses at 280.
 
 RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
-full-namespace resync missed them): [[data-store.md:198@bf503e27]]/201/206/214
+full-namespace resync missed them): [docs/design/data-store.md:198](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/data-store.md#L198)/201/206/214
 (constructs sit ~320 lines below the cited sampler.hpp lines),
-[[grow-from-root-default.md:141@bf503e27]], [[model-space-survey.md:71@bf503e27]] (quoted text
-absent from the cited file), [[docs/design/within-chain-threading.md:204@bf503e27]]'s other
+[docs/design/grow-from-root-default.md:141](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/grow-from-root-default.md#L141), [docs/design/model-space-survey.md:71](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/model-space-survey.md#L71) (quoted text
+absent from the cited file), [docs/design/within-chain-threading.md:204](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/within-chain-threading.md#L204)'s other
 half, whose location could not be placed at bf503e27 (the file is
-only 511 lines there; unresolved: [[docs/design/within-chain-threading.md:675-702@bf503e27]]),
-[[docs/design/data-ownership.md:213@bf503e27]] (names deleted code) - ledgered below.
+only 511 lines there; unresolved: [docs/design/within-chain-threading.md:675-702](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/within-chain-threading.md#L675-L702)),
+[docs/design/data-ownership.md:213](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/data-ownership.md#L213) (names deleted code) - ledgered below.
 
 ### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
 
@@ -3269,10 +3269,10 @@ RIB 12+ distinct deltas in both signs, data.R correctly unmoved, MOD
 uniformly -1 past its single small edit - and ~40 anchors were
 opened by content across every alias class. The sampling caught two
 defect families the implementer's own two "converged" passes both
-missed, fixed before landing: [[COM:723@bf503e27]] cited BCFForestCombiner's doc
+missed, fixed before landing: [src/bartcore/combiner.hpp:723](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/bartcore/combiner.hpp#L723) cited BCFForestCombiner's doc
 comment rather than the declaration (true line 731), and the seven
 loglik M-cell refusal anchors plus both ranges were one line short
-([[generics.R:120@bf503e27]] -> 121, 120-125 -> 121-126; the file's own
+([R/generics.R:120](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/generics.R#L120) -> 121, 120-125 -> 121-126; the file's own
 convention cites the stop() refusal site, not the enclosing else,
 while the S-cells of the same dispatch chain cite the branch-guard
 lines). Process note for the runbook: the implementer spawned a
@@ -3841,10 +3841,10 @@ disagreement with the matrix's claim. First run: 175 confirmations,
 ZERO disagreements, five ? resolutions - four match their footnotes'
 expectations (the two silently-wrong pointwiseLoglik cells per
 f19/f28, both grouped/hetero constructions per f30) and ONE
-corrected stale doc prose: student + variance REFUSES at [[spec.R:423@bf503e27]]
+corrected stale doc prose: student + variance REFUSES at [R/spec.R:423](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L423)
 (the wave-0 FX2 refusal) where footnote f30 still claimed
 "constructs today with no refusal site". This records commit
-updates the cell to R [[spec.R:423@bf503e27]], rewrites f30 to the measured
+updates the cell to R [R/spec.R:423](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L423), rewrites f30 to the measured
 split verdict, and fixes the student-section prose - the runner's
 Rd-vs-behavior coherence role exercised on its first run. Gates:
 runner end-to-end clean from a fresh Rscript; air/lintr clean; diff
@@ -4414,7 +4414,7 @@ tarball.
 ### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
 
 The bridge's (`src/R_interface_bartcore.cpp`, not `spec.R`) packaging region -
-its exact span could not be placed at bf503e27 (unresolved: [[src/R_interface_bartcore.cpp:4188-4462@bf503e27]]), 161 lines of channel
+its exact span could not be placed at bf503e27 (unresolved: [src/R_interface_bartcore.cpp:4188-4462](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore.cpp#L4188-L4462)), 161 lines of channel
 assembly) becomes 87: thirteen hand-rolled chain-ternary allocations
 collapse onto one allocChannel(type, {leading dims}) lambda (a
 single-chain per-draw scalar stays a bare dim-less vector - the
@@ -4758,7 +4758,7 @@ executed on x64 Windows for the first time in the leg's history.
 
 f6c8979d's first CI outing turned P4's hard-fail into a finding: the
 windows-latest (x64) R-CMD-check leg ERRORS in test-capi.R -
-"[[consumer.c:10@bf503e27]] col 10: fatal error: dbarts/dbarts.h: No such file or
+"[inst/tinytest/capi/consumer.c:10](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/inst/tinytest/capi/consumer.c#L10) col 10: fatal error: dbarts/dbarts.h: No such file or
 directory" - while windows-11-arm compiles and runs all the C API
 assertions. The mechanism: test-capi.R passes PKG_CPPFLAGS via
 system2(env = ...), whose child-environment handling is
@@ -4874,14 +4874,14 @@ merge-time shim design. Full report untracked.
 The hurdle docs promised natural-scale predictions consume the
 positive part's per-observation sigma(x) under a heteroscedastic
 variance surface - a state no bart2 call reaches (the occupancy
-probit's variance refusal, live at [[R/spec.R:392@bf503e27]], fires before either
+probit's variance refusal, live at [R/spec.R:392](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L392), fires before either
 component fits) and one the code documents as DELIBERATE
-(hurdleSigmaVec's comment, [[R/generics.R:989-996@bf503e27]]). Doc-side fix, both
+(hurdleSigmaVec's comment, [R/generics.R:989-996](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/generics.R#L989-L996)). Doc-side fix, both
 copies: man/bart2.Rd's hurdle \item and the independent copy in
 man/dbarts.Rd now state the always-homoscedastic contract (one sigma
 per draw, recycled), with the heteroscedastic positive part kept in
 the recorded-limitation list as a follow-up, not a promise.
-feature-matrix hurdle/variance cell ? -> R [[spec.R:392@bf503e27]], [f34]
+feature-matrix hurdle/variance cell ? -> R [R/spec.R:392](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L392), [f34]
 rewritten as resolved, the Gaps bullet updated. One NEWS BUG FIXES
 item (implementer found live precedent for recording doc-only
 corrections - the offset.test entry - overriding the no-NEWS
@@ -4890,8 +4890,8 @@ a clean-staged tarball; built package differs from base only in
 NEWS.Rd + the two Rd files; NEWS parses at 262 entries
 (re-verified independently); no R code touched so no
 equivalence/lintr legs. Orchestrator note: the interleavables
-re-verification's [[spec.R:370@bf503e27]] anchor was loose - the live stop is
-[[R/spec.R:392@bf503e27]]; other feature-matrix rows citing [[spec.R:370@bf503e27]] for the same shared
+re-verification's [R/spec.R:370](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L370) anchor was loose - the live stop is
+[R/spec.R:392](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L392); other feature-matrix rows citing [R/spec.R:370](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L370) for the same shared
 refusal are stale by the same delta and ride the wave-4 full-
 namespace resync. Prior-slice CI: five green on a39da5d9 plus
 exact-gates green on the build-identical d60057b1 (the records push
@@ -4912,10 +4912,10 @@ rewrite reached the engine while the direction constraints did not,
 so draws moved). One refusal block in R/bart.R's multinomial branch
 ahead of the factor/count-matrix dispatch; one man/bart2.Rd
 sentence; feature-matrix multinom DART and variance cells re-pointed
-at the refusal (the variance cell's R [[FAC:833@bf503e27]] was a recorded value
+at the refusal (the variance cell's R [src/bartcore/facade.hpp:833](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/bartcore/facade.hpp#L833) was a recorded value
 fault - dropped at the R seam, never refused at the factory) with
 [f33] rewritten past-tense and its stale engine anchors corrected
-during orchestrator review ([[CH:4878@bf503e27]]/4813 live); a
+during orchestrator review ([src/bartcore/chain.hpp:4878](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/bartcore/chain.hpp#L4878)/4813 live); a
 docs/design/multinomial.md limitation sentence; one NEWS item; seven
 tinytest assertions via a multinomialRefuses helper, dart covered on
 both entry shapes, variance probed at K = 3 (the K = 2 host

@@ -39,12 +39,12 @@ because after the freeze the same slip would ship.
 
 ## What the ground truth already is
 
-Registration ([[src/R_interface.cpp:298-322@126fb2cd]]): ~33 entry points in a
+Registration ([src/R_interface.cpp:298-322](https://github.com/vdorie/dbarts/blob/126fb2cda8a60ad4a6fae82574886fd0002ef475/src/R_interface.cpp#L298-L322)): ~33 entry points in a
 C_callMethods table, each R_RegisterCCallable'd under its own name in
 R_init_dbarts. Append-only-by-name discipline; a signature change is an ABI
 event (docs/plans/README.md, the a73ca50 review-checklist step).
-The current version constant is a single integer ([[dbarts.h:54@11888173]];
-dbarts_apiVersion, [[C_interface.cpp:76@11888173]], returns one int) - an unpublished
+The current version constant is a single integer ([inst/include/dbarts/dbarts.h:54](https://github.com/vdorie/dbarts/blob/11888173f1b6edd496d75fee61300b4783d5dd78/inst/include/dbarts/dbarts.h#L54);
+dbarts_apiVersion, [src/C_interface.cpp:76](https://github.com/vdorie/dbarts/blob/11888173f1b6edd496d75fee61300b4783d5dd78/src/C_interface.cpp#L76), returns one int) - an unpublished
 dev convention with zero compatibility weight, replaceable at will until
 submission.
 
@@ -69,9 +69,9 @@ maintainer):
   the analysis below.
 
 Growth precedent already in this tree: dbarts_results is a
-structSize-growable output struct ([[dbarts.h:83-102@11888173]], DBARTS_RESULTS_HAS) -
+structSize-growable output struct ([inst/include/dbarts/dbarts.h:83-102](https://github.com/vdorie/dbarts/blob/11888173f1b6edd496d75fee61300b4783d5dd78/inst/include/dbarts/dbarts.h#L83-L102), DBARTS_RESULTS_HAS) -
 old callers are never written past, appends never reorder. The state format
-reads its blocks BY NAME behind an encoding floor ([[dbarts.h:237-243@11888173]],
+reads its blocks BY NAME behind an encoding floor ([inst/include/dbarts/dbarts.h:237-243](https://github.com/vdorie/dbarts/blob/11888173f1b6edd496d75fee61300b4783d5dd78/inst/include/dbarts/dbarts.h#L237-L243),
 c-api-growth.md part 2). Both are self-describing-DATA designs; growth of
 the FUNCTION surface is already handled by append-only names (a future
 run2-style addition is just a new name, load-detectable when absent). A
@@ -239,7 +239,7 @@ ingredient matters; the X-macro is its zero-toolchain form.
   committed golden against the header's normalized declaration set. Its
   cost must be stated honestly: NOT a raw text diff - a73ca50's header
   diff was ~3 declaration lines amid ~8 doc-comment lines, prototypes span
-  lines ([[dbarts.h:214-220@11888173]]), and dbarts_results is field-order-sensitive
+  lines ([inst/include/dbarts/dbarts.h:214-220](https://github.com/vdorie/dbarts/blob/11888173f1b6edd496d75fee61300b4783d5dd78/inst/include/dbarts/dbarts.h#L214-L220)), and dbarts_results is field-order-sensitive
   (a mid-struct insertion must flag as an ORDER change, never wave through
   as an addition) - so it is a small normalizing C-declaration parser, real
   work under a one-person-maintainer constraint, and it only fires on CI.
@@ -256,8 +256,8 @@ ingredient matters; the X-macro is its zero-toolchain form.
   SOURCE against the candidate dbarts and run its suite UNDER ASAN (plus
   stack-protector) - ASAN turns the incident's ~half-of-runs corruption
   deterministic. The existing revdep-smoke.yaml is structurally unable to
-  catch this class: monthly, not per-PR ([[.github/workflows/revdep-smoke.yaml:10@126fb2cd]]); pulls stan4bart from CRAN,
-  not dev ([[.github/workflows/revdep-smoke.yaml:49-55@126fb2cd]]); unsanitized R CMD check. This job is also the ONLY
+  catch this class: monthly, not per-PR ([.github/workflows/revdep-smoke.yaml:10](https://github.com/vdorie/dbarts/blob/126fb2cda8a60ad4a6fae82574886fd0002ef475/.github/workflows/revdep-smoke.yaml#L10)); pulls stan4bart from CRAN,
+  not dev ([.github/workflows/revdep-smoke.yaml:49-55](https://github.com/vdorie/dbarts/blob/126fb2cda8a60ad4a6fae82574886fd0002ef475/.github/workflows/revdep-smoke.yaml#L49-L55)); unsanitized R CMD check. This job is also the ONLY
   layer that catches SEMANTIC signature drift - same types, changed
   meaning or units - to which stubs, hashes, and diffs are all blind. Note
   that CRAN's own single-shot revdep check passes a 50%-flaky corruption

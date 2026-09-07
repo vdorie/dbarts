@@ -16,9 +16,9 @@ its reported vocabulary (value + directions).
 
 ## Context
 
-- FlatNode {variable, value(double), flags}: [[src/bartcore/tree.hpp:129-135@6669dfe0]];
-  mask bit-cast at [[src/bartcore/tree.hpp:1177@6669dfe0]], pool-offset-in-double at [[src/bartcore/tree.hpp:1166@6669dfe0]];
-  maxValueEncodableCategories = 53 ([[src/bartcore/data.hpp:119-120@6669dfe0]]).
+- FlatNode {variable, value(double), flags}: [src/bartcore/tree.hpp:129-135](https://github.com/vdorie/dbarts/blob/6669dfe0fc443aab2cd2aab5fd7fee3a260ef0fc/src/bartcore/tree.hpp#L129-L135);
+  mask bit-cast at [src/bartcore/tree.hpp:1177](https://github.com/vdorie/dbarts/blob/6669dfe0fc443aab2cd2aab5fd7fee3a260ef0fc/src/bartcore/tree.hpp#L1177), pool-offset-in-double at [src/bartcore/tree.hpp:1166](https://github.com/vdorie/dbarts/blob/6669dfe0fc443aab2cd2aab5fd7fee3a260ef0fc/src/bartcore/tree.hpp#L1166);
+  maxValueEncodableCategories = 53 ([src/bartcore/data.hpp:119-120](https://github.com/vdorie/dbarts/blob/6669dfe0fc443aab2cd2aab5fd7fee3a260ef0fc/src/bartcore/data.hpp#L119-L120)).
 - Machinery that exists only for double-compatibility (from the
   pooled-masks audit): the flat two-tier split at 53 vs the engine's
   real 63/64 tier, the side channel for 54-63 where the engine mask is

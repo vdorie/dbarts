@@ -14,7 +14,7 @@ Control::responseIsBinary.
 
 ## Decision
 
-Question: move family from dbartsControl ([[R/A_class.R:189@07230c35]]) to
+Question: move family from dbartsControl ([R/A_class.R:189](https://github.com/vdorie/dbarts/blob/07230c35e79c9f8258dd0b8127da6f9346142f7d/R/A_class.R#L189)) to
 dbartsModel? Recommendation: move. dbartsModel holds tree.prior,
 node.prior, node.hyperprior, resid.prior - everything else that defines
 the model - and the engine's own decomposition makes ResponseModel the

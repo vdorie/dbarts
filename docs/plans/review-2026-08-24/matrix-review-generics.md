@@ -30,10 +30,10 @@ Scripts and raw grids: `generics/` beside this file.
 
 **G1. `survivalProbabilities()` is dead on every discrete-time hazard fit whose
 training predictor matrix carries column names.**
-- `[[R/bart.R:2421-2424@b102e17c]]` (training branch) and `[[R/bart.R:2432-2435@b102e17c]]` (matrix-`newdata` branch)
+- [R/bart.R:2421-2424](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2421-L2424) (training branch) and [R/bart.R:2432-2435](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2432-L2435) (matrix-`newdata` branch)
   build the re-expanded design as `cbind(<named covariates>, rep(seq_len(K), each = n))`,
   leaving the period column UNNAMED. `predict` then matches by name against the fit's
-  `x1,x2,period` and refuses. The data-frame branch at `[[R/bart.R:2427-2428@b102e17c]]` is correct
+  `x1,x2,period` and refuses. The data-frame branch at [R/bart.R:2427-2428](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2427-L2428) is correct
   (`bigX[["period"]] <- ...`), which is why only two of three branches are broken.
 - Repro (`generics/probe15.R`):
   ```r
@@ -46,21 +46,21 @@ training predictor matrix carries column names.**
   Identical for `times=`, `newdata=<named matrix>` and `combineChains = FALSE`. Drop
   the `colnames` and all of it works (`6x60x60`, `6x60x4`); a `data.frame` `newdata`
   also works.
-- Contradicts [[survivalProbabilities.Rd:11-13@b102e17c]], [[survivalProbabilities.Rd:45-47@b102e17c]], [[survivalProbabilities.Rd:87-96@b102e17c]] and [[bart.Rd:328@b102e17c]]. Hazard
-  fits are matrix-interface only (the formula route is refused by name) and [[bart.Rd:75@b102e17c]]
+- Contradicts [man/survivalProbabilities.Rd:11-13](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L11-L13), [man/survivalProbabilities.Rd:45-47](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L45-L47), [man/survivalProbabilities.Rd:87-96](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L87-L96) and [man/bart.Rd:328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L328). Hazard
+  fits are matrix-interface only (the formula route is refused by name) and [man/bart.Rd:75](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L75)
   tells users column names are honoured, so the named matrix is the normal spelling.
-- Why no test caught it: `[[inst/tinytest/test-hazard.R:12@b102e17c]]` builds
+- Why no test caught it: [inst/tinytest/test-hazard.R:12](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/inst/tinytest/test-hazard.R#L12) builds
   `x <- matrix(runif(n * p), n, p)` with NO column names, so the file exercises only
   the working branch.
 - Fix class: agent-fix (name the column `period` in both branches).
 
 **G2. `extract(fit, type = "trees", <any own formal other than object/type>)` corrupts
 its own call.** Confirms and broadens matrix-results F3.
-- `[[R/generics.R:375-380@b102e17c]]` (`extract.bart`) rewrites `match.call()` onto
+- [R/generics.R:375-380](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L375-L380) (`extract.bart`) rewrites `match.call()` onto
   `object$fit$getTrees` and strips only `object` and `type`, so the four surviving
   formals - `sample`, `combineChains`, `forest`, `contribution` - are forwarded into
-  `getTrees(treeNums, chainNums, sampleNums, current, newdata)` ([[R/dbarts.R:1917@b102e17c]]).
-  `extract.rbart` ([[R/dbarts.R:1857-1866@b102e17c]]) repeats it for `sample` and `combineChains`.
+  `getTrees(treeNums, chainNums, sampleNums, current, newdata)` ([R/dbarts.R:1917](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/dbarts.R#L1917)).
+  `extract.rbart` ([R/dbarts.R:1857-1866](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/dbarts.R#L1857-L1866)) repeats it for `sample` and `combineChains`.
 - Repro (`generics/probe3.R`), all on a `keepTrees = TRUE` fit:
   `extract(f, type = "trees", sample = "train")` and the positional
   `extract(f, "trees", "train")` -> `missing value where TRUE/FALSE needed`
@@ -68,8 +68,8 @@ its own call.** Confirms and broadens matrix-results F3.
   `sampleNums <= 0` guard dies on it); `combineChains = FALSE`, `forest = 1L` and
   `contribution = TRUE` each -> `unused argument (...)`. 33 grid cells in
   matrix-grid.csv, plus 102 more from the `combineChains` axis this pass added.
-- Contradicts [[bart.Rd:203-205@b102e17c]] (`sample` documented with no type qualification) and
-  [[bart.Rd:219@b102e17c]] (only `\dots` is documented as reaching `getTrees`). Correction to
+- Contradicts [man/bart.Rd:203-205](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L203-L205) (`sample` documented with no type qualification) and
+  [man/bart.Rd:219](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L219) (only `\dots` is documented as reaching `getTrees`). Correction to
   matrix-results F3's last paragraph: with `sample` OMITTED nothing is forwarded and
   nothing is silently ignored - the bug is only the supplied-argument one.
 - Fix class: agent-fix (strip the method's own formals from `treesCall`, or refuse
@@ -79,8 +79,8 @@ its own call.** Confirms and broadens matrix-results F3.
 
 **G3. `extract(..., combineChains = FALSE)` is silently ignored on `bartMultinomial`,
 `bartOrdinal` and `bartNegbin`, while `predict` on the same fits honours it.**
-- `extract.bartMultinomial` ([[R/generics.R:862@b102e17c]]), `.bartOrdinal` ([[R/generics.R:1071@b102e17c]]) and
-  `.bartNegbin` ([[R/generics.R:1237@b102e17c]]) have formals `(object, type, sample, ...)`, so it lands in
+- `extract.bartMultinomial` ([R/generics.R:862](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L862)), `.bartOrdinal` ([R/generics.R:1071](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1071)) and
+  `.bartNegbin` ([R/generics.R:1237](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1237)) have formals `(object, type, sample, ...)`, so it lands in
   `...` and is dropped; `extract.bart`, `.rbart` and `.bartHurdle` all carry it.
 - Repro (`generics/probe11.R`, 2-chain fits): `extract(fO, combineChains = FALSE)`
   returns `12x60x3`, `identical()` to the combined result, where the matching
@@ -97,9 +97,9 @@ honour every one. Fix class: VD-judgement (A).
 
 **G5. `$n.chains` is absent from every fit that keeps a sampler, i.e. from every
 `keepTrees = TRUE` fit.** Confirms the lenses memo.
-- `[[R/bart.R:390-394@b102e17c]]`: `if (keepSampler) result$fit <- fit else result$n.chains <- n.chains`.
+- [R/bart.R:390-394](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L390-L394): `if (keepSampler) result$fit <- fit else result$n.chains <- n.chains`.
   `keepTrees/keepSampler` in {TT, TF, FT} all give `is.null(fit$n.chains)`; only FF
-  sets it. [[bart.Rd:315-317@b102e17c]] documents it unconditionally, and its stated purpose
+  sets it. [man/bart.Rd:315-317](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L315-L317) documents it unconditionally, and its stated purpose
   ("information that can be lost if `combinechains` is TRUE") is exactly the missing
   case.
 - Asymmetric: rbart, bartMultinomial, bartOrdinal and bartNegbin DO carry `n.chains`
@@ -109,12 +109,12 @@ honour every one. Fix class: VD-judgement (A).
 **G6. `extract(fit, type = "trees")` on a `keepTrees = FALSE, keepSampler = TRUE` fit
 silently returns the CURRENT working trees, in a different column set, instead of
 refusing.**
-- The guard at [[R/generics.R:363-373@b102e17c]] tests `is.null(object$fit)`, i.e. the SAMPLER, not
+- The guard at [R/generics.R:363-373](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L363-L373) tests `is.null(object$fit)`, i.e. the SAMPLER, not
   `keepTrees`; `getTrees`'s `useSaved <- control@keepTrees && !current` then falls back.
   `bart2(..., keepTrees = FALSE, keepSampler = TRUE)` then
   `extract(f, type = "trees")` -> an `11x4` frame with columns `tree,n,var,value` - no
-  `sample` column, no warning - where [[bart.Rd:257@b102e17c]] scopes the feature to
-  `keepTrees = TRUE` and [[bart.Rd:260-266@b102e17c]] documents `chain, sample, tree, n, var, value`.
+  `sample` column, no warning - where [man/bart.Rd:257](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L257) scopes the feature to
+  `keepTrees = TRUE` and [man/bart.Rd:260-266](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L260-L266) documents `chain, sample, tree, n, var, value`.
 - Fix class: VD-judgement (group F).
 
 **G7. No `plot` method for `bartOrdinal`, `bartNegbin`, `bartHurdle`** (NAMESPACE:
@@ -125,13 +125,13 @@ Fix class: VD-judgement (group B).
 
 **G8. `extract(type = "loglik")` exists only on `bart` and `rbart`.** All four
 own-class families refuse by name (`type must be in 'ev', 'ppd', 'bart'` etc.); this is
-the channel loo/WAIC consume, and [[bart.Rd:201@b102e17c]] documents `"loglik"` on the `extract`
+the channel loo/WAIC consume, and [man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L201) documents `"loglik"` on the `extract`
 generic without scoping it. Fix class: VD-judgement (group C).
 
 **G9. A saved `bartHurdle` fit cannot `predict` after reload, and no Rd names the
 recipe that fixes it.**
 - The hurdle fit has no `$fit` of its own (`names()` = call, family, y, occupancy,
-  positive), so [[bart.Rd:248@b102e17c]]'s `bartFit$fit$storeState()` does not apply, and [[bart.Rd:248@b102e17c]]
+  positive), so [man/bart.Rd:248](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L248)'s `bartFit$fit$storeState()` does not apply, and [man/bart.Rd:248](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L248)
   names only multinomial/ordinal/nbinom as the extended-family cases.
 - Repro (`generics/probe6a.R`/`6b.R`): `saveRDS` then a fresh session ->
   `predict(fH, xTest)` errors "samplers cannot be re-created without a stored state".
@@ -139,9 +139,9 @@ recipe that fixes it.**
   (`generics/probe7.R`). Every other class survives its documented recipe - bart,
   rbart, multinomial and the amplitude fit all replay
   `predict`/`extract(type="forest")`/`plotTree` after reload.
-- Fix class: agent-fix (extend [[bart.Rd:248@b102e17c]]).
+- Fix class: agent-fix (extend [man/bart.Rd:248](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L248)).
 
-**G10. [[dbartsSampler-class.Rd:328@b102e17c]] "Reading it forces the sampler's *current* state" is
+**G10. [man/dbartsSampler-class.Rd:328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L328) "Reading it forces the sampler's *current* state" is
 false, and the stale value is rejected by the sampler's own `setState`.**
 - `run()` ASSIGNS `state` (via `storeState`), replacing the lazy promise, so a later
   mutation leaves `state` stale. Repro (`generics/probe8.R`): two-forest sampler,
@@ -150,29 +150,29 @@ false, and the stale value is rejected by the sampler's own `setState`.**
   7, and `s$setState(s$state)` errors `state is not consistent with this sampler`.
   With `s$storeState()` first it succeeds; a width-PRESERVING change succeeds while
   silently reinstalling the stale trees.
-- The behavior follows the documented opt-in convention at [[dbartsSampler-class.Rd:116@b102e17c]]; the sentence at [[dbartsSampler-class.Rd:328@b102e17c]]
+- The behavior follows the documented opt-in convention at [man/dbartsSampler-class.Rd:116](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L116); the sentence at [man/dbartsSampler-class.Rd:328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L328)
   is the wrong one. Fix class: agent-fix (Rd).
 
 ### MINOR
 
 - M1. `sample` validation inconsistent: bart/rbart raise `sample must be in 'train',
-  'test'` ([[R/generics.R:385-391@b102e17c]]); all four own-class `extract` methods use bare
+  'test'` ([R/generics.R:385-391](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L385-L391)); all four own-class `extract` methods use bare
   `match.arg` -> `'arg' should be one of "train", "test"`.
 - M2. `residuals(fit, sample = "train")` -> raw `formal argument "sample" matched by
-  multiple actual arguments` ([[R/generics.R:814@b102e17c]], [[R/generics.R:2078@b102e17c]], [[R/generics.R:1564@b102e17c]] all pin it).
+  multiple actual arguments` ([R/generics.R:814](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L814), [R/generics.R:2078](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L2078), [R/generics.R:1564](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1564) all pin it).
 - M3. `plotTree(fit, treeNum = 1L, sample = 2L)` silently partial-matches `sampleNum`
-  via `do.call` ([[R/generics.R:2096-2103@b102e17c]]). Benign today; same mechanism as G2.
+  via `do.call` ([R/generics.R:2096-2103](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L2096-L2103)). Benign today; same mechanism as G2.
 - M4. `setForestBasis` on an amplitude-free sampler says `forest index out of range`
-  ([[R/dbarts.R:1456-1458@b102e17c]]) where `setForestWeights` says `requires a sampler that
-  carries forest amplitudes`; [[dbartsSampler-class.Rd:189@b102e17c]] promises the latter.
+  ([R/dbarts.R:1456-1458](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/dbarts.R#L1456-L1458)) where `setForestWeights` says `requires a sampler that
+  carries forest amplitudes`; [man/dbartsSampler-class.Rd:189](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L189) promises the latter.
 - M5. `extract(type = "trees")` omits the `chain` column on a single-chain fit;
-  [[bart.Rd:262@b102e17c]] lists `chain, sample, tree` unconditionally.
-- M6. [[bart.Rd:248@b102e17c]] says only `predict` stops on a fit saved without `storeState()`;
+  [man/bart.Rd:262](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L262) lists `chain, sample, tree` unconditionally.
+- M6. [man/bart.Rd:248](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L248) says only `predict` stops on a fit saved without `storeState()`;
   `extract(type = "trees")` and `plotTree` stop identically.
-- M7. [[dbartsSampler-class.Rd:308@b102e17c]] offers "the return of `storeState`" to `setState`,
-  but it returns NULL invisibly ([[dbartsSampler-class.Rd:423@b102e17c]]), so `s$setState(s$storeState())` refuses.
+- M7. [man/dbartsSampler-class.Rd:308](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L308) offers "the return of `storeState`" to `setState`,
+  but it returns NULL invisibly ([man/dbartsSampler-class.Rd:423](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L423)), so `s$setState(s$storeState())` refuses.
 - M8. `setForestBasis(k, ~var)` evaluates the formula in `environment(basis)`, never
-  against the sampler's data ([[R/model.R:810-821@b102e17c]]), so `~x1` naming a predictor column
+  against the sampler's data ([R/model.R:810-821](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L810-L821)), so `~x1` naming a predictor column
   raises raw `object 'x1' not found`; Rd:186 silent on the scope. M9. An amplitude
   sampler's `setTestPredictor` after a refused `setTestPredictorAndOffset` raises raw
   `argument is of length zero`.
@@ -184,7 +184,7 @@ false, and the stale value is rejected by the sampler's own `setState`.**
 - `plot` on bartOrdinal/bartNegbin/bartHurdle -> `plot.default`. Rd SILENT. (G7)
 - `plotTree` and `survivalProbabilities` on all four own-class fits -> `no applicable
   method`; each carries a `$fit` sampler under `keepTrees`, so plotTree would have
-  something to draw. [[plotTree.Rd:26-29@b102e17c]] names only bart/rbart/dbartsSampler. SILENT.
+  something to draw. [man/plotTree.Rd:26-29](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L26-L29) names only bart/rbart/dbartsSampler. SILENT.
 - `as_draws_array`/`as_draws_df` on the four -> posterior's default, `All list
   elements must be lists themselves.` summary.bart.Rd:5-8 scopes them. SILENT.
 - `xbart()` returns a BARE array (dimnames named `rep`,`n.trees`,`k`), no class:
@@ -195,7 +195,7 @@ false, and the stale value is rejected by the sampler's own `setState`.**
   `fitted` -> `'fitted' is not a valid field or method name for reference class
   "dbartsSampler"`; `residuals` -> the same about `'na.action'`; `plot` -> `cannot
   coerce type 'S4' to vector of type 'double'`; `summary` -> `summaryDefault`;
-  `print` -> `$show()`, correct. [[dbartsSampler-class.Rd:355@b102e17c]] states the division, so
+  `print` -> `$show()`, correct. [man/dbartsSampler-class.Rd:355](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L355) states the division, so
   the absences AGREE; only the raw messages are ugly.
 - `pdbart`/`pd2bart`: `fitted`/`residuals` return NULL SILENTLY; `summary` gives a
   `summaryDefault` of the list; `predict`/`extract` -> `no applicable method`. SILENT.
@@ -219,9 +219,9 @@ with different names. Full formals table in `generics/probe11.R`'s first block.
   `extract.bart` before `combineChains` would silently misroute `fitted`'s dots.
 - The four own-class extract/fitted/residuals/summary methods: no forwarding, but a
   bare `...` that ABSORBS the bart-family vocabulary without error. (G3, G4)
-- `predict.bart`'s `\dots` is documented "Not used" ([[bart.Rd:219@b102e17c]]) and indeed ignores
+- `predict.bart`'s `\dots` is documented "Not used" ([man/bart.Rd:219](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L219)) and indeed ignores
   `sample=`: AGREES, but a live trap because extract/fitted take `sample`.
-  `predict.rbart` reads `dotsList[["value"]]` by exact name only ([[R/generics.R:1619-1624@b102e17c]]), so a
+  `predict.rbart` reads `dotsList[["value"]]` by exact name only ([R/generics.R:1619-1624](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1619-L1624)), so a
   partial `val=` is dropped rather than warned about. No two formals within any one
   method are in a prefix relation, so no user abbreviation is ambiguous.
 
@@ -230,42 +230,42 @@ with different names. Full formals table in `generics/probe11.R`'s first block.
 62 testable claims extracted; 50 AGREE, 7 CONTRADICT, 5 SILENT-where-behaviour-exists.
 Only the non-AGREE rows and the load-bearing AGREEs are listed.
 
-- [[bart.Rd:201@b102e17c]] type vocabulary, `"response"`/`"link"` synonyms on all four generics,
+- [man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L201) type vocabulary, `"response"`/`"link"` synonyms on all four generics,
   loglik combined = samples-by-observations and uncombined = chains-first
   (`12x40` / `2x6x40`), `"forest"` refused on a multinomial fit - AGREE.
-- [[bart.Rd:203-205@b102e17c]] `sample` - CONTRADICTS under `type = "trees"` (G2).
-- [[bart.Rd:215-216@b102e17c]] `ci.level` -> `est, ci.lower, ci.upper` - AGREES on
+- [man/bart.Rd:203-205](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L203-L205) `sample` - CONTRADICTS under `type = "trees"` (G2).
+- [man/bart.Rd:215-216](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L215-L216) `ci.level` -> `est, ci.lower, ci.upper` - AGREES on
   bart/rbart/bartHurdle; ignored on the other three (G4).
-- [[bart.Rd:219@b102e17c]] `\dots` reaches `getTrees` (`chainNums`, `sampleNums`, `treeNums`,
+- [man/bart.Rd:219](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L219) `\dots` reaches `getTrees` (`chainNums`, `sampleNums`, `treeNums`,
   `newdata`, all four verified); "Not used in predict" - AGREE.
-- [[bart.Rd:247-248@b102e17c]] Saving - AGREES for bart/rbart/multinomial/ordinal/nbinom and the
+- [man/bart.Rd:247-248](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L247-L248) Saving - AGREES for bart/rbart/multinomial/ordinal/nbinom and the
   amplitude fit; SILENT on hurdle (G9), understates the affected generics (M6).
-- [[bart.Rd:257-258@b102e17c]] - CONTRADICTS (G6). [[bart.Rd:260-266@b102e17c]] columns - CONTRADICTS on `chain` (M5)
-  and on the keepSampler-only shape (G6). [[bart.Rd:263@b102e17c]] `newdata` changes the `n` column -
-  AGREES (960 train vs 192 for 8 test rows). [[bart.Rd:315-317@b102e17c]] `n.chains` - CONTRADICTS (G5).
-- [[bart.Rd:277@b102e17c]] chain-major collapse with all collapsed fields sharing the row order -
+- [man/bart.Rd:257-258](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L257-L258) - CONTRADICTS (G6). [man/bart.Rd:260-266](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L260-L266) columns - CONTRADICTS on `chain` (M5)
+  and on the keepSampler-only shape (G6). [man/bart.Rd:263](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L263) `newdata` changes the `n` column -
+  AGREES (960 train vs 192 for 8 test rows). [man/bart.Rd:315-317](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L315-L317) `n.chains` - CONTRADICTS (G5).
+- [man/bart.Rd:277](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L277) chain-major collapse with all collapsed fields sharing the row order -
   AGREES (combined `sigma` == the two chains concatenated, chain 1 first).
-  [[bart.Rd:288-289@b102e17c]], [[bart.Rd:294-295@b102e17c]] (varcount `12x3`, variable-named columns), [[bart.Rd:300-301@b102e17c]]
+  [man/bart.Rd:288-289](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L288-L289), [man/bart.Rd:294-295](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L294-L295) (varcount `12x3`, variable-named columns), [man/bart.Rd:300-301](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L300-L301)
   (`forestFits` `6x40x2` named `forest1,forest2`, `glue`, `bases`, `n.forests`),
-  [[bart.Rd:303@b102e17c]], [[bart.Rd:306-307@b102e17c]], [[bart.Rd:312-313@b102e17c]], [[bart.Rd:318-319@b102e17c]], [[bart.Rd:324-326@b102e17c]], [[bart.Rd:327-328@b102e17c]], [[bart.Rd:331@b102e17c]], [[bart.Rd:335@b102e17c]] - AGREE.
-- summary.bart.Rd:11-17 (mean.s on a heteroscedastic fit), [[bart.Rd:19-25@b102e17c]], [[bart.Rd:42-51@b102e17c]]
-  (`field[column]` naming), [[bart.Rd:64-77@b102e17c]], [[bart.Rd:79-82@b102e17c]]; [[plotTree.Rd:18-22@b102e17c]], [[plotTree.Rd:26-29@b102e17c]], [[plotTree.Rd:39-42@b102e17c]], [[plotTree.Rd:51@b102e17c]]
-  (including the current-trees fallback); extract.dbartsSampler.Rd:8, [[plotTree.Rd:15@b102e17c]], [[plotTree.Rd:27@b102e17c]]
+  [man/bart.Rd:303](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L303), [man/bart.Rd:306-307](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L306-L307), [man/bart.Rd:312-313](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L312-L313), [man/bart.Rd:318-319](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L318-L319), [man/bart.Rd:324-326](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L324-L326), [man/bart.Rd:327-328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L327-L328), [man/bart.Rd:331](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L331), [man/bart.Rd:335](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L335) - AGREE.
+- summary.bart.Rd:11-17 (mean.s on a heteroscedastic fit), [man/bart.Rd:19-25](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L19-L25), [man/bart.Rd:42-51](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L42-L51)
+  (`field[column]` naming), [man/bart.Rd:64-77](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L64-L77), [man/bart.Rd:79-82](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L79-L82); [man/plotTree.Rd:18-22](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L18-L22), [man/plotTree.Rd:26-29](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L26-L29), [man/plotTree.Rd:39-42](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L39-L42), [man/plotTree.Rd:51](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L51)
+  (including the current-trees fallback); extract.dbartsSampler.Rd:8, [man/plotTree.Rd:15](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L15), [man/plotTree.Rd:27](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L27)
   (`type must be 'predictors'`; `40x3` with the predictor column names) - all AGREE.
   The first two are SILENT on the own-class fits.
-- [[survivalProbabilities.Rd:40-41@b102e17c]], [[survivalProbabilities.Rd:49-52@b102e17c]], [[survivalProbabilities.Rd:98-105@b102e17c]] (`12x2x60` / `2x6x2x60`) and the
-  rbart branch - AGREE. [[survivalProbabilities.Rd:45-47@b102e17c]] and [[survivalProbabilities.Rd:87-96@b102e17c]] - CONTRADICTS on a named-predictor hazard
+- [man/survivalProbabilities.Rd:40-41](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L40-L41), [man/survivalProbabilities.Rd:49-52](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L49-L52), [man/survivalProbabilities.Rd:98-105](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L98-L105) (`12x2x60` / `2x6x2x60`) and the
+  rbart branch - AGREE. [man/survivalProbabilities.Rd:45-47](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L45-L47) and [man/survivalProbabilities.Rd:87-96](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L87-L96) - CONTRADICTS on a named-predictor hazard
   fit (G1).
-- [[dbartsSampler-class.Rd:351@b102e17c]] - AGREES on all ten documented multinomial refusals
+- [man/dbartsSampler-class.Rd:351](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L351) - AGREES on all ten documented multinomial refusals
   (`setResponse`, `setOffset`, `setWeights`, `setSigma`, `setData`, `setModel`,
   `setCalibration`, `setForestWeights`, `setForestBasis`, `getFitsWithoutOffset`),
   each naming the capability, and on every open channel (`setCounts`,
   `setCategoryOffset`/`setCategoryTestOffset` with an n x K matrix, the predictor
   family, `setActiveRows`, `$predict` -> `10x3x5`). The builder's untested paragraph
-  is now tested and clean. [[dbartsSampler-class.Rd:189@b102e17c]] - CONTRADICTS for `setForestBasis` (M4).
-  [[dbartsSampler-class.Rd:308@b102e17c]] - CONTRADICTS (M7). [[dbartsSampler-class.Rd:328@b102e17c]] - CONTRADICTS (G10). [[dbartsSampler-class.Rd:358-359@b102e17c]] - AGREES.
-- [[bart2.Rd:310@b102e17c]], [[bart2.Rd:312@b102e17c]], [[bart2.Rd:314@b102e17c]] (`cutpoint[1]`, `cutpoint[2]`), [[bart2.Rd:318@b102e17c]] (`dispersion`), [[bart2.Rd:322@b102e17c]]
-  (hurdle `prob`/`link`/`log`/`ppd`, `ci.level`, two-component summary) - AGREE. [[bart2.Rd:38-49@b102e17c]]
+  is now tested and clean. [man/dbartsSampler-class.Rd:189](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L189) - CONTRADICTS for `setForestBasis` (M4).
+  [man/dbartsSampler-class.Rd:308](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L308) - CONTRADICTS (M7). [man/dbartsSampler-class.Rd:328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L328) - CONTRADICTS (G10). [man/dbartsSampler-class.Rd:358-359](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L358-L359) - AGREES.
+- [man/bart2.Rd:310](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L310), [man/bart2.Rd:312](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L312), [man/bart2.Rd:314](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L314) (`cutpoint[1]`, `cutpoint[2]`), [man/bart2.Rd:318](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L318) (`dispersion`), [man/bart2.Rd:322](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L322)
+  (hurdle `prob`/`link`/`log`/`ppd`, `ci.level`, two-component summary) - AGREE. [man/bart2.Rd:38-49](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L38-L49)
   gives `combineChains` to `predict.bartMultinomial` and not to
   `extract.bartMultinomial`, saying nothing about what extract does with it: SILENT
   (G3). No `\usage` for the aliased extract/fitted/predict/print/residuals of
@@ -283,10 +283,10 @@ Only the non-AGREE rows and the load-bearing AGREEs are listed.
 - D. "Which generics does an `xbart` result support?" - a bare array today, so
   `fitted`/`residuals` misfire on stats' defaults. Class it, or leave it. (sec 3)
 - E. "Does `dbartsSampler` ever grow the bart-family S3 surface?" -
-  [[dbartsSampler-class.Rd:355@b102e17c]] already answers no; the open part is only whether the six defaults
+  [man/dbartsSampler-class.Rd:355](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L355) already answers no; the open part is only whether the six defaults
   should be refused by name instead of leaking RC-field errors. (sec 3)
 - F. "Should `extract(type = 'trees')` read the CURRENT trees on a keepSampler-only
-  fit, or refuse?" - [[plotTree.Rd:39-42@b102e17c]] already documents that fallback for plotTree,
+  fit, or refuse?" - [man/plotTree.Rd:39-42](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/plotTree.Rd#L39-L42) already documents that fallback for plotTree,
   so the two surfaces should agree either way. (G6)
 - G. "Do `pdbart`/`pd2bart` get the fit generics, or refuse?" (sec 3)
 
@@ -295,6 +295,6 @@ Only the non-AGREE rows and the load-bearing AGREEs are listed.
 - Numeric correctness: cells record class, dims, dimnames and attributes only, so the
   heteroscedastic loglik/ppd/summary defect the 08-24 value scan reported is neither
   confirmed nor refuted here (shapes are consistent everywhere). Likewise
-  `contribution = TRUE` arithmetic and the `bases =` identity at [[bart.Rd:301@b102e17c]].
+  `contribution = TRUE` arithmetic and the `bases =` identity at [man/bart.Rd:301](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L301).
 - `plot` CONTENT: an accepted `plot` cell means only that it drew without error.
-- `pdbart`'s own argument surface, and `run()`'s shapes at [[dbartsSampler-class.Rd:387@b102e17c]].
+- `pdbart`'s own argument surface, and `run()`'s shapes at [man/dbartsSampler-class.Rd:387](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsSampler-class.Rd#L387).

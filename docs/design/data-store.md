@@ -20,7 +20,7 @@ transaction, the R-protection story - follows from that.
 directly on the store as parallel vectors, one entry per predictor:
 
 - `types` - `ColumnKind::numeric`, `categorical`, or `orderedFactor`
-  ([[data.hpp#types, ColumnKind]]). Splitting keys on the DERIVED predicate
+  ([`types`](../../src/bartcore/data.hpp), [`ColumnKind`](../../src/bartcore/data.hpp)). Splitting keys on the DERIVED predicate
   `splitsBySubset(j)`, not on the kind: only grid construction, ingestion
   validation and reporting read the kind itself.
 - `numCuts[j]` - the threshold count: `n.cuts` (or the quantile-induced
@@ -54,7 +54,7 @@ code blocks quantize against it by identity - a view or a test block bins
 identically to its parent by construction because it copies these fields,
 not because any code re-derives them.
 
-`codeFor(j, value)` ([[data.hpp#codeFor]]) is the one quantizer: ordinal values
+`codeFor(j, value)` ([`codeFor`](../../src/bartcore/data.hpp)) is the one quantizer: ordinal values
 map by `lower_bound` over `cutPoints[j]` (a value above every cut takes
 code `numCuts[j]`, always right of any split); categorical values are
 their own integer code; missing values take `naCode` (ordinal) or
@@ -63,7 +63,7 @@ or K pooled).
 
 ## CodeBlock (train and test)
 
-A `CodeBlock` ([[data.hpp#CodeBlock]]) holds one row set's codes over the store's
+A `CodeBlock` ([`CodeBlock`](../../src/bartcore/data.hpp)) holds one row set's codes over the store's
 grid. `ColumnStore` instantiates two: `train` and `test`. Each owns:
 
 - `codes` - the packed dense codes, a single contiguous `xint_t` vector.
@@ -100,10 +100,10 @@ What stays store-level, not block-level, and why:
 ## ColumnSource and its five kinds
 
 Per-column storage is one explicit descriptor, `ColumnSource`
-([[data.hpp#ColumnSource]]), carried in `CodeBlock::sources` and sized to
+([`ColumnSource`](../../src/bartcore/data.hpp)), carried in `CodeBlock::sources` and sized to
 `numPredictors` on any side that has rows (train always after a build;
 test whenever `numTestObservations > 0`; both empty on a reset test
-store). `ColumnSourceKind` ([[data.hpp#ColumnSourceKind]]) discriminates five kinds; each
+store). `ColumnSourceKind` ([`ColumnSourceKind`](../../src/bartcore/data.hpp)) discriminates five kinds; each
 reads only the descriptor fields it owns:
 
 The discriminator names WHICH POOL the column's raw lives in, not who owns
@@ -142,7 +142,7 @@ dense-backed factor inside a mixed container declares a level table the
 same way a CSC-backed one does. `refCode` is read on BOTH sides: its
 test-side value comes from the test view's `referenceCodes`
 (`PredictorSource`, `data.hpp`), and `quantizeCscColumnInto` reads it
-block-parametrically for the implicit rows ([[data.hpp#quantizeCscColumnInto]]). It holds the
+block-parametrically for the implicit rows ([`quantizeCscColumnInto`](../../src/bartcore/data.hpp)). It holds the
 reference level's level-order code - not the sparse storage's structural
 zero; it may be any valid code, including 0. A dense factor codes its
 reference level by level order too, which the bitwise-vs-dense gate
@@ -152,14 +152,14 @@ their code; an ordinal one's take the quantized zero.
 Re-quantization resolves the raw source per kind through three accessors
 whose fallback orders are the contract:
 
-- `rawColumnForRequantize(j, x)` ([[data.hpp#rawColumnForRequantize]]): factor -> null (it never
+- `rawColumnForRequantize(j, x)` ([`rawColumnForRequantize`](../../src/bartcore/data.hpp)): factor -> null (it never
   re-quantizes); CSC-backed -> null (the slice serves it); `denseResident`
   -> `residentRaw`; else `x + j*n` (or null if `x` is null). This is the
   mutation/setCutPoints path.
-- `rawColumn(j)` ([[data.hpp#rawColumn]], owned training raw for leaf models):
+- `rawColumn(j)` ([`rawColumn`](../../src/bartcore/data.hpp), owned training raw for leaf models):
   gathered slot -> `gatheredRawValues`; `denseResident` -> `residentRaw`;
   else null.
-- `rawTestColumn(j)` ([[data.hpp#rawTestColumn]]): if `test.sources` is populated,
+- `rawTestColumn(j)` ([`rawTestColumn`](../../src/bartcore/data.hpp)): if `test.sources` is populated,
   `denseResident` -> `residentRaw` and CSC-backed -> null (sparse storage
   serves no dense test covariate); else the gathered slot ->
   `gatheredRawTestValues`; else null.
@@ -225,7 +225,7 @@ sampler's designated leaf covariates - or, for a data handle, the
 leaf-covariate columns declared at its creation (empty for a
 constant-leaf consumer) - into `gatheredRawValues`
 (column-major, `numObservations x q`), refreshed in the same pass as each
-column quantizes ([[data.hpp#quantizeColumn]]). `rawColumn` then
+column quantizes ([`quantizeColumn`](../../src/bartcore/data.hpp)). `rawColumn` then
 serves owned memory for the store's lifetime, borrow long since released.
 Few columns are gathered, so the slot lookup is a linear scan
 (`gatheredSlotForColumn`).
@@ -249,7 +249,7 @@ reset test store drops it with the rest of the test store.
 
 ## View semantics (buildFromParent)
 
-A view ([[data.hpp#buildFromParent]]) is a row- and column-subset of
+A view ([`buildFromParent`](../../src/bartcore/data.hpp)) is a row- and column-subset of
 a built parent store, used by xbart folds and the data-handle path. It:
 
 - copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
@@ -286,23 +286,23 @@ no re-quantize source at all - the bridge's `refuseMutationOnView`).
 
 Mutation is transactional and lives in the sampler, not the store: the
 store exposes primitive re-quantize/rollback methods, and
-`runPredictorTransaction` ([[sampler.hpp#runPredictorTransaction]]) sequences them. Two
+`runPredictorTransaction` ([`runPredictorTransaction`](../../src/bartcore/sampler.hpp)) sequences them. Two
 strategies parameterize it:
 
-- `WholeMatrixUpdate` ([[sampler.hpp#WholeMatrixUpdate]]), driving `setPredictor`: moves
+- `WholeMatrixUpdate` ([`WholeMatrixUpdate`](../../src/bartcore/sampler.hpp)), driving `setPredictor`: moves
   the whole live `train.codes` aside into `oldCodes`, rebuilds into fresh
   storage, snapshots `hasMissing` and (if cuts refresh) `cutPoints`. A
   reject swaps the codes back by move; an accept drops them. No
   whole-matrix copy survives.
-- `SubsetUpdate` ([[sampler.hpp#SubsetUpdate]]), driving `updatePredictor`:
+- `SubsetUpdate` ([`SubsetUpdate`](../../src/bartcore/sampler.hpp)), driving `updatePredictor`:
   journals each touched column cell-by-cell via `setColumnJournaled`,
   recording each changed cell's old code into a `ColumnCodeRollback`
-  ([[data.hpp#ColumnCodeRollback]]). Past a quarter of the column changed, the journal
+  ([`ColumnCodeRollback`](../../src/bartcore/data.hpp)). Past a quarter of the column changed, the journal
   falls back to a whole pre-change column copy and stops journaling. Per
   column it also snapshots `hasMissing[j]` and (if cuts refresh)
   `cutPoints[j]`.
 
-The transaction sequence ([[sampler.hpp#runPredictorTransaction]]):
+The transaction sequence ([`runPredictorTransaction`](../../src/bartcore/sampler.hpp)):
 
 1. Precheck every column with `cutsWouldRemainValid` - quantile
    feasibility for numeric columns when cuts refresh, level-code validity
@@ -359,10 +359,10 @@ Owned by the store (survive the borrow):
   every CSC-backed test column's nonzeros so each slice points into
   storage that never reallocates). The engine borrows no test matrix;
 - a MUTATED train-side CSC column's nonzeros
-  ([[data.hpp#ownedCscValues, ownedCscRows]]). A CSC-backed column keeps its
+  ([`ownedCscValues`](../../src/bartcore/data.hpp), [`ownedCscRows`](../../src/bartcore/data.hpp)). A CSC-backed column keeps its
   build-time borrow until a mutation writes it: `mutateCscColumnFromDense`
   moves the new rows and values into these buffers, `repointOwnedSlice`
-  ([[data.hpp#repointOwnedSlice]]) aims `train.sources[j].slice` at them, and
+  ([`repointOwnedSlice`](../../src/bartcore/data.hpp)) aims `train.sources[j].slice` at them, and
   `cscColumnOwned[j]` records the switch - so every later re-quantize
   (`setCutPoints`, state restore) reads the live values rather than a borrow
   that no longer reflects them. Untouched columns keep the borrow.
@@ -411,8 +411,8 @@ else. `rawColumn(j)` gives owned training raw for a gathered column;
 `rawTestColumn(j)` gives the test twin; `suppliedStandardization(j, ...)`
 gives parent-derived constants on a view (compute your own from
 `standardizationMomentsForColumn` when it returns false). This is exactly
-what `LinearGaussianLeaf` ([[model.hpp#LinearGaussianLeaf]]) and
-`GPGaussianLeaf` ([[model.hpp#GPGaussianLeaf]]) do.
+what `LinearGaussianLeaf` ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)) and
+`GPGaussianLeaf` ([`GPGaussianLeaf`](../../src/bartcore/model.hpp)) do.
 
 Guarantees: for a column your model designated as a covariate, `rawColumn`
 and `rawTestColumn` are both non-null on a top-level store (the build
@@ -432,7 +432,7 @@ whole-data replacement) at the right moments.
 You touch NONE of the data layer. A response family owns the response
 channel - `workingResponse()`, `workingWeights()`, `latents()`,
 `workingWeightsVaryPerSweep()` - which the `Chain` scan consumes
-([[chain.hpp#workingResponse, workingWeights, latents, workingWeightsVaryPerSweep]]); the
+([`workingResponse`](../../src/bartcore/chain.hpp), [`workingWeights`](../../src/bartcore/chain.hpp), [`latents`](../../src/bartcore/chain.hpp), [`workingWeightsVaryPerSweep`](../../src/bartcore/chain.hpp)); the
 predictor store is a separate object (`data_`) the family never reads. Ordinal (cumulative-probit,
 `docs/design/ordinal.md`) and robust Student-t errors
 (`docs/design/robust-errors.md`) are the precedent trail: both added a
@@ -459,7 +459,7 @@ matrix it cannot ingest refuses the whole call rather than leaving new
 training values beside a silently dropped test set. The split: the R
 bridge validates CSC structure (rows strictly increasing, unique, in
 range - "malformed sparse predictor matrix") and categorical placement - a fully-sparse dgCMatrix x
-refuses categoricals outright ([[R_interface_bartcore.cpp#"sparse predictor matrices must be entirely ordinal"]]), while a mixed
+refuses categoricals outright (["sparse predictor matrices must be entirely ordinal"](../../src/R_interface_bartcore.cpp)), while a mixed
 container ADMITS CSC-backed categoricals given the container's reference
 metadata (`cscReferenceMeta`/`cscCategoryCountMeta`, resolved per
 predictor through `resolveCscCategoricalReferences`). The bridge also
@@ -470,7 +470,7 @@ all of that holds. Use the composed helpers - `parseCscMatrix`, `parseMixedConta
 container parses from one body.
 
 State blocks are read BY NAME and defaulted when absent
-([[R_interface_bartcore.cpp#setState]]): a newer release's additive blocks load
+([`setState`](../../src/R_interface_bartcore.cpp)): a newer release's additive blocks load
 into an older reader, and only an encoding below
 `minReadableStateFormatVersion` is refused. Preserve that when you add a
 block - name it, default it, do not reorder. Predictors are not serialized

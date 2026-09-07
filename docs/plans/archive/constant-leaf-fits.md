@@ -16,25 +16,25 @@ the dense slab unchanged.
 ## Context
 
 - The scalar draw already lands in forest.paramByNode (node-indexed,
-  [[chain.hpp:2050-2057@ee8850a4]]) and then scatters it into the slab
-  ([[chain.hpp:2066-2072@ee8850a4]]); the test path already reads paramByNode
-  directly ([[chain.hpp:2075-2080@ee8850a4]]). The compact form persists that table
+  [src/bartcore/chain.hpp:2050-2057](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L2050-L2057)) and then scatters it into the slab
+  ([src/bartcore/chain.hpp:2066-2072](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L2066-L2072)); the test path already reads paramByNode
+  directly ([src/bartcore/chain.hpp:2075-2080](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L2075-L2080)). The compact form persists that table
   per tree and deletes the scatter.
 - Hot consumers, all value-preserving under mu[leafOf[i]] gathers with
-  loop order unchanged: the fused residual rolls ([[chain.hpp:618-634@ee8850a4]] and
-  the no-recording twin near [[chain.hpp:861-898@ee8850a4]] - keep the two in
-  lockstep), the totalFits rebuild ([[chain.hpp:669-677@ee8850a4]]), prior refresh
-  ([[chain.hpp:956-990@ee8850a4]]), the mutation add/sub pair ([[chain.hpp:1068-1071@ee8850a4]]),
-  the restore rebuild ([[chain.hpp:1117-1153@ee8850a4]]).
+  loop order unchanged: the fused residual rolls ([src/bartcore/chain.hpp:618-634](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L618-L634) and
+  the no-recording twin near [src/bartcore/chain.hpp:861-898](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L861-L898) - keep the two in
+  lockstep), the totalFits rebuild ([src/bartcore/chain.hpp:669-677](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L669-L677)), prior refresh
+  ([src/bartcore/chain.hpp:956-990](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L956-L990)), the mutation add/sub pair ([src/bartcore/chain.hpp:1068-1071](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L1068-L1071)),
+  the restore rebuild ([src/bartcore/chain.hpp:1117-1153](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L1117-L1153)).
 - Slab-wide consumers that become mu-table ops, bitwise-identically:
-  BCF glue scale ([[combiner.hpp:488@ee8850a4]] - scaling mu then gathering equals
-  scaling each entry), level-centering tree-0 shift ([[combiner.hpp:756@ee8850a4]]),
-  drawGlue leaf-value read ([[combiner.hpp:459-467@ee8850a4]] - the entry IS mu).
+  BCF glue scale ([src/bartcore/combiner.hpp:488](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/combiner.hpp#L488) - scaling mu then gathering equals
+  scaling each entry), level-centering tree-0 shift ([src/bartcore/combiner.hpp:756](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/combiner.hpp#L756)),
+  drawGlue leaf-value read ([src/bartcore/combiner.hpp:459-467](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/combiner.hpp#L459-L467) - the entry IS mu).
 - Dense materialization stays available for exports: the memcpy
-  accessor ([[chain.hpp:495@ee8850a4]]) and any other raw-slab reader gather into
+  accessor ([src/bartcore/chain.hpp:495](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L495)) and any other raw-slab reader gather into
   the caller's buffer (identical bytes). Audit the standalone call at
-  [[chain.hpp:1872@ee8850a4]] (local fits buffer) and storeSavedTreeRecord
-  ([[chain.hpp:1268@ee8850a4]]), which runs while params are live and can read them
+  [src/bartcore/chain.hpp:1872](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L1872) (local fits buffer) and storeSavedTreeRecord
+  ([src/bartcore/chain.hpp:1268](https://github.com/vdorie/dbarts/blob/ee8850a47942f2599d9566343016807b6f9c7e4a/src/bartcore/chain.hpp#L1268)), which runs while params are live and can read them
   instead of fits.
 - leafOf invariant: leafOf_t[i] holds the bottom-node index owning
   observation i, correct whenever a consumer reads it. Maintenance is

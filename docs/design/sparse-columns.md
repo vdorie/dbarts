@@ -326,13 +326,13 @@ Implemented per the plan above; deltas and specifics:
   column, negative the complement (~) of a CSC column. buildFromCsc is
   now a thin wrapper (an all-complement map), so the pure-CSC path runs
   the same code. Per-column raw access goes through the column's own
-  source descriptor (ColumnSource, [[src/bartcore/data.hpp:273@cfe0db64]]) and the quantize/cut
+  source descriptor (ColumnSource, [src/bartcore/data.hpp:273](https://github.com/vdorie/dbarts/blob/cfe0db6435313a6657a113710b2f3ea5c6e68ffd/src/bartcore/data.hpp#L273)) and the quantize/cut
   dispatch through columnIsCscBacked(j); every reader of x + j*n in
   data.hpp was rewired. rawColumn(j) serves a mixed store's REAL-VALUED
   dense-backed columns out of the store's own block, which gives linear
   leaves and view raw-gather for free; a dense-backed FACTOR column keeps
   codes and no doubles, and a designated one is served by the build's
-  gather instead ([[src/bartcore/data.hpp:923@cfe0db64]]). buildFromParent gathers through
+  gather instead ([src/bartcore/data.hpp:923](https://github.com/vdorie/dbarts/blob/cfe0db6435313a6657a113710b2f3ea5c6e68ffd/src/bartcore/data.hpp#L923)). buildFromParent gathers through
   parent.rawColumn per column, skipping columns the parent cannot serve
   (the facade then refuses those designations), and inherits parent
   standardization constants when the parent is itself a view. The whole

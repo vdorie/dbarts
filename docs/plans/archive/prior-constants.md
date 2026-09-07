@@ -15,15 +15,15 @@ dedicated argument.
 
 - Unargued defaults on the new surface (audit, 2026-07-06): k = 2,
   power = 2, base = 0.95 (CGM/BayesTree), sigdf = 3 / sigquant = 0.9
-  (CGM 2010; [[src/bartcore/model.hpp:1613-1615@7d43dc5c]] attributes to "the
+  (CGM 2010; [src/bartcore/model.hpp:1613-1615](https://github.com/vdorie/dbarts/blob/7d43dc5c9ed51f098de3c21c7d9aaea7b8c377ee/src/bartcore/model.hpp#L1613-L1615) attributes to "the
   classic engine"), node.scale 3.0 probit (bare anchor; logistic
-  pi*sqrt(3) is derived FROM it, [[R/dbarts.R:295-302@7d43dc5c]]), n.trees 200
+  pi*sqrt(3) is derived FROM it, [R/dbarts.R:295-302](https://github.com/vdorie/dbarts/blob/7d43dc5c9ed51f098de3c21c7d9aaea7b8c377ee/R/dbarts.R#L295-L302)), n.trees 200
   (BayesTree) / 75 (dbarts historical), dart update delay = half
-  burn-in (BART package startdart convention, [[R/model.R:123-127@7d43dc5c]]).
+  burn-in (BART package startdart convention, [R/model.R:123-127](https://github.com/vdorie/dbarts/blob/7d43dc5c9ed51f098de3c21c7d9aaea7b8c377ee/R/model.R#L123-L127)).
 - Grouped tau slice sampling takes exactly n.thin steps because the
   rbart_vi R loop did (docs/design/grouped-random-effects.md, "the R
   loop's coupling").
-- [[man/bart.Rd:336-345@7d43dc5c]] cites CGM 2006/2009 generically, tying no
+- [man/bart.Rd:336-345](https://github.com/vdorie/dbarts/blob/7d43dc5c9ed51f098de3c21c7d9aaea7b8c377ee/man/bart.Rd#L336-L345) cites CGM 2006/2009 generically, tying no
   constant to a source.
 
 ## Constraints

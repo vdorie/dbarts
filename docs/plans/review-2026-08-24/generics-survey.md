@@ -8,7 +8,7 @@ ran.  Nothing from memory.
 
 ## 0. dbarts today - the baseline the four siblings must match
 
-### 0.1 plot.bart ([[R/plot.R:47@0045507c]])
+### 0.1 plot.bart ([R/plot.R:47](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/plot.R#L47))
 `plot.bart(x, plquants = c(0.05, 0.95), cols = c("blue", "black"), ...)`; errors by name when
 `yhat.train` is absent.  Gaussian gets two panels.  LEFT (gated on `"sigma" %in% names(x)`):
 `plotSigmaTrace(x$first.sigma, x$sigma)` sets `par(mfrow = c(1, 2))` and draws the residual-scale
@@ -19,27 +19,27 @@ posterior MEDIAN of `yhat.train` on y, a vertical `plquants` interval per observ
 Binary gets ONE full-device panel (no `sigma`, so no left panel): the same construction on
 `probabilityFromLatents(...)` but plotted `qm` against `qm` - median p on BOTH axes, `xlab =
 "median of p"`; a caterpillar, not an observed-vs-fitted panel.  `plot.rbart` is the same with
-`yhat.train + ranef` substituted. `plot.bartMultinomial(x, cols = NULL, ...)` ([[R/plot.R:191@0045507c]])
+`yhat.train + ranef` substituted. `plot.bartMultinomial(x, cols = NULL, ...)` ([R/plot.R:191](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/plot.R#L191))
 already ships but is NOT a sibling: ONE full-device panel, a per-category trace of
 `multinomialMeanProbArray(x)` (training-mean predicted probability per draw, chains pooled), `xlab
 = "iteration"`, `ylab = "mean predicted probability"`, level legend.  MEASURED: `plot()` on a
 bartOrdinal / bartNegbin / bartHurdle falls to `plot.default` and dies with `'x' is a list, but
 does not have components 'x' and 'y'`.
-### 0.2 extract(type = "loglik") ([[R/generics.R:37-160@0045507c]]; [[man/bart.Rd:201@0045507c]])
+### 0.2 extract(type = "loglik") ([R/generics.R:37-160](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L37-L160); [man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/man/bart.Rd#L201))
 Computed entirely in R by `pointwiseLogLikelihood(object, ev)`, keyed on `object$family`. The
-engine's own channel ([[chain.hpp:5394@0045507c]]) is reachable only through the flat C API
-(`dbarts_results.logLikelihood`, [[dbarts.h:201@0045507c]]), never from `bart2`.  Implemented: gaussian
+engine's own channel ([src/bartcore/chain.hpp:5394](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/chain.hpp#L5394)) is reachable only through the flat C API
+(`dbarts_results.logLikelihood`, [inst/include/dbarts/dbarts.h:201](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/inst/include/dbarts/dbarts.h#L201)), never from `bart2`.  Implemented: gaussian
 `dnorm(y, ev, sigma/sqrt(w), log = TRUE)` ; probit/logistic `dbinom(y, 1, p, log = TRUE)` times
 `w` for logistic (trial counts); aft, normal density for events and log upper tail for censored
 rows.  Anything else errors by name - all four target families land there (feature-matrix.md cells
-read `M [[generics.R:129@0045507c]]`; [f25] records hurdle). Contract ([[man/bart.Rd:201@0045507c]],
+read `M` [R/generics.R:129](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L129); [f25] records hurdle). Contract ([man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/man/bart.Rd#L201),
 inst/tinytest/test-pointwise-loglik.R): extract-only (`predict`/`fitted` error "type must be in");
 `sample = "test"` refused by name; `dim(loglik) == dim(extract(type = "ev"))`; combined default =
 samples-by-observations, "directly consumable by WAIC/PSIS-LOO ... such as those in the loo
 package"; uncombined = chains-first `n.chains x n.samples x n.obs` with a documented `aperm(x,
 c(2, 1, 3))` to reach loo's iteration x chain x N.  Offsets never appear in the formula - they are
 already inside the stored `ev`.
-### 0.3 as_draws_array / as_draws_df ([[R/diagnostics.R:177-185@0045507c]], R/hooks.R)
+### 0.3 as_draws_array / as_draws_df ([R/diagnostics.R:177-185](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/diagnostics.R#L177-L185), R/hooks.R)
 Registered dynamically into posterior's namespace on its onLoad (posterior is Suggests-only), for
 `bart` and `rbart` ONLY, signature `(x, vars = c("sigma", "k", "tau"), ...)`.  `bartDrawsArray`
 gathers named fields into one (iteration, chain, variable) array; scalar fields keep the bare
@@ -68,16 +68,16 @@ Constraining facts, MEASURED or read:
 - ordinal `cutpoints[, 1]` is pinned at exactly 0 (scheme A, ordinal.md section 2);
   `summary.bartOrdinal` reports it with rhat = NA.  nbinom `dispersion` draws are INTEGERS
   (MEASURED 3,4,4,4): r rides an integer grid.
-- WEIGHTS ARE REFUSED for all four ([[R/spec.R:45-88@0045507c]] for ordinal and nbinom, each with an all-ones
-  courtesy that NULLs the field; [[R/bart.R:831@0045507c]] multinomial; [[R/bart.R:1152@0045507c]] hurdle). No family's
+- WEIGHTS ARE REFUSED for all four ([R/spec.R:45-88](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/spec.R#L45-L88) for ordinal and nbinom, each with an all-ones
+  courtesy that NULLs the field; [R/bart.R:831](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bart.R#L831) multinomial; [R/bart.R:1152](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bart.R#L1152) hurdle). No family's
   loglik needs a weight term and no fit object carries a `weights` field.
 - OFFSETS are already inside every stored channel (multinomial's n x K category offset enters
   before the softmax; ordinal's eta and nbinom's psi are `f(x) + o`).  No explicit offset term is
   needed either.
-- The ENGINE already implements ordinal ([[model.hpp:3304@0045507c]], the Phi difference) and nbinom
-  ([[model.hpp:4480@0045507c]]) pointwise densities, and deliberately does NOT for multinomial
-  (`logLikelihoodIsDefined()` false - [[model.hpp:3710@0045507c]], [[chain.hpp:5396@0045507c]], [[docs/design/multinomial.md:304@0045507c]]).
-  [[dbarts.h:174@0045507c]] still says the channel covers "gaussian, binary, and aft", understating it.
+- The ENGINE already implements ordinal ([src/bartcore/model.hpp:3304](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/model.hpp#L3304), the Phi difference) and nbinom
+  ([src/bartcore/model.hpp:4480](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/model.hpp#L4480)) pointwise densities, and deliberately does NOT for multinomial
+  (`logLikelihoodIsDefined()` false - [src/bartcore/model.hpp:3710](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/model.hpp#L3710), [src/bartcore/chain.hpp:5396](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/chain.hpp#L5396), [docs/design/multinomial.md:304](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/docs/design/multinomial.md#L304)).
+  [inst/include/dbarts/dbarts.h:174](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/inst/include/dbarts/dbarts.h#L174) still says the channel covers "gaussian, binary, and aft", understating it.
 - The three K/count families' `extract` methods have NO `combineChains` formal; they return the
   fit's stored layout.  Only `extract.bartHurdle` has one.
 
@@ -183,7 +183,7 @@ what `summary()` already tables - never the per-observation channels; that is th
     REJECTED: a rootogram (the count community's real idiom, countreg/topmodels) - it needs a
     posterior-predictive binning choice and is not a sibling of plot.bart; record it as a door.
 (b) loglik: `l[s,i] = dnbinom(y_i, size = r_s, mu = mu_si, log = TRUE)` with `r_s =
-    dispersion[s]`, `mu_si = yhat.train[s,i]`.  Identical to the engine's form ([[model.hpp:4480@0045507c]])
+    dispersion[s]`, `mu_si = yhat.train[s,i]`.  Identical to the engine's form ([src/bartcore/model.hpp:4480](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/model.hpp#L4480))
     and to `dnbinom(y, size = r, prob = 1 - plogis(psi))`, both VERIFIED numerically on a fitted
     object, as was `mu == r*exp(psi)`.  Prefer the `mu =` spelling: R-core vocabulary, matches
     brms `shape` and rstanarm `reciprocal_dispersion`, and reads the two stored channels directly.
@@ -214,8 +214,8 @@ what `summary()` already tables - never the per-observation channels; that is th
     difference to machine precision.  One line, needs no cutpoints, works on a fit whose sampler
     was not kept.
 On "already implemented and exported": the cumulative-probit density is implemented
-TWICE - in the engine at [[model.hpp:3304@0045507c]] (`OrdinalResponse::computeLogLikelihood`,
-reachable through `dbarts_results.logLikelihood`), and in R at [[R/bart.R:1735@0045507c]]
+TWICE - in the engine at [src/bartcore/model.hpp:3304](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/bartcore/model.hpp#L3304) (`OrdinalResponse::computeLogLikelihood`,
+reachable through `dbarts_results.logLikelihood`), and in R at [R/bart.R:1735](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bart.R#L1735)
 `ordinalCategoryProbabilities(eta, cutpoints)`, which is INTERNAL, not in NAMESPACE.
 So the C channel is exported, the R function is not; both agree with the
 log(stored probability) form.

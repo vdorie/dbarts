@@ -12,9 +12,9 @@ weighted by effective observation count.
 ## Context
 
 - collapseEmptyNodesBelow: effective-observation-weighted mean
-  ([[src/bartcore/tree.hpp:1091-1132@689b1200]]).
+  ([src/bartcore/tree.hpp:1091-1132](https://github.com/vdorie/dbarts/blob/689b1200aeca31ff37383bf3171c79d443107407/src/bartcore/tree.hpp#L1091-L1132)).
 - mapCutPointsBelow: plain unweighted mean over bottom nodes
-  ([[src/bartcore/tree.hpp:1039-1053@689b1200]]).
+  ([src/bartcore/tree.hpp:1039-1053](https://github.com/vdorie/dbarts/blob/689b1200aeca31ff37383bf3171c79d443107407/src/bartcore/tree.hpp#L1039-L1053)).
 - The divergence is a verbatim classic port (main:src/dbarts/tree.cpp,
   collapseEmptyNodes vs mapCutPoints); no statistical rationale exists
   for the plain mean, and the rewrite's no-bit-parity license

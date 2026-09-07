@@ -15,9 +15,9 @@ the same additive API bump.
 ## Context
 
 - The per-sweep dispatch point already exists: Sampler::run's
-  pollInterrupt std::function ([[src/bartcore/sampler.hpp:180-186@a36687ad]]);
-  dbarts_sampler_run does not forward it ([[src/C_interface.cpp:58-72@a36687ad]]).
-- Worker threads must never call into R ([[sampler.hpp:253-278@a36687ad]]; the
+  pollInterrupt std::function ([src/bartcore/sampler.hpp:180-186](https://github.com/vdorie/dbarts/blob/a36687ad0ba63d63fa7be52a17666a64831cfe05/src/bartcore/sampler.hpp#L180-L186));
+  dbarts_sampler_run does not forward it ([src/C_interface.cpp:58-72](https://github.com/vdorie/dbarts/blob/a36687ad0ba63d63fa7be52a17666a64831cfe05/src/C_interface.cpp#L58-L72)).
+- Worker threads must never call into R ([src/bartcore/sampler.hpp:253-278](https://github.com/vdorie/dbarts/blob/a36687ad0ba63d63fa7be52a17666a64831cfe05/src/bartcore/sampler.hpp#L253-L278); the
   ProgressSink queue exists for this reason).
 - dbarts_results lacks tau/groupEffects, which bartcore::Results
   carries (src/bartcore/chain.hpp); public-surface.md section 6

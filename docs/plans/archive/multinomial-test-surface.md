@@ -51,47 +51,47 @@ bitwise. dbarts.h stays frozen (all internal + R surface).
 BCF leaves testFitsAreDefined() false for a real reason: a mu + b_z tau
 off-sample needs a test treatment vector the API never carries, so only the
 bare prognostic forest could be recorded and it would misreport
-(refuseBCFTestSurface, [[R_interface_bartcore.cpp:1403-1409@6a48351b]];
-BCFForestCombiner::testFitsAreDefined, [[combiner.hpp:490@6a48351b]]). The multinomial test
+(refuseBCFTestSurface, [src/R_interface_bartcore.cpp:1403-1409](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/R_interface_bartcore.cpp#L1403-L1409);
+BCFForestCombiner::testFitsAreDefined, [src/bartcore/combiner.hpp:490](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L490)). The multinomial test
 blend has no such gap: softmax over the K forests' totalTestFits is the SAME
-map combinedFits already applies to the K forests' totalFits ([[combiner.hpp:597@6a48351b]]-
+map combinedFits already applies to the K forests' totalFits ([src/bartcore/combiner.hpp:597](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L597)-
 611), and every one of the K forests already accumulates its own totalTestFits
-in the sweep (resizeTestStorage loops all forests, [[chain.hpp:491-498@6a48351b]]; the
+in the sweep (resizeTestStorage loops all forests, [src/bartcore/chain.hpp:491-498](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L491-L498); the
 per-forest test accumulation runs inside the `for f` sweep loop,
-[[chain.hpp:585-641@6a48351b]]). What is missing is a combined-TEST-fits seam: storeSample's
+[src/bartcore/chain.hpp:585-641](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L585-L641)). What is missing is a combined-TEST-fits seam: storeSample's
 test loop reads the reported forest's totalTestFits directly (single-forest
-shaped, [[chain.hpp:2191-2194@6a48351b]]) instead of asking the combiner for a K-location
+shaped, [src/bartcore/chain.hpp:2191-2194](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L2191-L2194)) instead of asking the combiner for a K-location
 test blend.
 
 ### The level-shift invariance (why the test channel is correct without touching it)
 
 MultinomialForestCombiner::afterCombine's grand-shift c is added to every f_ik
-uniformly across all K forests ([[combiner.hpp:655-663@6a48351b]]) but is NOT applied to
+uniformly across all K forests ([src/bartcore/combiner.hpp:655-663](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L655-L663)) but is NOT applied to
 totalTestFits (nor need it be: keepTrees/test were out of scope at C4). This is
 fine and must be stated as a correctness fact, not a bug: the softmax is
 invariant to a common shift of all K categories, and c is common, so
 softmax({totalTestFits_k}) == softmax({totalTestFits_k + c}). At storeSample the
 train channel reads totalFits WITH this sweep's c (afterCombine at
-[[chain.hpp:673@6a48351b]] precedes storeSample at 692) and the test channel reads
+[src/bartcore/chain.hpp:673](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L673) precedes storeSample at 692) and the test channel reads
 totalTestFits WITHOUT it; both recover the softmax of the identified log-odds
 and agree. Same argument makes the predict replay correct although saved
 (flattened) tree leaves carry no c.
 
 ## Context (seams, read in code)
 
-- The combiner base virtuals ([[combiner.hpp:230-292@6a48351b]]): formForestResponse (236),
+- The combiner base virtuals ([src/bartcore/combiner.hpp:230-292](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L230-L292)): formForestResponse (236),
   combinedFits (241), the reporting map reportedForest/testFitsAreDefined/
   logLikelihoodIsDefined (276-278), numReportedLocations (286),
   drawForestGlue/afterCombine (257-269). combinedTestFits is the ONE new virtual
   this arc adds; it slots beside combinedFits, base inert, MultinomialForest-
   Combiner overriding it as combinedFits' totalTestFits analog. BCF leaves
   testFitsAreDefined false so it is never called on BCF.
-- MultinomialForestCombiner ([[combiner.hpp:540-688@6a48351b]]): combinedFits softmaxes over
+- MultinomialForestCombiner ([src/bartcore/combiner.hpp:540-688](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L540-L688)): combinedFits softmaxes over
   totalFits log-sum-exp-safe (597-611); testFitsAreDefined() returns false
   (559) - this is the flip. numReportedLocations() = K (558). The test analog is
   the same loop over forests[k].totalTestFits into an n_test x K
   location-major scratch.
-- storeSample's test loop ([[chain.hpp:2179-2198@6a48351b]]): if a combiner has
+- storeSample's test loop ([src/bartcore/chain.hpp:2179-2198](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L2179-L2198)): if a combiner has
   testFitsAreDefined() false it NaN-fills nTest * numLocations (2182-2189, BCF
   and today's multinomial); else it loops `loc` over numLocations writing the
   REPORTED forest's totalTestFits into every channel (2191-2197) - correct at
@@ -101,8 +101,8 @@ and agree. Same argument makes the predict replay correct although saved
   combiner_->combinedTestFits(forests_) (n_test x K location-major) for a
   multi-location one; the existing `scale * testSrc[loc*nTest+i] + shift` loop
   is then byte-identical at L = 1 (loc 0 reads totalTestFits[i]).
-- The reporting accessor gap: chain has numReportedLocations() ([[chain.hpp:438@6a48351b]])
-  surfaced on SamplerBase ([[facade.hpp:145@6a48351b]]/339) but NO testFitsAreDefined()
+- The reporting accessor gap: chain has numReportedLocations() ([src/bartcore/chain.hpp:438](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L438))
+  surfaced on SamplerBase ([src/bartcore/facade.hpp:145](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/facade.hpp#L145)/339) but NO testFitsAreDefined()
   accessor - it is combiner-internal, read only in storeSample. To let
   refuseBCFTestSurface allow multinomial while still refusing BCF, surface a
   chain testFitsAreDefined() (combiner_ ? combiner_->testFitsAreDefined() :
@@ -115,21 +115,21 @@ and agree. Same argument makes the predict replay correct although saved
   allocation changes - it is already K-test-shaped and dormant only because
   multinomial creation wires no test data and NaN-flags it.
 - Creation refuses test only by omission: createMultinomialHolder
-  ([[R_interface_bartcore.cpp:1667-1729@6a48351b]]) parses the data (parseData reads x_test/
+  ([src/R_interface_bartcore.cpp:1667-1729](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/R_interface_bartcore.cpp#L1667-L1729)) parses the data (parseData reads x_test/
   numTestObservations) but never calls setTestPredictors - unlike the
   single-forest createHolder, which wires it at 1552-1567. The multinomial path
   carries no offset (design note "The surface"), so test offset stays refused.
   refuseBCFTestSurface guards setTestPredictor (2456), setTestOffset (2501),
   setTestPredictorAndOffset (2527), and predict (3269) on numForests >= 2 -
   currently catching multinomial; it must gate on !testFitsAreDefined() instead.
-- Predict addresses forest 0 only: predictFromSavedSample ([[chain.hpp:1389-1408@6a48351b]],
+- Predict addresses forest 0 only: predictFromSavedSample ([src/bartcore/chain.hpp:1389-1408](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L1389-L1408),
   `const Forest<L>& forest = forests_[0]`) and predictFromCurrentTrees (1413-)
   sum a single forest; sampler.predict loops chains/slots into an nTest x
-  capacity (x nChains) buffer ([[sampler.hpp:491-504@6a48351b]]); the predict bridge
-  allocates that single-location shape ([[R_interface_bartcore.cpp:3283-3304@6a48351b]]). The
+  capacity (x nChains) buffer ([src/bartcore/sampler.hpp:491-504](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/sampler.hpp#L491-L504)); the predict bridge
+  allocates that single-location shape ([src/R_interface_bartcore.cpp:3283-3304](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/R_interface_bartcore.cpp#L3283-L3304)). The
   saved trees themselves ARE per-forest already: storeSavedTreeRecord runs
-  inside the `for f` sweep loop ([[chain.hpp:631@6a48351b]]), so every kept sample stores all
-  K forests' trees (Forest<L>::savedTrees, [[combiner.hpp:126-132@6a48351b]]). K-forest
+  inside the `for f` sweep loop ([src/bartcore/chain.hpp:631](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L631)), so every kept sample stores all
+  K forests' trees (Forest<L>::savedTrees, [src/bartcore/combiner.hpp:126-132](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L126-L132)). K-forest
   replay + softmax is the only new logic - the harder half.
 - R surface refusals to lift:
   - R/bartcore.R: bartcoreMultinomialSampler (556-580) passes no x.test to
@@ -192,15 +192,15 @@ Sub-parts:
    it - the combinedFits softmax over forests[k].totalTestFits into an
    n_test x K location-major combinedTest_ scratch (reads data_.numTest-
    Observations). Flip MultinomialForestCombiner::testFitsAreDefined() to true
-   ([[combiner.hpp:559@6a48351b]]). storeSample ([[chain.hpp:2179-2198@6a48351b]]): in the else (test
+   ([src/bartcore/combiner.hpp:559](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/combiner.hpp#L559)). storeSample ([src/bartcore/chain.hpp:2179-2198](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L2179-L2198)): in the else (test
    defined) branch, set `const double* testSrc` = (combiner_ &&
    combiner_->numReportedLocations() > 1) ? combiner_->combinedTestFits(forests_)
    : forest.totalTestFits.data(), then the existing loop writes
    scale*testSrc[loc*nTest+i]+shift - byte-identical at L = 1. Surface chain
-   testFitsAreDefined() ([[chain.hpp:438@6a48351b]] neighbor) and a SamplerBase override
-   ([[facade.hpp:145@6a48351b]]/339 neighbor).
+   testFitsAreDefined() ([src/bartcore/chain.hpp:438](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L438) neighbor) and a SamplerBase override
+   ([src/bartcore/facade.hpp:145](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/facade.hpp#L145)/339 neighbor).
 
-(b) BRIDGE. createMultinomialHolder ([[R_interface_bartcore.cpp:1667-1729@6a48351b]]): after
+(b) BRIDGE. createMultinomialHolder ([src/R_interface_bartcore.cpp:1667-1729](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/R_interface_bartcore.cpp#L1667-L1729)): after
    sampler creation, wire test predictors when data.numTestObservations > 0
    (mirror 1552-1565's dense/mixed setTestPredictors; refuse a leaf-covariate
    sparse test column is moot - multinomial is constant-leaf). Multinomial
@@ -220,12 +220,12 @@ Sub-parts:
    test-defined). Correct the 555 comment.
 
 (d) BART2 SURFACE (R/bart.R, R/generics.R). Remove the test= refusal
-   ([[bart.R:429-434@6a48351b]]); bart2Multinomial (666-714) threads test through the host
+   ([R/bart.R:429-434](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/bart.R#L429-L434)); bart2Multinomial (666-714) threads test through the host
    sampler creation (the host already accepts test=; the label-response host
    carries x.test) and bartcoreRun reports samples$test. packageMultinomial-
    Results (731-761): reshape samples$test the same way as samples$train, name
    levels on the trailing K margin, add yhat.test to the result. extract.bart-
-   Multinomial: remove the sample="test" refusal ([[generics.R:407-412@6a48351b]]), return
+   Multinomial: remove the sample="test" refusal ([R/generics.R:407-412](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/generics.R#L407-L412)), return
    yhat.test; keep the type="bart" refusal. fitted stays train-only (binary
    convention). print gains a test-rows line if present.
 
@@ -288,27 +288,27 @@ RNG-NEUTRAL (replay + keepTrees serialization consume no draw). Lands after C1.
 Sub-parts:
 
 (a) ENGINE. Generalize the saved-tree replay to K forests. predictFromSaved-
-   Sample ([[chain.hpp:1389-1408@6a48351b]]) and predictFromCurrentTrees (1413-) loop
+   Sample ([src/bartcore/chain.hpp:1389-1408](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/chain.hpp#L1389-L1408)) and predictFromCurrentTrees (1413-) loop
    forests_[f] instead of forests_[0], accumulating each forest's per-row total
    into a K-location-major slab, then apply the combiner's softmax (reuse
    combinedTestFits' map on the replayed totals, or a small predict-side softmax
-   over the K totals). sampler.predict ([[sampler.hpp:491-504@6a48351b]]) sizes the out slab
+   over the K totals). sampler.predict ([src/bartcore/sampler.hpp:491-504](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/bartcore/sampler.hpp#L491-L504)) sizes the out slab
    nTest x K x capacity (x nChains) for a multi-location sampler; single-location
    samplers keep the exact current shape and code path. The level-shift is absent
    from saved leaves but harmless (softmax invariance, above).
 
-(b) BRIDGE. bartcore_predict ([[R_interface_bartcore.cpp:3262-3314@6a48351b]]): allocate the
+(b) BRIDGE. bartcore_predict ([src/R_interface_bartcore.cpp:3262-3314](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/src/R_interface_bartcore.cpp#L3262-L3314)): allocate the
    K-location shape when numReportedLocations > 1 (an allocFitsArray-style
    insert of the K dimension), refuse per the testFitsAreDefined gate (BCF still
    refused). refuseBCFTestSurface already relaxed in C1.
 
 (c) R SURFACE. Un-refuse keepTrees in the bart2 multinomial branch
-   ([[bart.R:452-457@6a48351b]]) - storeSavedTreeRecord already saves all K forests, so
+   ([R/bart.R:452-457](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/bart.R#L452-L457)) - storeSavedTreeRecord already saves all K forests, so
    keepTrees just needs enabling and the K-forest replay from (a).
-   predict.bartMultinomial ([[generics.R:456-461@6a48351b]]): require keepTrees at fit
-   (mirror predict.bart's guard, [[generics.R:153@6a48351b]]), call the K-forest predict, and
+   predict.bartMultinomial ([R/generics.R:456-461](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/generics.R#L456-L461)): require keepTrees at fit
+   (mirror predict.bart's guard, [R/generics.R:153](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/generics.R#L153)), call the K-forest predict, and
    return a levels-named n x K probability array (per-chain shape matching the
-   binary predict convention). bartcorePredict ([[R/bartcore.R:780-786@6a48351b]]) needs no
+   binary predict convention). bartcorePredict ([R/bartcore.R:780-786](https://github.com/vdorie/dbarts/blob/6a48351bd533cfc8a652abb0f183ab48478b0247/R/bartcore.R#L780-L786)) needs no
    change beyond the K-shaped .Call return.
 
 (d) GATE. A reproduction test: predict on the fit-time test rows equals the run

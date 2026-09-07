@@ -37,55 +37,55 @@ Three forks, in the order they bind. Only the first is decided here.
 ## Context
 
 - Widened refusal at the time of this study: `refuseMultiForestTransactionalUpdate`
-  retired: [[src/R_interface_bartcore.cpp#refuseMultiForestTransactionalUpdate]]
+  retired: [`refuseMultiForestTransactionalUpdate`](../../src/R_interface_bartcore.cpp)
   and the separate
   `refuseVarianceForestPredictorMutation`
-  retired: [[src/R_interface_bartcore.cpp#refuseVarianceForestPredictorMutation]]
+  retired: [`refuseVarianceForestPredictorMutation`](../../src/R_interface_bartcore.cpp)
   - both gone; multiforest-predictor-mutation.md later retired the whole
   transactional setPredictor/updatePredictor refusal these guarded, in favour
   of accepting the mutation with rollback. Both fired only
   when `!forcedUpdate`; the FORCE paths stayed open and refreshed
   every forest.
 - Forest-0-only revalidation: `Chain::revalidateTrees`
-  ([[src/bartcore/chain.hpp#Chain::revalidateTrees]], `Forest& forest = forests_[0]`).
+  ([`Chain::revalidateTrees`](../../src/bartcore/chain.hpp), `Forest& forest = forests_[0]`).
   Two-phase all-chain transaction: `Sampler::revalidateAllChains`
-  ([[src/bartcore/sampler.hpp#Sampler::revalidateAllChains]]).
-- Per-observation session: [[src/bartcore/sampler.hpp#UpdateSessionImpl]]; predicate at
-  [[src/bartcore/sampler.hpp#UpdateSessionImpl::observationWouldRemainValid]]; tree enumeration at
-  [[src/bartcore/sampler.hpp#UpdateSessionImpl::treeAt]]
+  ([`Sampler::revalidateAllChains`](../../src/bartcore/sampler.hpp)).
+- Per-observation session: [`UpdateSessionImpl`](../../src/bartcore/sampler.hpp); predicate at
+  [`UpdateSessionImpl::observationWouldRemainValid`](../../src/bartcore/sampler.hpp); tree enumeration at
+  [`UpdateSessionImpl::treeAt`](../../src/bartcore/sampler.hpp)
   (no longer literally `chains_[t / numTrees]->tree(t % numTrees)`; now a cached
   per-slot chain/forest/tree lookup, and the general case is
-  [[src/bartcore/chain.hpp#Chain::treeInForest]] - the variance forest instead
-  reads [[src/bartcore/chain.hpp#Chain::varianceTree]]).
-- Joint multi-sampler sweep: [[src/bartcore/facade.hpp#updatePredictorPerObservationJointly]]; scan permutation from
+  [`Chain::treeInForest`](../../src/bartcore/chain.hpp) - the variance forest instead
+  reads [`Chain::varianceTree`](../../src/bartcore/chain.hpp)).
+- Joint multi-sampler sweep: [`updatePredictorPerObservationJointly`](../../src/bartcore/facade.hpp); scan permutation from
   `samplers[0]->rng()` there too.
 - The unit of study is **not** `numForests`. A heteroscedastic sampler
   keeps `numForests == 1`; the variance forest lives outside `forests_`
   and is signalled by `SamplerShape::hasVarianceForest`. Use
   `E = numForests + (hasVarianceForest ? 1 : 0)` - the number of ensembles
   routed off the shared column store. This confirms
-  [[docs/design/model-space-survey.md#2. What the engine serves today]] and
-  [[docs/design/model-space-survey.md#D3. Public BCF creation surface - CLOSED (2026-08-10 to 2026-08-11)]]; it does not correct
+  [2. What the engine serves today](../design/model-space-survey.md#2-what-the-engine-serves-today) and
+  [D3. Public BCF creation surface - CLOSED (2026-08-10 to 2026-08-11)](../design/model-space-survey.md#d3-public-bcf-creation-surface---closed-2026-08-10-to-2026-08-11); it does not correct
   it.
 - **The variance forest carries the same empty-leaf invariant as forest
-  0**: `refreshVarianceForest` ([[src/bartcore/chain.hpp#Chain::refreshVarianceForest]]) rejects a rebuild whose variance trees have an
+  0**: `refreshVarianceForest` ([`Chain::refreshVarianceForest`](../../src/bartcore/chain.hpp)) rejects a rebuild whose variance trees have an
   unoccupied bottom and asserts it -
   "the empty-leaf veto admits no unoccupied bottom into live state". So a widened veto adds no constraint the joint
   model does not already impose; it only makes the sampler enforce one it
   already implies. This is the whole basis of the re-grounded kill logic.
 - `E = 3` (heteroscedastic BCF) is **not constructible**:
   `createBCFSampler` returns nullptr on `numVarianceTrees > 0`
-  ([[src/bartcore/facade.hpp#createAmplitudeSampler]]), multinomial likewise
-  ([[src/bartcore/facade.hpp#createMultinomialSampler]]), both asserted at
-  [[tests/cpp/test_model.cpp#testVarianceForestRefusal]].
+  ([`createAmplitudeSampler`](../../src/bartcore/facade.hpp)), multinomial likewise
+  ([`createMultinomialSampler`](../../src/bartcore/facade.hpp)), both asserted at
+  [`testVarianceForestRefusal`](../../tests/cpp/test_model.cpp).
 - **A tree with no split on the mutated column cannot veto - exactly.**
   In `UpdateSessionImpl` the override never fires
-  ([[src/bartcore/tree.hpp#findBottomNodeForObservation]]), so `newLeaf == oldLeaf` and `valid` is untouched
-  ([[src/bartcore/sampler.hpp#UpdateSessionImpl::observationWouldRemainValid]]); in `revalidateTrees` the repartition
+  ([`findBottomNodeForObservation`](../../src/bartcore/tree.hpp)), so `newLeaf == oldLeaf` and `valid` is untouched
+  ([`UpdateSessionImpl::observationWouldRemainValid`](../../src/bartcore/sampler.hpp)); in `revalidateTrees` the repartition
   reproduces the same partition. Per-forest column masks are therefore an
-  exact opt-out (tau moderators [[src/bartcore/combiner.hpp#Forest::columnMask]];
-  variance [[src/bartcore/chain.hpp#VarianceForest::columnMask]]; generic
-  [[src/bartcore/combiner.hpp#Forest::columnMask]]).
+  exact opt-out (tau moderators [`Forest::columnMask`](../../src/bartcore/combiner.hpp);
+  variance [`VarianceForest::columnMask`](../../src/bartcore/chain.hpp); generic
+  [`Forest::columnMask`](../../src/bartcore/combiner.hpp)).
 - Consumer baseline (bairrtt, a separate repository this guard does not
   cover - cited by line number in prose, not machine-checked): bairrtt runs
   the widened predicate at two samplers
@@ -104,14 +104,14 @@ Three forks, in the order they bind. Only the first is decided here.
   so read "moves" as the ~0.44n accepted rows unless stated; both readings
   are reported.
 - Motivating classes and their column types:
-  [[docs/design/model-space-survey.md#Door 2 - per-forest row subsetting]]. BPCF principal strata enter
+  [Door 2 - per-forest row subsetting](../design/model-space-survey.md#door-2---per-forest-row-subsetting). BPCF principal strata enter
   tau_Y as splitting covariates and are DISCRETE for a binary intermediate
   (full-text verified there with
   `https://arxiv.org/html/2403.13256v1` and `github.com/lit777/BPCF`).
   Sequential covariate imputation and treatSens-style latent confounders
   admit binary columns too. Hence the per-column-type verdict below.
 - Declined alternative, for the KILL branch:
-  [[docs/design/empty-leaf-veto.md#Why not make the proposals occupancy-aware]] prices occupancy-aware proposals at
+  [Why not make the proposals occupancy-aware](../design/empty-leaf-veto.md#why-not-make-the-proposals-occupancy-aware) prices occupancy-aware proposals at
   a "250-400 line, posterior-changing rewrite".
 - Precedent for falsifier-before-arc: `docs/design/memory-wall-frontier.md`
   sec 11. Form of this file: `docs/plans/archive/grow-from-root-default-study.md`.
@@ -123,7 +123,7 @@ Three forks, in the order they bind. Only the first is decided here.
   installed package); no `--preclean`, because nothing in `src/` changes.
 - **`rngSeed` pinned in every fit.** Chain seeds come from a dedicated
   Mersenne twister and sampling never advances R's stream
-  ([[src/R_interface_bartcore.cpp#createChainRngs]]), so an identically built and
+  ([`createChainRngs`](../../src/R_interface_bartcore.cpp)), so an identically built and
   identically driven sampler is bitwise reproducible. Two seeds per cell,
   as in `grouped-mixing.R`: data `set.seed(BASE_SEED + s)`, sampler
   `rngSeed = s`; matched arms share `s`.
@@ -132,7 +132,7 @@ Three forks, in the order they bind. Only the first is decided here.
 - **Arm B pins identical cut grids** on the shared latent column across all
   surrogate samplers (`setCutPoints(cuts, nm)` on each). The joint path
   quantizes against each sampler's own store
-  (`sampler_.data_.codeFor`, [[src/bartcore/sampler.hpp#UpdateSessionImpl]]), so without pinning
+  (`sampler_.data_.codeFor`, [`UpdateSessionImpl`](../../src/bartcore/sampler.hpp)), so without pinning
   the S-sampler conjunction is not the shared-store conjunction it stands
   in for. V1 asserts code-vector equality.
 - **Thresholds FREEZE at the end of Stage 0**, written into this file
@@ -147,16 +147,16 @@ exactly from R without patching anything:
 1. Export every ensemble's live trees for the current sweep -
    `bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`
    - no longer a shipped `R/` helper; it survives as the tinytest harness
-   helper [[inst/common/bartcoreHandle.R#bartcoreGetTrees]], and the shipped
-   surface is the R5 [[R/dbarts.R#dbartsSampler$getTrees]]
+   helper [`bartcoreGetTrees`](../../inst/common/bartcoreHandle.R), and the shipped
+   surface is the R5 [`dbartsSampler$getTrees`](../../R/dbarts.R)
    for `f = 0..numForests-1`, plus
    `state[[c]]$variance.{vars,values,sizes,flags}`
-   ([[src/R_interface_bartcore.cpp#storeState]]) for a heteroscedastic sampler.
+   ([`storeState`](../../src/R_interface_bartcore.cpp)) for a heteroscedastic sampler.
 2. Compute the widened per-observation install mask in the R oracle.
 3. Install exactly the accepted rows with
    `setPredictor(newColumn, col, forceUpdate = TRUE)`. The force path is
    open to multi-forest and heteroscedastic samplers
-   ([[src/bartcore/chain.hpp#Chain::forceRefreshTrees]]) and `forceRefreshTrees` re-routes
+   ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp)) and `forceRefreshTrees` re-routes
    every forest and the variance forest.
 4. `run(0L, 1L)`. Repeat.
 
@@ -167,7 +167,7 @@ certifies this deterministically**; failure of V3b, not any tolerance, is
 what triggers the engine-patch contingency.
 
 The export is cheap: `flattenBelow` reads `node.numObservations()` off the
-node ([[src/bartcore/tree.hpp#flattenBelow]]) rather than re-routing, so
+node ([`flattenBelow`](../../src/bartcore/tree.hpp)) rather than re-routing, so
 `getTrees(current = TRUE, newdata = NULL)` is O(nodes), not O(n x nodes).
 
 Consequence: every arm in this design is a **closed loop at
@@ -185,9 +185,9 @@ occupied). Establishes `r_1` and the transferable count law with no
 assumption at all, and cross-checks bairrtt's prose figure.
 
 **Arm A' - driven closed loop on real multi-ensemble fits (primary for
-shapes).** Real BCF (`dbarts:::bartcoreBCFSampler`, [[R/bartcore.R#bartcoreBCFSampler]])
+shapes).** Real BCF (`dbarts:::bartcoreBCFSampler`, [`bartcoreBCFSampler`](../../R/bartcore.R))
 and real heteroscedastic (`dbarts(x, y, variance = TRUE,
-n.trees.variance =)`, [[R/dbarts.R#dbarts]]) samplers, driven by the
+n.trees.variance =)`, [`dbarts`](../../R/dbarts.R)) samplers, driven by the
 emulation above. Right trees AND right dynamics.
 
 **Arm B - closed-loop S-sampler surrogate (calibration, E = 3, and the one
@@ -201,7 +201,7 @@ independently rather than sharing the combiner's residual, so their trees
 are not the trees a real BCF grows. Arm A' supplies those.
 
 *Engine-side per-sampler attribution, exact.* The joint call draws its scan
-permutation from `samplers[0]->rng()` ([[src/bartcore/facade.hpp#updatePredictorPerObservationJointly]]), so with `rngSeed`
+permutation from `samplers[0]->rng()` ([`updatePredictorPerObservationJointly`](../../src/bartcore/facade.hpp)), so with `rngSeed`
 pinned, replaying the identical build-and-burn script and varying only the
 SUBSET passed to the joint call yields scan-order-matched masks. The
 marginal of each surrogate sampler is therefore measured by the engine, not
@@ -213,7 +213,7 @@ inferred. This attributes per SAMPLER, not per FOREST inside a sampler.
 
 | factor | levels | grounding |
 |---|---|---|
-| ensemble config | (a) single forest 75 trees [BASELINE, E=1]; (b) BCF mu 75 / tau 50 [E=2]; (c) BCF mu 75 / tau 25 [E=2]; (d) het mean 75 / variance 40 [E=2]; (e) surrogate S=3 mu 75 / tau 50 / var 40 [E=3, arm B only, UNGATED]; (f) multinomial K=4 x 75 [E=4, UNGATED stress] | `n.trees = 75` default ([[R/A_class.R#dbartsControl]]); `n.trees.treatment = 50L`, `treatment.base = 0.25` / `treatment.power = 3` ([[R/bartcore.R#bartcoreBCFSampler]]); `n.trees.variance = 40L` ([[R/spec.R#resolveSamplerSpec]]); mu default `base = 0.95, power = 2` ([[R/model.R#cgm]]); bairrtt runs 75 (`irt_causal_bart.R` line 204) |
+| ensemble config | (a) single forest 75 trees [BASELINE, E=1]; (b) BCF mu 75 / tau 50 [E=2]; (c) BCF mu 75 / tau 25 [E=2]; (d) het mean 75 / variance 40 [E=2]; (e) surrogate S=3 mu 75 / tau 50 / var 40 [E=3, arm B only, UNGATED]; (f) multinomial K=4 x 75 [E=4, UNGATED stress] | `n.trees = 75` default ([`dbartsControl`](../../R/A_class.R)); `n.trees.treatment = 50L`, `treatment.base = 0.25` / `treatment.power = 3` ([`bartcoreBCFSampler`](../../R/bartcore.R)); `n.trees.variance = 40L` ([`resolveSamplerSpec`](../../R/spec.R)); mu default `base = 0.95, power = 2` ([`cgm`](../../R/model.R)); bairrtt runs 75 (`irt_causal_bart.R` line 204) |
 | **column type** | {continuous, binary} gated separately; {multi-level categorical <= 64 levels} reported ungated | two of four motivating classes mutate discrete columns |
 | mutated column in the non-primary mask? | {yes, no} | "no" must measure exactly zero marginal (M1); "yes" is the gated cell |
 | n | {300, 500, 1000, 5000} (300 in arm 0 only) | bairrtt runs 200-1000 and its prose baseline is at 300; the motivating DGP is 1000 persons x 100 items (bairrtt's `docs/plans/multi-trait.md` lines 98-102); 5000 probes leaf-size scaling |
@@ -262,7 +262,7 @@ per-tree per-row marginal reject probability.
 **Why P1 is baselined on config (a) and not on `E_0`.** The guard's own
 comment says an accepted transactional change on a multi-forest sampler
 "would leave a multi-forest sampler's other forests routed against stale
-codes" (retired: [[src/R_interface_bartcore.cpp#refuseMultiForestTransactionalUpdate]]). `E_0` on a multi-ensemble
+codes" (retired: [`refuseMultiForestTransactionalUpdate`](../../src/R_interface_bartcore.cpp)). `E_0` on a multi-ensemble
 sampler is the state the guards exist to prevent, not an alternative a
 consumer can have. The alternatives are today's refusal, forced collapse (a
 different posterior), or a different mechanism. So the gated contrast is
@@ -304,24 +304,24 @@ gated on arm A' too - the only coupled-forest regime.
   all nodes, integer equality. This retires the value-vs-code question: the
   engine routes by integer codes and the export reports cut values, and
   they induce the same partition (`codeFor` is
-  `lower_bound(cuts, value) - first`, [[src/bartcore/data.hpp#ColumnStore::codeFor]]; ordinal
+  `lower_bound(cuts, value) - first`, [`ColumnStore::codeFor`](../../src/bartcore/data.hpp); ordinal
   `ruleSendsRight` is `code > splitIndex`; the exported payload is
-  `cutPoints[j][splitIndex]`, [[src/bartcore/tree.hpp#flattenBelow]]; flat routing is
-  `value <= flat.value -> left`, [[src/bartcore/tree.hpp#atOrUnderCut]]). The `n` column is
+  `cutPoints[j][splitIndex]`, [`flattenBelow`](../../src/bartcore/tree.hpp); flat routing is
+  `value <= flat.value -> left`, [`atOrUnderCut`](../../src/bartcore/tree.hpp)). The `n` column is
   the LIVE partition, not a replay, when `current = TRUE` and
-  `newdata = NULL` ([[src/R_interface_bartcore.cpp#bartcore_getTrees]]).
+  `newdata = NULL` ([`bartcore_getTrees`](../../src/R_interface_bartcore.cpp)).
 - **V2r - per-row identity.** Equal counts do not imply equal per-row
   assignment (a permutation between two equal-sized leaves passes V2).
   Replay single-row `newdata` matrices through `getTrees` for 50 sampled
   rows per cell; the unit count must land in the oracle's predicted leaf.
 - **V2v - the variance-forest oracle, exact.** `bartcoreRun(bc, 0L, 1L)`
   returns an element named `variance`
-  ([[src/R_interface_bartcore.cpp#bartcore_run]]) filled from
+  ([`bartcore_run`](../../src/R_interface_bartcore.cpp)) filled from
   `varianceFits[i] = sigmaScale^2 * combinedVariance[i]`
-  ([[src/bartcore/chain.hpp#Chain::varianceFits]]), where `combinedVariance[i]` is the PRODUCT over
-  variance trees of row i's leaf factor ([[src/bartcore/chain.hpp#VarianceForest::applyLeafFactor]]);
+  ([`Chain::varianceFits`](../../src/bartcore/chain.hpp)), where `combinedVariance[i]` is the PRODUCT over
+  variance trees of row i's leaf factor ([`VarianceForest::applyLeafFactor`](../../src/bartcore/chain.hpp));
   the state's `variance.values` are those same working-scale factors
-  ([[src/bartcore/chain.hpp#Chain::varianceFactorsForTesting]]). So: decode `variance.*`, route every row, form
+  ([`Chain::varianceFactorsForTesting`](../../src/bartcore/chain.hpp)). So: decode `variance.*`, route every row, form
   the per-row product, and require `engine$variance[i] / oracleProduct[i]`
   to be the SAME constant across all i to 1e-10 relative. Run at
   `n.trees.variance = 1`, where this is an exact per-row per-TREE
@@ -386,7 +386,7 @@ mask - which is a different arc.
 *This line is an EFFICIENCY line and nothing more.* The widened veto does
 NOT change the estimand. The tau forest and the variance forest carry the
 same empty-leaf invariant as forest 0
-([[src/bartcore/chain.hpp#Chain::revalidateTrees,Chain::refreshVarianceForest]]),
+([`Chain::revalidateTrees`](../../src/bartcore/chain.hpp), [`Chain::refreshVarianceForest`](../../src/bartcore/chain.hpp)),
 so under dbarts' convention a configuration with an empty leaf
 in any ensemble has zero prior mass; a latent value that empties a tau leaf
 is a zero-prior state of the JOINT model and rejecting it is the correct
@@ -597,25 +597,25 @@ Ships today; sufficient for every arm; **no engine change**.
 
 | need | shipped hook |
 |---|---|
-| per-forest live tree structure | `dbarts:::bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`, `[[R/bartcore.R:961-986@4c018187]]`; `forest` is 0-based and bounded by `shape.numForests` (`[[R_interface_bartcore.cpp:4553-4556@4c018187]]`) |
+| per-forest live tree structure | `dbarts:::bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`, [R/bartcore.R:961-986](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L961-L986); `forest` is 0-based and bounded by `shape.numForests` ([src/R_interface_bartcore.cpp:4553-4556](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4553-L4556)) |
 | ground-truth node occupancy (V2) | the `n` column of that frame, LIVE partition under `current = TRUE, newdata = NULL` |
-| variance-forest structure | `sampler$state[[c]]$variance.{vars,values,sizes,flags}`, `[[R_interface_bartcore.cpp:4771-4781@4c018187]]`; raw-double decode precedent `[[inst/tinytest/test-bartcore.R:730-736@4c018187]]` |
-| variance-forest ground truth (V2v) | the `variance` element of `bartcoreRun(bc, 0L, 1L)`, `[[R_interface_bartcore.cpp:3293@4c018187]]` |
-| BCF construction | `dbarts:::bartcoreBCFSampler(...)`, `[[R/bartcore.R:570-664@4c018187]]` |
-| heteroscedastic construction | `dbarts(x, y, variance = TRUE, n.trees.variance =)`, `[[R/dbarts.R:346-349@4c018187]]`; `dbartsSpec(variance =, n.trees.variance =)`, `[[R/spec.R:376-377@4c018187]]` |
-| multinomial handle | `bart2(x, y, family = "multinomial", keepTrees = TRUE)$bc`, `[[R/bart.R:1212-1213@4c018187]]` |
-| engine's single-forest per-obs mask | `sampler$setPredictor(v, col, forceUpdate = "partial")` -> length-n logical (`[[inst/tinytest/test-bartcore.R:259-280@4c018187]]`) |
+| variance-forest structure | `sampler$state[[c]]$variance.{vars,values,sizes,flags}`, [src/R_interface_bartcore.cpp:4771-4781](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4771-L4781); raw-double decode precedent [inst/tinytest/test-bartcore.R:730-736](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bartcore.R#L730-L736) |
+| variance-forest ground truth (V2v) | the `variance` element of `bartcoreRun(bc, 0L, 1L)`, [src/R_interface_bartcore.cpp:3293](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3293) |
+| BCF construction | `dbarts:::bartcoreBCFSampler(...)`, [R/bartcore.R:570-664](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L570-L664) |
+| heteroscedastic construction | `dbarts(x, y, variance = TRUE, n.trees.variance =)`, [R/dbarts.R:346-349](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L346-L349); `dbartsSpec(variance =, n.trees.variance =)`, [R/spec.R:376-377](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L376-L377) |
+| multinomial handle | `bart2(x, y, family = "multinomial", keepTrees = TRUE)$bc`, [R/bart.R:1212-1213](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1212-L1213) |
+| engine's single-forest per-obs mask | `sampler$setPredictor(v, col, forceUpdate = "partial")` -> length-n logical ([inst/tinytest/test-bartcore.R:259-280](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bartcore.R#L259-L280)) |
 | engine's whole-transaction verdict | `sampler$setPredictor(v, col)` -> TRUE/FALSE |
-| engine's widened multi-sampler mask | `updatePredictorPerObservationJointly(list(...), x, column)` (exported, `NAMESPACE:8`); asserted as the widened AND at `[[inst/tinytest/test-sampler-updatePredictorPerObservationJointly.R:118@4c018187]]` |
+| engine's widened multi-sampler mask | `updatePredictorPerObservationJointly(list(...), x, column)` (exported, `NAMESPACE:8`); asserted as the widened AND at [inst/tinytest/test-sampler-updatePredictorPerObservationJointly.R:118](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-sampler-updatePredictorPerObservationJointly.R#L118) |
 | unconditional install and restore | `setPredictor(v, col, forceUpdate = TRUE)` |
-| leaf-routing precedents | `[[inst/tinytest/test-sampler-setPredictorPerObservation.R:13-38@4c018187]]`; `[[inst/tinytest/test-interactions.R:13-64@4c018187]]`; `[[R/plotTree.R:44-61@4c018187]]` |
+| leaf-routing precedents | [inst/tinytest/test-sampler-setPredictorPerObservation.R:13-38](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-sampler-setPredictorPerObservation.R#L13-L38); [inst/tinytest/test-interactions.R:13-64](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-interactions.R#L13-L64); [R/plotTree.R:44-61](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/plotTree.R#L44-L61) |
 
 Built harness-side (R only): a general multi-predictor pre-order router
 (~70 lines: recursive index partition on `var`, `value`, `missing`,
 `directions`, with `value <= cut -> left`); a `variance.*` flat decoder
 (~40 lines, `readBin` over the raw slots split by `variance.sizes`); a
 sequential per-observation session simulator (~50 lines, mirroring
-`[[sampler.hpp:1354-1385@4c018187]]`); the arm-A' driver loop.
+[src/bartcore/sampler.hpp:1354-1385](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1354-L1385)); the arm-A' driver loop.
 
 ### Contingency: the `ForTesting` patch
 
@@ -1003,17 +1003,17 @@ widened veto makes a consumer pay for.
    surrogate, under three kernels, and is REPORTED - never gated, because a
    surrogate posterior comparison must not gate an engine arc. P3 is the
    gated proxy, deliberately.
-2. **`E = 3` on real trees.** Not constructible (`[[facade.hpp:631@4c018187]], 644`;
-   `[[tests/cpp/test_model.cpp:720-733@4c018187]]`). Config (e) is a surrogate,
+2. **`E = 3` on real trees.** Not constructible ([src/bartcore/facade.hpp:631](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L631), 644;
+   [tests/cpp/test_model.cpp:720-733](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_model.cpp#L720-L733)). Config (e) is a surrogate,
    reported and ungated. **No verdict here can authorize a heteroscedastic
    BCF**: that configuration does not exist and lifting the factory refusal
    is a separate, unpriced arc. A GREEN means "widen for the shapes that
    exist" - BCF at E = 2, heteroscedastic at E = 2, multinomial ungated.
 3. **Which ensemble to blame (fork 2).** Every shipped surface returns a
    conjunction, never an attribution: `setPredictor(partial)` returns one
-   mask over forest 0 across all chains (`[[sampler.hpp:1019-1034@4c018187]]`), the
+   mask over forest 0 across all chains ([src/bartcore/sampler.hpp:1019-1034](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1019-L1034)), the
    joint call ANDs the per-sampler validities before committing
-   (`[[facade.hpp:459-470@4c018187]]`), and `setPredictor` returns one boolean. P4 and
+   ([src/bartcore/facade.hpp:459-470](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L459-L470)), and `setPredictor` returns one boolean. P4 and
    T2 therefore come from the R oracle for arm A', with only arm B's
    per-SAMPLER marginals measured by the engine (via seed-pinned subset
    replay). Per-FOREST attribution inside one sampler is oracle-only.
@@ -1022,24 +1022,24 @@ widened veto makes a consumer pay for.
    continuous and binary. Categoricals with <= 64 levels are reported,
    ungated. Categoricals with **more than 64 levels are out of scope**:
    they are pooled (`columnIsPooled` is `maskWordsForCount(numCuts[j]) > 1`,
-   `[[data.hpp:433-436@4c018187]]`) and pooled rules do not reach `variance.*`, which is
-   flattened with `masks = nullptr` (`[[chain.hpp:2189-2196@4c018187]]`) while the mean
-   forests get a `tree.masks` slot (`[[R_interface_bartcore.cpp:4756@4c018187]]`). A
+   [src/bartcore/data.hpp:433-436](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/data.hpp#L433-L436)) and pooled rules do not reach `variance.*`, which is
+   flattened with `masks = nullptr` ([src/bartcore/chain.hpp:2189-2196](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2189-L2196)) while the mean
+   forests get a `tree.masks` slot ([src/R_interface_bartcore.cpp:4756](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4756)). A
    discrete follow-up covering >64-level columns needs the variance state to
    carry a mask side channel first. (Related, and logged for the TODO rather
    than fixed here: a heteroscedastic sampler whose store holds a pooled
    categorical column would null-dereference in `flattenBelow` -
-   `masks->size()` at `[[tree.hpp:1397@4c018187]]` - on `storeState`. Pre-existing,
+   `masks->size()` at [src/bartcore/tree.hpp:1397](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/tree.hpp#L1397) - on `storeState`. Pre-existing,
    unrelated to this arc.)
 5. **Whether the arc is worth its own cost.** This prices ONE consequence.
    The engineering estimate is out of scope, but one cost fact belongs on
    the record: "widen `treeAt`" is not a one-line change.
    `UpdateSessionImpl` sizes itself `options_.numTrees * chains_.size()`
-   (`[[sampler.hpp:1332-1333@4c018187]]`) and indexes
-   `chains_[t / numTrees]->tree(t % numTrees)` (`[[sampler.hpp:1390-1393@4c018187]]`); for a BCF
+   ([src/bartcore/sampler.hpp:1332-1333](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1332-L1333)) and indexes
+   `chains_[t / numTrees]->tree(t % numTrees)` ([src/bartcore/sampler.hpp:1390-1393](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1390-L1393)); for a BCF
    `options_.numTrees` is mu's count only and tau's differs
-   (`numTreesInForest`, `[[sampler.hpp:1107@4c018187]]`); and `Chain::tree` is hard-wired
-   to `forests_[0]` (`[[chain.hpp:2749@4c018187]]`). The widened session needs
+   (`numTreesInForest`, [src/bartcore/sampler.hpp:1107](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1107)); and `Chain::tree` is hard-wired
+   to `forests_[0]` ([src/bartcore/chain.hpp:2749](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2749)). The widened session needs
    per-forest offsets.
 6. **Arm B's tree shapes.** The surrogate's ensembles fit `y`
    independently rather than sharing the combiner's residual, so their
@@ -1096,7 +1096,7 @@ third clause - "the two subsequent `run(0, 1)` outputs bitwise equal" - fails
 in 20/20 fits, at a maximum absolute difference of **4.4e-14** on `train`
 (sigma agrees to the printed digit). Cause, diagnosed: the serialized state
 deliberately omits the accumulated total-fits cache
-(`[[R_interface_bartcore.cpp:4820-4826@4c018187]]`, "dropped the accumulation-history
+([src/R_interface_bartcore.cpp:4820-4826](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4820-L4826), "dropped the accumulation-history
 slots"), and the two paths rebuild it in different summation orders -
 `revalidateAllChains` -> `rebuildFitsFromParameters` versus
 `forceRefreshTrees`. That is a floating-point association difference, not the
@@ -1111,7 +1111,7 @@ bitwise, the trajectory a widened engine would take.
 
 Also recorded here because the pre-registration does not mention it: the
 partial path draws a scan permutation from chain 0's rng
-(`[[sampler.hpp:1066@4c018187]]`) while the forced path draws none, so V3b as literally
+([src/bartcore/sampler.hpp:1066](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1066)) while the forced path draws none, so V3b as literally
 written could never have matched two rng streams. The harness aligns them by
 issuing a no-op partial call on the twin before the forced install (V1
 certifies a no-op partial changes nothing); with that, rng state matched in

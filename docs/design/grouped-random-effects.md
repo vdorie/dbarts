@@ -5,7 +5,7 @@ models"): move rbart_vi's random-intercept Gibbs loop from R into the
 engine, composing with any response family.
 
 RETIRED 2026-09-06: grouped random intercepts are removed from dbarts; see
-[[docs/design/retire-grouped-random-effects.md#The decision]]. What follows is
+[The decision](retire-grouped-random-effects.md#the-decision). What follows is
 the historical record of the feature that was landed 2026-07-04.
 
 ## Model

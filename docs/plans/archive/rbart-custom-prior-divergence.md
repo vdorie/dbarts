@@ -20,11 +20,11 @@ fixed, and regression-tested.
   in-core path's and the true value once n exceeds a few hundred;
   below that the paths agree. Both arms share creation semantics.
 - The R loop: R/rbart.R rbart_vi_run (posteriorClosure/evalEnv from
-  the prior builder around [[R/rbart.R:442-483@95fa3899]]); per-iteration blocks
+  the prior builder around [R/rbart.R:442-483](https://github.com/vdorie/dbarts/blob/95fa3899d34109d72d0f133b606263d577f3e80a/R/rbart.R#L442-L483)); per-iteration blocks
   are the ranef draw, offset refresh, and tau slice sample (with an
-  optim mode search). rel.scale = sd(y) at [[R/rbart.R:716@95fa3899]].
+  optim mode search). rel.scale = sd(y) at [R/rbart.R:716](https://github.com/vdorie/dbarts/blob/95fa3899d34109d72d0f133b606263d577f3e80a/R/rbart.R#L716).
 - The in-core path: the decorator installed when the prior symbol
-  matches rbart.priors ([[R/rbart.R:266-290@95fa3899]], rel.scale at [[R/rbart.R:272@95fa3899]]), running
+  matches rbart.priors ([R/rbart.R:266-290](https://github.com/vdorie/dbarts/blob/95fa3899d34109d72d0f133b606263d577f3e80a/R/rbart.R#L266-L290), rel.scale at [R/rbart.R:272](https://github.com/vdorie/dbarts/blob/95fa3899d34109d72d0f133b606263d577f3e80a/R/rbart.R#L272)), running
   the same blocks in C.
 - Suspects, in likelihood order: a scale mismatch between R-loop
   quantities and the engine's internal response scaling (the rewrite

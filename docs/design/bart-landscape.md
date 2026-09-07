@@ -139,7 +139,7 @@ permutation variable selection is an R layer over any engine's `varcount`.
 What the authors wanted was a JVM-native artifact with its own memory and
 threading story, which no R/C++ engine supplies. *Verified:*
 `R/bart_package_builders.R` formals, DESCRIPTION, `inst/java` listing; dbarts
-[[man/dbarts.Rd#missing]].
+[`missing`](../../man/dbarts.Rd).
 
 **SoftBart 1.0.3** (Linero; CRAN, 2025-11-23; 284/mo). Soft BART: leaves are
 reached probabilistically through logistic gates rather than by hard
@@ -220,7 +220,7 @@ per model shape (`single_ensm_probit.cpp`, `multi_ensm_poisson.cpp`, ...).
 *Counterfactual:* **(C)** - a split-rule representation change is clause 2 by
 name. The plain categorical half is no longer a gap: this tip splits unordered
 factors by level subset natively (`factors = "categorical"` is the DEFAULT,
-[[man/dbarts.Rd#factors]]); the graph-structured half remains a contribution nobody
+[`factors`](../../man/dbarts.Rd)); the graph-structured half remains a contribution nobody
 else has. *Verified:* `R/flexBART.R`, `src/graph_funs.h`, `src/structs.h`,
 DESCRIPTION.
 
@@ -262,14 +262,14 @@ and re-installs the probabilities is expressible today - but `setModel` also
 re-pins sigma (engine-side, not in the R layer: `Chain::setModel` sets
 `sigmaIsFixed_` and calls `setSigma` or `setSigmaPrior` for gaussian and aft
 samplers with no variance forest,
-[[src/bartcore/chain.hpp#Chain::setModel]]) and is
+[`Chain::setModel`](../../src/bartcore/chain.hpp)) and is
 refused outright on a DART prior, so the composition carries side effects its
 author never named. Unlocking items: a
 split-probability channel narrower than `setModel` (dbarts issue #67,
 "Feature request: more convenient updates of splitting probabilities", open
 since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R`,
 `src/single_bart.cpp`, `src/separate_bart.cpp`; this worktree's
-[[R/dbarts.R#dbartsSampler$setModel]] and [[man/dbartsSampler-class.Rd#dbartsSampler$setModel]].
+[`dbartsSampler$setModel`](../../R/dbarts.R) and [`dbartsSampler$setModel`](../../man/dbartsSampler-class.Rd).
 
 **VCBART 1.2.5** (Deshpande, Bai, Balocchi, Starling, Weiss; CRAN,
 2026-04-21; 135/mo). Varying-coefficient models `y = sum_j beta_j(x) z_j`,
@@ -290,7 +290,7 @@ the recipe needs. (i) `z_j == 0` rows: `resid / z_j` is NaN or Inf there, and
 NaN is refused by `setResponse` while Inf silently poisons the leaf's weighted
 mean - so write any FINITE placeholder at those rows, where the zero weight
 makes the value irrelevant, and the shipped "excluded from the likelihood,
-fitted value retained" semantics apply ([[man/dbartsSampler-class.Rd#dbartsSampler$weights]]).
+fitted value retained" semantics apply ([`dbartsSampler$weights`](../../man/dbartsSampler-class.Rd)).
 (ii) The compound-symmetry arm (`vcbart_cs_fit.cpp`, `update_rho`,
 `compute_p_theta_cs`) is OUT of scope: its within-subject covariance is
 non-diagonal and case weights are diagonal. The standing caveat is the
@@ -528,7 +528,7 @@ weight channel (`dbarts:::bartcoreSetForestWeights`) is internal, absent from
 `dbarts.h` and from the R5 class. Unlocking items: the active-rows mask (AFT
 is its S2 scope) or a public per-forest weight. *Verified:* cloned the
 repository - README.md, DESCRIPTION, `src/` listing; the model shape agrees
-with [[docs/design/model-space-survey.md#Door 2 - per-forest row subsetting]], which verified the paper and
+with [Door 2 - per-forest row subsetting](model-space-survey.md#door-2---per-forest-row-subsetting), which verified the paper and
 the per-sweep `glabel` draw first-hand.
 
 **BPCF** (Kim et al.; GitHub `lit777/BPCF`, C++). Principal stratification
@@ -538,7 +538,7 @@ standalone C++. *Counterfactual:* **(A)** - a per-sweep predictor column is
 `setPredictor(x, column = j)`, which ships, with transactional roll-back and a
 per-observation install mask. *Verified:* the repository exists and is C++
 (GitHub API); the "every component sees all n rows every sweep" reading is
-carried from [[docs/design/model-space-survey.md#Door 2 - per-forest row subsetting]], which verified paper and code -
+carried from [Door 2 - per-forest row subsetting](model-space-survey.md#door-2---per-forest-row-subsetting), which verified paper and code -
 **UNVERIFIED here first-hand**.
 
 **embarcadero** (Carlson) - a dbarts-based species-distribution package the

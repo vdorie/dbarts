@@ -669,12 +669,12 @@ necessary and must be added in the same re-bake.
 capability probe on `shape.supportsActiveRows` runs FIRST and never switches
 on family, and the exact-`{0,1}` scan, the all-ones normalization and the
 copy are all inherited from the engine, not restated
-(`[[C_interface.cpp:901-910@2aa673de]]`). One disposition changed from this section's own
+([src/C_interface.cpp:901-910](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/src/C_interface.cpp#L901-L910)). One disposition changed from this section's own
 proposal: obligation 2 above proposed a probit REFUSAL; the shipped body
 ACCEPTS probit instead, because every `ResponseModel` subclass now reports
 `supportsActiveRows` by the time S1 landed (measured at eight `model.hpp`
 sites, postdating this section) - the reshape plan's own S1 landing note
-records this as a justified deviation. `[[inst/tinytest/test-capi.R:987-1026@2aa673de]]`
+records this as a justified deviation. [inst/tinytest/test-capi.R:987-1026](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/inst/tinytest/test-capi.R#L987-L1026)
 covers all four obligations: a genuine gaussian mask moves draws, an all-ones
 mask is bitwise inert, a fractional value is refused (`0`, not a raise), NULL
 clears, and a probit mask moves draws exactly as the gaussian one does. Full
@@ -1184,9 +1184,9 @@ tolerance anywhere.
 Accepted non-blockers, dispositions recorded: new "carried from S2"
 comment labels in tests/cpp/test_model.cpp and test_sampler.cpp,
 introduced by the very commit that normalizes the plan labels
-(precedent at [[test_sampler.cpp:997@2aa673de]]) - normalize at the next
+(precedent at [tests/cpp/test_sampler.cpp:997](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/tests/cpp/test_sampler.cpp#L997)) - normalize at the next
 tests/cpp-touching slice together with the standing S2 test-hardening
-items; dash-ruler misalignment at [[test-active-rows-pins.R:39@2aa673de]], [[test-active-rows-pins.R:301@2aa673de]], [[test-active-rows-pins.R:430@2aa673de]] -
+items; dash-ruler misalignment at [inst/tinytest/test-active-rows-pins.R:39](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/inst/tinytest/test-active-rows-pins.R#L39), [inst/tinytest/test-active-rows-pins.R:301](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/inst/tinytest/test-active-rows-pins.R#L301), [inst/tinytest/test-active-rows-pins.R:430](https://github.com/vdorie/dbarts/blob/2aa673deaa40b7cc21b05895b03a89c350b4f6b4/inst/tinytest/test-active-rows-pins.R#L430) -
 cosmetic, same slot; maskordinal records 35 sampler-API summaries with
 no ordinalFit-specific channel (the cutpoint pass is exercised through
 train only) - a coverage-scope note.

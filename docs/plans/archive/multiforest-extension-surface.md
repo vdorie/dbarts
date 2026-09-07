@@ -22,27 +22,27 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 LANDED
   once, against the final header (VD 2026-08-10).
   "No header movement" is VERIFIED, not forecast (amended 2026-08-13, pre-M4):
   creation crosses as SEXP (`dbarts_sampler_create(SEXP, SEXP, SEXP, const
-  char* family)`, `[[dbarts.h:506-507@4c018187]]`), `setForestBasis(..., forest, basis,
-  numColumns)` (`[[dbarts.h:700-701@4c018187]]`) is already general, `numForestAmplitudes(...,
-  forest)` (`[[dbarts.h:715-716@4c018187]]`) plus `forestAmplitudes(..., forest, out)` (`[[dbarts.h:724-725@4c018187]]`)
+  char* family)`, [inst/include/dbarts/dbarts.h:506-507](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L506-L507)), `setForestBasis(..., forest, basis,
+  numColumns)` ([inst/include/dbarts/dbarts.h:700-701](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L700-L701)) is already general, `numForestAmplitudes(...,
+  forest)` ([inst/include/dbarts/dbarts.h:715-716](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L715-L716)) plus `forestAmplitudes(..., forest, out)` ([inst/include/dbarts/dbarts.h:724-725](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L724-L725))
   are already ragged, and the family selector is a `const char*`. The limiting
-  Doxygen sits OUTSIDE `DBARTS_C_API_LIST` (`[[dbarts.h:297-420@4c018187]]`), so relaxing it
+  Doxygen sits OUTSIDE `DBARTS_C_API_LIST` ([inst/include/dbarts/dbarts.h:297-420](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L297-L420)), so relaxing it
   moves no hash - reshape S1 proved that empirically for three such edits
-  (`[[docs/plans/dbarts-h-reshape.md:1747-1749@4c018187]]`). SIX paragraphs, not two, change meaning
-  under K > 2 and must be swept by M4.5: `[[inst/include/dbarts/dbarts.h:505@49c6114c]]` ("Gaussian responses only."),
-  `[[inst/include/dbarts/dbarts.h:696-699@49c6114c]]` ("Today's engine honours exactly one basis..."), `[[inst/include/dbarts/dbarts.h:133-134@49c6114c]]`
-  (`logLikelihood`'s "a BCF two-forest fit"), `[[inst/include/dbarts/dbarts.h:618-620@49c6114c]]` (the saved-tree
-  `forest` argument), `[[inst/include/dbarts/dbarts.h:681-683@49c6114c]]` (`numForests`, "2 for a Bayesian causal
-  forest"), `[[inst/include/dbarts/dbarts.h:779-780@49c6114c]]` (`setForestPriorScale`'s "a two-forest or multinomial
+  ([docs/plans/dbarts-h-reshape.md:1747-1749](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/dbarts-h-reshape.md#L1747-L1749)). SIX paragraphs, not two, change meaning
+  under K > 2 and must be swept by M4.5: [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L505) ("Gaussian responses only."),
+  [inst/include/dbarts/dbarts.h:696-699](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L696-L699) ("Today's engine honours exactly one basis..."), [inst/include/dbarts/dbarts.h:133-134](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L133-L134)
+  (`logLikelihood`'s "a BCF two-forest fit"), [inst/include/dbarts/dbarts.h:618-620](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L618-L620) (the saved-tree
+  `forest` argument), [inst/include/dbarts/dbarts.h:681-683](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L681-L683) (`numForests`, "2 for a Bayesian causal
+  forest"), [inst/include/dbarts/dbarts.h:779-780](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L779-L780) (`setForestPriorScale`'s "a two-forest or multinomial
   sampler"). None is a signature; none is inside the hashed macro.
   The six SPLIT, re-scoped 2026-08-13 on the probe verdicts
-  (`probes-2026-08-13.md`): five ride M4.5, but `[[inst/include/dbarts/dbarts.h:505@49c6114c]]` ("Gaussian responses
+  (`probes-2026-08-13.md`): five ride M4.5, but [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L505) ("Gaussian responses
   only.") stays ACCURATE until M4.4 and moves with M4.4, because M4.5 now lands
   Gaussian-complete AHEAD of it (fork 2's escape hatch, taken). Two
   near-misses are explicit NON-GOALS: a per-draw amplitude channel in flat C
   (declined, see the M4 section) and any re-sign of
   `dbarts_sampler_setForestBasis`'s error channel (a guard-body change only -
-  its two-channel Doxygen at `[[inst/include/dbarts/dbarts.h:693-699@49c6114c]]` already anticipates the widening
+  its two-channel Doxygen at [inst/include/dbarts/dbarts.h:693-699](https://github.com/vdorie/dbarts/blob/49c6114cf561a448c827955e172483004b544682/inst/include/dbarts/dbarts.h#L693-L699) already anticipates the widening
   verbatim).
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
   man + ~140 test, ~270-290 total (RESTATED 2026-08-13 pre-M1, superseding the
@@ -66,9 +66,9 @@ tip: every anchor below re-read at db81bfe in this worktree, with src/ read
 landed: 2026-08-11 at e2cc1de by the orchestrator, verbatim from the synthesis
   except this note. bcf-public-surface S4, in flight when the tip note was
   written, landed 1df9c0c with CI all six green. The TODO door sentence cited
-  below at [[docs/plans/dbarts-h-reshape.md:625@4c018187]] sat at [[docs/plans/dbarts-h-reshape.md:629@4c018187]] at the landing tip, and is now the consolidated
-  multiforest-extension-surface TODO entry at [[docs/plans/dbarts-h-reshape.md:154-178@4c018187]], rewritten again by
-  the records commit below; at 934a02d5 that entry sits at [[TODO:190-214@4c018187]]. All
+  below at [docs/plans/dbarts-h-reshape.md:625](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/dbarts-h-reshape.md#L625) sat at [docs/plans/dbarts-h-reshape.md:629](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/dbarts-h-reshape.md#L629) at the landing tip, and is now the consolidated
+  multiforest-extension-surface TODO entry at [docs/plans/dbarts-h-reshape.md:154-178](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/dbarts-h-reshape.md#L154-L178), rewritten again by
+  the records commit below; at 934a02d5 that entry sits at [TODO:190-214](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L190-L214). All
   eight cross-plan amendments applied at this commit.
 records: anchor-refresh pass applied 2026-08-11, in the records commit that
   also lands the four VD forks (see "Open decisions" below) and the R/C-
@@ -84,9 +84,9 @@ amended: 2026-08-13, PRE-M1, by the orchestrator. Every anchor in this file
   re-verified BY SYMBOL against 934a02d5 and corrected where it had drifted:
   the latent-subset-mask arc (S0-S4, through 414c50a6) and reshape S0
   (a262cd26) moved chain.hpp, sampler.hpp, facade.hpp and
-  R_interface_bartcore.cpp under the 33f6fdc numbers. `[[chain.hpp:870@4c018187]]` was a
+  R_interface_bartcore.cpp under the 33f6fdc numbers. [src/bartcore/chain.hpp:870](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L870) was a
   FALSE-POSITIVE anchor: at HEAD it resolves to `supportsResponseMutation`,
-  and `Chain::setForestWeights` is `[[chain.hpp:966@4c018187]]`. The M1 section additionally gains
+  and `Chain::setForestWeights` is [src/bartcore/chain.hpp:966](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L966). The M1 section additionally gains
   the SETTLED forest-index base, the mirroring mechanism, the three mask-arc
   interactions, the multinomial refusal siting and an explicit restated
   budget; nothing else about the arc's content or ordering moved.
@@ -136,25 +136,25 @@ amended: 2026-08-13, PRE-M4, by the orchestrator, against 25a21d3b (M1
   falsified by the tree and no slice loses its target. Where the scoping pass
   and the critique conflict the critique wins, EXCEPT on three anchors where
   the critique's own correction is refuted by the tree and the verified value
-  is used instead: `R/spec.R`'s composition refusals are the vector `[[chain.hpp:429-456@4c018187]]`
-  emitted at `[[chain.hpp:457-463@4c018187]]` (not `[[chain.hpp:428-463@4c018187]]`/`[[chain.hpp:464-469@4c018187]]`), and
-  `test-bcf-reporting.R`'s three-chain glue pin is `[[chain.hpp:114@4c018187]]` (not `[[chain.hpp:113@4c018187]]`). What
+  is used instead: `R/spec.R`'s composition refusals are the vector [src/bartcore/chain.hpp:429-456](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L429-L456)
+  emitted at [src/bartcore/chain.hpp:457-463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L457-L463) (not [src/bartcore/chain.hpp:428-463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L428-L463)/[src/bartcore/chain.hpp:464-469](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L464-L469)), and
+  `test-bcf-reporting.R`'s three-chain glue pin is [src/bartcore/chain.hpp:114](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L114) (not [src/bartcore/chain.hpp:113](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L113)). What
   moved: the window paragraph and the M4 budget above; the whole M4 section
   (preamble, sequence, all six slices, all seven falsifiers, the budget); the
-  two stale `[[chain.hpp:1261-1262@4c018187]]` anchors, both now `[[chain.hpp:1266-1267@4c018187]]`. Nothing about
+  two stale [src/bartcore/chain.hpp:1261-1262](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1261-L1262) anchors, both now [src/bartcore/chain.hpp:1266-1267](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1266-L1267). Nothing about
   the arc's decisions or its ordering of M4.0-M4.5 moved.
   DRIFT SWEEP, `dbarts.h`, applied once here rather than by editing landed
-  records: reshape S1 moved every citation this file carries. `[[chain.hpp:43@4c018187]]` (the
-  ownership sentence) is now `[[chain.hpp:45-49@4c018187]]`, and it names `setForestBasis` explicitly
-  ("setForestBasis copies the basis columns it is handed", `[[chain.hpp:48-49@4c018187]]`);
-  `[[chain.hpp:348-357@4c018187]]` (the creation contract) is now `[[chain.hpp:484-505@4c018187]]`, re-worded end to end in
-  `forests =`/`forest(basis =)` vocabulary; `[[chain.hpp:372-378@4c018187]]` (the callback refusal
-  predicate) is now `[[chain.hpp:520-529@4c018187]]`; `[[chain.hpp:264-271@4c018187]]` (the four BCF entries) is now
-  `[[chain.hpp:389-402@4c018187]]`, and TWO of the four names are GONE - the live set is
+  records: reshape S1 moved every citation this file carries. [src/bartcore/chain.hpp:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L43) (the
+  ownership sentence) is now [src/bartcore/chain.hpp:45-49](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L45-L49), and it names `setForestBasis` explicitly
+  ("setForestBasis copies the basis columns it is handed", [src/bartcore/chain.hpp:48-49](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L48-L49));
+  [src/bartcore/chain.hpp:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L348-L357) (the creation contract) is now [src/bartcore/chain.hpp:484-505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L484-L505), re-worded end to end in
+  `forests =`/`forest(basis =)` vocabulary; [src/bartcore/chain.hpp:372-378](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L372-L378) (the callback refusal
+  predicate) is now [src/bartcore/chain.hpp:520-529](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L520-L529); [src/bartcore/chain.hpp:264-271](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L264-L271) (the four BCF entries) is now
+  [src/bartcore/chain.hpp:389-402](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L389-L402), and TWO of the four names are GONE - the live set is
   `numForests`, `setForestBasis`, `forestFits`, `numForestAmplitudes`,
   `forestAmplitudes`. The claim cited via `dbarts-h-reshape.md` that the hash
-  is blind to struct layout re-verifies at `[[dbarts.h:95-99@4c018187]]` plus
-  `[[C_interface.cpp:280@4c018187]], [[C_interface.cpp:334-344@4c018187]]`: it is FNV-1a over `DBARTS_C_API_DECLS`,
+  is blind to struct layout re-verifies at [inst/include/dbarts/dbarts.h:95-99](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L95-L99) plus
+  [src/C_interface.cpp:280](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L280), [src/C_interface.cpp:334-344](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L334-L344): it is FNV-1a over `DBARTS_C_API_DECLS`,
   signatures only. The M3 section and the cross-plan amendment block are
   LANDED RECORDS and keep their pre-re-bake numbers, marked as such in place.
 re-scoped: 2026-08-13, POST-PROBES, by the orchestrator, on the verdicts in
@@ -274,10 +274,10 @@ authoring one.
    enabling-value gate: gate an item only if nothing valuable can be named that
    it enables. Absence of a consumer today is never the gating fact.
 7. **bcf-public-surface S3 LANDED (1622eb9).** `inst/include/dbarts/dbarts.h`
-   carries `dbarts_sampler_numForests` ([[C_interface.cpp:264@4c018187]]), `setTreatment` ([[C_interface.cpp:266@4c018187]]),
-   `forestFits` ([[C_interface.cpp:268@4c018187]]), `bcfGlue` ([[C_interface.cpp:271@4c018187]]), the widened
+   carries `dbarts_sampler_numForests` ([src/C_interface.cpp:264](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L264)), `setTreatment` ([src/C_interface.cpp:266](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L266)),
+   `forestFits` ([src/C_interface.cpp:268](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L268)), `bcfGlue` ([src/C_interface.cpp:271](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L271)), the widened
    `setResponse(sampler, y, updateScale)` and `DBARTS_C_API_HASH
-   0x1a911c00bb26dcd7ULL` ([[C_interface.cpp:83@4c018187]]). S4 (per-draw reporting) is in flight; S5
+   0x1a911c00bb26dcd7ULL` ([src/C_interface.cpp:83](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L83)). S4 (per-draw reporting) is in flight; S5
    (`bcf()` and the fit class) is PAUSED on this arc.
 8. **The committed queue is not displaced.** bcf-public-surface S4, then
    multiforest-predictor-mutation S0-S4, then dbarts-h-reshape S0-S2, then the
@@ -292,36 +292,36 @@ where a document's own line numbers had drifted the current ones are given.
 **B1 (route 3's held door for a state-dependent multiplier callback): ADOPTED
 in full, and the door is DELETED.** Verified independently: `Chain::run`
 evaluates `onSweep` at the TOP of each sweep, before the forest loop
-(`[[chain.hpp:1110-1111@4c018187]]`, `run` at `[[chain.hpp:1095@4c018187]]`, forest loop at `[[chain.hpp:1145@4c018187]]`), and the
-previous sweep ended with `combinedFits` (`[[chain.hpp:1261@4c018187]]`), `drawGlue` and
-`afterCombine` (`[[chain.hpp:1275-1276@4c018187]]`, line numbers re-verified at 934a02d5). So the
+([src/bartcore/chain.hpp:1110-1111](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1110-L1111), `run` at [src/bartcore/chain.hpp:1095](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1095), forest loop at [src/bartcore/chain.hpp:1145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1145)), and the
+previous sweep ended with `combinedFits` ([src/bartcore/chain.hpp:1261](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1261)), `drawGlue` and
+`afterCombine` ([src/bartcore/chain.hpp:1275-1276](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1275-L1276), line numbers re-verified at 934a02d5). So the
 memo's stated hook point ("after `combinedFits` and before the next
 `formForestResponse`") IS the sweep boundary, which the shipped
 `dbarts_sampler_callback` already occupies. The ABI does not refuse it; it
-charges a documented price (`[[sampler.hpp:260-263@4c018187]]` inline-only;
-`[[dbarts.h:372-378@4c018187]]` the same refusal predicate). Nothing needs building inside
+charges a documented price ([src/bartcore/sampler.hpp:260-263](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L260-L263) inline-only;
+[inst/include/dbarts/dbarts.h:372-378](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L372-L378) the same refusal predicate). Nothing needs building inside
 the sweep, so the memo's per-observation-dispatch objection describes a hook
 nobody needs. The one class the door was held for (LongBet-style panel with a
 sampled time factor) needs a combiner-internal draw, not a host hook. RE-SCOPED
 as an M4 spec question: "a per-forest amplitude with a caller-supplied
 covariance kernel, drawn in the combiner", structurally what BCF's `a` and its
-half-Cauchy auxiliary already are (`[[combiner.hpp:589-607@4c018187]]`).
+half-Cauchy auxiliary already are ([src/bartcore/combiner.hpp:589-607](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L589-L607)).
 
 **B2 (open decision 5's vector-leaf pricing): ADOPTED, and the door is
 re-priced and narrowed.** Verified: `VectorLeafModel` requires
-`{ leaf.fitForObservation(v, i) } -> std::same_as<double>` (`[[model.hpp:60-67@4c018187]]`),
+`{ leaf.fitForObservation(v, i) } -> std::same_as<double>` ([src/bartcore/model.hpp:60-67](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L60-L67)),
 so dbarts' "vector leaf" is a vector of PARAMETERS producing a SCALAR fit;
-`ResponseFamily` has no multivariate member (`[[model.hpp:2523@4c018187]]`). McJames et al.'s
+`ResponseFamily` has no multivariate member ([src/bartcore/model.hpp:2523](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2523)). McJames et al.'s
 vector axis is the OUTCOME dimension, so lifting a leaf assert cannot buy
 multivariate-outcome BCF: a d-dimensional outcome needs a d-dimensional
 response, d-dimensional fits, a d x d residual covariance and a Results layout.
 **That half of the door is struck as a category error.** There are TWO asserts
-(`[[combiner.hpp:502@4c018187]]` BCF, `[[combiner.hpp:825@4c018187]]` multinomial), and the naive lift is
+([src/bartcore/combiner.hpp:502](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L502) BCF, [src/bartcore/combiner.hpp:825](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L825) multinomial), and the naive lift is
 undefined behaviour, not a configuration change: `muByTree` is documented
 "Empty for vector and function leaves, which keep the dense `treeFits` slab"
-(`[[combiner.hpp:174-181@4c018187]]`) while `BCFForestCombiner::afterCombine` indexes
-`forest.muByTree[t]` unconditionally (`[[combiner.hpp:651@4c018187]]`) and rescales it (`[[combiner.hpp:682-683@4c018187]]`), as
-does the multinomial combiner (`[[combiner.hpp:1166@4c018187]]`, `[[combiner.hpp:1189@4c018187]]`), and the saved-slot rescale
+([src/bartcore/combiner.hpp:174-181](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L174-L181)) while `BCFForestCombiner::afterCombine` indexes
+`forest.muByTree[t]` unconditionally ([src/bartcore/combiner.hpp:651](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L651)) and rescales it ([src/bartcore/combiner.hpp:682-683](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L682-L683)), as
+does the multinomial combiner ([src/bartcore/combiner.hpp:1166](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1166), [src/bartcore/combiner.hpp:1189](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1189)), and the saved-slot rescale
 walks `FlatNode`s carrying one scalar `value`. ADDED here, and it matters for
 VD's fork 1: multi-arm treatment on a vector leaf and the per-forest basis
 channel are DIFFERENT arcs serving different classes (one partition shared
@@ -329,7 +329,7 @@ across arms versus one partition per ensemble), so neither subsumes the other
 and the vector-leaf arc is not an alternative to the family.
 
 **B3 (the 1.04x attribution): ADOPTED in full.** The receipt
-`[[docs/plans/bcf-public-surface.md:85-93@4c018187]]` measures `run(0,1)` in a loop against `run(0,n)`
+[docs/plans/bcf-public-surface.md:85-93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L85-L93) measures `run(0,1)` in a loop against `run(0,n)`
 on ONE BCF sampler, not K single-forest samplers. The plan's numbers are now
 the critique's measured ones: engine per-sweep drive **0.89-0.95x** of a
 batched run (free, and inside noise), pure-R K-sampler composition
@@ -340,7 +340,7 @@ attributed to an R composition is void.
 STRUCK: **1.39-1.43x has no receipt anywhere in the tree** - the grep finds the
 assertion, never a measurement - and the tool-verified-claims discipline applies
 to this plan's own numbers, not only to the memo's. The engine half keeps its
-receipt (`[[docs/plans/bcf-public-surface.md:85-93@4c018187]]`) and stands. The replacement is FA1b's
+receipt ([docs/plans/bcf-public-surface.md:85-93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L85-L93)) and stands. The replacement is FA1b's
 measured figure with its protocol stated: **5.14x at K = 2, 5.36x at K = 4,
 5.43x at K = 8**, per-sweep wall time of the K-sampler R composition over a
 single BATCHED engine sampler carrying the same total tree budget (K * 50) on
@@ -379,19 +379,19 @@ post-release append recorded as the accepted cost. Amendment text for both
 documents is in "Cross-plan amendments".
 
 **The rename surface is THREE things, not two.** Beyond `setTreatment` and
-`bcfGlue`, `[[dbarts.h:348-357@4c018187]]` documents BCF creation as *"the R specification
+`bcfGlue`, [inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357) documents BCF creation as *"the R specification
 dbartsSpec(data, control, treatment = z)"*, so the causal vocabulary is in the
-shipped header's CREATION contract; `[[dbarts.h:43@4c018187]]` also documents "setTreatment
+shipped header's CREATION contract; [inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43) also documents "setTreatment
 copies the 0/1 values it is handed". bcf-public-surface's amendment misses this
 and is amended below.
 
 **B5 (the naming collision is a schedule blocker): the FINDING is adopted, its
 CONSEQUENCE is narrowed.** Verified: the precision channel is entirely
-`dbarts:::`-only today - `Chain::setForestWeights` (`[[chain.hpp:966@4c018187]]`; the
-`[[chain.hpp:870@4c018187]]` this plan cited before the 2026-08-13 refresh is a FALSE-POSITIVE
+`dbarts:::`-only today - `Chain::setForestWeights` ([src/bartcore/chain.hpp:966](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L966); the
+[src/bartcore/chain.hpp:870](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L870) this plan cited before the 2026-08-13 refresh is a FALSE-POSITIVE
 anchor at HEAD, where it resolves to `supportsResponseMutation`), bridge
-`bartcore_setForestWeights` (`[[R_interface_bartcore.cpp:3688-3728@4c018187]]`), R
-`bartcoreSetForestWeights` (`[[R/bartcore.R:999@4c018187]]`,
+`bartcore_setForestWeights` ([src/R_interface_bartcore.cpp:3688-3728](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3688-L3728)), R
+`bartcoreSetForestWeights` ([R/bartcore.R:999](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L999),
 absent from `NAMESPACE`, with no R5 method) - and the flat entry does not exist:
 `zero-weight-exactness.md` only reserves it and `dbarts-h-reshape.md` S1 item 5
 BUILDS it, in the window's last re-bake. So the precision channel's public
@@ -400,8 +400,8 @@ spelling does freeze there. NARROWED: the collision the memo feared
 by naming the mean channel **basis** rather than multiplier or weights.
 "Weights" in dbarts already means precisions - `setWeights` installs
 observation precisions, and `setForestWeights` is its per-forest sibling,
-composing as `(w_i a_i) m_f^2 s_i` (`[[chain.hpp:948-950@4c018187]]`,
-`composeForestWeights` at `[[chain.hpp:3431-3447@4c018187]]`, fn at `[[chain.hpp:3439@4c018187]]`; the `a_i` term is the
+composing as `(w_i a_i) m_f^2 s_i` ([src/bartcore/chain.hpp:948-950](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L948-L950),
+`composeForestWeights` at [src/bartcore/chain.hpp:3431-3447](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3431-L3447), fn at [src/bartcore/chain.hpp:3439](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3439); the `a_i` term is the
 active-row mask, which landed after this plan was written - see M1 item 3a) -
 so renaming it would cost the parallel
 that explains it. Therefore fork 3's mean-channel spelling does NOT block
@@ -429,7 +429,7 @@ dropped.
 Confirmed by the critique's probes and re-verified structurally here:
 
 1. **`setForestWeights` is a PRECISION channel that `combinedFits` never
-   reads.** `BCFForestCombiner::combinedFits` (`[[combiner.hpp:567-576@4c018187]]`) reads
+   reads.** `BCFForestCombiner::combinedFits` ([src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576)) reads
    `glue_.a`, `glue_.b0/b1` and `z`, never `forestWeights_`; the only consumer
    of the channel is `composeForestWeights`. Numerically: with `s = 0` on every
    row of forest 1, the reported location still contains that forest's full
@@ -446,7 +446,7 @@ Confirmed by the critique's probes and re-verified structurally here:
 3. **Rebuild plus `setState` silently drops a per-forest weight while the two
    stored states compare equal.** Real (reproduced: 0.38 max difference in tau
    fits, identical states) and already a RECORDED DECISION, not a discovery:
-   `[[chain.hpp:962-965@4c018187]]` documents it, `[[docs/plans/zero-weight-exactness.md:121-126@4c018187]]` decides
+   [src/bartcore/chain.hpp:962-965](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L962-L965) documents it, [docs/plans/zero-weight-exactness.md:121-126](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/zero-weight-exactness.md#L121-L126) decides
    it, and `inst/tinytest/test-forest-weights.R` pins the same-holder round trip
    and records the cross-sampler case as documented rather than asserted. It is
    a contract item for M0's doc, not a defect.
@@ -506,8 +506,8 @@ New findings made in synthesis, each a departure from the memo (receipts in
 9. **BCF is NOT an instance of the memo's declarative form, so the memo's
    spec and its falsifier F2 are both wrong.** `combinedFits` uses `b_{z_i}`
    and `drawGlue` draws `b0` and `b1` as two SEPARATE conjugate coefficients
-   accumulated over the `z = 0` and `z = 1` subsets (`[[combiner.hpp:567-576@4c018187]]`,
-   `[[combiner.hpp:609-622@4c018187]]`). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
+   accumulated over the `z = 0` and `z = 1` subsets ([src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576),
+   [src/bartcore/combiner.hpp:609-622](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L609-L622)). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
    TWO-COLUMN indicator basis with two coefficients, not one column times one
    amplitude. "Amplitude times one multiplier column" therefore does NOT
    contain BCF (it is BCF with `b0` pinned at 0), and the memo's F2 ("a K = 2
@@ -516,21 +516,21 @@ New findings made in synthesis, each a departure from the memo (receipts in
    MATRIX. This is what "spec the actual channel it rides" resolves to, below.
 10. **The general amplitude conditional is a small dense solve and the
     machinery ships.** `choleskyDecompose`, `solveLowerTriangular` and
-    `solveLowerTriangularTransposed` (`[[model.hpp:869-895@4c018187]]`) already serve
+    `solveLowerTriangularTransposed` ([src/bartcore/model.hpp:869-895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L869-L895)) already serve
     `LinearGaussianLeaf`'s normal equations and `GPGaussianLeaf`'s kernel
     solves. BCF's indicator basis is ORTHOGONAL, which makes its Gram matrix
     diagonal, which is exactly why the shipped code draws two scalars.
 11. **The memo's D2 is half moot.** The per-forest READERS were promoted at
     bcf-public-surface S2: `$getForestFits`, `$getBCFGlue` and
-    `$getForestVariableCounts` are public R5 methods (`[[R/dbarts.R:1344@4c018187]]`,
-    `[[R/dbarts.R:1349@4c018187]]`, `[[R/dbarts.R:1354@4c018187]]`). Only the per-forest weight SETTER remains internal.
+    `$getForestVariableCounts` are public R5 methods ([R/dbarts.R:1344](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1344),
+    [R/dbarts.R:1349](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1349), [R/dbarts.R:1354](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1354)). Only the per-forest weight SETTER remains internal.
 12. **Non-Gaussian multiforest is a refusal plus a calibration map, not missing
     machinery.** The latent draw already runs against the combined fit
-    (`[[chain.hpp:1266-1267@4c018187]]`) and the multinomial K-forest chain already runs a
+    ([src/bartcore/chain.hpp:1266-1267](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1266-L1267)) and the multinomial K-forest chain already runs a
     non-Gaussian response (its constructor sets `family_ = logistic` with
     Polya-Gamma augmentation). What forces Gaussian on the BCF path is the
     constructor itself: it builds a `GaussianResponse` and sets
-    `family_ = ResponseFamily::gaussian` unconditionally (`[[chain.hpp:702-705@4c018187]]`),
+    `family_ = ResponseFamily::gaussian` unconditionally ([src/bartcore/chain.hpp:702-705](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L705)),
     and BCF's calibration map is stated through `scaledResponseSd()`, a
     range-scaled Gaussian notion. So the memo's "the non-Gaussian case is the
     family's irreducible engine content" STANDS, and its price is lower than
@@ -554,8 +554,8 @@ from the precision channel, and it contains BCF exactly.
 
 **Model.** Each forest f carries a per-forest basis matrix `B_f` (n x q_f,
 ROW-major - corrected 2026-08-14 at M4.5; this line said column-major, and the
-shipped contract is row-major at every layer, `[[combiner.hpp:380-384@4c018187]]` and
-`[[dbarts.h:707-712@4c018187]]`, M4.3 item 5 having resolved the transpose in the doc
+shipped contract is row-major at every layer, [src/bartcore/combiner.hpp:380-384](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L380-L384) and
+[inst/include/dbarts/dbarts.h:707-712](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L707-L712), M4.3 item 5 having resolved the transpose in the doc
 direction) and a coefficient vector `a_f` of length q_f. The mean is
 
     E[y_i] = sum_f ( sum_k a_{f,k} B_f[i,k] ) f_f(x_i)
@@ -563,7 +563,7 @@ direction) and a coefficient vector `a_f` of length q_f. The mean is
 so the per-row effective multiplier `m_{f,i} = dot(a_f, B_f[i,])` stays a
 SCALAR. `formForestResponse`'s reparameterization (response `r_i / m_{f,i}`,
 weight `w_i m_{f,i}^2`) and the `0x1p-26` zero-multiplier snap
-(`[[combiner.hpp:525-565@4c018187]]`) are unchanged in shape, which is why this is a
+([src/bartcore/combiner.hpp:525-565](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L525-L565)) are unchanged in shape, which is why this is a
 generalization rather than a second mechanism.
 
 **Instances.** BCF: forest 0 with an intercept basis and free amplitude `a`;
@@ -603,9 +603,9 @@ re-bake:
 numForestAmplitudes(forest) x numChains; `1 = accepted, 0 = refused` (the house
 convention). A raw pointer plus a count, never a struct, because the FNV-1a
 token hashes signatures and is blind to struct layout
-(location not placeable at this sha - unresolved: [[dbarts-h-reshape.md:198-207@4c018187]] - measured). **Ownership is COPY**, matching the
+(location not placeable at this sha - unresolved: [docs/plans/archive/dbarts-h-reshape.md:198-207](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/archive/dbarts-h-reshape.md#L198-L207) - measured). **Ownership is COPY**, matching the
 shipped `setTreatment` ("setTreatment copies the 0/1 values it is handed",
-`[[dbarts.h:43@4c018187]]`) and the bridge's `ownedForestWeights` pattern, and it must be
+[inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43)) and the bridge's `ownedForestWeights` pattern, and it must be
 stated in the Doxygen: a continuous basis cannot be coerced-and-copied
 incidentally the way a 0/1 `z` can, so the ownership sentence is load-bearing
 rather than boilerplate.
@@ -672,19 +672,19 @@ semiparametrics (offset; both cited through
 `docs/design/tree-mixing-proposals.md` rather than re-fetched here); splines or
 GAM plus BART (offset); AR-1 errors (offset, deferred in
 `correlated-outcomes.md`); multivariate and SUR outcomes (ALREADY SHIPPED as
-`mvbart()` with zero dbarts engine change, `[[docs/design/INDEX.md:35@4c018187]]`, commit
+`mvbart()` with zero dbarts engine change, [docs/design/INDEX.md:35](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/INDEX.md#L35), commit
 e27a7c3); IRT plus BART (latent covariate; bairrtt, live); latent-confounder and
 measurement-error sensitivity (latent covariate; the treatSens class);
 sequential covariate imputation inside a fit (latent covariate); instrumental
 variables (the first-stage fit feeds the second). Hurdle and two-part models
 belong to NEITHER channel: the split is observed, so they are two conditionally
 independent ordinary fits, shipped R-side with zero engine code
-(`[[docs/design/INDEX.md:31@4c018187]]`). Cost: zero dbarts change for the offset channel; the
+([docs/design/INDEX.md:31](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/INDEX.md#L31)). Cost: zero dbarts change for the offset channel; the
 latent-covariate channel needs multiforest-predictor-mutation only if the BART
 side becomes multi-forest. One correction that must travel with this home:
 WALNUTS does NOT fix the cross-block ridge - it removes ridges INSIDE the
 parametric block, and the parametric-versus-forest coupling remains an
-alternating two-block Gibbs (`[[tree-mixing-proposals.md:558-572@4c018187]]`, verified in
+alternating two-block Gibbs ([docs/design/tree-mixing-proposals.md:558-572](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/tree-mixing-proposals.md#L558-L572), verified in
 stan4bart's own loop).
 
 **bartCause, the causal fit layer.** Owns `bcf()`, the estimands, common
@@ -693,7 +693,7 @@ support, the two counterfactual surfaces and the option-A names
 which stay correct for a fit function even though they leave the engine. Its
 estimator layer is already written against two counterfactual SURFACES, and
 under BCF both follow from mu, tau and glue with no test matrix at all
-(`[[docs/plans/bcf-public-surface.md:503-510@4c018187]]`; the `[[docs/plans/bcf-public-surface.md:479-484@4c018187]]` this plan cited before the
+([docs/plans/bcf-public-surface.md:503-510](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L503-L510); the [docs/plans/bcf-public-surface.md:479-484](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L479-L484) this plan cited before the
 2026-08-13 refresh now lands on S4's rng note and the S5 heading). Cost:
 uncomment the reserved
 `#bcf = redirectCall(...)` line in its response-method switch, write a `bcf`
@@ -782,7 +782,7 @@ model authors already use.
    It COMMITS NOTHING about: per-forest decomposition of test fits
    (`testFitsAreDefined() == false` under BCF); mid-sweep hooks (refused on
    invariant grounds as well as threading grounds - during the tree loop
-   "totalFits is stale until rebuilt after the loop", `[[chain.hpp:1183@4c018187]]`);
+   "totalFits is stale until rebuilt after the loop", [src/bartcore/chain.hpp:1183](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1183));
    per-forest saved-tree replay; cross-host bitwise reproducibility
    (within-host across any SIMD dispatch only).
    It RECORDS the sweep-boundary hooks that exist and their constraints: the
@@ -858,65 +858,65 @@ zero-information-row affordance (annealed or partial membership) without a
 `dbarts:::` reach-in.
 
 **Anchors, re-verified BY SYMBOL at 934a02d5 (added 2026-08-13, pre-M1).**
-Engine: `Chain::setForestWeights` `[[chain.hpp:966@4c018187]]` with its semantics doc
-`[[chain.hpp:944-965@4c018187]]` (the composition sentence `[[chain.hpp:948-950@4c018187]]`, the rebuild-drop sentence
-`[[chain.hpp:962-965@4c018187]]`); `Chain::supportsForestWeights` `[[chain.hpp:878-880@4c018187]]`;
-`Chain::composeForestWeights` `[[chain.hpp:3431-3447@4c018187]]`, fn `[[chain.hpp:3439@4c018187]]`, called from the forest
-loop at `[[chain.hpp:1160@4c018187]]`; the capability is true only on `BCFForestCombiner`
-(`[[combiner.hpp:738@4c018187]]`). Fan-out `[[sampler.hpp:1170@4c018187]]`; facade virtual
-`[[facade.hpp:279@4c018187]]`, shape field `[[facade.hpp:80@4c018187]]`, populated `[[facade.hpp:358@4c018187]]`. Bridge
-`bartcore_setForestWeights` `[[R_interface_bartcore.cpp:3688-3728@4c018187]]`. Internal R
-wrapper `bartcoreSetForestWeights` `[[R/bartcore.R:999@4c018187]]` (its semantics comment
-`[[R/bartcore.R:984-998@4c018187]]`), absent from `NAMESPACE`, with no R5 method. The R5 method's site
-is between `$setActiveRows` (`[[R/dbarts.R:1109@4c018187]]`) and `$setTreatment` (`[[R/dbarts.R:1132@4c018187]]`).
-Rd: aliases `[[man/dbartsSampler-class.Rd:18-19@4c018187]]`, usage `[[man/dbartsSampler-class.Rd:62-63@4c018187]]`,
-`\item{weights}` `[[man/dbartsSampler-class.Rd:144-146@4c018187]]`, `\item{active}` `[[man/dbartsSampler-class.Rd:147-161@4c018187]]`, `\item{forest}`
-`[[man/dbartsSampler-class.Rd:165-167@4c018187]]`. The ENGINE channel is already pinned by
+Engine: `Chain::setForestWeights` [src/bartcore/chain.hpp:966](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L966) with its semantics doc
+[src/bartcore/chain.hpp:944-965](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L944-L965) (the composition sentence [src/bartcore/chain.hpp:948-950](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L948-L950), the rebuild-drop sentence
+[src/bartcore/chain.hpp:962-965](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L962-L965)); `Chain::supportsForestWeights` [src/bartcore/chain.hpp:878-880](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L878-L880);
+`Chain::composeForestWeights` [src/bartcore/chain.hpp:3431-3447](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3431-L3447), fn [src/bartcore/chain.hpp:3439](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3439), called from the forest
+loop at [src/bartcore/chain.hpp:1160](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1160); the capability is true only on `BCFForestCombiner`
+([src/bartcore/combiner.hpp:738](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L738)). Fan-out [src/bartcore/sampler.hpp:1170](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1170); facade virtual
+[src/bartcore/facade.hpp:279](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L279), shape field [src/bartcore/facade.hpp:80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L80), populated [src/bartcore/facade.hpp:358](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L358). Bridge
+`bartcore_setForestWeights` [src/R_interface_bartcore.cpp:3688-3728](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3688-L3728). Internal R
+wrapper `bartcoreSetForestWeights` [R/bartcore.R:999](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L999) (its semantics comment
+[R/bartcore.R:984-998](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L984-L998)), absent from `NAMESPACE`, with no R5 method. The R5 method's site
+is between `$setActiveRows` ([R/dbarts.R:1109](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1109)) and `$setTreatment` ([R/dbarts.R:1132](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1132)).
+Rd: aliases [man/dbartsSampler-class.Rd:18-19](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L18-L19), usage [man/dbartsSampler-class.Rd:62-63](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L62-L63),
+`\item{weights}` [man/dbartsSampler-class.Rd:144-146](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L144-L146), `\item{active}` [man/dbartsSampler-class.Rd:147-161](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L147-L161), `\item{forest}`
+[man/dbartsSampler-class.Rd:165-167](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L165-L167). The ENGINE channel is already pinned by
 `inst/tinytest/test-forest-weights.R` (293 lines), including the all-ones
-identity (`[[man/dbartsSampler-class.Rd:73-79@4c018187]]`), `storeState`/`setState` and `installForests` round trips
-(`[[man/dbartsSampler-class.Rd:276@4c018187]]`, `[[man/dbartsSampler-class.Rd:292@4c018187]]`).
+identity ([man/dbartsSampler-class.Rd:73-79](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L73-L79)), `storeState`/`setState` and `installForests` round trips
+([man/dbartsSampler-class.Rd:276](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L276), [man/dbartsSampler-class.Rd:292](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L292)).
 
 **1. Forest indexing: 1-BASED, converted at the boundary. SETTLED (VD
 2026-08-13; added 2026-08-13, pre-M1.)** R code holds 1-based throughout, with
 ONE conversion point at the bridge call site - the `resolveForestIndex` pattern
-(`[[R/bartcore.R:1051@4c018187]]`, which rejects anything below 1 and returns `forest - 1L`).
+([R/bartcore.R:1051](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1051), which rejects anything below 1 and returns `forest - 1L`).
 The C API, the bridge and the engine stay 0-based. So `$setForestWeights(forest,
 weights)` routes through `resolveForestIndex`, NOT through the raw 0-based
 internal wrapper `bartcoreSetForestWeights` (which is 0-based, takes a bartcore
 handle rather than an R5 pointer, and is therefore not reusable here anyway):
 the method calls `C_dbarts_bartcore_setForestWeights` directly with the
 converted index, as `$getCalibration`/`$setCalibration` already do
-(`[[R/dbarts.R:1362@4c018187]]`, `[[R/dbarts.R:1393@4c018187]]`). A BCF sampler's treatment forest is therefore
+([R/dbarts.R:1362](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1362), [R/dbarts.R:1393](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1393)). A BCF sampler's treatment forest is therefore
 `2L` in every M1 example, Rd sentence and test. Relation to the open
-`r5-forest-indexing` ticket (`[[TODO:413-424@89d4bd52]]`): M1 MUST NOT extend the 0-based
+`r5-forest-indexing` ticket ([TODO:413-424](https://github.com/vdorie/dbarts/blob/89d4bd52a68854d3085444b14e4587a413443502/TODO#L413-L424)): M1 MUST NOT extend the 0-based
 split onto a new axis - it lands on the 1-based side, leaving the ticket with
 exactly the two 0-based getters it already names (`$getForestFits`,
 `$getForestVariableCounts`), which the dbarts-h-reshape re-bake still
-normalizes. The Rd's `\item{forest}` paragraph (`[[TODO:165-167@4c018187]]`) documents both
+normalizes. The Rd's `\item{forest}` paragraph ([TODO:165-167](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L165-L167)) documents both
 conventions today and gains a third clause naming `setForestWeights` on the
 1-based side.
 
 **2. The mirroring mechanism: a NEW R5 field, re-applied at BOTH re-creation
 sites (added 2026-08-13, pre-M1).** `$setTreatment` is not the template it
-looks like. It mirrors through `data@treatment` (`[[R/dbarts.R:1144-1146@4c018187]]`), a
-`dbartsData` slot (`[[R/A_class.R:518@4c018187]]`) that `bartcore_create` reads back for
+looks like. It mirrors through `data@treatment` ([R/dbarts.R:1144-1146](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1144-L1146)), a
+`dbartsData` slot ([R/A_class.R:518](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L518)) that `bartcore_create` reads back for
 free on every re-creation. `dbartsData` has NO per-forest weight slot
-(`[[R/A_class.R:478-541@4c018187]]`, verified slot by slot), and the R5 fields are exactly
+([R/A_class.R:478-541](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L478-L541), verified slot by slot), and the R5 fields are exactly
 six - `pointer`, `control`, `model`, `data`, `state`, `hostFor`
-(`[[R/dbarts.R:711-722@4c018187]]`) - none of which can carry one. So M1 must ADD an R5
+([R/dbarts.R:711-722](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L711-L722)) - none of which can carry one. So M1 must ADD an R5
 field holding the installed per-forest weights (a list or a matrix indexed by
 1-based forest, `NULL` where none is installed) and RE-APPLY it after every
 re-creation, at BOTH live sites:
-   - `getPointer()` (`[[R/dbarts.R:1428-1456@4c018187]]`), after its
+   - `getPointer()` ([R/dbarts.R:1428-1456](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1428-L1456)), after its
      `C_dbarts_bartcore_create` + `C_dbarts_bartcore_setState` pair;
-   - `setState()` (`[[R/dbarts.R:1458-1482@4c018187]]`), after its own
+   - `setState()` ([R/dbarts.R:1458-1482](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1458-L1482)), after its own
      `C_dbarts_bartcore_setState`, which re-creates on an invalid pointer by
      the same two calls.
    Re-application must not recurse through `getPointer()`. FW1 as the plan
    originally wrote it exercises only the first site; **FW1 is extended to
    exercise BOTH**, each with the field-removed negative half. `$setActiveRows`
    is NOT a counter-precedent to mirroring: it installs no mirror at all and
-   the Rd says so (`[[man/dbartsSampler-class.Rd:158@4c018187]]`, the mask does not ride a
+   the Rd says so ([man/dbartsSampler-class.Rd:158](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L158), the mask does not ride a
    saved state), which is precisely the asymmetry M1 is closing for this
    channel under bcf-public-surface's recorded mirroring rule.
 
@@ -926,36 +926,36 @@ re-creation, at BOTH live sites:
    active-row mask lands inside the response family: `workingWeights()` serves
    `w * a` while a mask is installed and `w` by identity when it is not
    (`docs/plans/latent-subset-mask.md`, "Composition with setWeights",
-   `[[man/dbartsSampler-class.Rd:436-448@4c018187]]`), the chain reads it at `[[chain.hpp:1101@4c018187]]`, the combiner forms
-   `(w a) m_f^2` in `formForestResponse` (`[[combiner.hpp:562@4c018187]]`), and
-   `composeForestWeights` multiplies `s` on top afterwards (`[[chain.hpp:1160@4c018187]]`,
-   `[[chain.hpp:3439@4c018187]]`). The two channels are independent and order-free (the Rd already
-   states `w_i * a_i` for the mask, `[[man/dbartsSampler-class.Rd:148@4c018187]]`). M1's Rd
+   [man/dbartsSampler-class.Rd:436-448](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L436-L448)), the chain reads it at [src/bartcore/chain.hpp:1101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1101), the combiner forms
+   `(w a) m_f^2` in `formForestResponse` ([src/bartcore/combiner.hpp:562](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L562)), and
+   `composeForestWeights` multiplies `s` on top afterwards ([src/bartcore/chain.hpp:1160](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1160),
+   [src/bartcore/chain.hpp:3439](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3439)). The two channels are independent and order-free (the Rd already
+   states `w_i * a_i` for the mask, [man/dbartsSampler-class.Rd:148](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L148)). M1's Rd
    states the FOUR-factor form. The internal comments still say the three-factor
-   `w_i m_f^2 s_i` - `[[chain.hpp:948-950@4c018187]]` and `[[R/bartcore.R:984-998@4c018187]]`; refreshing
+   `w_i m_f^2 s_i` - [src/bartcore/chain.hpp:948-950](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L948-L950) and [R/bartcore.R:984-998](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L984-L998); refreshing
    the R one is free for M1, the `chain.hpp` one is comment-only src and rides a
    later slice rather than breaking M1's no-src rule.
    (b) **The Rd's degenerate-value contrast becomes THREE-way.** Verified:
    `setWeights` all-ones INSTALLS and is measurably distinct from carrying no
    weights at all; `setActiveRows` all-ones reports success, installs NOTHING
    and CLEARS any installed mask (both stated at
-   `[[man/dbartsSampler-class.Rd:148@4c018187]]`); `setForestWeights` all-ones INSTALLS -
+   [man/dbartsSampler-class.Rd:148](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L148)); `setForestWeights` all-ones INSTALLS -
    it takes the composed path (scratch buffer, an O(n) multiply) where not
    installing passes the combiner's own pointer through - and is BITWISE
    identity, pinned as the identity arm at
-   `[[inst/tinytest/test-forest-weights.R:73-79@4c018187]]`, while staying in force across a
-   state round trip (`[[inst/tinytest/test-forest-weights.R:276@4c018187]]`, `[[inst/tinytest/test-forest-weights.R:292@4c018187]]`). M1's Rd must state all three, and must
+   [inst/tinytest/test-forest-weights.R:73-79](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-weights.R#L73-L79), while staying in force across a
+   state round trip ([inst/tinytest/test-forest-weights.R:276](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-weights.R#L276), [inst/tinytest/test-forest-weights.R:292](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-weights.R#L292)). M1's Rd must state all three, and must
    not flatten the third into "no-op": it installs, and a later round trip can
    tell.
    (c) **`setData` vs an installed per-forest weight: the interaction is
    UNREACHABLE, and that is the answer M1's Rd documents.** `setData` clears
    the active-row mask because the mask is length-n and `setData` may change n.
    The per-forest weight needs no such rule: `bartcore_setData` refuses on ANY
-   multi-forest sampler before it does anything (`[[R_interface_bartcore.cpp:4337@4c018187]]`
-   calling `refuseMultiForestMutation`, whose body is at `[[R_interface_bartcore.cpp:2503-2508@4c018187]]` - "a
+   multi-forest sampler before it does anything ([src/R_interface_bartcore.cpp:4337](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4337)
+   calling `refuseMultiForestMutation`, whose body is at [src/R_interface_bartcore.cpp:2503-2508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2503-L2508) - "a
    multi-forest sampler fixes its data at creation; make a new sampler
    instead"), and `supportsForestWeights` is true only on `BCFForestCombiner`
-   (`[[combiner.hpp:738@4c018187]]`), i.e. only on a sampler with two forests. So a sampler
+   ([src/bartcore/combiner.hpp:738](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L738)), i.e. only on a sampler with two forests. So a sampler
    that can HOLD a per-forest weight can never TAKE a `setData`, and nothing
    clears anything. The Rd says the channel is BCF-only and that `setData` is
    refused on such a sampler, rather than repeating the mask's "setData clears"
@@ -966,32 +966,32 @@ re-creation, at BOTH live sites:
 **4. The multinomial refusal sits INSIDE the entry M1 wraps; the R5 posture is
 PASS-THROUGH (added 2026-08-13, pre-M1).** Mask S3 put the softmax-margin
 refusal in `bartcore_setForestWeights` itself
-(`[[R_interface_bartcore.cpp:3694-3704@4c018187]]`: the capability probe comes first, and
+([src/R_interface_bartcore.cpp:3694-3704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3694-L3704): the capability probe comes first, and
 under `supportsCountsMutation` it raises "a multinomial mask applies to every
 category: the softmax margin reads all K forests, so a row cannot leave one
 category's likelihood alone" before falling through to
 "bartcore_setForestWeights requires a BCF sampler"). POSTURE: the R5 method
 adds NO pre-refusal of its own and lets the bridge raise. This matches the
-house posture of its neighbours - `$setActiveRows` (`[[R/dbarts.R:1109-1131@4c018187]]`)
+house posture of its neighbours - `$setActiveRows` ([R/dbarts.R:1109-1131](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1109-L1131))
 validates shape and length in R and leaves every family/capability refusal to
 the bridge, and `$setCalibration`'s only R-side pre-refusal
-(`refuseBCFMutation`, `[[R/dbarts.R:1373-1378@4c018187]]`) is a BCF-calibration refusal, not a family
+(`refuseBCFMutation`, [R/dbarts.R:1373-1378](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1373-L1378)) is a BCF-calibration refusal, not a family
 one. Like every R5 mutator, the method opens with
-`refuseHostMutation("$setForestWeights")` (`[[R/dbarts.R:770-783@4c018187]]`) and validates length,
+`refuseHostMutation("$setForestWeights")` ([R/dbarts.R:770-783](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L770-L783)) and validates length,
 `NA` and non-negativity in R before the call, on the `$setWeights` pattern.
    **One correction, verified rather than assumed: the multinomial message is
    NOT reachable through the public R5 route at HEAD, so M1 must not budget a
    test that pins it there.** A multinomial engine only
    ever exists as a bare-environment bartcore handle built by
-   `C_dbarts_bartcore_createMultinomial` (`[[R/bartcore.R:797-806@4c018187]]`); the
+   `C_dbarts_bartcore_createMultinomial` ([R/bartcore.R:797-806](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L797-L806)); the
    `dbartsSampler` a multinomial fit carries is a HOST SHELL over an ordinary
-   single-forest engine (`[[R/bart.R:1258@4c018187]]`, `[[R/bart.R:1336@4c018187]]`), every mutator on which is
+   single-forest engine ([R/bart.R:1258](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1258), [R/bart.R:1336](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1336)), every mutator on which is
    refused first by `refuseHostMutation`. The R5 route's reachable refusals are
    therefore the host-shell one and, on an ordinary sampler,
    "bartcore_setForestWeights requires a BCF sampler". M1 pins those two
    through the PUBLIC route; the multinomial message keeps its existing
-   internal-route pin at `[[inst/tinytest/test-active-rows-pins.R:501-504@4c018187]]`
-   (the call at `[[inst/tinytest/test-active-rows-pins.R:502@4c018187]]`), which STAYS. If a later slice gives the R5 layer a
+   internal-route pin at [inst/tinytest/test-active-rows-pins.R:501-504](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-active-rows-pins.R#L501-L504)
+   (the call at [inst/tinytest/test-active-rows-pins.R:502](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-active-rows-pins.R#L502)), which STAYS. If a later slice gives the R5 layer a
    multinomial-shaped pointer, the public pin lands there.
 
 **5. Budget, RESTATED with the carried items included (added 2026-08-13,
@@ -1019,7 +1019,7 @@ rng: NEUTRAL (no src). Gates: `R CMD INSTALL` into a private library; full
 tinytest with NO snapshot regenerated; `saveRDS`/`readRDS` round trip;
 `R CMD check`; `air format --check .`; `lintr` on touched R; pkgdown check,
 with NO new Rd topic and NO `_pkgdown.yml` edit - the alias rides
-`dbartsSampler-class`, already listed at `[[_pkgdown.yml:26@4c018187]]`. The trio is
+`dbartsSampler-class`, already listed at [_pkgdown.yml:26](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/_pkgdown.yml#L26). The trio is
 expected IDENTICAL (no src), against baselines `equivalence-8b047f8b` (37
 scenarios), `bcf-equivalence-8b047f8b` (12) and
 `multinomial-equivalence-1027be5` (10).
@@ -1066,49 +1066,49 @@ scenarios), `bcf-equivalence-8b047f8b` (12) and
 Every number this section carried predates M1 (05ac3b4b, ~67 lines added to
 `R/dbarts.R`) and the mask arc; these are the live ones, and where the section
 cited a number it is given with its stale value.
-Creation formals: `dbarts()`'s three at `[[R/dbarts.R:350-352@4c018187]]`, reaching
-`dbartsData()` through `dataCall <- redirectCall(matchedCall, ...)` (`[[R/dbarts.R:539@4c018187]]`)
-and `resolveSamplerSpec` at `[[R/dbarts.R:562-566@4c018187]]`, whose comment (`[[R/dbarts.R:562-563@4c018187]]`) records why
+Creation formals: `dbarts()`'s three at [R/dbarts.R:350-352](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L350-L352), reaching
+`dbartsData()` through `dataCall <- redirectCall(matchedCall, ...)` ([R/dbarts.R:539](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L539))
+and `resolveSamplerSpec` at [R/dbarts.R:562-566](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L562-L566), whose comment ([R/dbarts.R:562-563](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L562-L563)) records why
 `treatment = NULL` is passed there - the vector already rides the data object,
 because `dbartsData()` is the one place that knows which rows `subset` kept.
 That redirect is load-bearing for M2: dropping `dbarts()`'s formal alone does
 not remove the argument if `dbartsData()` keeps one of the same name (item 11).
-`dbartsSpec()` `[[R/spec.R:471@4c018187]]`, its formals `[[R/spec.R:486-488@4c018187]]`, forwarding `[[R/spec.R:567-569@4c018187]]`;
-`resolveSamplerSpec` `[[R/spec.R:15@4c018187]]`, formals `[[R/spec.R:32-34@4c018187]]`. The resolution path is
-`[[R/spec.R:363-460@4c018187]]`: the design comment `[[R/spec.R:363-371@4c018187]]`, `data@treatment <-
-validateTreatment(...)` `[[R/spec.R:373@4c018187]]`, the gaussian gate `[[R/spec.R:375-384@4c018187]]`, the `unsupported`
-vector `[[R/spec.R:391-420@4c018187]]`, its `stop` `[[R/spec.R:421-426@4c018187]]`, `resolveTreatmentForest` `[[R/spec.R:427@4c018187]]`,
-`resolveModerators` `[[R/spec.R:428@4c018187]]`, the `attr(control, "bartcore.bcf")` payload
-`[[R/spec.R:429-454@4c018187]]`, the orphan-argument gate `[[R/spec.R:455-460@4c018187]]`. Constructor and resolvers:
-`treatmentForest()` `[[R/model.R:1238-1264@4c018187]]` with its doc `[[R/model.R:1228-1237@4c018187]]`,
-`resolveTreatmentForest` `[[R/model.R:651-681@4c018187]]`, `resolveModerators` `[[R/model.R:620-646@4c018187]]`. Data half:
-`dbartsData()`'s own `treatment` formal `[[R/data.R:697@4c018187]]`, `validateTreatment`
-`[[R/data.R:631-654@4c018187]]` called at `[[R/data.R:880@4c018187]]`, `[[R/data.R:962@4c018187]]`, `[[R/data.R:1028@4c018187]]`; the slot `[[R/A_class.R:518@4c018187]]`
-(comment `[[R/A_class.R:513@4c018187]]`, prototype `[[R/A_class.R:537@4c018187]]`, validity `[[R/A_class.R:582-591@4c018187]]`). R5: `$setTreatment`
-`[[R/dbarts.R:1185-1212@4c018187]]` (was cited `[[R/dbarts.R:1132@4c018187]]`), its docstring `[[R/dbarts.R:1186@4c018187]]`, the
-`data@treatment` mirror `[[R/dbarts.R:1196-1197@4c018187]]`, the `.Call` `[[R/dbarts.R:1199@4c018187]]`; `$getBCFGlue`
-`[[R/dbarts.R:1402-1406@4c018187]]` (was cited `[[R/dbarts.R:1349@4c018187]]`), between `$getForestFits` `[[R/dbarts.R:1397@4c018187]]` (was
-`[[R/dbarts.R:1344@4c018187]]`) and `$getForestVariableCounts` `[[R/dbarts.R:1407@4c018187]]` (was `[[R/dbarts.R:1354@4c018187]]`);
-`$getCalibration` `[[R/dbarts.R:1412@4c018187]]` (was `[[R/dbarts.R:1362@4c018187]]`) and `$setCalibration` `[[R/dbarts.R:1417@4c018187]]` (was
-`[[R/dbarts.R:1393@4c018187]]`), the two `resolveForestIndex` precedents, at `[[R/dbarts.R:1415@4c018187]]` and `[[R/dbarts.R:1446@4c018187]]`.
-Rd: aliases `[[man/dbartsSampler-class.Rd:21@4c018187]]` and `[[man/dbartsSampler-class.Rd:34@4c018187]]` - the block gained
-`setForestWeights` at `[[man/dbartsSampler-class.Rd:20@4c018187]]` in M1, so both stale by one - usage `[[man/dbartsSampler-class.Rd:66@4c018187]]` and
-`[[man/dbartsSampler-class.Rd:81@4c018187]]`, the mutator list naming `setTreatment` `[[man/dbartsSampler-class.Rd:104@4c018187]]`, the `updateScale`
-refusal sentence `[[man/dbartsSampler-class.Rd:131@4c018187]]`, `\item{z}` `[[man/dbartsSampler-class.Rd:166-168@4c018187]]`, `\item{forest}` `[[man/dbartsSampler-class.Rd:169-171@4c018187]]`,
-`\value` `[[man/dbartsSampler-class.Rd:355@4c018187]]`; `man/dbarts.Rd` usage `[[man/dbartsSampler-class.Rd:20@4c018187]]` and the three `\item` blocks
-`[[man/dbartsSampler-class.Rd:83-85@4c018187]]`, `[[man/dbartsSampler-class.Rd:86-88@4c018187]]`, `[[man/dbartsSampler-class.Rd:89-91@4c018187]]`, plus the calibration sentence `[[man/dbartsSampler-class.Rd:153@4c018187]]`;
-`[[man/dbartsSpec.Rd:17@4c018187]]` and `[[man/dbartsSpec.Rd:28@4c018187]]`; `[[man/dbartsData.Rd:13@4c018187]]` and `[[man/dbartsData.Rd:16@4c018187]]`;
-`man/treatmentForest.Rd`, 92 lines; `[[inst/NEWS.Rd:85-95@4c018187]]`, the R5 bullet naming
-both renamed methods, and `[[inst/NEWS.Rd:693@4c018187]]`, the FLAT entry, which is M3's and not M2's.
+`dbartsSpec()` [R/spec.R:471](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L471), its formals [R/spec.R:486-488](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L486-L488), forwarding [R/spec.R:567-569](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L567-L569);
+`resolveSamplerSpec` [R/spec.R:15](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L15), formals [R/spec.R:32-34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L32-L34). The resolution path is
+[R/spec.R:363-460](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L363-L460): the design comment [R/spec.R:363-371](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L363-L371), `data@treatment <-
+validateTreatment(...)` [R/spec.R:373](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L373), the gaussian gate [R/spec.R:375-384](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L375-L384), the `unsupported`
+vector [R/spec.R:391-420](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L391-L420), its `stop` [R/spec.R:421-426](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L421-L426), `resolveTreatmentForest` [R/spec.R:427](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L427),
+`resolveModerators` [R/spec.R:428](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L428), the `attr(control, "bartcore.bcf")` payload
+[R/spec.R:429-454](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L429-L454), the orphan-argument gate [R/spec.R:455-460](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L455-L460). Constructor and resolvers:
+`treatmentForest()` [R/model.R:1238-1264](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1238-L1264) with its doc [R/model.R:1228-1237](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1228-L1237),
+`resolveTreatmentForest` [R/model.R:651-681](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L651-L681), `resolveModerators` [R/model.R:620-646](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L620-L646). Data half:
+`dbartsData()`'s own `treatment` formal [R/data.R:697](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L697), `validateTreatment`
+[R/data.R:631-654](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L631-L654) called at [R/data.R:880](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L880), [R/data.R:962](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L962), [R/data.R:1028](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L1028); the slot [R/A_class.R:518](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L518)
+(comment [R/A_class.R:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L513), prototype [R/A_class.R:537](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L537), validity [R/A_class.R:582-591](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L582-L591)). R5: `$setTreatment`
+[R/dbarts.R:1185-1212](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1185-L1212) (was cited [R/dbarts.R:1132](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1132)), its docstring [R/dbarts.R:1186](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1186), the
+`data@treatment` mirror [R/dbarts.R:1196-1197](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1196-L1197), the `.Call` [R/dbarts.R:1199](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1199); `$getBCFGlue`
+[R/dbarts.R:1402-1406](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1402-L1406) (was cited [R/dbarts.R:1349](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1349)), between `$getForestFits` [R/dbarts.R:1397](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1397) (was
+[R/dbarts.R:1344](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1344)) and `$getForestVariableCounts` [R/dbarts.R:1407](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1407) (was [R/dbarts.R:1354](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1354));
+`$getCalibration` [R/dbarts.R:1412](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1412) (was [R/dbarts.R:1362](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1362)) and `$setCalibration` [R/dbarts.R:1417](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1417) (was
+[R/dbarts.R:1393](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1393)), the two `resolveForestIndex` precedents, at [R/dbarts.R:1415](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1415) and [R/dbarts.R:1446](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1446).
+Rd: aliases [man/dbartsSampler-class.Rd:21](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L21) and [man/dbartsSampler-class.Rd:34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L34) - the block gained
+`setForestWeights` at [man/dbartsSampler-class.Rd:20](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L20) in M1, so both stale by one - usage [man/dbartsSampler-class.Rd:66](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L66) and
+[man/dbartsSampler-class.Rd:81](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L81), the mutator list naming `setTreatment` [man/dbartsSampler-class.Rd:104](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L104), the `updateScale`
+refusal sentence [man/dbartsSampler-class.Rd:131](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L131), `\item{z}` [man/dbartsSampler-class.Rd:166-168](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L166-L168), `\item{forest}` [man/dbartsSampler-class.Rd:169-171](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L169-L171),
+`\value` [man/dbartsSampler-class.Rd:355](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L355); `man/dbarts.Rd` usage [man/dbartsSampler-class.Rd:20](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L20) and the three `\item` blocks
+[man/dbartsSampler-class.Rd:83-85](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L83-L85), [man/dbartsSampler-class.Rd:86-88](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L86-L88), [man/dbartsSampler-class.Rd:89-91](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L89-L91), plus the calibration sentence [man/dbartsSampler-class.Rd:153](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L153);
+[man/dbartsSpec.Rd:17](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSpec.Rd#L17) and [man/dbartsSpec.Rd:28](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSpec.Rd#L28); [man/dbartsData.Rd:13](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsData.Rd#L13) and [man/dbartsData.Rd:16](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsData.Rd#L16);
+`man/treatmentForest.Rd`, 92 lines; [inst/NEWS.Rd:85-95](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/NEWS.Rd#L85-L95), the R5 bullet naming
+both renamed methods, and [inst/NEWS.Rd:693](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/NEWS.Rd#L693), the FLAT entry, which is M3's and not M2's.
 One anchor outside R and decisive for item 11: the bridge reads the
-`"treatment"` slot BY NAME at `[[src/R_interface_bartcore.cpp:1112@4c018187]]` (length check
-`[[src/R_interface_bartcore.cpp:1117@4c018187]]`), so `data@treatment` cannot move inside an R-only slice.
+`"treatment"` slot BY NAME at [src/R_interface_bartcore.cpp:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1112) (length check
+[src/R_interface_bartcore.cpp:1117](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1117)), so `data@treatment` cannot move inside an R-only slice.
 
 **6. Surface bookkeeping, made explicit (added 2026-08-13, pre-M2).** The
 section hedged this ("`_pkgdown.yml` if a new topic appears"); scoping settles
 it in both directions, and each half has a gate consequence.
    (a) `treatmentForest` is EXPORTED (`NAMESPACE:18`, verified) and is a listed
-   pkgdown reference topic (`[[_pkgdown.yml:33@4c018187]]`, verified, inside "The mutable
+   pkgdown reference topic ([_pkgdown.yml:33](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/_pkgdown.yml#L33), verified, inside "The mutable
    sampler"). M2 removes it from BOTH, and deletes or rewrites
    `man/treatmentForest.Rd`. An export removed without its `_pkgdown.yml` line
    leaves `check_pkgdown` pointing at a topic that no longer exists.
@@ -1116,24 +1116,24 @@ it in both directions, and each half has a gate consequence.
    the `NAMESPACE` export, writes `man/forest.Rd`, and adds the
    `_pkgdown.yml` entry beside `interactions`/`blocks` where `treatmentForest`
    sat. This is the new-exported-Rd-topic lesson's fifth occurrence; its fourth
-   was caught at review rather than by a gate (`[[docs/plans/bcf-public-surface.md:886-888@4c018187]]`),
+   was caught at review rather than by a gate ([docs/plans/bcf-public-surface.md:886-888](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L886-L888)),
    which is why `pkgdown::check_pkgdown` is a NAMED gate below rather than
    "pkgdown check", and why `R CMD check` (undocumented-export and codoc) joins
    M2's gate line - M1 needed neither, having no new topic.
    (c) No name collision: `forest` is unused as a symbol anywhere in `R/`
    (verified), so the export is free. It does collide with the loop variable in
-   `reapplyForestWeights` (`[[R/dbarts.R:1483@4c018187]]`) only lexically, which is harmless
+   `reapplyForestWeights` ([R/dbarts.R:1483](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1483)) only lexically, which is harmless
    and worth neither a rename nor a comment.
 
 **7. Forest indexing: the SETTLED 1-based-at-the-boundary rule applies to both
 renamed methods (added 2026-08-13, pre-M2).** Cited, not restated: M1 item 1
 (VD 2026-08-13). `$setForestBasis(forest, basis)` takes a forest index and
-routes it through `resolveForestIndex` (`[[R/bartcore.R:1051@4c018187]]`), as
+routes it through `resolveForestIndex` ([R/bartcore.R:1051](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1051)), as
 `$setForestWeights` and `$getCalibration`/`$setCalibration` do; the treatment
 forest is `2L` in every M2 example, Rd sentence and test.
 `$getForestAmplitudes` is the exception, and it is a FACT not a choice:
 `$getBCFGlue` at HEAD takes NO argument (`getBCFGlue = function()`,
-`[[R/dbarts.R:1402@4c018187]]`) and returns the whole 3 x n.chains `(a, b0, b1)` matrix, so
+[R/dbarts.R:1402](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1402)) and returns the whole 3 x n.chains `(a, b0, b1)` matrix, so
 the plain rename is argument-free too. Giving it a `forest` argument is a
 SURFACE CHANGE, not a rename: it would have to return forest 0's one amplitude
 or forest 1's two, i.e. the ragged shape M3's `numForestAmplitudes` plus
@@ -1148,51 +1148,51 @@ settled the reader's shape. `$getForestFits`/`$getForestVariableCounts` stay
    (a) **The `data@treatment` mirror SURVIVES the rename, unchanged in
    mechanism.** `$setTreatment` writes the engine and the slot under a
    `tryCatch` that rolls the slot back on a bridge error
-   (`[[R/dbarts.R:1196-1205@4c018187]]`), which is what makes `getPointer()`'s transparent
+   ([R/dbarts.R:1196-1205](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1196-L1205)), which is what makes `getPointer()`'s transparent
    re-creation carry the current assignment. `$setForestBasis` keeps exactly
    that body: the slot is read back by name from C at every create
-   (`[[src/R_interface_bartcore.cpp:1112@4c018187]]`), so no R-only slice can replace the
+   ([src/R_interface_bartcore.cpp:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1112)), so no R-only slice can replace the
    mechanism, and M0 item 1(iii) commits it as contract. What moves is the
    ARGUMENT's spelling - `z` becomes the two-column indicator `basis`, and the
    method reduces it to the 0/1 column the slot and the bridge still take, on
    the same expansion rule item 2 uses at creation. The Rd's `\item{z}`
-   (`[[man/dbartsSampler-class.Rd:166-168@4c018187]]`) becomes `\item{basis}` and keeps its
+   ([man/dbartsSampler-class.Rd:166-168](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L166-L168)) becomes `\item{basis}` and keeps its
    mirroring sentence verbatim.
    (b) **M1's `forestWeights` field and its three re-application sites are
    name-independent of both renames. Verified, no collision.** The field
-   (`[[R/dbarts.R:725-728@4c018187]]`, initialized `[[R/dbarts.R:745@4c018187]]`), its install
-   (`[[R/dbarts.R:1167-1172@4c018187]]`), `reapplyForestWeights` (`[[R/dbarts.R:1481-1489@4c018187]]`) and its three call
-   sites - `$copy` `[[R/dbarts.R:906-907@4c018187]]`, `getPointer()` `[[R/dbarts.R:1518@4c018187]]`, `setState()` `[[R/dbarts.R:1544@4c018187]]` -
+   ([R/dbarts.R:725-728](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L725-L728), initialized [R/dbarts.R:745](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L745)), its install
+   ([R/dbarts.R:1167-1172](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1167-L1172)), `reapplyForestWeights` ([R/dbarts.R:1481-1489](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1481-L1489)) and its three call
+   sites - `$copy` [R/dbarts.R:906-907](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L906-L907), `getPointer()` [R/dbarts.R:1518](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1518), `setState()` [R/dbarts.R:1544](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1544) -
    name neither `setTreatment` nor `getBCFGlue` and touch neither
    `data@treatment` nor the BCF control attribute. Two Rd adjacencies, both
-   benign: M1's `setForestWeights` paragraph (`[[R/dbarts.R:149@4c018187]]`) says "built with
-   `treatment = `" and the method's own docstring (`[[R/dbarts.R:1150@4c018187]]`) says the same, so
+   benign: M1's `setForestWeights` paragraph ([R/dbarts.R:149](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L149)) says "built with
+   `treatment = `" and the method's own docstring ([R/dbarts.R:1150](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1150)) says the same, so
    both need the one-phrase re-word to `forests = ` that every other
-   `treatment = ` reference needs; and `\item{forest}` (`[[R/dbarts.R:169-171@4c018187]]`) already
+   `treatment = ` reference needs; and `\item{forest}` ([R/dbarts.R:169-171](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L169-L171)) already
    carries three clauses (the 0-based readers, the 1-based
    calibration pair, M1's `setForestWeights`) and gains a fourth for
    `setForestBasis` on the 1-based side. Paragraph ORDER does not move.
    (c) **`inst/tinytest/test-forest-weights-r5.R` builds its BCF samplers with
-   `treatment = ` (`[[R/dbarts.R:34@4c018187]]`) and reads `$getBCFGlue` (`[[R/dbarts.R:166@4c018187]]`), so M1's own test
+   `treatment = ` ([R/dbarts.R:34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L34)) and reads `$getBCFGlue` ([R/dbarts.R:166](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L166)), so M1's own test
    file migrates inside M2.** It is one of the seven in item 9; the budget
    covers it there.
 
 **9. The migration, enumerated (added 2026-08-13, pre-M2).** Two routes create
 a BCF sampler and only ONE of them moves. The PUBLIC formals go; the internal
-`dbarts:::bartcoreBCFSampler` route (`[[R/bartcore.R:622-680@4c018187]]`, with its own
+`dbarts:::bartcoreBCFSampler` route ([R/bartcore.R:622-680](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L622-L680), with its own
 `n.trees.treatment =` and `moderators =` formals) is untouched by M2 - it is
 `dbarts:::`-only, absent from `NAMESPACE`, and its flat siblings are M3's.
    PUBLIC-formal creation calls that M2 must migrate, all under
    `inst/tinytest/`, verified by grep at 4c7aa200: `test-bcf-creation.R`
    (about 30 hits, REWRITTEN wholesale, 385 lines today, 26 `expect_error`);
-   `test-bcf-r5-surface.R` (4 creation calls `[[R/bartcore.R:33@4c018187]]`, `[[R/bartcore.R:73@4c018187]]`, `[[R/bartcore.R:131@4c018187]]`, `[[R/bartcore.R:179@4c018187]]`, plus
-   2 `$setTreatment` `[[R/bartcore.R:111@4c018187]]`, `[[R/bartcore.R:134@4c018187]]` and 2 `$getBCFGlue` `[[R/bartcore.R:38@4c018187]]`, `[[R/bartcore.R:147@4c018187]]`, plus
-   4 header/section comments); `test-bcf-reporting.R` (3 calls `[[R/bartcore.R:35@4c018187]]`, `[[R/bartcore.R:82@4c018187]]`,
-   `[[R/bartcore.R:99@4c018187]]`, plus `$getBCFGlue` `[[R/bartcore.R:91@4c018187]]`); `test-calibration-creation.R` (2, `[[R/bartcore.R:198@4c018187]]`,
-   `[[R/bartcore.R:208@4c018187]]`); `test-active-rows-pins.R` (2, `[[R/bartcore.R:94@4c018187]]`, `[[R/bartcore.R:103@4c018187]]`);
-   `test-calibration-midchain.R` (1, `[[R/bartcore.R:333@4c018187]]`); `test-capi.R` (1 call `[[R/bartcore.R:522-523@4c018187]]`,
+   `test-bcf-r5-surface.R` (4 creation calls [R/bartcore.R:33](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L33), [R/bartcore.R:73](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L73), [R/bartcore.R:131](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L131), [R/bartcore.R:179](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L179), plus
+   2 `$setTreatment` [R/bartcore.R:111](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L111), [R/bartcore.R:134](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L134) and 2 `$getBCFGlue` [R/bartcore.R:38](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L38), [R/bartcore.R:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L147), plus
+   4 header/section comments); `test-bcf-reporting.R` (3 calls [R/bartcore.R:35](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L35), [R/bartcore.R:82](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L82),
+   [R/bartcore.R:99](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L99), plus `$getBCFGlue` [R/bartcore.R:91](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L91)); `test-calibration-creation.R` (2, [R/bartcore.R:198](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L198),
+   [R/bartcore.R:208](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L208)); `test-active-rows-pins.R` (2, [R/bartcore.R:94](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L94), [R/bartcore.R:103](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L103));
+   `test-calibration-midchain.R` (1, [R/bartcore.R:333](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L333)); `test-capi.R` (1 call [R/bartcore.R:522-523](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L522-L523),
    the only migrating site that also passes `treatmentForest()`);
-   `test-forest-weights-r5.R` (1 call `[[R/bartcore.R:34@4c018187]]`, plus `$getBCFGlue` `[[R/bartcore.R:166@4c018187]]`).
+   `test-forest-weights-r5.R` (1 call [R/bartcore.R:34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L34), plus `$getBCFGlue` [R/bartcore.R:166](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L166)).
    SEVEN files plus the rewritten one; 14 creation calls and 5 R5-method call
    sites outside the rewrite.
    NOT migrating, because they drive the internal route: `test-bcf.R` (19
@@ -1206,17 +1206,17 @@ a BCF sampler and only ONE of them moves. The PUBLIC formals go; the internal
    `benchmarks/R/` uses a public formal.
    **The bcf-equivalence harness needs NO edit, and that is why the neutrality
    compare stays runnable.** `benchmarks/R/bcf-equivalence.R` drives
-   `dbarts:::bartcoreBCFSampler` throughout (its header says so at `[[R/bartcore.R:11@4c018187]]`); its
+   `dbarts:::bartcoreBCFSampler` throughout (its header says so at [R/bartcore.R:11](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L11)); its
    `dbarts()` calls build a plain single-forest HOST and pass no BCF argument;
    `n.trees.treatment =` and `moderators =` there are that internal
-   constructor's formals, not `dbarts()`'s. `settingsList()` (`[[R/bartcore.R:386-395@4c018187]]`)
+   constructor's formals, not `dbarts()`'s. `settingsList()` ([R/bartcore.R:386-395](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L386-L395))
    carries only `quick`, `n.threads`, `n.burn`, `n.samples`, `n.trees.mu`,
    `n.trees.tau` and the `seeds` vector - no creation vocabulary at all - and
-   is re-checked against the baseline meta at compare (`[[R/bartcore.R:419-420@4c018187]]`), so it stays
+   is re-checked against the baseline meta at compare ([R/bartcore.R:419-420](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L419-L420)), so it stays
    byte-identical with zero work. Scenario names and seeds are untouched.
    Consequence for FS1: the harness is NOT the vehicle. FS1 runs in
    `test-bcf-creation.R`, where the ORACLE is that same internal route, exactly
-   as the shipped F1 pin does today (`[[R/bartcore.R:33-70@4c018187]]` positive, `[[R/bartcore.R:76-93@4c018187]]` negative) -
+   as the shipped F1 pin does today ([R/bartcore.R:33-70](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L33-L70) positive, [R/bartcore.R:76-93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L76-L93) negative) -
    so FS1 needs nothing "reconstructed from the pinned tests": it re-points the
    existing public-versus-internal bitwise pin at `forests =`, keeps
    `control@rngSeed = 17L`, and keeps the unseeded negative half (the internal
@@ -1228,15 +1228,15 @@ a BCF sampler and only ONE of them moves. The PUBLIC formals go; the internal
 **10. The refusal set, counted, and the one refusal M2 RETIRES (added
 2026-08-13, pre-M2).** "The eleven S1 refusals" in item 4 is stale: eleven was
 the PRE-REGISTERED count, and S1 landed 17 firing assertions
-(`[[docs/plans/bcf-public-surface.md:892-895@4c018187]]`). At HEAD the shipped set is the 16-entry
-`unsupported` vector (`[[R/spec.R:391-420@4c018187]]`: DART prior, `split.probs`,
+([docs/plans/bcf-public-surface.md:892-895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L892-L895)). At HEAD the shipped set is the 16-entry
+`unsupported` vector ([R/spec.R:391-420](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L391-L420): DART prior, `split.probs`,
 `monotone`, linear node prior, GP node prior, `k` hyperprior, non-default `k`,
 non-default `node.scale`, named `prior.scale`, non-default `proposal.probs`,
 Student-t residuals, grouped random effects, `variance`,
 `storage = "single"`, per-column `n.cuts`, test predictors) plus the
 gaussian-family gate
-(`[[R/spec.R:375-384@4c018187]]`) - 17 inherited unchanged. The eighteenth, the orphan-argument gate
-(`[[R/spec.R:455-460@4c018187]]`, "'moderators' and 'treatmentForest' configure the treatment forest
+([R/spec.R:375-384](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L375-L384)) - 17 inherited unchanged. The eighteenth, the orphan-argument gate
+([R/spec.R:455-460](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L455-L460), "'moderators' and 'treatmentForest' configure the treatment forest
 a 'treatment' vector selects"), is RETIRED by M2 along with the arguments it
 guards; its replacement is whatever `forests =` needs in its place, which under
 item 1's one-argument shape is nothing - there is no second argument left to
@@ -1244,7 +1244,7 @@ orphan. Say so in the slice rather than porting a dead message.
    **The knob map, walked and SETTLED (decided 2026-08-13 pre-M2, orchestrator
    discretion under the standing grant, VD may veto; item 1's earlier
    eight-name sketch was not total).** `treatmentForest()` carries TEN knobs
-   (`[[R/model.R:1238-1249@4c018187]]`). Each one's landing place, in order:
+   ([R/model.R:1238-1249](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1238-L1249)). Each one's landing place, in order:
    `n.trees` -> `forest(n.trees =)`, per forest; `base` -> `forest(base =)`,
    per forest; `power` -> `forest(power =)`, per forest; `sd.control` ->
    `forest(sd =)` on forest 0 and `sd.moderate` -> `forest(sd =)` on forest 1
@@ -1258,7 +1258,7 @@ orphan. Say so in the slice rather than porting a dead message.
    `forest(vars =)` on the basis forest, completing the three removed formals.
    The two new names match the fork-3 `forestAmplitudes` vocabulary, and the
    whole map is a mapping rather than a new mechanism: the payload at
-   `[[R/spec.R:429-454@4c018187]]` takes the same eight doubles in the same order.
+   [R/spec.R:429-454](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L429-L454) takes the same eight doubles in the same order.
    **The legality rule, and where the "only with `basis =`" form had to be
    split.** `amplitude.prior.variance` is the `N(0, .)` variance of the
    `b0`/`b1` glue alone, so it is LEGAL ONLY on a forest given `basis =` and
@@ -1281,7 +1281,7 @@ orphan. Say so in the slice rather than porting a dead message.
    **One disposition falls out of the walk rather than being invented here.**
    `interactions`/`blocks` are per-forest above, but `dbarts()` ALSO has
    top-level arguments of those names, and today they are forest 0's
-   constraints (`mu.interactions`/`mu.blocks`, `[[R/spec.R:441-452@4c018187]]`) while the
+   constraints (`mu.interactions`/`mu.blocks`, [R/spec.R:441-452](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L441-L452)) while the
    constructor's are forest 1's. Under `forests =` the two spellings address
    the same slot for forest 0, so supplying both is refused as ambiguous - the
    third new assertion in item 4. The top-level pair keeps its meaning
@@ -1290,21 +1290,21 @@ orphan. Say so in the slice rather than porting a dead message.
 **11. `dbartsData(treatment = )` is a FOURTH site, and it STAYS AS-IS at M2 as
 recorded data-side debt. SETTLED 2026-08-13 pre-M2 (orchestrator discretion
 under the standing grant, VD may veto).** Item 3 names `dbarts()` and
-`dbartsSpec()`. `dbartsData()` has its own `treatment` formal (`[[R/data.R:697@4c018187]]`,
-documented `[[man/dbartsData.Rd:13@4c018187]]`, `[[man/dbartsData.Rd:16@4c018187]]`, its own pkgdown topic
-`[[_pkgdown.yml:28@4c018187]]`), it is where `subset` alignment happens
+`dbartsSpec()`. `dbartsData()` has its own `treatment` formal ([R/data.R:697](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L697),
+documented [man/dbartsData.Rd:13](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsData.Rd#L13), [man/dbartsData.Rd:16](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsData.Rd#L16), its own pkgdown topic
+[_pkgdown.yml:28](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/_pkgdown.yml#L28)), it is where `subset` alignment happens
 (`validateTreatment(treatment, initialNumObservations, subset)`,
-`[[R/data.R:962@4c018187]]`, `[[R/data.R:1028@4c018187]]`), and it is REACHED BY `dbarts()`'s own redirect
-(`[[R/dbarts.R:539@4c018187]]`), so the two could not be decided separately. Two verified
+[R/data.R:962](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L962), [R/data.R:1028](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L1028)), and it is REACHED BY `dbarts()`'s own redirect
+([R/dbarts.R:539](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L539)), so the two could not be decided separately. Two verified
 constraints forced the disposition: the SLOT `data@treatment` cannot move at M2
-(the bridge reads it by name, `[[src/R_interface_bartcore.cpp:1112@4c018187]]`, and M2 is
+(the bridge reads it by name, [src/R_interface_bartcore.cpp:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1112), and M2 is
 no-src), and `dbartsSpec(dbartsData(x, y, treatment = z), control)` is a
-shipped, tested creation route (`[[test-bcf-creation.R:272@4c018187]]`) resolving off the
-slot rather than off a `dbartsSpec()` argument (`[[R/spec.R:375@4c018187]]`).
+shipped, tested creation route ([inst/tinytest/test-bcf-creation.R:272](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-creation.R#L272)) resolving off the
+slot rather than off a `dbartsSpec()` argument ([R/spec.R:375](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L375)).
    The settled path, in four sentences the implementer can build to.
    `dbarts(forests = ...)`'s resolution populates `data@treatment` INTERNALLY,
    with exactly the values and at exactly the point `treatment =` populated it
-   (`[[R/spec.R:373@4c018187]]`), so the bridge, the payload cross-check and the R5 mirror
+   ([R/spec.R:373](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L373)), so the bridge, the payload cross-check and the R5 mirror
    of item 8(a) all see what they see today - which is also what makes FS1
    bitwise rather than merely close. The public `dbartsData(treatment = )`
    formal, its Rd entry and its pkgdown topic REMAIN, untouched and
@@ -1404,8 +1404,8 @@ BCF names go to release.
 2. Re-sign `dbarts_sampler_bcfGlue` as `dbarts_sampler_numForestAmplitudes` plus
    `dbarts_sampler_forestAmplitudes`, so a reader can size its own buffer for a
    ragged amplitude vector (BCF: one for forest 0, two for forest 1).
-3. Re-word the creation Doxygen at `[[dbarts.h:348-357@4c018187]]` and the ownership
-   sentence at `[[dbarts.h:43@4c018187]]` in engine vocabulary, and state the COPY contract for a
+3. Re-word the creation Doxygen at [inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357) and the ownership
+   sentence at [inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43) in engine vocabulary, and state the COPY contract for a
    basis explicitly.
 4. `consumer.c` and `test-capi.R` gain the accept and refusal legs; the hash is
    re-baked once, together with the reshape's own edits, and both version
@@ -1442,10 +1442,10 @@ lockstep" below means the guards now sited in M4.3's own list.
 
 **Sequence, amended.** The committed order put a VD fork before the probes on
 a cost argument that does not survive:
-[[benchmarks/baselines/bench-sampler-235bebc.csv:3@634ddde2]] records 0.47 ms/sweep at
+[benchmarks/baselines/bench-sampler-235bebc.csv:3](https://github.com/vdorie/dbarts/blob/634ddde2e8b9b2b6c981ed5eda84c66c3d597a52/benchmarks/baselines/bench-sampler-235bebc.csv#L3) records 0.47 ms/sweep at
 `run-n1000-p10-t200`, exactly FA1a's shape, so FA1a's 32 fits x 8000 sweeps is
 ~3 MINUTES of engine time, not the hours the scoping pass estimated;
-`[[docs/plans/bcf-ridge-interweaving.md:481-483@4c018187]]` independently records 0.36 ms/sweep for
+[docs/plans/bcf-ridge-interweaving.md:481-483](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-ridge-interweaving.md#L481-L483) independently records 0.36 ms/sweep for
 BCF at n = 500. The probes are minutes, so they run FIRST and nothing forks
 ahead of them. **Amend the plan -> run FA1a, FA1b and the revised FA5 ->
 re-scope M4.2 and M4.4 on the verdicts -> M4.0, M4.1, M4.2, M4.3, M4.4,
@@ -1468,10 +1468,10 @@ M4.4 and FA5's teeth. The probes are STATISTICAL (IACT and posterior agreement,
 both load-independent), so unlike `bench-sampler.R` they needed no quiet
 machine and could share the box. Their harnesses live GITIGNORED per the
 house convention
-(`[[docs/plans/composition-mixing-probe.md:13-16@4c018187]]`, `[[grow-from-root-default.md:6@4c018187]], [[grow-from-root-default.md:55@4c018187]]`);
+([docs/plans/composition-mixing-probe.md:13-16](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/composition-mixing-probe.md#L13-L16), [docs/design/grow-from-root-default.md:6](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L6), [docs/design/grow-from-root-default.md:55](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L55));
 the binding corollary is that their NUMBERS are carried into this section
 verbatim, never by reference to a directory that does not arrive with a clone
-(`[[docs/plans/multiforest-predictor-mutation.md:71@4c018187]]`). PROMOTE FA1 to
+([docs/plans/multiforest-predictor-mutation.md:71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/multiforest-predictor-mutation.md#L71)). PROMOTE FA1 to
 `benchmarks/R/basis-amplitude-mixing.R` if and only if its verdict re-scopes
 M4.2 - that is exactly the condition `benchmarks/R/grouped-mixing.R` was
 promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
@@ -1485,7 +1485,7 @@ in FA1 and FA5 below ARE the record.
 
 1. **The b-ridge fork is DISSOLVED - there is no fork.** It was to be put on
    the b-move's "shot at the open `bcf-sigma-residual` flag". That flag is
-   RESOLVED (`[[docs/plans/bcf-sigma-residual.md:2-6@4c018187]]`, `[[docs/plans/INDEX.md:20@4c018187]]`; no `TODO`
+   RESOLVED ([docs/plans/bcf-sigma-residual.md:2-6](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-sigma-residual.md#L2-L6), [docs/plans/INDEX.md:20](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/INDEX.md#L20); no `TODO`
    entry survives) and the b-move was EXONERATED as its carrier by the memo's
    own controls. Both halves of the trade are gone, so the item is a design
    consequence to record rather than a decision to take. See M4.2. **No
@@ -1515,54 +1515,54 @@ in FA1 and FA5 below ARE the record.
    arc ships Gaussian-complete through M4.5 and M4.4 follows IMMEDIATELY, both
    pre-release. Reported, not asked.
 4. **A per-draw amplitude channel in flat C is DECLINED at orchestrator
-   discretion.** `dbarts_results` (`[[dbarts.h:138-152@4c018187]]`) has no amplitude member
+   discretion.** `dbarts_results` ([inst/include/dbarts/dbarts.h:138-152](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L138-L152)) has no amplitude member
    and the header contains zero "glue" tokens, while the R bridge does report
    per-draw amplitudes - a real R/C asymmetry, and the exact
    binding-decision-1(a) inversion M1 existed to close. But it PREDATES M4,
    M4 does not need it, and closing it would append to `dbarts_results`: not a
-   hash move (struct layout is unhashed, `[[dbarts.h:95-99@4c018187]]`) but a
+   hash move (struct layout is unhashed, [inst/include/dbarts/dbarts.h:95-99](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L95-L99)) but a
    `DBARTS_C_API_MINOR` 0 -> 1 bump by the header's own append rule
-   (`[[dbarts.h:122-123@4c018187]]`), plus a break of the `sizeof(dbarts_results)` assert at
-   `[[C_interface.cpp:274@4c018187]]`. Binding decision 8 pins both constants at 1/0 through
+   ([inst/include/dbarts/dbarts.h:122-123](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L122-L123)), plus a break of the `sizeof(dbarts_results)` assert at
+   [src/C_interface.cpp:274](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L274). Binding decision 8 pins both constants at 1/0 through
    the window and forbids it. Recorded as a DOOR on the TODO, not a fork.
 
 - **M4.0 (tests only).** Pin today's combiner at the seam that generalizes:
-  `forestMultiplier`'s two values (`[[combiner.hpp:762@4c018187]]`, private, call sites
-  `[[combiner.hpp:552@4c018187]]` and `[[combiner.hpp:560@4c018187]]` - so the pins live in `tests/cpp`, not tinytest);
-  `combinedFits`' blend (virtual `[[combiner.hpp:339@4c018187]]`, BCF override `[[combiner.hpp:567-576@4c018187]]` reading
+  `forestMultiplier`'s two values ([src/bartcore/combiner.hpp:762](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L762), private, call sites
+  [src/bartcore/combiner.hpp:552](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L552) and [src/bartcore/combiner.hpp:560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L560) - so the pins live in `tests/cpp`, not tinytest);
+  `combinedFits`' blend (virtual [src/bartcore/combiner.hpp:339](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L339), BCF override [src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576) reading
   `forests[0]`/`forests[1]` by literal index); and the draw order, which the
   committed text folds into one method and which is TWO. `drawGlue`
-  (`[[combiner.hpp:582-623@4c018187]]`) draws `a` (`[[combiner.hpp:598-599@4c018187]]`, standard normal), `aVariance` (`[[combiner.hpp:606@4c018187]]`,
-  gamma), `b0` (`[[combiner.hpp:620@4c018187]]`), `b1` (`[[combiner.hpp:621@4c018187]]`) - and nothing else. The ridge draw is
-  the GIG at `[[combiner.hpp:672@4c018187]]` inside `afterCombine` (`[[combiner.hpp:638-709@4c018187]]`), which `Chain` calls
-  immediately after `drawGlue` (`[[chain.hpp:1280-1281@4c018187]]`). Pin BOTH, in that
+  ([src/bartcore/combiner.hpp:582-623](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L582-L623)) draws `a` ([src/bartcore/combiner.hpp:598-599](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L598-L599), standard normal), `aVariance` ([src/bartcore/combiner.hpp:606](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L606),
+  gamma), `b0` ([src/bartcore/combiner.hpp:620](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L620)), `b1` ([src/bartcore/combiner.hpp:621](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L621)) - and nothing else. The ridge draw is
+  the GIG at [src/bartcore/combiner.hpp:672](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L672) inside `afterCombine` ([src/bartcore/combiner.hpp:638-709](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L638-L709)), which `Chain` calls
+  immediately after `drawGlue` ([src/bartcore/chain.hpp:1280-1281](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1280-L1281)). Pin BOTH, in that
   order, through the hook that already exists for exactly this -
-  `Chain::interweaveGlueRidge(record, sampleNum)`, `[[chain.hpp:1063-1067@4c018187]]`,
+  `Chain::interweaveGlueRidge(record, sampleNum)`, [src/bartcore/chain.hpp:1063-1067](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1063-L1067),
   documented "for the component tests". **The pin scope covers BOTH live
   overrides of `afterCombine`, not just BCF's** (amended 2026-08-13):
-  `MultinomialForestCombiner::afterCombine` (`[[combiner.hpp:1152-1197@4c018187]]`) is a
+  `MultinomialForestCombiner::afterCombine` ([src/bartcore/combiner.hpp:1152-1197](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1152-L1197)) is a
   second implementation of the same virtual in the same sweep slot, drawing an
-  ADDITIVE level-centering shift that consumes RNG at `[[combiner.hpp:1180-1181@4c018187]]`
+  ADDITIVE level-centering shift that consumes RNG at [src/bartcore/combiner.hpp:1180-1181](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1180-L1181)
   (`ext_rng_simulateStandardNormal`), applying it to every forest's
-  `totalFits` and `muByTree` at `[[combiner.hpp:1183-1195@4c018187]]`, and returning 1.0
-  unconditionally at `[[combiner.hpp:1196@4c018187]]`. M4.2 redefines that virtual; its multinomial
+  `totalFits` and `muByTree` at [src/bartcore/combiner.hpp:1183-1195](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1183-L1195), and returning 1.0
+  unconditionally at [src/bartcore/combiner.hpp:1196](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1196). M4.2 redefines that virtual; its multinomial
   implementation must be pinned on RNG consumption and return value before
   that happens, or the arc rewrites a virtual with half its implementations
-  unpinned. Also pin BCF's `1.0`-on-every-skip returns (`[[combiner.hpp:640@4c018187]]`, `[[combiner.hpp:662@4c018187]]`,
-  `[[combiner.hpp:674@4c018187]]`, `[[combiner.hpp:676@4c018187]]`) and its returned `c` (`[[combiner.hpp:708@4c018187]]`).
+  unpinned. Also pin BCF's `1.0`-on-every-skip returns ([src/bartcore/combiner.hpp:640](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L640), [src/bartcore/combiner.hpp:662](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L662),
+  [src/bartcore/combiner.hpp:674](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L674), [src/bartcore/combiner.hpp:676](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L676)) and its returned `c` ([src/bartcore/combiner.hpp:708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L708)).
 - **M4.1 (engine, byte-identical).** `forestMultiplier`
-  (`[[combiner.hpp:761-765@4c018187]]` - the whole K = 2 basis map is five lines) becomes
-  `dot(a_f, B_f[i,])`; `combinedFits` (`[[combiner.hpp:567-576@4c018187]]`) becomes a K loop.
-  `formForestResponse` (`[[combiner.hpp:546-565@4c018187]]`) needs NO change: it already loops every
+  ([src/bartcore/combiner.hpp:761-765](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L761-L765) - the whole K = 2 basis map is five lines) becomes
+  `dot(a_f, B_f[i,])`; `combinedFits` ([src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576)) becomes a K loop.
+  `formForestResponse` ([src/bartcore/combiner.hpp:546-565](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L546-L565)) needs NO change: it already loops every
   forest through `forestMultiplier`, and it is generic in q as well as K - the
   amplitude vector contracts with the basis row to a per-row SCALAR, so
-  `resid / m`, `w m^2` and the `0x1p-26` snap (`[[combiner.hpp:525@4c018187]]`, `[[combiner.hpp:553@4c018187]]`) all survive a
-  wide basis with the condition-number cap argument at `[[combiner.hpp:538-541@4c018187]]` intact. That
+  `resid / m`, `w m^2` and the `0x1p-26` snap ([src/bartcore/combiner.hpp:525](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L525), [src/bartcore/combiner.hpp:553](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L553)) all survive a
+  wide basis with the condition-number cap argument at [src/bartcore/combiner.hpp:538-541](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L538-L541) intact. That
   is this plan's own "generalization rather than a second mechanism" claim, and
   it holds by symbol. Ship with BCF's basis synthesized internally from z so
   BCF is bitwise unchanged - which only stays true if the R route keeps
   producing exactly today's column, so `expandForestBasis`
-  (`[[R/model.R:686-708@4c018187]]`) must not move here. This is the whole architectural
+  ([R/model.R:686-708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L686-L708)) must not move here. This is the whole architectural
   risk, isolated. ABORT on any divergence in the gating trio, whose CURRENT
   baselines are `bcf-equivalence-6e3b9fb8.rds` (12 scenarios,
   `benchmarks/baselines/MANIFEST:42`), `equivalence-8b047f8b.rds` (37
@@ -1575,23 +1575,23 @@ in FA1 and FA5 below ARE the record.
   conjuncts, so neither the amplitude conditional nor the ASIS rescale is
   demoted to opt-in and no BCF-specific carve-out is taken on that ground. The
   q-variate amplitude conditional, using the shipped
-  Cholesky helpers (`[[model.hpp:869@4c018187]]` `choleskyDecompose`, `[[model.hpp:886@4c018187]]`
-  `solveLowerTriangular`, `[[model.hpp:895@4c018187]]` `solveLowerTriangularTransposed`; in-place,
+  Cholesky helpers ([src/bartcore/model.hpp:869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L869) `choleskyDecompose`, [src/bartcore/model.hpp:886](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L886)
+  `solveLowerTriangular`, [src/bartcore/model.hpp:895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L895) `solveLowerTriangularTransposed`; in-place,
   row-major p x p, NO failure path because callers guarantee definiteness - so
   the conditional must supply its own ridge/prior term to keep the crossproduct
   PD). `afterCombine` becomes a per-forest ASIS rescale of the whole amplitude
   vector along the likelihood-invariant orbit, and it must RE-STATE the base
   virtual's contract rather than inherit it: the Doxygen at
-  `[[combiner.hpp:425-427@4c018187]]` ("returns the scale its move applied (1.0 when it
+  [src/bartcore/combiner.hpp:425-427](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L425-L427) ("returns the scale its move applied (1.0 when it
   makes none)") is already false for the multinomial implementation, which
-  makes an additive move and returns 1.0 by convention (`[[combiner.hpp:1261@4c018187]]`, `[[combiner.hpp:1306@4c018187]]`).
+  makes an additive move and returns 1.0 by convention ([src/bartcore/combiner.hpp:1261](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1261), [src/bartcore/combiner.hpp:1306](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1306)).
   BCF's K = 2 orthogonal case must come out bitwise, or its specialized
   two-scalar path is kept explicitly and the general path is gated
   statistically - that in-slice decision mechanism is unchanged. This is the
   one place in the arc that could force a `bcf-equivalence` re-record; say so
   in the slice's rng note rather than discovering it. **Standing rule for any
   re-record:** it bumps `.github/workflows/equivalence.yaml`'s baseline lines
-  in the SAME commit (`[[combiner.hpp:61@4c018187]]` equivalence, `[[combiner.hpp:87@4c018187]]` bcf-equivalence, `[[combiner.hpp:113@4c018187]]`
+  in the SAME commit ([src/bartcore/combiner.hpp:61](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L61) equivalence, [src/bartcore/combiner.hpp:87](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L87) bcf-equivalence, [src/bartcore/combiner.hpp:113](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L113)
   multinomial-equivalence). A re-record that leaves the workflow pointing at
   the old file passes locally and fails CI - or worse, passes both against a
   superseded baseline.
@@ -1602,21 +1602,21 @@ in FA1 and FA5 below ARE the record.
   design consequence of the generalization. The memo's own general rule makes
   the identity exact: "rescaling k leaf params by c against d glue scalars by
   1/c gives p = (k-d)/2 (a: k=L, d=1; b: k=Lt, d=2)" (docs/design/multiplier-
-  combiner.md, "The exponent rule" - moved there from this memo's `[[combiner.hpp:192-194@4c018187]]`
+  combiner.md, "The exponent rule" - moved there from this memo's [src/bartcore/combiner.hpp:192-194](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L192-L194)
   since), which IS M4.2's q-variate exponent, with `B = ||a_f||^2 / priorVar_f`
   for a fixed-variance amplitude prior and `a^2/aVariance` for the scale
-  mixture (same section, moved from `[[combiner.hpp:183-196@4c018187]]`). Instantiated at BCF's forest
-  1 (q = 2, `bPriorVariance` fixed at `[[combiner.hpp:300@4c018187]]`) the general move is
+  mixture (same section, moved from [src/bartcore/combiner.hpp:183-196](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L183-L196)). Instantiated at BCF's forest
+  1 (q = 2, `bPriorVariance` fixed at [src/bartcore/combiner.hpp:300](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L300)) the general move is
   the b-move exactly. Three consequences:
   - **The sigma-motivated build stays REJECTED.** `bcf-b-ridge.md`'s own
-    controls settle it: `[[combiner.hpp:372-381@4c018187]]` (control (a), fixed-b) "EXONERATES the
+    controls settle it: [src/bartcore/combiner.hpp:372-381](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L372-L381) (control (a), fixed-b) "EXONERATES the
     b-ridge as the carrier of the residual sigma bias: the a-only memo's
-    'prime suspect' is WRONG"; `[[combiner.hpp:396-406@4c018187]]` (control (b), burn-2x) "The residual
-    sigma bias is a BURN TRANSIENT, confirmed"; `[[combiner.hpp:420-421@4c018187]]` "ROUTE: FIX
+    'prime suspect' is WRONG"; [src/bartcore/combiner.hpp:396-406](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L396-L406) (control (b), burn-2x) "The residual
+    sigma bias is a BURN TRANSIENT, confirmed"; [src/bartcore/combiner.hpp:420-421](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L420-L421) "ROUTE: FIX
     INITIALIZATION / BURN, do NOT implement the b-move for the sigma flag";
-    `[[combiner.hpp:452-454@4c018187]]` "Do not gate the b-move on sigma, and do not expect the b-move
+    [src/bartcore/combiner.hpp:452-454](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L452-L454) "Do not gate the b-move on sigma, and do not expect the b-move
     to substitute for the burn/init fix." `bcf-sigma-residual` is RESOLVED
-    (that plan's `:2-6`, `[[docs/plans/INDEX.md:20@4c018187]]`); the only survivor is
+    (that plan's `:2-6`, [docs/plans/INDEX.md:20](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/INDEX.md#L20)); the only survivor is
     `TODO`'s `bcf-sigma-tail-mixing` OPTIONAL research door, which routes to
     tree-structure mixing at high SNR, not to a glue move. **M4.2 opens no
     sigma ticket and claims no sigma payoff.**
@@ -1629,14 +1629,14 @@ in FA1 and FA5 below ARE the record.
     exponent at KS = 1.6e-21 (same section); and the complete
     rescale-consistency checklist - `treeFits`, `totalFits`,
     `totalTestFits`/`currTestFits`, and the keepTrees flattened-slot sharp
-    edge (`[[docs/plans/bcf-b-ridge.md:246-289@4c018187]]`) - each of which the shipped `afterCombine`
-    implements at `[[combiner.hpp:680-707@4c018187]]` and each of which the q-variate
+    edge ([docs/plans/bcf-b-ridge.md:246-289](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-b-ridge.md#L246-L289)) - each of which the shipped `afterCombine`
+    implements at [src/bartcore/combiner.hpp:680-707](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L680-L707) and each of which the q-variate
     generalization must re-derive. Cite docs/design/multiplier-combiner.md's
     "The exponent rule" and bcf-b-ridge.md section 4 as the derivation and
     prototype, not merely as evidence that a move is unbuilt.
     The GIG generator (`ext_rng_simulateGeneralizedInverseGaussian`) already
     ships.
-  - **The move's acceptance is its OWN, per that memo's `[[combiner.hpp:438-449@4c018187]]`:** judge it
+  - **The move's acceptance is its OWN, per that memo's [src/bartcore/combiner.hpp:438-449](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L438-L449):** judge it
     on its own IACT payoff (`|b1-b0|` or tau-amplitude IACT on a
     strong-treatment-signal DGP, mirroring the a-move's `|a|` IACT 2.5x), with
     correctness acceptance `bcf-exact` mode-2b stays exact AND a keepTrees BCF
@@ -1650,19 +1650,19 @@ in FA1 and FA5 below ARE the record.
   bitwise": the summation-association constraint is now EXPLICIT, not
   implicit - a re-association in `combinedFits` breaks
   `bcf-equivalence-8b047f8b` on all 12 scenarios SILENTLY past the seam pins
-  (`[[combiner.hpp:617-632@4c018187]]`, the load-bearing reverse accumulation at
-  `[[combiner.hpp:624-629@4c018187]]`); `testCombinedFitsAssociation`
-  (`[[tests/cpp/test_sampler.cpp:3206@4c018187]]`) is the ONLY in-process guard.
+  ([src/bartcore/combiner.hpp:617-632](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L617-L632), the load-bearing reverse accumulation at
+  [src/bartcore/combiner.hpp:624-629](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L624-L629)); `testCombinedFitsAssociation`
+  ([tests/cpp/test_sampler.cpp:3206](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L3206)) is the ONLY in-process guard.
   (b) `BCFState`'s `a()`/`b0()`/`b1()` accessors hard-code amplitude indices
-  0/1/2 (`[[combiner.hpp:330-335@4c018187]]`) - correct today, but they alias the wrong
+  0/1/2 ([src/bartcore/combiner.hpp:330-335](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L330-L335)) - correct today, but they alias the wrong
   forest's block the moment `q0 != 1`. M4.2 must move to per-forest offset
   indexing (`glue_.amplitudeOffset`, already carried for exactly this).
   (c) THREE accumulation conventions now coexist: `combinedFits`' reverse
-  accumulation (`[[combiner.hpp:624-629@4c018187]]`), `forestMultiplier`'s dot product forward
-  (`[[combiner.hpp:833-835@4c018187]]`), `formForestResponse`'s residual forward (`[[combiner.hpp:592-593@4c018187]]`). Only
+  accumulation ([src/bartcore/combiner.hpp:624-629](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L624-L629)), `forestMultiplier`'s dot product forward
+  ([src/bartcore/combiner.hpp:833-835](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L833-L835)), `formForestResponse`'s residual forward ([src/bartcore/combiner.hpp:592-593](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L592-L593)). Only
   the first is documented load-bearing; the other two become observable at
   q > 1 / K > 2. M4.2 must decide and document each.
-  (d) `installTreatment` pins `basis.resize(2)` (`[[combiner.hpp:855@4c018187]]`) while `combinedFits`
+  (d) `installTreatment` pins `basis.resize(2)` ([src/bartcore/combiner.hpp:855](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L855)) while `combinedFits`
   is general in K - a K = 3 BCF chain would read `basis[2]` OOB.
   Unconstructible today; M4.2 generalizes the sizing with the K-length spec.
 - **M4.3 (spec, factory, refusal relaxations). RE-SCOPED WHOLESALE
@@ -1686,65 +1686,65 @@ in FA1 and FA5 below ARE the record.
   flat C mean channel (`setForestBasis`, `numForestAmplitudes`,
   `forestAmplitudes`) with general, staged-guard signatures; the R5 mirror
   `$setForestBasis(forest, basis)` and `$getForestAmplitudes()`, 1-based via
-  `resolveForestIndex` (`[[R/bartcore.R:1051@4c018187]]`) since a14040de; the refusal
+  `resolveForestIndex` ([R/bartcore.R:1051](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1051)) since a14040de; the refusal
   discipline (M2's FS2 landed 42 message-asserting refusals; FC2 landed the
   flat C refusal matrix in `consumer.c` with an `18L` `LEG_COUNT` pin).
 
-  **What remains, by site.** R creation, `R/model.R`: `[[R/bartcore.R:772-776@4c018187]]` the `> 2L`
-  arity refusal; `[[R/bartcore.R:650-657@4c018187]]` `forestBasisDeclaration` (hardcodes
-  `length(forests) != 2L`, must return a per-forest basis LIST); `[[R/bartcore.R:686-708@4c018187]]`
+  **What remains, by site.** R creation, `R/model.R`: [R/bartcore.R:772-776](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L772-L776) the `> 2L`
+  arity refusal; [R/bartcore.R:650-657](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L650-L657) `forestBasisDeclaration` (hardcodes
+  `length(forests) != 2L`, must return a per-forest basis LIST); [R/bartcore.R:686-708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L686-L708)
   `expandForestBasis` (the whole function is the K = 2 expander - the
-  factor-only guard at `[[R/bartcore.R:693@4c018187]]` with its message at `[[R/bartcore.R:695-696@4c018187]]`, "exactly two
-  levels" at `[[R/bartcore.R:699-702@4c018187]]`, the single 0/1 column collapse at `[[R/bartcore.R:708@4c018187]]`, plus `[[R/bartcore.R:670@4c018187]]`
-  "a 'basis' formula must be one-sided"); `[[R/bartcore.R:784-818@4c018187]]` `resolveForests`'s six
+  factor-only guard at [R/bartcore.R:693](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L693) with its message at [R/bartcore.R:695-696](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L695-L696), "exactly two
+  levels" at [R/bartcore.R:699-702](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L699-L702), the single 0/1 column collapse at [R/bartcore.R:708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L708), plus [R/bartcore.R:670](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L670)
+  "a 'basis' formula must be one-sided"); [R/bartcore.R:784-818](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L784-L818) `resolveForests`'s six
   positional refusals, each written against "first forest"/"second forest";
-  `[[R/bartcore.R:840-854@4c018187]]` `forestParams`, whose positional length-8 write (`[[R/bartcore.R:844-853@4c018187]]`,
-  `declared(tau$sd, 1)` at `[[R/bartcore.R:849@4c018187]]`) becomes a ragged per-forest transport -
-  **this is the single most K = 2-shaped thing in the arc**; `[[R/bartcore.R:622-645@4c018187]]`
+  [R/bartcore.R:840-854](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L840-L854) `forestParams`, whose positional length-8 write ([R/bartcore.R:844-853](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L844-L853),
+  `declared(tau$sd, 1)` at [R/bartcore.R:849](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L849)) becomes a ragged per-forest transport -
+  **this is the single most K = 2-shaped thing in the arc**; [R/bartcore.R:622-645](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L622-L645)
   `resolveModerators`, one column-index vector rather than per-forest. R
-  creation, `R/spec.R`: `[[R/bartcore.R:412-419@4c018187]]` the gaussian-only refusal (M4.4's R-side
-  gate); `[[R/bartcore.R:429-456@4c018187]]`'s SIXTEEN named composition refusals emitted at `[[R/bartcore.R:457-463@4c018187]]`
+  creation, `R/spec.R`: [R/bartcore.R:412-419](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L412-L419) the gaussian-only refusal (M4.4's R-side
+  gate); [R/bartcore.R:429-456](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L429-L456)'s SIXTEEN named composition refusals emitted at [R/bartcore.R:457-463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L457-L463)
   - M4 relaxes the family one, the other fifteen and their pins STAY;
-  `[[R/bartcore.R:466-486@4c018187]]` the `mu.`/`tau.`-prefixed control attribute. R data layer:
-  `[[R/data.R:643-655@4c018187]]` `validateTreatment`'s 0/1 coding check, the K = 2 pin
-  every route reaches. R5: `[[R/dbarts.R:1218-1223@4c018187]]` `$setForestBasis`'s
-  `index != 1L` refusal and `[[R/dbarts.R:1237@4c018187]]` its single-slot `data@treatment` mirror.
+  [R/bartcore.R:466-486](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L466-L486) the `mu.`/`tau.`-prefixed control attribute. R data layer:
+  [R/data.R:643-655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L643-L655) `validateTreatment`'s 0/1 coding check, the K = 2 pin
+  every route reaches. R5: [R/dbarts.R:1218-1223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1218-L1223) `$setForestBasis`'s
+  `index != 1L` refusal and [R/dbarts.R:1237](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1237) its single-slot `data@treatment` mirror.
   Bridge (`src/R_interface_bartcore.cpp`): the length-8 params check at TWO
-  sites (`[[src/R_interface_bartcore.cpp:2134-2135@c85d6db6]]`, `[[src/R_interface_bartcore.cpp:2913-2914@c85d6db6]]`) and the positional unpack `[[src/R_interface_bartcore.cpp:2138-2148@c85d6db6]]`;
-  `applyBCFSpec`'s two-forest shape `[[src/R_interface_bartcore.cpp:2120-2126@c85d6db6]]` and `applyBCFAttributes`
-  `[[src/R_interface_bartcore.cpp:2200-2205@c85d6db6]]`; the `data@treatment` read by name `[[R/dbarts.R:1112@4c018187]]` and the 0/1
-  coercion scans `[[src/R_interface_bartcore.cpp:2843-2845@c85d6db6]]`, `[[src/R_interface_bartcore.cpp:2933-2934@c85d6db6]]`; the two-way creation cross-check
-  `[[src/R_interface_bartcore.cpp:2831-2836@c85d6db6]]`; `double amplitudes[3]` at `[[src/R_interface_bartcore.cpp:3673@c85d6db6]]` and the stride-3
-  `Rf_allocMatrix` at `[[src/R_interface_bartcore.cpp:3769-3772@c85d6db6]]`. Flat C (`src/C_interface.cpp`): guard
-  bodies only as designed (`[[R/dbarts.R:768@4c018187]]`, `[[R/dbarts.R:773@4c018187]]`, `[[R/dbarts.R:775-778@4c018187]]`, `[[R/dbarts.R:780-787@4c018187]]`, `[[R/dbarts.R:790-791@4c018187]]`,
-  `[[R/dbarts.R:814-815@4c018187]]`, `[[R/dbarts.R:828-832@4c018187]]`), plus the THREE `double amplitudes[3]` stack buffers
-  at `[[R/dbarts.R:767@4c018187]]`, `[[R/dbarts.R:812@4c018187]]`, `[[R/dbarts.R:824@4c018187]]`, which a K-amplitude model overflows - a
+  sites ([src/R_interface_bartcore.cpp:2134-2135](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2134-L2135), [src/R_interface_bartcore.cpp:2913-2914](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2913-L2914)) and the positional unpack [src/R_interface_bartcore.cpp:2138-2148](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2138-L2148);
+  `applyBCFSpec`'s two-forest shape [src/R_interface_bartcore.cpp:2120-2126](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2120-L2126) and `applyBCFAttributes`
+  [src/R_interface_bartcore.cpp:2200-2205](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2200-L2205); the `data@treatment` read by name [R/dbarts.R:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1112) and the 0/1
+  coercion scans [src/R_interface_bartcore.cpp:2843-2845](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2843-L2845), [src/R_interface_bartcore.cpp:2933-2934](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2933-L2934); the two-way creation cross-check
+  [src/R_interface_bartcore.cpp:2831-2836](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2831-L2836); `double amplitudes[3]` at [src/R_interface_bartcore.cpp:3673](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L3673) and the stride-3
+  `Rf_allocMatrix` at [src/R_interface_bartcore.cpp:3769-3772](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L3769-L3772). Flat C (`src/C_interface.cpp`): guard
+  bodies only as designed ([R/dbarts.R:768](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L768), [R/dbarts.R:773](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L773), [R/dbarts.R:775-778](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L775-L778), [R/dbarts.R:780-787](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L780-L787), [R/dbarts.R:790-791](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L790-L791),
+  [R/dbarts.R:814-815](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L814-L815), [R/dbarts.R:828-832](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L828-L832)), plus the THREE `double amplitudes[3]` stack buffers
+  at [R/dbarts.R:767](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L767), [R/dbarts.R:812](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L812), [R/dbarts.R:824](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L824), which a K-amplitude model overflows - a
   correctness item, not a signature item. Engine: `BCFForestSpec`
-  (`[[combiner.hpp:211-241@4c018187]]`, WIDER than this plan describes - it now carries
+  ([src/bartcore/combiner.hpp:211-241](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L211-L241), WIDER than this plan describes - it now carries
   `columns`/`numColumns`, the three interaction fields and the three block
   fields, so a K-length vector of these is a bigger object than priced) ->
-  the K-length entry type; `BCFSpec` (`[[combiner.hpp:244-251@4c018187]]`) -> the thin adapter;
-  `BCFState`'s `a, b0, b1, aVariance` (`[[combiner.hpp:290-302@4c018187]]`) and the same four in
-  `ChainStateData` (`[[combiner.hpp:92-94@4c018187]]`) -> per-forest amplitude vectors; the BCF
-  constructor `[[chain.hpp:692-723@4c018187]]` with its two asymmetric `buildBCFForest`
-  calls (`[[chain.hpp:716-719@4c018187]]`) and `buildBCFForest` itself (`[[chain.hpp:4454@4c018187]]`); `[[facade.hpp:272-274@4c018187]]`
+  the K-length entry type; `BCFSpec` ([src/bartcore/combiner.hpp:244-251](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L244-L251)) -> the thin adapter;
+  `BCFState`'s `a, b0, b1, aVariance` ([src/bartcore/combiner.hpp:290-302](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L290-L302)) and the same four in
+  `ChainStateData` ([src/bartcore/combiner.hpp:92-94](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L92-L94)) -> per-forest amplitude vectors; the BCF
+  constructor [src/bartcore/chain.hpp:692-723](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L692-L723) with its two asymmetric `buildBCFForest`
+  calls ([src/bartcore/chain.hpp:716-719](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L716-L719)) and `buildBCFForest` itself ([src/bartcore/chain.hpp:4454](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4454)); [src/bartcore/facade.hpp:272-274](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L272-L274)
   still spelling the retired `setTreatment` in the engine vtable, and
-  `createBCFSampler` (`[[facade.hpp:750-762@4c018187]]`). The constant-leaf `static_assert`
-  (`[[combiner.hpp:502-503@4c018187]]`) STAYS.
+  `createBCFSampler` ([src/bartcore/facade.hpp:750-762](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L750-L762)). The constant-leaf `static_assert`
+  ([src/bartcore/combiner.hpp:502-503](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L502-L503)) STAYS.
 
   **Six collisions this slice collides with and priced at zero.**
   (a) **The `bcfGlue` out-parameter is a FOUR-LAYER vtable, not a bridge
-  concern:** base virtual `[[combiner.hpp:386-389@4c018187]]` `bcfGlue(double&, double&,
-  double&)`, `Chain::bcfGlue` `[[chain.hpp:1018-1020@4c018187]]`, `Sampler::bcfGlue`
-  `[[sampler.hpp:1242-1244@4c018187]]` unpacking `out[0..2]`, `[[facade.hpp:315@4c018187]]` carrying no
+  concern:** base virtual [src/bartcore/combiner.hpp:386-389](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L386-L389) `bcfGlue(double&, double&,
+  double&)`, `Chain::bcfGlue` [src/bartcore/chain.hpp:1018-1020](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1018-L1020), `Sampler::bcfGlue`
+  [src/bartcore/sampler.hpp:1242-1244](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1242-L1244) unpacking `out[0..2]`, [src/bartcore/facade.hpp:315](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L315) carrying no
   length at all. Re-signing it is ENGINE work.
   (b) **The state format's `bcf` block.** Four fixed scalars serialized at
-  `[[R_interface_bartcore.cpp:5812-5818@4c018187]]`, read with an `Rf_xlength(bcfExpr) != 4`
-  check and a "malformed bcf glue in bartcore state" message at `[[R_interface_bartcore.cpp:6163-6167@4c018187]]`.
+  [src/R_interface_bartcore.cpp:5812-5818](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5812-L5818), read with an `Rf_xlength(bcfExpr) != 4`
+  check and a "malformed bcf glue in bartcore state" message at [src/R_interface_bartcore.cpp:6163-6167](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L6163-L6167).
   A ragged amplitude vector is non-additive to that encoding. **RE-ENCODE
   "bcf" IN PLACE and bump nothing.** The registry's append-only rule
-  (`[[R_interface_bartcore.cpp:5645-5655@4c018187]]`) is real but the paragraph after it waives this case:
-  `[[R_interface_bartcore.cpp:5658-5665@4c018187]]` records that version 1 is the FIRST shipped format and "the
+  ([src/R_interface_bartcore.cpp:5645-5655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5645-L5655)) is real but the paragraph after it waives this case:
+  [src/R_interface_bartcore.cpp:5658-5665](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5658-L5665) records that version 1 is the FIRST shipped format and "the
   pre-release development increments (the forests-list/BCF restructure
   included) are collapsed into it - no released reader or writer ever saw
   them. Pre-1.0 states are not a compat target." The "bcf" block was itself
@@ -1752,98 +1752,98 @@ in FA1 and FA5 below ARE the record.
   optional block: that would carry a dead K = 2 block into the released 1.0-0
   format permanently, plus read-side precedence rules for four states.
   (c) **The run-result `glue` slot is 3-row and pinned.**
-  `[[R_interface_bartcore.cpp:4100-4102@4c018187]]` allocates `3 x numSamples` /
-  `3 x numSamples x numChains`; pinned at `[[test-bcf-reporting.R:41@4c018187]]` and `[[test-bcf-reporting.R:114@4c018187]]`
-  with the reconstruction identity at `[[test-bcf-reporting.R:57-71@4c018187]]`.
+  [src/R_interface_bartcore.cpp:4100-4102](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4100-L4102) allocates `3 x numSamples` /
+  `3 x numSamples x numChains`; pinned at [inst/tinytest/test-bcf-reporting.R:41](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L41) and [inst/tinytest/test-bcf-reporting.R:114](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L114)
+  with the reconstruction identity at [inst/tinytest/test-bcf-reporting.R:57-71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L57-L71).
   (d) **`$getForestAmplitudes()` is the one shipped R5 signature M4 must
   BREAK.** Argument-free and documented "(a, b0, b1) ... as a 3 x n.chains
-  matrix" (`[[R/dbarts.R:1442-1446@4c018187]]`), pinned `[[test-bcf-r5-surface.R:44@4c018187]], [[test-bcf-r5-surface.R:50@4c018187]]`.
+  matrix" ([R/dbarts.R:1442-1446](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1442-L1446)), pinned [inst/tinytest/test-bcf-r5-surface.R:44](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-r5-surface.R#L44), [inst/tinytest/test-bcf-r5-surface.R:50](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-r5-surface.R#L50).
   Under a ragged K-length vector it takes a `forest` argument (matching the
   flat pair) or returns a list.
   (e) **The `dbartsData(treatment = )` debt retires HERE and is entangled
-  four ways.** `[[TODO:90-105@4c018187]]` routes it to M4 ("whose n x q_f basis is the
+  four ways.** [TODO:90-105](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L90-L105) routes it to M4 ("whose n x q_f basis is the
   honest carrier and would absorb it whole") and it has already MANIFESTED -
   bartCause `dbarts-1.0@695c603`'s suite is red on it. Beyond data carriage
   the slot is load-bearing for: the bridge's read by name
-  (`[[R_interface_bartcore.cpp:1112@4c018187]]`), the R5 `$setForestBasis` mirror
-  (`[[R/dbarts.R:1237@4c018187]]`), the two-way creation cross-check (`[[src/R_interface_bartcore.cpp:2831-2836@c85d6db6]]`), and -
+  ([src/R_interface_bartcore.cpp:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1112)), the R5 `$setForestBasis` mirror
+  ([R/dbarts.R:1237](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1237)), the two-way creation cross-check ([src/R_interface_bartcore.cpp:2831-2836](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2831-L2836)), and -
   decisively - `isBCFSampler <- !is.null(sampler$data@treatment)`
-  (`[[R/bartcore.R:20-22@4c018187]]`), on which the ENTIRE R5 refusal system depends
-  (`refuseBCFMutation` `[[R/bartcore.R:30-34@4c018187]]` and its five call sites: `setResponse` `[[R/bartcore.R:285@4c018187]]`,
-  `setOffset` `[[R/bartcore.R:306@4c018187]]`, `setData` `[[R/bartcore.R:383@4c018187]]`, `setModel` `[[R/dbarts.R:1044@4c018187]]`,
-  `setCalibration` `[[R/dbarts.R:1484@4c018187]]`). **The successor is the CAPABILITY probe the
+  ([R/bartcore.R:20-22](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L20-L22)), on which the ENTIRE R5 refusal system depends
+  (`refuseBCFMutation` [R/bartcore.R:30-34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L30-L34) and its five call sites: `setResponse` [R/bartcore.R:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L285),
+  `setOffset` [R/bartcore.R:306](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L306), `setData` [R/bartcore.R:383](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L383), `setModel` [R/dbarts.R:1044](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1044),
+  `setCalibration` [R/dbarts.R:1484](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1484)). **The successor is the CAPABILITY probe the
   shipped code already names**, generalized from "carries BCF glue" to
-  "carries amplitudes": `[[R/bartcore.R:18-19@4c018187]]` documents the slot test as "the
+  "carries amplitudes": [R/bartcore.R:18-19](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L18-L19) documents the slot test as "the
   R5-layer capability probe, cheaper than a round trip through the bridge's
   own (`Chain::bcfGlue`-based) one". **A `numForests() > 1` probe is REFUSED
-  by the shipped code twice** - `[[R_interface_bartcore.cpp:3668-3670@4c018187]]` ("a
+  by the shipped code twice** - [src/R_interface_bartcore.cpp:3668-3670](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3668-L3670) ("a
   K-forest multinomial (K >= 2) defeats a numForests test") and
-  `[[C_interface.cpp:764-766@4c018187]]` independently. Under M4 that matters more, not
+  [src/C_interface.cpp:764-766](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L764-L766) independently. Under M4 that matters more, not
   less: the general family is a THIRD multi-forest combiner, so a forest-count
   probe misfires on two of three.
   (f) **`bcf-equivalence.R` drives the INTERNAL route** and needs no edit -
-  `[[C_interface.cpp:11@4c018187]]`, `[[C_interface.cpp:115@4c018187]]`, `[[C_interface.cpp:130@4c018187]]`, `[[C_interface.cpp:147@4c018187]]` all call `dbarts:::bartcoreBCFSampler`, and
-  `[[C_interface.cpp:95-101@4c018187]]` read through `bartcoreForestFits`/`bartcoreBCFGlue`. That holds
+  [src/C_interface.cpp:11](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L11), [src/C_interface.cpp:115](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L115), [src/C_interface.cpp:130](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L130), [src/C_interface.cpp:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L147) all call `dbarts:::bartcoreBCFSampler`, and
+  [src/C_interface.cpp:95-101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L95-L101) read through `bartcoreForestFits`/`bartcoreBCFGlue`. That holds
   for M4 only if the "thin adapter" keeps that function's signature, which is
   why the adapter clause is LOAD-BEARING rather than courtesy: the bitwise
-  gate runs THROUGH it. `bartcoreBCFSampler` (`[[R/bartcore.R:622@4c018187]]`, internal) is
+  gate runs THROUGH it. `bartcoreBCFSampler` ([R/bartcore.R:622](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L622), internal) is
   also still the oracle for six test files.
 
   **Tests the relaxation rewrites** (existing pins, not new tests). RE-COUNTED
   2026-08-14 against the live files; this paragraph supersedes the count and
   the citations the slice was re-scoped with, and every line number here is the
   `expect_error(` ASSERTION line, where the superseded list cited MESSAGE
-  lines (`[[R/bartcore.R:550@4c018187]]`, `[[R/bartcore.R:563@4c018187]]`, `[[R/bartcore.R:567@4c018187]]`, `[[R/bartcore.R:579@4c018187]]`, ...). `test-bcf-creation.R` carries 45
+  lines ([R/bartcore.R:550](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L550), [R/bartcore.R:563](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L563), [R/bartcore.R:567](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L567), [R/bartcore.R:579](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L579), ...). `test-bcf-creation.R` carries 45
   `expect_error` (84 `expect_*`), not M2's 42: `git blame` attributes the three
-  `"length of 'basis'"` pins `[[R/bartcore.R:321@4c018187]]`, `[[R/bartcore.R:329@4c018187]]`, `[[R/bartcore.R:333@4c018187]]` to reshape S1 (M3), which
+  `"length of 'basis'"` pins [R/bartcore.R:321](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L321), [R/bartcore.R:329](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L329), [R/bartcore.R:333](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L333) to reshape S1 (M3), which
   parameterized `validateTreatment`'s message. All 45, by disposition:
-  - **RELAX outright, 6** (the refusal becomes a positive route): `[[R/bartcore.R:556@4c018187]]` "at
-    most two forests", `[[R/bartcore.R:565@4c018187]]` "not a numeric basis column", `[[R/bartcore.R:569@4c018187]]` "exactly two
-    levels", `[[R/bartcore.R:581@4c018187]]` "first forest takes no 'basis'", `[[R/bartcore.R:590@4c018187]]` "'vars' restricts a
-    basis forest", `[[R/bartcore.R:599@4c018187]]` "the first forest has no 'basis'".
-  - **RESTATED for K forests, 1** (the refusal survives): `[[R/bartcore.R:656@4c018187]]` "second forest
+  - **RELAX outright, 6** (the refusal becomes a positive route): [R/bartcore.R:556](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L556) "at
+    most two forests", [R/bartcore.R:565](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L565) "not a numeric basis column", [R/bartcore.R:569](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L569) "exactly two
+    levels", [R/bartcore.R:581](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L581) "first forest takes no 'basis'", [R/bartcore.R:590](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L590) "'vars' restricts a
+    basis forest", [R/bartcore.R:599](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L599) "the first forest has no 'basis'".
+  - **RESTATED for K forests, 1** (the refusal survives): [R/bartcore.R:656](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L656) "second forest
     needs a 'basis'".
-  - **REWRITTEN by the treatment-slot retirement, 4**: `[[R/bartcore.R:316@4c018187]]` "coded 0", `[[R/bartcore.R:317@4c018187]]`
-    "length of 'treatment'", `[[R/bartcore.R:808@4c018187]]` "no treatment forest was configured",
-    `[[R/bartcore.R:819@4c018187]]` "carry no treatment vector".
-  - **STAND, 34**: the FIFTEEN composition refusals `[[R/bartcore.R:426-548@4c018187]]` (the gaussian
-    one is M4.4's, not M4.3's); the 6 knob validators `[[R/bartcore.R:694-753@4c018187]]`; `[[R/bartcore.R:754@4c018187]]`
-    one-sided; the 3 shape refusals `[[R/bartcore.R:666@4c018187]]`, `[[R/bartcore.R:670@4c018187]]`, `[[R/bartcore.R:679@4c018187]]`; the 2 top-level
-    ambiguity refusals `[[R/bartcore.R:624@4c018187]]`, `[[R/bartcore.R:634@4c018187]]`; the 2 K = 1 amplitude refusals `[[R/bartcore.R:611@4c018187]]`,
-    `[[R/bartcore.R:615@4c018187]]`; the 2 bridge backstops `[[R/bartcore.R:777@4c018187]]`, `[[R/bartcore.R:793@4c018187]]`; the 3 `"length of 'basis'"`
-    `[[R/bartcore.R:321@4c018187]]`, `[[R/bartcore.R:329@4c018187]]`, `[[R/bartcore.R:333@4c018187]]`.
+  - **REWRITTEN by the treatment-slot retirement, 4**: [R/bartcore.R:316](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L316) "coded 0", [R/bartcore.R:317](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L317)
+    "length of 'treatment'", [R/bartcore.R:808](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L808) "no treatment forest was configured",
+    [R/bartcore.R:819](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L819) "carry no treatment vector".
+  - **STAND, 34**: the FIFTEEN composition refusals [R/bartcore.R:426-548](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L426-L548) (the gaussian
+    one is M4.4's, not M4.3's); the 6 knob validators [R/bartcore.R:694-753](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L694-L753); [R/bartcore.R:754](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L754)
+    one-sided; the 3 shape refusals [R/bartcore.R:666](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L666), [R/bartcore.R:670](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L670), [R/bartcore.R:679](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L679); the 2 top-level
+    ambiguity refusals [R/bartcore.R:624](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L624), [R/bartcore.R:634](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L634); the 2 K = 1 amplitude refusals [R/bartcore.R:611](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L611),
+    [R/bartcore.R:615](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L615); the 2 bridge backstops [R/bartcore.R:777](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L777), [R/bartcore.R:793](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L793); the 3 `"length of 'basis'"`
+    [R/bartcore.R:321](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L321), [R/bartcore.R:329](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L329), [R/bartcore.R:333](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L333).
 
-  The composition refusals are FIFTEEN as pinned, not sixteen: `[[R/spec.R:429@4c018187]]-
-  456` emits sixteen, but only 15 `expect_error` land in [426, 548], and the
+  The composition refusals are FIFTEEN as pinned, not sixteen: [R/spec.R:429](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L429)-
+  456 emits sixteen, but only 15 `expect_error` land in [426, 548], and the
   STAND row balances at 34 only at 15. So 11 of 45 pins move and 34 stand, plus
   4 positional-`params` assertions the ragged transport rewrites though they
-  are not refusals: `[[R/spec.R:343-346@4c018187]]`, `[[R/spec.R:367@4c018187]]` (`params[4L]`), `[[R/spec.R:374@4c018187]]` (`params[7L]`),
-  `[[R/spec.R:383@4c018187]]` (`params[1L]`).
+  are not refusals: [R/spec.R:343-346](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L343-L346), [R/spec.R:367](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L367) (`params[4L]`), [R/spec.R:374](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L374) (`params[7L]`),
+  [R/spec.R:383](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L383) (`params[1L]`).
 
   Other files. `test-bcf-r5-surface.R` (10 `expect_error`, 40 `expect_*`): the
-  3-row `dim(glue)` pin `[[R/spec.R:50@4c018187]]`, the `"only on the second"` refusal `[[R/spec.R:135@4c018187]]`, the
-  whole F3 mirror block `[[R/spec.R:153-175@4c018187]]`. `test-bcf-reporting.R`: the dims `[[R/spec.R:41@4c018187]]` and
-  `[[R/spec.R:114@4c018187]]`, and the `reconstructionError` helper `[[R/spec.R:57-71@4c018187]]`, which reads
+  3-row `dim(glue)` pin [R/spec.R:50](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L50), the `"only on the second"` refusal [R/spec.R:135](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L135), the
+  whole F3 mirror block [R/spec.R:153-175](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L153-L175). `test-bcf-reporting.R`: the dims [R/spec.R:41](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L41) and
+  [R/spec.R:114](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L114), and the `reconstructionError` helper [R/spec.R:57-71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L57-L71), which reads
   `glue[1L,]/[2L,]/[3L,]` by position. `inst/tinytest/capi/consumer.c`: FOUR
-  legs, not three - `[[inst/tinytest/capi/consumer.c:897@c85d6db6]]` `setForestBasis` itself and `[[inst/tinytest/capi/consumer.c:898-900@c85d6db6]]`
-  `.forest0`/`.width`/`.values` - plus their bodies `[[inst/tinytest/capi/consumer.c:1003-1032@c85d6db6]]` and the `18L`
+  legs, not three - [inst/tinytest/capi/consumer.c:897](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/inst/tinytest/capi/consumer.c#L897) `setForestBasis` itself and [inst/tinytest/capi/consumer.c:898-900](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/inst/tinytest/capi/consumer.c#L898-L900)
+  `.forest0`/`.width`/`.values` - plus their bodies [inst/tinytest/capi/consumer.c:1003-1032](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/inst/tinytest/capi/consumer.c#L1003-L1032) and the `18L`
   `LEG_COUNT`; TWO of the four INVERT, and an inverted refusal leg is exactly
   where a capability answer and a malformed answer can quietly swap channels:
-  `LEG_BASIS_FOREST_0` (`[[inst/tinytest/capi/consumer.c:1006-1018@c85d6db6]]`) asserts `setForestBasis(sampler, 0, ...)
+  `LEG_BASIS_FOREST_0` ([inst/tinytest/capi/consumer.c:1006-1018](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/inst/tinytest/capi/consumer.c#L1006-L1018)) asserts `setForestBasis(sampler, 0, ...)
   == 0` and becomes an ACCEPTANCE (forest 0 takes a basis; its forest 2 probe
   stays a capability answer on a K = 2 sampler), and `LEG_BASIS_VALUES`
-  (`[[inst/tinytest/capi/consumer.c:1022-1032@c85d6db6]]`) asserts a raise on a 0.25/0.75 pair that becomes LEGAL (see
+  ([inst/tinytest/capi/consumer.c:1022-1032](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/inst/tinytest/capi/consumer.c#L1022-L1032)) asserts a raise on a 0.25/0.75 pair that becomes LEGAL (see
   the amendment's draw-path item). Both leg bodies also re-lay their bases
-  ROW-major under the transpose item. `[[test-capi.R:1165-1179@4c018187]]` (the ragged 1/2
-  amplitude counts); `test-bcf-mutation-pins.R` (6), `[[test-bcf.R:57@4c018187]]` and
-  `[[test-multi-forest-seam.R:285@4c018187]]` follow the route rename.
+  ROW-major under the transpose item. [inst/tinytest/test-capi.R:1165-1179](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-capi.R#L1165-L1179) (the ragged 1/2
+  amplitude counts); `test-bcf-mutation-pins.R` (6), [inst/tinytest/test-bcf.R:57](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf.R#L57) and
+  [inst/tinytest/test-multi-forest-seam.R:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-multi-forest-seam.R#L285) follow the route rename.
   `test-bcf-zero-multiplier.R` never mutates a basis and is STRUCK from this
   list. In `tests/cpp` the pins whose CONTENT moves are THREE:
-  `testForestBasisSynthesis` (`[[test_sampler.cpp:3296@4c018187]]`, superseded by the
-  amendment's arms), `testAmplitudeOffsetIndexing` (`[[test_sampler.cpp:3670@4c018187]]`, which calls
+  `testForestBasisSynthesis` ([tests/cpp/test_sampler.cpp:3296](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L3296), superseded by the
+  amendment's arms), `testAmplitudeOffsetIndexing` ([tests/cpp/test_sampler.cpp:3670](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L3670), which calls
   `installForestBasis` directly and gains the surface route), and
-  `testBCFTwoForest`'s `sampler.setTreatment` call (`[[test_sampler.cpp:2198@4c018187]]`) with its "BCF
-  setTreatment refresh runs" message (`[[test_sampler.cpp:2207@4c018187]]`). The other 22 of the 25
+  `testBCFTwoForest`'s `sampler.setTreatment` call ([tests/cpp/test_sampler.cpp:2198](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L2198)) with its "BCF
+  setTreatment refresh runs" message ([tests/cpp/test_sampler.cpp:2207](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L2207)). The other 22 of the 25
   `BCFSpec` fixtures (`test_sampler.cpp` x 21, `test_fuzz.cpp` x 3,
   `test_model.cpp` x 1) stay untouched IF collision (f)'s thin-adapter clause
   is honored - which is why that clause is load-bearing for the C++ suite
@@ -1869,50 +1869,50 @@ in FA1 and FA5 below ARE the record.
 
   **1. The interaction spec: SUBSUME. `setTreatment` RETIRES as a mutator.**
   Basis synthesis becomes construction-only and `installForestBasis`
-  (`[[combiner.hpp:607-613@4c018187]]`) becomes the sole mutation route, at any forest, at
+  ([src/bartcore/combiner.hpp:607-613](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L607-L613)) becomes the sole mutation route, at any forest, at
   any width. It wins by being the only operation there is.
-  - `installTreatment` (`[[combiner.hpp:1119-1142@4c018187]]`) becomes the CONSTRUCTOR's private
-    synthesis: `spec.z` -> `basis[0]` all-ones (`[[combiner.hpp:1124-1125@4c018187]]`), `basis[1]` the
-    (1 - z, z) pair (`[[combiner.hpp:1127-1134@4c018187]]`), forests 2.. all-ones (`[[combiner.hpp:1136-1139@4c018187]]`).
+  - `installTreatment` ([src/bartcore/combiner.hpp:1119-1142](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1119-L1142)) becomes the CONSTRUCTOR's private
+    synthesis: `spec.z` -> `basis[0]` all-ones ([src/bartcore/combiner.hpp:1124-1125](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1124-L1125)), `basis[1]` the
+    (1 - z, z) pair ([src/bartcore/combiner.hpp:1127-1134](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1127-L1134)), forests 2.. all-ones ([src/bartcore/combiner.hpp:1136-1139](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1136-L1139)).
     Nothing outside the constructor calls it. Today it rebuilds BOTH
     synthesized bases from scratch, silently discarding any widening - the
     defect this spec closes, and it closes it by DELETING the operation rather
     than documenting a RESET.
   - The `setTreatment` virtual is re-signed to `setForestBasis(f, values, q)`
-    through all four layers (`[[combiner.hpp:599@4c018187]]`, `[[chain.hpp:863-865@4c018187]]`,
-    `[[sampler.hpp:1158-1160@4c018187]]`, `[[facade.hpp:274@4c018187]]`/`[[facade.hpp:521@4c018187]]`) - the same four-layer
+    through all four layers ([src/bartcore/combiner.hpp:599](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L599), [src/bartcore/chain.hpp:863-865](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L863-L865),
+    [src/bartcore/sampler.hpp:1158-1160](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1158-L1160), [src/bartcore/facade.hpp:274](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L274)/[src/bartcore/facade.hpp:521](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L521)) - the same four-layer
     edit shape over the same four files that collision (a) already prices for
     `bcfGlue`. Do both in one pass.
-  - `dbarts_sampler_setForestBasis` (`[[C_interface.cpp:759-794@4c018187]]`) and
-    `$setForestBasis` (`[[R/dbarts.R:1214-1253@4c018187]]`) route to `installForestBasis`
-    directly; the 2-column collapse-to-z at `[[C_interface.cpp:790-791@4c018187]]` is
+  - `dbarts_sampler_setForestBasis` ([src/C_interface.cpp:759-794](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L759-L794)) and
+    `$setForestBasis` ([R/dbarts.R:1214-1253](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1214-L1253)) route to `installForestBasis`
+    directly; the 2-column collapse-to-z at [src/C_interface.cpp:790-791](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L790-L791) is
     DELETED, not generalized (see the `glue_.z` clause), and
-    `$setForestBasis`'s `index != 1L` refusal (`[[R/dbarts.R:1218-1223@4c018187]]`)
+    `$setForestBasis`'s `index != 1L` refusal ([R/dbarts.R:1218-1223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1218-L1223))
     relaxes. 1-based `forest` at the R5 layer is untouched
-    (`resolveForestIndex`, `[[R/bartcore.R:1051@4c018187]]`).
+    (`resolveForestIndex`, [R/bartcore.R:1051](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1051)).
   - **Ordering is LAST INSTALL WINS, per forest**, and both orderings collapse
     to that one rule because there is only one operation. widen-then-swap: the
     "swap" IS an install on the forest swapped, so forest 0's widening
     survives it. swap-then-widen: the widening replaces exactly that forest's
     basis, and the swapped forest's block is carried to its new offset. The
-    two commute exactly - `rebuildAmplitudeLayout` (`[[src/bartcore/combiner.hpp:1151-1171@a35ff7df]]`) derives
+    two commute exactly - `rebuildAmplitudeLayout` ([src/bartcore/combiner.hpp:1151-1171](https://github.com/vdorie/dbarts/blob/a35ff7dfe8fdfe8c8698cbe5dff83244ab0e44a0/src/bartcore/combiner.hpp#L1151-L1171)) derives
     offsets as a pure prefix sum of the width vector and carries by position at
     `min(newWidth, oldWidth)`.
   - **Amplitudes PRESERVE-and-remap**, which is what `rebuildAmplitudeLayout`
-    already does: a width-preserving install early-returns at `[[src/bartcore/combiner.hpp:1159@a35ff7df]]` and is
+    already does: a width-preserving install early-returns at [src/bartcore/combiner.hpp:1159](https://github.com/vdorie/dbarts/blob/a35ff7dfe8fdfe8c8698cbe5dff83244ab0e44a0/src/bartcore/combiner.hpp#L1159) and is
     the BITWISE IDENTITY on every amplitude (that is bcf's mid-life z swap, and
     it is baseline-gating); a width change carries every other forest's block
     bitwise to its new offset and enters new coordinates at the neutral 1.0.
   - **`glue_.z` RETIRES with `setTreatment`.** It has exactly ONE writer,
-    `[[combiner.hpp:1121@4c018187]]` inside `installTreatment`, and two readers, `[[combiner.hpp:836@4c018187]]` and
-    `[[combiner.hpp:869@4c018187]]` inside `drawShippedGlue`; the pointer is the borrowed
-    `BartcoreHolder::ownedTreatment` (`[[R_interface_bartcore_common.hpp:33-34@4c018187]]`)
-    whose contents only `[[R_interface_bartcore.cpp:3679-3684@4c018187]]` and
-    `[[C_interface.cpp:790-792@4c018187]]` refresh. Delete the collapse-to-z while keeping
+    [src/bartcore/combiner.hpp:1121](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1121) inside `installTreatment`, and two readers, [src/bartcore/combiner.hpp:836](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L836) and
+    [src/bartcore/combiner.hpp:869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L869) inside `drawShippedGlue`; the pointer is the borrowed
+    `BartcoreHolder::ownedTreatment` ([src/R_interface_bartcore_common.hpp:33-34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore_common.hpp#L33-L34))
+    whose contents only [src/R_interface_bartcore.cpp:3679-3684](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3679-L3684) and
+    [src/C_interface.cpp:790-792](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L790-L792) refresh. Delete the collapse-to-z while keeping
     `glue_.z` and it freezes at its construction value forever: a
     width-preserving z swap would install the new pair into `basis[1]`, leave
     the layout unmoved, and then draw `b0`/`b1` partitioned by the OLD z at
-    `[[C_interface.cpp:869@4c018187]]` while `forestMultiplier` (`[[C_interface.cpp:1081-1090@4c018187]]`) contracts the NEW basis - a
+    [src/C_interface.cpp:869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L869) while `forestMultiplier` ([src/C_interface.cpp:1081-1090](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L1081-L1090)) contracts the NEW basis - a
     silently different model on the one route this spec calls bitwise, and one
     the amplitude assertions cannot see. So `drawShippedGlue` must partition
     from `basis[1]` column 1 (`values[2 * i + 1]`, row-major) and `glue_.z`
@@ -1920,19 +1920,19 @@ in FA1 and FA5 below ARE the record.
     this is expected to be BITWISE on the baselines - a GATED claim, not an
     assumption: the trio (`bcf-equivalence`, the multinomial baseline,
     `tests/cpp`) proves it before the slice lands. The bridge note at
-    `[[R_interface_bartcore.cpp:2489-2493@4c018187]]` (an M4.1 review correction) records
+    [src/R_interface_bartcore.cpp:2489-2493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2489-L2493) (an M4.1 review correction) records
     the two objects as SEPARATE and must be rewritten with them merged. The
     same clause answers the general route: with no `glue_.z` there is no
     `nullptr` for a K-forest spec that carries per-forest bases and no z.
   - **Draw-path selection is a per-forest IS-CANONICAL predicate, not a width
-    test.** `drawGlue` (`[[R_interface_bartcore.cpp:732-738@4c018187]]`) today selects `drawShippedGlue` on
+    test.** `drawGlue` ([src/R_interface_bartcore.cpp:732-738](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L732-L738)) today selects `drawShippedGlue` on
     `forests.size() == 2 && !generalAmplitudeDraw_`, i.e. on the forest count.
     Selecting instead on widths (K == 2, q0 == 1, q1 == 2) is WRONG, because
     M4.3 opens legal CONTINUOUS two-column bases into exactly that shape -
-    `consumer.c`'s `LEG_BASIS_VALUES` (`[[R_interface_bartcore.cpp:1022-1032@4c018187]]`) installs a 0.25/0.75 pair
+    `consumer.c`'s `LEG_BASIS_VALUES` ([src/R_interface_bartcore.cpp:1022-1032](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1022-L1032)) installs a 0.25/0.75 pair
     that today is pinned to raise - and `drawShippedGlue` is not a general
     q = 2 conditional: it never reads `basis[1]` at all, it forms two disjoint
-    group-precision accumulators keyed on the indicator (`[[R_interface_bartcore.cpp:865-872@4c018187]]`). The
+    group-precision accumulators keyed on the indicator ([src/R_interface_bartcore.cpp:865-872](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L865-L872)). The
     predicate is therefore a VALUE property: forest f is CANONICAL when its
     basis is exactly the constructor's shape (all-ones; or, at the treatment
     forest, a complementary 0/1 pair - each entry in {0, 1}, each row summing
@@ -1955,15 +1955,15 @@ in FA1 and FA5 below ARE the record.
     item as the `amplitudes[3]` overflow: correctness, not signature.
   - **Persistence is MANDATORY, and its ORDER is part of the contract.**
     Nothing about a basis survives serialization today (`serializeGlue`/
-    `restoreGlue` `[[R_interface_bartcore.cpp:803-816@4c018187]]` carry `a, aVariance, b0, b1` only, through
-    `ChainStateData` `[[R_interface_bartcore.cpp:92-94@4c018187]]`); the basis is re-synthesized at re-creation from
+    `restoreGlue` [src/R_interface_bartcore.cpp:803-816](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L803-L816) carry `a, aVariance, b0, b1` only, through
+    `ChainStateData` [src/R_interface_bartcore.cpp:92-94](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L92-L94)); the basis is re-synthesized at re-creation from
     `data@treatment`. The successor is M1's pattern - an R5 field mirroring
     every installed basis, replayed at the same THREE sites
-    `reapplyForestWeights` is (`[[R/dbarts.R:1564@4c018187]]` `getPointer()`, `[[R/dbarts.R:1590@4c018187]]`
-    `setState()`, `[[R/dbarts.R:936@4c018187]]` `$copy()`) - but NOT with the same ORDERING. Those
+    `reapplyForestWeights` is ([R/dbarts.R:1564](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1564) `getPointer()`, [R/dbarts.R:1590](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1590)
+    `setState()`, [R/dbarts.R:936](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L936) `$copy()`) - but NOT with the same ORDERING. Those
     three sites all reapply AFTER the state install, which is right for
     WEIGHTS precisely because weights are deliberately not in the state
-    (`[[R/bartcore.R:997-999@4c018187]]`). Amplitudes ARE state. Reapply a widening after
+    ([R/bartcore.R:997-999](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L997-L999)). Amplitudes ARE state. Reapply a widening after
     `setState` and the restore either refuses on length or writes a ragged
     vector into the narrow creation layout, after which the widening enters the
     added coordinates at the neutral 1.0 and every restored amplitude the
@@ -1976,8 +1976,8 @@ in FA1 and FA5 below ARE the record.
     trip, not just the surviving basis width.
   - **The persistence GUARANTEE survives the slot retirement.** Collision (e)
     retires `data@treatment` as `$setForestBasis`'s mirror;
-    `[[man/dbartsSampler-class.Rd:167@4c018187]]` documents, and
-    `[[test-bcf-r5-surface.R:167@4c018187]]` pins, that a re-created sampler carries the
+    [man/dbartsSampler-class.Rd:167](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L167) documents, and
+    [inst/tinytest/test-bcf-r5-surface.R:167](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-r5-surface.R#L167) pins, that a re-created sampler carries the
     current assignment. The SLOT may go; the GUARANTEE may not - the successor
     mirror carries it. A tightening of collision (e), not a new public
     semantic.
@@ -1987,17 +1987,17 @@ in FA1 and FA5 below ARE the record.
     synthesized. That is a cheaper slice by the four-layer re-sign, but it
     costs a persistent per-forest installed flag and leaves two mutators whose
     orderings must BOTH be pinned. NOT TAKEN, on two grounds: (i) both shipped
-    public basis entries route to `setTreatment` (`[[C_interface.cpp:792@4c018187]]`,
-    `[[R/dbarts.R:1239@4c018187]]`), so under RESET the documented behavior of one public
+    public basis entries route to `setTreatment` ([src/C_interface.cpp:792](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L792),
+    [R/dbarts.R:1239](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1239)), so under RESET the documented behavior of one public
     entry is "silently undoes the other" - a surface whose two halves fight;
     (ii) a width change now SELECTS THE CONDITIONAL (the canonical predicate
     above), so it is a MODEL fact, and a model fact cannot be revertible by a
     data swap - which is what `installForestBasis`' own Doxygen already asserts
-    (`[[R/dbarts.R:604-606@4c018187]]`). A documented RESET is the one option that must not ship.
+    ([R/dbarts.R:604-606](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L604-L606)). A documented RESET is the one option that must not ship.
 
   **2. The test shape that discharges the mandate** (both orderings,
   red/green-able). Engine, `tests/cpp/test_sampler.cpp`, replacing
-  `testForestBasisSynthesis` (`[[tests/cpp/test_sampler.cpp:3296-3352@e3170da4]]`, today the ONLY component guard on
+  `testForestBasisSynthesis` ([tests/cpp/test_sampler.cpp:3296-3352](https://github.com/vdorie/dbarts/blob/e3170da41ded218ae004acbf0c9e5f9afb505dcb/tests/cpp/test_sampler.cpp#L3296-L3352), today the ONLY component guard on
   either half) as `testForestBasisOrdering`:
   - **Arm 1, widen-then-swap.** Install a q0 = 2 prognostic basis with a
     DISCRIMINATING second column (nonzero, row-varying - unit values vacate
@@ -2009,7 +2009,7 @@ in FA1 and FA5 below ARE the record.
     values survive the layout move and forest 1's two coordinates are carried
     bitwise to their new offsets. RED if the install re-synthesizes.
   - **Arm 3, width-preserving canonical reinstall is the BITWISE IDENTITY** on
-    every amplitude (the `[[R/dbarts.R:1159@4c018187]]` early return). This is the pin that stands
+    every amplitude (the [R/dbarts.R:1159](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1159) early return). This is the pin that stands
     between M4.3 and a `bcf-equivalence` re-record.
   - **Arm 4, the z divergence** - the leg Arm 3 structurally cannot see, since
     Arm 3 asserts amplitudes and the defect is in the NEXT draw. A
@@ -2037,34 +2037,34 @@ in FA1 and FA5 below ARE the record.
   **3. The state `bcf` block must carry PER-FOREST WIDTHS.** Collision (b)
   re-encodes the length-4 block in place; a total length is not a layout -
   `q = (1, 3)` and `q = (2, 2)` both serialize four amplitudes, and both
-  readers today check `Rf_xlength(bcfExpr) != 4` (`[[src/R_interface_bartcore.cpp:6167@c85d6db6]]`, `[[src/R_interface_bartcore.cpp:6366@c85d6db6]]`), whose
+  readers today check `Rf_xlength(bcfExpr) != 4` ([src/R_interface_bartcore.cpp:6167](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L6167), [src/R_interface_bartcore.cpp:6366](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L6366)), whose
   natural generalization to `sum q_f` cannot tell those apart. `restoreGlue`
-  (`[[combiner.hpp:810-816@4c018187]]`) writes THROUGH `amplitudeOffset` (`[[combiner.hpp:369-376@4c018187]]`), so a
+  ([src/bartcore/combiner.hpp:810-816](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L810-L816)) writes THROUGH `amplitudeOffset` ([src/bartcore/combiner.hpp:369-376](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L369-L376)), so a
   mis-laid vector is silently mis-assigned rather than refused, and combined
   with the ordering hazard in item 1 a save/load across differently-shaped
   bases would silently permute forest blocks. NAME THE ENCODING: a K-length
   width vector followed by `sum q_f` amplitudes (or a reader that validates the
   incoming layout against the live `amplitudeOffset`). And there are THREE
   state sites, not the two collision (b) names: write
-  `[[R_interface_bartcore.cpp:5814-5820@4c018187]]`, read `[[R_interface_bartcore.cpp:6165-6175@4c018187]]`, and the WARM-START
-  DONOR read `[[R_interface_bartcore.cpp:6364-6374@4c018187]]`, which carries its own length check and its own
+  [src/R_interface_bartcore.cpp:5814-5820](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5814-L5820), read [src/R_interface_bartcore.cpp:6165-6175](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L6165-L6175), and the WARM-START
+  DONOR read [src/R_interface_bartcore.cpp:6364-6374](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L6364-L6374), which carries its own length check and its own
   "malformed bcf glue in warm-start donor" message. The round-trip arm pins a
   REDISTRIBUTION at constant total, not only a malformed length, at both
   readers.
 
   **4. The route enumeration is THREE R routes plus the flat one.** Beyond
-  `$setForestBasis` (`[[R/dbarts.R:1214-1253@4c018187]]`, `.Call`ing
-  `C_dbarts_bartcore_setTreatment` at `[[R/dbarts.R:1239@4c018187]]`) and the flat
-  `dbarts_sampler_setForestBasis` (`[[C_interface.cpp:759-794@4c018187]]`), there is
-  `dbarts:::bartcoreSetTreatment` (`[[R/bartcore.R:979-981@4c018187]]`), which calls the
+  `$setForestBasis` ([R/dbarts.R:1214-1253](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1214-L1253), `.Call`ing
+  `C_dbarts_bartcore_setTreatment` at [R/dbarts.R:1239](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1239)) and the flat
+  `dbarts_sampler_setForestBasis` ([src/C_interface.cpp:759-794](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L759-L794)), there is
+  `dbarts:::bartcoreSetTreatment` ([R/bartcore.R:979-981](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L979-L981)), which calls the
   bridge entry directly and is ABSENT from the R site list above - add it. Its
-  callers: `[[benchmarks/R/bcf-equivalence.R:190@4c018187]]`, `[[test-bcf.R:58@4c018187]], [[test-bcf.R:78@4c018187]], [[test-bcf.R:138@4c018187]]`,
-  `[[test-bcf-mutation-pins.R:74@4c018187]]`, `[[test-multi-forest-seam.R:177@4c018187]], [[test-multi-forest-seam.R:285@4c018187]]`. The first
+  callers: [benchmarks/R/bcf-equivalence.R:190](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/bcf-equivalence.R#L190), [inst/tinytest/test-bcf.R:58](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf.R#L58), [inst/tinytest/test-bcf.R:78](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf.R#L78), [inst/tinytest/test-bcf.R:138](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf.R#L138),
+  [inst/tinytest/test-bcf-mutation-pins.R:74](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-mutation-pins.R#L74), [inst/tinytest/test-multi-forest-seam.R:177](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-multi-forest-seam.R#L177), [inst/tinytest/test-multi-forest-seam.R:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-multi-forest-seam.R#L285). The first
   is the mutation call inside equivalence scenario (e), which runs, swaps and
   RUNS AGAIN, so **the harness must keep working or be migrated IN THE SAME
   COMMIT, with the baseline UNTOUCHED** - this slice does not license a
   re-record. The same holds for the `bartcoreBCFGlue` adapter
-  (`[[R/bartcore.R:1013@4c018187]]`, read at `[[bcf-equivalence.R:97@4c018187]]` inside
+  ([R/bartcore.R:1013](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1013), read at [benchmarks/R/bcf-equivalence.R:97](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/bcf-equivalence.R#L97) inside
   `recordChannels`), whose 3 x n.chains SHAPE the bridge's `getBCFGlue`
   per-forest rewrite moves. So collision (f)'s thin-adapter clause extends BY
   NAME to `bartcoreBCFGlue`'s 3-row reading and `bartcoreSetTreatment`'s
@@ -2072,19 +2072,19 @@ in FA1 and FA5 below ARE the record.
   the landing commit with the recorded channels bitwise either way.
 
   **5. The column-major/row-major transpose is a named BRIDGE item, and a
-  silent-wrong-answer one.** `[[inst/include/dbarts/dbarts.h:686-687@4c018187]]` documents
+  silent-wrong-answer one.** [inst/include/dbarts/dbarts.h:686-687](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L686-L687) documents
   the flat basis as COLUMN-major numObservations x numColumns and
-  `[[C_interface.cpp:781@4c018187]]` reads it that way; `ForestBasis` is ROW-major by
-  contract (`[[combiner.hpp:303-317@4c018187]]`, "Stored ROW-major (row i at
+  [src/C_interface.cpp:781](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L781) reads it that way; `ForestBasis` is ROW-major by
+  contract ([src/bartcore/combiner.hpp:303-317](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L303-L317), "Stored ROW-major (row i at
   i * numColumns) because that contraction is the only read") and
-  `installForestBasis` assigns straight through (`[[combiner.hpp:611@4c018187]]`). Nothing is red today
-  only because the collapse-to-z at `[[combiner.hpp:790-791@4c018187]]` discards the layout entirely.
+  `installForestBasis` assigns straight through ([src/bartcore/combiner.hpp:611](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L611)). Nothing is red today
+  only because the collapse-to-z at [src/bartcore/combiner.hpp:790-791](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L790-L791) discards the layout entirely.
   **RESOLVE IN THE DOC DIRECTION**: the header text changes to say ROW-major,
   matching the engine; no signature moves and no hash re-bake. The flat entry
   then copies through, `consumer.c`'s basis-building legs re-lay ROW-major, and
   the R bridge transposes, since R matrices are column-major. M2's R5 route has
   no live mismatch - a two-level factor collapses to a single column
-  (`[[R/model.R:707@4c018187]]`) and one column is layout-invariant - but it INHERITS the
+  ([R/model.R:707](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L707)) and one column is layout-invariant - but it INHERITS the
   fix the moment q > 1.
 
   **6. The re-price. TESTS ~645 dense-equivalent (band ~590-660)**, stated as
@@ -2098,7 +2098,7 @@ in FA1 and FA5 below ARE the record.
   - T1 ~130, the creation-pin relaxations (6 refusals -> positive routes, 1
     restated, 4 slot-retirement rewrites, 4 params assertions). Priced ~75 at
     the first pass, which is BELOW the ~95 lines of live text it REPLACES:
-    `[[R/model.R:556-610@4c018187]]` = 55, `[[R/model.R:656-664@4c018187]]` = 9, `[[R/model.R:316@4c018187]]`/`[[R/model.R:317@4c018187]]` + `[[R/model.R:808-818@4c018187]]` + `[[R/model.R:819-829@4c018187]]` =
+    [R/model.R:556-610](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L556-L610) = 55, [R/model.R:656-664](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L656-L664) = 9, [R/model.R:316](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L316)/[R/model.R:317](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L317) + [R/model.R:808-818](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L808-L818) + [R/model.R:819-829](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L819-L829) =
     24, the 4 params assertions = 7. Re-priced at the convention above.
   - T2 ~95, the K > 2 / wide-basis positive surface: creation at K = 3-4, a
     continuous basis, a >2-level factor, run sanity, and the FA0 K = 2 bitwise
@@ -2106,26 +2106,26 @@ in FA1 and FA5 below ARE the record.
   - T3 ~75, the interaction spec, arms 1-7 (cpp ~45, tinytest ~30).
   - T4 ~55, `forestParams` ragged transport: per-forest resolution, both bridge
     routes agreeing, the retired length-8 message.
-  - T5 ~55, state block round trip at q > 1 / K > 2: both readers (`[[src/R_interface_bartcore.cpp:6165@c85d6db6]]`,
-    `[[src/R_interface_bartcore.cpp:6364@c85d6db6]]`), the redistribution-at-constant-total case, malformed length,
+  - T5 ~55, state block round trip at q > 1 / K > 2: both readers ([src/R_interface_bartcore.cpp:6165](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L6165),
+    [src/R_interface_bartcore.cpp:6364](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L6364)), the redistribution-at-constant-total case, malformed length,
     keepTrees continuation.
   - T6 ~40, ragged run-result `glue` slot: dims plus the reconstruction
     identity at K = 3, three sites.
   - T7 ~40, `$getForestAmplitudes(forest)` signature break: per-forest read,
     ragged widths, out-of-range refusal, the `test-bcf-reporting.R` helper.
   - T8 ~55, treatment-slot retirement + capability-probe successor: the five
-    `refuseBCFMutation` sites stay red (`[[R/bartcore.R:285@4c018187]]`, `[[R/bartcore.R:306@4c018187]]`, `[[R/bartcore.R:383@4c018187]]`,
-    `[[R/dbarts.R:1044@4c018187]]`, `[[R/dbarts.R:1484@4c018187]]`), the positive probe, the multinomial
+    `refuseBCFMutation` sites stay red ([R/bartcore.R:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L285), [R/bartcore.R:306](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L306), [R/bartcore.R:383](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L383),
+    [R/dbarts.R:1044](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1044), [R/dbarts.R:1484](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1484)), the positive probe, the multinomial
     non-misfire.
   - T9 ~65, flat C: the four `consumer.c` legs (two inverting), a wide basis
     accepted, a ragged amplitude read, the `LEG_COUNT` bump, `test-capi.R`.
   - T10 ~35, `bcfGlue` four-layer re-sign coverage plus the `amplitudes[3]`
-    overflow (`[[C_interface.cpp:767@4c018187]]`, `[[C_interface.cpp:812@4c018187]]`, `[[C_interface.cpp:824@4c018187]]`).
+    overflow ([src/C_interface.cpp:767](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L767), [src/C_interface.cpp:812](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L812), [src/C_interface.cpp:824](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L824)).
 
   **7. The slice's non-test price: ~970-1110 dense-equivalent.**
   - **Engine ~250-300.** K-length forest spec vector + `BCFSpec` thin adapter
     (~60); the constructor's K `buildBCFForest` loop and calibration map
-    (`[[chain.hpp:692-724@4c018187]]`, `[[chain.hpp:4457@4c018187]]`) (~40); construction-only synthesis plus
+    ([src/bartcore/chain.hpp:692-724](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L692-L724), [src/bartcore/chain.hpp:4457](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4457)) (~40); construction-only synthesis plus
     `installForestBasis` as sole mutator WITH its guards, and the four-layer
     `setTreatment` -> `setForestBasis` re-sign (~55); the `glue_.z` retirement
     and the canonical predicate (~15); `bcfGlue` four-layer re-sign to a
@@ -2135,7 +2135,7 @@ in FA1 and FA5 below ARE the record.
     block re-encoded in place at all three sites (~55); ragged `glue` result
     slot (~35); `getBCFGlue` -> per-forest (~30); the basis entry -> per-forest
     install INCLUDING the transpose (~45); treatment-slot retirement + the
-    two-way cross-check rewrite `[[chain.hpp:2833-2838@4c018187]]` (~40); `amplitudes[3]` buffers
+    two-way cross-check rewrite [src/bartcore/chain.hpp:2833-2838](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2833-L2838) (~40); `amplitudes[3]` buffers
     (~10). Band ~350-450, nothing consumed.
   - **R ~360-410 + man ~35.** As scoped (`forestParams` ragged ~55;
     `forestBasisDeclaration` + `expandForestBasis` per-forest ~80;
@@ -2145,11 +2145,11 @@ in FA1 and FA5 below ARE the record.
     ~45; `isBCFSampler` successor + its five call sites ~30; the basis mirror +
     its reapply at three sites ~30; Rd deltas ~35), plus ~10 for the internal
     `bartcoreSetTreatment` route (item 4). Band ~400-500, nothing consumed.
-  - **Flat C ~45.** Guard bodies at `[[C_interface.cpp:768-792@4c018187]]`, `[[C_interface.cpp:815-816@4c018187]]`,
-    `[[C_interface.cpp:828-832@4c018187]]`, and the three `amplitudes[3]` stack buffers -> K-sized.
+  - **Flat C ~45.** Guard bodies at [src/C_interface.cpp:768-792](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L768-L792), [src/C_interface.cpp:815-816](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L815-L816),
+    [src/C_interface.cpp:828-832](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L828-L832), and the three `amplitudes[3]` stack buffers -> K-sized.
   - `dbarts.h` MOVES NO SIGNATURE: `setForestBasis` already takes `numColumns`,
     `numForestAmplitudes`/`forestAmplitudes` already take `forest`, and
-    `[[C_interface.cpp:698-699@4c018187]]` says so in the header ("widening it relaxes this guard and moves
+    [src/C_interface.cpp:698-699](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L698-L699) says so in the header ("widening it relaxes this guard and moves
     no signature"). **No hash re-bake, no version-constant move.** Doxygen
     sweeps ride M4.5; the transpose sentence (item 5) is the one exception and
     is a doc-only edit.
@@ -2165,16 +2165,16 @@ in FA1 and FA5 below ARE the record.
   286 + 65) = 797. Corrected in place in the STATUS paragraph and the Budget.
 
   **9. Collision status, re-verified at e7708b7c.** (a) OPEN in full, all four
-  layers unchanged (`[[combiner.hpp:463@4c018187]]`, `[[chain.hpp:1021-1023@4c018187]]`,
-  `[[sampler.hpp:1242-1244@4c018187]]`, `[[facade.hpp:315@4c018187]]`/`[[facade.hpp:546@4c018187]]`) - do it in the same pass as
+  layers unchanged ([src/bartcore/combiner.hpp:463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L463), [src/bartcore/chain.hpp:1021-1023](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1021-L1023),
+  [src/bartcore/sampler.hpp:1242-1244](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1242-L1244), [src/bartcore/facade.hpp:315](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L315)/[src/bartcore/facade.hpp:546](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L546)) - do it in the same pass as
   item 1's re-sign. (b) OPEN, and it is THREE sites not two (item 3); its
   `amplitudeOffset` prerequisite is DONE (M4.2 handoff (b)). (c) OPEN, and it
-  is THREE glue-stride sites not one: add `[[chain.hpp:4661-4662@4c018187]]`
-  (`results.glue + sampleNum * 3`) and `[[sampler.hpp:321@4c018187]]` (`results.glue +
-  c * numSamples * 3`) beside the bridge alloc `[[src/R_interface_bartcore.cpp:4098-4102@c85d6db6]]`. (d) OPEN; its
+  is THREE glue-stride sites not one: add [src/bartcore/chain.hpp:4661-4662](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4661-L4662)
+  (`results.glue + sampleNum * 3`) and [src/bartcore/sampler.hpp:321](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L321) (`results.glue +
+  c * numSamples * 3`) beside the bridge alloc [src/R_interface_bartcore.cpp:4098-4102](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L4098-L4102). (d) OPEN; its
   twin, `installTreatment`'s `basis.resize(2)` K-sizing, is DONE - every
   per-forest array is now sized by the chain's forest count
-  (`[[combiner.hpp:1122@4c018187]]`, `[[combiner.hpp:1152-1153@4c018187]]`; M4.2 handoff (d), with its ASAN
+  ([src/bartcore/combiner.hpp:1122](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1122), [src/bartcore/combiner.hpp:1152-1153](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1152-L1153); M4.2 handoff (d), with its ASAN
   red/green). (e) OPEN, tightened by item 1's persistence clause. (f) OPEN but
   zero-cost IF the adapter clause is honored, and it is load-bearing on the C++
   suite's ground as well as `bcf-equivalence.R`'s: 25 `tests/cpp` fixtures
@@ -2183,35 +2183,35 @@ in FA1 and FA5 below ARE the record.
 
   **10. Stale `combiner.hpp` anchors** (M4.2 moved the file again). Verified BY
   SYMBOL at e7708b7c; these correct the M4 text above wherever it cites them.
-  `BCFSpec` `[[combiner.hpp:244-251@4c018187]]` -> `[[combiner.hpp:244-263@4c018187]]` (M4.2 added `ridgeA`/`ridgeB`/
-  `generalAmplitudeDraw`); `BCFState`'s `a, b0, b1, aVariance` `[[combiner.hpp:290-302@4c018187]]` ->
-  struct `[[combiner.hpp:342-377@4c018187]]` with accessors `[[combiner.hpp:369-376@4c018187]]`; the constant-leaf
-  `static_assert` `[[combiner.hpp:502-503@4c018187]]` -> `[[combiner.hpp:583-584@4c018187]]`; the base `bcfGlue` virtual
-  `[[combiner.hpp:386-389@4c018187]]` -> `[[combiner.hpp:463@4c018187]]`; `forestMultiplier` `[[combiner.hpp:761-765@4c018187]]` -> `[[combiner.hpp:1081-1090@4c018187]]`;
-  `combinedFits` `[[combiner.hpp:567-576@4c018187]]` -> `[[combiner.hpp:691-706@4c018187]]`; `installTreatment` `[[combiner.hpp:855@4c018187]]` ->
-  `[[combiner.hpp:1119-1142@4c018187]]` (the resize at `[[combiner.hpp:1122@4c018187]]`); `drawGlue` `[[combiner.hpp:582-623@4c018187]]` -> `[[combiner.hpp:732-738@4c018187]]`
-  (plus `drawShippedGlue` `[[combiner.hpp:824-877@4c018187]]`); `afterCombine` `[[combiner.hpp:638-709@4c018187]]` -> `[[combiner.hpp:758-767@4c018187]]`;
-  `MultinomialForestCombiner::afterCombine` `[[combiner.hpp:1152-1197@4c018187]]` -> `[[combiner.hpp:1560@4c018187]]-`;
-  `buildBCFForest` `[[chain.hpp:4454@4c018187]]` -> `[[chain.hpp:4457@4c018187]]`; `Chain::bcfGlue`
-  `[[chain.hpp:1018-1020@4c018187]]` -> `[[chain.hpp:1021-1023@4c018187]]`; the bridge's length-8 check #2
-  `[[chain.hpp:2913-2914@4c018187]]` -> `[[chain.hpp:2915-2916@4c018187]]`; its cross-check `[[chain.hpp:2831-2836@4c018187]]` -> `[[chain.hpp:2833-2838@4c018187]]`;
-  `amplitudes[3]` `[[chain.hpp:3673@4c018187]]` -> `[[chain.hpp:3675@4c018187]]` and the stride-3 alloc `[[chain.hpp:3769-3772@4c018187]]` ->
-  `[[chain.hpp:3771-3774@4c018187]]`; the state write `[[src/R_interface_bartcore.cpp:5812-5818@c85d6db6]]` -> unresolved: [[src/R_interface_bartcore.cpp:5814-5820@4c018187]] and read
-  `[[src/R_interface_bartcore.cpp:6163-6167@c85d6db6]]` -> unresolved: [[src/R_interface_bartcore.cpp:6165-6169@4c018187]] (neither new-side line could be re-derived); `R/spec.R`'s control attribute `[[chain.hpp:466-486@4c018187]]` ->
-  `[[chain.hpp:467-483@4c018187]]`. UNCHANGED **AT e7708b7c, WHICH IS ALL THIS LIST EVER CLAIMED** -
+  `BCFSpec` [src/bartcore/combiner.hpp:244-251](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L244-L251) -> [src/bartcore/combiner.hpp:244-263](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L244-L263) (M4.2 added `ridgeA`/`ridgeB`/
+  `generalAmplitudeDraw`); `BCFState`'s `a, b0, b1, aVariance` [src/bartcore/combiner.hpp:290-302](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L290-L302) ->
+  struct [src/bartcore/combiner.hpp:342-377](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L342-L377) with accessors [src/bartcore/combiner.hpp:369-376](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L369-L376); the constant-leaf
+  `static_assert` [src/bartcore/combiner.hpp:502-503](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L502-L503) -> [src/bartcore/combiner.hpp:583-584](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L583-L584); the base `bcfGlue` virtual
+  [src/bartcore/combiner.hpp:386-389](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L386-L389) -> [src/bartcore/combiner.hpp:463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L463); `forestMultiplier` [src/bartcore/combiner.hpp:761-765](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L761-L765) -> [src/bartcore/combiner.hpp:1081-1090](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1081-L1090);
+  `combinedFits` [src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576) -> [src/bartcore/combiner.hpp:691-706](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L691-L706); `installTreatment` [src/bartcore/combiner.hpp:855](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L855) ->
+  [src/bartcore/combiner.hpp:1119-1142](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1119-L1142) (the resize at [src/bartcore/combiner.hpp:1122](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1122)); `drawGlue` [src/bartcore/combiner.hpp:582-623](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L582-L623) -> [src/bartcore/combiner.hpp:732-738](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L732-L738)
+  (plus `drawShippedGlue` [src/bartcore/combiner.hpp:824-877](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L824-L877)); `afterCombine` [src/bartcore/combiner.hpp:638-709](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L638-L709) -> [src/bartcore/combiner.hpp:758-767](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L758-L767);
+  `MultinomialForestCombiner::afterCombine` [src/bartcore/combiner.hpp:1152-1197](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1152-L1197) -> [src/bartcore/combiner.hpp:1560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1560)-;
+  `buildBCFForest` [src/bartcore/chain.hpp:4454](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4454) -> [src/bartcore/chain.hpp:4457](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4457); `Chain::bcfGlue`
+  [src/bartcore/chain.hpp:1018-1020](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1018-L1020) -> [src/bartcore/chain.hpp:1021-1023](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1021-L1023); the bridge's length-8 check #2
+  [src/bartcore/chain.hpp:2913-2914](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2913-L2914) -> [src/bartcore/chain.hpp:2915-2916](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2915-L2916); its cross-check [src/bartcore/chain.hpp:2831-2836](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2831-L2836) -> [src/bartcore/chain.hpp:2833-2838](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2833-L2838);
+  `amplitudes[3]` [src/bartcore/chain.hpp:3673](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3673) -> [src/bartcore/chain.hpp:3675](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3675) and the stride-3 alloc [src/bartcore/chain.hpp:3769-3772](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3769-L3772) ->
+  [src/bartcore/chain.hpp:3771-3774](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3771-L3774); the state write [src/R_interface_bartcore.cpp:5812-5818](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L5812-L5818) -> unresolved: [src/R_interface_bartcore.cpp:5814-5820](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5814-L5820) and read
+  [src/R_interface_bartcore.cpp:6163-6167](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L6163-L6167) -> unresolved: [src/R_interface_bartcore.cpp:6165-6169](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L6165-L6169) (neither new-side line could be re-derived); `R/spec.R`'s control attribute [src/bartcore/chain.hpp:466-486](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L466-L486) ->
+  [src/bartcore/chain.hpp:467-483](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L467-L483). UNCHANGED **AT e7708b7c, WHICH IS ALL THIS LIST EVER CLAIMED** -
   M4.3 and M4.5 have landed since and moved several R-side entries (`R/data.R`'s
   `validateTreatment` is GONE outright), so read it as a stamp and not as
-  current: `BCFForestSpec` `[[chain.hpp:211-241@4c018187]]`, every `R/model.R` site, every other
-  `R/spec.R` site, `[[R/data.R:643-655@4c018187]]`, `[[R/bartcore.R:18-22@4c018187]]`, `[[R/bartcore.R:30-34@4c018187]]`, `[[R/bartcore.R:285@4c018187]]`,
-  `[[R/bartcore.R:306@4c018187]]`, `[[R/bartcore.R:383@4c018187]]`, `[[R/bartcore.R:622@4c018187]]`, `[[R/bartcore.R:1051@4c018187]]`, `[[R/dbarts.R:1044@4c018187]]`, `[[R/dbarts.R:1484@4c018187]]`, `[[R/dbarts.R:1442-1446@4c018187]]`,
+  current: `BCFForestSpec` [src/bartcore/chain.hpp:211-241](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L211-L241), every `R/model.R` site, every other
+  `R/spec.R` site, [R/data.R:643-655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L643-L655), [R/bartcore.R:18-22](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L18-L22), [R/bartcore.R:30-34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L30-L34), [R/bartcore.R:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L285),
+  [R/bartcore.R:306](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L306), [R/bartcore.R:383](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L383), [R/bartcore.R:622](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L622), [R/bartcore.R:1051](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L1051), [R/dbarts.R:1044](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1044), [R/dbarts.R:1484](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1484), [R/dbarts.R:1442-1446](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1442-L1446),
   all three `C_interface.cpp` `amplitudes[3]` buffers and its guard bodies,
-  `[[facade.hpp:274@4c018187]]`/`[[facade.hpp:315@4c018187]]`/`[[facade.hpp:750@4c018187]]`, `[[sampler.hpp:1242-1244@4c018187]]`,
-  `[[R_interface_bartcore.cpp:1112@4c018187]]`, `[[R_interface_bartcore.cpp:2134-2135@4c018187]]`, `[[R_interface_bartcore.cpp:2138-2148@4c018187]]`, `[[R_interface_bartcore.cpp:4098-4102@4c018187]]`.
+  [src/bartcore/facade.hpp:274](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L274)/[src/bartcore/facade.hpp:315](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L315)/[src/bartcore/facade.hpp:750](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L750), [src/bartcore/sampler.hpp:1242-1244](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1242-L1244),
+  [src/R_interface_bartcore.cpp:1112](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1112), [src/R_interface_bartcore.cpp:2134-2135](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2134-L2135), [src/R_interface_bartcore.cpp:2138-2148](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2138-L2148), [src/R_interface_bartcore.cpp:4098-4102](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4098-L4102).
   The two entries M4.4 reaches are corrected here rather than left to it:
-  `$setForestBasis` `[[R/dbarts.R:1218-1223@4c018187]]` is now DEFINED at `[[R/dbarts.R:1223@4c018187]]` with its
-  body to `[[R/dbarts.R:1261@4c018187]]`, and its `index != 1L` refusal is GONE - M4.3 removed it, and
-  the docstring at `[[R/dbarts.R:1224@4c018187]]` reads "at any forest and any width"; its `[[R/dbarts.R:1237@4c018187]]`
-  single-slot `data@treatment` mirror is now the `data@bases` mirror at `[[R/dbarts.R:1245@4c018187]]`.
+  `$setForestBasis` [R/dbarts.R:1218-1223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1218-L1223) is now DEFINED at [R/dbarts.R:1223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1223) with its
+  body to [R/dbarts.R:1261](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1261), and its `index != 1L` refusal is GONE - M4.3 removed it, and
+  the docstring at [R/dbarts.R:1224](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1224) reads "at any forest and any width"; its [R/dbarts.R:1237](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1237)
+  single-slot `data@treatment` mirror is now the `data@bases` mirror at [R/dbarts.R:1245](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1245).
 - **M4.4 (non-Gaussian, the family's justification).** Wire the family enum
   through the K-forest constructor and define the calibration map against each
   family's latent scale; probit and logistic in v1, the rest doors.
@@ -2222,42 +2222,42 @@ in FA1 and FA5 below ARE the record.
   this bullet was located by opening the file at `efec6ba2`; none is an offset
   of an earlier number. The struck citations are kept in parentheses so a
   reader of the old text can find where it went.
-  - `[[R/spec.R:423-431@4c018187]]` - the `family != "gaussian"` refusal off `data@bases`:
-    guard `[[R/spec.R:423@4c018187]]`, predicate `[[R/spec.R:424@4c018187]]`, `stop()` `[[R/spec.R:425-430@4c018187]]` (its message literals
-    `[[R/spec.R:426-429@4c018187]]`). (Was `[[R/spec.R:412-419@4c018187]]`, now a comment inside the BCF prose block.)
-  - bridge `[[R_interface_bartcore.cpp:2299-2300@4c018187]]`, the first test inside
-    `refuseUnsupportedBCFComposition` (`[[R_interface_bartcore.cpp:2295-2337@4c018187]]`), called from exactly one
-    place, `createHolder:2916`. (Was `[[R_interface_bartcore.cpp:2222-2223@4c018187]]`.)
-  - bridge `[[R_interface_bartcore.cpp:2993-2994@4c018187]]`, inside `createBCFHolder`
-    (`[[R_interface_bartcore.cpp:2981-3038@4c018187]]`), reached from `bartcore_createBCF` (`[[R_interface_bartcore.cpp:3526-3534@4c018187]]`) and the
-    internal R helper `bartcoreBCFSampler` (`[[R/bartcore.R:626-708@4c018187]]`).
-    (Was `[[src/R_interface_bartcore.cpp:2925-2926@c85d6db6]]`.)
-  - engine `[[chain.hpp:705@4c018187]]` (`family_ = ResponseFamily::gaussian`), with
-    `GaussianResponse` hardcoded at `[[chain.hpp:702-704@4c018187]]` and the EXECUTABLE calibration
-    map at `[[chain.hpp:722-727@4c018187]]` under its Doxygen `[[chain.hpp:709-721@4c018187]]`. (Was `[[chain.hpp:704@4c018187]]` and
-    `[[chain.hpp:716-719@4c018187]]`; the latter lands mid-comment.)
-  - engine `[[facade.hpp:777-789@4c018187]]`, `createBCFSampler` (Doxygen `[[facade.hpp:774-776@4c018187]]`).
+  - [R/spec.R:423-431](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423-L431) - the `family != "gaussian"` refusal off `data@bases`:
+    guard [R/spec.R:423](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423), predicate [R/spec.R:424](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L424), `stop()` [R/spec.R:425-430](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L425-L430) (its message literals
+    [R/spec.R:426-429](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L426-L429)). (Was [R/spec.R:412-419](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L412-L419), now a comment inside the BCF prose block.)
+  - bridge [src/R_interface_bartcore.cpp:2299-2300](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2299-L2300), the first test inside
+    `refuseUnsupportedBCFComposition` ([src/R_interface_bartcore.cpp:2295-2337](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2295-L2337)), called from exactly one
+    place, `createHolder:2916`. (Was [src/R_interface_bartcore.cpp:2222-2223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2222-L2223).)
+  - bridge [src/R_interface_bartcore.cpp:2993-2994](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2993-L2994), inside `createBCFHolder`
+    ([src/R_interface_bartcore.cpp:2981-3038](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2981-L3038)), reached from `bartcore_createBCF` ([src/R_interface_bartcore.cpp:3526-3534](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3526-L3534)) and the
+    internal R helper `bartcoreBCFSampler` ([R/bartcore.R:626-708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L626-L708)).
+    (Was [src/R_interface_bartcore.cpp:2925-2926](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2925-L2926).)
+  - engine [src/bartcore/chain.hpp:705](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L705) (`family_ = ResponseFamily::gaussian`), with
+    `GaussianResponse` hardcoded at [src/bartcore/chain.hpp:702-704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L704) and the EXECUTABLE calibration
+    map at [src/bartcore/chain.hpp:722-727](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L722-L727) under its Doxygen [src/bartcore/chain.hpp:709-721](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L709-L721). (Was [src/bartcore/chain.hpp:704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L704) and
+    [src/bartcore/chain.hpp:716-719](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L716-L719); the latter lands mid-comment.)
+  - engine [src/bartcore/facade.hpp:777-789](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L777-L789), `createBCFSampler` (Doxygen [src/bartcore/facade.hpp:774-776](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L774-L776)).
     **This bullet MISCHARACTERIZED the site.** Its single
     `SamplerFacade<ConstantGaussianLeaf>` instantiation is the LEAF
     instantiation, not a family one: the family is a RUNTIME enum dispatching
     to a virtual `ResponseModel`, and the same specialization already serves
-    all six families on the single-forest path (`[[facade.hpp:640-652@4c018187]]`). M4.4
+    all six families on the single-forest path ([src/bartcore/facade.hpp:640-652](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L640-L652)). M4.4
     adds ZERO template instantiations, ZERO compile surface, no object-size
     growth and no virtual-table move - so the stale-object bus-error gotcha is
     not in play beyond the standing header rule. What is actually baked in
     here is that the function takes no family argument at all. (Was
-    `[[facade.hpp:750-762@4c018187]]`, now `createSamplerOverStore`.)
-  - engine `[[sampler.hpp:157@4c018187]]`, `family_(ResponseFamily::gaussian)` in the
+    [src/bartcore/facade.hpp:750-762](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L750-L762), now `createSamplerOverStore`.)
+  - engine [src/bartcore/sampler.hpp:157](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L157), `family_(ResponseFamily::gaussian)` in the
     K-forest `Sampler` constructor. The SIXTH site, absent from every earlier
     list including the calibration respec's own. `Sampler::family()`
-    (`[[sampler.hpp:1123@4c018187]]`) is what every family-keyed bridge predicate reads
+    ([src/bartcore/sampler.hpp:1123](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L1123)) is what every family-keyed bridge predicate reads
     through `shape.family`; left pinned, a probit K-forest sampler LIES to
-    `refusePinnedSigmaChange` (`[[R_interface_bartcore.cpp:2746-2757@4c018187]]`, family
-    test `[[R_interface_bartcore.cpp:2752-2753@4c018187]]`), `refuseBinaryWeightChange` (`[[R_interface_bartcore.cpp:1626-1639@4c018187]]`) and the
-    `drawsSigma` branch in `bartcore_setModel` (`[[R_interface_bartcore.cpp:4736-4737@4c018187]]`).
+    `refusePinnedSigmaChange` ([src/R_interface_bartcore.cpp:2746-2757](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2746-L2757), family
+    test [src/R_interface_bartcore.cpp:2752-2753](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2752-L2753)), `refuseBinaryWeightChange` ([src/R_interface_bartcore.cpp:1626-1639](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1626-L1639)) and the
+    `drawsSigma` branch in `bartcore_setModel` ([src/R_interface_bartcore.cpp:4736-4737](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4736-L4737)).
 
-  `[[model.hpp:2577@4c018187]]`'s `enum class ResponseFamily` is NOT a gate at all: `probit`
-  and `logistic` are already members. (Was `[[model.hpp:2523@4c018187]]`.)
+  [src/bartcore/model.hpp:2577](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2577)'s `enum class ResponseFamily` is NOT a gate at all: `probit`
+  and `logistic` are already members. (Was [src/bartcore/model.hpp:2523](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2523).)
 
   **RE-SCOPED 2026-08-13 on the probe verdicts (`probes-2026-08-13.md`): this
   slice moves to the END of the arc, as the IMMEDIATE follow-on to M4.5, and
@@ -2281,8 +2281,8 @@ in FA1 and FA5 below ARE the record.
   - **Correctness unreachable from the R composition:** the per-forest ASIS
     rescale writes LEAF values, and no setter exists or should; and the
     `0x1p-26` snap's exactness, which the R host can only mirror by hand
-    (arm B did mirror it - the constant is `[[combiner.hpp:787@4c018187]]`, its snap branch
-    `[[combiner.hpp:823-827@4c018187]]`, split across two places and NOT at the `[[combiner.hpp:534-537@4c018187]]` this bullet
+    (arm B did mirror it - the constant is [src/bartcore/combiner.hpp:787](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L787), its snap branch
+    [src/bartcore/combiner.hpp:823-827](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L823-L827), split across two places and NOT at the [src/bartcore/combiner.hpp:534-537](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L534-L537) this bullet
     used to cite - and that is the point: the host must know the constant).
   - **Composition ergonomics:** K stores, K states, K `.Call` round trips, K
     leaf calibrations, a serial outer loop, and a host that must own the
@@ -2334,8 +2334,8 @@ in FA1 and FA5 below ARE the record.
 
   the link's own error sd in each family. The rejected alternative, Option C,
   is CGM's forest-total plausible-index budget (probit `3.0`, logistic
-  `pi*sqrt(3)` - the shipped single-forest `node.scale` at `[[R/spec.R:301@4c018187]]` and
-  `[[R/spec.R:308@4c018187]]`), exactly `3 * L` in both families, so the fork was a single factor of
+  `pi*sqrt(3)` - the shipped single-forest `node.scale` at [R/spec.R:301](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L301) and
+  [R/spec.R:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L308)), exactly `3 * L` in both families, so the fork was a single factor of
   three and one decision covered both. A third option, keeping the empirical
   `scaledResponseSd()`, is REJECTED outright (item 2c).
 
@@ -2347,7 +2347,7 @@ in FA1 and FA5 below ARE the record.
   BOTH forests to `(50, 0.25, 3, 1, 0.674, 0.5, 0, 1)`, MEASURED against a
   private-lib build. **It has NO FIXTURE ANYWHERE.** Repo-wide,
   `grep "bases = list(" inst benchmarks | grep -v "list(NULL"` returns
-  nothing, and `[[inst/tinytest/test-bcf-creation.R:392-425@4c018187]]` - which this bullet
+  nothing, and [inst/tinytest/test-bcf-creation.R:392-425](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-creation.R#L392-L425) - which this bullet
   used to cite as the exercise - is the `bases = list(NULL, zBasis)`
   hasBasis-escape block, i.e. the HALF-CAUCHY shape, the opposite arm.
   Building the fixture is MANDATED work (checklist item 23).
@@ -2357,9 +2357,9 @@ in FA1 and FA5 below ARE the record.
   dbarts's own shipped SINGLE-FOREST binary prior on the same index, and it
   must be quoted TWICE, because the shipped binary default is not the `k = 2`
   an earlier version of this bullet assumed. `resolveNodeHyperprior`
-  (`[[R/model.R:392-400@4c018187]]`) resolves an unsupplied `k` to `chi(1.5, 2.0)` whenever
+  ([R/model.R:392-400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L392-L400)) resolves an unsupplied `k` to `chi(1.5, 2.0)` whenever
   `binary` is true; only `monotone || !binary` takes the fixed 2.0. At the
-  prior `ChiKHyperprior` (`[[model.hpp:2500-2524@4c018187]]`) draws
+  prior `ChiKHyperprior` ([src/bartcore/model.hpp:2500-2524](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2500-L2524)) draws
   `k = sqrt(Gamma(nu/2, rate 0.5/scale^2)) = sqrt(Gamma(0.75, rate 0.125))`,
   and `E[k^-2]` does not exist for a shape below 1, so **the shipped
   single-forest binary index prior has NO SECOND MOMENT** - the same
@@ -2369,7 +2369,7 @@ in FA1 and FA5 below ARE the record.
 
   Probit below; logistic is every column times `pi/sqrt(3)`, and every ratio
   is identical because `node.scale` is `3 * (latent sd)` in BOTH families
-  (`[[R/spec.R:301@4c018187]]`, `[[R/spec.R:308@4c018187]]`).
+  ([R/spec.R:301](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L301), [R/spec.R:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L308)).
 
   | arm | L | C | L vs shipped k | C vs shipped k | L vs k = 2 | C vs k = 2 |
   |---|---|---|---|---|---|---|
@@ -2404,9 +2404,9 @@ in FA1 and FA5 below ARE the record.
   the refuted version, not weaker.
 
   **2c. What a naive M4.4 would ship, quantified.** If the family enum is wired
-  and `[[chain.hpp:722@4c018187]]` is left alone, `s` is the sd of the COLD-START working
-  response - `2y - 1 - offset` for probit (`[[model.hpp:3057-3061@4c018187]]`),
-  `4(y - 0.5) - offset` for logistic (`[[model.hpp:3657-3664@4c018187]]`) - i.e.
+  and [src/bartcore/chain.hpp:722](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L722) is left alone, `s` is the sd of the COLD-START working
+  response - `2y - 1 - offset` for probit ([src/bartcore/model.hpp:3057-3061](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3057-L3061)),
+  `4(y - 0.5) - offset` for logistic ([src/bartcore/model.hpp:3657-3664](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3657-L3664)) - i.e.
   `2 sqrt(p(1-p) n/(n-1))` for probit and `4 sqrt(p(1-p) n/(n-1))` for
   logistic (2.001 at p = 0.5, against Option L's 1.8138; the two families do
   NOT share one formula), a base-rate artifact. The prior narrows 5.03x
@@ -2421,11 +2421,11 @@ in FA1 and FA5 below ARE the record.
 
   **2d. Two facts about the shipped prior that must travel with the anchor,
   and are new.** (a) **Adaptivity is capped at one forest, for any K.**
-  `resolveForests` (`[[R/model.R:772-840@4c018187]]`, refusal `[[R/model.R:799-806@4c018187]]`) requires every
+  `resolveForests` ([R/model.R:772-840](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L772-L840), refusal [R/model.R:799-806](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L799-L806)) requires every
   forest past the first to carry a basis, and `forestParams` writes the LITERAL
-  `0` for `amplitudePriorScale` whenever a basis is present (`[[R/model.R:874@4c018187]]`),
+  `0` for `amplitudePriorScale` whenever a basis is present ([R/model.R:874](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L874)),
   from which the bridge derives `forest.ridge = false`
-  (`[[R_interface_bartcore.cpp:2207@4c018187]]`). So forests 2..K are ALWAYS fixed-variance,
+  ([src/R_interface_bartcore.cpp:2207](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2207)). So forests 2..K are ALWAYS fixed-variance,
   a half-Cauchy on a basis forest is unreachable through any shipped surface,
   and every forest added past K = 2 lands entirely on the non-adaptive channel.
   This makes the anchor MORE load-bearing at larger K, not less. (b) There is
@@ -2459,17 +2459,17 @@ in FA1 and FA5 below ARE the record.
   **2f. The anchor's UNIT was wrong, and M4.4 SHIPS the fix (options A + E).**
   The anchor is stated PER FOREST and consumed PER UNIT OF BASIS ROW NORM, and
   nothing made the two agree. From the code (`forestMultiplier`
-  `[[combiner.hpp:1304-1313@4c018187]]`, `buildBCFForest` `[[chain.hpp:4495-4511@4c018187]]`, the map
-  `[[chain.hpp:722-727@4c018187]]`), on the all-fixed-variance shape:
+  [src/bartcore/combiner.hpp:1304-1313](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1304-L1313), `buildBCFForest` [src/bartcore/chain.hpp:4495-4511](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4495-L4511), the map
+  [src/bartcore/chain.hpp:722-727](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L722-L727)), on the all-fixed-variance shape:
 
       sd(eta_i) = s * sqrt( sum_f (factor_f/divisor_f)^2 v_f ||B_f(i,.)||^2 )
 
   A basis-free forest's term is Cauchy and has no sd, so the formula prices
   the fixed-variance forests and the rest is Cauchy. `||B_f(i,.)||` is
-  UNCONSTRAINED on every route: `validateForestBases` (`[[R/data.R:635-666@4c018187]]`)
+  UNCONSTRAINED on every route: `validateForestBases` ([R/data.R:635-666](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L635-L666))
   checks list-ness, numeric-or-logical, row count, subset alignment and
-  finiteness; `expandForestBasis` (`[[R/model.R:687-720@4c018187]]`) passes a numeric
-  matrix through; `dbarts_sampler_setForestBasis` (`[[C_interface.cpp:761-781@4c018187]]`)
+  finiteness; `expandForestBasis` ([R/model.R:687-720](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L687-L720)) passes a numeric
+  matrix through; `dbarts_sampler_setForestBasis` ([src/C_interface.cpp:761-781](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L761-L781))
   scans finiteness only. MEASURED against a private-lib build:
   `bases = list(NULL, matrix(rnorm(n, 50, 10)))` resolves to
   `(50, 0.25, 3, 1, 0.674, 0.5, 0, 1)` and RUNS to completion; under Option L
@@ -2492,7 +2492,7 @@ in FA1 and FA5 below ARE the record.
   `1.0` by convention when `spec.forests[f].basis == nullptr`. **The median,
   not an RMS, and the choice is named here rather than left to the
   implementer:** the map's own convention is already a median (`divisor =
-  0.674` is `qnorm(0.75)`, `expandForestSpecs` `[[combiner.hpp:334@4c018187]]`), the median
+  0.674` is `qnorm(0.75)`, `expandForestSpecs` [src/bartcore/combiner.hpp:334](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L334)), the median
   is sparsity-invariant where an all-rows RMS inflates a bare 0/1 indicator
   column's scale by `1/sqrt(p)` - a legitimate treatment-only forest - and it
   is outlier-robust where a max is not. Statistically this is identical to
@@ -2503,7 +2503,7 @@ in FA1 and FA5 below ARE the record.
 
   **`nbar_f == 1.0` EXACTLY on every shipped route**, which is why this should
   be free: the internal `bartcoreBCFSampler` route leaves the pointer null
-  (`applyForestBases`, `[[R_interface_bartcore.cpp:2246-2266@4c018187]]`, installs nothing
+  (`applyForestBases`, [src/R_interface_bartcore.cpp:2246-2266](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2246-L2266), installs nothing
   when `data.bases[f]` is NULL, and the combiner synthesizes), and on the
   public `forests =` / `bases =` routes the basis is the `(1-z, z)` pair, a
   one-hot factor expansion or an all-ones column - every row norm exactly
@@ -2512,11 +2512,11 @@ in FA1 and FA5 below ARE the record.
 
   **And the fix is CLOSED under `$setForestBasis`.** `nbar_f` is otherwise a
   construction-time constant and no mutation re-derives a K-forest leaf scale
-  (`setModel`, `[[chain.hpp:1440-1507@4c018187]]`, touches `forests_[0]` only), so a
+  (`setModel`, [src/bartcore/chain.hpp:1440-1507](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1440-L1507), touches `forests_[0]` only), so a
   mid-sample basis swap would leave the divisor stale. That swap is a SHIPPED
-  knob on three routes (`$setForestBasis` `[[R/dbarts.R:1223@4c018187]]`,
-  `Chain::setForestBasis` `[[chain.hpp:875-878@4c018187]]`, flat C
-  `dbarts_sampler_setForestBasis` `[[C_interface.cpp:761@4c018187]]`), so a divisor that
+  knob on three routes (`$setForestBasis` [R/dbarts.R:1223](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1223),
+  `Chain::setForestBasis` [src/bartcore/chain.hpp:875-878](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L875-L878), flat C
+  `dbarts_sampler_setForestBasis` [src/C_interface.cpp:761](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L761)), so a divisor that
   goes stale there would introduce a defect while fixing one. Checklist items
   21 and 22.
 
@@ -2526,14 +2526,14 @@ in FA1 and FA5 below ARE the record.
   alone**: ship L unchanged, write the identical contract sentences, record
   `forest(sd = )`'s per-unit-of-row-norm reading as a KNOWN GAP between doc
   and code in the landing note, and hand E to `binary-kforest-prior-default`.
-  The fallback is still a strict improvement, because `[[man/forest.Rd:52@4c018187]]`
+  The fallback is still a strict improvement, because [man/forest.Rd:52](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L52)
   promises the unqualified version today.
 
   **The contract sentence, written in the form the fix makes TRUE.** Four
   sentences, all load-bearing, identical under A and under E, which is what
   makes the code fix separable from the contract. They go into
-  `latentScaleAnchor`'s Doxygen, `[[combiner.hpp:258-273@4c018187]]`,
-  `multiplier-combiner.md`'s map section, `[[man/forest.Rd:52@4c018187]]` and `[[man/forest.Rd:71@4c018187]]`, and
+  `latentScaleAnchor`'s Doxygen, [src/bartcore/combiner.hpp:258-273](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L258-L273),
+  `multiplier-combiner.md`'s map section, [man/forest.Rd:52](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L52) and [man/forest.Rd:71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L71), and
   `nameable-calibration.md` alike.
   1. `forest(sd = )` and `amplitude.prior.variance` are stated PER UNIT OF
      BASIS ROW NORM: a forest whose basis rows have median nonzero norm `c`
@@ -2562,8 +2562,8 @@ in FA1 and FA5 below ARE the record.
   therefore a change of DEFAULTS, which no slice's surface pins. **M4.4 owes
   the exponent and the two endpoints in PROSE and owes no code.**
   (ii) **Observability.** `v_f` is readable from NO getter
-  (`$getForestAmplitudes`, `[[R/dbarts.R:1450@4c018187]]`, returns draws;
-  `$getCalibration`, `[[R/dbarts.R:1468@4c018187]]`, returns `prior.scale` and no amplitude prior),
+  (`$getForestAmplitudes`, [R/dbarts.R:1450](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1450), returns draws;
+  `$getCalibration`, [R/dbarts.R:1468](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1468), returns `prior.scale` and no amplitude prior),
   so a user who took the default cannot reconstruct their induced prior from
   the public surface at all. Closing that (the costing study's option F: a
   reader reporting `prior.scale_f`, `v_f`, a row-norm summary and the implied
@@ -2575,7 +2575,7 @@ in FA1 and FA5 below ARE the record.
   `sqrt(2*2)/0.674 = 2.9674 s`, which is the K = 8 index scale, NOT Option
   C's. The value that reproduces Option C from Option L's anchor is
   **`v = 4.5`**, since `sqrt(2v)/0.674 = 3/0.674` needs `2v = 9`. `v` is a
-  documented knob (`[[man/forest.Rd:71@4c018187]]`) and a free multiplier on the index
+  documented knob ([man/forest.Rd:71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L71)) and a free multiplier on the index
   variance, so any anchor is reachable from any other through it. That is not
   a defect and not a decision - one sentence in the docs.
 
@@ -2591,62 +2591,62 @@ in FA1 and FA5 below ARE the record.
   | **R** (`R/*.R`) | **15-32** | ~400-500 | 0 |
   | **Flat C** (`src/C_interface.cpp`) | **0** | ~45 booked at M4.3 | - |
 
-  Engine, site by site. FAMILY WORK, 29-55: `[[chain.hpp:705-706@4c018187]]` family + sigma
-  pin 3; `[[chain.hpp:702-704@4c018187]]` the 3-arm response switch 10-14;
-  `[[chain.hpp:722@4c018187]]` the family-keyed anchor helper 8-12;
-  `[[combiner.hpp:294-317@4c018187]]` `BCFSpec` gains the family member 1-2;
-  `[[sampler.hpp:157@4c018187]]` 1; `[[facade.hpp:777-789@4c018187]]` door refusal 2-8;
-  `[[chain.hpp:1408@4c018187]]` `combinedFits()` 2-3; `[[chain.hpp:887@4c018187]]` the conjunct 2-4;
-  `[[chain.hpp:1514@4c018187]]` the residuals fix 2-4 (a guarded substitution, item 6, not
-  a bare one); `[[model.hpp:2577@4c018187]]` 0. SCALE FIX (2f), 20-27:
-  `[[chain.hpp:4443@4c018187]]` the `basisRowNorm` helper beside `scaledResponseSd` 14-17
+  Engine, site by site. FAMILY WORK, 29-55: [src/bartcore/chain.hpp:705-706](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L705-L706) family + sigma
+  pin 3; [src/bartcore/chain.hpp:702-704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L704) the 3-arm response switch 10-14;
+  [src/bartcore/chain.hpp:722](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L722) the family-keyed anchor helper 8-12;
+  [src/bartcore/combiner.hpp:294-317](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L294-L317) `BCFSpec` gains the family member 1-2;
+  [src/bartcore/sampler.hpp:157](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L157) 1; [src/bartcore/facade.hpp:777-789](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L777-L789) door refusal 2-8;
+  [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) `combinedFits()` 2-3; [src/bartcore/chain.hpp:887](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L887) the conjunct 2-4;
+  [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) the residuals fix 2-4 (a guarded substitution, item 6, not
+  a bare one); [src/bartcore/model.hpp:2577](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2577) 0. SCALE FIX (2f), 20-27:
+  [src/bartcore/chain.hpp:4443](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4443) the `basisRowNorm` helper beside `scaledResponseSd` 14-17
   (median form; an all-rows RMS is 11-13 and is REJECTED in 2f);
-  `[[chain.hpp:724-727@4c018187]]` the changed map expression 0 (same line);
-  `[[chain.hpp:875-878@4c018187]]` the `$setForestBasis` recomputation plus the retained
+  [src/bartcore/chain.hpp:724-727](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L724-L727) the changed map expression 0 (same line);
+  [src/bartcore/chain.hpp:875-878](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L875-L878) the `$setForestBasis` recomputation plus the retained
   per-forest factor/divisor/`s` members 6-10. Adjacent and NOT folded in:
   engine ~50-70 COMMENT lines, bridge ~10-15, `dbarts.h` ~3-8.
 
   Flat C is **0 non-comment**, MEASURED four ways: `dbarts_sampler_create`
-  (`[[inst/include/dbarts/dbarts.h:514-515@4c018187]]`) ALREADY takes the family string and
-  its Doxygen at `[[inst/include/dbarts/dbarts.h:495-513@4c018187]]` already says the K-forest family is created through
+  ([inst/include/dbarts/dbarts.h:514-515](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L514-L515)) ALREADY takes the family string and
+  its Doxygen at [inst/include/dbarts/dbarts.h:495-513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L495-L513) already says the K-forest family is created through
   this same entry point; the four K-forest guard entries carry no family
-  parameter and no family guard (`[[dbarts.h:724@4c018187]]`, `[[dbarts.h:731@4c018187]]`, `[[dbarts.h:739@4c018187]]`, `[[dbarts.h:750@4c018187]]`; TWO
+  parameter and no family guard ([inst/include/dbarts/dbarts.h:724](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L724), [inst/include/dbarts/dbarts.h:731](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L731), [inst/include/dbarts/dbarts.h:739](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L739), [inst/include/dbarts/dbarts.h:750](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L750); TWO
   of them gate on `totalAmplitudes()` - `setForestBasis`
-  `[[C_interface.cpp:768@4c018187]]` and `forestAmplitudes` `[[C_interface.cpp:812-813@4c018187]]` - while `forestFits`
-  `[[C_interface.cpp:788@4c018187]]` and `numForestAmplitudes` `[[C_interface.cpp:798-799@4c018187]]` gate only on
+  [src/C_interface.cpp:768](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L768) and `forestAmplitudes` [src/C_interface.cpp:812-813](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L812-L813) - while `forestFits`
+  [src/C_interface.cpp:788](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L788) and `numForestAmplitudes` [src/C_interface.cpp:798-799](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L798-L799) gate only on
   `forest >= shape().numForests`, which does not move the conclusion); no
   flat-C struct gains a member, so `structSize` does NOT move
-  (`[[C_interface.cpp:266@4c018187]]`, `[[C_interface.cpp:284@4c018187]]`, `[[C_interface.cpp:308@4c018187]]`); and `DBARTS_C_API_STRINGIZE`
+  ([src/C_interface.cpp:266](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L266), [src/C_interface.cpp:284](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L284), [src/C_interface.cpp:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L308)); and `DBARTS_C_API_STRINGIZE`
   stringizes return type, name and parameter list only, with the preprocessor
   stripping comments before `#` applies. **No `dbarts.h` signature moves, no
-  hash re-bake** - `DBARTS_C_API_HASH` (`[[dbarts.h:101@4c018187]]`, `0xcd88efcd67de55d7`),
-  `DBARTS_C_API_MAJOR` (`[[dbarts.h:80@4c018187]]`) and `DBARTS_C_API_MINOR` (`[[dbarts.h:81@4c018187]]`) all stay put,
+  hash re-bake** - `DBARTS_C_API_HASH` ([inst/include/dbarts/dbarts.h:101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L101), `0xcd88efcd67de55d7`),
+  `DBARTS_C_API_MAJOR` ([inst/include/dbarts/dbarts.h:80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L80)) and `DBARTS_C_API_MINOR` ([inst/include/dbarts/dbarts.h:81](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L81)) all stay put,
   and no stan4bart floor bumps. The M4.3 `structSize` tripwire
-  `static_assert(sizeof(ChainStateData) == 344)` at `[[tests/cpp/common.cpp:59@4c018187]]`
+  `static_assert(sizeof(ChainStateData) == 344)` at [tests/cpp/common.cpp:59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/common.cpp#L59)
   does NOT move: latents are already a generic chain-level state slot
-  (`[[chain.hpp:2647-2651@4c018187]]`, restored `[[chain.hpp:3240-3241@4c018187]]`, validity-checked
-  `[[chain.hpp:2813-2814@4c018187]]`, written
-  `[[R_interface_bartcore.cpp:5879-5886@4c018187]]` with no family test and no forest-count
+  ([src/bartcore/chain.hpp:2647-2651](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2647-L2651), restored [src/bartcore/chain.hpp:3240-3241](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3240-L3241), validity-checked
+  [src/bartcore/chain.hpp:2813-2814](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2813-L2814), written
+  [src/R_interface_bartcore.cpp:5879-5886](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L5879-L5886) with no family test and no forest-count
   test) and the "bcf" state block is purely geometric.
 
   **Why it is this cheap, stated so the number can be attacked.** The engine is
   already family-polymorphic (a virtual `ResponseModel` selected by a runtime
   enum, SIX concrete families - `enum class ResponseFamily` has six members
-  and `[[facade.hpp:640-651@4c018187]]` six arms); the sweep already hands the response the
-  COMBINED location, not forest 0's (`[[chain.hpp:1303-1304@4c018187]]`, `[[chain.hpp:1313-1314@4c018187]]`); the
+  and [src/bartcore/facade.hpp:640-651](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L640-L651) six arms); the sweep already hands the response the
+  COMBINED location, not forest 0's ([src/bartcore/chain.hpp:1303-1304](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1303-L1304), [src/bartcore/chain.hpp:1313-1314](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1313-L1314)); the
   combiner's reparameterization `(r/m, w m^2)` is scale-free and null-weight
-  safe at all four of its `w` reads (`[[combiner.hpp:832@4c018187]]`, `[[combiner.hpp:1057@4c018187]]`, `[[combiner.hpp:1087@4c018187]]`,
-  `[[combiner.hpp:1171@4c018187]]`); the ASIS ridge is likelihood-invariant and reads no sigma and no
+  safe at all four of its `w` reads ([src/bartcore/combiner.hpp:832](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L832), [src/bartcore/combiner.hpp:1057](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1057), [src/bartcore/combiner.hpp:1087](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1087),
+  [src/bartcore/combiner.hpp:1171](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1171)); the ASIS ridge is likelihood-invariant and reads no sigma and no
   `w`; and `MultinomialForestCombiner` already SHIPS a K-forest chain running
-  under a fixed-scale non-Gaussian likelihood (`[[chain.hpp:742-763@4c018187]]`). What M4.4
+  under a fixed-scale non-Gaussian likelihood ([src/bartcore/chain.hpp:742-763](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L742-L763)). What M4.4
   actually buys is a 3-arm switch, a family-keyed anchor, four one-line pins,
   and two refusal relaxations.
 
   **The multinomial precedent covers LESS than that last clause implies, and
   the gap is exactly what arm E must have power against.**
   `ForestCombiner::totalAmplitudes()` returns 0 in the base
-  (`[[combiner.hpp:558@4c018187]]`) and is overridden ONLY by `BCFForestCombiner`
-  (`[[combiner.hpp:772-774@4c018187]]`), so the multinomial path has no amplitude, no basis, no
+  ([src/bartcore/combiner.hpp:558](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L558)) and is overridden ONLY by `BCFForestCombiner`
+  ([src/bartcore/combiner.hpp:772-774](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L772-L774)), so the multinomial path has no amplitude, no basis, no
   `forestMultiplier`, no `(r/m, w m^2)` reparameterization and no `2^-26`
   snap. What it establishes is that a K-forest chain runs under a pinned
   sigma; what it does NOT establish is the interaction M4.4 introduces - a
@@ -2659,26 +2659,26 @@ in FA1 and FA5 below ARE the record.
   `efec6ba2`. **F<n>** marks a fork; all seven are RESOLVED in item 5.
 
   ENGINE
-  1. `[[chain.hpp:692-695@4c018187]]` - the K-forest `Chain` constructor gains the family.
+  1. [src/bartcore/chain.hpp:692-695](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L692-L695) - the K-forest `Chain` constructor gains the family.
      It rides `BCFSpec` as a defaulted member, NOT a positional parameter
      (checklist item 9).
-  2. `[[chain.hpp:702-704@4c018187]]` - 3-arm response switch (gaussian / probit /
-     logistic), mirroring the single-forest 6-arm switch at `[[chain.hpp:537-577@4c018187]]`;
-     `[[chain.hpp:705@4c018187]]` `family_ = spec.family`. **F1: inline vs factored.**
-  3. `[[chain.hpp:706@4c018187]]` - adopt the single-forest `sigmaIsFixed_` rule, which is
-     at `[[chain.hpp:606-608@4c018187]]`: `(family != gaussian && family != aft) ||
+  2. [src/bartcore/chain.hpp:702-704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L704) - 3-arm response switch (gaussian / probit /
+     logistic), mirroring the single-forest 6-arm switch at [src/bartcore/chain.hpp:537-577](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L537-L577);
+     [src/bartcore/chain.hpp:705](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L705) `family_ = spec.family`. **F1: inline vs factored.**
+  3. [src/bartcore/chain.hpp:706](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L706) - adopt the single-forest `sigmaIsFixed_` rule, which is
+     at [src/bartcore/chain.hpp:606-608](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L606-L608): `(family != gaussian && family != aft) ||
      options.sigmaIsFixed`. Left alone, a probit K-forest enters `run` with
      `sigmaIsFixed_ == false` and calls `drawSigma` every sweep; the VALUE is
      harmless (`ProbitResponse::drawSigma` returns its argument,
-     `[[model.hpp:3099-3101@4c018187]]`) but a semantic gate set wrong is a defect whether
+     [src/bartcore/model.hpp:3099-3101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3099-L3101)) but a semantic gate set wrong is a defect whether
      or not it currently bites.
-  4. `[[chain.hpp:722@4c018187]]` - `double s = latentScaleAnchor(family);`, a new private
+  4. [src/bartcore/chain.hpp:722](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L722) - `double s = latentScaleAnchor(family);`, a new private
      helper, three arms. **Two properties the reviewer must check.** The
-     gaussian arm calls `scaledResponseSd()` (`[[chain.hpp:4443-4455@4c018187]]`) through
+     gaussian arm calls `scaledResponseSd()` ([src/bartcore/chain.hpp:4443-4455](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4443-L4455)) through
      the IDENTICAL expression - a refactor that computes `s` once and
      multiplies by `1.0` on the gaussian arm is NOT acceptable; `x * 1.0` is
      bitwise but the reassociation risk in `nodeScaleFactor * s /
-     nodeScaleDivisor` is not worth the elegance, and `[[chain.hpp:718-720@4c018187]]`
+     nodeScaleDivisor` is not worth the elegance, and [src/bartcore/chain.hpp:718-720](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L718-L720)
      already records that these expressions being "written exactly as bcf's
      were" is what keeps K = 2 bitwise. And the non-gaussian arms must NOT
      call `scaledResponseSd()` at all, not even to discard the result: it is
@@ -2686,22 +2686,22 @@ in FA1 and FA5 below ARE the record.
      anchor. Its Doxygen states the ANCHOR, and the logistic arm says "the
      logistic law's standard deviation" - NOT "the link's own error sd",
      which reads as a property of the augmentation and is false of one: the
-     engine implements Polya-Gamma (`[[model.hpp:3501-3508@4c018187]]`), whose working
-     residual sd at `psi = 0` is 2 (`omega = 1/4`, `coldStart` `[[model.hpp:3657-3663@4c018187]]`),
+     engine implements Polya-Gamma ([src/bartcore/model.hpp:3501-3508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3501-L3508)), whose working
+     residual sd at `psi = 0` is 2 (`omega = 1/4`, `coldStart` [src/bartcore/model.hpp:3657-3663](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3657-L3663)),
      not 1.8138. `pi/sqrt(3)` is still the right anchor - it is the sd of the
      logistic law the log-odds index is stated against, and it is what makes
-     `[[R/spec.R:308@4c018187]]`'s `3 * pi/sqrt(3)` equal `3 * (latent sd)`.
-  5. `[[chain.hpp:1408@4c018187]]` and `[[chain.hpp:1514@4c018187]]` - `combinedFits()` in place of
-     `forests_[0].totalFits.data()`. **F2 (m-i / m-ii).** `[[chain.hpp:1514@4c018187]]` is the
+     [R/spec.R:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L308)'s `3 * pi/sqrt(3)` equal `3 * (latent sd)`.
+  5. [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) and [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) - `combinedFits()` in place of
+     `forests_[0].totalFits.data()`. **F2 (m-i / m-ii).** [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) is the
      FOLDED-IN residuals defect and is NOT a bare substitution: see SECTION 6
      for what it does per response family.
-  6. `[[chain.hpp:887@4c018187]]` - drop the `family_ == ResponseFamily::gaussian` conjunct
-     from `supportsResponseMutation` (`[[chain.hpp:885-888@4c018187]]`), and rewrite its Doxygen at
-     `[[chain.hpp:879-884@4c018187]]` (the block opens at `[[chain.hpp:879@4c018187]]`, "Whether this chain's forest
+  6. [src/bartcore/chain.hpp:887](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L887) - drop the `family_ == ResponseFamily::gaussian` conjunct
+     from `supportsResponseMutation` ([src/bartcore/chain.hpp:885-888](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L885-L888)), and rewrite its Doxygen at
+     [src/bartcore/chain.hpp:879-884](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L879-L884) (the block opens at [src/bartcore/chain.hpp:879](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L879), "Whether this chain's forest
      coupling permits"), which names item 5's site as the reason the conjunct
      exists. Paired with 5's (m-ii). **The governing rationale is NOT there,
-     it is at `[[combiner.hpp:953-955@4c018187]]`** - the two conditions
-     `BCFForestCombiner::supportsResponseMutation() == true` (`[[combiner.hpp:963@4c018187]]`) rests
+     it is at [src/bartcore/combiner.hpp:953-955](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L953-L955)** - the two conditions
+     `BCFForestCombiner::supportsResponseMutation() == true` ([src/bartcore/combiner.hpp:963](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L963)) rests
      on, the first of which is "the gaussian response re-maps y through the
      pinned (min_, range_) and touches no forest". Rewriting the chain-side
      Doxygen and leaving the combiner-side conditions saying "gaussian"
@@ -2710,95 +2710,95 @@ in FA1 and FA5 below ARE the record.
      nothing per-forest across sweeps - `formForestResponse` re-derives every
      per-forest residual and precision from y and w each sweep") needs
      restating for a family whose y and w are the latent working values
-     refreshed at `[[chain.hpp:1304@4c018187]]`.
-  7. `[[facade.hpp:777-789@4c018187]]` - `createBCFSampler` reads `spec.family`; add a door
+     refreshed at [src/bartcore/chain.hpp:1304](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1304).
+  7. [src/bartcore/facade.hpp:777-789](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L777-L789) - `createBCFSampler` reads `spec.family`; add a door
      refusal (`return nullptr` for aft / ordinal / nbinom) beside the existing
-     `numVarianceTrees` one at `[[facade.hpp:785@4c018187]]`. Signature UNTOUCHED.
-  8. `[[sampler.hpp:157@4c018187]]` - `family_(ResponseFamily::gaussian)` becomes
+     `numVarianceTrees` one at [src/bartcore/facade.hpp:785](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L785). Signature UNTOUCHED.
+  8. [src/bartcore/sampler.hpp:157](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L157) - `family_(ResponseFamily::gaussian)` becomes
      `family_(spec.family)`.
-  9. `[[combiner.hpp:294-317@4c018187]]` - `BCFSpec` gains
+  9. [src/bartcore/combiner.hpp:294-317](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L294-L317) - `BCFSpec` gains
      `ResponseFamily family = ResponseFamily::gaussian;` (`model.hpp` is
-     already included at `[[combiner.hpp:17@4c018187]]`). Defaulted, so it touches ZERO of
+     already included at [src/bartcore/combiner.hpp:17](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L17)). Defaulted, so it touches ZERO of
      the ~37 existing `tests/cpp` `BCFSpec` fixture constructions - the M4.3
      adapter clause honored.
 
   BRIDGE
-  10. `[[R_interface_bartcore.cpp:2299-2300@4c018187]]` - the first family gate becomes an
+  10. [src/R_interface_bartcore.cpp:2299-2300](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2299-L2300) - the first family gate becomes an
       allowlist over {gaussian, probit, logistic}, refusing the doors by name
       with a per-family reason.
-  11. `[[R_interface_bartcore.cpp:2993-2994@4c018187]]` - the second family gate, same
+  11. [src/R_interface_bartcore.cpp:2993-2994](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2993-L2994) - the second family gate, same
       allowlist. **F3: in place vs delegate.**
-  12. `[[R_interface_bartcore.cpp:2990-2991@4c018187]]` - `createBCFHolder` hardcodes the
-      family name to `""`, so `resolveFamily` (`[[R_interface_bartcore.cpp:1558-1596@4c018187]]`, the binary arm at
-      `[[R_interface_bartcore.cpp:1563-1564@4c018187]]`) maps it to `probit` on a binary response and the route can
+  12. [src/R_interface_bartcore.cpp:2990-2991](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2990-L2991) - `createBCFHolder` hardcodes the
+      family name to `""`, so `resolveFamily` ([src/R_interface_bartcore.cpp:1558-1596](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1558-L1596), the binary arm at
+      [src/R_interface_bartcore.cpp:1563-1564](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1563-L1564)) maps it to `probit` on a binary response and the route can
       NEVER reach logistic. **F4.**
-  13. `[[R_interface_bartcore.cpp:2311@4c018187]]` - key the node-scale gate to the family
+  13. [src/R_interface_bartcore.cpp:2311](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2311) - key the node-scale gate to the family
       default rather than the literal `0.5`. **F5**, shared with item 16.
       `refuseUnsupportedBCFComposition` already takes `family` as its first
-      parameter (`[[R_interface_bartcore.cpp:2295@4c018187]]`), so the family is in hand.
+      parameter ([src/R_interface_bartcore.cpp:2295](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2295)), so the family is in hand.
   14. **NON-ITEM, do not add it.** `enforceBinaryWeightPolicy`
-      (`[[R_interface_bartcore.cpp:1604-1618@4c018187]]`) on the two K-forest creation
+      ([src/R_interface_bartcore.cpp:1604-1618](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1604-L1618)) on the two K-forest creation
       paths was listed as required work by the respec and is NOT: it is
-      already called from `parseSamplerSpecification` at `[[R_interface_bartcore.cpp:2518@4c018187]]`, and BOTH
-      `createHolder` (`[[R_interface_bartcore.cpp:2851-2853@4c018187]]`) and `createBCFHolder` (`[[R_interface_bartcore.cpp:2990-2991@4c018187]]`) call
+      already called from `parseSamplerSpecification` at [src/R_interface_bartcore.cpp:2518](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2518), and BOTH
+      `createHolder` ([src/R_interface_bartcore.cpp:2851-2853](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2851-L2853)) and `createBCFHolder` ([src/R_interface_bartcore.cpp:2990-2991](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2990-L2991)) call
       `parseSamplerSpecification`. Probit's outright weight refusal and
       logistic's positive-integer-count check therefore fire the moment
       `family` becomes non-gaussian on either route, with zero new code, and
-      `refuseBinaryWeightChange` (`[[R_interface_bartcore.cpp:1626-1639@4c018187]]`) already covers the
+      `refuseBinaryWeightChange` ([src/R_interface_bartcore.cpp:1626-1639](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1626-L1639)) already covers the
       post-creation side at `bartcore_setData:4467` and
       `bartcore_setWeights:4659`. **A K-forest probit/logistic sampler
       inherits the whole weight policy for free.**
 
   R
-  15. `[[R/spec.R:423-431@4c018187]]` - the refusal becomes an allowlist with per-family
+  15. [R/spec.R:423-431](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423-L431) - the refusal becomes an allowlist with per-family
       reason text. Both of today's clauses are wrong under M4.4: the admitted
       set widens, and "has its own fixed error scale" is now the REASON probit
       and logistic work rather than a reason they cannot. `%not_in%` already
-      exists (`[[R/dbarts.R:416@4c018187]]`).
-  16. `[[R/spec.R:452@4c018187]]` - `"a non-default 'node.scale'" = model@node.scale != 0.5`
+      exists ([R/dbarts.R:416](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L416)).
+  16. [R/spec.R:452](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L452) - `"a non-default 'node.scale'" = model@node.scale != 0.5`
       fires on the plainest possible binary K-forest call, because the family
-      switch at `[[R/spec.R:297-309@4c018187]]` gives probit `3.0` (`[[R/spec.R:301@4c018187]]`) and logistic
-      `pi * sqrt(3.0)` (`[[R/spec.R:308@4c018187]]`). **F5.**
-  17. `[[R/model.R:394@4c018187]]` - `k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)`
-      gains a multi-forest disjunct, so that `[[R/spec.R:446@4c018187]]`
+      switch at [R/spec.R:297-309](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L297-L309) gives probit `3.0` ([R/spec.R:301](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L301)) and logistic
+      `pi * sqrt(3.0)` ([R/spec.R:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L308)). **F5.**
+  17. [R/model.R:394](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L394) - `k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)`
+      gains a multi-forest disjunct, so that [R/spec.R:446](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L446)
       (`is(priors$node.hyperprior, "dbartsChiHyperprior")`) stops firing on a
       hyperprior the user never asked for. **NOT a fork - it has a clean
       shipped precedent in the SAME expression**, the monotone conjunct,
-      documented at `[[R/model.R:386-391@4c018187]]`: a structural feature makes the chi-k
+      documented at [R/model.R:386-391](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L386-L391): a structural feature makes the chi-k
       update meaningless, the fix is applied to the DEFAULT RESOLUTION rather
       than to the downstream guard (an unsupplied `k` resolves to the fixed
       2.0, so the guard sees a default and stays silent), an EXPLICIT
-      non-default still refuses by name (`[[R/model.R:395-400@4c018187]]`), and the forced
+      non-default still refuses by name ([R/model.R:395-400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L395-L400)), and the forced
       value is not a modelling statement because it is discarded downstream.
       Point four is why the precedent transfers EXACTLY here: `buildBCFForest`
-      pins `forest.k = 1.0` (`[[chain.hpp:4506@4c018187]]`) and
-      `forest.updateK = false` (`[[chain.hpp:4504@4c018187]]`), so forcing a binary K-forest's
+      pins `forest.k = 1.0` ([src/bartcore/chain.hpp:4506](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4506)) and
+      `forest.updateK = false` ([src/bartcore/chain.hpp:4504](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4504)), so forcing a binary K-forest's
       default `k` to 2.0 changes no fitted model. The caller has what it needs
-      at `[[R/spec.R:206-216@4c018187]]` (`declaredBases`, `forestSpec`), resolved BEFORE
-      `parsePriors` runs at `[[R/spec.R:257@4c018187]]`, and
+      at [R/spec.R:206-216](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L206-L216) (`declaredBases`, `forestSpec`), resolved BEFORE
+      `parsePriors` runs at [R/spec.R:257](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L257), and
       `resolveNodeHyperprior` is called with `control@binary` at
-      `[[R/model.R:175-179@4c018187]]`. **It is 4-6 dense, not 1, and it needs a new
+      [R/model.R:175-179](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L175-L179). **It is 4-6 dense, not 1, and it needs a new
       formal:** the multi-forest fact is NOT in `parsePriors`' scope
-      (`[[R/model.R:92-101@4c018187]]`, formals `control, data, tree.prior, node.prior,
+      ([R/model.R:92-101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L92-L101), formals `control, data, tree.prior, node.prior,
       resid.prior, resid.dist, monotone = NULL, parentEnv`), which
-      `[[R/spec.R:257@4c018187]]` reaches through `eval(parsePriorsCall)`. So: a new
+      [R/spec.R:257](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L257) reaches through `eval(parsePriorsCall)`. So: a new
       DEFAULTED formal on `parsePriors`, a `parsePriorsCall$<flag> <- ...`
-      assignment in `R/spec.R` on the `monotone` pattern at `[[R/spec.R:244@4c018187]]`, a new
-      argument at `[[R/model.R:175-179@4c018187]]`, and the disjunct.
+      assignment in `R/spec.R` on the `monotone` pattern at [R/spec.R:244](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L244), a new
+      argument at [R/model.R:175-179](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L175-L179), and the disjunct.
       `resolveNodeHyperprior` has exactly two call sites; the second is
-      `[[R/xbart.R:251@4c018187]]` (`resolveNodeHyperprior(node.prior@k, binary = FALSE)`),
+      [R/xbart.R:251](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L251) (`resolveNodeHyperprior(node.prior@k, binary = FALSE)`),
       which a DEFAULTED parameter leaves alone and a REQUIRED one breaks at
       load. Defaulted is silently correct - xbart fits no K-forest - and that
       is stated here rather than assumed.
-  18. **ALL FIVE `refuseBCFMutation` messages** (`[[R/bartcore.R:34-38@4c018187]]`), not
+  18. **ALL FIVE `refuseBCFMutation` messages** ([R/bartcore.R:34-38](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L34-L38)), not
       just the one this bullet used to name. Four carry K = 2 "both forests"
-      language on a K-length surface: `[[R/bartcore.R:291-292@4c018187]]`
-      (`setResponse(updateScale = TRUE)`) and `[[R/bartcore.R:312-313@4c018187]]`
+      language on a K-length surface: [R/bartcore.R:291-292](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L291-L292)
+      (`setResponse(updateScale = TRUE)`) and [R/bartcore.R:312-313](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L312-L313)
       (`setOffset(updateScale = TRUE)`), both "both forests keep leaf
       calibrations stated against the response transform fixed at creation";
-      `[[R/bartcore.R:389-390@4c018187]]` (`setData`), "both forests are calibrated against the data at
-      creation"; `[[R/dbarts.R:1055-1056@4c018187]]` (`setModel`), "both forests' node and
-      tree priors are calibrated at creation"; and `[[R/dbarts.R:1496-1501@4c018187]]`
+      [R/bartcore.R:389-390](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L389-L390) (`setData`), "both forests are calibrated against the data at
+      creation"; [R/dbarts.R:1055-1056](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1055-L1056) (`setModel`), "both forests' node and
+      tree priors are calibrated at creation"; and [R/dbarts.R:1496-1501](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1496-L1501)
       (`setCalibration`), "both forests' leaf scales come from the two-forest
       calibration map". The first two are the `setResponse` / `setOffset`
       conduit item 5 / F2 is opening, which is a STRONGER claim to M4.4's
@@ -2806,21 +2806,21 @@ in FA1 and FA5 below ARE the record.
 
   ADDITIONAL
   19. Per-forest weight channel semantics under a latent family. **F6.**
-  20. `[[combiner.hpp:800-802@4c018187]]`'s "half the mantissa" claim. **F7.**
+  20. [src/bartcore/combiner.hpp:800-802](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L800-L802)'s "half the mantissa" claim. **F7.**
 
   ENGINE, the scale fix (2f). GATED: build these ALONE first and run the
   equivalence trio under `--preclean` before the family work goes on top. If
   any leg moves, DROP 21 and 22 and take the option-A fallback 2f names.
-  21. `[[chain.hpp:4443@4c018187]]` - `basisRowNorm(const ForestSpec&, std::size_t n)`, a
+  21. [src/bartcore/chain.hpp:4443](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4443) - `basisRowNorm(const ForestSpec&, std::size_t n)`, a
       new private helper beside `scaledResponseSd`, returning the MEDIAN of
       the nonzero row norms of `spec.basis` (row-major, `spec.numBasisColumns`
       wide) and `1.0` when `spec.basis == nullptr`. `ForestSpec` already
-      carries `basis` and `numBasisColumns` (`[[combiner.hpp:285-286@4c018187]]`), and the
-      ctor builds the forests at `[[chain.hpp:724-727@4c018187]]` BEFORE the combiner at
-      `[[chain.hpp:729@4c018187]]`, so the borrowed pointer is in hand at exactly the right moment.
-      The map expression at `[[chain.hpp:724-727@4c018187]]` becomes `forestSpec.nodeScaleFactor *
+      carries `basis` and `numBasisColumns` ([src/bartcore/combiner.hpp:285-286](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L285-L286)), and the
+      ctor builds the forests at [src/bartcore/chain.hpp:724-727](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L724-L727) BEFORE the combiner at
+      [src/bartcore/chain.hpp:729](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L729), so the borrowed pointer is in hand at exactly the right moment.
+      The map expression at [src/bartcore/chain.hpp:724-727](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L724-L727) becomes `forestSpec.nodeScaleFactor *
       s / (forestSpec.nodeScaleDivisor * basisRowNorm(forestSpec, n))`.
-  22. `[[chain.hpp:875-878@4c018187]]` - `Chain::setForestBasis` re-derives forest f's leaf
+  22. [src/bartcore/chain.hpp:875-878](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L875-L878) - `Chain::setForestBasis` re-derives forest f's leaf
       scale from the NEW basis on a successful install, so the divisor cannot
       go stale on the one mutation route the multi-forest surface exists for.
       This needs the map's per-forest `nodeScaleFactor` / `nodeScaleDivisor`
@@ -2831,7 +2831,7 @@ in FA1 and FA5 below ARE the record.
       other forests are not on, and reusing the stored double is what keeps a
       norm-preserving re-install bitwise. Write the recomputation as the SAME
       expression in the SAME order as item 21's, for the same reason
-      `[[chain.hpp:718-720@4c018187]]` gives.
+      [src/bartcore/chain.hpp:718-720](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L718-L720) gives.
 
   TESTS
   23. The all-basis K-forest fixture 2a says does not exist. Gaussian, at
@@ -2861,10 +2861,10 @@ in FA1 and FA5 below ARE the record.
   25. **THE ANCHOR'S OWN GATE (2e).** The only assertion in the slice that can
       fail on a wrong `s`, and it is exact rather than statistical. Under a
       latent family `fitScale() == 1` and `fitShift() == 0`
-      (`[[model.hpp:3137-3138@4c018187]]` probit, `[[model.hpp:3616-3617@4c018187]]` logistic), and
-      `priorScaleFactor` (`[[chain.hpp:3472-3474@4c018187]]`) cancels the `sqrt(m)`
-      `buildBCFForest` divides in at `[[chain.hpp:4507-4508@4c018187]]`, so
-      `$getCalibration(f)[, "prior.scale"]` (`[[chain.hpp:1005@4c018187]]`) IS the map's
+      ([src/bartcore/model.hpp:3137-3138](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3137-L3138) probit, [src/bartcore/model.hpp:3616-3617](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3616-L3617) logistic), and
+      `priorScaleFactor` ([src/bartcore/chain.hpp:3472-3474](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3472-L3474)) cancels the `sqrt(m)`
+      `buildBCFForest` divides in at [src/bartcore/chain.hpp:4507-4508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4507-L4508), so
+      `$getCalibration(f)[, "prior.scale"]` ([src/bartcore/chain.hpp:1005](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1005)) IS the map's
       `nodeScale_f = factor_f * s / (divisor_f * nbar_f)`, in latent units, with
       no conversion at all. Three assertions over item 23's all-basis fixture
       carried to probit and logistic:
@@ -2897,7 +2897,7 @@ in FA1 and FA5 below ARE the record.
 
   **F1 - the response switch: INLINE, not factored.** The alternative is
   lifting a shared `makeResponse(family, ...)` out of the single-forest
-  constructor's family switch (`[[chain.hpp:537-577@4c018187]]`) and calling it from both,
+  constructor's family switch ([src/bartcore/chain.hpp:537-577](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L537-L577)) and calling it from both,
   at ~30-35 dense
   against the inline 10-14. **Take inline**, on two grounds. First, the
   factored form puts the diff INSIDE the constructor `bcf-equivalence` covers
@@ -2917,23 +2917,23 @@ in FA1 and FA5 below ARE the record.
   latent K-forest that runs standalone and cannot be composed - a direct
   contradiction of the only justification this slice has left, which is
   composition ergonomics. **Take (m-ii).** They are ONE change, not two: with
-  the conjunct dropped and `[[chain.hpp:1408@4c018187]]` unfixed the slice SHIPS a probit K-forest
+  the conjunct dropped and [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) unfixed the slice SHIPS a probit K-forest
   whose latents are refreshed against the prognostic forest's bare fits after
   every `$setResponse`, silently, with no crash and no refusal. And with the
-  residuals defect folded in (section 6 below), `[[chain.hpp:1514@4c018187]]` is being edited
-  anyway, so `[[chain.hpp:1408@4c018187]]` is the same substitution in the same hunk. Note that the
-  two sites are NOT symmetric today: `[[chain.hpp:1408@4c018187]]`'s pointer is inert under gaussian,
+  residuals defect folded in (section 6 below), [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) is being edited
+  anyway, so [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) is the same substitution in the same hunk. Note that the
+  two sites are NOT symmetric today: [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408)'s pointer is inert under gaussian,
   because
-  `GaussianResponse::setResponse` (`[[model.hpp:2807-2830@4c018187]]`) leaves its third
-  parameter UNNAMED and neither branch of its body reads it - so `[[model.hpp:1408@4c018187]]` is
-  genuinely M4.4's own, while `[[model.hpp:1514@4c018187]]` is a live defect the slice inherits.
+  `GaussianResponse::setResponse` ([src/bartcore/model.hpp:2807-2830](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2807-L2830)) leaves its third
+  parameter UNNAMED and neither branch of its body reads it - so [src/bartcore/model.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L1408) is
+  genuinely M4.4's own, while [src/bartcore/model.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L1514) is a live defect the slice inherits.
 
   **F3 - the second bridge gate: SAME ALLOWLIST IN PLACE, do not delegate.**
   The pricing census called delegating to `refuseUnsupportedBCFComposition`
   "better", on the reading that it deletes a duplicate check. **That reading
   is wrong and the census did not verify it.** `createBCFHolder` does NOT call
   `refuseUnsupportedBCFComposition` at all - only `createHolder` does, at
-  `[[model.hpp:2916@4c018187]]`. The two checks are not duplicates: `refuseUnsupportedBCFComposition`
+  [src/bartcore/model.hpp:2916](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2916). The two checks are not duplicates: `refuseUnsupportedBCFComposition`
   is a SUPERSET carrying FOURTEEN further refusals (DART, split probabilities,
   monotone, linear/GP leaves, k hyperprior, non-default k, node scale, named
   `prior.scale`, proposal probabilities, Student-t, grouped, variance forest,
@@ -2941,7 +2941,7 @@ in FA1 and FA5 below ARE the record.
   ADD all of those to the internal route, which is not a cleanup but a
   behavior change - and that route is what the ENTIRE gate infrastructure runs
   on: `benchmarks/R/bcf-equivalence.R` (all 12 scenarios), `bcf-exact.R`,
-  `bcf-exact-restricted.R`, `bcf-exact-weak.R`, `[[benchmarks/R/sbc.R:991@4c018187]]`, and
+  `bcf-exact-restricted.R`, `bcf-exact-weak.R`, [benchmarks/R/sbc.R:991](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/sbc.R#L991), and
   ELEVEN tinytest files (`test-bcf-creation.R`, `test-bcf-mutation-pins.R`,
   `test-bcf-zero-multiplier.R`, `test-bcf.R`, `test-blocks.R`,
   `test-forest-weights.R`, `test-interactions.R`, `test-multi-forest-seam.R`,
@@ -2958,14 +2958,14 @@ in FA1 and FA5 below ARE the record.
   `createBCFHolder` / `bartcore_createBCF` / `bartcoreBCFSampler`" versus
   "document the route as gaussian-or-probit-only". **Both are worse than a
   third answer the sources did not see:** `dbartsModel` already carries a
-  `family` slot (`[[R/A_class.R:400@4c018187]]`, default `"auto"`, validated `[[R/A_class.R:451-467@4c018187]]`),
+  `family` slot ([R/A_class.R:400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L400), default `"auto"`, validated [R/A_class.R:451-467](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L451-L467)),
   and `bartcoreBCFSampler` already passes `sampler$model` as
-  `bartcore_createBCF`'s second argument (`[[R/bartcore.R:690@4c018187]]`). So
+  `bartcore_createBCF`'s second argument ([R/bartcore.R:690](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L690)). So
   `createBCFHolder` should DERIVE its family name from `modelExpr`'s `family`
   slot, applying the same `"auto" -> ""` mapping the R5 route applies at
-  `[[R/dbarts.R:792@4c018187]]`, instead of hardcoding `""` at `[[src/R_interface_bartcore.cpp:2922-2923@c85d6db6]]`. No `.Call`
+  [R/dbarts.R:792](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L792), instead of hardcoding `""` at [src/R_interface_bartcore.cpp:2922-2923](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L2922-L2923). No `.Call`
   arity move (`DEF_FUNC("dbarts_bartcore_createBCF", bartcore_createBCF, 8)`,
-  `[[src/R_interface.cpp:182@4c018187]]`, stays at 8), no three-file edit, and nothing in
+  [src/R_interface.cpp:182](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface.cpp#L182), stays at 8), no three-file edit, and nothing in
   `dbarts.h`.
 
   Three arguments. **(a) Value, named.** The internal route is not a shorthand
@@ -2980,11 +2980,11 @@ in FA1 and FA5 below ARE the record.
   probit host sampler makes `resolveFamily` see `""` on a binary response,
   resolve to probit, and get refused one line later - which is precisely the
   silent shape-decides-the-family behavior `resolveFamily`'s own design comment
-  (`[[src/R_interface_bartcore.cpp:1529-1530@c85d6db6]]`, "Each shape refuses the others' family names by name") exists
+  ([src/R_interface_bartcore.cpp:1529-1530](https://github.com/vdorie/dbarts/blob/c85d6db670be0a4847150da44901da3d646c3603/src/R_interface_bartcore.cpp#L1529-L1530), "Each shape refuses the others' family names by name") exists
   to prevent. **(c) It is a strict superset with an identical default.** The
   COMMON case is `"gaussian"`, not `""`: `dbartsSpec` already resolves the
-  family away from `"auto"` (`[[R/spec.R:85-86@4c018187]]`) and writes the resolved value
-  into the model (`[[R/spec.R:290@4c018187]]`), so every existing gate and tinytest derives
+  family away from `"auto"` ([R/spec.R:85-86](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L85-L86)) and writes the resolved value
+  into the model ([R/spec.R:290](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L290)), so every existing gate and tinytest derives
   `"gaussian"` - and `resolveFamily(control, "gaussian")` on a continuous
   response returns gaussian, so behavior is identical. The rare hand-built
   `"auto"` model maps to `""`, also identical.
@@ -2992,10 +2992,10 @@ in FA1 and FA5 below ARE the record.
   **The sibling convention, which the fork's sources did not raise and which
   F4 must not break by omission.** The other two internal creation helpers
   take an EXPLICIT family beside the model that already carries one:
-  `bartcoreSampler(sampler, family = "")` (`[[R/bartcore.R:541@4c018187]]`) and
-  `bartcoreSamplerFromHandle(..., family = "", ...)` (`[[R/bartcore.R:584-591@4c018187]]`), and
-  `[[R/bart.R:1523@4c018187]]` uses it (`family = "ordinal"`) against a spec that set
-  `family = "ordinal"` at `[[R/bart.R:1511@4c018187]]`. Under F4 alone `bartcoreBCFSampler` would
+  `bartcoreSampler(sampler, family = "")` ([R/bartcore.R:541](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L541)) and
+  `bartcoreSamplerFromHandle(..., family = "", ...)` ([R/bartcore.R:584-591](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L584-L591)), and
+  [R/bart.R:1523](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1523) uses it (`family = "ordinal"`) against a spec that set
+  `family = "ordinal"` at [R/bart.R:1511](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1511). Under F4 alone `bartcoreBCFSampler` would
   become the ONLY internal creator whose family is invisible at the call site,
   which is precisely the payoff sentence in (a) read as a cost. **Take both,
   at ~2-3 R dense:** the C-side derivation from the model slot stays (it is
@@ -3011,10 +3011,10 @@ in FA1 and FA5 below ARE the record.
   **F5 - the `node.scale` gate: KEY IT TO THE FAMILY DEFAULT (option a).** The
   alternative (b) is to record whether the user NAMED a node scale and gate on
   that. It is truer to the guard's stated intent, and it is still the wrong
-  change here. **The monotone precedent at `[[R/model.R:394@4c018187]]` does NOT transfer**
+  change here. **The monotone precedent at [R/model.R:394](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L394) does NOT transfer**
   and the implementer must not pretend it does: `node.scale` has no unsupplied
   arm to redirect - it is written UNCONDITIONALLY by the family switch at
-  `[[R/spec.R:297-309@4c018187]]`. The argument for (a) is independent and it is about what
+  [R/spec.R:297-309](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L297-L309). The argument for (a) is independent and it is about what
   the shipped guard already MEANS. `!= 0.5` is not a test for "the user named
   something"; `0.5` is GAUSSIAN'S DEFAULT, and the guard has always read
   "differs from the family default" - the literal was inlined only because the
@@ -3027,12 +3027,12 @@ in FA1 and FA5 below ARE the record.
   the same false negative gaussian has shipped since the guard was written.
 
   Mechanically: the family-keyed switch is written out TWICE today
-  (`[[R/spec.R:297-309@4c018187]]` and `[[R/xbart.R:279-284@4c018187]]`, the latter a three-family
+  ([R/spec.R:297-309](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L297-L309) and [R/xbart.R:279-284](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L279-L284), the latter a three-family
   subset), so this wants a shared helper rather than a third copy. Introduce
   `defaultNodeScale(family)`, use it at both existing sites and at
-  `[[R/spec.R:452@4c018187]]`, and give the bridge twin at
-  `[[R_interface_bartcore.cpp:2311@4c018187]]` the matching C-side switch.
-  `[[R/spec.R:456@4c018187]]`'s `prior.scale` gate (`!is.na(model@prior.scale)`) is CORRECT
+  [R/spec.R:452](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L452), and give the bridge twin at
+  [src/R_interface_bartcore.cpp:2311](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2311) the matching C-side switch.
+  [R/spec.R:456](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L456)'s `prior.scale` gate (`!is.na(model@prior.scale)`) is CORRECT
   as written for all three families and needs no change - it stays FALSE
   unless a calibration is NAMED.
 
@@ -3040,17 +3040,17 @@ in FA1 and FA5 below ARE the record.
   Doxygen sentence.** The pricing census worried this composes "precision-weight
   semantics on a family whose weights are declared to mean COPIES". **Reading
   the channel's own declared contract dissolves the worry.** `setForestWeights`
-  (`[[chain.hpp:981-986@4c018187]]`, Doxygen `[[chain.hpp:959-980@4c018187]]`) declares `s` as "a multiplicative
+  ([src/bartcore/chain.hpp:981-986](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L981-L986), Doxygen [src/bartcore/chain.hpp:959-980](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L959-L980)) declares `s` as "a multiplicative
   PRECISION factor on forest f's own leaf conditionals, composing with the
   observation weight so that forest f's draws see `w_i m_f^2 s_i`", explicitly
   NOT a removal from occupancy, from the combination, or from the residual
   sigma degrees of freedom. It is consumed at exactly one place,
-  `composeForestWeights` (`[[chain.hpp:3485-3493@4c018187]]`), which multiplies it into the
+  `composeForestWeights` ([src/bartcore/chain.hpp:3485-3493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3485-L3493)), which multiplies it into the
   vector the combiner just formed - DOWNSTREAM of `refreshLatents`. It never
   reaches `LogisticResponse`, so it cannot move the PG shape and cannot be
   confused with the copy count: by the time `formForestResponse` reads
   `workingWeights()`, logistic's `w` is `omega_i`, a PRECISION
-  (`[[model.hpp:3529-3531@4c018187]]`), and the copy count has already been spent as the PG
+  ([src/bartcore/model.hpp:3529-3531](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3529-L3531)), and the copy count has already been spent as the PG
   shape parameter. Every family serves a working precision; the channel is
   declared against a working precision; there is no semantic clash to gate on.
   Nor is it an end-run around `refuseBinaryWeightChange`, which guards the
@@ -3059,7 +3059,7 @@ in FA1 and FA5 below ARE the record.
   that carries the COHERENCE point as well as the copies-versus-precision
   one.** `composeForestWeights` applies the factor to the LEAF conditionals
   only; it is NOT applied in `drawGlue` / `drawForestAmplitude`, which read
-  the response's own weights (`[[combiner.hpp:1057@4c018187]]`, `[[combiner.hpp:1087@4c018187]]`, `[[combiner.hpp:1171@4c018187]]`), and NOT
+  the response's own weights ([src/bartcore/combiner.hpp:1057](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1057), [src/bartcore/combiner.hpp:1087](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1087), [src/bartcore/combiner.hpp:1171](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1171)), and NOT
   in `rescaleAmplitudeRidge`, which reads no weights at all. So `m_f` and
   `f_f` - the two factors of one product - are drawn under three different
   precision vectors. That is shipped behavior under gaussian; under a latent
@@ -3068,36 +3068,36 @@ in FA1 and FA5 below ARE the record.
 
   **F7 - the "half the mantissa" claim: NARROW THE COMMENT.** The alternative
   is re-deriving a small-`omega` quantile bound on `PG(1, psi)` for the
-  logistic arm. **Narrow it.** Decompose what `[[combiner.hpp:800-802@4c018187]]` asserts:
+  logistic arm. **Narrow it.** Decompose what [src/bartcore/combiner.hpp:800-802](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L800-L802) asserts:
   the amplification cap ("the division amplifies by at most 2^26") is a
-  property of the constant `[[combiner.hpp:787@4c018187]]` and the snap branch `[[combiner.hpp:823-827@4c018187]]`,
+  property of the constant [src/bartcore/combiner.hpp:787](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L787) and the snap branch [src/bartcore/combiner.hpp:823-827](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L823-L827),
   holds under any family, any weight vector and any K, and transfers verbatim.
   The absolute-precision conclusion ("the cancellation downstream stays inside
   half the mantissa") additionally needs a bounded NUMERATOR, which today comes
   from gaussian range-anchoring `workingResponse()` to `[-0.5, 0.5]`
-  (`[[model.hpp:2791@4c018187]]`) - probit's is a truncated normal on the latent scale and
+  ([src/bartcore/model.hpp:2791](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2791)) - probit's is a truncated normal on the latent scale and
   logistic's is `O(1/omega_i)` with `omega_i` unbounded below, so neither
   family supplies it by construction. Re-deriving the logistic bound is genuine
   analytic work with NO gate consequence, because the amplification cancels
   ANALYTICALLY in what the node kernels accumulate: `sumWeights = sum_i w_i
   m_i^2` and `sumWeightedResponse = sum_i (w_i m_i^2)(r_i/m_i)`, whose exact
-  value is `sum_i w_i m_i r_i`; and `combinedFits` (`[[model.hpp:854-869@4c018187]]`) and
-  `drawForestAmplitude` (`[[model.hpp:1153-1198@4c018187]]`) deliberately keep the EXACT multiplier
-  (`[[model.hpp:851-853@4c018187]]` states this), so nothing downstream inherits the amplified value.
+  value is `sum_i w_i m_i r_i`; and `combinedFits` ([src/bartcore/model.hpp:854-869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L854-L869)) and
+  `drawForestAmplitude` ([src/bartcore/model.hpp:1153-1198](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L1153-L1198)) deliberately keep the EXACT multiplier
+  ([src/bartcore/model.hpp:851-853](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L851-L853) states this), so nothing downstream inherits the amplified value.
   Keep the family-free half, drop the absolute-precision conclusion, and state
   the cancellation instead. The small-`omega` bound is recorded as an open
   numerical-hygiene question, out of M4.4.
 
   **6. FOLDED IN: `$getSumsOfSquaredResiduals()` returns a wrong number today.**
   VD decision 2026-08-14: this is M4.4's, not a separate slice.
-  `Chain::sumOfSquaredResiduals` (`[[chain.hpp:1511-1516@4c018187]]`) reads
-  `forests_[0].totalFits.data()` at `[[chain.hpp:1514@4c018187]]`, and unlike its twin at `[[chain.hpp:1408@4c018187]]` the
+  `Chain::sumOfSquaredResiduals` ([src/bartcore/chain.hpp:1511-1516](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1511-L1516)) reads
+  `forests_[0].totalFits.data()` at [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514), and unlike its twin at [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) the
   pointer IS read - by `misc_computeSumOfSquaredResiduals`, unconditionally,
   for every family INCLUDING gaussian. The path carries no multi-forest guard
-  anywhere: `$getSumsOfSquaredResiduals` (`[[R/dbarts.R:1440-1444@4c018187]]`) has none,
-  `bartcore_getSumsOfSquaredResiduals` (`[[R_interface_bartcore.cpp:4799-4808@4c018187]]`,
-  call at `[[R_interface_bartcore.cpp:4805@4c018187]]`) has none. Its documented contract is
-  `sum((y - yhat)^2)` (`[[man/dbartsSampler-class.Rd:351@4c018187]]`), and on a K-forest
+  anywhere: `$getSumsOfSquaredResiduals` ([R/dbarts.R:1440-1444](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1440-L1444)) has none,
+  `bartcore_getSumsOfSquaredResiduals` ([src/R_interface_bartcore.cpp:4799-4808](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4799-L4808),
+  call at [src/R_interface_bartcore.cpp:4805](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4805)) has none. Its documented contract is
+  `sum((y - yhat)^2)` ([man/dbartsSampler-class.Rd:351](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L351)), and on a K-forest
   `yhat` is `sum_f m_f(i) f_f(x_i)`, not `f_0(x_i)`. MEASURED on four chains
   after `$run(20L, 5L)` on a K = 2 gaussian K-forest, with the combination
   reconstructed from public getters only: the reported value equals the
@@ -3105,41 +3105,41 @@ in FA1 and FA5 below ARE the record.
   amplitude not even applied - and differs from the correct combined residual
   by 1% to 49%. **This is a shipped wrong answer on the public R5 surface,
   gaussian, today.** Nothing caught it because every test that exercises the
-  getter (`[[test-sampler-residuals.R:17@4c018187]]`, `test-data-mixed-mutation.R`,
-  `[[test-bartcore.R:912@4c018187]]`, `test-mutate-sparse-valued.R`) is single-forest, and
+  getter ([inst/tinytest/test-sampler-residuals.R:17](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-sampler-residuals.R#L17), `test-data-mixed-mutation.R`,
+  [inst/tinytest/test-bartcore.R:912](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bartcore.R#L912), `test-mutate-sparse-valued.R`) is single-forest, and
   grep finds no internal caller (`rbart`, `bart2`, `xbart` do not use it).
   Corroborating, and the shape of the fix: `storeSample` ALREADY routes the
-  reported TRAIN channel through `combinedFits` (`[[chain.hpp:4636-4637@4c018187]]`), so
+  reported TRAIN channel through `combinedFits` ([src/bartcore/chain.hpp:4636-4637](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4636-L4637)), so
   `$run()$train` is right on the same object where this getter is wrong.
 
   **The substitution is GUARDED, not blind, and here is what it does per
-  response family.** `Chain::combinedFits()` (`[[chain.hpp:4589-4592@4c018187]]`)
-  dispatches virtually, and on a MULTINOMIAL chain (`[[chain.hpp:742-763@4c018187]]` - a
+  response family.** `Chain::combinedFits()` ([src/bartcore/chain.hpp:4589-4592](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4589-L4592))
+  dispatches virtually, and on a MULTINOMIAL chain ([src/bartcore/chain.hpp:742-763](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L742-L763) - a
   K-forest chain with `combiner_` set) `MultinomialForestCombiner::
-  combinedFits` (`[[combiner.hpp:1725-1730@4c018187]]`) returns the **K x n softmax
+  combinedFits` ([src/bartcore/combiner.hpp:1725-1730](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1725-L1730)) returns the **K x n softmax
   PROBABILITY slab**, channel-major, not a location and not length n. A bare
   substitution would silently change the number this getter reports there
-  (`MultinomialResponse::workingResponse()` is n zeros, `[[model.hpp:3691@4c018187]]`,
-  `[[model.hpp:3697@4c018187]]`, so it would go from `sum(totalFits_0[i]^2)` to `sum(p_0i^2)`), at
+  (`MultinomialResponse::workingResponse()` is n zeros, [src/bartcore/model.hpp:3691](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3691),
+  [src/bartcore/model.hpp:3697](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3697), so it would go from `sum(totalFits_0[i]^2)` to `sum(p_0i^2)`), at
   a site whose SIBLING carries an explicit layout guard warning about exactly
-  this K-versus-1 channel confusion (`[[model.hpp:3701-3704@4c018187]]`).
+  this K-versus-1 channel confusion ([src/bartcore/model.hpp:3701-3704](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3701-L3704)).
   - **gaussian, probit, logistic, and every single-forest chain:** take
     `combinedFits()`. Off a combiner it is a LITERAL identity
-    (`[[chain.hpp:4590-4591@4c018187]]` returns `forests_[0].totalFits.data()`), and on a
+    ([src/bartcore/chain.hpp:4590-4591](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4590-L4591) returns `forests_[0].totalFits.data()`), and on a
     BCF coupling it is the fix.
   - **multinomial (any multi-location combiner):** the quantity is not
     defined - there is no single location and no working response - so gate
     the substitution on `numReportedLocations() == 1`
-    (`[[combiner.hpp:612@4c018187]]`, overridden `[[combiner.hpp:1493@4c018187]]`) and return `NaN` on the other
+    ([src/bartcore/combiner.hpp:612](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L612), overridden [src/bartcore/combiner.hpp:1493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1493)) and return `NaN` on the other
     branch, with a Doxygen sentence saying why. Today's value there is
     equally meaningless, so nothing honest is lost: the path is unreachable
-    from R (`bartcoreMultinomialSampler`, `[[R/bartcore.R:792-828@4c018187]]`, returns a
+    from R (`bartcoreMultinomialSampler`, [R/bartcore.R:792-828](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L792-L828), returns a
     bare environment, not a `dbartsSampler` R5, and
-    `$getSumsOfSquaredResiduals` `[[R/dbarts.R:1440-1444@4c018187]]` is the only R
+    `$getSumsOfSquaredResiduals` [R/dbarts.R:1440-1444](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1440-L1444) is the only R
     caller) and absent from `dbarts.h` and `C_interface.cpp` entirely, but it
-    IS reachable from C++ through `[[facade.hpp:516-517@4c018187]]`, and the two
+    IS reachable from C++ through [src/bartcore/facade.hpp:516-517](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L516-L517), and the two
     `tests/cpp` users
-    (`[[test_grow.cpp:373@4c018187]]` finiteness, `[[test_sampler.cpp:2021@4c018187]]` self-recomputed)
+    ([tests/cpp/test_grow.cpp:373](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_grow.cpp#L373) finiteness, [tests/cpp/test_sampler.cpp:2021](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L2021) self-recomputed)
     are both single-forest gaussian and unaffected. Do not leave this
     implicit.
 
@@ -3151,7 +3151,7 @@ in FA1 and FA5 below ARE the record.
       expect_equal(s$getSumsOfSquaredResiduals(),
                    colSums((y - res$train[, 1L, ])^2))
 
-  is the shape `[[inst/tinytest/test-sampler-residuals.R:16-19@4c018187]]` already ships
+  is the shape [inst/tinytest/test-sampler-residuals.R:16-19](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-sampler-residuals.R#L16-L19) already ships
   (17 non-comment lines for the whole file), it needs no basis, and it is
   MEASURED to fail on `efec6ba2` (K = 2, four chains: reported 548.0 / 447.3 /
   240.4 / 256.5 against the oracle's 201.7 / 197.1 / 204.6 / 204.3; K = 3 with
@@ -3160,12 +3160,12 @@ in FA1 and FA5 below ARE the record.
   nChains`, so the `[, 1L, ]` drop is required at `nSamples = 1`; at one chain
   it is `n x 1`. An offset is FINE and needs no special handling - the
   recorded train channel includes it by the original-scale convention and the
-  identity still holds, as `[[tests/cpp/test_sampler.cpp:2005-2022@4c018187]]` pins in C++
+  identity still holds, as [tests/cpp/test_sampler.cpp:2005-2022](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L2005-L2022) pins in C++
   with an offset present. **The reconstruction oracle this bullet used to
   mandate is WRONG and must not be written:** `$getForestAmplitudes()`
-  (`[[R/dbarts.R:1450-1458@4c018187]]`) returns AMPLITUDES, the ragged stacked
+  ([R/dbarts.R:1450-1458](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1450-L1458)) returns AMPLITUDES, the ragged stacked
   `sum(q) x n.chains` block, while the combination uses the per-observation
-  multiplier `m_f(i) = dot(a_f, B_f(i,.))` (`[[combiner.hpp:854-869@4c018187]]`), and NO
+  multiplier `m_f(i) = dot(a_f, B_f(i,.))` ([src/bartcore/combiner.hpp:854-869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L854-L869)), and NO
   getter exposes the basis. A literal `sum_f a_f * fits_f` is accidentally
   forgiven by the K = 2 two-column indicator and is simply wrong at the K = 3
   the criterion mandates - and "must FAIL before, pass after" does not
@@ -3176,27 +3176,27 @@ in FA1 and FA5 below ARE the record.
   of whether the family work does.
 
   **The getter's CONTRACT is still wrong on the surface M4.4 newly opens, and
-  the docs delta must pick it up.** `[[man/dbartsSampler-class.Rd:351@4c018187]]` promises
+  the docs delta must pick it up.** [man/dbartsSampler-class.Rd:351](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L351) promises
   `sum((y - yhat)^2)` on the original scale, "a binary-response sampler
   reports on the latent scale instead". That covers probit. It does NOT cover
   logistic: `workingResponse()` is `w_i(y_i - 0.5)/omega_i - offset_i`
-  (`[[model.hpp:3609-3613@4c018187]]`) with `omega_i` a fresh PG draw each sweep, so the
+  ([src/bartcore/model.hpp:3609-3613](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3609-L3613)) with `omega_i` a fresh PG draw each sweep, so the
   returned number is a function of this sweep's auxiliary variables and is not
   a residual sum of squares in any scale. Say so in the Rd rather than letting
   M4.4 make an unstated case reachable.
 
   **7. Docs deltas M4.4 inherits, by name.**
-  - `[[inst/include/dbarts/dbarts.h:513@4c018187]]` - "Gaussian responses only.", the LAST
-    sentence of `dbarts_sampler_create`'s K-forest paragraph (`[[inst/include/dbarts/dbarts.h:495-513@4c018187]]`) and
+  - [inst/include/dbarts/dbarts.h:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L513) - "Gaussian responses only.", the LAST
+    sentence of `dbarts_sampler_create`'s K-forest paragraph ([inst/include/dbarts/dbarts.h:495-513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L495-L513)) and
     the ONLY sentence IN THE HEADER asserting a gaussian-only K-forest
-    constraint (the other gaussian hits at `[[inst/include/dbarts/dbarts.h:129@4c018187]]`, `[[inst/include/dbarts/dbarts.h:282@4c018187]]`, `[[inst/include/dbarts/dbarts.h:488@4c018187]]`, `[[inst/include/dbarts/dbarts.h:489@4c018187]]`,
-    `[[inst/include/dbarts/dbarts.h:542@4c018187]]`, `[[inst/include/dbarts/dbarts.h:544@4c018187]]`, `[[inst/include/dbarts/dbarts.h:555@4c018187]]`, `[[inst/include/dbarts/dbarts.h:566@4c018187]]`, `[[inst/include/dbarts/dbarts.h:570@4c018187]]` are single-forest or
-    family-agnostic). RE-VERIFIED at `[[inst/include/dbarts/dbarts.h:513@4c018187]]` (this bullet used to cite `[[inst/include/dbarts/dbarts.h:505@4c018187]]`;
+    constraint (the other gaussian hits at [inst/include/dbarts/dbarts.h:129](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L129), [inst/include/dbarts/dbarts.h:282](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L282), [inst/include/dbarts/dbarts.h:488](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L488), [inst/include/dbarts/dbarts.h:489](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L489),
+    [inst/include/dbarts/dbarts.h:542](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L542), [inst/include/dbarts/dbarts.h:544](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L544), [inst/include/dbarts/dbarts.h:555](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L555), [inst/include/dbarts/dbarts.h:566](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L566), [inst/include/dbarts/dbarts.h:570](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L570) are single-forest or
+    family-agnostic). RE-VERIFIED at [inst/include/dbarts/dbarts.h:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L513) (this bullet used to cite [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L505);
     it moved once already, by the paragraph's own growth at M4.5, which is
-    exactly why it must be re-derived and not offset). Also `[[dbarts.h:560@4c018187]]`
+    exactly why it must be re-derived and not offset). Also [inst/include/dbarts/dbarts.h:560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L560)
     (`dbarts_sampler_setWeights`, "gaussian responses only"), which becomes
     ambiguous once logistic K-forest weights are accepted at creation, and the
-    family paragraph at `[[dbarts.h:485-493@4c018187]]`, which describes families only for the
+    family paragraph at [inst/include/dbarts/dbarts.h:485-493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L485-L493), which describes families only for the
     single-forest case. Comment-only; the hash does not move.
   - **NINE further gaussian-only K-forest assertions OUTSIDE the header, all
     falsified by M4.4.** The header's uniqueness claim above is true of the
@@ -3204,48 +3204,48 @@ in FA1 and FA5 below ARE the record.
 
     | site | what it says |
     |---|---|
-    | `[[chain.hpp:688@4c018187]]` | the K-forest `Chain`'s own Doxygen, "gaussian response as y = sum_f ..." |
-    | `[[sampler.hpp:150@4c018187]]` | the K-forest `Sampler`'s own Doxygen, "gaussian only" - and still K = 2 language |
-    | `[[combiner.hpp:679@4c018187]]` | `BCFForestCombiner`'s Doxygen, "combined on a gaussian response" |
-    | `[[combiner.hpp:953-955@4c018187]]` | the GOVERNING RATIONALE for `supportsResponseMutation() == true` (`[[combiner.hpp:963@4c018187]]`); see checklist item 6 - it must be re-argued, not swept |
-    | `[[R/bartcore.R:612@4c018187]]` | "internal and gaussian only" - F4's own site |
-    | `[[R_interface_bartcore.cpp:3522@4c018187]]` | "internal, gaussian only" - F4's own site |
-    | `[[man/dbartsSampler-class.Rd:147@4c018187]]` | the R-side twin of `[[dbarts.h:560@4c018187]]` |
-    | `[[man/dbartsSampler-class.Rd:152@4c018187]]` | `setActiveRows`, "its two forests share one gaussian response" |
-    | `[[docs/design/feature-matrix.md:496-497@4c018187]]` (`[f26]`) | "A BCF sampler's response IS a `GaussianResponse`" |
-  - `docs/design/multiplier-combiner.md` - the scope sentence at `[[docs/design/feature-matrix.md:14-17@4c018187]]`
-    ("Scope: GAUSSIAN responses only", naming `[[R/spec.R:423-431@4c018187]]` and
-    `[[chain.hpp:702-705@4c018187]]`) becomes gaussian, probit and logistic; the map
-    section `[[chain.hpp:321-341@4c018187]]` gains the anchor table, items 2d(a)/(b) and 2f's four
-    contract sentences; the Status section `[[chain.hpp:451-455@4c018187]]`, which names
-    `[[dbarts.h:513@4c018187]]` as M4.4's, is discharged. **Plus M4.4's own landing note**,
+    | [src/bartcore/chain.hpp:688](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L688) | the K-forest `Chain`'s own Doxygen, "gaussian response as y = sum_f ..." |
+    | [src/bartcore/sampler.hpp:150](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L150) | the K-forest `Sampler`'s own Doxygen, "gaussian only" - and still K = 2 language |
+    | [src/bartcore/combiner.hpp:679](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L679) | `BCFForestCombiner`'s Doxygen, "combined on a gaussian response" |
+    | [src/bartcore/combiner.hpp:953-955](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L953-L955) | the GOVERNING RATIONALE for `supportsResponseMutation() == true` ([src/bartcore/combiner.hpp:963](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L963)); see checklist item 6 - it must be re-argued, not swept |
+    | [R/bartcore.R:612](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L612) | "internal and gaussian only" - F4's own site |
+    | [src/R_interface_bartcore.cpp:3522](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3522) | "internal, gaussian only" - F4's own site |
+    | [man/dbartsSampler-class.Rd:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L147) | the R-side twin of [inst/include/dbarts/dbarts.h:560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L560) |
+    | [man/dbartsSampler-class.Rd:152](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L152) | `setActiveRows`, "its two forests share one gaussian response" |
+    | [docs/design/feature-matrix.md:496-497](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L496-L497) (`[f26]`) | "A BCF sampler's response IS a `GaussianResponse`" |
+  - `docs/design/multiplier-combiner.md` - the scope sentence at [docs/design/feature-matrix.md:14-17](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L14-L17)
+    ("Scope: GAUSSIAN responses only", naming [R/spec.R:423-431](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423-L431) and
+    [src/bartcore/chain.hpp:702-705](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L705)) becomes gaussian, probit and logistic; the map
+    section [src/bartcore/chain.hpp:321-341](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L321-L341) gains the anchor table, items 2d(a)/(b) and 2f's four
+    contract sentences; the Status section [src/bartcore/chain.hpp:451-455](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L451-L455), which names
+    [inst/include/dbarts/dbarts.h:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L513) as M4.4's, is discharged. **Plus M4.4's own landing note**,
     in the file's per-slice format - every other slice on the arc has one and
     this bullet had not booked it.
   - **The "sd(y) units" phrasing is a REQUIRED edit, not an optional sweep,
     and it is NOT confined to the design docs.** Under a latent family `sd(y)`
     is UNDEFINED, so every one of these becomes WRONG rather than merely
-    incomplete: `[[multiplier-combiner.md:325-335@4c018187]]` and its third instance at
-    `[[multiplier-combiner.md:25@4c018187]]` ("the sd(y)-unit calibration"); the Doxygen twins
-    `[[combiner.hpp:262-273@4c018187]]` and `[[combiner.hpp:297-299@4c018187]]`; `[[facade.hpp:774-776@4c018187]]`
+    incomplete: [docs/design/multiplier-combiner.md:325-335](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L325-L335) and its third instance at
+    [docs/design/multiplier-combiner.md:25](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L25) ("the sd(y)-unit calibration"); the Doxygen twins
+    [src/bartcore/combiner.hpp:262-273](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L262-L273) and [src/bartcore/combiner.hpp:297-299](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L297-L299); [src/bartcore/facade.hpp:774-776](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L774-L776)
     ("constant-leaf and gaussian only"); and, on the surface a USER actually
     reads and where the units are actually chosen -
-    **`[[man/forest.Rd:52-59@4c018187]]`** (`\item{sd}`, "This forest's prior scale, in
-    standard deviations of the response"), **`[[R/model.R:853@4c018187]]`** ("the node
-    scale stays at the response sd"), **`[[R/model.R:856@4c018187]]`** ("sits at sd sd(y)"),
-    **`[[R/model.R:1428@4c018187]]`** ("in sd(y) units") and **`[[R/bartcore.R:616@4c018187]]`** ("in sd(y)
-    units"). `[[man/forest.Rd:52-59@4c018187]]` is the worst of them: `forest(sd = )` is
+    **[man/forest.Rd:52-59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L52-L59)** (`\item{sd}`, "This forest's prior scale, in
+    standard deviations of the response"), **[R/model.R:853](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L853)** ("the node
+    scale stays at the response sd"), **[R/model.R:856](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L856)** ("sits at sd sd(y)"),
+    **[R/model.R:1428](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1428)** ("in sd(y) units") and **[R/bartcore.R:616](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bartcore.R#L616)** ("in sd(y)
+    units"). [man/forest.Rd:52-59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L52-L59) is the worst of them: `forest(sd = )` is
     the ONE shipped knob, a probit K-forest caller writing `sd = 1.5` reads
     1.5 response standard deviations and gets 1.5 units of the LINK's error sd
     with no response sd existing anywhere in the model, and the deferred
     `binary-kforest-prior-default` slice names that same knob as its
-    correction lever. `[[R/model.R:851-856@4c018187]]` is `forestParams`' Doxygen - the
+    correction lever. [R/model.R:851-856](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L851-L856) is `forestParams`' Doxygen - the
     function that WRITES `nodeScaleFactor` and `amplitudePriorScale`, the two
     numbers `latentScaleAnchor(family)` multiplies - so leaving it saying
     "stays at the response sd" guarantees the next reader reconciles the
     payload against an anchor the engine no longer uses. All five take 2f's
     contract sentences 1 and 3.
   - `docs/design/nameable-calibration.md` - two new rows after the units
-    table's last row at `[[R/model.R:76@4c018187]]` (`| BCF | response; k fixed at 1 by the map |
+    table's last row at [R/model.R:76](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L76) (`| BCF | response; k fixed at 1 by the map |
     range_ | range_*0.5 + min_ |`), for BCF-probit and BCF-logistic, both
     `1` / `0`. Plus the sentence that `prior.scale` is the prior sd of forest
     f's own `f_f`, NOT of its contribution `m_f f_f` to the index - already
@@ -3253,10 +3253,10 @@ in FA1 and FA5 below ARE the record.
     only scale in the model, so the gap is the difference between a number a
     reader can act on and one they cannot. Point at `$getForestAmplitudes()`
     as the other half. **Anchor correction while here:** "refused at three
-    creation sites and again mid-chain" is at `[[R/model.R:134-136@4c018187]]`, inside the refusals
-    section `[[R/model.R:125-145@4c018187]]` (`## 5. Refusals` at `[[R/model.R:125@4c018187]]`, item 7 ending at `[[R/model.R:145@4c018187]]`,
-    `## 6. Exactness` at `[[R/model.R:147@4c018187]]`); the respec's `[[R/model.R:125-136@4c018187]]`, the open-questions
-    file's `[[R/model.R:132-134@4c018187]]` / `[[R/model.R:124-140@4c018187]]`, and this bullet's own earlier `[[R/model.R:125-140@4c018187]]`
+    creation sites and again mid-chain" is at [R/model.R:134-136](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L134-L136), inside the refusals
+    section [R/model.R:125-145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L125-L145) (`## 5. Refusals` at [R/model.R:125](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L125), item 7 ending at [R/model.R:145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L145),
+    `## 6. Exactness` at [R/model.R:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L147)); the respec's [R/model.R:125-136](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L125-L136), the open-questions
+    file's [R/model.R:132-134](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L132-L134) / [R/model.R:124-140](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L124-L140), and this bullet's own earlier [R/model.R:125-140](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L125-L140)
     are all WRONG, verified by opening the file.
   - `docs/design/feature-matrix.md` - **MANDATE, and M4.4 cannot discharge it
     the way M4.5 did.** M4.5's landing note records "feature-matrix.md moves NO
@@ -3264,7 +3264,7 @@ in FA1 and FA5 below ARE the record.
     reaches no new response family". **M4.4 is exactly what changes that**, so
     it MUST move cells and update the matrix in place. Cited by ROW and COLUMN
     rather than by line, since the file's own edits shift its lines. At
-    minimum: the `bcf` row's **SEVEN** section-2 mutation cells (`[[R/model.R:119@4c018187]]`, not
+    minimum: the `bcf` row's **SEVEN** section-2 mutation cells ([R/model.R:119](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L119), not
     six - `setResponse`, `setOffset`, `updateScale = TRUE`,
     `setPredictor (+ per-obs)`, `setWeights`, `setSigma`, `test surface`)
     become family-dependent (`setWeights` and `setSigma` are REFUSED for
@@ -3275,35 +3275,35 @@ in FA1 and FA5 below ARE the record.
     `fitScale() == 1` / `fitShift() == 0`); the `bcf` x `getLatents` cell in
     section 3 moves off `-` for the latent families, and footnote `[f18]`
     ("No latent vector exists: gaussian, BCF and heteroscedastic all
-    leave...") must be rewritten; `bcf` x `zero-weight row subset` (`[[R/model.R:142@4c018187]]`)
+    leave...") must be rewritten; `bcf` x `zero-weight row subset` ([R/model.R:142](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L142))
     becomes family-dependent and `[f17]`'s closing "The same fix covers BCF
     and the Student-t row" is gaussian-scoped; `bcf` x `active-rows mask`
-    (`[[R/model.R:142@4c018187]]`) carries `[f26]`, which is the ninth gaussian-only assertion
+    ([R/model.R:142](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L142)) carries `[f26]`, which is the ninth gaussian-only assertion
     above; the `bcf` x `variance forest` cell in section 4 gains checklist
     item 7's door refusal beside it; the `bcf` x `DART` cell cites
-    `[[spec.R:425@4c018187]]`, which M4.4's own edit at `[[spec.R:423-431@4c018187]]` moves (and which is the
+    [R/spec.R:425](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L425), which M4.4's own edit at [R/spec.R:423-431](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423-L431) moves (and which is the
     wrong anchor anyway - the DART refusal for a K-forest is the `unsupported`
-    entry at `[[R/spec.R:441@4c018187]]`, fired at `[[R/spec.R:468-474@4c018187]]`); `[f23]` (`[[R/spec.R:467-475@4c018187]]`) cites
-    `[[spec.R:440@4c018187]]` for the R-side BCF composition refusal, which the same edit
-    shifts; `[f3]` (`[[spec.R:204-209@4c018187]]`, "The header's `family` documentation
-    ([[CAPI:338-357@4c018187]]) names only probit, logistic, gaussian, aft and BCF") is
+    entry at [R/spec.R:441](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L441), fired at [R/spec.R:468-474](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L468-L474)); `[f23]` ([R/spec.R:467-475](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L467-L475)) cites
+    [R/spec.R:440](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L440) for the R-side BCF composition refusal, which the same edit
+    shifts; `[f3]` ([R/spec.R:204-209](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L204-L209), "The header's `family` documentation
+    ([inst/include/dbarts/dbarts.h:338-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L338-L357)) names only probit, logistic, gaussian, aft and BCF") is
     exactly what M4.4 changes AND its anchor is already wrong -
-    `[[dbarts.h:338-357@4c018187]]` is the `DBARTS_C_API_LIST` X-macro body and the family
-    documentation is `[[dbarts.h:485-493@4c018187]]`; the `bcf` row in section 5 gains the new
-    probit/logistic scenarios and test files; the Rows prose citing `[[MOD:2524@4c018187]]`
-    for `enum class ResponseFamily` is stale (`[[model.hpp:2577@4c018187]]`) and M4.4
+    [inst/include/dbarts/dbarts.h:338-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L338-L357) is the `DBARTS_C_API_LIST` X-macro body and the family
+    documentation is [inst/include/dbarts/dbarts.h:485-493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L485-L493); the `bcf` row in section 5 gains the new
+    probit/logistic scenarios and test files; the Rows prose citing [src/bartcore/model.hpp:2524](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2524)
+    for `enum class ResponseFamily` is stale ([src/bartcore/model.hpp:2577](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2577)) and M4.4
     changes that enum's REACH, so it re-anchors; and the section-1 prose on
     what `dbartsSpec()` resolves gains the family statement. Add an "Exception
     on record" entry in the file's own format naming what M4.4 re-verified BY
     SYMBOL and what it did not, and do NOT bump the Status line's "current at"
     stamp unless a whole-file pass actually happens - the outstanding full pass
     is the root TODO's `feature-matrix-anchor-refresh`.
-  - `[[man/dbarts.Rd:84@4c018187]]` (inside `\item{forests}`) and `[[man/forest.Rd:93@4c018187]]` both
+  - [man/dbarts.Rd:84](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbarts.Rd#L84) (inside `\item{forests}`) and [man/forest.Rd:93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L93) both
     carry "Gaussian responses only." Rd is not air-wrapped, so raw is about
     dense there.
   - **State plainly rather than inherit silently:** BCF leaves
     `testFitsAreDefined()` and `logLikelihoodIsDefined()` false
-    (`[[combiner.hpp:945-946@4c018187]]`), so a probit/logistic K-forest sampler still
+    ([src/bartcore/combiner.hpp:945-946](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L945-L946)), so a probit/logistic K-forest sampler still
     refuses the whole test surface and reports no log-likelihood. Unchanged by
     M4.4, and a reader of the new family will look for it.
 
@@ -3311,30 +3311,30 @@ in FA1 and FA5 below ARE the record.
   - **`bcf-equivalence` MUST stay bitwise on the gaussian arm, all 12
     scenarios, all channels.** Re-check under `--preclean` regardless of which
     variant of checklist item 2 is taken:
-    `[[docs/design/multiplier-combiner.md:415-417@4c018187]]` records a perturbed install
+    [docs/design/multiplier-combiner.md:415-417](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L415-L417) records a perturbed install
     reporting bitwise-identical WITHOUT it. The
     single-forest `equivalence` (37 scenarios, `--strict-coverage`) and
     `multinomial-equivalence` (10) legs must stay bitwise too.
   - **The residuals fix IS draw-neutral, and the STATIC argument is the
     proof.** The reason matters, because the reason this bullet used to give
     was wrong. "It is a getter, so it cannot shift draws" does NOT hold:
-    `BCFForestCombiner::combinedFits` (`[[combiner.hpp:854-869@4c018187]]`) is not side
+    `BCFForestCombiner::combinedFits` ([src/bartcore/combiner.hpp:854-869](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L854-L869)) is not side
     effect free - it resizes and WRITES `glue_.combined` and
-    `glue_.fitsByForest` (declared `[[combiner.hpp:435-438@4c018187]]`), combiner-owned scratch the
+    `glue_.fitsByForest` (declared [src/bartcore/combiner.hpp:435-438](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L435-L438)), combiner-owned scratch the
     sweep also uses, and returns a pointer INTO the first, which the sweep
-    holds live from `[[chain.hpp:1303@4c018187]]` across `refreshLatents` (`[[chain.hpp:1304@4c018187]]`),
-    `drawSigma` (`[[chain.hpp:1314@4c018187]]`) and `drawGlue`/`afterCombine` (`[[chain.hpp:1317-1318@4c018187]]`). The
+    holds live from [src/bartcore/chain.hpp:1303](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1303) across `refreshLatents` ([src/bartcore/chain.hpp:1304](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1304)),
+    `drawSigma` ([src/bartcore/chain.hpp:1314](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1314)) and `drawGlue`/`afterCombine` ([src/bartcore/chain.hpp:1317-1318](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1317-L1318)). The
     property that actually holds is three-part and each part is checkable:
-    (a) both buffers are FULLY overwritten on every call (`[[chain.hpp:857-861@4c018187]]` sizes
-    them, `[[chain.hpp:863-868@4c018187]]` writes every element), so no stale value can be read;
+    (a) both buffers are FULLY overwritten on every call ([src/bartcore/chain.hpp:857-861](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L857-L861) sizes
+    them, [src/bartcore/chain.hpp:863-868](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L863-L868) writes every element), so no stale value can be read;
     (b) there is NO reachable call site inside `run()` or
     `growForestFromRoot` - `Chain::sumOfSquaredResiduals` has exactly one
-    caller chain and it is entirely outside the sweep, `[[sampler.hpp:882-884@4c018187]]`
-    -> `[[facade.hpp:516-517@4c018187]]` (virtual, declared `[[facade.hpp:262@4c018187]]`) ->
-    `[[R_interface_bartcore.cpp:4805@4c018187]]`, and `Chain::setResponse`
-    (`[[chain.hpp:1407@4c018187]]`) likewise only `[[facade.hpp:391-392@4c018187]]` (both `facade.hpp`
+    caller chain and it is entirely outside the sweep, [src/bartcore/sampler.hpp:882-884](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L882-L884)
+    -> [src/bartcore/facade.hpp:516-517](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L516-L517) (virtual, declared [src/bartcore/facade.hpp:262](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L262)) ->
+    [src/R_interface_bartcore.cpp:4805](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4805), and `Chain::setResponse`
+    ([src/bartcore/chain.hpp:1407](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1407)) likewise only [src/bartcore/facade.hpp:391-392](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L391-L392) (both `facade.hpp`
     hops were missing from this bullet's prescribed grep); (c) neither branch
-    of `[[chain.hpp:4590-4591@4c018187]]` consumes rng. Record (a) and (b) explicitly, not
+    of [src/bartcore/chain.hpp:4590-4591](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4590-L4591) consumes rng. Record (a) and (b) explicitly, not
     "consumes no rng" alone: a future combiner that CACHED across calls, or a
     future in-sweep caller, breaks the weaker claim silently.
   - **The equivalence trio here is a REGRESSION CHECK, not the proof, and the
@@ -3343,7 +3343,7 @@ in FA1 and FA5 below ARE the record.
     exists - but do not treat green as evidence, because it cannot come back
     anything else: neither fix site is reachable from `run()`; on the 37
     single-forest scenarios the substitution is a LITERAL identity
-    (`[[chain.hpp:4590-4591@4c018187]]`); no harness records the channel (zero hits for
+    ([src/bartcore/chain.hpp:4590-4591](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4590-L4591)); no harness records the channel (zero hits for
     `SumsOfSquaredResiduals` anywhere under `benchmarks/`); and
     `bcf-equivalence` never calls `$setResponse` at all. What DOES have teeth
     is the belt: `$getSumsOfSquaredResiduals()` is on no equivalence channel,
@@ -3351,7 +3351,7 @@ in FA1 and FA5 below ARE the record.
     `$getForestAmplitudes` and `sigma` after `$run` are unchanged against the
     pre-fix build. **The `combinedFits()` FMA-association contract is still
     the live hazard for anything that RECOMPUTES the blend inside the sweep**
-    (`[[combiner.hpp:840-849@4c018187]]`: accumulating forward instead of seeding with the
+    ([src/bartcore/combiner.hpp:840-849](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L840-L849): accumulating forward instead of seeding with the
     last forest moves ~30% of rows by one ulp and turns all 12 scenarios red),
     which is why item 21's map expression must be written in the stated order.
   - **The 2f scale fix gets its OWN trio run, and it is a real gate rather
@@ -3362,8 +3362,8 @@ in FA1 and FA5 below ARE the record.
     the `nbar == 1.0` argument in 2f. **If any leg moves, take 2f's
     pre-registered option-A fallback** - do not re-record to accommodate a
     fix that was chosen for being free. Also re-run
-    `inst/tinytest/test-forest-basis-r5.R`, whose `[[combiner.hpp:47@4c018187]]` (`wide <- cbind(1,
-    x[, 4L])`, row norms in `[1, sqrt(2)]`) and `[[combiner.hpp:101@4c018187]]` (`cbind(1 - z, z,
+    `inst/tinytest/test-forest-basis-r5.R`, whose [src/bartcore/combiner.hpp:47](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L47) (`wide <- cbind(1,
+    x[, 4L])`, row norms in `[1, sqrt(2)]`) and [src/bartcore/combiner.hpp:101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L101) (`cbind(1 - z, z,
     x[, 1L])`) fixtures change MODEL under item 21; neither pins a value, so
     both should still pass, and a failure there is a finding, not a snapshot
     to regenerate. **The trio does not reach item 22 at all** - no equivalence
@@ -3378,14 +3378,14 @@ in FA1 and FA5 below ARE the record.
     `.rds` files** - a workflow pointing at a deleted baseline is a red gate
     that looks like a regression, and a ledger naming a deleted file lies
     about which baseline is current.
-    (1) the CI workflow lines `[[.github/workflows/equivalence.yaml:61@4c018187]]`, `[[.github/workflows/equivalence.yaml:87@4c018187]]`,
-    `[[.github/workflows/equivalence.yaml:113@4c018187]]`; (2) **`benchmarks/baselines/MANIFEST`** (`[[.github/workflows/equivalence.yaml:15@4c018187]]`, `[[.github/workflows/equivalence.yaml:16@4c018187]]`, `[[.github/workflows/equivalence.yaml:42@4c018187]]`,
-    `[[.github/workflows/equivalence.yaml:48@4c018187]]`) - the AUTHORITATIVE ledger, with a `current`/`historical` role
+    (1) the CI workflow lines [.github/workflows/equivalence.yaml:61](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L61), [.github/workflows/equivalence.yaml:87](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L87),
+    [.github/workflows/equivalence.yaml:113](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L113); (2) **`benchmarks/baselines/MANIFEST`** ([.github/workflows/equivalence.yaml:15](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L15), [.github/workflows/equivalence.yaml:16](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L16), [.github/workflows/equivalence.yaml:42](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L42),
+    [.github/workflows/equivalence.yaml:48](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/.github/workflows/equivalence.yaml#L48)) - the AUTHORITATIVE ledger, with a `current`/`historical` role
     column and a per-baseline narrative entry recording scenario counts, the
     neutrality partition and the superseding hash, in the format the existing
-    entries set; (3) `[[TODO:258@4c018187]]`, two more not placeable at this sha, TODO is only 329 lines there (unresolved: [[TODO:387@4c018187]], unresolved: [[TODO:389@4c018187]]); (4)
-    `[[docs/design/feature-matrix.md:627-628@4c018187]]` (`[f39]`, "Current baselines"),
-    plus `[[docs/design/feature-matrix.md:308@4c018187]]`, `[[docs/design/feature-matrix.md:441@4c018187]]`, `[[docs/design/feature-matrix.md:507@4c018187]]`, `[[docs/design/feature-matrix.md:755@4c018187]]`. **The same MANIFEST obligation
+    entries set; (3) [TODO:258](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L258), two more not placeable at this sha, TODO is only 329 lines there (unresolved: [TODO:387](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L387), unresolved: [TODO:389](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L389)); (4)
+    [docs/design/feature-matrix.md:627-628](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L627-L628) (`[f39]`, "Current baselines"),
+    plus [docs/design/feature-matrix.md:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L308), [docs/design/feature-matrix.md:441](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L441), [docs/design/feature-matrix.md:507](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L507), [docs/design/feature-matrix.md:755](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/feature-matrix.md#L755). **The same MANIFEST obligation
     attaches to F4's own stated payoff** - adding a probit `bcf-equivalence`
     scenario is a baseline re-record, and if the slice takes that payoff it
     must budget it rather than treating it as a one-line change. Any
@@ -3412,14 +3412,14 @@ in FA1 and FA5 below ARE the record.
   - Positive builds, not just the absence of the old refusal. **An implementer
     who tests the family relaxation by deleting `expect_error` and never
     fitting will not see the adjacent-guard misfire**, which is invisible
-    until the first fit: relaxing `[[R/spec.R:424@4c018187]]` and bridge `[[src/R_interface_bartcore.cpp:2299@dbb707e2]]` alone
+    until the first fit: relaxing [R/spec.R:424](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L424) and bridge [src/R_interface_bartcore.cpp:2299](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L2299) alone
     produces a sampler that refuses on EVERY probit fit. Both guards were
     confirmed to fire, for both families, by reading the expressions AND by
     running real probit and logistic samplers (probit `node.scale` 3, logistic
     5.441398, both `node.hyperprior` a `dbartsChiHyperprior`, with the user
     having asked for nothing). **Do not grep for a quoted prefix:**
-    `unsupported` is a named logical vector (`[[R/spec.R:440-467@4c018187]]`) and
-    `[[R/spec.R:469-473@4c018187]]` pastes EVERY true name, so with both `[[R/spec.R:446@4c018187]]` and `[[R/spec.R:452@4c018187]]` firing
+    `unsupported` is a named logical vector ([R/spec.R:440-467](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L440-L467)) and
+    [R/spec.R:469-473](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L469-L473) pastes EVERY true name, so with both [R/spec.R:446](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L446) and [R/spec.R:452](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L452) firing
     the actual message is "a treatment forest does not support a 'k'
     hyperprior, a non-default 'node.scale'; drop it or fit a single-forest
     model".
@@ -3427,18 +3427,18 @@ in FA1 and FA5 below ARE the record.
     item 15, `dbarts(x, y01, forests = list(forest(), forest(basis = ~
     factor(z))))` stops raising "a treatment forest requires a continuous
     (gaussian) response" and silently builds a PROBIT K-forest:
-    `[[R/spec.R:85-86@4c018187]]` resolves a numeric 0/1 response to `"probit"` with no
-    message, and unlike the categorical branch (`[[R/data.R:461@4c018187]]`, `[[R/data.R:525@4c018187]]`, both
+    [R/spec.R:85-86](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L85-L86) resolves a numeric 0/1 response to `"probit"` with no
+    message, and unlike the categorical branch ([R/data.R:461](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L461), [R/data.R:525](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L525), both
     calling `announceAutoFamily`) the numeric branch announces nothing. This
     is longstanding shipped single-forest behavior, so it is a flip M4.4
     inherits rather than a new inconsistency - but a causal-forest user with
     a binary outcome who wanted a linear-probability two-forest fit now gets
     latent-scale amplitudes with nothing said.
-  - Retarget the one existing pin, `[[inst/tinytest/test-bcf-creation.R:590-594@4c018187]]`
+  - Retarget the one existing pin, [inst/tinytest/test-bcf-creation.R:590-594](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-creation.R#L590-L594)
     (`expect_error(..., "gaussian")`), at a DOOR family. It is the only test
     anywhere that pins this refusal; nothing matches "treatment forest
     requires" or "requires a continuous", and the two C-side doors at
-    `[[src/R_interface_bartcore.cpp:2300@dbb707e2]]` / `[[src/R_interface_bartcore.cpp:2994@dbb707e2]]` are unpinned by any R test.
+    [src/R_interface_bartcore.cpp:2300](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L2300) / [src/R_interface_bartcore.cpp:2994](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L2994) are unpinned by any R test.
   - `R CMD INSTALL --preclean` is mandatory (headers move), and the
     `benchmarks/kernels` binaries must be deleted by hand - they carry no
     header dependency tracking.
@@ -3446,12 +3446,12 @@ in FA1 and FA5 below ARE the record.
     bridge predicate answers for a K-forest sampler, all at once:
     `refusePinnedSigmaChange`, `refuseBinaryWeightChange`, the `drawsSigma`
     branch in `bartcore_setModel`, `validateResponseSupport` at `setResponse`
-    (`[[src/R_interface_bartcore.cpp:4424@dbb707e2]]`, `[[src/R_interface_bartcore.cpp:4469@dbb707e2]]`, `[[C_interface.cpp:464@4c018187]]`) and the aft branch at `[[src/R_interface_bartcore.cpp:4449@dbb707e2]]`.
+    ([src/R_interface_bartcore.cpp:4424](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L4424), [src/R_interface_bartcore.cpp:4469](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L4469), [src/C_interface.cpp:464](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L464)) and the aft branch at [src/R_interface_bartcore.cpp:4449](https://github.com/vdorie/dbarts/blob/dbb707e254bfdb50684b540b8eadee317674eed5/src/R_interface_bartcore.cpp#L4449).
     Each flip is believed CORRECT; the engine cost is one line and the test
     cost is not. Mildly de-risking, and worth knowing before writing the
     tests: they are not entirely unexercised today, because the MULTINOMIAL
     K-forest sampler already reports a non-gaussian family
-    (`[[sampler.hpp:187@4c018187]]`, `[[chain.hpp:753@4c018187]]`), so those four predicates already see
+    ([src/bartcore/sampler.hpp:187](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/sampler.hpp#L187), [src/bartcore/chain.hpp:753](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L753)), so those four predicates already see
     a non-gaussian K-forest. What is untested is the BCF-coupling x latent
     family combination specifically.
 
@@ -3526,13 +3526,13 @@ in FA1 and FA5 below ARE the record.
   lines, Rd at raw. By site: engine, bridge and header Doxygen **37-64** (the
   price table's own ~50-70 + ~10-15 + ~3-8 RAW comment lines, which is 32-47
   dense, plus `latentScaleAnchor`'s and `basisRowNorm`'s new blocks, item 6's
-  `[[chain.hpp:879-884@4c018187]]` rewrite, F6's `setForestWeights` sentence, F7's narrowing
-  at `[[combiner.hpp:800-802@4c018187]]`, and `[[combiner.hpp:953-955@4c018187]]` RE-ARGUED rather than
-  swept); Rd **14-25** (`[[man/forest.Rd:52-59@4c018187]]`, `[[man/forest.Rd:71@4c018187]]`, `[[man/forest.Rd:93@4c018187]]`, `[[man/dbarts.Rd:84@4c018187]]`,
-  `[[man/dbartsSampler-class.Rd:147@4c018187]]`, `[[man/dbartsSampler-class.Rd:152@4c018187]]`, `[[man/dbartsSampler-class.Rd:351@4c018187]]`); `multiplier-combiner.md`
-  **26-41** (scope `[[man/dbartsSampler-class.Rd:14-17@4c018187]]`, the map section `[[man/dbartsSampler-class.Rd:321-341@4c018187]]` with the anchor table,
-  2d(a)/(b) and the four contract sentences, the `[[man/dbartsSampler-class.Rd:25@4c018187]]` sd(y) phrasing, the
-  Status discharge `[[man/dbartsSampler-class.Rd:451-455@4c018187]]`, and M4.4's own landing note - M4.3's is 20 raw
+  [src/bartcore/chain.hpp:879-884](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L879-L884) rewrite, F6's `setForestWeights` sentence, F7's narrowing
+  at [src/bartcore/combiner.hpp:800-802](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L800-L802), and [src/bartcore/combiner.hpp:953-955](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L953-L955) RE-ARGUED rather than
+  swept); Rd **14-25** ([man/forest.Rd:52-59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L52-L59), [man/forest.Rd:71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L71), [man/forest.Rd:93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/forest.Rd#L93), [man/dbarts.Rd:84](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbarts.Rd#L84),
+  [man/dbartsSampler-class.Rd:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L147), [man/dbartsSampler-class.Rd:152](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L152), [man/dbartsSampler-class.Rd:351](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L351)); `multiplier-combiner.md`
+  **26-41** (scope [man/dbartsSampler-class.Rd:14-17](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L14-L17), the map section [man/dbartsSampler-class.Rd:321-341](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L321-L341) with the anchor table,
+  2d(a)/(b) and the four contract sentences, the [man/dbartsSampler-class.Rd:25](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L25) sd(y) phrasing, the
+  Status discharge [man/dbartsSampler-class.Rd:451-455](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L451-L455), and M4.4's own landing note - M4.3's is 20 raw
   lines in that file's per-slice format); `nameable-calibration.md` **3-7**;
   `feature-matrix.md` **13-31**. **Total ~93-168, midpoint ~130**, and the band
   is `~100-175 / stop 265`. EXCLUDED and conditional, on the same convention
@@ -3563,10 +3563,10 @@ in FA1 and FA5 below ARE the record.
   - `bart2()` has no `forests` argument (grep-verified), so a binary K-forest
     fit is reachable only through `dbarts()` / `dbartsSpec()`. Widening
     `bart2` is a separate, larger surface.
-  - `dbarts_sampler_setWeights` (`[[src/C_interface.cpp:483-490@4c018187]]`) does not call
+  - `dbarts_sampler_setWeights` ([src/C_interface.cpp:483-490](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L483-L490)) does not call
     `refuseBinaryWeightChange`, so the flat layer permits a post-creation
     weight swap on a binary sampler that the R bridge refuses, unenforced
-    against `[[dbarts.h:560@4c018187]]`. Pre-existing; +1-2 flat-C dense if taken.
+    against [inst/include/dbarts/dbarts.h:560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L560). Pre-existing; +1-2 flat-C dense if taken.
   - The divergence F3 records: `createBCFHolder` does not run the offender
     cascade `createHolder` runs.
   - The small-`omega` `PG(1, psi)` tail bound F7 scopes.
@@ -3594,16 +3594,16 @@ in FA1 and FA5 below ARE the record.
   `docs/design/multiplier-combiner.md` -> plan citations by EXACTLY the plan's
   net delta (+731) and reported them as re-derived. All seven landed correct
   by coincidence, and FIVE more citations above the edit region were left
-  untouched and became wrong - one of them (`[[dbarts.h:319@4c018187]]`) in the SAME SENTENCE as a
+  untouched and became wrong - one of them ([inst/include/dbarts/dbarts.h:319](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L319)) in the SAME SENTENCE as a
   citation the same pass did update. **A per-citation delta table in which
   every delta is identical is the signature of an offset pass**, and it is
   what a reviewer should ask for. `multiplier-combiner.md` carries EIGHTEEN
-  such citations on SEVENTEEN lines (`[[dbarts.h:35@4c018187]]`, `[[dbarts.h:63@4c018187]]`, `[[dbarts.h:132@4c018187]]`, `[[dbarts.h:134@4c018187]]`, `[[dbarts.h:203@4c018187]]`,
-  `[[dbarts.h:233@4c018187]]`, `[[dbarts.h:262@4c018187]]`, `[[dbarts.h:263@4c018187]]`, `[[dbarts.h:285@4c018187]]`, `[[dbarts.h:286@4c018187]]`, `[[dbarts.h:303@4c018187]]`, `[[dbarts.h:318@4c018187]]`, `[[dbarts.h:319@4c018187]]`, `[[dbarts.h:348@4c018187]]` -
-  which carries TWO - `[[dbarts.h:382@4c018187]]`, `[[dbarts.h:420@4c018187]]`, `[[dbarts.h:445@4c018187]]`); M4.4 edits that file, so every
+  such citations on SEVENTEEN lines ([inst/include/dbarts/dbarts.h:35](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L35), [inst/include/dbarts/dbarts.h:63](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L63), [inst/include/dbarts/dbarts.h:132](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L132), [inst/include/dbarts/dbarts.h:134](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L134), [inst/include/dbarts/dbarts.h:203](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L203),
+  [inst/include/dbarts/dbarts.h:233](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L233), [inst/include/dbarts/dbarts.h:262](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L262), [inst/include/dbarts/dbarts.h:263](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L263), [inst/include/dbarts/dbarts.h:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L285), [inst/include/dbarts/dbarts.h:286](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L286), [inst/include/dbarts/dbarts.h:303](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L303), [inst/include/dbarts/dbarts.h:318](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L318), [inst/include/dbarts/dbarts.h:319](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L319), [inst/include/dbarts/dbarts.h:348](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348) -
+  which carries TWO - [inst/include/dbarts/dbarts.h:382](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L382), [inst/include/dbarts/dbarts.h:420](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L420), [inst/include/dbarts/dbarts.h:445](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L445)); M4.4 edits that file, so every
   one of them must be re-derived by CONTENT after the edits land. **The
-  "thirteen" this bullet used to state omitted `[[dbarts.h:262@4c018187]]`, `[[dbarts.h:285@4c018187]]`, `[[dbarts.h:348@4c018187]]` and
-  `[[dbarts.h:382@4c018187]]`**, which is the same defect one level up: an inventory of anchors is
+  "thirteen" this bullet used to state omitted [inst/include/dbarts/dbarts.h:262](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L262), [inst/include/dbarts/dbarts.h:285](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L285), [inst/include/dbarts/dbarts.h:348](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348) and
+  [inst/include/dbarts/dbarts.h:382](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L382)**, which is the same defect one level up: an inventory of anchors is
   itself an anchor, and is re-derived rather than inherited.
   And keep plan and process references OUT of code comments - a `docs/design`
   citation in a Doxygen block is fine, a `docs/plans` slice reference is not;
@@ -3611,9 +3611,9 @@ in FA1 and FA5 below ARE the record.
 - **M4.5 (docs). Now the LAST slice of the Gaussian-complete arc** (re-scoped
   2026-08-13 on the probe verdicts), landing BEFORE M4.4 rather than after it,
   so it documents a K-forest Gaussian family and sweeps FIVE of the six
-  `dbarts.h` Doxygen paragraphs in the `window:` note - `[[dbarts.h:505@4c018187]]` ("Gaussian
+  `dbarts.h` Doxygen paragraphs in the `window:` note - [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L505) ("Gaussian
   responses only.") is still true at this point and rides M4.4. **That
-  sentence is now at `[[dbarts.h:513@4c018187]]`**, shifted by its own paragraph's growth
+  sentence is now at [inst/include/dbarts/dbarts.h:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L513)**, shifted by its own paragraph's growth
   when M4.5 swept the other five; M4.4 must re-derive it rather than take
   either number on faith.
   Deliverable status verified 2026-08-13:
@@ -3621,11 +3621,11 @@ in FA1 and FA5 below ARE the record.
   mention anywhere is this line); `docs/design/model-space-survey.md` exists,
   so "gains the four verified classes it lacks" is an EDIT;
   `docs/design/forest-combiner.md`'s "What still re-carves when a second
-  combiner lands" is at `[[dbarts.h:146-189@4c018187]]`, an EDIT. Plus the SIX meaning-moving
+  combiner lands" is at [inst/include/dbarts/dbarts.h:146-189](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L146-L189), an EDIT. Plus the SIX meaning-moving
   `dbarts.h` Doxygen paragraphs listed in the `window:` note above (comment
   edits only - no re-bake, no version-constant move). `docs/design/bcf.md:
   325-329` was factually wrong (it named `setTreatment`/`bcfGlue` as public
-  `dbarts.h` entries and cited `[[dbarts.h:264-271@4c018187]]`, all retired at reshape S1);
+  `dbarts.h` entries and cited [inst/include/dbarts/dbarts.h:264-271](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L264-L271), all retired at reshape S1);
   **FIXED 2026-08-13 in the pre-M4 amendment commit**, so M4.5 inherits a
   correct paragraph rather than a deliverable.
 
@@ -3641,7 +3641,7 @@ Falsifiers, all AMENDED 2026-08-13 except FA3, FA4 and FA6.
 same seed (this REPLACES the memo's F2, which fact 9 falsifies). Its CREATION
 half is DISCHARGED: M2's FS1 pinned the `forests =` route bitwise on all six
 `bcf-equivalence` channels, because that route resolves to the SAME payload
-`treatment =` did (`resolveForests` `[[R/model.R:759@4c018187]]`, `forestParams` `[[R/model.R:840-854@4c018187]]`).
+`treatment =` did (`resolveForests` [R/model.R:759](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L759), `forestParams` [R/model.R:840-854](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L840-L854)).
 FA0's live content is now exactly that the post-M4.1 GENERALIZED combiner still
 reproduces it.
 
@@ -3649,10 +3649,10 @@ reproduces it.
 a binary-basis proxy. **CORRECTED 2026-08-14: the stated reason was FALSE and
 is struck.** This plan claimed that "a strict VCBART DGP wants a CONTINUOUS
 basis column, and today's engine refuses one by name in two places
-(`[[R/model.R:693@4c018187]]` with its message at `[[R/model.R:695-696@4c018187]]`; `[[C_interface.cpp:776-789@4c018187]]`)".
-Neither site refuses one: `[[R/model.R:694@4c018187]]` is the logical-to-factor coercion
-and `[[R/model.R:697-698@4c018187]]` is `stop("a 'basis' cannot be NA")`, and
-`[[C_interface.cpp:777-780@4c018187]]` is the finiteness scan. A continuous basis column is
+([R/model.R:693](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L693) with its message at [R/model.R:695-696](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L695-L696); [src/C_interface.cpp:776-789](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L776-L789))".
+Neither site refuses one: [R/model.R:694](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L694) is the logical-to-factor coercion
+and [R/model.R:697-698](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L697-L698) is `stop("a 'basis' cannot be NA")`, and
+[src/C_interface.cpp:777-780](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L777-L780) is the finiteness scan. A continuous basis column is
 ACCEPTED on every route and RUNS to completion, MEASURED against a private-lib
 build (see 2f, where the same fact is what makes the basis-scale trap
 reachable). FA1 stays a binary-basis proxy because that is the shape the
@@ -3664,23 +3664,23 @@ TODAY on shipped surface.
   WITH: defaults - `a` free (half-Cauchy via `aVariance`), `b0`/`b1` free, the
   ASIS ridge move active on forest 0. WITHOUT: `forest(update.amplitude =
   FALSE)` on BOTH forests, which pins `a = 1, b0 = 0, b1 = 1` at their
-  constructed values (`[[combiner.hpp:319@4c018187]]`), makes `drawGlue` consume NO rng
-  (both blocks gated at `[[combiner.hpp:589@4c018187]]` and `[[combiner.hpp:609@4c018187]]`) and makes `afterCombine` an
-  immediate no-op (`[[combiner.hpp:640@4c018187]]`). The model is then `y = mu(x) + z tau(x) + eps` with
+  constructed values ([src/bartcore/combiner.hpp:319](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L319)), makes `drawGlue` consume NO rng
+  (both blocks gated at [src/bartcore/combiner.hpp:589](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L589) and [src/bartcore/combiner.hpp:609](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L609)) and makes `afterCombine` an
+  immediate no-op ([src/bartcore/combiner.hpp:640](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L640)). The model is then `y = mu(x) + z tau(x) + eps` with
   FIXED leaf-scale hyperparameters - VCBART's parameterization exactly, at
   K = 2, with no engine change. **The confound and its handling:** forest 0's
-  node scale is `s = scaledResponseSd` unconditionally (`[[chain.hpp:718@4c018187]]`) and
+  node scale is `s = scaledResponseSd` unconditionally ([src/bartcore/chain.hpp:718](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L718)) and
   there is no knob for it on a BCF sampler (`$setCalibration` refuses,
-  `[[R/dbarts.R:1484-1489@4c018187]]`), so the WITHOUT arm's prior on the mu total is
+  [R/dbarts.R:1484-1489](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1484-L1489)), so the WITHOUT arm's prior on the mu total is
   `N(0, s^2)` while the WITH arm's is `a` times that with
   `a ~ C+(0, aPriorScale = 2)`. Forest 1's scale IS tunable via `forest(sd =)`
-  -> `sdModerate` (`[[R/model.R:849@4c018187]]`, `[[R_interface_bartcore.cpp:2145@4c018187]]`), so run
+  -> `sdModerate` ([R/model.R:849](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L849), [src/R_interface_bartcore.cpp:2145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2145)), so run
   the WITHOUT arm over a small grid of `forest(sd =)` values and report the
   arm's BEST cell, with forest 0's fixed scale stated as a recorded
   limitation. A no-amplitude arm that wins from its best cell is a strong null;
   one that loses only at a badly chosen scale proves nothing.
   **DGP:** Friedman (1991) for mu (the house convention,
-  `[[benchmarks/R/grouped-mixing.R:56-58@4c018187]]`), a tau surface breaking at DIFFERENT
+  [benchmarks/R/grouped-mixing.R:56-58](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/grouped-mixing.R#L56-L58)), a tau surface breaking at DIFFERENT
   modifier thresholds than mu (FA4's spirit, so the two forests are not
   near-collinear), binary z with ~40% treated, n = 1000, sigma = 1.
   **Functionals, all identified:** `sigma`; `mean_i(tauhat_i)` (the WITH arm's
@@ -3688,10 +3688,10 @@ TODAY on shipped surface.
   fitted values at 5 fixed held-out rows. **Reported:** IACT and out-of-sample
   RMSE against the true `mu` and `(b1-b0)tau` surfaces, averaged over seeds
   with the spread printed. **IACT estimator, named:** `coda::effectiveSize`
-  (AR-spectral), IACT = N/ESS, per `[[benchmarks/R/grouped-mixing.R:68-77@4c018187]]`; `coda` is NOT in
+  (AR-spectral), IACT = N/ESS, per [benchmarks/R/grouped-mixing.R:68-77](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/grouped-mixing.R#L68-L77); `coda` is NOT in
   `DESCRIPTION` Suggests, so the harness `requireNamespace`-guards it and stops
-  with a message as `[[benchmarks/R/grouped-mixing.R:39-41@4c018187]]` does (the only ESS estimator with
-  a declared dependency is `posterior::ess_bulk`, `[[R/diagnostics.R:95@4c018187]], [[R/diagnostics.R:100@4c018187]], [[R/diagnostics.R:127@4c018187]]`
+  with a message as [benchmarks/R/grouped-mixing.R:39-41](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/grouped-mixing.R#L39-L41) does (the only ESS estimator with
+  a declared dependency is `posterior::ess_bulk`, [R/diagnostics.R:95](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/diagnostics.R#L95), [R/diagnostics.R:100](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/diagnostics.R#L100), [R/diagnostics.R:127](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/diagnostics.R#L127)
   - a promoted harness is the moment to consider switching). Report lag-1
   autocorrelation beside IACT; single-run IACT is recorded as unstable in two
   places, which is why seed replication is not optional. **Shape:** K = 2;
@@ -3702,7 +3702,7 @@ TODAY on shipped surface.
   **RESULT, 2026-08-13** (`probes-2026-08-13.md`; ran as specced, 32 fits in
   298 s, 9.2-10.0 s per fit; base seed 20260813, both arms seeing IDENTICAL
   data at each replicate; the response-scale decomposition identity of
-  `[[test-bcf-reporting.R:57-71@4c018187]]` holds to 7.1e-15 on all 32 fits). **The WITHOUT
+  [inst/tinytest/test-bcf-reporting.R:57-71](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L57-L71) holds to 7.1e-15 on all 32 fits). **The WITHOUT
   arm does NOT match.**
   - **IACT**, each functional allowed its OWN best WITHOUT cell, mean over 8
     seeds: `sigma` 65.5 -> 107.7 (**1.65x**), `mean tauhat` 26.5 -> 40.7
@@ -3713,7 +3713,7 @@ TODAY on shipped surface.
     spectral estimator alone. The one functional WITHOUT wins is
     `||mu_total||_2` (0.08x), and it is not like-for-like: in the WITH arm that
     IS the amplitude `a`'s own mixing (IACT 235.7 - the bottleneck the ASIS
-    ridge move exists to relieve, `[[docs/plans/bcf-ridge-interweaving.md:494-499@4c018187]]`), while
+    ridge move exists to relieve, [docs/plans/bcf-ridge-interweaving.md:494-499](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-ridge-interweaving.md#L494-L499)), while
     in the WITHOUT arm `a == 1` identically and there is no amplitude to mix.
   - **RMSE** on the held-out rows: muRMSE **0.6027** (WITH) against 0.6836 /
     0.7038 / 0.6934 (sd 0.5 / 1 / 2), i.e. 12-17% worse in EVERY cell, with
@@ -3724,17 +3724,17 @@ TODAY on shipped surface.
   - **The two constructibility caveats, recorded beside the numbers they
     qualify.** (i) *The muRMSE confound the spec anticipated is REAL and is
     carried wherever muRMSE is cited here:* forest 0's node scale is
-    `s = scaledResponseSd` unconditionally (`[[chain.hpp:718@4c018187]]`) and `forest(sd =)`
+    `s = scaledResponseSd` unconditionally ([src/bartcore/chain.hpp:718](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L718)) and `forest(sd =)`
     on the FIRST forest maps to `spec.aPriorScale`
-    (`[[R_interface_bartcore.cpp:2145@4c018187]]`), not to a node scale, so the WITHOUT arm
+    ([src/R_interface_bartcore.cpp:2145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2145)), not to a node scale, so the WITHOUT arm
     cannot retune the mu prior at ALL. It does NOT reach the IACT gap - a
     looser prior mixes worse, not better - and the tau tie runs the same
     direction. (ii) *The out-of-sample mechanism:* a BCF sampler REFUSES test
-    predictors (`[[R/spec.R:455@4c018187]]`), so the held-out half was carried as 1000
+    predictors ([R/spec.R:455](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L455)), so the held-out half was carried as 1000
     additional design rows with WEIGHT 0. That is exact, not a workaround -
     zero-weight rows drop from the weighted SSR, every leaf conditional and the
-    posterior df (`[[model.hpp:2481-2483@4c018187]]`) while still being assigned to leaves
-    and receiving fitted values (`[[moves.hpp:69@4c018187]]`) - so the likelihood saw
+    posterior df ([src/bartcore/model.hpp:2481-2483](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L2481-L2483)) while still being assigned to leaves
+    and receiving fitted values ([src/bartcore/moves.hpp:69](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/moves.hpp#L69)) - so the likelihood saw
     exactly 1000 rows in both arms, and the run is an incidental validation of
     the zero-weight machinery.
 - **FA1b, the amplitude-free family at K > 2 (pure R composition).** FA1a
@@ -3786,11 +3786,11 @@ TODAY on shipped surface.
 **FA2** with the per-forest ASIS rescale removed, the amplitude's IACT degrades
 measurably; if it cannot go red, the remedy is decoration. **Its
 single-amplitude half is ALREADY SATISFIED and the measurement is in the
-repo:** `[[docs/plans/bcf-ridge-interweaving.md:494-499@4c018187]]`, from the arc that BUILT
+repo:** [docs/plans/bcf-ridge-interweaving.md:494-499](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-ridge-interweaving.md#L494-L499), from the arc that BUILT
 the a-move - initial-monotone IACT, mean over 4 seeds, strong prognostic
 signal, n = 200 - `|a|` IACT **321 -> 130 (2.5x)** (base spread 198-544, new
 100-156) and sigma IACT **64 -> 37 (1.7x)** (base 17-112, new 28-50); with the
-sharper control at `[[docs/plans/bcf-ridge-interweaving.md:488-492@4c018187]]`, where refreshing `aVariance` after the move
+sharper control at [docs/plans/bcf-ridge-interweaving.md:488-492](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-ridge-interweaving.md#L488-L492), where refreshing `aVariance` after the move
 (breaking the ASIS conditioning) HURT `|a|` mixing 69 -> 196. So the remedy is
 not decoration and the mechanism is specifically the ASIS conditioning. **The
 pre-arc re-run is RETIRED at explicit orchestrator discretion** - this is a
@@ -3802,20 +3802,20 @@ and it is an M4.2-INTERNAL gate, not a pre-arc probe:** run it with the
 per-forest move in and out, on the same two-build method the a-move used. Its
 acceptance question is its OWN IACT payoff (`|b1-b0|` or tau-amplitude IACT on
 a strong-treatment-signal DGP) plus `bcf-exact` mode-2b staying exact and a
-keepTrees BCF round-trip tracking, per `[[docs/plans/bcf-b-ridge.md:438-449@4c018187]]`. **The
+keepTrees BCF round-trip tracking, per [docs/plans/bcf-b-ridge.md:438-449](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-b-ridge.md#L438-L449). **The
 `bcf-sigma-residual` acceptance question is STRUCK** - that flag is RESOLVED
 and the move was exonerated as its carrier (see M4.2).
 
 **FA3** a continuous single-column basis recovers a known closed-form posterior
 to Monte Carlo error, in `bcf-exact.R`'s idiom - whose header `:1-20` states
 the enumeration plus quadrature construction and its three modes, and whose
-mode 2b comment (`[[benchmarks/R/bcf-exact.R:39-40@4c018187]]`) independently names "the bscale ridge".
+mode 2b comment ([benchmarks/R/bcf-exact.R:39-40](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/bcf-exact.R#L39-L40)) independently names "the bscale ridge".
 
 **FA4** a K = p+1 VCBART-shaped sampler recovers known coefficient surfaces
 better than one `LinearGaussianLeaf` fit on a DGP where the coefficients break
 at DIFFERENT modifier thresholds; a null means this should have been a leaf
 model. Bounded at p <= 8 on the leaf side: `LinearGaussianLeaf`
-(`[[model.hpp:918@4c018187]]`) has `maxNumCovariates = 8` (`[[model.hpp:924@4c018187]]`).
+([src/bartcore/model.hpp:918](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L918)) has `maxNumCovariates = 8` ([src/bartcore/model.hpp:924](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L924)).
 
 **FA5, the non-Gaussian claim, RESPECIFIED.** The committed form has no teeth:
 its comparison arm is a composition no competent host would write (K probit
@@ -3835,11 +3835,11 @@ TWO legs, split on where an exact posterior is constructible at all.
   and NOT factorizable per leaf - up to 6 dimensions per enumerated tree pair
   at this DGP. So the exact arm is restricted to the GAUSSIAN legs, where it
   belongs. Leg G's job is to validate the R-composition DRIVER against the
-  exact posterior on the same enumerable design (`[[bcf-exact.R:47-49@4c018187]]`: K = 3
+  exact posterior on the same enumerable design ([benchmarks/R/bcf-exact.R:47-49](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/bcf-exact.R#L47-L49): K = 3
   cells, single-tree forests): two single-forest Gaussian samplers, host-owned
   residual bookkeeping, must recover the exact posterior. It also FIXES the
   tolerance unit used downstream, and it proves the loop is not itself
-  perturbing the chain via `[[test-bcf-reporting.R:86-99@4c018187]]`'s batch-vs-loop
+  perturbing the chain via [inst/tinytest/test-bcf-reporting.R:86-99](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L86-L99)'s batch-vs-loop
   `expect_identical` template.
 - **Leg P (probit, NO exact reference, two arms plus a control).** DGP: the
   same degenerate enumerable design on a probit likelihood,
@@ -3849,24 +3849,24 @@ TWO legs, split on where an exact posterior is constructible at all.
   - **Arm B (the decisive R-composed arm).** Two single-forest GAUSSIAN dbarts
     samplers over the same design, each created with `resid.prior = fixed(1)`
     so sigma is pinned at 1 across sweeps (the value is a VARIANCE, not an sd;
-    recorded footgun, `[[docs/design/correlated-outcomes.md:161-165@4c018187]]`). Per sweep,
+    recorded footgun, [docs/design/correlated-outcomes.md:161-165](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/correlated-outcomes.md#L161-L165)). Per sweep,
     in R: (1) read both forests' fits and form the combined location
     `F_i = mu_i + z_i tau_i`; (2) draw `w_i | y_i, F_i ~ TN(F_i, 1)` truncated
     to the sign of `y_i` - **against the COMBINED fit**, which is the whole
     point; (3) per forest, `$setResponse(w - other_f, updateScale = FALSE)`,
     `$setWeights(m_f^2)`, `$run(0L, 1L)`. Leaf priors matched exactly through
-    `$setCalibration(forest, prior.scale =)` (`[[R/dbarts.R:1461-1527@4c018187]]`; legal on
+    `$setCalibration(forest, prior.scale =)` ([R/dbarts.R:1461-1527](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1461-L1527); legal on
     a single-forest sampler, refused only on BCF). **The location lever must be
     matched too, and it is easy to miss:** `prior.mean` is the response
     transform's SHIFT and an offset of `-prior.mean` re-centers the modelled
-    quantity (`[[test-calibration-creation.R:56-63@4c018187]]`, applied as
+    quantity ([inst/tinytest/test-calibration-creation.R:56-63](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-calibration-creation.R#L56-L63), applied as
     `setOffset(rep_len(-priorMean, rows), updateScale = FALSE)`). With two
     samplers each taking a per-forest RESIDUAL response the shift is
     per-sampler and no longer cancels; omitted, an arm-B disagreement is
     uninterpretable, because it is the very confound the DIFFERS row sends the
     implementer to chase. **Predicted: AGREES.** Arm B is cheap because the
     K = 1 version already ships as a test:
-    `[[inst/tinytest/test-calibration-creation.R:53-80@4c018187]]` is this loop at K = 1.
+    [inst/tinytest/test-calibration-creation.R:53-80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-calibration-creation.R#L53-L80) is this loop at K = 1.
   - **Arm A (the committed strawman, kept as the POSITIVE CONTROL).** Two
     independent PROBIT dbarts samplers, each drawing its own latents against
     its own fit, composed additively in R. **Predicted: DIFFERS.**
@@ -3953,11 +3953,11 @@ TWO legs, split on where an exact posterior is constructible at all.
   RESOLVED, which is what sharpens the falsifier:** the one thing that could
   have made arm B unbuildable - holding sigma across sweeps - is a PUBLIC knob
   and the supported idiom. `resid.prior = fixed(v)` sets `model.sigmaIsFixed`
-  (`[[R_interface_bartcore.cpp:1381-1387@4c018187]]`), gating the end-of-sweep redraw at
-  `[[chain.hpp:1276-1277@4c018187]]`; `$setSigma()` ALONE does not suffice, because it
-  installs unconditionally (`[[chain.hpp:1387@4c018187]]`) and an unfixed gaussian sampler
-  overwrites it every sweep. The bridge's own comment (`[[chain.hpp:2655-2680@4c018187]]`) names the
-  combination as intended and `[[test-sampler-errors.R:159-168@4c018187]]` asserts it is
+  ([src/R_interface_bartcore.cpp:1381-1387](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1381-L1387)), gating the end-of-sweep redraw at
+  [src/bartcore/chain.hpp:1276-1277](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1276-L1277); `$setSigma()` ALONE does not suffice, because it
+  installs unconditionally ([src/bartcore/chain.hpp:1387](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1387)) and an unfixed gaussian sampler
+  overwrites it every sweep. The bridge's own comment ([src/bartcore/chain.hpp:2655-2680](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2655-L2680)) names the
+  combination as intended and [inst/tinytest/test-sampler-errors.R:159-168](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-sampler-errors.R#L159-L168) asserts it is
   permitted. `fixed()` is reachable publicly as `dbartsPriors$fixed(v)` or by
   bare name inside `resid.prior =`. So an arm-B failure cannot be blamed on a
   missing knob.
@@ -4025,9 +4025,9 @@ VD resolved 2026-08-11 rather than after the freeze as this plan recommended.
 **UNCHANGED by the probe verdicts (2026-08-13):** this pricing already carried
 M4.2 in full, so FA1's failure to license the re-scope removes a saving that
 was never booked; and FA5 reorders M4.4 after M4.5 without changing either
-slice's line count, beyond M4.4 carrying the one `[[dbarts.h:505@4c018187]]` Doxygen
+slice's line count, beyond M4.4 carrying the one [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L505) Doxygen
 paragraph M4.5 would otherwise have swept.
-**M0 remains DEFERRED at orchestrator discretion** (`[[TODO:236-237@4c018187]]`) and is NOT
+**M0 remains DEFERRED at orchestrator discretion** ([TODO:236-237](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L236-L237)) and is NOT
 an M4 precondition; after M4.5 is the cheapest place to land it, since M4 moves
 the vocabulary M0 documents.
 
@@ -4048,7 +4048,7 @@ reopen)", item 3.** Replace the item with:
 >    updateScale)`, `numForests` and `forestFits` are adopted verbatim and
 >    re-signed never; no guard S3 relaxed is re-relaxed. CARVE-OUT: the two
 >    BCF-SPECIFIC names `setTreatment` and `bcfGlue`, and the creation contract
->    documented at `[[dbarts.h:348-357@4c018187]]` plus the ownership sentence at `[[dbarts.h:43@4c018187]]`, MAY
+>    documented at [inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357) plus the ownership sentence at [inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43), MAY
 >    be re-signed to engine vocabulary in this arc's S1, because
 >    bcf-public-surface's later VD amendment authorizes exactly that ("The flat
 >    C names S3 shipped (`setTreatment`, `bcfGlue`) are likewise renameable at
@@ -4079,10 +4079,10 @@ Insert:
 >    body accepts only what today's engine honours - forest 1, a two-column
 >    complementary 0/1 basis, Gaussian family - and refuses the rest naming the
 >    capability, so the family relaxes guard bodies later and moves no header.
->    Ownership: the entry COPIES, matching `setTreatment` (`[[dbarts.h:43@4c018187]]`); state
+>    Ownership: the entry COPIES, matching `setTreatment` ([inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43)); state
 >    it in the Doxygen, because a continuous basis cannot be coerced-and-copied
 >    incidentally the way a 0/1 z can. Re-word the creation Doxygen
->    (`[[dbarts.h:348-357@4c018187]]`) in engine vocabulary. Budget ~40 header + ~80
+>    ([inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357)) in engine vocabulary. Budget ~40 header + ~80
 >    C_interface + ~70 consumer.c + ~60 test-capi.R.
 
 **3. `docs/plans/archive/dbarts-h-reshape.md`, S1 item 5 (`setForestWeights`).** Append
@@ -4104,8 +4104,8 @@ AMENDED block.** Append:
 > slice rather than deprecated, since nothing is released and bartCause has not
 > adopted them. The rename surface is THREE things, not two: this block names
 > `setTreatment` and `bcfGlue`, and misses the creation contract documented at
-> `[[dbarts.h:348-357@4c018187]]` ("dbartsSpec(data, control, treatment = z)") plus the
-> ownership sentence at `[[dbarts.h:43@4c018187]]`. The conflict between this block and
+> [inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357) ("dbartsSpec(data, control, treatment = z)") plus the
+> ownership sentence at [inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43). The conflict between this block and
 > dbarts-h-reshape's binding decision 3 is adjudicated in favour of this block:
 > that decision now carries a conditional carve-out for the two BCF-specific
 > names and the creation contract.
@@ -4143,11 +4143,11 @@ inherited (do not reopen)", after item 5.** Insert:
 >    arc owns a fresh veto-rate measurement at its own K.
 
 **8. `TODO`, the `multiforest-extension-surface` door sentences.** APPLIED,
-records commit (2026-08-11). The sentences originally cited at [[dbarts.h:86@4c018187]] and [[dbarts.h:625@4c018187]]
-were already consolidated to one block at [[TODO:124-144@4c018187]] by e2cc1de (past this
+records commit (2026-08-11). The sentences originally cited at [inst/include/dbarts/dbarts.h:86](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L86) and [inst/include/dbarts/dbarts.h:625](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L625)
+were already consolidated to one block at [TODO:124-144](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L124-L144) by e2cc1de (past this
 item's own literal replacement text - it named the completed R/C-division
-review); the records commit rewrites that block again, then at [[TODO:154-178@4c018187]]
-and at 934a02d5 at [[TODO:190-214@4c018187]],
+review); the records commit rewrites that block again, then at [TODO:154-178](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L154-L178)
+and at 934a02d5 at [TODO:190-214](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L190-L214),
 recording: plan path `docs/plans/archive/multiforest-extension-surface.md`,
 the answer
 (the driver surface is the shape and is nearly shipped; the declarative
@@ -4222,7 +4222,7 @@ This is the axis that decides whether the family has engine content at all. For
 Gaussian there are no latents to refresh, so the composition is expressible in R
 today; for probit, logistic, Student-t, ordinal, negative-binomial and the
 softmax the latents are drawn ONCE against the COMBINED fit
-(`[[chain.hpp:1266-1267@4c018187]]`), so K independent R samplers are a DIFFERENT model, not
+([src/bartcore/chain.hpp:1266-1267](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1266-L1267)), so K independent R samplers are a DIFFERENT model, not
 a slower one.
 
 - **(a) Probit and logistic in v1, the rest doors (RECOMMENDED).** Cost is lower
@@ -4414,17 +4414,17 @@ not a separate decision.
 1. **The memo's declarative spec is OVERTURNED and replaced** (fact 9). Its
    "amplitude times an n x K multiplier matrix" does not contain BCF, because
    `combinedFits` uses `b_{z_i}` and `drawGlue` draws `b0` and `b1` as two
-   conjugate coefficients over the two z subsets (`[[combiner.hpp:567-576@4c018187]]`,
-   `[[combiner.hpp:609-622@4c018187]]`), i.e. forest 1 carries a two-column indicator basis. The channel
+   conjugate coefficients over the two z subsets ([src/bartcore/combiner.hpp:567-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567-L576),
+   [src/bartcore/combiner.hpp:609-622](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L609-L622)), i.e. forest 1 carries a two-column indicator basis. The channel
    is a per-forest basis MATRIX with a coefficient VECTOR. Its falsifier F2 is
    struck and replaced by FA0.
 2. **The memo's cost estimate for the family is raised**, from 350-500 engine
    lines to 450-650, on departure 1 plus the q-variate amplitude conditional -
    which is cheaper than it sounds because `choleskyDecompose` and the
-   triangular solves already ship (`[[model.hpp:869-895@4c018187]]`).
+   triangular solves already ship ([src/bartcore/model.hpp:869-895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L869-L895)).
 3. **The memo's 1.04x is void wherever it is attributed to the R composition**
    (B3, adopted): 0.89-0.95x is the engine's own per-sweep drive, and it keeps
-   its receipt (`[[docs/plans/bcf-public-surface.md:85-93@4c018187]]`).
+   its receipt ([docs/plans/bcf-public-surface.md:85-93](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-public-surface.md#L85-L93)).
    **ERRATUM, 2026-08-13 (post-probes), in this plan's own house style: the
    composition figure this item asserted - 1.39-1.43x at K = 2, "growing with
    K" - is STRUCK, in all EIGHT places it appeared** (this item, the answer
@@ -4468,7 +4468,7 @@ not a separate decision.
     since `forestMultiplier` does read `glue_.z[i]`, caller-supplied borrowed
     data, to select `b1` over `b0`.
 11. **The memo's "borrowed pointer" wording is corrected** per the critique's
-    A4: flat `setTreatment` COPIES (`[[dbarts.h:43@4c018187]]`) and the bridge copies into
+    A4: flat `setTreatment` COPIES ([inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43)) and the bridge copies into
     holder-owned storage. The recommendation (a raw pointer plus a count, not a
     struct) survives; the ownership question is answered explicitly (COPY) in
     the channel spec rather than left implicit.
@@ -4552,7 +4552,7 @@ ridge is: nobody has measured one. Do not cite `composition-mixing-probe.md`'s
 IACT 850-880 panel as a forest-versus-forest result - every arm there is a
 parametric block against a forest, the panel is reported rather than gated, and
 its coordinate is not comparable across arms; and its own open item
-(`[[dbarts.h:1087-1091@4c018187]]`) declines to bound even forest-versus-parametric against the
+([inst/include/dbarts/dbarts.h:1087-1091](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L1087-L1091)) declines to bound even forest-versus-parametric against the
 group-intercept surrogate in either direction.
 (2) Whether the amplitude and its ASIS remedy earn their place for any class but
 BCF: FA1 is the pre-registration and has not been run. (3) What the family's
@@ -4587,7 +4587,7 @@ stored-state difference satisfied the assertion even with the mirror
 mechanism deleted (proven empirically); (2) the Rd's all-ones leg claimed a
 `setForestWeights` all-ones vector is "bitwise distinct from carrying none" -
 false; it INSTALLS (a round trip reports it) but is the BITWISE IDENTITY on
-draws (plan item 3(b) above, `[[test-forest-weights.R:73@4c018187]]`). Red-team finding,
+draws (plan item 3(b) above, [inst/tinytest/test-forest-weights.R:73](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-weights.R#L73)). Red-team finding,
 fixed as a review-mandated scope extension beyond the plan's two named sites:
 `$copy()` silently DROPPED installed per-forest weights (a fresh R5 object,
 `setState` reapplies the dupe's empty list); fixed with an explicit field
@@ -4700,19 +4700,19 @@ retires these alongside the flat-C renames.
 M3 LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13 (implemented as
 3a977b6d, amended during independent review). `dbarts_sampler_setTreatment`
 re-signed to `dbarts_sampler_setForestBasis(sampler, forest, basis,
-numColumns)` ([[C_interface.cpp:759@4c018187]]); `dbarts_sampler_bcfGlue` replaced by
-`dbarts_sampler_numForestAmplitudes` ([[C_interface.cpp:806@4c018187]]) and `dbarts_sampler_forestAmplitudes`
-([[C_interface.cpp:819@4c018187]]); the creation Doxygen ([[dbarts.h:484-505@4c018187]]) re-worded end to end in
+numColumns)` ([src/C_interface.cpp:759](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L759)); `dbarts_sampler_bcfGlue` replaced by
+`dbarts_sampler_numForestAmplitudes` ([src/C_interface.cpp:806](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L806)) and `dbarts_sampler_forestAmplitudes`
+([src/C_interface.cpp:819](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/C_interface.cpp#L819)); the creation Doxygen ([inst/include/dbarts/dbarts.h:484-505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L484-L505)) re-worded end to end in
 engine vocabulary - `forests = list(forest(), forest(basis = ...))`,
 `setForestBasis`, `forestFits`, `numForestAmplitudes`/`forestAmplitudes` -
 with no `treatment`/`bcfGlue` token left in it. All three message leaks
 recorded above are retired: `bartcore_setTreatment` now errors "a forest
 basis requires a sampler whose forests carry amplitudes"
-([[R_interface_bartcore.cpp:3675-3676@4c018187]]), `bartcore_getBCFGlue` now errors
-"forest amplitudes require a sampler whose forests carry them" ([[R_interface_bartcore.cpp:3774@4c018187]]), and
+([src/R_interface_bartcore.cpp:3675-3676](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3675-L3676)), `bartcore_getBCFGlue` now errors
+"forest amplitudes require a sampler whose forests carry them" ([src/R_interface_bartcore.cpp:3774](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L3774)), and
 `validateTreatment`'s length-mismatch message is parameterized by an
 `argument` name that the `forests =` creation path now passes as `"basis"`
-([[R/spec.R:404-410@4c018187]], `[[data.R:648@4c018187]]` reads `"length of '", argument, "' must
+([R/spec.R:404-410](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L404-L410), [R/data.R:648](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L648) reads `"length of '", argument, "' must
 equal length of 'y'"`) - no `'treatment'` string reaches a `forests =` user
 anywhere. Falsifiers FC1-FC3 all green: FC1 a flat-created sampler through
 `setForestBasis` reproduces the R5 path bitwise at a shared seed; FC2 the
@@ -4727,22 +4727,22 @@ ONCE after independent review (LAND-AFTER-CHANGES -> applied). Tests-only:
 tests/cpp (3 files), inst/tinytest (1), TODO trim. rng NEUTRAL confirmed by
 two independent trio runs.
 
-Pins: testBCFCombinerSeam ([[test_sampler.cpp:2818-3160@4c018187]]) and
+Pins: testBCFCombinerSeam ([tests/cpp/test_sampler.cpp:2818-3160](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L2818-L3160)) and
 testMultinomialCombinerSeam covering the full amended mandate -
-forestMultiplier ([[combiner.hpp:762@4c018187]], both call sites [[combiner.hpp:552@4c018187]]/[[combiner.hpp:560@4c018187]]), combinedFits
-([[combiner.hpp:567@4c018187]]) incl. the snap-band arm (snap pinned in the reparameterization, exact
-multiplier in the blend), drawGlue ([[combiner.hpp:582@4c018187]]) order a/aVariance/b0/b1 + both
-block skips, BCFForestCombiner::afterCombine ([[combiner.hpp:638@4c018187]]) GIG rescale c =
+forestMultiplier ([src/bartcore/combiner.hpp:762](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L762), both call sites [src/bartcore/combiner.hpp:552](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L552)/[src/bartcore/combiner.hpp:560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L560)), combinedFits
+([src/bartcore/combiner.hpp:567](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L567)) incl. the snap-band arm (snap pinned in the reparameterization, exact
+multiplier in the blend), drawGlue ([src/bartcore/combiner.hpp:582](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L582)) order a/aVariance/b0/b1 + both
+block skips, BCFForestCombiner::afterCombine ([src/bartcore/combiner.hpp:638](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L638)) GIG rescale c =
 sqrt(GIG((L-1)/2, ...)) with the three reachable 1.0 skips inert on the rng
-stream, MultinomialForestCombiner::afterCombine ([[combiner.hpp:1152@4c018187]]) additive shift +
-single normal ([[combiner.hpp:1180@4c018187]]) + the returns-1.0-having-moved convention (its pin is
+stream, MultinomialForestCombiner::afterCombine ([src/bartcore/combiner.hpp:1152](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1152)) additive shift +
+single normal ([src/bartcore/combiner.hpp:1180](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1180)) + the returns-1.0-having-moved convention (its pin is
 the SOLE guard on that convention). Every pin states the wrong wiring it
 catches; the reviewer confirmed no over-constraint - each BCF pin is a
 quantity M4.1/M4.2 must reproduce as the K = 2 / q = 1, d = 1 special case.
 
 The review's REQUIRED fix, recorded as the slice's lesson: the multinomial
 fixture originally set numTrees = 1 on all forests, collapsing every
-per-tree factor m_k to 1 and leaving four sites ([[combiner.hpp:1160@4c018187]], [[combiner.hpp:1175@4c018187]], [[combiner.hpp:1176@4c018187]], [[combiner.hpp:1186@4c018187]])
+per-tree factor m_k to 1 and leaving four sites ([src/bartcore/combiner.hpp:1160](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1160), [src/bartcore/combiner.hpp:1175](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1175), [src/bartcore/combiner.hpp:1176](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1176), [src/bartcore/combiner.hpp:1186](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1186))
 undiscriminated - the reviewer MEASURED perTree = c staying green. Fixed
 with unequal per-forest tree counts ({2, 1, 1}, forest 0's leaf sum split),
 plus a fixture ran-at-all guard; perTree = c and return c both re-proven RED
@@ -4756,12 +4756,12 @@ independently reproduced three (gigP -> L/2; b0/b1 order swap - not
 implementer-emphasized; return c, which failed EXACTLY one pin, proving
 non-vacuity).
 
-Advisories accepted, no action: [[combiner.hpp:674@4c018187]]/[[combiner.hpp:676@4c018187]] non-finite returns are
+Advisories accepted, no action: [src/bartcore/combiner.hpp:674](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L674)/[src/bartcore/combiner.hpp:676](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L676) non-finite returns are
 in the mandate's skip list but unpinned - unreachable from a fixture
 (near-true: an overflowing M could reach them), recorded as a deviation; the
 hook arm exercises interweaveGlueRidge only with updateA = false, so the
-[[chain.hpp:1280-1281@4c018187]] sweep order rests on the pre-existing testBCFInterweave
-([[chain.hpp:2471@4c018187]]) and the trio.
+[src/bartcore/chain.hpp:1280-1281](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1280-L1281) sweep order rests on the pre-existing testBCFInterweave
+([src/bartcore/chain.hpp:2471](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2471)) and the trio.
 
 Gates: implementer AND reviewer batteries both clean from scratch (tinytest
 4582/0 twice; trio 37-strict + 12 + 10 bitwise twice, zero max-|z| lines;
@@ -4769,7 +4769,7 @@ tests/cpp clean builds; reviewer ASAN/UBSAN leg zero reports; air exit 0;
 lintr clean).
 
 Carried items closed in this commit's slice: the three S2 test-hardening
-items (intent verbatim per [[docs/plans/grow-from-root-categorical-scan.md:924-930@4c018187]] -
+items (intent verbatim per [docs/plans/grow-from-root-categorical-scan.md:924-930](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-categorical-scan.md#L924-L930) -
 20-cell ran-at-all counter, belowCap tally asserted both ways,
 all-zero-weights present-category fixture with its own zeroed > 0 guard)
 and the TODO residue sentence trimmed; the mask-arc carried cosmetics (test
@@ -4871,7 +4871,7 @@ one-line switch a future re-record flips. NO baseline moved.
 
 The b-move ships as code, held OFF for BCF (BCFSpec::ridgeB): enabling costs
 a GIG draw/sweep = a re-record, and its own acceptance gate
-([[docs/plans/bcf-b-ridge.md:438-449@4c018187]] - IACT payoff, bcf-exact mode-2b, keepTrees
+([docs/plans/bcf-b-ridge.md:438-449](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-b-ridge.md#L438-L449) - IACT payoff, bcf-exact mode-2b, keepTrees
 round-trip) was not run here. DOOR, not a fork: flips only if a measured
 mixing case is named; bcf-equivalence's 12/12 bitwise on the glue channel is
 the standing pin that no GIG draw entered the BCF stream. Reviewer concurred
@@ -4964,9 +4964,9 @@ reconstruction.
 
 The ridgeB question RESOLVED at review: no silent enablement is possible -
 on every creation route scale-mixture holds if and only if a forest is
-basis-free ([[R/model.R:874@4c018187]] writes the amplitude prior scale as 0 whenever a
-basis is declared; [[R_interface_bartcore.cpp:2205@4c018187]] reads it into
-amplitudePriorScale and [[R_interface_bartcore.cpp:2207@4c018187]] gates ridge on it), so every basis-carrying
+basis-free ([R/model.R:874](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L874) writes the amplitude prior scale as 0 whenever a
+basis is declared; [src/R_interface_bartcore.cpp:2205](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2205) reads it into
+amplitudePriorScale and [src/R_interface_bartcore.cpp:2207](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2207) gates ridge on it), so every basis-carrying
 forest gets ridge = false; the one reachable q>1 scale-mixture state
 (post-creation widening of a basis-free forest) consumes the SAME single
 GIG draw already taken at q=1 at the M4.2-validated exponent - no stream
@@ -5019,15 +5019,15 @@ outside DBARTS_C_API_LIST.
 
 feature-matrix.md moves NO CELL: the family is still gaussian-only, so the
 new K-length creation route reaches no new response family -
-[[R/spec.R:423-431@4c018187]] refuses data@bases off any non-gaussian family, and
-[[chain.hpp:702-705@4c018187]] builds GaussianResponse and sets
+[R/spec.R:423-431](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L423-L431) refuses data@bases off any non-gaussian family, and
+[src/bartcore/chain.hpp:702-705](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L702-L705) builds GaussianResponse and sets
 family_ = ResponseFamily::gaussian unconditionally on every K-forest route.
 That discharges the matrix's per-landing mandate for this slice; only the
 bcf row LABEL and the spec-named COM/CH anchors moved, both non-cell edits.
 
 The five orchestrator decisions. Q1: M4.5 touches src/ after all -
 dbarts.h is already outside the docs-only no-workflow path, so the
-two-line [[combiner.hpp:1206-1210@4c018187]] comment fix (a dangling docs/design/bcf.md
+two-line [src/bartcore/combiner.hpp:1206-1210](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1206-L1210) comment fix (a dangling docs/design/bcf.md
 IACT citation, repointed to multiplier-combiner.md) cost nothing extra and
 was taken. Q2: all of forest-combiner.md, not just the plan's named
 re-carves section - leaving the file documenting one combiner instance
@@ -5054,7 +5054,7 @@ file, and edits to forest-combiner.md, model-space-survey.md, bcf.md, and
 dbarts.h. The scoping pass found eight further defects, F1-F8, all taken.
 The single most important: dbarts_sampler_create's Doxygen stated
 numForests == 2 as an invariant against a shipped K = 3 route
-([[test-forest-basis-r5.R:145@4c018187]], [[test-forest-basis-r5.R:236-238@4c018187]] build one through dbarts(...,
+([inst/tinytest/test-forest-basis-r5.R:145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-basis-r5.R#L145), [inst/tinytest/test-forest-basis-r5.R:236-238](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-forest-basis-r5.R#L236-L238) build one through dbarts(...,
 forests = list(forest(), forest(basis = ), forest(basis = )))) - a false
 invariant in the only shipped header, the LinkingTo entry point stan4bart
 and its kin call. Three design docs were found contradicting THEMSELVES:
@@ -5078,14 +5078,14 @@ overage against it.
 
 Gates, as observed locally: tinytest 4646/0, test-capi.R 188/0, tests/cpp
 all tests passed. dbarts_apiHash() 0xcd88efcd67de55d7, verified three ways
-(the static_assert, the consumer.c raw leg, and the [[test-capi.R:59@4c018187]] literal
+(the static_assert, the consumer.c raw leg, and the [inst/tinytest/test-capi.R:59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-capi.R#L59) literal
 pin). Equivalence trio bitwise: 37 compared / 0 skipped under
 --strict-coverage, bcf 12/12 on all channels, multinomial 10/10 on all
 channels, zero "max |z|" lines. Every src/ and inst/include/ hunk verified
 comment-only (git diff -U0, filtered for non-"///" lines: zero hits) and
 outside DBARTS_C_API_LIST, so no version constant moved. ASCII clean
 across all ten changed/new files. "Gaussian responses only." survives
-verbatim, now at [[dbarts.h:513@4c018187]] (shifted from [[dbarts.h:505@4c018187]] by the paragraph's own
+verbatim, now at [inst/include/dbarts/dbarts.h:513](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L513) (shifted from [inst/include/dbarts/dbarts.h:505](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L505) by the paragraph's own
 growth), and moves with M4.4. CI SIX-GREEN on fcfd4e29, sanitizers
 included - this slice touches inst/include/ and src/, which the path
 filters (paths-ignore: docs/**, TODO, **.md, benchmarks/**) do not
@@ -5096,12 +5096,12 @@ THE STANDING LESSON: a slice that edits files AND cites them by line
 number invalidates its own citations mid-flight. Independent review caught
 three clusters of this on the first pass - the dbarts.h header edits
 shifted every anchor past the first hunk by up to +21; a three-line
-correction to this plan (the column-major -> row-major fix at [[dbarts.h:557-560@4c018187]])
-shifted every plan anchor above [[dbarts.h:558@4c018187]] quoted in the new prose by +3; and
+correction to this plan (the column-major -> row-major fix at [inst/include/dbarts/dbarts.h:557-560](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L557-L560))
+shifted every plan anchor above [inst/include/dbarts/dbarts.h:558](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L558) quoted in the new prose by +3; and
 model-space-survey.md's OWN earlier edits, made earlier in the same
 commit, shifted its own new D4 section's citations by +8 and +9. The fix
 pass re-derived 141 citations and corrected 60 - and was not itself
-immune: a single Doxygen comment fix in combiner.hpp ([[dbarts.h:898-902@4c018187]], four
+immune: a single Doxygen comment fix in combiner.hpp ([inst/include/dbarts/dbarts.h:898-902](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L898-L902), four
 lines out, five in) shifted MultinomialForestCombiner::setActiveRows off
 the exact line the review had just given it. The discipline this leaves:
 re-derive every anchor by OPENING THE TARGET, never by applying an
@@ -5219,7 +5219,7 @@ through 25 are all present and spec-conformant, item 14 correctly shipping no
 code. Two DELIBERATE deviations, recorded so neither reads as a miss: item
 21's helper is `basisRowNorm(const double*, numColumns, n)` rather than the
 specified `(const ForestSpec&, n)`, which item 22's call site requires; and
-item 7's row for `[[man/dbartsSampler-class.Rd:147@4c018187]]` was NOT edited because the
+item 7's row for [man/dbartsSampler-class.Rd:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L147) was NOT edited because the
 Rd's claim is not in fact falsified - post-creation `setWeights` is still
 gaussian-only and the page already defers to `dbarts` for creation-time rules
 - so the SPEC's row was wrong there, not the code. A weak spot in the new
@@ -5241,17 +5241,17 @@ keys on the sampler carrying bases and `refuseMultiForestResponseMutation` on
 `numForests >= 2`; neither has ever consulted the family, so the cell does
 not move and the reason is that the refusal was never family-keyed. M4.4's
 own new test already pins it. The other eight are anchors: item 7's
-"sd(y)-unit calibration" third instance is at `[[multiplier-combiner.md:28@4c018187]]`,
-not `[[multiplier-combiner.md:25@4c018187]]`; `[[man/dbartsSampler-class.Rd:147@4c018187]]` is listed among the nine
+"sd(y)-unit calibration" third instance is at [docs/design/multiplier-combiner.md:28](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L28),
+not [docs/design/multiplier-combiner.md:25](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L25); [man/dbartsSampler-class.Rd:147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L147) is listed among the nine
 assertions M4.4 falsifies but is already FAMILY-scoped rather than
 forest-count-scoped, so it was correct as written and took no edit; 2d(a)'s
-`[[R/model.R:772-840@4c018187]]`, `[[R/model.R:799-806@4c018187]]` and `[[R/model.R:874@4c018187]]` and
-`[[R_interface_bartcore.cpp:2207@4c018187]]` are really `[[R_interface_bartcore.cpp:810-878@4c018187]]`, `[[R_interface_bartcore.cpp:837-843@4c018187]]`, `[[R_interface_bartcore.cpp:915@4c018187]]`
-and `[[R_interface_bartcore.cpp:2208@4c018187]]`; `[f23]`'s `[[spec.R:440@4c018187]]` named the non-default-`k` entry rather
-than the `prior.scale` refusal; `[f36]`'s `[[CH:1589@4c018187]]` is the variance-forest
-pre-step and not the forest loop; the DART refusal is at `[[spec.R:451@4c018187]]` fired
-at `[[spec.R:481-487@4c018187]]`, not `[[spec.R:441@4c018187]]`/`[[spec.R:468-474@4c018187]]`; and the header's family documentation
-is `[[dbarts.h:485-494@4c018187]]` with the K-forest sentence M4.4 replaced at `[[dbarts.h:514-518@4c018187]]`.
+[R/model.R:772-840](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L772-L840), [R/model.R:799-806](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L799-L806) and [R/model.R:874](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L874) and
+[src/R_interface_bartcore.cpp:2207](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2207) are really [src/R_interface_bartcore.cpp:810-878](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L810-L878), [src/R_interface_bartcore.cpp:837-843](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L837-L843), [src/R_interface_bartcore.cpp:915](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L915)
+and [src/R_interface_bartcore.cpp:2208](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2208); `[f23]`'s [R/spec.R:440](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L440) named the non-default-`k` entry rather
+than the `prior.scale` refusal; `[f36]`'s [src/bartcore/chain.hpp:1589](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1589) is the variance-forest
+pre-step and not the forest loop; the DART refusal is at [R/spec.R:451](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L451) fired
+at [R/spec.R:481-487](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L481-L487), not [R/spec.R:441](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L441)/[R/spec.R:468-474](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L468-L474); and the header's family documentation
+is [inst/include/dbarts/dbarts.h:485-494](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L485-L494) with the K-forest sentence M4.4 replaced at [inst/include/dbarts/dbarts.h:514-518](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L514-L518).
 
 A COMMENT-ONLY residue pass was folded in rather than ticketed, on the
 finding that six in-code sites still asserted what M4.4 falsifies - all
@@ -5278,14 +5278,14 @@ fourteen distinct values in `multiplier-combiner.md` alone (+1, +2, +8, +15,
 +16, +18, +19, +25, +26, +27, +31, +35, +78 and -4), twenty-two across both
 files, ten into `combiner.hpp` by itself - and endpoint deltas differ from
 start deltas inside untouched regions, so this was neither an offset pass nor
-a hunk-line-map pass. One anchor changed FILE (`[[COM:963@4c018187]]` to `[[CH:955@4c018187]]`), which
+a hunk-line-map pass. One anchor changed FILE ([src/bartcore/combiner.hpp:963](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L963) to [src/bartcore/chain.hpp:955](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L955)), which
 no arithmetic could produce. **The sweep's own "31 citations left unmoved"
 figure did NOT reproduce and is struck**; measured, it is 18 unmoved in
 `multiplier-combiner.md` (4 of them into files this slice edited) and 423 in
 `feature-matrix.md` (66 into edited files). The review's re-count is what
-turned up the two anchors this slice itself BROKE (`[[COM:1581@4c018187]]` and `[[COM:486@4c018187]]`,
+turned up the two anchors this slice itself BROKE ([src/bartcore/combiner.hpp:1581](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L1581) and [src/bartcore/combiner.hpp:486](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L486),
 correct at HEAD~1) and one the by-symbol pass had missed
-(`[[multiplier-combiner.md:403@4c018187]]`), all three fixed here.
+([docs/design/multiplier-combiner.md:403](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/multiplier-combiner.md#L403)), all three fixed here.
 `nameable-calibration.md`, the `man/` files and `inst/NEWS.Rd` carry no
 source line citations at all.
 

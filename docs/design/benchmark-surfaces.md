@@ -5,8 +5,8 @@ Status: COMPLETE (survey), 2026-09-06
 Every measurement this package has taken of its own sampler has been taken
 on Friedman's five-dimensional function or a near relative of it: the
 move-set A/B and the response-swap recovery run both
-([[docs/design/tree-mixing-proposals.md#13. Move-set A/B (2026-09-06)]],
-[[docs/design/tree-mixing-proposals.md#14. Recovery after a response swap (2026-09-06)]]),
+([13. Move-set A/B (2026-09-06)](tree-mixing-proposals.md#13-move-set-ab-2026-09-06),
+[14. Recovery after a response swap (2026-09-06)](tree-mixing-proposals.md#14-recovery-after-a-response-swap-2026-09-06)),
 the grow-from-root default study, the composition probe's own generator
 (`inst/common/friedmanData.R`), and most of `benchmarks/R`. Friedman's
 function has two linear terms, one quadratic and one bounded smooth
@@ -663,7 +663,7 @@ funnel by construction. This package has already measured its narrow end:
 at `a0 = 40` and `100` the sampler sits with "sigma plateaus ~5x high with
 NO decay through 40k sweeps - frozen structure", and injecting a large `a`
 made the bias WORSE mid-burn than a cold start
-([[docs/design/tree-mixing-proposals.md#3.2 Structure freezes when the noise level is low (ESTABLISHED)]]).
+([3.2 Structure freezes when the noise level is low (ESTABLISHED)](tree-mixing-proposals.md#32-structure-freezes-when-the-noise-level-is-low-established)).
 (iii) The leaf-prior scale itself, which is the same object at m = 1.
 **A BART analogue is cheap to build**: a grouped design with few
 observations per group and a genuinely small group-level scale, fitted with
@@ -699,7 +699,7 @@ sources for the twisted-Gaussian construction could **not be fetched**
 **The sum-of-trees analogue is not in tree space at all**: it is the ridge
 between a parametric block and the forest when both can explain the same
 signal, and this house has it at 6x
-([[docs/design/tree-mixing-proposals.md#4.1 Move signal out of the forest, and let BART fit the remainder]],
+([4.1 Move signal out of the forest, and let BART fit the remainder](tree-mixing-proposals.md#41-move-signal-out-of-the-forest-and-let-bart-fit-the-remainder),
 sourced from `forest-ranef-interweaving.md`). Adding a synthetic banana
 would measure nothing that a composed-model cell does not measure better,
 because the composed cell has the ridge AND the right estimand.
@@ -715,7 +715,7 @@ Science 20(1); record and abstract only, full text **not fetched**).
 map from ensembles to functions is massively many-to-one, and the modes are
 exchangeable in the same way: permute tree labels, or split one main effect
 across two trees.
-[[docs/design/tree-mixing-proposals.md#3.1 Many tree arrangements, one fitted function (ESTABLISHED)]]
+[3.1 Many tree arrangements, one fitted function (ESTABLISHED)](tree-mixing-proposals.md#31-many-tree-arrangements-one-fitted-function-established)
 records the measurement (between-chain standard deviation of the
 root-on-x1 fraction 0.3619 against a mixing null near 0.05).
 
@@ -932,7 +932,7 @@ group-correlated error arm is a 16-group random intercept written into the
 DGP, so the composed model is correctly specified and the outer scale has a
 known truth. This is the cell that inherits the response-swap recovery
 question from
-[[docs/design/tree-mixing-proposals.md#14. Recovery after a response swap (2026-09-06)]]:
+[14. Recovery after a response swap (2026-09-06)](tree-mixing-proposals.md#14-recovery-after-a-response-swap-2026-09-06):
 alongside the estimand, record recovery sweeps after the first few
 `setResponse` calls, so the battery measures the moving-response regime and
 not just the fixed one. Its honest caveat is that it needs stan4bart or an
@@ -1065,7 +1065,7 @@ deliberately harder than the no-regression bar: a paired improvement on
 that pathology's pre-registered primary statistic exceeding **four times**
 the measured per-replicate standard error, per cell, surviving a fresh-seed
 re-run. Four times, not two, because
-[[docs/design/tree-mixing-proposals.md#6.4 Kill criteria, pre-registered]]
+[6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)
 already fixed that margin for this package and there is no reason to
 loosen it.
 
@@ -1330,7 +1330,7 @@ hit the twin column at the same cut out of the whole grid, which makes the
 switch rare for a reason unrelated to the kernel.
 
 **No-swap arm.** Arm C of
-[[docs/design/tree-mixing-proposals.md#14.2 Design]] (birth_death 0.6,
+[14.2 Design](tree-mixing-proposals.md#142-design) (birth_death 0.6,
 swap 0, change 0.4, birth 0.5) was added to this cell and run on the same
 five seeds. Null control, pooled p(root x1), switches per chain (min-max),
 minimum switches, between-chain sd, chains parked off the pair (of 40):
@@ -1342,9 +1342,9 @@ range, but 5 of its 40 chains never switch at all: every one sits at an x3
 root with 3 to 4 interior nodes and a child already split on x1, a
 representation no default chain ever visits. Change at an x3 root is vetoed
 once a child splits on x1, and death of that child loses the signal rather
-than returning it to the root ([[src/bartcore/moves.hpp#changeMove]]); swap
+than returning it to the root ([`changeMove`](../../src/bartcore/moves.hpp)); swap
 is the only move that rotates a child's rule up to the root
-([[src/bartcore/moves.hpp#swapMove]]). On this null control change alone
+([`swapMove`](../../src/bartcore/moves.hpp)). On this null control change alone
 does not carry representation switching; swap does the rule rotation.
 
 ### 10.2 P6, the diagonal shelf with targeted selection

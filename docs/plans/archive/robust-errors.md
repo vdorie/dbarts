@@ -18,13 +18,13 @@ resolved; section 8 records the decision and the precedent survey).
 
 The design note carries the math and seams; implement against it, not
 this summary. Key anchors: TResponse as an AFTResponse-pattern
-decorator ([[model.hpp:2405@8e4e7140]]) over a contained GaussianResponse via
-setWeights(w_i * lambda_i) ([[model.hpp:1968@8e4e7140]]); the lambda conditional
+decorator ([src/bartcore/model.hpp:2405](https://github.com/vdorie/dbarts/blob/8e4e7140bb49290fa609d28d7649d7ac9fd156eb/src/bartcore/model.hpp#L2405)) over a contained GaussianResponse via
+setWeights(w_i * lambda_i) ([src/bartcore/model.hpp:1968](https://github.com/vdorie/dbarts/blob/8e4e7140bb49290fa609d28d7649d7ac9fd156eb/src/bartcore/model.hpp#L1968)); the lambda conditional
 Gamma((nu+1)/2, (nu + w_i r_i^2/sigma^2)/2) drawn with
 ext_rng_simulateGamma; the nu grid draw from (sum log lambda,
 sum lambda) with precomputed per-point constants (DartPrior pattern,
-[[model.hpp:1655-1707@8e4e7140]]); the weighted sigma path already exact
-([[model.hpp:1758-1764@8e4e7140]]).
+[src/bartcore/model.hpp:1655-1707](https://github.com/vdorie/dbarts/blob/8e4e7140bb49290fa609d28d7649d7ac9fd156eb/src/bartcore/model.hpp#L1655-L1707)); the weighted sigma path already exact
+([src/bartcore/model.hpp:1758-1764](https://github.com/vdorie/dbarts/blob/8e4e7140bb49290fa609d28d7649d7ac9fd156eb/src/bartcore/model.hpp#L1758-L1764)).
 
 ## Commits
 

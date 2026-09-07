@@ -296,7 +296,7 @@ As of a3bae0fe. Carried over from docs/design/feature-matrix.md, whose own
 The rows are keyed by response model; predictor SHAPE cuts across them. Eight
 gaussian scenarios carry the factor shapes - `ordfactor`, `nafactor` (the
 anchor for MIA, missingness incorporated in attributes,
-[[docs/design/mia-missingness.md#Model]]), `sparsefactor`, and the five
+[Model](../../design/mia-missingness.md#model)), `sparsefactor`, and the five
 store-path scenarios `testswap`, `leaffactor`, `leaffactormixed`,
 `factorpartial` and `xbartmixed` - four of them carrying an ordered-factor
 predictor, so the ordered-factor cut grid rests on those plus
@@ -305,19 +305,19 @@ predictor, so the ordered-factor cut grid rests on those plus
 `inst/tinytest/test-capi.R` drives the whole single-forest family list through
 `dbarts_sampler_create` - `""`/`"probit"`, logistic, ordinal, aft and nbinom,
 each run and checked for finite, correctly-shaped output - plus
-heteroscedastic ([[test-capi.R#"bartcore.variance"]]) by control attribute,
+heteroscedastic (["bartcore.variance"](../../../inst/tinytest/test-capi.R)) by control attribute,
 and BCF
-([[test-capi.R#"zBCF"]]) through `forests = list(forest(basis = ...))`.
+(["zBCF"](../../../inst/tinytest/test-capi.R)) through `forests = list(forest(basis = ...))`.
 Multinomial has no flat-C creation path to test (docs/design/feature-matrix.md).
 
 [f39] The equivalence gate replays a fixed scenario set against a recorded
 baseline and requires BITWISE-identical draws
-([[docs/plans/README.md#RNG classes and their gates]]). Current baselines:
+([RNG classes and their gates](../README.md#rng-classes-and-their-gates)). Current baselines:
 `equivalence-1e5f80b2.rds` (50 scenarios),
 `bcf-equivalence-3c81d6df.rds` (12) and
 `multinomial-equivalence-4d9a3337.rds` (11) - benchmarks/baselines/MANIFEST.
 The names in this column are the keys in
-[[benchmarks/R/equivalence.R#makeScenarios]]; each row lists only the scenarios
+[`makeScenarios`](../../../benchmarks/R/equivalence.R); each row lists only the scenarios
 whose family it is.
 
 [f40] SBC is simulation-based calibration: draw parameters from the prior,
@@ -343,12 +343,12 @@ longer run is still owed.
 [f43] Aggregate `p_k(x*)` and the three raw per-forest `f_ik` cells all pass,
 the functionals at band 0.1282 and the three cells at 0.0688/0.0824/0.0675
 (the acceptance run `Rscript benchmarks/R/sbc.R multinom 200 150 30`;
-[[benchmarks/R/sbc.R#cellNames]] is the function that ranks the cells).
-[[COM#MultinomialForestCombiner::afterCombine]] draws the level from its exact
+[`cellNames`](../../../benchmarks/R/sbc.R) is the function that ranks the cells).
+[`MultinomialForestCombiner::afterCombine`](../../../src/bartcore/combiner.hpp) draws the level from its exact
 leaf-space conditional.
 
 [f45] Out of the SBC matrix by scope, each for its own recorded reason
-([[docs/plans/sbc-family-tiers.md#Decision - scope]]): aft because its
+([Decision - scope](../sbc-family-tiers.md#decision---scope)): aft because its
 censoring status is fixed at
 creation, so a prior-draw replication cannot vary it (the enabler is a status
 setter); hazard and hurdle because their person-period / two-part designs depend
@@ -356,9 +356,9 @@ on `y0`, which breaks exchangeability, and because neither owns any sampling
 code.
 
 [f46] Tier A PASS, with the sigma channel resolved as slow mixing along the
-(a, mu) ridge ([[docs/plans/sbc-calibration.md#Final summary]]). Explicitly out
+(a, mu) ridge ([Final summary](../sbc-calibration.md#final-summary)). Explicitly out
 of the family-tiers matrix.
 
 [f47] OUT but DEFERRED rather than blocked: prior draws never reach
 `varianceForest_` today, and the capability is liftable R-side through `setState`
-([[docs/plans/sbc-family-tiers.md#Decision - scope]]).
+([Decision - scope](../sbc-family-tiers.md#decision---scope)).

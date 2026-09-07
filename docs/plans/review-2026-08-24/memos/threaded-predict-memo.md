@@ -19,22 +19,22 @@ constraint was the SWEEP's 47% parallel fraction. That no-go does not transfer.
 ## 1. Archaeology
 
 **93f354a8b763000df66d166a7fd50fb74b06949e**, Vincent Dorie, 2025-03-03, "Add native predict
-multithreading", 18 files +249/-27. Its NEWS entry is still in the tree at [[inst/NEWS.Rd:1914-1919@0045507c]]:
+multithreading", 18 files +249/-27. Its NEWS entry is still in the tree at [inst/NEWS.Rd:1914-1919](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/inst/NEWS.Rd#L1914-L1919):
 "`predict` now accepts a `n.threads` argument and will use native threads to parallelize across chains."
 
 What it added (all reachable on branch `main`):
-- `BARTFit::predict(x_test, n, testOffset, numThreads, result)`, main:[[src/dbarts/bartFit.cpp:514-604@93f354a8b763000df66d166a7fd50fb74b06949e]].
+- `BARTFit::predict(x_test, n, testOffset, numThreads, result)`, main:[src/dbarts/bartFit.cpp:514-604](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L514-L604).
   Decomposition: ONE top-level task per CHAIN via `misc_htm_runTopLevelTasks(threadManager,
-  &predictThreadFunction, threadDataPtr, control.numChains)` ([[src/dbarts/bartFit.cpp:582-587@93f354a8b763000df66d166a7fd50fb74b06949e]]), plus nested
-  `misc_htm_reserveThreadsForSubTask` ([[src/dbarts/bartFit.cpp:409@93f354a8b763000df66d166a7fd50fb74b06949e]], [[src/dbarts/bartFit.cpp:415@93f354a8b763000df66d166a7fd50fb74b06949e]]) handing leftover threads down inside a chain when
-  numChains == 1. Threads were started and stopped around the call ([[src/dbarts/bartFit.cpp:515-521@93f354a8b763000df66d166a7fd50fb74b06949e]], [[src/dbarts/bartFit.cpp:599-603@93f354a8b763000df66d166a7fd50fb74b06949e]]).
-- `predictThreadFunction` ([[src/dbarts/bartFit.cpp:385-508@93f354a8b763000df66d166a7fd50fb74b06949e]]): per chain, loop samples, loop trees, `SavedTree::getPredictions`,
+  &predictThreadFunction, threadDataPtr, control.numChains)` ([src/dbarts/bartFit.cpp:582-587](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L582-L587)), plus nested
+  `misc_htm_reserveThreadsForSubTask` ([src/dbarts/bartFit.cpp:409](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L409), [src/dbarts/bartFit.cpp:415](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L415)) handing leftover threads down inside a chain when
+  numChains == 1. Threads were started and stopped around the call ([src/dbarts/bartFit.cpp:515-521](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L515-L521), [src/dbarts/bartFit.cpp:599-603](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L599-L603)).
+- `predictThreadFunction` ([src/dbarts/bartFit.cpp:385-508](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/dbarts/bartFit.cpp#L385-L508)): per chain, loop samples, loop trees, `SavedTree::getPredictions`,
   `misc_addVectorsInPlace`, rescale, add offset.
 - Flat-ABI twin `dbarts_predictMultiThreaded` on the OLD C++ ABI header
-  (inst/include/dbarts/R_C_interface.hpp), defined [[src/R_C_interface.cpp:221@93f354a8b763000df66d166a7fd50fb74b06949e]]. Note the commit's own
+  (inst/include/dbarts/R_C_interface.hpp), defined [src/R_C_interface.cpp:221](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/R_C_interface.cpp#L221). Note the commit's own
   typo: header `...MultiThreaded`, definition `...Multithreaded`. Both gone; zero hits anywhere on
   bartcore.
-- Bridge arity 3 -> 4 with rc_getInt validation ([[src/R_interface_sampler.cpp:343-352@93f354a8b763000df66d166a7fd50fb74b06949e]] then), plus the two
+- Bridge arity 3 -> 4 with rc_getInt validation ([src/R_interface_sampler.cpp:343-352](https://github.com/vdorie/dbarts/blob/93f354a8b763000df66d166a7fd50fb74b06949e/src/R_interface_sampler.cpp#L343-L352) then), plus the two
   R formals still standing today: R5 `predict(x.test, offset.test, n.threads = control@n.threads)` and
   predict.bart's `n.threads = object$fit$control@n.threads`.
 - Test: tests/testthat/test-09-generics.R "predict gives same result when single or multi-threaded",
@@ -53,13 +53,13 @@ twin 7ff59ea4, under tag bartcore-pre-cran-rebase). Neither message mentions the
 is collateral, not a decision.
 
 The disclosure came later, in c5f85804/8744e778 "Fix the interface review's bug list and close the
-shipped-docs gaps": [[man/dbartsSampler-class.Rd:152-157@658869ac]] now says n.threads "Currently has no effect:
+shipped-docs gaps": [man/dbartsSampler-class.Rd:152-157](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/dbartsSampler-class.Rd#L152-L157) now says n.threads "Currently has no effect:
 `run` and `predict` both execute serially regardless of the value passed here ... reserved for a future
 per-call override."
 
-**Two doc defects this exposes.** [[man/bart.Rd:149-151@658869ac]]'s shared `\item{nthread, n.threads}` still reads
+**Two doc defects this exposes.** [man/bart.Rd:149-151](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/bart.Rd#L149-L151)'s shared `\item{nthread, n.threads}` still reads
 "Integer specifying how many threads to use" with no caveat, and predict.bart's usage block
-([[man/bart.Rd:49@658869ac]]) lists `n.threads` under it. And [[inst/NEWS.Rd:1914-1919@0045507c]] stands unretracted while 1.0-0's
+([man/bart.Rd:49](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/bart.Rd#L49)) lists `n.threads` under it. And [inst/NEWS.Rd:1914-1919](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/inst/NEWS.Rd#L1914-L1919) stands unretracted while 1.0-0's
 UPGRADING section (:5-20) never mentions the regression.
 
 **Not related:** origin/archive/within-chain-threading (54a60aa8) and
@@ -68,16 +68,16 @@ docs/design/within-chain-threading.md are the SWEEP, "CLOSED - NO-GO on every te
 
 ## 2. The current path
 
-1. `predict.bart` [[R/generics.R:207@658869ac]]; formal [[R/generics.R:214@658869ac]]; `n.threads <- as.integer(n.threads)[1L]` [[R/generics.R:294@658869ac]];
-   `object$fit$predict(newdata, offset, n.threads)` [[R/generics.R:297@658869ac]].
-2. R5 `predict` [[R/dbarts.R:1079@658869ac]]. n.threads is NEVER READ in the body; `.Call(C_dbarts_bartcore_predict,
-   ptr, x.test, offset.test)` at [[R/dbarts.R:1140@658869ac]].
-3. `DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3)` [[src/R_interface.cpp:224@658869ac]] ->
-   `bartcore_predict` [[src/R_interface_bartcore.cpp:5760@658869ac]] -> shared tail `predictFromSource` [[src/R_interface_bartcore.cpp:5641-5745@658869ac]],
+1. `predict.bart` [R/generics.R:207](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L207); formal [R/generics.R:214](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L214); `n.threads <- as.integer(n.threads)[1L]` [R/generics.R:294](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L294);
+   `object$fit$predict(newdata, offset, n.threads)` [R/generics.R:297](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L297).
+2. R5 `predict` [R/dbarts.R:1079](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1079). n.threads is NEVER READ in the body; `.Call(C_dbarts_bartcore_predict,
+   ptr, x.test, offset.test)` at [R/dbarts.R:1140](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1140).
+3. `DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3)` [src/R_interface.cpp:224](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface.cpp#L224) ->
+   `bartcore_predict` [src/R_interface_bartcore.cpp:5760](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5760) -> shared tail `predictFromSource` [src/R_interface_bartcore.cpp:5641-5745](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5641-L5745),
    which allocates the result, calls `sampler.predict(source, n, categoryOffset, REAL(result))` at
-   [[src/R_interface_bartcore.cpp:5718@658869ac]], adds the flat offset at [[src/R_interface_bartcore.cpp:5723@658869ac]], and clones the shape for `predictVariance` at [[src/R_interface_bartcore.cpp:5733@658869ac]].
-4. Facade virtual `SamplerBase::predict` [[facade.hpp:258-260@658869ac]], forwarded [[facade.hpp:545@658869ac]].
-5. `Sampler::predictColumns` [[sampler.hpp:564-593@658869ac]] - THE LOOP:
+   [src/R_interface_bartcore.cpp:5718](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5718), adds the flat offset at [src/R_interface_bartcore.cpp:5723](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5723), and clones the shape for `predictVariance` at [src/R_interface_bartcore.cpp:5733](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5733).
+4. Facade virtual `SamplerBase::predict` [src/bartcore/facade.hpp:258-260](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L258-L260), forwarded [src/bartcore/facade.hpp:545](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L545).
+5. `Sampler::predictColumns` [src/bartcore/sampler.hpp:564-593](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L564-L593) - THE LOOP:
 
 ```
 for c in chains:                         # numChains
@@ -90,47 +90,47 @@ for c in chains:                         # numChains
 ```
 
 `slab = numTestObservations * numReportedLocations`. Inside `Chain::predictFromSavedSample`
-([[chain.hpp:2800-2820@658869ac]]): zero `out`, loop the forest's numTrees saved flattened trees,
+([src/bartcore/chain.hpp:2800-2820](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L2800-L2820)): zero `out`, loop the forest's numTrees saved flattened trees,
 `addFlatPredictions` each into `out`, then `out[i] = scale*out[i] + shift`. Full iteration: chains x
 draws x trees x observations, observations innermost and index-partitioned inside
-`addFlatPredictionsBelow` ([[tree.hpp:1831@658869ac]]).
+`addFlatPredictionsBelow` ([src/bartcore/tree.hpp:1831](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/tree.hpp#L1831)).
 
 **Read-only-ness.** `predictFromSavedSample` (2800), `...Multi` (2865) and
 `predictPerForestFromSavedSample` (2938) are `const`: they read
 `forest.savedTrees/savedTreeParams/savedTreeMasks`, `data_` and `response_->fitScale()`, writing only
 the caller's `out` plus function-local scratch. The Columns adapters are const-read -
-`DenseColumns::column` ([[tree.hpp:1716@658869ac]]) and `PredictorSourceColumns::column` ([[data.hpp:434@658869ac]]) return by
+`DenseColumns::column` ([src/bartcore/tree.hpp:1716](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/tree.hpp#L1716)) and `PredictorSourceColumns::column` ([src/bartcore/data.hpp:434](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/data.hpp#L434)) return by
 value and build everything in the constructor - so ONE `columns` object is safely shared.
-`predictVarianceFromSavedSample` ([[chain.hpp:904@658869ac]]) is read-only in fact but not marked const: a one-word
+`predictVarianceFromSavedSample` ([src/bartcore/chain.hpp:904](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L904)) is read-only in fact but not marked const: a one-word
 fix buying compiler-enforced proof. `predictFromCurrentTrees` (2825), `...Multi` (2898) and
 `predictPerForestFromCurrentTrees` (2962) call the non-const `flattenTree` (2683), but that is the
 capacity == 0 arm - one slab per chain, so no two threads land on one Chain.
 
-**No RNG, no R API.** Grep over [[chain.hpp:2757-3010@658869ac]] finds no `rng`, `unif_rand` or `norm_rand` - and no
+**No RNG, no R API.** Grep over [src/bartcore/chain.hpp:2757-3010](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L2757-L3010) finds no `rng`, `unif_rand` or `norm_rand` - and no
 `Rf_error`, `ext_printf` or `R_alloc` either. Predict is a pure function of (saved trees, columns):
-determinism is a property to preserve, not one to engineer. [[dbarts.h:45-47@658869ac]] warns
+determinism is a property to preserve, not one to engineer. [inst/include/dbarts/dbarts.h:45-47](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/include/dbarts/dbarts.h#L45-L47) warns
 `dbarts_sampler_predict` is main-R-thread-only because it is "R_alloc-backed internally", but that
-allocation is `translateSource` ([[src/C_interface.cpp:185-241@658869ac]]), which runs BEFORE `engine.predict(...)`
-at [[src/C_interface.cpp:792@658869ac]]; the R bridge likewise parses the source before predictFromSource reaches the engine. Threading
+allocation is `translateSource` ([src/C_interface.cpp:185-241](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/C_interface.cpp#L185-L241)), which runs BEFORE `engine.predict(...)`
+at [src/C_interface.cpp:792](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/C_interface.cpp#L792); the R bridge likewise parses the source before predictFromSource reaches the engine. Threading
 strictly inside `predictColumns` touches no R API.
 
 **Every variant funnels through that loop.** Multi-chain is the `c` loop. Multinomial:
 `numReportedLocations > 1` selects `predictFromSavedSampleMulti` - K forests summed per slab, then
 `softmaxLocationMajor` per row; same slab structure, wider slab. Amplitude/BCF: plain predict is REFUSED
-(`refuseUndefinedTestFits` [[R_interface_bartcore.cpp:2858@658869ac]], called [[R_interface_bartcore.cpp:5768@658869ac]] and [[C_interface.cpp:780@658869ac]]), so
-those take `predictPerForestColumns` [[sampler.hpp:619-637@658869ac]] - the same slab loop with a forest margin.
-Heteroscedastic adds `predictVarianceColumns` [[sampler.hpp:674-680@658869ac]]. Ordinal ([[generics.R:1221@0045507c]]) and negbin ([[generics.R:1354@0045507c]])
-reach the same .Call via `bartcorePredict` ([[R/bartcore.R:1457-1473@0045507c]]); hurdle via two nested `predict()`
-at [[R/generics.R:1531@0045507c]]; rbart at [[R/generics.R:1706@0045507c]], [[R/generics.R:1712@0045507c]], [[R/generics.R:1722@0045507c]]; partial dependence at [[partialDependence.R:242-365@658869ac]]. And
-[[R/dbarts.R:849@658869ac]] `draw$predict(xt, offset.test, n.threads)` is a SECOND site already forwarding a thread
+(`refuseUndefinedTestFits` [src/R_interface_bartcore.cpp:2858](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L2858), called [src/R_interface_bartcore.cpp:5768](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L5768) and [src/C_interface.cpp:780](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/C_interface.cpp#L780)), so
+those take `predictPerForestColumns` [src/bartcore/sampler.hpp:619-637](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L619-L637) - the same slab loop with a forest margin.
+Heteroscedastic adds `predictVarianceColumns` [src/bartcore/sampler.hpp:674-680](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L674-L680). Ordinal ([R/generics.R:1221](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1221)) and negbin ([R/generics.R:1354](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1354))
+reach the same .Call via `bartcorePredict` ([R/bartcore.R:1457-1473](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bartcore.R#L1457-L1473)); hurdle via two nested `predict()`
+at [R/generics.R:1531](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1531); rbart at [R/generics.R:1706](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1706), [R/generics.R:1712](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1712), [R/generics.R:1722](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1722); partial dependence at [R/partialDependence.R:242-365](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/partialDependence.R#L242-L365). And
+[R/dbarts.R:849](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L849) `draw$predict(xt, offset.test, n.threads)` is a SECOND site already forwarding a thread
 count into the void.
 
 **How fitting already threads, for reuse.** Across chains: `std::thread` workers, `numWorkers =
 min(numThreads, numChains)`, spawned per run with SIGINT blocked so only the main thread runs R's
-interrupt handler, then joined ([[sampler.hpp:349-420@658869ac]]; grow-from-root twin [[sampler.hpp:1072-1099@658869ac]]). Within a chain
-over TEST ROWS: `Chain::routeTestRows` ([[chain.hpp:4033-4066@658869ac]]) over a persistent `misc_mt_manager_t
-testFitPool_` ([[chain.hpp:5466@658869ac]]), budget `numThreads / numChains`, serial below `testFitParallelCutoff = 65536`
-([[chain.hpp:5467@658869ac]]). Its comment is this memo's argument, already in-tree: "Routing draws no rng and each row writes
+interrupt handler, then joined ([src/bartcore/sampler.hpp:349-420](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L349-L420); grow-from-root twin [src/bartcore/sampler.hpp:1072-1099](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L1072-L1099)). Within a chain
+over TEST ROWS: `Chain::routeTestRows` ([src/bartcore/chain.hpp:4033-4066](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L4033-L4066)) over a persistent `misc_mt_manager_t
+testFitPool_` ([src/bartcore/chain.hpp:5466](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L5466)), budget `numThreads / numChains`, serial below `testFitParallelCutoff = 65536`
+([src/bartcore/chain.hpp:5467](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L5467)). Its comment is this memo's argument, already in-tree: "Routing draws no rng and each row writes
 its own output slot, so splitting the range across this chain's share of the thread budget yields
 byte-identical results at any thread count."
 
@@ -138,7 +138,7 @@ byte-identical results at any thread count."
 
 Reduction order resolves trivially, and the reason should be stated rather than asserted. The only
 summation is per (slab, row) over trees: `addFlatPredictions` accumulates into `out[row]` in tree order
-t = 0 .. numTrees-1 ([[chain.hpp:2806-2812@658869ac]]), so every (slab, row) pair owns its accumulator. There is NO
+t = 0 .. numTrees-1 ([src/bartcore/chain.hpp:2806-2812](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L2806-L2812)), so every (slab, row) pair owns its accumulator. There is NO
 cross-slab and NO cross-row reduction anywhere; the final rescale and the multinomial softmax are both
 per-row maps. Any partition keeping each (slab, row) pair whole in one thread therefore reproduces the
 serial floating-point sequence exactly. Both candidate axes do.
@@ -161,7 +161,7 @@ Recommend (a) alone, with a work-based serial cutoff: `routeTestRows` uses a row
 right predicate is total traversals, numChains * numDraws * numTrees * numTest, and at ~2.5 ns per
 traversal a 1e7 cutoff is ~25 ms of serial work, comfortably above any spawn cost. State the constant
 with its derivation in the comment. Use `std::thread`, spawned once per predict call and joined,
-mirroring `Sampler::run` ([[sampler.hpp:385-420@658869ac]]) including the `pthread_sigmask` SIGINT block under the
+mirroring `Sampler::run` ([src/bartcore/sampler.hpp:385-420](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L385-L420)) including the `pthread_sigmask` SIGINT block under the
 same `#ifndef _WIN32` - a worker must never run R's interrupt handler, since a longjmp across threads is
 fatal. Predict is one coarse call of milliseconds to seconds, so a one-time spawn is noise, while a
 persistent pool adds a lifetime to manage. Do NOT reuse `testFitPool_`: its budget is `numThreads /
@@ -172,7 +172,7 @@ numChains` and it is per-Chain, while a slab partition is cross-chain.
 ### 4.1 Header
 
 No per-call override convention exists in inst/include/dbarts/dbarts.h; the only thread token is the
-persistent setter `dbarts_sampler_setNumThreads` (X-macro [[sampler.hpp:473-474@658869ac]], prototype [[sampler.hpp:939@658869ac]]). Telling C consumers
+persistent setter `dbarts_sampler_setNumThreads` (X-macro [src/bartcore/sampler.hpp:473-474](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L473-L474), prototype [src/bartcore/sampler.hpp:939](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L939)). Telling C consumers
 to bracket predict with it is wrong three ways: it mutates state that also drives `run`'s worker count
 and `routeTestRows`'s budget; the restore leg is not exception-safe, since every refusal on the predict
 path raises `Rf_error` and longjmps past it; and it is a lie about a read-only replay.
@@ -184,16 +184,16 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
                             double* out);
 ```
 
-numThreads before `out`, matching the header's rule that outputs come last; the X-macro entry ([[sampler.hpp:449-452@658869ac]])
-and doc block ([[sampler.hpp:841-855@658869ac]]) change in lockstep. Semantics: `numThreads == 0` means "use the sampler's own
+numThreads before `out`, matching the header's rule that outputs come last; the X-macro entry ([src/bartcore/sampler.hpp:449-452](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L449-L452))
+and doc block ([src/bartcore/sampler.hpp:841-855](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L841-L855)) change in lockstep. Semantics: `numThreads == 0` means "use the sampler's own
 count", `>= 1` is a per-call override that does not persist. Zero-as-defer makes the consumer migration
 a literal `0` and reads as deferral; requiring >= 1 forces every consumer to invent a number, or adds a
-`dbarts_sampler_numThreads()` query the header lacks. `dbarts_sampler_forestFits` ([[sampler.hpp:993@658869ac]]) is IN-sample
+`dbarts_sampler_numThreads()` query the header lacks. `dbarts_sampler_forestFits` ([src/bartcore/sampler.hpp:993](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L993)) is IN-sample
 and unaffected, and there is no flat entry for predictPerForest or predictVariance: one prototype, one
 X-macro entry, one doc block.
 
-`DBARTS_C_API_HASH` ([[dbarts.h:142@658869ac]], 0x6c9776ae1197e8f5ULL) is an FNV-1a over the entry table,
-`static_assert`ed against `dbarts_apiToken()` at [[src/C_interface.cpp:465@658869ac]]. It MUST be re-baked; the build
+`DBARTS_C_API_HASH` ([inst/include/dbarts/dbarts.h:142](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/include/dbarts/dbarts.h#L142), 0x6c9776ae1197e8f5ULL) is an FNV-1a over the entry table,
+`static_assert`ed against `dbarts_apiToken()` at [src/C_interface.cpp:465](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/C_interface.cpp#L465). It MUST be re-baked; the build
 fails loudly until it is. Bump DBARTS_C_API_MINOR alongside.
 
 ### 4.2 Consumers
@@ -204,47 +204,47 @@ testOffset, REAL(result));` inside `predictBART` (`src/init.cpp` line 294). Mini
 its samplers with `n.threads = 1L` (`R/stan4bart_fit.R` line 515, `R/mvbart.R` line 119) anyway. It hard-equality
 checks `dbarts_apiHash()` at `src/init.cpp` lines 962-977, so every installed binary errors at load until
 rebuilt: intended lockstep pre-1.0-0. A full version - a 4th SEXP on `predictBART` - additionally
-touches `src/init.cpp` line 1056 and [[R/generics.R:205@658869ac]], [[R/generics.R:275@658869ac]], [[R/generics.R:965@658869ac]]: 1 line minimum, ~8 at most.
+touches `src/init.cpp` line 1056 and [R/generics.R:205](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L205), [R/generics.R:275](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L275), [R/generics.R:965](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L965): 1 line minimum, ~8 at most.
 
 **bartCause** (branch dbarts-1.0, tip 7ae6e83), `Imports: dbarts (>= 1.0-0)`, `NeedsCompilation: no`, no
 LinkingTo, no src/. ZERO lines: it reaches predict only by S3 dispatch, forwarding `...` at
-[[R/generics.R:143-176@658869ac]] and [[R/generics.R:193-230@658869ac]], so a user-supplied `n.threads` already reaches predict.bart through
+[R/generics.R:143-176](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L143-L176) and [R/generics.R:193-230](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L193-L230), so a user-supplied `n.threads` already reaches predict.bart through
 it and will simply start working. tests/testthat/test-08-predict.R would catch a numeric change.
 
 ### 4.3 Bridge and R
 
-`DEF_FUNC(..., bartcore_predict, 3)` -> 4 ([[R_interface.cpp:224@658869ac]]); `bartcore_predict` ([[R_interface_bartcore.cpp:5760@0045507c]]) and
-`predictFromSource` ([[R_interface_bartcore.cpp:5641@0045507c]]) gain the argument, validated with the rc idiom of section 1;
-`bartcore_predictPerForest` ([[R_interface_bartcore.cpp:5851@0045507c]], DEF_FUNC [[R_interface.cpp:225@658869ac]]) and `predictPerForestFromSource` ([[R_interface_bartcore.cpp:5813@0045507c]]) should take
+`DEF_FUNC(..., bartcore_predict, 3)` -> 4 ([src/R_interface.cpp:224](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface.cpp#L224)); `bartcore_predict` ([src/R_interface_bartcore.cpp:5760](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5760)) and
+`predictFromSource` ([src/R_interface_bartcore.cpp:5641](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5641)) gain the argument, validated with the rc idiom of section 1;
+`bartcore_predictPerForest` ([src/R_interface_bartcore.cpp:5851](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5851), DEF_FUNC [src/R_interface.cpp:225](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface.cpp#L225)) and `predictPerForestFromSource` ([src/R_interface_bartcore.cpp:5813](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5813)) should take
 it too, being the amplitude family's only replay path.
 
-R5 `predict` ([[R/dbarts.R:1079@658869ac]]): the formal exists; pass it at [[R/dbarts.R:1140@658869ac]]. Default `control@n.threads`: KEEP,
-being what the formal and [[man/dbartsSampler-class.Rd:63@658869ac]] already promise, and a default that probes cores
+R5 `predict` ([R/dbarts.R:1079](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1079)): the formal exists; pass it at [R/dbarts.R:1140](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1140). Default `control@n.threads`: KEEP,
+being what the formal and [man/dbartsSampler-class.Rd:63](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/dbartsSampler-class.Rd#L63) already promise, and a default that probes cores
 is exactly what `_R_CHECK_LIMIT_CORES_` exists to catch. Consequence to accept: `bart()` defaults
-`nthread = 1L` ([[R/bart.R:2634@658869ac]]) so a BayesTree-style fit predicts serially unless asked, while `bart2`
-defaults `min(guessNumCores(), n.chains)` ([[R/bart.R:657@658869ac]]) so a 4-chain fit gets up to 4. Note the
+`nthread = 1L` ([R/bart.R:2634](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/bart.R#L2634)) so a BayesTree-style fit predicts serially unless asked, while `bart2`
+defaults `min(guessNumCores(), n.chains)` ([R/bart.R:657](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/bart.R#L657)) so a 4-chain fit gets up to 4. Note the
 mismatch for section 7: that budget was sized for CHAIN parallelism, while predict's is over draws.
 
-`predict.bart` ([[generics.R:294@658869ac]]) currently does `as.integer(n.threads)[1L]`, silently accepting NA, 0 and
-negatives. Replace with the house pattern ([[R/rbart.R:82-85@658869ac]], [[R/xbart.R:398-401@658869ac]]): `n.threads <-
+`predict.bart` ([R/generics.R:294](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/generics.R#L294)) currently does `as.integer(n.threads)[1L]`, silently accepting NA, 0 and
+negatives. Replace with the house pattern ([R/rbart.R:82-85](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/rbart.R#L82-L85), [R/xbart.R:398-401](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/xbart.R#L398-L401)): `n.threads <-
 coerceOrError(n.threads, "integer")[1L]; if (is.na(n.threads) || n.threads < 1L) stop("'n.threads' must
 be a positive integer")`.
 
-Family generics `predict.bartMultinomial` ([[R/generics.R:1013@0045507c]]), `predict.bartOrdinal` ([[R/generics.R:1197@0045507c]]), `predict.bartNegbin`
-([[R/generics.R:1330@0045507c]]), `predict.bartHurdle` ([[R/generics.R:1614@0045507c]]) and `predict.rbart` ([[R/generics.R:1647@0045507c]]) all take `...` and none names
+Family generics `predict.bartMultinomial` ([R/generics.R:1013](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1013)), `predict.bartOrdinal` ([R/generics.R:1197](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1197)), `predict.bartNegbin`
+([R/generics.R:1330](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1330)), `predict.bartHurdle` ([R/generics.R:1614](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1614)) and `predict.rbart` ([R/generics.R:1647](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L1647)) all take `...` and none names
 `n.threads`. Add the formal to each and forward it, at the sites listed in section 2, plus
-`predictForest` ([[R/xbart.R:603@658869ac]]), `samplePriorPredictive` ([[R/dbarts.R:849@658869ac]], already carrying it) and the five
+`predictForest` ([R/xbart.R:603](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/xbart.R#L603)), `samplePriorPredictive` ([R/dbarts.R:849](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L849), already carrying it) and the five
 partialDependence sites - partial dependence is predict-in-a-loop and the natural beneficiary.
 `bartcorePredict` needs the argument too.
 
-**`run`: NOT NOW.** Its R5 formal ([[R/dbarts.R:958@658869ac]]) is equally discarded - `bartcoreSamplerRun(.self,
+**`run`: NOT NOW.** Its R5 formal ([R/dbarts.R:958](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L958)) is equally discarded - `bartcoreSamplerRun(.self,
 numBurnIn, numSamples)` takes no thread count - and the Rd reserves the override for both. But run's
-budget is not a pure per-call knob: it also sizes `routeTestRows` ([[chain.hpp:4040@658869ac]]), and a run mutates
+budget is not a pure per-call knob: it also sizes `routeTestRows` ([src/bartcore/chain.hpp:4040](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L4040)), and a run mutates
 state, so an override moves progress reporting and interrupt behaviour mid-object even though the draws
-are per-chain-generator and thread-count-independent ([[inst/NEWS.Rd:11-12@658869ac]]). Separate, smaller slice.
+are per-chain-generator and thread-count-independent ([inst/NEWS.Rd:11-12](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/NEWS.Rd#L11-L12)). Separate, smaller slice.
 
-Rd: [[dbartsSampler-class.Rd:152-157@658869ac]] loses the no-effect paragraph for the per-call semantics and default;
-[[bart.Rd:149-151@658869ac]] gains a sentence that predict's `n.threads` parallelizes the replay across posterior
+Rd: [man/dbartsSampler-class.Rd:152-157](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/dbartsSampler-class.Rd#L152-L157) loses the no-effect paragraph for the per-call semantics and default;
+[man/bart.Rd:149-151](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/bart.Rd#L149-L151) gains a sentence that predict's `n.threads` parallelizes the replay across posterior
 draws; NEWS gets a 1.0-0 entry.
 
 ## 5. Tests and gates
@@ -307,11 +307,11 @@ Dense lines, excluding comments (house style roughly doubles the engine):
 
 | Layer | Lines | What |
 |---|---|---|
-| engine | ~60 | slab partition + std::thread fan-out + sigmask in `predictColumns` ([[sampler.hpp:565@658869ac]]), shared with `predictPerForestColumns` ([[sampler.hpp:621@658869ac]]) and `predictVarianceColumns` ([[sampler.hpp:674@658869ac]]) via one helper; `numThreads` on 3 facade virtuals ([[facade.hpp:258@658869ac]], [[facade.hpp:267@658869ac]], [[facade.hpp:272@658869ac]]) and 3 forwarders ([[facade.hpp:545@658869ac]], [[facade.hpp:549@658869ac]], [[facade.hpp:554@658869ac]]); `const` on [[chain.hpp:904@658869ac]] |
-| flat API | ~10 | [[C_interface.cpp:773@658869ac]] signature + pass-through; [[dbarts.h:449@658869ac]], [[dbarts.h:853@658869ac]] + doc; re-bake DBARTS_C_API_HASH ([[dbarts.h:142@658869ac]]), bump minor |
-| bridge | ~20 | [[R_interface.cpp:224-225@658869ac]] arity; [[R_interface_bartcore.cpp:5641@0045507c]], [[R_interface_bartcore.cpp:5760@0045507c]], [[R_interface_bartcore.cpp:5813@0045507c]], [[R_interface_bartcore.cpp:5851@0045507c]] + one rc_getInt block |
-| R | ~45 | [[dbarts.R:1140@658869ac]] (+ [[dbarts.R:1153@658869ac]]); 6 generics gain a formal and forward it; bartcorePredict ([[bartcore.R:1457@0045507c]]); predictForest ([[generics.R:603@0045507c]]); 5 partialDependence sites; one validation block |
-| Rd | ~20 | [[dbartsSampler-class.Rd:152-157@658869ac]], [[bart.Rd:149-151@658869ac]], 6 usage blocks, NEWS |
+| engine | ~60 | slab partition + std::thread fan-out + sigmask in `predictColumns` ([src/bartcore/sampler.hpp:565](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L565)), shared with `predictPerForestColumns` ([src/bartcore/sampler.hpp:621](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L621)) and `predictVarianceColumns` ([src/bartcore/sampler.hpp:674](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L674)) via one helper; `numThreads` on 3 facade virtuals ([src/bartcore/facade.hpp:258](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L258), [src/bartcore/facade.hpp:267](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L267), [src/bartcore/facade.hpp:272](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L272)) and 3 forwarders ([src/bartcore/facade.hpp:545](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L545), [src/bartcore/facade.hpp:549](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L549), [src/bartcore/facade.hpp:554](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/facade.hpp#L554)); `const` on [src/bartcore/chain.hpp:904](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L904) |
+| flat API | ~10 | [src/C_interface.cpp:773](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/C_interface.cpp#L773) signature + pass-through; [inst/include/dbarts/dbarts.h:449](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/include/dbarts/dbarts.h#L449), [inst/include/dbarts/dbarts.h:853](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/include/dbarts/dbarts.h#L853) + doc; re-bake DBARTS_C_API_HASH ([inst/include/dbarts/dbarts.h:142](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/include/dbarts/dbarts.h#L142)), bump minor |
+| bridge | ~20 | [src/R_interface.cpp:224-225](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface.cpp#L224-L225) arity; [src/R_interface_bartcore.cpp:5641](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5641), [src/R_interface_bartcore.cpp:5760](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5760), [src/R_interface_bartcore.cpp:5813](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5813), [src/R_interface_bartcore.cpp:5851](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5851) + one rc_getInt block |
+| R | ~45 | [R/dbarts.R:1140](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1140) (+ [R/dbarts.R:1153](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L1153)); 6 generics gain a formal and forward it; bartcorePredict ([R/bartcore.R:1457](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bartcore.R#L1457)); predictForest ([R/generics.R:603](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L603)); 5 partialDependence sites; one validation block |
+| Rd | ~20 | [man/dbartsSampler-class.Rd:152-157](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/dbartsSampler-class.Rd#L152-L157), [man/bart.Rd:149-151](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/bart.Rd#L149-L151), 6 usage blocks, NEWS |
 | tests | ~180 | rewritten test-generics-multithreaded.R (~120) + tests/cpp partition test (~60) |
 | bench | ~90 | benchmarks/R/bench-predict.R + baseline |
 | consumers | 1-8 | stan4bart `src/init.cpp` line 342 (+7 optional); bartCause 0 |
@@ -345,7 +345,7 @@ parallelism ships a lie in the doc block and burns the consumer rebuild for noth
 4. **Does `predictPerForest` / R5 `predictForests` take it in S1?** RECOMMEND yes: it is the amplitude
    family's ONLY out-of-sample path (plain predict is refused there), so leaving it serial leaves BCF
    users with no threaded predict at all. ~6 lines.
-5. **[[inst/NEWS.Rd:1914-1919@0045507c]], the unretracted 0.9-31 entry.** RECOMMEND leave it and say nothing: once
+5. **[inst/NEWS.Rd:1914-1919](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/inst/NEWS.Rd#L1914-L1919), the unretracted 0.9-31 entry.** RECOMMEND leave it and say nothing: once
    this slice lands the statement is true again, and retracting a regression that never shipped in a
    release is noise.
 6. **Cutoff predicate.** RECOMMEND total traversals (numChains * numDraws * numTrees * numTest >= 1e7)

@@ -51,48 +51,48 @@ preserved by a fixed atom-iteration order.
 
 ## 1. What the engine does today (verified in code, the baseline to preserve)
 
-The per-forest sweep is Chain::run ([[src/bartcore/chain.hpp#Chain::run]]). Per tree t, in order:
+The per-forest sweep is Chain::run ([`Chain::run`](../../src/bartcore/chain.hpp)). Per tree t, in order:
 
-1. Residual roll ([[src/bartcore/chain.hpp#Chain::rollTreeResidual]]): treeY carries a running residual across the
+1. Residual roll ([`Chain::rollTreeResidual`](../../src/bartcore/chain.hpp)): treeY carries a running residual across the
    sweep. Entering tree t, resid_i = y_i - sum_{k!=t} f_k(i) (new fits for trees
    already drawn this sweep, old for the rest). One fused O(n) pass retires the
    previous tree's new fits and admits this tree's old ones. treeFits[t*n..] is
    tree t's per-observation contribution (obs order, persistent); totalFits is
-   the running sum, rebuilt after the loop ([[src/bartcore/chain.hpp#Chain::finalizeTotalFits]]).
-2. setNodeAverages -> computeLeafStats ([[src/bartcore/tree.hpp#Tree::setNodeAverages, Tree::computeLeafStats]]): for each leaf, an
+   the running sum, rebuilt after the loop ([`Chain::finalizeTotalFits`](../../src/bartcore/chain.hpp)).
+2. setNodeAverages -> computeLeafStats ([`Tree::setNodeAverages`](../../src/bartcore/tree.hpp), [`Tree::computeLeafStats`](../../src/bartcore/tree.hpp)): for each leaf, an
    O(n_leaf) GATHER-reduce of the residual over the leaf's members,
    `misc_computeIndexedSufficientStatisticsFast(treeY, indices+begin, len, ...)`,
    producing (sumWeights, sumWeightedResponse) cached on
-   the Node ([[src/bartcore/tree.hpp#Node::sumWeights, Node::sumWeightedResponse]] - retired: a third
+   the Node ([`Node::sumWeights`](../../src/bartcore/tree.hpp), [`Node::sumWeightedResponse`](../../src/bartcore/tree.hpp) - retired: a third
    sumWeightedResponseSq field was cached here at proposal time; it has since
    been dropped from Node and from the constant leaf's draw/marginal entirely,
    the outcome fact 1.2 below argued for). This is E2's dominant "whole-tree suffstat
    recompute" and x86's #1 hotspot (32%).
 3. metropolisJumpForTree (moves.hpp): a birth partitions one leaf's members
-   (partitionChildren -> misc_partitionIndices, [[src/bartcore/tree.hpp#Tree::partitionChildren]]) and computes 2
-   child suffstats; death merges incrementally (orphanChildren, [[src/bartcore/tree.hpp#Tree::orphanChildren]]);
+   (partitionChildren -> misc_partitionIndices, [`Tree::partitionChildren`](../../src/bartcore/tree.hpp)) and computes 2
+   child suffstats; death merges incrementally (orphanChildren, [`Tree::orphanChildren`](../../src/bartcore/tree.hpp));
    change/swap snapshot the affected index segment (snapshotSubtree,
-   [[src/bartcore/tree.hpp#Tree::snapshotSubtree]]), refresh the subtree (repartition + recompute stats,
-   refreshSubtree [[src/bartcore/tree.hpp#Tree::refreshSubtree]]), and restore on rejection (restoreSubtree,
-   [[src/bartcore/tree.hpp#Tree::restoreSubtree]]). Scoring uses logLikelihoodForBranch -> the leaf's
+   [`Tree::snapshotSubtree`](../../src/bartcore/tree.hpp)), refresh the subtree (repartition + recompute stats,
+   refreshSubtree [`Tree::refreshSubtree`](../../src/bartcore/tree.hpp)), and restore on rejection (restoreSubtree,
+   [`Tree::restoreSubtree`](../../src/bartcore/tree.hpp)). Scoring uses logLikelihoodForBranch -> the leaf's
    logIntegratedLikelihoodForNode over the cached node suffstat.
-4. sampleParametersAndSetFits ([[src/bartcore/chain.hpp#Chain::sampleParametersAndSetFits]], constant-leaf branch
-   [[src/bartcore/chain.hpp#Chain::sampleParametersAndSetFits]]): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
+4. sampleParametersAndSetFits ([`Chain::sampleParametersAndSetFits`](../../src/bartcore/chain.hpp), constant-leaf branch
+   [`Chain::sampleParametersAndSetFits`](../../src/bartcore/chain.hpp)): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
    (sumWeights, sumWeightedResponse) and SCATTER-write it into treeFits with
    `misc_setIndexedVectorToConstant` (x86's #3 hotspot, 15%).
 
 The index buffer is `indexBuffer[t*n .. ]`, a persistent per-tree permutation
 P_t; node [begin,end) is a contiguous range of P_t whose entries are scattered
-observation ids ([[src/bartcore/tree.hpp#Tree::indices]]). Every hot pass above is memory-bound on this
+observation ids ([`Tree::indices`](../../src/bartcore/tree.hpp)). Every hot pass above is memory-bound on this
 shuffled buffer; both SIMD investigations concluded width buys ~0-1.15x and the
 only escape is structural (make the field per-atom, not per-observation).
 
-The constant-leaf math that makes atoms work ([[src/bartcore/model.hpp#ConstantGaussianLeaf]]):
+The constant-leaf math that makes atoms work ([`ConstantGaussianLeaf`](../../src/bartcore/model.hpp)):
 
 - drawFromPosterior needs ONLY (sumWeights, sumWeightedResponse) and sigma^2/k
-  ([[src/bartcore/model.hpp#ConstantGaussianLeaf::drawFromPosterior]]). sumWeightedResponseSq is NOT used in the draw.
+  ([`ConstantGaussianLeaf::drawFromPosterior`](../../src/bartcore/model.hpp)). sumWeightedResponseSq is NOT used in the draw.
 - logIntegratedLikelihood uses sumWeightedResponseSq only inside
-  explainedSumOfSquares = sumWeightedResponse*mean ([[src/bartcore/model.hpp#ConstantGaussianLeaf::logIntegratedLikelihood]]). This term is
+  explainedSumOfSquares = sumWeightedResponse*mean ([`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp)). This term is
   additive across any partition of a fixed observation set, so it CANCELS in
   every move ratio exp(newLogL - oldLogL) (fact 1.2; birth splits a leaf, the
   raw sumWZSq of parent = sum over children). It is dead weight for the decision
@@ -212,7 +212,7 @@ dropped (b>1) or supplied per-atom (b=1 anchor, section 5).
 ### 3.2 Leaf-mean draw (replaces the constant-leaf branch of sampleParametersAndSetFits)
 
 drawFromPosterior(rng, k, W(L), sumWeightedResponse(L), sigma^2) unchanged
-([[src/bartcore/model.hpp#ConstantGaussianLeaf::drawFromPosterior]]). Draw one mu per leaf of tree t_j. RNG consumption identical
+([`ConstantGaussianLeaf::drawFromPosterior`](../../src/bartcore/model.hpp)). Draw one mu per leaf of tree t_j. RNG consumption identical
 to today (one standard normal per non-empty leaf, in the SAME leaf order -- see
 section 4.2 on fixing the leaf-iteration order).
 
@@ -246,14 +246,14 @@ atoms) operation, mirroring restoreSubtree's O(index-segment) cost. No O(n) pass
 
 At block exit, the b trees' drawn leaf means must be materialized into the
 per-observation treeFits[t_j * n + i] (obs order) so that: (a) totalFits and the
-residual are correct for the sigma/latent draws ([[src/bartcore/chain.hpp#Chain::run]]), and (b) the
+residual are correct for the sigma/latent draws ([`Chain::run`](../../src/bartcore/chain.hpp)), and (b) the
 next block reads a correct O for its own g field. For each block tree t_j and
 each leaf L, scatter mu_{t_j}(L) to the leaf's member observations. Two equivalent
 routes:
   - per-atom: for each atom c, for each block tree j, write mu_{t_j}(leaf_j(c))
     to treeFits[t_j*n + i] for i in c's members -- one walk of atomMembers writes
     all b trees' fits (b sequential writes per member, cache-friendly).
-  - or reuse the existing per-tree setTreeFitsFromParameters ([[src/bartcore/chain.hpp#Chain::setTreeFitsFromParameters]]) b
+  - or reuse the existing per-tree setTreeFitsFromParameters ([`Chain::setTreeFitsFromParameters`](../../src/bartcore/chain.hpp)) b
     times.
 This is O(bn) writes = O(n) per tree amortized, but done ONCE at block exit, not
 interleaved with b residual rolls + b suffstat gathers. That is the DRAM
@@ -275,7 +275,7 @@ to ~1-2 per block.
 
 ### 3.7 Sigma draw and latents stay O(n), once per sweep
 
-The sigma draw's SSR ([[src/bartcore/model.hpp#ChiSquaredScalePrior::drawSigmaSqFromPosterior]], misc_computeSumOfSquaredResiduals over the
+The sigma draw's SSR ([`ChiSquaredScalePrior::drawSigmaSqFromPosterior`](../../src/bartcore/model.hpp), misc_computeSumOfSquaredResiduals over the
 full residual) and the latent refresh (refreshLatents) are OUTSIDE the block
 machinery: they run once per sweep after all blocks, over the correct
 per-observation residual materialized at block exits. They are unchanged and
@@ -336,7 +336,7 @@ order reproduces the same regrouped sum on every ISA).
 
 ### 4.3 Rollback (rejected moves)
 
-Mirror the tree's existing snapshot/restore ([[src/bartcore/tree.hpp#Tree::snapshotSubtree, Tree::restoreSubtree]]):
+Mirror the tree's existing snapshot/restore ([`Tree::snapshotSubtree`](../../src/bartcore/tree.hpp), [`Tree::restoreSubtree`](../../src/bartcore/tree.hpp)):
 - BIRTH rejected: discard the two child atoms, restore the parent atom's slice
   order (the two-pointer partition is unstable, so snapshot the affected
   atomMembers segment before partitioning, exactly as snapshotSubtree snapshots
@@ -384,7 +384,7 @@ change, or as an optional periodic re-canonicalization to bound fragmentation
 (atoms can accumulate near-empty slivers after many splits/merges; a rebuild
 every K sweeps re-tightens occupancy -- tunable, measure if needed).
 
-This generalizes the landed U'WU cache ([[src/bartcore/model.hpp#LinearGaussianLeaf::CachedNodeStatistics, LinearGaussianLeaf::lookupCrossproduct]]): there, each leaf's
+This generalizes the landed U'WU cache ([`LinearGaussianLeaf::CachedNodeStatistics`](../../src/bartcore/model.hpp), [`LinearGaussianLeaf::lookupCrossproduct`](../../src/bartcore/model.hpp)): there, each leaf's
 residual-INDEPENDENT crossproduct is cached and re-validated by comparing the
 ordered member list against tree.indices[begin..end); a structural move that
 alters membership fails the compare and rebuilds. Here the residual-INDEPENDENT
@@ -421,7 +421,7 @@ refactor, and b>1 delivers the win the standalone reorder could not.
 
 ### 5.2 Interaction with the data-ownership partition rework
 
-data-layout.md flags one shared touchpoint: partitionChildren ([[src/bartcore/tree.hpp#Tree::partitionChildren]]),
+data-layout.md flags one shared touchpoint: partitionChildren ([`Tree::partitionChildren`](../../src/bartcore/tree.hpp)),
 which the data-ownership program is already reworking (u8/u16 width templating).
 3.4's atom split (section 4.2) partitions atomMembers by a column's codes -- it
 REUSES the same two-pointer/misc_partitionIndices primitive, so it inherits the
@@ -443,20 +443,20 @@ forest. Generalization order, template = the U'WU cache:
   gives them most of the residual-independent reuse per leaf. Design later.
 - WEIGHTS: fully supported in v1 -- g_i = w_i(y_i - O_i) and A(c)=sum w_i carry
   weights exactly; the atom math is the weighted suffstat. Latent families whose
-  weights vary per sweep (workingWeightsVaryPerSweep, [[src/bartcore/chain.hpp#Chain::run]]) force a
+  weights vary per sweep (workingWeightsVaryPerSweep, [`Chain::run`](../../src/bartcore/chain.hpp)) force a
   g/A rebuild each sweep, which the block already does at entry.
 - PROBIT / LOGISTIC latents: the latent refresh (refreshLatents) rewrites y (and
   weights) once per sweep, OUTSIDE the blocks. The block just rebuilds g at entry
   from the current working response -- no special handling; v1 covers binary BART.
 - BCF: each forest sub-sweeps its own residual
-  (formForestResponse, [[src/bartcore/chain.hpp#Chain::run]]); blocks are per-forest, g uses the
+  (formForestResponse, [`Chain::run`](../../src/bartcore/chain.hpp)); blocks are per-forest, g uses the
   forest's response net of the other forest's scaled contribution. The glue/ridge
-  interweave ([[src/bartcore/chain.hpp#Chain::interweaveGlueRidgeForTesting]]) runs once per sweep outside blocks. Compatible;
+  interweave ([`Chain::interweaveGlueRidgeForTesting`](../../src/bartcore/chain.hpp)) runs once per sweep outside blocks. Compatible;
   block per forest.
 - MISSINGNESS (MIA): the partition already routes missing via the rule's
   missing-direction bit (partitionIndicesMIA in the worktree); atom split reuses
   it. No new handling.
-- GROW-FROM-ROOT warm start ([[src/bartcore/chain.hpp#Chain::growForestFromRoot]]): a separate init path; leave it
+- GROW-FROM-ROOT warm start ([`Chain::growForestFromRoot`](../../src/bartcore/chain.hpp)): a separate init path; leave it
   on the per-tree code path (it runs a fixed few sweeps at init, not hot). Blocks
   engage only in the steady-state run() loop.
 

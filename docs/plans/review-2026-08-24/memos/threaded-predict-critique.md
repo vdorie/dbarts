@@ -22,29 +22,29 @@ slice lands the statement is true again" is wrong; (b) the repo DOES fix NEWS in
 the released 0.9-34 notes back out of 1.0-0's NEWS section".
 
 **3. MINOR - two records bearing on the serial choice, uncited.** No design doc records a reason (memo right). But
-[[docs/plans/interface-review.md:200-205@f04e8686]] is the F10 item that renamed run's formal, with "(wiring threading itself is
+[docs/plans/interface-review.md:200-205](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/docs/plans/interface-review.md#L200-L205) is the F10 item that renamed run's formal, with "(wiring threading itself is
 wishlist)" and "Verified alongside D1 that both run() and predict()'s thread-count formals are fully inert, not merely
-'serial'"; and [[docs/plans/interface-review.md:543@f04e8686]] puts "threaded prediction" on the explicit 2.0-WISHLIST. Cite both - the item is already docketed,
+'serial'"; and [docs/plans/interface-review.md:543](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/docs/plans/interface-review.md#L543) puts "threaded prediction" on the explicit 2.0-WISHLIST. Cite both - the item is already docketed,
 and the wishlist line must be struck when this lands.
 
 ## B. The partition
 
 **4. CONFIRMED-OK - no shared mutable state a worker would touch. I tried hard to find one.** Read
-predictColumns/predictPerForestColumns/predictVarianceColumns ([[sampler.hpp:565@f04e8686]], [[sampler.hpp:621@f04e8686]], [[sampler.hpp:674@f04e8686]]),
-Chain::predictFromSavedSample / ...Multi / predictPerForest... and their live twins ([[chain.hpp:2797-2985@f04e8686]]),
-addFlatPredictions ([[chain.hpp:2758@f04e8686]]), and the tree.hpp kernels addFlatPredictionsBelow / addFlatLinearPredictionsBelow /
-partitionFlatIndices ([[chain.hpp:1723-1900@f04e8686]]).
-- Adapters: DenseColumns/DenseColumnReader ([[tree.hpp:1700-1719@f04e8686]]), PredictorSourceColumns / SparseRawColumn /
-  PredictorSourceColumnReader ([[data.hpp:346-442@f04e8686]]). All built in the constructor, `column(j) const` returns by value,
+predictColumns/predictPerForestColumns/predictVarianceColumns ([src/bartcore/sampler.hpp:565](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L565), [src/bartcore/sampler.hpp:621](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L621), [src/bartcore/sampler.hpp:674](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L674)),
+Chain::predictFromSavedSample / ...Multi / predictPerForest... and their live twins ([src/bartcore/chain.hpp:2797-2985](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L2797-L2985)),
+addFlatPredictions ([src/bartcore/chain.hpp:2758](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L2758)), and the tree.hpp kernels addFlatPredictionsBelow / addFlatLinearPredictionsBelow /
+partitionFlatIndices ([src/bartcore/chain.hpp:1723-1900](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L1723-L1900)).
+- Adapters: DenseColumns/DenseColumnReader ([src/bartcore/tree.hpp:1700-1719](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/tree.hpp#L1700-L1719)), PredictorSourceColumns / SparseRawColumn /
+  PredictorSourceColumnReader ([src/bartcore/data.hpp:346-442](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/data.hpp#L346-L442)). All built in the constructor, `column(j) const` returns by value,
   `SparseRawColumn::at` is a pure popcount lookup with no search cursor and no memo. One shared `columns` object is
   safe.
-- Accessors the replay reaches - [[model.hpp:984-988@f04e8686]], [[model.hpp:1347-1351@f04e8686]] (covariateColumns/Means/Sds/lengthscales/
-  numParams/numCovariates) and fitScale/fitShift/sigmaScale ([[model.hpp:2718-2719@f04e8686]] + overrides) - are plain returns of stored
+- Accessors the replay reaches - [src/bartcore/model.hpp:984-988](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L984-L988), [src/bartcore/model.hpp:1347-1351](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L1347-L1351) (covariateColumns/Means/Sds/lengthscales/
+  numParams/numCovariates) and fitScale/fitShift/sigmaScale ([src/bartcore/model.hpp:2718-2719](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2718-L2719) + overrides) - are plain returns of stored
   members. No lazy init.
-- `mutable` audit over src/bartcore: [[model.hpp:521@f04e8686]], [[model.hpp:1302-1303@f04e8686]], [[model.hpp:2093-2107@f04e8686]], [[model.hpp:2121-2127@f04e8686]] and [[tree.hpp:1604-1626@f04e8686]] are all
+- `mutable` audit over src/bartcore: [src/bartcore/model.hpp:521](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L521), [src/bartcore/model.hpp:1302-1303](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L1302-L1303), [src/bartcore/model.hpp:2093-2107](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2093-L2107), [src/bartcore/model.hpp:2121-2127](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2121-L2127) and [src/bartcore/tree.hpp:1604-1626](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/tree.hpp#L1604-L1626) are all
   sampling-path scratch (monotone neighbours, suffstat/GP kernel caches, pooled-mask and availability scratch); none
   is reachable from addFlatPredictions*, checked by reading the call graph, not by grep alone.
-- SIMD dispatch ([[src/misc/simd.c:193-350@f04e8686]]): `misc_setVectorToConstant` / `misc_addVectorsInPlace` are file-scope function
+- SIMD dispatch ([src/misc/simd.c:193-350](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/misc/simd.c#L193-L350)): `misc_setVectorToConstant` / `misc_addVectorsInPlace` are file-scope function
   POINTERS assigned once by `misc_simd_init`, read-only after. No race.
 
 **5. CONFIRMED-OK - bitwise identity at any thread count is structural.** The only accumulation is `fits[indices[k]]
@@ -66,45 +66,45 @@ worker body in `try { ... } catch (...) { failed[w] = true; }` and Rf_error afte
 speedup.
 
 **7. MAJOR - "0 = defer" can resolve to zero workers and return uninitialized memory.** `Sampler::setNumThreads`
-([[sampler.hpp:1011-1014@f04e8686]]) and `dbarts_sampler_setNumThreads` ([[C_interface.cpp:875-878@f04e8686]]) store the value with NO
-validation; dbartsControl's check ([[R/A_class.R:349-350@f04e8686]]) guards only the R path. A C consumer that sets 0 and then
+([src/bartcore/sampler.hpp:1011-1014](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L1011-L1014)) and `dbarts_sampler_setNumThreads` ([src/C_interface.cpp:875-878](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/C_interface.cpp#L875-L878)) store the value with NO
+validation; dbartsControl's check ([R/A_class.R:349-350](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/A_class.R#L349-L350)) guards only the R path. A C consumer that sets 0 and then
 predicts with numThreads == 0 defers to 0; written as `numWorkers = min(numThreads, numSlabs)` that is zero workers,
 nothing writes `out`, and predict hands R the contents of an uninitialized `Rf_allocVector(REALSXP, ...)`. Amendment:
 clamp the resolved count to >= 1, pin it with a test, and say in the doc block what 0 means when the sampler's own
 count is 0.
 
 **8. MINOR - the flattenTree invariant needs the stronger statement.** The memo's reasoning is right
-([[sampler.hpp:583-591@f04e8686]]), but the load-bearing half is that the partition is over SLABS: one slab per chain plus a slab
+([src/bartcore/sampler.hpp:583-591](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L583-L591)), but the load-bearing half is that the partition is over SLABS: one slab per chain plus a slab
 partition means no two workers touch one Chain. Under candidate (b) (row chunks) the invariant dies. Amendment: assert
 it in the capacity == 0 arm and say in the comment that a row-axis partition must privatize the flatten buffers.
 
 **9. MINOR - the cutoff predicate is wrong for three entry points.** `numChains * numDraws * numTrees * numTest` uses
-forests_[0].numTrees. A multinomial replay traverses sum_f numTrees_f ([[chain.hpp:2871-2884@f04e8686]]), the per-forest replay
+forests_[0].numTrees. A multinomial replay traverses sum_f numTrees_f ([src/bartcore/chain.hpp:2871-2884](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L2871-L2884)), the per-forest replay
 likewise, and the heteroscedastic second fan-out traverses numVarianceTrees. State the predicate as "the traversals
 THIS entry performs" and compute it per entry.
 
 **10. CONFIRMED-OK - no RNG, no R API, no Rf_error inside the threaded region.** Read `dbarts_sampler_predict`
-([[C_interface.cpp:773-802@f04e8686]]) and `predictFromSource` ([[R_interface_bartcore.cpp:5654-5758@f04e8686]]). Every refusal and every
-R_alloc is strictly BEFORE the engine call: refuseUndefinedTestFits ([[R_interface_bartcore.cpp:5781@f04e8686]] / [[C_interface.cpp:780@f04e8686]]),
-refuseEmptyTreeStore, translateSource ([[C_interface.cpp:185-241@f04e8686]] - the R_alloc the header's main-thread warning is
-about), validateTestSource, the offset-shape refusals ([[src/R_interface_bartcore.cpp:5631-5645@f04e8686]]), and the result allocation. No ext_rng/unif_rand
-and no Rf_error/ext_printf/R_alloc under chain.hpp's replay block. [[dbarts.h:45-47@f04e8686]]'s main-R-thread-only contract is
+([src/C_interface.cpp:773-802](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/C_interface.cpp#L773-L802)) and `predictFromSource` ([src/R_interface_bartcore.cpp:5654-5758](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5654-L5758)). Every refusal and every
+R_alloc is strictly BEFORE the engine call: refuseUndefinedTestFits ([src/R_interface_bartcore.cpp:5781](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5781) / [src/C_interface.cpp:780](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/C_interface.cpp#L780)),
+refuseEmptyTreeStore, translateSource ([src/C_interface.cpp:185-241](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/C_interface.cpp#L185-L241) - the R_alloc the header's main-thread warning is
+about), validateTestSource, the offset-shape refusals ([src/R_interface_bartcore.cpp:5631-5645](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5631-L5645)), and the result allocation. No ext_rng/unif_rand
+and no Rf_error/ext_printf/R_alloc under chain.hpp's replay block. [inst/include/dbarts/dbarts.h:45-47](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/include/dbarts/dbarts.h#L45-L47)'s main-R-thread-only contract is
 unaffected and must NOT be relaxed - translateSource still runs R_alloc.
 
 **11. MINOR - the interrupt argument is stronger than the memo makes it.** A Ctrl-C while the main thread is blocked
 in `worker.join()` cannot longjmp out: R's unix SIGINT handler only sets R_interrupts_pending, and the jump happens in
 R_CheckUserInterrupt, which predict never calls (the bridge's poll, `bartcore_checkInterrupt`,
-[[R_interface_bartcore.cpp:4224-4231@f04e8686]], is R_ToplevelExec-wrapped and used only by run). So deferring interrupt polling
+[src/R_interface_bartcore.cpp:4224-4231](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L4224-L4231), is R_ToplevelExec-wrapped and used only by run). So deferring interrupt polling
 (decision 7) is SAFE, not merely unchanged, and the SIGINT mask mirror is defence-in-depth rather than necessity. Say
 so.
 
 ## C. Fan-out and thread count
 
-**12. CONFIRMED-OK - mirror run's fan-out; do not reuse testFitPool_.** [[sampler.hpp:349-420@f04e8686]] and the grow-from-root
-twin [[sampler.hpp:1072-1099@f04e8686]]: std::thread, numWorkers = min(numThreads, numChains), pthread_sigmask(SIG_BLOCK, SIGINT) around the
+**12. CONFIRMED-OK - mirror run's fan-out; do not reuse testFitPool_.** [src/bartcore/sampler.hpp:349-420](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L349-L420) and the grow-from-root
+twin [src/bartcore/sampler.hpp:1072-1099](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/sampler.hpp#L1072-L1099): std::thread, numWorkers = min(numThreads, numChains), pthread_sigmask(SIG_BLOCK, SIGINT) around the
 spawn under `#ifndef _WIN32`, mask restored immediately, join at the end. Portability is configure-provided
-([[configure.ac:53@f04e8686]] AX_PTHREAD; [[src/Makevars.in:18-34@f04e8686]] threads the flags through), and Windows needs no mask because R's
-console Ctrl-C already lands on the main thread. testFitPool_ ([[chain.hpp:5353-5354@f04e8686]]) is per-Chain, budget
+([configure.ac:53](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/configure.ac#L53) AX_PTHREAD; [src/Makevars.in:18-34](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/Makevars.in#L18-L34) threads the flags through), and Windows needs no mask because R's
+console Ctrl-C already lands on the main thread. testFitPool_ ([src/bartcore/chain.hpp:5353-5354](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L5353-L5354)) is per-Chain, budget
 numThreads/numChains, 65536-ROW cutoff; a slab partition is cross-chain, so the rejection is right. Spawn cost (tens
 of microseconds x a few threads) against a 25 ms cutoff is under 1%.
 
@@ -116,9 +116,9 @@ thread; predict must too, rather than spawn one worker and join. And numWorkers 
 that probes cores is exactly what `_R_CHECK_LIMIT_CORES_` exists to catch", and "The repo has no
 `_R_CHECK_LIMIT_CORES_` anywhere ... new discipline, not a regression." The variable is read only by `parallel`'s
 `.check_ncores` - makeCluster/mclapply, not std::thread. The repo's own record proves it:
-[[docs/plans/release-candidate-review.md:2529-2531@f04e8686]] records the single trip as "xbart's auto n.threads trips CRAN's core
-limit" (xbart uses `parallel::makeCluster`, [[man/xbart.Rd:61@f04e8686]]) "fixed with an explicit n.threads = 1L and the
-as-cran-for-thread-spawning-tests lesson recorded in the runbook", and [[docs/plans/release-candidate-review.md:2210-2211@f04e8686]] records the P8 battery running tinytest
+[docs/plans/release-candidate-review.md:2529-2531](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/docs/plans/release-candidate-review.md#L2529-L2531) records the single trip as "xbart's auto n.threads trips CRAN's core
+limit" (xbart uses `parallel::makeCluster`, [man/xbart.Rd:61](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/man/xbart.Rd#L61)) "fixed with an explicit n.threads = 1L and the
+as-cran-for-thread-spawning-tests lesson recorded in the runbook", and [docs/plans/release-candidate-review.md:2210-2211](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/docs/plans/release-candidate-review.md#L2210-L2211) records the P8 battery running tinytest
 "with and without _R_CHECK_LIMIT_CORES_". The discipline exists; the mechanism does not protect dbarts's own threads.
 Any "skip the >2 arms when it is set" clause must read the env var by hand - nothing errors for you.
 
@@ -132,31 +132,31 @@ fails.
 
 ## D. Header, bridge, R surface
 
-**16. MINOR - the hash re-bake is TWO literals.** [[src/C_interface.cpp:461@f04e8686]] `static_assert(dbarts_apiSignatureToken ==
-0x85bd1ef04beb3848ULL, ...)` fires on any SIGNATURE change; [[dbarts.h:142@f04e8686]] DBARTS_C_API_HASH on signature-or-layout.
+**16. MINOR - the hash re-bake is TWO literals.** [src/C_interface.cpp:461](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/C_interface.cpp#L461) `static_assert(dbarts_apiSignatureToken ==
+0x85bd1ef04beb3848ULL, ...)` fires on any SIGNATURE change; [inst/include/dbarts/dbarts.h:142](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/include/dbarts/dbarts.h#L142) DBARTS_C_API_HASH on signature-or-layout.
 Adding a parameter moves both. Both fail loudly with instructions, so it is self-correcting, but the flat-API cost
 line names only one. stan4bart pins the hash by hard equality (its `src/init.cpp` line 972), so the lockstep break is real and
 intended.
 
-**17. MINOR - no default arguments on the facade virtuals.** [[facade.hpp:258@f04e8686]]/267/272 with overrides at [[facade.hpp:545@f04e8686]]/[[facade.hpp:549@f04e8686]]/[[facade.hpp:554@f04e8686]]
+**17. MINOR - no default arguments on the facade virtuals.** [src/bartcore/facade.hpp:258](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L258)/267/272 with overrides at [src/bartcore/facade.hpp:545](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L545)/[src/bartcore/facade.hpp:549](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L549)/[src/bartcore/facade.hpp:554](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L554)
 (verified). A default value on a virtual binds from the STATIC type: the base's for `SamplerBase&` calls, the
 derived's for derived calls - silent divergence, and every real call goes through `SamplerBase&`. Amendment: no
-default arg; explicit at every call site. Also give the non-virtual dense convenience spellings ([[facade.hpp:276-286@f04e8686]],
-re-exposed by `using SamplerBase::predict;` at [[facade.hpp:542-543@f04e8686]]) the parameter, or the dbarts.h-shaped overloads quietly stay
+default arg; explicit at every call site. Also give the non-virtual dense convenience spellings ([src/bartcore/facade.hpp:276-286](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L276-L286),
+re-exposed by `using SamplerBase::predict;` at [src/bartcore/facade.hpp:542-543](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L542-L543)) the parameter, or the dbarts.h-shaped overloads quietly stay
 serial while their view-taking twins thread.
 
 **18. MAJOR - tests/cpp/test_facade.cpp is an unlisted edit site, and the cheapest answer to the memo's own named
-failure mode.** It enumerates every virtual (FacadeVirtual list [[facade.hpp:40-41@f04e8686]]), spies them (`SPY_VOID(predict, ...)`,
-`SPY_VOID(predictPerForest, ...)`, `SPY_VOID(predictVariance, ...)` at [[facade.hpp:140-146@f04e8686]]) and conformance-checks all three
-predict virtuals at [[facade.hpp:752-785@f04e8686]]. A signature change forces edits in all three places; the cost table has no line for it.
+failure mode.** It enumerates every virtual (FacadeVirtual list [src/bartcore/facade.hpp:40-41](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L40-L41)), spies them (`SPY_VOID(predict, ...)`,
+`SPY_VOID(predictPerForest, ...)`, `SPY_VOID(predictVariance, ...)` at [src/bartcore/facade.hpp:140-146](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L140-L146)) and conformance-checks all three
+predict virtuals at [src/bartcore/facade.hpp:752-785](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/facade.hpp#L752-L785). A signature change forces edits in all three places; the cost table has no line for it.
 Amendment: extend the spy to RECORD the numThreads it was handed and assert the forwarder passes it through. That
 deterministically disproves "the wiring is a no-op" for ~10 lines instead of a timing assertion.
 
 **19. MAJOR - the DEF_FUNC arity bump breaks four tinytest files the memo does not list.** Grepped every `.Call` of
-the symbol. Besides [[R/dbarts.R:1140@f04e8686]] and [[R/bartcore.R:1354@f04e8686]], four test files call the entry point DIRECTLY with three
-arguments: [[test-predict-sparse.R:163@f04e8686]] (inside `expect_identical` - a hard error), [[test-multinomial-test-offset.R:405@f04e8686]]
-and [[test-multinomial-test-offset.R:414@f04e8686]], and [[test-multinomial-category-offset.R:430@f04e8686]] (inside `expect_error` with message patterns - they fail on the
-arity message instead of the target refusal). Add [[R/bartcore.R:1490@0045507c]] and [[R/dbarts.R:1153@f04e8686]] for the per-forest arity.
+the symbol. Besides [R/dbarts.R:1140](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/dbarts.R#L1140) and [R/bartcore.R:1354](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/bartcore.R#L1354), four test files call the entry point DIRECTLY with three
+arguments: [inst/tinytest/test-predict-sparse.R:163](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/tinytest/test-predict-sparse.R#L163) (inside `expect_identical` - a hard error), [inst/tinytest/test-multinomial-test-offset.R:405](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/tinytest/test-multinomial-test-offset.R#L405)
+and [inst/tinytest/test-multinomial-test-offset.R:414](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/tinytest/test-multinomial-test-offset.R#L414), and [inst/tinytest/test-multinomial-category-offset.R:430](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/inst/tinytest/test-multinomial-category-offset.R#L430) (inside `expect_error` with message patterns - they fail on the
+arity message instead of the target refusal). Add [R/bartcore.R:1490](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bartcore.R#L1490) and [R/dbarts.R:1153](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/dbarts.R#L1153) for the per-forest arity.
 Loud, but unbudgeted.
 
 **20. MAJOR - bartCause is not "ZERO lines" without a placement rule.** bartCause dbarts-1.0 @7ae6e83
@@ -164,19 +164,19 @@ Loud, but unbudgeted.
 predict.rbart, stan4bart's, and stats predict.glm/lm/merMod (`predict(object$fit.trt, x.new.g, type = "response",
 ...)`) - and it calls predict.rbart POSITIONALLY: `predict(object$fit.trt, x.new, group.by, combineChains = FALSE,
 ...)`. So the new formal MUST be appended AFTER every existing positional formal on each of the six generics;
-inserting `n.threads` before `group.by` in predict.rbart ([[R/generics.R:1647-1657@f04e8686]]) would pass a factor as a thread
+inserting `n.threads` before `group.by` in predict.rbart ([R/generics.R:1647-1657](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L1647-L1657)) would pass a factor as a thread
 count. The migration is still zero LINES, but only under that constraint, and the memo says only "add the formal to
-each". Each generic also needs its own default expression: predict.bartHurdle ([[R/generics.R:1614@f04e8686]]) has no `object$fit` at all (it
+each". Each generic also needs its own default expression: predict.bartHurdle ([R/generics.R:1614](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L1614)) has no `object$fit` at all (it
 is `object$occupancy$fit`). stan4bart is exactly as described: one C site, stan4bart's `src/init.cpp` line 342 in predictBART (line 293),
 hash equality line 972, `-DDBARTS_USE_STUBS` (stan4bart's `src/Makevars.in` line 1).
 
 **21. MAJOR - predict.bart's validation sits BELOW two early returns, and predictBlend is missing from the site
-list.** [[R/generics.R:207-300@f04e8686]]: `type == "forest"` returns through `predictForest` at [[R/generics.R:660@f04e8686]] and an amplitude-coupled fit
-through `predictBlend` at [[R/generics.R:672@f04e8686]], both BEFORE `n.threads <- as.integer(n.threads)[1L]` at [[R/generics.R:294@f04e8686]]. Putting the
-house-pattern validation at [[R/generics.R:294@f04e8686]] leaves the amplitude family's n.threads unvalidated. And predictBlend ([[R/generics.R:727-738@f04e8686]]) is
+list.** [R/generics.R:207-300](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L207-L300): `type == "forest"` returns through `predictForest` at [R/generics.R:660](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L660) and an amplitude-coupled fit
+through `predictBlend` at [R/generics.R:672](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L672), both BEFORE `n.threads <- as.integer(n.threads)[1L]` at [R/generics.R:294](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L294). Putting the
+house-pattern validation at [R/generics.R:294](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L294) leaves the amplitude family's n.threads unvalidated. And predictBlend ([R/generics.R:727-738](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L727-L738)) is
 how a BCF fit's PLAIN predict reaches the replay - it calls `predictForest(object, newdata, NULL, TRUE, NULL)` at
 a line whose location could not be placed at this sha - `predictBlend` does not exist in
-R/generics.R at f04e8686 (unresolved: [[R/generics.R:738@f04e8686]]). The memo lists predictForest but not predictBlend. Amendment: move the validation above both early returns; give
+R/generics.R at f04e8686 (unresolved: [R/generics.R:738](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/generics.R#L738)). The memo lists predictForest but not predictBlend. Amendment: move the validation above both early returns; give
 predictBlend the formal and forward it.
 
 ## E. Measurement
@@ -195,8 +195,8 @@ reshape directly and subtract; state the box was quiet; re-take the table before
 
 **23. MAJOR - the Amdahl ceiling is over the wrong denominator.** The measured share is (whole
 `.Call`)/(predict.bart), but the partition parallelizes only `predictColumns`. Serial work INSIDE the `.Call` that it
-never touches: the flat-offset add over EVERY slab ([[R_interface_bartcore.cpp:5736-5739@f04e8686]] - one pass over the entire
-output, 76 MB at the memo's nTest = 10000); `Rf_duplicate(resultExpr)` on the heteroscedastic path ([[R_interface_bartcore.cpp:5745@f04e8686]], a full copy
+never touches: the flat-offset add over EVERY slab ([src/R_interface_bartcore.cpp:5736-5739](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5736-L5739) - one pass over the entire
+output, 76 MB at the memo's nTest = 10000); `Rf_duplicate(resultExpr)` on the heteroscedastic path ([src/R_interface_bartcore.cpp:5745](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5745), a full copy
 of that array) before a SECOND fan-out for predictVariance; the result allocation; translateSource; R-side
 validateXTest/as.matrix. The measured configuration had no offset, no variance forest and a dense test set - the most
 favourable case - and its ceiling is reported as general. Report the worst configuration too, or say plainly that
@@ -215,14 +215,14 @@ one-time output write with a streamed working set. Keep the scaling curve as the
 
 **26. Decision 2 (control@n.threads as predict's R default). REFUTED.** Both supporting facts are false (14, 15), so
 the argument has nothing under it. Substantive case for 1L: predict is routinely called on small newdata, and
-partialDependence calls `sampler$predict(x.test)` per grid level with NO n.threads ([[R/partialDependence.R:340@f04e8686]], [[R/partialDependence.R:357@f04e8686]],
-[[R/partialDependence.R:359@f04e8686]]), taking the R5 default silently once per level; the fit-time budget was sized for CHAIN parallelism
+partialDependence calls `sampler$predict(x.test)` per grid level with NO n.threads ([R/partialDependence.R:340](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/partialDependence.R#L340), [R/partialDependence.R:357](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/partialDependence.R#L357),
+[R/partialDependence.R:359](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/R/partialDependence.R#L359)), taking the R5 default silently once per level; the fit-time budget was sized for CHAIN parallelism
 (the memo says so in 4.3); the house rule is "safe over fast in R". Recommend `n.threads = 1L` for 1.0-0, revisited in
 S2 against a real curve. If control@n.threads is kept, the memo must state that examples and tests are the exposure
 and that no check tooling will catch it.
 
 **27. Decision 3 (run deferred). AGREE.** Add: the Rd item cannot keep joint wording - after this slice "run and
-predict both execute serially" ([[man/dbartsSampler-class.Rd:152-157@f04e8686]]) is half false, so splitting it is forced, not
+predict both execute serially" ([man/dbartsSampler-class.Rd:152-157](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/man/dbartsSampler-class.Rd#L152-L157)) is half false, so splitting it is forced, not
 optional.
 
 **28. Decision 4 (predictPerForest in S1). AGREE, and the case is stronger than argued.** Because predictBlend routes
@@ -233,7 +233,7 @@ fit's ORDINARY predict serial, not just `type = "forest"`.
 stated axis stays wrong after this slice, and f04e8686 shows the repo edits NEWS in place pre-release.
 
 **30. Decision 6 (total-traversal cutoff). AGREE** on the predicate class; amend per finding 9 and make it a named
-constexpr carrying the ns/traversal derivation, in the style of `testFitParallelCutoff` ([[chain.hpp:5354@f04e8686]]).
+constexpr carrying the ns/traversal derivation, in the style of `testFitParallelCutoff` ([src/bartcore/chain.hpp:5354](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/chain.hpp#L5354)).
 
 **31. Decision 7 (interrupt polling deferred). AGREE**, with finding 11's stronger reason.
 
@@ -246,7 +246,7 @@ blocker; the S1/S2 split and "do not split the header out of S1" are both right.
 
 **33. MAJOR - the R timing assertion is not a viable observable.** `system.time(...)[["user.self"]]/[["elapsed"]] >
 1.2` is precisely the environment-fragile assertion the repo's own review waves have been removing (the P8
-anti-vacuity pass; the xbart pin at [[release-candidate-review.md:2529@63df524e]]). On a loaded runner elapsed inflates and the
+anti-vacuity pass; the xbart pin at [docs/plans/release-candidate-review.md:2529](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/docs/plans/release-candidate-review.md#L2529)). On a loaded runner elapsed inflates and the
 ratio collapses; on a single-core runner it can never pass. Amendment: make the observable DETERMINISTIC - have
 predictColumns return (or record) the resolved worker count and the slab->worker map, and assert in tests/cpp that the
 count is min(requested, slabs) and the map covers every slab exactly once at partition counts 1, 2, 3,
@@ -254,7 +254,7 @@ count is min(requested, slabs) and the map covers every slab exactly once at par
 proved without a clock. Keep the R side to `identical()` across thread counts; if an R-side liveness probe is still
 wanted, gate it on NOT_CRAN and make it a message, not an assertion.
 
-**34. MINOR - the sanitizer recommendation rests on a false premise.** [[sanitizers.yaml:77@63df524e]] runs
+**34. MINOR - the sanitizer recommendation rests on a false premise.** [.github/workflows/sanitizers.yaml:77](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/.github/workflows/sanitizers.yaml#L77) runs
 `tinytest::test_package("dbarts")` - the WHOLE suite - so the new file runs under ASAN automatically; there is nothing
 to "run instead". ASAN+UBSAN detect no data races at all, so "the ASAN leg covers it" is not available as a claim.
 Cheap real coverage: tests/cpp is a standalone binary with its own Makefile and no R, so a `-fsanitize=thread` arm
@@ -262,8 +262,8 @@ over the predict partition test costs a make flag, not an r-hub container. Recom
 memo is right that the equivalence trio must be unchanged - predict touches no sampling code.)
 
 **35. MINOR - citation drift in one region.** Against 0045507c the memo's R_interface_bartcore.cpp numbers run ~13 low
-around the 2800/5600-5800 band: predictFromSource is [[src/R_interface_bartcore.cpp:5654@0045507c]] (memo [[src/R_interface_bartcore.cpp:5641@0045507c]]), refuseUndefinedTestFits defined [[src/R_interface_bartcore.cpp:2871@0045507c]] and
-called [[src/R_interface_bartcore.cpp:5781@0045507c]] (memo [[src/R_interface_bartcore.cpp:2858@0045507c]], [[src/R_interface_bartcore.cpp:5768@0045507c]]). Everything else spot-checked is exact - facade.hpp, sampler.hpp, chain.hpp,
+around the 2800/5600-5800 band: predictFromSource is [src/R_interface_bartcore.cpp:5654](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5654) (memo [src/R_interface_bartcore.cpp:5641](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5641)), refuseUndefinedTestFits defined [src/R_interface_bartcore.cpp:2871](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L2871) and
+called [src/R_interface_bartcore.cpp:5781](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5781) (memo [src/R_interface_bartcore.cpp:2858](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L2858), [src/R_interface_bartcore.cpp:5768](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/R_interface_bartcore.cpp#L5768)). Everything else spot-checked is exact - facade.hpp, sampler.hpp, chain.hpp,
 dbarts.h, man/bart.Rd, man/dbartsSampler-class.Rd, R/dbarts.R and R/generics.R all match.
 
 ## Verdict
@@ -285,7 +285,7 @@ Amendments to fold in before implementation:
    predict.rbart); give each its own default expression.
 5. Replace the timing assertion with a deterministic worker-count / partition-coverage observable in tests/cpp, and
    extend test_facade.cpp's spy to record and assert the forwarded numThreads.
-6. Add test_facade.cpp, the four direct `.Call` tinytest sites, [[R/bartcore.R:1490@0045507c]] and [[src/C_interface.cpp:461@0045507c]]'s second
+6. Add test_facade.cpp, the four direct `.Call` tinytest sites, [R/bartcore.R:1490](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/bartcore.R#L1490) and [src/C_interface.cpp:461](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/src/C_interface.cpp#L461)'s second
    hash literal to the edit-site list and the budget.
 7. Strike the `_R_CHECK_LIMIT_CORES_` safety claim and the "nothing exceeds 2 today" claim; re-argue decision 2 on
    merits (recommend 1L) or state the unguarded CRAN exposure explicitly.

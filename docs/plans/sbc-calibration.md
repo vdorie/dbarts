@@ -87,7 +87,7 @@ report the projected cost of the full matrix before running it.
 Highest first (each routes through posterior code no gate exercises):
 1. linear leaf and GP leaf, with and without a MISSING (NA)
    leaf-covariate value - the imputation-at-standardized-mean path
-   ([[src/bartcore/model.hpp#LinearGaussianLeaf]]) no gate executes.
+   ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)) no gate executes.
 2. BCF (glue integrated) - the a-glue prior precision is a true
    gate survivor; SBC of a and (b1-b0) is the natural calibration
    check, and a prior-weak (small-n) config makes the prior term
@@ -222,7 +222,7 @@ Full matrix at R=200 ~ 2.5-3 h wall-clock, dominated by GP (~1.5h) and linear
 4. BCF + prior-weak small-n BCF (priority 2) -- needs the glue-prior draw and
    a / (b1-b0) functionals; the a-glue precision is the true gate survivor.
 5. linear leaf, then linear+NA (priority 1) -- ~24 min; NA needs the
-   missing-covariate imputation path ([[src/bartcore/model.hpp#LinearGaussianLeaf]]) wired into the draw.
+   missing-covariate imputation path ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)) wired into the draw.
 6. GP leaf, GP+NA, weighted GP (priority 1 & 5) -- run last / overnight (~1.5h);
    cap max.leaf.size to bound the cubic kernel cost.
 
@@ -502,7 +502,7 @@ training fits and predict(x) agree to machine precision at the same state --
 baseline 3.6e-15, NA-in-leaf-covariate 1.8e-15, NA-in-split-column 2.7e-15 --
 so theta0's f0 is exactly the f the likelihood uses, INCLUDING the NA routing
 (rules carry the missing direction) and the imputation-at-standardized-mean
-leaf path ([[src/bartcore/model.hpp#LinearGaussianLeaf]]).
+leaf path ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)).
 
 HARNESS NOTE (real API behaviour worth knowing): the matrix (xy) interface
 DROPS NA rows even under missing = "incorporate" (dbartsData warns "row(s)
@@ -521,7 +521,7 @@ The linear-leaf ridge draw (vector params, U'WU statistics) calibrates.
 ~2.4 s/rep; 4 x 50-rep chunks.
 
 #### B2. linear leaf + NA in a DESIGNATED leaf-covariate column -- PASS
-(the coverage matrix's number-one target: [[src/bartcore/model.hpp#LinearGaussianLeaf]])
+(the coverage matrix's number-one target: [`LinearGaussianLeaf`](../../src/bartcore/model.hpp))
 
 15% of rows carry NA in column 1 (a leaf covariate); the fixed NA pattern
 rides every replication. Functionals add f at three NA-bearing training rows
@@ -635,7 +635,7 @@ calibrates. The three uncapped GP configs are clean.
 #### C4. GP leaf + constant-fallback leaves in the SAME tree -- f.star3 FLAG
 
 Leaves above max.leaf.size score and draw as CONSTANT leaves
-([[src/bartcore/model.hpp#GPGaussianLeaf]]); C1-C3 never reach that path
+([`GPGaussianLeaf`](../../src/bartcore/model.hpp)); C1-C3 never reach that path
 (cap 100 > n = 80). C4 caps low enough that a tree typically holds both leaf
 kinds at once. Identical to C1 otherwise.
 
@@ -761,7 +761,7 @@ chisq/KS secondary.
                                        centred (defect shrank with n,
                                        consistent with scale-ridge mixing)
     B    linear leaf baseline          ALL PASS (7/7)
-    B    linear + NA leaf covariate    PASS - imputation path ([[src/bartcore/model.hpp#LinearGaussianLeaf]])
+    B    linear + NA leaf covariate    PASS - imputation path ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp))
                                        calibrates (watch rows clean)
     B    linear + NA split column      ALL PASS (NA routing control)
     B    linear + weights              ALL PASS (7/7)

@@ -46,8 +46,8 @@ is WRONG, and correcting it collapses most of the anticipated work:
   convention.
 
 So the variance forest fits the EXISTING conjugate move machinery
-(metropolisJumpForTree, [[src/bartcore/moves.hpp#metropolisJumpForTree]]; the per-leaf marginal sum in
-logLikelihoodForBranch, [[src/bartcore/moves.hpp#logLikelihoodForBranch]]) with a new INTEGRABLE leaf model. The
+(metropolisJumpForTree, [`metropolisJumpForTree`](../../src/bartcore/moves.hpp); the per-leaf marginal sum in
+logLikelihoodForBranch, [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp)) with a new INTEGRABLE leaf model. The
 consequences, developed below:
 
 - No non-conjugate MoveStrategy is built (fork 3). The monotone seams
@@ -75,10 +75,10 @@ tree l on the region x falls into is s^2_lk > 0.
 **Backfitting decouples both forests into conditional-conjugate pieces.** With user
 case weights w_i, Var(y_i) = s^2(x_i) / w_i (the dbarts precision-weight convention;
 GaussianResponse borrows w_i,
-[[src/bartcore/model.hpp#GaussianResponse::workingWeights, GaussianResponse::drawSigma]]). The mean forest is untouched:
+[`GaussianResponse::workingWeights`](../../src/bartcore/model.hpp), [`GaussianResponse::drawSigma`](../../src/bartcore/model.hpp)). The mean forest is untouched:
 conditional on s(.), each observation has a known precision w_i / s^2(x_i), so the
 mean update is the ordinary WEIGHTED Gaussian backfit the engine already runs
-(weighted node suffstats, [[src/bartcore/tree.hpp#Node::sumWeights, Node::sumWeightedResponse]]). The variance forest backfits
+(weighted node suffstats, [`Node::sumWeights`](../../src/bartcore/tree.hpp), [`Node::sumWeightedResponse`](../../src/bartcore/tree.hpp)). The variance forest backfits
 multiplicatively: to update tree j, define the mean residual e_i = y_i - f(x_i) and
 the other-trees product s^2_{-j}(x_i) = prod_{l != j} h(x_i); then
 
@@ -94,7 +94,7 @@ today (only the weights differ); the variance tree's move/draw use a new leaf mo
 
 **HBART's own sweep (paper Algorithm 1).** Per iteration: update all m mean trees
 (conditioning on the current s), then all m' variance trees (conditioning on the
-current f). Our run() sweep already loops forests in order ([[src/bartcore/chain.hpp#Chain::run]]); the
+current f). Our run() sweep already loops forests in order ([`Chain::run`](../../src/bartcore/chain.hpp)); the
 variance forest is a second phase in that loop, guarded like BCF's combiner
 (section 6).
 
@@ -155,8 +155,8 @@ runtime/tolerance matter, budget for it.
 ## 3. Decision (fork 2) - the fourth leaf kind
 
 RESOLVE as an INTEGRABLE scale leaf, `ConstantVarianceLeaf`, a new leaf model in
-model.hpp beside ConstantGaussianLeaf ([[src/bartcore/model.hpp#ConstantGaussianLeaf]]). It is NOT a
-ParamScoringLeafModel and NOT a TreeDrawLeafModel ([[src/bartcore/model.hpp#TreeDrawLeafModel, ParamScoringLeafModel]]) - the monotone
+model.hpp beside ConstantGaussianLeaf ([`ConstantGaussianLeaf`](../../src/bartcore/model.hpp)). It is NOT a
+ParamScoringLeafModel and NOT a TreeDrawLeafModel ([`TreeDrawLeafModel`](../../src/bartcore/model.hpp), [`ParamScoringLeafModel`](../../src/bartcore/model.hpp)) - the monotone
 seams solve dependent-leaf coupling the variance forest does not have. What it
 declares:
 
@@ -166,11 +166,11 @@ declares:
 - **Prior.** s^2_k ~ chi^-2(nu', lambda'), the calibrated per-tree scaled-inverse-
   chi-squared (section 2, paper Section 3.4). The existing chi^-2 draw primitive
   covers it: a scaled-inverse-chi-squared draw is scale / chisq with
-  ext_rng_simulateChiSquared ([[src/include/external/random.h#ext_rng_simulateChiSquared]], = gamma(df/2, 2)). No new rng primitive.
+  ext_rng_simulateChiSquared ([`ext_rng_simulateChiSquared`](../../src/include/external/random.h), = gamma(df/2, 2)). No new rng primitive.
   SCALE CONVENTION (pin, reconcile with dbarts): paper eq. 6 writes the posterior
   scale as nu' lambda'^2 + (data), so the paper's lambda' is SD-scale (lambda'^2 is
   variance-scale). dbarts's existing sigma prior ChiSquaredScalePrior
-  ([[src/bartcore/model.hpp#ChiSquaredScalePrior]]) parameterizes on the VARIANCE scale: its `scale` field is a
+  ([`ChiSquaredScalePrior`](../../src/bartcore/model.hpp)) parameterizes on the VARIANCE scale: its `scale` field is a
   variance and its posterior scale is degreesOfFreedom*scale + SSR. The variance leaf
   reuses that variance-scale convention (its calibrated per-tree variance-scale is
   lambda'^2 = the Section-3.4 mean-matched analog of dbarts's `scale`), so at m'=1 it
@@ -181,11 +181,11 @@ declares:
   a COUNT and a WEIGHTED SUM OF SCALED SQUARED RESIDUALS (the w_i is the user case
   weight, dropped from an earlier draft; without it a weighted Gaussian fit targets
   the wrong variance scale - section 5). The mean leaf's cached node stat (sumWeights,
-  sumWeightedResponse; Node, [[src/bartcore/tree.hpp#Node::sumWeights, Node::sumWeightedResponse]]) does NOT carry a sum of squares - it
+  sumWeightedResponse; Node, [`Node::sumWeights`](../../src/bartcore/tree.hpp), [`Node::sumWeightedResponse`](../../src/bartcore/tree.hpp)) does NOT carry a sum of squares - it
   was deliberately dropped because it cancels in the mean leaf's MH ratio
-  ([[src/bartcore/model.hpp#ConstantGaussianLeaf::logIntegratedLikelihood]]). The variance leaf needs it, so it accumulates its own suffstat
+  ([`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp)). The variance leaf needs it, so it accumulates its own suffstat
   over the node's index span, the LinearGaussianLeaf precedent (per-call O(n_leaf)
-  accumulation of its own blocks, [[src/bartcore/model.hpp#LinearGaussianLeaf::accumulateNodeStatistics]]) - NOT a change to the shared Node
+  accumulation of its own blocks, [`LinearGaussianLeaf::accumulateNodeStatistics`](../../src/bartcore/model.hpp)) - NOT a change to the shared Node
   struct. This keeps the mean path's node stat byte-identical (section 8). The
   per-observation divisor w_i / s^2_{-j}(x_i) is supplied through the sweep's weight
   scratch (section 6), so the leaf reads it as an ordinary per-obs weight.
@@ -193,21 +193,21 @@ declares:
 - **Marginal (the structure-move score).** The closed-form scaled-inverse-chi-
   squared marginal of the leaf (paper eq. 7): an independent factor per leaf, so the
   branch score is the ordinary per-leaf SUM in logLikelihoodForBranch
-  ([[src/bartcore/moves.hpp#logLikelihoodForBranch]]) - the variance leaf provides logIntegratedLikelihoodForNode over
+  ([`logLikelihoodForBranch`](../../src/bartcore/moves.hpp)) - the variance leaf provides logIntegratedLikelihoodForNode over
   its own (n_k, weighted sum of scaled squared residuals) suffstat and falls through
   the SAME conjugate path, no ParamScoringLeafModel override. The empty-leaf veto
-  ([[src/bartcore/tree.hpp#Tree::leafVetoRank]]) applies unchanged.
+  ([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp)) applies unchanged.
 
 - **Draw.** drawFromPosteriorForNode returns a scaled-inverse-chi-squared draw
   chi^-2(nu' + n_k, [nu' lambda'^2 + sum_{i in k} w_i e_i^2 / s^2_{-j}(x_i)] /
   (nu' + n_k)) (paper eq. 6, lambda' SD-scale per the convention above) - the ordinary
   independent per-node draw the ScalarLeafModel path already dispatches
-  ([[src/bartcore/chain.hpp#Chain::sampleParametersAndSetFits]]), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
+  ([`Chain::sampleParametersAndSetFits`](../../src/bartcore/chain.hpp)), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
   chi^-2(nu', lambda'^2).
 
 So the leaf is close to `ScalarLeafModel` in SHAPE (independent per-node draw,
 per-leaf marginal sum) but its math is a scale problem, not the (scale/k) location
-problem the ScalarLeafModel signature bakes in ([[src/bartcore/model.hpp#ScalarLeafModel]]: it passes k and
+problem the ScalarLeafModel signature bakes in ([`ScalarLeafModel`](../../src/bartcore/model.hpp): it passes k and
 residualVariance, threads a Gaussian mean-explained marginal). The clean move is a
 sibling concept, `ScaleLeafModel`, with the scale suffstat and the chi^-2
 marginal/draw, dispatched at compile time like the location concepts - rather than
@@ -223,8 +223,8 @@ section 3 establish the conjugacy; the move machinery requires only that the lea
 expose a closed-form marginal, which it does. No Laplace, no pseudo-marginal, no
 prior-grown reversible jump.
 
-The M-access seam (MoveContext::leafParams, [[src/bartcore/moves.hpp#MoveContext::leafParams]];
-logLikelihoodForBranchWithParams, [[src/bartcore/model.hpp#MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams]]) is UNUSED by the variance forest.
+The M-access seam (MoveContext::leafParams, [`MoveContext::leafParams`](../../src/bartcore/moves.hpp);
+logLikelihoodForBranchWithParams, [`MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams`](../../src/bartcore/model.hpp)) is UNUSED by the variance forest.
 That seam exists so a leaf whose leaves are mutually DEPENDENT (monotone's ordered
 neighbors) can score a move against the frozen values of the other leaves. The
 variance leaves are conditionally INDEPENDENT given the other trees - the coupling
@@ -245,35 +245,35 @@ unused"). The mean forest sees effective weight
 so posteriorPrecision = sum_i w_i / s^2(x_i) - EXACTLY the heteroscedastic Gaussian
 precision - with ZERO change to the constant leaf's math (it already forms
 posteriorPrecision = sumWeights / residualVariance,
-[[src/bartcore/model.hpp#ConstantGaussianLeaf::logIntegratedLikelihood, ConstantGaussianLeaf::drawFromPosterior]]). The weight
+[`ConstantGaussianLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp), [`ConstantGaussianLeaf::drawFromPosterior`](../../src/bartcore/model.hpp)). The weight
 channel is already per-sweep and already refreshed when it varies
 (workingWeights + workingWeightsVaryPerSweep,
-[[src/bartcore/model.hpp#ResponseModel::workingWeights, ResponseModel::workingWeightsVaryPerSweep]]; the logistic
-omega precedent, [[src/bartcore/model.hpp#LogisticResponse::workingWeights, LogisticResponse::workingWeightsVaryPerSweep]]). It does add TWO n-length per-sweep scratch
+[`ResponseModel::workingWeights`](../../src/bartcore/model.hpp), [`ResponseModel::workingWeightsVaryPerSweep`](../../src/bartcore/model.hpp); the logistic
+omega precedent, [`LogisticResponse::workingWeights`](../../src/bartcore/model.hpp), [`LogisticResponse::workingWeightsVaryPerSweep`](../../src/bartcore/model.hpp)). It does add TWO n-length per-sweep scratch
 vectors (not "no new array", an earlier overstatement): the divided mean weights
 w_i^mean, and the variance forest's own per-tree divisor w_i / s^2_{-j}(x_i) - the
 BCF forestWeights/combined precedent
-([[src/bartcore/combiner.hpp#AmplitudeForestCombiner::formForestResponse, AmplitudeForestCombiner::combinedFits]]), per-SWEEP scratch,
+([`AmplitudeForestCombiner::formForestResponse`](../../src/bartcore/combiner.hpp), [`AmplitudeForestCombiner::combinedFits`](../../src/bartcore/combiner.hpp)), per-SWEEP scratch,
 never per-observation dispatch inside a kernel.
 
 **Requires Gaussian; refuses latent families (construction-time).** The weight
 channel is not free real estate: the latent families ALREADY own
-response_->workingWeights() - logistic/PG returns omega ([[src/bartcore/model.hpp#LogisticResponse::workingWeights]]),
+response_->workingWeights() - logistic/PG returns omega ([`LogisticResponse::workingWeights`](../../src/bartcore/model.hpp)),
 NBResponse and (future) ordinal likewise - and the run loop pulls
-weights = response_->workingWeights() every sweep ([[src/bartcore/chain.hpp#Chain::run]]). Routing s^2
+weights = response_->workingWeights() every sweep ([`Chain::run`](../../src/bartcore/chain.hpp)). Routing s^2
 through the same channel would COLLIDE with the family's own latent precisions. So a
 variance forest requires ResponseFamily::gaussian and is REFUSED at construction for
 probit, logistic, nbinom, and ordinal, checked at the factory against the family
-argument ([[src/bartcore/facade.hpp#varianceForestIsRefused]]) before any Chain is built - the same
+argument ([`varianceForestIsRefused`](../../src/bartcore/facade.hpp)) before any Chain is built - the same
 construction-time refusal shape monotone uses for categorical columns
-([[src/bartcore/facade.hpp#monotoneConstraintIsActive]]). Only the Gaussian family, whose workingWeights() returns the
-borrowed user weights ([[src/bartcore/model.hpp#GaussianResponse::workingWeights]]), leaves the channel available to carry
+([`monotoneConstraintIsActive`](../../src/bartcore/facade.hpp)). Only the Gaussian family, whose workingWeights() returns the
+borrowed user weights ([`GaussianResponse::workingWeights`](../../src/bartcore/model.hpp)), leaves the channel available to carry
 w_i / s^2(x_i). (Heteroscedastic probit/logistic - modeling a variance surface under
 a latent link - is a real model but needs a distinct latent-plus-scale plumbing out
 of v1 scope, section 11.) The aft family later joined Gaussian on the admitted
 side: its contained Gaussian carries a null weight pointer, so the channel is free
 there too, and its censored latents redraw at the row's own scale
-([[docs/design/aft-variance-forest.md#Why the stated reason is false for aft]]).
+([1. Why the stated reason is false for aft](aft-variance-forest.md#1-why-the-stated-reason-is-false-for-aft)).
 
 Tradeoffs vs a DEDICATED sigma-vector (a per-observation residualVariance threaded
 through every leaf marginal/draw):
@@ -286,7 +286,7 @@ through every leaf marginal/draw):
 - Sigma update: there is NO global sigma draw under heteroscedastic - the variance
   forest IS the variance (parameterization A, section 2), so residualVariance is
   fixed at 1 and drawSigma is skipped (sigmaIsFixed_ true for the mean side,
-  [[src/bartcore/chain.hpp#Chain::buildVarianceForest]]). Under parameterization B a global sigma_0 IS drawn, from the
+  [`Chain::buildVarianceForest`](../../src/bartcore/chain.hpp)). Under parameterization B a global sigma_0 IS drawn, from the
   scaled residuals, reusing drawSigma; this is the section-2 sub-fork. Recommend A
   (no global sigma draw): it avoids the sigma_0-vs-variance-forest-level
   identification that B must pin, and the calibration (Section 3.4) already anchors
@@ -302,7 +302,7 @@ through every leaf marginal/draw):
 
 This is the real structural work, and it is NOT solved by the ForestCombiner as it
 stands. `Chain` is `template <IntegrableLeafModel L>` with `forests_` a
-`std::vector<Forest<L>>` ([[src/bartcore/chain.hpp#Chain::forests_]]) - EVERY forest shares ONE leaf type.
+`std::vector<Forest<L>>` ([`Chain::forests_`](../../src/bartcore/chain.hpp)) - EVERY forest shares ONE leaf type.
 BCF and multinomial exploit this (all their forests are ConstantGaussianLeaf); the
 combiner is `ForestCombiner<L>` over that single L. Heteroscedastic breaks it: the
 mean forest is ConstantGaussianLeaf, the variance forest is ConstantVarianceLeaf.
@@ -317,7 +317,7 @@ Three ways to hold both:
   ConstantVarianceLeaf holding its own trees, leaf, and sweep. Chain<L> stays
   monomorphic on the MEAN leaf; the variance object is a fixed type (the variance
   leaf is always constant-scale in v1). Null off heteroscedastic - the BCF
-  combiner_ null-short-circuit shape ([[src/bartcore/chain.hpp#Chain::testFitsAreDefined]]), byte-neutral by
+  combiner_ null-short-circuit shape ([`Chain::testFitsAreDefined`](../../src/bartcore/chain.hpp)), byte-neutral by
   construction.
 - **(c) Type-erased** `std::unique_ptr<VarianceForestBase>`: (b) behind a small
   virtual surface (score-and-move a tree, draw leaves, form combined variance). Its
@@ -338,13 +338,13 @@ but that hierarchy is templated on the SINGLE mean L and its vector holds Forest
 only - it cannot hold the variance forest. So heteroscedastic's coupling is
 Chain-level, guarded like `if (combiner_)`:
 
-- A new `if (varianceForest_)` phase in run() ([[src/bartcore/chain.hpp#Chain::run]] loop): after the mean
+- A new `if (varianceForest_)` phase in run() ([`Chain::run`](../../src/bartcore/chain.hpp) loop): after the mean
   forest sweep, run the variance forest's own tree loop, then refresh the combined
   variance s^2(x_i) and hand the mean forest w_i^mean = user_w_i / s^2(x_i) for the
   next sweep (a ResponseModel decorator or a direct weight-vector formation, the
   formForestResponse weight route of section 5).
 - The variance forest's OWN sweep needs a MULTIPLICATIVE running residual: the
-  engine's rollTreeResidual ([[src/bartcore/chain.hpp#Chain::rollTreeResidual]]) maintains an ADDITIVE residual (treeY =
+  engine's rollTreeResidual ([`Chain::rollTreeResidual`](../../src/bartcore/chain.hpp)) maintains an ADDITIVE residual (treeY =
   y minus other trees' fits). The variance tree instead needs, per tree j, the
   divisor s^2_{-j}(x_i) = s^2(x_i) / h_j(x_i) - maintained by dividing the combined
   variance by the current tree's factor, a multiplicative analog. This is the one
@@ -396,7 +396,7 @@ power, base, R/dbarts.R).
 - **Reporting.** The fit carries the mean fit as today plus a per-observation s(x)
   (or s^2(x)) channel - train and test - and per-variance-tree variable counts. This
   is a NEW reporting channel, NOT the multinomial numReportedLocations widening
-  ([[src/bartcore/combiner.hpp#MultinomialForestCombiner::numReportedLocations]]): that seam widens the SAME-typed response location K-fold through
+  ([`MultinomialForestCombiner::numReportedLocations`](../../src/bartcore/combiner.hpp)): that seam widens the SAME-typed response location K-fold through
   combinedFits/refreshLatents (multinomial.md), whereas the variance surface is a
   SEPARATELY-typed forest routed through the weight channel, never through response_,
   so it is reported from the variance forest's own combined fit directly. predict
@@ -406,9 +406,9 @@ power, base, R/dbarts.R).
 
 Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
-mirroring monotone (monotone.md) and BCF ([[src/bartcore/combiner.hpp#ForestCombiner]]):
+mirroring monotone (monotone.md) and BCF ([`ForestCombiner`](../../src/bartcore/combiner.hpp)):
 
-- No `variance` / `n.trees.variance` -> the factory ([[src/bartcore/facade.hpp#createSampler]])
+- No `variance` / `n.trees.variance` -> the factory ([`createSampler`](../../src/bartcore/facade.hpp))
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with
   varianceForest_ null (or the combiner absent). Not a variance-capable type with
   the forest switched off - the SAME object code, so the identical rng stream. The
@@ -629,13 +629,13 @@ TODO). Cite this note, not them, for the variance-forest's conjugacy.
   room for it.
 - **Confidence in the variance-forest DRAW as specified: HIGH.** The scaled-inverse-
   chi-squared leaf marginal and draw are textbook conjugate updates
-  (paper eq. 6-7), the primitive exists ([[src/include/external/random.h#ext_rng_simulateChiSquared]]), and both live packages agree
+  (paper eq. 6-7), the primitive exists ([`ext_rng_simulateChiSquared`](../../src/include/external/random.h)), and both live packages agree
   on the family. There is no non-conjugate approximation to get wrong; the residual
   numeric care is the SD-vs-variance-scale convention (section 3), pinned against
   dbarts's own ChiSquaredScalePrior.
 - **Confidence in the MoveStrategy as specified: HIGH.** It is the EXISTING conjugate
   move over a new integrable leaf - no new acceptance math, only a new per-leaf
-  marginal in the same per-leaf-sum path ([[src/bartcore/moves.hpp#logLikelihoodForBranch]]). The confidence rests on
+  marginal in the same per-leaf-sum path ([`logLikelihoodForBranch`](../../src/bartcore/moves.hpp)). The confidence rests on
   the conjugacy claim (section 0), which is verified against two independent
   implementations rather than recalled; the residual risk is engineering (the roll,
   the weighted suffstat, and the two-leaf plumbing), not algorithmic.
@@ -780,5 +780,5 @@ D6 made a grouped random-intercept fit alongside a variance forest a
 validation error at `resolveSamplerSpec`'s variance block, with a backstop
 at `createHolder`. Grouped random intercepts have since been removed from
 dbarts entirely
-([[docs/design/retire-grouped-random-effects.md#The decision]]), so both the
+([The decision](retire-grouped-random-effects.md#the-decision)), so both the
 composition and its refusal are gone; multilevel structure is stan4bart's.

@@ -12,24 +12,24 @@ pinned and asserted at the bartcore/misc boundary.
 
 ## Context
 
-- Knob: [[configure.ac:22-45@418cc6cc]]. bartcore pins the width independently
-  ([[src/bartcore/data.hpp:19@9351574f]] `using xint_t = std::uint16_t;`) and passes
+- Knob: [configure.ac:22-45](https://github.com/vdorie/dbarts/blob/418cc6cc12e003c92d851c08042c67f018b5fbde/configure.ac#L22-L45). bartcore pins the width independently
+  ([src/bartcore/data.hpp:19](https://github.com/vdorie/dbarts/blob/9351574fd8bb7d5ecf2ebb6d8c4a4ef290790969/src/bartcore/data.hpp#L19) `using xint_t = std::uint16_t;`) and passes
   `const xint_t*` uncast into `misc_partitionRange`/`Indices`
-  ([[src/bartcore/tree.hpp:658-660@9351574f]]), so non-16 widths fail to compile;
-  the bridge hardcodes 65535 ([[src/R_interface_bartcore.cpp:1877@9351574f]]) and
+  ([src/bartcore/tree.hpp:658-660](https://github.com/vdorie/dbarts/blob/9351574fd8bb7d5ecf2ebb6d8c4a4ef290790969/src/bartcore/tree.hpp#L658-L660)), so non-16 widths fail to compile;
+  the bridge hardcodes 65535 ([src/R_interface_bartcore.cpp:1877](https://github.com/vdorie/dbarts/blob/9351574fd8bb7d5ecf2ebb6d8c4a4ef290790969/src/R_interface_bartcore.cpp#L1877)) and
   partition_body.c uses epi16/vdupq_n_u16 intrinsics regardless.
 - Dead misc.a members: binaryIO.c (sole WORDS_BIGENDIAN and direct
   posix_memalign consumer; zero callers), adaptiveRadixTree.c (sole
   SIZEOF_SIZE_T and memalign.h consumer; only user is string.c),
   string.c (zero callers). Dead since before the rewrite.
 - Unreachable/orphaned configure machinery: the solaris* block
-  ([[configure.ac:78-132@418cc6cc]]; Oracle Studio has no C++20, CRAN dropped
+  ([configure.ac:78-132](https://github.com/vdorie/dbarts/blob/418cc6cc12e003c92d851c08042c67f018b5fbde/configure.ac#L78-L132); Oracle Studio has no C++20, CRAN dropped
   Solaris) with ax_ext_solaris.m4, ax_gcc_x86_cpuid.m4,
   ax_gcc_x86_avx_xgetbv.m4; ax_ext.m4 is never m4_included at all.
 - Consumerless checks: HAVE_CSTDINT + stdint fallback, HAVE_SYS_TIME_H,
   AC_TYPE_INT64_T/UINT64_T, ALIGNOF_VOID_P, AC_C_BIGENDIAN,
   snprintf/log1p/namespace-std five (AX_CXX_*, AC_CHECK_FUNCS,
-  AC_FUNC_STRERROR_R is LIVE - [[guessNumCores.cpp:211@9351574f]], [[guessNumCores.cpp:247@9351574f]] - keep it).
+  AC_FUNC_STRERROR_R is LIVE - [src/guessNumCores.cpp:211](https://github.com/vdorie/dbarts/blob/9351574fd8bb7d5ecf2ebb6d8c4a4ef290790969/src/guessNumCores.cpp#L211), [src/guessNumCores.cpp:247](https://github.com/vdorie/dbarts/blob/9351574fd8bb7d5ecf2ebb6d8c4a4ef290790969/src/guessNumCores.cpp#L247) - keep it).
   After binaryIO/ART/string deletion also: AX_FUNC_POSIX_MEMALIGN,
   HAVE_MALLOC_H, src/include/misc/memalign.h.
 - KEEP: AX_COMPILER_EXT/VENDOR + *_FLAG substitutions, AX_PTHREAD

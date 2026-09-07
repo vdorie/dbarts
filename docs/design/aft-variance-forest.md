@@ -4,19 +4,19 @@ Status: LANDED, 2026-09-06 (2468e76f)
 
 Admits `variance =` under `family = "aft"`, giving log-normal AFT a covariate-dependent
 dispersion s(x) beside its mean surface. The refusal was R-side
-([[spec.R#"a variance forest requires family"]]) and engine-side ([[FAC#varianceForestIsRefused]]
+(["a variance forest requires family"](../../R/spec.R)) and engine-side ([`varianceForestIsRefused`](../../src/bartcore/facade.hpp)
 and the `family == ResponseFamily::gaussian` guard before `buildVarianceForest` in the single-forest
-Chain constructor); the reason both give does not hold for aft. Aliases as in feature-matrix.md.
+Chain constructor); the reason both give does not hold for aft.
 
 ## 1. Why the stated reason is false for aft
 
 "Routes precision through its own latent channel instead" holds for probit, logistic, ordinal and
 nbinom, whose `workingWeights()` carries their own latent precisions - the channel the variance
-forest divides into ([[docs/design/heteroscedastic.md#per-observation residual variance channel]]).
-Not for aft: [[MOD#AFTResponse]] builds its contained [[MOD#GaussianResponse]] with a NULL weight
+forest divides into ([5. Decision (fork 4) - per-observation residual variance channel](heteroscedastic.md#5-decision-fork-4---per-observation-residual-variance-channel)).
+Not for aft: [`AFTResponse`](../../src/bartcore/model.hpp) builds its contained [`GaussianResponse`](../../src/bartcore/model.hpp) with a NULL weight
 pointer, leaves `workingWeightsVaryPerSweep()` at the base false and delegates `drawSigma`, so
 `workingWeights()` is null - or, under a mask, the composite a masked heteroscedastic gaussian
-carries. The channel is free. The real collision is [[MOD#TResponse]], whose Gaussian is built over
+carries. The channel is free. The real collision is [`TResponse`](../../src/bartcore/model.hpp), whose Gaussian is built over
 the composite mixing precisions and reports the varying flag; that refusal stands.
 
 ## 2. The model
@@ -32,17 +32,17 @@ Coherent as a Gibbs cycle over three blocks. Given (f, s) each censored latent i
 normal draw at its own scale truncated at its own bound, the rows conditionally independent, so a
 per-observation sd is the exact conditional. Given the latents the augmented log-times are complete
 gaussian data and the variance forest backfits against e_i = y_i - f(x_i) as under gaussian
-([[CH#Chain::sweepVarianceForest]]), its conjugacy assuming nothing about the provenance of y. The
-mean forest sees w_i / s^2(x_i) ([[CH#Chain::formMeanWeights]]), aft's free channel supplying 1 or
-the mask, and [[CH#Chain::run]] already orders the blocks so: mean weights, mean forest,
+([`Chain::sweepVarianceForest`](../../src/bartcore/chain.hpp)), its conjugacy assuming nothing about the provenance of y. The
+mean forest sees w_i / s^2(x_i) ([`Chain::formMeanWeights`](../../src/bartcore/chain.hpp)), aft's free channel supplying 1 or
+the mask, and [`Chain::run`](../../src/bartcore/chain.hpp) already orders the blocks so: mean weights, mean forest,
 `refreshLatents`, no sigma draw, variance forest.
 
 ## 3. Engine interface for the per-observation variance
 
-[[CH#Chain::buildVarianceForest]] pins the scalar sigma at 1 on the working scale, leaving
-[[CH#VarianceForest::combinedVariance]] the residual variance there. `AFTResponse` reads a scalar
-sigma in three places - [[MOD#AFTResponse::refreshLatents]],
-[[MOD#AFTResponse::computeLogLikelihood]] and [[MOD#AFTResponse::setResponse]], which redraws the
+[`Chain::buildVarianceForest`](../../src/bartcore/chain.hpp) pins the scalar sigma at 1 on the working scale, leaving
+[`VarianceForest::combinedVariance`](../../src/bartcore/chain.hpp) the residual variance there. `AFTResponse` reads a scalar
+sigma in three places - [`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp),
+[`AFTResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) and [`AFTResponse::setResponse`](../../src/bartcore/model.hpp), which redraws the
 latents itself - all needing the vector.
 
 **A, a parameter:** `const double* variance`, null when homoscedastic, on those three virtuals -
@@ -53,27 +53,27 @@ allocated - one virtual, one override, two Chain call sites, no test edits.
 
 Staleness decides, and is in hand: the `VarianceForest` is constructed once and never reset, swapped
 or moved, chains are held by `unique_ptr`, every rollback writes `combinedVariance` elementwise, and
-only `VarianceForest::initialize` and [[CH#Chain::resizeVarianceStorage]] reallocate - the second
-unreachable for aft, running only from the whole-data arm [[RIB#bartcore_setData]] refuses.
+only `VarianceForest::initialize` and [`Chain::resizeVarianceStorage`](../../src/bartcore/chain.hpp) reallocate - the second
+unreachable for aft, running only from the whole-data arm [`bartcore_setData`](../../src/R_interface_bartcore.cpp) refuses.
 RECOMMEND B: one named Chain helper called from both allocation sites, with a component test
 asserting the pointer equals `varianceFits()` after each. It owns the TRAIN vector only,
-`combinedVarianceTest` reallocating in [[CH#Chain::resizeTestStorage]] where no latent draw reads
+`combinedVarianceTest` reallocating in [`Chain::resizeTestStorage`](../../src/bartcore/chain.hpp) where no latent draw reads
 it.
 
-RESTORE CONTRACT, in the shape [[MOD#NBResponse]]'s dispersion states: [[CH#Chain::setState]]
+RESTORE CONTRACT, in the shape [`NBResponse`](../../src/bartcore/model.hpp)'s dispersion states: [`Chain::setState`](../../src/bartcore/chain.hpp)
 restores the latents BEFORE rebuilding the surface, safe only because `AFTResponse::restoreLatents`
 is a memcpy plus a working rebuild reading neither sigma nor surface. Keep `restoreLatents`
 surface-free, or move the rebuild ahead of it.
 
-Call sites: `Chain::run`'s `refreshLatents`, [[CH#Chain::growForestFromRoot]]'s,
-[[CH#Chain::setResponse]] through `AFTResponse::setResponse`'s redraw, and
-[[CH#Chain::storeSample]]'s `computeLogLikelihood`; A must also edit
-[[MOD#LogisticResponse::setWeights]], a fifth `refreshLatents` caller outside any `setResponse`
+Call sites: `Chain::run`'s `refreshLatents`, [`Chain::growForestFromRoot`](../../src/bartcore/chain.hpp)'s,
+[`Chain::setResponse`](../../src/bartcore/chain.hpp) through `AFTResponse::setResponse`'s redraw, and
+[`Chain::storeSample`](../../src/bartcore/chain.hpp)'s `computeLogLikelihood`; A must also edit
+[`LogisticResponse::setWeights`](../../src/bartcore/model.hpp), a fifth `refreshLatents` caller outside any `setResponse`
 body. LANDING NOTE: a new `ResponseModel` virtual is a full-recompile hazard - `--preclean`, or
 stale objects bus-error.
 
 FINDING, independent of this proposal and load-bearing for it.
-[[MOD#GaussianResponse::computeLogLikelihood]] takes the pinned sigma of 1 and divides only by the
+[`GaussianResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) takes the pinned sigma of 1 and divides only by the
 USER weights, so under a variance forest it reports a density at the response range, not at s(x_i)
 times it. Reachable only through the flat C API's `logLikelihood` results member - R's `extract(type
 = "loglik")` recomputes off `s.train` and is right - and one variance-aware log-likelihood repairs
@@ -82,77 +82,77 @@ gaussian and aft together.
 ## 4. Factory and chain gates
 
 `varianceForestIsRefused`'s `family != gaussian` becomes `family != gaussian && family != aft`.
-Every factory that CAN build one asks it ([[FAC#createSampler]], [[FAC#createSamplerOverStore]]);
+Every factory that CAN build one asks it ([`createSampler`](../../src/bartcore/facade.hpp), [`createSamplerOverStore`](../../src/bartcore/facade.hpp));
 the amplitude and multinomial factories carry their own bare `numVarianceTrees > 0` refusals
-([[FAC#createAmplitudeSampler, createMultinomialSampler]]) and stay refusing. The Chain
+([`createAmplitudeSampler`](../../src/bartcore/facade.hpp), [`createMultinomialSampler`](../../src/bartcore/facade.hpp)) and stay refusing. The Chain
 constructor's `family == ResponseFamily::gaussian && options.numVarianceTrees > 0` admits aft too,
 both arms inside the constant-leaf `if constexpr` guard.
 
 Three texts change: spec.R's message; the flat header's `"bartcore.variance"` comment, "Gaussian
-constant-leaf models only" ([[CAPI#"bartcore.variance"]]); and the bridge's null-factory message
-([[RIB#"variance forest is combined with a family other than"]]). Only the third reaches a
+constant-leaf models only" (["bartcore.variance"](../../inst/include/dbarts/dbarts.h)); and the bridge's null-factory message
+(["variance forest is combined with a family other than"](../../src/R_interface_bartcore.cpp)). Only the third reaches a
 `LinkingTo` consumer, `applyVarianceAttributes` parsing the attribute with no family test, so the
 header comment is load-bearing.
 
 Refusals that stay: `sigmaIsPinned` is `hasVarianceForest || (family != gaussian && family != aft)`,
 so a heteroscedastic aft loses `setSigma` as a heteroscedastic gaussian does,
-[[RIB#refusePinnedSigmaChange]] naming the variance forest before the family;
-[[RIB#refuseVarianceForestScaleUpdate]] is family-blind, so `setResponse`/`setOffset` are taken only
-at `updateScale = FALSE`; `setWeights` stays refused ([[RIB#refuseBinaryWeightChange]]), the
+[`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) naming the variance forest before the family;
+[`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp) is family-blind, so `setResponse`/`setOffset` are taken only
+at `updateScale = FALSE`; `setWeights` stays refused ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)), the
 declined user channel being what frees the internal one; `setData` likewise.
 
-Four channels change meaning without changing code. [[CH#Chain::setModel]] under a variance forest
+Four channels change meaning without changing code. [`Chain::setModel`](../../src/bartcore/chain.hpp) under a variance forest
 skips its `gaussian || aft` sigma clause and recalibrates the scale leaf: DECIDE that aft FOLLOWS
 the heteroscedastic gaussian, one residual prior addressing one scale leaf, so a family split would
 give one object two laws; it inherits, not widens, the gap that comment records. A warm start
-([[CH#Chain::installVarianceForest]], `installForest`) redraws no latents, so destination latents
+([`Chain::installVarianceForest`](../../src/bartcore/chain.hpp), `installForest`) redraws no latents, so destination latents
 stand under the donor's surface until the next sweep, and `growForestFromRoot` never sweeps the
 variance forest, so its redraws run against the constant initial surface - the staleness
-[[MOD#AFTResponse::setOffset]] documents. The active-rows mask composes, `sweepVarianceForest`
-handing the masked composite to the scale leaf, whose [[MOD#ConstantVarianceLeaf::accumulate]] drops
-non-positive weights from n and ssr alike; [[RIB#bartcore_setActiveRows]] has no variance-forest
+[`AFTResponse::setOffset`](../../src/bartcore/model.hpp) documents. The active-rows mask composes, `sweepVarianceForest`
+handing the masked composite to the scale leaf, whose [`ConstantVarianceLeaf::accumulate`](../../src/bartcore/model.hpp) drops
+non-positive weights from n and ssr alike; [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) has no variance-forest
 gate, so that composition arrives with the lift, its residue an inactive censored row's stale latent
 entering `vf.meanResidual` before its zero weight annihilates it.
 
 ## 5. R surface
 
 No packaging change: `s.train`/`s.test` are built above the packager's binary branch and attached in
-the non-binary one, keyed on `control@binary`, which [[spec.R#isBinaryFamily]] sets for probit and
+the non-binary one, keyed on `control@binary`, which [`isBinaryFamily`](../../R/spec.R) sets for probit and
 logistic alone. The fit's `$sigma` becomes the pinned constant carrying no posterior content;
-[[R/diagnostics.R#resolveDrawsVars]] swaps `"sigma"` for `"mean.s"` on any fit carrying `s.train`,
-but only on the draws-array path ([[R/diagnostics.R#presentDrawsVars]]), so
-[[R/plot.R#plotSigmaTrace]], gated on `"sigma" %in% names(x)` alone, gives a heteroscedastic aft the
+[`resolveDrawsVars`](../../R/diagnostics.R) swaps `"sigma"` for `"mean.s"` on any fit carrying `s.train`,
+but only on the draws-array path ([`presentDrawsVars`](../../R/diagnostics.R)), so
+[`plotSigmaTrace`](../../R/plot.R), gated on `"sigma" %in% names(x)` alone, gives a heteroscedastic aft the
 flat constant trace a heteroscedastic gaussian already gets - pre-existing.
 
 Two functions read `object$sigma` where they must read the surface.
-[[generics.R#pointwiseLogLikelihood]]'s aft branch must take [[generics.R#heteroscedasticScale]] of
+[`pointwiseLogLikelihood`](../../R/generics.R)'s aft branch must take [`heteroscedasticScale`](../../R/generics.R) of
 `s.train` when present, with the gaussian branch's length check.
-[[bart.R#survivalProbabilitiesFromDraws]] recycles one sigma per draw across observations where the
+[`survivalProbabilitiesFromDraws`](../../R/bart.R) recycles one sigma per draw across observations where the
 scale is per draw AND per observation; training rows always have `s.train`, and at `newdata` the
-choice is to refuse, mirroring the ppd wording, or read the replay, [[generics.R#predict.bart]]
+choice is to refuse, mirroring the ppd wording, or read the replay, [`predict.bart`](../../R/generics.R)
 parking `sqrt(variance)` on `attr(result, "s")` for every type including the `"bart"` one
-[[bart.R#survivalProbabilities.bart]] asks for. RECOMMEND the replay where available, the refusal
+[`survivalProbabilities.bart`](../../R/bart.R) asks for. RECOMMEND the replay where available, the refusal
 where not - it needs saved trees.
 
-[[R/augmentation.R#dbartsDrawLatents]], the exported replay of `AFTResponse::refreshLatents`, takes
-`sigma` through [[R/augmentation.R#augScalar]] as one positive scalar. DECIDE it stays scalar and
-REFUSES a length-n sigma by a named message, because the flat header's [[CAPI#dbarts_drawLatents]]
+[`dbartsDrawLatents`](../../R/augmentation.R), the exported replay of `AFTResponse::refreshLatents`, takes
+`sigma` through [`augScalar`](../../R/augmentation.R) as one positive scalar. DECIDE it stays scalar and
+REFUSES a length-n sigma by a named message, because the flat header's [`dbarts_drawLatents`](../../inst/include/dbarts/dbarts.h)
 takes `double sigma`: widening the R helper alone forks the two replays, widening both moves a
 signature on the only shipped header - a priced door; per-row calls are the workaround.
 
-Nothing else moves: the ppd branch already hands [[generics.R#sampleFromPPD]] the same
-`heteroscedasticScale(s)` with no family test, `variance` is a formal of both [[bart.R#bart2]] and
-[[dbarts.R#dbarts]] with `"aft"` on the ordinary single-forest route, and
+Nothing else moves: the ppd branch already hands [`sampleFromPPD`](../../R/generics.R) the same
+`heteroscedasticScale(s)` with no family test, `variance` is a formal of both [`bart2`](../../R/bart.R) and
+[`dbarts`](../../R/dbarts.R) with `"aft"` on the ordinary single-forest route, and
 `checkFamilyUnsupportedArgs` never gated aft.
 
 ## 6. Gates
 
 **(a) Reduction, bitwise.** An all-uncensored heteroscedastic aft fit must be bit-identical to a
 heteroscedastic gaussian fit on log T at the same seed, `AFTResponse::refreshLatents` returning
-before drawing and every other hook delegating: [[tests/cpp/test_model.cpp#testAFTReduction]] with a
+before drawing and every other hook delegating: [`testAFTReduction`](../../tests/cpp/test_model.cpp) with a
 variance forest on both arms. It pins RNG-stream equality, reaching no truncated draw.
 
-**(b) Per-observation redraw.** Extend [[tests/cpp/test_model.cpp#testAFTCensoredMoments]]: one
+**(b) Per-observation redraw.** Extend [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp): one
 `AFTResponse`, a fixed two-level variance vector whose censored rows differ by a large factor, many
 redraws, each row's empirical mean and sd against the analytic lower-truncated normal at THAT row's
 sd, and a poison arm substituting the mean of the two sds that must fail. It separates
@@ -163,7 +163,7 @@ baseline stays valid.
 
 **(c) Wiring, end to end.** The only gate testing surface-versus-pinned-1 and
 working-versus-original scale Chain-wide: make the surface degenerate at a known scalar and reduce
-to benchmarks/R/aft-exact.R's enumeration - one variance tree with [[R/model.R#chisq]] at a large
+to benchmarks/R/aft-exact.R's enumeration - one variance tree with [`chisq`](../../R/model.R) at a large
 `df` and `data@sigma` anchored at the known sigma, so the scale leaf's posterior is prior-dominated.
 NOT `resid.prior = fixed()`, which under a variance forest fixes nothing: the bridge's fixed arm
 sets only `sigmaIsFixed` and `fixedSigmaSq`, leaving `sigmaDf`/`sigmaRawScale` at their defaults, so
@@ -179,22 +179,22 @@ the same fit, after burn-in, form for each censored row and recorded sweep
 
 with z the drawn latent, b its bound, mu the current fit and s = sqrt(varianceFits()[i]) on the
 internal scale the draw used. Pool v by x-cell: under the correct per-row scale each cell's v are
-U(0,1), so a per-cell `ks.test(v, "punif")` passes - the idiom [[R/validateComposition.R#"ks.test"]]
+U(0,1), so a per-cell `ks.test(v, "punif")` passes - the idiom ["ks.test"](../../R/validateComposition.R)
 already uses. Poison arm, the substitution (b) makes: drive the redraw at a scale constant across
 rows and the low-s cell's v pile at 0 while the high-s cell's pile at 1, which the per-cell KS must
 reject. It is the only gate sensitive to a wrong per-observation scale INSTALLED BY THE CHAIN, and
 needs no oracle. HONEST GAP after all four: the joint calibration of (mean forest, variance forest,
 censored latents) is still not SBC-tested, aft being out of that matrix until a censoring-status
-setter lands ([[docs/plans/sbc-family-tiers.md#Decision - scope]]).
+setter lands ([Decision - scope](../plans/sbc-family-tiers.md#decision---scope)).
 
-**(e) Matrix cells.** In [[docs/design/feature-matrix.md#4. Composition rules]] the variance
+**(e) Matrix cells.** In [4. Composition rules](feature-matrix.md#4-composition-rules) the variance
 forest's family rule names gaussian or aft, the four latent families refused for owning the weight
-channel. In [[docs/design/feature-matrix.md#1. Structural signature]] aft's sigma and unit-scale
+channel. In [1. Structural signature](feature-matrix.md#1-structural-signature) aft's sigma and unit-scale
 cells become conditional on the variance forest, and the hetero row's case-weights and latents
 cells become by-family (its footnote states the rule); the aft status-setter gap now names
 heteroscedastic aft too. benchmarks/R/composition-matrix.R needs no code change: it probes only S
 cells, derives the aft variance-forest probe from the matrix itself, and its base fixture already
-threads an extra `variance =` into the aft recipe ([[benchmarks/R/composition-matrix.R#"extra:variance"]]).
+threads an extra `variance =` into the aft recipe (["extra:variance"](../../benchmarks/R/composition-matrix.R)).
 
 ## 7. Consumers, and what stays out
 
@@ -203,11 +203,11 @@ fits only gaussian and probit, with no variance-forest reference in R or src, an
 dbarts-1.0 has neither. Nothing to migrate, no lockstep release constraint.
 
 Out of scope: heteroscedastic probit, logistic, ordinal and nbinom, the latent-channel collision
-being real for all four ([[docs/design/heteroscedastic.md#Out of scope, and the doors]]); hazard,
+being real for all four ([11. Out of scope, and the doors](heteroscedastic.md#11-out-of-scope-and-the-doors)); hazard,
 probit over person-period rows, by inheritance; Student-t with a variance forest, `TResponse` owning
 the weight channel; the censoring-status setter and with it aft's SBC arm; a vector `sigma` on the
 two `drawLatents` surfaces; left and interval censoring and competing risks
-([[docs/design/survival.md#Out of scope (v1)]]); non-constant variance leaves; heteroscedastic BCF
+([Out of scope (v1)](survival.md#out-of-scope-v1)); non-constant variance leaves; heteroscedastic BCF
 and multinomial.
 
 ## 8. Alternatives and recommendation
@@ -222,25 +222,25 @@ lines of engine and R.
 RECOMMEND B. The value is nameable: covariate-dependent dispersion of log survival time - the spread
 of the survival distribution varying with x, not only its location - and predictive survival curves
 whose width is itself estimated. The reference suite ships AFT and heteroscedastic gaussian as
-separate models and composes neither ([[docs/design/bart-landscape.md#R packages: engines]]). Price
+separate models and composes neither ([R packages: engines](bart-landscape.md#r-packages-engines)). Price
 does not rank the item, and B is cheap: the weight channel is free, the scale leaf conjugate, the
 only new code passing one vector where a scalar goes today.
 
 ## 9. Landing
 
 Engine: `ResponseModel::setVarianceSurface` (default no-op) with `GaussianResponse` and
-`AFTResponse` overrides; [[CH#Chain::installVarianceSurface]] from both allocation points
-([[CH#Chain::buildVarianceForest]], [[CH#Chain::resizeVarianceStorage]]);
-[[FAC#varianceForestIsRefused]] and the single-forest Chain constructor admit aft. The
+`AFTResponse` overrides; [`Chain::installVarianceSurface`](../../src/bartcore/chain.hpp) from both allocation points
+([`Chain::buildVarianceForest`](../../src/bartcore/chain.hpp), [`Chain::resizeVarianceStorage`](../../src/bartcore/chain.hpp));
+[`varianceForestIsRefused`](../../src/bartcore/facade.hpp) and the single-forest Chain constructor admit aft. The
 homoscedastic arm of every reader keeps the literal `sigma * scale` expression.
 
 Gates, this host, arm64/macOS.
 
-(a) Reduction, bitwise: [[tests/cpp/test_model.cpp#testAFTReduction]], fits and variance surface
+(a) Reduction, bitwise: [`testAFTReduction`](../../tests/cpp/test_model.cpp), fits and variance surface
 both, with the surface asserted non-constant. Also at the R level
-([[test-aft-heteroscedastic.R#"an uncensored heteroscedastic aft IS the gaussian fit"]]).
+(["an uncensored heteroscedastic aft IS the gaussian fit"](../../inst/tinytest/test-aft-heteroscedastic.R)).
 
-(b) Per-observation redraw: [[tests/cpp/test_model.cpp#testAFTCensoredMoments]], two censored rows
+(b) Per-observation redraw: [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp), two censored rows
 at sds 0.25 and 1.0 under an identical bound-minus-mean gap, 60000 redraws, mean and sd each within
 0.03 of the lower-truncated normal at that row's sd, with the pooled sd kept as a negative
 expectation. Poison (row-constant scale, a temporary mutation of the redraw): both per-row

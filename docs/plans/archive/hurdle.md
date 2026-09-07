@@ -19,32 +19,32 @@ section 13 authoritative (supersedes the in-body defaults of sections 3 and 6).
 
 ## Context - anchors, re-verified 2026-07-20
 
-- Family token vectors + match.arg: dbarts() [[R/dbarts.R:349-360@09d61773]], [[R/dbarts.R:370@09d61773]]; bart2()
-  [[R/bart.R:412-424@09d61773]], [[R/bart.R:434@09d61773]]. Refusal by omission: xbart [[R/xbart.R:27@09d61773]], [[R/xbart.R:74@09d61773]]; rbart_vi
-  [[R/rbart.R:48@09d61773]], [[R/rbart.R:54@09d61773]] (the nbinom precedent - their match.arg vectors ARE the refusal).
+- Family token vectors + match.arg: dbarts() [R/dbarts.R:349-360](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L349-L360), [R/dbarts.R:370](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L370); bart2()
+  [R/bart.R:412-424](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L412-L424), [R/bart.R:434](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L434). Refusal by omission: xbart [R/xbart.R:27](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/xbart.R#L27), [R/xbart.R:74](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/xbart.R#L74); rbart_vi
+  [R/rbart.R:48](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/rbart.R#L48), [R/rbart.R:54](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/rbart.R#L54) (the nbinom precedent - their match.arg vectors ARE the refusal).
 - R-composition precedent to mirror (discrete-time hazard): ingestion splits,
-  remaps the token, refuses subset/test [[R/dbarts.R:399-459@09d61773]]; parks its marker on a
-  control attr [[R/dbarts.R:794-795@09d61773]], which packaging reads into $periods
-  [[R/bart.R:274-280@09d61773]]. bart2 family branch shape [[R/bart.R:728-755@09d61773]] (nbinom) ->
-  bart2Negbin [[R/bart.R:1553@09d61773]]; packageNegbinResults + `class(result) <- "bartNegbin"`
-  [[R/bart.R:1681@09d61773]], [[R/bart.R:1746@09d61773]]. Standard fit: packageBartResults -> class "bart"
-  [[R/bart.R:134@09d61773]], [[R/bart.R:300@09d61773]]; bart2 std path calls it [[R/bart.R:858@09d61773]].
+  remaps the token, refuses subset/test [R/dbarts.R:399-459](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L399-L459); parks its marker on a
+  control attr [R/dbarts.R:794-795](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L794-L795), which packaging reads into $periods
+  [R/bart.R:274-280](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L274-L280). bart2 family branch shape [R/bart.R:728-755](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L728-L755) (nbinom) ->
+  bart2Negbin [R/bart.R:1553](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L1553); packageNegbinResults + `class(result) <- "bartNegbin"`
+  [R/bart.R:1681](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L1681), [R/bart.R:1746](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L1746). Standard fit: packageBartResults -> class "bart"
+  [R/bart.R:134](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L134), [R/bart.R:300](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L300); bart2 std path calls it [R/bart.R:858](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L858).
 - Fit-class generics idiom: bartNegbin extract/fitted/residuals/predict/print
-  [[R/generics.R:760@09d61773]], [[R/generics.R:788@09d61773]], [[R/generics.R:796@09d61773]], [[R/generics.R:806@09d61773]], [[R/generics.R:856@09d61773]]; S3 registrations NAMESPACE:52-56. The combine is
+  [R/generics.R:760](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L760), [R/generics.R:788](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L788), [R/generics.R:796](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L796), [R/generics.R:806](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L806), [R/generics.R:856](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L856); S3 registrations NAMESPACE:52-56. The combine is
   NEW code keyed on the bartHurdle class; each component keeps its own $family
   ("probit"/"gaussian") so $family-dispatched helpers (probabilityFromLatents
-  [[R/generics.R:13-19@09d61773]], pointwiseLogLikelihood [[R/generics.R:35-87@09d61773]]) stay correct per component.
-- predict.bart type aliases "response"->"ev", "link"->"bart" [[R/generics.R:231-235@09d61773]];
-  ppd via sampleFromPPD [[R/generics.R:203-204@09d61773]]; heteroscedastic per-obs s(x) rides back as a yhat
-  attribute [[R/generics.R:183-193@09d61773]], [[R/generics.R:217-219@09d61773]] (the per-observation sigma the
+  [R/generics.R:13-19](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L13-L19), pointwiseLogLikelihood [R/generics.R:35-87](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L35-L87)) stay correct per component.
+- predict.bart type aliases "response"->"ev", "link"->"bart" [R/generics.R:231-235](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L231-L235);
+  ppd via sampleFromPPD [R/generics.R:203-204](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L203-L204); heteroscedastic per-obs s(x) rides back as a yhat
+  attribute [R/generics.R:183-193](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L183-L193), [R/generics.R:217-219](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L217-L219) (the per-observation sigma the
   retransformation must consume when variance = ~x is set on the positive part).
-- y >= 0 validation precedent (nbinom count check) [[R/dbarts.R:552-561@09d61773]]. seed ->
-  rngSeed [[R/bart.R:401@09d61773]], [[R/bart.R:498-499@09d61773]] (derive two independent seeds here).
+- y >= 0 validation precedent (nbinom count check) [R/dbarts.R:552-561](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L552-L561). seed ->
+  rngSeed [R/bart.R:401](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L401), [R/bart.R:498-499](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L498-L499) (derive two independent seeds here).
 - Reduction-gate SHAPE (not its tautology, hardening a): benchmarks/R/
-  hazard-reduction.R (compareLink; markerOnly [[R/bart.R:85@09d61773]]). Equivalence harness: scenario
-  list [[benchmarks/R/equivalence.R:60-561@09d61773]], hazard scenario [[benchmarks/R/equivalence.R:524-559@09d61773]], fitViaHazard
-  [[benchmarks/R/equivalence.R:708-732@09d61773]], fitSummaries dispatch [[benchmarks/R/equivalence.R:801-814@09d61773]], new-scenario "skipped/uncovered" policy
-  [[benchmarks/R/equivalence.R:428@09d61773]], [[benchmarks/R/equivalence.R:1127-1152@09d61773]]. pkgdown reference sections [[_pkgdown.yml:9-43@09d61773]] (no per-family Rd
+  hazard-reduction.R (compareLink; markerOnly [R/bart.R:85](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L85)). Equivalence harness: scenario
+  list [benchmarks/R/equivalence.R:60-561](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L60-L561), hazard scenario [benchmarks/R/equivalence.R:524-559](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L524-L559), fitViaHazard
+  [benchmarks/R/equivalence.R:708-732](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L708-L732), fitSummaries dispatch [benchmarks/R/equivalence.R:801-814](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L801-L814), new-scenario "skipped/uncovered" policy
+  [benchmarks/R/equivalence.R:428](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L428), [benchmarks/R/equivalence.R:1127-1152](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/benchmarks/R/equivalence.R#L1127-L1152). pkgdown reference sections [_pkgdown.yml:9-43](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/_pkgdown.yml#L9-L43) (no per-family Rd
   exists today - man/ has none for bartNegbin/bartOrdinal). air.toml present.
 
 ## Constraints
@@ -73,20 +73,20 @@ section 13 authoritative (supersedes the in-body defaults of sections 3 and 6).
 ## Steps
 
 1. C1 - token + ingestion + wrapper, sonnet. Add "hurdle.lognormal"/"twopart" to the
-   dbarts and bart2 family vectors ([[R/dbarts.R:349@09d61773]], [[R/bart.R:412@09d61773]]), resolve the alias,
-   validate y >= 0 ([[R/dbarts.R:552@09d61773]] precedent), refuse weights/subset/test as hazard
-   does. A bart2Hurdle branch ([[R/bart.R:728@09d61773]] shape) fits the occupancy probit over all
+   dbarts and bart2 family vectors ([R/dbarts.R:349](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L349), [R/bart.R:412](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L412)), resolve the alias,
+   validate y >= 0 ([R/dbarts.R:552](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/dbarts.R#L552) precedent), refuse weights/subset/test as hazard
+   does. A bart2Hurdle branch ([R/bart.R:728](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L728) shape) fits the occupancy probit over all
    n and the gaussian over log(y[S]) with x.test = full-n x, at two derived seeds
-   ([[R/bart.R:498@09d61773]]); package a bartHurdle holding both component fits + a variant marker
+   ([R/bart.R:498](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/bart.R#L498)); package a bartHurdle holding both component fits + a variant marker
    + minimal print. Gate: R CMD INSTALL; benchmarks/R/hurdle-reduction.R - each
    internal fit equals a standalone probit/gaussian fit at the SAME derived seed,
    bitwise (markerOnly), the hazard-reduction shape as a sanity FLOOR, not the
    correctness argument. ~150-250 lines.
 2. C2 - class + combine/retransform generics, opus (the risk-bearing commit).
-   extract/fitted/predict/residuals/print.bartHurdle ([[R/generics.R:760@09d61773]] idiom;
+   extract/fitted/predict/residuals/print.bartHurdle ([R/generics.R:760](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L760) idiom;
    NAMESPACE:52 registrations). The combine layer: type = "ev"/"response" natural-
    scale E[y | x] = pi(x) * exp(f(x) + sigma^2 / 2) per draw, reading per-observation
-   sigma via the positive fit's attribute path ([[R/generics.R:183-193@09d61773]]); "link"/"log"
+   sigma via the positive fit's attribute path ([R/generics.R:183-193](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L183-L193)); "link"/"log"
    the positive linear predictor; "prob" pi(x) through the correct link; "ppd"
    bimodal. predict replays both saved forests at newdata and combines. Gate:
    R CMD INSTALL; tinytest - the ANALYTIC combine/retransform oracle (hand-set
@@ -94,8 +94,8 @@ section 13 authoritative (supersedes the in-body defaults of sections 3 and 6).
    predict-on-newdata + save/load; a recovery smoke recovering pi(x), E[y | y > 0, x],
    and combined E[y]. ~150-250 lines.
 3. C3 - gates + docs, sonnet. New "hurdle" scenario in benchmarks/R/equivalence.R
-   ([[R/generics.R:524@09d61773]] shape) recording the occupancy channel + the positive channel + the combined
-   predict; fitViaHurdle + fitSummaries dispatch ([[R/generics.R:801@09d61773]]). tinytest: family routing, the
+   ([R/generics.R:524](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L524) shape) recording the occupancy channel + the positive channel + the combined
+   predict; fitViaHurdle + fitSummaries dispatch ([R/generics.R:801](https://github.com/vdorie/dbarts/blob/09d617739e7f6d803c2f9248280c6230a2fa44cc/R/generics.R#L801)). tinytest: family routing, the
    "twopart" alias printing as hurdle.lognormal, y >= 0 validation, xbart/rbart_vi
    refusal. Document the foreclosed shared variable-selection prior + the smearing
    door. Gate: equivalence compare vs the current baseline - ALL existing scenarios

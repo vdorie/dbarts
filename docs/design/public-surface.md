@@ -411,7 +411,7 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 - Additive evolution is free (name lookup), so deferred without cost:
   per-observation predictor updates and the joint session, setCutPoints,
   and setData - the per-iteration observer callback landed anyway, as
-  `dbarts_sampler_setCallback` ([[dbarts.h#dbarts_sampler_setCallback]]), ahead of classic
+  `dbarts_sampler_setCallback` ([`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)), ahead of classic
   `Control::callback`'s reachable consumer.
 - STRUCK: C++ headers shipping for `LinkingTo` use without ABI promises. Not
   implemented and not wanted - the flat C header is the shipped surface, by design.
@@ -511,7 +511,7 @@ cross-checked both directions at creation.
 `$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`
 are R5 methods; `dbarts_sampler_numForests`/`setForestBasis`/`getForestFits`/
 `numForestAmplitudes`/`getForestAmplitudes` reach the same sampler from C
-([[dbarts.h#dbarts_sampler_numForests, dbarts_sampler_setForestBasis, dbarts_sampler_getForestFits, dbarts_sampler_numForestAmplitudes, dbarts_sampler_getForestAmplitudes]]); a run reports every forest's fits and
+([`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)); a run reports every forest's fits and
 the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 

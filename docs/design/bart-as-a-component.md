@@ -39,17 +39,17 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) fires on a
+`refuseMultiForestMutation` ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`.
 It raises, as every helper below does; the flat entries return 0 instead.
 
-`refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) is the one multi-forest family
+`refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
-swap at all - `Chain::supportsResponseMutation` ([[chain.hpp#Chain::supportsResponseMutation]]), which is
+swap at all - `Chain::supportsResponseMutation` ([`Chain::supportsResponseMutation`](../../src/bartcore/chain.hpp)), which is
 the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
-true ([[combiner.hpp#AmplitudeForestCombiner::supportsResponseMutation]]); the base `ForestCombiner` and the multinomial
+true ([`AmplitudeForestCombiner::supportsResponseMutation`](../../src/bartcore/combiner.hpp)); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
 that no flat conduit can carry, so its refusal names the counts channel
 instead. There is no `family_ == gaussian` conjunct: `setResponse` passes
@@ -61,7 +61,7 @@ calibrations are stated against. The test is `updateScale != FALSE`, so NA
 refuses too; the R5 methods default the argument to FALSE. The weight conduit
 has no scale to pin and skips the clause.
 
-`refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]]) fires on the same
+`refuseMultiForestWarmStart` ([`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp)) fires on the same
 bare `numForests >= 2` and covers ONE initialization, the donor warm start
 `bartcore_installForests`. It would ANSWER on a multi-forest sampler rather
 than raise: the trees are reassembled from a saved slot while the amplitudes
@@ -69,14 +69,14 @@ come off the donor's live chain state, so a slot-sourced install pairs one
 draw's forests with another's glue, and nothing validates the result above one
 forest - the guard is a recorded open item rather than a model refusal. The R5
 method raises its own wording ahead of it (`refuseMultiForestWarmStart`,
-[[bartcore.R#refuseMultiForestWarmStart]]), as does `bart2`'s `warm.start`. The other
+[`refuseMultiForestWarmStart`](../../R/bartcore.R)), as does `bart2`'s `warm.start`. The other
 initialization, `bartcore_growFromRoot`, carries NO forest-count guard and is
 open at every shape: it composes through the combiner inside its own sweep and
 its two-forest branch is covered from R and in the component suite. The flat C
 API exposes neither, so it needs no arm here. A variance forest is not one of
 the counted forests, so a heteroscedastic sampler passes through.
 
-`refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) closes the
+`refuseUndefinedTestFits` ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp)) closes the
 test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
 on the forest count, so a coupling whose test blend IS defined passes
 through. It guards `setTestPredictor`, `setTestOffset`,
@@ -89,7 +89,7 @@ The closure is SAMPLER-level: `predict.bart` still blends the per-forest
 replay with the stored glue and the caller's own bases (`predictBlend`).
 
 R5 raises its own wording ahead of the bridge for a sampler carrying
-amplitudes (`refuseAmplitudeMutation`, [[bartcore.R#refuseAmplitudeMutation]]), on
+amplitudes (`refuseAmplitudeMutation`, [`refuseAmplitudeMutation`](../../R/bartcore.R)), on
 `setResponse`/`setOffset` at `updateScale = TRUE`, on `setData`, `setModel`
 and `setCalibration`. The probe is `!is.null(data@bases)` - a capability test,
 deliberately not a forest count, because a K-forest multinomial carries
@@ -113,28 +113,28 @@ the cell).
 
 | mutation | single forest | multi-forest | guard |
 |---|---|---|---|
-| `setData` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
-| `installTrees` (donor warm start) | allowed | refused | `refuseMultiForestWarmStart` ([[R_interface_bartcore.cpp#refuseMultiForestWarmStart]]) |
+| `setData` | allowed | refused | `refuseMultiForestMutation` ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) |
+| `installTrees` (donor warm start) | allowed | refused | `refuseMultiForestWarmStart` ([`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp)) |
 | `growFromRoot` | allowed | allowed, the combiner composing inside the grow sweep | none, by decision - see the paragraph above |
-| `setModel` | allowed | refused | `refuseMultiForestMutation` ([[R_interface_bartcore.cpp#refuseMultiForestMutation]]) |
-| `setCalibration` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([[chain.hpp#Chain::setForestPriorScale]]), returns false rather than raising itself |
-| `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
-| `setOffset` | allowed, any `updateScale` | same rule as `setResponse` | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
-| `setWeights` | allowed | allowed only if the combiner supports response mutation (no `updateScale` clause - weights carry no scale to pin) | `refuseMultiForestResponseMutation` ([[R_interface_bartcore.cpp#refuseMultiForestResponseMutation]]) |
-| `setSigma` | allowed | allowed, but only where the sampler has a free sigma to set: refused under a variance forest and off gaussian/aft, which takes out a K-forest multinomial (it marks itself `logistic`, [[chain.hpp#"family_ = ResponseFamily::logistic"]]) and a probit BCF | none forest-count-keyed; `refusePinnedSigmaChange` ([[R_interface_bartcore.cpp#refusePinnedSigmaChange]]) gates on the family and the variance forest |
+| `setModel` | allowed | refused | `refuseMultiForestMutation` ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) |
+| `setCalibration` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)), returns false rather than raising itself |
+| `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
+| `setOffset` | allowed, any `updateScale` | same rule as `setResponse` | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
+| `setWeights` | allowed | allowed only if the combiner supports response mutation (no `updateScale` clause - weights carry no scale to pin) | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
+| `setSigma` | allowed | allowed, but only where the sampler has a free sigma to set: refused under a variance forest and off gaussian/aft, which takes out a K-forest multinomial (it marks itself `logistic`, ["family_ = ResponseFamily::logistic"](../../src/bartcore/chain.hpp)) and a probit BCF | none forest-count-keyed; `refusePinnedSigmaChange` ([`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp)) gates on the family and the variance forest |
 | `setPredictor` | allowed | allowed, whole-matrix, column-granular and per-observation alike | none, by decision - see the paragraph above |
 | `updatePredictor` (column-granular, per-observation, joint) | allowed | allowed | none, by decision - see the paragraph above |
 | `setForestBasis` | refused - no amplitudes to install into | allowed, the SOLE basis-mutation route, at any forest and any width | none forest-count-keyed; capability probe is `totalAmplitudes()`, and a zero total is the refusal |
 | `setForestWeights` | refused - no amplitudes to install into | allowed for a combiner that carries per-forest weights (BCF); refused on model grounds for a K-forest multinomial mask, which is global instead (`setActiveRows`) | none forest-count-keyed; capability probe is `supportsForestWeights` |
-| `setTestPredictor` / `setTestOffset` / `setTestPredictorAndOffset` | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
-| `predict` (combined) | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) - the test-input surface's rule | `refuseUndefinedTestFits` ([[R_interface_bartcore.cpp#refuseUndefinedTestFits]]) |
-| `predict` (per-forest) | refused - no per-forest fits to report | allowed only where the coupling composes through amplitude glue, which is the REVERSE of the combined rule (BCF: yes; K-forest multinomial: no) | `bartcore_predictPerForest` ([[R_interface_bartcore.cpp#bartcore_predictPerForest]]) raises on `!forestReportingIsDefined`, overridden true by `AmplitudeForestCombiner` alone ([[combiner.hpp#AmplitudeForestCombiner::forestReportingIsDefined]]) |
+| `setTestPredictor` / `setTestOffset` / `setTestPredictorAndOffset` | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) | `refuseUndefinedTestFits` ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp)) |
+| `predict` (combined) | allowed | refused unless the coupling's test blend is defined (BCF: no; K-forest multinomial: yes) - the test-input surface's rule | `refuseUndefinedTestFits` ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp)) |
+| `predict` (per-forest) | refused - no per-forest fits to report | allowed only where the coupling composes through amplitude glue, which is the REVERSE of the combined rule (BCF: yes; K-forest multinomial: no) | `bartcore_predictPerForest` ([`bartcore_predictPerForest`](../../src/R_interface_bartcore.cpp)) raises on `!forestReportingIsDefined`, overridden true by `AmplitudeForestCombiner` alone ([`AmplitudeForestCombiner::forestReportingIsDefined`](../../src/bartcore/combiner.hpp)) |
 
 ## 3. What engine state does not carry, and who reinstalls it
 
 The engine RETAINS the pointer it is handed for the raw conditioning vectors
 - response, offset, test offset, case weights, per-forest weights - which the
-caller owns and must keep alive; [[dbarts.h#"RETAIN the pointer they are handed"]] states
+caller owns and must keep alive; ["RETAIN the pointer they are handed"](../../inst/include/dbarts/dbarts.h) states
 which setters retain and which borrow for the call alone. It holds no
 predictor matrix at all: predictors quantize into owned integer codes and the
 raw is borrowed for the build or re-quantize call only.
@@ -157,18 +157,18 @@ them again, and who does that depends on the layer:
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
   the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, [[dbarts.R#reapplyForestWeights]]). There is no
+  re-apply afterwards (`reapplyForestWeights`, [`reapplyForestWeights`](../../R/dbarts.R)). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
 - Two holes remain. A per-forest weight is not part of the state, so a
   pipeline that discards the R5 holder and installs a DONOR's state into a
   fresh engine starts with no per-forest weight whatever the donor had, and
   the two stored states compare equal while the fits diverge. This is a
-  contract item, decided in [[docs/design/bcf.md#The multiplier snap and the per-forest weight (2026-08-10)]] and pinned for the same-holder
+  contract item, decided in [The multiplier snap and the per-forest weight (2026-08-10)](bcf.md#the-multiplier-snap-and-the-per-forest-weight-2026-08-10) and pinned for the same-holder
   round trip in `inst/tinytest/test-forest-weights.R`. An active-row mask is
   mirrored nowhere at all and is lost on re-creation. The channel's own reference -
   its contract, per-family composition and surfaces - is
-  [[docs/design/active-rows-mask.md#The contract]].
+  [The contract](active-rows-mask.md#the-contract).
 - A flat C consumer owns every one of them, having no R5 layer to mirror
   through.
 
@@ -177,7 +177,7 @@ them again, and who does that depends on the layer:
 Per-forest decomposition of TEST fits: `testFitsAreDefined()` is false under
 the BCF coupling, so there is nothing to decompose. Mid-sweep hooks: inside
 the tree loop `totalFits` is stale until rebuilt after it
-([[chain.hpp#Chain::run]]), so a host reading a fit there would read a
+([`Chain::run`](../../src/bartcore/chain.hpp)), so a host reading a fit there would read a
 partially updated one; the refusal is on invariant grounds before it is on
 threading grounds. Per-forest saved-tree replay. Cross-host bitwise
 reproducibility - within-host across any SIMD dispatch only.
@@ -186,7 +186,7 @@ reproducibility - within-host across any SIMD dispatch only.
 
 Two ship, and neither is a mid-sweep hook.
 
-`dbarts_sampler_setCallback` ([[dbarts.h#dbarts_sampler_setCallback]]) takes
+`dbarts_sampler_setCallback` ([`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop
 the run early. It fires at the top of each iteration, unthrottled by thinning,
 before sigma enters the sweep. It is refused when `numThreads > 1 &&
@@ -194,7 +194,7 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` ([[R_interface_bartcore.cpp#bartcore_runWithCallback]]) was the
+`bartcore_runWithCallback` ([`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp)) was the
 internal single-chain R hook behind rbart_vi's Gibbs loop; rbart_vi is
 retired and the hook is otherwise unused. It refuses more than one chain
 outright, hands the closure one argument - the 0-based sweep
@@ -225,8 +225,8 @@ the location and the sigma channel. The same at
 per-forest fit and amplitude channels. Negative half: a loop at `n.thin = 3`
 reproduces a batched run at `n.thin = 3` and differs from one at `n.thin = 1`,
 so the pin discriminates. The suite carries the multi-forest half at
-[[test-bcf-mutation-pins.R#"expect_identical(looped.train, batched$train)"]] and
-[[test-bcf-reporting.R#"expect_identical(loopFits, batched$forestFits)"]].
+["expect_identical(looped.train, batched$train)"](../../inst/tinytest/test-bcf-mutation-pins.R) and
+["expect_identical(loopFits, batched$forestFits)"](../../inst/tinytest/test-bcf-reporting.R).
 
 Cost of the loop, section 1. Twenty alternating rounds of 500 sweeps, 200
 trees, n = 500, p = 5, per-round minimum: batched 0.150-0.152 s, looped

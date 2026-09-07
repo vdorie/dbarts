@@ -213,7 +213,7 @@ entry: it draws a step type (`StepType::birth/death/swap/change`) and
 dispatches to the corresponding move function.
 
 Every candidate branch's empty-leaf veto is ranked
-(`Tree::leafVetoRank`, [[moves.hpp#resolveVetoRank]]): rank 2 is
+(`Tree::leafVetoRank`, [`resolveVetoRank`](../src/bartcore/moves.hpp)): rank 2 is
 a leaf with no member at all, rank 1 a leaf whose members all carry zero
 weight, rank 0 a leaf a likelihood term reaches. Comparing a (current,
 proposal) pair, the worse-ranked branch takes `-HUGE_VAL` outright; when both
@@ -319,7 +319,7 @@ legal when. Two families:
   restoring the snapshot and repartitioning every tree on failure. A
   quantile-mode cut refresh that would induce fewer cuts than an existing
   split needs is rejected before any mutation happens. The snapshot and
-  rollback mechanics are [[data-store.md#Predictor mutation transaction]].
+  rollback mechanics are [Predictor mutation transaction](design/data-store.md#predictor-mutation-transaction).
 - **Per-observation updates** use a `PredictorUpdateSession`
   (`beginPredictorUpdate`/`updatePredictorPerObservation`): stage one
   observation's leaf moves against running per-leaf occupancy counts, test

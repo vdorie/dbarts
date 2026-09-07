@@ -36,7 +36,7 @@ attached to one standalone handle (CV folds today; hurdle/IRT-style
 embeddings next). Sharing is READ-ONLY under the single-writer rule:
 predictors are immutable through a shared view (the view holds no
 re-quantizable raw, so the mutation and re-quantize surface refuses it -
-[[data.hpp:133@4a521760]] isView, [[R_interface_bartcore.cpp:1134@4a521760]] refuseViewSampler);
+[src/bartcore/data.hpp:133](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L133) isView, [src/R_interface_bartcore.cpp:1134](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1134) refuseViewSampler);
 response-side mutation stays per-sampler. Lifetime: a view is a
 self-contained copy of the cuts it needs (no back-pointer to the parent
 after construction), GC-anchored by the handle's data object via PROT_DATA.
@@ -48,7 +48,7 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
   mutating call. NEVER a view of engine quantized state; never written
   during sampling. R reference counting is the ownership tracker.
 - The engine keeps NO predictor raw except the leaf-covariate gather
-  ([[data.hpp:193@4a521760]] gatheredRawColumns). The mutable-raw flag was KILLED, never
+  ([src/bartcore/data.hpp:193](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L193) gatheredRawColumns). The mutable-raw flag was KILLED, never
   built - do not re-add engine-owned mutable columns (that is the ~400 MB
   borrow re-entering by the side door).
 - extract(sampler, "predictors") is the on-demand numeric-code
@@ -62,27 +62,27 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
 ## Context (what already holds, read in code)
 
 - The standalone handle EXISTS: DataHandle wraps a ColumnStore
-  ([[R_interface_bartcore.cpp:1170@4a521760]]); bartcore_createDataHandle:1375 gathers
-  every column raw; R helper bartcoreDataHandle ([[R/bartcore.R:403@4a521760]]).
-- Row-subset views EXIST: ColumnStore::buildFromParent ([[data.hpp:742@4a521760]])
+  ([src/R_interface_bartcore.cpp:1170](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L1170)); bartcore_createDataHandle:1375 gathers
+  every column raw; R helper bartcoreDataHandle ([R/bartcore.R:403](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L403)).
+- Row-subset views EXIST: ColumnStore::buildFromParent ([src/bartcore/data.hpp:742](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L742))
   densifies and COPIES the subset's codes over the parent's cut grid,
   gathering leaf-covariate raw with parent standardization; the view is
-  self-contained ([[data.hpp:740@4a521760]]). bartcore_createFromHandle:1424 +
-  bartcoreSamplerFromHandle ([[R/bartcore.R:416@4a521760]]) build a sampler over one;
-  xbart is the consumer ([[R/xbart.R:552@4a521760]]). Views refuse the raw-x mutation +
+  self-contained ([src/bartcore/data.hpp:740](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L740)). bartcore_createFromHandle:1424 +
+  bartcoreSamplerFromHandle ([R/bartcore.R:416](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L416)) build a sampler over one;
+  xbart is the consumer ([R/xbart.R:552](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/xbart.R#L552)). Views refuse the raw-x mutation +
   re-quantize surface (refuseViewSampler). buildFromParent has NO column
   axis today: it always spans parent.numPredictors.
-- Forest is the composable unit ([[chain.hpp:257@4a521760]]); a Chain holds
+- Forest is the composable unit ([src/bartcore/chain.hpp:257](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L257)); a Chain holds
   std::vector<Forest>; BCF is two forests over ONE shared store. The BCF
   ctor comment records the exact blocker: "both forests read the full
   store (the moderator subset arrives with data ownership)"
-  ([[chain.hpp:471@4a521760]]; forest-split-bcf.md step-3 landing).
+  ([src/bartcore/chain.hpp:471](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L471); forest-split-bcf.md step-3 landing).
 - Split-variable selection loops over data.numPredictors gated by
-  scratch.available[j] ([[grow.hpp:88-105@4a521760]]); availability is filled from
-  data + node ancestry by Tree::collectAvailableVariables ([[tree.hpp:434@4a521760]]) -
+  scratch.available[j] ([src/bartcore/grow.hpp:88-105](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/grow.hpp#L88-L105)); availability is filled from
+  data + node ancestry by Tree::collectAvailableVariables ([src/bartcore/tree.hpp:434](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L434)) -
   there is NO per-forest column axis. Per-forest fixedSplitProbabilities
   already exist and install into treePrior.splitProbabilities
-  ([[chain.hpp:272@4a521760]], [[chain.hpp:442-446@4a521760]]), so a per-forest column axis is a natural sibling.
+  ([src/bartcore/chain.hpp:272](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L272), [src/bartcore/chain.hpp:442-446](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L442-L446)), so a per-forest column axis is a natural sibling.
 - Design sources: Sharing (data-ownership.md), open consideration 2;
   standalone handle (core-generalization.md);
   public-surface.md section 5 (DECIDED internal-first; serialization +
@@ -126,7 +126,7 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
 ## Steps
 
 1. Per-forest column-availability mask (engine + facade). Forest
-   ([[chain.hpp:257@4a521760]]) gains an optional column list (empty = all). grow.hpp
+   ([src/bartcore/chain.hpp:257](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L257)) gains an optional column list (empty = all). grow.hpp
    and collectAvailableVariables consult it via a nullptr/empty guard so a
    restriction only clears bits, never reweights the default draw. Carry it
    on SamplerOptions per-forest and through createSampler/
@@ -136,8 +136,8 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
    field; equivalence 22/22; full tinytest 2771 no regen. Abort: any
    default-path draw moves.
 2. Carry the per-forest column list to BCFSpec.tau (bridge + chain).
-   BCFForestSpec/BCFSpec ([[chain.hpp:314@4a521760]], [[chain.hpp:322@4a521760]]) gain tau's moderator column
-   list; bartcore_createBCF parses it; the BCF ctor ([[chain.hpp:472@4a521760]]) installs
+   BCFForestSpec/BCFSpec ([src/bartcore/chain.hpp:314](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L314), [src/bartcore/chain.hpp:322](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L322)) gain tau's moderator column
+   list; bartcore_createBCF parses it; the BCF ctor ([src/bartcore/chain.hpp:472](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/chain.hpp#L472)) installs
    it on the tau forest. Default (no list) = both forests read the full
    store, byte-for-byte today. The R-facing `moderators` argument + the
    two-forest exact-posterior gate are forest-split-bcf's (Q2). Gate:
@@ -145,11 +145,11 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
    bcf-exact.R quick unmoved; full tinytest 2771. Abort: default BCF draws
    move.
 3. Column-subset on the handle view path (data.hpp + bridge + R).
-   buildFromParent ([[data.hpp:742@4a521760]]) gains an optional column-index list
+   buildFromParent ([src/bartcore/data.hpp:742](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L742)) gains an optional column-index list
    (default = all parent columns) so a view spans a subset; the view's
    numPredictors, cut/code copy, leaf gather, and test codes index through
    it. bartcore_createFromHandle + bartcoreSamplerFromHandle
-   ([[R/bartcore.R:416@4a521760]]) gain a `columns` argument; xbart passes all columns
+   ([R/bartcore.R:416](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/bartcore.R#L416)) gain a `columns` argument; xbart passes all columns
    (unchanged). Gate: tests/cpp - a column-subset view bins its columns
    identically to the parent, and an all-columns view is bitwise-identical
    to today's view; equivalence 22/22; full tinytest (xbart snapshots
@@ -290,7 +290,7 @@ Two step-3 findings worth recording:
     shared draw stream is left where downstream tests expect it."
 
 (b) The columns mechanism has no end-to-end R consumer yet, by design:
-    xbart ([[R/xbart.R:588@4a521760]]) calls bartcoreSamplerFromHandle without a
+    xbart ([R/xbart.R:588](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/xbart.R#L588)) calls bartcoreSamplerFromHandle without a
     columns argument, i.e. always the default (all columns). The first
     real consumers arrive with forest-split-bcf (the mask side, via a
     `moderators` argument) and a future handle-view user (hurdle or a

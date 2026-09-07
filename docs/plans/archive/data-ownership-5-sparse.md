@@ -6,8 +6,8 @@ agent: opus (the partition seam, buildMixed, the bridge parse path, and the
 rng: neutral - a sparse-categorical column carries the SAME level-order codes
   and category count as a dense factor of the same values, and the categorical
   split proposal draws over the rule-derived reachable mask, never over
-  observed codes (collectAvailableVariables [[tree.hpp:481-490@4a521760]],
-  categoryDirectionsForPattern [[model.hpp:1507@4a521760]]), so storage cannot move a draw.
+  observed codes (collectAvailableVariables [src/bartcore/tree.hpp:481-490](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L481-L490),
+  categoryDirectionsForPattern [src/bartcore/model.hpp:1507](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L1507)), so storage cannot move a draw.
   Every existing path is guarded: the partitionChildren categorical branch
   gains a columnIsSparse sub-dispatch, buildMixed's CSC branch a categorical
   variant, both inert for today's columns. Gate: equivalence 22/22 IDENTICAL
@@ -34,7 +34,7 @@ bench: memory-first (the kernel's point). One container-bytes comparison
 
 A high-cardinality unordered factor stored sparsely (CSC over level codes, the
 reference level implicit) becomes a first-class predictor: sparseFactor() is
-ACCEPTED where it is refused today (sparseColumnSlices, [[mixedMatrix.R:36@4a521760]]), so a
+ACCEPTED where it is refused today (sparseColumnSlices, [R/mixedMatrix.R:36](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/mixedMatrix.R#L36)), so a
 frame mixing dense numerics, dense factors, sparse ordinal columns, and sparse
 factors ingests in one call. The win is memory on one-hot / high-cardinality
 factor designs (the IRT / bairrtt item-design shape): a dense categorical
@@ -45,21 +45,21 @@ sparseFactor accepted as a data-frame column via the x/y interface; sparse
 categorical in x.test densifies and predicts; the raw-x MUTATION surface stays
 refused for sparse sources (sparse designs fix at creation, the standing rule),
 as does rbart_vi's R-loop path; linear/gp leaves stay refused on sparse-backed
-columns (plan-4 precedent, [[R_interface_bartcore.cpp:463@4a521760]]).
+columns (plan-4 precedent, [src/R_interface_bartcore.cpp:463](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L463)).
 
 ## Binding contracts inherited (plans 1-4, do not reopen)
 
 - data@x is the COLLECTED RAW SOURCE. A sparseFactor rides data@x by R
   reference as the GC anchor (isSparseDataFrameColumn recognizes it,
-  [[mixedMatrix.R:26@4a521760]]); it is never a view of engine state. Per-draw mutation of a
+  [R/mixedMatrix.R:26](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/mixedMatrix.R#L26)); it is never a view of engine state. Per-draw mutation of a
   sparse column stays REFUSED (installPredictorColumns comment, mixedMatrix.R:
   278-280): sharing/swapping whole data replaces the source, in-place mutation
   does not.
 - The engine keeps NO predictor raw except the leaf-covariate gather
-  ([[data.hpp:193@4a521760]]). Do not add engine-owned mutable raw; the mutable-raw flag was
+  ([src/bartcore/data.hpp:193](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L193)). Do not add engine-owned mutable raw; the mutable-raw flag was
   killed, never built.
-- Views DENSIFY: buildFromParent ([[data.hpp:742@4a521760]]) gathers through the
-  storage-aware codeAt ([[data.hpp:828@4a521760]], [[data.hpp:837@4a521760]], [[data.hpp:924@4a521760]]), so a sparse-categorical column
+- Views DENSIFY: buildFromParent ([src/bartcore/data.hpp:742](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L742)) gathers through the
+  storage-aware codeAt ([src/bartcore/data.hpp:828](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L828), [src/bartcore/data.hpp:837](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L837), [src/bartcore/data.hpp:924](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L924)), so a sparse-categorical column
   folds into a dense categorical child for free - no view-side sparse code.
 - extract(sampler, "predictors") materializes the NUMERIC code matrix over
   data@x (factors as level-order codes); a sparse-categorical column densifies
@@ -75,36 +75,36 @@ columns (plan-4 precedent, [[R_interface_bartcore.cpp:463@4a521760]]).
 
 - The container crosses {ordinal, categorical} x {dense, CSC}; 3 of 4 cells
   ship, sparse categorical is the gap (data-ownership.md). ColumnType is
-  the kind ([[data.hpp:83@4a521760]]); a rank column lives in a SparseColumnData slot
-  ([[data.hpp:95-108@4a521760]]: bits, wordRanks, nzCodes, zeroCode, at(i)), keyed by
-  sparseSlot ([[data.hpp:142@4a521760]]); columnIsSparse/sparseColumn ([[data.hpp:917-922@4a521760]])
-  select it; codeAt ([[data.hpp:924@4a521760]]) is storage-aware already.
-- buildMixed dispatches per column ([[data.hpp:640-690@4a521760]]): dense-backed columns
+  the kind ([src/bartcore/data.hpp:83](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L83)); a rank column lives in a SparseColumnData slot
+  ([src/bartcore/data.hpp:95-108](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L95-L108): bits, wordRanks, nzCodes, zeroCode, at(i)), keyed by
+  sparseSlot ([src/bartcore/data.hpp:142](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L142)); columnIsSparse/sparseColumn ([src/bartcore/data.hpp:917-922](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L917-L922))
+  select it; codeAt ([src/bartcore/data.hpp:924](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L924)) is storage-aware already.
+- buildMixed dispatches per column ([src/bartcore/data.hpp:640-690](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L640-L690)): dense-backed columns
   slice denseValues, CSC columns build a rank bitmap or densify at
-  sparseDensityThreshold=0.2 ([[data.hpp:89@4a521760]], [[data.hpp:653@4a521760]]). buildFromCsc is buildMixed with
-  every column CSC ([[data.hpp:702@4a521760]]). The scatter/quantize is storage-aware
-  (quantizeCscColumn, [[data.hpp:498@4a521760]]).
+  sparseDensityThreshold=0.2 ([src/bartcore/data.hpp:89](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L89), [src/bartcore/data.hpp:653](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L653)). buildFromCsc is buildMixed with
+  every column CSC ([src/bartcore/data.hpp:702](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L702)). The scatter/quantize is storage-aware
+  (quantizeCscColumn, [src/bartcore/data.hpp:498](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L498)).
 - The categorical partition is ENGINE-SIDE and scalar, NOT a misc.a kernel:
-  partitionIndicesByMask (inline <=63 levels, [[tree.hpp:533@4a521760]]) and
-  partitionIndicesByWideMask (pooled >63, [[tree.hpp:554@4a521760]]), both reading a dense
+  partitionIndicesByMask (inline <=63 levels, [src/bartcore/tree.hpp:533](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L533)) and
+  partitionIndicesByWideMask (pooled >63, [src/bartcore/tree.hpp:554](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L554)), both reading a dense
   const xint_t* column. partitionChildren dispatches
-  categorical -> sparse-ordinal -> dense-ordinal ([[tree.hpp:637@4a521760]], [[tree.hpp:650@4a521760]], [[tree.hpp:665@4a521760]]); the
+  categorical -> sparse-ordinal -> dense-ordinal ([src/bartcore/tree.hpp:637](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L637), [src/bartcore/tree.hpp:650](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L650), [src/bartcore/tree.hpp:665](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L665)); the
   categorical branch reads data.column(variable) (dense), with NO sparse arm.
   The sparse-ordinal siblings that DO read through SparseColumnData::at already
-  exist: misc_partitionIndicesSparse ([[tree.hpp:659@4a521760]]) and the engine-side
-  partitionIndicesSparseMIA ([[tree.hpp:575@4a521760]]).
+  exist: misc_partitionIndicesSparse ([src/bartcore/tree.hpp:659](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L659)) and the engine-side
+  partitionIndicesSparseMIA ([src/bartcore/tree.hpp:575](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L575)).
 - Categorical splits are proposed via the MH move path over the rule-derived
-  reachable mask ([[model.hpp:1507@4a521760]], [[model.hpp:1586-1611@4a521760]]), never scanned ([[grow.hpp:55-59@4a521760]], [[grow.hpp:100@4a521760]])
+  reachable mask ([src/bartcore/model.hpp:1507](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L1507), [src/bartcore/model.hpp:1586-1611](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/model.hpp#L1586-L1611)), never scanned ([src/bartcore/grow.hpp:55-59](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/grow.hpp#L55-L59), [src/bartcore/grow.hpp:100](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/grow.hpp#L100))
   and never read from observed codes; availability is mask-derived
-  ([[tree.hpp:481-490@4a521760]]). So codes are consumed ONLY at partition and (indirectly,
+  ([src/bartcore/tree.hpp:481-490](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L481-L490)). So codes are consumed ONLY at partition and (indirectly,
   via partitioned index ranges) at suffstat - the basis of the bitwise gate.
 - The refusal choke points, all lifted here: sparseColumnSlices
-  ([[mixedMatrix.R:36@4a521760]], the single point every sparse column passes), the
-  formula-path pre-scans ([[data.R:410-414@4a521760]], [[data.R:680-681@4a521760]]), and the bridge's
-  all-ordinal-sparse guard ([[R_interface_bartcore.cpp:459-464@4a521760]], [[R_interface_bartcore.cpp:884@4a521760]]).
-- sparseFactor exists (R/sparseFactor.R constructor; [[A_class.R:513-554@4a521760]] class +
+  ([R/mixedMatrix.R:36](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/mixedMatrix.R#L36), the single point every sparse column passes), the
+  formula-path pre-scans ([R/data.R:410-414](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/data.R#L410-L414), [R/data.R:680-681](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/data.R#L680-L681)), and the bridge's
+  all-ordinal-sparse guard ([src/R_interface_bartcore.cpp:459-464](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L459-L464), [src/R_interface_bartcore.cpp:884](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L884)).
+- sparseFactor exists (R/sparseFactor.R constructor; [R/A_class.R:513-554](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/A_class.R#L513-L554) class +
   validity): slots i (0-based ascending rows), values (1-based level codes),
-  levels, reference (implicit level), length. It forbids NA ([[sparseFactor.R:47@4a521760]]),
+  levels, reference (implicit level), length. It forbids NA ([R/sparseFactor.R:47](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/sparseFactor.R#L47)),
   so a sparse-categorical column is never MIA - no missing-direction sibling.
 
 ## THE GATE: bitwise sparse-vs-dense (PROMISABLE)
@@ -120,7 +120,7 @@ draws BITWISE-IDENTICALLY to the same data ingested dense. Why it holds:
   code[i] for every row. The reference choice is a STORAGE decision (which
   level is implicit), orthogonal to the codes.
 - IDENTICAL CATEGORY COUNT. numCuts[j] = number of levels = K, the dense factor's
-  count; the reachable-mask arithmetic ([[tree.hpp:481-490@4a521760]]) is thus identical.
+  count; the reachable-mask arithmetic ([src/bartcore/tree.hpp:481-490](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L481-L490)) is thus identical.
 - IDENTICAL RNG STREAM. The proposal draws over the reachable mask, not codes;
   suffstats accumulate over partitioned index RANGES (y, not codes). Only the
   partition reads codes, and identical codes give an identical partition.
@@ -193,12 +193,12 @@ consumer-gated.
 
 1. Sparse-categorical membership partition + code assignment (engine). Add
    partitionIndicesSparseByMask (inline) and ...ByWideMask (pooled) in tree.hpp
-   next to the dense siblings ([[tree.hpp:533@4a521760]], [[tree.hpp:554@4a521760]]) and the sparse MIA
-   ([[tree.hpp:575@4a521760]]), reading through SparseColumnData::at. partitionChildren's
-   categorical branch ([[tree.hpp:637@4a521760]]) gains a columnIsSparse sub-dispatch. Teach
-   buildCutsForColumn ([[data.hpp:392@4a521760]]: today derefs a null column for CSC
+   next to the dense siblings ([src/bartcore/tree.hpp:533](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L533), [src/bartcore/tree.hpp:554](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L554)) and the sparse MIA
+   ([src/bartcore/tree.hpp:575](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L575)), reading through SparseColumnData::at. partitionChildren's
+   categorical branch ([src/bartcore/tree.hpp:637](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/tree.hpp#L637)) gains a columnIsSparse sub-dispatch. Teach
+   buildCutsForColumn ([src/bartcore/data.hpp:392](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L392): today derefs a null column for CSC
    categorical) to take K from metadata for a CSC-categorical column, and
-   quantizeCscColumn ([[data.hpp:498-517@4a521760]]) to seed zeroCode from the reference code
+   quantizeCscColumn ([src/bartcore/data.hpp:498-517](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/bartcore/data.hpp#L498-L517)) to seed zeroCode from the reference code
    (not codeFor(j,0.0)) and scatter/densify the implicit rows to it. Store the
    per-column reference code (a small vector, or reuse the built zeroCode set
    from SamplerOptions). Gate: NEW tests/cpp - a rank AND a densified
@@ -206,12 +206,12 @@ consumer-gated.
    (codes, partition membership, an end-to-end fit draw); equivalence 22/22;
    full tinytest 2786 no regen. Abort: any dense/ordinal-sparse draw moves - the
    sub-dispatch leaked.
-2. Ingest sparseFactor (R + bridge). sparseColumnSlices ([[mixedMatrix.R:33@4a521760]]) stops
+2. Ingest sparseFactor (R + bridge). sparseColumnSlices ([R/mixedMatrix.R:33](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/mixedMatrix.R#L33)) stops
    refusing sparseFactor and emits its CSC slices (i, values-1 as 0-based
    codes), flagging the column categorical and carrying its reference code + K;
    extend the mixed container with a per-sparse-column reference vector; drop the
-   x/y-path S-CAT refusals (data.R, [[utility.R:229@4a521760]], [[utility.R:284@4a521760]]). parseData
-   ([[R_interface_bartcore.cpp:459-464@4a521760]]) allows categorical + CSC when the
+   x/y-path S-CAT refusals (data.R, [R/utility.R:229](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/utility.R#L229), [R/utility.R:284](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/R/utility.R#L284)). parseData
+   ([src/R_interface_bartcore.cpp:459-464](https://github.com/vdorie/dbarts/blob/4a52176065a83f73248b4334217683a8e9c10491/src/R_interface_bartcore.cpp#L459-L464)) allows categorical + CSC when the
    reference metadata is present and passes reference code + K through
    SamplerOptions. Keep the formula-path S4-column limitation (plan-2: bare S4
    terms die in model.frame; sparseFactor enters via x/y like sparseVector).

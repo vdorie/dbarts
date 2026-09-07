@@ -86,7 +86,7 @@ directions bind this document beyond the decisions:
   recorded in section 8.
 
 **Fork 6 is an XOR.** The door it closes was recorded as one -
-[[docs/plans/bcf-bartcause-relocation.md:1252-1258@4c018187]], "whether `bart2` reaches a
+[docs/plans/bcf-bartcause-relocation.md:1252-1258](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L1252-L1258), "whether `bart2` reaches a
 multi-forest model through a flat `forests =` formal **or** through
 formula-level term syntax" - and VD picked formula terms. Rev 4 recommended
 both and, worse, implemented the undecided branch in the counts, the signature,
@@ -94,7 +94,7 @@ the invariants, the migration map and two slices. That is reverted (10.11); the
 recommendation survives as one door sentence in 5.5.3 and nothing downstream
 depends on it.
 
-**VD mandate 2026-08-15** ([[TODO:80-145@4c018187]]): bart2's names and grouping lock at
+**VD mandate 2026-08-15** ([TODO:80-145](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/TODO#L80-L145)): bart2's names and grouping lock at
 1.0-0.
 
 **Standing rules.** Sister packages migrate in lockstep; compat is a migration
@@ -112,7 +112,7 @@ diagnostics (`bart()` already errors where BayesTree did not).
 
 ### 1.1 Problem
 
-`bart2` carries 52 formals ([[R/bart.R:541-607@4c018187]]) reaching seven destinations by
+`bart2` carries 52 formals ([R/bart.R:541-607](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L541-L607)) reaching seven destinations by
 five mechanisms, and grows by accretion: no single grouping model; names that
 diverge from their destinations and across entry points; defaults that diverge,
 several INERT; a three-name dots backdoor; four inconsistent loudness levels;
@@ -162,33 +162,33 @@ N9. **A `forests =` formal on bart2.** VD chose formula terms; the alternative
 
 ## 2. The current surface, in one page
 
-**bart2**: 52 formals, [[R/bart.R:541-607@4c018187]]. Destinations: 15 on a
+**bart2**: 52 formals, [R/bart.R:541-607](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L541-L607). Destinations: 15 on a
 `dbartsControl` SLOT (13 by identical name, `seed`->`rngSeed`, plus `...`), 5
 on a control ATTRIBUTE, 9 on `dbartsData`, 15 on a model/prior object, 4 on a
 sampler method, 17 inline.
 
-**Reconstruction** ([[R/bart.R:655-690@4c018187]]): an unknown-argument check over
-`argNames <- names(matchedCall)[-1L]` ([[R/bart.R:655-665@4c018187]]), `redirectCall` to
-`dbartsControl` ([[R/bart.R:667@4c018187]]), a backfill for the 13 shared names ([[R/bart.R:668-680@4c018187]]), the hand
-rename `seed -> rngSeed` ([[R/bart.R:681-683@4c018187]]), three `%/% n.thin` divisions ([[R/bart.R:687-689@4c018187]]).
-`redirectCall` ([[R/utility.R:146-176@4c018187]]) keeps an argument iff its name matches a
+**Reconstruction** ([R/bart.R:655-690](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L655-L690)): an unknown-argument check over
+`argNames <- names(matchedCall)[-1L]` ([R/bart.R:655-665](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L655-L665)), `redirectCall` to
+`dbartsControl` ([R/bart.R:667](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L667)), a backfill for the 13 shared names ([R/bart.R:668-680](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L668-L680)), the hand
+rename `seed -> rngSeed` ([R/bart.R:681-683](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L681-L683)), three `%/% n.thin` divisions ([R/bart.R:687-689](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L687-L689)).
+`redirectCall` ([R/utility.R:146-176](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/utility.R#L146-L176)) keeps an argument iff its name matches a
 formal of the target exactly and drops the rest silently.
 
 **Dispatch order inside bart2** (load-bearing for 3.c and 5.3): `argNames` is
-captured at [[R/bart.R:774@4c018187]], BEFORE the multinomial ([[R/bart.R:925@4c018187]]), ordinal ([[R/bart.R:1078@4c018187]]), nbinom ([[R/bart.R:1111@4c018187]])
-and hurdle ([[R/bart.R:1154@4c018187]]) branches and before the standard path's build ([[R/bart.R:1186-1205@4c018187]]).
+captured at [R/bart.R:774](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L774), BEFORE the multinomial ([R/bart.R:925](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L925)), ordinal ([R/bart.R:1078](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1078)), nbinom ([R/bart.R:1111](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1111))
+and hurdle ([R/bart.R:1154](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1154)) branches and before the standard path's build ([R/bart.R:1186-1205](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1186-L1205)).
 
-**Siblings**: `bart` 33; `xbart` 28 with `control =` at [[R/xbart.R:23@4c018187]] and six
-slots overwritten ([[R/xbart.R:52-57@4c018187]]); `rbart_vi` 42; `dbarts` 31; `dbartsControl` 16;
+**Siblings**: `bart` 33; `xbart` 28 with `control =` at [R/xbart.R:23](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L23) and six
+slots overwritten ([R/xbart.R:52-57](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L52-L57)); `rbart_vi` 42; `dbarts` 31; `dbartsControl` 16;
 `dbartsData` 10; `dbartsSpec` 21. MEASURED(tip), re-derived by critique r3.
 
-**Vocabularies**: `forest()` 10 knobs ([[R/model.R:1547-1557@4c018187]]; "Every knob is
+**Vocabularies**: `forest()` 10 knobs ([R/model.R:1547-1557](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1547-L1557); "Every knob is
 per forest, so the fitting functions grow exactly one argument however many
-forests a model has", [[R/model.R:1532-1534@4c018187]]); `interactions()` 3; `blocks()` 2;
+forests a model has", [R/model.R:1532-1534](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1532-L1534)); `interactions()` 3; `blocks()` 2;
 `dbartsPriors`; `dbartsResidDists`.
 
 **Doc surface**: `man/bart.Rd` (584 lines) documents bart AND bart2 in one
-`\usage` and one `\arguments` (58 items from [[R/model.R:146@4c018187]]). [[_pkgdown.yml:16-19@4c018187]] has no
+`\usage` and one `\arguments` (58 items from [R/model.R:146](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L146)). [_pkgdown.yml:16-19](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/_pkgdown.yml#L16-L19) has no
 bart2 entry.
 
 **Consumers.** bartCause is the only bart2 caller; stan4bart forwards
@@ -206,8 +206,8 @@ Facts: 13 bart2 formals are already `dbartsControl` formal names; `n.samples`
 means sweeps in bart2 and kept draws in the control (MEASURED(tip):
 `bart2(n.samples = 100, n.thin = 5)` returns 20 draws); **a supplied control
 carries state** - every family/structure extension attaches to the CONTROL
-([[R/spec.R:79-80@4c018187]], [[R/spec.R:353@4c018187]], [[R/spec.R:361@4c018187]], [[R/spec.R:380@4c018187]]) and `setControl` copies every
-`^bartcore\.` attribute forward ([[R/dbarts.R:1050-1056@4c018187]]), so
+([R/spec.R:79-80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L79-L80), [R/spec.R:353](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L353), [R/spec.R:361](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L361), [R/spec.R:380](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L380)) and `setControl` copies every
+`^bartcore\.` attribute forward ([R/dbarts.R:1050-1056](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1050-L1056)), so
 `bart2(control = <an earlier fit's control>)` would silently inherit a variance
 forest, dispersion or survival status; xbart needs three precedence mechanisms
 for one `control =` (MEASURED(tip)); `forest()`'s knobs belong to the
@@ -226,7 +226,7 @@ user-facing surfaces already say `seed`); sites in 6.1.
 **b2.** Fitting functions standardize on `sigest`; sampler constructors keep
 `sigma`. So `xbart(sigma =)` -> `sigest`, nothing else moves.
 **b3.** The variance forest's engine surface is four values
-([[src/R_interface_bartcore.cpp:2011-2049@4c018187]]), there is no interaction or block
+([src/R_interface_bartcore.cpp:2011-2049](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2011-L2049)), there is no interaction or block
 channel for it, and the two selectors resolve differently (MEASURED(tip), three
 divergences). **DECIDED: `varianceForest(vars, n.trees, base, power)`**, with
 the plain selector retained as the same argument's other accepted type.
@@ -247,12 +247,12 @@ the severity floor.
 | argument | inert when | today | in scope? |
 |---|---|---|---|
 | `sigest` | any fixed-unit-scale family | SILENT (MEASURED(tip)) | YES |
-| `sigdf`, `sigquant` | same | SILENT ([[R/spec.R:251-260@4c018187]]) | YES |
+| `sigdf`, `sigquant` | same | SILENT ([R/spec.R:251-260](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L251-L260)) | YES |
 | `resid.prior` (new) | same | would be SILENT (MEASURED(tip): `fixed(2)` -> value 1) | YES, with S7 |
-| `dispersion` | non-nbinom | SILENT ([[R/spec.R:79-80@4c018187]]) | YES |
-| `breaks`, `max.rows` | non-hazard | SILENT ([[R/dbarts.R:460-468@4c018187]]) | YES |
+| `dispersion` | non-nbinom | SILENT ([R/spec.R:79-80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L79-L80)) | YES |
+| `breaks`, `max.rows` | non-hazard | SILENT ([R/dbarts.R:460-468](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L460-L468)) | YES |
 | `prior.scale` | multinomial | **ALREADY A LOUD ERROR** (MEASURED(tip)) | NO |
-| `samplerOnly`, `warm.start`, `n.grow.sweeps`, `keepTrainingFits = FALSE` | alternate families | ALREADY LOUD ([[R/bart.R:511-539@4c018187]]) | NO |
+| `samplerOnly`, `warm.start`, `n.grow.sweeps`, `keepTrainingFits = FALSE` | alternate families | ALREADY LOUD ([R/bart.R:511-539](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L511-L539)) | NO |
 | `weights`, `subset`, `offset`, `offset.test`, `test` | multinomial/hurdle | ALREADY LOUD | NO |
 | `monotone` x non-default `proposal.probs`; `student` off gaussian; `variance` off gaussian or with monotone | - | ALREADY LOUD | NO |
 
@@ -262,30 +262,30 @@ probit/logistic/ordinal/nbinom is unmeasured.
 #### 3.c.3 Route (ii) is REFUTED (recorded, not dropped)
 
 `bart()` reaches `dbarts()` through a literal list naming `resid.prior` and
-`sigma` UNCONDITIONALLY ([[R/bart.R:2417-2436@4c018187]]), so a `resolveSamplerSpec`-side
+`sigma` UNCONDITIONALLY ([R/bart.R:2417-2436](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2417-L2436)), so a `resolveSamplerSpec`-side
 check fires for every `bart()` fit and therefore for the 17 revdeps that are
 SAFE because they are bart()-only; `buildHostSamplerCall` is called with
-`sigest = sigest` unconditionally on the standard path ([[R/bart.R:1017-1022@4c018187]]), so a
+`sigest = sigest` unconditionally on the standard path ([R/bart.R:1017-1022](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1017-L1022)), so a
 name-presence test over-fires on every bart2 probit fit and under-fires on
 ordinal/nbinom; and `resolveSamplerSpec`'s `matchedCall` is `dbarts()`'s
-([[R/spec.R:15-34@4c018187]]), so d1's forwarding would erase the suppliedness bit.
+([R/spec.R:15-34](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L15-L34)), so d1's forwarding would erase the suppliedness bit.
 
 #### 3.c.4 Route (i), the DECIDED site (fork 4)
 
 **A standalone helper called at the six family-resolution sites**, keyed on the
-`matchedCall` snapshot at [[R/bart.R:655@4c018187]]. The snapshot precedes every family
-branch and the standard path; bart2's two `matchedCall` mutations ([[R/bart.R:724-738@4c018187]],
-unresolved: [[R/bart.R:2025@4c018187]]/unresolved: [[R/bart.R:2033@4c018187]] - neither location could be placed at this sha) happen after it; and d1/S3's forwarding changes what bart2
+`matchedCall` snapshot at [R/bart.R:655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L655). The snapshot precedes every family
+branch and the standard path; bart2's two `matchedCall` mutations ([R/bart.R:724-738](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L724-L738),
+unresolved: [R/bart.R:2025](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2025)/unresolved: [R/bart.R:2033](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2033) - neither location could be placed at this sha) happen after it; and d1/S3's forwarding changes what bart2
 INSTALLS, never `matchedCall`. So S2 and S3 are independent.
 
 | path | site | family known as |
 |---|---|---|
-| multinomial | [[R/bart.R:707@4c018187]], beside `checkFamilyUnsupportedArgs` | literal `"multinomial"` |
-| ordinal | [[R/bart.R:906@4c018187]] | `"ordinal"` |
-| nbinom | [[R/bart.R:935@4c018187]] | `"nbinom"` |
-| hurdle.lognormal | [[R/bart.R:965@4c018187]] (components re-enter bart2 under their own families) | `"hurdle.lognormal"` |
-| standard | after `sampler <- eval(samplerCall, ...)` at [[R/bart.R:1024@4c018187]], BEFORE the `samplerOnly` return at [[R/bart.R:1025-1027@4c018187]] | `sampler$model@family` |
-| rbart_vi | after its own family resolution ([[R/rbart.R:389@4c018187]]) | its local `family` |
+| multinomial | [R/bart.R:707](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L707), beside `checkFamilyUnsupportedArgs` | literal `"multinomial"` |
+| ordinal | [R/bart.R:906](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L906) | `"ordinal"` |
+| nbinom | [R/bart.R:935](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L935) | `"nbinom"` |
+| hurdle.lognormal | [R/bart.R:965](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L965) (components re-enter bart2 under their own families) | `"hurdle.lognormal"` |
+| standard | after `sampler <- eval(samplerCall, ...)` at [R/bart.R:1024](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1024), BEFORE the `samplerOnly` return at [R/bart.R:1025-1027](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L1025-L1027) | `sampler$model@family` |
+| rbart_vi | after its own family resolution ([R/rbart.R:389](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/rbart.R#L389)) | its local `family` |
 
 `bart()` never calls the helper, so its silence is preserved by construction.
 Defect D1 falls out with no new forwarding.
@@ -349,7 +349,7 @@ BayesTree's in bart. Keep both, document the boundary.
 **d3.** Leave the deliberate numeric divergences; change rbart_vi's `k` to
 `NULL` (D5) and both `split.probs` to `NULL` (d4).
 **d4.** `split.probs = NULL` is IDENTICAL by construction
-([[R/model.R:295-301@4c018187]], [[R/model.R:384-385@4c018187]]); confirmed bitwise twice.
+([R/model.R:295-301](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L295-L301), [R/model.R:384-385](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L384-L385)); confirmed bitwise twice.
 
 ### 3.e Dots semantics - DECIDED rejection-only (fork 5)
 
@@ -359,7 +359,7 @@ become bart2/rbart_vi formals; `seed` covers `rngSeed`; the accepted set
 becomes exactly `formals(bart2)`. VD recorded a **stated sunset** to
 deletion-equivalent, so nothing may be designed to depend on the channel. The
 shared helper also fixes the unqualified `formals()` lookups
-([[R/rbart.R:62@4c018187]], [[R/rbart.R:63@4c018187]]; [[R/bart.R:668-676@4c018187]]).
+([R/rbart.R:62](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/rbart.R#L62), [R/rbart.R:63](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/rbart.R#L63); [R/bart.R:668-676](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L668-L676)).
 
 ### 3.f xbart and rbart_vi harmonization
 
@@ -369,7 +369,7 @@ which xbart forces FALSE).
 **f2.** Keep the grid/schedule names; add shape checks.
 **f3.** `sigma` -> `sigest`.
 **f4.** Add `tree.prior` to xbart under the "grid axis overrides the object"
-rule `node.prior` follows ([[R/xbart.R:168-173@4c018187]], [[R/xbart.R:190-209@4c018187]]).
+rule `node.prior` follows ([R/xbart.R:168-173](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L168-L173), [R/xbart.R:190-209](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L190-L209)).
 **f5.** rbart_vi gets naming/defaults/loudness only; its model-surface gap
 becomes `rbart-model-surface-parity`.
 
@@ -481,7 +481,7 @@ Dots rejection-only; `storage`/`updateState` appended; `k` -> `NULL`;
 Three appended formals (fork 7, revised under critique r3 F1/F13/F14):
 `subset = NULL`, `storage = c("double", "single")`, and
 `family = c("auto", "logistic", "aft")`. Net 33 + 3 = **36 formals**. Every
-default reproduces today's behavior: `subset = NULL` is what [[R/bart.R:2692@4c018187]] hardcodes,
+default reproduces today's behavior: `subset = NULL` is what [R/bart.R:2692](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2692) hardcodes,
 `storage`'s first value is the current default, and **`family`'s first token is
 `"auto"`** - MEASURED(rev5), `dbarts()`'s own default is `"auto"`, `bart()`
 passes no `family` today, and `dbarts(x, binary_y)` resolves to probit while
@@ -514,7 +514,7 @@ passes no `family` today, and `dbarts(x, binary_y)` resolves to probit while
   monotonicity assertions that the nine already-loud refusals still error.
 - **T-E (fork 6).** The per-forest reconstruction identity (5.8.5) holds to
   `< 1e-12` - the tolerance the package's own assertion of this identity uses
-  ([[inst/tinytest/test-bcf-reporting.R:64-76@4c018187]]) - on BOTH a binary basis and a
+  ([inst/tinytest/test-bcf-reporting.R:64-76](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L64-L76)) - on BOTH a binary basis and a
   3-level-factor basis. Not "bitwise": the engine associates the sum
   differently from any R-side re-derivation, and MEASURED residuals are
   ~1e-15 with one chain's `cor` at 0.99999999999999967.
@@ -545,21 +545,21 @@ names: sigma, train, test, varcount, k, varprobs, tau, ranef, forestFits, glue
 
 Three forests give `forestFits` n x 3 x draws and `glue` 4 x draws
 (q = 1 + 2 + 1); a 3-level factor basis gives `glue` 4 x draws. The
-sampler-level readers `$getForestFits(forest)` ([[R/dbarts.R:1488-1491@4c018187]]) and
-`$getForestAmplitudes()` ([[R/dbarts.R:1499-1508@4c018187]]) already ship.
+sampler-level readers `$getForestFits(forest)` ([R/dbarts.R:1488-1491](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1488-L1491)) and
+`$getForestAmplitudes()` ([R/dbarts.R:1499-1508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1499-L1508)) already ship.
 
 **The gate is the COUPLING, not the forest count.**
 `forestReportingIsDefined()` is true only on `BCFForestCombiner`
-([[src/bartcore/combiner.hpp:992@4c018187]]; base false at [[src/bartcore/combiner.hpp:631@4c018187]]; read at
-[[src/R_interface_bartcore.cpp:4243@4c018187]]), so a K-forest MULTINOMIAL carries neither
-channel ([[inst/tinytest/test-bcf-reporting.R:144-146@4c018187]]). Every reachability
+([src/bartcore/combiner.hpp:992](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L992); base false at [src/bartcore/combiner.hpp:631](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L631); read at
+[src/R_interface_bartcore.cpp:4243](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4243)), so a K-forest MULTINOMIAL carries neither
+channel ([inst/tinytest/test-bcf-reporting.R:144-146](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-reporting.R#L144-L146)). Every reachability
 statement in this section is keyed on **amplitude-coupled**, never on
 "multi-forest", and S11's refusal is written "on a fit without forest
 reporting", not "on a single-forest fit".
 
-What is missing is entirely R-side: `packageBartResults` ([[R/bart.R:158@4c018187]]) drops
-both channels, so a bart2 multi-forest fit carries only `n.forests` ([[R/bart.R:327@4c018187]]) and
-a forest-widened `varcount` ([[R/bart.R:213-215@4c018187]], via `shapeMultinomialChannel` - anchor
+What is missing is entirely R-side: `packageBartResults` ([R/bart.R:158](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L158)) drops
+both channels, so a bart2 multi-forest fit carries only `n.forests` ([R/bart.R:327](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L327)) and
+a forest-widened `varcount` ([R/bart.R:213-215](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L213-L215), via `shapeMultinomialChannel` - anchor
 corrected from rev 4's ":204"). **Level 1 is packaging plus generics, with no
 engine, bridge or `dbarts.h` change.**
 
@@ -672,8 +672,8 @@ accident would make the grammar's boundary undiscoverable.
 **Correction to the decision's written target expression, with receipts.** The
 decision file writes the target as `basis = ~0+z` / `~0+a+b`, which is
 model.matrix idiom. The shipped `basis =` channel is not a model.matrix
-channel: `evaluateForestBasis` ([[R/model.R:751-763@4c018187]]) EVALUATES the formula's
-RHS as an expression and `expandForestBasis` ([[R/model.R:772@4c018187]]-...) then applies the
+channel: `evaluateForestBasis` ([R/model.R:751-763](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L751-L763)) EVALUATES the formula's
+RHS as an expression and `expandForestBasis` ([R/model.R:772](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L772)-...) then applies the
 expansion rule to the RESULT (factor -> level indicators with no reference
 dropped, character -> factor -> indicators, logical -> two columns, numeric
 vector/matrix -> itself). MEASURED(rev6) through the shipped channel:
@@ -722,7 +722,7 @@ Refused by name in v1: transformations (`log(x1)`), `-` removals, `.`, `:`/`*`
 inside the slot, and literals. The refusal names the offending expression and
 points at `vars = ` for anything the grammar cannot say. Rationale for the
 minimal grammar: the slot maps onto `forest(vars =)`, which resolves against
-model-matrix COLUMN NAMES (`resolveModerators`, [[R/model.R:698-721@4c018187]]) and has no
+model-matrix COLUMN NAMES (`resolveModerators`, [R/model.R:698-721](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L698-L721)) and has no
 expression vocabulary at all - a richer term grammar would promise something
 the destination cannot honor.
 
@@ -742,7 +742,7 @@ POST-EXPANSION model-matrix column names (F-a6). MEASURED(rev6, column names cor
 `forest(x1 + zf)` resolves; with `factors = "indicators"` the columns are
 **`zf.u, zf.v, zf.w`** - DOT-separated, and the dot is load-bearing, because
 `resolveTermColumns` expands via
-`which(startsWith(columnNames, paste0(name, ".")))` ([[R/model.R:527@4c018187]]) and an
+`which(startsWith(columnNames, paste0(name, ".")))` ([R/model.R:527](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L527)) and an
 implementer working from a dotless spelling would get `integer(0)` rather than
 an error (its own doc comment warns that a recognized term with no indicator
 columns yields `integer(0)`, not NULL). The bare name `zf` does NOT match -
@@ -750,7 +750,7 @@ columns yields `integer(0)`, not NULL). The bare name `zf` does NOT match -
 names`. So a symbolic factor name maps to **all of that factor's expanded
 columns**: the term's resolver expands a symbolic name to every model-matrix
 column derived from it, using the same `resolveTermColumns` term-expansion the
-variance selector already uses ([[R/model.R:667-671@4c018187]]), rather than the bare
+variance selector already uses ([R/model.R:667-671](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L667-L671)), rather than the bare
 `match()` `resolveModerators` performs today. That is a term-route resolver
 detail, not a change to `forest(vars =)`'s own contract.
 
@@ -763,8 +763,8 @@ Why it matters (MEASURED(tip)): today
 `dbarts(y ~ a, d, subset = 1:20, forests = list(forest(), forest(basis = ~
 tr)))` is refused - `length of 'basis' must equal length of 'y'` - because the
 basis is evaluated against the pre-subset `data` while the model frame owns row
-selection on the formula branch ([[R/data.R:895@4c018187]] validates without a subset;
-unresolved: [[R/data.R:977@4c018187]] (location not placeable at this sha) and [[R/data.R:1043@4c018187]] are the two x/y sites that do pass one). Terms sidestep the
+selection on the formula branch ([R/data.R:895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L895) validates without a subset;
+unresolved: [R/data.R:977](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L977) (location not placeable at this sha) and [R/data.R:1043](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L1043) are the two x/y sites that do pass one). Terms sidestep the
 ambiguity the recorded door names.
 
 **Extraction is an AST WALK over the formula, not `terms(specials =)`** (VD:
@@ -842,7 +842,7 @@ Steps, in bart2 and in `dbarts()` (shared ingestion):
 
    Why this branch: `vars` resolves against `colnames(data@x)` and
    `attr(data@x, "term.labels")` - the DESIGN matrix, not the model frame
-   (`resolveModerators` [[R/model.R:706@4c018187]], `resolveTermColumns` [[R/model.R:521-529@4c018187]]), so a
+   (`resolveModerators` [R/model.R:706](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L706), `resolveTermColumns` [R/model.R:521-529](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L521-L529)), so a
    slot variable must be a design column for the slot to mean anything at all
    (F-a6). The alternative - silently adding the slot's variables to `data@x` -
    would make `y ~ x2 + z:forest(x1 + x2)` give forest 1 a predictor `x1` the
@@ -853,14 +853,14 @@ Steps, in bart2 and in `dbarts()` (shared ingestion):
    split set. Steps 1, 2 and 5 are unaffected; `subset`/NA handling reaches the
    slot's variables because they are RHS predictors.
 5. Evaluate each basis against the MODEL FRAME (post-subset, post-NA) through
-   `evaluateForestBasis`/`expandForestBasis` ([[R/model.R:751-763@4c018187]], [[R/model.R:772@4c018187]]-...),
+   `evaluateForestBasis`/`expandForestBasis` ([R/model.R:751-763](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L751-L763), [R/model.R:772](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L772)-...),
    whose rule - a factor expands to its level indicators with NO reference
    level dropped - is the one `setForestBasis` documents and the one 5.2.1's
    desugar targets are written against. Raw `model.matrix(~ z)` is NOT the rule
    (MEASURED(tip): it emits `(Intercept), zv` where the engine wants
    `zu, zv`).
 6. Hand the expanded matrices to `dbartsData(bases = )`, which on the formula
-   branch validates against the post-subset row count ([[R/data.R:895@4c018187]]), and the
+   branch validates against the post-subset row count ([R/data.R:895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L895)), and the
    per-forest knobs to `forests =` as `forest()` objects.
 
 **The un-stripped error path.** If a `forest()` call ever reaches
@@ -891,15 +891,15 @@ because the sugar rewrites to the named call before anything numeric runs.
   - `a treatment forest does not support test predictors; drop it or fit a
   single-forest model` - consistent with
   `BCFForestCombiner::testFitsAreDefined() -> false`
-  ([[src/bartcore/combiner.hpp:986@4c018187]]) and the bridge refusal at
-  [[src/R_interface_bartcore.cpp:2833-2836@4c018187]]. So a term-bearing formula with
+  ([src/bartcore/combiner.hpp:986](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L986)) and the bridge refusal at
+  [src/R_interface_bartcore.cpp:2833-2836](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2833-L2836). So a term-bearing formula with
   `test` is refused, restating that message in the term's spelling. Supporting
   test bases is the engine-side door
-  [[docs/plans/bcf-bartcause-relocation.md:1275-1277@4c018187]] records as "A test
+  [docs/plans/bcf-bartcause-relocation.md:1275-1277](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L1275-L1277) records as "A test
   treatment vector / test basis [...] A modelling decision first" - not cheap,
   and not this arc's. S12 loses the test-frame work rev 4 budgeted.
 - **`missing = "incorporate"`**: an NA in an expanded basis has no defined
-  multiplier; `validateForestBases`'s finiteness check ([[R/data.R:662-664@4c018187]])
+  multiplier; `validateForestBases`'s finiteness check ([R/data.R:662-664](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L662-L664))
   already refuses it and the term route inherits that.
 
 ### 5.5 How terms reach the forests machinery
@@ -908,7 +908,7 @@ because the sugar rewrites to the named call before anything numeric runs.
 
 A multi-forest fit needs the bases (conditioning DATA, riding `data@bases`) and
 the per-forest SPEC (tree counts, priors, constraints, riding
-`forests = list(forest(), ...)` into `resolveForests`, [[R/spec.R:193-215@4c018187]]).
+`forests = list(forest(), ...)` into `resolveForests`, [R/spec.R:193-215](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L193-L215)).
 Terms supply the first directly and expand to a `forest()` object internally
 for the second, so the existing resolution path is unchanged.
 
@@ -941,7 +941,7 @@ strongest argument for revisiting it is not the programmatic one rev 4 gave
 
 Constraints stay FLAT and do not move into terms. Coherent because: the flat
 `interactions`/`blocks` arguments are documented as the FIRST forest's
-([[R/model.R:1541-1542@4c018187]]; [[R/spec.R:221-226@4c018187]] installs them there) and forest 1
+([R/model.R:1541-1542](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1541-L1542); [R/spec.R:221-226](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L221-L226) installs them there) and forest 1
 has no basis and so no term to attach to; constraints resolve against
 POST-EXPANSION model-matrix columns, which a formula does not name after factor
 expansion; and fork 1 chose A1, of which moving constraints into the formula
@@ -973,7 +973,7 @@ as such:
    is resolved, not where row counts are compared. This is slice content, not a
    doc sentence.
 3. A term plus a pre-built `dbartsData` as `formula` - the shape `dbarts()`
-   already refuses at [[R/dbarts.R:554-565@4c018187]], restated for terms.
+   already refuses at [R/dbarts.R:554-565](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L554-L565), restated for terms.
 4. `test` with a term (5.4).
 5. **A term appearing anywhere other than as a top-level additive term or a
    `:` operand** - refused by name, with the offending expression quoted.
@@ -1048,7 +1048,7 @@ position 2 for `forestFits` on the same object.
 | `glue` | sum_f q_f x n.samples x n.chains | draws x sum_f q_f |
 
 `shapeMultinomialChannel` - the helper the widened `varcount` already goes
-through ([[R/bart.R:213-215@4c018187]]) - produces the trailing form, so S11 is one
+through ([R/bart.R:213-215](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L213-L215)) - produces the trailing form, so S11 is one
 existing helper and one call rather than a new reshape.
 
 #### 5.8.2 Margin naming
@@ -1141,7 +1141,7 @@ the model cannot keep.
 
 `predict()` is NOT extended. Out-of-sample per-forest values need the
 engine-side per-forest saved-tree replay door
-([[docs/plans/bcf-bartcause-relocation.md:1271-1273@4c018187]]), which this arc does not
+([docs/plans/bcf-bartcause-relocation.md:1271-1273](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L1271-L1273)), which this arc does not
 open (N8). The door's language is updated at the records commit to record that
 the in-sample half landed here.
 
@@ -1164,10 +1164,10 @@ than reopened.
 
 | target | sites | class |
 |---|---|---|
-| dbarts R | [[R/dbarts.R:229@4c018187]], [[R/dbarts.R:249@4c018187]], [[R/dbarts.R:530-535@4c018187]], [[R/dbarts.R:685@4c018187]], [[R/dbarts.R:1064@4c018187]]; [[R/bart.R:681-683@4c018187]]; [[R/bart.R:2386@4c018187]]; [[R/spec.R:662@4c018187]]; [[R/A_class.R:246@4c018187]], [[R/A_class.R:266@4c018187]], [[R/A_class.R:315-316@4c018187]] | in-arc |
-| dbarts C | [[src/R_interface_bartcore.cpp:441@4c018187]], [[src/R_interface_bartcore.cpp:443@4c018187]] - rebuild only | in-arc |
-| dbarts docs | [[man/dbartsControl.Rd:14@4c018187]], [[man/dbartsControl.Rd:59@4c018187]], [[man/dbartsControl.Rd:77@4c018187]]; [[man/dbarts.Rd:96@4c018187]]; [[man/samplePriorPredictive.Rd:70@4c018187]], [[man/samplePriorPredictive.Rd:73@4c018187]], [[man/samplePriorPredictive.Rd:80@4c018187]]; [[man/dbartsSampler-class.Rd:114@4c018187]] | in-arc |
-| design record | [[docs/design/public-surface.md:76@4c018187]], [[docs/design/public-surface.md:101@4c018187]] | amend in place |
+| dbarts R | [R/dbarts.R:229](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L229), [R/dbarts.R:249](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L249), [R/dbarts.R:530-535](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L530-L535), [R/dbarts.R:685](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L685), [R/dbarts.R:1064](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1064); [R/bart.R:681-683](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L681-L683); [R/bart.R:2386](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2386); [R/spec.R:662](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L662); [R/A_class.R:246](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L246), [R/A_class.R:266](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L266), [R/A_class.R:315-316](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L315-L316) | in-arc |
+| dbarts C | [src/R_interface_bartcore.cpp:441](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L441), [src/R_interface_bartcore.cpp:443](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L443) - rebuild only | in-arc |
+| dbarts docs | [man/dbartsControl.Rd:14](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsControl.Rd#L14), [man/dbartsControl.Rd:59](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsControl.Rd#L59), [man/dbartsControl.Rd:77](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsControl.Rd#L77); [man/dbarts.Rd:96](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbarts.Rd#L96); [man/samplePriorPredictive.Rd:70](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/samplePriorPredictive.Rd#L70), [man/samplePriorPredictive.Rd:73](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/samplePriorPredictive.Rd#L73), [man/samplePriorPredictive.Rd:80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/samplePriorPredictive.Rd#L80); [man/dbartsSampler-class.Rd:114](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/dbartsSampler-class.Rd#L114) | in-arc |
+| design record | [docs/design/public-surface.md:76](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/public-surface.md#L76), [docs/design/public-surface.md:101](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/public-surface.md#L101) | amend in place |
 | dbarts tests | 66 occurrences across 32 files (re-derived by both critiques) | largest mechanical edit |
 | bartCause | bartCause's `R/bcf.R` lines 205-209 | loud, 1 line |
 | stan4bart | forwardable set; stan4bart's `inst/tinytest/test-02-binary.R` line 57; after the rename `seed` clears BOTH forwarding loops and is applied twice (benign, same slot); `bart_args = list(rngSeed = 5)` is dropped silently | test edit + 2 recorded consequences |
@@ -1175,8 +1175,8 @@ than reopened.
 
 ### 6.2 xbart
 
-[[R/xbart.R:23-24@4c018187]], [[R/xbart.R:36-47@4c018187]], [[R/xbart.R:49-57@4c018187]], [[R/xbart.R:71-72@4c018187]], [[R/xbart.R:93-95@4c018187]], [[R/xbart.R:138-141@4c018187]], [[R/xbart.R:168-173@4c018187]],
-[[R/xbart.R:190-209@4c018187]]; [[man/xbart.Rd:86-90@4c018187]]. bartCause's `R/bayesOpt.R` lines 30-47 becomes a DROP
+[R/xbart.R:23-24](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L23-L24), [R/xbart.R:36-47](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L36-L47), [R/xbart.R:49-57](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L49-L57), [R/xbart.R:71-72](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L71-L72), [R/xbart.R:93-95](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L93-L95), [R/xbart.R:138-141](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L138-L141), [R/xbart.R:168-173](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L168-L173),
+[R/xbart.R:190-209](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L190-L209); [man/xbart.Rd:86-90](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/xbart.Rd#L86-L90). bartCause's `R/bayesOpt.R` lines 30-47 becomes a DROP
 filter (`keepTrainingFits`, `keepTrees`, `updateState`, `printEvery`,
 `printCutoffs` have no xbart formal and xbart has no dots); bartCause's `R/bayesOpt.R` lines 22, 27, and 28
 survive. Zero CRAN xbart consumers; `iiasa/ibis.iSDM` (non-CRAN) breaks loudly
@@ -1184,7 +1184,7 @@ on `control =`.
 
 ### 6.3 Variance quartet -> `varianceForest()`
 
-[[R/bart.R:579-582@4c018187]]; [[R/dbarts.R:346-349@4c018187]]; [[R/spec.R:612-615@4c018187]], [[R/spec.R:368-393@4c018187]]; the
+[R/bart.R:579-582](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L579-L582); [R/dbarts.R:346-349](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L346-L349); [R/spec.R:612-615](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L612-L615), [R/spec.R:368-393](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L368-L393); the
 constructor plus `print` in `R/model.R`; `NAMESPACE`; four Rd files plus a new
 `man/varianceForest.Rd`; 12 tinytest files (15 hits). Gate: byte-identical
 `attr(control, "bartcore.variance")`. **CRAN row: not "none"** - WeightIt and
@@ -1224,8 +1224,8 @@ head and the colon add.
 
 ### 6.6 The bart() shim and fork 7's closes
 
-`bart()` builds the control directly ([[R/bart.R:2374-2387@4c018187]]) and `do.call`s
-`dbarts()` on a literal list ([[R/bart.R:2417-2436@4c018187]]), sharing three helpers. Fork 7's
+`bart()` builds the control directly ([R/bart.R:2374-2387](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2374-L2387)) and `do.call`s
+`dbarts()` on a literal list ([R/bart.R:2417-2436](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2417-L2436)), sharing three helpers. Fork 7's
 closes edit that list (`subset` and `storage` become forwarded formals rather
 than hardcoded values; `family` is forwarded), `man/bart.Rd`'s
 `\usage`/`\arguments`, and NEWS. Every appended formal's default reproduces
@@ -1235,7 +1235,7 @@ abbreviation.
 ### 6.7 Documentation surface
 
 Split `man/bart2.Rd` out of `man/bart.Rd`; add `bart2` to `_pkgdown.yml`;
-rewrite [[man/rbart.Rd:87-89@4c018187]]'s `k` item; add `man/varianceForest.Rd`; document
+rewrite [man/rbart.Rd:87-89](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/rbart.Rd#L87-L89)'s `k` item; add `man/varianceForest.Rd`; document
 the formula terms in `man/bart2.Rd` with a `\seealso` from `man/forest.Rd`.
 
 ### 6.8 Partial-matching regression
@@ -1252,8 +1252,8 @@ formal arguments") does not name the abbreviation's former target.
 Every slice is independently gateable and draw-neutrality-classified.
 **The equivalence harness cannot prove neutrality for most of these slices**:
 `benchmarks/R/equivalence.R` has zero `xbart` occurrences and reaches `bart2`
-only from the four alternate-family scenarios (calls at [[benchmarks/R/equivalence.R:1118@4c018187]], [[benchmarks/R/equivalence.R:1147@4c018187]], [[benchmarks/R/equivalence.R:1177@4c018187]],
-[[benchmarks/R/equivalence.R:1039@4c018187]] - anchor corrected from rev 4's scenario-definition lines).
+only from the four alternate-family scenarios (calls at [benchmarks/R/equivalence.R:1118](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/equivalence.R#L1118), [benchmarks/R/equivalence.R:1147](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/equivalence.R#L1147), [benchmarks/R/equivalence.R:1177](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/equivalence.R#L1177),
+[benchmarks/R/equivalence.R:1039](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/benchmarks/R/equivalence.R#L1039) - anchor corrected from rev 4's scenario-definition lines).
 
 **The in-slice A/B pattern**, used wherever harness coverage is absent: a probe
 script fits a fixed matrix of configurations at pinned seeds on the PRE-slice
@@ -1276,7 +1276,7 @@ re-record.
 | S7 | prior objects | three formals appended; four collision refusals; the `resid.prior` family diagnosis | in-slice A/B |
 | S8 | xbart | `control =` removed, four flat knobs, `tree.prior`, shape checks | `inst/tinytest/test-xbart-*.R` |
 | S9 | split.probs default | bart2/rbart_vi -> `NULL` | in-slice A/B; identity proved by construction |
-| **S10** | **bart() parity** | append `subset`, `storage`, `family = c("auto", "logistic", "aft")`; forward all three in the literal list; **by-name refusals pointing at bart2 for the four own-class tokens** (`match.arg`'s generic "'arg' should be one of" names neither bart2 nor why, and the existing ordinal treatment at [[R/bart.R:2738-2749@4c018187]]/[[R/bart.R:2854-2857@4c018187]] is ordinal-specific while multinomial's refusal lives in `dbarts()`, not `bart()` - MEASURED(r3)); 2 Rd items; the rule paragraph; tests | in-slice A/B on `bart()` (harness covers it as the default route) **plus a regression-shaped pair: a BINARY `bart()` fit at HEAD and at the slice must be bitwise identical** - the F1 failure mode |
+| **S10** | **bart() parity** | append `subset`, `storage`, `family = c("auto", "logistic", "aft")`; forward all three in the literal list; **by-name refusals pointing at bart2 for the four own-class tokens** (`match.arg`'s generic "'arg' should be one of" names neither bart2 nor why, and the existing ordinal treatment at [R/bart.R:2738-2749](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2738-L2749)/[R/bart.R:2854-2857](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2854-L2857) is ordinal-specific while multinomial's refusal lives in `dbarts()`, not `bart()` - MEASURED(r3)); 2 Rd items; the rule paragraph; tests | in-slice A/B on `bart()` (harness covers it as the default route) **plus a regression-shaped pair: a BINARY `bart()` fit at HEAD and at the slice must be bitwise identical** - the F1 failure mode |
 | **S11** | **fork 6a: per-forest output channel** | thread `samples$forestFits`/`samples$glue` through `packageBartResults` via `shapeMultinomialChannel` (trailing margin); `forest1..K` names plus a `forest.labels` attribute; carry the expanded bases; response-scale conversion; `extract(type = "forest", forest =, contribution =)`; refusal on fits without forest reporting; T-E | existing single-forest fits bitwise unchanged (in-slice A/B); T-E's identity `< 1e-12` on binary AND 3-level-factor bases |
 | **S12** | **fork 6b: formula-term ingestion** | the both-sides AST walk with ancestor-chain context tracking and non-forest-operand recursion (5.3 steps 1-2), the colon desugar (5.2.1) and the left-operand grammar (5.2.1a), the symbolic-vars grammar and its subset-of-the-design rule (5.2.3, 5.3 step 4), AST-surgery rewrite, post-subset basis evaluation, the twelve refusals of 5.6 (including `*`, the ancestor-chain check, both grammars, the factor-member and colon-chain cases, and the family matrix at family-resolution time), docs | **draw-neutral for every non-term call**, gated by the A/B matrix below; term-using calls are NEW paths gated by tests, including the desugar-equivalence and refusal cells below |
 | **S13** | **fork 6c: formula-path bases subsetting** | converge `dbarts(forest(basis =))` onto the term route's post-subset rule | **BEHAVIOR CHANGE, not a defect fix** - see below |
@@ -1309,7 +1309,7 @@ n x 2, NOT the elementwise sum;
 Assertion shape, with every comparand named as concretely as S6's:
 `identical(data@bases)`, **`identical(attr(control, "bartcore.bcf"))`** - the
 resolved per-forest spec object, a list of `params` (one length-8 numeric per
-forest), `vars`, `interactions` and `blocks`, set at [[R/spec.R:559@4c018187]] and the
+forest), `vars`, `interactions` and `blocks`, set at [R/spec.R:559](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L559) and the
 same attribute Resolution 3 / S6 already names as fork 2b's byte-identity gate
 (rev 6 wrote "resolved `forests` specs", which names no object: MEASURED(v4),
 `control` has no forests slot) - and identical draws at a pinned seed.
@@ -1337,7 +1337,7 @@ term [2].
 
 **S13's reclassification.** MEASURED(rev5), BOTH of these are ACCEPTED today,
 because `validateForestBases` on the formula branch checks only the COUNT
-([[R/data.R:895@4c018187]]):
+([R/data.R:895](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L895)):
 
 ```
 dbarts(y ~ a, d, subset = 1:20,  forests = list(forest(), forest(basis = <20-row>)))  -> n = 20
@@ -1346,7 +1346,7 @@ dbarts(y ~ a, d, subset = 21:40, forests = list(forest(), forest(basis = <20-row
 
 The second is the ambiguous case the recorded door names ("it makes a shipped
 argument's contract ambiguous at equal row counts",
-[[docs/plans/bcf-bartcause-relocation.md:823-824@4c018187]]): a 20-row basis supplied against a
+[docs/plans/bcf-bartcause-relocation.md:823-824](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L823-L824)): a 20-row basis supplied against a
 20-row subset of a 40-row frame is silently row-aligned by position. Under the
 post-subset rule it either refuses or selects different rows. **The decision:
 with `subset` present the basis must be FULL-DATA length and is subset by the
@@ -1382,7 +1382,7 @@ Count: **14 slices**, of which 3 are fork 6's and 1 is fork 7's.
    condition `dbartsFamilyGatedWarning` (whose base-R analogue is
    `chkDotsWarning`). Monotonicity stands. (3.c.5; slice S2.)
 5. **Fork 4 = route (i)**, a standalone helper at the six family-resolution
-   sites, keyed on the `matchedCall` snapshot at [[R/bart.R:655@4c018187]]. Route (ii)
+   sites, keyed on the `matchedCall` snapshot at [R/bart.R:655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L655). Route (ii)
    REFUTED and recorded. (3.c.4; slice S2.)
 6. **Fork 5 = rejection-only dots**, with a stated sunset to
    deletion-equivalent. (3.e; slices S4, S5.)
@@ -1426,9 +1426,9 @@ Count: **14 slices**, of which 3 are fork 6's and 1 is fork 7's.
 
 | bart2 capability | disposition | note |
 |---|---|---|
-| `subset` | **CLOSE** | append; `subset = NULL` reproduces [[R/bart.R:2421@4c018187]] |
-| `storage` | **CLOSE** | append; reduced-precision STORAGE ([[src/R_interface_bartcore.cpp:394@4c018187]]) - it changes the numbers a fit returns, which the Rd must say |
-| `family = "logistic"` | **CLOSE** | packages as `"bart"` ([[src/R_interface_bartcore.cpp:348@4c018187]]); not reachable from the response |
+| `subset` | **CLOSE** | append; `subset = NULL` reproduces [R/bart.R:2421](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L2421) |
+| `storage` | **CLOSE** | append; reduced-precision STORAGE ([src/R_interface_bartcore.cpp:394](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L394)) - it changes the numbers a fit returns, which the Rd must say |
+| `family = "logistic"` | **CLOSE** | packages as `"bart"` ([src/R_interface_bartcore.cpp:348](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L348)); not reachable from the response |
 | `family = "aft"` | **CLOSE** | packages as `"bart"`; the `Surv`/two-column response already ingests |
 | `family = "gaussian"`, `"probit"`, `"hazard.probit"` | LEAVE as tokens | reachable today via `"auto"` + the response; adding tokens would be spelling, not capability |
 | `family = "hazard"`, `"hazard.logistic"` | **LEAVE (revised)** | needs `breaks`/`max.rows`, which `bart()` lacks, and breaks the documented row margin |
@@ -1454,8 +1454,8 @@ under `control@keepTrees` and `$fit` under `keepSampler`. (S1.)
 code-clarity fix. (S1.)
 **D4.** `monotone` with an explicit `proposal.probs = NULL` errors where the
 defaulted call succeeds; d1's alignment plus a one-line guard at
-[[R/spec.R:278@4c018187]]. (S1/S3.)
-**D5.** rbart_vi's `k = 2.0` is INERT and [[man/rbart.Rd:87-89@4c018187]] documents the
+[R/spec.R:278](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L278). (S1/S3.)
+**D5.** rbart_vi's `k = 2.0` is INERT and [man/rbart.Rd:87-89](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/man/rbart.Rd#L87-L89) documents the
 opposite. (S1, draw-neutral.)
 **D6.** Forwarded formal defaults are inert generally; only `proposal.probs`
 differs textually. (S3 plus T-B.)
@@ -1463,7 +1463,7 @@ differs textually. (S3 plus T-B.)
 `dbarts(y ~ a, d, subset = , forests = list(forest(), forest(basis = ~ tr)))`
 errors "length of 'basis' must equal length of 'y'"; the same call without
 `subset` works; `dbartsData(x, y, subset =, bases =)` works on the x/y branch
-([[R/data.R:977@4c018187]], [[R/data.R:1043@4c018187]]) and errors on the formula branch. S13 closes it, as a
+([R/data.R:977](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L977), [R/data.R:1043](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L1043)) and errors on the formula branch. S13 closes it, as a
 behavior change (section 7).
 
 ### 9.2 Open questions
@@ -1541,8 +1541,8 @@ contribution derived on demand in `extract()` (5.8.4).
 preserved.** The decision file writes `z:forest(X) -> forest(X, basis = ~0+z)`
 and `(a+b):forest(X) -> basis = ~0+a+b`, which is model.matrix idiom. The
 shipped channel is not a model.matrix channel: `evaluateForestBasis`
-([[R/model.R:751-763@4c018187]]) evaluates the RHS as an EXPRESSION and `expandForestBasis`
-([[R/model.R:772@4c018187]]-...) expands the RESULT. MEASURED(rev6) through the shipped path:
+([R/model.R:751-763](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L751-L763)) evaluates the RHS as an EXPRESSION and `expandForestBasis`
+([R/model.R:772](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L772)-...) expands the RESULT. MEASURED(rev6) through the shipped path:
 `~0+z` -> 60x1 (right, by arithmetic accident), `~0+zf` -> **ERROR "a 'basis'
 cannot be NA"** with an `Ops.factor` warning, `~0+a+b` -> 60x1, the ELEMENTWISE
 SUM. Taken literally the target would break `factor(z):forest(X)` - one of the
@@ -1745,7 +1745,7 @@ dbarts() list; family's first token "auto" (F1), the binary bart()
 regression pair bitwise in both runners. Implementation finding
 beyond the migration map: the literal list forwarded subset = NULL
 EXPLICITLY, and dbarts()'s survival path refuses on bare
-!missing(subset) ([[R/dbarts.R:472@4c018187]]/[[R/dbarts.R:530@4c018187]]), which would have foreclosed
+!missing(subset) ([R/dbarts.R:472](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L472)/[R/dbarts.R:530](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L530)), which would have foreclosed
 the family = "aft" close - subset is now omitted from the list unless
 non-NULL so missing() propagates; aft completes, aft + subset still
 refuses cleanly. The four own-class families refused BY NAME pointing
@@ -1795,7 +1795,7 @@ rbart_vi, xbart, two-forest channels, subset==manual, T-E 4.44e-16)
 clean; NEWS 257-entry parse; check OK. S8's OWN CI was six-green
 before the batch pushed. Pre-existing anomaly recorded, NOT
 batch-caused: an S6-era print/format assertion sits displaced at
-[[test-argument-surface.R:788@4c018187]] (present in 0adbf59a verbatim) - fold
+[inst/tinytest/test-argument-surface.R:788](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-argument-surface.R#L788) (present in 0adbf59a verbatim) - fold
 into the arc-closure comment sweep. bartCause lockstep for S8 landed
 same day: 31519d22 on dbarts-1.0 (bayesOpt.R's move-into-control
 block replaced by a formals()-driven drop filter; probe pair proves
@@ -1944,7 +1944,7 @@ Items the arc RECORDED for later rather than resolving:
 - Out-of-sample per-forest replay (N8) stays a door: S11 shipped only
   the in-sample half (`extract(type = "forest")`); `predict()` needs the
   engine-side per-forest saved-tree replay door recorded at
-  [[docs/plans/bcf-bartcause-relocation.md:1271-1273@4c018187]], which this arc did
+  [docs/plans/bcf-bartcause-relocation.md:1271-1273](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L1271-L1273), which this arc did
   not open. 5.8.6 says that door's language is updated "at the records
   commit" - recorded here rather than by editing that file, which is
   outside this closure's scope.

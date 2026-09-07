@@ -20,17 +20,17 @@ Unconstrained fits stay byte-identical at every commit.
 
 docs/design/monotone.md is the spec (all VD resolutions inline; B', monotone-
 first, base-speed a non-issue). Load-bearing anchors, re-verified 2026-07-18:
-- Draw: `sampleParametersAndSetFits` constant branch, [[chain.hpp:2299-2319@bd098397]]; `mu`
+- Draw: `sampleParametersAndSetFits` constant branch, [src/bartcore/chain.hpp:2299-2319](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/chain.hpp#L2299-L2319); `mu`
   is a reference into the persistent `forest.muByTree[t]`, zeroed+refilled AFTER
-  the moves ([[chain.hpp:2303-2304@bd098397]]), so it survives the prior sweep into this
+  the moves ([src/bartcore/chain.hpp:2303-2304](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/chain.hpp#L2303-L2304)), so it survives the prior sweep into this
   sweep's moves - the new work is keeping it valid THROUGH in-sweep births/deaths.
-- Move seam: `metropolisJumpForTree` [[chain.hpp:702@bd098397]]; `logLikelihoodForBranch`
-  [[moves.hpp:47-66@bd098397]] reads node suffstats and ZERO leaf params; birth/death score at
-  [[moves.hpp:172-191@bd098397]], ratio shape [[moves.hpp:198-204@bd098397]]/258-264.
-- Leaf concept: `ScalarLeafModel` per-node draw only, [[model.hpp:47-55@bd098397]]; posterior
-  N(m_k,s_k^2) at [[model.hpp:127@bd098397]]; factory/instantiation seam [[facade.hpp:469@bd098397]].
-- Neighbor bounds: `Tree::splitInterval` [[tree.hpp:313@bd098397]]. Truncated-normal primitive
-  `ext_rng_simulateTruncatedNormalScale1` already exists, [[random.h:111@bd098397]] (REUSE).
+- Move seam: `metropolisJumpForTree` [src/bartcore/chain.hpp:702](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/chain.hpp#L702); `logLikelihoodForBranch`
+  [src/bartcore/moves.hpp:47-66](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/moves.hpp#L47-L66) reads node suffstats and ZERO leaf params; birth/death score at
+  [src/bartcore/moves.hpp:172-191](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/moves.hpp#L172-L191), ratio shape [src/bartcore/moves.hpp:198-204](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/moves.hpp#L198-L204)/258-264.
+- Leaf concept: `ScalarLeafModel` per-node draw only, [src/bartcore/model.hpp:47-55](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/model.hpp#L47-L55); posterior
+  N(m_k,s_k^2) at [src/bartcore/model.hpp:127](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/model.hpp#L127); factory/instantiation seam [src/bartcore/facade.hpp:469](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/facade.hpp#L469).
+- Neighbor bounds: `Tree::splitInterval` [src/bartcore/tree.hpp:313](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/bartcore/tree.hpp#L313). Truncated-normal primitive
+  `ext_rng_simulateTruncatedNormalScale1` already exists, [src/include/external/random.h:111](https://github.com/vdorie/dbarts/blob/bd098397894c7c5d0d9cbfaa6f8ea64316cb09f6/src/include/external/random.h#L111) (REUSE).
 
 ## Constraints
 

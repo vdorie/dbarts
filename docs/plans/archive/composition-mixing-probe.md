@@ -11,7 +11,7 @@ rng: neutral - measurement only. No verdict here authorizes an engine
 budget: harness only; nothing
   under `R/`, `src/`, `inst/`, `benchmarks/`. ~1100-1300 lines across seven
   files. That is **M** on the record's own size scale
-  (`[[tree-mixing-proposals.md:379-381@4c018187]]`), not the "XS-to-S" that record's
+  ([docs/design/tree-mixing-proposals.md:379-381](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/tree-mixing-proposals.md#L379-L381)), not the "XS-to-S" that record's
   sec 4.1 assumed; the correction is noted rather than argued with.
 window: none - no timing metric exists anywhere in this design, so the
   measurement is load-insensitive. Runs on the laptop. It must NOT share a
@@ -232,15 +232,15 @@ updateState = FALSE, n.threads = 1L), seed = s)`, driven `run(0L, 1L)` for
 B + K sweeps, one sampler object per chain.
 
 **A1.** Identical, plus `node.prior = linear(c("x4", "x5"))`. Verified
-surface: `linear` (`[[R/model.R:886@4c018187]]`) is bound into the prior evaluation
-environment by `parsePriors` (`[[R/model.R:90-127@4c018187]]`) from `dbartsPriors`
-(`[[R/model.R:1076-1085@4c018187]]`) and resolves in call position on `dbarts()`. It is
+surface: `linear` ([R/model.R:886](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L886)) is bound into the prior evaluation
+environment by `parsePriors` ([R/model.R:90-127](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L90-L127)) from `dbartsPriors`
+([R/model.R:1076-1085](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1076-L1085)) and resolves in call position on `dbarts()`. It is
 NOT reachable from `bart()` or `bart2()`, which construct
-`node.prior = normal(k)` internally (`[[R/bart.R:370-373@4c018187]]`) - **which is why
+`node.prior = normal(k)` internally ([R/bart.R:370-373](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L370-L373)) - **which is why
 no arm uses `bart2()` and the grow-from-root `fitArm()` wrapper cannot be
 reused.** Designation limits, verified in source: at most 8 columns
-(`[[model.hpp:913@4c018187]]`, enforced `[[facade.hpp:531@4c018187]]`), continuous only, no sparse
-matrix, no variance forest (`[[facade.hpp:573-576@4c018187]]`), no monotone constraint,
+([src/bartcore/model.hpp:913](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L913), enforced [src/bartcore/facade.hpp:531](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L531)), continuous only, no sparse
+matrix, no variance forest ([src/bartcore/facade.hpp:573-576](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/facade.hpp#L573-L576)), no monotone constraint,
 no `growFromRoot`.
 
 **A2.** One `dbartsSampler` per chain. Per sweep:
@@ -254,7 +254,7 @@ beta  <- Vn %*% (crossprod(Z, y - fhat)/sig^2) + t(chol(Vn)) %*% rnorm(ncol(Z))
 s$setOffset(as.vector(Z %*% beta))
 ```
 
-`setOffset` is `[[R/dbarts.R:1004@4c018187]]`, shipped and public. `r$train` **includes**
+`setOffset` is [R/dbarts.R:1004](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1004), shipped and public. `r$train` **includes**
 the installed offset, so the strip is correct; verified by a five-line
 check (install `offset = 100`, run to stationarity, confirm `mean(train)`
 returns to `mean(y)`; it does, 7.447 against 7.417). That check is V9.
@@ -286,7 +286,7 @@ stan4bart's `inst/tinytest/test-05-rng.R` line 60); and it caps
 
 `skip = 1L` is **pinned and asserted**: it wires into dbarts' `n.thin`
 (stan4bart's `R/stan4bart_fit.R` lines 474 and 515) and dbarts runs
-`(numBurnIn + numSamples) * numThin` sweeps (`[[chain.hpp:917@4c018187]]`), so V3's
+`(numBurnIn + numSamples) * numThin` sweeps ([src/bartcore/chain.hpp:917](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L917)), so V3's
 exposure identity is silently false at any other value.
 
 **Matched exposure, and its exact limits.** The exposure unit is the BART
@@ -300,7 +300,7 @@ exactly B burn and K kept BART sweeps. Three exact discrepancies:
    Total exposure B + K + 1. Ruled **noise**: one sweep in 4001, preceded
    by `sampleTreesFromPrior` with zero-valued leaves, entirely inside burn.
 2. **A3's sweep contains no sigma draw.** `resid.prior = fixed(1)`
-   (stan4bart's `R/stan4bart_fit.R` line 553) sets `sigmaIsFixed`; `[[chain.hpp:1085@4c018187]]`
+   (stan4bart's `R/stan4bart_fit.R` line 553) sets `sigmaIsFixed`; [src/bartcore/chain.hpp:1085](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1085)
    guards the draw; sigma arrives from WALNUTS via
    `dbarts_sampler_setSigma` (stan4bart's `src/init.cpp` line 617). So matched *sweeps* are not
    matched *Gibbs scans*: A0-A2 execute (structure, leaves, sigma), A3
@@ -316,8 +316,8 @@ exactly B burn and K kept BART sweeps. Three exact discrepancies:
    last at warmup iteration 1920, zero times after**, plus one at setup
    (stan4bart's `src/init.cpp` line 233). "Warmup-only" is true on firing and **false on consequence**:
    `updateScale` re-anchors the *persistent* internal response transform
-   (`[[dbarts.h:363-367@4c018187]]`), which sets the leaf prior scale via
-   `nodeScale / sqrt(numTrees)` (`[[model.hpp:915@4c018187]]`), which governs how
+   ([inst/include/dbarts/dbarts.h:363-367](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L363-L367)), which sets the leaf prior scale via
+   `nodeScale / sqrt(numTrees)` ([src/bartcore/model.hpp:915](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L915)), which governs how
    readily the forest splits - i.e. depth and leaf count, the primary limb.
 
    **Ruled bias, and handled two ways.** (i) Under the `c_U = 1` dial the
@@ -375,8 +375,8 @@ comparability. Excluding A1 is also what makes Q1 affordable at full R.
 survivable, together not: (i) adding absorbable terms voids the record's
 0.3619 baseline, which this design says itself; (ii) the record's own
 version of the statistic **left the gate** on floor-above-ceiling at 24 x 8
-(`[[grow-from-root-default.md:408-410@4c018187]]`), and the right mixing null for that
-configuration is 0.0368, not 0.05 (`[[grow-from-root-default.md:406@4c018187]]`); (iii) the conditional statistic
+([docs/design/grow-from-root-default.md:408-410](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L408-L410)), and the right mixing null for that
+configuration is 0.0368, not 0.05 ([docs/design/grow-from-root-default.md:406](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L406)); (iii) the conditional statistic
 carries a mechanical bias toward the tested conclusion (see T4 below); (iv)
 the null control N is near-certain to fire - the record's cold arm failed
 "non-zero switches in every chain" at 4/64 and 10/192 - and nothing gated
@@ -463,7 +463,7 @@ as the primary X statistics, with the raw between-chain SD reported only
 alongside `n_cond`.
 
 **Structural acceptance rate by move type: DELETED, with reason.** The
-record lists it as a PRIMARY tree-space readout (`[[grow-from-root-default.md:665@4c018187]]`). It is **not
+record lists it as a PRIMARY tree-space readout ([docs/design/grow-from-root-default.md:665](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L665)). It is **not
 reachable**: no per-move acceptance tally is exposed on the R surface, in
 `inst/include/dbarts/dbarts.h`, or by `run()`. Adding one is an engine
 change, which GREEN's scope forbids. Recorded rather than silently dropped.
@@ -473,7 +473,7 @@ change, which GREEN's scope forbids. Recorded rather than silently dropped.
 **There is no ridge kill in this design.** Three independent reasons:
 
 1. **No cell calibrates a no-ridge reference.** v1 nominated A1 as the
-   empirical null on the theory that `[[model.hpp:1023-1040@4c018187]]` integrates the
+   empirical null on the theory that [src/bartcore/model.hpp:1023-1040](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L1023-L1040) integrates the
    leaf coefficients out of the structural score. Measured across four
    seeds with the reconstruction validated at `cor(recon, r$train) = 1` on
    12,000 sweeps: `R1(A1)` = 4.9 / 7.6 / 20.3 / 33.5, and `R2(A1)` = -0.52
@@ -554,7 +554,7 @@ internal-response** scale, not the raw scale (measured: for
 `y = 10 x4 + 5 x5 + eps` at m = 1, `beta.x4 = 0.1659` against
 `10 sd(x4) / diff(range(y)) = 0.1706`, and against a naive raw prediction
 of 10), with standardization using the engine's own moments (sample sd,
-n - 1; `[[data.hpp:62-80@4c018187]]`, matching R's `scale()`); and the reconstruction is
+n - 1; [src/bartcore/data.hpp:62-80](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/data.hpp#L62-L80), matching R's `scale()`); and the reconstruction is
 gated by **V8**, `cor(reconstructed total fit, r$train) == 1` to machine
 precision, which validates leaf assignment, the `x <= value` split
 convention and the standardization in one number.
@@ -582,7 +582,7 @@ As the record's freeze diagnostic - the reason G2 exists - the signal is
 test (one-sided, higher is harm) and G2b is the reported diagnostic.
 Measured expectation: sigma sat at 0.999-1.032 across all arms and both
 dial levels, so the freeze mechanism, which is keyed on *realized* sigma
-(`[[tree-mixing-proposals.md:201-209@4c018187]]`), does not appear to bind at sigma = 1.
+([docs/design/tree-mixing-proposals.md:201-209](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/tree-mixing-proposals.md#L201-L209)), does not appear to bind at sigma = 1.
 Cell DF (`resid.prior = fixed(1)`, verified to work including alongside
 `node.prior = linear(...)`) turns that expectation into a control.
 
@@ -592,8 +592,8 @@ Cell DF (`resid.prior = fixed(1)`, verified to work including alongside
 
 - **V0 - depth walk.** `#nodes == 2 * #leaves - 1` for every tree of every
   arm in one small cell; the pre-order stack walk agrees **exactly** with
-  `dbarts:::getTreeDepthAndSize` (`[[R/plotTree.R:39-55@4c018187]]`, the recursive
-  depth-and-size walk over the same frame, called from `[[R/dbarts.R:1457@4c018187]]`)
+  `dbarts:::getTreeDepthAndSize` ([R/plotTree.R:39-55](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/plotTree.R#L39-L55), the recursive
+  depth-and-size walk over the same frame, called from [R/dbarts.R:1457](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1457))
   on 200 randomly chosen trees. v1 claimed no such function existed and
   said "verified"; it does, and it is the independent implementation.
   Failure blocks T1, T1b, T3, E4.
@@ -629,7 +629,7 @@ Cell DF (`resid.prior = fixed(1)`, verified to work including alongside
   `extract(fit, "sigma")`.
 - **V7 - A3 at m = 1 runs.** Downgraded from a gate to an assertion:
   `n.trees` is forwarded untouched with only a `> 0` check
-  (`[[R/A_class.R:326-328@4c018187]]`) and stan4bart's own suite already fits at
+  ([R/A_class.R:326-328](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/A_class.R#L326-L328)) and stan4bart's own suite already fits at
   `n.trees = 1L` (stan4bart's `inst/tinytest/test-06-no_ranef.R` line 19).
 - **V8 - the A1 reconstruction identity.** `cor(reconstructed total fit,
   r$train) == 1` to machine precision on every sweep of one small cell.
@@ -667,8 +667,8 @@ exits the T1/T1b gate, also in the title line.
 **Sidedness: every gated test is ONE-SIDED at alpha 0.05**, with the
 direction stated per metric. A limb clears only if the one-sided test
 rejects **and** the point estimate lies beyond the margin - the record's
-actual practice (`[[grow-from-root-default.md:696@4c018187]]`, `[[grow-from-root-default.md:708@4c018187]]`;
-`[[docs/plans/grow-from-root-default-study.md:157@4c018187]]`). v1 used `4 x SE` as the decision threshold itself, which
+actual practice ([docs/design/grow-from-root-default.md:696](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L696), [docs/design/grow-from-root-default.md:708](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L708);
+[docs/plans/grow-from-root-default-study.md:157](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-default-study.md#L157)). v1 used `4 x SE` as the decision threshold itself, which
 is a ~4-sigma critical value with no precedent in the record and which
 inverts the direction of conservatism.
 
@@ -740,11 +740,11 @@ on a per-cell harm rejection on **G1** or **G2a**: a one-sided harm test
 (H0: contrast <= 0) rejecting under Holm across all G1/G2a x arm x cell
 contrasts at family-wise 0.05, AND a point estimate beyond its margin, in
 at least two cells. **One cell rejecting triggers a fresh-seed re-run of
-it; confirmation counts as the second** (`[[docs/plans/grow-from-root-default-study.md:160-161@4c018187]]`).
+it; confirmation counts as the second** ([docs/plans/grow-from-root-default-study.md:160-161](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-default-study.md#L160-L161)).
 
 v1 dropped that escape hatch while citing, as validation, an incident in
 which **exactly one cell flagged** (S4-5000, C2 = +11.10%) and the re-run
-supplied the second (`[[grow-from-root-default.md:730@4c018187]]`). Under v1's clause
+supplied the second ([docs/design/grow-from-root-default.md:730](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L730)). Under v1's clause
 that KILL would never have fired. Restored verbatim.
 
 ### GREEN, and exactly what it licenses
@@ -797,8 +797,8 @@ R >= 9 x sd_rep^2 / margin^2        alpha 0.05 one-sided, power 0.90
 ```
 
 **Planned R = 24 x C = 8 chains** per (arm, cell), matching the record's
-SMALL stratum exactly (24 x 8; `[[docs/plans/grow-from-root-default-study.md:211-212@4c018187]]`,
-`[[grow-from-root-default.md:463@4c018187]]`). v1's C = 4 contradicted its own two
+SMALL stratum exactly (24 x 8; [docs/plans/grow-from-root-default-study.md:211-212](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-default-study.md#L211-L212),
+[docs/design/grow-from-root-default.md:463](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L463)). v1's C = 4 contradicted its own two
 citations of 24 x 8 and would have inflated every between-chain sd_rep by
 ~1.53x.
 
@@ -809,12 +809,12 @@ citations of 24 x 8 and would have inflated every between-chain sd_rep by
 | log E2 | **none** | - | 0.223 | Stage 0. **The binding risk in the design** |
 | log E3 | **none** | - | 0.223 | Stage 0 |
 | log E4 | **none** | - | 0.223 | Stage 0 |
-| G1 | 0.03998 relative | record SMALL C2, the study's **frozen Stage-0 table** (`[[grow-from-root-default.md:399@4c018187]]`) | 0.060 | `R = 9 x 0.040^2 / 0.060^2 = 4.0`. **Registered as passing at R = 24** |
+| G1 | 0.03998 relative | record SMALL C2, the study's **frozen Stage-0 table** ([docs/design/grow-from-root-default.md:399](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/design/grow-from-root-default.md#L399)) | 0.060 | `R = 9 x 0.040^2 / 0.060^2 = 4.0`. **Registered as passing at R = 24** |
 | G2a | **none** | - | 0.05 | Stage 0 |
 
 **No sd_rep prior is imported except G1's**, and its provenance is the
 record's re-measured frozen value. v1 imported 0.0011-0.0015 for T2 from a
-scratch probe the record explicitly superseded (`[[docs/plans/grow-from-root-default-study.md:28-30@4c018187]]`), read
+scratch probe the record explicitly superseded ([docs/plans/grow-from-root-default-study.md:28-30](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-default-study.md#L28-L30)), read
 two strata as a range, and paired a LARGE-n sd with a SMALL-n R; at the
 record's own re-measured LARGE value with the four-chain inflation, that
 metric failed floor-above-ceiling before Stage 0 ran.
@@ -824,7 +824,7 @@ and the noise vector `eps` **once**, from `set.seed(BASE_SEED + r)`;
 construct `y` at every dial level from that same `X` and `eps`. Sampler
 seed `= r` for every arm and every cell in the replicate (A3:
 `r * 1000L + chainIndex`). This matches the record's both-seeds pairing
-(`[[docs/plans/grow-from-root-default-study.md:81-82@4c018187]]`). Sampler streams are not matched *across arms* - the
+([docs/plans/grow-from-root-default-study.md:81-82](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/grow-from-root-default-study.md#L81-L82)). Sampler streams are not matched *across arms* - the
 models differ, so they cannot be - but they are matched **across dial
 levels within an arm**, which is exactly what the DiD needs and what
 shrinks `sd_rep(DiD)`. Fresh-seed blocks for re-runs: `BASE_SEED + 1000 + r`.
@@ -958,14 +958,14 @@ DF, then X/N. The gated cells (D0, DP, D50, DQ) and the calibration cells
 
 | need | shipped hook |
 |---|---|
-| A0 / A1 / A2* sampler | `dbarts(formula, data, control, seed, node.prior, resid.prior)`, `[[R/dbarts.R:328@4c018187]]` |
-| linear leaves | `node.prior = linear(c("x4","x5"))`, resolved by `parsePriors` (`[[R/model.R:90-127@4c018187]]`, `[[R/model.R:1076-1085@4c018187]]`); **call position on `dbarts()` only** |
-| fixed sigma (cell DF) | `resid.prior = fixed(1)` (`[[R/model.R:959@4c018187]]`, in `dbartsPriors` at `[[R/model.R:1083@4c018187]]`), verified to work alongside `node.prior = linear(...)` |
-| one sweep | `sampler$run(0L, 1L)` -> `sigma, train, test, varcount, k, varprobs, tau, ranef`, `[[R/dbarts.R:755@4c018187]]` |
-| offset exchange | `sampler$setOffset(offset, updateScale, updateState)`, `[[R/dbarts.R:1004@4c018187]]` |
+| A0 / A1 / A2* sampler | `dbarts(formula, data, control, seed, node.prior, resid.prior)`, [R/dbarts.R:328](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L328) |
+| linear leaves | `node.prior = linear(c("x4","x5"))`, resolved by `parsePriors` ([R/model.R:90-127](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L90-L127), [R/model.R:1076-1085](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1076-L1085)); **call position on `dbarts()` only** |
+| fixed sigma (cell DF) | `resid.prior = fixed(1)` ([R/model.R:959](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L959), in `dbartsPriors` at [R/model.R:1083](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L1083)), verified to work alongside `node.prior = linear(...)` |
+| one sweep | `sampler$run(0L, 1L)` -> `sigma, train, test, varcount, k, varprobs, tau, ranef`, [R/dbarts.R:755](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L755) |
+| offset exchange | `sampler$setOffset(offset, updateScale, updateState)`, [R/dbarts.R:1004](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1004) |
 | the A2r schedule | the same call with `updateScale = TRUE`, verified to succeed on a plain sampler at the live tip |
 | live tree structure | `sampler$getTrees(current = TRUE)` -> pre-order frame; `beta.<col>` columns under a linear leaf |
-| independent depth walk (V0) | `dbarts:::getTreeDepthAndSize`, `[[R/plotTree.R:39-55@4c018187]]` |
+| independent depth walk (V0) | `dbarts:::getTreeDepthAndSize`, [R/plotTree.R:39-55](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/plotTree.R#L39-L55) |
 | A3 | `stan4bart(...)`, 0.0-14 on branch `bartcore` at `6ce0440` |
 | A3 trees | `extract(fit, "trees")` - the identical six-column frame |
 | A3 fits, sigma, varcount, fixef, ranef | `extract(fit, type = )` in `{indiv.bart, sigma, varcount, fixef, ranef}` (there is no `"bart"` type) |
@@ -982,13 +982,13 @@ so recoverable on this machine but not from git** - which is why every
 `common.R` location below could not be placed at any candidate commit;
 `grow-from-root-default.md` sec 8 is correct that the supported path is
 reconstruction from the pre-registration. Read and confirmed portable:
-`friedman()` (`unresolved: [[common.R:56@4c018187]]`), the S5 / S6 constructors (`cells.R`),
-`inclusionByChain()` (`unresolved: [[common.R:209@4c018187]]`), `iact()` (`unresolved: [[common.R:244@4c018187]]`), the root-extraction idiom
-inside `rootStats()` (`unresolved: [[common.R:307@4c018187]]`), the test helpers `harmTest` / `benefitTest`
-(`unresolved: [[common.R:360-385@4c018187]]`), the checkpoint helpers `ckptPath` / `withCkpt` (`unresolved: [[common.R:386-390@4c018187]]`).
+`friedman()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:56](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L56)), the S5 / S6 constructors (`cells.R`),
+`inclusionByChain()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:209](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L209)), `iact()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:244](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L244)), the root-extraction idiom
+inside `rootStats()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:307](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L307)), the test helpers `harmTest` / `benefitTest`
+(unresolved: [docs/plans/review-2026-08-24/generics/common.R:360-385](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L360-L385)), the checkpoint helpers `ckptPath` / `withCkpt` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:386-390](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L386-L390)).
 
-**Not portable:** `fitArm()` (`unresolved: [[common.R:150@4c018187]]`), `armStats()` (`unresolved: [[common.R:257@4c018187]]`) and
-`rootStats()` (`unresolved: [[common.R:307@4c018187]]`) are written against `bart2()` fit objects; this
+**Not portable:** `fitArm()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:150](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L150)), `armStats()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:257](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L257)) and
+`rootStats()` (unresolved: [docs/plans/review-2026-08-24/generics/common.R:307](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/review-2026-08-24/generics/common.R#L307)) are written against `bart2()` fit objects; this
 probe drives `dbarts()` sampler objects sweep-by-sweep because A1 is
 unreachable from `bart2()`. Their bodies port; their interfaces do not. The
 old harness sources `common.R` by a hardcoded absolute path; the new one

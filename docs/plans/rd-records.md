@@ -26,14 +26,14 @@ drift apart once surface-refusals lands its own version of that clause.
 
 ## 1. `print.bart`/`print.rbart`: no `\alias`, no `\usage`, no `\value`
 
-**Cause.** `[[R/generics.R:3014-3018@9d0ee10f]]` and `[[R/generics.R:3020-3024@9d0ee10f]]` define
+**Cause.** [R/generics.R:3014-3018](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L3014-L3018) and [R/generics.R:3020-3024](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L3020-L3024) define
 `print.bart`/`print.rbart` (both `{ printCall(x); fitSynopsis(x);
 invisible(x) }`), registered in NAMESPACE:46/50. Neither has an `\alias`
 anywhere in `man/`, so `?print.bart` fails, neither has a `\usage` entry, and
 neither Rd's `\value` section mentions them. `man/bart2.Rd` shows the
 sibling pattern done right: `print.bartMultinomial` has both
-`\alias{print.bartMultinomial}` ([[bart2.Rd:6@9d0ee10f]]) AND a `\usage` entry
-(`\method{print}{bartMultinomial}(x, \dots)`, [[bart2.Rd:88@9d0ee10f]]), sitting between
+`\alias{print.bartMultinomial}` ([man/bart2.Rd:6](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/bart2.Rd#L6)) AND a `\usage` entry
+(`\method{print}{bartMultinomial}(x, \dots)`, [man/bart2.Rd:88](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/bart2.Rd#L88)), sitting between
 its `predict` and `residuals` usage blocks - every other documented method
 on `bart.Rd`/`bart2.Rd` gets a `\usage` block, so alias-only would leave
 `?print.bart` on a page whose `\usage` never shows it. Fixed here: alias
@@ -179,7 +179,7 @@ surface-refusals.
 
 ---
 
-## 2. `[[man/dbarts.Rd:54@9d0ee10f]]` - `n.samples` "positive integer" claim
+## 2. [man/dbarts.Rd:54](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/dbarts.Rd#L54) - `n.samples` "positive integer" claim
 
 **File: `man/dbarts.Rd`**, lines 53-55
 
@@ -190,12 +190,12 @@ Current (line 54):
   }
 ```
 
-**Cause.** `[[R/A_class.R:375-376@9d0ee10f]]`'s validity check refuses only
+**Cause.** [R/A_class.R:375-376](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/A_class.R#L375-L376)'s validity check refuses only
 `object@n.samples < 0L` (not `<= 0`), so `0` is a valid value - and it is
-given operational meaning at `[[man/dbartsControl.Rd:33@9d0ee10f]]`: "A non-negative
+given operational meaning at [man/dbartsControl.Rd:33](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/dbartsControl.Rd#L33): "A non-negative
 integer... `0` is accepted here (and by `dbarts`) - a sampler meant to be
 driven by a host loop's own `run()` calls." (The length check at
-`[[R/A_class.R:311-312@9d0ee10f]]` is a separate, unrelated constraint - length 1, not a
+[R/A_class.R:311-312](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/A_class.R#L311-L312) is a separate, unrelated constraint - length 1, not a
 magnitude bound; that is the only other `n.samples`-adjacent check in
 `A_class.R`, and it is not implicated here.) `dbarts.Rd`'s copy of the same
 argument was never updated to match `dbartsControl.Rd`'s.
@@ -231,27 +231,27 @@ Current:
 }
 ```
 
-**Cause** (`[[R/xbart.R:519-577@9d0ee10f]]`): the internal array is always allocated with
+**Cause** ([R/xbart.R:519-577](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L519-L577)): the internal array is always allocated with
 SIX dimensions - `rep, n.trees, k, power, base, loss` - not five, and which
 ones survive to the returned object is not simply "drop iff length 1":
 - `n.trees`, `power`, `base`: dropped iff `drop` and length 1 (matches the
-  current text). `n.trees` is coerced to integer at `[[xbart.R:197@9d0ee10f]]`.
+  current text). `n.trees` is coerced to integer at [R/xbart.R:197](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L197).
 - `k`: dropped whenever `k` was NOT given as a numeric grid (i.e. resolved to
   a hyperprior; `kIsGrid <- is.numeric(k)`) - **regardless of `drop`**
-  (`[[xbart.R:549@9d0ee10f]]`, `if (!kIsGrid) FALSE`; `kLength` is 1 off-grid,
-  `[[xbart.R:437@9d0ee10f]]`). This differs from the other three: a hyperprior `k` never
+  ([R/xbart.R:549](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L549), `if (!kIsGrid) FALSE`; `kLength` is 1 off-grid,
+  [R/xbart.R:437](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L437)). This differs from the other three: a hyperprior `k` never
   gets even a length-1 cell, unlike what `drop = FALSE` would suggest.
 - `loss`: a trailing dimension, appended **only when the `loss` function's
   own return value has length > 1** (`numResults <- ncol(lossValues)`,
-  `[[xbart.R:516@9d0ee10f]]`, `[[xbart.R:558@9d0ee10f]]`) - independent of `drop` entirely (present with
+  [R/xbart.R:516](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L516), [R/xbart.R:558](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L558)) - independent of `drop` entirely (present with
   `drop = FALSE` too when the loss is scalar; the current text implies
   `drop = FALSE` keeps every dimension, which is false for this one). All
-  three built-in losses (`[[xbart.R:606-633@9d0ee10f]]`) return scalars, so this axis
+  three built-in losses ([R/xbart.R:606-633](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L606-L633)) return scalars, so this axis
   never appears with a built-in loss.
 - Collapse to a vector happens when zero of the above survive
-  (`length(newDims) == 1`, `[[xbart.R:561@9d0ee10f]]`), not simply "all hyperparameters
+  (`length(newDims) == 1`, [R/xbart.R:561](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L561)), not simply "all hyperparameters
   length 1" (loss counts too).
-- `dimnames` (`[[xbart.R:566@9d0ee10f]], 572-576`): only the double-valued axes (`k`,
+- `dimnames` ([R/xbart.R:566](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L566), 572-576): only the double-valued axes (`k`,
   `power`, `base`) are rounded (`signif(x, 2L)`); `n.trees`, an integer, is
   `as.character`'d directly and so labeled exactly. `loss` and `rep` carry
   no per-slot names at all.
@@ -312,7 +312,7 @@ draw" gloss below safe - `keepTrees` alone with nothing run yet is refused,
 not answered with an empty result):
 - An amplitude-coupled (multi-forest, including a Bayesian causal forest)
   sampler refuses `predict` outright (`refuseUndefinedTestFits`,
-  `[[src/R_interface_bartcore.cpp:5804@9d0ee10f]]`) - this is not a new fact: the SAME
+  [src/R_interface_bartcore.cpp:5804](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/R_interface_bartcore.cpp#L5804)) - this is not a new fact: the SAME
   `\value` section already states it, one paragraph later, under
   `getFitsWithoutOffset` (line 426): "\code{predict} is refused" on such a
   sampler. The shape rules below apply only to a single-forest or
@@ -327,7 +327,7 @@ not answered with an empty result):
   chain, an n.test x n.chains matrix otherwise (line 5738-5744).
 - Multi-location (`family = "multinomial"`, `numLocations > 1`,
   `numReportedLocations() > 1` exists only on `MultinomialForestCombiner`,
-  `[[src/bartcore/combiner.hpp:1598@9d0ee10f]]`): a K axis inserted between rows and
+  [src/bartcore/combiner.hpp:1598](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/bartcore/combiner.hpp#L1598)): a K axis inserted between rows and
   samples - n.test x K x n.samples (x n.chains) - and here the samples axis
   is **never dropped**: it is sized 1 (not omitted) when there are no saved
   trees to replay (line 5715-5730 computes `numSamples` the same way
@@ -367,10 +367,10 @@ absence clause - documenting the gap was rejected once the gap is closed
 the same commit).
 
 **Cause.** Traced `R/rbart.R`'s `packageRbartResults` (defined 1045,
-called 418 and 539) against `[[bart.R:389-392@9d0ee10f]]`:
+called 418 and 539) against [R/bart.R:389-392](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/bart.R#L389-L392):
 - `bart()`'s own `$fit`/`$n.chains`: `result$fit <- fit` (a SINGLE sampler
   object) only under `keepSampler`; `result$n.chains <- n.chains` is
-  UNCONDITIONAL ([[bart.R:389-392@9d0ee10f]]) - `$n.chains` is always present.
+  UNCONDITIONAL ([R/bart.R:389-392](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/bart.R#L389-L392)) - `$n.chains` is always present.
 - `rbart_vi()`'s `$fit`, when present, is ALWAYS A LIST, never a bare
   sampler - a different shape from `bart`'s (this part stays; it is
   intentional, not the bug). Two sub-cases: (a) the default,
@@ -392,9 +392,9 @@ called 418 and 539) against `[[bart.R:389-392@9d0ee10f]]`:
   unintentional asymmetry between the two internal paths, not a documented
   design choice.
 - Every reader already tolerates the absence
-  (`fitNChains` `[[R/diagnostics.R:16-21@9d0ee10f]]`, `fitSynopsis` `R/generics.R:
-  2958-2968`, `predict.rbart` `[[R/generics.R:2226-2230@9d0ee10f]]`, `extract.rbart` `[[R/generics.R:2435-2438@9d0ee10f]],
-  [[R/generics.R:2449@9d0ee10f]]`, `plotTree.rbart` `[[R/generics.R:2706-2709@9d0ee10f]], [[R/generics.R:2722@9d0ee10f]]`) via `is.null(n.chains) ?
+  (`fitNChains` [R/diagnostics.R:16-21](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/diagnostics.R#L16-L21), `fitSynopsis` `R/generics.R:
+  2958-2968`, `predict.rbart` [R/generics.R:2226-2230](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L2226-L2230), `extract.rbart` [R/generics.R:2435-2438](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L2435-L2438),
+  [R/generics.R:2449](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L2449), `plotTree.rbart` [R/generics.R:2706-2709](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L2706-L2709), [R/generics.R:2722](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L2722)) via `is.null(n.chains) ?
   length(fit) : n.chains`, and the two values already agree on the general
   path (`length(fit) == n.chains` there), so making `$n.chains`
   unconditional changes no reader's answer - it only removes the silent
@@ -403,7 +403,7 @@ called 418 and 539) against `[[bart.R:389-392@9d0ee10f]]`:
 
 **Proposed fix (code), three sites, land together:**
 
-`[[R/rbart.R:1293-1297@9d0ee10f]]`
+[R/rbart.R:1293-1297](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/rbart.R#L1293-L1297)
 
 Current:
 ```r
@@ -422,7 +422,7 @@ Proposed:
   result$n.chains <- n.chains
 ```
 
-`[[R/diagnostics.R:10-14@9d0ee10f]]` - retire the now-stale compensating parenthetical
+[R/diagnostics.R:10-14](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/diagnostics.R#L10-L14) - retire the now-stale compensating parenthetical
 (it singles out the in-core path as the one that "always keeps n.chains,"
 which was true only because the general path did not; once both paths do,
 the qualifier is misleading rather than merely redundant):
@@ -445,7 +445,7 @@ Proposed:
 # the in-core path)
 ```
 
-`[[inst/tinytest/test-rbart-bartcore.R:92@9d0ee10f]]` and `[[inst/tinytest/test-rbart-bartcore.R:125@9d0ee10f]]` - these currently PIN
+[inst/tinytest/test-rbart-bartcore.R:92](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/inst/tinytest/test-rbart-bartcore.R#L92) and [inst/tinytest/test-rbart-bartcore.R:125](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/inst/tinytest/test-rbart-bartcore.R#L125) - these currently PIN
 the bug as expected behavior on the exact path the fix changes (a custom
 `prior` function, default `keepTrees`/`keepSampler`, i.e. the
 general/R-loop path) and must be updated in the same commit or the fix
@@ -483,9 +483,9 @@ Proposed:
 ```
 
 Note the spelling: `keepTrees`/`keepSampler` (camelCase), matching
-`rbart_vi`'s own formals (`[[R/rbart.R:42@9d0ee10f]], [[R/rbart.R:45@9d0ee10f]]`; `[[man/rbart.Rd:29@9d0ee10f]], [[man/rbart.Rd:31@9d0ee10f]]`) - `bart`'s
+`rbart_vi`'s own formals ([R/rbart.R:42](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/rbart.R#L42), [R/rbart.R:45](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/rbart.R#L45); [man/rbart.Rd:29](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/rbart.Rd#L29), [man/rbart.Rd:31](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/rbart.Rd#L31)) - `bart`'s
 lowercase `keeptrees`/`keepsampler` is a spelling split unique to `bart`'s
-own page (`[[R/generics.R:270@9d0ee10f]]`), not shared by `rbart`.
+own page ([R/generics.R:270](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/generics.R#L270)), not shared by `rbart`.
 
 **Risk.** `R/rbart.R` and `R/diagnostics.R` changes fire `check-standard`
 and the C/C++-adjacent recompile discipline does not apply (pure R), but
@@ -499,7 +499,7 @@ snapshot elsewhere should shift - confirmed no other test file asserts
 
 ---
 
-## 6. `[[man/xbart.Rd:99-101@9d0ee10f]]` missingness deferral - fold-view scope exclusion
+## 6. [man/xbart.Rd:99-101](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/man/xbart.Rd#L99-L101) missingness deferral - fold-view scope exclusion
 
 **File: `man/xbart.Rd`**, lines 99-101
 
@@ -513,23 +513,23 @@ Current:
 **Cause.** `?dbarts`'s `missing` item (the contract this text defers to)
 promises: "a column complete in training has no [missing] route, and an
 \code{NA} there is refused, naming the column" - enforced by
-`refuseTestMissingness` (`[[src/C_interface.cpp:254@9d0ee10f]]`), whose ONLY call site is
-`validateTestSource` (`[[src/C_interface.cpp:277@9d0ee10f]]`, the "flat entrances" used
-by `setTestPredictor`/`predict`; the R-side twin is `[[R/data.R:354@9d0ee10f]]`).
+`refuseTestMissingness` ([src/C_interface.cpp:254](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/C_interface.cpp#L254)), whose ONLY call site is
+`validateTestSource` ([src/C_interface.cpp:277](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/C_interface.cpp#L277), the "flat entrances" used
+by `setTestPredictor`/`predict`; the R-side twin is [R/data.R:354](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/data.R#L354)).
 `xbart`'s internal per-fold sampler creation
-(`[[R/xbart.R:687@9d0ee10f]]` -> `[[R/bartcore.R:687@9d0ee10f]]` -> `[[R/bartcore.R:699@9d0ee10f]]` ->
+([R/xbart.R:687](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/xbart.R#L687) -> [R/bartcore.R:687](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/bartcore.R#L687) -> [R/bartcore.R:699](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/bartcore.R#L699) ->
 `C_dbarts_bartcore_createFromHandle` -> `bartcore_createFromHandle`,
-`[[src/R_interface_bartcore.cpp:3575@9d0ee10f]]`) calls NEITHER function - the refusal
+[src/R_interface_bartcore.cpp:3575](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/R_interface_bartcore.cpp#L3575)) calls NEITHER function - the refusal
 does not exist on this path at all, not a narrower version of it. Compounding
-this: `ColumnStore::buildFromParent` (`[[src/bartcore/data.hpp:1392@9d0ee10f]]`) resets
+this: `ColumnStore::buildFromParent` ([src/bartcore/data.hpp:1392](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/bartcore/data.hpp#L1392)) resets
 `hasMissing` (`.assign`, line 1087) then recomputes it FRESH FOR EACH VIEW
-from that view's own `rows` (the fold's TRAIN rows only, [[data.hpp:1459-1466@9d0ee10f]])
+from that view's own `rows` (the fold's TRAIN rows only, [src/bartcore/data.hpp:1459-1466](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/bartcore/data.hpp#L1459-L1466))
 - not inherited from the parent's dataset-wide flag. So a column that
 carries `NA` somewhere in the full data, but happens to be complete within
 one particular fold's training subset, gets NO learned missing-direction
 rule for that fold; a held-out row of that same fold that IS `NA` on that
 column is never refused - no refusal call exists on this path - and instead
-silently takes the rule's unset default direction (left; `[[tree.hpp:138@9d0ee10f]]`'s
+silently takes the rule's unset default direction (left; [src/bartcore/tree.hpp:138](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/bartcore/tree.hpp#L138)'s
 `setMissingGoesRight`, unset = left).
 
 Proposed (one added sentence; reworded from the prior draft, which wrongly
@@ -551,7 +551,7 @@ surface-refusals (`xbart.Rd`) - see the cross-slice coordination note above.
 ## 7. `benchmarks/R/composition-matrix.R` - the two recorded disagreements
 
 Both are pre-existing (per the composition-refusals landing note,
-`[[docs/plans/composition-refusals.md:642-644@9d0ee10f]]`), unrelated to that slice.
+[docs/plans/composition-refusals.md:642-644](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/composition-refusals.md#L642-L644)), unrelated to that slice.
 Investigated cause and a proposed code fix for each (harness bugs, not real
 model-composition regressions) - both fixes, and the landing-note mark
 below, must land in the SAME commit, or the committed record keeps
@@ -559,12 +559,12 @@ asserting a gate finding that no longer reproduces.
 
 ### 7a. `multinom dbarts5` - "no base fixture recipe"
 
-**Cause.** `[[docs/design/feature-matrix.md:85@9d0ee10f]]` claims `(multinom, dbarts5) =
-S` (`[[dbarts.R:381@9d0ee10f]]` - the `family = "multinomial"` token on `dbarts()`'s own
+**Cause.** [docs/design/feature-matrix.md:85](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/feature-matrix.md#L85) claims `(multinom, dbarts5) =
+S` ([R/dbarts.R:381](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/dbarts.R#L381) - the `family = "multinomial"` token on `dbarts()`'s own
 `family=` formal, a real, shipped, direct R5 construction route -
 `dbarts(x, factor(y), family = "multinomial")` is a real route,
-`[[R/dbarts.R:584-592@9d0ee10f]]`). But `table1Probes$dbarts5`
-([[composition-matrix.R:545@9d0ee10f]]) is a BLANKET dispatcher:
+[R/dbarts.R:584-592](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/R/dbarts.R#L584-L592)). But `table1Probes$dbarts5`
+([benchmarks/R/composition-matrix.R:545](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L545)) is a BLANKET dispatcher:
 
 ```r
 table1Probes <- list(
@@ -577,7 +577,7 @@ table1Probes <- list(
 )
 ```
 
-`buildBase`'s own switch ([[composition-matrix.R:210-296@9d0ee10f]]) DELIBERATELY has no
+`buildBase`'s own switch ([benchmarks/R/composition-matrix.R:210-296](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L210-L296)) DELIBERATELY has no
 `multinom`/`hurdle` arm - its header comment says so explicitly ("Everything
 but multinom/hurdle: those two host-shell families ... are special-cased
 directly in their probes instead of forcing a 13th shape into this
@@ -586,11 +586,11 @@ recipe") - and falls through to:
     stop("composition-matrix: no base fixture recipe for '", family, "'")
 ```
 Every OTHER `table1Probes` entry (`bart2`, `xbart`) already special-cases
-`multinom` via `bart2Args` ([[composition-matrix.R:385@9d0ee10f]]: `multinom = list(d$x,
+`multinom` via `bart2Args` ([benchmarks/R/composition-matrix.R:385](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L385): `multinom = list(d$x,
 factor(d$label), family = "multinomial")`); only `dbarts5`'s one-line
 wrapper never got the same routing-around that `runProbe` already gives
 `multinomActiveRows`/`hurdleDart` for the OTHER two special-cased cells
-([[composition-matrix.R:644-649@9d0ee10f]]). This is a harness gap, not a genuine model
+([benchmarks/R/composition-matrix.R:644-649](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L644-L649)). This is a harness gap, not a genuine model
 refusal - `attempt()` classifies the generic `stop()` as REFUSES (nothing in
 `genericFailure` matches "no base fixture recipe"), so it reads as a
 plausible-looking refusal in the report rather than what it is.
@@ -599,7 +599,7 @@ plausible-looking refusal in the report rather than what it is.
 
 Add a helper near `multinomActiveRows`/`hurdleDart` (after line 561), with
 the same `invisible(sampler$run(0L, 1L))` sweep `buildBase` performs on
-every other family ([[composition-matrix.R:301@9d0ee10f]]), for parity:
+every other family ([benchmarks/R/composition-matrix.R:301](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L301)), for parity:
 ```r
 multinomBase <- function(seed) {
   d <- mkXY(seed)
@@ -610,7 +610,7 @@ multinomBase <- function(seed) {
 ```
 
 Add a special case in `runProbe`, alongside the other two (before the
-`capability %in% names(table1Probes)` dispatch, [[composition-matrix.R:643-650@9d0ee10f]]):
+`capability %in% names(table1Probes)` dispatch, [benchmarks/R/composition-matrix.R:643-650](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L643-L650)):
 ```r
 runProbe <- function(family, capability, seed) {
   if (family == "multinom" && capability == "activeRowsMask") {
@@ -630,10 +630,10 @@ runProbe <- function(family, capability, seed) {
 
 ### 7b. `logistic setWeights` - integer-weights
 
-**Cause.** `[[docs/design/feature-matrix.md:137@9d0ee10f]]` (`[f10]` at `[[docs/design/feature-matrix.md:315@9d0ee10f]]`, which
+**Cause.** [docs/design/feature-matrix.md:137](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/feature-matrix.md#L137) (`[f10]` at [docs/design/feature-matrix.md:315](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/feature-matrix.md#L315), which
 already states the count semantics) claims `(logistic, setWeights) = S`
-(`[[MOD:3600@9d0ee10f]]`). The shared `mutate$setWeights` probe
-([[composition-matrix.R:620@9d0ee10f]]):
+([src/bartcore/model.hpp:3600](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/bartcore/model.hpp#L3600)). The shared `mutate$setWeights` probe
+([benchmarks/R/composition-matrix.R:620](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L620)):
 ```r
   setWeights = function(s, d) s$setWeights(runif(length(s$data@y), 0.5, 1.5)),
 ```
@@ -641,8 +641,8 @@ draws continuous, virtually-never-integer weights - fine for gaussian and
 every other weighted family, but `logistic`'s `setWeights` specifically
 requires positive integers by MODEL design (weights are observation-count
 replication under the PG(w, psi) augmentation), enforced at
-`enforceBinaryWeightPolicy` (`[[src/R_interface_bartcore.cpp:2756-2761@9d0ee10f]]`, from
-the call site at `[[src/R_interface_bartcore.cpp:4902@9d0ee10f]]`):
+`enforceBinaryWeightPolicy` ([src/R_interface_bartcore.cpp:2756-2761](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/R_interface_bartcore.cpp#L2756-L2761), from
+the call site at [src/R_interface_bartcore.cpp:4902](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/R_interface_bartcore.cpp#L4902)):
 ```cpp
   if (family == bartcore::ResponseFamily::logistic)
     for (size_t i = 0; i < numObservations; ++i)
@@ -651,12 +651,12 @@ the call site at `[[src/R_interface_bartcore.cpp:4902@9d0ee10f]]`):
                  "positive integers; drop zero-count rows, and use a gaussian "
                  "model for continuous weights");
 ```
-`runProbe`'s generic dispatch ([[composition-matrix.R:686-690@9d0ee10f]]) already passes
+`runProbe`'s generic dispatch ([benchmarks/R/composition-matrix.R:686-690](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L686-L690)) already passes
 `d$family <- family` into the closure before calling the probe, so the fix
 is entirely local - the data needed to special-case logistic is already
 there, unused.
 
-**Proposed fix** ([[composition-matrix.R:620@9d0ee10f]], in place):
+**Proposed fix** ([benchmarks/R/composition-matrix.R:620](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/benchmarks/R/composition-matrix.R#L620), in place):
 
 Current:
 ```r
@@ -685,7 +685,7 @@ without marking it leaves a committed record asserting a gate finding that
 no longer reproduces, for the human RC review to re-derive from scratch.
 Checked for line-number citers first (per house practice for this kind of
 edit): `grep -rn "composition-refusals.md" docs/ TODO` finds only
-`[[docs/plans/prerc-surface-freeze.md:7@9d0ee10f]]` and `[[docs/plans/INDEX.md:205@9d0ee10f]]`, and
+[docs/plans/prerc-surface-freeze.md:7](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/prerc-surface-freeze.md#L7) and [docs/plans/INDEX.md:205](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/INDEX.md#L205), and
 NEITHER cites it by line number (both are bare filename mentions) - so
 strictly nothing requires line-count invariance here, but the edit is kept
 line-count-invariant anyway (single line, in place) as the lower-risk
@@ -722,7 +722,7 @@ Current:
     VD-held.
 ```
 
-**Cause.** `[[docs/plans/prerc-surface-freeze.md:3-7@9d0ee10f]]` (Status: DECIDED
+**Cause.** [docs/plans/prerc-surface-freeze.md:3-7](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/prerc-surface-freeze.md#L3-L7) (Status: DECIDED
 2026-08-25): "D6 and D8 LANDED 936825d7 (docs/plans/composition-refusals.md);
 D7 remains, at the RC tip." `D7` is `bcf-baseline-cross-host`, still an open
 item in TODO itself (lines 33-36: "exempt the BCF snapshot channels under a
@@ -743,14 +743,14 @@ there). More importantly, several `docs/design/*.md` files cite `TODO` by
 exact line number AFTER this entry - re-derived directly by grep (correcting
 the file attributions from an earlier pass of this scoping, which had two
 wrong):
-- `[[docs/design/multinomial-mutation-arc.md:812@9d0ee10f]]` -> `[[TODO:309-322@9d0ee10f]]`
-- `[[docs/design/tree-mixing-proposals.md:975@9d0ee10f]]` -> `[[TODO:302@9d0ee10f]]`
-- `[[docs/design/tree-mixing-proposals.md:2067@9d0ee10f]]` -> `[[TODO:312@9d0ee10f]]`
-- `[[docs/plans/multiforest-extension-surface.md:71@9d0ee10f]]` -> `[[TODO:190-214@9d0ee10f]]` (one
+- [docs/design/multinomial-mutation-arc.md:812](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/multinomial-mutation-arc.md#L812) -> [TODO:309-322](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/TODO#L309-L322)
+- [docs/design/tree-mixing-proposals.md:975](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/tree-mixing-proposals.md#L975) -> [TODO:302](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/TODO#L302)
+- [docs/design/tree-mixing-proposals.md:2067](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/design/tree-mixing-proposals.md#L2067) -> [TODO:312](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/TODO#L312)
+- [docs/plans/multiforest-extension-surface.md:71](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/multiforest-extension-surface.md#L71) -> [TODO:190-214](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/TODO#L190-L214) (one
   line past this entry; itself hash-qualified "at 934a02d5", so already
   self-marked as a snapshot reference rather than a live one)
 
-(`[[TODO:54-57@be7af096]]`, `[[TODO:150-168@be7af096]]`, `[[TODO:162-168@be7af096]]` - all cited from
+([TODO:54-57](https://github.com/vdorie/dbarts/blob/be7af09669bcb5b311984345a7336f8f5ad5407f/TODO#L54-L57), [TODO:150-168](https://github.com/vdorie/dbarts/blob/be7af09669bcb5b311984345a7336f8f5ad5407f/TODO#L150-L168), [TODO:162-168](https://github.com/vdorie/dbarts/blob/be7af09669bcb5b311984345a7336f8f5ad5407f/TODO#L162-L168) - all cited from
 `multinomial-mutation-arc.md` - sit BEFORE line 188 and are unaffected by an
 in-place edit at 188-189 regardless of line count.) `tools/
 check-doc-freshness.R` Part 3 walks every `docs/design/*.md` file's
@@ -779,11 +779,11 @@ later became stale; 9b's claim was already overbroad when written.
 **Citation check** (per house practice, before proposing an edit that could
 change line counts): `grep -rn "release-candidate-review.md" docs/ TODO`
 turns up citations by exact line number from
-`[[docs/plans/review-2026-08-24/memos/prerc-lens2-backlog.md:29@9d0ee10f]]`
-("[[release-candidate-review.md:846-850@9d0ee10f]]" - close to, though already offset
+[docs/plans/review-2026-08-24/memos/prerc-lens2-backlog.md:29](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/review-2026-08-24/memos/prerc-lens2-backlog.md#L29)
+("[docs/plans/release-candidate-review.md:846-850](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/release-candidate-review.md#L846-L850)" - close to, though already offset
 from, the second passage below; likely already-stale from unrelated earlier
 edits, not something this edit should try to fix) and
-`[[threaded-predict-critique.md:119@9d0ee10f]], [[threaded-predict-critique.md:248@9d0ee10f]]` ("release-candidate-review.md:
+[docs/plans/review-2026-08-24/memos/threaded-predict-critique.md:119](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/review-2026-08-24/memos/threaded-predict-critique.md#L119), [docs/plans/review-2026-08-24/memos/threaded-predict-critique.md:248](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/review-2026-08-24/memos/threaded-predict-critique.md#L248) ("release-candidate-review.md:
 2529-2531", ":2529", well after both target passages). No `docs/design/*.md`
 file cites this doc at all (confirmed empty grep), so
 `tools/check-doc-freshness.R` never walks or validates any citation into it
@@ -803,7 +803,7 @@ original wording) but keep it to appended/adjusted clauses on the SAME line
 rather than a new prepended sentence, to stay line-count-invariant. If VD
 prefers the purer model-space-survey form (a new prepended line) instead,
 that is a reasonable alternative - see the alternative below - but it
-requires re-verifying/re-anchoring `[[prerc-lens2-backlog.md:29@9d0ee10f]]`'s `[[docs/plans/release-candidate-review.md:846-850@9d0ee10f]]`
+requires re-verifying/re-anchoring [docs/plans/review-2026-08-24/memos/prerc-lens2-backlog.md:29](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/review-2026-08-24/memos/prerc-lens2-backlog.md#L29)'s [docs/plans/release-candidate-review.md:846-850](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/docs/plans/release-candidate-review.md#L846-L850)
 citation (and confirming no other citation beyond line 610 elsewhere) as a
 coordinated follow-up, the same kind of pass commit `936825d7` did for
 `docs/design` after the composition-refusals landing.
@@ -886,7 +886,7 @@ surfaces (spot-check, not exhaustive)
 Checked, found already consistent (no action needed):
 - `man/dbarts.Rd`'s `\item{variance}` (line 81) already states the
   grouped-random-effects-with-variance-forest refusal fe0b3292 added at
-  `[[R/spec.R:532@fe0b3292]]` ("resid.dist = student() residuals and a grouped
+  [R/spec.R:532](https://github.com/vdorie/dbarts/blob/fe0b329221dddaec0c26f863a537ba4021c89682/R/spec.R#L532) ("resid.dist = student() residuals and a grouped
   (rbart_vi) fit are also refused together with variance") - matches the
   current code exactly; no man/ update needed for that landing, despite
   `git show fe0b3292 --stat` touching no `man/` file (the wording predates
@@ -899,9 +899,9 @@ Checked, found already consistent (no action needed):
   wording (predict-surface's "one offset spelling" unification, `7b3ac6bf`):
   internally consistent - `offset.test` (fit-time formal) vs. `predict`'s
   own `offset` (new-data-time) are each named and distinguished explicitly
-  in `[[bart.Rd:189@7b3ac6bf]]`; no stray `offset.test` references found where `predict`'s
+  in [man/bart.Rd:189](https://github.com/vdorie/dbarts/blob/7b3ac6bfd19feaefb506c47c775b051728209437/man/bart.Rd#L189); no stray `offset.test` references found where `predict`'s
   `offset` should be.
-- `[[man/bart.Rd:340@7b3ac6bf]]`'s `plot` `mfrow` paragraph (checked again for item 1's
+- [man/bart.Rd:340](https://github.com/vdorie/dbarts/blob/7b3ac6bfd19feaefb506c47c775b051728209437/man/bart.Rd#L340)'s `plot` `mfrow` paragraph (checked again for item 1's
   benefit, see above): describes panel layout only, makes no
   restore/non-restore claim, so it is not stale and needs no par()-related
   edit.
@@ -957,9 +957,9 @@ line counts invariant on TODO (347), composition-refusals.md (649),
 release-candidate-review.md (3894), multinomial-mutation-arc.md
 (1258). One design gap found and closed at implementation: item 1's
 man/bart.Rd insertions shift the Saving subsection by +3 lines and
-[[docs/design/multinomial-mutation-arc.md:233@d48aef8a]] cites it by exact line -
+[docs/design/multinomial-mutation-arc.md:233](https://github.com/vdorie/dbarts/blob/d48aef8af3f5078f59120bccd7b76400e9d4c026/docs/design/multinomial-mutation-arc.md#L233) cites it by exact line -
 the design's risk note covered man/ only as a freshness source, not
-as an anchor target - re-anchored [[docs/design/multinomial-mutation-arc.md:251@d48aef8a]] -> [[docs/design/multinomial-mutation-arc.md:254@d48aef8a]] in the same commit,
+as an anchor target - re-anchored [docs/design/multinomial-mutation-arc.md:251](https://github.com/vdorie/dbarts/blob/d48aef8af3f5078f59120bccd7b76400e9d4c026/docs/design/multinomial-mutation-arc.md#L251) -> [docs/design/multinomial-mutation-arc.md:254](https://github.com/vdorie/dbarts/blob/d48aef8af3f5078f59120bccd7b76400e9d4c026/docs/design/multinomial-mutation-arc.md#L254) in the same commit,
 single token, line-count neutral, outside that doc's frozen sections.
 The rbart n.chains fix is the unconditional assignment in
 packageRbartResults with the R/diagnostics.R comment retired and the

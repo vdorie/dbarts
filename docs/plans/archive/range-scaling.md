@@ -27,7 +27,7 @@ Against: outlier sensitivity (two extreme y values compress the
 effective prior on everything else); it is the root cause of the
 internal-scale bookkeeping (sigma stored internal-scale,
 sigmaPriorScale, the restoreScale round-trips -
-[[src/bartcore/model.hpp:1841-1889@af933d5b]], [[chain.hpp:203-206@af933d5b]]), though
+[src/bartcore/model.hpp:1841-1889](https://github.com/vdorie/dbarts/blob/af933d5b528b0f049b7cc310611c1da11c888319/src/bartcore/model.hpp#L1841-L1889), [src/bartcore/chain.hpp:203-206](https://github.com/vdorie/dbarts/blob/af933d5b528b0f049b7cc310611c1da11c888319/src/bartcore/chain.hpp#L203-L206)), though
 state-continuation removes most of that cost independently.
 
 Recommendation: keep; document the choice and the outlier caveat in
@@ -55,7 +55,7 @@ bartMachine's one-liner (workaround: log/winsorize y). bcf is the
 clearest reasoned departure, argument implicit.
 
 Code finding: setResponse re-anchors the internal scale on EVERY call
-([[model.hpp:1764-1775@af933d5b]] rescale(); classic did the same, bartFit.cpp
+([src/bartcore/model.hpp:1764-1775](https://github.com/vdorie/dbarts/blob/af933d5b528b0f049b7cc310611c1da11c888319/src/bartcore/model.hpp#L1764-L1775) rescale(); classic did the same, bartFit.cpp
 setResponse - bartcore inherited it faithfully), holding sigma and
 the variance prior
 fixed on the original scale but letting the leaf prior's
@@ -82,7 +82,7 @@ prior-constants; the switch is the remaining implementation:
 agent: opus; rng: shifting (mid-run setResponse tests only)
 
 1. Engine: ResponseModel::setResponse gains updateScale; FALSE path
-   mirrors setOffset's reuse-existing-scale branch ([[model.hpp:1814@af933d5b]]).
+   mirrors setOffset's reuse-existing-scale branch ([src/bartcore/model.hpp:1814](https://github.com/vdorie/dbarts/blob/af933d5b528b0f049b7cc310611c1da11c888319/src/bartcore/model.hpp#L1814)).
 2. Bridge + R5 setResponse(y, updateScale = FALSE); dbarts.h stays
    (additive change only if a C consumer needs it - none known).
 3. man/dbartsSampler-class.Rd documents both switches and the
