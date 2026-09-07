@@ -127,22 +127,26 @@ equivalence-4d9a3337.rds (11), bench-sampler-ab1dc52.csv (speed). equivalence.ya
 compares only the gaussian .rds; the bcf and multinomial .rds are compared by exact-gates.yaml's
 per-push --cross-host step instead (Sec.1), their equivalence.yaml duplicates having been dropped.
 
-## 4. Exact-posterior gates (exact-gates.yaml, 20 scripts, quick-mode only in CI)
+## 4. Exact-posterior gates (exact-gates.yaml, 24 scripts, quick-mode only in CI)
 
 Tolerance is computed in-script per gate (z-score bound or absolute posterior-moment gap), not a shared
 constant (e.g. bcf-exact.R: 0.05 quick / 0.015 full, absolute). Scale, by grep of each script's
-n.trees/numTrees literal:
+n.trees/numTrees literal. Recounted directly against the workflow's own gate list (the prior "20 scripts,
+15 single-tree" restatement predated perturb-balance.R and, independently of it, also missed
+aft-hetero-pit.R, backfit-exact.R and bcf-latent-exact.R, all three added between that restatement and
+this one):
 
 - Single-tree (n.trees=1L or numTrees=1L hardcoded, in BOTH quick and full mode - "full" only
-  lengthens draws/seeds, never ensemble size): 15 of 20 - bd-balance, change-balance,
-  swap-balance, aft-exact, bcf-exact, bcf-exact-weak, bcf-exact-restricted, categorical-exact,
-  linear-exact, hazard-exact, hurdle-exact, t-exact, monotone-reference, negbin-exact,
-  ordinal-exact.
-- Multi-tree: heteroscedastic-exact.R (mean forest 20L, variance forest 1-2L), multinomial-exact.R
-  (mixes 1L and 50L across scenarios), hazard-reduction.R (40L fixed), hurdle-reduction.R (30L fixed),
-  logistic-reference.R (ntree = 50L quick / 200L full - the only gate reaching bart()'s classic default
-  of 200, but full mode has never run in CI, so no CI-verified run of ANY gate has reached 200 trees,
-  and none reach dbarts()/bart2()'s own default of 75 either).
+  lengthens draws/seeds, never ensemble size): 17 of 24 - bd-balance, change-balance,
+  swap-balance, perturb-balance, aft-exact, bcf-exact, bcf-exact-weak, bcf-exact-restricted,
+  bcf-latent-exact, categorical-exact, linear-exact, hazard-exact, hurdle-exact, t-exact,
+  monotone-reference, negbin-exact, ordinal-exact.
+- Multi-tree: heteroscedastic-exact.R (mean forest 20L, variance forest 1-2L), aft-hetero-pit.R (mean
+  forest 50L, variance forest 20L), backfit-exact.R (m = 200L and 50L across its two arms),
+  multinomial-exact.R (mixes 1L and 50L across scenarios), hazard-reduction.R (40L fixed),
+  hurdle-reduction.R (30L fixed), logistic-reference.R (ntree = 50L quick / 200L full - the only gate
+  reaching bart()'s classic default of 200, but full mode has never run in CI, so no CI-verified run of
+  ANY gate has reached 200 trees, and none reach dbarts()/bart2()'s own default of 75 either).
 
 Last CI run: 2026-08-24 (tip push), success, quick mode - as for all 200 runs on record.
 

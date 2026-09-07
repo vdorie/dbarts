@@ -1,6 +1,6 @@
 # perturb: a same-variable cut move
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110).
 
 A fourth tree kernel that keeps a node's split variable and displaces only its cut, by a small fixed number of grid positions.
 [4.2 A same-variable cut move ("perturb") - the first tree-space candidate](tree-mixing-proposals.md#42-a-same-variable-cut-move-perturb---the-first-tree-space-candidate)
@@ -604,6 +604,23 @@ Then, in order:
    and the Stage 2 benefit run (slice 3).
 2. **`perturb-balance.R`.** The prior-only arm on the full factorial, the exact-posterior confirmation arm, both poisons. Roughly
    400 to 500 lines; not startable before slice 1.
+
+   **Landed** (30472110, 2026-09-07). Four design-versus-code points. (1) Section 4's statistic-3 drop rule spoke in 0-based
+   split indices; in the 1-based cut numbering [`getTrees`](../../R/dbarts.R) exposes, the retained six states sit at root cuts
+   2 and 3 and the dropped seven at 4 and 5, masses matching exactly (0.011281 / 0.005641 / 0.018802 / 0.009401 retained,
+   0.003760 / 0.002820 dropped). (2) The confirmation arm scores the within-variable cut law rather than the root-VARIABLE
+   marginal this section named, because under a perturb-dominant mixture that marginal mixes on `change`'s timescale -
+   [`firstUnder`](../../benchmarks/R/perturb-balance.R)'s ladder puts its first lag under 0.1 at 113 to 138 kept draws, two
+   states never getting there within 400 - and scoring it would be refused by the gate's own burn-in rule. (3) Both poisons
+   mutate [`poisonRootTarget`](../../benchmarks/R/perturb-balance.R), statistic 1's target, alone. (4) This section's 20 to 40
+   minute estimate for a full run was wrong by two orders: the masked sweep costs the move machinery alone on 24 rows,
+   microseconds a sweep.
+
+   Gates (independent run): quick PASS (worst `|z|` 1.84 prior-only, 2.66 confirmation); full PASS in 23 seconds wall (worst
+   `|z|` 2.04 prior-only at the pair state `x2c2.1`, 1.64 confirmation), 0 of 21 Holm rejections either arm. Poison 1
+   (`logProposalCorrection` dropped) FAILS at worst `|z|` 192.8, 8 of 21 rejected; poison 2 (the one-sided window absorbed at
+   the boundary) FAILS at 1143.9. The matching engine mutations, m24 and m25 in `benchmarks/R/mutation-battery.R`, are both
+   KILLED (worst `|z|` 129.5 and 703.4). lint 0, air clean, yaml parses. Not landed: the Stage 2 benefit run (slice 3).
 3. **The Stage 2 harness and run.** Two arms, the three named cells and the two controls at `w = 1, d = 0.16`, twenty matched pairs,
    reusing the landed four-chain C1 arm. Roughly 400 lines; compute is a day for cell 1 and the sham arm plus the 3 unit fits that
    re-measure cell 3's arm A at `useQuantiles = TRUE` (section 5 cell 3, alternative i). Not startable before prerequisites 2 and 4.

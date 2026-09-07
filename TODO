@@ -224,13 +224,15 @@ items
     low-ranked.
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move
-    set would help? Ranked next steps, all decision-gated and likely
-    post-release for code: same-variable cut redraw "perturb" (a
-    Stage-0 per-move acceptance census first), rotation, a Stage R0
-    generator-only regrow census, the re-specified reallocation census,
-    heated companion chains. Durable record
-    docs/design/tree-mixing-proposals.md (ranking sec 4.1 as amended,
-    specialization addendum sec 12).
+    set would help? The move census ran; the same-variable cut redraw
+    "perturb" is in the kernel at default weight zero (ab49f83a) with
+    its detailed-balance gate (30472110). Its benefit stage (slice 3)
+    and a nonzero default share (slice 4) remain open and
+    decision-gated. Rotation, a Stage R0 generator-only regrow census,
+    the re-specified reallocation census and heated companion chains
+    stay unscheduled, alongside the two brainstorm rounds (sec 15,
+    16). Durable record docs/design/tree-mixing-proposals.md (ranking
+    sec 4.1 as amended, specialization addendum sec 12).
   variance-forest-mutation-routing: two doors held open
     (docs/plans/archive/variance-forest-mutation-routing.md).
     Scale-leaf calibration staleness under updateScale = TRUE: the leaf

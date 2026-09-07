@@ -554,6 +554,22 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### perturb-balance.R: the detailed-balance gate for the perturb move (30472110, 2026-09-07)
+
+Slice 2 of docs/design/perturb-move.md. A prior-only arm installs an all-zero
+weight mask on a 6 x 4 full factorial at quantile cuts, turning the
+likelihood off and leaving the kernel reversible for the CGM tree prior on
+member-occupied trees; three statistics (root (variable, cut), leaf count,
+same-variable (root cut, left-child cut) joint) score as one 21-state Holm
+family, refused unless the run covers fifty autocorrelation times of its
+slowest statistic. A confirmation arm scores the within-variable cut law
+against an exact region dynamic program. Two poisons and the matching
+mutation-battery.R entries (m24, m25) cover the dropped correction and the
+one-sided window. Gates: quick PASS (worst |z| 1.84 / 2.66); full PASS in 23
+seconds wall (worst |z| 2.04 prior-only, 1.64 confirmation), 0 of 21
+rejected; both poisons FAIL (192.8, 1143.9) and both mutations are KILLED
+(129.5, 703.4). Not landed: the Stage 2 benefit run (slice 3).
+
 ### The perturb kernel: a same-variable cut move at default zero (ab49f83a, 2026-09-07)
 
 Slice 1 of docs/design/perturb-move.md: perturbMove (src/bartcore/moves.hpp)
