@@ -213,3 +213,121 @@ for (i in seq_len(length(byDraw) - 1L)) {
 expect_true(length(unique(vapply(byDraw, nrow, 0L))) > 1L)
 expect_true(heldShape > 10L)
 expect_true(cutMoves > 0L)
+
+# ---- the frozen mixture ----------------------------------------------------
+
+# All four structural probabilities exactly zero is legal and proposes no
+# structure at all: the trees stand where they are while the leaf values and
+# sigma keep being drawn, which is how a fitted forest is re-sampled as a
+# fixed basis.
+frozen <- c(birth_death = 0, swap = 0, change = 0, perturb = 0)
+frozenModel <- fit(frozen)$model
+expect_equal(frozenModel@p.birth_death, 0)
+expect_equal(frozenModel@p.swap, 0)
+expect_equal(frozenModel@p.change, 0)
+expect_equal(frozenModel@p.perturb, 0)
+# birth is unread when nothing is proposed and keeps its default
+expect_equal(frozenModel@p.birth, 0.5)
+
+# the residual is a share of structural mass, and an all-zero mixture has
+# none: an unnamed swap keeps its zero rather than taking the whole of it
+bothZero <- fit(c(birth_death = 0, change = 0))$model
+expect_equal(bothZero@p.birth_death, 0)
+expect_equal(bothZero@p.swap, 0)
+expect_equal(bothZero@p.change, 0)
+expect_equal(bothZero@p.perturb, 0)
+
+# an unnamed birth/death or change still takes the residual, so a single
+# named zero fills exactly as before
+singleZero <- fit(c(change = 0))$model
+expect_equal(singleZero@p.birth_death, 1)
+expect_equal(singleZero@p.swap, 0)
+expect_equal(singleZero@p.change, 0)
+expect_equal(singleZero@p.perturb, 0)
+
+# only exact zero freezes: a mixture that merely rounds to nothing is still a
+# mixture, and must sum to one
+expect_error(
+  fit(c(birth_death = 0, swap = 0, change = 1e-8, perturb = 0)),
+  "sum to 1"
+)
+
+frozenControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 3L,
+  n.burn = 50L,
+  n.samples = 25L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+frozenSampler <- dbarts::dbarts(x, y, control = frozenControl)
+set.seed(23L)
+invisible(frozenSampler$run())
+frozenSampler$setModel(frozenModel)
+frozenSamples <- frozenSampler$run(0L, 25L)
+
+frozenTrees <- frozenSampler$getTrees()
+frozenDraws <- split(
+  frozenTrees[, c("tree", "n", "var", "value")],
+  frozenTrees$sample
+)
+# variables, cut points and node counts, but not the leaf values
+frozenStructure <- vapply(
+  frozenDraws,
+  function(d) {
+    paste(
+      d$tree,
+      d$n,
+      d$var,
+      ifelse(d$var != -1L, d$value, NA_real_),
+      collapse = "|"
+    )
+  },
+  character(1L)
+)
+expect_equal(length(unique(frozenStructure)), 1L)
+# and the structure that stood was not the trivial all-root one
+expect_true(any(frozenTrees$var != -1L))
+
+# the leaf values and sigma are still moving
+frozenLeaves <- vapply(
+  frozenDraws,
+  function(d) paste(d$value[d$var == -1L], collapse = "|"),
+  character(1L)
+)
+expect_equal(length(unique(frozenLeaves)), length(frozenDraws))
+expect_true(length(unique(as.vector(frozenSamples$sigma))) > 1L)
+expect_true(all(is.finite(frozenSamples$train)))
+
+# ---- the default replays bitwise ------------------------------------------
+
+# the fill's new branch must not touch the shipped default: spelling it out
+# reproduces the unset one draw for draw
+replayControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.burn = 10L,
+  n.samples = 20L,
+  updateState = FALSE
+)
+# a sampler takes its seed off the R stream at creation, so the seed is set
+# ahead of each one rather than ahead of each run
+set.seed(59L)
+replayA <- dbarts::dbarts(x, y, control = replayControl)$run()
+set.seed(59L)
+replayB <- dbarts::dbarts(
+  x,
+  y,
+  control = replayControl,
+  proposal.probs = c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    birth = 0.5
+  )
+)$run()
+expect_identical(replayA$train, replayB$train)
+expect_identical(replayA$sigma, replayB$sigma)

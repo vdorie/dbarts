@@ -1501,6 +1501,18 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
 enum class StepType { birth, death, swap, change, perturb };
 
+/// True when the move mixture proposes no structure at all: every structural
+/// probability is exactly zero, so the trees stand as they are and only the
+/// leaf values, the residual scale and the family's latents keep moving. A
+/// sweep reads this once per forest and skips metropolisJumpForTree entirely
+/// where it holds - the frozen path draws no uniform for the move choice.
+inline bool structureIsFrozen(double birthOrDeathProbability,
+                              double swapProbability, double changeProbability,
+                              double perturbProbability) {
+  return birthOrDeathProbability == 0.0 && swapProbability == 0.0 &&
+         changeProbability == 0.0 && perturbProbability == 0.0;
+}
+
 /// changedNode, when non-null, receives the index of the node whose subtree an
 /// ACCEPTED move repartitioned (the birthed/died node, or the changed, swapped
 /// or perturbed subtree root); untouched on rejection or no-op, so gate reads

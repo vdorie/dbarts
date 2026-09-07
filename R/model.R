@@ -95,6 +95,13 @@ setMethod(
     ## default to a number leaves the split between birth/death and change
     ## undetermined and is an error rather than a silent choice, and naming
     ## none of them is the default. No branch may leave an NA for a slot.
+    ##
+    ## The residual is a share of structural mass and an all-zero mixture has
+    ## none: with birth/death and change both named zero and perturb zero
+    ## there is nothing to distribute, so an unnamed swap keeps its zero
+    ## rather than taking the whole of it, and the mixture stays frozen - no
+    ## structural proposal is made at all. An unnamed birth/death or change
+    ## still takes the residual, so c(change = 0) is birth/death 1 as before.
     probs <- proposal.probs[c("birth_death", "swap", "change")]
     names(probs) <- c("birth_death", "swap", "change")
     unnamed <- is.na(probs)
@@ -109,7 +116,12 @@ setMethod(
       if (sum(unnamed) == 2L) {
         probs[["swap"]] <- 0
       }
-      probs[is.na(probs)] <- 1 - (perturb + sum(probs[!is.na(probs)]))
+      named <- probs[!is.na(probs)]
+      frozen <- perturb == 0 &&
+        !unnamed[["birth_death"]] &&
+        !unnamed[["change"]] &&
+        all(named == 0)
+      probs[is.na(probs)] <- if (frozen) 0 else 1 - (perturb + sum(named))
     }
 
     .Object@p.birth_death <- probs[["birth_death"]]

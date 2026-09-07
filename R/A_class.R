@@ -430,7 +430,12 @@ methods::setValidity("dbartsModel", function(object) {
   if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) {
     return("rule proposal probabilities must be in [0, 1]")
   }
-  if (abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)) {
+  # all four exactly zero is the frozen mixture: no structural proposal is
+  # made, so there is no share to normalize
+  if (
+    sum(proposalProbs) != 0.0 &&
+      abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)
+  ) {
     return("rule proposal probabilities must sum to 1")
   }
 

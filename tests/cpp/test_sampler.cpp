@@ -6729,6 +6729,81 @@ static void testFitsWithoutOffset() {
   printf("ok: fitsWithoutOffset (scale %.4f)\n", sampler.fitScale());
 }
 
+// The frozen mixture: all four structural probabilities exactly zero, so no
+// move is proposed and the trees stand at whatever structure they were left
+// with while the leaf values and sigma keep being drawn.
+static void testFrozenForest() {
+  check(structureIsFrozen(0.0, 0.0, 0.0, 0.0), "all-zero is frozen");
+  check(!structureIsFrozen(0.6, 0.0, 0.4, 0.0), "the shipped mixture is not");
+  check(!structureIsFrozen(0.0, 0.0, 1.0, 0.0), "change-only is not");
+  check(!structureIsFrozen(0.0, 0.0, 0.0, 1.0), "perturb-only is not");
+
+  const size_t n = 200, p = 2, numTrees = 10;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 314159);
+  SamplerOptions options;
+  options.numTrees = numTrees;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+
+  const size_t numSamples = 20;
+  std::vector<double> sigma(numSamples), train(n * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = train.data();
+
+  // grow structure under the shipped mixture, and confirm it is a mixture
+  // that moves: the guard must not fire on it
+  sampler.run(100, numSamples, results);
+  std::vector<std::uint64_t> grown(numTrees);
+  for (size_t t = 0; t < numTrees; ++t)
+    grown[t] = treeStructureSignature(sampler.chain(0).tree(t));
+  sampler.run(0, numSamples, results);
+  bool moved = false;
+  for (size_t t = 0; t < numTrees; ++t)
+    moved |= treeStructureSignature(sampler.chain(0).tree(t)) != grown[t];
+  check(moved, "the shipped mixture still moves structure");
+
+  std::vector<std::uint64_t> frozen(numTrees);
+  for (size_t t = 0; t < numTrees; ++t)
+    frozen[t] = treeStructureSignature(sampler.chain(0).tree(t));
+
+  ModelParameters model;
+  model.birthOrDeathProbability = 0.0;
+  model.swapProbability = 0.0;
+  model.changeProbability = 0.0;
+  model.perturbProbability = 0.0;
+  model.sigmaEstimate = 1.0;
+  model.sigmaDf = 3.0;
+  model.sigmaRawScale = 0.37804942330213542;
+  sampler.setModel(model);
+
+  // every sweep leaves every structure exactly where it was
+  for (size_t s = 0; s < 5; ++s) {
+    sampler.run(0, numSamples, results);
+    for (size_t t = 0; t < numTrees; ++t)
+      check(treeStructureSignature(sampler.chain(0).tree(t)) == frozen[t],
+            "a frozen sweep leaves the structure alone");
+  }
+
+  // the leaf values and sigma are still being drawn
+  bool sigmaMoved = false, fitsMoved = false;
+  for (size_t s = 1; s < numSamples; ++s) {
+    sigmaMoved |= sigma[s] != sigma[0];
+    for (size_t i = 0; i < n; ++i)
+      fitsMoved |= train[i + s * n] != train[i];
+  }
+  check(sigmaMoved, "a frozen chain still draws sigma");
+  check(fitsMoved, "a frozen chain still draws leaf values");
+
+  ext_rng_destroy(rng);
+  printf("ok: frozen forest\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -6785,6 +6860,7 @@ void runSamplerTests(ext_rng* rng) {
   testActiveRowsOnGrownForest();
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
+  testFrozenForest();
   testMissingEndToEnd();
   testLogLikelihood();
   testForestCalibration();

@@ -1403,6 +1403,14 @@ public:
                         forestWeights,
                         forest.k,
                         forest.scratch};
+        // an all-zero mixture freezes the structures: no move is proposed and
+        // no draw is taken for one, so the leaf, sigma and latent draws below
+        // sit at the stream positions they would under any other sweep. Read
+        // once here, ahead of the tree loop, so every mixture that DOES
+        // propose keeps its draw sequence exactly.
+        const bool structureFrozen = structureIsFrozen(
+          forest.birthOrDeathProbability, forest.swapProbability,
+          forest.changeProbability, forest.perturbProbability);
 
         forest.kSumSquaredParams = 0.0;
         forest.kNumLeaves = 0.0;
@@ -1433,26 +1441,28 @@ public:
                                               forestWeights);
           }
 
-          bool stepTaken;
-          StepType stepType;
+          bool stepTaken = false;
+          StepType stepType = StepType::change;
           int32_t changedNode = invalidNode;
-          // move-census scaffolding: the record's location, nothing else
-          BARTCORE_CENSUS_LOCATION(static_cast<long>(iteration),
-                                   static_cast<int>(f), static_cast<int>(t));
-          // hand a constrained-conjugate leaf its persistent mu block so a
-          // branch score can read frozen neighbor values; compiled out for the
-          // conjugate leaves, which read no leaf parameters
-          if constexpr (leafIsConstant && ParamScoringLeafModel<L>)
-            ctx.leafParams = forest.muByTree[t].data();
-          metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
-                                forest.treeY.data(), sigma_, &stepTaken,
-                                &stepType, &changedNode);
-          // move-census scaffolding: the settled shape, nothing else
-          BARTCORE_CENSUS_TREE(forest.trees[t]);
-          // accepted changes and deaths strand pooled mask words; no rule
-          // copies are live here, so this is a safe point to reclaim them
-          if (data_.hasPooledCategorical)
-            forest.trees[t].compactMaskPoolIfNeeded(data_);
+          if (!structureFrozen) {
+            // move-census scaffolding: the record's location, nothing else
+            BARTCORE_CENSUS_LOCATION(static_cast<long>(iteration),
+                                     static_cast<int>(f), static_cast<int>(t));
+            // hand a constrained-conjugate leaf its persistent mu block so a
+            // branch score can read frozen neighbor values; compiled out for
+            // the conjugate leaves, which read no leaf parameters
+            if constexpr (leafIsConstant && ParamScoringLeafModel<L>)
+              ctx.leafParams = forest.muByTree[t].data();
+            metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
+                                  forest.treeY.data(), sigma_, &stepTaken,
+                                  &stepType, &changedNode);
+            // move-census scaffolding: the settled shape, nothing else
+            BARTCORE_CENSUS_TREE(forest.trees[t]);
+            // accepted changes and deaths strand pooled mask words; no rule
+            // copies are live here, so this is a safe point to reclaim them
+            if (data_.hasPooledCategorical)
+              forest.trees[t].compactMaskPoolIfNeeded(data_);
+          }
 
           // leafOf catches up with the settled move: rejections restore the
           // partition exactly and write nothing, an accepted move patches only
@@ -4215,6 +4225,12 @@ private:
     const double* userWeights = response_->workingWeights();
     for (std::size_t i = 0; i < n; ++i) vf.meanResidual[i] = y[i] - meanFits[i];
 
+    // the variance forest reads the same mixture as the mean forest, so an
+    // all-zero one freezes both; its leaf factors keep being drawn
+    const bool structureFrozen = structureIsFrozen(
+      vf.birthOrDeathProbability, vf.swapProbability, vf.changeProbability,
+      vf.perturbProbability);
+
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       vf.formTreeResidual(j, vf.meanResidual.data());
       MoveContext ctx{data_,
@@ -4226,18 +4242,21 @@ private:
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal
                       vf.scratch};
-      bool stepTaken;
-      StepType stepType;
+      bool stepTaken = false;
+      StepType stepType = StepType::change;
       int32_t changedNode = invalidNode;
-      // the variance forest takes forest index -1 in the census
-      BARTCORE_CENSUS_LOCATION(census::state().sweep, -1,
-                               static_cast<int>(j));
-      metropolisJumpForTree(ctx, vf.leaf, rng_, vf.trees[j],
-                            vf.treeResidual.data(), 1.0, &stepTaken, &stepType,
-                            &changedNode);
-      BARTCORE_CENSUS_TREE(vf.trees[j]);
-      if (data_.hasPooledCategorical)
-        vf.trees[j].compactMaskPoolIfNeeded(data_);
+      if (!structureFrozen) {
+        // the variance forest takes forest index -1 in the census
+        BARTCORE_CENSUS_LOCATION(census::state().sweep, -1,
+                                 static_cast<int>(j));
+        metropolisJumpForTree(ctx, vf.leaf, rng_, vf.trees[j],
+                              vf.treeResidual.data(), 1.0, &stepTaken,
+                              &stepType, &changedNode);
+        // move-census scaffolding: the settled shape, nothing else
+        BARTCORE_CENSUS_TREE(vf.trees[j]);
+        if (data_.hasPooledCategorical)
+          vf.trees[j].compactMaskPoolIfNeeded(data_);
+      }
 
       std::vector<int32_t>& bottoms(vf.trees[j].bottomScratch);
       bottoms.clear();

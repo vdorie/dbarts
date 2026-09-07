@@ -1360,9 +1360,13 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "probability of perturb rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  if (std::fabs(model.birthOrDeathProbability + model.swapProbability +
-                model.changeProbability + model.perturbProbability - 1.0) >=
-      sumToOneTolerance)
+  // all four exactly zero is the frozen mixture: no structural proposal is
+  // made and the tree structures stand, so there is no share to normalize
+  const double structuralProbability =
+    model.birthOrDeathProbability + model.swapProbability +
+    model.changeProbability + model.perturbProbability;
+  if (structuralProbability != 0.0 &&
+      std::fabs(structuralProbability - 1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
 
   REPROTECT_SLOT(slotExpr, modelExpr, "p.birth", slotIndex);

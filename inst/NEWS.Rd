@@ -259,6 +259,14 @@
             one. An unnamed \code{"perturb"} resolves to zero ahead of the
             residual fill, so every vector that resolved before resolves
             identically now.
+      \item \code{proposal.probs} accepts a frozen mixture: all four
+            structural probabilities exactly zero proposes no structure at
+            all, so the tree structures stand where they are while the leaf
+            values, \code{sigma} and the family's latents keep being drawn.
+            It is how a fitted forest is re-sampled as a fixed basis. Every
+            other mixture must still sum to one, and an all-zero named
+            vector stays all-zero rather than handing the residual to an
+            unnamed \code{"swap"}.
       \item The rewritten engine replaces the pre-1.0 engine: every
             fitting function runs on it. Fits are not draw-for-draw
             identical to the pre-1.0 engine's, and the corrections listed
