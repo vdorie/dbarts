@@ -331,7 +331,7 @@ the structure makes the answer clean, and it differs by move:
   tree.
 - **Death** re-merges two ordered children into one leaf whose cone is the parent
   bound [a,b], always non-empty. Never infeasible.
-- **Change CAN empty a cone** (reordering splits can force some leaf's
+- **Change / swap CAN empty a cone** (reordering splits can force some leaf's
   max-below above its min-above). Handled with NO special-casing: the constrained
   marginal integrates the truncated-normal product over an empty region to 0, so
   p(r_new | T*, mu_same) = 0 and alpha = 0 - the move is rejected by the ordinary
@@ -343,15 +343,15 @@ plus the single-site leaf Gibbs - exactly mBART's examples ("in all our examples
 we use birth/death moves and draws of a single mu component," paper Section 4.3).
 Set the constrained forest's move mix to birth/death only
 (birthOrDeathProbability = 1, [`SamplerOptions::birthOrDeathProbability`](../../src/bartcore/chain.hpp)), a legitimate difference from the
-unconstrained default mix (0.6/0.4 birth-death/change). This overrides
-the user-facing `proposal.probs` (default c(birth_death = 0.6, change = 0.4,
-birth = 0.5), [`dbarts`](../../R/dbarts.R)): resolve the clash by ERRORING at spec
+unconstrained default mix (0.6/0.4/0.0 birth-death/change/swap). This overrides
+the user-facing `proposal.probs` (default c(birth_death = 0.6, swap = 0,
+change = 0.4, birth = 0.5), [`dbarts`](../../R/dbarts.R)): resolve the clash by ERRORING at spec
 time when `monotone` meets an EXPLICIT non-default `proposal.probs` (the user
-asked for a change move the constrained sampler cannot honor), and forcing
+asked for swap/change the constrained sampler cannot honor), and forcing
 birth/death only, silently, when `proposal.probs` is left at its default.
 Rationale: a
 constrained CHANGE move whose children are both terminal is still <= 2-D and
-supportable (the paper says so), but the general change move touches more than
+supportable (the paper says so), but the general change/swap touches more than
 two leaves and needs a > 2-D cone integral, which is where mBART itself stopped.
 Cost/risk: change moves aid mixing (docs/design/change-move-balance.md); dropping
 them may slow the constrained chain. v1 accepts this; the children-terminal
@@ -519,7 +519,7 @@ already does, atop the tree-space sum (a) already does.
   above/below-neighbor sets and per-leaf [a,b] bounds match a brute-force box
   adjacency oracle. This is the highest-risk new code (section 1).
 - Feasibility invariants under every move: after any accepted birth/death/leaf
-  draw the tree is monotone (every leaf within its neighbor bounds); a change
+  draw the tree is monotone (every leaf within its neighbor bounds); a change/swap
   that empties a cone scores 0 and is rejected (section 5). Assert on a fuzzed
   move sequence.
 - Truncated marginal and draw: the 1-D and 2-D constrained marginals match direct
@@ -559,7 +559,7 @@ the posterior-changing baseline for this arc.
   different neighbor calculus. Not provisioned here.
 - **Joint / multivariate monotonicity** beyond per-variable (e.g. monotone in
   x1+x2 jointly). Out of scope; the constraint vocabulary is per-column signs.
-- **General change under constraint** (section 5): v2, starting with the
+- **General change/swap under constraint** (section 5): v2, starting with the
   children-terminal change move.
 - **chi-k under truncation** (section 6): v1 fixes k; reconciling the hyperprior
   with the truncated leaf law is deferred.

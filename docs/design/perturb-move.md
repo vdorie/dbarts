@@ -9,12 +9,13 @@ cut probe prices the move directly on this sampler, in section 6.1's 2026-09-07 
 ([6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)).
 Every census number below is from it.
 
-**Premise, not reopened here.** The swap move was removed pre-release (VD, 2026-09-07), its slice landing first and taking the one
-bundled baseline re-record
-([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)). The mixture is therefore `birth_death 0.6,
-change 0.4, birth 0.5`, `perturb` the fourth named element of `proposal.probs` and the third STRUCTURAL probability, and Stage 2's
-control arm that mixture. Every count below is written against the post-removal tree: the surface work is the removal's inverse, so
-each site the removal emptied is one a `perturbProbability` refills.
+**Premise, not reopened here.** The swap slice landed first and took the one bundled baseline re-record
+([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)). It dropped swap out of the DEFAULT and then
+put the move back at that default of zero, so the mixture is `birth_death 0.6, swap 0, change 0.4, birth 0.5`, `perturb` the FIFTH
+named element of `proposal.probs` and the FOURTH structural probability, and Stage 2's control arm that mixture. Every count below
+was written while the removal stood, against a tree with no swap; with the move restored a `perturbProbability` does not refill a
+`swapProbability` site but sits beside it, so each count below is a count of NEW sites and each dispatch and initializer named gains
+one element rather than replacing one.
 
 ## 1. What change does, and why a displacement is a different move
 
@@ -114,7 +115,7 @@ with `B` the [`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) 
 out of availability below. Three of `changeMove`'s checks drop - no mask pool (an ordinal rule allocates no words), no interaction
 walk (`tree.interactionSubtreeIsValid` tests co-occurrence and order of split VARIABLES, which a displacement never moves), no
 stranding check (`[lo, hi]` strands none) - and [`maintainMonotoneLeafStore`](../../src/bartcore/chain.hpp) switches only on birth
-and death, so the new `StepType` falls through as change does. The snapshot is
+and death, so the new `StepType` falls through as swap and change do. The snapshot is
 [`SubtreeSnapshot`](../../src/bartcore/tree.hpp) from [`MoveScratch`](../../src/bartcore/moves.hpp), node CONTENTS for a fixed id
 set, all a shape-preserving move needs.
 
@@ -124,7 +125,7 @@ one ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-p
 already-vetoed state the ordering runs the other way and a rank-improving proposal is accepted outright. At `w = 1` only one cut
 bin's rows cross, so the exposure is small, and it is inside the probe's band, which folded `resolveVetoRank`'s `-Inf` into its log
 ratio. PERTURB'S OWN veto share is the unrecorded `vetoed.pct` column of section 7; the 0.07 to 0.25 percent of a cell's rejections
-6.1 reports is birth, death, change and the then-live swap's, quoted here only as an order of magnitude.
+6.1 reports is birth, death, change and swap's, quoted here only as an order of magnitude.
 
 `w` counts GRID POSITIONS, and the default `useQuantiles = FALSE` lays `n.cuts` uniform cuts over the observed range whatever a
 column's distinct-value count ([`fillCutsOverRange`](../../src/bartcore/data.hpp)). On a coarse or discrete column ADJACENT SPLIT

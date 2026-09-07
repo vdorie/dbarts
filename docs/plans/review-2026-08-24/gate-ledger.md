@@ -126,16 +126,17 @@ equivalence-4d9a3337.rds (11), bench-sampler-ab1dc52.csv (speed). equivalence.ya
 compares only the gaussian .rds; the bcf and multinomial .rds are compared by exact-gates.yaml's
 per-push --cross-host step instead (Sec.1), their equivalence.yaml duplicates having been dropped.
 
-## 4. Exact-posterior gates (exact-gates.yaml, 19 scripts, quick-mode only in CI)
+## 4. Exact-posterior gates (exact-gates.yaml, 20 scripts, quick-mode only in CI)
 
 Tolerance is computed in-script per gate (z-score bound or absolute posterior-moment gap), not a shared
 constant (e.g. bcf-exact.R: 0.05 quick / 0.015 full, absolute). Scale, by grep of each script's
 n.trees/numTrees literal:
 
 - Single-tree (n.trees=1L or numTrees=1L hardcoded, in BOTH quick and full mode - "full" only
-  lengthens draws/seeds, never ensemble size): 14 of 19 - bd-balance, change-balance,
-  aft-exact, bcf-exact, bcf-exact-weak, bcf-exact-restricted, categorical-exact, linear-exact,
-  hazard-exact, hurdle-exact, t-exact, monotone-reference, negbin-exact, ordinal-exact.
+  lengthens draws/seeds, never ensemble size): 15 of 20 - bd-balance, change-balance,
+  swap-balance, aft-exact, bcf-exact, bcf-exact-weak, bcf-exact-restricted, categorical-exact,
+  linear-exact, hazard-exact, hurdle-exact, t-exact, monotone-reference, negbin-exact,
+  ordinal-exact.
 - Multi-tree: heteroscedastic-exact.R (mean forest 20L, variance forest 1-2L), multinomial-exact.R
   (mixes 1L and 50L across scenarios), hazard-reduction.R (40L fixed), hurdle-reduction.R (30L fixed),
   logistic-reference.R (ntree = 50L quick / 200L full - the only gate reaching bart()'s classic default
@@ -248,7 +249,7 @@ would silently launder a real regression into a new "expected" value.
 4. Two MANIFEST rows were mislabeled historical-classic for weeks (caught 2026-08-17, both actually
    recorded after the classic engine's deletion). RECOMMEND: add a MANIFEST lint checking
    recording-commit ordering against the classic-engine-deletion commit.
-5. 14 of exact-gates.yaml's 19 gates run at n.trees=1 unconditionally; no CI-verified exact-posterior
+5. 15 of exact-gates.yaml's 20 gates run at n.trees=1 unconditionally; no CI-verified exact-posterior
    run has ever reached either shipped ensemble default (75 or 200 trees). RECOMMEND: add an
    ensemble-scale arm to the gaussian/probit/multinomial gates.
 6. 14 of 38 benchmarks/R harnesses and all 4 tools/ scripts are invoked by no CI workflow. Five

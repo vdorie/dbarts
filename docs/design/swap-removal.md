@@ -1,10 +1,11 @@
 # Removing the swap tree-proposal
 
-Status: LANDED, 2026-09-07.
+Status: LANDED, 2026-09-07; AMENDED 2026-09-07 (swap restored at default zero, section 9).
 
 The swap move is removed from the MCMC kernel before 1.0 (VD, 2026-09-07, option A of the fork the mixing survey left open). This
 record states the decision, its evidence and exactly what the slice did; it does not reargue the call. Sections 2 to 5 are written
-in the present tense of the proposal and describe work that has since landed.
+in the present tense of the proposal and describe work that has since landed. Section 9 records the partial reversal: the move is
+back in the kernel at a default of zero, so every symbol sections 2 to 8 call deleted exists again and their cites are live.
 
 ## 1. The decision, and its evidence
 
@@ -22,7 +23,7 @@ stuck trees in either arm and x3 root shares of 0.281 against 0.283 and 0.323 ag
 
 ## 2. What is removed
 
-**retired: [`swapMove`](../../src/bartcore/moves.hpp)**, deleted, 115 lines with its template header, and everything only it uses: the swappable-node
+**[`swapMove`](../../src/bartcore/moves.hpp)**, deleted, 115 lines with its template header, and everything only it uses: the swappable-node
 collection into `MoveScratch::nodeScratch`, the `swapIsSensible` pair of `ruleIsValid` calls and the whole-subtree
 `interactionSubtreeIsValid` check behind them, the `applySwap`/`undoSwap` lambdas, the snapshot-refresh-restore path, and its two
 census macro calls. Also in that file: [`MoveContext`](../../src/bartcore/moves.hpp)'s `swapProbability` field, the `swap`
@@ -34,7 +35,7 @@ comment naming three moves, and the census legend's two swap clauses.
                                                                             else changeMove;
     now  bd = ctx.birthOrDeathProbability;  if (u < bd) birthOrDeathMove;   else changeMove;
 
-**retired: [`fillSwappable`, `rulesAreEqual`](../../src/bartcore/tree.hpp)**, both deleted, 18 lines, both with `swapMove` as their only caller;
+**[`fillSwappable`, `rulesAreEqual`](../../src/bartcore/tree.hpp)**, both deleted, 18 lines, both with `swapMove` as their only caller;
 `maskEquals` stays, the categorical change path and `Tree` itself reading it.
 **Ten sites in [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp)** - three struct fields, four
 copies into a forest (creation, `setModel`, `buildSpecifiedForest`, `buildMultinomialForest`), the variance forest's copy and the
@@ -56,7 +57,7 @@ the shipped header**: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/
 **tests/cpp: fourteen positional `MoveContext` initializers, plus five assignments.** The swap probability is the FOURTH element of
 a positional aggregate initializer, so dropping the field binds a `double` to `const double* weights` - a hard compile error, not a
 silent one. Twelve are in tests/cpp/test_moves.cpp, which the slice must edit though it names no swap move; two survive in
-tests/cpp/test_interaction.cpp and a third goes with **retired: [`testSwapSiblingStrand`](../../tests/cpp/test_interaction.cpp), deleted**,
+tests/cpp/test_interaction.cpp and a third goes with **[`testSwapSiblingStrand`](../../tests/cpp/test_interaction.cpp), deleted**,
 81 lines, whose shape - a swap co-occurring a forbidden pair with neither swapped variable the stranded one - is unreachable without
 the move, `testChangeStrandInvariant` keeping the walk gated. The five assignments are two in test_sampler.cpp, three in
 test_model.cpp.
@@ -65,7 +66,7 @@ test_model.cpp.
 .github/workflows/exact-gates.yaml - the gate-list token and the header comment's "(birth/death, change, swap detailed balance)" -
 plus benchmarks/README.md's balance-gate roster, which spells "swap-balance = swap" in prose, and strips poison 5, whose `find`
 text was verbatim `swapMove`'s `swapIsSensible` block
-(["m05 went with the swap move it poisoned"](../../benchmarks/R/mutation-battery.R)).
+(["m05"](../../benchmarks/R/mutation-battery.R)).
 
 ## 3. The surface
 
@@ -249,7 +250,8 @@ bcf-exact-weak E[tau] 0.0012, bcf-exact-restricted E[mu] 0.0007, multinomial-exa
 **Gates.** tests/cpp 277 ok, all tests passed, and the same under `-fsanitize=address,undefined`; the count is 278 less
 `testSwapSiblingStrand`. tinytest 7449 tests, 0 failures. `air format --check`, `lintr::lint_package()`,
 `tools/check-doc-freshness.R` and `tools/check-rc-codoc.R` all clean. The refusal poison: deleting
-[`refuseRemovedProposalNames`](../../R/model.R) fails exactly the tinytest that pins it, and restoring it passes.
+retired: [`refuseRemovedProposalNames`](../../R/model.R) - the helper is itself gone, deleted by section 9's reversal - failed
+exactly the tinytest that pinned it, and restoring it passed.
 `DBARTS_C_API_HASH` is unchanged.
 
 **Two tests were pinned on the old stream rather than on semantics** and were rewritten to their intent rather than re-valued:
@@ -278,3 +280,51 @@ re-record with its own MANIFEST row. The MOVE CENSUS has not been re-run at the 
 addendum, and [5. Benefit, pre-registered](perturb-move.md#5-benefit-pre-registered) still recomposes those rates arithmetically
 from the swap-carrying census. The SBC matrix has not been run since the landing; section 4 says it pins no ranks, so nothing is
 owed there beyond one run of the matrix and a verdict only where an arm flags.
+
+## 9. Reversal: the move returns at default zero
+
+The removal is PARTIALLY reversed (VD, 2026-09-07). The swap move is back in the kernel and `swap` is again a legal name in
+`proposal.probs`; the SHIPPED DEFAULT is unchanged, `birth_death 0.6, swap 0, change 0.4, birth 0.5`. Sections 1 to 8 stand as the
+record of the removal and of the evidence for zeroing the move at production forest sizes, which is not revisited.
+
+**The evidence is a one-tree exact-posterior gate.** `benchmarks/R/hazard-exact.R` fits ONE tree on two live columns and compares
+the sampler's subject-level hazard against a brute-force enumeration over the 62 reachable trees. At the two-move kernel it FAILS,
+max hazard gap 0.0120 against a full-mode tolerance of 0.004; at the three-move kernel the same gate reads 0.0008. Across the full
+sweep that is 20 of 21 gates passing at the two-move kernel against 21 of 21 at the three-move one. The mechanism is specific to a
+single tree: [`changeMove`](../../src/bartcore/moves.hpp) redraws a node's split variable and then its cut from the
+descendant-valid set, so once the splits BENEATH the root depend on the root's own variable no new variable has a valid cut there
+and the proposal no-ops; [`swapMove`](../../src/bartcore/moves.hpp) is the only move that rotates a child's rule UP, which is how a
+one-tree chain crosses between rootings. Section 1's own measured cost - 5 of 40 chains parked on an x3 root at `m = 1`
+([10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)) - is the same failure seen
+through a different statistic. At 50 and 200 trees the ensemble self-averages it away, so nothing about the shipped default changes.
+
+**Bitwise neutrality holds in the other direction.** Section 4's identity is symmetric: with `swapProbability = 0.0` the dispatch
+test `u < bd + 0.0` is `u < bd` exactly, so restoring the branch moves no draw at the shipped default. The three canonical
+baselines recorded at fbff1989 replay 50/50, 12/12 and 11/11 bitwise from the restored build, gaussian with
+`--strict-coverage` and zero `max |z|` lines, and the four seeded-drift tripwires pass UNCHANGED. Nothing is re-recorded.
+
+**What the slice did.** Restored from 39692087: `swapMove` with its helpers and dispatch branch, `MoveContext::swapProbability`,
+`StepType::swap` and the two census macro calls; `fillSwappable` and `rulesAreEqual`; the swap-probability field on
+[`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp) and on
+[`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp); the bridge's parsed field, slot read,
+three-term sum check, creation printout and four copies, with
+[`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp)'s literal at 0.6 / 0.0 / 0.4; the fourteen positional
+`MoveContext` initializers, the five assignments and
+[`testSwapSiblingStrand`](../../tests/cpp/test_interaction.cpp); `benchmarks/R/swap-balance.R` with its exact-gates token and header
+clause and benchmarks/README.md's roster line; and poison 5
+(["m05"](../../benchmarks/R/mutation-battery.R)). The surface keeps the new numbers everywhere: six R default vectors and the
+monotone comparison default at `birth_death 0.6, swap 0, change 0.4, birth 0.5`, the monotone rewrite at `birth_death 1, swap 0,
+change 0, birth 0.5`, [`dbartsModel`](../../R/A_class.R)'s `p.swap` slot back with prototype 0 and a three-term validity sum, and
+the one-NA fill and both sum-to-one tolerance paths over three names. `refuseRemovedProposalNames` is deleted, and
+["a caller-supplied three-move mixture"](../../inst/tinytest/test-proposal-probs.R) replaces the tinytest that pinned it: the
+three-name surface, a one-tree fit created and run at `swap = 0.1`, the printout, and the round trip.
+
+**The one-tree gates now ask for the move.** Every exact-posterior gate that fits a single tree and whose creation path accepts a
+caller mixture passes `birth_death 0.5, swap 0.1, change 0.4, birth 0.5` explicitly, with one header sentence saying why: aft-,
+categorical-, linear-, hazard-, hurdle-, t-, negbin-, ordinal- and heteroscedastic-exact, logistic-reference, and
+multinomial-exact's one-tree arm. Four cannot and stay at the shipped default: the BCF two-forest path reads
+[`ForestStructureSpec`](../../src/bartcore/combiner.hpp)'s own struct defaults and refuses a non-default mixture (bcf-exact,
+bcf-exact-weak, bcf-exact-restricted, bcf-latent-exact), and monotone-reference's constraint rewrites the mixture birth/death-only.
+Those five remain the standing one-tree exposure. bd-balance and change-balance set their own mixtures and are untouched; the P2
+surface scripts regain the swap-carrying arm, named `swap`, so
+[10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)'s rows reproduce again.

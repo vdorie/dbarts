@@ -11,7 +11,8 @@ census asked for; **section 14 measures recovery after a response swap,
 2026-09-06**, which finds that section 13's null does NOT extend to a moving
 response - dropping the change move costs 20 to 25 percent more sweeps to
 re-adapt after a large swap, while dropping swap costs nothing. That last
-finding was acted on: the swap move is REMOVED from the kernel
+finding was acted on: the shipped default now sets swap to zero, the move
+itself staying in the kernel for the single-tree case
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)),
 so every "shipped default" in this document describes the mixture in force
 when it was written, not the one that ships. Nothing else here is proposed
@@ -110,37 +111,39 @@ this package, all established by the grow-from-root default study
 ## 2. What the sampler can and cannot do today
 
 `metropolisJumpForTree` ([`metropolisJumpForTree`](../../src/bartcore/moves.hpp)) draws one uniform per tree
-per sweep and dispatches to exactly one of two kernels:
+per sweep and dispatches to exactly one of three kernels:
 
 ```
 u < birthOrDeathProbability          -> birthOrDeathMove
+u < birthOrDeath + swapProbability   -> swapMove
 else                                 -> changeMove
 ```
 
-Shipped mixture `birth_death = 0.6, change = 0.4, birth = 0.5`
+Shipped mixture `birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5`
 (`defaultProposalProbs` [`defaultProposalProbs`](../../R/model.R), `dbarts()`'s
 `proposal.probs` [`dbarts`](../../R/dbarts.R), engine defaults
 [`SamplerOptions`](../../src/bartcore/chain.hpp)).
-`StepType` is `{birth, death, change}` ([`StepType`](../../src/bartcore/moves.hpp)): the
-"three-move set" is two kernels with three labels. The sweep is
+`StepType` is `{birth, death, swap, change}` ([`StepType`](../../src/bartcore/moves.hpp)): the
+"four-move set" is three kernels with four labels. The sweep is
 Gauss-Seidel over trees; the variance forest runs the identical kernel
 ([`sweepVarianceForest`](../../src/bartcore/chain.hpp)).
 
-Everything below that discusses a swap move was written while the kernel had
-one, at `birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5`. The move
-is gone; those passages are the record that produced its removal, not a
-description of what runs.
+Everything below that discusses a swap move at a positive weight was written
+while the shipped default carried `birth_death = 0.5, swap = 0.1, change =
+0.4, birth = 0.5`. The move is still in the kernel and still reachable
+through `proposal.probs`; only the default moved.
 
 - **Birth** picks a leaf uniformly among those with a usable variable and
   draws the new splitting rule from the prior, so the rule's prior density
   cancels in the acceptance ratio. One split, at the fringe.
 - **Death** removes one split, at the fringe, among nodes with no
   grandchildren.
-- **Swap**, until its removal, exchanged the rules of a parent and one child:
-  shape-preserving, symmetric, no proposal correction, and unable to lift a
-  rule more than one level. It is deleted, and
-  [`metropolisJumpForTree`](../../src/bartcore/moves.hpp) no longer dispatches
-  to it (retired: [`swapMove`](../../src/bartcore/moves.hpp)).
+- **Swap** exchanges the rules of a parent and one child. It preserves the
+  tree's shape, is symmetric, and carries no proposal correction
+  ([`swapMove`](../../src/bartcore/moves.hpp)). It cannot lift a rule more than one level.
+  It ships at probability zero, being nearly all no-op at production forest
+  sizes, and is the only move that rotates a rule up the tree, which a
+  single-tree fit needs.
 - **Change** picks uniformly among all non-leaf nodes *including the root*,
   redraws the split variable from the prior, then the cut point uniformly
   over the descendant-valid set. **The entire skeleton below the node is
@@ -883,10 +886,9 @@ though it lifted unique trees visited 1.83 -> 3.07.
   winning rule built by `growCategoricalRule` [`growCategoricalRule`](../../src/bartcore/grow.hpp)), so an ordinal-only rotation
   would now be scoping narrower than the builder rather than matching it.
 - *Interaction constraints.* A rotation lifts one variable above another -
-  the same class of break the swap move guarded with
-  [`interactionSubtreeIsValid`](../../src/bartcore/tree.hpp), which survives the
-  move's deletion because the change move calls it too. That guard is
-  written; note that swap's symmetry additionally relied on a parent's rule
+  the same class of break that `swapMove` already guards with
+  `tree.interactionSubtreeIsValid` ([`swapMove`](../../src/bartcore/moves.hpp)). That guard is
+  written; note that swap's symmetry additionally relies on a parent's rule
   never equalling a non-selected child's, which holds because
   `splitInterval` gives a child a strictly interior interval. Rotation
   would have to re-establish the analogous property from scratch.
@@ -1330,10 +1332,9 @@ The nearest precedent is `benchmarks/R/change-fix-instrumentation.R` (285
 lines), which did exactly this shape of engine instrumentation before:
 environment-variable-gated CSV logging from data the move already computes,
 the RNG stream untouched, logging switched on only after a silent burn-in,
-and the engine patch reverted before commit. The correctness gate has an
-in-repo template in `bd-balance.R` (237 lines); `swap-balance.R`, the third
-of the three balance gates, went with the move it gated. The grow-from-root
-battery, which the *default* decision would
+and the engine patch reverted before commit. The correctness gate has two
+in-repo templates in `swap-balance.R` (407 lines) and `bd-balance.R` (237
+lines). The grow-from-root battery, which the *default* decision would
 eventually need, is not in `benchmarks/` and per its own section 8 must be
 reconstructed from the pre-registration rather than recovered.
 
@@ -1370,9 +1371,8 @@ Stage 0 output freezes, before any Stage 2 contrast is looked at: the
 window-width grid, the dosage grid, the per-replicate standard errors, and
 every threshold.
 
-Both addenda below were measured with the swap move in the kernel, at the
-mixture then shipped; their swap rows are the evidence the move was removed
-on and describe a move the sampler no longer has
+Both addenda below were measured at the former default, where swap carried
+0.1; their swap rows are the evidence the default dropped it to zero
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)).
 
 **Addendum (2026-09-06): the first bullet is now measured.** A scaffold
@@ -3183,8 +3183,8 @@ same 0.4 weight with swap set to zero and is indistinguishable from A on all
 four primary contrasts and on every secondary one, in either direction; B,
 which drops both moves, is the only arm that separates. Swap contributes
 nothing measurable to recovery, which is what section 6.1's addendum already
-predicts from the other side: 73.0 percent of swap proposals were no-ops
-(retired: [`swapMove`](../../src/bartcore/moves.hpp), deleted with the move).
+predicts from the other side: 73.0 percent of swap proposals are no-ops
+([`swapMove`](../../src/bartcore/moves.hpp)).
 
 **Recovered mixing does not separate.** Post-swap ESS is flat across arms in
 all eight shift x sigma cells; the largest |t| on ESS anywhere in the
@@ -3210,11 +3210,12 @@ retargeted signal demands, while swap only exchanges a parent's rule with a
 child's and cannot introduce a variable the tree does not already carry
 ([`metropolisJumpForTree`](../../src/bartcore/moves.hpp)).
 
-**This is what removed the swap move.** Arm C is the mixture that ships:
-change keeps its 0.4, swap's 0.1 goes to birth/death, and the kernel drops
-the move altogether
+**This is what dropped swap out of the default.** Arm C is the mixture that
+ships: change keeps its 0.4 and swap's 0.1 goes to birth/death. The move
+itself stays in the kernel - at one tree it is the only proposal that rotates
+a rule up, which no default at production forest sizes can speak to
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)).
-Change stays, which this section is the evidence for. What the ledger now
+Change stays too, which this section is the evidence for. What the ledger now
 says about dropping change: a user who sets `proposal.probs` to birth/death
 only gets section 13's same answers 8 to 16 percent faster on a fixed
 response, and pays 20 to 25 percent more sweeps to re-adapt when the response
