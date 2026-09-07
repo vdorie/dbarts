@@ -1,10 +1,11 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
-is no reverse count.
+is no reverse count - on the branch-rank stratum the empty-leaf veto's own lexicographic law makes current, which section 2.2 states
+and which is the whole of the correctness argument under a weight mask or a routed missing row.
 [15.3 Cross-lens ranking](tree-mixing-proposals.md#153-cross-lens-ranking) ranked it first of ten mechanisms on a validity argument
 and left two questions open; both have since been measured, by the nog probe of
 [6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)'s
@@ -42,13 +43,14 @@ At a nog node `u`, the candidate set is every (available ordinal variable `v`, a
 [`Tree::collectAvailableVariables`](../../src/bartcore/tree.hpp)'s availability set at `u`. Both read ANCESTORS only, and at a nog node
 [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) coincides with `splitInterval` because there are no descendants to keep
 satisfiable. So the neighbourhood does not depend on the incumbent rule, and neither does the node's member set - a rule change
-repartitions those members, it does not change which rows are there. Three consequences, and they are the whole correctness argument:
-the candidate set is identical from every state in it; its normalizer is the same before and after the draw; and no proposal count
-survives into the acceptance.
+repartitions those members, it does not change which rows are there. Three consequences: the candidate set is identical from every
+state in it; its normalizer is the same before and after the draw; and no proposal count survives into the acceptance. Section 2.2
+restricts that set to one branch-rank stratum, which is ancestor-determined in the same way and carries the same three consequences;
+everything below reads on the stratum.
 
 The weight of a candidate is the tree posterior restricted to `u`'s rule, every factor that does not read it having cancelled:
 
-    log w(v, c) = scanScore(v, c)                                  the two children's collapsed marginals
+    log w(v, c) = S(v, c)                                          the children's collapsed marginals, 2.2's rank-0 sum
                 + log P_splitvar(v)                                VARIES only under DART
                 - log |SI_v(u)|  (- log 2 if the node routes NAs)  VARIES across variables
                 + log(1 - growth(left)) + log(1 - growth(right))   VARIES across candidates
@@ -61,44 +63,91 @@ prior `1/|SI_v|`, constant within a variable and different between them, which i
 candidate leaves that child no available variable at all, `log(1 - base/(1 + depth)^power)` otherwise. The split-variable factor
 [`CGMTreePrior::splitVariableLogProbability`](../../src/bartcore/model.hpp) is `-log(numAvailable)` and cancels under the default
 prior; under DART it is `log(p_v / total)` and does NOT, so the kernel carries a per-variable `log splitProbabilities[v]` term the
-probe omits. The census identity of section 5 is therefore stated at `dart = FALSE`, which is what the census ran.
+probe omits. The census identity of section 5 is therefore stated at `dart = FALSE`, which is what the census ran. `S` is the
+scan's entry wherever both children carry positive weight, which is every candidate with no mask installed and no missing member at
+the node; section 2.2 gives it in general.
 
-Draw `(v, c)` from the normalized weights. Acceptance is one; no [`resolveVetoRank`](../../src/bartcore/moves.hpp) comparison, no
-snapshot-and-restore, no `logProposalCorrection`. Node selection is uniform over the eligible nog nodes and its reciprocal cancels
-because that set is invariant under the move: shape is preserved, so `fillNoGrand`'s set does not move
-([`Tree::fillNoGrand`](../../src/bartcore/tree.hpp)), and NO NOG NODE IS AN ANCESTOR OF ANOTHER - a node with an interior descendant is
-not nog - so changing `u`'s rule cannot move any other nog node's availability set either.
+Draw `(v, c)` from the normalized weights. Acceptance is one; no pairwise [`resolveVetoRank`](../../src/bartcore/moves.hpp)
+comparison - 2.2 does that law's work in the enumeration instead - no snapshot-and-restore, no `logProposalCorrection`. Node
+selection is uniform over the eligible nog nodes and its reciprocal cancels because that set is invariant under the move: shape is
+preserved, so `fillNoGrand`'s set does not move ([`Tree::fillNoGrand`](../../src/bartcore/tree.hpp)), and NO NOG NODE IS AN ANCESTOR
+OF ANOTHER - a node with an interior descendant is not nog - so changing `u`'s rule cannot move any other nog node's availability
+set either.
 
 Three of `changeMove`'s guards drop outright. No mask pool, an ordinal rule allocating no words. No stranding walk. And no interaction
 walk: `tree.interactionSubtreeIsValid` exists because a redrawn variable can strand a descendant SPLIT, and a nog node has none, so
 `collectAvailableVariables`'s own interaction test at `u` is the whole constraint.
 
-### 2.2 The veto, and the missing direction
+### 2.2 The veto's law, and what the scan must emit
 
-`scanOrdinalCuts` scores a cut with a zero-weight side as [`cutScanEmptySentinel`](../../src/bartcore/scan.hpp), `-inf`, so such a
-candidate carries weight exactly zero and is excluded. That is the right restriction and not merely a convenient one: the shipped
-kernel's veto is LEXICOGRAPHIC on [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), so from a rank-0 state every rank-worsening
-proposal is rejected outright and the chain is reversible with respect to the posterior TRUNCATED to occupancy-admissible trees
-([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)). The Gibbs draw over the
-surviving candidates is the exact full conditional of that truncated target. The incumbent is always among them, its own two children
-being rank-0 by the invariant every other site enforces
-([`Tree::bottomNodesAreOccupied`](../../src/bartcore/tree.hpp)), so the neighbourhood is never empty.
+**The scan's occupancy test is not the veto's, and the gap is what defines the neighbourhood.**
+[`scanOrdinalCuts`](../../src/bartcore/scan.hpp) writes [`cutScanEmptySentinel`](../../src/bartcore/scan.hpp), `-inf`, when either
+side's weight over the NON-MISSING bins is non-positive, and on that branch it writes the sentinel to both missing directions and
+computes neither side's marginal. The veto reads something else. [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) is 2 when a leaf
+holds no member, 1 when it holds members but no positive weight and 0 otherwise, all three off the leaf's ACTUAL index span with any
+routed missing rows in it; [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) takes a branch's rank as the maximum over its
+leaves and its log-likelihood as the marginal summed over the RANK-0 leaves alone; and
+[`resolveVetoRank`](../../src/bartcore/moves.hpp) applies that pair LEXICOGRAPHICALLY - a rank-improving proposal takes `-HUGE_VAL`
+on the current side and is accepted outright, a rank-worsening one takes it on the proposal side and is refused, and at equal ranks
+the finite parts are compared as they always were.
 
-**Where the sentinel is not enough, and it decides section 5.** The veto is rank-RELATIVE. A weight or mask install can strand a whole
-branch at rank 1 - members but no positive weight - and from there the shipped moves compare finite parts and mix under prior x
-transition. The scan's sentinel tests WEIGHT, so under an all-zero weight vector every candidate is excluded, the neighbourhood is
-empty, and the kernel is inert exactly in the configuration the house's cheap balance gates run in. **A, weight occupancy only**: the
-kernel no-ops from a rank-1 state; free, correct, and it costs the prior-only gate arm. **B, a rank-aware scan**: give
-`scanOrdinalCuts` an optional per-candidate rank out-parameter, defaulted null so [`growTreeFromRoot`](../../src/bartcore/grow.hpp)'s
-call is untouched and bitwise unchanged, and let the kernel keep the candidates whose rank is no worse than the current branch's.
-About fifteen lines. **RECOMMEND B**: it makes the kernel's veto semantics identical to `changeMove`'s rather than merely equal on the
-common case, and it is the only thing that lets section 5's prior-only arm run at all.
+Two states where the two laws disagree, and both are reachable.
+
+- **A routed missing row.** At a node holding missing members, a cut whose non-missing members all fall one way with the missing rows
+  routed the other leaves both children positive weight and branch rank 0, while the scan sentinels both of its directions.
+  [`changeMove`](../../src/bartcore/moves.hpp) installs exactly that rule - at a nog node
+  [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) collapses to [`Tree::splitInterval`](../../src/bartcore/tree.hpp), ancestors
+  only and no member test, and the missing direction is a fair coin - so a scan-defined neighbourhood need not contain the incumbent,
+  and a draw that leaves a positive-target state with probability one and cannot return is reversible with respect to nothing.
+- **An installed weight mask.** Weights do not ride the tree, so a mask install strands whole branches at rank 1 - members but no
+  positive weight - and from there the shipped moves compare finite parts and mix under prior x transition. The sentinel tests
+  WEIGHT, so under an all-zero mask every candidate is sentinelled and the neighbourhood is empty, which is exactly the configuration
+  the house's cheap balance gates run in.
+
+**So the scan has to emit per SIDE, not per branch.** A single branch-rank flag cannot reconstruct the score: a MIXED candidate, one
+child rank 0 and the other rank 1, has branch rank 1 and a log-likelihood equal to the rank-0 child's marginal alone, and the
+sentinel path never computes it. **A, weight occupancy only**: read the scan as it stands and no-op from a rank-1 branch. Free, and
+still wrong under routing unless the kernel also detects an incumbent it did not enumerate and no-ops there too; it costs section 5's
+prior-only arm outright. **B, a rank-aware scan**: an optional out-parameter, defaulted null so
+[`growTreeFromRoot`](../../src/bartcore/grow.hpp)'s call is untouched and bitwise unchanged, carrying per candidate the two SIDES'
+ranks under the ROUTED occupancy and the marginal summed over the rank-0 sides. About forty lines rather than fifteen: the routed
+count and weight are carried per side, and the sentinel branch computes the surviving side's marginal instead of skipping both.
+**RECOMMEND B.** It is what puts the kernel on the veto's own law rather than on a law that merely agrees with it in the common case,
+and it is the only thing that lets section 5's prior-only arm run at all.
+
+**The neighbourhood is a rank STRATUM, and that is what makes the draw exact.** For a candidate `(v, c, s)` - `s` the missing
+direction where the node routes missing rows - write `r_L` and `r_R` for its two sides' ranks and `S(v, c, s)` for the marginal
+summed over its rank-0 sides. Then `r = max(r_L, r_R)` is `logLikelihoodForBranch`'s rank for that candidate and `S` is its
+log-likelihood, candidate for candidate. Candidates of rank 2 are dropped absolutely: no move may install a member-empty leaf even
+from a vetoed state, the membership law [`Tree::bottomNodesAreOccupied`](../../src/bartcore/tree.hpp) every site outside the move
+kernels enforces. Let `r*` be the smallest rank the survivors carry. **The kernel draws over the `r*` stratum ALONE**, weighting each
+of its members by section 2.1's `log w` with `S` as the marginal term. The law has two cases and they are not the same law:
+
+- **`r*` equals the incumbent's rank.** The ordinary case, and the only one that occurs with no mask installed and no missing member
+  at the node. The stratum contains the incumbent and is ancestor-determined, so it is identical from every state in it, and the draw
+  IS the exact full conditional of the shipped chain's own target restricted to it: at `r* = 0` the posterior truncated to
+  occupancy-admissible trees
+  ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)), at `r* = 1` the prior
+  times `exp S`, which is what the shipped moves compare when ranks are equal. Acceptance is one.
+- **`r*` is strictly better than the incumbent's.** The incumbent is outside the stratum and this is NOT a Gibbs step. It is a
+  Metropolis-within-Gibbs step with acceptance one, which is what `resolveVetoRank` already gives every rank-improving proposal, and
+  it is valid for the reason the shipped moves are: the better stratum is absorbing, no rank-worsening proposal ever being accepted,
+  so the chain enters it in one step and is stationary there. No stationarity is claimed for the stratum it leaves.
+
+`r*` is never WORSE than the incumbent's rank, so the stratum is never empty: `collectAvailableVariables` and `splitInterval` both
+ignore `u`'s own rule, so the incumbent is always a candidate, and its own rank is at most 1 because every site outside the move
+kernels enforces `bottomNodesAreOccupied`. With no weight vector installed the incumbent is rank 0 and the stratum is the whole
+occupied candidate set - the rank-0 law is [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp), and tree.hpp's own note is
+that it and the membership law agree exactly there.
 
 **The missing direction is part of the candidate exactly when the node routes a missing row.** `scanOrdinalCuts` returns `2 * numCuts`
 entries then, scoring the direction rather than leaving it to a coin, and the rule prior widens by the same factor two the candidate
 count does - which is what the probe's `doubled` branch does. Where the column declares missing values but the NODE holds none, both
-directions score identically, so enumerating the cut once at prior `1/|SI_v|` is the exact collapsed weight and the direction is drawn
-from its own conditional, a fair coin, after the cut. Reproducing this convention is what puts the kernel on the probe's numbers.
+directions score identically, so enumerating the cut once at prior `1/|SI_v|` is the exact collapsed weight and the direction is
+drawn from its own conditional, a fair coin, after the cut. That convention is the kernel's and the probe's;
+[`CGMTreePrior::ruleForVariableLogProbability`](../../src/bartcore/model.hpp) takes its `- log 2` from the COLUMN instead, so the two
+differ by `log 2` per variable at such a node - which is what section 5's identity has to be stated around rather than a defect in
+either.
 
 ### 2.3 A categorical variable at the node
 
@@ -125,19 +174,26 @@ frontier: a moved cut there reroutes members through a fixed skeleton and no pre
 One scan per available ordinal variable over the nog node's members, against `changeMove`'s single pass over the same members. In
 cut-scan units - one `scanOrdinalCuts` pass over a node's members for one variable, so a full pass over `n` is about `L` units at `L`
 leaves per tree - a nog node holds two leaves' worth of members, about `2n/L`, so a proposal costs `2 p_avail` units against change's
-2. Per sweep, at the full change share (`m = 75`, one proposal per tree per sweep, 0.4 of them change) and the census's own
-leaves-per-tree and target-nog shares:
+2. The kernel picks its node uniformly among the ELIGIBLE NOG NODES, so it scans on every proposal a non-stump tree gets - every
+binary tree carrying a split has a nog node - and the multiplier is `1 - stump%`, NOT the census's `target-nog%`, which is the share
+of change proposals landing on a nog node and so a statistic of `changeMove`'s uniform-over-interior-nodes selection rather than of
+this kernel's. Per sweep, at `m = 75` and one proposal per tree per sweep,
 
-    cell      p    L     target-nog%   units/sweep at d = 0.4   a sweep's own traffic
-    default   10   2.83     71.9              431                       637
-    lownoise  10   3.79     62.7              376                       853
-    wide      50   2.53     76.5             2295                       569
-    c1        30   2.52     77.3             1391                       567
+    units/sweep = m x d x (1 - stump%) x 2 x p_avail
+
+against the census's own leaves-per-tree and stump shares:
+
+    cell      p    L     stump%   units/sweep at d = 0.4   a sweep's own traffic
+    default   10   2.83    2.4            586                      637
+    lownoise  10   3.79    0.5            597                      853
+    wide      50   2.53    7.5           2775                      569
+    c1        30   2.52    6.1           1690                      567
 
 The last column is `3 m L`, three full passes over `n` per tree for the residual, the leaf statistics and the fit rebuild - an
-estimate, not a measurement. **At C1 the move costs about 1390 cut-scan units a sweep at the full change share and 557 at
-`d = 0.16`, so it roughly doubles a sweep at the dosage section 6 runs.** `bcf` is absent because its treatment forest refuses a
-non-default `proposal.probs` outright.
+estimate, not a measurement. A cut-scan unit is a pass over `n/L` rows, so `L` cancels out of the move's own column and the units are
+not commensurable ACROSS cells; only the ratio to a cell's own traffic is. **At C1 the move costs about 1690 cut-scan units a sweep at
+the full change share and 676 at `d = 0.16`, so a sweep at the dosage section 6 runs costs 2.19 times what it costs today.** `bcf` is
+absent because its treatment forest refuses a non-default `proposal.probs` outright.
 
 **Two restricted variants, both priced by the same probe.** *Cut-only Gibbs* holds the incumbent variable and enumerates its cuts: ONE
 scan, the pass change already makes, acceptance still one - the variable is a deterministic function of the state and the restricted
@@ -160,10 +216,11 @@ gate for a saving the cut-only variant already has without either.
 
 The scan is templated on [`ScalarLeafModel`](../../src/bartcore/model.hpp) and the probe gates on
 [`ScannableLeafModel`](../../src/bartcore/moves.hpp), a scalar leaf carrying the four-argument `(k, sigma^2, sum w, sum wz)` marginal.
-That admits [`ConstantGaussianLeaf`](../../src/bartcore/model.hpp) and nothing else the engine ships, so the move is available for
-every response family whose mean forest carries a constant leaf: gaussian directly, the latent families (probit, logistic, ordinal,
-nbinom, multinomial, aft, hazard) through the working response and weights the scan reads exactly as `computeLeafStats` does, and
-heteroscedastic through the composed weights.
+That admits [`ConstantGaussianLeaf`](../../src/bartcore/model.hpp) and, because it forwards the same four-argument marginal,
+[`MonotoneConstantGaussianLeaf`](../../src/bartcore/model.hpp), which the guard below excludes on a different conjunct and not on the
+scan predicate. So the move is available for every response family whose mean forest carries a constant leaf: gaussian directly,
+the latent families (probit, logistic, ordinal, nbinom, multinomial, aft, hazard) through the working response and weights the scan
+reads exactly as `computeLeafStats` does, and heteroscedastic through the composed weights.
 
 Three fallbacks, all of which `changeMove` serves today and must keep serving - it is templated on `MoveScorableLeafModel` and runs
 for all of them. [`LinearGaussianLeaf`](../../src/bartcore/model.hpp) is a vector leaf and
@@ -218,22 +275,30 @@ the all-unnamed guard becomes `perturb == 0 && rule_gibbs == 0`; the frozen test
 **C++, five files.** In src/bartcore/moves.hpp: the kernel beside [`perturbMove`](../../src/bartcore/moves.hpp), a fifth probability
 on [`MoveContext`](../../src/bartcore/moves.hpp), a sixth enumerator on [`StepType`](../../src/bartcore/moves.hpp), the dispatch
 branch, a fifth argument to [`structureIsFrozen`](../../src/bartcore/moves.hpp), and the census hooks and legend the other kernels
-carry. src/bartcore/scan.hpp takes section 2.2's rank out-parameter. Then TWELVE in
+carry. src/bartcore/scan.hpp takes section 2.2's per-side rank and
+rank-admitted marginal out-parameter. Then TWELVE in
 [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp) - three struct fields, four copies into a
 forest, the variance forest's copy, the two `MoveContext` initializers and the two `structureIsFrozen` call sites - and THREE in
 [`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp), without which the move is unreachable
 from BCF and multinomial fits and silently zero. EIGHT in
-[`parseModel`, `refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp): the parsed field, the slot read, the sum
-check's fifth term, the creation printout, the `SamplerOptions` copy, the two-forest refusal's hard-coded mixture, the forest spec
-copy and `setModel`'s copy. Twenty-three probability sites outside the kernel file.
+[`ParsedModel`, `parseModel`, `printInitialSummary`, `optionsFromParsed`, `refuseUnsupportedAmplitudeComposition`, `buildMultinomialSampler`, `bartcore_setModel`](../../src/R_interface_bartcore.cpp),
+spread over seven declarations and not the two a shorter list implies: `ParsedModel`'s field; `parseModel`'s slot read and its sum
+check's fifth term; `printInitialSummary`'s creation printout; `optionsFromParsed`'s `SamplerOptions` copy;
+`refuseUnsupportedAmplitudeComposition`'s hard-coded two-forest mixture; `buildMultinomialSampler`'s forest-spec copy; and
+`bartcore_setModel`'s parameter copy. **Twenty-three probability SITES outside the kernel file** - twelve chain.hpp, three
+combiner.hpp, eight bridge. That is a count of SITES; the count of FILES below is a different quantity, and no longer the same
+number.
 
-**tests/cpp, two files: SEVENTEEN positional `MoveContext` initializers**, fourteen in tests/cpp/test_moves.cpp and three in
-tests/cpp/test_interaction.cpp. The probability block sits ahead of `const double* weights`, so a short initializer binds that pointer
-to a `double` - a hard compile error, which is what makes the count safe. **Four Rd files** (man/dbarts.Rd, man/bart2.Rd,
+**tests/cpp, THREE files.** SEVENTEEN positional `MoveContext` initializers, fourteen in tests/cpp/test_moves.cpp and three in
+tests/cpp/test_interaction.cpp: the probability block sits ahead of `const double* weights`, so a short initializer binds that pointer
+to a `double` - a hard compile error, which is what makes the count safe. And FOUR positional `structureIsFrozen` calls in
+[`testFrozenForest`](../../tests/cpp/test_sampler.cpp), which the same mechanism breaks - `structureIsFrozen` takes four required
+doubles and no defaulted argument - so they are four more edits, not four to dodge: giving the fifth argument a default would give up
+the compile-error safety this paragraph rests on everywhere else. **Four Rd files** (man/dbarts.Rd, man/bart2.Rd,
 man/dbartsSpec.Rd usage and argument text; man/bart.Rd argument text alone). **SIX tinytest files**: test-proposal-probs.R,
 test-argument-surface.R's pinned default, test-bcf-creation.R's refusal literal, test-spec.R and test-monotone.R's slot reads, and
 test-sum-to-one-tolerance.R, whose three-name regression must keep failing where it fails today. **Plus inst/NEWS.Rd.**
-**Twenty-three files.** Roughly 200 lines of kernel and scan, 60 across the surface sites, 150 of tests.
+**Twenty-four files.** Roughly 230 lines of kernel and scan, 60 across the surface sites, 150 of tests.
 
 **The flat C header does not move** and no stored state does:
 [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) takes the model as a `SEXP`, so no proposal
@@ -244,11 +309,12 @@ probability crosses the ABI and no `LinkingTo` consumer recompiles.
 Two arms, and unlike perturb's the second is mandatory: the prior-only arm exercises the node selection, the enumeration and the prior
 factors but NOT one scan entry, and the scan-weighted draw is the whole new mechanism.
 
-**The prior-only arm and its target.** Under an all-zero weight mask every leaf holding rows is rank 1, the rank-0 set is empty, the
-likelihood difference is exactly 0 and - given section 2.2's rank-aware neighbourhood - every candidate's weight collapses to its
-prior factors alone. The kernel is then reversible with respect to the CGM prior TRUNCATED to member-occupied trees and renormalized,
-the same target [4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer) names. **The design makes the
-truncation vacuous, and is chosen to make both poisons resolvable**: two ordinal columns as a FULL FACTORIAL, x1 on 6 distinct values
+**The prior-only arm and its target.** Under an all-zero weight mask every leaf holding rows is rank 1 and every leaf holding none is
+rank 2, so `r*` is 1, section 2.2's stratum is exactly the member-occupied candidate set, `S` is 0 across all of it and every
+candidate's weight collapses to its prior factors alone. The kernel is then reversible with respect to the CGM prior TRUNCATED to
+member-occupied trees and renormalized, the same target
+[4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer) names. **The design makes the truncation
+vacuous, and is chosen to make both poisons resolvable**: two ordinal columns as a FULL FACTORIAL, x1 on 6 distinct values
 and x2 on 2, at least one row per cell of the 12, `useQuantiles = TRUE` so the induced grids are 5 cuts and 1, and
 `tree.prior = cgm(0.95, 0.5)`. The lopsided cut counts are what give poison (ii) its size; the low `power` is what gives poison (i)
 its size, deepening trees so a candidate can exhaust a child.
@@ -269,18 +335,41 @@ The root's six candidates then carry equal weight: x1's cuts go 0.095 to 0.15833
 (-67 percent), the same low-cardinality bias in mirror image that
 [The gate](change-move-balance.md#the-gate) repaired. Both effects are diluted by the arm's other shares; the arm is
 `birth_death 0.10, change 0.10, rule_gibbs 0.80`, change retained because statistic 1 needs a mechanism at a non-nog root and
-birth/death because statistic 2 moves through nothing else. Batch-means z per retained state, Holm at family alpha 0.05, and the run
-length taken from the same ladder perturb's gate uses ([`firstUnder`](../../benchmarks/R/perturb-balance.R)); the masked sweep costs
-the move machinery alone on 12 rows, so length is nearly free and statistic 3's conditioning, not the run, is what has to be paid for.
+birth/death because statistic 2 moves through nothing else.
+
+**The run, sized against [4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer)'s template, clause for
+clause.** States of prior mass below 0.004 are dropped by the same pre-stated rule, the leaf count's tail pooled into a `>= j` bin
+the dynamic program fixes ahead of the run: statistic 1 keeps all seven states and statistic 3 all five, statistic 2 at most twelve,
+so the family is at most **`m = 24`**. Batch-means z per retained state, Holm at family alpha 0.05, thresholds running from
+`|z| = 1.96` (least strict) to `|z| = 3.08` (strictest, at `m = 24`). **Run length 4 chains x 250,000 kept draws at `n.thin = 20`**,
+batch means over 500 batches of 500 consecutive kept draws per chain, the four independent chains pooled as perturb's gate pools them
+([`batchMeanSE`](../../benchmarks/R/change-balance.R) is the same estimator at one chain). **Burn-in 20,000 sweeps per chain**,
+discarded before the batching and sized off the leaf count, the slowest statistic here as there: birth/death holds 0.10 of the one
+proposal a tree gets per sweep, so that is roughly 2,000 dimension proposals against a support of 1..12. The script does not assume
+it - it reads the first lag at which each statistic's kept-draw autocorrelation falls under 0.1
+([`firstUnder`](../../benchmarks/R/perturb-balance.R), the BURN-IN adequacy ladder and not a run-length rule) and refuses to score a
+run whose burn-in is under fifty of those lags, doubling and re-running instead. **The undiluted detection floors**, at the family's
+strictest threshold: about 210 effective draws for poison (i) on statistic 3's end states, about 205 for poison (ii) on statistic 1's
+x1 cuts and 24 on its x2 cut. Statistic 3's are CONDITIONAL draws, so the same refuse-and-double rule covers them: the script takes
+the conditioning event's mass from the same dynamic program and refuses to score statistic 3 unless the realized conditional
+effective count clears ten times its floor. The masked sweep costs the move machinery alone on 12 rows, so length is nearly free;
+statistic 3's conditioning, not the run, is what has to be paid for.
 
 **The confirmation arm** runs the same grid with positive weights and no mask, scored against `change-balance.R`'s region dynamic
 program ([The gate](change-move-balance.md#the-gate)), and it is what tests the scan entries themselves.
 
 **The census identity, as a tests/cpp assertion rather than a script.** Assemble the neighbourhood twice at a fixed tree: once by the
-kernel, once by a reference that installs each candidate rule and calls
-[`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) and `logLikelihoodForBranch` directly. Require agreement to 1e-12
-on every candidate. That is stronger than agreeing with `census::nogProbe`, which the census build's own 3.7e-13 already records, and
-it does not need the census build to run.
+kernel, once by a reference that installs each candidate rule, calls [`Tree::refreshSubtree`](../../src/bartcore/tree.hpp) - without
+it [`ConstantGaussianLeaf`](../../src/bartcore/model.hpp)'s per-node marginal reads the STALE cached `sumWeights` and
+`sumWeightedResponse`, which is why `changeMove` refreshes before it scores - and only then calls
+[`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) and `logLikelihoodForBranch`. Two things cannot be asserted per
+candidate as they stand. The `- log 2` for a missing direction is the column's in `ruleForVariableLogProbability` and the node's in
+the kernel, so on a column declaring missing values at a node holding none the two differ by `log 2` per variable; and a rank-1
+candidate's reference score has to be `logLikelihoodForBranch`'s partial sum, not a full branch marginal. **The assertion's fixture is
+therefore a design with no missing values and no mask installed**, where neither qualification bites and the identity holds candidate
+by candidate at 1e-12; the missing-data convention is asserted separately, PER CUT summed over its two directions, which is the form
+in which it is exact. That is stronger than agreeing with `census::nogProbe`, which the census build's own 3.7e-13 already records,
+and it does not need the census build to run.
 
 ## 6. Benefit, pre-registered
 
@@ -293,12 +382,16 @@ turns the primary from coverage into minimum ESS
 
 **Two arms, matched seeds, twenty pairs.** **A**, the shipped mixture, which reads 15(8-31) summed minimum ESS on Trig+poly. **B**,
 `rule_gibbs d` taken from change. **Dosage: `d` in `{0.16, 0.32}`.** `d = 0.40` is excluded, and the reason is sharper here than it
-was for perturb: change lands on a nog node 77.3 percent of the time at `c1`, so a full share does not merely make change the Gibbs
-draw - it leaves the 34.8 percent of `c1`'s interior nodes that are NOT nog with no mechanism that moves their rule at all. **The primary is the summed minimum ESS over C1's 25 fixed points at the +8 bar**, the bar
+was for perturb - stated in its two DIFFERENT denominators, which the census keeps apart. `target-nog%` is 77.3 at `c1`, the share of
+change PROPOSALS landing on a nog node, so a full share strands the other 22.7 percent of that traffic; `nog%` is 65.2, the share of
+`c1`'s INTERIOR NODES that are nog, so the 34.8 percent that are not would be left with no mechanism that moves their rule at all.
+It is the second that decides the exclusion. **The primary is the summed minimum ESS over C1's 25 fixed points at the +8 bar**, the bar
 [5.1 The chain configuration, and what it makes the primary statistic](perturb-move.md#51-the-chain-configuration-and-what-it-makes-the-primary-statistic) derives from the cell's own spread and which
-the eight move-set arms already recorded on that cell calibrate at a paired standard error of 1.8 to 2.5. Four secondaries at
-[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s own margins, all must-not-degrade: coverage at
--0.010 absolute against arm A's 0.961, held-out RMSE at a ratio above 1.02, interval length reported, and cost as below.
+the eight CELLS already recorded there - four move-set arms crossed with two mean functions, not eight arms - calibrate at a paired
+standard error of 1.8 to 2.5. TWO secondaries at
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s own margins, both must-not-degrade: coverage at
+-0.010 absolute against arm A's 0.961, and held-out RMSE at a ratio above 1.02. Interval length is REPORTED and carries no margin,
+6.4 setting none for it; cost is not a secondary here at all but a conjunct of the kill, below.
 
 **Controls, as [5.3 What arm B must produce, and the kill](perturb-move.md#53-what-arm-b-must-produce-and-the-kill) has them.** The
 bitwise null at `d = 0`, which slice 1 runs and which is 6.4's own first absolute gate. A sham arm, A against A at twenty FRESH
@@ -306,31 +399,45 @@ sampler seeds, whose paired difference must sit inside the +8 bar. And P1's rung
 runs. A flagged cell takes a mandatory fresh-seed re-run before the flag counts
 ([6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally)).
 
-**Cost, and why it is not wall time.** 6.4's "wall time per sweep at a ratio above 1.05" cannot be met and it would be dishonest to
-pretend otherwise: section 2.4 prices the move at roughly a doubled sweep at `d = 0.16` on `c1`, and 10.4's host carried a load of 9
-to 67 throughout its runs, so ESS per second measured there would be noise
-([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)). **RECOMMEND measuring cost as the
-CUT-SCAN COUNT**, a deterministic count the census build already produces - nog proposals times available ordinal variables - reported
-per sweep beside the primary; and, as the cost-adjusted secondary, ONE equal-cost arm on a quiet machine in which arm A is given the
-sweep count that ratio buys it. The draws-based primary answers whether the kernel mixes better; the equal-cost arm answers whether it
-should ever be a default, which is slice 4's question anyway.
+**Cost, its instrument, and why it is not wall time.** 6.4 carries TWO cost-bearing metrics, "wall time per sweep" at a ratio above
+1.05 and "minimum ESS over 25 fixed points, per second" at a ratio below 0.90, and neither can be read here. Section 2.4 prices the
+move at 2.19 sweeps at `d = 0.16` on `c1`, so both would fire by construction; and 10.4's host carried a load of 9 to 67 throughout
+its runs, so a per-second statistic measured there would be noise in any case
+([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)). **Cost is measured as the CUT-SCAN
+COUNT instead, and the census build does not produce it today.** The `g` record's legend carries `scanned` and `jointCandidates`,
+which counts finite-weight (variable, cut) PAIRS and is not `p_avail`; there is no available-ordinal-variable column; and the hook
+that writes `g` sits inside `changeMove`, which at a nonzero `rule_gibbs` share is the branch the dispatch does not take. The
+instrument is therefore a NEW census hook in the new kernel and a new column beside
+[`nogNames`](../../benchmarks/R/move-census.R) - proposals reaching an eligible nog node, ordinal variables scanned, and their
+product per sweep - and it is a slice 1 deliverable, not a free read. The census build draws nothing and restores every byte it
+touches, so a census run at slice 3's own seeds and mixture reproduces the arm's chain exactly and its scan count IS the arm's.
+Beside it, as the cost-adjusted secondary, ONE equal-cost arm on a quiet machine in which arm A is given the sweep count that ratio
+buys it; that arm is where 6.4's per-second question is actually answered. The draws-based primary answers whether the kernel mixes
+better; the equal-cost arm answers whether it should ever be a default, which is slice 4's question anyway.
 
-**The rooting-lock probe.** P2's duplicate-column cell at `m = 1`, must-not-degrade, and it is where the move's reach can be stated
-exactly. The shipped mixture parks 5 of 40 chains on an x3 root, change being vetoed once a child splits on x1
+**The rooting-lock probe, as a control and not as a place the move can act.** P2's duplicate-column cell at `m = 1`,
+must-not-degrade. The shipped mixture parks 5 of 40 chains on an x3 root, change being vetoed once a child splits on x1
 ([10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)). At `m = 1` the ROOT IS NOG ONLY
-WHEN THE TREE HAS ONE SPLIT. So the Gibbs draw resolves the rooting exactly and in one step whenever the tree is down to two leaves -
-it draws the root's variable from its full conditional rather than proposing one - and it can do NOTHING for a parked deeper tree,
-where the root is not nog and the move cannot reach it. It does not rotate a rule up the tree; swap remains the only move that does.
-The threshold is arm B's mean switches per chain inside arm A's seed range, chains parked no more than 10 of 40, and pooled
-`p(root on x1)` within Monte Carlo error of 0.5.
+WHEN THE TREE HAS ONE SPLIT, and 10.1 records every one of those 5 chains at an x3 root with 3 to 4 interior nodes and a child
+already split on x1 - four to five leaves, root not nog. **The move reaches none of the recorded parked chains**, so this probe
+cannot pass by improvement and is not evidence for the move. The only cell in which a rooting effect could show is a chain that
+passes through a one-split tree, where the draw resolves the rooting exactly and in one step rather than proposing at it; none of the
+5 does. The move does not rotate a rule up the tree either; swap remains the only move that does. What the probe is for is the
+mechanism the move DISPLACES: arm B's mean switches per chain inside arm A's seed range, chains parked no more than 10 of 40, and
+pooled `p(root on x1)` within Monte Carlo error of 0.5, all as must-not-degrade controls on the change share `d` takes away.
 
 **Kill criterion. KILL if, at `d = 0.16` on the shipped four-chain configuration, arm B does not improve C1's summed minimum ESS over
-arm A by more than +8, over at least 20 matched pairs, with a mandatory fresh-seed re-run of any flagged cell before a flag counts.**
-Departures from [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered), each stated: the
-statistic is minimum ESS rather than coverage, which has no headroom at 0.961; the cell is C1 rather than the low-noise cell, three
-shipped mixtures being indistinguishable on P1; the wall-time conjunct is replaced by the cut-scan count above, which is a LOOSER
-gate on this move than 6.4's and is why the equal-cost arm is mandatory rather than optional; and 6.4's plateau-error clause needs a
-stratum no cell here measures and belongs to slice 4.
+arm A by more than +8 over at least 20 matched pairs; OR if arm B's cut-scan cost, read off the instrument above, exceeds 2.4
+sweep-equivalents against section 2.4's own predicted 2.19. A mandatory fresh-seed re-run of any flagged cell before a flag counts.**
+FIVE departures from [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered), each stated.
+(a) The statistic is minimum ESS rather than coverage, which has no headroom at 0.961. (b) The cell is C1 rather than the low-noise
+cell, three shipped mixtures being indistinguishable on P1. (c) 6.4's second conjunct, arm C against arm D, is dropped with arm C, so
+the kill fires on B's failure alone rather than on B's and C's together - STRICTER than 6.4, and the same departure
+[5.3 What arm B must produce, and the kill](perturb-move.md#53-what-arm-b-must-produce-and-the-kill) names. (d) BOTH of 6.4's
+cost-bearing metrics go: wall time per sweep and minimum ESS per second would each fire by construction on a move priced at 2.19
+sweeps, and neither is readable on 10.4's host, so the cut-scan ratio above stands in their place as the kill's cost conjunct and the
+equal-cost arm carries the per-second question. That is a LOOSER cost gate than 6.4's, which is why the equal-cost arm is mandatory
+rather than optional. (e) 6.4's plateau-error clause needs a stratum no cell here measures and belongs to slice 4.
 
 **What the design does not predict.** Perturb's pilot moved this exact statistic by +0.1 +/- 8.1, and the frozen-structure run says
 the worst C1 point's minimum ESS rises only from 1.6 to 4-21 with structure held fixed entirely - so most of that deficit survives any
@@ -352,14 +459,18 @@ consume the stream differently, which is fine off the default, and a nonzero def
 
 **Prerequisites and order.** (1) The perturb kernel at weight zero, LANDED (ab49f83a), together with the structural fill rule
 (6934e487): section 4 counts against that tree and the fill generalizes rather than being rewritten. (2) The nog probe, LANDED and
-MEASURED (6.1's third 2026-09-07 addendum): it supplies the weights the kernel must reproduce, the nog and target-nog shares section
-2.4 prices off, and the entropy columns section 2.4's variant recommendation rests on. (3) P1's absolute gate, MET. (4) The C1
+MEASURED (6.1's third 2026-09-07 addendum): it supplies the weights the kernel must reproduce, the stump share section 2.4 prices
+off, the nog and target-nog shares section 6's dosage argument reads, and the entropy columns section 2.4's variant recommendation
+rests on. (3) P1's absolute gate, MET. (4) The C1
 four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
 
-1. **The kernel, at default weight 0.** The move, section 2.2's rank-aware scan parameter, the dispatch branch and enumerator,
-   `MoveContext`'s fifth probability, `structureIsFrozen`'s fifth argument; twelve chain.hpp and three combiner.hpp sites; eight
-   bridge sites; six R default vectors, the slot, prototype and validity term, `rule_gibbs` resolved ahead of the three-name fill,
-   both `all.equal` comparisons; seventeen positional initializers in tests/cpp; four Rd, six tinytest and NEWS - twenty-three files.
+1. **The kernel, at default weight 0.** The move, section 2.2's per-side rank and rank-admitted marginal on the scan's optional
+   out-parameter, the dispatch branch and enumerator, `MoveContext`'s fifth probability, `structureIsFrozen`'s fifth argument -
+   required, not defaulted; twelve chain.hpp and three combiner.hpp sites; eight bridge sites across seven declarations; six R
+   default vectors, the slot, prototype and validity term, `rule_gibbs` resolved ahead of the three-name fill, both `all.equal`
+   comparisons; seventeen positional `MoveContext` initializers and four positional `structureIsFrozen` calls across three tests/cpp
+   files; four Rd, six tinytest and NEWS - **twenty-four files**. Section 6's cut-scan census hook and its column land here too:
+   slice 3 cannot measure cost without them, and the ordinary build carries neither.
    Tests: bitwise neutrality; the census identity of section 5 against a reference assembly; an all-categorical no-op and a
    mixed-design test that the move fires on the ordinal-rule nodes and is a fixed point on the categorical ones; the monotone and
    variance-forest guards; and **a Gibbs-dominant walk on a two-column design small enough for the conditional to be enumerated in
@@ -369,8 +480,8 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    poisons. Roughly 450 to 550 lines; not startable before slice 1, and it is slice 1's rank-aware scan that makes the prior-only arm
    exist at all.
 3. **The Stage 2 harness and run.** Two arms at `d` in `{0.16, 0.32}`, C1's four-chain cell, the sham arm, P1's rung, P2's
-   duplicate-column cell and the equal-cost arm. Roughly 400 lines; compute on the order of a day plus the equal-cost arm's quiet
-   machine. The verdict is recorded here.
+   duplicate-column cell as a control, the equal-cost arm, and the cut-scan count read off a census build at the arms' own seeds.
+   Roughly 400 lines; compute on the order of a day plus the equal-cost arm's quiet machine. The verdict is recorded here.
 4. **The default share, if slice 3 passes** - POST-RELEASE, and its gate does not exist: 6.4's second kill clause needs plateau
    prediction error in the noise-heavy or large-n stratum, which the grow-from-root harm battery measured and benchmarks/ does not
    contain ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)). The equal-cost arm of section 6 is
