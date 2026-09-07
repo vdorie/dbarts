@@ -77,11 +77,11 @@ creation, which makes `updateScale = TRUE` a re-anchor rather than a no-op ([f7]
 | ordinal | R [[RIB#refuseBinaryWeightChange]] | R [[RIB#refusePinnedSigmaChange]] | S [[MOD#OrdinalResponse::latents]] | - [f7] | S [[RIB#bartcore_setTestPredictor]] |
 | nbinom | R [[RIB#refuseBinaryWeightChange]] | R [[RIB#refusePinnedSigmaChange]] | S [[MOD#NBResponse::latents]] | - [f7] | S [[RIB#bartcore_setTestPredictor]] |
 | multinom | R [[RIB#parseMultinomialData]] [f9] | R [[bartcore.R#refuseCountsMutation]] [f9] | R [[docs/design/multinomial.md#"reports nothing, by a DECIDED decline"]] | R [[bartcore.R#refuseCountsMutation]] [f9] | S [[RIB#bartcore_setTestPredictor]] |
-| aft | R [[RIB#refuseBinaryWeightChange]] | S [[RIB#bartcore_setSigma]] | S [[MOD#AFTResponse::latents]] | S [[MOD#AFTResponse::setOffset]] | S [[RIB#bartcore_setTestPredictor]] |
+| aft | R [[RIB#refuseBinaryWeightChange]] | S, no variance forest [[RIB#bartcore_setSigma]] / R, variance forest [[RIB#refusePinnedSigmaChange]] | S [[MOD#AFTResponse::latents]] | S, no variance forest [[MOD#AFTResponse::setOffset]] / R, variance forest [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setTestPredictor]] |
 | hazard | as probit [f5] | as probit | as probit | as probit | as probit |
 | hurdle | - [f10] | - | - | - | - |
 | bcf | S, gaussian/logistic [[RIB#bartcore_setWeights]] [f11] | S, gaussian only [[RIB#bartcore_setSigma]] [f11] | S, probit/logistic only [[CH#Chain::latents]] [f11] | R [[bartcore.R#refuseAmplitudeMutation]] | R [[RIB#refuseUndefinedTestFits]] |
-| hetero | S [[RIB#bartcore_setWeights]] | R [[RIB#refusePinnedSigmaChange]] | - [[RIB#bartcore_getLatents]] | R [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setTestPredictor]] |
+| hetero | S, gaussian [[RIB#bartcore_setWeights]] / R, aft [[RIB#refuseBinaryWeightChange]] [f13] | R [[RIB#refusePinnedSigmaChange]] | -, gaussian [[RIB#bartcore_getLatents]] / S, aft [[MOD#AFTResponse::latents]] [f13] | R [[RIB#refuseVarianceForestScaleUpdate]] | S [[RIB#bartcore_setTestPredictor]] |
 
 Mutation channels and row subsetting read off the table: `setWeights`/`setSigma`/`getLatents`
 follow their columns; `updateScale = TRUE` follows the unit-scale column (a no-op where the
@@ -159,9 +159,13 @@ same machinery through a `forest()` formula term, under an identical gate ([f6])
 
 ## 4. Composition rules
 
-A variance forest requires `family = "gaussian"`
-([[spec.R#"a variance forest requires family"]]) - heteroscedastic IS that capability, so its
-row carries no variance-forest cell - and even under gaussian refuses Student-t residuals
+A variance forest requires `family = "gaussian"` or `"aft"`
+([[spec.R#"a variance forest requires family"]], [[FAC#varianceForestIsRefused]]) -
+heteroscedastic IS that capability, so its row carries no variance-forest cell. The other four
+single-forest families - probit, logistic, ordinal, nbinom - are refused because each already
+routes precision through its own latent channel, the one a variance forest divides into; aft
+has no such channel, so under aft each censored latent is instead redrawn at its own s(x_i)
+([[MOD#AFTResponse::refreshLatents]]). Even under either family it refuses Student-t residuals
 ([[spec.R#"does not support Student-t residuals"]],
 [[docs/design/heteroscedastic.md#Student-t residuals refused]]) and monotone constraints
 ([[spec.R#"not supported with monotone constraints"]]). It never takes DART either
@@ -209,7 +213,7 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
-| A censoring-status setter, the SBC-coverage enabler | aft | docs/plans/sbc-family-tiers.md |
+| A censoring-status setter, the SBC-coverage enabler | aft, heteroscedastic aft | docs/plans/sbc-family-tiers.md |
 | Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [[generics.R#multinomialLogLik]] |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |
@@ -297,4 +301,9 @@ the forest count everywhere ([[RIB#refuseMultiForestWarmStart]]): the install ta
 slot's trees but the donor's LIVE amplitudes, and nothing tests the result above one forest
 ([[docs/design/bart-as-a-component.md#mutation-legality table]],
 [[docs/design/bcf.md#Mutation surface]]).
+
+[f13] A variance forest is built over gaussian or aft ([[FAC#varianceForestIsRefused]]); its
+row's channels otherwise follow the base family's own row, except sigma and `updateScale`,
+which the variance forest pins or refuses for both regardless of family. `setData` stays
+refused under aft as always ([[RIB#"fix the censoring structure at creation"]]).
 

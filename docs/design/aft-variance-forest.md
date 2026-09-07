@@ -187,17 +187,14 @@ needs no oracle. HONEST GAP after all four: the joint calibration of (mean fores
 censored latents) is still not SBC-tested, aft being out of that matrix until a censoring-status
 setter lands ([[docs/plans/sbc-family-tiers.md#Decision - scope]]).
 
-**(e) Matrix cells.** In [[docs/design/feature-matrix.md#Model composition]] aft's variance-forest
-cell goes R to S, citing the factory. In [[docs/design/feature-matrix.md#Mutation channels]] the
-`hetero` row gains by-family notes in the shape bcf's cells use (`setWeights` shipped for gaussian,
-refused for aft; `setData` refused for aft; `setSigma` and `updateScale` refused for every family),
-and aft's own `setSigma` cell becomes conditional on the variance forest. In
-[[docs/design/feature-matrix.md#Row subsetting, latents, calibration]] the `hetero` row changes
-twice - `getLatents` is `-` under a footnote saying gaussian and heteroscedastic leave
-`ResponseModel::latents` at its nullptr default, which `AFTResponse::latents` does not, and
-`zero-weight row subset` is S where aft refuses weights - and the pointwise-log-likelihood footnote
-needs scoping. benchmarks/R/composition-matrix.R needs no change: it probes only S and ? cells,
-deriving the probe from the matrix ([[benchmarks/R/composition-matrix.R#"extra:variance"]]).
+**(e) Matrix cells.** In [[docs/design/feature-matrix.md#4. Composition rules]] the variance
+forest's family rule names gaussian or aft, the four latent families refused for owning the weight
+channel. In [[docs/design/feature-matrix.md#1. Structural signature]] aft's sigma and unit-scale
+cells become conditional on the variance forest, and the hetero row's case-weights and latents
+cells become by-family (its footnote states the rule); the aft status-setter gap now names
+heteroscedastic aft too. benchmarks/R/composition-matrix.R needs no code change: it probes only S
+cells, derives the aft variance-forest probe from the matrix itself, and its base fixture already
+threads an extra `variance =` into the aft recipe ([[benchmarks/R/composition-matrix.R#"extra:variance"]]).
 
 ## 7. Consumers, and what stays out
 
@@ -264,4 +261,3 @@ Suite: tests/cpp 277 checks, 0 failures, clean under -fsanitize=address,undefine
 passes, 0 failures, from 7393 before. Equivalence bitwise identical on 50 gaussian, 12 bcf and 11
 multinomial scenarios - no existing family or leaf gains or loses a draw.
 
-The 6(e) feature-matrix cells are applied separately.
