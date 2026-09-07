@@ -108,6 +108,7 @@ jobs:
           extra-packages: any::BART
 
       - name: Install the package
+        id: install
         run: R CMD INSTALL .
 
       - name: Run the gates
@@ -146,14 +147,17 @@ jobs:
       # Outside the loop above on purpose: that loop passes `quick` to every
       # gate, and these baselines are recorded at FULL settings, which each
       # harness settings guard refuses to compare against a quick run. Runs
-      # even after a failing gate so one run surfaces every failure.
+      # even after a failing gate so one run surfaces every failure, but not
+      # when the install itself did not succeed: a compare against whatever
+      # dbarts the runner happens to hold reports ratios in the millions and
+      # says nothing about this commit.
       # Both compares finish in about a second on a 2020 desktop, against the
       # ~4-minute install and 30-minute timeout of this job. The bcf and
       # multinomial baseline hashes are pinned only here now - equivalence.yaml's
       # own copies were dropped as duplicates of this job's compares - so a
       # re-record repins this file alone.
       - name: Run the cross-host equivalence compares
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           fail=0
           echo "::group::bcf-equivalence --cross-host"
