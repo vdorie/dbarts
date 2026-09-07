@@ -554,6 +554,26 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### SBC: the aft arm admitted, the latent BCF arms recorded as a finding (2c766437 + cb870cf3, 2026-09-07)
+
+benchmarks/R/sbc.R's burn table now carries the measured burns (aft 4000,
+bcf-probit and bcf-logistic 12000) with their ladder evidence, the ladder
+cost fix, and n = 40 weak controls for the latent arms; .github/workflows/
+sbc.yaml gains the aft row (R = 200, thin 40, 15 minutes) and the matrix
+functional count goes from 30 to 39. Verdicts at R = 200: aft 9 of 9 PASS
+(admitted: worst ACF lag 39 under thin 40, transient inside the first
+400-sweep block); bcf-probit 12 of 13 and bcf-logistic 11 of 13, both
+inside the matrix band, but both fail the ladder clause at |a| = 5 (prior
+mass 0.126), so they are reported as a finding and not admitted; the A4e
+point (thin 150, burn 36000) shrinks every flagged channel, which reads as
+slow mixing, not a defect. The four poisons fire on their targets (link on
+the p_j, sigma on the amplitude pair, glue-sd on abs.a at R = 200) and the
+inert control is byte-identical with and without its poison. The gaussian
+arm is unchanged (7 of 7, identical ranks). Records: bcf-latent-evidence.md
+Decision 1, aft-status-setter.md slice 2, feature-matrix Gaps rows, the
+tour's SBC row, gate-ledger f49 and f50. Open: the three latent
+bcf-equivalence scenarios and their re-record.
+
 ### P1, the battery's known-positive control, built and run (27685833, 2026-09-07)
 
 benchmarks/R/surfaces/P1-friedman.R and P1-friedman-census.R, with a
