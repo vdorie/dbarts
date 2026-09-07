@@ -575,8 +575,10 @@ print(x, ...)
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
   forest's `tree.prior`, exactly as the plain selector does). Gaussian
-  responses only; `resid.dist = student()` residuals are refused with it
-  too, unadjudicated rather than unsupported by design (see
+  and `"aft"` (survival) responses only - the latent families route
+  their own precisions through the channel it divides into;
+  `resid.dist = student()` residuals are refused with it too,
+  unadjudicated rather than unsupported by design (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
   `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
@@ -1532,7 +1534,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001434
+#> total seconds in loop: 0.001432
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1579,7 +1581,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001606
+#> total seconds in loop: 0.001669
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

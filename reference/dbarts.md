@@ -285,14 +285,22 @@ dbarts(
   object, which additionally sets the variance forest's own tree count
   (default `40`) and tree-structure prior (default the mean forest's
   `tree.prior` `base`/`power`); a `varianceForest` with no `vars` reads
-  every predictor, matching `TRUE`. Gaussian responses and constant
-  leaves only; monotone constraints and the latent families are not
-  supported. `resid.dist = student()` residuals are also refused
-  together with `variance` - unadjudicated (whether the variance
-  forest's weight-channel routing composes with them) rather than
-  unsupported by design. The per-tree leaf prior is calibrated from the
-  residual (`resid.prior`) hyperparameters so that a constant variance
-  surface reproduces the homoscedastic `sigma` posterior. The fit gains
+  every predictor, matching `TRUE`. Gaussian and `"aft"` (survival)
+  responses and constant leaves only; monotone constraints and the
+  latent families (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`),
+  which route their own precisions through the channel the variance
+  forest divides into, are not supported. Under `"aft"` the model is
+  \\\log T = f(x) + s(x)\epsilon\\, so the dispersion of log survival
+  time varies with \\x\\ and each right-censored observation's latent
+  log-time is redrawn at its own \\s(x_i)\\;
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  then divides by that surface rather than a scalar.
+  `resid.dist = student()` residuals are also refused together with
+  `variance` - unadjudicated (whether the variance forest's
+  weight-channel routing composes with them) rather than unsupported by
+  design. The per-tree leaf prior is calibrated from the residual
+  (`resid.prior`) hyperparameters so that a constant variance surface
+  reproduces the homoscedastic `sigma` posterior. The fit gains
   posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
   an `"s"` attribute with \\s(x)\\ at new predictors (requires
   `keepTrees`). \\s(x)\\ is the fit's residual scale wherever one is
