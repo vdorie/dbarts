@@ -554,6 +554,28 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The perturb kernel: a same-variable cut move at default zero (ab49f83a, 2026-09-07)
+
+Slice 1 of docs/design/perturb-move.md: perturbMove (src/bartcore/moves.hpp)
+displaces one interior node's ordinal cut by at most one grid position,
+keeping its split variable and the tree's shape; eligible nodes are the
+interior nodes on an ordinal column, so the selection density cancels, and the
+window-count ratio over findGoodOrdinalRules's ancestor-invariant interval is
+the whole surviving proposal correction. metropolisJumpForTree dispatches it
+third (birth/death + swap + perturb, change the else), so at probability zero
+the added test is the swap test in IEEE and no draw moves. proposal.probs
+gains perturb as a fourth structural probability, defaulting to c(birth_death
+= 0.6, swap = 0, change = 0.4, perturb = 0, birth = 0.5); it resolves ahead of
+the three-name fill rather than joining it (fillZeroDefaultProposalProbs in
+R/model.R and the dbartsModel initializer), so every vector that resolved
+before resolves identically, and naming only the zero-default moves is an
+error. Gates: tests/cpp 279 (plus testPerturbMove), ASAN/UBSAN clean; tinytest
+7605/0; equivalence trio bitwise 50/12/11; all 22 exact gates quick and
+hazard-exact full (0.0008/0.0005); a perturb-dominant one-tree probe (1947
+equal-node-count pairs, zero variable-set changes); lint 0; as-cran OK, zero
+notes; NEWS 296; API hash unchanged. Not here: perturb-balance.R (slice 2) and
+the minimum-ESS benefit study (slice 3).
+
 ### SBC: the aft arm admitted, the latent BCF arms recorded as a finding (2c766437 + cb870cf3, 2026-09-07)
 
 benchmarks/R/sbc.R's burn table now carries the measured burns (aft 4000,

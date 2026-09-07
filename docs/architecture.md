@@ -205,15 +205,19 @@ interaction-constraints.md for containment.
 
 ## Tree moves
 
-`src/bartcore/moves.hpp` holds birth/death, change, and swap: the conjugate
-Metropolis-Hastings proposals and their acceptance ratios, as free functions
-templated on `MoveScorableLeafModel`. `metropolisJumpForTree` (a free
-function in moves.hpp, called from `Chain`) is the per-iteration, per-tree
-entry: it draws a step type (`StepType::birth/death/swap/change`) and
-dispatches to the corresponding move function. Swap ships at probability
-0 - at production forest sizes it is nearly all no-op - but it is the only
-move that rotates a child's rule up the tree, so a single-tree fit wanting
-to cross between rootings sets it positive through `proposal.probs`.
+`src/bartcore/moves.hpp` holds four structural moves: birth/death, change,
+swap and perturb, the conjugate Metropolis-Hastings proposals and their
+acceptance ratios, as free functions templated on `MoveScorableLeafModel`.
+`metropolisJumpForTree` (a free function in moves.hpp, called from `Chain`)
+is the per-iteration, per-tree entry: it draws a step type
+(`StepType::birth/death/swap/change/perturb`) and dispatches to the
+corresponding move function. Swap and perturb both ship at probability 0.
+Swap - at production forest sizes it is nearly all no-op - is the only move
+that rotates a child's rule up the tree, so a single-tree fit wanting to
+cross between rootings sets it positive through `proposal.probs`. Perturb
+displaces one interior node's ordinal cut by a single grid position, keeping
+its split variable and the tree's shape; it ships at zero pending a benefit
+measurement (docs/design/perturb-move.md).
 
 Every candidate branch's empty-leaf veto is ranked
 (`Tree::leafVetoRank`, [`resolveVetoRank`](../src/bartcore/moves.hpp)): rank 2 is

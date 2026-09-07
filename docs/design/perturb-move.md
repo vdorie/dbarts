@@ -1,6 +1,6 @@
 # perturb: a same-variable cut move
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a).
 
 A fourth tree kernel that keeps a node's split variable and displaces only its cut, by a small fixed number of grid positions.
 [4.2 A same-variable cut move ("perturb") - the first tree-space candidate](tree-mixing-proposals.md#42-a-same-variable-cut-move-perturb---the-first-tree-space-candidate)
@@ -582,6 +582,26 @@ Then, in order:
    test-sum-to-one-tolerance.R still failing where it fails today, the fill preserving every resolution
    test-proposal-probs.R pins, a perturb-dominant run that changes cuts and never a variable or a shape, and the
    interval-invariance assertion.
+
+   **Landed** (ab49f83a, 2026-09-07). Vector position went the other way from this section's "FIFTH named
+   element": the four structural names group together, so [`defaultProposalProbs`](../../R/model.R) reads
+   `birth_death 0.6, swap 0, change 0.4, perturb 0, birth 0.5` - perturb fourth, ahead of `birth`, not fifth
+   after it. Three further points the design left to the implementation: the all-unnamed branch of
+   [`dbartsModel`](../../R/model.R)'s `initialize` method needed a `perturb == 0` guard, since without it
+   `c(perturb = 0.16)` alone would fall through to the default instead of tripping the "name at least one
+   of" refusal; the residual is grouped `1 - (perturb + sum(named))`, one subtraction, rather than
+   `1 - perturb - sum(named)`, two; and test-sum-to-one-tolerance.R gained a four-name `makeFullModel` twin
+   beside the original `makeModel` rather than an edit to it, so the three-name regression the file guards
+   keeps running unchanged. `fillZeroDefaultProposalProbs` (R/model.R) fills the omitted name for
+   `resolveSamplerSpec`'s two `all.equal` comparisons, per the trap above.
+
+   Gates (independent run): tests/cpp 279 including `testPerturbMove` (interval invariance, window count, a
+   400-step perturb-dominant walk, the all-categorical no-op), ASAN/UBSAN clean; tinytest 7605/0; equivalence
+   trio bitwise 50/12/11 against the fbff1989 baselines, which stand; all 22 exact gates quick and
+   hazard-exact full (0.0008 / 0.0005); a perturb-dominant one-tree probe (1947 equal-node-count pairs, zero
+   variable-set changes) and an explicit-zero-versus-default `identical()` probe; lint 0; R CMD check
+   --as-cran OK, zero notes; NEWS 296 entries; API hash unchanged. Not landed: `perturb-balance.R` (slice 2)
+   and the Stage 2 benefit run (slice 3).
 2. **`perturb-balance.R`.** The prior-only arm on the full factorial, the exact-posterior confirmation arm, both poisons. Roughly
    400 to 500 lines; not startable before slice 1.
 3. **The Stage 2 harness and run.** Two arms, the three named cells and the two controls at `w = 1, d = 0.16`, twenty matched pairs,
