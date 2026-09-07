@@ -72,6 +72,23 @@
 # contrast is paired within one session. Both perturb arms are PILOT levels,
 # not a confirmatory run of the perturb design.
 #
+# A further arm changes no setting at all, only the seed:
+#
+#   independent75pool4sham         the shipped mixture again, on the same data
+#                                  seeds but at sampler seeds offset by 1000.
+#                                  It is the same kernel as its control, so
+#                                  its paired difference measures the
+#                                  harness's own seed-to-seed spread, which is
+#                                  what a bar on that difference has to clear.
+#
+# Two run options steer the seeds rather than the arms. An arm's samplerOffset
+# shifts that arm's sampler seed alone, leaving its data seed where the
+# control's is, which is what makes the sham arm a second draw on the same
+# data. `seedBlock=k` shifts the data-seed and sampler-seed index together by
+# whole blocks of the replicate count, so block 2 runs seeds 21 to 40 and a
+# flagged contrast can be re-run on seeds no arm has seen. A bare mean
+# function name restricts the run to that mean function.
+#
 # Every arm's chain settings live in the arms list, so the six above keep the
 # paper's single chain. Pooled arms are fit with combineChains = FALSE and
 # report, beside the pooled coverage: minimum ESS summed over chains, the
@@ -81,7 +98,8 @@
 # Near 0 the chains agree; near 1 each sits in its own place and pooling is
 # what widens the interval.
 #
-# Usage: Rscript C1-he-hahn.R [outputDir] [quick] [arm ...]
+# Usage: Rscript C1-he-hahn.R [outputDir] [quick] [seedBlock=k] [meanFn ...]
+#                             [arm ...]
 
 source(
   file.path(
@@ -95,6 +113,22 @@ args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 
 nReplicates <- if (quick) 2L else 20L
+
+# `seedBlock=k` moves the replicate index on by whole blocks, so block 1 is
+# replicates 1 to nReplicates and block 2 the next nReplicates. Both the data
+# seed and the sampler seed are indexed by it, so a block is a set of seeds no
+# other block has drawn: this is the fresh-seed re-run the battery's rule
+# requires of a flagged cell.
+seedBlockArg <- grep("^seedBlock=", args, value = TRUE)
+seedBlock <- if (length(seedBlockArg) > 0L) {
+  as.integer(sub("^seedBlock=", "", seedBlockArg[1L]))
+} else {
+  1L
+}
+if (is.na(seedBlock) || seedBlock < 1L) {
+  stop("seedBlock must be a positive integer")
+}
+
 n <- if (quick) 2000L else 10000L
 nTest <- 1000L
 p <- 30L
@@ -115,6 +149,8 @@ published <- data.frame(
 # chain at the top-level burn-in and sample counts. `prefix` asks for a second
 # set of readouts from the first that many kept draws of each chain. `probs`
 # is a proposal mixture; NULL leaves it unset, which is the shipped one.
+# `samplerOffset` adds to the sampler seed and to nothing else, so an arm
+# carrying one sees its control's data at a different MCMC stream.
 armSpec <- function(
   design,
   nTrees,
@@ -123,7 +159,8 @@ armSpec <- function(
   armBurn = nBurn,
   armSamples = nSamples,
   prefix = NA_integer_,
-  probs = NULL
+  probs = NULL,
+  samplerOffset = 0L
 ) {
   list(
     design = design,
@@ -133,7 +170,8 @@ armSpec <- function(
     nBurn = armBurn,
     nSamples = armSamples,
     prefix = prefix,
-    probs = probs
+    probs = probs,
+    samplerOffset = samplerOffset
   )
 }
 
@@ -209,24 +247,44 @@ arms <- list(
       perturb = 0.16,
       birth = 0.5
     )
+  ),
+  independent75pool4sham = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    samplerOffset = 1000L
   )
 )
 
 # The move-set arms above are read against the shipped mixture at the same
-# chain configuration, so that arm is their paired control.
+# chain configuration, so that arm is their paired control. The sham arm is
+# read the same way and is that reading's calibration: it differs from the
+# control in nothing but its sampler seed.
 movesetControl <- "independent75pool4"
 movesetArms <- c(
   "independent75pool4bd",
   "independent75pool4swap",
   "independent75pool4perturbB",
-  "independent75pool4perturbMixed"
+  "independent75pool4perturbMixed",
+  "independent75pool4sham"
 )
-selectedArms <- intersect(names(arms), args)
+armNames <- names(arms)
+selectedArms <- intersect(armNames, args)
 if (length(selectedArms) > 0L) {
   arms <- arms[selectedArms]
 }
 
-outputDir <- surfacesOutputDir(args, flags = c("quick", names(arms)))
+selectedMeanFunctions <- intersect(meanFunctions, args)
+if (length(selectedMeanFunctions) > 0L) {
+  meanFunctions <- selectedMeanFunctions
+}
+
+outputDir <- surfacesOutputDir(
+  args,
+  flags = c("quick", seedBlockArg, armNames, meanFunctions)
+)
 
 # 25 evenly spaced held-out rows carry the ESS, as the move-set grid does.
 essPoints <- as.integer(round(seq(1, nTest, length.out = 25L)))
@@ -357,7 +415,8 @@ for (which in meanFunctions) {
   for (armName in names(arms)) {
     arm <- arms[[armName]]
     for (replicate in seq_len(nReplicates)) {
-      set.seed(surfacesDataSeed("C1", paste0(which, arm$design), replicate))
+      seedIndex <- (seedBlock - 1L) * nReplicates + replicate
+      set.seed(surfacesDataSeed("C1", paste0(which, arm$design), seedIndex))
       data <- surfacesHeHahn(n, nTest, p, which, kappa, design = arm$design)
       call <- list(
         data$x,
@@ -372,7 +431,7 @@ for (which in meanFunctions) {
         n.grow.sweeps = arm$growSweeps,
         combineChains = arm$nChains == 1L,
         verbose = FALSE,
-        seed = surfacesSamplerSeed(replicate)
+        seed = surfacesSamplerSeed(seedIndex) + arm$samplerOffset
       )
       if (!is.null(arm$probs)) {
         call$proposal.probs <- arm$probs
@@ -401,7 +460,7 @@ for (which in meanFunctions) {
         chainSummaries[[length(chainSummaries) + 1L]] <- list(
           meanFunction = which,
           arm = armName,
-          replicate = replicate,
+          replicate = seedIndex,
           points = essPoints,
           mean = chainSummary$mean,
           lower = chainSummary$lower,
@@ -422,7 +481,7 @@ for (which in meanFunctions) {
       rows[[length(rows) + 1L]] <- data.frame(
         meanFunction = which,
         arm = armName,
-        replicate = replicate,
+        replicate = seedIndex,
         nChains = arm$nChains,
         nBurn = arm$nBurn,
         nSamples = arm$nSamples,
@@ -486,7 +545,7 @@ for (which in meanFunctions) {
         "%-12s %-14s rep %2d  cover %.3f  len %.2f  rmse %.2f  %.0fs\n",
         which,
         armName,
-        replicate,
+        seedIndex,
         rows[[length(rows)]]$coverageTrain,
         rows[[length(rows)]]$lengthTrain,
         rows[[length(rows)]]$rmseTrain,
@@ -686,6 +745,7 @@ surfacesSave(
     chainSummaries = chainSummaries,
     settings = list(
       nReplicates = nReplicates,
+      seedBlock = seedBlock,
       n = n,
       nTest = nTest,
       p = p,

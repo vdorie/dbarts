@@ -179,6 +179,18 @@ Trig+poly for the interaction and Single index for the rotated ridge.
   coverage and RMSE, and for the control arm alone the per-chain 95%
   intervals at the 25 ESS points and how far they overlap. Both perturb
   levels are pilots, not a confirmatory run of the perturb design.
+- A sham arm, `independent75pool4sham`, is that control arm again on the same
+  data seeds at sampler seeds offset by 1000. Its kernel is the control's,
+  so its paired difference against the control is the harness's own
+  seed-to-seed spread, which is what calibrates a bar placed on any other
+  arm's difference.
+- Two run options steer the seeds rather than the arms. An arm's
+  `samplerOffset` shifts that arm's sampler seed alone and leaves its data
+  seed where the control's is, which is what makes the sham arm a second draw
+  on the same data. `seedBlock=k` shifts the data-seed and sampler-seed index
+  together by whole blocks of the replicate count, so `seedBlock=2` runs seeds
+  21 to 40 and a flagged contrast can be re-run on seeds no arm has seen. A
+  bare `trigpoly` or `singleindex` restricts the run to that mean function.
 
 ## Conventions
 
