@@ -1,6 +1,6 @@
 # level: an exact Gibbs draw on the level fibre
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e); SLICE 3 RUN 2026-09-07: KILLED, the primary reads -0.9 and -2.5 against a +8 bar (ca92c11f).
 
 A leaf-value step, not a tree kernel. Add a constant `c_t` to every occupied leaf of tree `t`, with the constants summing to zero
 across the forest's trees: the fitted function is unchanged exactly, so the conditional of the shift vector on that subspace is the
@@ -338,6 +338,96 @@ lock is a connectivity failure in TREE space - two rootings separated by rule ch
 space, so no leaf step can cross it. P2 stays a must-not-degrade cell (switches per chain within arm A's own seed range, parked
 chains no worse) and is not a cell the step can win on.
 
+**Verdict (2026-09-07).** The harness ran arm B and the stacked arm on the shipped four-chain cell over twenty matched pairs,
+both mean functions, with the control re-run in the same session, and re-ran the control and arm B on a fresh block of twenty
+seeds. It reproduces [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s own
+`independent75pool4` rows digit for digit at both blocks and on both mean functions. Absolute readings, mean over seeds
+(min-max):
+
+    mean fn      arm                                seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4                 1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4level            1-20   0.963(0.930-0.976)  4.65    1.13  14(6-24)       2(1-2)     0.79
+    trigpoly     independent75pool4ruleGibbsBlevel  1-20   0.942(0.914-0.960)  4.01    1.08  35(16-64)      2(2-3)     0.57
+    trigpoly     independent75pool4                 21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4level            21-40  0.964(0.951-0.981)  4.68    1.12  14(6-28)       1(1-2)     0.79
+    singleindex  independent75pool4                 1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4level            1-20   0.896(0.880-0.920)  6.48    1.91  15(8-26)       2(1-2)     0.65
+    singleindex  independent75pool4ruleGibbsBlevel  1-20   0.898(0.867-0.923)  6.59    1.98  36(17-63)      3(2-5)     0.39
+    singleindex  independent75pool4                 21-40  0.891(0.868-0.911)  6.43    1.93  15(9-27)       2(1-2)     0.67
+    singleindex  independent75pool4level            21-40  0.891(0.874-0.909)  6.46    1.93  17(9-25)       2(1-2)     0.70
+
+Paired differences against each row's own control on its own seeds, mean +/- sd (seeds positive of 20):
+
+    mean fn      arm                                seeds  d min ESS (sum)                d per-chain min ESS     d 95% coverage                    d RMSE, ratio
+    trigpoly     independent75pool4level            1-20   -0.9 +/- 6.4 (9/20) t -0.61    +0.01 +/- 0.19 t 0.22   +0.002 +/- 0.008 (13/20) t 1.14   +0.012 +/- 0.114, ratio 1.011
+    trigpoly     independent75pool4level            21-40  -2.5 +/- 8.0 (9/20) t -1.41    -0.06 +/- 0.21 t -1.21  -0.000 +/- 0.007 (11/20) t -0.27  +0.026 +/- 0.069, ratio 1.024
+    trigpoly     independent75pool4ruleGibbsBlevel  1-20   +19.9 +/- 15.4 (19/20) t 5.76  +0.63 +/- 0.43 t 6.57   -0.019 +/- 0.009 (0/20) t -9.47   -0.038 +/- 0.072, ratio 0.966
+    singleindex  independent75pool4level            1-20   -5.3 +/- 8.2 (6/20) t -2.90    -0.01 +/- 0.28 t -0.23  +0.001 +/- 0.011 (10/20) t 0.53   -0.008 +/- 0.031, ratio 0.996
+    singleindex  independent75pool4level            21-40  +1.7 +/- 6.6 (12/20) t 1.16    +0.07 +/- 0.25 t 1.23   -0.000 +/- 0.008 (9/20) t -0.20   +0.004 +/- 0.031, ratio 1.002
+    singleindex  independent75pool4ruleGibbsBlevel  1-20   +15.0 +/- 13.4 (18/20) t 5.00  +0.86 +/- 0.66 t 5.86   +0.004 +/- 0.011 (12/20) t 1.45   +0.056 +/- 0.038, ratio 1.029
+
+Held-out RMSE ratio, in the order of the paired table: 1.012, 1.014, 0.970, 0.994, 1.002, 1.033. Wall ratio: 0.966, 0.933,
+3.629, 1.086, 0.962, 4.432. Paired standard error of the summed minimum ESS runs 1.43 to 3.45 across the six cells.
+
+**The kill fires on its first clause.** Arm B does not improve the summed minimum ESS on Trig+poly by more than +8. It reads
+-0.9 +/- 6.4 (t -0.61) at seeds 1 to 20 and -2.5 +/- 8.0 (t -1.41) at the fresh block, each over twenty matched pairs, at
+paired standard errors of 1.43 and 1.80 against a bar of +8; the sham arm's own -2.3 +/- 9.7 is the reading both of these sit
+inside. The per-chain minimum does not move with it either, +0.01 and -0.06. Single index, ungated, reads -5.3 (t -2.90) and
++1.7 (t 1.16), which disagree with each other and neither of which clears the bar. **No secondary fails**: coverage moves
++0.002, -0.000, +0.001 and -0.000 against a -0.010 margin, and held-out RMSE reads 1.012, 1.014, 0.994 and 1.002 against a
+1.02 one. The nearest thing to a flag is the fresh block's IN-SAMPLE RMSE ratio of 1.024, whose one-sided bound does not
+exclude the null (t 1.713 against a critical 1.729 at 19 degrees of freedom) and whose held-out counterpart, which is the
+metric this section pre-registered, reads 1.014.
+
+**Read as three columns, nothing moved.** The pooling paragraph above names between falling with ESS flat as the perturb
+signature and a fail. It does not occur: the between-chain ratio reads 0.79 against the control's 0.78 and 0.79 against 0.80
+on Trig+poly, 0.65 against 0.68 and 0.70 against 0.67 on Single index; the pooled interval length reads 4.65 against 4.61 and
+4.68 against 4.58; coverage is flat to the third digit. The step neither gains exploration nor loses chain diversity - it
+leaves this cell's posterior summary where it found it in every column the design named, which is a cleaner fail than
+perturb's, nothing bought and nothing spent.
+
+**The wall clause, read twice.** The same-session pairs give 0.966 and 0.933 on Trig+poly and 0.962 on Single index's fresh
+block, all inside 1.05. The one reading past it is Single index at seeds 1 to 20, 1.086, taken with three arms interleaved on
+a host carrying a 1-minute load of 4.8 to 9.7. This section forbids applying the kill to a reading like that, so the two arms
+were re-measured alone - Trig+poly, five seeds, control and arm B interleaved, one process, host load 4.2 to 6.3 - and the
+quiet ratio is **0.986 by the means, 0.988 paired, over a per-seed range of 0.915 to 1.024**. Every fit runs 4 x 1000 sweeps,
+so that ratio is the wall-per-sweep ratio, and section 2's price of about `m` operations a sweep is what it reads: nothing
+above the noise. The kill's cost conjunct is met, and the kill fires on mixing alone.
+
+**The two kernels do not stack.** `independent75pool4ruleGibbsBlevel` is
+[6. Benefit, pre-registered](nog-gibbs.md#6-benefit-pre-registered)'s arm B with the level step added, and it reads as that
+arm: +19.9 +/- 15.4 (t 5.76) against its +21.5 +/- 12.8 (t 7.51) on Trig+poly, summed minimum ESS 35(16-64) against
+36(19-53), coverage -0.019 against -0.022, between 0.57 against 0.58, held-out RMSE 0.970 against 0.979; and on Single index
++15.0 against +14.4,
+36(17-63) against 35(16-57), between 0.39 against 0.40, held-out 1.033 against 1.028. Every column is inside the pairing noise
+of the structural kernel alone, including the coverage flag that kernel carries. It is reported and gates nothing, and what it
+reports is the primary's own answer from the other side: the level step adds nothing even on top of a kernel that does move
+this cell.
+
+**The controls.** P1's rung re-ran as the absolute gate, 60 fits: default 0.725 (0.682-0.760) held-out, birthdeath 0.709, swap
+0.728, identical to
+[10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07),
+so the gate is in force. P2 is untouched by construction and takes no arm for the step: the cell fits one tree,
+[`Chain::drawLevelShift`](../../src/bartcore/chain.hpp) returns at `m < 2` before any generator call, and
+benchmarks/R/surfaces/P2-confounded-step.R's arms are bare `proposal.probs` vectors, which a control flag is not. A probe at
+that script's own quick settings - both designs, two replicates, the shipped mixture with the flag on against the flag off -
+finds the extracted trees, the root variables, the per-chain `ev` draws, `sigma` and the structure-change rate all
+`identical()`. The sham arm was not re-run: perturb's slice 3 measured it on this cell against this control at -2.3 +/- 9.7,
+paired SE 2.17, in the sham paragraph of
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial), and nog-gibbs's slice 3 rested
+on the same reading.
+
+**Residue, and what is owed.** The stacked arm ran at seeds 1 to 20 only, and the fresh block carried the control and arm B
+alone; neither is gated. Nothing else in this section's list is outstanding: the primary ran at both blocks, both
+must-not-degrade secondaries and the cost clause were read, the P1 gate is in force, P2 is settled by construction, and the
+sham stands on perturb's own measurement rather than a re-run. What the run does not overturn is the pilot: slice 2's frozen-chain rise of +189.4 and
++231.6 in the minimum ESS stands as a measurement of the residual channel with the structure held fixed, and what slice 3 adds
+is that the gain does not survive a live structural kernel - the structural half of the sweep moves the level fibre faster than
+the exact draw pays for itself, which is the connection this section said in advance it did not have. And nil on this cell is
+not nil everywhere: [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)'s plateau
+clause needs a noise-heavy or large-n stratum no cell here measures, and the linear leaf, the variance forest and the GP leaf
+are out of scope at the flag on.
+
 ## 7. RNG and baselines
 
 **At the flag off, bitwise neutral by construction**, not by coincidence: the step is guarded before any generator call, so no
@@ -428,9 +518,27 @@ Then, in order:
    `totalFits` re-accumulation. This is the residual channel alone, as section 6 scopes it, and says nothing about slice 3.
 3. **The benefit run.** Two arms on C1's four-chain cell at twenty matched pairs, the sham arm, the P1 control rung, the P2
    must-not-degrade cell. About a day of compute; the verdict is recorded here.
+
+   **Benefit run** (ca92c11f, 2026-09-07). **KILLS.** Arm B does not clear section 6's +8 bar on the gated Trig+poly cell at
+   either seed block: -0.9 +/- 6.4 (t -0.61) at seeds 1 to 20 and -2.5 +/- 8.0 (t -1.41) at seeds 21 to 40, twenty matched
+   pairs each, inside the sham's own -2.3 +/- 9.7. Every other column is flat too - coverage +0.002 and -0.000, held-out RMSE
+   1.012 and 1.014, per-chain minimum +0.01 and -0.06, between-chain 0.79 against 0.78 and 0.79 against 0.80 - so no secondary
+   flags and the pooling paragraph's perturb signature does not appear. Wall per sweep is a formality as section 2 predicted:
+   0.966 and 0.933 in the same-session pairs, and 0.986 on the quiet re-measure of the two arms alone. Single index, ungated,
+   reads -5.3 (t -2.90) and +1.7 (t 1.16). The stacked arm, arm B on top of nog-gibbs's rule_gibbs arm B, reads as that arm
+   alone in every column, so the two do not stack. Controls: P1's house rung 0.725 held-out, gate in force; P2 identical by
+   construction at one tree, proven by probe rather than by an arm. 240 C1 fits, 60 P1, 10 for the wall re-measure and 8 for
+   the P2 probe.
 4. **The default flip, and the one re-record.** Only on a slice 3 pass. It carries section 7's bundle, the
    backfit-exact.R repair of section 5 (d), and
    [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)'s independent default clause, which
    needs plateau prediction error in the noise-heavy or large-n stratum that no cell of slice 3 measures. On a slice 3 fail the step
    stays at default off as an opt-in whose measured benefit on the pre-registered cell is nil, and whether it is removed before
    release is the maintainer's call.
+
+   **Does not run** (2026-09-07). Slice 3 kills, so section 7's bundle is not paid: no equivalence baseline is re-recorded, the
+   three `fbff1989` files stand, the four seeded-drift tripwires are untouched, and the backfit-exact.R repair of section 5 (d)
+   is not owed. The step stays where slice 1 left it, behind `levelGibbs` at default off, an opt-in whose measured benefit on
+   the pre-registered cell is nil. Whether it is removed before release is the maintainer's call; the arguments on either side
+   are section 6's residue paragraph - the strata no cell here measures - against the surface and test weight of a flag nothing
+   in the battery recommends.

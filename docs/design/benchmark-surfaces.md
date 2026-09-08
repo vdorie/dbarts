@@ -1873,6 +1873,68 @@ the mean pairwise shared-over-spanned interval length is 0.48
 of chains overlaps at every point of every seed. Host load ran 9 to 67
 throughout, so these wall times carry no timing claim either.
 
+**Level-fibre arms (2026-09-07).** level-fibre.md's slice 3 run adds two
+more arms on the same shipped four-chain configuration and the same
+twenty seeds: `independent75pool4level`, which varies no proposal
+probability at all and only switches on the level-fibre Gibbs step
+([1. The draw](level-fibre.md#1-the-draw)), and
+`independent75pool4ruleGibbsBlevel`, that step on top of the rule_gibbs
+arm above. `independent75pool4` is re-run in the same session as their
+paired control and reproduces the Chain configuration paragraph's own
+rows digit for digit on both mean functions. The level arm's Single
+index wall ratio flagged, so it took a fresh-seed re-run on seeds 21 to
+40, control and all, whose control rows reproduce the rule_gibbs
+paragraph's own fresh-block rows digit for digit. Columns as above.
+
+    mean fn      arm                                seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4                 1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4level            1-20   0.963(0.930-0.976)  4.65    1.13  14(6-24)       2(1-2)     0.79
+    trigpoly     independent75pool4ruleGibbsBlevel  1-20   0.942(0.914-0.960)  4.01    1.08  35(16-64)      2(2-3)     0.57
+    trigpoly     independent75pool4                 21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4level            21-40  0.964(0.951-0.981)  4.68    1.12  14(6-28)       1(1-2)     0.79
+    singleindex  independent75pool4                 1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4level            1-20   0.896(0.880-0.920)  6.48    1.91  15(8-26)       2(1-2)     0.65
+    singleindex  independent75pool4ruleGibbsBlevel  1-20   0.898(0.867-0.923)  6.59    1.98  36(17-63)      3(2-5)     0.39
+    singleindex  independent75pool4                 21-40  0.891(0.868-0.911)  6.43    1.93  15(9-27)       2(1-2)     0.67
+    singleindex  independent75pool4level            21-40  0.891(0.874-0.909)  6.46    1.93  17(9-25)       2(1-2)     0.70
+
+Paired differences against each row's own control on its own seeds, mean
++/- sd (seeds positive of 20):
+
+    mean fn      arm                                seeds  d min ESS (sum)                d per-chain min ESS     d 95% coverage                    d RMSE, ratio
+    trigpoly     independent75pool4level            1-20   -0.9 +/- 6.4 (9/20) t -0.61    +0.01 +/- 0.19 t 0.22   +0.002 +/- 0.008 (13/20) t 1.14   +0.012 +/- 0.114, ratio 1.011
+    trigpoly     independent75pool4level            21-40  -2.5 +/- 8.0 (9/20) t -1.41    -0.06 +/- 0.21 t -1.21  -0.000 +/- 0.007 (11/20) t -0.27  +0.026 +/- 0.069, ratio 1.024
+    trigpoly     independent75pool4ruleGibbsBlevel  1-20   +19.9 +/- 15.4 (19/20) t 5.76  +0.63 +/- 0.43 t 6.57   -0.019 +/- 0.009 (0/20) t -9.47   -0.038 +/- 0.072, ratio 0.966
+    singleindex  independent75pool4level            1-20   -5.3 +/- 8.2 (6/20) t -2.90    -0.01 +/- 0.28 t -0.23  +0.001 +/- 0.011 (10/20) t 0.53   -0.008 +/- 0.031, ratio 0.996
+    singleindex  independent75pool4level            21-40  +1.7 +/- 6.6 (12/20) t 1.16    +0.07 +/- 0.25 t 1.23   -0.000 +/- 0.008 (9/20) t -0.20   +0.004 +/- 0.031, ratio 1.002
+    singleindex  independent75pool4ruleGibbsBlevel  1-20   +15.0 +/- 13.4 (18/20) t 5.00  +0.86 +/- 0.66 t 5.86   +0.004 +/- 0.011 (12/20) t 1.45   +0.056 +/- 0.038, ratio 1.029
+
+Held-out RMSE ratio, in the order of the paired table: 1.012, 1.014,
+0.970, 0.994, 1.002, 1.033. Wall ratio: 0.966, 0.933, 3.629, 1.086,
+0.962, 4.432. Paired standard error of the summed minimum ESS runs 1.43
+to 3.45 across the six cells.
+
+**The level arm moves nothing on this cell**, in any column. Its summed
+minimum ESS reads -0.9 and -2.5 on Trig+poly against the +8 bar and
+inside the sham's own -2.3 +/- 9.7, its per-chain minimum +0.01 and
+-0.06, its coverage flat to the third digit, its held-out RMSE 1.012 and
+1.014 against a 1.02 margin, and its between-chain ratio 0.79 against
+0.78 and 0.79 against 0.80 - so this is not the perturb arms' pattern of
+a between-chain ratio falling without ESS rising, it is a null
+everywhere. Wall per sweep is the formality the design predicted: 0.966
+and 0.933 in the same-session pairs, the one reading past 1.05 being
+Single index at 1.086, and 0.986 by the means (0.915-1.024 per seed) on
+a re-measure of the two arms alone at five seeds on Trig+poly with the
+host at a load of 4.2 to 6.3. The stacked arm is the rule_gibbs arm to
+within the pairing noise - +19.9 against that arm's +21.5, 35(16-64)
+against 36(19-53), coverage -0.019 against -0.022, between 0.57 against
+0.58, held-out RMSE 0.970 against 0.979 - so the two kernels do not
+stack, and the coverage flag the structural kernel carries is unmoved by
+the level step. Host load ran 4.2 to 9.7 through the arm runs, so those
+wall times carry no timing claim beyond the quiet re-measure. Full
+verdict at
+[6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered).
+
 **Frozen-structure ESS (2026-09-07).**
 [`C1-frozen-ess.R`](../../benchmarks/R/surfaces/C1-frozen-ess.R) separates
 the leaf half of the kernel from the structural half on the recorded C1 arm

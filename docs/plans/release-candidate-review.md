@@ -554,6 +554,39 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The level-fibre benefit run kills the step, which stays at default off (ca92c11f, 2026-09-07)
+
+Slice 3 of docs/design/level-fibre.md. C1-he-hahn.R's armSpec gains a
+levelGibbs field, named in every bart2 call - FALSE is bart2's own default, so
+every existing arm's draws are unchanged, checked by identical() on the
+control's own rows before and after the edit - and two arms are appended:
+independent75pool4level, the shipped mixture with the step on, which is the
+kill's cell, and independent75pool4ruleGibbsBlevel, that step on top of
+nog-gibbs's rule_gibbs arm B, reported not gated. 54 added lines, no engine
+change. 240 C1 fits, 60 P1, 10 for a wall re-measure, 8 for a P2 probe.
+The control reproduces benchmark-surfaces.md 10.4 digit for digit at both seed
+blocks and on both mean functions. Primary, Trig+poly summed minimum ESS over
+twenty matched pairs: -0.9 +/- 6.4 (9/20, t -0.61) at seeds 1-20 and -2.5 +/-
+8.0 (9/20, t -1.41) at the fresh block, against a +8 bar and inside the sham's
+own -2.3 +/- 9.7, so KILLED on the criterion's first clause. Nothing else moves
+either: coverage +0.002 and -0.000, held-out RMSE 1.012 and 1.014, per-chain
+minimum +0.01 and -0.06, between-chain 0.79 against 0.78 and 0.79 against 0.80,
+so no secondary flags and the perturb signature of a falling between-chain ratio
+does not appear. Wall per sweep is the formality section 2 predicted: 0.966 and
+0.933 in the same-session pairs, and 0.986 on a quiet re-measure of the two arms
+alone. The two kernels do not stack - the stacked arm reads as rule_gibbs alone
+in every column, +19.9 against +21.5, coverage -0.019 against -0.022. Controls:
+P1's house rung 0.725 (0.682-0.760) held-out, gate in force; P2 untouched by
+construction, Chain::drawLevelShift returning at m < 2 before any generator
+call, proven at quick by identical() on the trees, root variables, per-chain ev
+draws, sigma and switch rate rather than by an arm. Slice 4 does not run: no
+baseline is re-recorded, the three fbff1989 files stand, and the
+backfit-exact.R repair is not owed. The step stays behind levelGibbs at default
+off, an opt-in whose measured benefit on the pre-registered cell is nil;
+whether it is removed before release is the maintainer's call. Recorded at
+level-fibre.md 6, 8; benchmark-surfaces.md 10.4; tree-mixing-proposals.md 16.4.
+Script only, no engine change.
+
 ### The level-fibre frozen-structure pilot confirms its advisory bar (bf1a4c9e, 2026-09-07)
 
 Slice 2 of docs/design/level-fibre.md, script only, no engine change.
