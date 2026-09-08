@@ -295,7 +295,9 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
   rbart_vi and its methods return as stubs that error naming stan4bart;
   the sampler's startThreads/stopThreads become no-ops; rngSeed is
   accepted with a once-per-session warning for one release. All expire
-  in the release after 1.0-0. Land with the front-door rename.
+  in the release after 1.0-0. Land with the front-door rename. A saved
+  0.9-x fit (no state format field) is refused by name at restore and
+  predict (dec-B109).
 
 xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
   tombstones for control= and a three-element n.burn (error naming the
