@@ -295,9 +295,11 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
 
 xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
   tombstones for control= and a three-element n.burn (error naming the
-  flat fields); per-cell deterministic RNG streams so seed reproduces at
-  any n.threads; timing against 0.9-34 pending, warm starts across folds
-  only if it is bad and then opt-in with the leakage documented.
+  flat fields); distribute grid cells and folds across workers, not
+  replications (today k-fold with n.reps = 1 runs on one worker: 2.1x
+  slower wall than 0.9-34 at 4 threads while 33 percent less CPU,
+  measured 2026-09-08); per-cell deterministic RNG streams so a seed
+  reproduces at any n.threads. Warm starts across folds stay out.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
