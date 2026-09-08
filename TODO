@@ -420,6 +420,17 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   feature-only ones onto their objects (the August consolidation left
   these). Plan doc to write; lands with the front-door rename.
 
+remove the posterior dependency (decided, VD 2026-09-08;
+  docs/decisions.md dec-B99)
+  pre-release: drop posterior from DESCRIPTION; summary computes split
+  R-hat and effective sample size in R/diagnostics.R itself; replace
+  the as_draws methods with a base-R draws extractor (iterations x
+  chains x variables array with dimnames, the layout posterior's
+  as_draws_array accepts); rewrite the five tinytest files and the
+  summary man page that call posterior. Matrix and survival stay
+  Suggests (recommended packages). Principle (VD): no dependencies
+  beyond base and recommended packages.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
