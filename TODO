@@ -448,7 +448,18 @@ sparse factors on the formula interface (decided, VD 2026-09-08;
   stored sparse by the engine from the level count, no user marker;
   the sparseFactor constructor stays for forcing it. The audit's
   sparse() term is rejected (VD: the class already says it is sparse).
+  Verify VD's recollection that only printing breaks for a sparse
+  Matrix column in a data frame: the audit checked nrow, row
+  subsetting and na.omit; also check order, split, merge, rbind,
+  head, str, saveRDS round trip, and model.frame's subset path.
   Audit: docs/plans/sparse-formula-audit.md. Plan doc to write.
+
+rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
+  stays removed; tombstone names stan4bart and says the group-spread
+  prior differs there. Condition: stan4bart clears its group-spread
+  mixing bar (lag-1 autocorrelation below 0.8, ESS at least 100 per
+  1000 draws) before dbarts ships; fallback if not: an R-only grouped
+  intercept over the plain sampler's setOffset, no engine block.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
