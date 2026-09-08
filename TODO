@@ -354,6 +354,16 @@ worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88)
   on a completion signal instead of sleeping 100 ms per poll; keep the
   timed wake for the interrupt poll and progress flush.
 
+within-chain threading (decided, VD 2026-09-08; docs/decisions.md
+  dec-B89)
+  pre-release: warn when n.threads exceeds n.chains; manual note that
+  within-chain threading was measured (0.9-34 about 10 percent at 4
+  threads on one chain, the barrier prototype 12 percent at best).
+  post-release: revive archive/within-chain-threading as an explicit
+  opt-in if the memory audit shows chains are costly at large n; first
+  time the prototype against the tip on this machine, single chain at
+  1, 2 and 4 threads.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
