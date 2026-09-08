@@ -220,7 +220,11 @@ dbarts(
   is the frozen mixture: no structural proposal is made, the tree
   structures stand where they are, and only the leaf values, `sigma` and
   the family's latents keep being drawn, which is how a fitted forest is
-  re-sampled as a fixed basis. An unnamed `"perturb"` or `"rule_gibbs"`
+  re-sampled as a fixed basis. Under
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  default `levelGibbs = NA` a frozen forest additionally takes the
+  level-shifting Gibbs step each iteration, the leaf values then being
+  the only thing left to move. An unnamed `"perturb"` or `"rule_gibbs"`
   is taken as zero and resolved before the rest; an unnamed `"swap"` is
   taken as zero, and a single remaining unnamed element takes the
   residual, so `c(birth_death = 0.7)` is birth/death 0.7, swap 0, change

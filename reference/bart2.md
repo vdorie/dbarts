@@ -32,7 +32,7 @@ bart2(
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
-    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = FALSE,
+    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = NA,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
@@ -473,9 +473,11 @@ print(x, ...)
   the trees are updated, adding a constant to every occupied leaf of
   each tree with the constants summing to zero over the trees: the
   sum-of-trees function is unchanged, the individual leaf values move,
-  and the posterior being sampled is the same. Off by default, where the
-  draws are those of previous versions. See `dbartsControl`'s
-  `levelGibbs` item.
+  and the posterior being sampled is the same. `FALSE` never takes it;
+  `NA`, the default, takes it exactly where the tree structures are
+  frozen by an all-zero `proposal.probs`, and nowhere else, so an
+  ordinary fit draws the values it drew in previous versions. See
+  `dbartsControl`'s `levelGibbs` item.
 
 - n.thin:
 
@@ -542,19 +544,23 @@ print(x, ...)
   no structural proposal is made, the tree structures stand where they
   are, and only the leaf values, `sigma` and the family's latents keep
   being drawn, which is how a fitted forest is re-sampled as a fixed
-  basis. A `"swap"` element exchanges a parent's split rule with a
-  child's; it defaults to zero because at production forest sizes it
-  measures as a no-op, but with `n.trees = 1` it is the only move that
-  rotates a rule up the tree, so single-tree fits should set it positive
-  (0.1 was the historical default). A `"perturb"` element displaces one
-  node's split point by a single cut position while keeping its variable
-  and the tree's shape; it defaults to zero, and only ordinal (numeric)
-  columns can be perturbed. A `"rule_gibbs"` element replaces one nog
-  node's rule - a node whose two children are both leaves - with a draw
-  from that rule's own full conditional over the available ordinal
-  variables and their admissible cuts, so its acceptance is one; it
-  defaults to zero, it acts only where the node's own rule is ordinal,
-  and it is inert on an all-categorical design.
+  basis. Under
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  default `levelGibbs = NA` a frozen forest additionally takes the
+  level-shifting Gibbs step each iteration, the leaf values then being
+  the only thing left to move. A `"swap"` element exchanges a parent's
+  split rule with a child's; it defaults to zero because at production
+  forest sizes it measures as a no-op, but with `n.trees = 1` it is the
+  only move that rotates a rule up the tree, so single-tree fits should
+  set it positive (0.1 was the historical default). A `"perturb"`
+  element displaces one node's split point by a single cut position
+  while keeping its variable and the tree's shape; it defaults to zero,
+  and only ordinal (numeric) columns can be perturbed. A `"rule_gibbs"`
+  element replaces one nog node's rule - a node whose two children are
+  both leaves - with a draw from that rule's own full conditional over
+  the available ordinal variables and their admissible cuts, so its
+  acceptance is one; it defaults to zero, it acts only where the node's
+  own rule is ordinal, and it is inert on an all-categorical design.
 
 - monotone:
 
@@ -1554,7 +1560,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  level fibre gibbs step: false
+#>  level fibre gibbs step: auto
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
@@ -1565,7 +1571,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001086
+#> total seconds in loop: 0.001408
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1601,7 +1607,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #>  scale in sigma prior: 0.011208
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  level fibre gibbs step: false
+#>  level fibre gibbs step: auto
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 60
@@ -1613,7 +1619,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001236
+#> total seconds in loop: 0.001683
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

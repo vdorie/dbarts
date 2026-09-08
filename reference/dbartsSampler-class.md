@@ -166,7 +166,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   When passed to `setControl`, it cannot change `n.trees`, `n.chains`,
   `useQuantiles`, `levelGibbs`, or `seed` from the values the sampler
   was created with, and cannot set `keepTrees = TRUE` without also
-  giving `n.samples`; either is an error.
+  giving `n.samples`; either is an error. `levelGibbs` is guarded as one
+  of the three values it was given - `TRUE`, `FALSE`, or `NA` - so
+  restating `NA`, the default, is accepted while turning the step on or
+  off is not; under `NA` the step follows the mixture, which `setModel`
+  may freeze at any point.
 
 - newModel:
 

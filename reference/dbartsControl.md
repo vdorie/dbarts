@@ -15,7 +15,7 @@ coerced through this construction.
 ``` r
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-    levelGibbs = FALSE,
+    levelGibbs = NA,
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
@@ -52,13 +52,19 @@ dbartsControl(
   would have - while the individual leaf values move, which can improve
   mixing where the ensemble's overall level is split among many trees.
   The shift is drawn from its exact conditional distribution, so the
-  posterior being sampled is the same either way. `FALSE` by default,
-  and off, the sampler draws exactly the values it drew in previous
-  versions. Applies to forests with the default constant leaves
-  (including the monotone constraint and every binary, count, or
-  survival family built on them); linear and Gaussian-process leaves and
-  the heteroscedastic variance forest ignore it. Fixed when the sampler
-  is created.
+  posterior being sampled is the same either way. Three values: `TRUE`
+  takes the step every iteration, `FALSE` never takes it, and `NA` (the
+  default) takes it for a forest exactly when that forest's tree
+  structures are frozen - every structural element of `proposal.probs`
+  zero - where the leaf values are the only thing left moving. The
+  decision is made afresh each iteration, so a mixture frozen with
+  `$setModel` part way through a run switches the step on from there.
+  Where structure is being proposed the default takes no step and draws
+  exactly the values it drew in previous versions. Applies to forests
+  with the default constant leaves (including the monotone constraint
+  and every binary, count, or survival family built on them); linear and
+  Gaussian-process leaves and the heteroscedastic variance forest ignore
+  it. Fixed when the sampler is created.
 
 - keepTrees:
 
@@ -210,7 +216,7 @@ control
 #> [1] FALSE
 #> 
 #> Slot "levelGibbs":
-#> [1] FALSE
+#> [1] NA
 #> 
 #> Slot "keepTrees":
 #> [1] FALSE

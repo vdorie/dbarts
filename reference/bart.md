@@ -385,20 +385,24 @@ residuals(object, type = "ev", ...)
   All four structural probabilities zero is the frozen mixture: no
   structural proposal is made, the tree structures stand where they are,
   and only the leaf values, `sigma` and the family's latents keep being
-  drawn, which is how a fitted forest is re-sampled as a fixed basis. A
-  `"swap"` element exchanges a parent's split rule with a child's; it
-  defaults to zero because at production forest sizes it measures as a
-  no-op, but with `n.trees = 1` it is the only move that rotates a rule
-  up the tree, so single-tree fits should set it positive (0.1 was the
-  historical default). A `"perturb"` element displaces one node's split
-  point by a single cut position while keeping its variable and the
-  tree's shape; it defaults to zero, and only ordinal (numeric) columns
-  can be perturbed. A `"rule_gibbs"` element replaces one nog node's
-  rule - a node whose two children are both leaves - with a draw from
-  that rule's own full conditional over the available ordinal variables
-  and their admissible cuts, so its acceptance is one; it defaults to
-  zero, it acts only where the node's own rule is ordinal, and it is
-  inert on an all-categorical design.
+  drawn, which is how a fitted forest is re-sampled as a fixed basis.
+  Under
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  default `levelGibbs = NA` a frozen forest additionally takes the
+  level-shifting Gibbs step each iteration, the leaf values then being
+  the only thing left to move. A `"swap"` element exchanges a parent's
+  split rule with a child's; it defaults to zero because at production
+  forest sizes it measures as a no-op, but with `n.trees = 1` it is the
+  only move that rotates a rule up the tree, so single-tree fits should
+  set it positive (0.1 was the historical default). A `"perturb"`
+  element displaces one node's split point by a single cut position
+  while keeping its variable and the tree's shape; it defaults to zero,
+  and only ordinal (numeric) columns can be perturbed. A `"rule_gibbs"`
+  element replaces one nog node's rule - a node whose two children are
+  both leaves - with a draw from that rule's own full conditional over
+  the available ordinal variables and their admissible cuts, so its
+  acceptance is one; it defaults to zero, it acts only where the node's
+  own rule is ordinal, and it is inert on an all-categorical design.
 
 - keepsampler:
 
@@ -764,9 +768,11 @@ chain of a multi-chain run with the same seed.
 
 `bart` takes the default for
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`levelGibbs`, the optional level-shifting Gibbs step, which is off; it
-has no formal for it, and its draws are those of previous versions. The
-step is reachable from
+`levelGibbs`, the optional level-shifting Gibbs step: `NA`, which takes
+the step only where the tree structures are frozen. `bart` never freezes
+them, so it never takes it and its draws are those of previous versions;
+it has no formal for it. `TRUE` takes the step every iteration and
+`FALSE` never does, both reachable from
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and from a
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
 sampler's control object, and turning it on changes the sampled values
@@ -1110,7 +1116,7 @@ bartFit <- bart(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  level fibre gibbs step: false
+#>  level fibre gibbs step: auto
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
@@ -1134,7 +1140,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.163428
+#> total seconds in loop: 0.214108
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 
