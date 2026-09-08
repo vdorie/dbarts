@@ -422,8 +422,10 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   feature-only ones onto their objects (the August consolidation left
   these); fold resid.dist into the family objects (Student-t errors as
   a variant or setting), retiring dbartsResidDists, else export it to
-  match dbartsPriors (dec-B101). Plan doc to write; lands with the
-  front-door rename.
+  match dbartsPriors (dec-B101); add na.action with a package default
+  that drops missing-response rows only, keeps missing predictors, and
+  records dropped rows for padding (dec-B108); base na.* functions keep
+  their meaning. Plan doc to write; lands with the front-door rename.
 
 remove the posterior dependency (decided, VD 2026-09-08;
   docs/decisions.md dec-B99)
