@@ -287,6 +287,12 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
   calls bart2; 17 CRAN reverse dependencies call only bart. Settle before
   contacting lorax's maintainer. Plan doc to write.
 
+removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
+  rbart_vi and its methods return as stubs that error naming stan4bart;
+  the sampler's startThreads/stopThreads become no-ops; rngSeed is
+  accepted with a once-per-session warning for one release. All expire
+  in the release after 1.0-0. Land with the front-door rename.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
