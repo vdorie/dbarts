@@ -272,10 +272,12 @@ verbatim - pooled 0.457 (0.359-0.555), 70.8 (57.9-81.2) switches per chain, mini
 trees at either count. Every figure is 10.1's, to the digit. So the whole R-to-engine path carries the identity the three oracles
 test at the harness level.
 
-**Not done here, and owed.** Three things. The SPEED compare was not run: `bench-sampler.R` needs a quiet machine and the landing
-box was not one (1-minute load above 3, a virtual machine resident). Birth/death takes swap's 0.1 and is a scored move where 70 to
-77 percent of swaps were no-ops, so a small slowdown is expected and only an arm past the harness's 1.05 ratio would make this a
-re-record with its own MANIFEST row. The MOVE CENSUS has not been re-run at the new default: section 5 asks for
+**Not done here, and owed.** Three things. The SPEED compare was not run at the landing: `bench-sampler.R` needs a quiet machine
+and the landing box was not one (1-minute load above 3, a virtual machine resident). It RAN 2026-09-08 on a quiet-machine grant at
+the level-auto tip, as a same-machine A/B against a rebuild of `bench-sampler-ab1dc52.csv`'s commit (6 alternating rounds, per-round
+minima): no arm past 1.05, the birth/death-heavy run arms 0.985 to 0.996, so swap's 0.1 moving to birth/death cost nothing
+measurable; the one real cost, embedded-offset at 1.032, is on the offset-mutate loop and is recorded with the re-recorded baseline
+`bench-sampler-127f04ee.csv` in the MANIFEST. The MOVE CENSUS has not been re-run at the new default: section 5 asks for
 [`moveTable`](../../benchmarks/R/move-census.R)'s per-move acceptance on a `-DBARTCORE_MOVE_CENSUS` build, recorded in 6.1's
 addendum, and [5. Benefit, pre-registered](perturb-move.md#5-benefit-pre-registered) still recomposes those rates arithmetically
 from the swap-carrying census. The SBC matrix has not been run since the landing; section 4 says it pins no ranks, so nothing is

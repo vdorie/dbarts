@@ -367,8 +367,6 @@ read. A kill leaves the kernel in place at weight zero rather than deleting it.
   equal-cost arm, so every cost figure here is a scan count.
 - **The plateau-error gate.** No built cell is noise-heavy or large-n, so the
   house rule's harm check has nowhere to run.
-- **The sampler's own speed since the default last moved.** A bench-sampler
-  comparison on a quiet machine, owed since swap's share moved.
 - **The adopted kernel's own controls.** No low-noise control reading, no
   confounded-step arm, no sham arm, no fresh seed block on the ungated function
   and no equal-cost arm, all of which the full draw's run carried. Its cut-scan
@@ -518,7 +516,7 @@ Every claim above is recorded in one of these sections.
 | Perturb's benefit run, the +8 bar and the sham arm | [5. Benefit, pre-registered](../design/perturb-move.md#5-benefit-pre-registered) |
 | The chain configuration, and the primary statistic | [5.1 The chain configuration, and what it makes the primary statistic](../design/perturb-move.md#51-the-chain-configuration-and-what-it-makes-the-primary-statistic) |
 | Swap's removal and the evidence for it | [1. The decision, and its evidence](../design/swap-removal.md#1-the-decision-and-its-evidence) |
-| The sampler-speed comparison still owed | [8. Landing](../design/swap-removal.md#8-landing) |
+| The sampler-speed comparison, and its 2026-09-08 result | [8. Landing](../design/swap-removal.md#8-landing) |
 | Swap's return at weight zero, and the default mixture | [9. Reversal: the move returns at default zero](../design/swap-removal.md#9-reversal-the-move-returns-at-default-zero) |
 | The move census and its probes | [6.1 Stage 0 - the move census (pilot; no kill criterion)](../design/tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion) |
 | The program's kill criteria and the plateau clause | [6.4 Kill criteria, pre-registered](../design/tree-mixing-proposals.md#64-kill-criteria-pre-registered) |
