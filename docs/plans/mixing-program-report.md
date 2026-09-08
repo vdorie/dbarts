@@ -9,31 +9,33 @@ BART's tree sampler moves by small local edits, and on hard problems it settles
 into one arrangement of trees and stays there. The symptom is under-coverage of
 the fitted function; the quantity behind it is effective sample size. On the
 one average-case problem with a published BART coverage number, the worst of
-that cell's 25 evaluation points has an effective sample size of about two
+that problem's 25 evaluation points has an effective sample size of about two
 draws out of 2500 kept, in every chain.
 
 The package now has an evaluation battery with an accept rule fixed before any
-run, and five candidate kernels were measured against it. Four earn no share of
-the per-tree draw over move types: swap, a same-variable cut move killed on its
-registered statistic, an exchange of trees between chains killed on acceptance,
-and an exact draw on the forest's level fibre, the leaf-value shifts that leave
-the fitted function exactly unchanged, which does nothing measurable while the
-tree moves run and was kept only for a frozen forest. One succeeded: replacing
-the Metropolis change proposal at a node whose two children are both leaves
-with an exact draw from that rule's full conditional. It raises effective
-sample size on the average-case cell by 1.8 to 3.0 times the threshold
-registered there, that range spanning both mean functions and both blocks of
-twenty seeds, and a restricted version redrawing only the cut keeps about half
-that gain for a thirtieth of the arithmetic.
+run, and five candidate kernels were measured against it, one in two variants.
+Four earn no default weight in the mixture of proposal probabilities over tree
+moves, drawn once per tree per sweep: swap; a same-variable cut move, killed on
+its registered statistic; an exchange of trees between chains, killed on
+acceptance; and an exact draw on the forest's level fibre, the leaf-value
+shifts that leave the fitted function exactly unchanged, which does nothing
+measurable while the tree moves run and was kept only for a frozen forest.
+
+One succeeded: replacing the Metropolis change proposal at a node whose two
+children are both leaves with an exact draw from that rule's full conditional.
+It raises effective sample size on the average-case problem by 1.8 to 3.0 times
+the threshold registered there, spanning both mean functions and both blocks of
+twenty seeds. A restricted version redrawing only the cut keeps about half that
+gain on the mean function the accept rule covers and all of the full draw's
+first-block gain on the other, for a thirtieth of the added arithmetic.
 
 **The decision.** On 2026-09-08 the maintainer adopted that restricted draw at
-a mixture weight of `d` = 0.16, sixteen percent of the per-tree draw over move
-types, taken out of the change move's share, which falls from 0.40 to 0.24. It
-lands after the first release; until then the shipped kernel is unchanged and
-every candidate stays at weight zero. Adoption still owes what section 6 sets
-out: the kernel wins no pathology, three of the four average-case cells do not
-exist, one secondary regression stands, and the harm check required before a
-default flips has nowhere to run.
+a mixture weight of `d` = 0.16, taken out of the change move's share, which
+falls from 0.40 to 0.24. It lands after the first release; until then the
+shipped kernel is unchanged and every candidate stays at weight zero. Adoption
+still owes what section 6 sets out: the kernel wins no pathology, three of the
+four average-case cells are not built, one secondary regression stands, and the
+harm check required before a default flips has nowhere to run.
 
 ## 2. The coverage deficit
 
@@ -46,13 +48,14 @@ intervals 15 to 25 percent longer for the same point accuracy.
 Two levers could close the gap: more trees, or better mixing. The tree-count
 lever works, 200 trees against 75 buying about ten points of coverage at no
 cost in error, and it was parked anyway, meaning kept as a comparison and not
-adopted as a default, because it is not one-sided: four pooled chains at 75
-trees read 0.961 on the first mean function where one chain at 200 trees reads
-0.922, and 0.895 on the second where that chain reads 0.924.
+made a default, because it is not one-sided: four pooled chains at 75 trees
+read 0.961 on Trig+poly, the trigonometric polynomial this problem fits, where
+one chain at 200 trees reads 0.922, and 0.895 on Single index, its
+rotated-ridge companion, where that chain reads 0.924.
 
 The measurement that parked it is three arms on twenty matched seeds. An arm is
-one sampler configuration; every arm in a contrast runs on the same seeds as
-the others, so differences are paired.
+one sampler configuration, and every arm in a contrast runs on the same seeds,
+so differences are paired.
 
 | arm | sweeps, total over four chains | 95% coverage |
 |---|---|---|
@@ -62,19 +65,21 @@ the others, so differences are paired.
 
 The four short chains disagree enough that pooling them is what supplies the
 interval's width, while one chain run ten times longer still under-covers and
-its per-chain minimum effective sample size stays at 2 to 3. The posterior is
-right and the sampler is slow. The maintainer ruled on that reading: the
-coverage deficit is a mixing symptom, mixing is the lever, and the statistic a
-change has to move here is per-chain effective sample size, not coverage, which
-has no headroom at 0.961.
+its effective sample size at the worst of the problem's 25 evaluation points
+stays at 2 to 3 draws. The posterior is right and the sampler is slow. The
+maintainer ruled on that reading: the coverage deficit is a mixing symptom,
+mixing is the lever, and the statistic a change has to move here is per-chain
+effective sample size, not coverage, which has no headroom at 0.961.
 
-The deficit has two channels. Freeze the cell's tree structures and at the
-median evaluation point effective sample size rises from 14.9 to about 670 of
-2500 kept, so at a typical coordinate the deficit is in the structural channel,
-which tree structures the chain visits. At the worst coordinate the minimum
-rises only from 1.6 to between 4 and 21, so there it is in the leaf channel,
-which leaf values the chain draws given a structure. A structural kernel cannot
-be the whole answer.
+The sampler is not refusing to move, its proposals being accepted at 24.9
+percent here against 8.0 percent on a low-noise problem that mixes worse, which
+is why the next test froze the tree structures and read the deficit's two
+channels apart. Frozen, at the median evaluation point effective sample size
+rises from 14.9 to about 670 of 2500 kept, so at a typical coordinate the
+deficit is in the structural channel, which tree structures the chain visits.
+At the worst coordinate the minimum rises only from 1.6 to between 4 and 21, so
+there it is in the leaf channel, which leaf values the chain draws given a
+structure. A structural kernel cannot be the whole answer.
 
 ## 3. The shipped tree kernel
 
@@ -85,17 +90,17 @@ selects among them, at the default mixture `birth_death 0.6, swap 0, change
 0.4, perturb 0, rule_gibbs 0`. So the kernel a user runs is birth and death at
 the tree's fringe, the leaf pairs at the bottom, plus change, which redraws an
 interior node's split variable and cut while leaving the subtree beneath that
-node in place. The other three ship at weight zero and are reachable through
+node in place. The other three ship at weight zero, reachable through
 `proposal.probs`, the R argument carrying the mixture; all five at zero freezes
-the forest while leaf values, the residual scale and any latent variables the
-response family carries keep sampling.
+the forest while leaf values, the residual scale and any latents the response
+family carries keep sampling.
 
-One leaf-value step sits beside them. `levelGibbs` adds a constant to every
-occupied leaf of a tree, the constants summing to zero across the forest, so
-the fitted function is exactly unchanged; those shifts are the level fibre. Its
-slot takes three values: `TRUE` and `FALSE` force it, and the default `NA`
-resolves per forest and per sweep, running the step exactly where that forest's
-mixture is frozen.
+One leaf-value step sits beside them, not in the mixture. `levelGibbs` adds a
+constant to every occupied leaf of a tree, the constants summing to zero across
+the forest, so the fitted function is exactly unchanged; those shifts are the
+level fibre. Its slot takes three values: `TRUE` and `FALSE` force it, and the
+default `NA` resolves per forest and per sweep, running the step exactly where
+that forest's mixture is frozen.
 
 ## 4. The battery and the accept rule
 
@@ -103,38 +108,45 @@ The battery is a fixed set of test problems, each with a known truth, a named
 failure mode and one statistic chosen before the run: four average-case core
 cells, C1 to C4, and eight pathologies, P1 to P8. Five are built.
 
-| code | problem | what it stresses | statistic |
+| code | problem | what it stresses | registered statistic |
 |---|---|---|---|
 | C1 | the He and Hahn factorial of section 2, on two mean functions: Trig+poly, with one true interaction, and Single index, a rotated ridge | a correlated design at a realistic size | 95% coverage of the true mean function, on held-out rows |
 | P1 | a low-noise Friedman emulator | structure freezes as the noise falls | 90% coverage; acceptance rate |
 | P2 | a confounded step function, fitted with one tree | two exactly equiprobable representations of one fit | between-chain sd of the root-on-x1 fraction, against a 0.5 null |
 | P5 | a checkerboard on an autocorrelated design | a two-way interaction with ambiguous inclusion | between-chain sd of inclusion on the four true columns |
-| P6 | a diagonal shelf with targeted selection | a rotated boundary plus confounding | treatment-effect bias and 95% coverage; published BART 0.27 and 65% |
+| P6 | a diagonal shelf with targeted selection | a rotated boundary plus confounding | treatment-effect bias and coverage; bias 0.27 and coverage 65 percent in the published BART |
+
+C1's registered statistic is coverage. Section 4.2 explains why the rule-draw
+arms were judged on effective sample size instead, and section 6 treats that
+substitution as the departure it is.
 
 The rule covers only Trig+poly; Single index is reported beside it and is
 called the ungated function below. It is asymmetric: the core cells are a gate,
 so a change must not regress one and gains nothing by improving one, while the
-pathologies are where it has to win, by beating one on that cell's registered
-statistic by four times the measured per-replicate standard error. Two absolute
-gates sit on top: a kernel added at weight zero must be bitwise identical to
-the control, the arm at the shipped mixture, and P1's 90 percent coverage must
-come back near 0.71 in the control arm or no verdict is valid; it reads 0.725.
+pathologies are where it has to win, by beating one on that cell's statistic by
+four times the measured per-replicate standard error. Two absolute gates sit on
+top: a kernel added at weight zero must be bitwise identical to the control,
+the arm at the shipped mixture, and the low-noise cell's 90 percent coverage
+must come back near 0.71 in the control arm or no verdict is valid; it reads
+0.725.
 
 ### 4.1 Margins, and what stands in for wall time
 
-A secondary metric is flagged, counted as a regression, only when the paired
-mean difference over twenty seeds is worse than that metric's margin and its
-one-sided 95 percent bound also excludes it; a flagged cell is then re-run on a
-fresh block of twenty seeds. Two margins carry every verdict below: coverage of
-the true mean function at -0.010 absolute, and held-out RMSE against it at a
-ratio of 1.02. The rest are in the record.
+Each cell has one primary statistic, the one a change has to move, and
+secondary metrics that must not regress. A secondary is flagged, counted as a
+regression, only when the paired mean difference over twenty seeds is worse
+than that metric's margin and its one-sided 95 percent bound also excludes it;
+a flagged cell is then re-run on a fresh block of twenty seeds. Three margins
+carry the verdicts below: coverage of the true mean function at -0.010
+absolute, held-out RMSE against it at a ratio of 1.02, and inclusion share on
+the truly relevant columns at -0.010 absolute. The rest are in the record.
 
 Two further registered margins are per-second quantities, minimum effective
 sample size per second and wall time per sweep, and no host was ever quiet, so
 neither was read. In their place the design put a count of cut scans, one scan
-being a pass over a node's members for a single variable and costs quoted as
-sweep-equivalents against a sweep's own three passes over the data, plus one
-equal-cost arm to answer the per-second question directly.
+being a single pass over a node's members for one variable. Costs are quoted as
+sweep-equivalents, multiples of a sweep's own three passes over the data, and
+one equal-cost arm was run to answer the per-second question directly.
 
 ### 4.2 The improvement bar, the sham arm and the reference arm
 
@@ -143,32 +155,40 @@ a chain, the smallest effective sample size over the cell's 25 fixed evaluation
 points, added across the four chains. A change has to raise it by +8, four
 times that cell's paired standard error; that is the +8 bar below. A sham arm,
 the control against itself at fresh sampler seeds, reads -2.3 +/- 9.7 where it
-should read zero, which makes the bar marginally optimistic and which every arm
-below rests on. A "mean +/- sd" here is the mean of the twenty paired
-differences and their standard deviation across seeds.
+should read zero; its own paired standard error is 2.17, four times which is
+8.7, so the +8 bar is marginally optimistic. That arm was run once, and every
+verdict below rests on the one reading. A "mean +/- sd" in this report is the
+mean of the twenty paired differences and their standard deviation across
+seeds.
 
 Coverage on C1 is read not against the control but against a well-mixed
-reference arm, on the maintainer's ruling of 2026-09-08, the shipped four short
-chains having been measured to over-cover: the control reads 0.961 and the
-reference 0.941, and doubling the chain count at one kernel and one length
-moves coverage further than quintupling the chain length does.
+reference arm, and the substitution was made after the fact: the rule draw's
+coverage secondary flagged against the shipped control, the mandatory
+fresh-seed re-run confirmed the flag, and only then was the margin's baseline
+replaced, on the maintainer's ruling of 2026-09-08, the shipped four short
+chains having been measured to over-cover. That reference arm is the exact rule
+draw of section 5.1 at `d` = 0.32, four chains of 1000 burn-in and 2500 kept:
+the control reads 0.961 and the reference 0.941, and at one kernel and one
+length doubling the chain count moves coverage from 0.939 to 0.956 where
+quintupling the chain length moves it only from 0.939 to 0.941, so it is chain
+count and not chain length that inflates the pooled interval.
 
-Two long-run readings appear in this report and they are different arms.
-Section 2's long single chain is the shipped kernel, one chain of 1000 burn-in
-and 25000 kept, reading 0.902: running one chain ten times longer does not fix
-the mixing. The reference arm is the exact rule draw of section 5.1 at `d` =
-0.32, four chains of 1000 burn-in and 2500 kept, reading 0.941: that is what a
-well-mixed pooled four-chain interval covers at.
+Section 2's long single chain is a third arm, and the two are easy to confuse.
+That one is the shipped kernel, one chain of 1000 burn-in and 25000 kept,
+reading 0.902, which says that running one chain ten times longer does not fix
+the mixing; the reference's 0.941 is what a well-mixed pooled four-chain
+interval covers at.
 
-The reference is credible on two grounds: its between-chain ratio is 0.48
+The reference is credible on three grounds. Its between-chain ratio is 0.48
 against the control's 0.78, the lowest recorded here, that ratio being the
 median over the 25 points of the across-chain standard deviation of a chain's
-posterior mean over the pooled posterior standard deviation; and the kernel
-producing it is, on this cell, an exact Gibbs step on the posterior the shipped
-kernel targets. It is not independent of what it judges, and residual
-disagreement still widens a pooled interval, so 0.941 is an upper bound; the
-same substitution gives the ungated function's held-out error a reference ratio
-of 1.024.
+posterior mean over the pooled posterior standard deviation. Its reading has
+converged in length, the same fit read at half its kept draws giving 0.939
+against 0.941. And the kernel producing it is, on this cell, an exact Gibbs
+step on the posterior the shipped kernel targets. What it is not is independent
+of what it judges, and residual disagreement still widens a pooled interval, so
+0.941 is an upper bound; the same substitution gives the ungated function's
+held-out error a reference ratio of 1.024.
 
 ## 5. The kernels tried
 
@@ -177,22 +197,32 @@ of 1.024.
 This is the only kernel that moved the structural channel under the shipped
 sampler, and it moved it by 2.7 and 2.8 times the +8 bar.
 
-A census build justified building it: nog nodes are most of a tree's interior
-nodes and take most of change's proposals, and the probability the node's own
-conditional puts on the rule already in place is 0.0017 on C1 against 0.737 on
-the low-noise cell, so there is much to gain where it matters.
+A census build made the case for it. That is an instrumented compile which logs
+every structural proposal without consuming a random draw, so a run reproduces
+its arm's chain exactly. It shows that nog nodes are most of a tree's interior
+nodes and take most of change's proposals, and that the probability the node's
+own conditional puts on the rule already in place is 0.0017 on C1 against 0.737
+on the low-noise cell (P1): much to gain where it matters.
 
 At a nog node the whole conditional over split rules costs one scan, that
 scan's marginal is exact, and the candidate set does not depend on the rule
-currently in place, so the step is an exact Gibbs draw at acceptance one, or
-Metropolis-within-Gibbs at acceptance one where a masked observation weight or
-a routed missing value applies. It passes section 4's two absolute gates and a
-prior-only detailed-balance script carrying two poisons, deliberately broken
-variants the script must reject, both of which fail as designed.
+currently in place, so the step is an exact Gibbs draw at acceptance one. Where
+a masked observation weight or a routed missing value strands part of the
+candidate set and the step enters a strictly better stratum of the veto that
+forbids empty leaves, it is Metropolis-within-Gibbs, also at acceptance one,
+valid because the better stratum is absorbing; no stationarity is claimed for
+the stratum it leaves. Correctness rests on two gates of the kernel's own: an
+assertion that its candidate set and scores agree candidate by candidate with
+an independently written reference assembly, and a prior-only detailed-balance
+script carrying two poisons, deliberately broken variants the script must
+reject, both of which fail as designed. Separately, at weight zero the kernel
+is bitwise identical to the control, which is the battery's own first absolute
+gate.
 
 The benefit run took C1's four-chain configuration at `d` = 0.16, twenty
-matched seeds then a fresh block of twenty. Trig+poly, four chains of 500
-burn-in and 500 kept; absolute columns are seeds 1 to 20, ESS figures draws.
+matched seeds then a fresh block of twenty; Trig+poly, four chains of 500
+burn-in and 500 kept. Control and rule-draw columns are absolute readings on
+seeds 1 to 20; ESS is in draws.
 
 | statistic | control | rule draw | paired, seeds 1 to 20 | paired, seeds 21 to 40 |
 |---|---|---|---|---|
@@ -201,14 +231,14 @@ burn-in and 500 kept; absolute columns are seeds 1 to 20, ESS figures draws.
 | 95% coverage | 0.961 | 0.939 | -0.022, t = -12.5 | -0.026, t = -9.9 |
 | held-out RMSE, ratio | - | - | 0.979 | 0.987 |
 
-The per-chain minimum moves with the sum, which no four-chain arm here had
-achieved before; doubling `d` to 0.32 buys +37.0 and nothing else, and the arm
-costs 2.21 sweep-equivalents. On the ungated function it gains +14.4 and +23.9
-but pays 1.028 and 1.023 in held-out error, past the 1.02 margin at both
-blocks. Its coverage secondary flagged and the fresh-seed re-run confirmed it;
-read against the reference arm both regressions dissolve, coverage to -0.002
-and the ungated error to 1.004, because what the kernel narrows is width
-unfinished mixing was supplying.
+The per-chain minimum moves with the sum, which no four-chain arm here had done
+before. Doubling `d` to 0.32 buys +37.0 and moves no other gated reading. At
+`d` = 0.16 the full draw costs 2.21 sweep-equivalents. On the ungated function
+it gains +14.4 and +23.9 but pays 1.028 and 1.023 in held-out error, past the
+1.02 margin at both blocks. Read against the reference arm rather than the
+over-covering control, both regressions dissolve, coverage to -0.002 and the
+ungated error to 1.004, because what the kernel narrows is width unfinished
+mixing was supplying.
 
 ### 5.2 The cut-only restriction
 
@@ -216,9 +246,10 @@ The variable axis costs thirty times what the cut axis costs, so a restricted
 variant holds the incumbent variable and enumerates its cuts alone. It is still
 an exact Gibbs step, it sits behind a compile-time switch off in every shipped
 build, and the balance script passes with both poisons failing. On C1 at `d` =
-0.16 it costs 1.04 sweep-equivalents against the full draw's 2.21: the variable
-axis buys about half the gated function's gain for thirty times the scans, and
-accounts for most of the coverage movement that flagged the full draw.
+0.16 it costs 1.04 sweep-equivalents against the full draw's 2.21, and it keeps
+about half the gated function's gain. So the variable axis buys the other half
+of that gain for thirty times the scans, and it accounts for most of the
+coverage movement that flagged the full draw.
 
 **Dose response.** A dose is a value of `d`. Three were run, each over twenty
 matched pairs with a fresh block: a half dose at 0.08, and the full draw's own
@@ -239,23 +270,25 @@ share at a fixed tree population, an assumption and not a measurement. `d` =
 coverage flags nowhere. But 0.32 regresses held-out error at both blocks, and
 the restriction is why: the kernel's share comes out of change, the only move
 that changes a node's split variable, so at 0.32 change is left with 0.08 and
-the fit gets worse where the full draw at that dose improves it. Change is
-load-bearing elsewhere too, dropping it costing P5 0.027 of the true columns'
-inclusion share and stopping P2's root variable moving at all. On the ungated
-function the cut-only kernel is past the 1.02 margin at every dose, 1.033 at
-worst, and 1.009 against that function's reference ratio.
+the fit gets worse, where the full draw at that dose improves it. Change is
+load-bearing elsewhere too: dropping it costs the checkerboard cell (P5) 0.027
+of the true columns' inclusion share against a margin of 0.010, and stops the
+confounded step function's root variable moving at all. On the ungated function
+the cut-only kernel is past the 1.02 margin at every dose, 1.033 at worst, and
+1.009 against that function's reference ratio.
 
 ### 5.3 The level-fibre step
 
-Frozen, this step is the largest effect in the program; alongside the tree
-moves it is nothing. Because it leaves the fitted function exactly unchanged,
-its conditional is the leaf prior alone and the draw is closed form, at about a
-five-thousandth of a sweep. With C1's structures frozen, the minimum effective
-sample size over the cell's 25 points rises by a paired median of +189.4 at one
-freeze point and +231.6 at the other, all ten pairs positive. Live, the same
-statistic reads -0.9 on the first seed block and -2.5 on the fresh one, inside
-the sham arm's own reading, and stacked on the nog-node rule draw it adds
-nothing.
+With the forest's structures held fixed this step is the largest effect in the
+program; alongside the tree moves it is nothing. Because it leaves the fitted
+function exactly unchanged, its conditional is the leaf prior alone and the
+draw is closed form, at about a five-thousandth of a sweep. With C1's
+structures frozen, the minimum effective sample size over that cell's 25 points
+rises by a paired median of +189.4 at one of the two sweeps where the freeze
+was taken and +231.6 at the other, over ten matched pairs, all ten positive.
+Live, the same statistic reads -0.9 on the first seed block and -2.5 on the
+fresh one, inside the sham arm's own reading, and stacked on the nog-node rule
+draw it adds nothing.
 
 Two adverse readings were taken and neither stood: a Single index loss of -5.3
 on the first block reads +1.7 on the fresh one, and a wall-time ratio of 1.086,
@@ -271,27 +304,29 @@ unchanged.
 
 Change always redraws the split variable, so a pure cut displacement happens
 only when the redraw lands back on the variable already there, and the census
-made the case for building one out of the gap between change's acceptance rate
-and a one-position displacement's. The move landed at weight zero, bitwise
-neutral, behind a detailed-balance script whose two poisons both fail as
-designed. Its benefit run on C1 at `d` = 0.16 did not move the gated statistic,
-+0.1 +/- 8.1 on the first block and -1.9 +/- 6.5 on the fresh one, with
-held-out error at 1.032 against the 1.02 margin. Killed at that setting. On the
-ungated function it gains +9.5 summed on the fresh block, at t = 5.35, carrying
-its own 1.027 error regression; that gain is unclaimed, the accept rule not
-covering that mean function.
+made the case for building one: change's acceptance rate is far below a
+one-position displacement's. The move landed at weight zero, bitwise neutral,
+behind a detailed-balance script whose two poisons both fail as designed. Its
+benefit run on C1 at `d` = 0.16 did not move the gated statistic, +0.1 +/- 8.1
+on the first block and -1.9 +/- 6.5 on the fresh one, with held-out error at
+1.032 against the 1.02 margin. Killed at that setting. On the ungated function
+it gains +9.5 summed on the fresh block, at t = 5.35, carrying its own 1.027
+error regression; that gain is unclaimed, the accept rule not covering that
+mean function.
 
 ### 5.5 Swap
 
 Swap exchanges the rules of a parent and one child, and its evidence is not a
 battery cell. A census priced it as mostly wasted work, and on the one
-criterion where shipped mixtures do separate it matched the default with swap
-at zero, so its share of 0.1 moved to birth and death and the move was deleted.
-It was then restored at a default of zero on an exact-posterior gate: one tree,
-two live columns, against a brute-force enumeration of all 62 reachable trees,
+criterion where shipped mixtures do separate, how fast the sampler re-adapts
+after the response is swapped under the trees, the mixture with swap at zero
+matched the default on every contrast, and only the arm that dropped change as
+well lost ground. Swap's 0.1 moved to birth and death and the move was deleted,
+then restored at a default of zero on an exact-posterior test: one tree, two
+live columns, against a brute-force enumeration of all 62 reachable trees,
 where the largest absolute gap in the tree probabilities is 0.0120 without swap
 and 0.0008 with it, against a tolerance of 0.004. Swap alone rotates a child's
-rule up the tree, which is what that gate sees; at fifty and two hundred trees
+rule up the tree, which is what that test sees; at fifty and two hundred trees
 the ensemble averages the effect away, so no default moved.
 
 ### 5.6 Cross-chain exchange
@@ -301,30 +336,35 @@ temperature is ordinary Metropolis on the product target, the two tree priors
 cancelling, so its acceptance rate is closed form; evaluated on states from a
 running sampler, without the move ever being proposed, it is 10.1 to 11.7
 percent on C1 and effectively zero on the low-noise cell, and alive only on the
-one- and two-split trees birth and death already reach.
+one- and two-split trees birth and death already reach. The exchanges that do
+accept are, moreover, exactly the ones that would make the chains agree, and it
+is the chains' disagreement that pooling turns into interval width.
 
 ## 6. The decision and what it rests on
 
 **What was decided.** On 2026-09-08 the maintainer adopted the cut-only exact
 rule draw at `d` = 0.16, to land after the first release. It is the only
-cut-only dose that clears the +8 bar at both seed blocks, +11.3 and +9.1, with
-every gated secondary clean at the reference-read margins. Its one adverse
-secondary is the ungated function's held-out error at 1.033, past the 1.02
-margin against the control and 1.009 against that function's reference ratio.
+cut-only dose that clears the +8 bar at both seed blocks with every gated
+secondary clean: it reads +11.3 and +9.1 at coverage of 0.955 and 0.952 against
+a reference of 0.941 that this same kernel produced at twice the dose, while
+0.08 fails the bar on its fresh block and 0.32 regresses held-out error at
+both. Its one adverse secondary is the ungated function's held-out error at
+1.033, past the 1.02 margin against the control and 1.009 against that
+function's reference ratio.
 
 **Cost.** An equal-cost arm gives the shipped kernel the extra sweeps a
 competitor's cost ratio buys, so the two run at one budget; the arm that was
 run tested the full draw, not the adopted kernel. At one budget the full draw
 reads 36.3 summed minimum ESS against the shipped kernel's 22.9, so length buys
 63 percent of what the kernel buys. Length also moves coverage from 0.961 to
-0.952 with no kernel change at all, while barely moving the between-chain
-ratio, 0.73 from 0.78 against the kernel's 0.58. So on coverage the kernel and
-running longer are hard to tell apart, and the case for the kernel is a cost
-case.
+0.952 with no kernel change, while barely moving the between-chain ratio, 0.73
+from 0.78 against the kernel's 0.58. On coverage the kernel and running longer
+are hard to tell apart, and the case for the kernel is a cost case.
 
 A budget below is a run's sweep count times its cost in sweep-equivalents, so
-the control's 1000 sweeps at 1.00 are 1000 units and its rate per thousand
-units is numerically its own summed minimum ESS.
+the control, at 1000 sweeps a chain and a cost of 1.00, is 1000 units, and its
+rate per thousand units is numerically its own summed minimum ESS. The 14.8 and
+36.3 here are section 5.1's 15 and 36 unrounded.
 
 | arm | budget, cut-scan units | summed minimum ESS | ESS per thousand units |
 |---|---|---|---|
@@ -337,38 +377,42 @@ The adopted kernel leads that ranking, and the ranking is weaker than it looks:
 it never ran at equal cost, and the statistic grows sub-linearly in chain
 length, so a per-unit ratio across four budgets favours the smallest by
 construction. The record bridges the two kernels by extrapolation instead, off
-a scaling measured on the shipped kernel and not this one, so the choice is not
-closed by dominance.
+a scaling measured on the shipped kernel and not this one, and its own reading
+is that cut-only at 0.32 does not match the full draw at 0.16; the choice is
+not closed by dominance.
 
 **What the kernel has not earned.** Under the accept rule as written, nothing.
 The rule wants a pathology win and treats the core as a gate, and every gain
-recorded for the rule draw is on C1, a core cell. P2 ran as a must-not-degrade
-control, and the move cannot reach the chains that get stuck there. P1 carries
-no rule-draw arm; nor do P5 and P6. And the core gate is checkable on one cell
-out of four.
+recorded for the rule draw is on C1, a core cell. The confounded step function
+(P2) ran as a must-not-degrade control, and the move cannot reach the chains
+that get stuck there: with one tree the root is a nog node only while the tree
+has a single split, and every recorded stuck chain sits deeper. The low-noise
+cell carries no rule-draw arm; nor do the checkerboard or the diagonal shelf.
+And the core gate is checkable on one cell out of four.
 
 **The departure the case rests on.** The kernel's kill criterion was registered
 with departures from the program's own, two of which matter: the statistic is
 minimum effective sample size rather than coverage, and the cell is C1 rather
 than the low-noise cell, on which three shipped mixtures are indistinguishable.
-Both follow section 2's ruling, and adoption accepts it: the core cell's mixing
+Both follow section 2's ruling, and adoption accepts it: a core cell's mixing
 statistic becomes the target rather than a gate, and the pathologies stay
 untouched.
 
 **What adoption owes, all of it after the release.** First, the design
-amendment that chooses the surface, the restricted kernel being a private
+amendment that settles what a user sees, the restricted kernel being a private
 compile-time build today and not a mode anything can select; the choice is
 between deleting the variable axis from the rule draw and adding a sixth name
-to `proposal.probs`, twenty-four files for the last name added. Second, the
-harm controls listed in the kernel's own design and never run for the
-restricted draw. Third, the plateau-error gate, a gap and not a plan: the house
-rule wants a per-cell check that posterior-mean prediction error has not
-worsened once the sampler has reached its plateau, in a noise-heavy or a
-large-n cell, and no built cell is either. Fourth, the default flip itself,
-since any nonzero share moves every draw from the first sweep of the first
-chain: the three equivalence baselines and everything derived from them are
-regenerated, with the consumer packages on their lockstep branches re-recording
-alongside.
+to `proposal.probs`, which cost twenty-four files the last time a name was
+added. Second, the harm controls listed in the kernel's own design and never
+run for the restricted draw. Third, the plateau-error gate, a gap and not a
+plan: the house rule wants a per-cell check that posterior-mean prediction
+error has not worsened once the sampler has reached its plateau, in a
+noise-heavy or a large-n cell, and no built cell is either. Fourth, the default
+flip itself, since any nonzero share moves every draw from the first sweep of
+the first chain: the three equivalence baselines and everything derived from
+them are regenerated, with the consumer packages on their lockstep branches
+re-recording alongside. That is mechanical work against a bitwise oracle, not a
+risk.
 
 ### 6.1 A standing rule
 
@@ -377,25 +421,27 @@ read. A kill leaves the kernel in place at weight zero rather than deleting it.
 
 ## 7. What was not measured
 
-- **Wall time, and anything per second.** No host was quiet; the one-minute
-  load ran from 4 to 269 across the arms, so every cost figure here is a scan
-  count.
+- **Wall time, and anything per second.** No host was quiet; the one-minute load
+  ran from 4 to 269 across the arms and 100 to 122 on the machine that ran the
+  equal-cost arm, so every cost figure here is a scan count.
 - **The plateau-error gate.** No built cell is noise-heavy or large-n, so the
   house rule's harm check has nowhere to run.
 - **The sampler's own speed since the default last moved.** A bench-sampler
   comparison on a quiet machine, owed since swap's share moved.
-- **The adopted kernel's own controls.** No P1 control reading, no P2 arm, no
-  sham arm, no fresh seed block on the ungated function and no equal-cost arm,
-  all of which the full draw's run carried. Its cut-scan figures come from a
-  census cell at its own data and seed, not from a replay of the arms' seeds,
-  and that cell takes its 0.16 share out of change and out of birth and death
+- **The adopted kernel's own controls.** No low-noise control reading, no
+  confounded-step arm, no sham arm, no fresh seed block on the ungated function
+  and no equal-cost arm, all of which the full draw's run carried. Its cut-scan
+  figures come from a census cell at its own data and seed, not a replay of the
+  arms' seeds, and that cell takes its 0.16 out of change and birth/death
   together where the benefit arms take it out of change alone; neither
   difference was corrected for.
 - **Any rule-draw arm on a pathology.** P1, P5 and P6 carry none.
-- **A swap share in five one-tree exact gates.** Every one-tree exact gate that
-  accepts a caller mixture now sets a positive swap share; four two-forest
-  causal gates and one monotone gate cannot, so those five run without one.
-  That is the one place swap's argument is not covered.
+- **A swap share in five exact single-tree tests.** These check the sampler's
+  draws against a brute-force enumeration of every reachable one-tree state.
+  Each one that lets its caller set the mixture now sets a positive swap share;
+  four two-forest causal tests and one monotone test cannot, so those five never
+  exercise swap, which is the one gap in the evidence that swap belongs in the
+  engine.
 - **Response-swap recovery inside the battery.** Measured once on its own grid,
   where it decided swap's default; never re-run against a new kernel.
 - **Whether composing BART with a parametric block helps tree-space mixing.**
@@ -417,27 +463,27 @@ Metropolis-Hastings correction, a price in cut scans, a named deficit and a
 falsifier runnable in a day. Tree-space geodesics, a learned rotation and a
 per-tree temperature each fail on their own terms, and a per-leaf per-variable
 histogram cache was refuted on size, the saving being a depth-fold rather than
-the leaf-fold claimed. The move census refuted two more: an informed death
-proposal, choosing which leaf pair to prune by weight rather than uniformly,
-whose weights turn out to be effectively a point mass, so the proposal is the
-uniform one; and a lifted cut displacement, which would have given a cut move a
+the leaf-fold claimed. The census refuted two more: an informed death proposal,
+choosing which leaf pair to prune by weight rather than uniformly, whose
+weights turn out to be effectively a point mass, so the proposal is the uniform
+one; and a lifted cut displacement, which would have given a cut move a
 persistent direction, where accepted displacements reverse rather than
 continue.
 
 Two constructions remain unbuilt with their arguments intact. A
 pairwise-collapsed split transfer is the only candidate addressing
-representation multimodality directly; its probe was not built because pricing
-a transfer needs the residual net of the other trees and the partner's leaf
-statistics, which no existing move sees. A lifted birth and death is cheap and
-valid but recomputes at a gain of only 1.06 to 1.17.
+representation multimodality directly, and its probe was not built because
+pricing a transfer needs the residual net of the other trees and the partner's
+leaf statistics, which no existing move sees. A lifted birth and death is cheap
+and valid but recomputes at a gain of only 1.06 to 1.17.
 
 The battery's design law comes from an earlier study. Grow-from-root as a
-default was killed in both strata: every aggregate test passed, but per-cell
-plateau posterior-mean error costs of +11.10 percent in a noise-heavy small-n
-cell and of +4.47 and +10.66 percent in a large-n one, each past its frozen
-margin and each confirmed on fresh seeds, were averaged away by pooling. What
-the battery inherits is that law: per-cell checks, thresholds frozen before the
-run, mandatory fresh-seed re-runs and a null control that voids the family.
+default was killed: every aggregate test passed, but per-cell plateau
+posterior-mean error costs of +11.10 percent in a noise-heavy small-n cell and
+of +4.47 and +10.66 percent in a large-n one, each past its frozen margin and
+each confirmed on fresh seeds, were averaged away by pooling. What the battery
+inherits is that law: per-cell checks, thresholds frozen before the run,
+mandatory fresh-seed re-runs and a null control that voids the family.
 
 ## Appendix B. Source records
 
