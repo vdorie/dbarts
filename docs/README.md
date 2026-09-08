@@ -31,8 +31,9 @@ decision - it explains where decisions live and how to find one.
   here; a claim with no row has no attribution.
 - `docs/plans/bartcore-landing/` - the landing memo for merging bartcore
   onto main (`memo.md`), and the registers behind it: changes against
-  main, completion status of everything planned, and a doc inventory for
-  triage.
+  main, completion status of everything planned, a doc inventory for
+  triage, the neutral evaluations of agent-made decisions, and the
+  rubric every maintainer-facing document is reviewed against.
 - repo-root `TODO` - the live, unordered backlog of OPEN work, forward-
   facing only. Most entries name an implementation plan in `docs/plans/`;
   a few record instead in a design doc or a differently-named plan.
