@@ -331,7 +331,11 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84)
   external pointer; re-bake the hash; port stan4bart (init.cpp, three
   sites) and treatSens (bartTreatmentModel.cpp, sensitivityAnalysis.cpp)
   on their compat branches; drop the null-pointer refusal channel with
-  the entry. Plan doc to write.
+  the entry. Trim the header to the entries a consumer calls plus the
+  buffer-sizing queries (dec-B86): the multi-forest block, mutation
+  pair, callback, active rows, weights, test predictors/offset, thinning
+  and latent readers wait for a consumer; batch later additions into
+  planned releases. Plan doc to write.
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's
   Rmath, print and error touchpoints through src/external host hooks
