@@ -128,6 +128,31 @@ build goes to a private library, so the ordinary one is untouched.
     Rscript benchmarks/R/move-census.R                 # run, then summarize
     Rscript benchmarks/R/move-census.R summarize DIR   # existing files
 
+## The x86 leg
+
+The development machine is arm64 macOS, which masks Linux and x86 bugs:
+a Linux-only build break, a CPUID-misdetected AVX2 kernel and an ABI
+mismatch segfault each surfaced first on the x86 box (dbarts-bench, an
+8-core Ryzen with SMT, so 16 logical cores; AVX2 and FMA, no AVX-512)
+and nowhere on macOS. An engine landing gets an x86 leg alongside the
+local battery, and it is the only place to time bench-sampler on x86 or
+to exercise a new SIMD kernel.
+
+Working pattern: ship the source (rsync excluding .git, or `git archive`
+of the exact sha when the local tree is dirty), install with
+`R CMD INSTALL --preclean -l ~/rlib-<tag>` into a private library, set
+`R_LIBS=~/rlib-<tag>` on every R invocation, then run tests/cpp (plain
+and ASAN), the full tinytest suite, and the equivalence trio.
+
+Expected verdicts there: tinytest FAILURES == 0 (test-simd.R is bitwise
+across dispatch levels 0/2/5/7/8 within that host; gate on failures, not
+the total count, which differs from arm); every equivalence scenario
+reports "max |z|" rather than "identical draws" against an arm64-recorded
+baseline, and passes in statistical mode (docs/architecture.md,
+"Reproducibility contract"). Timing runs need the box idle: it is shared,
+so check `/proc/loadavg` first, and threading benches saturate at the 8
+physical cores and regress past them.
+
 ## tests/cpp - bartcore component tests
 
 C++-level exact tests of the new engine's math against independently coded

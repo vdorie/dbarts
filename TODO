@@ -72,6 +72,14 @@ items
     on a consumer demanding exact AR-1 errors. Record:
     docs/design/correlated-outcomes.md (A). causal-motivated,
     decision-gated.
+  doc-freshness-guard-tightening: door, VD decision. The symbol rule
+    in tools/check-doc-freshness.R accepts a cite when each component
+    occurs anywhere in the target file, and the guard reads docs/design
+    and docs/plans but not man/ or vignettes/ for content drift, so
+    prose can go stale while every cite passes. Tightening either half
+    (symbol inside the cited construct; content coverage of man and
+    vignettes) will surface pre-existing drift needing a content re-pin
+    pass before it can go green. No plan doc until ruled.
   equivalence-harness-seeds-axis: post-RC, re-record
     benchmarks/R/bcf-equivalence.R and multinomial-equivalence.R
     against independent per-scenario seeds in place of one chain's

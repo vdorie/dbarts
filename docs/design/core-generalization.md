@@ -31,7 +31,9 @@ Decisions:
   `R_C_interface.hpp` ABI keep working throughout; the old engine is retired
   once the new one reaches parity.
 - **C++20 floor.** Concepts define the model/data extension points.
-  Requires R >= 4.3 toolchains.
+  Requires R >= 4.3 toolchains. A downgrade to C++17 was considered during
+  the release review and declined (VD 2026-09-01): the concept layer's
+  if-constexpr seams and exact-match static_asserts do real work.
 - **Zero performance regression** on the classic Gaussian/probit path;
   cutover is gated on benchmarks.
 - **No bit-parity requirement.** The port need not preserve the

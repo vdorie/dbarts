@@ -3,8 +3,9 @@
 The TODO at the repo root is an unordered backlog; most items name a
 plan file here, a few record instead in a design doc or a
 differently-named plan. This document covers the plan-file format, the
-citation rule, the RNG-class gates a change needs, and where a landing
-gets recorded.
+citation rule, the RNG-class gates a change needs, how a landing is
+recorded and carried out, the reviewer's checklist, gate hygiene, and
+what CI runs on a push.
 
 ## Plan format
 
@@ -123,7 +124,126 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 
 ## Landing
 
-Append the plan's `## Landing` (or `## Landing note`) note, and bump the matching
-`docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`. The
-design Status line is the record most often missed; check it
-explicitly at every landing.
+The landing record is two edits: append the plan's `## Landing` (or
+`## Landing note`) note, and bump the matching `docs/design/<x>.md`
+`Status:` line to `LANDED <date> (<commit>)`. The design Status line is
+the record most often missed; check it explicitly at every landing.
+release-candidate-review.md inserts its landing notes newest-first
+under its "## Landing notes" heading; every other plan file appends at
+the end. Never insert into the middle of a note sequence another doc
+cites.
+
+The procedure around those edits, as practiced:
+
+1. Implement in a linked worktree branched off `origin/bartcore`, with
+   its own private R library (`R CMD INSTALL -l <lib> .` and `R_LIBS=<lib>`
+   on every R call; `~/.Renviron` overrides `R_LIBS_USER`, so the prefix
+   is not optional). One writer per worktree.
+2. Diff review by a second reader, then the gate battery for the change's
+   RNG class (above) run independently of the implementer, against the
+   slice's own library. `--preclean` on every engine commit: a stale
+   object silently fails the bitwise gates.
+3. Push the reviewed sha, fast-forward the main checkout, then a separate
+   records commit carrying the real landed hash. Cherry-picking into an
+   integration worktree renames every commit, so records cite only hashes
+   that are ancestors of `origin/bartcore` (`git merge-base --is-ancestor`).
+4. Clean up the worktree and its library only after the push succeeded,
+   chaining with `&&`, and never through a pipe: `git merge --ff-only X |
+   tail -1` reports tail's exit status, not the merge's.
+5. Watch CI to green (below) before the next slice branches off the tip.
+
+Independent file-disjoint slices may run in parallel worktrees off one
+base, each with its own implementer and gate run; they stack by rebase in
+slice order and the batch is gated once with one merged-tree battery plus
+cross-slice probes. Hard chains stay serial.
+
+## Reviewer checklist
+
+Cheap gates are re-run by the reviewer, not trusted from the report.
+
+- `air format --check .` tree-wide, and `lintr::lint()` on every touched R
+  file against the slice's own library (a stale library manufactures
+  `object_usage_linter` false positives). `lintr::lint_package()` whenever
+  a slice moves names, touches many R files or edits NAMESPACE; per-file
+  lintr is necessary, not sufficient. `air.toml` excludes docs/, whose
+  verbatim records must not be reformatted.
+- A `_pkgdown.yml` entry plus `pkgdown::check_pkgdown(".")` for every new
+  exported Rd topic.
+- `inst/NEWS.Rd` must parse when touched: gate on a non-NULL result from
+  `tools:::.build_news_db_from_package_NEWS_Rd("inst/NEWS.Rd")` and its
+  entry count. `tools:::.build_news_db(".")` is a silent no-op.
+- `R CMD check --as-cran` from a tarball built from a clean copy staged
+  outside the tree, for any commit touching R/ or man/. CRAN's core limit
+  fires parallel's own error before the package's validation does.
+- `tools/check-rc-codoc.R` (reference-class methods, which `codoc` cannot
+  see) and `tools/check-doc-freshness.R`, each gated on its OWN exit
+  status. A `Rscript ... | tail -1` chain masks a failure behind tail's
+  exit 0.
+- Build provenance before trusting a suite: the installed package's mtime
+  must postdate the source it claims to test.
+
+## Gate hygiene
+
+- The equivalence harnesses' terminal summary line is not evidence.
+  Count the per-scenario "identical draws (same RNG stream)" lines and
+  require the full scenario count with no "max |z|" line. Any skipped
+  scenario or any |z| means a wrong baseline file or a real change.
+  benchmarks/baselines/MANIFEST names the current baselines.
+- Count warnings with `withCallingHandlers`; a bare `expect_warning`
+  is blind to extras. Muffle a third-party warning at its source only when
+  it is meaningless to the user, and pin new leaks by pattern per class
+  rather than retreating to a pattern-only expectation.
+- Prove a gate discriminates by running the mutation it exists to catch.
+  After reverting a mutation, `touch` the file: an `mv` back preserves the
+  mtime and the next install keeps the mutated object.
+- `expect_equal` on an always-NULL field is a no-op, and a fixture whose
+  factor has one level vacates its pin. A constant "filler" predictor
+  column is not inert either; never use one to disable splitting.
+- A snapshot-valued test is replayed as a whole file when its draws move;
+  the values depend on the file's full execution history.
+- Sanitizers, locally, before pushing any engine commit that makes new
+  numerics reachable: build tests/cpp with
+  `OPT="-O2 -g -fsanitize=address,undefined"` and run with
+  `ASAN_OPTIONS=detect_container_overflow=0` (container-overflow is a
+  false positive from mixing instrumented objects with the
+  uninstrumented static libraries). On macOS symbolization spawns `atos`,
+  which raises the Developer Tool Access prompt; a prompt means a
+  diagnostic fired, so read the count.
+- A renamed OPTIONAL state block is a silent misread, not an error, unless
+  the format floor moves with it; see the registry rule at
+  [`stateFormatVersion`](../../src/R_interface_bartcore.cpp).
+
+## CI
+
+Per-push workflows and what they ignore (read the yaml for the current
+lists; this is the shape):
+
+- check-standard, cpp-tests, sanitizers: `docs/**`, `TODO`, `**.md`,
+  `benchmarks/**`. cpp-tests and sanitizers also ignore `inst/NEWS.Rd`;
+  cpp-tests ignores `man/**`.
+- exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
+  It does not ignore the rest of benchmarks/ and cancels an in-progress
+  run on the same branch, so a records push that touches benchmarks/
+  right after a slice push cancels the slice's run; space the pushes or
+  rerun.
+- lint: `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`.
+- pkgdown: `docs/**`, `TODO`, `benchmarks/**`, but not `**.md`
+  (README is an input).
+- doc-freshness: nothing ignored, by design.
+
+So a docs-only or TODO-only push fires doc-freshness alone; run the
+freshness guard locally and that is the whole gate. Any `.github/` touch
+fires everything. equivalence, rchk, revdep-smoke, sbc and valgrind are
+schedule and dispatch only, and GitHub binds those triggers to the
+default branch, so they stay dormant until bartcore reaches main.
+
+Reading a red run: "cancelled" usually means a step hit its
+`timeout-minutes`; compare the duration to the limit before rerunning. A
+red that goes green on a same-commit rerun is the runner-hardware class,
+and the same-commit rerun is the first probe. A Linux-only red with macOS
+and Windows green is the BLAS/platform class. Either way the fix is
+host-independent code, never a retry, and the red run stays red in
+history. Poll with `gh run list --commit <full sha>` (a short sha
+silently matches nothing) and, after a rerun, by run id. A `run: |` step
+wrapping `Rscript -e '...'` is a single-quoted shell string, so no
+apostrophe anywhere inside it, comments included.

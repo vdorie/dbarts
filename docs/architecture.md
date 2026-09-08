@@ -459,6 +459,40 @@ replay is bitwise identical at every thread count, including the inline
 below-cutoff path. `numThreads = 0` floors to the sampler's own thread count
 (docs/design/threaded-predict.md).
 
+## Reproducibility contract
+
+Within one host, the same seed yields bitwise-identical draws whichever
+SIMD path the runtime dispatch selects. That holds by construction:
+every dispatched double-precision kernel is elementwise or a permutation
+(partition, vector add and subtract, AXPY, transpose), and the hot
+draw-path reductions - the per-node sufficient statistics of
+[`misc_computeSufficientStatisticsFast`](../src/misc/moments.c) and the
+residual sum of squares behind the sigma draw - are scalar and
+fixed-order. The gate is
+["C_dbarts_getMaxSIMDInstructionSet"](../inst/tinytest/test-simd.R),
+which fits the same data at every forced dispatch level and compares at
+tolerance zero. It compares dispatch levels of one binary, so a header
+change that moves every level together is caught by the value-pinned
+tinytests and the equivalence baselines instead. tests/cpp initializes
+dispatch once at the host maximum and never re-dispatches.
+
+Across hosts the guarantee is statistical, never bitwise, for two reasons
+unrelated to the engine: the equivalence scenarios generate their data
+through the platform libm (the Friedman function calls `sin`), so the
+inputs already differ in the last bit between macOS and Linux, and
+transcendental and floating-point code generation differ between
+compilers. The equivalence baselines are therefore recorded and compared
+bitwise on one machine, and the harnesses' `--cross-host` mode gates
+off-host on the statistical comparison. A cross-host bitwise mismatch is
+not a regression to chase.
+
+Consequence for kernel work: vectorizing or FMA-contracting a draw-path
+reduction reorders its sum, which breaks the within-host property above
+and degrades the gate to a statistical one plus a re-record. Measured on
+x86, that trade buys about nothing - FMA gave no speedup on the
+load-bound hot loops and the sufficient-statistics gather is
+memory-bound - so the performance lever is layout, not reduction SIMD.
+
 ## Further reading
 
 - docs/design/INDEX.md - every design note, with its status.
