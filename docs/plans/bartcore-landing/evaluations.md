@@ -36,7 +36,7 @@ row or process is named in `reason`.
 | dec-A40 | engine header-only, compiled into two translation units | DISCUSS a five-TU factory split | WEAKENED | DISCUSS | R CMD INSTALL compiles serially by default, so five translation units would instantiate the engine headers five times; MAKEFLAGS=-j and a measured --preclean time should come before a split |
 | dec-A44 | BCF treatment-forest ridge ships off | DISCUSS - unrun gate or baseline hygiene | OVERTURNED to KEEP | KEEP | the bridge states one rule - a forest travels the ridge exactly when its prior is a scale mixture - and names its own acceptance gate as unrun; the fixed-variance ridge flags are unreachable on any shipped path |
 | dec-A51 | about 30 test-only accessors compile into the shipped engine | KEEP | not reviewed | KEEP | the accessors cost two vtable slots; a compile-time guard would mean the tested translation unit is not the shipped one |
-| dec-A52 | a second R handle layer with its own validation ships in the package | not assigned | not reviewed | DISCUSS | this row was not assigned to any of the four evaluators; it needs an evaluation before a verdict can stand |
+| dec-A52 | a second R handle layer with its own validation ships in the package | CHANGE | self-critiqued | CHANGE | one BCF creation path: retire the test-only BCF sampler constructor and its C entry in favour of the public spec and forest() route, move the two multinomial shims to inst/common, keep the handle environment; at minimum build the BCF parameters through forestParams so the eight-slot layout exists once |
 | dec-A53 | samplePriorPredictive re-derives the sigma calibration in R | KEEP | not reviewed | KEEP | the R-side derivation matches the bridge's own formula and reads the same resolved sigest; an engine accessor would need its own un-scaling |
 | dec-A54 | export the composition validator and two augmentation primitives | DISCUSS - scalar sigma, augFamilies gaps | WEAKENED | DISCUSS | the named augFamilies and scalar-sigma gaps do not hold on inspection - hurdle composes from already-exported families and sigma covers only scale-equivariant residual laws - but whether dbartsValidateComposition should be exported API remains open |
 | dec-A55 | eight refusal-only S3 methods plus a one-token type | CHANGE to two .default methods | OVERTURNED to KEEP | KEEP | a .default method answers every unrelated class with the same message; the per-class methods give a remedy specific to the class, which a shared default cannot |
@@ -92,10 +92,11 @@ row or process is named in `reason`.
 - dec-A68: drop "tau" from the vars defaults that carry it and give summary.bartMultinomial a vars formal matching its as_draws siblings.
 - dec-B61: transpose the basis matrix inside dbarts_sampler_setForestBasis and make the header column-major with no exception; item 1's seven entries stand as ruled.
 
+- dec-A52: collapse the test-only BCF creation path onto the public spec and forest() route and move the multinomial shims out of the namespace; at minimum build the BCF parameters through forestParams once.
+
 ## Discuss with the maintainer
 
 - dec-A40: is a five-translation-unit factory split worth pursuing, or does MAKEFLAGS=-j already address the rebuild latency it targets?
-- dec-A52: this row was never assigned to an evaluator - does it need one before a verdict can stand?
 - dec-A54: should dbartsValidateComposition be exported API or an internal/vignette tool?
 - dec-A70: should the response side gain a caller-facing option to restore na.omit, given na.action, not missing, is the argument that owns row deletion?
 - dec-B31: does 1.0 owe a message that names a dbarts 0.9-x saved fit specifically, beyond the class-mismatch error and the existing NEWS.Rd note?
