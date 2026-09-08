@@ -123,7 +123,7 @@
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
   }
   \item{newControl}{
-    An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, \code{levelGibbs}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error.
+    An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, \code{levelGibbs}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error. \code{levelGibbs} is guarded as one of the three values it was given - \code{TRUE}, \code{FALSE}, or \code{NA} - so restating \code{NA}, the default, is accepted while turning the step on or off is not; under \code{NA} the step follows the mixture, which \code{setModel} may freeze at any point.
   }
   \item{newModel}{
     An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.

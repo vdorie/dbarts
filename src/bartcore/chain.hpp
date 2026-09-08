@@ -30,6 +30,18 @@
 
 namespace bartcore {
 
+/// When the level-fibre Gibbs step runs (SamplerOptions::levelGibbs).
+enum class LevelGibbsMode : std::uint8_t {
+  /// Never; no generator draw is taken and the sweep is the shipped one.
+  off,
+  /// Every sweep, for every constant-leaf forest.
+  on,
+  /// Every sweep, for each forest whose structural mixture is frozen. The
+  /// step buys nothing a birth or a change does not already buy, and costs a
+  /// draw sequence, so it earns its place exactly where no structure moves.
+  automatic
+};
+
 struct SamplerOptions {
   size_t numTrees = 200;
   size_t numChains = 1;
@@ -59,12 +71,16 @@ struct SamplerOptions {
   // ahead of the tree loop: c_t added to every occupied leaf of tree t with
   // sum_t c_t = 0 leaves the fitted function unchanged, so the conditional of
   // the shift is the leaf prior restricted to that subspace and is closed
-  // form. Off by default and guarded before any generator call, so the
-  // default draw sequence is byte-for-byte unchanged. Constant-leaf forests
-  // only: a vector or function leaf keeps no leaf table for the shift to
-  // write, and the variance forest's fibre is multiplicative rather than
+  // form. Three modes: on, off, and automatic, which takes the step for a
+  // forest exactly where that forest's structural mixture is frozen. The
+  // decision is PER SWEEP and PER FOREST, since setModel can move a mixture
+  // between sweeps while this option is fixed when the sampler is created.
+  // Guarded before any generator call, so a mixture that proposes structure
+  // leaves the default draw sequence byte-for-byte unchanged. Constant-leaf
+  // forests only: a vector or function leaf keeps no leaf table for the shift
+  // to write, and the variance forest's fibre is multiplicative rather than
   // additive, so both ignore it.
-  bool levelGibbs = false;
+  LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
@@ -1313,6 +1329,14 @@ public:
   /// the new share of the budget on the next routing.
   void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
 
+  /// Component tests: the level-fibre mode, which a sampler otherwise takes
+  /// once at construction (the R control slot is guarded to match). Two
+  /// chains grown to the same state and then continued under two modes is
+  /// the only way to read one mode against another at a grown forest.
+  void setLevelGibbsForTesting(LevelGibbsMode mode) {
+    options_.levelGibbs = mode;
+  }
+
   /// Called after the shared store's test data changes.
   void resizeTestStorage() {
     for (Forest<L, ResidT>& forest : forests_) {
@@ -1390,16 +1414,34 @@ public:
         weights = meanWeights_.data();
       }
 
+      // each forest's structural mixture, read ONCE per forest per sweep: it
+      // is what the automatic level step below and the tree loop's frozen
+      // skip each decide on, and setModel can move it between sweeps, so the
+      // two must read the same sweep's mixture and not read it twice.
+      structureFrozenByForest_.resize(forests_.size());
+      for (size_t f = 0; f < forests_.size(); ++f) {
+        const Forest<L, ResidT>& forest = forests_[f];
+        structureFrozenByForest_[f] = structureIsFrozen(
+          forest.birthOrDeathProbability, forest.swapProbability,
+          forest.changeProbability, forest.perturbProbability,
+          forest.ruleGibbsProbability);
+      }
+
       // the level-fibre draw, ahead of the forest loop and so ahead of every
       // channel the sweep writes: kSumSquaredParams is zeroed below and
       // re-accumulated against the shifted leaves, the roll rebuilds tree 0's
       // residual from totalFits (which the zero-sum shift leaves correct), and
       // any keepTrees record is flattened after the shift rather than around
       // it. Per forest, each forest's own shift leaving its own fits invariant
-      // whatever multiplier a combiner applies. Guarded here, before any
-      // generator call, so the default consumes nothing.
-      if (options_.levelGibbs)
-        for (Forest<L, ResidT>& forest : forests_) drawLevelShift(forest);
+      // whatever multiplier a combiner applies, and under the automatic mode
+      // each forest deciding on its own mixture. Guarded here, before any
+      // generator call, so a forest that skips consumes nothing.
+      if (options_.levelGibbs != LevelGibbsMode::off) {
+        for (size_t f = 0; f < forests_.size(); ++f)
+          if (options_.levelGibbs == LevelGibbsMode::on ||
+              structureFrozenByForest_[f])
+            drawLevelShift(forests_[f]);
+      }
 
       for (size_t f = 0; f < forests_.size(); ++f) {
         Forest<L, ResidT>& forest = forests_[f];
@@ -1431,12 +1473,9 @@ public:
         // an all-zero mixture freezes the structures: no move is proposed and
         // no draw is taken for one, so the leaf, sigma and latent draws below
         // sit at the stream positions they would under any other sweep. Read
-        // once here, ahead of the tree loop, so every mixture that DOES
-        // propose keeps its draw sequence exactly.
-        const bool structureFrozen = structureIsFrozen(
-          forest.birthOrDeathProbability, forest.swapProbability,
-          forest.changeProbability, forest.perturbProbability,
-          forest.ruleGibbsProbability);
+        // above the level step, ahead of the tree loop, so every mixture that
+        // DOES propose keeps its draw sequence exactly.
+        const bool structureFrozen = structureFrozenByForest_[f] != 0;
 
         forest.kSumSquaredParams = 0.0;
         forest.kNumLeaves = 0.0;
@@ -5680,6 +5719,11 @@ private:
   // the unconstrained draw u_t. Chain-owned so the step allocates nothing
   // after the first sweep.
   std::vector<double> levelVariance_, levelDraw_;
+  // Whether each forest's structural mixture proposes nothing, refreshed once
+  // per sweep before the level step. Chain-owned so the sweep allocates
+  // nothing after the first one; a mixture is mutable between sweeps, so this
+  // is state of the sweep rather than of the chain.
+  std::vector<unsigned char> structureFrozenByForest_;
   // Diagnostic only, never read by the sampler: how many (tree, sweep) bodies
   // took the fused pass. Every eligibility clause is otherwise a silent
   // decline, which would let a refactor give back the gather unnoticed.

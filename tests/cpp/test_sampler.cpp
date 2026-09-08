@@ -6807,6 +6807,94 @@ static void testFrozenForest() {
   printf("ok: frozen forest\n");
 }
 
+// The level-fibre step's AUTOMATIC mode: it runs for a forest exactly where
+// that forest's structural mixture is frozen. The mixture is mutable between
+// sweeps (setModel) while the mode is fixed when the sampler is created, so
+// the decision is taken per sweep and per forest, and the reading below is
+// against a GROWN forest reached the same way twice rather than against a
+// stump: two chains at one seed, both automatic while structure is still
+// proposed, are bitwise the same state at the freeze, and the modes part only
+// after it.
+static void testLevelGibbsAutomatic() {
+  check(SamplerOptions().levelGibbs == LevelGibbsMode::automatic,
+        "automatic is the shipped mode");
+
+  const size_t n = 200, p = 2, numTrees = 10, numSamples = 20;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  ModelParameters frozenModel;
+  frozenModel.birthOrDeathProbability = 0.0;
+  frozenModel.swapProbability = 0.0;
+  frozenModel.changeProbability = 0.0;
+  frozenModel.perturbProbability = 0.0;
+  frozenModel.ruleGibbsProbability = 0.0;
+  frozenModel.sigmaEstimate = 1.0;
+  frozenModel.sigmaDf = 3.0;
+  frozenModel.sigmaRawScale = 0.37804942330213542;
+
+  // One arm: grow 100 sweeps under the shipped mixture at the automatic
+  // default, switch to `mode`, freeze if asked, and record the next 20 draws.
+  // The growth phase is identical across arms - automatic proposes structure
+  // there, so it takes no shift - which is what makes the tails comparable.
+  struct Arm {
+    std::vector<double> sigma, train;
+  };
+  auto runArm = [&](LevelGibbsMode mode, bool freeze) {
+    Arm arm;
+    arm.sigma.assign(numSamples, 0.0);
+    arm.train.assign(n * numSamples, 0.0);
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 271828);
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &rng);
+    Results results;
+    results.sigma = arm.sigma.data();
+    results.trainingFits = arm.train.data();
+    sampler.run(100, 0, results);
+    sampler.chain(0).setLevelGibbsForTesting(mode);
+    if (freeze) sampler.setModel(frozenModel);
+    sampler.run(0, numSamples, results);
+    ext_rng_destroy(rng);
+    return arm;
+  };
+  auto same = [](const Arm& a, const Arm& b) {
+    return a.sigma == b.sigma && a.train == b.train;
+  };
+
+  // still proposing structure: automatic is off, byte for byte
+  Arm liveAuto = runArm(LevelGibbsMode::automatic, false);
+  Arm liveOff = runArm(LevelGibbsMode::off, false);
+  Arm liveOn = runArm(LevelGibbsMode::on, false);
+  check(same(liveAuto, liveOff), "automatic is off where structure moves");
+  check(!same(liveAuto, liveOn), "on is not, at the same mixture");
+
+  // frozen: automatic is on, byte for byte
+  Arm frozenAuto = runArm(LevelGibbsMode::automatic, true);
+  Arm frozenOff = runArm(LevelGibbsMode::off, true);
+  Arm frozenOn = runArm(LevelGibbsMode::on, true);
+  check(same(frozenAuto, frozenOn), "automatic is on where structure is not");
+  check(!same(frozenAuto, frozenOff), "off is not, at the same mixture");
+
+  // the mixture is what decides, not the sweep count: the frozen tail is a
+  // different path from the live one under every mode, and every arm is
+  // finite and moving
+  bool finite = true, moving = false;
+  for (size_t s = 0; s < numSamples; ++s) {
+    finite = finite && std::isfinite(frozenAuto.sigma[s]);
+    for (size_t i = 0; i < n; ++i) {
+      finite = finite && std::isfinite(frozenAuto.train[i + s * n]);
+      moving = moving || frozenAuto.train[i + s * n] != frozenAuto.train[i];
+    }
+  }
+  check(finite && moving, "the automatic frozen tail is finite and moving");
+
+  printf("ok: level gibbs automatic\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -6864,6 +6952,7 @@ void runSamplerTests(ext_rng* rng) {
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testFrozenForest();
+  testLevelGibbsAutomatic();
   testMissingEndToEnd();
   testLogLikelihood();
   testForestCalibration();

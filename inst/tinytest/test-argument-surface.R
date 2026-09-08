@@ -360,6 +360,11 @@ expect_true(setequal(
   controlFormals1_0_0
 ))
 expect_true(all(controlFormalsAdded %in% names(formals(dbarts::bart2))))
+# and the parity is of the DEFAULT too, not only the name: levelGibbs is a
+# tri-state logical whose NA is the automatic mode, so a bart2 default of
+# FALSE would quietly turn the automatic step off for every bart2 fit
+expect_identical(formals(dbarts::bart2)[["levelGibbs"]], NA)
+expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
 
 # The variance quartet collapses to a dedicated varianceForest() constructor;
 # variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)

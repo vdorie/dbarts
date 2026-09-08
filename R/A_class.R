@@ -253,7 +253,7 @@ methods::setClass(
     verbose = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles = FALSE,
-    levelGibbs = FALSE,
+    levelGibbs = NA,
     keepTrees = FALSE,
     storage = "double",
     n.samples = NA_integer_,
@@ -330,9 +330,9 @@ methods::setValidity("dbartsControl", function(object) {
   if (is.na(object@useQuantiles)) {
     return("'useQuantiles' must be TRUE/FALSE")
   }
-  if (is.na(object@levelGibbs)) {
-    return("'levelGibbs' must be TRUE/FALSE")
-  }
+  # levelGibbs alone reads NA as a value rather than as a missing one: it is
+  # the automatic mode, which takes the level step for a forest exactly where
+  # that forest's structural mixture is frozen
   if (is.na(object@keepTrees)) {
     return("'keepTrees' must be TRUE/FALSE")
   }

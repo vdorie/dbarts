@@ -197,6 +197,7 @@ void runEnsembleTests() {
 
   SamplerOptions options;
   options.numTrees = ensembleTrees;  // the shipped default, stated not inherited
+  options.levelGibbs = LevelGibbsMode::off;
   ConstantLeafSampler sampler(x.data(), y.data(), ensembleN, ensembleP, nullptr,
                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                               0.37804942330213542, options, &rng);
@@ -236,7 +237,7 @@ void runEnsembleTests() {
   ext_rng_setSeed(levelRng, 20260907u);
   SamplerOptions shiftedOptions;
   shiftedOptions.numTrees = ensembleTrees;
-  shiftedOptions.levelGibbs = true;
+  shiftedOptions.levelGibbs = LevelGibbsMode::on;
   ConstantLeafSampler shifted(x.data(), y.data(), ensembleN, ensembleP,
                               nullptr, nullptr, ResponseFamily::gaussian, 1.0,
                               3.0, 0.37804942330213542, shiftedOptions,
@@ -275,6 +276,7 @@ void runEnsembleTests() {
   ext_rng_setSeed(offRng, 20260907u);
   SamplerOptions offOptions;
   offOptions.numTrees = ensembleTrees;
+  offOptions.levelGibbs = LevelGibbsMode::off;
   ConstantLeafSampler off(x.data(), y.data(), ensembleN, ensembleP, nullptr,
                           nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, offOptions, &offRng);
@@ -304,6 +306,7 @@ void runEnsembleTests() {
 
   SamplerOptions lawOptions;
   lawOptions.numTrees = levelTrees;
+  lawOptions.levelGibbs = LevelGibbsMode::off;
   ConstantLeafSampler lawSampler(levelX.data(), levelY.data(), levelN, levelP,
                                  nullptr, nullptr, ResponseFamily::gaussian,
                                  1.0, 3.0, 0.37804942330213542, lawOptions,

@@ -169,9 +169,10 @@ struct ParsedControl {
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
-  // the level-fibre Gibbs step (control@levelGibbs); creation-time, like
-  // useQuantiles, so bartcore_setControl never pushes it
-  bool levelGibbs = false;
+  // the level-fibre Gibbs step (control@levelGibbs, a tri-state logical: NA
+  // is the automatic mode); creation-time, like useQuantiles, so
+  // bartcore_setControl never pushes it
+  bartcore::LevelGibbsMode levelGibbs = bartcore::LevelGibbsMode::automatic;
   bool keepTrees = false;
   // opt-in fp32 running residual (control@storage == "single"); the
   // createSampler gate refuses it for anything but a gaussian constant-leaf
@@ -416,9 +417,16 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
                                     RC_LENGTH | RC_EQ, rc_asRLength(1),
                                     RC_END);
 
+  // NA is a value here and not a refusal, so the logical is read raw rather
+  // than through rc_getBool, which narrows to bool and would read NA as true
   REPROTECT_SLOT(slotExpr, controlExpr, "levelGibbs", slotIndex);
-  control.levelGibbs = rc_getBool(slotExpr, "level gibbs", RC_LENGTH | RC_EQ,
-                                  rc_asRLength(1), RC_END);
+  rc_assertBoolConstraints(slotExpr, "level gibbs", RC_LENGTH | RC_EQ,
+                           rc_asRLength(1), RC_NA | RC_YES, RC_END);
+  int levelGibbsValue = LOGICAL(slotExpr)[0];
+  control.levelGibbs = levelGibbsValue == NA_LOGICAL
+    ? bartcore::LevelGibbsMode::automatic
+    : (levelGibbsValue != 0 ? bartcore::LevelGibbsMode::on
+                            : bartcore::LevelGibbsMode::off);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "keepTrees", slotIndex);
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
@@ -1673,7 +1681,11 @@ void printInitialSummary(const ParsedControl& control,
   ext_printf("\tuse quantiles for rule cut points: %s\n",
              control.useQuantiles ? "true" : "false");
   ext_printf("\tlevel fibre gibbs step: %s\n",
-             control.levelGibbs ? "true" : "false");
+             control.levelGibbs == bartcore::LevelGibbsMode::automatic
+               ? "auto"
+               : (control.levelGibbs == bartcore::LevelGibbsMode::on
+                    ? "true"
+                    : "false"));
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
     "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",

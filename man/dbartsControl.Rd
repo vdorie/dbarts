@@ -9,7 +9,7 @@
 \usage{
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-    levelGibbs = FALSE,
+    levelGibbs = NA,
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
@@ -27,7 +27,7 @@ dbartsControl(
      Logical to determine if the empirical quantiles of the columns of predictors should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced uniformly throughout the range of covariate values.
    }
    \item{levelGibbs}{
-     A logical adding one extra Gibbs step per sampler iteration, taken before the trees are updated: a constant is added to every occupied leaf of each tree, with the constants summing to zero over the trees. The sum-of-trees function is therefore unchanged - the fits, the residual variance and any latent variables see exactly the state they would have - while the individual leaf values move, which can improve mixing where the ensemble's overall level is split among many trees. The shift is drawn from its exact conditional distribution, so the posterior being sampled is the same either way. \code{FALSE} by default, and off, the sampler draws exactly the values it drew in previous versions. Applies to forests with the default constant leaves (including the monotone constraint and every binary, count, or survival family built on them); linear and Gaussian-process leaves and the heteroscedastic variance forest ignore it. Fixed when the sampler is created.
+     A logical adding one extra Gibbs step per sampler iteration, taken before the trees are updated: a constant is added to every occupied leaf of each tree, with the constants summing to zero over the trees. The sum-of-trees function is therefore unchanged - the fits, the residual variance and any latent variables see exactly the state they would have - while the individual leaf values move, which can improve mixing where the ensemble's overall level is split among many trees. The shift is drawn from its exact conditional distribution, so the posterior being sampled is the same either way. Three values: \code{TRUE} takes the step every iteration, \code{FALSE} never takes it, and \code{NA} (the default) takes it for a forest exactly when that forest's tree structures are frozen - every structural element of \code{proposal.probs} zero - where the leaf values are the only thing left moving. The decision is made afresh each iteration, so a mixture frozen with \code{$setModel} part way through a run switches the step on from there. Where structure is being proposed the default takes no step and draws exactly the values it drew in previous versions. Applies to forests with the default constant leaves (including the monotone constraint and every binary, count, or survival family built on them); linear and Gaussian-process leaves and the heteroscedastic variance forest ignore it. Fixed when the sampler is created.
    }
    \item{keepTrees}{
      A logical that determines whether or not trees are cached as they are sampled. In all cases, the current state of the sampler is stored as a single set of \code{n.trees}. When \code{keepTrees} is \code{TRUE}, a set of \code{n.trees * n.samples} trees are set aside and populated as the sampler runs. If the sampler is stopped and restarted, samples proceed from the previously stored tree, looping over if necessary.

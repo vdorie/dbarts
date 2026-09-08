@@ -27,7 +27,7 @@ expect_true(all(sampler$data@n.cuts == n.cuts))
 expect_equal(sampler$control@n.chains, n.chains)
 expect_equal(sampler$control@n.threads, n.threads)
 expect_true(sampler$control@levelGibbs)
-expect_false(dbarts::dbartsControl()@levelGibbs)
+expect_true(is.na(dbarts::dbartsControl()@levelGibbs))
 
 rm(
   sampler,

@@ -257,9 +257,17 @@
             they would have - while the individual leaf values move, which
             can improve mixing where the ensemble's overall level is split
             among many trees. The shift is drawn from its exact conditional
-            distribution, so the posterior is the same either way. It
-            defaults to \code{FALSE}, and off, every fit draws exactly the
-            values it drew before. \code{bart2} takes it as a formal;
+            distribution, so the posterior is the same either way. It takes
+            three values: \code{TRUE} steps every iteration, \code{FALSE}
+            never steps, and \code{NA}, the default, steps for a forest
+            exactly when that forest's tree structures are frozen - every
+            structural element of \code{proposal.probs} zero - which is
+            where the leaf values are the only thing left moving. The
+            decision is taken afresh each iteration, so freezing a mixture
+            with \code{$setModel} part way through a run switches the step
+            on from there. Anywhere structure is still proposed the default
+            takes no step and every fit draws exactly the values it drew
+            before. \code{bart2} takes it as a formal;
             \code{bart} takes the default. It applies to forests with the
             default constant leaves, the monotone constraint and every
             binary, count or survival family among them; linear and

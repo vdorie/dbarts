@@ -344,6 +344,23 @@ expect_equal(length(unique(frozenLeaves)), length(frozenDraws))
 expect_true(length(unique(as.vector(frozenSamples$sigma))) > 1L)
 expect_true(all(is.finite(frozenSamples$train)))
 
+# and this is the mixture that switches the level-fibre Gibbs step on:
+# dbartsControl's levelGibbs defaults to NA, which takes the step for a
+# forest exactly where that forest's structures are frozen. The freeze
+# arrives by setModel after fifty growing sweeps, so the decision is taken
+# per sweep and not once at creation - the run above and the arm below stand
+# at the same forest when it lands, and part only from the sweep after it.
+frozenOff <- frozenControl
+frozenOff@levelGibbs <- FALSE
+frozenOffSampler <- dbarts::dbarts(x, y, control = frozenOff)
+set.seed(23L)
+invisible(frozenOffSampler$run())
+frozenOffSampler$setModel(frozenModel)
+expect_false(
+  identical(frozenOffSampler$run(0L, 25L)$train, frozenSamples$train)
+)
+rm(frozenOff, frozenOffSampler)
+
 # ---- the default replays bitwise ------------------------------------------
 
 # the fill's new branch must not touch the shipped default: spelling it out

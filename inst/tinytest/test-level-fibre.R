@@ -14,15 +14,18 @@ source(
 
 # ---- the control slot ----
 
-expect_false(dbarts::dbartsControl()@levelGibbs)
+# three values: TRUE takes the step every iteration, FALSE never takes it,
+# and NA - the default - takes it for a forest exactly where that forest's
+# structural mixture is frozen
+expect_true(is.na(dbarts::dbartsControl()@levelGibbs))
+expect_true(is.na(dbarts::dbartsControl(levelGibbs = NA)@levelGibbs))
 expect_true(dbarts::dbartsControl(levelGibbs = TRUE)@levelGibbs)
-expect_error(
-  dbarts::dbartsControl(levelGibbs = NA),
-  "'levelGibbs' must be TRUE/FALSE"
-)
+expect_false(dbarts::dbartsControl(levelGibbs = FALSE)@levelGibbs)
+# NA being a value rather than a refusal, an argument that merely coerces to
+# one is caught before it can read as a third setting
 expect_error(
   dbarts::dbartsControl(levelGibbs = "not-a-logical"),
-  "'levelGibbs' must be TRUE/FALSE"
+  "'levelGibbs' must be TRUE, FALSE, or NA"
 )
 expect_error(
   dbarts::dbartsControl(levelGibbs = c(TRUE, TRUE)),
@@ -63,15 +66,19 @@ offSampler <- dbarts::dbarts(
     n.samples = 5L
   )
 )
+# and the same refusal from the default, which is NA and not FALSE
 turnedOn <- offSampler$control
+expect_true(is.na(turnedOn@levelGibbs))
 turnedOn@levelGibbs <- TRUE
 expect_error(
   offSampler$setControl(turnedOn),
   pattern = "changing 'levelGibbs'"
 )
 
-# a control that only restates the value is accepted
+# a control that only restates the value is accepted, NA against NA among
+# them - identical() reads two missing values as the same setting
 expect_null(onSampler$setControl(onSampler$control))
+expect_null(offSampler$setControl(offSampler$control))
 
 # ---- the serialized control carries it through a re-creation ----
 
@@ -124,9 +131,95 @@ expect_true(leafSumError(fitOff) < 1e-10)
 
 # the step is live: the same seed draws a different path with it on
 expect_false(identical(fitOn$yhat.train, fitOff$yhat.train))
-# and off, naming it changes nothing at all against the default
+# and where structure is being proposed - which is every bart2 fit that does
+# not freeze it - the NA default takes no step, so naming FALSE changes
+# nothing at all
+fitDefault <- dbarts::bart2(
+  testData$x,
+  testData$y,
+  n.trees = 25L,
+  n.samples = 60L,
+  n.burn = 60L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 11L
+)
+expect_identical(fitDefault$yhat.train, fitOff$yhat.train)
 expect_identical(fitOff$yhat.train, fitAt(FALSE)$yhat.train)
-rm(fitOn, fitOff)
+rm(fitOn, fitOff, fitDefault)
+
+# ---- automatic: a frozen mixture switches the step on, and nothing else ----
+
+# the mixture is mutable between samples while the control slot is fixed at
+# creation, so the decision is taken per sweep: a sampler grown under the
+# shipped mixture takes no step, and takes one from the sweep its structures
+# are frozen at
+freeze <- function(model) {
+  model@p.birth_death <- 0
+  model@p.swap <- 0
+  model@p.change <- 0
+  model@p.perturb <- 0
+  model@p.rule_gibbs <- 0
+  model
+}
+frozenTail <- function(...) {
+  control <- dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 10L,
+    n.burn = 0L,
+    n.samples = 25L,
+    updateState = FALSE,
+    seed = 29L,
+    ...
+  )
+  sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+  invisible(sampler$run(50L, 0L))
+  sampler$setModel(freeze(sampler$model))
+  sampler$run(0L, 25L)$train
+}
+# the two arms share every growing sweep - the default takes no step while
+# structure is proposed, and neither does FALSE - so they stand at one forest
+# when the freeze lands, and part only after it
+frozenDefault <- frozenTail()
+expect_false(identical(frozenDefault, frozenTail(levelGibbs = FALSE)))
+expect_true(all(is.finite(frozenDefault)))
+
+# frozen from creation instead, where TRUE and the default share every sweep
+# rather than only the ones after the freeze, the default draws exactly what
+# the step named on draws. It cannot be read against a grown forest from R:
+# TRUE steps through the growing sweeps too, so the two arms would part
+# before the freeze rather than at it
+frozenThroughout <- function(...) {
+  control <- dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 10L,
+    n.burn = 0L,
+    n.samples = 25L,
+    updateState = FALSE,
+    seed = 31L,
+    ...
+  )
+  sampler <- dbarts::dbarts(
+    y ~ x,
+    testData,
+    control = control,
+    proposal.probs = c(
+      birth_death = 0,
+      swap = 0,
+      change = 0,
+      perturb = 0
+    )
+  )
+  sampler$run(25L, 25L)$train
+}
+alwaysFrozen <- frozenThroughout()
+expect_identical(alwaysFrozen, frozenThroughout(levelGibbs = TRUE))
+expect_false(identical(alwaysFrozen, frozenThroughout(levelGibbs = FALSE)))
+rm(frozenDefault, frozenTail, freeze, frozenThroughout, alwaysFrozen)
 
 # ---- the answer is the same: held-out fits agree within Monte Carlo error ----
 

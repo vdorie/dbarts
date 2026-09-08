@@ -214,7 +214,7 @@ dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
   useQuantiles = FALSE,
-  levelGibbs = FALSE,
+  levelGibbs = NA,
   keepTrees = FALSE,
   storage = c("double", "single"),
   n.samples = NA_integer_,
@@ -230,6 +230,16 @@ dbartsControl <- function(
   updateState = TRUE
 ) {
   storage <- match.arg(storage)
+  # NA is a VALUE for levelGibbs - the automatic mode - so an argument that
+  # merely coerces to one, a misspelled character say, has to be refused here
+  # rather than read as a third setting the caller never asked for
+  if (
+    !is.logical(levelGibbs) &&
+      !anyNA(levelGibbs) &&
+      anyNA(as.logical(levelGibbs))
+  ) {
+    stop("'levelGibbs' must be TRUE, FALSE, or NA")
+  }
   newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
