@@ -97,7 +97,7 @@ row or process is named in `reason`.
 ## Discuss with the maintainer
 
 - dec-A40: is a five-translation-unit factory split worth pursuing, or does MAKEFLAGS=-j already address the rebuild latency it targets?
-- dec-A54: should dbartsValidateComposition be exported API or an internal/vignette tool?
+- dec-A54: settled 2026-09-08, keep exported; the one-sweep contract is documented as stable.
 - dec-A70: should the response side gain a caller-facing option to restore na.omit, given na.action, not missing, is the argument that owns row deletion?
 - dec-B31: does 1.0 owe a message that names a dbarts 0.9-x saved fit specifically, beyond the class-mismatch error and the existing NEWS.Rd note?
 - dec-B41: should a message fire keyed on the realized GP leaf-size fallback rate, rather than on n.trees alone?
