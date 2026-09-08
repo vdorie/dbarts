@@ -461,6 +461,19 @@ rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   1000 draws) before dbarts ships; fallback if not: an R-only grouped
   intercept over the plain sampler's setOffset, no engine block.
 
+binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
+  dec-B106)
+  the July chi-default study (48 simulated cells, 4 DGPs, df fixed at
+  1.5, artifacts lost) is re-run with a checked-in harness under
+  benchmarks/R: vary df in {1, 1.5, 2, 3} and scale in {1, 2, 3, 5},
+  compare fixed k; widen the use cases well beyond four DGPs: real
+  datasets across domains and sizes, rare and common outcomes,
+  separable and noisy signals, many and few predictors, factor-heavy
+  designs, class imbalance, and misspecified truths; report worst-cell
+  and average log loss, calibration, latent RMSE and coverage. Confirm
+  or change chi(1.5, 2) on that evidence, before 1.0-0 if time allows.
+  First item of the resumed research programme.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
