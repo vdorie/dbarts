@@ -51,7 +51,7 @@
 #                           also read off the first 2500 of those draws so the
 #                           length effect is visible inside a single fit
 #
-# Eight further arms sit on that same shipped four-chain configuration and the
+# Nine further arms sit on that same shipped four-chain configuration and the
 # same twenty seeds, varying only the proposal mixture or the level-fibre
 # flag, so the kernel contrast is read where the shipped chain default reads
 # it rather than at the one-chain configuration the earlier move-set grid
@@ -68,6 +68,10 @@
 #                                  change and birth/death both. It is NOT the
 #                                  arm above and its readouts do not stand in
 #                                  for it.
+#   independent75pool4ruleGibbs08  birth_death 0.6, swap 0, change 0.32,
+#                                  rule_gibbs 0.08, the half dose, the same
+#                                  share taken out of change alone. It is
+#                                  reported, not gated.
 #   independent75pool4ruleGibbsB   birth_death 0.6, swap 0, change 0.24,
 #                                  rule_gibbs 0.16, the same share taken out
 #                                  of change alone. This is the dosage the
@@ -116,6 +120,21 @@
 # Neither is a move-set contrast - each differs from independent75pool4 in its
 # chain configuration as well as in its mixture - so neither joins the paired
 # table, and both are read as absolute rows.
+#
+# One further arm varies no kernel at all and spends compute instead:
+#
+#   independent75pool4equalCost    the shipped mixture at four chains of 1105
+#                                  burn-in and 1105 kept, 2.21 times the
+#                                  control's sweeps, which is what the
+#                                  rule_gibbs full draw costs at d = 0.16 on
+#                                  the cut-scan instrument. It is the
+#                                  equal-cost arm of docs/design/nog-gibbs.md
+#                                  section 6: it asks whether the shipped
+#                                  kernel buys with sweeps what that kernel
+#                                  buys with mixing. Its kept length is not
+#                                  the control's, so it does not join the
+#                                  paired table either and its summed minimum
+#                                  ESS has to be read per kept draw.
 #
 # A further arm changes no setting at all, only the seed:
 #
@@ -227,6 +246,11 @@ armSpec <- function(
 
 pool4Samples <- if (quick) 100L else 500L
 
+# The equal-cost arm's own budget: 2.21 times the control's 500 + 500 sweeps,
+# split evenly between burn-in and kept draws, scaled in quick mode as
+# pool4Samples is.
+equalCostSamples <- if (quick) 221L else 1105L
+
 arms <- list(
   correlated75 = armSpec("correlated", 75L),
   correlated75grow = armSpec("correlated", 75L, growSweeps = 5L),
@@ -295,6 +319,21 @@ arms <- list(
       swap = 0,
       change = 0.34,
       perturb = 0.16,
+      birth = 0.5
+    )
+  ),
+  independent75pool4ruleGibbs08 = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.32,
+      perturb = 0,
+      rule_gibbs = 0.08,
       birth = 0.5
     )
   ),
@@ -381,6 +420,13 @@ arms <- list(
       birth = 0.5
     )
   ),
+  independent75pool4equalCost = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 1105L,
+    armSamples = equalCostSamples
+  ),
   independent75pool4sham = armSpec(
     "independent",
     75L,
@@ -401,6 +447,7 @@ movesetArms <- c(
   "independent75pool4swap",
   "independent75pool4perturbB",
   "independent75pool4perturbMixed",
+  "independent75pool4ruleGibbs08",
   "independent75pool4ruleGibbsB",
   "independent75pool4ruleGibbs32",
   "independent75pool4level",
