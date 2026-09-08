@@ -2067,6 +2067,110 @@ estimate as well as an interval, and the reference is the read for both.
 Host load ran 4 to 269 through these runs, so their wall times carry no
 timing claim of any kind.
 
+**rule_gibbs, cut-only dose response and the equal-cost arm
+(2026-09-08).** The cut-only build of the paragraph above at a third
+dosage below its own and at both of the recorded ones, and the equal-cost
+arm [6. Benefit, pre-registered](nog-gibbs.md#6-benefit-pre-registered)
+owed. Two arms are added:
+[`independent75pool4ruleGibbs08`](../../benchmarks/R/surfaces/C1-he-hahn.R),
+birth_death 0.6, swap 0, change 0.32, rule_gibbs 0.08, the half dose
+taken from change alone; and
+[`independent75pool4equalCost`](../../benchmarks/R/surfaces/C1-he-hahn.R),
+the shipped mixture unchanged at four chains of 1105 burn-in and 1105
+kept, which is 2.21 times the control's sweeps and so the full draw's own
+cut-scan cost at `d` = 0.16. The dose rows run on the private
+`-DBARTCORE_RULE_GIBBS_CUT_ONLY` library, the equal-cost row on the
+shipped one. `independent75pool4` is re-run in every session and
+reproduces the Chain configuration paragraph's own rows digit for digit
+at both seed blocks and on both mean functions; the `d` = 0.16 cut-only
+arm reproduces the cut-only paragraph's rows and the full-draw arm B
+reproduces the rule_gibbs paragraph's. Trig+poly cleared the +8 bar at
+every dose, so every dose took the fresh-seed block on seeds 21 to 40,
+control and all. Columns as above.
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4ruleGibbs08   1-20   0.955(0.927-0.975)  4.38    1.11  23(9-52)       2(1-3)     0.63
+    trigpoly     independent75pool4ruleGibbsB    1-20   0.955(0.931-0.969)  4.33    1.11  26(8-53)       2(1-3)     0.61
+    trigpoly     independent75pool4ruleGibbs32   1-20   0.956(0.934-0.974)  4.58    1.17  28(14-68)      2(1-3)     0.61
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4ruleGibbs08   21-40  0.954(0.937-0.971)  4.31    1.10  18(8-32)       2(1-2)     0.68
+    trigpoly     independent75pool4ruleGibbsB    21-40  0.952(0.926-0.968)  4.36    1.11  26(9-61)       2(1-3)     0.64
+    trigpoly     independent75pool4ruleGibbs32   21-40  0.955(0.919-0.981)  4.62    1.16  26(9-66)       2(1-4)     0.63
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4ruleGibbs08   1-20   0.894(0.864-0.910)  6.50    1.97  29(12-54)      2(2-3)     0.44
+    singleindex  independent75pool4ruleGibbsB    1-20   0.897(0.869-0.916)  6.51    1.97  37(14-68)      3(2-5)     0.41
+    singleindex  independent75pool4ruleGibbs32   1-20   0.898(0.859-0.920)  6.54    1.97  48(9-88)       3(2-5)     0.40
+
+Paired differences against each row's own control on its own seeds, mean
++/- sd (seeds positive of 20), with the full draw's own summed-ESS
+reading and the dose's cut-scan cost in sweep-equivalents beside each:
+
+    mean fn      d     seeds  d min ESS (sum)                full   d per-chain            d 95% coverage                    d RMSE, ratio            held-out  cost
+    trigpoly     0.08  1-20   +8.1 +/- 10.3 (15/20) t 3.54   -      +0.29 +/- 0.29 t 4.43  -0.006 +/- 0.009 (6/20) t -3.02   -0.005 +/- 0.069, 0.995  0.999     1.02
+    trigpoly     0.16  1-20   +11.3 +/- 16.2 (16/20) t 3.13  +21.5  +0.36 +/- 0.34 t 4.78  -0.007 +/- 0.009 (5/20) t -3.41   -0.006 +/- 0.075, 0.995  0.992     1.04
+    trigpoly     0.32  1-20   +13.4 +/- 13.7 (20/20) t 4.37  +37.0  +0.42 +/- 0.44 t 4.23  -0.005 +/- 0.011 (6/20) t -2.16   +0.057 +/- 0.118, 1.052  1.057     1.08
+    trigpoly     0.08  21-40  +1.8 +/- 6.1 (11/20) t 1.29    -      +0.19 +/- 0.28 t 3.04  -0.010 +/- 0.010 (2/20) t -4.38   +0.002 +/- 0.049, 1.002  0.994     1.02
+    trigpoly     0.16  21-40  +9.1 +/- 12.9 (15/20) t 3.14   +22.1  +0.40 +/- 0.41 t 4.40  -0.012 +/- 0.012 (2/20) t -4.69   +0.016 +/- 0.059, 1.014  1.012     1.04
+    trigpoly     0.32  21-40  +9.3 +/- 16.8 (15/20) t 2.48   -      +0.34 +/- 0.60 t 2.58  -0.009 +/- 0.014 (5/20) t -2.83   +0.062 +/- 0.100, 1.057  1.048     1.08
+    singleindex  0.08  1-20   +8.3 +/- 12.4 (16/20) t 2.98   -      +0.59 +/- 0.47 t 5.60  -0.000 +/- 0.009 (10/20) t -0.19  +0.051 +/- 0.033, 1.027  1.033     1.02
+    singleindex  0.16  1-20   +16.2 +/- 11.3 (20/20) t 6.43  +14.4  +0.88 +/- 0.67 t 5.82  +0.002 +/- 0.008 (12/20) t 1.36   +0.049 +/- 0.024, 1.025  1.033     1.04
+    singleindex  0.32  1-20   +27.5 +/- 21.8 (19/20) t 5.63  +15.1  +1.12 +/- 0.76 t 6.62  +0.003 +/- 0.010 (13/20) t 1.26   +0.051 +/- 0.034, 1.027  1.032     1.08
+
+Paired standard error of the summed minimum ESS runs 1.35 to 4.88 across
+the nine cells. Cost is off the census instrument: the cut-only census
+build reports 10.97 cut scans a sweep at its own 0.16 share against 2.44
+leaves per tree, the pilot's numbers exactly, and the other two doses
+scale that measured count LINEARLY in the share, which holds the tree
+population fixed and is an assumption rather than a measurement.
+
+**The dose response is not monotone on the gated mean function.**
+Trig+poly reads +8.1, +11.3, +13.4 at the first block and +1.8, +9.1,
++9.3 at the second, so `d` = 0.08 does not survive its own fresh block
+and `d` = 0.32 buys two ESS points over `d` = 0.16 while regressing
+held-out RMSE at BOTH blocks, 1.057 and 1.048 past
+[6.4 What "no regression on the core" means numerically](#64-what-no-regression-on-the-core-means-numerically)'s
+1.02. The restriction is the mechanism: this kernel never moves the split
+variable, so its share comes out of change, the only move that does, and
+at `d` = 0.32 change is left at 0.08 - the pooled interval goes back up
+to 4.58 and 4.62 from 4.33 and 4.36 and in-sample RMSE with it, 1.17 and
+1.16 against 1.11, chains agreeing better on a worse fit. The full draw
+at that dose does the opposite, +37.0 at a held-out 0.980, carrying the
+variable axis itself. Single index shows none of it, +8.3, +16.2, +27.5
+monotone at a flat 1.03 held-out ratio. Coverage flags nowhere: read
+against the coverage reference arm's 0.941 rather than against the
+control, every cut-only Trig+poly dose sits 0.011 to 0.015 above the
+reference.
+
+**The equal-cost arm, Trig+poly seeds 1-20, one session.** Its kept
+length is not the control's, so it joins no paired table and is read as
+absolute rows and per kept draw.
+
+    arm                           chains  95% coverage        length  RMSE  held-out  min ESS (sum)  per chain  between
+    independent75pool4            4x500   0.961(0.945-0.977)  4.61    1.12  1.15      15(8-31)       2(1-2)     0.78
+    independent75pool4ruleGibbsB  4x500   0.939(0.911-0.958)  3.98    1.09  1.13      36(19-53)      3(2-4)     0.58
+    independent75pool4equalCost   4x1105  0.952(0.925-0.970)  4.13    1.05  1.08      23(8-67)       2(1-2)     0.73
+
+**2.21 times the sweeps do not buy what the kernel buys.** At one
+cut-scan budget - 2210 units either way, the full draw's 1000 sweeps at
+2.21 against the shipped kernel's 2210 at 1.00 - summed minimum ESS reads
+36.3 against 22.9, so the sweeps buy 63 percent of what the kernel buys.
+Per 500 kept draws the equal-cost arm reads 10.3 against the control's
+own 14.8, the statistic growing sub-linearly in chain length. Per second
+it reads 1.31 against the control's 1.75 and the full draw's 1.19, and
+that comparison carries NO timing claim: the host ran a load of 100 to
+122 throughout, a virtual machine that is not this harness's. The arm
+settles two things beside the ratio. Its between-chain ratio is 0.73
+against the control's 0.78 where the kernel's is 0.58, so length barely
+moves what the kernel moves; and its coverage falls from 0.961 to 0.952
+with no kernel change at all, a third of the way to the reference's
+0.941, which is the coverage reference arm's reading confirmed from the
+length side. Per unit of cost the cut-only kernel at `d` = 0.16 leads
+everything here: 26.1 summed minimum ESS for 1040 cut-scan units against
+the control's 14.8 for 1000, the full draw's 36.3 for 2210 and this arm's
+22.9 for 2210. Full reading at [6. Benefit,
+pre-registered](nog-gibbs.md#6-benefit-pre-registered).
+
 **Frozen-structure ESS (2026-09-07).**
 [`C1-frozen-ess.R`](../../benchmarks/R/surfaces/C1-frozen-ess.R) separates
 the leaf half of the kernel from the structural half on the recorded C1 arm

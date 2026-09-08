@@ -554,6 +554,43 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The cut-only rule_gibbs dose response and the equal-cost arm (17505c50, 2026-09-08)
+
+C1-he-hahn.R gains two arms, 48 added lines and no engine change, every
+existing arm's rows identical before and after the edit:
+independent75pool4ruleGibbs08, the cut-only design's half dose at change
+0.32 and rule_gibbs 0.08, and independent75pool4equalCost, the shipped
+mixture at four chains of 1105 and 1105, which is 2.21 times the control's
+sweeps and so the full draw's own cut-scan cost at d = 0.16. 300 fits over
+both mean functions and two seed blocks on a private
+-DBARTCORE_RULE_GIBBS_CUT_ONLY library plus one census cell on that library
+with -DBARTCORE_MOVE_CENSUS on top of it. Every gate reproduces bitwise:
+independent75pool4 matches benchmark-surfaces.md 10.4 digit for digit at
+both blocks and on both mean functions, the d = 0.16 cut-only arm matches
+the cut-only pilot's rows, the full-draw arm matches the slice 3 verdict's,
+and the census reads the pilot's own 10.97 cut scans a sweep. Three
+findings. The cut-only dose response is not monotone on the gated mean
+function - Trig+poly +8.1, +11.3, +13.4 at the first block and +1.8, +9.1,
++9.3 at the fresh one - so d = 0.08 fails its own fresh block and d = 0.32
+regresses held-out RMSE at both, 1.057 and 1.048 past the 1.02 margin,
+because a kernel that never moves the split variable takes its share from
+change, the only move that does. Cut-only at d = 0.32 therefore does NOT
+match the full draw at d = 0.16, so the equal-cost question is not closed by
+dominance. And the equal-cost arm answers it: at one cut-scan budget of 2210
+units the full draw buys 36.3 summed minimum ESS where 2.21 times the
+shipped kernel's sweeps buy 22.9, 63 percent of it, and the shipped kernel's
+coverage falls 0.961 to 0.952 on length alone, which confirms the coverage
+reference arm's finding from the length side. Recommended, not decided: the
+default-share candidate is the cut-only kernel at d = 0.16, the only dose
+clearing the +8 bar at both blocks with every secondary clean at the
+reference-read margins, at 1.04 sweep-equivalents and 25.1 summed minimum
+ESS per thousand cut-scan units against the control's 14.8, the full draw's
+16.4 and the equal-cost arm's 10.4. Host load ran 100 to 122 throughout, a
+virtual machine that is not ours, so no wall time or per-second figure here
+carries a timing claim; the cut-scan count is the cost instrument. Recorded
+at nog-gibbs.md 6, 8; benchmark-surfaces.md 10.4. Script only, no engine
+change.
+
 ### The coverage reference arm dissolves rule_gibbs's coverage flag (e002c10d, 2026-09-08)
 
 C1-he-hahn.R gains two arms that read the posterior's own 95 percent

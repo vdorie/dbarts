@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -529,8 +529,8 @@ not; no scaling is applied and that is the assumption. Wall does not follow the 
 Trig+poly against a cut-scan 2.21, a scan pass doing more per row than the residual pass the unit is calibrated on. Wall gates
 nothing here, and the host carried a load of 22 to 85 throughout.
 
-**Residue, and what is owed.** The equal-cost arm - arm A given the sweep count the 2.21 ratio buys it, on a quiet machine - was NOT
-run and is owed; it is where 6.4's per-second question is answered and it is what slice 4 needs. `rule-gibbs-balance.R`, slice 2,
+**Residue, and what is owed.** The equal-cost arm - arm A given the sweep count the 2.21 ratio buys it - was NOT run here; it is
+where 6.4's per-second question is answered and it is what slice 4 needs, and the dose-response paragraph below runs it. `rule-gibbs-balance.R`, slice 2,
 landed at d888c9f3 while this run was in flight, so the correctness argument rests on that prior-only detailed-balance gate as well as on slice 1's own tests.
 Slice 4 is NOT closed by a kill here: what blocks it is the coverage secondary, which a nonzero default would carry onto every core
 cell, and its own missing gate. What slice 3 settles is narrower, and is worth stating plainly - this is the first kernel change
@@ -611,8 +611,105 @@ pooled interval, so 0.941 is an upper bound on a fully mixed reading and the dir
 now reads coverage against that reference rather than against the shipped-configuration control, margin unchanged at -0.010, and
 arm B's -0.002 against it is inside the margin: **the coverage flag is dissolved**. Single index goes the same way - the reference
 reads a held-out RMSE ratio of 1.024 against arm A, so arm B's 1.028 is 1.004 against the reference - and that mean function is
-reported, not gated, either way. What slice 4 still lacks is 6.4's own missing plateau-error gate and the equal-cost arm, both
-named above.
+reported, not gated, either way. What slice 4 still lacked at that point was 6.4's own missing plateau-error gate and the
+equal-cost arm, the second of which the paragraph below runs.
+
+**Dose response and the equal-cost arm (2026-09-08).** The cut-only variant of
+[2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants) run at a third dosage below the pilot's and at
+the pilot's own two, and the equal-cost arm the verdict above owed. Same private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` library, same
+four-chain cell, same twenty matched pairs. The harness gains two arms (17505c50):
+[`independent75pool4ruleGibbs08`](../../benchmarks/R/surfaces/C1-he-hahn.R), the half dose taken from change alone, and
+[`independent75pool4equalCost`](../../benchmarks/R/surfaces/C1-he-hahn.R), the shipped mixture at four chains of 1105 burn-in and
+1105 kept. Every Trig+poly dose cleared the +8 bar at the first block, so every dose took the fresh-seed block on seeds 21 to 40,
+control and all. The control reproduces
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s own rows digit for digit at both
+blocks and on both mean functions and the `d` = 0.16 arm reproduces the cut-only pilot's, which is the bitwise null read in situ
+twice over.
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4ruleGibbs08   1-20   0.955(0.927-0.975)  4.38    1.11  23(9-52)       2(1-3)     0.63
+    trigpoly     independent75pool4ruleGibbsB    1-20   0.955(0.931-0.969)  4.33    1.11  26(8-53)       2(1-3)     0.61
+    trigpoly     independent75pool4ruleGibbs32   1-20   0.956(0.934-0.974)  4.58    1.17  28(14-68)      2(1-3)     0.61
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4ruleGibbs08   21-40  0.954(0.937-0.971)  4.31    1.10  18(8-32)       2(1-2)     0.68
+    trigpoly     independent75pool4ruleGibbsB    21-40  0.952(0.926-0.968)  4.36    1.11  26(9-61)       2(1-3)     0.64
+    trigpoly     independent75pool4ruleGibbs32   21-40  0.955(0.919-0.981)  4.62    1.16  26(9-66)       2(1-4)     0.63
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4ruleGibbs08   1-20   0.894(0.864-0.910)  6.50    1.97  29(12-54)      2(2-3)     0.44
+    singleindex  independent75pool4ruleGibbsB    1-20   0.897(0.869-0.916)  6.51    1.97  37(14-68)      3(2-5)     0.41
+    singleindex  independent75pool4ruleGibbs32   1-20   0.898(0.859-0.920)  6.54    1.97  48(9-88)       3(2-5)     0.40
+
+Paired differences against each row's own control on its own seeds, mean +/- sd (seeds positive of 20), with the full draw's own
+summed-ESS reading and the dose's cut-scan cost beside each:
+
+    mean fn      d     seeds  d min ESS (sum)                full   d per-chain            d 95% coverage                    d RMSE, ratio            held-out  cost
+    trigpoly     0.08  1-20   +8.1 +/- 10.3 (15/20) t 3.54   -      +0.29 +/- 0.29 t 4.43  -0.006 +/- 0.009 (6/20) t -3.02   -0.005 +/- 0.069, 0.995  0.999     1.02
+    trigpoly     0.16  1-20   +11.3 +/- 16.2 (16/20) t 3.13  +21.5  +0.36 +/- 0.34 t 4.78  -0.007 +/- 0.009 (5/20) t -3.41   -0.006 +/- 0.075, 0.995  0.992     1.04
+    trigpoly     0.32  1-20   +13.4 +/- 13.7 (20/20) t 4.37  +37.0  +0.42 +/- 0.44 t 4.23  -0.005 +/- 0.011 (6/20) t -2.16   +0.057 +/- 0.118, 1.052  1.057     1.08
+    trigpoly     0.08  21-40  +1.8 +/- 6.1 (11/20) t 1.29    -      +0.19 +/- 0.28 t 3.04  -0.010 +/- 0.010 (2/20) t -4.38   +0.002 +/- 0.049, 1.002  0.994     1.02
+    trigpoly     0.16  21-40  +9.1 +/- 12.9 (15/20) t 3.14   +22.1  +0.40 +/- 0.41 t 4.40  -0.012 +/- 0.012 (2/20) t -4.69   +0.016 +/- 0.059, 1.014  1.012     1.04
+    trigpoly     0.32  21-40  +9.3 +/- 16.8 (15/20) t 2.48   -      +0.34 +/- 0.60 t 2.58  -0.009 +/- 0.014 (5/20) t -2.83   +0.062 +/- 0.100, 1.057  1.048     1.08
+    singleindex  0.08  1-20   +8.3 +/- 12.4 (16/20) t 2.98   -      +0.59 +/- 0.47 t 5.60  -0.000 +/- 0.009 (10/20) t -0.19  +0.051 +/- 0.033, 1.027  1.033     1.02
+    singleindex  0.16  1-20   +16.2 +/- 11.3 (20/20) t 6.43  +14.4  +0.88 +/- 0.67 t 5.82  +0.002 +/- 0.008 (12/20) t 1.36   +0.049 +/- 0.024, 1.025  1.033     1.04
+    singleindex  0.32  1-20   +27.5 +/- 21.8 (19/20) t 5.63  +15.1  +1.12 +/- 0.76 t 6.62  +0.003 +/- 0.010 (13/20) t 1.26   +0.051 +/- 0.034, 1.027  1.032     1.08
+
+Paired standard error of the summed minimum ESS runs 1.35 to 4.88 across the nine cells. Cost is in sweep-equivalents off the census
+instrument: a run of the `c1` cell on the cut-only census build reports 10.97 cut scans a sweep at its own 0.16 share, reach 93.7
+percent and one variable scanned, against 2.44 leaves per tree - the pilot's numbers exactly - so 21.9 units against `3 m L` = 549
+and 1.04. The 0.08 and 0.32 rows scale that measured scan count LINEARLY in the share, which holds the tree population fixed and is
+an assumption rather than a measurement; the full draw's own 337.32 scans a sweep scale the same way, to 1.61 and 3.43.
+
+**The dose response is not monotone on the gated mean function, and the restriction is why.** Trig+poly rises +8.1, +11.3, +13.4 at
+the first block and +1.8, +9.1, +9.3 at the second, so `d` = 0.08 does not survive its own fresh block (t 1.29 against a +8 bar) and
+`d` = 0.32 buys two ESS points over `d` = 0.16 while regressing a gated secondary at BOTH blocks: held-out RMSE 1.057 and 1.048
+against
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
+1.02. The mechanism is the restriction itself. The cut-only kernel never moves the split variable, so its share comes out of change,
+the only move that does; at `d` = 0.32 change is left at 0.08, the pooled interval goes back UP to 4.58 and 4.62 from `d` = 0.16's
+4.33 and 4.36, and in-sample RMSE with it, 1.17 and 1.16 against 1.11 - chains that agree better on a worse fit. The full draw at the
+same dose does the opposite, +37.0 at a held-out ratio of 0.980, because it carries the variable axis itself. Single index shows none
+of it: one rotated ridge gives the variable axis little to buy, and the cut-only kernel reads +8.3, +16.2, +27.5 monotonically at a
+flat 1.03 held-out ratio throughout. Coverage flags nowhere. Read against
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s well-mixed reference of 0.941 rather
+than against the control, every cut-only Trig+poly dose sits 0.011 to 0.015 ABOVE the reference and the -0.010 margin is nowhere
+approached.
+
+**Cut-only at `d` = 0.32 does NOT match the full draw at `d` = 0.16, so the equal-cost question is not closed by dominance.** +13.4
+and +9.3 against +21.5 and +22.1 on the gated mean function, at a held-out RMSE the full draw did not pay, against a cost of 1.08
+sweep-equivalents to its 2.21. On Single index it more than matches, +27.5 against +14.4, but that mean function is reported and not
+gated. The equal-cost arm is therefore the read, and it was run.
+
+**The equal-cost arm.** Arm A given the sweep count the 2.21 ratio buys it, four chains of 1105 + 1105 against the shipped 500 + 500,
+on the shipped library, with the control and arm B in the same session; both of those reproduce their recorded rows digit for digit.
+Trig+poly, seeds 1 to 20.
+
+    arm                           chains  95% coverage        length  RMSE  held-out  min ESS (sum)  per chain  between
+    independent75pool4            4x500   0.961(0.945-0.977)  4.61    1.12  1.15      15(8-31)       2(1-2)     0.78
+    independent75pool4ruleGibbsB  4x500   0.939(0.911-0.958)  3.98    1.09  1.13      36(19-53)      3(2-4)     0.58
+    independent75pool4equalCost   4x1105  0.952(0.925-0.970)  4.13    1.05  1.08      23(8-67)       2(1-2)     0.73
+
+**2.21 times the sweeps do not buy what the kernel buys.** At one cut-scan budget - 2210 units either way, the full draw's 1000
+sweeps at 2.21 against the shipped kernel's 2210 at 1.00 - the summed minimum ESS reads 36.3 against 22.9, so the sweeps buy 63
+percent of what the kernel buys. Per 500 kept draws the equal-cost arm reads 10.3 against the control's own 14.8, this statistic
+growing sub-linearly in chain length; per second, which carries NO timing claim on this host, 1.31 against the control's 1.75 and the
+full draw's 1.19, arm B's wall ratio being 3.6 against its cut-scan 2.21 as the verdict above already recorded. Two readings beside
+the ratio. The arm's between-chain ratio is 0.73 against the control's 0.78 where the kernel's is 0.58, so length barely moves what
+the kernel moves; and its coverage falls to 0.952 from 0.961 with no kernel change at all, a third of the way to the reference's
+0.941, which is the reference arm's finding confirmed from the length side. **This is 6.4's per-second question answered on the
+instrument the design chose: at equal cut-scan cost the kernel wins.**
+
+**The default-share candidate is the cut-only kernel at `d` = 0.16, recommended and not decided.** It is the only cut-only dose that
+clears the +8 bar at both seed blocks, +11.3 and +9.1, with every secondary clean at 6.4's margins read at the reference: Trig+poly
+coverage 0.955 and 0.952 against the reference's 0.941, held-out RMSE 0.992 and 1.012 against 1.02, and Single index +16.2 at a
+held-out 1.033 that is 1.009 against that mean function's own reference ratio of 1.024. `d` = 0.08 fails its fresh block and `d` =
+0.32 fails a gated secondary at both. And it is the cheapest thing on the table per unit of what it buys: 26.1 summed minimum ESS for
+1040 cut-scan units against the control's 14.8 for 1000, the full draw's 36.3 for 2210 and the equal-cost arm's 22.9 for 2210, which
+is 25.1 ESS per thousand units against 14.8, 16.4 and 10.4. Taking the equal-cost arm's own measured length scaling, 2.21 times the
+sweeps buying 1.55 times the ESS, the cut-only kernel run out to the full draw's 2210-unit budget would read about 40 against its
+36.3 - an extrapolation off a scaling measured on the shipped kernel and not on this one, and the reason the full draw's larger raw
+gain does not settle the question the other way. Against the full draw the trade is the whole of section 2.4's: about half of
+Trig+poly's gain and more than all of Single index's, for 2 percent added cost instead of 121.
 
 ## 7. RNG and baselines
 
@@ -703,10 +800,17 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)), and the equal-cost arm, which
    needs a quiet machine and is owed. The cut-scan count came off the census build's own `c1` cell rather than off a replay of the
    arms' seeds; section 6's verdict paragraph states both departures.
-4. **The default share.** Slice 3's kill did NOT fire, and section 6's coverage secondary no longer blocks this item either:
-   the reference arm of 2026-09-08 dissolves that flag, 6.4 now reading coverage against the cell's own well-mixed reference
-   rather than against the shipped four short chains, which over-cover it. What blocks the item is the missing gate below.
-   POST-RELEASE, and that gate does not exist: 6.4's second kill clause needs plateau
-   prediction error in the noise-heavy or large-n stratum, which the grow-from-root harm battery measured and benchmarks/ does not
-   contain ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)). The equal-cost arm of section 6 is
-   the other thing slice 4 needs and slice 3 supplies. A nonzero default is also a stream shift and pays for its own re-record.
+4. **The default share.** Slice 3's kill did NOT fire; section 6's coverage secondary no longer blocks this item, the reference
+   arm of 2026-09-08 having dissolved that flag with 6.4 now reading coverage against the cell's own well-mixed reference rather
+   than against the shipped four short chains, which over-cover it; and the equal-cost arm this item was waiting on is run, at one
+   cut-scan budget the kernel buying 36.3 summed minimum ESS where 2.21 times the sweeps buy 22.9. **The candidate is the CUT-ONLY
+   kernel at `d` = 0.16**, not the full draw: the dose response of 2026-09-08 clears the +8 bar at both seed blocks on the gated
+   mean function with every secondary clean at the reference-read margins, at 1.04 sweep-equivalents against the full draw's 2.21,
+   and it is the best per unit of cost of anything measured on this cell. THREE things stand between that candidate and a default,
+   none of them another measurement of benefit. (a) The decision itself, which is the maintainer's; nothing above is more than a
+   recommendation, and it carries the surface question with it, the restricted kernel being a private `-D` build today rather than
+   a mode anything can select. (b) 6.4's second kill clause, whose gate does not exist: it needs plateau prediction error in the
+   noise-heavy or large-n stratum, which the grow-from-root harm battery measured and benchmarks/ does not contain
+   ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)). (c) The re-record. A nonzero default is a
+   stream shift and pays for every RNG-locked baseline in
+   [7. RNG and baselines](#7-rng-and-baselines)'s sense. POST-RELEASE.
