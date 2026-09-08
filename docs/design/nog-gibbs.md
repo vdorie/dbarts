@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -444,6 +444,97 @@ the worst C1 point's minimum ESS rises only from 1.6 to 4-21 with structure held
 structural kernel. Nothing connects a wider rule neighbourhood to a move in the minimum ESS over 25 points, and the entropy the probe
 measured is a one-step statistic on a chain this move never ran. Slice 3 can fail honestly.
 
+**Verdict (2026-09-07).** The Stage 2 harness ran both dosages on the shipped four-chain cell over twenty matched pairs, both mean
+functions, with the control re-run in the same session; it reproduces
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s own `independent75pool4` rows digit
+for digit on both. Absolute readings, mean over seeds (min-max):
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4ruleGibbsB    1-20   0.939(0.911-0.958)  3.98    1.09  36(19-53)      3(2-4)     0.58
+    trigpoly     independent75pool4ruleGibbs32   1-20   0.939(0.917-0.957)  3.96    1.09  52(23-97)      3(2-6)     0.55
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4ruleGibbsB    21-40  0.938(0.917-0.951)  3.96    1.08  39(15-55)      2(2-3)     0.59
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4ruleGibbsB    1-20   0.900(0.872-0.921)  6.57    1.97  35(16-57)      2(2-3)     0.40
+    singleindex  independent75pool4ruleGibbs32   1-20   0.904(0.872-0.923)  6.61    1.96  36(18-74)      3(2-5)     0.37
+    singleindex  independent75pool4              21-40  0.891(0.868-0.911)  6.43    1.93  15(9-27)       2(1-2)     0.67
+    singleindex  independent75pool4ruleGibbsB    21-40  0.898(0.879-0.914)  6.55    1.97  39(20-60)      3(2-6)     0.39
+
+Paired differences against each row's own control on its own seeds, mean +/- sd (seeds positive of 20):
+
+    mean fn      arm                             seeds  d min ESS (sum)               d per-chain min ESS    d 95% coverage                     d RMSE, ratio
+    trigpoly     independent75pool4ruleGibbsB    1-20   +21.5 +/- 12.8 (19/20) t 7.51  +1.14 +/- 0.59 t 8.66  -0.022 +/- 0.008 (0/20) t -12.46   -0.028 +/- 0.071, ratio 0.975
+    trigpoly     independent75pool4ruleGibbs32   1-20   +37.0 +/- 19.6 (20/20) t 8.45  +1.37 +/- 0.96 t 6.37  -0.023 +/- 0.008 (0/20) t -13.20   -0.026 +/- 0.070, ratio 0.977
+    trigpoly     independent75pool4ruleGibbsB    21-40  +22.1 +/- 12.2 (19/20) t 8.10  +0.86 +/- 0.53 t 7.21  -0.026 +/- 0.012 (0/20) t -9.93    -0.016 +/- 0.045, ratio 0.986
+    singleindex  independent75pool4ruleGibbsB    1-20   +14.4 +/- 13.2 (17/20) t 4.87  +0.73 +/- 0.47 t 6.94  +0.005 +/- 0.010 (13/20) t 2.38    +0.046 +/- 0.035, ratio 1.024
+    singleindex  independent75pool4ruleGibbs32   1-20   +15.1 +/- 12.8 (18/20) t 5.29  +1.09 +/- 0.81 t 5.99  +0.009 +/- 0.010 (17/20) t 3.93    +0.042 +/- 0.036, ratio 1.022
+    singleindex  independent75pool4ruleGibbsB    21-40  +23.9 +/- 11.0 (20/20) t 9.74  +1.14 +/- 0.86 t 5.91  +0.006 +/- 0.008 (18/20) t 3.51    +0.043 +/- 0.027, ratio 1.022
+
+Held-out RMSE ratio, in the order of the paired table: 0.979, 0.980, 0.987, 1.028, 1.027, 1.023. Wall ratio: 3.12, 6.20, 3.05,
+3.28, 6.86, 4.15. Paired standard error of the summed minimum ESS runs 2.5 to 4.4 across the six cells.
+
+**The kill does not fire.** Both of its clauses are met at the confirmatory dosage. Arm B improves the summed minimum ESS by +21.5
+at the first block and +22.1 at the fresh one, each over twenty matched pairs and each about eight paired standard errors, against
+a +8 bar; and the cut-scan cost is 2.21 sweep-equivalents against the 2.4 conjunct, below. The per-chain minimum moves with it -
+1.51 to 2.65 and 1.55 to 2.42 - which no four-chain arm recorded on this mean function did before; the summed gain is four chains
+mixing better, not one chain carrying three.
+
+**What fails is a secondary, and it fails twice.** 95 percent coverage on the primary cell moves -0.022 (t -12.46) and -0.026
+(t -9.93), past
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
+-0.010 margin with the one-sided bound excluding the null in both blocks, so the mandatory fresh-seed re-run
+([6.1 The rule, stated operationally](benchmark-surfaces.md#61-the-rule-stated-operationally)) confirms the flag rather than
+dissolving it. The other secondary passes: held-out RMSE reads 0.979 and 0.987, better than the control. The mechanism is in the
+same table. Arm B's pooled interval is 14 percent shorter at slightly better point accuracy, and its between-chain ratio falls from
+0.78 to 0.58; 10.4 reads this cell as four chains each sitting in its own place with pooling supplying the width, and the move makes
+them agree, so part of that width goes. What the width was carrying was OVER-coverage: the control sits at 0.961 against a nominal
+0.95 and arm B at 0.939, the same 0.011 miss with the sign reversed. Against nominal the two arms are equally far out. Against arm
+A, which is what the margin is stated against and what this design pre-registered, arm B regresses, and the pre-registration stands
+as written.
+
+**Single index, reported and not gated**, gains as much and pays for it in RMSE: +14.4 and +23.9 summed minimum ESS
+(t 4.87 and 9.74), coverage +0.005 and +0.006, held-out RMSE ratio 1.028 and 1.023, past the 1.02 margin at both blocks. The two
+mean functions move coverage in OPPOSITE directions, which is what a narrowing interval does when the control over-covers on one
+and under-covers on the other.
+
+**`d = 0.32` buys more ESS and nothing else.** +37.0 against +21.5 on Trig+poly and +15.1 against +14.4 on Single index, at the
+same coverage move and twice the wall. It is reported; it is not the kill's cell and nothing here recommends it.
+
+**The controls.** P1's rung re-ran as the absolute gate, 60 fits: default 0.725 (0.682-0.760) held-out, birthdeath 0.709, swap
+0.728, identical to
+[10.8 P1, the low-noise Friedman emulator (2026-09-07)](benchmark-surfaces.md#108-p1-the-low-noise-friedman-emulator-2026-09-07),
+so the gate is in force. P2's duplicate-column cell took a fourth arm at arm B's mixture: 146.8 (109.6-159.0) root switches per
+chain against arm A's 70.8 (57.9-81.2), outside arm A's seed range and ABOVE it, which is not a degradation; 6 of 40 chains parked
+against arm A's 5, inside the 10 allowed; pooled p(root on x1) 0.437 (0.373-0.524) against arm A's 0.457, and 0.514 against 0.522
+among on-pair draws, so the null is intact. On the confounded design, which the move cannot act on and which gates nothing, the
+share on x1 given the pair reads 0.354 (0.267-0.500) against arm A's 0.523; at five seeds and half a switch per chain that is forty
+locked chains, and [10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)'s own
+birth/death arm reads 0.504 over a 0.167-0.833 range.
+
+**Cost, on the instrument this section named.** A census run of the `c1` cell reports 337.32 cut scans per sweep, 2.47 leaves per
+tree and a 5.25 percent stump share, the kernel reaching an eligible nog node on 95.05 percent of its proposals and scanning all 30
+variables there. One variable scanned at a nog node is TWO of
+[2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants)'s units, the node holding two leaves' worth of
+members, so 674.6 units a sweep against that section's predicted 676; against `3 m L` = 556 at the measured leaf count, or 567 at
+2.4's own 2.52, the move costs **2.21 sweep-equivalents** (2.19 at 2.4's `L`), under the 2.4 conjunct and within one percent of
+what the design predicted. Two departures from what this section asked for, both stated. The census `c1` cell runs at its own data
+and sampler seed and one chain of 200 + 500 sweeps, not the arm's twenty seeds at four chains, so this is not literally the arm's
+own chain. And benchmarks/R/move-census.R's rule_gibbs mixture takes its 0.16 from change AND birth/death rather than from change
+alone, so the rule_gibbs share - the quantity the scan count is proportional to - is arm B's exactly while the tree population is
+not; no scaling is applied and that is the assumption. Wall does not follow the unit count: arm B measures 3.05 to 3.12 on
+Trig+poly against a cut-scan 2.21, a scan pass doing more per row than the residual pass the unit is calibrated on. Wall gates
+nothing here, and the host carried a load of 22 to 85 throughout.
+
+**Residue, and what is owed.** The equal-cost arm - arm A given the sweep count the 2.21 ratio buys it, on a quiet machine - was NOT
+run and is owed; it is where 6.4's per-second question is answered and it is what slice 4 needs. `rule-gibbs-balance.R`, slice 2,
+landed at d888c9f3 while this run was in flight, so the correctness argument rests on that prior-only detailed-balance gate as well as on slice 1's own tests.
+Slice 4 is NOT closed by a kill here: what blocks it is the coverage secondary, which a nonzero default would carry onto every core
+cell, and its own missing gate. What slice 3 settles is narrower, and is worth stating plainly - this is the first kernel change
+measured on this cell that moves its gated mean function's mixing statistic, by a wide margin and at a price the design predicted
+to within one percent, and it cannot be defaulted until the interval it narrows is understood against nominal rather than against
+arm A.
+
 ## 7. RNG and baselines
 
 At a share of exactly zero the added dispatch test is `u < (bd + swap + perturb) + 0.0`, which is the perturb test exactly in IEEE for
@@ -525,7 +616,17 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
 3. **The Stage 2 harness and run.** Two arms at `d` in `{0.16, 0.32}`, C1's four-chain cell, the sham arm, P1's rung, P2's
    duplicate-column cell as a control, the equal-cost arm, and the cut-scan count read off a census build at the arms' own seeds.
    Roughly 400 lines; compute on the order of a day plus the equal-cost arm's quiet machine. The verdict is recorded here.
-4. **The default share, if slice 3 passes** - POST-RELEASE, and its gate does not exist: 6.4's second kill clause needs plateau
+
+   **Run** (50032833, 2026-09-07). Two arms on benchmarks/R/surfaces/C1-he-hahn.R's shipped four-chain configuration and one on
+   benchmarks/R/surfaces/P2-confounded-step.R, 64 added lines across the two scripts and no engine change: 200 C1 fits over
+   both mean functions and both seed blocks, 60 P1 fits, 40 P2 fits and one census cell. Not run: the sham arm, which perturb's
+   own slice 3 already measured on this cell and control (-2.3 +/- 9.7 inside the +8 bar, at
+   [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)), and the equal-cost arm, which
+   needs a quiet machine and is owed. The cut-scan count came off the census build's own `c1` cell rather than off a replay of the
+   arms' seeds; section 6's verdict paragraph states both departures.
+4. **The default share.** Slice 3's kill did NOT fire, so this item is not closed the way perturb's was; what blocks it is
+   section 6's coverage secondary, which a nonzero default would carry onto every core cell, and the missing gate below.
+   POST-RELEASE, and that gate does not exist: 6.4's second kill clause needs plateau
    prediction error in the noise-heavy or large-n stratum, which the grow-from-root harm battery measured and benchmarks/ does not
    contain ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)). The equal-cost arm of section 6 is
    the other thing slice 4 needs and slice 3 supplies. A nonzero default is also a stream shift and pays for its own re-record.

@@ -554,6 +554,34 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rule_gibbs's benefit stage runs, does not kill the move, and flags its coverage (50032833, 2026-09-07)
+
+C1-he-hahn.R gains nog-gibbs.md's two dosage arms on the shipped
+four-chain configuration (change 0.24 / rule_gibbs 0.16, and change 0.08 /
+rule_gibbs 0.32) and P2-confounded-step.R a fourth arm at the first of
+them; 64 added lines, no engine change. 200 C1 fits, 60 P1, 40 P2 and one
+census cell. The control reproduces 10.4 digit for digit on both mean
+functions. Primary, Trig+poly summed minimum ESS over twenty matched
+pairs: +21.5 +/- 12.8 (19/20, t 7.51) at seeds 1-20 and +22.1 +/- 12.2
+(19/20, t 8.10) at the fresh block, against a +8 bar; per-chain minimum
+1.51 to 2.65 and 1.55 to 2.42, the first arm on this cell to move it.
+Cost, off the census build: 337.32 cut scans a sweep, 674.6 units against
+3 m L = 556, so 2.21 sweep-equivalents against a 2.4 conjunct and a 2.19
+prediction. Both kill clauses are met, so NO KILL at d = 0.16. What fails
+is a must-not-degrade secondary: 95 percent coverage -0.022 (t -12.46) and
+-0.026 (t -9.93) against a -0.010 margin, reproduced at fresh seeds - the
+pooled interval narrows 14 percent as the chains agree (between-chain 0.78
+to 0.58) and the control's over-coverage at 0.961 becomes under-coverage
+at 0.939. Single index, ungated: +14.4 and +23.9 summed ESS with held-out
+RMSE 1.028 and 1.023, past 1.02. P1 house rung 0.725 held-out, gate in
+force. P2 duplicate-column null intact: 146.8 switches per chain against
+the shipped 70.8, 6 of 40 chains parked against 5, pooled share on the
+pair 0.514. Slice 4 is not closed by a kill; it is blocked by the coverage
+flag and by its own missing gate. Owed: the equal-cost arm, which needs a
+quiet machine, and slice 2's rule-gibbs-balance.R. Recorded at
+nog-gibbs.md 6, 8; benchmark-surfaces.md 10.4; tree-mixing-proposals.md
+15.3. Script only, no engine change.
+
 ### The level-fibre Gibbs step lands behind a flag at default off (cbe80534, 2026-09-07)
 
 Slice 1 of docs/design/level-fibre.md: Chain::drawLevelShift

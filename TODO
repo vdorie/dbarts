@@ -231,7 +231,15 @@ items
     (d73fb4e0): the kernel stays at default weight zero as an opt-in
     with nil measured benefit, closing slice 4's nonzero default share;
     whether the opt-in is removed before release is an open maintainer
-    decision. Rotation, a Stage R0 generator-only regrow census,
+    decision. The nog-node rule Gibbs draw "rule_gibbs" is in the kernel
+    at default weight zero too (7fb166ca) and its benefit stage has run
+    (50032833): it is the first kernel change to move C1's summed
+    minimum ESS, +22 over twenty matched pairs at two seed blocks
+    against a +8 bar and at 2.21 cut-scan sweep-equivalents, so its kill
+    does not fire, but it regresses that cell's 95 percent coverage by
+    -0.024 against a -0.010 margin, which blocks a nonzero default
+    share. Owed there: the equal-cost arm on a quiet machine, and slice
+    2's rule-gibbs-balance.R. Rotation, a Stage R0 generator-only regrow census,
     the re-specified reallocation census and heated companion chains
     stay unscheduled, alongside the two brainstorm rounds (sec 15,
     16). Durable record docs/design/tree-mixing-proposals.md (ranking

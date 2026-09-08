@@ -1808,6 +1808,65 @@ reproduce on Single index, where the pilot read +1.9 +/- 11.3 (t 0.74) and the f
 separated from noise. Full verdict at
 [5.3 What arm B must produce, and the kill](perturb-move.md#53-what-arm-b-must-produce-and-the-kill).
 
+**rule_gibbs arms (2026-09-07).** nog-gibbs.md's slice 3 run adds two
+arms on the same shipped four-chain configuration and the same twenty
+seeds, varying only `proposal.probs`: `independent75pool4ruleGibbsB`
+(birth_death 0.6, swap 0, change 0.24, rule_gibbs 0.16, the 0.16 taken
+from change alone, which is
+[6. Benefit, pre-registered](nog-gibbs.md#6-benefit-pre-registered)'s own
+arm B at `d` = 0.16) and `independent75pool4ruleGibbs32` (change 0.08,
+rule_gibbs 0.32, the second dosage of that grid). `independent75pool4` is
+re-run in the same session as their paired control and reproduces the
+Chain configuration paragraph's own rows digit for digit on both mean
+functions. Both cells flagged, so arm B took the mandatory fresh-seed
+re-run on seeds 21 to 40, control and all. Columns as above.
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4ruleGibbsB    1-20   0.939(0.911-0.958)  3.98    1.09  36(19-53)      3(2-4)     0.58
+    trigpoly     independent75pool4ruleGibbs32   1-20   0.939(0.917-0.957)  3.96    1.09  52(23-97)      3(2-6)     0.55
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     independent75pool4ruleGibbsB    21-40  0.938(0.917-0.951)  3.96    1.08  39(15-55)      2(2-3)     0.59
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4ruleGibbsB    1-20   0.900(0.872-0.921)  6.57    1.97  35(16-57)      2(2-3)     0.40
+    singleindex  independent75pool4ruleGibbs32   1-20   0.904(0.872-0.923)  6.61    1.96  36(18-74)      3(2-5)     0.37
+    singleindex  independent75pool4              21-40  0.891(0.868-0.911)  6.43    1.93  15(9-27)       2(1-2)     0.67
+    singleindex  independent75pool4ruleGibbsB    21-40  0.898(0.879-0.914)  6.55    1.97  39(20-60)      3(2-6)     0.39
+
+Paired differences against each row's own control on its own seeds, mean
++/- sd (seeds positive of 20):
+
+    mean fn      arm                             seeds  d min ESS (sum)               d per-chain min ESS    d 95% coverage                     d RMSE, ratio
+    trigpoly     independent75pool4ruleGibbsB    1-20   +21.5 +/- 12.8 (19/20) t 7.51  +1.14 +/- 0.59 t 8.66  -0.022 +/- 0.008 (0/20) t -12.46   -0.028 +/- 0.071, ratio 0.975
+    trigpoly     independent75pool4ruleGibbs32   1-20   +37.0 +/- 19.6 (20/20) t 8.45  +1.37 +/- 0.96 t 6.37  -0.023 +/- 0.008 (0/20) t -13.20   -0.026 +/- 0.070, ratio 0.977
+    trigpoly     independent75pool4ruleGibbsB    21-40  +22.1 +/- 12.2 (19/20) t 8.10  +0.86 +/- 0.53 t 7.21  -0.026 +/- 0.012 (0/20) t -9.93    -0.016 +/- 0.045, ratio 0.986
+    singleindex  independent75pool4ruleGibbsB    1-20   +14.4 +/- 13.2 (17/20) t 4.87  +0.73 +/- 0.47 t 6.94  +0.005 +/- 0.010 (13/20) t 2.38    +0.046 +/- 0.035, ratio 1.024
+    singleindex  independent75pool4ruleGibbs32   1-20   +15.1 +/- 12.8 (18/20) t 5.29  +1.09 +/- 0.81 t 5.99  +0.009 +/- 0.010 (17/20) t 3.93    +0.042 +/- 0.036, ratio 1.022
+    singleindex  independent75pool4ruleGibbsB    21-40  +23.9 +/- 11.0 (20/20) t 9.74  +1.14 +/- 0.86 t 5.91  +0.006 +/- 0.008 (18/20) t 3.51    +0.043 +/- 0.027, ratio 1.022
+
+Held-out RMSE ratio, in the order of the paired table: 0.979, 0.980,
+0.987, 1.028, 1.027, 1.023. Wall ratio: 3.12, 6.20, 3.05, 3.28, 6.86,
+4.15. Paired standard error of the summed minimum ESS runs 2.5 to 4.4
+across the six cells.
+
+**This is the first arm on this cell to move the summed minimum ESS on
+Trig+poly**, the gated mean function, and it moves it by two to five
+times the +8 bar the perturb arms above were measured against, on both
+mean functions and at both seed blocks; the per-chain minimum, which
+every other four-chain arm here leaves at 2 on Trig+poly, moves with it. It costs 95 percent coverage on Trig+poly: -0.022 and
+-0.026, past
+[6.4 What "no regression on the core" means numerically](#64-what-no-regression-on-the-core-means-numerically)'s
+-0.010 with the one-sided bound excluding the null in both blocks, and
+the fresh block confirms the flag rather than dissolving it. The
+interval is 14 percent shorter and the between-chain ratio falls from
+0.78 to 0.58, so what narrows is the width pooling was supplying; the
+control over-covers at 0.961 against a nominal 0.95 and arm B
+under-covers at 0.939, the same miss with the sign reversed. Single
+index, ungated, moves the other way on coverage (+0.005, +0.006) and
+regresses held-out RMSE to 1.028 and 1.023, past the 1.02 margin at both
+blocks. Full verdict at
+[6. Benefit, pre-registered](nog-gibbs.md#6-benefit-pre-registered).
+
 Chain overlap, `independent75pool4`: the median over the 25 ESS points of
 the mean pairwise shared-over-spanned interval length is 0.48
 (0.42-0.57) on Trig+poly and 0.58 (0.53-0.63) on Single index; every pair
