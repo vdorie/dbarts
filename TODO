@@ -293,6 +293,12 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
   accepted with a once-per-session warning for one release. All expire
   in the release after 1.0-0. Land with the front-door rename.
 
+xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
+  tombstones for control= and a three-element n.burn (error naming the
+  flat fields); per-cell deterministic RNG streams so seed reproduces at
+  any n.threads; timing against 0.9-34 pending, warm starts across folds
+  only if it is bad and then opt-in with the leakage documented.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
