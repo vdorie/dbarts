@@ -389,6 +389,14 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   measurements show binding. VD: "extremely worried that they're
   artificially limiting". Plan doc to write.
 
+engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
+  dec-B92)
+  an independent design memo on what the engine's generic axes should
+  be (leaf kind, response family, forest count and coupling, response
+  shape, threading), derived from the model space the package intends
+  to cover rather than from the current headers, with the current
+  shape critiqued against it. For VD to read; no code until then.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
