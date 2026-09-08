@@ -349,6 +349,11 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   (bit-identical under R); a plain-spec creation entry and a
   host-neutral error contract in 1.x. Rewords the Python-binding entry.
 
+worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88)
+  pre-release: the multi-chain run loop in src/bartcore/sampler.hpp waits
+  on a completion signal instead of sleeping 100 ms per poll; keep the
+  timed wake for the interrupt poll and progress flush.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
