@@ -173,10 +173,13 @@ Things that could be wrong and would not be caught:
   checked to reproduce bitwise the draws a covered family makes on the
   corresponding data, so they inherit that family's calibration.
 - Mixing at scale is measured, not guaranteed: on the He and Hahn design at
-  n = 10000 the minimum pointwise effective sample size in every default arm
-  is 2 of 2500 draws, and 95 percent interval coverage sits at 0.82 against
-  the nominal 0.95 (`docs/design/benchmark-surfaces.md`, cell C1). Nothing
-  in the gate battery scores mixing.
+  n = 10000 the per-chain minimum pointwise effective sample size is 2 of
+  2500 draws in every arm, and a single chain's 95 percent interval coverage
+  sits at 0.82 against the nominal 0.95. The shipped default of four pooled
+  chains reads 0.96 and 0.90 on the design's two mean functions, because the
+  chains disagree and pooling widens the interval; the posterior is right
+  and the sampler is slow (`docs/design/benchmark-surfaces.md`, cell C1).
+  Nothing in the gate battery scores mixing.
 - A donor warm start refuses at two or more forests rather than run there, so
   what R covers is the refusal; the install has no component pin above one
   forest either. Grow-from-root does run there, pinned from R and in tests/cpp,
