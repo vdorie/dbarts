@@ -439,10 +439,12 @@ remove the posterior dependency (decided, VD 2026-09-08;
 
 sparse factors on the formula interface (decided, VD 2026-09-08;
   docs/decisions.md dec-B100)
-  pre-release, R layer: the formula path accepts sparseFactor columns;
-  mechanism chosen after an ecosystem audit of mixed dense/sparse input
-  handling (Matrix, glmnet, ranger, xgboost, lme4, recipes-free base
-  idioms). Plan doc to write.
+  pre-release, R layer: a sparse() formula term (y ~ a + sparse(g)),
+  stripped before the model frame like forest() terms; the argument is
+  a factor column dbarts converts or an existing sparse object. Chosen
+  from docs/plans/sparse-formula-audit.md (no surveyed package carries
+  a sparse block through a formula; model.frame refuses S4 columns).
+  Plan doc to write.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.

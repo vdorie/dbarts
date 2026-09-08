@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (33 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (34 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -110,6 +110,7 @@ Columns: `file | STATUS | one-liner`.
 | gpu-bart.md | DONE (memo complete) | Records the GPU survey's one recommended prototype (grow-from-root's cut-scan kernel as a warm start); broader GPU work stays open. |
 | python-bindings.md | RESEARCH-OPEN (no spike run recorded) | A feasibility memo for a Python binding over bartcore; decision-gated, likely to live outside this repo. |
 | sparse-extensions.md | MIXED (ext (i) LANDED 2026-07-22; rest consumer-gated) | In-place nonzero mutation on sparse columns has landed; a sparse test set, a streaming range kernel and mixed-column mutation stay deferred, waiting on a consumer. |
+| sparse-formula-audit.md | SURVEY DELIVERED, 2026-09-08 | Surveys how Matrix, MatrixModels, lme4, glmnet/glmnetUtils, ranger and xgboost accept predictor sets that mix ordinary data-frame columns with a sparse block or a many-level factor, records what base R's model frame will and will not carry, and recommends a `sparse()` formula term evaluated outside the model frame as dbarts's front door. |
 
 ## Process doc (not a plan)
 
