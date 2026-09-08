@@ -428,8 +428,16 @@ remove the posterior dependency (decided, VD 2026-09-08;
   chains x variables array with dimnames, the layout posterior's
   as_draws_array accepts); rewrite the five tinytest files and the
   summary man page that call posterior. Matrix and survival stay
-  Suggests (recommended packages). Principle (VD): no dependencies
-  beyond base and recommended packages.
+  Suggests (recommended packages). Principle (VD): no bad
+  dependencies - recommended packages, or ones that understand less is
+  more.
+
+sparse factors on the formula interface (decided, VD 2026-09-08;
+  docs/decisions.md dec-B100)
+  pre-release, R layer: the formula path accepts sparseFactor columns;
+  mechanism chosen after an ecosystem audit of mixed dense/sparse input
+  handling (Matrix, glmnet, ranger, xgboost, lme4, recipes-free base
+  idioms). Plan doc to write.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
