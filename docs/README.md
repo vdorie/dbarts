@@ -25,6 +25,14 @@ decision - it explains where decisions live and how to find one.
   the gates each requires, the brevity rubric, the review checklist. HOW
   plans get written, gated, and reviewed - not a listing of the
   directory's contents; that is `docs/plans/INDEX.md`'s job.
+- `docs/decisions.md` - the decision register: one row per design
+  decision the bartcore branch carries, with who made it and on what
+  evidence. Any claim that the maintainer decided something cites a row
+  here; a claim with no row has no attribution.
+- `docs/plans/bartcore-landing/` - the landing memo for merging bartcore
+  onto main (`memo.md`), and the registers behind it: changes against
+  main, completion status of everything planned, and a doc inventory for
+  triage.
 - repo-root `TODO` - the live, unordered backlog of OPEN work, forward-
   facing only. Most entries name an implementation plan in `docs/plans/`;
   a few record instead in a design doc or a differently-named plan.
