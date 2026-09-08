@@ -107,9 +107,9 @@ items
     - a fourth formal beside interactions(max.order, groups, forbid)
     plus a prior change. Value gate lifted: it enables
     functional-ANOVA BART (arXiv 2509.03317), for which dbarts already
-    ships the hard-constraint half. Scheduled as the first post-1.0 arc
-    (VD 2026-08-26), not pre-RC. Soft path-dependent penalties: gate
-    STANDS, no model surfaced. Records:
+    ships the hard-constraint half. Post-release, no fixed position: it
+    happens, when is open (VD 2026-09-08, dec-B95). Soft path-dependent
+    penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
   manual-gate-runs: benchmarks/R/composition-matrix.R, an executable
@@ -395,7 +395,9 @@ engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
   be (leaf kind, response family, forest count and coupling, response
   shape, threading), derived from the model space the package intends
   to cover rather than from the current headers, with the current
-  shape critiqued against it. For VD to read; no code until then.
+  shape critiqued against it. Written: docs/design/engine-generics-
+  review.md. VD (2026-09-08): not reading it now; turn it into research
+  with measurements down the road. Unscheduled.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
