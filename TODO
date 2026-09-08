@@ -377,6 +377,18 @@ vectorized draw path with a reference build (decided, VD 2026-09-08;
   Plan doc to write. Principle (VD): regressions against 0.9-34 are not
   deferred past the release.
 
+engine constants audit (decided, VD 2026-09-08; docs/decisions.md
+  dec-B91)
+  pre-release: for each of the seven fixed constants (16-bit cut codes,
+  exact categorical enumeration up to ten levels, eight leaf-regression
+  columns, perturb width one, serial cutoffs at 65536 test rows and 1e7
+  predict cells, sparse storage below 0.2 density) record its origin,
+  what it limits, and a measurement where one is possible; document all
+  seven in the manual with recommended values; expose the enumeration
+  limit and the parallel cutoffs as control settings, plus any the
+  measurements show binding. VD: "extremely worried that they're
+  artificially limiting". Plan doc to write.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
