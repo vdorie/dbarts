@@ -96,6 +96,27 @@
 # that design's own confirmatory run, its arm B being the first of them, and
 # independent75pool4level is the level-fibre design's.
 #
+# Two further arms read the posterior's own coverage on this cell rather than
+# a kernel contrast. Each takes the best-mixing mixture measured here and
+# spends chain length or chain count on it, so that the coverage the shipped
+# four short chains report has a well-mixed reference to be read against
+# rather than nominal alone:
+#
+#   independent75pool4ruleGibbs32long
+#                                  the rule_gibbs 0.32 mixture at four chains
+#                                  of 1000 burn-in and 2500 kept, read a
+#                                  second time off the first 1250 kept draws
+#                                  of each chain. A coverage that agrees at
+#                                  both lengths has converged in length.
+#   independent75pool8ruleGibbs32  the same mixture at eight chains of 500 and
+#                                  500, the shipped length at twice the
+#                                  chains, so the effect of chain COUNT is
+#                                  read apart from chain LENGTH.
+#
+# Neither is a move-set contrast - each differs from independent75pool4 in its
+# chain configuration as well as in its mixture - so neither joins the paired
+# table, and both are read as absolute rows.
+#
 # A further arm changes no setting at all, only the seed:
 #
 #   independent75pool4sham         the shipped mixture again, on the same data
@@ -330,6 +351,35 @@ arms <- list(
       birth = 0.5
     ),
     levelGibbs = TRUE
+  ),
+  independent75pool4ruleGibbs32long = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.08,
+      perturb = 0,
+      rule_gibbs = 0.32,
+      birth = 0.5
+    ),
+    prefix = nSamples %/% 2L
+  ),
+  independent75pool8ruleGibbs32 = armSpec(
+    "independent",
+    75L,
+    nChains = 8L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.08,
+      perturb = 0,
+      rule_gibbs = 0.32,
+      birth = 0.5
+    )
   ),
   independent75pool4sham = armSpec(
     "independent",
