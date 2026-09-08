@@ -7,8 +7,11 @@ own changes, and nothing has to be reconciled.
 
 One gate stands in front of the merge itself, and it is the maintainer's own:
 reading the branch review and declaring a release candidate. The CRAN
-submission carries two further prerequisites, both recorded when the grouped
-random-effects fit was removed.
+submission carries three further prerequisites. Two were recorded when the
+grouped random-effects fit was removed. The third is a CRAN package, lorax,
+whose example fits bart() with a three-level factor response. 0.9-x silently
+coded the levels as numbers and 1.0-0 refuses, so its author has to adjust the
+example.
 
 The order is forced. This branch ships a single C header that dbarts main does
 not carry, and two of the three compatibility branches already include it. All
@@ -33,7 +36,7 @@ loudly.
 | 2 | Merge bartcore into dbarts main and push. The GitHub window opens |
 | 3 | In the same sitting, merge each consumer's compatibility branch into its own main. The GitHub window closes |
 | 4 | Point the consumer-build check at each consumer's main, take the consumer workflows off their branch pins and the branch notes out of the readmes, keep the temporary install steps |
-| 5 | Clear the two release prerequisites, then submit dbarts 1.0-0 to CRAN. On acceptance, submit stan4bart 0.0-14 and bartCause the same day. The CRAN window opens |
+| 5 | Clear the three release prerequisites, then submit dbarts 1.0-0 to CRAN. On acceptance, submit stan4bart 0.0-14 and bartCause the same day. The CRAN window opens |
 | 6 | When CRAN carries all of them, delete the temporary install and reinstall steps |
 
 CRAN serves dbarts 0.9-34 until the submission is accepted. A consumer's own
@@ -65,6 +68,8 @@ answer. Four rows carry neither, and each says what it does instead.
 | after the dbarts merge, a local copy | treatSens 3.0 | loud | it fails at the first analysis call, its lookups being lazy |
 | after the consumer merges, GitHub | unverified | unknown | no consumer has been built against the final header, and stan4bart's branch carries an open defect |
 | after CRAN accepts dbarts 1.0-0 | stan4bart 0.0-13, bartCause 1.0-10 | as above | a package update alone breaks them until the consumer submissions are accepted |
+| after CRAN accepts dbarts 1.0-0 | lorax 0.1.0 | loud | its example and tests error on a factor response until its author changes them |
+| after CRAN accepts dbarts 1.0-0 | insight 1.5.4, off CRAN only | loud | its test expects NA-response rows dropped and gets an error; the test is skipped on CRAN |
 | after CRAN accepts the consumers | nobody | neither | closed |
 
 The open defect is stan4bart writing n.cuts through an attribute on the control
@@ -206,7 +211,7 @@ Deferred with no maintainer evidence: 24
 
 Deferred by the maintainer: 7
 
-Done, but proven only by a gate that predates the tip: 8
+Done, but proven only by a gate that predates the tip: 9
 
 Some unfinished items touch the merge. Sites in the C API hold C++ objects that
 own heap memory across R's error longjmp, and leak. None is reachable by an
@@ -252,6 +257,10 @@ the multi-platform package check, the C++ tests and the sanitizer builds for
 bad memory and undefined behaviour ran after the engine tip. No engine change
 is unexercised. Only the documentation workflow ran at the branch tip.
 
+The CRAN reverse-dependency sweep is one of the stale gates. It ran in July at
+an earlier engine, with no script in the tree, and found the two breaks above.
+Three packages have declared dbarts since and have never been checked.
+
 One record compares this engine against the old one. It is statistical rather
 than bitwise, and was taken at the engine cutover. Its manifest marks it
 evidence and not a gate.
@@ -273,7 +282,9 @@ completion register.
 | claim | rows |
 |---|---|
 | main carries no commit the branch lacks | git rev-list --count bartcore..main |
-| the merge gate and the two release prerequisites | cmp-L01, cmp-L05, cmp-L06, cmp-L07 |
+| the merge gate and the three release prerequisites | cmp-L01, cmp-L05, cmp-L06, cmp-L07, cmp-L08, dec-B74 |
+| the insight break | cmp-L09, dec-A70 |
+| the reverse-dependency sweep | cmp-S09 |
 | the order is forced and dbarts merges first | chg-C02, chg-C03, cmp-K09, changes register, merge order preamble |
 | consumer branches, versions and what each calls | changes register, consumer readiness, the stan4bart, bartCause, treatSens and bairrtt rows |
 | the exact-hash flag and its removal | chg-C23, cmp-U16 |
@@ -300,6 +311,6 @@ completion register.
 | what is blocked and on what | cmp-L01, cmp-L02, cmp-L03, cmp-L04, cmp-L05, cmp-L06 |
 | deferred without maintainer evidence | cmp-D10, cmp-D24 |
 | deferred by the maintainer | cmp-V02, cmp-V03 |
-| the stale gates | cmp-S01, cmp-S02, cmp-S03, cmp-S04, cmp-S05, cmp-S07 |
+| the stale gates | cmp-S01, cmp-S02, cmp-S03, cmp-S04, cmp-S05, cmp-S07, cmp-S09 |
 | the cross-engine statistical record | dec-A61 |
 | claims that hold at full strength | cmp-K07, cmp-K08 |

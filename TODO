@@ -280,6 +280,13 @@ items
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
+  contact lorax's maintainer before the CRAN submission: its example
+    and tests fit bart() with a three-level factor response, which
+    0.9-x silently coded as 0/1/2 and 1.0-0 refuses (VD 2026-09-08:
+    let it break, ask for the example to change; docs/decisions.md
+    dec-B74). insight's dbarts test breaks on NA responses the same way
+    but is skipped on CRAN (dec-A70, undecided). The July sweep covered
+    24 reverse dependencies; CRAN lists 27 now.
   validate the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) on their first live runs, which
     happen when bartcore merges to main: GitHub binds BOTH schedule and
