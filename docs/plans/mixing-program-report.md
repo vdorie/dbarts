@@ -277,68 +277,9 @@ confounded step function's root variable moving at all. On the ungated function
 the cut-only kernel is past the 1.02 margin at every dose, 1.033 at worst, and
 1.009 against that function's reference ratio.
 
-### 5.3 The level-fibre step
-
-With the forest's structures held fixed this step is the largest effect in the
-program; alongside the tree moves it is nothing. Because it leaves the fitted
-function exactly unchanged, its conditional is the leaf prior alone and the
-draw is closed form, at about a five-thousandth of a sweep. With C1's
-structures frozen, the minimum effective sample size over that cell's 25 points
-rises by a paired median of +189.4 at one of the two sweeps where the freeze
-was taken and +231.6 at the other, over ten matched pairs, all ten positive.
-Live, the same statistic reads -0.9 on the first seed block and -2.5 on the
-fresh one, inside the sham arm's own reading, and stacked on the nog-node rule
-draw it adds nothing.
-
-Two adverse readings were taken and neither stood: a Single index loss of -5.3
-on the first block reads +1.7 on the fresh one, and a wall-time ratio of 1.086,
-taken on a loaded host, fell to 0.986 when the two arms were re-measured alone
-on a quiet one. Killed as a general default, the explanation being the frozen
-run's scope: it measures one channel with the structure held fixed, where the
-tree moves move the level fibre faster than the exact draw pays for itself.
-What was kept is that one regime, through the automatic `levelGibbs` default of
-section 3; a non-frozen forest draws nothing, so the shipped engine is bitwise
-unchanged.
-
-### 5.4 Perturb, the same-variable cut move
-
-Change always redraws the split variable, so a pure cut displacement happens
-only when the redraw lands back on the variable already there, and the census
-made the case for building one: change's acceptance rate is far below a
-one-position displacement's. The move landed at weight zero, bitwise neutral,
-behind a detailed-balance script whose two poisons both fail as designed. Its
-benefit run on C1 at `d` = 0.16 did not move the gated statistic, +0.1 +/- 8.1
-on the first block and -1.9 +/- 6.5 on the fresh one, with held-out error at
-1.032 against the 1.02 margin. Killed at that setting. On the ungated function
-it gains +9.5 summed on the fresh block, at t = 5.35, carrying its own 1.027
-error regression; that gain is unclaimed, the accept rule not covering that
-mean function.
-
-### 5.5 Swap
-
-Swap exchanges the rules of a parent and one child, and its evidence is not a
-battery cell. A census priced it as mostly wasted work, and on the one
-criterion where shipped mixtures do separate, how fast the sampler re-adapts
-after the response is swapped under the trees, the mixture with swap at zero
-matched the default on every contrast, and only the arm that dropped change as
-well lost ground. Swap's 0.1 moved to birth and death and the move was deleted,
-then restored at a default of zero on an exact-posterior test: one tree, two
-live columns, against a brute-force enumeration of all 62 reachable trees,
-where the largest absolute gap in the tree probabilities is 0.0120 without swap
-and 0.0008 with it, against a tolerance of 0.004. Swap alone rotates a child's
-rule up the tree, which is what that test sees; at fifty and two hundred trees
-the ensemble averages the effect away, so no default moved.
-
-### 5.6 Cross-chain exchange
-
-Killed on acceptance. An exchange of one tree between two chains at one
-temperature is ordinary Metropolis on the product target, the two tree priors
-cancelling, so its acceptance rate is closed form; evaluated on states from a
-running sampler, without the move ever being proposed, it is 10.1 to 11.7
-percent on C1 and effectively zero on the low-noise cell, and alive only on the
-one- and two-split trees birth and death already reach. The exchanges that do
-accept are, moreover, exactly the ones that would make the chains agree, and it
-is the chains' disagreement that pooling turns into interval width.
+**The other four kernels.** The level-fibre step, perturb, swap and the
+cross-chain exchange earned no weight. Each verdict and the evidence behind
+it are in Appendix A.
 
 ## 6. The decision and what it rests on
 
@@ -456,7 +397,74 @@ read. A kill leaves the kernel in place at weight zero rather than deleting it.
   and coverage of a true mean function calibrates a sampler, it does not prove
   it correct.
 
-## Appendix A. Refuted and unbuilt proposals
+## Appendix A. Kernels that earned no weight
+
+Section 1 gives each verdict in a sentence; this appendix gives the evidence.
+
+### A.1 The level-fibre step
+
+With the forest's structures held fixed this step is the largest effect in the
+program; alongside the tree moves it is nothing. Because it leaves the fitted
+function exactly unchanged, its conditional is the leaf prior alone and the
+draw is closed form, at about a five-thousandth of a sweep. With C1's
+structures frozen, the minimum effective sample size over that cell's 25 points
+rises by a paired median of +189.4 at one of the two sweeps where the freeze
+was taken and +231.6 at the other, over ten matched pairs, all ten positive.
+Live, the same statistic reads -0.9 on the first seed block and -2.5 on the
+fresh one, inside the sham arm's own reading, and stacked on the nog-node rule
+draw it adds nothing.
+
+Two adverse readings were taken and neither stood: a Single index loss of -5.3
+on the first block reads +1.7 on the fresh one, and a wall-time ratio of 1.086,
+taken on a loaded host, fell to 0.986 when the two arms were re-measured alone
+on a quiet one. Killed as a general default, the explanation being the frozen
+run's scope: it measures one channel with the structure held fixed, where the
+tree moves move the level fibre faster than the exact draw pays for itself.
+What was kept is that one regime, through the automatic `levelGibbs` default of
+section 3; a non-frozen forest draws nothing, so the shipped engine is bitwise
+unchanged.
+
+### A.2 Perturb, the same-variable cut move
+
+Change always redraws the split variable, so a pure cut displacement happens
+only when the redraw lands back on the variable already there, and the census
+made the case for building one: change's acceptance rate is far below a
+one-position displacement's. The move landed at weight zero, bitwise neutral,
+behind a detailed-balance script whose two poisons both fail as designed. Its
+benefit run on C1 at `d` = 0.16 did not move the gated statistic, +0.1 +/- 8.1
+on the first block and -1.9 +/- 6.5 on the fresh one, with held-out error at
+1.032 against the 1.02 margin. Killed at that setting. On the ungated function
+it gains +9.5 summed on the fresh block, at t = 5.35, carrying its own 1.027
+error regression; that gain is unclaimed, the accept rule not covering that
+mean function.
+
+### A.3 Swap
+
+Swap exchanges the rules of a parent and one child, and its evidence is not a
+battery cell. A census priced it as mostly wasted work, and on the one
+criterion where shipped mixtures do separate, how fast the sampler re-adapts
+after the response is swapped under the trees, the mixture with swap at zero
+matched the default on every contrast, and only the arm that dropped change as
+well lost ground. Swap's 0.1 moved to birth and death and the move was deleted,
+then restored at a default of zero on an exact-posterior test: one tree, two
+live columns, against a brute-force enumeration of all 62 reachable trees,
+where the largest absolute gap in the tree probabilities is 0.0120 without swap
+and 0.0008 with it, against a tolerance of 0.004. Swap alone rotates a child's
+rule up the tree, which is what that test sees; at fifty and two hundred trees
+the ensemble averages the effect away, so no default moved.
+
+### A.4 Cross-chain exchange
+
+Killed on acceptance. An exchange of one tree between two chains at one
+temperature is ordinary Metropolis on the product target, the two tree priors
+cancelling, so its acceptance rate is closed form; evaluated on states from a
+running sampler, without the move ever being proposed, it is 10.1 to 11.7
+percent on C1 and effectively zero on the low-noise cell, and alive only on the
+one- and two-split trees birth and death already reach. The exchanges that do
+accept are, moreover, exactly the ones that would make the chains agree, and it
+is the chains' disagreement that pooling turns into interval width.
+
+## Appendix B. Refuted and unbuilt proposals
 
 Two rounds of proposal generation ran under a common bar: a written
 Metropolis-Hastings correction, a price in cut scans, a named deficit and a
@@ -485,7 +493,7 @@ each confirmed on fresh seeds, were averaged away by pooling. What the battery
 inherits is that law: per-cell checks, thresholds frozen before the run,
 mandatory fresh-seed re-runs and a null control that voids the family.
 
-## Appendix B. Source records
+## Appendix C. Source records
 
 Every claim above is recorded in one of these sections.
 
