@@ -406,6 +406,11 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
   a rationale, pre- or post-1.0-0 as time allows. Manual documents the
   kernel and its cost.
 
+survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
+  pre-release, R layer only: Surv on the formula left-hand side for aft
+  and hazard; subset honoured; a test path for the hazard family that
+  person-period expands held-out subjects. Plan doc to write.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
