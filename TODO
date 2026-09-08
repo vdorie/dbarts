@@ -301,6 +301,12 @@ xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
   measured 2026-09-08); per-cell deterministic RNG streams so a seed
   reproduces at any n.threads. Warm starts across folds stay out.
 
+factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
+  subset splits stay the modern default; the manual states the
+  difference from BayesTree and why. Post-release research item:
+  weighting a factor column's split probability by its level count,
+  which the indicator encoding gave implicitly.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
