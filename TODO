@@ -307,6 +307,13 @@ factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
   weighting a factor column's split probability by its level count,
   which the indicator encoding gave implicitly.
 
+front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
+  dec-B79, B80, B81)
+  names may change until the CRAN push, then lock; sigest replaces
+  dbarts()'s sigma argument (the creation-time estimate only; setSigma
+  is untouched), with a one-release warning; the manual gets one table
+  mapping front-door family tokens to engine families and entry points.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
