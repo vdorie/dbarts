@@ -335,7 +335,14 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84)
   buffer-sizing queries (dec-B86): the multi-forest block, mutation
   pair, callback, active rows, weights, test predictors/offset, thinning
   and latent readers wait for a consumer; batch later additions into
-  planned releases. Plan doc to write.
+  planned releases. Setters copy into buffers allocated once at
+  creation, never retain a caller pointer (dec-B87). Plan doc to write.
+memory footprint at large n (VD concern, 2026-09-08)
+  audit the per-sampler footprint as a function of n, p, trees and
+  chains (owned conditioning vectors, cut codes, tree storage, per-chain
+  state, test slabs) and record it in the manual; VD wants larger
+  datasets to fit and has had memory trouble before.
+
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's
   Rmath, print and error touchpoints through src/external host hooks
