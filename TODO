@@ -283,7 +283,11 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
   one release; the BayesTree-style names and defaults move to a new
   function (name open: bartBT or bart_bt); for one release bart forwards
   a legacy-style call (x.train/y.train, ntree, ndpost, nskip, keeptrees)
-  to that function with a once-per-session warning. Consumers: bartCause
+  to that function with a once-per-session warning. The legacy door is a
+  strict compatibility mode: BayesTree's arguments and defaults, no new
+  1.0 features (dec-B83); whether its pre-1.0 extras (logistic, aft,
+  chains, threads) stay is settled in the plan. Its factor-response
+  refusal names both remedies. Consumers: bartCause
   calls bart2; 17 CRAN reverse dependencies call only bart. Settle before
   contacting lorax's maintainer. Plan doc to write.
 
