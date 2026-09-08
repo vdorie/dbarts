@@ -210,6 +210,11 @@ inline void resolveVetoRank(const BranchScore& current,
 /// (scanOrdinalCuts). A rank-2 candidate is dropped absolutely, no move being
 /// allowed to install a member-empty leaf even from a vetoed state; the caller
 /// draws over the smallest surviving rank alone.
+///
+/// Under the private BARTCORE_RULE_GIBBS_CUT_ONLY build the variable loop is
+/// held at the incumbent's own variable and the set is that variable's cuts
+/// alone, one scan a proposal; the note below the function states why that
+/// restriction is still an exact Gibbs step and what it gives up.
 template <ScannableLeafModel L, typename ResidT = double>
 int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
                                   Tree& tree, int32_t node, const ResidT* y,
@@ -243,6 +248,11 @@ int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
   int minimumRank = 2;  // no rank-2 candidate is ever pushed
   for (std::size_t j = 0; j < data.numPredictors; ++j) {
     if (available[j] == 0 || data.splitsBySubset(j)) continue;
+#ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
+    // the private cut-only variant: hold the incumbent variable and enumerate
+    // its cuts alone, one scan a proposal (the note below the enumerator)
+    if (static_cast<int32_t>(j) != incumbent.variableIndex) continue;
+#endif
     int32_t low, high;
     tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
     if (high < low) continue;  // availability is this test; belt and braces
@@ -304,6 +314,46 @@ int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 
   return scratch.candidates.empty() ? -1 : minimumRank;
 }
+
+// ===========================================================================
+// BARTCORE_RULE_GIBBS_CUT_ONLY: the private cut-only rule draw.
+//
+// Off in every shipped build and taken only on a private -D build, the way
+// the census scaffolding below is. With the macro unset the enumeration and
+// the kernel are the joint draw verbatim, the restriction sitting behind an
+// ifdef rather than a runtime test.
+//
+// When it is defined, enumerateNogRuleNeighbourhood holds the node's
+// INCUMBENT variable and enumerates that variable's admissible cuts alone, so
+// a proposal takes ONE scanOrdinalCuts pass rather than one per available
+// ordinal variable. Nothing else in the law moves: the branch-rank stratum is
+// taken over the restricted set, a candidate's weight is the same
+// rank-admitted marginal times the same prior factors, the missing direction
+// is scored or coined exactly as before, and a node whose own rule is
+// categorical is the same fixed point.
+//
+// It is still an exact Gibbs step. The restricted set is a deterministic
+// function of state that the move cannot change - the variable is held, and
+// one variable's cuts at a nog node are ancestor-determined exactly as the
+// joint set is - so it is the same set from every state in it, its normalizer
+// is the same before and after the draw, and no proposal count survives into
+// an acceptance. The stratum argument carries over unchanged: where the
+// smallest surviving rank is the incumbent's, the draw is the full
+// conditional restricted to the set; where it is better, the better stratum
+// is absorbing.
+//
+// Two of the weight's factors cancel outright over one variable's cuts - the
+// split-variable prior, and the rule prior 1/|SI| with the log 2 a routed
+// node takes beside it - and both are KEPT rather than dropped, so a
+// candidate's weight stays on the joint kernel's own scale and the census
+// identity reads the same. Only the marginal and the two
+// log(1 - growth(child)) factors vary across the restricted set.
+//
+// What it gives up: the split VARIABLE never moves through this kernel. A
+// node reaches another variable only through the change move, at change's own
+// share, so a mixture handing change's whole share to this kernel would
+// strand the variable axis.
+// ===========================================================================
 
 #ifdef BARTCORE_MOVE_CENSUS
 // ===========================================================================
@@ -1693,6 +1743,10 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 /// touched leaves given frozen neighbours and NOT the sum of two unconstrained
 /// scan entries, and the variance forest's scale leaf has no such marginal at
 /// all. Both are a no-op here that consumes no draw.
+///
+/// Under the private BARTCORE_RULE_GIBBS_CUT_ONLY build the draw runs over
+/// the incumbent variable's cuts alone and the split variable never moves
+/// through this kernel; the enumerator's own note carries that variant.
 template <MoveScorableLeafModel L, typename ResidT = double>
 double ruleGibbsMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                      Tree& tree, const ResidT* y, double sigma,

@@ -2029,6 +2029,14 @@ static void testPerturbMove() {
 // it was, which is what lets the draw skip a reverse count. FOURTH, the draw
 // itself: at a one-split tree the conditional is fixed and enumerable, so the
 // realized frequencies over a long walk must match it.
+//
+// Under the private BARTCORE_RULE_GIBBS_CUT_ONLY build every claim is made of
+// the RESTRICTED set instead - the incumbent variable's cuts alone - which is
+// the reference assembly over those candidates, closure read from another cut
+// of the same variable, and the same enumerated conditional at four states
+// rather than eight. A fifth claim is the variant's own: the split variable
+// never moves through the kernel, so a rule_gibbs-dominant walk leaves it
+// where it was and only change can take it elsewhere.
 // ---------------------------------------------------------------------------
 static void testRuleGibbsMove() {
   const size_t n = 240, p = 2;
@@ -2112,8 +2120,20 @@ static void testRuleGibbsMove() {
   int stratum = enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(),
                                               sigma);
   check(stratum == 0, "with every member weighted the stratum is rank 0");
+#ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
+  // the cut-only build holds the incumbent variable, so the set is x1's four
+  // cuts and every claim below reads on those
+  check(scratch.candidates.size() == 4,
+        "the cut-only enumeration is the incumbent variable's cuts alone");
+  bool onIncumbentVariable = true;
+  for (const NogRuleCandidate& candidate : scratch.candidates)
+    onIncumbentVariable &= candidate.variableIndex == rootRule.variableIndex;
+  check(onIncumbentVariable,
+        "no cut-only candidate leaves the incumbent variable");
+#else
   check(scratch.candidates.size() == 8,
         "two variables at four cuts each, none of them occupancy-empty");
+#endif
 
   std::vector<int> referenceRanks;
   std::vector<double> referenceWeight = reference(ctx, &referenceRanks);
@@ -2138,8 +2158,15 @@ static void testRuleGibbsMove() {
   // ---- closure: the candidate set does not read the node's own rule ----
   std::vector<NogRuleCandidate> fromIncumbent(scratch.candidates);
   Rule other;
+#ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
+  // the restricted set is a deterministic function of state the move cannot
+  // change, so the state it is read from is another cut of the same variable
+  other.variableIndex = 0;
+  other.setSplitIndex(3);
+#else
   other.variableIndex = 1;
   other.setSplitIndex(2);
+#endif
   tree.at(0).rule = other;
   tree.refreshSubtree(store, 0, y.data(), ctx.weights);
   enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
@@ -2208,6 +2235,7 @@ static void testRuleGibbsMove() {
   const int numSteps = 8000;
   std::vector<int> counts(states.size(), 0);
   bool dispatchedGibbs = true, shapePreserved = true, alwaysAccepts = true;
+  bool variableHeld = true;
   for (int step = 0; step < numSteps; ++step) {
     bool stepTaken = false;
     StepType stepType = StepType::change;
@@ -2217,6 +2245,7 @@ static void testRuleGibbsMove() {
     alwaysAccepts &= alpha == 1.0 && stepTaken;
     shapePreserved &= tree.childrenAreBottom(0);
     const Rule& settled(tree.at(0).rule);
+    variableHeld &= settled.variableIndex == rootRule.variableIndex;
     for (size_t i = 0; i < states.size(); ++i)
       if (states[i].variableIndex == settled.variableIndex &&
           states[i].splitIndex == settled.splitIndex())
@@ -2243,8 +2272,19 @@ static void testRuleGibbsMove() {
   // over the weights it is asserting
   check(drawn == static_cast<int>(states.size()),
         "the walk visits every candidate the conditional gives mass");
+#ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
+  // the same test restated for the restricted kernel: four states, so 3
+  // degrees of freedom at alpha = 0.001, against a conditional that is the
+  // joint one renormalized over the incumbent variable's cuts
+  check(variableHeld,
+        "the cut-only kernel never moves the node's split variable");
+  check(chiSquare < 16.266,
+        "the realized frequencies match the restricted conditional");
+#else
+  (void)variableHeld;
   check(chiSquare < 24.322,
         "the realized frequencies match the enumerated conditional");
+#endif
 
   // ---- an all-categorical design offers no eligible node, and draws ----
   ColumnKind type = ColumnKind::categorical;
