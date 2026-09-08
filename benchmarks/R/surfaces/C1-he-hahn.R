@@ -51,10 +51,11 @@
 #                           also read off the first 2500 of those draws so the
 #                           length effect is visible inside a single fit
 #
-# Six further arms sit on that same shipped four-chain configuration and the
-# same twenty seeds, varying only the proposal mixture, so the move-set
-# contrast is read where the shipped chain default reads it rather than at the
-# one-chain configuration the earlier move-set grid used:
+# Eight further arms sit on that same shipped four-chain configuration and the
+# same twenty seeds, varying only the proposal mixture or the level-fibre
+# flag, so the kernel contrast is read where the shipped chain default reads
+# it rather than at the one-chain configuration the earlier move-set grid
+# used:
 #
 #   independent75pool4bd           birth_death 1, swap 0, change 0
 #   independent75pool4swap         birth_death 0.5, swap 0.1, change 0.4, the
@@ -75,11 +76,25 @@
 #   independent75pool4ruleGibbs32  birth_death 0.6, swap 0, change 0.08,
 #                                  rule_gibbs 0.32, the second dosage of that
 #                                  study's grid. It is reported, not gated.
+#   independent75pool4level        the shipped mixture unchanged, with the
+#                                  level-fibre Gibbs step on. It varies no
+#                                  proposal probability at all: the step is an
+#                                  exact draw on the leaf fibre, taken once a
+#                                  sweep ahead of the tree loop, and it is the
+#                                  dosage the level-fibre benefit study's kill
+#                                  criterion turns on.
+#   independent75pool4ruleGibbsBlevel
+#                                  the rule_gibbs arm above and the level step
+#                                  together, one kernel structural and one on
+#                                  the leaf fibre. It is reported, not gated,
+#                                  and it is what says whether the two gains
+#                                  stack.
 #
 # independent75pool4 is their control and is re-run beside them so the
 # contrast is paired within one session. Both perturb arms are PILOT levels,
 # not a confirmatory run of the perturb design; the two rule_gibbs arms are
-# that design's own confirmatory run, its arm B being the first of them.
+# that design's own confirmatory run, its arm B being the first of them, and
+# independent75pool4level is the level-fibre design's.
 #
 # A further arm changes no setting at all, only the seed:
 #
@@ -158,8 +173,11 @@ published <- data.frame(
 # chain at the top-level burn-in and sample counts. `prefix` asks for a second
 # set of readouts from the first that many kept draws of each chain. `probs`
 # is a proposal mixture; NULL leaves it unset, which is the shipped one.
-# `samplerOffset` adds to the sampler seed and to nothing else, so an arm
-# carrying one sees its control's data at a different MCMC stream.
+# `levelGibbs` switches on the level-fibre Gibbs step and is named in every
+# call: FALSE is bart2's own default, so naming it leaves every other arm's
+# draws where they were. `samplerOffset` adds to the sampler seed and to
+# nothing else, so an arm carrying one sees its control's data at a different
+# MCMC stream.
 armSpec <- function(
   design,
   nTrees,
@@ -169,6 +187,7 @@ armSpec <- function(
   armSamples = nSamples,
   prefix = NA_integer_,
   probs = NULL,
+  levelGibbs = FALSE,
   samplerOffset = 0L
 ) {
   list(
@@ -180,6 +199,7 @@ armSpec <- function(
     nSamples = armSamples,
     prefix = prefix,
     probs = probs,
+    levelGibbs = levelGibbs,
     samplerOffset = samplerOffset
   )
 }
@@ -287,6 +307,30 @@ arms <- list(
       birth = 0.5
     )
   ),
+  independent75pool4level = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    levelGibbs = TRUE
+  ),
+  independent75pool4ruleGibbsBlevel = armSpec(
+    "independent",
+    75L,
+    nChains = 4L,
+    armBurn = 500L,
+    armSamples = pool4Samples,
+    probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.24,
+      perturb = 0,
+      rule_gibbs = 0.16,
+      birth = 0.5
+    ),
+    levelGibbs = TRUE
+  ),
   independent75pool4sham = armSpec(
     "independent",
     75L,
@@ -309,6 +353,8 @@ movesetArms <- c(
   "independent75pool4perturbMixed",
   "independent75pool4ruleGibbsB",
   "independent75pool4ruleGibbs32",
+  "independent75pool4level",
+  "independent75pool4ruleGibbsBlevel",
   "independent75pool4sham"
 )
 armNames <- names(arms)
@@ -471,6 +517,7 @@ for (which in meanFunctions) {
         n.threads = 1L,
         n.grow.sweeps = arm$growSweeps,
         combineChains = arm$nChains == 1L,
+        levelGibbs = arm$levelGibbs,
         verbose = FALSE,
         seed = surfacesSamplerSeed(seedIndex) + arm$samplerOffset
       )
