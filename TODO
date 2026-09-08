@@ -278,6 +278,15 @@ items
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
+front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
+  bart takes bart2's interface and defaults; bart2 becomes an alias for
+  one release; the BayesTree-style names and defaults move to a new
+  function (name open: bartBT or bart_bt); for one release bart forwards
+  a legacy-style call (x.train/y.train, ntree, ndpost, nskip, keeptrees)
+  to that function with a once-per-session warning. Consumers: bartCause
+  calls bart2; 17 CRAN reverse dependencies call only bart. Settle before
+  contacting lorax's maintainer. Plan doc to write.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
