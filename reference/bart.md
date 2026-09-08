@@ -1134,7 +1134,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.214643
+#> total seconds in loop: 0.163428
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 4 3 3 3 2 2 3 2 3 2 2 2 2 3 3 1 
