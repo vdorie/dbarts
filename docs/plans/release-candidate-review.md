@@ -554,6 +554,48 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The coverage reference arm dissolves rule_gibbs's coverage flag (e002c10d, 2026-09-08)
+
+C1-he-hahn.R gains two arms that read the posterior's own 95 percent
+coverage on the He-Hahn cell instead of a kernel contrast: 50 added lines,
+no engine change, and every existing arm's rows identical before and after
+the edit. independent75pool4ruleGibbs32long is the rule_gibbs 0.32 mixture,
+the best-mixing kernel measured on this cell, at four chains of 1000 and
+2500 with the same fit read a second time off the first 1250 kept draws of
+each chain; independent75pool8ruleGibbs32 is that mixture at eight chains
+of the shipped 500 and 500, which reads chain count apart from chain
+length. The harness's chain-aware readouts already generalized over the
+chain count and needed no fix. 80 fits over both mean functions on seeds
+1-20; independent75pool4 and independent75pool4long reproduce
+benchmark-surfaces.md 10.4 digit for digit on both. The reference is
+credible: between-chain ratio 0.48 (0.40-0.57) on Trig+poly and 0.29
+(0.21-0.39) on Single index, the lowest recorded on this cell against the
+control's 0.78 and 0.68 and the d = 0.16 arm's 0.58 and 0.40; summed
+minimum ESS 62 and 71 against 15 and 21; and the reading converged in
+length, half the kept draws giving 0.939 against 0.941 and 0.908 against
+0.912. It reads 0.941 on Trig+poly against a nominal 0.95, within 0.002 of
+the d = 0.16 arm's 0.939 and 0.020 below the control's 0.961, and the
+eight-chain arm names the mechanism: at one kernel and one length doubling
+the chain count moves coverage 0.939 to 0.956 and the interval 3.96 to
+4.10, where quintupling the length moves coverage 0.939 to 0.941. Chain
+count inflates the pooled interval on this cell, not chain length, so the
+shipped four short chains over-cover it by unfinished mixing and the
+rule_gibbs arms' 0.939 is the faithful rendering. 6.4's coverage margin is
+therefore restated: coverage is read against the cell's well-mixed
+reference rather than against the shipped-configuration control, margin
+unchanged at -0.010, and rule_gibbs's -0.002 against the reference is
+inside it, so nog-gibbs.md's coverage flag is dissolved. Single index
+moves the other way, 0.895 to 0.912 against nominal, and its held-out RMSE
+with it - the reference reads 1.024 against the control, so the arm flagged
+at 1.028 is 1.004 against the reference - and the same substitution is
+noted for it. The reference is not a perfectly mixed chain, 0.48 not being
+agreement, but residual disagreement widens a pooled interval, so 0.941 is
+an upper bound and the direction is not in doubt. Host load ran 4 to 269
+through the runs, so no wall time here carries a timing claim. Slice 4 is
+still blocked, now by 6.4's missing plateau-error gate and the owed
+equal-cost arm alone. Recorded at nog-gibbs.md 6, 8; benchmark-surfaces.md
+6.4, 10.4. Script only, no engine change.
+
 ### The level-fibre step becomes automatic under a frozen mixture (127f04ee, 2026-09-08)
 
 Ruled by the maintainer: the step is KEPT and `levelGibbs` becomes tri-state.

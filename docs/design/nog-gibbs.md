@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -599,6 +599,21 @@ of the coverage regression that flagged the full draw.** The cut-only kernel is 
 changes slice 4, which the coverage secondary and its missing gate still block; what the pilot settles is the price of the axis,
 which section 2.4 could only bound.
 
+**Reference arm (2026-09-08).** The coverage secondary above is stated against arm A, and arm A's own 0.961 is now measured to be
+an artefact of its chain configuration. A well-mixed reference on this cell - `rule_gibbs` at `d` = 0.32, four chains of 1000 +
+2500, between-chain ratio 0.48 against arm A's 0.78 and the same coverage at half its kept length, 0.939 against 0.941 - reads
+0.941 on Trig+poly against a nominal 0.95, within 0.002 of arm B's 0.939 and 0.020 below arm A's 0.961; and an eight-chain arm at
+one kernel and one length moves coverage 0.939 to 0.956 where five times the length moves it 0.939 to 0.941, so what carries arm
+A's extra coverage is chain COUNT and not the posterior
+([10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)). Residual disagreement widens a
+pooled interval, so 0.941 is an upper bound on a fully mixed reading and the direction is not in doubt.
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)
+now reads coverage against that reference rather than against the shipped-configuration control, margin unchanged at -0.010, and
+arm B's -0.002 against it is inside the margin: **the coverage flag is dissolved**. Single index goes the same way - the reference
+reads a held-out RMSE ratio of 1.024 against arm A, so arm B's 1.028 is 1.004 against the reference - and that mean function is
+reported, not gated, either way. What slice 4 still lacks is 6.4's own missing plateau-error gate and the equal-cost arm, both
+named above.
+
 ## 7. RNG and baselines
 
 At a share of exactly zero the added dispatch test is `u < (bd + swap + perturb) + 0.0`, which is the perturb test exactly in IEEE for
@@ -688,8 +703,9 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)), and the equal-cost arm, which
    needs a quiet machine and is owed. The cut-scan count came off the census build's own `c1` cell rather than off a replay of the
    arms' seeds; section 6's verdict paragraph states both departures.
-4. **The default share.** Slice 3's kill did NOT fire, so this item is not closed the way perturb's was; what blocks it is
-   section 6's coverage secondary, which a nonzero default would carry onto every core cell, and the missing gate below.
+4. **The default share.** Slice 3's kill did NOT fire, and section 6's coverage secondary no longer blocks this item either:
+   the reference arm of 2026-09-08 dissolves that flag, 6.4 now reading coverage against the cell's own well-mixed reference
+   rather than against the shipped four short chains, which over-cover it. What blocks the item is the missing gate below.
    POST-RELEASE, and that gate does not exist: 6.4's second kill clause needs plateau
    prediction error in the noise-heavy or large-n stratum, which the grow-from-root harm battery measured and benchmarks/ does not
    contain ([5. Verdict and consequences](grow-from-root-default.md#5-verdict-and-consequences)). The equal-cost arm of section 6 is

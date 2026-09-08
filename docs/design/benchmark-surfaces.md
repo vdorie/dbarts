@@ -1062,6 +1062,23 @@ cell cannot flag on its point estimate alone.
     ESS of the outer scale (C4)             ratio < 0.90
     wall time per sweep                     ratio > 1.05
 
+**The baseline the coverage margin is read against (2026-09-08).** These
+margins are paired differences against a control arm, and where a cell's
+shipped configuration is measured to over-cover, that control is the
+wrong baseline: coverage is read against the cell's own well-mixed
+REFERENCE arm instead, at a margin unchanged at -0.010 absolute. C1's
+shipped four short chains over-cover Trig+poly by unfinished mixing,
+measured 2026-09-08 - the reference reads 0.941 against their 0.961 and
+against a nominal 0.95, and at one kernel and length doubling the chain
+count moves coverage 0.939 to 0.956 while quintupling the chain length
+moves it 0.939 to 0.941, so the extra coverage is chain count and not
+the posterior
+([10.4 C1, the He and Hahn factorial](#104-c1-the-he-and-hahn-factorial)'s
+coverage reference arm). The same substitution applies to any other
+secondary the pooled short chains inflate: held-out RMSE on C1 Single
+index, where the reference reads 1.024 against the control and is the
+read.
+
 Two absolute gates on top of the paired ones. First, **the null control**:
 any arm that is meant to be inert - a new kernel at weight zero, a new
 prior at its identity setting - must be BITWISE identical to the control
@@ -1979,6 +1996,76 @@ the level step. Host load ran 4.2 to 9.7 through the arm runs, so those
 wall times carry no timing claim beyond the quiet re-measure. Full
 verdict at
 [6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered).
+
+**The coverage reference arm (2026-09-08).** The coverage flag the
+rule_gibbs arms carry is stated against `independent75pool4`, four short
+chains pooled, whose own 0.961 on Trig+poly sits above the nominal 0.95.
+Two arms ask what the posterior's own coverage on this cell is, both on
+the same twenty seeds and the same independent 75-tree design:
+`independent75pool4ruleGibbs32long`, the rule_gibbs 0.32 mixture - the
+best-mixing kernel measured here - at four chains of 1000 burn-in and
+2500 kept, read a second time off the first 1250 kept draws of each
+chain; and `independent75pool8ruleGibbs32`, that mixture at eight chains
+of the shipped 500 and 500, which reads chain COUNT apart from chain
+LENGTH. `independent75pool4` and `independent75pool4long` are re-run in
+the same session and reproduce the Chain configuration paragraph's own
+rows digit for digit on both mean functions. Columns as above, with the
+held-out RMSE beside the in-sample one and the half-length prefix
+reading as its own row.
+
+    mean fn      arm                                chains  95% coverage        length  RMSE  held-out  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4                 4x500   0.961(0.945-0.977)  4.61    1.12  1.15      15(8-31)       2(1-2)     0.78
+    trigpoly     independent75pool4long             4x2500  0.959(0.937-0.975)  4.19    1.04  1.07      18(9-46)       2(1-2)     0.65
+    trigpoly     independent75pool4ruleGibbs32long  4x1250  0.939(0.911-0.961)  3.97    1.10  -         -              -          -
+    trigpoly     independent75pool4ruleGibbs32long  4x2500  0.941(0.917-0.963)  3.99    1.09  1.13      62(16-130)     3(2-5)     0.48
+    trigpoly     independent75pool8ruleGibbs32      8x500   0.956(0.936-0.970)  4.10    1.06  1.10      128(54-170)    3(2-4)     0.58
+    singleindex  independent75pool4                 4x500   0.895(0.878-0.915)  6.45    1.92  1.96      21(9-32)       2(1-2)     0.68
+    singleindex  independent75pool4long             4x2500  0.905(0.886-0.930)  6.62    1.94  1.98      18(10-27)      2(1-2)     0.49
+    singleindex  independent75pool4ruleGibbs32long  4x1250  0.908(0.878-0.931)  6.71    1.96  -         -              -          -
+    singleindex  independent75pool4ruleGibbs32long  4x2500  0.912(0.883-0.932)  6.75    1.95  2.00      71(15-119)     4(2-6)     0.29
+    singleindex  independent75pool8ruleGibbs32      8x500   0.911(0.883-0.931)  6.71    1.95  2.00      117(56-178)    3(2-4)     0.39
+
+The 4x1250 row is the 4x2500 fit read at half its kept length, so it
+carries no ESS or between-chain column of its own.
+
+**The long arm is the best-mixed chain this harness has produced on this
+cell**, and its coverage reading has converged in length. Its
+between-chain ratio is 0.48 (0.40-0.57) on Trig+poly and 0.29
+(0.21-0.39) on Single index, the lowest recorded here, against the
+control's 0.78 and 0.68, the long control's 0.65 and 0.49 and the `d` =
+0.16 arm's 0.58 and 0.40 - every seed of it at or below that arm's own
+mean; its summed minimum ESS is four times the control's and its
+per-chain minimum 3 and 4 against 2; and half its kept length reads the
+same coverage, 0.939 against 0.941 and 0.908 against 0.912. It is not a
+perfectly mixed chain, 0.48 being no one's idea of agreement, and the
+direction of what is left is known: chains sitting in their own places
+widen the pooled interval, so residual disagreement biases pooled
+coverage UP and 0.941 is an upper bound on what a fully mixed chain
+would read.
+
+**On Trig+poly the reference reads 0.941 against a nominal 0.95** (-0.009
++/- 0.013 over the twenty seeds, t -3.01), within 0.002 of the `d` = 0.16
+arm's 0.939 and 0.020 below the control's 0.961. The eight-chain arm
+names the mechanism: at one kernel and one chain length, doubling the
+chain count moves coverage from the four-chain `d` = 0.32 arm's 0.939 to
+0.956 and the interval from 3.96 to 4.10, while quintupling the chain
+length moves it from 0.939 to 0.941 at 3.99. It is chain COUNT that
+inflates the pooled interval on this cell and not chain length - pooling
+chains that sit in their own places buys width and the width buys
+coverage - so the shipped four short chains over-cover Trig+poly by
+unfinished mixing, the rule_gibbs arms' 0.939 is the faithful rendering
+of the posterior and the control's 0.961 is the artefact.
+
+**On Single index the same arms move coverage the other way**, 0.895 at
+the control to 0.912 at the reference against a nominal 0.95, so that
+mean function under-covers throughout and better mixing walks it toward
+nominal rather than away. Its held-out RMSE goes with it: the reference
+reads 2.00 against the control's 1.96, a ratio of 1.024, so an arm
+flagged at 1.028 against the control is at 1.004 against the reference.
+What the pooled short chains supply on this mean function is a point
+estimate as well as an interval, and the reference is the read for both.
+Host load ran 4 to 269 through these runs, so their wall times carry no
+timing claim of any kind.
 
 **Frozen-structure ESS (2026-09-07).**
 [`C1-frozen-ess.R`](../../benchmarks/R/surfaces/C1-frozen-ess.R) separates
