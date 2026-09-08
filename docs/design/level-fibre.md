@@ -1,6 +1,6 @@
 # level: an exact Gibbs draw on the level fibre
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e); SLICE 3 RUN 2026-09-07: KILLED, the primary reads -0.9 and -2.5 against a +8 bar (ca92c11f).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e); SLICE 3 RUN 2026-09-07: KILLED, the primary reads -0.9 and -2.5 against a +8 bar (ca92c11f); AUTO UNDER THE FROZEN MIXTURE 2026-09-08 (127f04ee).
 
 A leaf-value step, not a tree kernel. Add a constant `c_t` to every occupied leaf of tree `t`, with the constants summing to zero
 across the forest's trees: the fitted function is unchanged exactly, so the conditional of the shift vector on that subspace is the
@@ -234,6 +234,27 @@ inst/NEWS.Rd.** Thirteen files - the site list gains one, the file count does no
 `LinkingTo` consumer recompiles. `storeState` writes forests, sigma, scale, latents, DART, RNG, glue and digests and no sampler
 option among them, so `stateFormatVersion` does not move; a shifted leaf value rides in [`FlatNode`](../../src/bartcore/tree.hpp)'s
 `value` field, the same shape it had, and the round trip is bit-identical in structure and equal in value to the shifted state.
+
+**AUTOMATIC UNDER THE FROZEN MIXTURE, ruled 2026-09-08.** The slot is KEPT and becomes tri-state:
+[`LevelGibbsMode`](../../src/bartcore/chain.hpp)'s `on` always, `off` never, and `automatic` - which `NA`, the new default, maps to -
+for a forest exactly where that forest's structural mixture is frozen
+([`structureIsFrozen`](../../src/bartcore/moves.hpp)). Slice 3 killed the step on the live kernel and slice 2 confirmed it with the
+trees held fixed, and this is the one shape that reads both: it runs where the leaf values are the only thing left moving and
+nowhere else. Option A above - always on - is what slice 3 refused; option B at default off leaves the frozen case, which is the
+only case with a measured gain, reachable only by a caller who already knows the flag exists.
+
+**The decision is PER SWEEP and PER FOREST**, and it has to be. The mixture is mutable between samples through
+[`dbartsSampler$setModel`](../../R/dbarts.R) while the slot is fixed at creation, so a sampler grown under the shipped mixture and
+then frozen - the driver loop that freezes structure between response swaps, which is the case option B was chosen for - never
+re-creates itself and would otherwise never reach the step. The mixture is read once per forest per sweep in
+[`Chain::run`](../../src/bartcore/chain.hpp), ahead of the level step, and the tree loop's own frozen skip reads that same value:
+one `structureIsFrozen` call per forest per sweep, as before, not two. The guard stays ahead of every generator call, so a
+mixture that proposes structure consumes nothing, the non-frozen default is bitwise the shipped engine and section 7's bundle is
+still not owed.
+
+**The user flag is the override, both ways.** `TRUE` reaches the live kernel, which slice 3 measured as a wash rather than a harm,
+and `FALSE` turns the step off for a frozen forest whose caller wants the recorded stream - which is what
+[`C1-frozen-ess.R`](../../benchmarks/R/surfaces/C1-frozen-ess.R)'s off arm passes, so its recorded table keeps reproducing.
 
 ## 5. Correctness
 
@@ -542,3 +563,11 @@ Then, in order:
    the pre-registered cell is nil. Whether it is removed before release is the maintainer's call; the arguments on either side
    are section 6's residue paragraph - the strata no cell here measures - against the surface and test weight of a flag nothing
    in the battery recommends.
+
+   **KEPT, and automatic under the frozen mixture** (127f04ee, ruled 2026-09-08). Not the default flip this slice was written as:
+   the live kernel keeps the draws slice 3 measured, and the step becomes automatic only where the structures are frozen, which
+   is the one regime slice 2 measured a gain in. `levelGibbs` is tri-state, `NA` the default; section 4's automatic paragraph
+   carries the shape and the reasons. Nothing of section 7's bundle is paid here either: the non-frozen default consumes no
+   generator draw, so the three `fbff1989` baselines stand bitwise, the tripwires are untouched, and the backfit-exact.R repair
+   is still not owed - the gate runs at the shipped mixture, where the automatic step does not fire. The frozen-structure
+   harness reproduces digit for digit, its off arm naming `FALSE`.

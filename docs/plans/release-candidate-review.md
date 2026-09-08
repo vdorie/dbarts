@@ -554,6 +554,35 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The level-fibre step becomes automatic under a frozen mixture (127f04ee, 2026-09-08)
+
+Ruled by the maintainer: the step is KEPT and `levelGibbs` becomes tri-state.
+`TRUE` takes it every sweep, `FALSE` never, and `NA` - the new default - takes
+it for a forest exactly where that forest's structural mixture is frozen, the
+one regime the slice 2 pilot measured a gain in. Not the default flip slice 4
+was written as: the live kernel keeps the draws slice 3 measured. The decision
+is per sweep and per forest, since the mixture is mutable through `$setModel`
+while the control slot is fixed at creation, and a driver loop that freezes
+structure between response swaps never re-creates its sampler. `SamplerOptions`
+carries a `LevelGibbsMode` rather than a bool; `Chain::run` reads each forest's
+mixture once ahead of the level step and the tree loop's frozen skip reads that
+same value, so `structureIsFrozen` is still called once per forest per sweep.
+The bridge reads the slot raw rather than through `rc_getBool`, which narrows to
+bool and would take `NA` for `TRUE`, and `dbartsControl` refuses an argument that
+merely coerces to `NA`. Seventeen files, about 40 lines of engine and surface and
+120 of test and doc. Gates: tests/cpp 283 ok plain and under ASAN/UBSAN, the
+level-fibre law arm reproducing its recorded numbers (worst `|1'c|` 2.91e-16,
+mean z 1.75, covariance z 2.92); tinytest 8001/0; the equivalence trio bitwise
+50/12/11 against the `fbff1989` baselines, which stand; the four quick exact
+gates green; `C1-frozen-ess.R quick` reproducing digit for digit, its off arm
+naming `FALSE`; lint 0, air clean, doc-freshness and rc-codoc OK, NEWS 299,
+R CMD check --as-cran Status OK zero notes, `DBARTS_C_API_HASH` unchanged. One
+design-versus-code point: the automatic mode reads as `TRUE` only where the
+mixture is frozen for the sampler's whole life, `TRUE` stepping through the
+growing sweeps too, so the grown-forest reading of automatic against on lives in
+tests/cpp behind a chain-level mode hook and the R gate reads automatic against
+`FALSE` at a `$setModel` freeze instead. Recorded at level-fibre.md 4, 8.
+
 ### A private cut-only switch prices the rule_gibbs variable axis (a6f44e12, 2026-09-08)
 
 The cut-only variant of docs/design/nog-gibbs.md 2.4, built behind

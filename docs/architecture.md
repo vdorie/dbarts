@@ -261,11 +261,13 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 
 1. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
    (`formMeanWeights`); the global sigma stays fixed at 1.
-2. Where `levelGibbs` is set, draw each constant-leaf forest's level shift
+2. When `levelGibbs` is `TRUE`, or `NA` (the default) and that forest's
+   structural mixture is frozen, draw the constant-leaf forest's level shift
    (`drawLevelShift`): a constant added to every occupied leaf of a tree, the
    constants summing to zero across the forest's trees, leaving the fitted
    function unchanged. It runs ahead of every channel the rest of the sweep
-   writes; off by default and consuming no generator draw when off.
+   writes; the mixture is read once per forest here and reused by step 3's
+   frozen skip, and a forest that skips consumes no generator draw.
 3. For each forest in turn, and for each of its trees: roll the running
    residual so `treeY` holds the response net of every other tree's current
    fits, propose one move with `metropolisJumpForTree` and accept or reject
