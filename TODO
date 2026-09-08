@@ -359,10 +359,12 @@ within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   pre-release: warn when n.threads exceeds n.chains; manual note that
   within-chain threading was measured (0.9-34 about 10 percent at 4
   threads on one chain, the barrier prototype 12 percent at best).
-  post-release: revive archive/within-chain-threading as an explicit
-  opt-in if the memory audit shows chains are costly at large n; first
-  time the prototype against the tip on this machine, single chain at
-  1, 2 and 4 threads.
+  pre-release (VD 2026-09-08: a regression, so not deferred): revive
+  archive/within-chain-threading as an explicit opt-in; first time the
+  prototype against the tip on this machine, single chain at 1, 2 and 4
+  threads, and let the memory audit inform the default. Plan doc to
+  write; lands after the reference-build item so both share one gate
+  matrix.
 
 vectorized draw path with a reference build (decided, VD 2026-09-08;
   docs/decisions.md dec-B90)
