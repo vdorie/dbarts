@@ -418,7 +418,10 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   others); the three family-only formals leave bart with tombstones;
   audit every remaining front-door formal and move family-only or
   feature-only ones onto their objects (the August consolidation left
-  these). Plan doc to write; lands with the front-door rename.
+  these); fold resid.dist into the family objects (Student-t errors as
+  a variant or setting), retiring dbartsResidDists, else export it to
+  match dbartsPriors (dec-B101). Plan doc to write; lands with the
+  front-door rename.
 
 remove the posterior dependency (decided, VD 2026-09-08;
   docs/decisions.md dec-B99)
