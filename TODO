@@ -364,6 +364,17 @@ within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   time the prototype against the tip on this machine, single chain at
   1, 2 and 4 threads.
 
+vectorized draw path with a reference build (decided, VD 2026-09-08;
+  docs/decisions.md dec-B90)
+  pre-release: wire the measured SIMD node-sum kernels into the engine
+  gather; a configure flag selects the scalar fixed-order reference
+  build; CI runs the bitwise, exact-posterior and snapshot gates on the
+  reference build and tinytest, sanitizers and statistical equivalence
+  on the shipped build; a deterministic vector-vs-scalar sum test; the
+  four snapshot files skip unless the build reports reference mode.
+  Plan doc to write. Principle (VD): regressions against 0.9-34 are not
+  deferred past the release.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
