@@ -411,6 +411,15 @@ survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
   and hazard; subset honoured; a test path for the hazard family that
   person-period expands held-out subjects. Plan doc to write.
 
+family objects and front-door consolidation (decided, VD 2026-09-08;
+  docs/decisions.md dec-B98)
+  pre-release: family accepts a token or a family object carrying its
+  settings (hazard(breaks, max.rows), nbinom(dispersion), later aft and
+  others); the three family-only formals leave bart with tombstones;
+  audit every remaining front-door formal and move family-only or
+  feature-only ones onto their objects (the August consolidation left
+  these). Plan doc to write; lands with the front-door rename.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
