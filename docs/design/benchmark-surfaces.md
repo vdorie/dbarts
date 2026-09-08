@@ -1873,6 +1873,51 @@ the mean pairwise shared-over-spanned interval length is 0.48
 of chains overlaps at every point of every seed. Host load ran 9 to 67
 throughout, so these wall times carry no timing claim either.
 
+**rule_gibbs, cut-only variant (2026-09-08).** The same arm B mixture on a
+private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` build of the engine, which holds
+the node's incumbent variable and draws its cuts alone at one scan a
+proposal ([2.4 Cost, and the two restricted
+variants](nog-gibbs.md#24-cost-and-the-two-restricted-variants)). The arm
+name selects the mixture and the library selects the kernel, so no harness
+change was made and no arm was added; the macro is off in every shipped
+build and the shipped engine is bitwise unchanged.
+`independent75pool4` is re-run on that library as the paired control and
+reproduces the rule_gibbs paragraph's own rows digit for digit at both seed
+blocks and on both mean functions, which is the bitwise null read in situ.
+Trig+poly cleared the +8 bar, so it took a fresh-seed block on seeds 21 to
+40, control and all. Columns as above.
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     ruleGibbsB, cut-only build      1-20   0.955(0.931-0.969)  4.33    1.11  26(8-53)       2(1-3)     0.61
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     ruleGibbsB, cut-only build      21-40  0.952(0.926-0.968)  4.36    1.11  26(9-61)       2(1-3)     0.64
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  ruleGibbsB, cut-only build      1-20   0.897(0.869-0.916)  6.51    1.97  37(14-68)      3(2-5)     0.41
+
+Paired differences against each row's own control on its own seeds, mean
++/- sd (seeds positive of 20), with the full draw's own reading beside
+each:
+
+    mean fn      seeds  d min ESS (sum)               full draw  d 95% coverage                   full draw  d RMSE, ratio
+    trigpoly     1-20   +11.3 +/- 16.2 (16/20) t 3.13  +21.5     -0.007 +/- 0.009 (5/20) t -3.41  -0.022     -0.006 +/- 0.075, ratio 0.995
+    trigpoly     21-40  +9.1 +/- 12.9 (15/20) t 3.14   +22.1     -0.012 +/- 0.012 (2/20) t -4.69  -0.026     +0.016 +/- 0.059, ratio 1.014
+    singleindex  1-20   +16.2 +/- 11.3 (20/20) t 6.43  +14.4     +0.002 +/- 0.008 (12/20) t 1.36  +0.005     +0.049 +/- 0.024, ratio 1.025
+
+Per-chain minimum ESS moves +0.36, +0.40 and +0.88 (t 4.78, 4.40, 5.82).
+Held-out RMSE ratio: 0.992, 1.012, 1.033. Cost, off the census instrument
+at the `c1` cell: 10.97 cut scans per sweep against the full draw's
+337.32, which is 1.04 sweep-equivalents against 2.21. Wall carries no
+claim on this host - the load ran 12 to 88 and the same two arms read a
+wall ratio of 1.84 at one block and 0.62 at the other. **Half the gain on
+the gated mean function for a thirtieth of the scans, all of it on the
+ungated one**, and the secondaries shrink with it: coverage -0.007 and
+-0.012 straddles the -0.010 margin the full draw cleared by two to three
+times, and the interval narrows 6 and 5 percent against its 14. Single
+index pays slightly more than before, held-out RMSE 1.033 against 1.028.
+Full reading at [6. Benefit,
+pre-registered](nog-gibbs.md#6-benefit-pre-registered).
+
 **Level-fibre arms (2026-09-07).** level-fibre.md's slice 3 run adds two
 more arms on the same shipped four-chain configuration and the same
 twenty seeds: `independent75pool4level`, which varies no proposal

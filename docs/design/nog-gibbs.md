@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12).
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
@@ -210,7 +210,10 @@ buys 0.007 nats - and 1.659 / 1.579 at `bcf f1`. Only `c1` separates: 6.425 agai
 `p_avail`-fold price has anything to buy, because the cut-only variant is the same code with the variable loop deleted and can be
 taken on a private `-D` build the way perturb's width arms are, and because the census identity of section 5 exists only for the joint
 neighbourhood. The randomised-variable middle is recorded as a door and not built: it needs its own correction and its own balance
-gate for a saving the cut-only variant already has without either.
+gate for a saving the cut-only variant already has without either. **The cut-only variant was built and measured after the full
+draw was**, on the private `-D` build this section named: one scan a proposal, 1.04 sweep-equivalents against the full
+draw's 2.21, and about half of Trig+poly's gain with all of Single index's - the cut-only pilot of
+[6. Benefit, pre-registered](#6-benefit-pre-registered).
 
 ## 3. Leaf models and families
 
@@ -534,6 +537,67 @@ cell, and its own missing gate. What slice 3 settles is narrower, and is worth s
 measured on this cell that moves its gated mean function's mixing statistic, by a wide margin and at a price the design predicted
 to within one percent, and it cannot be defaulted until the interval it narrows is understood against nominal rather than against
 arm A.
+
+**Cut-only pilot (2026-09-08).**
+[2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants)'s first restricted variant, built and measured
+on a private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` build the way the census scaffolding is built, and off in every shipped build. With the
+macro defined [`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp) holds the node's incumbent variable and enumerates that
+variable's cuts alone - ONE scan a proposal - and every other term of the law stands: the branch-rank stratum, the rank-admitted
+marginal, the missing coin, the categorical fixed point, and the prior factors, of which the split-variable prior and `1/|SI_v|` now
+cancel outright over one variable's cuts and are KEPT rather than dropped, so a candidate's weight stays on the joint kernel's own
+scale. It is still an exact Gibbs step: the restricted set is a deterministic function of state the move cannot change, so it is the
+same set from every state in it and no proposal count survives. What it gives up is the variable axis, which then moves only at
+change's own share.
+
+**The gates hold on the restricted kernel.** The macro-OFF build is bitwise the shipped engine and the macro-ON build is bitwise the
+same at the shipped defaults, the rule_gibbs share being zero there: 50 / 12 / 11 identical against the `fbff1989` baselines on both.
+[`rule-gibbs-balance.R`](../../benchmarks/R/rule-gibbs-balance.R) PASSES on the cut-only kernel in both modes at its own 100,000-sweep
+burn-in - the autocorrelation ladder lengthens from 52 kept-draw lags to 69 against a need of 100, so the refuse-and-double rule does
+not fire - the prior-only arm's worst `|z|` 2.93 at `root x1c3` (0 of 23 Holm rejections, strictest threshold 3.07) against the joint
+kernel's 1.74, and the confirmation arm's 1.09 at `x2c1` (0 of 7). Both poisons still FAIL, at `|z|` 69.02 (5 of 23) and 103.38
+(6 of 23).
+
+**Cost, on the same instrument.** A census run of the `c1` cell at the same mixture reports 10.97 cut scans per sweep against the full
+draw's 337.32 - one scan at the 93.7 percent of proposals reaching an eligible nog node, where the full draw scanned all 30 variables -
+which is 21.9 cut-scan units a sweep against `3 m L` = 549 at the run's own 2.44 leaves per tree: **1.04 sweep-equivalents against the
+full draw's 2.21**. The variable axis is 97 percent of the move's own price.
+
+**What it keeps.** The same harness, the same four-chain cell, the same twenty matched pairs and the same arm-B mixture, the arm name
+selecting the mixture and the library the kernel. The control reproduces
+[10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s own rows digit for digit at both seed
+blocks and on both mean functions, which is the bitwise null read in situ.
+
+    mean fn      arm                             seeds  95% coverage        length  RMSE  min ESS (sum)  per chain  between
+    trigpoly     independent75pool4              1-20   0.961(0.945-0.977)  4.61    1.12  15(8-31)       2(1-2)     0.78
+    trigpoly     ruleGibbsB, cut-only build      1-20   0.955(0.931-0.969)  4.33    1.11  26(8-53)       2(1-3)     0.61
+    trigpoly     independent75pool4              21-40  0.964(0.950-0.977)  4.58    1.10  16(9-28)       2(1-2)     0.80
+    trigpoly     ruleGibbsB, cut-only build      21-40  0.952(0.926-0.968)  4.36    1.11  26(9-61)       2(1-3)     0.64
+    singleindex  independent75pool4              1-20   0.895(0.878-0.915)  6.45    1.92  21(9-32)       2(1-2)     0.68
+    singleindex  ruleGibbsB, cut-only build      1-20   0.897(0.869-0.916)  6.51    1.97  37(14-68)      3(2-5)     0.41
+
+Paired differences against each row's own control on its own seeds, mean +/- sd (seeds positive of 20), with the full draw's own
+reading beside each:
+
+    mean fn      seeds  d min ESS (sum)               full draw  d 95% coverage                   full draw  d RMSE, ratio
+    trigpoly     1-20   +11.3 +/- 16.2 (16/20) t 3.13  +21.5     -0.007 +/- 0.009 (5/20) t -3.41  -0.022     -0.006 +/- 0.075, ratio 0.995
+    trigpoly     21-40  +9.1 +/- 12.9 (15/20) t 3.14   +22.1     -0.012 +/- 0.012 (2/20) t -4.69  -0.026     +0.016 +/- 0.059, ratio 1.014
+    singleindex  1-20   +16.2 +/- 11.3 (20/20) t 6.43  +14.4     +0.002 +/- 0.008 (12/20) t 1.36  +0.005     +0.049 +/- 0.024, ratio 1.025
+
+Per-chain minimum ESS moves +0.36, +0.40 and +0.88 (t 4.78, 4.40, 5.82). Held-out RMSE ratio: 0.992, 1.012, 1.033. Wall carries no
+claim - the host ran a load of 12 to 88 and the same two arms read a wall ratio of 1.84 at one block and 0.62 at the other.
+
+**The variable axis earns about half its keep on Trig+poly and none on Single index.** Trig+poly holds +11.3 and +9.1 of the full
+draw's +21.5 and +22.1, above the +8 bar at both blocks and at a third of the paired t; Single index holds +16.2 against +14.4, which
+is the whole of it. The secondaries shrink with the gain on the gated cell - coverage moves -0.007 and -0.012 against the full draw's
+-0.022 and -0.026, straddling
+[6.4 What "no regression on the core" means numerically](benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically)'s
+-0.010 margin rather than clearing it by two to three times, and the interval narrows 6 and 5 percent against the full draw's 14 - so
+the mechanism is the same one at a smaller amplitude, not a different one. Single index pays what it paid before and slightly more:
+held-out RMSE 1.033 against 1.028, past the 1.02 margin. **So the thirty-fold price of the variable axis buys, on the one cell whose
+entropy columns said it carried content at all, about half of one mean function's ESS gain and none of the other's, and it buys most
+of the coverage regression that flagged the full draw.** The cut-only kernel is not proposed as a default here and nothing above
+changes slice 4, which the coverage secondary and its missing gate still block; what the pilot settles is the price of the axis,
+which section 2.4 could only bound.
 
 ## 7. RNG and baselines
 

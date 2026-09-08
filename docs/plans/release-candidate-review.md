@@ -554,6 +554,37 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### A private cut-only switch prices the rule_gibbs variable axis (a6f44e12, 2026-09-08)
+
+The cut-only variant of docs/design/nog-gibbs.md 2.4, built behind
+BARTCORE_RULE_GIBBS_CUT_ONLY - a compile-time switch, off in every shipped
+build, taken only on a private -D library the way the move census is. With the
+macro unset the enumeration and the kernel are the joint draw verbatim, the
+restriction sitting behind an ifdef rather than a runtime test, and the shipped
+engine is bitwise unchanged: the macro-off build reads 50 / 12 / 11 identical
+against the fbff1989 equivalence, bcf and multinomial baselines, and so does the
+macro-on build at the shipped defaults, where the rule_gibbs share is zero.
+Engine diff is one ifdef inside enumerateNogRuleNeighbourhood plus its note;
+tests/cpp restates the rule_gibbs cell for the restricted set under the macro -
+four candidates on the incumbent variable, closure read from another cut of the
+same variable, the enumerated conditional at 3 degrees of freedom, and the
+variant's own claim that a rule_gibbs-dominant walk never moves the split
+variable. Gates: tests/cpp 282 ok plain, 282 with the macro, 282 under
+ASAN/UBSAN with it; rule-gibbs-balance.R PASSES on the restricted kernel in
+both modes at its own 100,000-sweep burn-in (the autocorrelation ladder
+lengthens 52 to 69 kept-draw lags against a need of 100), prior-only worst |z|
+2.93 of 23 at Holm 3.07 and confirmation 1.09 of 7, with both poisons still
+FAILING at 69.02 and 103.38. Cost, off the census instrument: 10.97 cut scans
+per sweep at the c1 cell against the full draw's 337.32, 1.04 sweep-equivalents
+against 2.21. Benefit, C1's four-chain cell at arm B's mixture with the control
+reproducing benchmark-surfaces.md 10.4 digit for digit at both blocks: Trig+poly
++11.3 +/- 16.2 and +9.1 +/- 12.9 summed minimum ESS against the full draw's
++21.5 and +22.1, Single index +16.2 +/- 11.3 against +14.4. So the variable axis
+costs thirty times the scans and buys about half of one mean function's gain and
+none of the other's. No default changes, no baseline is re-recorded, no user
+surface moves and NEWS takes nothing. Recorded at nog-gibbs.md 2.4, 6;
+benchmark-surfaces.md 10.4.
+
 ### The level-fibre benefit run kills the step, which stays at default off (ca92c11f, 2026-09-07)
 
 Slice 3 of docs/design/level-fibre.md. C1-he-hahn.R's armSpec gains a
