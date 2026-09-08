@@ -100,7 +100,7 @@ row or process is named in `reason`.
 - dec-A54: settled 2026-09-08, keep exported; the one-sweep contract is documented as stable.
 - dec-A70: settled 2026-09-08 as dec-B108, an na.action argument with a response-only default.
 - dec-B31: settled 2026-09-08 as dec-B109, recognize a 0.9-x fit by the missing format field and refuse by name.
-- dec-B41: should a message fire keyed on the realized GP leaf-size fallback rate, rather than on n.trees alone?
+- dec-B41: settled 2026-09-08 as dec-B110, a warning keyed on the realized constant-leaf fallback share.
 - dec-B58: should stan4bart and treatSens keep DBARTS_REQUIRE_EXACT_ABI past 1.0, beyond the removal already scheduled in dbarts-h-freeze.md sec 6?
 
 ## Register cost lines corrected

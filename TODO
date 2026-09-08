@@ -390,8 +390,10 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   what it limits, and a measurement where one is possible; document all
   seven in the manual with recommended values; expose the enumeration
   limit and the parallel cutoffs as control settings, plus any the
-  measurements show binding. VD: "extremely worried that they're
-  artificially limiting". Plan doc to write.
+  measurements show binding; add gp()'s max.leaf.size to the audit and
+  a post-fit warning keyed on the share of GP leaf evaluations that
+  fell back to constant leaves (dec-B110). VD: "extremely worried that
+  they're artificially limiting". Plan doc to write.
 
 engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
   dec-B92)
