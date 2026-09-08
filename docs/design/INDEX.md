@@ -69,6 +69,7 @@ Columns: `file | STATUS | one-liner`.
 ## Core/infra & surface
 
 | file | STATUS | purpose |
+| engine-generics-review.md | MEMO for VD, 2026-09-08 | Independent review of what the engine's generic axes (leaf kind, family, forest coupling, host hooks) should be, derived from the model space; critiques the current shape. No code until VD reads it. |
 |---|---|---|
 | multinomial-mutation-arc.md | LANDED, 2026-08-24 | Gives multinomial responses a sampler surface constructed directly, like every other family. |
 | core-generalization.md | LANDED (mostly; phase 6 open) | The founding design for the bartcore C++20 engine rewrite; docs/architecture.md is authoritative for current state. |
