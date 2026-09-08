@@ -324,6 +324,20 @@ hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82)
   the twopart alias (tombstone for one release). Post-release: a
   correlated hurdle family in the engine.
 
+pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84)
+  pre-release: drop dbarts_sampler_create, storeState, setState and
+  getTrees from inst/include/dbarts/dbarts.h; consumers create through
+  the R interface and read the handle from the sampler object's
+  external pointer; re-bake the hash; port stan4bart (init.cpp, three
+  sites) and treatSens (bartTreatmentModel.cpp, sensitivityAnalysis.cpp)
+  on their compat branches; drop the null-pointer refusal channel with
+  the entry. Plan doc to write.
+host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
+  post-release: internal plain-C spec stage in the bridge; the engine's
+  Rmath, print and error touchpoints through src/external host hooks
+  (bit-identical under R); a plain-spec creation entry and a
+  host-neutral error contract in 1.x. Rewords the Python-binding entry.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
