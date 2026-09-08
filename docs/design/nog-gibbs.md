@@ -709,7 +709,7 @@ is 25.1 ESS per thousand units against 14.8, 16.4 and 10.4. Taking the equal-cos
 sweeps buying 1.55 times the ESS, the cut-only kernel run out to the full draw's 2210-unit budget would read about 40 against its
 36.3 - an extrapolation off a scaling measured on the shipped kernel and not on this one, and the reason the full draw's larger raw
 gain does not settle the question the other way. Against the full draw the trade is the whole of section 2.4's: about half of
-Trig+poly's gain and more than all of Single index's, for 2 percent added cost instead of 121.
+Trig+poly's gain and more than all of Single index's, for 4 percent added cost instead of 121.
 
 ## 7. RNG and baselines
 
