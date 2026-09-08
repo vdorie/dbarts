@@ -1,6 +1,6 @@
 # level: an exact Gibbs draw on the level fibre
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534).
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e).
 
 A leaf-value step, not a tree kernel. Add a constant `c_t` to every occupied leaf of tree `t`, with the constants summing to zero
 across the forest's trees: the fitted function is unchanged exactly, so the conditional of the shift vector on that subspace is the
@@ -411,6 +411,21 @@ Then, in order:
 2. **The frozen-structure pilot.** `C1-frozen-ess.R` re-run with the step on, five seeds, two freeze points, paired against the
    recorded table. Its bar is section 6's and ADVISORY: a refutation is grounds to stop, a middling number is not a pass.
    Ten fits.
+
+   **Pilot** (bf1a4c9e, 2026-09-07). **CONFIRMS.** The paired median rise in the frozen minimum ESS, on minus off over the five
+   seeds, is **+189.4** at the last-draw freeze (bootstrap SE of the median 58.3; paired mean +164.2, SE 43.8) and **+231.6** at
+   the 1250 one (SE 39.1; mean +199.5, SE 26.1), all ten pairs positive and both medians outside three of their own standard errors.
+   The on arm's frozen minima median 194.9 and 247.0 of 2500 kept against the recorded 21.2 and 4.2, and its median-point frozen
+   ESS medians 715.1 and 743.0 with a worst seed of 632.7, so nothing falls below section 6's ~600. The worst point stops being
+   the high-spread one with it: the sd at the minimum over the median falls from 2.49 and 2.45 to 0.96 and 1.27. The off arm is
+   the recorded harness's own run and reproduced
+   [10.4 C1, the He and Hahn factorial](benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)'s table digit for digit at every
+   seed. The control slot is fixed at creation, so the on arm is a FRESH sampler carrying the flag with the recorded chain's
+   stored state pushed in by `$setState` at the freeze point, refused unless its trees, leaf values and sigma are identical to
+   the recorded sampler's before either chain runs. The generators ride the state, so the arm starts on the stream the recorded
+   continuation starts on and parts from it only as the step consumes draws; a control transplant at the flag OFF tracks the
+   recorded chain's live continuation to 1.8e-14 over 1500 frozen draws, the round trip costing no more than the rounding of the
+   `totalFits` re-accumulation. This is the residual channel alone, as section 6 scopes it, and says nothing about slice 3.
 3. **The benefit run.** Two arms on C1's four-chain cell at twenty matched pairs, the sham arm, the P1 control rung, the P2
    must-not-degrade cell. About a day of compute; the verdict is recorded here.
 4. **The default flip, and the one re-record.** Only on a slice 3 pass. It carries section 7's bundle, the

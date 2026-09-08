@@ -1903,6 +1903,48 @@ on the level fibre) bears on the ranked (minimum-ESS) statistic rather than
 the typical one. The two frozen start points agree in order of magnitude
 throughout.
 
+**Frozen-structure ESS with the level step (2026-09-07).** The same script
+at its `levelGibbs` flag branches a paired second frozen chain at each
+freeze point, identical to its partner but for the level-fibre Gibbs step
+([1. The draw](level-fibre.md#1-the-draw)). The step is fixed when a
+sampler is created, so it is enabled only AFTER the freeze: the arm is
+a fresh sampler carrying the flag with the recorded chain's stored
+state transplanted in, refused unless its trees, leaf values and sigma
+are identical to the recorded sampler's, so both arms stand at one
+forest when their chains begin. Its generators ride the state, so it
+starts on the stream the recorded continuation starts on and parts from
+it only as the step consumes draws. The off columns are the run above, reproduced digit
+for digit.
+
+    minimum ESS of 2500 kept
+                frozen at 2500                  frozen at 1250
+    seed    off      on       on - off      off      on       on - off
+    1       19.6     293.0    +273.4        4.1      244.9    +240.8
+    2       5.5      194.9    +189.4        3.1      249.9    +246.8
+    3       25.1     142.4    +117.3        4.2      235.8    +231.6
+    4       21.2     241.2    +220.0        160.8    273.4    +112.6
+    5       162.7    183.7    +21.0         81.3     247.0    +165.7
+    median  21.2     194.9    +189.4        4.2      247.0    +231.6
+
+Each column's median is taken down that column, so the last entry of a
+difference column is the median of the paired differences and not the
+difference of the medians. The paired median rise is +189.4 at the 2500
+freeze (bootstrap SE of the median 58.3; paired mean +164.2, SE 43.8) and
++231.6 at the 1250 one (SE 39.1; mean +199.5, SE 26.1), with all ten pairs
+positive. The median point is unharmed: its frozen ESS medians 715.1 and
+743.0 with the step on against 694.1 and 646.8 without, the worst of the
+ten arms 632.7. What changes at the worst point is its character as well
+as its ESS - the sd at the minimum over the median falls from 2.49 and
+2.45 to 0.96 and 1.27, so the ranked coordinate is no longer the
+high-spread one. Read against the paragraph above, the leaf Gibbs's own
+slowness at the worst coordinate is a level-fibre deficit and the exact
+draw on that fibre removes most of it; this is the frozen chain's residual
+channel alone, and the structural channel it cannot see is
+[6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered)'s
+slice 3. Host load ran 5 to 6 throughout, so these wall times carry no
+timing claim: 12.4 to 13.3 s per seed for the recorded fit and its two
+frozen chains, 2.9 s for each chain of the paired arm.
+
 ### 10.5 What the four cells say about the kernel that was measured
 
 Facts only, against the rule in section 6.1.

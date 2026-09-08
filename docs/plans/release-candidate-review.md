@@ -554,6 +554,29 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The level-fibre frozen-structure pilot confirms its advisory bar (bf1a4c9e, 2026-09-07)
+
+Slice 2 of docs/design/level-fibre.md, script only, no engine change.
+C1-frozen-ess.R gains a levelGibbs flag that branches a paired second
+frozen chain at each of the recorded arm's two freeze points. The control
+slot is fixed when a sampler is created, so the step cannot be switched on
+inside the recorded chain and the arm is a fresh sampler carrying the flag
+with the recorded chain's stored state pushed in by $setState, refused
+unless its trees, leaf values and sigma match the recorded sampler's
+exactly - which is what the design requires, both arms reaching the freeze
+at one forest. Five seeds, one structural fit and four frozen chains each.
+The off arm reproduces benchmark-surfaces.md 10.4 digit for digit at every
+seed. Paired median rise in the frozen minimum ESS, on minus off: +189.4
+at the last-draw freeze (bootstrap SE of the median 58.3; paired mean
++164.2, SE 43.8) and +231.6 at the 1250 freeze (SE 39.1; mean +199.5, SE
+26.1), all ten pairs positive; the on arm's frozen minima median 194.9 and
+247.0 of 2500 kept against 21.2 and 4.2, its median-point frozen ESS
+medians 715.1 and 743.0 with a worst seed of 632.7, so nothing falls below
+the recorded ~600. CONFIRMS under section 6's advisory bar. The verdict is
+advisory and gates nothing: it reads the residual channel of the leaf half
+in isolation, and slice 3's four-chain benefit run on the live kernel is
+unmoved by it. Recorded at level-fibre.md 8; benchmark-surfaces.md 10.4.
+
 ### rule_gibbs's benefit stage runs, does not kill the move, and flags its coverage (50032833, 2026-09-07)
 
 C1-he-hahn.R gains nog-gibbs.md's two dosage arms on the shipped
