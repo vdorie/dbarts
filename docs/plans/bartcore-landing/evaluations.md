@@ -96,12 +96,12 @@ row or process is named in `reason`.
 
 ## Discuss with the maintainer
 
-- dec-A40: is a five-translation-unit factory split worth pursuing, or does MAKEFLAGS=-j already address the rebuild latency it targets?
+- dec-A40: settled 2026-09-08 under dec-B92, keep the instantiation shape, parallel build for latency.
 - dec-A54: settled 2026-09-08, keep exported; the one-sweep contract is documented as stable.
 - dec-A70: settled 2026-09-08 as dec-B108, an na.action argument with a response-only default.
 - dec-B31: settled 2026-09-08 as dec-B109, recognize a 0.9-x fit by the missing format field and refuse by name.
 - dec-B41: settled 2026-09-08 as dec-B110, a warning keyed on the realized constant-leaf fallback share.
-- dec-B58: should stan4bart and treatSens keep DBARTS_REQUIRE_EXACT_ABI past 1.0, beyond the removal already scheduled in dbarts-h-freeze.md sec 6?
+- dec-B58: settled 2026-09-08 as dec-B111, flag off after the merge with a CI assertion tying hash changes to minor bumps.
 
 ## Register cost lines corrected
 
