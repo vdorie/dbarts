@@ -399,6 +399,13 @@ engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
   review.md. VD (2026-09-08): not reading it now; turn it into research
   with measurements down the road. Unscheduled.
 
+rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
+  dec-B96)
+  stays at weight zero through the merge; the 0.16 was agent-suggested
+  without rationale. The post-merge mixing research sets the weight with
+  a rationale, pre- or post-1.0-0 as time allows. Manual documents the
+  kernel and its cost.
+
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
