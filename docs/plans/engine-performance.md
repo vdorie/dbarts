@@ -489,3 +489,35 @@ written, and was reworded to name the predicate re-check as the guarantee;
 the verbose arm's fixed sample count had only 3.6x headroom on this host
 and now grows until the run clears a timeout. Remaining: S2, the vector
 suffstat kernel, still open; S4, S5.
+
+## Follow-up, S3 (2026-09-09)
+
+The verbose-sink arm above was flaky, and failed once on the cpp-tests runner
+on a tip that changed no engine file. Its premise measured the whole `run`
+call - setup, the post-join flush and the terminal summary included - against
+100ms, so a run whose chains all finished inside the first wait could still
+clear the bound with nothing flushed before the join, and the assertion then
+read the flag at false. Reproduced at 7 failures in 25 runs by pinning the
+sample count so the call lands just past 100ms.
+
+The arm no longer reads the clock. It splits in two. A short run that
+completes checks that every chain's lines reach the console. A run asking for
+far more samples than any host draws in the time the arm takes checks the
+timeout flush: the poll records the capture's length at the first poll, which
+follows the loop's first flush, and any later poll seeing a new "iteration:"
+line has seen one flushed on a later pass - reachable only through a
+`wait_for` timeout, since the predicate re-tests the count under the lock and
+the chains are nowhere near done. That poll cancels the run, so the arm costs
+one tick, and load can only delay the pass, never skip it. The latency and
+cancel arms' bound moves from 50ms to 75ms: a reintroduced tick wait costs its
+full 100ms whatever the host does, so any bound under 100ms discriminates the
+same, while an honest return - worst seen 18ms, under ThreadSanitizer with the
+box oversubscribed - gains margin against CI noise.
+
+Gates: tests/cpp 283 ok, 0 failures; 50 repeats of the sampler suite under 4
+spinners and 50 more under 16, 0 failures; ThreadSanitizer 0 diagnostics on
+the full suite and over 50 sampler-suite repeats, 0 failures; ASan/UBSan 0
+diagnostics on the full suite. Mutation: widening
+the wait's timeout to 100 seconds fails both of the new checks. tests/cpp
+only, no engine file touched, so the equivalence and speed compares are not
+owed and `air format --check` is n/a.

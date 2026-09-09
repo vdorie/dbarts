@@ -512,6 +512,13 @@ static void testRunCancellation(ext_rng* rng) {
   // multi-chain: the poll fires, every worker stops, and run returns true.
   // The poll fires before the first wait and every worker tests the flag once
   // a sweep, so the run unwinds at once rather than at a fixed tick.
+  //
+  // This arm and the latency one below bound the return at 75ms, well under a
+  // tick: the wait a tick regression would reintroduce costs its full 100ms
+  // whatever the host does, while an honest return costs a thread spawn and a
+  // sweep or two, which only scheduling delay on a small, loaded runner
+  // inflates. Anything below 100ms discriminates the same; the margin is
+  // there so CI noise does not.
   {
     std::vector<ext_rng*> rngs = makeRngs(2000);
     ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
@@ -528,7 +535,7 @@ static void testRunCancellation(ext_rng* rng) {
     auto start = std::chrono::steady_clock::now();
     bool cancelled = sampler.run(0, 100000, results, always);
     check(cancelled, "cancellation: multi-chain poll stops all workers");
-    check(msecSince(start) < 50.0,
+    check(msecSince(start) < 75.0,
           "cancellation: multi-chain cancel returns promptly");
     destroyRngs(rngs);
   }
@@ -553,58 +560,89 @@ static void testRunCancellation(ext_rng* rng) {
     check(!cancelled, "latency: short multi-chain run completes");
     check(sigmaDraws[(numChains - 1) * numSamples + numSamples - 1] > 0.0,
           "latency: every chain filled its slab");
-    check(msec < 50.0, "latency: multi-chain run returns without a tick wait");
+    check(msec < 75.0, "latency: multi-chain run returns without a tick wait");
     destroyRngs(rngs);
   }
 
-  // verbose: progress lines still reach the console THROUGH the loop, not
-  // only in the flush after the join - bounding that flush is why the wait
-  // keeps a timeout. The poll and every flush run on the main thread, so the
-  // poll can read the capture and see what has been printed so far. The run
-  // has to outlast a timeout for that to mean anything, so its length is
-  // grown until it does rather than fixed against one host's speed.
+  // verbose: every chain's queued lines reach the console, whatever the
+  // workers' interleaving - the flush after the join prints whatever the
+  // ticks did not. Nothing here is timed.
   {
     SamplerOptions options = workerOptions;
     options.verbose = true;
     options.printEvery = 50;
-    size_t numSamples = 4000;
-    double msec = 0.0;
-    bool cancelled = false, flushedDuringRun = false;
+    const size_t numSamples = 200;
+    std::vector<ext_rng*> rngs = makeRngs(4000);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, rngs.data());
+    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    std::string text;
+    beginPrintCapture(text);
+    bool cancelled = sampler.run(0, numSamples, results);
+    endPrintCapture();
     size_t lines = 0;
-    for (int attempt = 0; attempt < 8 && msec < 100.0; ++attempt) {
-      std::vector<ext_rng*> rngs = makeRngs(4000);
-      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                             ResponseFamily::gaussian, 1.0, 3.0,
-                             0.37804942330213542, options, rngs.data());
-      std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
-      Results results;
-      results.sigma = sigmaDraws.data();
-      std::string text;
-      flushedDuringRun = false;
-      std::function<bool()> watch = [&text, &flushedDuringRun]() {
-        if (text.find("iteration: ") != std::string::npos)
-          flushedDuringRun = true;
-        return false;
-      };
-      beginPrintCapture(text);
-      auto start = std::chrono::steady_clock::now();
-      cancelled = sampler.run(0, numSamples, results, watch);
-      msec = msecSince(start);
-      endPrintCapture();
-      lines = 0;
-      for (size_t at = text.find("iteration: "); at != std::string::npos;
-           at = text.find("iteration: ", at + 1))
-        ++lines;
-      destroyRngs(rngs);
-      if (msec < 100.0) numSamples *= 2;
-    }
+    for (size_t at = text.find("iteration: "); at != std::string::npos;
+         at = text.find("iteration: ", at + 1))
+      ++lines;
     check(!cancelled, "verbose: multi-chain run completes");
-    // the next check's premise; only a host that stays under a timeout
-    // through every doubling can fail it
-    check(msec >= 100.0, "verbose: the grown run outlasts a wait timeout");
-    check(flushedDuringRun, "verbose: queued lines flush before the join");
     check(lines == numChains * (numSamples / options.printEvery),
           "verbose: every chain's progress lines reach the console");
+    destroyRngs(rngs);
+  }
+
+  // verbose: a line queued while the chains are running is flushed by the
+  // wait's TIMEOUT rather than held until the join - bounding that flush is
+  // why the wait keeps a timeout. The poll and every flush run on the main
+  // thread, so the poll reads the capture and sees what has been printed.
+  //
+  // No wall clock is asserted on, because the clock is what made an earlier
+  // form of this arm flaky: it grew a run until its MEASURED length passed a
+  // tick, but the measurement covers setup and the post-join flush too, so a
+  // run could clear 100ms with its chains finishing inside the first wait,
+  // leaving nothing flushed before the join. Here the run asks for more
+  // samples than any host draws in the time the arm takes, so every poll
+  // happens with chains still running and the capture can only grow through a
+  // flush the loop itself ran. The first poll follows the loop's first flush,
+  // so a line appearing after it was flushed on a later pass - and a later
+  // pass is reached only when wait_for times out, since the predicate re-tests
+  // the count under the lock and the chains are nowhere near done. Load can
+  // only delay that pass, never skip it. The poll cancels as soon as it sees
+  // the line, so the arm costs one tick.
+  {
+    SamplerOptions options = workerOptions;
+    options.verbose = true;
+    options.printEvery = 10;
+    const size_t numSamples = 100000;
+    std::vector<ext_rng*> rngs = makeRngs(5000);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, rngs.data());
+    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    std::string text;
+    size_t polls = 0, textAfterFirstFlush = 0;
+    bool flushedByTimeout = false;
+    std::function<bool()> watch = [&]() {
+      if (++polls == 1) {
+        textAfterFirstFlush = text.size();
+        return false;
+      }
+      if (text.find("iteration: ", textAfterFirstFlush) != std::string::npos)
+        flushedByTimeout = true;
+      return flushedByTimeout;
+    };
+    beginPrintCapture(text);
+    bool cancelled = sampler.run(0, numSamples, results, watch);
+    endPrintCapture();
+    check(flushedByTimeout, "verbose: queued lines flush before the join");
+    // the check above reports on a run that was still going: the poll that
+    // saw the line is the one that stopped it
+    check(cancelled, "verbose: the flush was seen with chains still running");
+    destroyRngs(rngs);
   }
 
   printf("ok: run cancellation\n");
