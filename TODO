@@ -434,7 +434,8 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
   a rationale, pre- or post-1.0-0 as time allows. Manual documents the
   kernel and its cost.
 
-survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
+survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97;
+  S1 01634227, S2 c38f02d0 landed; S3-S4 open)
   pre-release, R layer only: Surv on the formula left-hand side for aft
   and hazard; subset honoured; a test path for the hazard family that
   person-period expands held-out subjects. Plan:

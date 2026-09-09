@@ -442,3 +442,77 @@ Remaining: S2 (Surv on a formula), S3 (sparse formula columns), S4
 (DESCRIPTION wording, configure stubs); front-door S4 owns
 [man/bart.Rd](../../man/bart.Rd)'s own-class summary prose and the NEWS
 1.0-0 passages still describing as_draws.
+
+## Landing note, S2 (2026-09-09)
+
+LANDED at c38f02d03bfcff8e335cf1fff77dcac20831ff47, fourteen commits:
+
+- df7b554c6a2507c5ec2305a30d97fae29870bc29 Honour subset for aft/hazard, accept a hazard test set
+- fdbc107ac04b133631b8636098d40f035a7e60b8 Read a hazard fit's stored test draws in survivalProbabilities
+- 4526ebbc8b6df780f26e23dcba8ed365e7ac1cc4 Take a Surv left-hand side on the formula interface
+- e24cadd6ee1cc14558bf486293776b963dd23fca Test the Surv formula interface, subset, and the hazard test path
+- 37f1ae61b963f2a256ac51c8912adb5fd54f4667 Document the Surv formula interface, subset, and the hazard test path
+- 612a5830c3a3b58d6ab2c754af4a60806c051ce2 Add the matrix interface's own hazard/aft subset argument tests
+- e084bedca55bd0a15e04282d7b9911d6441049ae Admit a pre-built dbartsData object to the explicit aft/hazard guards
+- 1f857d17424604df92c9340ed33bac329809164f Accept a hazard test set on the formula interface too
+- fe06cb81f5f8ebe04273877d6b5940b2552b26ea Refuse a Surv formula response in xbart()
+- 31513de3c69bb8098e5fda17e63bf634a49a324c Test the pre-built dbartsData object explicit-family fix
+- 2085cba2fcfae8fa2e53687b7ecab9ff0c10d430 Add a Surv-on-formula aft scenario to the gaussian equivalence corpus
+- caa07105ec7079dcbc22fb495e3c1a845908defb Record equivalence-0ef4c560.rds (the aftformula addition)
+- 8c2d3b99fee20c65da8fc74bb2ece6f0d8d99da2 Repoint every live pin of the gaussian equivalence baseline to 0ef4c560
+- c38f02d03bfcff8e335cf1fff77dcac20831ff47 Name the re-recorded gaussian baseline after its landed scenario commit
+
+[`dbarts`](../../R/dbarts.R) drops both `!missing(subset)` guards: aft
+subsets `survivalStatus` alongside `dbartsData`'s own x/y subsetting;
+hazard subsets covariates, time, status, offset and weights BEFORE
+`expandDiscreteTimeHazard` (dec-B97) and nulls `matchedCall$subset`, the
+expanded rows no longer matching the originals. A hazard fit accepts
+`test` on both interfaces - person-period-expanded on the training grid,
+`offset.test` replicated, `breaks`/`max.rows`/`link` read off the
+`hazard()` family object - and `survivalProbabilities` with `newdata`
+`NULL` reads stored test draws via `extract(type = "ev", sample = "test")`
+(`hazardSurvivalProbabilities`, [`R/bart.R`](../../R/bart.R)), no
+`keepTrees` needed. [`dbartsData`](../../R/data.R)'s formula-path `Surv`
+refusal is deleted; a `Surv` `model.response` short-circuits before
+`refuseMultiColumnResponse`/`codeResponse`, threading the already-
+subsetted time and status back to `dbarts` as attributes; `family =
+"auto"` with a `Surv` left-hand side dispatches to `aft` (Decision 2), and
+an explicit `family = "aft"`/`"hazard"` on a pre-built `dbartsData`
+carrying those attributes (`survivalDataObject`) dispatches too.
+[`xbart`](../../R/xbart.R) refuses a `Surv` formula response by name,
+closing the silent gaussian-on-log-time gap the deleted refusal opened. A
+Surv-on-formula aft scenario (aftformula) joins the gaussian equivalence
+corpus, recorded from the reference build as
+[equivalence-2085cba2.rds](../../benchmarks/baselines/equivalence-2085cba2.rds)
+(recorded as 0ef4c560 before the landing rebase, renamed in c38f02d0 so the
+MANIFEST names an ancestor) - an ADDITION under MANIFEST P17, all 50
+predecessors reproducing c42b72af bitwise (50 compared / 1 skipped),
+c42b72af demoted. Rd sentences on `bart.Rd`, `dbarts.Rd`,
+`survivalProbabilities.Rd` and NEWS bullets record the surface.
+
+Real diff: R about 256 against ~180 budgeted (1.4x), tests about 195
+against ~200, inside the stop line.
+
+Gates, run independently: tinytest 8194/0; gaussian equivalence 51/51
+identical against the new file, 50 identical / 1 skipped against
+c42b72af; BCF 12/12, multinomial 11/11 bitwise; the plan's own bitwise
+gates as tests (formula equals matrix for aft and hazard, auto and
+explicit; subset via formula equals hand-subsetting via the matrix
+argument; a hazard test set on either interface equals re-expansion via
+`survivalProbabilities` on a `keepTrees` twin; auto dispatch to aft); `R
+CMD check --as-cran` OK from a clean tarball; `lint_package`, `air format
+--check`, `pkgdown::check_pkgdown` clean; NEWS parses (311); doc-freshness
+and rc-codoc exit 0. Mutation: subsetting after expansion fails the
+matrix-interface hazard subset test (18750 vs 47700 rows).
+
+Review findings fixed before landing: deleting the `Surv` refusal let
+`xbart` silently fit `log(time)` as gaussian, discarding censoring (now
+refused by name); explicit `family` on a pre-built Surv `dbartsData` was
+refused while auto dispatched (`survivalDataObject`, e084bedc); the
+required equivalence-corpus addition had been skipped (added, 2085cba2);
+the formula path refused its own hazard test set where the Goal asks for
+acceptance, now expanded with `dbartsData`'s own `x.test` machinery
+(1f857d17).
+
+Remaining: S3 (sparse formula columns, in progress), S4 (DESCRIPTION
+wording, configure stubs).
