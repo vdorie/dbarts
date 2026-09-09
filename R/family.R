@@ -76,10 +76,13 @@ ordinal <- function() {
 ## Negative-binomial counts. dispersion = NA estimates the dispersion r;
 ## a positive value fixes it.
 nbinom <- function(dispersion = NA) {
+  # the default is the logical NA, "estimate it", which is not numeric
   if (
     length(dispersion) != 1L ||
-      !is.numeric(dispersion) ||
-      (!is.na(dispersion) && (!is.finite(dispersion) || dispersion <= 0.0))
+      (!is.na(dispersion) &&
+        (!is.numeric(dispersion) ||
+          !is.finite(dispersion) ||
+          dispersion <= 0.0))
   ) {
     stop(
       "nbinom 'dispersion' must be NA (estimate it) or a single positive ",

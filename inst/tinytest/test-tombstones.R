@@ -112,6 +112,111 @@ expect_warning(threadSampler$stopThreads(), pattern = "does nothing")
 expect_null(suppressWarnings(threadSampler$startThreads()))
 expect_null(suppressWarnings(threadSampler$stopThreads()))
 
+# --- the consolidated argument names (dec-B98) ---
+
+# each is accepted for one release, warned about once, and MAPPED onto the
+# object it now rides, so the run is the one the old spelling asked for
+consolidated <- dbarts:::onceWarnState
+resetConsolidatedWarning <- function(name, caller) {
+  consolidated[[paste0("tombstone.consolidated.", name, ".", caller)]] <- NULL
+}
+
+set.seed(717L)
+nCons <- 40L
+xCons <- matrix(rnorm(nCons * 2L), nCons, 2L)
+yCons <- xCons[, 1L] + rnorm(nCons)
+consControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 5L,
+  updateState = FALSE
+)
+
+resetConsolidatedWarning("resid.dist", "dbarts")
+expect_warning(
+  samplerResidDist <- dbarts::dbarts(
+    xCons,
+    yCons,
+    control = consControl,
+    resid.dist = student(df = 5)
+  ),
+  pattern = "family = student"
+)
+expect_equal(attr(samplerResidDist$model, "resid.df"), 5)
+# once per session: the second call is silent and still maps
+expect_silent(samplerResidDistAgain <- dbarts::dbarts(
+  xCons,
+  yCons,
+  control = consControl,
+  resid.dist = student(df = 5)
+))
+expect_equal(attr(samplerResidDistAgain$model, "resid.df"), 5)
+
+resetConsolidatedWarning("dart", "bart")
+expect_warning(
+  fitDart <- dbarts::bart(
+    xCons,
+    yCons,
+    dart = TRUE,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepSampler = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "tree.prior = dart"
+)
+expect_inherits(fitDart$fit$model@tree.prior, "dbartsDartPrior")
+
+resetConsolidatedWarning("levelGibbs", "bart")
+expect_warning(
+  fitLevelGibbs <- dbarts::bart(
+    xCons,
+    yCons,
+    levelGibbs = TRUE,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepSampler = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "tree.prior = cgm"
+)
+expect_true(fitLevelGibbs$fit$control@levelGibbs)
+
+# an old spelling that names a family the call cannot fit is refused rather
+# than resolved one way in silence
+resetConsolidatedWarning("resid.dist", "bart")
+expect_error(
+  suppressWarnings(dbarts::bart(
+    xCons,
+    as.numeric(yCons > 0),
+    family = "probit",
+    resid.dist = student(df = 5),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  pattern = "student residuals require a continuous gaussian response"
+)
+
+# and the consolidated names are gone from the signatures they left
+for (name in c("resid.dist", "dispersion", "breaks", "max.rows")) {
+  expect_false(name %in% names(formals(dbarts::bart)))
+  expect_false(name %in% names(formals(dbarts::dbarts)))
+}
+expect_false("dart" %in% names(formals(dbarts::bart)))
+expect_false("dart" %in% names(formals(dbarts::xbart)))
+expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
+
 # --- the registry agrees with the news file ---
 # The 1.0-0 news entry is the user-facing half of this list; the assertion
 # below is the same one, read off inst/NEWS.Rd. Until the news entry lands
