@@ -248,20 +248,18 @@ void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const
 // reproduces a recorded stream bitwise.
 #ifndef DBARTS_REFERENCE_BUILD
 
-// Accumulator layout of the vector bodies. 0 splits the sum into four fixed
-// banks laid out exactly as the engine's fused roll lays its own - the n % 4
-// prologue into bank 0, then element i into bank (i - n % 4) mod 4, combined
-// ((b0 + b1) + b2) + b3 - so the result is the same bytes on every
-// instruction set and at every lane width. 1 accumulates in the vector width
-// the host actually has, which is a different sum per ISA. Compile-time only,
-// and only while the two are being timed against each other.
-#define MISC_SUFFSTAT_NATURAL_WIDTH 0
+// The sum splits into four fixed banks laid out exactly as the engine's fused
+// roll lays its own - the n % 4 prologue into bank 0, then element i into
+// bank (i - n % 4) mod 4, combined ((b0 + b1) + b2) + b3 - so the result is
+// the same bytes on every instruction set and at every lane width. The
+// alternative, accumulating in whatever vector width the host has, was built
+// and timed and lost on both counts.
 
 // A two-lane double, the width both baseline vector ISAs give (NEON on arm64,
 // SSE2 on x86-64 - AVX2 is not baseline anywhere and these kernels are
 // deliberately outside the runtime dispatch table). Where neither is
-// available the struct fallback keeps ONE body and, for the four-bank layout,
-// the same summation order and therefore the same bytes.
+// available the struct fallback keeps ONE body, with the same summation order
+// and therefore the same bytes.
 #if defined(COMPILER_SUPPORTS_NEON) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
 typedef float64x2_t vec2;
 #  define vec2_zero()      vdupq_n_f64(0.0)
@@ -305,18 +303,6 @@ static inline vec2 vec2_make(double lo, double hi) { vec2 v; v.lo = lo; v.hi = h
 
 void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
 {
-#if MISC_SUFFSTAT_NATURAL_WIDTH
-  size_t i = 0, prologue = length % 2;
-  double sw0 = 0.0, swx0 = 0.0;
-  for ( ; i < prologue; ++i) { double wi = w[i], p = wi * x[i]; sw0 += wi; swx0 += p; }
-
-  vec2 sw = vec2_seed(sw0), sx = vec2_seed(swx0);
-  for ( ; i < length; i += 2)
-    VEC2_ACCUMULATE_WEIGHTED(sw, sx, vec2_load(w + i), vec2_load(x + i));
-
-  *sumW  = vec2_lane0(sw) + vec2_lane1(sw);
-  *sumWX = vec2_lane0(sx) + vec2_lane1(sx);
-#else
   size_t i = 0, prologue = length % 4;
   double sw0 = 0.0, swx0 = 0.0;
   for ( ; i < prologue; ++i) { double wi = w[i], p = wi * x[i]; sw0 += wi; swx0 += p; }
@@ -331,29 +317,10 @@ void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size
 
   *sumW  = ((vec2_lane0(swA) + vec2_lane1(swA)) + vec2_lane0(swB)) + vec2_lane1(swB);
   *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
-#endif
 }
 
 void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
 {
-#if MISC_SUFFSTAT_NATURAL_WIDTH
-  size_t i = 0, prologue = length % 2;
-  double sw0 = 0.0, swx0 = 0.0;
-  for ( ; i < prologue; ++i) {
-    size_t j = indices[i];
-    double wi = w[j], p = wi * x[j];
-    sw0 += wi; swx0 += p;
-  }
-
-  vec2 sw = vec2_seed(sw0), sx = vec2_seed(swx0);
-  for ( ; i < length; i += 2) {
-    size_t j0 = indices[i], j1 = indices[i + 1];
-    VEC2_ACCUMULATE_WEIGHTED(sw, sx, vec2_set(w[j0], w[j1]), vec2_set(x[j0], x[j1]));
-  }
-
-  *sumW  = vec2_lane0(sw) + vec2_lane1(sw);
-  *sumWX = vec2_lane0(sx) + vec2_lane1(sx);
-#else
   size_t i = 0, prologue = length % 4;
   double sw0 = 0.0, swx0 = 0.0;
   for ( ; i < prologue; ++i) {
@@ -372,7 +339,6 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
 
   *sumW  = ((vec2_lane0(swA) + vec2_lane1(swA)) + vec2_lane0(swB)) + vec2_lane1(swB);
   *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
-#endif
 }
 
 #else // DBARTS_REFERENCE_BUILD

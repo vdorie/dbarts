@@ -154,6 +154,27 @@ choice; none remains open.
    12 percent for the default path's single indexed kernel; the
    unweighted pair and the four Float twins stay scalar, and the layout
    rule above is settled on the weighted cells.
+   MEASURED (2026-09-10, arm64 M1 Max, macOS 26.6.2, Apple clang 21.0.0,
+   R 4.6.1, one chain, one thread, otherwise idle; `sampler$run` only,
+   7 repeats interleaved round by round across the three builds, median
+   seconds, p = 20 throughout):
+
+   | cell | reference | fixed split | natural width | fixed vs reference | natural vs fixed |
+   |---|---|---|---|---|---|
+   | weighted, n = 1e4, 200 trees, 300 + 300 | 2.937 | 2.914 | 2.978 | +0.78% | -2.18% |
+   | weighted, n = 1e5, 200 trees, 100 + 100 | 11.494 | 11.472 | 11.583 | +0.19% | -0.97% |
+   | weighted, n = 1e5, 75 trees, 100 + 100 | 4.294 | 4.290 | 4.302 | +0.09% | -0.28% |
+   | default (no weights), n = 1e4, 200 trees, 300 + 300 | 2.790 | 2.786 | 2.783 | +0.14% | +0.11% |
+
+   Spread was tight - the widest min-to-max across the 7 repeats of any
+   cell is 2 percent of that cell's median, and every percentage above
+   is a fraction of a whole fit, not of the kernel.
+
+   OUTCOME: the natural width buys under 2 percent at every cell (it
+   LOSES at every weighted cell), so by the rule above the FIXED SPLIT
+   ships and the natural-width code is deleted. The shipped build's
+   weighted draws therefore do not depend on ISA, lane width or
+   dispatch level, only on the build mode.
 3. Settled with fork 1.
 4. Within-chain threading's opt-in spelling (VD 2026-09-08: "No,
    n.threads shouldn't mean n.chains"): `n.threads` keeps 0.9-34's
@@ -262,6 +283,32 @@ S2, the vector suffstat kernel:
    plus prologue-residue coverage per
    [`testGatherTailShapes`](../../tests/cpp/test_sampler.cpp). The
    MANIFEST header records which build each gate uses.
+
+Step 5 (weighted) outcome, measured at 80ff32b4: the vectorization is
+worth 0.78, 0.19 and 0.09 percent of a whole weighted fit at the three
+cells above - UNDER the two percent bar everywhere, and under one
+percent everywhere. The default (unweighted) cell does not move, as
+that path calls neither kernel. The mechanism is that
+`misc_computeIndexedWeightedSufficientStatisticsFast`, which the
+re-profile puts at 31 to 54 percent of a weighted fit, is entirely
+gather-bound: a kernel-level A/B of the two bodies on this host times
+them at 1.00x for every node of 128 observations or more (1.27x at 8,
+1.07x at 32), while the contiguous twin - about 1 percent of a fit -
+gains 1.5x at mid sizes and 1.01x at 1e5. So the cost of the change,
+which is that every weighted family's draws move on the shipped build,
+buys well under the "about 3 to 4 percent of runtime" dec-B90 was
+weighed against. Shipping it at all is VD's call and is NOT settled
+here; what is settled is the layout, if it ships. Two consequences to
+weigh: bcf-equivalence.R and multinomial-equivalence.R gate their
+point-in-time snapshot channels (mu, tau, glue; forestFits) bitwise
+with no statistical fallback, so on the shipped build both harnesses
+FAIL on all 12 and all 11 scenarios even though every draws-axis
+channel reports max |z| = 0.00 - only their reference-build and
+`--cross-host` runs stay meaningful, which is where every workflow
+already runs them; and benchmarks/baselines/MANIFEST's build-mode
+header and the equivalence-deb144d2 row still say the shipped build
+reproduces the baselines bitwise, which stops being true the moment
+this lands.
 
 S3, the run loop (dec-B88):
 
