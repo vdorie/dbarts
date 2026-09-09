@@ -398,8 +398,10 @@ within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   item so both share one gate matrix.
 
 vectorized draw path with a reference build (decided, VD 2026-09-08;
-  docs/decisions.md dec-B90; S1 167e2c62, S3 70305575 landed; S2, S4, S5
-  open)
+  docs/decisions.md dec-B90; S1 167e2c62, S3 70305575 landed; S2 closed
+  without shipping, dec-B113, code archived on
+  origin/archive/engine-s2-weighted-kernels; the weighted fused pass
+  lands instead; S4, S5 open)
   pre-release: wire the measured SIMD node-sum kernels into the engine
   gather; a configure flag selects the scalar fixed-order reference
   build; CI runs the bitwise, exact-posterior and snapshot gates on the
