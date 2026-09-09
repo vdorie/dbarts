@@ -102,13 +102,17 @@ df$sf <- sparseFactor(
 )
 y <- rnorm(n)
 
-# the formula interface still refuses a sparseFactor (a bare S4 term would
-# die inside model.frame; the pre-scan refuses cleanly ahead of it)
+# the formula interface pulls a sparseFactor column out ahead of
+# model.frame (a bare S4 term would die inside it) and re-attaches it to
+# the assembled predictor matrix afterward - S3, superseding the refusal
+# this used to be
 df.formula <- df
 df.formula$y <- y
-expect_error(
-  dbartsData(y ~ x1 + sf, df.formula),
-  pattern = "sparse predictors must be specified through the x/y interface"
+data.formulaSf <- dbartsData(y ~ x1 + sf, df.formula)
+expect_inherits(data.formulaSf@x, "dbartsMixedMatrix")
+expect_identical(
+  as.matrix(data.formulaSf@x),
+  as.matrix(dbartsData(df, y)@x)
 )
 
 # indicator expansion cannot dummy-code a sparse factor without densifying it
@@ -1116,4 +1120,128 @@ expect_inherits(
     control = boundControl
   ),
   "dbartsSampler"
+)
+
+# S3: a sparseFactor column assigned into a data frame works through the
+# formula interface exactly like the x/y interface (the same pull-out/
+# re-attach dbartsData() applies to any sparse column, R/data.R)
+set.seed(70L)
+n.sf <- 100L
+other.sf <- data.frame(a = rnorm(n.sf))
+g.sf <- sparseFactor(
+  x = sample(c("lo", "mid", "hi"), n.sf, replace = TRUE),
+  levels = c("lo", "mid", "hi")
+)
+y.sf <- rnorm(n.sf)
+
+d.sf <- other.sf
+d.sf$y <- y.sf
+d.sf$g <- g.sf
+x.sf <- other.sf
+x.sf$g <- g.sf
+
+sfFitArgs <- list(
+  n.trees = 5L,
+  n.burn = 3L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 5L
+)
+fit.sf.formula <- do.call(bart, c(list(y ~ ., data = d.sf), sfFitArgs))
+fit.sf.xy <- do.call(bart, c(list(x.sf, y.sf), sfFitArgs))
+expect_identical(fit.sf.formula$yhat.train, fit.sf.xy$yhat.train)
+rm(n.sf, other.sf, g.sf, y.sf, d.sf, x.sf, sfFitArgs, fit.sf.formula, fit.sf.xy)
+
+# WIDE-FACTOR AUTO-SPARSE (dec-B100): a factors = "indicators" fit
+# dummy-expands a factor with more than sparseIndicatorLevelCutoff (100)
+# levels as a dgCMatrix-backed block automatically, with no user-facing
+# argument. dbarts.sparseIndicators, unexported and undocumented, forces
+# either path so the SAME factor can be put through both.
+set.seed(71L)
+n.wide <- 300L
+K.wide <- 150L
+f.wide <- factor(sample.int(K.wide, n.wide, replace = TRUE))
+z.wide <- rnorm(n.wide)
+y.wide <- rnorm(n.wide)
+d.wide <- data.frame(f = f.wide, z = z.wide, y = y.wide)
+
+mm.auto <- dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+expect_inherits(mm.auto, "dbartsMixedMatrix")
+expect_true(dbarts:::predictorSourceIsSparse(mm.auto))
+
+# a factor at or below the cutoff stays dense automatically
+f.narrow <- factor(sample.int(20L, n.wide, replace = TRUE))
+mm.narrow <- dbarts:::makeModelMatrixFromDataFrame(
+  data.frame(f = f.narrow, z = z.wide)
+)
+expect_true(is.matrix(mm.narrow))
+
+# the override forces either path regardless of level count, and the two
+# still describe the same predictor values
+withSparseOption <- function(mode, expr) {
+  old <- getOption("dbarts.sparseIndicators")
+  options(dbarts.sparseIndicators = mode)
+  on.exit(options(dbarts.sparseIndicators = old))
+  force(expr)
+}
+mm.forcedDense <- withSparseOption(
+  "dense",
+  dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+)
+mm.forcedSparse <- withSparseOption(
+  "sparse",
+  dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+)
+expect_true(is.matrix(mm.forcedDense))
+expect_true(dbarts:::predictorSourceIsSparse(mm.forcedSparse))
+expect_identical(colnames(mm.forcedDense), colnames(mm.forcedSparse))
+expect_equal(
+  mm.forcedDense,
+  as.matrix(mm.forcedSparse),
+  check.attributes = FALSE
+)
+
+# forced sparse and forced dense fit the SAME wide factor to the same
+# model: the engine's densified-CSC-vs-dense equivalence (Context above)
+# reproduces the same tree-growing decisions either way, so the two runs
+# agree well past MCMC noise - to floating-point summation order only (a
+# CSC column's sufficient statistics accumulate over its stored entries in
+# a different order than a dense column's contiguous scan), not to
+# genuine bitwise identity. A misaligned re-attach (an off-by-one 'pos',
+# tested by hand while landing this slice) instead produces an O(1)
+# difference, not floating noise, so this still discriminates a real bug.
+wideFitArgs <- list(
+  n.trees = 20L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 9L,
+  sigest = 1.0
+)
+fit.wide.dense <- withSparseOption(
+  "dense",
+  do.call(bart, c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs))
+)
+fit.wide.sparse <- withSparseOption(
+  "sparse",
+  do.call(bart, c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs))
+)
+expect_false(dbarts:::predictorSourceIsSparse(fit.wide.dense$fit$data@x))
+expect_true(dbarts:::predictorSourceIsSparse(fit.wide.sparse$fit$data@x))
+expect_equal(
+  fit.wide.dense$yhat.train,
+  fit.wide.sparse$yhat.train,
+  tolerance = 1e-8
+)
+
+rm(
+  n.wide, K.wide, f.wide, z.wide, y.wide, d.wide, mm.auto, f.narrow,
+  mm.narrow, withSparseOption, mm.forcedDense, mm.forcedSparse, wideFitArgs,
+  fit.wide.dense, fit.wide.sparse
 )

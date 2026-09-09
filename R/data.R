@@ -1449,14 +1449,22 @@ dbartsData <- function(
           }
         }
         # offset() terms never reach term.labels (they carry their own
-        # "offset" attribute instead), so a sparse name inside one is
-        # checked separately
+        # "offset" attribute instead, a 1-based position over the response
+        # plus predictors that "variables" also carries - but "variables"
+        # is the UNEVALUATED call list(response, ...), so its own [[1]] is
+        # the "list" symbol and a given position's element is at [[position
+        # + 1]]). A sparse name inside one is checked separately, and a
+        # dense one is carried into the rewritten formula's term list
+        # explicitly - reformulate has no separate 'offset' argument, but
+        # the deparsed offset(...) call is valid syntax as a term label
+        # like any other
         offsetPositions <- attr(expandedTerms, "offset")
         if (!is.null(offsetPositions)) {
           variables <- attr(expandedTerms, "variables")
           for (position in offsetPositions) {
+            offsetTerm <- variables[[position + 1L]]
             offsetHits <- intersect(
-              all.vars(variables[[position]]),
+              all.vars(offsetTerm),
               names(sparseColumns)
             )
             if (length(offsetHits) > 0L) {
@@ -1467,6 +1475,7 @@ dbartsData <- function(
                 "be its own term"
               )
             }
+            denseTermLabels <- c(denseTermLabels, deparse(offsetTerm))
           }
         }
         formula <- stats::reformulate(

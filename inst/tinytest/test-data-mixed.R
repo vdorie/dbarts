@@ -64,17 +64,17 @@ data.subset <- dbartsData(x.frame, y, subset = 1:200)
 expect_equal(length(data.subset@y), 200L)
 expect_equal(nrow(data.subset@x), 200L)
 
-# the formula path refuses sparseVector/dgCMatrix columns explicitly,
-# matching sparseFactor's guard, instead of raw-erroring inside model.frame
+# the formula path pulls sparseVector/dgCMatrix columns out ahead of
+# model.frame (which would raw-error on the bare S4 column) and re-attaches
+# them to the assembled predictor matrix afterward - S3, superseding the
+# refusal this used to be
 df.formula <- x.frame
 df.formula$y <- y
-expect_error(
-  dbartsData(y ~ x1 + sv, df.formula),
-  pattern = "sparse predictors must be specified through the x/y interface; 'sv' is a sparseVector"
-)
-expect_error(
-  dbartsData(y ~ x1 + sm, df.formula),
-  pattern = "sparse predictors must be specified through the x/y interface; 'sm' is a dgCMatrix"
+data.formulaMixed <- dbartsData(y ~ x1 + sv + sm, df.formula)
+expect_inherits(data.formulaMixed@x, "dbartsMixedMatrix")
+expect_equal(
+  as.matrix(data.formulaMixed@x),
+  as.matrix(dbartsData(x.frame[c("x1", "sv", "sm")], y)@x)
 )
 
 # a mixed fit recovers the signal a fully dense fit of the same values

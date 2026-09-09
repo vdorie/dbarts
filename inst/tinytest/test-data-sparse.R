@@ -329,3 +329,103 @@ expect_error(
 data.rawSparseTestSlot <- data.sparseTest
 data.rawSparseTestSlot@x.test <- x.test.sparse
 expect_silent(methods::validObject(data.rawSparseTestSlot))
+
+# S3: a dgCMatrix column assigned into a data frame (d$m <- M) works through
+# the formula interface exactly like the x/y interface - dbartsData() pulls
+# it out ahead of model.frame and re-attaches it by row name afterward
+# (R/mixedMatrix.R's pullOutSparseFormulaColumns/subsetSparseColumn)
+set.seed(55)
+n.f <- 120L
+other.f <- data.frame(a = rnorm(n.f), b = rnorm(n.f))
+m.f <- x.dense[seq_len(n.f), 1:2]
+m.f <- methods::as(m.f, "CsparseMatrix")
+colnames(m.f) <- c("m1", "m2")
+y.f <- rnorm(n.f)
+
+d.formula <- other.f
+d.formula$y <- y.f
+d.formula$m <- m.f
+x.forXY <- other.f
+x.forXY$m <- m.f
+
+data.viaFormula <- dbartsData(y ~ ., data = d.formula)
+data.viaXY <- dbartsData(x.forXY, y.f)
+expect_inherits(data.viaFormula@x, "dbartsMixedMatrix")
+expect_identical(as.matrix(data.viaFormula@x), as.matrix(data.viaXY@x))
+expect_identical(colnames(data.viaFormula@x), colnames(data.viaXY@x))
+expect_identical(data.viaFormula@y, data.viaXY@y)
+
+# same, fit bitwise (the assembled container feeds the sampler identically)
+fitArgs <- list(
+  n.trees = 5L,
+  n.burn = 3L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 11L
+)
+fit.viaFormula <- do.call(bart, c(list(y ~ ., data = d.formula), fitArgs))
+fit.viaXY <- do.call(bart, c(list(x.forXY, y.f), fitArgs))
+expect_identical(fit.viaFormula$yhat.train, fit.viaXY$yhat.train)
+
+# under 'subset', the formula's subset honours the same rows a
+# hand-subsetted x/y call would
+sub.f <- seq.int(1L, n.f, by = 2L)
+fit.formula.sub <- do.call(
+  bart,
+  c(list(y ~ ., data = d.formula, subset = sub.f), fitArgs)
+)
+fit.xy.sub <- do.call(
+  bart,
+  c(list(x.forXY[sub.f, , drop = FALSE], y.f[sub.f]), fitArgs)
+)
+expect_identical(fit.formula.sub$yhat.train, fit.xy.sub$yhat.train)
+
+# via '.': a sparse column reached only through the dot expands the same
+# way an explicitly named one does (checked above with an explicit 'y ~ .';
+# this repeats the comparison with an explicit dense term list standing in
+# for what '.' expands to, confirming the two formulas the dot must agree
+# with converge on the same container)
+fit.viaExplicit <- do.call(
+  bart,
+  c(list(y ~ a + b + m, data = d.formula), fitArgs)
+)
+expect_identical(fit.viaFormula$yhat.train, fit.viaExplicit$yhat.train)
+
+# response-NA rows are dropped under the default na.action before the
+# sparse column is re-attached, so the surviving rows still line up
+y.na <- y.f
+y.na[c(3L, 40L, 90L)] <- NA
+d.na <- other.f
+d.na$y <- y.na
+d.na$m <- m.f
+keep.na <- !is.na(y.na)
+fit.formula.na <- do.call(bart, c(list(y ~ ., data = d.na), fitArgs))
+fit.xy.na <- do.call(
+  bart,
+  c(list(x.forXY[keep.na, , drop = FALSE], y.na[keep.na]), fitArgs)
+)
+expect_identical(fit.formula.na$yhat.train, fit.xy.na$yhat.train)
+
+# a sparse name wrapped in poly()/ns()/log()/offset() or an interaction is
+# refused by name, mirroring the plain ':'/'*' refusal
+expect_error(
+  dbartsData(y ~ a + log(m), data = d.formula),
+  pattern = "sparse predictor 'm' cannot appear inside 'log\\(m\\)'"
+)
+expect_error(
+  dbartsData(y ~ a + offset(m), data = d.formula),
+  pattern = "sparse predictor 'm' cannot appear inside 'offset\\(\\)'"
+)
+expect_error(
+  dbartsData(y ~ a:m, data = d.formula),
+  pattern = "sparse predictor 'm' cannot appear inside 'a:m'"
+)
+
+rm(
+  n.f, other.f, m.f, y.f, d.formula, x.forXY, data.viaFormula, data.viaXY,
+  fitArgs, fit.viaFormula, fit.viaXY, sub.f, fit.formula.sub, fit.xy.sub,
+  fit.viaExplicit, y.na, d.na, keep.na, fit.formula.na, fit.xy.na
+)
