@@ -2528,22 +2528,19 @@ survivalProbabilitiesFromDraws <- function(
 # ordinary binary fit on the person-period-expanded rows, so the
 # per-(subject, period) hazards are
 # h(k | x) = g(f(x, k) + o) through the fit's link (probit/logistic), and
-# S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). This ALWAYS re-expands
-# its subjects to the full grid and predicts - the training design is ragged
-# (subject i has only its at-risk rows), so a stored per-subject fit cannot
-# supply hazards past its own event/censoring period - and therefore requires
-# keepTrees unconditionally, where aft's training path never does. Requested
-# `times` are horizons (default: the grid periods); S cumulates (1 - h)
-# through each. Returns draws per the package's three-tier convention, the
-# shape aft's method uses (draws x times x observations, a chain margin under
+# S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). A subject that rode
+# 'test' at fit time (dbarts()'s own hazard test acceptance, person-period-
+# expanded on the SAME training grid) has its hazards already stored, read
+# straight off the packaged fit - no trees, no re-expansion. Every OTHER
+# 'newdata' still ALWAYS re-expands and predicts - the training design is
+# ragged (subject i has only its at-risk rows), so a stored per-subject fit
+# cannot supply hazards past its own event/censoring period - and therefore
+# requires keepTrees, where aft's training path never does. Requested `times`
+# are horizons (default: the grid periods); S cumulates (1 - h) through each.
+# Returns draws per the package's three-tier convention, the shape aft's
+# method uses (draws x times x observations, a chain margin under
 # combineChains = FALSE).
 hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
-  if (is.null(object[["fit"]])) {
-    stop(
-      "survivalProbabilities on a discrete-time hazard fit requires the ",
-      "trees; refit with keepTrees = TRUE"
-    )
-  }
   periods <- object$periods
   K <- length(periods)
   if (is.null(times)) {
@@ -2554,36 +2551,54 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     stop("'times' must be finite and positive")
   }
 
-  periodCol <- ncol(object$fit$data@x)
-  if (is.null(newdata)) {
-    # reconstruct the per-subject covariates from the coded expanded design:
-    # every subject is at risk in period 1, so the period-1 rows are the
-    # subjects in order, their covariate columns the (coded) per-subject x
-    fitX <- extract(object$fit, "predictors")
-    subjectCov <- fitX[fitX[, periodCol] == 1L, -periodCol, drop = FALSE]
-    n <- nrow(subjectCov)
-    # name the appended column "period" under the same rule the training
-    # design used, so a named fit's re-expanded design matches by name
-    bigX <- appendHazardPeriodColumn(
-      subjectCov[rep(seq_len(n), times = K), , drop = FALSE],
-      rep(seq_len(K), each = n)
-    )
-  } else if (is.data.frame(newdata)) {
-    n <- nrow(newdata)
-    bigX <- newdata[rep(seq_len(n), times = K), , drop = FALSE]
-    bigX[["period"]] <- rep(seq_len(K), each = n)
+  usesStoredTest <- is.null(newdata) && !is.null(object[["yhat.test"]])
+  if (usesStoredTest) {
+    # extract() on the packaged fit, not object$fit (the dbartsSampler):
+    # extract.dbartsSampler accepts only type = "predictors", while
+    # extract.bart's sample = "test" arm reads object$yhat.test directly and
+    # applies the same probability transform predict(type = "ev") does
+    haz <- extract(object, type = "ev", sample = "test", combineChains = FALSE)
+    n <- dim(haz)[length(dim(haz))] %/% K
   } else {
-    newdata <- as.matrix(newdata)
-    n <- nrow(newdata)
-    bigX <- appendHazardPeriodColumn(
-      newdata[rep(seq_len(n), times = K), , drop = FALSE],
-      rep(seq_len(K), each = n)
-    )
-  }
+    if (is.null(object[["fit"]])) {
+      stop(
+        "survivalProbabilities on a discrete-time hazard fit requires the ",
+        "trees; refit with keepTrees = TRUE"
+      )
+    }
+    periodCol <- ncol(object$fit$data@x)
+    if (is.null(newdata)) {
+      # reconstruct the per-subject covariates from the coded expanded
+      # design: every subject is at risk in period 1, so the period-1 rows
+      # are the subjects in order, their covariate columns the (coded)
+      # per-subject x
+      fitX <- extract(object$fit, "predictors")
+      subjectCov <- fitX[fitX[, periodCol] == 1L, -periodCol, drop = FALSE]
+      n <- nrow(subjectCov)
+      # name the appended column "period" under the same rule the training
+      # design used, so a named fit's re-expanded design matches by name
+      bigX <- appendHazardPeriodColumn(
+        subjectCov[rep(seq_len(n), times = K), , drop = FALSE],
+        rep(seq_len(K), each = n)
+      )
+    } else if (is.data.frame(newdata)) {
+      n <- nrow(newdata)
+      bigX <- newdata[rep(seq_len(n), times = K), , drop = FALSE]
+      bigX[["period"]] <- rep(seq_len(K), each = n)
+    } else {
+      newdata <- as.matrix(newdata)
+      n <- nrow(newdata)
+      bigX <- appendHazardPeriodColumn(
+        newdata[rep(seq_len(n), times = K), , drop = FALSE],
+        rep(seq_len(K), each = n)
+      )
+    }
 
-  # hazards through the correct link (type = "ev" keys on $family, the binary
-  # token); predict codes bigX to the training columns and replays the trees
-  haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+    # hazards through the correct link (type = "ev" keys on $family, the
+    # binary token); predict codes bigX to the training columns and replays
+    # the trees
+    haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+  }
   drawDims <- dim(haz)[-length(dim(haz))]
   D <- prod(drawDims)
   numTimes <- length(times)
