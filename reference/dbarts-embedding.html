@@ -131,10 +131,14 @@
 <p></p><div class="section">
 <h3 id="driving-it-from-compiled-code">Driving it from compiled code<a class="anchor" aria-label="anchor" href="#driving-it-from-compiled-code"></a></h3>
 <p>A package that runs its outer block in C or C++ declares <code>LinkingTo: dbarts</code> and
-    includes <code class="file">dbarts/dbarts.h</code>, the flat C API. It builds the sampler in R exactly as above
-    - <code><a href="dbarts.html">dbarts</a></code> or <code><a href="dbartsSpec.html">dbartsSpec</a></code>, from its own R code - and then reads
-    the handle out of that object's external pointer with <code>R_ExternalPtrAddr</code>
-    (<code>$getPointer()</code> is what hands the pointer down). There is no creation entry point and
+    includes <code class="file">dbarts/dbarts.h</code>, the flat C API. It builds the sampler in R from its own
+    R code and then reads the handle out of that object's external pointer with
+    <code>R_ExternalPtrAddr</code> (<code>$getPointer()</code> is what hands the pointer down). <code><a href="dbarts.html">dbarts</a></code>
+    takes a formula or a matrix, not a model object, so a consumer starting from its own
+    already-built <code>(control, model, data)</code> triple (<code><a href="dbartsSpec.html">dbartsSpec</a></code> resolves one
+    without constructing a sampler) builds the sampler instead with
+    <code>methods::new("dbartsSampler", control, model, data)</code>, then calls <code>$getPointer()</code>
+    on the result. There is no creation entry point and
     no R type in the header; the handle is the whole boundary.</p>
 <p>The handle is valid until the R object is garbage collected or replaces its pointer, which it
     does whenever it re-creates its engine from a stored state - after a <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>, or

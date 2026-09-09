@@ -119,13 +119,17 @@ reports it.
 
 A package that runs its outer block in C or C++ declares
 `LinkingTo: dbarts` and includes `dbarts/dbarts.h`, the flat C API. It
-builds the sampler in R exactly as above -
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-from its own R code - and then reads the handle out of that object's
-external pointer with `R_ExternalPtrAddr` (`$getPointer()` is what hands
-the pointer down). There is no creation entry point and no R type in the
-header; the handle is the whole boundary.
+builds the sampler in R from its own R code and then reads the handle
+out of that object's external pointer with `R_ExternalPtrAddr`
+(`$getPointer()` is what hands the pointer down).
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) takes a
+formula or a matrix, not a model object, so a consumer starting from its
+own already-built `(control, model, data)` triple
+([`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+resolves one without constructing a sampler) builds the sampler instead
+with `methods::new("dbartsSampler", control, model, data)`, then calls
+`$getPointer()` on the result. There is no creation entry point and no R
+type in the header; the handle is the whole boundary.
 
 The handle is valid until the R object is garbage collected or replaces
 its pointer, which it does whenever it re-creates its engine from a
