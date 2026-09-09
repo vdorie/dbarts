@@ -13,7 +13,10 @@ LANDED 2026-09-09 (ecb319aa): its premise, that nothing is released to
 deprecate from, no longer holds for 0.9-34's CRAN-released names -
 [`dbartsTombstones`](../../R/tombstones.R) is this codebase's first
 one-release deprecation-shim registry. D5's own action (deleting
-predict.rbart's dev-cycle shims) is unaffected.
+predict.rbart's dev-cycle shims) is unaffected. S4, LANDED 2026-09-09
+(28431413): the registry's manual page, man/dbarts-deprecated.Rd,
+documents all 31 entries. front-door arc LANDED 2026-09-09 (S4
+28431413).
 
 Why now: 1.0-0 locks the R API and the flat C API. Each decision below
 is a change that would be BREAKING after release and is cheap before

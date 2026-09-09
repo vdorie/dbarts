@@ -278,8 +278,8 @@ items
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
-front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
-  ecb319aa, S2 44b3fa6d, S3 cb5d4ef2 landed; S4 open)
+front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
+  LANDED 2026-09-09: S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
   one release; the BayesTree-style names and defaults move to a new
   function, bartBT (VD 2026-09-08); for one release bart forwards
@@ -293,8 +293,8 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
   contacting lorax's maintainer.
   Plan: docs/plans/front-door.md.
 
-removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76; S1
-  LANDED ecb319aa)
+removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76;
+  LANDED 2026-09-09: S1 ecb319aa, S4 28431413)
   rbart_vi and its methods return as stubs that error naming stan4bart;
   the sampler's startThreads/stopThreads become no-ops; rngSeed is
   accepted with a once-per-session warning for one release. All expire
@@ -304,7 +304,7 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76; S1
   Plan: docs/plans/front-door.md.
 
 xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77,
-  B102; S3 LANDED cb5d4ef2)
+  B102; LANDED 2026-09-09: S3 cb5d4ef2, S4 28431413)
   tombstones for control= and a three-element n.burn (error naming the
   flat fields); distribute grid cells and folds across workers, not
   replications (today k-fold with n.reps = 1 runs on one worker: 2.1x
@@ -323,16 +323,16 @@ factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
   Plan: docs/plans/front-door.md.
 
 front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
-  dec-B79, B80, B81; sigest S1 LANDED ecb319aa, manual table S2 LANDED
-  44b3fa6d)
+  dec-B79, B80, B81; LANDED 2026-09-09: sigest S1 ecb319aa, manual table
+  S2 44b3fa6d, table consolidated to one page S4 28431413)
   names may change until the CRAN push, then lock; sigest replaces
   dbarts()'s sigma argument (the creation-time estimate only; setSigma
   is untouched), with a one-release warning; the manual gets one table
   mapping front-door family tokens to engine families and entry points.
   Plan: docs/plans/front-door.md.
 
-hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82; S1
-  LANDED ecb319aa)
+hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82;
+  LANDED 2026-09-09: S1 ecb319aa, S4 28431413)
   remove hurdle.lognormal and twopart from dbarts()'s family list and
   intercept the hurdle case in the front door before it forwards; drop
   the twopart alias (tombstone for one release). Post-release: a
@@ -441,7 +441,8 @@ survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
   docs/plans/interfaces-and-dependencies.md.
 
 family objects and front-door consolidation (decided, VD 2026-09-08;
-  docs/decisions.md dec-B98; S2 LANDED 44b3fa6d)
+  docs/decisions.md dec-B98; LANDED 2026-09-09: S2 44b3fa6d, S4
+  28431413)
   pre-release: family accepts a token or a family object carrying its
   settings (hazard(breaks, max.rows), nbinom(dispersion), later aft and
   others); the three family-only formals leave bart with tombstones;

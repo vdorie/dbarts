@@ -22,7 +22,10 @@ AMENDED by [front-door](../plans/front-door.md#front-door) S3, LANDED
 2026-09-09 (cb5d4ef2): that names the pre-S3 scheme; xbart now
 distributes (replication, fold) units, not replication ranges, across
 workers, each unit's seed derived from the call seed and its
-(replication, fold) index.
+(replication, fold) index. S4, LANDED 2026-09-09 (28431413): the
+manual, NEWS and consumer ports (bartCause, stan4bart) catch up to the
+S1-S3 surface; no further behavioural change. front-door arc LANDED
+2026-09-09 (S4 28431413).
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so

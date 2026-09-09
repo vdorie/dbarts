@@ -586,3 +586,65 @@ drop-shape change and the seed promise - records, consumer ports); a
 vocabulary argument forwarded through a wrapper's `...` arrives as
 `..1` and cannot resolve (pre-existing for `family`, `node.prior`,
 `tree.prior`; the affected test writes the call out).
+
+## Landing note, S4 (2026-09-09)
+
+LANDED at 28431413..., ten commits:
+
+- 60539c2dc71d42ee97c4a5518b550688721c95ce Finish the manual's prose for the front-door rename
+- 202e98caced4cee9d65f96ea01538910bbb343d6 Point five error strings at bart instead of bart2
+- 1b0cff5d66af01e6d245966aeba51d433d851233 Write the front door's NEWS 1.0-0 entry and rename bart2 throughout
+- 033a7eb4203784b945a1ce4d93a9cddcbe925170 Move feature-matrix's bart2 rows to bart
+- ce1b746d72c0c0abef3ab7c691846e31e45a74ff Reword bart.Rd's own-class summary text for the posterior removal
+- 8e659b88cd6bc6e4cc31efdf97bf43067ee83489 Document the rest of the tombstone registry on dbarts-deprecated.Rd
+- eb42c6217af24e5c712ffacc65bcf3d20f4b78ed Rewrite NEWS' as_draws_array/as_draws_df passages for draws()
+- 8392f571742cd5ed4cf81fda8feb3621dfc7025e Restore bart2 in NEWS' 0.9-x historical sections
+- 85e8150c541eabed530f250cfe160c1d868c41cd Address review: a mistargeted link, a missing tombstone row, and a test that didn't discriminate
+- 284314132d6af02c695fe14fbbc24cba3f8a1e69 Rename summary.bart.Rd's bart2 mentions to bart
+
+man/bart.Rd documents the modern door in full; man/bartBT.Rd the
+legacy door with 0.9-34's defaults (byte-identical in name, order and
+default to the CRAN 0.9-34 source), the indicator-factor note and its
+why (dec-B78), the factor-response refusal, and the no-new-features
+statement, correcting two stale bartBT-reaches-logistic/aft claims.
+man/dbarts-deprecated.Rd carries bart2 and all 31
+[`dbartsTombstones`](../../R/tombstones.R) entries at expiry 1.1-0; the
+dec-B81 mapping table lives once, in man/dbartsFamilies.Rd, bart.Rd
+linking it. Five error strings moved from bart2 to bart (R/data.R x3,
+R/generics.R, R/utility.R); every other bart2 survivor in R/ is the
+alias, an internal helper name, or a correctly worded warning.
+inst/NEWS.Rd's 1.0-0 UPGRADING section is written: the rename, shim,
+positional guard, startup message, legacy door, the tombstone list
+with expiry in registry order, sigest, family objects, na.action and
+the retired missing, the 0.9-x fit message, xbart's k grid, the
+control= and n.burn tombstones, the drop-shape change, the seed
+promise, and engine-performance S3's run-loop latency line; the 0.9-x
+historical sections stay verbatim, and the as_draws passages rewrite
+for draws() and the interfaces slice's nine-column summary.
+test-tombstones.R's NEWS half is live, narrowed to the tombstone-list
+item so it discriminates. man/summary.bart.Rd and
+man/dbartsSampler-class.Rd are renamed consistently; feature-matrix
+rows naming bart2 moved to bart. Consumer ports: bartCause dbarts-1.0
+b33ae4e (five files redirect to dbarts::bart; 781/782, one unrelated
+tmle-package snapshot failure) and stan4bart bartcore ef67969 (sigest
+reserved beside sigma in bart_args; 458/458).
+
+Real diff: 28 files, +472/-256 against ~500, rebased onto c9dfe889
+(x86-only diagnostics fixture fix) after a1891f78 (post-S3
+docs-currency fix) - neither this arc's. Gates, run independently:
+tinytest 8146/0; equivalence 50/12/11 identical, 0 skipped, no "max
+|z|" line; `R CMD check --as-cran` OK, zero warnings, clean tarball;
+lint_package, air format --check, pkgdown check clean; NEWS parses,
+311 entries; doc-freshness and rc-codoc exit 0. Mutation probe: the
+narrowed NEWS check fails when the sigma clause is deleted.
+
+Review findings fixed before landing: the bart2 -> bart rename had
+corrupted nine sites in NEWS' 0.9-x historical sections (restored
+verbatim); a \link[=bartBT]{bart} in man/dbartsSampler-class.Rd
+targeted the wrong door; the startup-message tombstone row was missing
+from man/dbarts-deprecated.Rd; man/summary.bart.Rd still called bart2
+the modern door; the NEWS half of the registry test did not
+discriminate.
+
+The front-door arc is complete: S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2,
+S4 28431413.
