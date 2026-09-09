@@ -27,7 +27,6 @@ sampler.cat <- dbarts(
   df,
   tree.prior = dart(),
   factors = "categorical",
-  missing = "incorporate",
   control = control
 )
 expect_equal(ncol(sampler.cat$data@x), 3L)
@@ -48,7 +47,6 @@ sampler.ind <- dbarts(
   df,
   tree.prior = dart(),
   factors = "indicators",
-  missing = "incorporate",
   control = control
 )
 expect_equal(ncol(sampler.ind$data@x), 6L) # x1, x2, g.a..g.d

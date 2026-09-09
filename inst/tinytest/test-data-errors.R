@@ -30,12 +30,12 @@ testData_df$offset <- rnorm(nrow(testData_df))
 
 modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
 
-# a nonexistent row-name subset selects all-NA rows, which na.pass keeps
-# and the response completeness check rejects; 'subset' is named in the
-# message as the likely cause, since it was given
+# a nonexistent row-name subset selects all-NA rows, which an na.action
+# would silently drop; the range is checked ahead of the model frame and
+# named rather than left to the na.action
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, subset = "not-a-number"),
-  "response contains missing values; check that 'subset' selects rows within range"
+  "'subset' selects rows outside the data"
 )
 # an out-of-range numeric subset pads unmatched rows with NA the same way
 # (base R data.frame row indexing, not a dbarts choice) and is named the
@@ -52,7 +52,7 @@ expect_error(
     n.threads = 1L,
     verbose = FALSE
   ),
-  "response contains missing values; check that 'subset' selects rows within range"
+  "'subset' selects rows outside the data"
 )
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, weights = "not-a-number"),

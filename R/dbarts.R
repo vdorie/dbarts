@@ -232,13 +232,20 @@ dbartsControl <- function(
 ) {
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
-  dots <- list(...)
+  supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(
-    dots,
+    supplied,
     "dbartsControl",
     names(formals(dbarts::dbartsControl))
   )
-  seed <- resolveRenamedSeed(dots, "dbartsControl", seed)
+  # every name this door carries on '...' is an ordinary value, so forcing
+  # them here is safe (bart's are not: one of them is written in a
+  # vocabulary that only resolves inside this package)
+  seed <- resolveRenamedSeed(
+    if ("rngSeed" %in% supplied) list(...)[["rngSeed"]] else NULL,
+    "dbartsControl",
+    seed
+  )
 
   storage <- match.arg(storage)
   # NA is a VALUE for levelGibbs - the automatic mode - so an argument that
@@ -358,7 +365,6 @@ dbarts <- function(
   tree.prior = cgm,
   node.prior = normal,
   resid.prior = chisq,
-  resid.dist = gaussian,
   proposal.probs = c(
     birth_death = 0.6,
     swap = 0,
@@ -379,6 +385,7 @@ dbarts <- function(
   family = c(
     "auto",
     "gaussian",
+    "student",
     "probit",
     "logistic",
     "aft",
@@ -389,15 +396,25 @@ dbarts <- function(
     "hazard.probit",
     "hazard.logistic"
   ),
-  missing = c("incorporate", "error"),
-  dispersion = NA_real_,
-  breaks = NULL,
-  max.rows = 1e7,
-  sigma = NA_real_
+  na.action = dbarts::na.keepPredictors,
+  sigma = NA_real_,
+  ...
 ) {
   matchedCall <- match.call()
 
   evalEnv <- parent.frame(1L)
+
+  # '...' carries the names dec-B98's consolidation moved onto the family and
+  # prior objects, for one release; anything else is a caller mistake and is
+  # refused by name rather than dropped without a word
+  supplied <- dotNames(...)
+  refuseForeignFrontDoorArgs(supplied, "dbarts", names(formals(dbarts::dbarts)))
+  consolidated <- resolveConsolidatedArgs(
+    matchedCall,
+    supplied,
+    "dbarts",
+    evalEnv
+  )
 
   # the creation-time estimate is 'sigest' here as everywhere; the 0.9-x
   # spelling is folded in before the shared validator, which knows one name
@@ -414,28 +431,48 @@ dbarts <- function(
     matchedCall$sigma <- NULL
   }
 
+  # 'family' is resolved from the caller's own unevaluated argument, so a
+  # bare family constructor (student(3)) resolves in the family vocabulary;
+  # nothing may force the argument before this. hurdle.lognormal is admitted
+  # only to be refused by name below, with the reason.
+  familySpec <- resolveFamily(
+    matchedCall$family,
+    c(eval(formals(dbarts::dbarts)$family), "hurdle.lognormal"),
+    "dbarts",
+    evalEnv
+  )
+  familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
+  family <- familySpec@token
+
   # a hurdle response is a composition of two independent samplers, which
-  # this function cannot return; refused BY NAME ahead of match.arg, whose
-  # generic message would name neither the front door nor why. "twopart" is
-  # a retired spelling and is named as such rather than folded.
-  if (is.character(family) && length(family) == 1L) {
-    if (identical(family, "twopart")) {
-      refuseTwopartFamily("dbarts")
-    }
-    if (identical(family, "hurdle.lognormal")) {
-      stop(
-        "dbarts() does not fit family = \"hurdle.lognormal\": it composes ",
-        "two independent samplers (an occupancy probit and a positive-part ",
-        "gaussian) and dbarts() returns one - use ",
-        "bart(x, y, family = \"hurdle.lognormal\")"
-      )
-    }
+  # this function cannot return; refused BY NAME, whose generic message would
+  # name neither the front door nor why.
+  if (identical(family, "hurdle.lognormal")) {
+    stop(
+      "dbarts() does not fit family = \"hurdle.lognormal\": it composes ",
+      "two independent samplers (an occupancy probit and a positive-part ",
+      "gaussian) and dbarts() returns one - use ",
+      "bart(x, y, family = \"hurdle.lognormal\")"
+    )
   }
-  family <- match.arg(family)
-  # the caller's own token, ahead of the hazard remap below - every
-  # downstream refusal that names 'family' echoes this, not the resolved
-  # spelling, which is an implementation detail
+  # the caller's own token, ahead of the student and hazard remaps below -
+  # every downstream refusal that names 'family' echoes this, not the
+  # resolved spelling, which is an implementation detail
   requestedFamily <- family
+
+  # the family-only settings, read off the object rather than off formals
+  # this signature no longer carries
+  dispersion <- familySetting(familySpec, "dispersion", NA_real_)
+  breaks <- familySetting(familySpec, "breaks", NULL)
+  max.rows <- familySetting(familySpec, "max.rows", 1e7)
+  # Student-t is its own family token and its own engine family; on this
+  # side of the bridge it is a gaussian response carrying a degrees-of-
+  # freedom attribute, so the remap happens here, once
+  residDf <- NULL
+  if (identical(family, "student")) {
+    residDf <- familySetting(familySpec, "df", NA_real_)
+    family <- "gaussian"
+  }
 
   # a forest() formula term declares an additional amplitude-coupled forest
   # (R/formulaTerms.R); checked against the requested family HERE, before any
@@ -716,8 +753,20 @@ dbarts <- function(
   # assignment
   if (!is.null(termIngestion)) {
     # data@bases is read positionally against the forests it distinguishes
-    # (forest 1 first); a term never speaks for forest 1, which has none
-    data@bases <- c(list(NULL), termIngestion$bases)
+    # (forest 1 first); a term never speaks for forest 1, which has none.
+    # A term's basis was read under na.pass, so it still carries whatever
+    # rows the fit's own na.action dropped - restricted here, to the rows
+    # the model frame kept
+    data@bases <- c(
+      list(NULL),
+      lapply(termIngestion$bases, function(basis) {
+        if (is.null(basis) || is.null(data@na.action)) {
+          basis
+        } else {
+          basis[-unclass(data@na.action), , drop = FALSE]
+        }
+      })
+    )
   }
 
   # a term's symbolic vars slot names design columns, which exist only now
@@ -735,6 +784,7 @@ dbarts <- function(
     family,
     requestedFamily = requestedFamily,
     dispersion = dispersion,
+    residDf = residDf,
     proposal.probs = proposal.probs,
     monotone = monotone,
     interactions = interactions,

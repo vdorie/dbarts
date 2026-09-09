@@ -15,6 +15,8 @@ export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
 export(dbartsPriors)
+export(dbartsFamilies)
+export(na.keepPredictors)
 export(interactions)
 export(blocks)
 export(forest)
@@ -94,7 +96,7 @@ S3method(as.matrix, dbartsMixedMatrix)
 
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is, show)
 
-importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
+importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, naresid)
 importFrom(stats, lm, pnorm, plogis, quantile)
 importFrom(stats, as.formula, setNames)
 

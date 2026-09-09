@@ -177,7 +177,6 @@ parsePriors <- function(
   tree.prior,
   node.prior,
   resid.prior,
-  resid.dist,
   monotone = NULL,
   multiForest = FALSE,
   parentEnv
@@ -190,11 +189,6 @@ parsePriors <- function(
   evalEnv <- new.env(parent = parentEnv)
   for (name in names(dbartsPriors)) {
     assign(name, dbartsPriors[[name]], envir = evalEnv)
-  }
-  # the residual-distribution vocabulary rides the same environment, so a bare
-  # gaussian()/student() in resid.dist resolves without shadowing stats::gaussian
-  for (name in names(dbartsResidDists)) {
-    assign(name, dbartsResidDists[[name]], envir = evalEnv)
   }
   # both spellings are exposed for the split.probs vocabulary: num.vars is the
   # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
@@ -229,13 +223,6 @@ parsePriors <- function(
     )
   }
 
-  resid.dist <- resolveSpec(matchedCall$resid.dist)
-  if (!is(resid.dist, "dbartsResidDist")) {
-    stop(
-      "'resid.dist' must be a residual distribution: gaussian() or student()"
-    )
-  }
-
   node.prior <- resolveSpec(matchedCall$node.prior)
   if (!is(node.prior, "dbartsNodePrior")) {
     stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
@@ -264,17 +251,7 @@ parsePriors <- function(
     multiForest = isTRUE(multiForest)
   )
 
-  namedList(tree.prior, resid.prior, resid.dist, node.prior, node.hyperprior)
-}
-
-## The residual error degrees of freedom the C bridge reads off the model's
-## resid.df attribute: NULL for gaussian errors (no attribute; the Gaussian
-## law), 0 for an estimated Student-t df, and the fixed value otherwise.
-residDistDf <- function(resid.dist) {
-  if (!is(resid.dist, "dbartsStudentDist")) {
-    return(NULL)
-  }
-  if (is.na(resid.dist@df)) 0.0 else resid.dist@df
+  namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }
 
 ## Turn a linear or gp node prior's raw columns specification into 1-based
@@ -1477,13 +1454,14 @@ columnLabels <- function(columnNames, cols) {
 }
 
 num.vars <- numvars <- NULL # R CMD check
-cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
+cgm <- function(power = 2, base = 0.95, split.probs = NULL, levelGibbs = NA) {
   result <- newValidated(
     "dbartsCGMPrior",
     power = power,
     base = base,
     splitProbabilities = numeric(),
-    splitProbabilitiesSpec = NULL
+    splitProbabilitiesSpec = NULL,
+    levelGibbs = validateLevelGibbs(levelGibbs)
   )
   if (length(split.probs) > 0L && !is.numeric(split.probs)) {
     stop("'split.probs' must be numeric")
@@ -1661,34 +1639,19 @@ chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
   )
 }
 
-## Residual-distribution constructors, passed
-## as resid.dist to dbarts()/bart()/bart2(). gaussian() is the default error
-## law; student(df) selects outlier-robust Student-t errors. Not exported:
-## resolved by bare name inside the resid.dist argument, like the priors, so
-## nothing shadows stats::gaussian.
-gaussian <- function() {
-  new("dbartsGaussianDist")
-}
-
-student <- function(df = NULL) {
-  if (!is.null(df)) {
-    if (
-      !is.numeric(df) ||
-        length(df) != 1L ||
-        is.na(df) ||
-        !is.finite(df) ||
-        df <= 0.0
-    ) {
-      stop(
-        "student residual 'df' must be NULL (estimate the degrees of ",
-        "freedom) or a single positive finite number"
-      )
-    }
+## The categorical-split level Gibbs step is a property of how a tree prior
+## proposes splits, so it is declared on the prior rather than on a fitting
+## function: NA leaves the control's own setting in force, TRUE/FALSE take
+## or skip the step.
+validateLevelGibbs <- function(levelGibbs) {
+  value <- as.logical(levelGibbs)
+  if (length(value) != 1L) {
+    stop("'levelGibbs' must be TRUE, FALSE, or NA")
   }
-  newValidated(
-    "dbartsStudentDist",
-    df = if (is.null(df)) NA_real_ else as.double(df)
-  )
+  if (is.na(value) && !anyNA(levelGibbs)) {
+    stop("'levelGibbs' must be TRUE, FALSE, or NA")
+  }
+  value
 }
 
 dart <- function(
@@ -1699,7 +1662,8 @@ dart <- function(
   rho = NULL,
   alpha = 1,
   update.alpha = TRUE,
-  update.delay = NULL
+  update.delay = NULL,
+  levelGibbs = NA
 ) {
   newValidated(
     "dbartsDartPrior",
@@ -1707,6 +1671,7 @@ dart <- function(
     base = base,
     splitProbabilities = numeric(),
     splitProbabilitiesSpec = NULL,
+    levelGibbs = validateLevelGibbs(levelGibbs),
     a = a,
     b = b,
     rho = if (is.null(rho)) NA_real_ else rho,
@@ -1864,9 +1829,3 @@ dbartsPriors <- list(
   chi = chi
 )
 
-## The residual-distribution vocabulary, resolved by bare name inside the
-## resid.dist argument the same way dbartsPriors handles the prior names.
-dbartsResidDists <- list(
-  gaussian = gaussian,
-  student = student
-)

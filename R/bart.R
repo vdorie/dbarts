@@ -144,7 +144,10 @@ packageBartResults <- function(
       combineChains
     )
     if (!responseIsBinary) {
-      yhat.train.mean <- apply(yhat.train, length(dim(yhat.train)), mean)
+      yhat.train.mean <- padOmittedRows(
+        fit$data@na.action,
+        apply(yhat.train, length(dim(yhat.train)), mean)
+      )
     }
   }
 
@@ -290,6 +293,10 @@ packageBartResults <- function(
     "student"
   }
 
+  # what the fit's na.action dropped, in base R's own shape and under base
+  # R's own name, so that fitted() and residuals() pad through naresid
+  naOmitted <- fit$data@na.action
+
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
@@ -320,6 +327,12 @@ packageBartResults <- function(
       varcount = varcount,
       y = fit$data@y
     )
+  }
+
+  # absent, not NULL, off a complete fit, so an ordinary fit object carries
+  # exactly the elements it always did
+  if (!is.null(naOmitted)) {
+    result$na.action <- naOmitted
   }
 
   if (!is.null(varprobs)) {
@@ -541,7 +554,17 @@ buildHostSamplerCall <- function(
   samplerCall$node.prior <- priors$node.prior
   samplerCall$resid.prior <- priors$resid.prior
   if (!missing(family)) {
-    samplerCall$family <- family
+    # the caller's own family object is already stamped on the matched call
+    # and carries that family's settings; an override that names the same
+    # family keeps it rather than flattening it back to a bare token
+    stamped <- matchedCall$family
+    samplerCall$family <- if (
+      is(stamped, "dbartsFamily") && identical(stamped@token, family)
+    ) {
+      stamped
+    } else {
+      family
+    }
   }
   if (!missing(sigest)) {
     samplerCall$sigest <- as.numeric(sigest)
@@ -651,7 +674,6 @@ bart <- function(
   power = 2.0,
   base = 0.95,
   split.probs = NULL,
-  dart = FALSE,
   n.trees = 75L,
   n.samples = 500L,
   n.burn = 500L,
@@ -660,7 +682,6 @@ bart <- function(
   combineChains = TRUE,
   n.cuts = 100L,
   useQuantiles = FALSE,
-  levelGibbs = NA,
   n.thin = 1L,
   keepTrainingFits = TRUE,
   printEvery = 100L,
@@ -689,6 +710,7 @@ bart <- function(
   family = c(
     "auto",
     "gaussian",
+    "student",
     "probit",
     "logistic",
     "aft",
@@ -700,11 +722,7 @@ bart <- function(
     "hazard.logistic",
     "hurdle.lognormal"
   ),
-  missing = c("incorporate", "error"),
-  resid.dist = gaussian,
-  dispersion = NA_real_,
-  breaks = NULL,
-  max.rows = 1e7,
+  na.action = dbarts::na.keepPredictors,
   tree.prior = NULL,
   node.prior = NULL,
   resid.prior = NULL,
@@ -730,22 +748,60 @@ bart <- function(
     return(forwarded$value)
   }
   refuseLegacyPositionalCall(suppliedCall)
-  dots <- list(...)
-  refuseForeignFrontDoorArgs(dots, "bart", names(formals(dbarts::bart)))
-  if (!is.null(dots[["rngSeed"]])) {
-    seed <- resolveRenamedSeed(dots, "bart", seed)
+  # the dots are inspected by NAME, never forced as a list: a retired
+  # argument may be written in a vocabulary only this package holds
+  # (resid.dist = student()), which would not resolve in the caller's frame
+  supplied <- dotNames(...)
+  refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
+  # the names dec-B98's consolidation moved onto the family and prior
+  # objects: read once, then cleared from the matched call so no forwarding
+  # can carry an old spelling on to dbarts()
+  consolidated <- resolveConsolidatedArgs(
+    matchedCall,
+    supplied,
+    "bart",
+    callingEnv
+  )
+  if (length(consolidated) > 0L) {
+    matchedCall[names(consolidated)] <- NULL
+  }
+  dart <- if (is.null(consolidated[["dart"]])) FALSE else consolidated[["dart"]]
+  levelGibbs <- consolidated[["levelGibbs"]]
+  # the collision the tree-prior shorthand ladder would otherwise catch by
+  # name; 'dart' has already left the matched call it reads
+  if (!is.null(matchedCall[["tree.prior"]]) && !isFALSE(dart)) {
+    stop(
+      "'tree.prior' cannot be combined with 'dart': supply the prior either ",
+      "as an object or through its shorthand arguments, not both"
+    )
+  }
+  if ("rngSeed" %in% supplied) {
+    seed <- resolveRenamedSeed(
+      eval(matchedCall$rngSeed, callingEnv),
+      "bart",
+      seed
+    )
     # stamped onto the matched call as well: the control is built by
     # redirecting that call by name, which the old spelling never reaches
     matchedCall$rngSeed <- NULL
     matchedCall$seed <- seed
   }
 
-  # one model, one token: "twopart" is a retired spelling, refused by name
-  # ahead of match.arg's generic message rather than folded in silence
-  if (identical(family, "twopart")) {
-    refuseTwopartFamily("bart")
-  }
-  family <- match.arg(family)
+  # 'family' is resolved from the caller's own unevaluated argument, so a
+  # bare family constructor (student(3), hazard(breaks)) resolves in the
+  # family vocabulary; nothing may force the argument before this. The
+  # resolved object is stamped back on, so every forwarding below - the host
+  # dbarts() call, the hurdle components - carries the settings rather than
+  # a spelling that has to be re-resolved against a different environment.
+  familySpec <- resolveFamily(
+    matchedCall$family,
+    eval(formals(dbarts::bart)$family),
+    "bart",
+    callingEnv
+  )
+  familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
+  family <- familySpec@token
+  matchedCall$family <- familySpec
 
   # A data object carrying an n x K count matrix declares the multinomial
   # (softmax) model, whose fitted quantity is K probabilities per observation
@@ -803,9 +859,7 @@ bart <- function(
   # or it would silently take dbarts()'s own default rather than the
   # token/value this signature advertises.
   factors <- match.arg(factors)
-  missing <- match.arg(missing)
   matchedCall$factors <- factors
-  matchedCall$missing <- missing
   matchedCall$proposal.probs <- proposal.probs
 
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
@@ -826,6 +880,12 @@ bart <- function(
     )
   }
   control <- eval(controlCall, envir = callingEnv)
+  # the level Gibbs step is declared on the tree prior now; the retired
+  # spelling lands where a declared one lands, on the control the bridge
+  # reads (R/spec.R copies the prior's own declaration there)
+  if (!is.null(levelGibbs)) {
+    control@levelGibbs <- validateLevelGibbs(levelGibbs)
+  }
 
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn <- control@n.burn %/% control@n.thin
@@ -2357,16 +2417,16 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   # names this outer site already diagnosed against "hurdle.lognormal";
   # strip them before either component call runs, since each component
   # would otherwise re-diagnose them against its own forced family
-  # (dispersion/breaks/max.rows duplicated on both; sigest/sigdf/sigquant/
-  # resid.prior a false "probit" diagnostic on the occupancy call, since
-  # they are genuinely live on the positive half). tree.prior/node.prior are
-  # NOT stripped from either list: they are live on both components, so they
-  # flow to both exactly as power/base/dart/k/prior.scale already do.
-  gatedOnBoth <- c("dispersion", "breaks", "max.rows")
+  # (sigest/sigdf/sigquant/resid.prior a false "probit" diagnostic on the
+  # occupancy call, since they are genuinely live on the positive half).
+  # tree.prior/node.prior are NOT stripped from either list: they are live on
+  # both components, so they flow to both exactly as power/base/k/prior.scale
+  # already do. The family-only settings ride the family object, which each
+  # component call replaces with its own, so nothing is left to strip.
   gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
   occupancyCall <- redirectCall(matchedCall, dbarts::bart)
-  occupancyCall[c(gatedOnBoth, gatedOnOccupancyOnly)] <- NULL
+  occupancyCall[gatedOnOccupancyOnly] <- NULL
   occupancyCall$formula <- formula
   occupancyCall$data <- split$z
   occupancyCall$family <- "probit"
@@ -2375,7 +2435,6 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   occupancy <- eval(occupancyCall, callingEnv)
 
   positiveCall <- redirectCall(matchedCall, dbarts::bart)
-  positiveCall[gatedOnBoth] <- NULL
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
@@ -2798,12 +2857,11 @@ bartBT <- function(
     control = control,
     sigest = as.numeric(sigest),
     factors = "indicators",
-    missing = "error"
+    na.action = stats::na.omit
   )
-  # this door always builds with missing = "error" (above) and has no
-  # 'missing' formal of its own, so dbarts()'s stock remedy - naming an
-  # argument it rejects - is rewritten to point at the front doors that
-  # actually take it
+  # 0.9-34's row rule, unchanged: a row with a missing value anywhere is
+  # dropped rather than modelled. The modern door's na.action default keeps
+  # missing predictors; this door adds no capability.
   sampler <- tryCatch(
     do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
     error = function(e) {
@@ -2813,17 +2871,6 @@ bartBT <- function(
       # 'family' formal, so its own two-remedy message stands in
       if (grepl("response is multinomial; fit it with", msg, fixed = TRUE)) {
         refuseLegacyFactorResponse()
-      }
-      if (grepl("missing = \"incorporate\" to model them", msg, fixed = TRUE)) {
-        stop(
-          sub(
-            "; use missing = \"incorporate\" to model them",
-            "; use bart() or dbarts(), which support missing = \"incorporate\", to model them",
-            msg,
-            fixed = TRUE
-          ),
-          call. = FALSE
-        )
       }
       stop(e)
     }

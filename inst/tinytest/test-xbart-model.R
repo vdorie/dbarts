@@ -106,7 +106,7 @@ expect_silent(
     n.burn = c(10L, 5L),
     n.test = 5,
     n.threads = 1L,
-    dart = TRUE
+    tree.prior = dbarts::dbartsPriors$dart()
   )
 )
 expect_silent(
@@ -119,7 +119,7 @@ expect_silent(
     n.burn = c(10L, 5L),
     n.test = 5,
     n.threads = 1L,
-    dart = dbarts::dbartsPriors$dart(a = 1)
+    tree.prior = dbarts::dbartsPriors$dart(a = 1)
   )
 )
 expect_error(

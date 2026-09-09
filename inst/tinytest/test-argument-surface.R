@@ -44,19 +44,22 @@ expect_equal(length(warnings.multiSigest), 1L)
 expect_match(conditionMessage(warnings.multiSigest[[1L]]), "sigest")
 expect_inherits(warnings.multiSigest[[1L]], "dbartsFamilyGatedWarning")
 
-warnings.ordinalDispersion <- captureWarnings(
-  fit2(y.ordinal, family = "ordinal", dispersion = 2)
+warnings.ordinalResidPrior <- captureWarnings(
+  fit2(y.ordinal, family = "ordinal", resid.prior = dbarts::dbartsPriors$chisq())
 )
-expect_equal(length(warnings.ordinalDispersion), 1L)
-expect_match(conditionMessage(warnings.ordinalDispersion[[1L]]), "dispersion")
-expect_inherits(warnings.ordinalDispersion[[1L]], "dbartsFamilyGatedWarning")
+expect_equal(length(warnings.ordinalResidPrior), 1L)
+expect_match(
+  conditionMessage(warnings.ordinalResidPrior[[1L]]),
+  "resid.prior"
+)
+expect_inherits(warnings.ordinalResidPrior[[1L]], "dbartsFamilyGatedWarning")
 
-warnings.nbinomBreaks <- captureWarnings(
-  fit2(y.count, family = "nbinom", breaks = 5)
+warnings.nbinomSigquant <- captureWarnings(
+  fit2(y.count, family = "nbinom", sigquant = 0.8)
 )
-expect_equal(length(warnings.nbinomBreaks), 1L)
-expect_match(conditionMessage(warnings.nbinomBreaks[[1L]]), "breaks")
-expect_inherits(warnings.nbinomBreaks[[1L]], "dbartsFamilyGatedWarning")
+expect_equal(length(warnings.nbinomSigquant), 1L)
+expect_match(conditionMessage(warnings.nbinomSigquant[[1L]]), "sigquant")
+expect_inherits(warnings.nbinomSigquant[[1L]], "dbartsFamilyGatedWarning")
 
 # counter-tests: live families stay silent
 expect_silent(fit2(y.gaussian, family = "gaussian", sigest = 5))
@@ -72,7 +75,7 @@ source(
 )
 expect_equal(
   countWarnings(
-    fit2(y.binary, family = "probit", sigest = 5, dispersion = 2),
+    fit2(y.binary, family = "probit", sigest = 5, sigdf = 5),
     "dbartsFamilyGatedWarning"
   ),
   1L
@@ -103,25 +106,17 @@ expect_equal(
   0L
 )
 
-# dispersion is inert on both components; the outer site diagnoses it once
-# and bart2Hurdle strips it from both component calls, so exactly one
-# warning reaches the caller, naming the outer family
+# the inventory is down to the four gaussian-scale names, every one of them
+# live on hurdle.lognormal's positive half, so no family-gated warning can
+# reach a hurdle fit at all - including from a family-only setting that
+# rides the family object rather than this signature
 expect_equal(
   countWarnings(
-    fit2(y.hurdle, family = "hurdle.lognormal", dispersion = 2),
+    fit2(y.hurdle, family = "hurdle.lognormal", resid.prior = dbarts::dbartsPriors$chisq()),
     "dbartsFamilyGatedWarning"
   ),
-  1L
+  0L
 )
-warnings.hurdleDispersion <- captureWarnings(
-  fit2(y.hurdle, family = "hurdle.lognormal", dispersion = 2)
-)
-expect_equal(length(warnings.hurdleDispersion), 1L)
-expect_match(
-  conditionMessage(warnings.hurdleDispersion[[1L]]),
-  "hurdle.lognormal"
-)
-expect_inherits(warnings.hurdleDispersion[[1L]], "dbartsFamilyGatedWarning")
 
 # bartBT() never calls the helper - silence is preserved by construction
 expect_silent(dbarts::bartBT(
@@ -218,16 +213,15 @@ expect_equal(diverged, character(0))
 expect_true("split.probs" %in% names(formals(dbarts::bart)))
 expect_identical(formals(dbarts::bart)[["split.probs"]], NULL)
 
-# match.arg error messages for bad tokens: bart resolves factors/missing in
-# its own frame before forwarding, so a bad token errors here, naming the
-# choices, same as R's own match.arg does for any other formal
+# match.arg error messages for bad tokens: bart resolves factors in its own
+# frame before forwarding, so a bad token errors here, naming the choices,
+# same as R's own match.arg does for any other formal
 expect_error(fit2(y.gaussian, factors = "bogus"), pattern = "should be one of")
-expect_error(fit2(y.gaussian, missing = "bogus"), pattern = "should be one of")
 
 # Interaction with family gating: the suppliedNames snapshot (argNames,
 # R/bart.R) precedes the resolve-and-forward step, so making
-# factors/missing/proposal.probs unconditionally forwarded does not make
-# them look "supplied" to family gating - a defaulted factors/missing call
+# factors/proposal.probs unconditionally forwarded does not make
+# them look "supplied" to family gating - a defaulted factors call
 # under a gating family stays silent
 expect_silent(fit2(y.multi, family = "multinomial"))
 expect_silent(fit2(y.count, family = "nbinom"))
@@ -270,9 +264,13 @@ explicitFactors <- do.call(
 )
 expect_true(sameDraws(defaultedFactors, explicitFactors))
 
-defaultedMissing <- fit2(y.gaussian, seed = 77L)
-explicitMissing <- fit2(y.gaussian, missing = "incorporate", seed = 77L)
-expect_true(sameDraws(defaultedMissing, explicitMissing))
+defaultedNaAction <- fit2(y.gaussian, seed = 77L)
+explicitNaAction <- fit2(
+  y.gaussian,
+  na.action = dbarts::na.keepPredictors,
+  seed = 77L
+)
+expect_true(sameDraws(defaultedNaAction, explicitNaAction))
 
 # proposal.probs' default is now the named vector, always forwarded - a
 # defaulted bart call still composes with monotone
@@ -367,12 +365,17 @@ expect_true(setequal(
   intersect(controlFormals1_0_0, names(formals(dbarts::bart))),
   controlFormals1_0_0
 ))
-expect_true(all(controlFormalsAdded %in% names(formals(dbarts::bart))))
-# and the parity is of the DEFAULT too, not only the name: levelGibbs is a
-# tri-state logical whose NA is the automatic mode, so a bart default of
-# FALSE would quietly turn the automatic step off for every bart fit
-expect_identical(formals(dbarts::bart)[["levelGibbs"]], NA)
+# levelGibbs is a control field the consolidation took off the fitting
+# functions: it is declared on the tree prior, whose own default is the same
+# tri-state NA (the automatic mode), so nothing quietly turns the automatic
+# step off
+expect_false(any(controlFormalsAdded %in% names(formals(dbarts::bart))))
 expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
+expect_identical(
+  formals(dbarts:::cgm)[["levelGibbs"]],
+  formals(dbarts:::dart)[["levelGibbs"]]
+)
+expect_identical(formals(dbarts:::cgm)[["levelGibbs"]], NA)
 
 # The variance quartet collapses to a dedicated varianceForest() constructor;
 # variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)
@@ -652,7 +655,7 @@ expect_error(
   dbarts::bart(
     x,
     y.gaussian,
-    resid. = 1,
+    n. = 1,
     n.trees = 3L,
     n.samples = 5L,
     n.burn = 2L,
@@ -781,7 +784,7 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-expect_equal(length(formals(dbarts::xbart)), 33L)
+expect_equal(length(formals(dbarts::xbart)), 31L)
 expect_error(
   dbarts::xbart(
     x,
@@ -799,11 +802,15 @@ legacyOnly <- c(
   "subset",
   "storage",
   "family",
-  "resid.dist",
   "prior.scale"
 )
 expect_false(any(legacyOnly %in% names(formals(dbarts::bartBT))))
 expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
+# the residual law is one of those capabilities, spelled as a family rather
+# than as a formal of its own on either door
+expect_false("resid.dist" %in% names(formals(dbarts::bart)))
+expect_false("resid.dist" %in% names(formals(dbarts::bartBT)))
+expect_true("student" %in% eval(formals(dbarts::bart)$family))
 
 # the modern door offers every family token the package fits from one
 # sampler, plus the hurdle composition it builds itself

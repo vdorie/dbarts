@@ -4,6 +4,10 @@
 # runs the dense entry, so every accepted shape must land BITWISE what its
 # dense equivalent lands
 
+source(
+  system.file("common", "strictData.R", package = "dbarts"),
+  local = TRUE
+)
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
 }
@@ -254,7 +258,8 @@ expect_error(
   pattern = "existing category codes"
 )
 
-# --- an NA in a sparse argument is a stored NaN, and trips missing = "error"
+# --- an NA in a sparse argument is a stored NaN, and trips a data object
+# whose missing policy is "error"
 na.column <- Matrix::sparseMatrix(
   i = c(4L, 9L),
   j = c(1L, 1L),
@@ -262,7 +267,7 @@ na.column <- Matrix::sparseMatrix(
   dims = c(n, 1L),
   repr = "C"
 )
-sampler.strict <- dbarts(x.a, y.a, control = control, missing = "error")
+sampler.strict <- dbarts(strictData(x.a, y.a), control = control)
 expect_error(
   sampler.strict$setPredictor(na.column, column = 1L, forceUpdate = TRUE),
   pattern = "missing values"

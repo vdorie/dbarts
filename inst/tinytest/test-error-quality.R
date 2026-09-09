@@ -23,8 +23,14 @@ expect_error(
 )
 yNaN <- testData$y
 yNaN[1L] <- NaN
+# NaN is a missing response, so the default na.action drops its row; under
+# na.pass the completeness check still names it
+expect_equal(
+  length(dbarts::dbartsData(testData$x, yNaN)@y),
+  length(yNaN) - 1L
+)
 expect_error(
-  dbarts::dbartsData(testData$x, yNaN),
+  dbarts::dbartsData(testData$x, yNaN, na.action = na.pass),
   "response contains missing values"
 )
 

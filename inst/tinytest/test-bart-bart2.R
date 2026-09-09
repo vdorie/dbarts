@@ -291,24 +291,23 @@ expect_error(
 )
 rm(nF, dF, trF, ytrF, teFewer, teExtra, teMany, teChar, fitF)
 
-# bartBT()'s missing-predictor refusal cannot advise an argument bartBT()
-# itself rejects (missing = "incorporate", bart()/dbarts() only); it
-# points at those front doors instead
+# bartBT() keeps 0.9-34's row rule: an incomplete row is dropped, not
+# modelled and not refused, and the door takes no na.action of its own
 set.seed(505)
 nMiss <- 40L
 xMiss <- matrix(rnorm(nMiss * 2L), nMiss, 2L)
 xMiss[1L, 1L] <- NA_real_
 yMiss <- rnorm(nMiss)
-expect_error(
-  dbarts::bartBT(
+expect_equal(
+  length(dbarts::bartBT(
     xMiss,
     yMiss,
     ndpost = 3L,
     nskip = 2L,
     ntree = 3L,
     verbose = FALSE
-  ),
-  pattern = "use bart\\(\\) or dbarts\\(\\)"
+  )$y),
+  nMiss - 1L
 )
 expect_error(
   dbarts::bartBT(
@@ -318,7 +317,7 @@ expect_error(
     nskip = 2L,
     ntree = 3L,
     verbose = FALSE,
-    missing = "incorporate"
+    na.action = na.pass
   ),
   pattern = "unused argument"
 )

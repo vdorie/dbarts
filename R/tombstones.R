@@ -101,6 +101,97 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "resid.dist",
+    kind = "argument",
+    owner = "bart",
+    successor = "family = student(df)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "resid.dist",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "family = student(df)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "resid.dist",
+    kind = "argument",
+    owner = "dbartsSpec",
+    successor = "family = student(df)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "dispersion",
+    kind = "argument",
+    owner = "bart",
+    successor = "family = nbinom(dispersion)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "dispersion",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "family = nbinom(dispersion)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "dispersion",
+    kind = "argument",
+    owner = "dbartsSpec",
+    successor = "family = nbinom(dispersion)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "breaks",
+    kind = "argument",
+    owner = "bart",
+    successor = "family = hazard(breaks)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "breaks",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "family = hazard(breaks)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "max.rows",
+    kind = "argument",
+    owner = "bart",
+    successor = "family = hazard(max.rows)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "max.rows",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "family = hazard(max.rows)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "dart",
+    kind = "argument",
+    owner = "bart",
+    successor = "tree.prior = dart()",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "dart",
+    kind = "argument",
+    owner = "xbart",
+    successor = "tree.prior = dart()",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "levelGibbs",
+    kind = "argument",
+    owner = "bart",
+    successor = "tree.prior = cgm(levelGibbs)",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "twopart",
     kind = "family",
     owner = NA_character_,
@@ -273,22 +364,161 @@ seedRenameReason <- paste0(
   tombstoneExpiry
 )
 
-tombstoneDotsReasons <- list(
-  bart = list(rngSeed = seedRenameReason),
-  dbartsControl = list(rngSeed = seedRenameReason),
-  xbart = list()
+## The family-only and feature-only formals dec-B98's consolidation moved
+## onto the objects that own them. Each is still accepted for one release,
+## carried on '...' and mapped onto its object after saying so once.
+consolidatedArgReasons <- list(
+  resid.dist = paste0(
+    "the residual law is a family: write family = student(df) or ",
+    "family = gaussian(); 'resid.dist' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  dispersion = paste0(
+    "the count dispersion rides its family: write ",
+    "family = nbinom(dispersion = ); 'dispersion' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  breaks = paste0(
+    "the hazard period grid rides its family: write ",
+    "family = hazard(breaks = ); 'breaks' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  max.rows = paste0(
+    "the hazard expansion cap rides its family: write ",
+    "family = hazard(max.rows = ); 'max.rows' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  dart = paste0(
+    "a DART prior is a tree prior: write tree.prior = dart(); 'dart' is ",
+    "removed in dbarts ",
+    tombstoneExpiry
+  ),
+  levelGibbs = paste0(
+    "the categorical-split level Gibbs step is declared on the tree prior: ",
+    "write tree.prior = cgm(levelGibbs = ); 'levelGibbs' is removed in ",
+    "dbarts ",
+    tombstoneExpiry
+  )
 )
 
+## Which of them each entry point used to carry.
+consolidatedArgsFor <- list(
+  bart = c(
+    "resid.dist",
+    "dispersion",
+    "breaks",
+    "max.rows",
+    "dart",
+    "levelGibbs"
+  ),
+  dbarts = c("resid.dist", "dispersion", "breaks", "max.rows"),
+  dbartsSpec = c("resid.dist", "dispersion"),
+  xbart = "dart"
+)
+
+tombstoneDotsReasons <- list(
+  bart = c(
+    list(rngSeed = seedRenameReason),
+    consolidatedArgReasons[consolidatedArgsFor$bart]
+  ),
+  dbarts = consolidatedArgReasons[consolidatedArgsFor$dbarts],
+  dbartsSpec = consolidatedArgReasons[consolidatedArgsFor$dbartsSpec],
+  dbartsControl = list(rngSeed = seedRenameReason),
+  xbart = consolidatedArgReasons[consolidatedArgsFor$xbart]
+)
+
+## Reads the consolidated names out of an entry point's '...', warning once
+## per name and per entry point. The values come back under their old
+## spellings; the caller maps each onto the object that now owns it, so the
+## fit is the one the old spelling asked for.
+resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
+  names <- intersect(consolidatedArgsFor[[caller]], supplied)
+  values <- list()
+  for (name in names) {
+    warnOnce(
+      paste0("tombstone.consolidated.", name, ".", caller),
+      "'",
+      name,
+      "' has left '",
+      caller,
+      "': ",
+      consolidatedArgReasons[[name]],
+      ". The value was used."
+    )
+    # each old spelling keeps the vocabulary it was written in: resid.dist
+    # took the residual-law constructors, now the family ones, and dart took
+    # the prior constructors, neither of which is exported
+    env <- switch(
+      name,
+      resid.dist = vocabularyEnv(dbartsFamilies, evalEnv),
+      dart = vocabularyEnv(dbartsPriors, evalEnv),
+      evalEnv
+    )
+    values[name] <- list(eval(matchedCall[[name]], env))
+  }
+  values
+}
+
+## Maps the family-only names onto the family object they now ride. A
+## 'resid.dist' of student() is the family itself, so it can only be
+## reconciled with an explicit family that is already gaussian.
+applyConsolidatedFamilyArgs <- function(family, consolidated) {
+  residDist <- consolidated[["resid.dist"]]
+  if (!is.null(residDist)) {
+    if (is.function(residDist)) {
+      residDist <- residDist()
+    }
+    if (!is(residDist, "dbartsFamily") || residDist@token %not_in% c("gaussian", "student")) {
+      stop(
+        "'resid.dist' takes gaussian() or student(df); it is now spelled ",
+        "family = ",
+        call. = FALSE
+      )
+    }
+    if (identical(residDist@token, "student")) {
+      if (family@token %not_in% c("auto", "gaussian", "student")) {
+        stop(
+          "student residuals require a continuous gaussian response; family ",
+          "\"",
+          family@token,
+          "\" has its own fixed error scale",
+          call. = FALSE
+        )
+      }
+      family@settings <- c(
+        family@settings,
+        residDist@settings[setdiff(names(residDist@settings), names(family@settings))]
+      )
+      family@token <- "student"
+    }
+  }
+  for (name in c("dispersion", "breaks", "max.rows")) {
+    if (name %in% names(consolidated)) {
+      family@settings[[name]] <- consolidated[[name]]
+    }
+  }
+  family
+}
+
+## The names in a '...', without forcing one of them: a retired argument may
+## be spelled in a vocabulary that only this package holds (resid.dist =
+## student()), so its promise must not be evaluated in the caller's frame.
+dotNames <- function(...) {
+  count <- ...length()
+  if (count == 0L) {
+    return(character(0L))
+  }
+  supplied <- ...names()
+  if (is.null(supplied)) rep_len("", count) else supplied
+}
+
 ## Anything else in '...' is a caller mistake: refused by name, naming the
-## entry point, rather than dropped without a word.
-refuseForeignFrontDoorArgs <- function(dots, caller, own) {
+## entry point, rather than dropped without a word. 'supplied' is the dots
+## names, "" for an unnamed one.
+refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
   accepted <- names(foreignArgsFor(tombstoneDotsReasons[[caller]], own))
   if (identical(caller, "bart")) {
     accepted <- c(accepted, bartBTOnlyFormals)
-  }
-  supplied <- names(dots)
-  if (is.null(supplied)) {
-    supplied <- character(length(dots))
   }
   foreign <- setdiff(supplied[nzchar(supplied)], accepted)
   if (length(foreign) > 0L) {
@@ -303,11 +533,7 @@ refuseForeignFrontDoorArgs <- function(dots, caller, own) {
       call. = FALSE
     )
   }
-  unnamed <- if (is.null(names(dots))) {
-    seq_along(dots)
-  } else {
-    which(!nzchar(names(dots)))
-  }
+  unnamed <- which(!nzchar(supplied))
   if (length(unnamed) > 0L) {
     stop(
       "'",
@@ -323,8 +549,8 @@ refuseForeignFrontDoorArgs <- function(dots, caller, own) {
 
 ## 'rngSeed' arrives through '...'; it is the same value under the old
 ## name, so it is accepted rather than refused, once per session.
-resolveRenamedSeed <- function(dots, caller, seed) {
-  if (is.null(dots[["rngSeed"]])) {
+resolveRenamedSeed <- function(rngSeed, caller, seed) {
+  if (is.null(rngSeed)) {
     return(seed)
   }
   warnOnce(
@@ -334,7 +560,7 @@ resolveRenamedSeed <- function(dots, caller, seed) {
     tombstoneExpiry,
     "."
   )
-  dots[["rngSeed"]]
+  rngSeed
 }
 
 ## ------------------------------------------------------------------

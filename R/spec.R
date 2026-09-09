@@ -107,6 +107,7 @@ resolveSamplerSpec <- function(
   family,
   requestedFamily,
   dispersion,
+  residDf,
   proposal.probs,
   monotone,
   interactions,
@@ -316,8 +317,7 @@ resolveSamplerSpec <- function(
     callFormals,
     "tree.prior",
     "node.prior",
-    "resid.prior",
-    "resid.dist"
+    "resid.prior"
   )
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
@@ -347,6 +347,16 @@ resolveSamplerSpec <- function(
   }
   if (!is.null(firstForest$power)) {
     priors$tree.prior@power <- firstForest$power
+  }
+
+  # the categorical-split level Gibbs step is declared on the tree prior; the
+  # control is how it reaches the bridge, so a declared value is copied there
+  # and an undeclared one (NA) leaves whatever the control already carries
+  if (
+    is(priors$tree.prior, "dbartsCGMPrior") &&
+      !is.na(priors$tree.prior@levelGibbs)
+  ) {
+    control@levelGibbs <- priors$tree.prior@levelGibbs
   }
 
   # A monotone constraint restricts the forest to birth/death proposals (change
@@ -404,16 +414,16 @@ resolveSamplerSpec <- function(
   # latent scale), refused here R-side to match the C bridge's backstop. The
   # resolved degrees of freedom ride the model's resid.df attribute the bridge
   # reads - the bartcore.survival precedent above - absent for the Gaussian law.
-  if (is(priors$resid.dist, "dbartsStudentDist") && family != "gaussian") {
+  # NA in the settings means estimate, which the bridge spells 0.
+  if (!is.null(residDf) && family != "gaussian") {
     stop(
       "student residuals require a continuous gaussian response; family \"",
       requestedFamily,
       "\" has its own fixed error scale"
     )
   }
-  residDf <- residDistDf(priors$resid.dist)
   if (!is.null(residDf)) {
-    attr(model, "resid.df") <- residDf
+    attr(model, "resid.df") <- if (is.na(residDf)) 0.0 else as.double(residDf)
   }
 
   # the resolved per-column monotone directions ride the model attribute the C
@@ -795,7 +805,6 @@ dbartsSpec <- function(
   tree.prior = cgm,
   node.prior = normal,
   resid.prior = chisq,
-  resid.dist = gaussian,
   proposal.probs = c(
     birth_death = 0.6,
     swap = 0,
@@ -814,6 +823,7 @@ dbartsSpec <- function(
   family = c(
     "auto",
     "gaussian",
+    "student",
     "probit",
     "logistic",
     "aft",
@@ -821,12 +831,27 @@ dbartsSpec <- function(
     "ordinal",
     "nbinom"
   ),
-  dispersion = NA_real_,
   survival = NULL,
   parentEnv = parent.frame(),
-  sigma = NA_real_
+  sigma = NA_real_,
+  ...
 ) {
   matchedCall <- match.call()
+
+  # '...' carries the names dec-B98's consolidation moved onto the family
+  # objects, for one release; anything else is refused by name
+  supplied <- dotNames(...)
+  refuseForeignFrontDoorArgs(
+    supplied,
+    "dbartsSpec",
+    names(formals(dbarts::dbartsSpec))
+  )
+  consolidated <- resolveConsolidatedArgs(
+    matchedCall,
+    supplied,
+    "dbartsSpec",
+    parentEnv
+  )
 
   # the creation-time estimate is 'sigest' here as everywhere; 'sigma' is
   # the 0.9-x spelling, accepted for one release. Both flags are read before
@@ -847,7 +872,22 @@ dbartsSpec <- function(
   if (!inherits(control, "dbartsControl")) {
     stop("'control' must be a dbartsControl object; see ?dbartsControl")
   }
-  family <- match.arg(family)
+  familySpec <- resolveFamily(
+    matchedCall$family,
+    eval(formals(dbarts::dbartsSpec)$family),
+    "dbartsSpec",
+    parentEnv
+  )
+  familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
+  family <- familySpec@token
+  dispersion <- familySetting(familySpec, "dispersion", NA_real_)
+  # Student-t is a gaussian response carrying a degrees-of-freedom attribute
+  # on this side of the bridge; the remap happens once, here
+  residDf <- NULL
+  if (identical(family, "student")) {
+    residDf <- familySetting(familySpec, "df", NA_real_)
+    family <- "gaussian"
+  }
 
   # the survival status is the one piece of response ingestion this surface
   # cannot do for the caller: dbarts() reads it off a Surv or two-column
@@ -910,8 +950,9 @@ dbartsSpec <- function(
     control,
     data,
     family,
-    requestedFamily = family,
+    requestedFamily = familySpec@token,
     dispersion = dispersion,
+    residDf = residDf,
     proposal.probs = proposal.probs,
     monotone = monotone,
     interactions = interactions,

@@ -390,19 +390,19 @@ expect_error(
   dbarts::bart(
     df,
     rnorm(n),
-    ndpost = 10L,
-    nskip = 5L,
-    ntree = 5L,
-    nthread = 1L,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.threads = 1L,
+    na.action = na.fail,
     verbose = FALSE
   ),
-  pattern = "predictors contain missing values"
+  pattern = "missing values"
 )
 data <- dbarts::dbartsData(
   rnorm(n) ~ f + z,
   df,
-  factors = "indicators",
-  missing = "incorporate"
+  factors = "indicators"
 )
 expect_true(anyNA(data@x))
 expect_equal(ncol(data@x), 4L)

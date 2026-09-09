@@ -4,6 +4,11 @@
 # covariate regather all read the mutated values rather than the ones the
 # container was built from
 
+source(
+  system.file("common", "strictData.R", package = "dbarts"),
+  local = TRUE
+)
+
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
 }
@@ -160,7 +165,7 @@ expect_error(
 # ordinal column carries sparseReference = NA_integer_ (the "no reference
 # level" sentinel) as a length-one list element, which base anyNA() on a
 # list misreads as a missing value that is not there
-sampler.strict <- dbarts(x.frame, y, control = control, missing = "error")
+sampler.strict <- dbarts(strictData(x.frame, y), control = control)
 test.one.sparse <- data.frame(u = rnorm(5L), w = rnorm(5L))
 test.one.sparse$sv <- Matrix::sparseVector(
   x = c(0.6, 0.9),
@@ -175,7 +180,7 @@ expect_silent(sampler.strict$setTestPredictor(container.no.na))
 # with two or more sparse columns, sparseReference is a length>1 element -
 # never inspected for NA by a top-level list anyNA() at all - so a real NA
 # in sparse@x goes undetected in the other direction
-sampler.strict2 <- dbarts(x.frame, y, control = control, missing = "error")
+sampler.strict2 <- dbarts(strictData(x.frame, y), control = control)
 test.two.sparse <- data.frame(u = rnorm(5L))
 test.two.sparse$w <- Matrix::sparseVector(
   x = c(NA_real_, 0.4),

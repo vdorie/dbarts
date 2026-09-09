@@ -3,34 +3,36 @@ source(
   local = TRUE
 )
 
-# The Student-t residual surface: the
-# resid.dist = student() constructor, its validation, the gaussian-only family
-# refusal, and that the resolved degrees of freedom ride the model's resid.df
-# attribute the C bridge reads (absent = gaussian, 0 = estimate, positive =
-# fixed). A tiny smoke fit in both df modes, predict/fitted shapes, and a
-# serialize+restore round-trip.
+# The Student-t residual surface: the family = student() object, its
+# validation, the gaussian-only refusal the retired resid.dist spelling can
+# still reach, and that the resolved degrees of freedom ride the model's
+# resid.df attribute the C bridge reads (absent = gaussian, 0 = estimate,
+# positive = fixed). A tiny smoke fit in both df modes, predict/fitted
+# shapes, and a serialize+restore round-trip.
 
 x <- testData$x
 y <- testData$y
 
 # --- constructor construction and validation -------------------------------
 
-gaussianDist <- dbarts:::gaussian()
-studentEstimate <- dbarts:::student()
-studentFixed <- dbarts:::student(df = 4)
+gaussianFamily <- dbartsFamilies$gaussian()
+studentEstimate <- dbartsFamilies$student()
+studentFixed <- dbartsFamilies$student(df = 4)
 
-expect_true(is(gaussianDist, "dbartsResidDist"))
-expect_true(is(studentEstimate, "dbartsStudentDist"))
-expect_true(is.na(studentEstimate@df)) # NULL df means estimate
-expect_equal(studentFixed@df, 4)
+expect_true(is(gaussianFamily, "dbartsFamily"))
+expect_true(is(studentEstimate, "dbartsFamily"))
+expect_equal(gaussianFamily@token, "gaussian")
+expect_equal(studentEstimate@token, "student")
+expect_true(is.na(studentEstimate@settings$df)) # NULL df means estimate
+expect_equal(studentFixed@settings$df, 4)
 
 # df must be NULL (estimate) or a single positive finite number
-expect_error(dbarts:::student(df = -1), "positive finite")
-expect_error(dbarts:::student(df = 0), "positive finite")
-expect_error(dbarts:::student(df = Inf), "positive finite")
-expect_error(dbarts:::student(df = NA_real_), "positive finite")
-expect_error(dbarts:::student(df = c(2, 4)), "single positive finite")
-expect_error(dbarts:::student(df = "4"), "single positive finite")
+expect_error(dbartsFamilies$student(df = -1), "positive finite")
+expect_error(dbartsFamilies$student(df = 0), "positive finite")
+expect_error(dbartsFamilies$student(df = Inf), "positive finite")
+expect_error(dbartsFamilies$student(df = NA_real_), "positive finite")
+expect_error(dbartsFamilies$student(df = c(2, 4)), "single positive finite")
+expect_error(dbartsFamilies$student(df = "4"), "single positive finite")
 
 # --- the resid.df attribute the bridge reads -------------------------------
 
@@ -49,7 +51,7 @@ samplerFixed <- dbarts::dbarts(
   x,
   y,
   control = control,
-  resid.dist = student(df = 4)
+  family = student(df = 4)
 )
 expect_equal(attr(samplerFixed$model, "resid.df"), 4)
 
@@ -57,31 +59,33 @@ samplerEstimate <- dbarts::dbarts(
   x,
   y,
   control = control,
-  resid.dist = student()
+  family = student()
 )
 expect_equal(attr(samplerEstimate$model, "resid.df"), 0) # 0 signals estimate
 
-# --- family refusal (R-side backstop for the C cross-check) ----------------
+# --- family refusal --------------------------------------------------------
 
+# the Student-t law IS a family now, so no combination on the front door can
+# ask a probit fit for it; the retired resid.dist spelling can still name
+# both, and is refused rather than resolved one way in silence
 yBinary <- as.numeric(y > median(y))
 expect_error(
-  dbarts::dbarts(
+  suppressWarnings(dbarts::dbarts(
     x,
     yBinary,
     control = control,
     family = "probit",
     resid.dist = student(df = 4)
-  ),
+  )),
   "student residuals require a continuous gaussian response"
 )
-# gaussian() on a binary probit fit is fine (the default error law), and
-# attaches no resid.df attribute
+# a binary probit fit takes the gaussian latent scale and attaches no
+# resid.df attribute
 samplerBinary <- dbarts::dbarts(
   x,
   yBinary,
   control = control,
-  family = "probit",
-  resid.dist = gaussian()
+  family = "probit"
 )
 expect_null(attr(samplerBinary$model, "resid.df"))
 
@@ -98,7 +102,7 @@ fitFixed <- dbarts::bart(
   n.threads = 1L,
   verbose = FALSE,
   keepTrees = TRUE,
-  resid.dist = student(df = 4)
+  family = student(df = 4)
 )
 expect_equal(dim(fitFixed$yhat.train), c(40L, length(y)))
 predsFixed <- predict(fitFixed, x)
@@ -116,7 +120,7 @@ fitEstimate <- dbarts::bart(
   n.threads = 1L,
   verbose = FALSE,
   keepTrees = TRUE,
-  resid.dist = student()
+  family = student()
 )
 expect_equal(dim(fitEstimate$yhat.train), c(40L, length(y)))
 expect_true(all(is.finite(fitEstimate$sigma)))

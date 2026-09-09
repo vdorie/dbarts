@@ -1,5 +1,12 @@
-# missing = "incorporate": NAs in the predictors are modeled, every split
-# rule learning a direction for missing values; "error" rejects them
+# NAs in the predictors are modelled, every split rule learning a direction
+# for missing values, for whatever rows the fit's na.action kept; na.fail
+# rejects them, and a data object whose own missing policy is "error"
+# refuses NA updates on a live sampler
+
+source(
+  system.file("common", "strictData.R", package = "dbarts"),
+  local = TRUE
+)
 
 set.seed(42)
 n <- 400L
@@ -20,17 +27,22 @@ expect_equal(nrow(data.mia@x), n)
 expect_true(anyNA(data.mia@x[, "x1"]) && anyNA(data.mia@x[, "g"]))
 expect_equal(data.mia@missing, "incorporate")
 
-# the error escape rejects incomplete predictors; the response side always
-# must be complete; a column of nothing but NA has no observed values
+# na.fail rejects incomplete predictors; the default drops a row whose
+# RESPONSE is missing and keeps the rest; a column of nothing but NA has no
+# observed values
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df, missing = "error"),
+  dbartsData(y ~ x1 + x2 + g, df, na.action = na.fail),
   pattern = "missing values"
 )
-expect_inherits(dbartsData(y ~ x2, df, missing = "error"), "dbartsData")
+expect_inherits(dbartsData(y ~ x2, df, na.action = na.fail), "dbartsData")
 df.badY <- df
 df.badY$y[1L] <- NA
+data.badY <- dbartsData(y ~ x1 + x2 + g, df.badY)
+expect_equal(length(data.badY@y), n - 1L)
+expect_equal(unclass(data.badY@na.action), 1L, check.attributes = FALSE)
+expect_inherits(data.badY@na.action, "exclude")
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df.badY),
+  dbartsData(y ~ x1 + x2 + g, df.badY, na.action = na.pass),
   pattern = "response contains missing"
 )
 df.allNA <- df
@@ -99,8 +111,9 @@ predictions <- sampler.keep$predict(test.df)
 expect_equal(dim(predictions), c(20L, 5L))
 expect_true(!anyNA(predictions))
 
-# a sampler built with missing = "error" refuses NA updates
-sampler.strict <- dbarts(y ~ x2, df, control = control, missing = "error")
+# a sampler whose data object carries the "error" missing policy refuses NA
+# updates
+sampler.strict <- dbarts(strictData(y ~ x2, df), control = control)
 x2.bad <- df$x2
 x2.bad[1L] <- NA
 expect_error(
@@ -224,7 +237,7 @@ expect_error(
   pattern = "'x2'"
 )
 
-# missing = "error": no column ever learned a route, so any test NA is
+# the "error" policy: no column ever learned a route, so any test NA is
 # refused - today (pre-D8) it answers silently
 expect_error(
   sampler.strict$predict(data.frame(x2 = c(NA_real_, 0.4, 0.6))),

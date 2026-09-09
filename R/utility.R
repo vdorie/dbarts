@@ -50,16 +50,6 @@ familyGatingInventory <- list(
     names = "resid.prior",
     liveIn = c("gaussian", "aft", "hurdle.lognormal"),
     reason = "the residual scale is fixed, not estimated"
-  ),
-  list(
-    names = "dispersion",
-    liveIn = "nbinom",
-    reason = "only family = \"nbinom\" estimates a count dispersion"
-  ),
-  list(
-    names = c("breaks", "max.rows"),
-    liveIn = c("hazard", "hazard.probit", "hazard.logistic"),
-    reason = "only a discrete-time hazard fit expands a time grid"
   )
 )
 

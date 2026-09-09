@@ -1,7 +1,7 @@
-# missing = "incorporate" via the raw matrix (x.train, y.train) interface:
-# previously the matrix branch's complete-cases filter ran unconditionally,
-# silently dropping NA rows and defeating "incorporate" (only the formula
-# interface, which uses na.action = na.pass, could actually reach it).
+# Missing predictors are modelled through the raw matrix (x.train, y.train)
+# interface exactly as through the formula one: the na.action applies to the
+# (y, x) pair, so the two interfaces keep the same rows and route the same
+# NAs.
 
 set.seed(7)
 n <- 300L
@@ -23,19 +23,23 @@ expect_true(anyNA(data.matrix.inc@x[, "x1"]))
 expect_equal(which(is.na(data.matrix.inc@x[, "x1"])), which(isMissing))
 expect_equal(data.matrix.inc@missing, "incorporate")
 
-# missing = "error" is unaffected: it still rejects NA-bearing predictors
+# na.fail reaches the matrix pair too, and rejects NA-bearing predictors
 expect_error(
-  dbarts::dbartsData(xMat, y, missing = "error"),
-  pattern = "predictors contain missing"
+  dbarts::dbartsData(xMat, y, na.action = na.fail),
+  pattern = "missing values"
 )
 
-# a missing response is never incorporated, matrix interface included - it
-# is rejected outright rather than silently dropped, matching the formula
-# interface's response handling
+# a missing response is never incorporated, matrix interface included: the
+# default na.action drops its row and records it, and na.pass leaves the
+# completeness check to refuse it, matching the formula interface
 y.badY <- y
 y.badY[1L] <- NA_real_
+data.badY <- dbarts::dbartsData(xMat, y.badY)
+expect_equal(length(data.badY@y), n - 1L)
+expect_inherits(data.badY@na.action, "exclude")
+expect_equal(nrow(data.badY@x), n - 1L)
 expect_error(
-  dbarts::dbartsData(xMat, y.badY),
+  dbarts::dbartsData(xMat, y.badY, na.action = na.pass),
   pattern = "response contains missing"
 )
 

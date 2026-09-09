@@ -61,8 +61,7 @@ expect_true(is.finite(fit.sparse$sigest) && fit.sparse$sigest > 0)
 # variable names ride through to varcount
 expect_equal(colnames(fit.sparse$varcount), colnames(x.dense))
 
-# missing values are stored NaN entries and route through MIA (bart pins
-# missing = "error", so the NA fit goes through bart)
+# missing values are stored NaN entries and route through MIA
 x.na <- x.sparse
 x.na[3L, 1L] <- NA_real_
 fit.na <- bart(
@@ -74,9 +73,17 @@ fit.na <- bart(
   verbose = FALSE
 )
 expect_equal(length(fitted(fit.na)), n)
-expect_error(dbartsData(x.na, y, missing = "error"), pattern = "missing values")
+expect_error(dbartsData(x.na, y, na.action = na.fail), pattern = "missing values")
 expect_error(
-  bart(x.na, y, ndpost = 20L, nskip = 20L, ntree = 25L, verbose = FALSE),
+  bart(
+    x.na,
+    y,
+    n.samples = 20L,
+    n.burn = 20L,
+    n.trees = 25L,
+    na.action = na.fail,
+    verbose = FALSE
+  ),
   pattern = "missing values"
 )
 

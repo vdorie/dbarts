@@ -13,9 +13,14 @@ methods::setClass(
     # the raw user specification (possibly named, referencing columns);
     # resolved against the data into splitProbabilities when a sampler is
     # built, and NULL thereafter
-    splitProbabilitiesSpec = "ANY"
+    splitProbabilitiesSpec = "ANY",
+    # tri-state: NA is "not declared here", which leaves the control's own
+    # setting in force; TRUE/FALSE declare the categorical-split level Gibbs
+    # step for this prior and are copied onto the control when the sampler
+    # specification is resolved
+    levelGibbs = "logical"
   ),
-  prototype = list(splitProbabilitiesSpec = NULL)
+  prototype = list(splitProbabilitiesSpec = NULL, levelGibbs = NA)
 )
 methods::setValidity("dbartsCGMPrior", function(object) {
   if (object@power <= 0.0) {
@@ -23,6 +28,9 @@ methods::setValidity("dbartsCGMPrior", function(object) {
   }
   if (object@base <= 0.0 || object@base >= 1.0) {
     return("'base' must be in (0, 1)")
+  }
+  if (length(object@levelGibbs) != 1L) {
+    return("'levelGibbs' must be of length 1")
   }
   if (
     length(object@splitProbabilities) > 0L &&
@@ -200,27 +208,24 @@ methods::setValidity("dbartsFixedPrior", function(object) {
   TRUE
 })
 
-## The residual error LAW, orthogonal to resid.prior (the sigma^2 prior):
-## gaussian() is the default; student(df) selects Student-t errors by the
-## Gaussian scale-mixture augmentation. df of
-## NA_real_ means estimate the degrees of freedom on a capped grid; a finite
-## positive df fixes them. The resolved value reaches the C bridge as a
-## length-1 numeric resid.df attribute on the model object (0 = estimate).
-methods::setClass("dbartsResidDist")
-methods::setClass("dbartsGaussianDist", contains = "dbartsResidDist")
+## A response family and the settings that ride only on it. `token` is the
+## front-door spelling ("gaussian", "student", "hazard.probit", ...) and
+## `settings` holds that family's own arguments - a Student-t df, a count
+## dispersion, a hazard time grid - so that no family-specific name has to
+## live on a fitting function's signature. The constructors are in
+## R/family.R and the resolution into the engine's own family list is in
+## R/spec.R.
 methods::setClass(
-  "dbartsStudentDist",
-  contains = "dbartsResidDist",
-  slots = list(df = "numeric"),
-  prototype = list(df = NA_real_)
+  "dbartsFamily",
+  slots = list(token = "character", settings = "list"),
+  prototype = list(token = NA_character_, settings = list())
 )
-methods::setValidity("dbartsStudentDist", function(object) {
-  if (length(object@df) != 1L) {
-    return("'df' must be a single value")
+methods::setValidity("dbartsFamily", function(object) {
+  if (length(object@token) != 1L || is.na(object@token)) {
+    return("'token' must be a single family name")
   }
-  ## NA means estimate; a supplied value must be finite and positive
-  if (!is.na(object@df) && (!is.finite(object@df) || object@df <= 0.0)) {
-    return("'df' must be NULL (estimate) or a positive finite scalar")
+  if (is.null(names(object@settings)) && length(object@settings) > 0L) {
+    return("'settings' must be named")
   }
   TRUE
 })
@@ -519,7 +524,16 @@ methods::setClass(
     offset.test = "numericOrNULL",
     n.cuts = "integer",
     sigma = "numeric",
+    # always "incorporate" from every entry point: missing predictor values
+    # are modelled for whichever rows 'na.action' kept. The slot survives for
+    # a host that drives a sampler directly and wants new predictors refused
+    # rather than routed.
     missing = "character",
+    # what the fit's 'na.action' removed, in the shape base R records it: a
+    # named integer vector of dropped row numbers whose class ("omit" or
+    # "exclude") decides whether training fits pad back to the caller's own
+    # row count through stats::naresid. NULL when nothing was dropped.
+    na.action = "ANY",
     # the original response's type before it was coded to the doubles the
     # engine reads: "numeric", "factor", "ordered factor", "logical", or
     # "character". The fitters key family = "auto" and the categorical-response
@@ -574,6 +588,7 @@ methods::setClass(
     n.cuts = integer(0),
     sigma = NA_real_,
     missing = "incorporate",
+    na.action = NULL,
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,

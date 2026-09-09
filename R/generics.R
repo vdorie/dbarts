@@ -971,16 +971,24 @@ fitted.bart <- function(
 
   result <- extract(object, type, sample)
 
+  # a training-side quantity pads back to the caller's own row count through
+  # whatever the fit's na.action recorded; the test side never lost a row
+  padded <- if (identical(sample, "train")) {
+    function(value) padOmittedRows(object[["na.action"]], value)
+  } else {
+    identity
+  }
+
   # ci.level opts into a per-observation est + credible band instead of the
   # posterior mean; the interval kind follows type (see posteriorInterval)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(result, ci.level))
+    return(padded(posteriorInterval(result, ci.level)))
   }
 
   if (!is.null(dim(result))) {
-    apply(result, length(dim(result)), mean)
+    padded(apply(result, length(dim(result)), mean))
   } else {
-    mean(result)
+    padded(mean(result))
   }
 }
 
@@ -1012,7 +1020,10 @@ residuals.bart <- function(object, type = "ev", ...) {
       foreignArgsFor(residualsForeignReasons, names(formals(residuals.bart)))
     )
   )
-  object$y - fitted.bart(object, type = type, sample = "train")
+  # the response the fit kept, padded the same way the fitted values are, so
+  # the two line up row for row at the caller's own shape
+  padOmittedRows(object[["na.action"]], object$y) -
+    fitted.bart(object, type = type, sample = "train")
 }
 
 # bart2(family = "multinomial") generics. The

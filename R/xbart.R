@@ -17,14 +17,12 @@ xbart <- function(
   power = 2,
   base = 0.95,
   split.probs = NULL,
-  dart = FALSE,
   drop = TRUE,
   resid.prior = chisq,
   sigest = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
-  missing = c("incorporate", "error"),
   node.prior = NULL,
   n.cuts = 100L,
   useQuantiles = FALSE,
@@ -36,7 +34,18 @@ xbart <- function(
   matchedCall <- match.call()
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
-  refuseForeignFrontDoorArgs(list(...), "xbart", names(formals(dbarts::xbart)))
+  supplied <- dotNames(...)
+  refuseForeignFrontDoorArgs(supplied, "xbart", names(formals(dbarts::xbart)))
+  consolidated <- resolveConsolidatedArgs(
+    matchedCall,
+    supplied,
+    "xbart",
+    parent.frame(1L)
+  )
+  if (length(consolidated) > 0L) {
+    matchedCall[names(consolidated)] <- NULL
+  }
+  dart <- if (is.null(consolidated[["dart"]])) FALSE else consolidated[["dart"]]
 
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
@@ -103,9 +112,14 @@ xbart <- function(
     control@call <- matchedCall
   }
 
-  # named ahead of the data build, matching bart2()/dbarts(), so
+  # named ahead of the data build, matching bart()/dbarts(), so
   # a bad family is refused before the response is ingested rather than after
-  family <- match.arg(family)
+  family <- resolveFamily(
+    matchedCall$family,
+    eval(formals(dbarts::xbart)$family),
+    "xbart",
+    evalEnv
+  )@token
 
   dataCall <- redirectCall(
     matchedCall,
@@ -115,8 +129,7 @@ xbart <- function(
     subset,
     weights,
     offset,
-    factors,
-    missing
+    factors
   )
   # a count-matrix data object declares the multinomial model, whose fitted
   # quantity is K probabilities per observation; every loss this function
@@ -268,7 +281,13 @@ xbart <- function(
   # bart2's tree.prior, which does collide with power/base (R/bart.R's
   # buildSamplerPriors), because there they are ordinary scalars, not a grid.
   if (!is.null(matchedCall[["tree.prior"]])) {
-    refuseColliding(matchedCall, "tree.prior", c("dart", "split.probs"))
+    refuseColliding(matchedCall, "tree.prior", "split.probs")
+    if (!isFALSE(dart)) {
+      stop(
+        "'tree.prior' cannot be combined with 'dart': supply the prior ",
+        "either as an object or through its shorthand arguments, not both"
+      )
+    }
     priorEnv <- new.env(parent = evalEnv)
     priorEnv[["cgm"]] <- getNamespace("dbarts")[["cgm"]]
     priorEnv[["dart"]] <- getNamespace("dbarts")[["dart"]]

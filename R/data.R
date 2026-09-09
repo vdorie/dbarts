@@ -2,6 +2,163 @@ ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
 ORDERED_FACTOR_VARIABLE <- 2L
 
+## The package's own na.action, and the default of every fitting function
+## that takes one. It drops the rows whose RESPONSE is missing and keeps the
+## rows whose predictors are: BART routes a missing predictor value down a
+## learned side of each rule, so an incomplete row is data rather than a
+## hole, while a missing response is nothing to fit. rpart's na.rpart is the
+## behavioural precedent. The dropped rows are recorded exactly as
+## stats::na.exclude records them - a named integer vector of class
+## "exclude" - so training fits pad back to the caller's own row count
+## through stats::naresid.
+##
+## `object` is a model frame; the response is the column the frame's terms
+## attribute names, and a frame with no response loses no rows at all.
+na.keepPredictors <- function(object, ...) {
+  response <- attr(attr(object, "terms"), "response")
+  if (is.null(response) || length(response) != 1L || response == 0L) {
+    return(object)
+  }
+  ## is.na() on a multi-column response is a matrix, except where a class
+  ## defines its own (survival::Surv reduces to one value per row); the
+  ## reduction keys off what came back, not off the response's own shape
+  dropped <- is.na(object[[response]])
+  if (!is.null(dim(dropped))) {
+    dropped <- apply(dropped, 1L, any)
+  }
+  if (!any(dropped)) {
+    return(object)
+  }
+  omit <- seq_along(dropped)[dropped]
+  names(omit) <- rownames(object)[dropped]
+  class(omit) <- "exclude"
+  kept <- object[!dropped, , drop = FALSE]
+  attr(kept, "na.action") <- omit
+  kept
+}
+
+## Which rows of a predictor container hold a missing value. Written off the
+## stored entries for the sparse flavors: an implicit zero is an observed
+## value, so densifying to look for NAs would be both wasteful and wrong.
+rowsWithMissingPredictors <- function(x) {
+  n <- NROW(x)
+  if (is.matrix(x) || is.data.frame(x)) {
+    if (!anyNA(x)) {
+      return(rep_len(FALSE, n))
+    }
+    return(rowSums(is.na(x)) > 0L)
+  }
+  if (inherits(x, "dbartsMixedMatrix")) {
+    rows <- rep_len(FALSE, n)
+    for (column in if (is.null(x$dense)) list() else x$dense) {
+      if (anyNA(column)) {
+        rows <- rows | is.na(column)
+      }
+    }
+    if (!is.null(x$sparse)) {
+      rows <- rows | rowsWithMissingPredictors(x$sparse)
+    }
+    return(rows)
+  }
+  if (inherits(x, "dgCMatrix")) {
+    rows <- rep_len(FALSE, n)
+    missingEntries <- is.na(x@x)
+    if (any(missingEntries)) {
+      rows[x@i[missingEntries] + 1L] <- TRUE
+    }
+    return(rows)
+  }
+  if (!anyNA(x)) {
+    return(rep_len(FALSE, n))
+  }
+  is.na(as.vector(x))
+}
+
+## Applies an 'na.action' to the (y, x) pair the matrix interface supplies.
+## Those functions take a MODEL FRAME, so the pair is presented as one: the
+## response, and a single predictor column that is NA exactly on the rows
+## where some predictor is. na.omit, na.exclude, na.fail and na.pass then
+## mean on this interface what they mean on the formula one. Returns the
+## rows to keep and the record of what was dropped, or NULL when nothing is
+## missing at all and no na.action can have anything to say.
+applyNaActionToXY <- function(na.action, y, x) {
+  predictorNA <- rowsWithMissingPredictors(x)
+  responseNA <- is.na(y)
+  if (!any(predictorNA) && !any(responseNA)) {
+    return(NULL)
+  }
+  frame <- data.frame(
+    response = ifelse(responseNA, NA_real_, 0.0),
+    predictors = ifelse(predictorNA, NA_real_, 0.0)
+  )
+  kept <- stats::model.frame(
+    response ~ predictors,
+    frame,
+    na.action = na.action
+  )
+  omit <- attr(kept, "na.action")
+  keep <- rep_len(TRUE, length(responseNA))
+  if (!is.null(omit)) {
+    keep[unclass(omit)] <- FALSE
+  }
+  list(keep = keep, na.action = omit)
+}
+
+## The rows a formula fit kept, in the caller's own row numbering, once the
+## model frame's na.action has taken its share: 'subset' chose them and the
+## na.action then dropped some by position within that choice. Anything the
+## caller supplied at the full, pre-'subset' shape - a forest's amplitude
+## basis - is restricted through this.
+alignSubsetRowsToFrame <- function(subsetRows, naOmitted) {
+  if (is.null(subsetRows) || is.null(naOmitted)) {
+    return(subsetRows)
+  }
+  subsetRows$index <- subsetRows$index[-unclass(naOmitted)]
+  subsetRows
+}
+
+## An out-of-range 'subset' is silent in base R: row indexing pads an
+## unmatched row with NA rather than erroring, and the na.action would then
+## drop exactly those rows and fit fewer observations than the caller asked
+## for without a word. Named here instead, ahead of the model frame. `n` of
+## NA means the row count is not known this early, which leaves the check
+## unrun rather than guessed at.
+refuseOutOfRangeSubset <- function(index, n, rowNames = NULL) {
+  if (is.null(index) || is.na(n)) {
+    return(invisible(NULL))
+  }
+  outOfRange <- if (is.logical(index)) {
+    length(index) > n
+  } else if (is.numeric(index)) {
+    anyNA(index) || any(abs(index) > n)
+  } else if (is.character(index)) {
+    anyNA(index) || any(index %not_in% rowNames)
+  } else {
+    FALSE
+  }
+  if (outOfRange) {
+    stop(
+      "'subset' selects rows outside the data, which has ",
+      n,
+      " rows; check that 'subset' selects rows within range"
+    )
+  }
+  invisible(NULL)
+}
+
+## Pads a training-side quantity back to the caller's own row count. A
+## na.action of class "exclude" records the rows it dropped and naresid puts
+## NA back in their places; "omit" records them and pads nothing, which is
+## exactly na.omit's contract. The observation margin is the LAST one in
+## every draws array this package reports, and naresid pads the first, so
+## only vectors and observation-by-column matrices go through here.
+padOmittedRows <- function(naOmitted, x) {
+  if (is.null(naOmitted) || is.null(x)) {
+    return(x)
+  }
+  stats::naresid(naOmitted, x)
+}
+
 # The multinomial capability probe: a data object carrying the n x K count
 # response is a multinomial one, on both the fitting and the mutation surfaces.
 # A capability test rather than a forest count, for the reason
@@ -1052,7 +1209,7 @@ dbartsData <- function(
   offset,
   offset.test = offset,
   factors = c("categorical", "indicators"),
-  missing = c("incorporate", "error"),
+  na.action = dbarts::na.keepPredictors,
   bases = NULL,
   counts = NULL
 ) {
@@ -1080,9 +1237,9 @@ dbartsData <- function(
   } else {
     makeModelMatrixFromDataFrame
   }
-  # "incorporate" keeps NAs in the predictors - the trees route them by
-  # learned per-rule directions; "error" rejects them
-  missing <- match.arg(missing)
+  # the rows an incomplete case costs, and the record of them the training
+  # fits pad through; NULL until an na.action drops something
+  naOmitted <- NULL
 
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
@@ -1210,9 +1367,10 @@ dbartsData <- function(
       match(modelFrameArgs, names(modelFrameCall), nomatch = 0L)
     )]
     modelFrameCall$drop.unused.levels <- FALSE
-    # incomplete predictor rows stay; completeness is validated below
-    # (previous versions silently na.omit-dropped them)
-    modelFrameCall$na.action <- stats::na.pass
+    # the one site the caller's own na.action governs; every other model
+    # frame this function builds is a re-read of columns these rows already
+    # settled, so those keep na.pass and align to whatever this frame kept
+    modelFrameCall$na.action <- na.action
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
     if (identical(offsetGivenAsScalar, FALSE)) {
@@ -1226,7 +1384,21 @@ dbartsData <- function(
       refuseSparseFormulaColumns(formula, data)
     }
 
+    # an out-of-range 'subset' would otherwise reach the na.action as a set
+    # of all-NA rows and be dropped in silence
+    if (!is.null(matchedCall$subset) && !dataIsMissing && is.data.frame(data)) {
+      subsetIndex <- tryCatch(
+        eval(matchedCall$subset, data, environment(formula)),
+        error = function(e) NULL
+      )
+      refuseOutOfRangeSubset(subsetIndex, nrow(data), rownames(data))
+    }
+
     modelFrame <- eval(modelFrameCall, parent.frame())
+    naOmitted <- attr(modelFrame, "na.action")
+    # the test frame built from this call below re-reads the test data, whose
+    # rows this na.action never saw
+    modelFrameCall$na.action <- stats::na.pass
     if (NROW(modelFrame) == 0) {
       if (!is.null(matchedCall$subset)) {
         stop("empty 'subset' specified")
@@ -1271,10 +1443,13 @@ dbartsData <- function(
     subsetRows <- if (is.null(bases)) {
       NULL
     } else {
-      resolveFormulaBasisSubset(
-        formula,
-        if (dataIsMissing) NULL else data,
-        matchedCall$subset
+      alignSubsetRowsToFrame(
+        resolveFormulaBasisSubset(
+          formula,
+          if (dataIsMissing) NULL else data,
+          matchedCall$subset
+        ),
+        naOmitted
       )
     }
     bases <- validateForestBases(
@@ -1395,6 +1570,7 @@ dbartsData <- function(
     if (missing(subset) || is.null(subset)) {
       subset <- seq.int(length(y))
     }
+    refuseOutOfRangeSubset(subset, initialNumObservations)
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
     bases <- validateForestBases(bases, initialNumObservations, subset)
@@ -1423,6 +1599,21 @@ dbartsData <- function(
     )
     offset <- offsetResult$offset
     offsetGivenAsScalar <- offsetResult$offsetGivenAsScalar
+
+    # the same (y, x) row rule the dense branch applies; a sparse container
+    # holds its missing values among the STORED entries, which is where
+    # rowsWithMissingPredictors looks
+    naResult <- applyNaActionToXY(na.action, y, x)
+    if (!is.null(naResult)) {
+      naOmitted <- naResult$na.action
+      if (!all(naResult$keep)) {
+        keep <- naResult$keep
+        y <- y[keep]
+        x <- x[keep, , drop = FALSE]
+        if (!is.null(weights)) weights <- weights[keep]
+        if (!is.null(offset)) offset <- offset[keep]
+      }
+    }
   } else if (
     is.numeric(formula) || is.data.frame(formula) || is.factor(formula)
   ) {
@@ -1461,6 +1652,7 @@ dbartsData <- function(
     if (missing(subset) || is.null(subset)) {
       subset <- seq.int(length(y))
     }
+    refuseOutOfRangeSubset(subset, initialNumObservations)
     y <- y[subset]
 
     if (is.data.frame(formula)) {
@@ -1499,32 +1691,19 @@ dbartsData <- function(
     offset <- offsetResult$offset
     offsetGivenAsScalar <- offsetResult$offsetGivenAsScalar
 
-    # a mixed container keeps its rows and attributes: missing predictor
-    # values are validated below, like the sparse-matrix branch above
+    # the (y, x) pair the matrix interface supplies is the model frame the
+    # na.action reads; a mixed container keeps its own attributes across the
+    # row selection, so it takes the shared subsetting below rather than this
+    # branch's attribute-preserving one
+    naResult <- applyNaActionToXY(na.action, y, x)
+    if (!is.null(naResult)) {
+      naOmitted <- naResult$na.action
+    }
     if (!xIsMixed) {
-      # missing = "incorporate" must reach the shared NA handling at the end
-      # of this function intact, like the sparse and mixed-container branches
-      # above: no row is dropped here for missingness in 'x' or 'y'. That
-      # shared code unconditionally rejects a missing response (anyNA(y)
-      # below) and only rejects a missing predictor when missing = "error".
-      completeCases <- if (missing == "error") {
-        stats::complete.cases(x, y)
-      } else {
+      completeCases <- if (is.null(naResult)) {
         rep_len(TRUE, length(y))
-      }
-
-      # the check below happens before xHasNA is evaluated further down, so
-      # missing = "error" must be checked against the pre-filter state here
-      # or its request is silently defeated
-      if (missing == "error") {
-        if (anyNA(y)) {
-          stop("response contains missing values")
-        }
-        if (anyNA(x)) {
-          stop(
-            "predictors contain missing values; use missing = \"incorporate\" to model them"
-          )
-        }
+      } else {
+        naResult$keep
       }
 
       y <- y[completeCases]
@@ -1548,6 +1727,12 @@ dbartsData <- function(
         weights <- weights[completeCases]
       }
       if (!is.null(offset)) offset <- offset[completeCases]
+    } else if (!is.null(naResult) && !all(naResult$keep)) {
+      keep <- naResult$keep
+      y <- y[keep]
+      x <- x[keep, , drop = FALSE]
+      if (!is.null(weights)) weights <- weights[keep]
+      if (!is.null(offset)) offset <- offset[keep]
     }
   } else {
     stop(
@@ -1783,18 +1968,6 @@ dbartsData <- function(
   if (!is.null(offset.test) && anyNA(offset.test)) {
     stop("'offset.test' contains missing values")
   }
-  if (missing == "error") {
-    if (xHasNA) {
-      stop(
-        "predictors contain missing values; use missing = \"incorporate\" to model them"
-      )
-    }
-    if (!is.null(x.test) && anyNA(x.test)) {
-      stop(
-        "test predictors contain missing values; use missing = \"incorporate\" to model them"
-      )
-    }
-  }
 
   result <- newValidated(
     "dbartsData",
@@ -1815,7 +1988,7 @@ dbartsData <- function(
     n.cuts = NA_integer_,
     sigma = NA_real_
   )
-  result@missing <- missing
+  result@na.action <- naOmitted
   result@response.type <- responseInfo$type
   result@response.n.levels <- as.integer(responseInfo$n.levels)
   result@response.levels <- responseInfo$levels
