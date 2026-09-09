@@ -149,12 +149,16 @@ Case 2: n = 1e6, p = 50, 200 trees, 1 chain, everything else as above.
 
 ## Decision
 
-1. Whether the audit also runs on the x86 bench box. Recommended: arm64
-   only. Every quantity above is a byte count fixed by the source; the only
-   host-dependent term is allocator overhead and page granularity, which the
-   baseline subtraction mostly removes, and the second host needs VD's grant.
-   Evidence that would change it: a residual above the step 2 tolerance on
-   arm64 with no code-side explanation.
+Forks 1 and 2 were put to VD on 2026-09-08 and are recorded with the
+choice; fork 3 is the plan's own call.
+
+1. Whether the audit also runs on the x86 bench box (VD 2026-09-08,
+   "Use your recommendation"): arm64 only. Every quantity above is a
+   byte count fixed by the source; the host-dependent terms are
+   allocator overhead and page granularity, which the baseline
+   subtraction mostly removes. A residual above the step 2 tolerance
+   with no code-side explanation returns to VD as a grant request for
+   the second host.
 2. Whether any reduction lands pre-release (VD 2026-09-08, "Use your
    recommendation" on adding the two-copy removal): the audit lands its
    model and manual section, and the removal of the two transient copies
