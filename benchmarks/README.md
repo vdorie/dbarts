@@ -137,17 +137,12 @@ macOS. An engine landing gets an x86 leg alongside the local battery,
 and it is the only place to time bench-sampler on x86 or to exercise a
 new SIMD kernel.
 
-The box is an on-demand Linux container, off by default:
-`scratch/x86-box start` powers it on (`stop`, `status`, and
-`run -- <cmd>` likewise; the script is untracked, under scratch/), then
-`ssh dbarts-x86 '<cmd>'` and `rsync ... dbarts-x86:` work. Ubuntu 24.04,
-4 cores (one hardware thread per physical core: threading benches
-saturate at 4), AVX2 and FMA, 24 GiB with swap off (a larger cell is
-killed, not swapped), no perf (use `valgrind --tool=callgrind`), no
-~/.Renviron so `R_LIBS=` is the whole library path. Sanitizer binaries
-must run as `setarch $(uname -m) -R <cmd>` or abort on ASLR entropy.
-Stop it when done: its timings are trustworthy only when idle, and it
-holds its memory while up.
+The x86 host itself is local to the development environment and is
+described nowhere in the tree; the pattern below assumes an ssh-reachable
+x86-64 Linux box with R, the compilers and valgrind installed, and a
+private library per run. Check its load before any timing run, and
+never assume a core count: threading benches saturate at the physical
+cores and regress past them.
 
 Working pattern: ship the source (rsync excluding .git, or `git archive`
 of the exact sha when the local tree is dirty), install with
