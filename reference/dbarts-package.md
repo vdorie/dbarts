@@ -3,8 +3,7 @@
 Fits Bayesian additive regression trees (BART; Chipman, George, and
 McCulloch 2010), a Bayesian “sum-of-trees” model in which each tree is
 held to be a weak learner by its prior. The package offers two ways in,
-described below, and serves as a drop-in replacement for package
-BayesTree.
+described below, and provides a BayesTree-compatible interface.
 
 What distinguishes dbarts from other BART implementations is that its
 sampler is *mutable*: predictors, response, offset, and weights can be
