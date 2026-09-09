@@ -140,6 +140,18 @@ xbart <- function(
   refuseCountsCarryingData(formula, "xbart()")
   refuseResponseFreeFormula(formula, "xbart()")
   data <- eval(dataCall, evalEnv)
+  # a Surv formula response silently becomes log(time) with the censoring
+  # status parked as an attribute (dbartsData()'s own short-circuit, which
+  # has no family vocabulary to refuse it by) - xbart() reads neither the
+  # attribute nor 'family' the way dbarts()'s aft/hazard blocks do, so left
+  # unrefused this would cross-validate log(time) as an ordinary gaussian
+  # response and silently discard every censored observation's status
+  if (!is.null(attr(data, "survivalStatus"))) {
+    stop(
+      "xbart() does not cross-validate a survival (Surv) response; fit ",
+      "with bart()/dbarts() using family = \"aft\" or \"hazard\" instead"
+    )
+  }
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 

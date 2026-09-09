@@ -44,6 +44,20 @@ if (requireNamespace("survival", quietly = TRUE)) {
   # before dbartsData's ingestion is ever reached, so it legitimately fits
   # rather than refusing; xbart has no such special case
   expect_error(dbarts::xbart(x, survY), "'y' is a survival response \\(Surv\\)")
+
+  # a Surv left-hand side on the formula interface reaches dbartsData()'s
+  # OWN short-circuit (dbarts()'s formula-path Surv ingestion), which has
+  # no family vocabulary to refuse it by - dbartsData() itself happily
+  # returns log(time) with the status parked as an attribute. xbart() never
+  # reads that attribute the way dbarts()'s aft/hazard blocks do, so it
+  # needs its own explicit refusal rather than silently cross-validating
+  # log(time) as gaussian with the censoring discarded
+  frm.surv <- data.frame(y = survY, p = x[, 1L], q = x[, 2L])
+  expect_error(
+    dbarts::xbart(y ~ p + q, frm.surv),
+    "does not cross-validate a survival"
+  )
+  rm(frm.surv)
 }
 
 expect_error(dbarts::dbarts(x, nx2), "'y' is an n x 2 matrix")
