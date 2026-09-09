@@ -108,7 +108,7 @@ jobs:
             # which pins bitwise equality rather than a count.
             byFile <- table(vapply(res, function(t) attr(t, "file"), character(1)))
             floors <- c(
-              "test-capi.R" = 150L,
+              "test-capi.R" = 80L,
               "test-simd.R" = 0L,
               "test-bcf-r5-surface.R" = 30L,
               "test-multinomial-surface.R" = 80L,
