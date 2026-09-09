@@ -344,9 +344,11 @@ S4, manual, records, consumers:
 ```
 R CMD INSTALL -l <lib> .
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-c42b72af.rds
-  # 50 identical from S3 on; against equivalence-fbff1989.rds, S1/S2/S4 read
-  # 50 identical and S3 48, xbart and xbartmixed re-recorded
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-0ef4c560.rds
+  # this plan's own S1-S4 read 50 identical from S3 on (against
+  # equivalence-fbff1989.rds, S1/S2/S4 read 50 identical and S3 48, xbart
+  # and xbartmixed re-recorded) - equivalence-c42b72af.rds at the time;
+  # interfaces-and-dependencies.md S2 later added the 51st scenario
 R_LIBS=<lib> Rscript -e 'lintr::lint_package()'
 R CMD build <clean copy> && R CMD check --as-cran dbarts_*.tar.gz
 R_LIBS=<lib> Rscript -e 'pkgdown::check_pkgdown(".")'

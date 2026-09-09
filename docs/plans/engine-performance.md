@@ -185,7 +185,7 @@ choice; none remains open.
   passing on both builds. S2 must not touch the fused pass. S4 does:
   fork 5(a) overrides that pass's standing refusal of a knob under
   dec-B89 and amends its comment in the same slice.
-- The reference build must reproduce equivalence-c42b72af.rds,
+- The reference build must reproduce equivalence-0ef4c560.rds,
   bcf-equivalence-fbff1989.rds and multinomial-equivalence-fbff1989.rds
   bitwise on arm64 macOS at every slice; if it cannot, the slice stops
   and the re-record owes a P17 oracle
@@ -355,10 +355,10 @@ R_LIBS=<ref> Rscript -e 'tinytest::test_package("dbarts")'
   # per snapshot file, by count: length(run_test_file(f)) is 0 under <lib>
   # (exit_file leaves no skip attribute), its recorded count under <ref>
 R_LIBS=<ref> Rscript benchmarks/R/equivalence.R compare \
-  benchmarks/baselines/equivalence-c42b72af.rds --strict-coverage
-  # 50 "identical draws (same RNG stream)", no "max |z|"; bcf 12, multi 11
+  benchmarks/baselines/equivalence-0ef4c560.rds --strict-coverage
+  # 51 "identical draws (same RNG stream)", no "max |z|"; bcf 12, multi 11
 R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare \
-  benchmarks/baselines/equivalence-c42b72af.rds
+  benchmarks/baselines/equivalence-0ef4c560.rds
   # shipped, S2 onward: statistical mode everywhere, none at |z| > 4
 for g in bd-balance change-balance perturb-balance backfit-exact linear-exact \
   categorical-exact heteroscedastic-exact multinomial-exact hazard-exact \
