@@ -1422,8 +1422,7 @@ dbartsData <- function(
         # ORIGINAL 'data' - dense ones densely, sparse ones as zero-length
         # stand-ins terms() never reads the values of, only the names -
         # before 'formula' is rewritten to name only its dense terms
-        # explicitly (docs/plans/sparse-formula-audit.md's deferred checks,
-        # step 10)
+        # explicitly
         placeholderFrame <- denseData[0L, , drop = FALSE]
         for (sparseName in names(sparseColumns)) {
           placeholderFrame[[sparseName]] <- numeric(0)

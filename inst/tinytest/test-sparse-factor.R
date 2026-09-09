@@ -1127,11 +1127,10 @@ expect_inherits(
 # re-attach dbartsData() applies to any sparse column, R/data.R)
 set.seed(70L)
 n.sf <- 100L
+levels.sf <- c("lo", "mid", "hi")
 other.sf <- data.frame(a = rnorm(n.sf))
-g.sf <- sparseFactor(
-  x = sample(c("lo", "mid", "hi"), n.sf, replace = TRUE),
-  levels = c("lo", "mid", "hi")
-)
+labels.sf <- sample(levels.sf, n.sf, replace = TRUE)
+g.sf <- sparseFactor(x = labels.sf, levels = levels.sf)
 y.sf <- rnorm(n.sf)
 
 d.sf <- other.sf
@@ -1153,7 +1152,74 @@ sfFitArgs <- list(
 fit.sf.formula <- do.call(bart, c(list(y ~ ., data = d.sf), sfFitArgs))
 fit.sf.xy <- do.call(bart, c(list(x.sf, y.sf), sfFitArgs))
 expect_identical(fit.sf.formula$yhat.train, fit.sf.xy$yhat.train)
-rm(n.sf, other.sf, g.sf, y.sf, d.sf, x.sf, sfFitArgs, fit.sf.formula, fit.sf.xy)
+
+# under 'subset', subsetSparseFactorRows (R/mixedMatrix.R) re-derives the
+# re-attached sparseFactor's i/values/length over the kept rows; the
+# comparison x/y fit is hand-subsetted from the ORIGINAL LABELS through
+# sparseFactor()'s own (dense-input) constructor, independent of
+# subsetSparseFactorRows, since a data frame holding a sparseFactor has no
+# '[' method to subset it by (test-data-sparse.R's ~line 384, the
+# dgCMatrix case, subsets by Matrix's own '[' instead)
+sub.sf <- seq.int(1L, n.sf, by = 2L)
+fit.sf.formula.sub <- do.call(
+  bart,
+  c(list(y ~ ., data = d.sf, subset = sub.sf), sfFitArgs)
+)
+x.sf.sub <- data.frame(a = other.sf$a[sub.sf])
+x.sf.sub$g <- sparseFactor(
+  x = labels.sf[sub.sf],
+  levels = levels.sf,
+  reference = g.sf@reference
+)
+fit.sf.xy.sub <- do.call(bart, c(list(x.sf.sub, y.sf[sub.sf]), sfFitArgs))
+expect_identical(fit.sf.formula.sub$yhat.train, fit.sf.xy.sub$yhat.train)
+
+# response-NA rows are dropped under the default na.action before the
+# sparseFactor column is re-attached, so the surviving rows still line up
+# (test-data-sparse.R's ~line 410, the dgCMatrix case); same independent
+# hand-subset as above
+y.sf.na <- y.sf
+y.sf.na[c(3L, 40L, 90L)] <- NA
+d.sf.na <- other.sf
+d.sf.na$y <- y.sf.na
+d.sf.na$g <- g.sf
+keep.sf.na <- !is.na(y.sf.na)
+fit.sf.formula.na <- do.call(bart, c(list(y ~ ., data = d.sf.na), sfFitArgs))
+x.sf.na <- data.frame(a = other.sf$a[keep.sf.na])
+x.sf.na$g <- sparseFactor(
+  x = labels.sf[keep.sf.na],
+  levels = levels.sf,
+  reference = g.sf@reference
+)
+fit.sf.xy.na <- do.call(
+  bart,
+  c(list(x.sf.na, y.sf.na[keep.sf.na]), sfFitArgs)
+)
+expect_identical(fit.sf.formula.na$yhat.train, fit.sf.xy.na$yhat.train)
+
+rm(
+  n.sf,
+  levels.sf,
+  other.sf,
+  labels.sf,
+  g.sf,
+  y.sf,
+  d.sf,
+  x.sf,
+  sfFitArgs,
+  fit.sf.formula,
+  fit.sf.xy,
+  sub.sf,
+  fit.sf.formula.sub,
+  x.sf.sub,
+  fit.sf.xy.sub,
+  y.sf.na,
+  d.sf.na,
+  keep.sf.na,
+  fit.sf.formula.na,
+  x.sf.na,
+  fit.sf.xy.na
+)
 
 # WIDE-FACTOR AUTO-SPARSE (dec-B100): a factors = "indicators" fit
 # dummy-expands a factor with more than sparseIndicatorLevelCutoff (100)
@@ -1205,14 +1271,19 @@ expect_equal(
 )
 
 # forced sparse and forced dense fit the SAME wide factor to the same
-# model: the engine's densified-CSC-vs-dense equivalence (Context above)
-# reproduces the same tree-growing decisions either way, so the two runs
-# agree well past MCMC noise - to floating-point summation order only (a
-# CSC column's sufficient statistics accumulate over its stored entries in
-# a different order than a dense column's contiguous scan), not to
-# genuine bitwise identity. A misaligned re-attach (an off-by-one 'pos',
+# model, but NOT to genuine bitwise identity: an indicator column's density
+# is 1/K, so at any practical K this auto-sparse path lands in the engine's
+# RANK-BITMAP tier (src/bartcore/data.hpp, sparseDensityThreshold = 0.2),
+# never the DENSIFIED tier a CSC column takes above that threshold - the
+# tier testSparseEndToEnd's own bitwise claim covers, and does not extend
+# to this one. The rank tier's leaf-mean sufficient statistics differ from
+# dense in the last bit from the first draw (yhat.train ~1e-16 growing to
+# ~3e-14 by draw 200, sigma ~1e-15), while varcount stays bit-identical
+# throughout - tree structure and the RNG path are unmoved, only the
+# accumulated leaf means. A misaligned re-attach (an off-by-one 'pos',
 # tested by hand while landing this slice) instead produces an O(1)
-# difference, not floating noise, so this still discriminates a real bug.
+# difference, easily told apart from this last-bit noise, so this still
+# discriminates a real bug.
 wideFitArgs <- list(
   n.trees = 20L,
   n.burn = 10L,
