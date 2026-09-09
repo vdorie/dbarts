@@ -2,14 +2,15 @@
 
 Status: VALIDATED against measured peak resident set size by
 [benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R) at
-80ff32b4 on arm64 macOS. Every one of the 29 grid cells falls within
-max(10 pct, 20 MB) of the model and the median absolute relative residual is
-2.0 pct over the twelve cells predicting more than 100 MB; the worst cell
-(n = 1e5, p = 10, T = 200) is 13.5 MB high against a 24.0 MB tolerance. The
-relative half of the tolerance is scored only above 100 MB: below it the
-residual is set by page-level allocator behaviour rather than by any row
-here, so a relative criterion there measures the host. "What the measurement
-moved" below records the rows the run changed.
+80ff32b4 on arm64 macOS. Every one of the 30 grid cells falls within
+max(10 pct, 20 MB) of the model, and the median absolute relative residual
+over the whole grid is 4.8 pct (4.4 pct on a repeat run) against a 5 pct
+limit; the worst cell (n = 1e5, p = 20, T = 200, C = 2) is 24.3 MB low
+against a 46.8 MB tolerance. The margin on the median is thin, and it is thin
+for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
+prediction of 20 to 60 MB is scored against page-level allocator behaviour a
+byte model cannot reach. "What the measurement moved" below records the rows
+the run changed.
 
 The closed-form model of what a fit allocates, per component, in the units the
 allocations have. Every byte count is read off the element type and the
@@ -63,9 +64,10 @@ differently.
 | yhat.train transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra n*L*S*C live at peak; 1 under combineChains = FALSE on a binary fit | keepTrainingFits |
 | yhat.test transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
-| raw predictors, three live copies | [`dbartsData`](../../R/A_class.R) | sampler | 24 | n*p, plus nTest*p | always, beside the store's 2*n*p codes: the caller's matrix, the one the data object keeps, and the ingestion copy, all resident at the peak |
+| raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
+| raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy and its complete-cases copy | sampler | 8 | up to 2*n*p, plus 2*nTest*p | always: the subset copy is persistent and the complete-cases copy transient, and both fire on a matrix with no subset and no missing values. Measured per host and shape, not derived - see below |
 | starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R) | sampler | 8 | about 4*n*(p+1) transiently, at the `summary.lm` instant - base R's model frame, na filter, model matrix and QR | no `sigest` given and the family estimates a residual sd (not binary) |
-| leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per cached node, over every chain, capped at the leaf's 256 MiB total budget | a designated-covariate leaf (linear, gp) |
+| leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per POPULATED ARENA DEPTH LEVEL per tree per chain, about 3.2 levels measured | a designated-covariate leaf (linear, gp) |
 | training-fit mean churn | [`packageBartResults`](../../R/bart.R)'s `apply` | saved sample | not a byte count | two small R objects per observation, resident until the collector's next cycle | keepTrainingFits on a non-binary fit |
 | fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
 | ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
@@ -94,28 +96,52 @@ store: on this host that estimate raised the peak by 21.0 MB at p = 10,
 their own model-frame transients on top; the audit measures the matrix door,
 where they do not exist.
 
-Two rows above are not byte counts and are measured per host rather than
-derived: the fit-path warm-up (6.5 MB on this host) and the training-fit
-mean's collector churn. `apply` over the observation margin allocates two
-small R objects per observation and R's collector leaves them resident until
-its next cycle, so the peak carries 2.8 MB at n = 1e4, 16.2 MB at n = 1e5 and
-120.4 MB at n = 1e6 (10 draws) that no byte count predicts. Both vanish from
-the model the moment the mean is taken with a colMeans-style reduction
-instead.
+Three rows above are not byte counts and are measured per host rather than
+derived. The script reports each in its own column beside the closed form, so
+the gate never hides behind them.
 
-## The one non-derived input
+- The fit-path warm-up, 6.7 MB on this host: the R session's one-off growth
+  from byte-compiling the fit closures and populating the S4 dispatch tables.
+- The training-fit mean's collector churn. `apply` over the observation
+  margin allocates two small R objects per observation and R's collector
+  leaves them resident until its next cycle, so the peak carries 2.5 MB at
+  n = 1e4, 16.5 MB at n = 1e5 and 121.1 MB at n = 1e6 (10 draws) that no byte
+  count predicts. It vanishes the moment the mean is taken with a
+  colMeans-style reduction instead.
+- The ingestion high-water of the predictor copies.
+  [`dbartsData`](../../R/data.R) makes two beyond the caller's matrix - a
+  persistent subset copy and a transient complete-cases copy, both taken even
+  when nothing is subset and nothing is missing - and the derived 16*n*p is
+  an UPPER bound on what reaches the peak, since the transient's pages are
+  the collector's to reclaim before packaging. Measured, over and above the
+  caller's own matrix and response: 0.6 MB at n = 1e4 p = 10, 8.2 MB at
+  n = 1e4 p = 50, 22.4 MB at n = 1e5 p = 10, 38.3 MB at n = 1e5 p = 20,
+  83.5 MB at n = 1e5 p = 50 and 376.5 MB at n = 1e6 p = 20 - between 0.8 and
+  2.8 copies, never the derived 2 flat.
 
-m, the mean live node count of a tree, is the only quantity not fixed by the
-source. It enters the live-tree rows (negligible: 0.09 MB at T = 200, m = 8)
-and the saved-tree and stored-state rows (where it is the whole term). The
+The measured p slope of the fit's own peak carries the same spread: 14.9
+bytes per n*p between p = 10 and p = 20 at n = 1e5, 30.0 between p = 20 and
+p = 50 there, 18.8 to 28.5 between p = 10 and p = 50 at n = 1e4. Two copies
+plus the codes would be 18 flat and three plus codes 26; neither holds
+everywhere, because whether the transient copy is still resident at packaging
+is a collector outcome and not a byte count. Each allowance is the high-water
+of its OWN instant, and the model sums them, which over-counts wherever a
+later instant recycles an earlier one's pages: that is what the -5 to -7 MB
+residuals at n = 1e4, p = 50 and the -24 MB at the two-chain cell are.
+
+## The non-derived inputs
+
+m, the mean live node count of a tree, is the first quantity not fixed by the
+source (the leaf statistics cache's level count, below, is the second). It
+enters the live-tree rows (negligible: 0.09 MB at T = 200, m = 8) and the
+saved-tree and stored-state rows (where it is the whole term). The
 current estimate is 3.8 at n = 2e3, growing slowly with n; the reference cases
 below assume 8 at n >= 1e5. The audit measures it by summing the `tree.sizes`
 blocks [`storeFlatTrees`](../../src/R_interface_bartcore.cpp) writes and
 dividing by C*T: 5.73 at n = 2e4, T = 75, C = 2. That is a SHORT-RUN count -
 the audit's cells run n.burn = 0, so the trees never reach their stationary
 size - and so it neither confirms nor moves the reference cases' 8; it is a
-lower bound on it, and it is the value the leaf statistics cache row was
-checked against. Two node counts exist and differ: the flattened
+lower bound on it. Two node counts exist and differ: the flattened
 live count m that storeState and saved trees write, and the arena length
 [`Tree::nodes`](../../src/bartcore/tree.hpp) holds. The arena only grows -
 a death recycles its pair through [`freePairs`](../../src/bartcore/tree.hpp)
@@ -123,6 +149,26 @@ rather than shrinking the vector - so it is a high-water mark at or above the
 live count, and 56*T*m is a LOWER bound on the live-tree row, not an upper one.
 Step 2 can measure only the flattened count; the arena high-water is not
 observable from R, and no channel reports it.
+
+The leaf statistics cache's level count is the second. The mechanism, not a
+node count: a cached entry is one leaf's ordered member list plus an inline
+81-double crossproduct, and the cache is indexed by ARENA slot
+(`TreeStatisticsCache::nodes`, resized to the slot index and never pruned).
+Leaf memberships partition the observations, so the lists LIVE in one tree
+sum to at most 4*n - and that, `statisticsEntryBytes` over the live
+`members.size()`, is the only thing the 256 MiB budget counts. What is
+RESIDENT is larger, for two reasons the budget does not see: `assign` leaves
+each slot's member vector at the capacity of the largest membership that slot
+ever held, so a run that starts from stumps parks 4*n in the root's slot and
+4*n more across each depth level below it; and each populated slot carries
+648 bytes of inline crossproduct plus its vector header whatever q is. The
+resident total is therefore 4*n per populated arena depth level per tree per
+chain. Measured over six cells (n in {1e4, 1e5, 2e5}, T in {75, 200}, C in
+{1, 2}) it is 11.0 to 14.5 bytes per n*T*C, mean 12.9, so 3.2 levels; the
+model carries 3.2 and the grid's two linear cells land 10.0 MB high at
+T = 200 and 1.4 MB low at T = 75. The budget never bound at any cell
+measured: at the largest, n = 2e5, T = 200, C = 1, the tracked figure is
+160 MB against a 256 MiB ceiling while the resident cache is 453 MB.
 
 ## Reference cases
 
@@ -204,27 +250,36 @@ within-chain threading is not in the tree, and dec-B89's arc measures it.
 The run at 80ff32b4 changed five rows and added none that a byte count
 could have been read off without it.
 
-- Raw predictors went from 8*n*p to 24*n*p. Three copies of the predictor
-  matrix are resident at the peak, not one: the caller's, the one the data
-  object keeps beside the codes, and a third the ingestion path makes. The
-  p slope of the measured peak is 25 to 28 bytes per n*p against the 10 the
-  single-copy model gave.
+- The single raw-predictor row split in two. The caller's own matrix, 8*n*p,
+  is derived; the copies [`dbartsData`](../../R/data.R) makes on top of it -
+  the persistent subset copy and the transient complete-cases copy, both
+  taken on a plain matrix with nothing subset and nothing missing - are a
+  measured allowance, because the derived 16*n*p is an upper bound on how
+  much of them survives to the peak. The measured p slope of the fit's peak
+  runs 14.9 to 30.0 bytes per n*p depending on the pair, straddling the 18 a
+  two-copy model gives and the 26 a three-copy one does; the single-copy
+  model the note started with gave 10 and was wrong everywhere.
 - The starting-sigma linear model is a new row and, on a short run with no
   `sigest`, the largest single R-side term. It is base R's `lm`, not a
   sampler allocation, which is why the audit's cells supply `sigest` and
   price it on a paired excursion instead.
 - The leaf statistics cache is a new row and the largest single term of a
-  designated-covariate fit: 268 MB at n = 1e5, T = 200, C = 1, where the
+  designated-covariate fit: 276 MB at n = 1e5, T = 200, C = 1, where the
   whole rest of the fit is 350 MB. Without it the linear cell missed by
-  274 MB, the only cell that missed at all; with it the same cell lands
-  1.7 MB high. It is capped, so it does not scale past 256 MiB, but it
-  reaches the cap at every cell above n*T*m*C = 6.7e7.
+  274 MB, the only cell that missed at all. The first formula tried, 4*n per
+  cached NODE, was wrong and only looked right because it saturated the
+  256 MiB budget; leaf memberships partition the observations, so the live
+  lists are at most 4*n per tree, and what makes the cache large is retained
+  vector capacity across an arena-indexed store that is never pruned. The
+  budget counts the live lists only and bound no cell measured.
 - Gathered leaf raw doubled, 8*n*q to 16*n*q: the leaf keeps its own
   standardized copy beside the store's gather.
-- Two rows are not byte counts at all and are measured per host: the
-  fit-path warm-up and the training-fit mean's collector churn. Naming them
-  is the honest form; folding them into a per-unit coefficient would have
-  hidden an R-collector effect inside an allocation model.
+- Three rows are not byte counts at all and are measured per host: the
+  fit-path warm-up, the training-fit mean's collector churn, and the
+  ingestion high-water. Naming them, and reporting each in its own column
+  beside the closed form, is the honest form; folding them into a per-unit
+  coefficient would have hidden R-collector effects inside an allocation
+  model.
 
 Nothing in the engine's own rows moved. The n*T pair measured 8.02 to 8.06
 bytes per n*T under a constant leaf across every cell, against the derived
@@ -233,16 +288,19 @@ within 2 pct.
 
 ## The largest avoidable allocations, ranked
 
-By bytes saved per line of change, at the two reference cases. Everything
-below the second row is its own TODO entry rather than a change in this arc.
+By bytes saved per line of change, at the two reference cases. The key is
+UNCONDITIONAL value first: the two rows that pay at the reference cases as
+they stand lead, and the rows below them are ordered by bytes per line within
+their condition, which the recommendation column names. Everything below the
+second row is its own TODO entry rather than a change in this arc.
 
 | item | saved, case 1 | saved, case 2 | change | recommendation |
 | --- | --- | --- | --- | --- |
 | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | taken, in the manual's Memory section |
 | have the bridge allocate the result in the layout the R side returns and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dimensions plus the R reshape and mean | step 7 of this arc (VD 2026-09-08); it also removes the collector churn row, 16 MB at n = 1e5 and 120 MB at n = 1e6 |
-| a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher), 67 MB once the row above is taken | 0 today, 1632 MB once it is | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; it becomes the peak the moment the returned array stops being it |
-| the leaf statistics cache's 256 MiB budget, or a smaller default | 0 (constant leaf) | 0 (constant leaf) | one constant | own TODO entry; 268 MB on any linear or gp fit above n*T*m*C = 6.7e7, where it is the single largest allocation |
-| drop the ingestion copy of the predictor matrix, so two live copies remain instead of three | 16 MB | 400 MB | the ingestion path | own TODO entry |
+| prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
+| drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
+| a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; CONDITIONAL - worth 67 MB in case 1 and 1632 MB in case 2, but only once the returned array above stops setting the peak |
 | a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
 | drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |
 | leafOf as uint16 | 40 MB/chain | 400 MB/chain | declined by measurement | do not reopen |

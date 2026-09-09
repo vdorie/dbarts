@@ -10,21 +10,27 @@
 #   Rscript memory-footprint.R                  run the grid and report
 #   Rscript memory-footprint.R record [out.csv] run and write a baseline CSV
 #   Rscript memory-footprint.R fit base.csv     re-report a recorded CSV
-# Append 'quick' for a three-cell smoke test of the plumbing.
+# Append 'quick' for a three-cell smoke test of the plumbing; its cells are
+# far too small to discriminate the model, so quick mode reports but does not
+# score.
 #
 # Exits non-zero when the residual misses the note's tolerance: every cell
-# within max(10 pct, 20 MB), and a median absolute relative residual under
-# 5 pct over the cells predicting more than 100 MB. Below that the residual
-# is set by page-level allocator behaviour rather than by the model, so a
-# relative criterion there measures the host, not the note.
+# within max(10 pct, 20 MB) and a median absolute relative residual under
+# 5 pct over the grid.
 #
-# Two terms of the model are measured rather than derived, and both are
-# measured here by the same subprocess method as the cells themselves: the
-# fit path's one-off session growth (byte-compiling the fit closures and
-# populating the S4 dispatch tables), and the collector churn of the
-# training-fit mean, which allocates two small R objects per observation and
-# leaves them resident until the collector's next cycle. Both are
-# host-dependent; neither is a byte count the source fixes.
+# Three terms are measured rather than derived, each by the same subprocess
+# method as the cells themselves and each reported in its own column beside
+# the closed form, so the gate stays auditable:
+#   warmup_mb     the fit path's one-off session growth - byte-compiling the
+#                 fit closures and populating the S4 dispatch tables
+#   churn_mb      the training-fit mean's collector churn: apply allocates
+#                 two small R objects per observation and leaves them
+#                 resident until the collector's next cycle
+#   ingest_mb     the predictor copies dbartsData makes over and above the
+#                 caller's matrix - one persistent subset copy and one
+#                 transient complete-cases copy, of which only as much
+#                 reaches the peak as the collector has not reclaimed
+# All three are host-dependent; none is a byte count the source fixes.
 #
 # Every cell supplies 'sigest'. Left unset, a gaussian fit estimates the
 # starting sigma with an lm() over the whole design, whose model frame, na
@@ -44,10 +50,16 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 mode <- if (length(args) >= 1L) args[[1L]] else "print"
 
-# Mean live node count of a tree, the model's one non-derived engine input.
-# measureDuplicates() reports it; it enters only the saved-tree rows, which
-# the grid's n.burn = 0 cells barely populate.
-MEAN.NODES <- 4
+# Mean live node count of a tree: measured at 5.73 by measureDuplicates()
+# below (n = 2e4, T = 75, C = 2, n.burn = 0) and carried here. It enters only
+# the live-tree and saved-tree rows, both small at the grid's draw counts.
+MEAN.NODES <- 5.73
+
+# Mean number of populated arena depth levels per tree in the designated-leaf
+# statistics cache: 12.9 measured bytes per n*T*C over 4 bytes per index_t.
+# See the leaf statistics cache row of the design note for why a level count
+# rather than a node count is the right multiplier.
+CACHE.LEVELS <- 3.2
 
 baseCell <- function() {
   list(
@@ -123,6 +135,7 @@ buildGrid <- function(quick) {
   add(keepTrees = TRUE)
   add(n.test = 2e4)
   add(leaf.columns = c("x1", "x2", "x3"))
+  add(leaf.columns = c("x1", "x2", "x3"), n.trees = 75L)
   add(family = "probit")
   add(n.samples = 200L, keepTrees = TRUE)
   for (p in c(10L, 50L)) {
@@ -144,11 +157,17 @@ buildGrid <- function(quick) {
 }
 
 # ---------------------------------------------------------------------------
-# The model. Every term but the two measured allowances is a row of the
-# design note's table, read off the element type and the allocation site.
+# The model. Every term of the closed form is a row of the design note's
+# table, read off the element type and the allocation site; the three
+# measured allowances are returned beside it, never folded into it.
 # ---------------------------------------------------------------------------
 
-predictBytes <- function(cell, warmup = 0, churn = function(rows) 0) {
+predictBytes <- function(
+  cell,
+  warmup = 0,
+  churn = function(rows) 0,
+  ingest = function(n, p) 0
+) {
   n <- cell$n
   p <- cell$p
   n.test <- cell$n.test
@@ -163,11 +182,16 @@ predictBytes <- function(cell, warmup = 0, churn = function(rows) 0) {
   sampler <- 2 * n * p + 2 * n.test * p + 800 * p + 70 * p + 24 * n + 8 * n.test
   if (!constant.leaf) {
     # the gathered raw columns and the standardized copy the leaf keeps, plus
-    # the leaf's sufficient-statistic cache: one index_t per observation per
-    # cached node, over every chain, capped at the leaf model's 256 MiB budget
+    # the leaf's sufficient-statistic cache. Leaf memberships partition the
+    # observations, so the member lists LIVE in one tree sum to at most 4*n -
+    # but the cache is arena-indexed and never pruned, and each slot's member
+    # vector keeps the capacity of the largest membership that slot ever held,
+    # so the resident total is 4*n per populated arena depth level per tree
+    # per chain. The 256 MiB budget bounds the tracked live bytes only, and
+    # at every cell here those stay well under it.
     sampler <- sampler +
       16 * n * length(cell$leaf.columns) +
-      min(4 * n * n.trees * m * cell$n.chains, 256 * 1024^2)
+      4 * n * n.trees * cell$n.chains * CACHE.LEVELS
   }
 
   # per chain: the dominant n*T pair, the total-fit, residual and move
@@ -195,21 +219,26 @@ predictBytes <- function(cell, warmup = 0, churn = function(rows) 0) {
   copies <- if (!binary || cell$n.chains > 1L) 3 else 2
   transients <- (copies - 1) * 8 * draws * (n + n.test)
 
-  # three live copies of the predictor matrix: the caller's, the one
-  # dbartsData keeps beside the store's codes, and the ingestion copy
-  predictors <- 24 * n * p + 24 * n.test * p + 8 * n
+  # the caller's own predictor matrix and response; the copies dbartsData
+  # makes on top of them are the measured ingestion allowance
+  predictors <- 8 * n * p + 24 * n.test * p + 8 * n
 
   # the training-fit mean's collector churn, absent on a binary fit
   mean.churn <- if (binary) 0 else churn(n) + churn(n.test)
 
-  sampler +
+  closed.form <- sampler +
     cell$n.chains * per.chain +
     saved.trees +
     channels +
     transients +
-    predictors +
-    mean.churn +
-    warmup
+    predictors
+  list(
+    closed.form = closed.form,
+    warmup = warmup,
+    churn = mean.churn,
+    ingest = ingest(n, p),
+    total = closed.form + warmup + mean.churn + ingest(n, p)
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -222,6 +251,14 @@ cell <- readRDS(commandArgs(trailingOnly = TRUE)[[1L]])
 if (identical(cell$what, "churn")) {
   m <- matrix(rnorm(cell$rows * cell$draws), cell$draws, cell$rows)
   invisible(apply(m, 2L, mean))
+} else if (identical(cell$what, "ingest")) {
+  set.seed(99L)
+  n <- as.integer(cell$n)
+  x <- runif(n * cell$p)
+  dim(x) <- c(n, cell$p)
+  colnames(x) <- paste0("x", seq_len(cell$p))
+  y <- runif(n)
+  invisible(list(x, y, dbarts:::dbartsData(x, y)))
 } else if (identical(cell$what, "cell")) {
   set.seed(99L)
   n <- as.integer(cell$n)
@@ -315,24 +352,35 @@ runGrid <- function(quick) {
     warmup / MB
   ))
 
-  # the churn allowance depends only on the row count and the draw count
-  churn.cache <- new.env(parent = emptyenv())
+  # the allowances, each measured once per distinct shape and cached
+  allowance.cache <- new.env(parent = emptyenv())
+  cached <- function(key, compute) {
+    if (is.null(allowance.cache[[key]])) {
+      allowance.cache[[key]] <- compute()
+    }
+    allowance.cache[[key]]
+  }
   churnFor <- function(draws) {
     function(rows) {
       if (rows == 0) {
         return(0)
       }
-      key <- paste(rows, draws)
-      if (is.null(churn.cache[[key]])) {
+      cached(paste("churn", rows, draws), function() {
         peak <- measure(
           list(what = "churn", rows = rows, draws = draws),
           worker.file
         )
         # the probe's own matrix and apply's aperm copy are modelled rows
-        churn.cache[[key]] <- max(0, peak - baseline - 16 * rows * draws)
-      }
-      churn.cache[[key]]
+        max(0, peak - baseline - 16 * rows * draws)
+      })
     }
+  }
+  ingestFor <- function(n, p) {
+    cached(paste("ingest", n, p), function() {
+      peak <- measure(list(what = "ingest", n = n, p = p), worker.file)
+      # the probe's own caller-side matrix and response are modelled rows
+      max(0, peak - baseline - 8 * n * p - 8 * n)
+    })
   }
 
   rows <- data.frame()
@@ -345,23 +393,40 @@ runGrid <- function(quick) {
   addRow("_baseline", "peak_rss_mb", baseline / MB)
   addRow("_warmup", "peak_rss_mb", warmup / MB)
 
+  cat(sprintf(
+    "%-34s %9s %9s %7s %7s %7s %9s\n",
+    "cell",
+    "measured",
+    "predicted",
+    "closed",
+    "warmup",
+    "churn",
+    "ingest"
+  ))
   for (cell in buildGrid(quick)) {
     spec <- cell
     spec$what <- "cell"
     measured <- (measure(spec, worker.file) - baseline) / MB
     draws <- cell$n.samples * cell$n.chains
-    predicted <- predictBytes(cell, warmup, churnFor(draws)) / MB
+    parts <- predictBytes(cell, warmup, churnFor(draws), ingestFor)
+    predicted <- parts$total / MB
     name <- cellName(cell)
     cat(sprintf(
-      "%-34s measured %8.1f  predicted %8.1f  residual %8.1f MB\n",
+      "%-34s %9.1f %9.1f %7.1f %7.1f %7.1f %9.1f\n",
       name,
       measured,
       predicted,
-      measured - predicted
+      parts$closed.form / MB,
+      parts$warmup / MB,
+      parts$churn / MB,
+      parts$ingest / MB
     ))
     addRow(name, "peak_rss_mb", measured)
     addRow(name, "predicted_mb", predicted)
     addRow(name, "residual_mb", measured - predicted)
+    addRow(name, "closed_form_mb", parts$closed.form / MB)
+    addRow(name, "churn_mb", parts$churn / MB)
+    addRow(name, "ingest_mb", parts$ingest / MB)
   }
 
   # the starting-sigma estimate, priced against the same cell with sigest
@@ -387,7 +452,7 @@ runGrid <- function(quick) {
   rows
 }
 
-reportResiduals <- function(rows) {
+reportResiduals <- function(rows, score = TRUE) {
   rows <- rows[
     rows$metric %in%
       c("peak_rss_mb", "predicted_mb", "residual_mb") &
@@ -403,9 +468,6 @@ reportResiduals <- function(rows) {
   wide$tolerance_mb <- pmax(0.10 * wide$predicted_mb, 20)
   wide$rel <- abs(wide$residual_mb) / wide$predicted_mb
   wide$flag <- ifelse(abs(wide$residual_mb) > wide$tolerance_mb, "MISS", "")
-  # the relative criterion only where the prediction clears the fixed floor;
-  # a grid with no such cell (quick mode) is scored on the absolute one alone
-  scored <- wide$rel[wide$predicted_mb > 100]
 
   cat("\n")
   print(
@@ -419,18 +481,17 @@ reportResiduals <- function(rows) {
     worst$residual_mb,
     worst$tolerance_mb
   ))
-  if (length(scored) > 0L) {
-    cat(sprintf(
-      "median absolute relative residual %.1f pct over %d cell(s) above 100 MB",
-      100 * median(scored),
-      length(scored)
-    ))
-    cat(" (limit 5.0)\n")
-  } else {
-    cat("relative residual not scored: no cell predicts above 100 MB\n")
+  cat(sprintf(
+    "median absolute relative residual %.1f pct over %d cell(s) (limit 5.0)\n",
+    100 * median(wide$rel),
+    nrow(wide)
+  ))
+  if (!score) {
+    cat("\nquick mode: a plumbing smoke test, not scored\n")
+    return(TRUE)
   }
   misses <- sum(wide$flag == "MISS")
-  if (misses > 0L || (length(scored) > 0L && median(scored) >= 0.05)) {
+  if (misses > 0L || median(wide$rel) >= 0.05) {
     cat(sprintf("\nFAIL: %d cell(s) outside tolerance\n", misses))
     return(FALSE)
   }
@@ -474,11 +535,14 @@ measureDuplicates <- function(quick) {
   full.size <- 8 * n * n.samples * 2L / MB
   # the engine's own layout, n x n.samples x n.chains
   samples <- array(rnorm(n * n.samples * 2L), c(n, n.samples, 2L))
+  sizeOf <- function(object) as.numeric(object.size(object)) / MB
+  addRow("yhat.train-before-convert", "object_size_mb", sizeOf(samples))
   combined <- NULL
   used <- maxUsedMb(
     combined <- dbarts:::convertSamplesFromDbartsToBart(samples, 2L, TRUE)
   )
   addRow("reshape-combined", "peak_heap_ratio", used / full.size)
+  addRow("yhat.train-after-convert", "object_size_mb", sizeOf(combined))
   used <- maxUsedMb(invisible(apply(combined, length(dim(combined)), mean)))
   addRow("apply-mean-combined", "peak_heap_ratio", used / full.size)
   used <- maxUsedMb(
@@ -501,11 +565,27 @@ measureDuplicates <- function(quick) {
     verbose = FALSE,
     seed = 1L
   )
-  sizeOf <- function(object) as.numeric(object.size(object)) / MB
   addRow("x", "object_size_mb", sizeOf(x))
   addRow("y", "object_size_mb", sizeOf(y))
   addRow("yhat.train", "object_size_mb", sizeOf(fit$yhat.train))
-  addRow("retained-sampler", "object_size_mb", sizeOf(fit$fit))
+  # object.size sees only the external pointer, so the sampler the fit
+  # retains is priced from the model instead
+  addRow(
+    "retained-sampler",
+    "engine_total_mb",
+    predictBytes(list(
+      n = n,
+      p = 10L,
+      n.trees = 75L,
+      n.chains = 2L,
+      n.samples = n.samples,
+      n.test = 0,
+      family = "gaussian",
+      leaf.columns = NULL,
+      keepTrees = TRUE
+    ))$closed.form /
+      MB
+  )
 
   sizes <- unlist(lapply(fit$fit$state, function(chain) {
     unlist(lapply(chain$forests, function(forest) forest$tree.sizes))
@@ -530,7 +610,7 @@ if (mode == "fit") {
   if (length(args) < 2L) {
     stop("usage: memory-footprint.R fit baseline.csv")
   }
-  if (!reportResiduals(read.csv(args[[2L]]))) quit(status = 1L)
+  if (!reportResiduals(read.csv(args[[2L]]), !quick)) quit(status = 1L)
 } else {
   results <- runGrid(quick)
   duplicates <- measureDuplicates(quick)
@@ -541,5 +621,5 @@ if (mode == "fit") {
     write.csv(rbind(results, duplicates), out.file, row.names = FALSE)
     cat("\nwrote", nrow(results) + nrow(duplicates), "rows to", out.file, "\n")
   }
-  if (!reportResiduals(results)) quit(status = 1L)
+  if (!reportResiduals(results, !quick)) quit(status = 1L)
 }
