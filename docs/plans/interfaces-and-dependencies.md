@@ -533,7 +533,7 @@ the formula path refused its own hazard test set where the Goal asks for
 acceptance, now expanded with `dbartsData`'s own `x.test` machinery
 (1f857d17).
 
-Remaining: S3 (sparse formula columns, in progress).
+Remaining: none.
 
 ## Landing note, S4 (2026-09-10)
 
@@ -564,3 +564,76 @@ assertions and the lint.yaml script body.
 Review finding fixed before landing: the first cut's test skipped under
 every automated gate (no source tree in the installed package), so it
 gained the source-checkout fallback and the lint.yaml job.
+
+## Landing note, S3 (2026-09-09)
+
+LANDED at 7165c3521c1afc4f9e3f4b00db72651d1303b7bf, twelve commits:
+
+- aa3c7b4e58d58862d00bcb40dd3d6e81cd285e73 Ingest sparse formula columns by pulling them out and re-attaching
+- e950538d0ba018c9dd831f9f9f465a8583678e70 Auto-sparsify a wide factor's indicator expansion
+- 0655fe9afe813d08e7375ea1d33fd91147703f05 Fix offset() term detection's indexing; test the sparse formula surface
+- deb144d2cdde61fc59bb30d4566d5e475489256b Add a wide-factor auto-sparse scenario to the equivalence corpus
+- d7d4baddc540e2857caf6b09d9d340bb8a9e67d6 Record equivalence-3a1db387.rds; repoint every live pin to it
+- b6a3db66383e8d350d116c6cf13aba85dc810bb8 Document the sparse formula surface and the auto-sparse wide factor
+- dee1d18c196b7d6bc1fbb11cb001e7dc90ee4fda air format R/data.R, R/utility.R, and the two sparse test files
+- ea0678b19d425f7364464b45095cdec0725d21bc Fall back to dense past the auto-sparse cutoff when Matrix is absent
+- 14df072b02123075ce1b5744e2d5d0aa6a069f84 Test the sparseFactor formula path under subset and response-NA drop
+- e0e79cb8597a833fd4859dcb6850507a4026b331 Repoint the gaussian baseline pins in the live plan docs to 3a1db387
+- ec4838239764b4c3a7d005111450e415bbf713fb State the storage tier behind the auto-sparse path's last-bit difference
+- 7165c3521c1afc4f9e3f4b00db72651d1303b7bf Name the recorded gaussian baseline after its landed scenario commit
+
+[`dbartsData`](../../R/data.R) pulls a formula `data`'s sparse columns
+(sparseVector, dgCMatrix, sparseFactor) out by class before `model.frame`
+runs and re-attaches them row-subset under `subset` and `na.action`, once
+`model.frame` has settled which rows survive
+([`subsetSparseFactorRows`](../../R/mixedMatrix.R), sparseFactor having no
+`[` method; plain `[` for the other two). `.` is expanded by hand against a
+placeholder frame so the rewritten formula names only its dense terms, and
+a sparse name wrapped in poly()/ns()/log()/offset()/':'/'*' is refused by
+name; a list or environment `data` keeps the old refusal (no row identity
+to re-attach by), as does bart2's multinomial formula ingestion. A
+`factors = "indicators"` fit auto-sparsifies a wide factor's dummy
+expansion past `sparseIndicatorLevelCutoff` (100 levels,
+[`R/utility.R`](../../R/utility.R), a memory choice from a level-count
+sweep, benchmarks/R/sparse-indicator-cutoff.R), automatic and unmarked
+(dec-B100); forcing "sparse" past the cutoff without Matrix installed
+falls back to dense, same as never touching the option. A wide-factor
+auto-sparse scenario (wideFactorIndicators) joins the gaussian equivalence
+corpus, recorded from the reference build as
+[equivalence-deb144d2.rds](../../benchmarks/baselines/equivalence-deb144d2.rds)
+(recorded as 3a1db387 before the landing rebase, renamed in 7165c352 so the
+MANIFEST names an ancestor) - an ADDITION under MANIFEST P17, the 51
+predecessors reproducing 2085cba2 bitwise (51 compared / 1 skipped),
+2085cba2 demoted. The storage-tier finding: an indicator column's density
+(1/K) always lands the auto-sparse block in the engine's rank-bitmap tier
+below `sparseDensityThreshold` (0.2), never the densified tier
+`testSparseEndToEnd` covers, so its leaf-mean sufficient statistics differ
+from dense in the last bit while tree structure and varcount stay
+bit-identical; the forced-sparse-vs-forced-dense test therefore compares
+with a tolerance, not bitwise identity, and the plan's own bitwise
+assumption for this path was corrected in the same slice.
+
+Real diff: about 2x the budget line, judged mechanical fallout by the
+reviewer, as S1's 1.8x was.
+
+Gates, run independently (second reader's own libs at the pre-rebase tip
+1dfa0663, then the reference build at 7165c352 reproducing the renamed
+file 52/52 under --strict-coverage): tinytest shipped 8192/0, reference
+8217/0; gaussian equivalence reference strict 52/52, shipped 52/52,
+shipped against 2085cba2 51/51 identical + 1 skipped; BCF 12/12,
+multinomial 11/11; `R CMD check --as-cran` OK at 9ef3d99f (pre-rebase
+equivalent); `lint_package`, `air format --check`, doc-freshness and
+rc-codoc clean.
+
+Review findings fixed before landing: no test covered
+`subsetSparseFactorRows` under `subset` or a response-NA drop (a mutation
+passed the whole suite; two assertions added, mirroring the dgCMatrix
+cases, and the mutation now fails exactly them); stale gaussian baseline
+pins in four live plan docs (engine-performance.md, front-door.md,
+memory-footprint-audit.md, pure-c-header.md); a docs/ path cited from a
+shipped `R/data.R` comment; the sparse-vs-dense difference mischaracterized
+as a representation-only change explained by floating-point summation
+order, corrected to the rank-bitmap storage tier's own last-bit divergence
+in leaf-mean sufficient statistics (above).
+
+Remaining: none.

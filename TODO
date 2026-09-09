@@ -435,7 +435,7 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
   kernel and its cost.
 
 survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97;
-  S1 01634227, S2 c38f02d0 landed; S3-S4 open)
+  S1 01634227, S2 c38f02d0, S3 7165c352, S4 a98c4cad landed)
   pre-release, R layer only: Surv on the formula left-hand side for aft
   and hazard; subset honoured; a test path for the hazard family that
   person-period expands held-out subjects. Plan:
@@ -471,7 +471,7 @@ remove the posterior dependency (decided, VD 2026-09-08;
   Plan: docs/plans/interfaces-and-dependencies.md.
 
 sparse factors on the formula interface (decided, VD 2026-09-08;
-  docs/decisions.md dec-B100)
+  docs/decisions.md dec-B100; LANDED 7165c352)
   pre-release, R layer: no formula marker. A sparse Matrix or
   sparseFactor is assigned into the data frame as a column (d$dtm <- M;
   the frame already subsets and na.omits it correctly) and named in the

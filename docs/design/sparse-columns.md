@@ -465,4 +465,10 @@ suite green, all pre-existing snapshots intact (rng-neutral).
 
 LANDED 2026-07-04 (plan and landing notes above); mixed dense/sparse
 input LANDED 2026-07-04 (plan and landing notes above); extension (i)
-sparse-column in-place mutation LANDED 2026-07-22 (section above).
+sparse-column in-place mutation LANDED 2026-07-22 (section above). The
+formula path, left unvalidated above, is settled by interfaces-and-
+dependencies'
+[Landing note, S3 (2026-09-09)](../plans/interfaces-and-dependencies.md#landing-note-s3-2026-09-09):
+a data-frame `data`'s sparseVector, dgCMatrix and sparseFactor columns are
+now accepted through the formula interface too, pulled out ahead of
+`model.frame` and re-attached row-subset afterward.
