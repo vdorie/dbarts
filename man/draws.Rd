@@ -14,9 +14,9 @@
   (\code{as_draws_array(draws(fit))}). \code{\link{summary.bart}} is
   built on the same array.
 
-  \code{\link{bart2}}'s four own-class fits (\code{"bartMultinomial"},
+  \code{\link{bart}}'s four own-class fits (\code{"bartMultinomial"},
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}; see
-  \code{\link{bart2}}) have their own \code{draws} methods, each
+  \code{\link{bart}}) have their own \code{draws} methods, each
   exposing the scalar posterior parameters that family carries rather
   than its per-observation channels - never \code{yhat.train} itself.
 }
@@ -30,8 +30,8 @@
 }
 \arguments{
   \item{x}{
-    An object of class \code{bart}, as returned by \code{\link{bart}} or
-    \code{\link{bart2}}; for the four own-class methods, a \code{bart2}
+    An object of class \code{bart}, as returned by \code{\link{bartBT}}
+    or \code{\link{bart}}; for the four own-class methods, a \code{bart}
     fit of the matching class.
   }
   \item{vars}{
@@ -55,7 +55,7 @@
     per observation.
 
     For the four own-class methods, \code{vars} is scoped to that
-    family's own vocabulary (see \code{\link{bart2}}): a
+    family's own vocabulary (see \code{\link{bart}}): a
     \code{"bartOrdinal"} fit's \code{"thresholds"} contributes
     \code{threshold[1]} (pinned at 0) through \code{threshold[K - 1]}; a
     \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
@@ -77,11 +77,11 @@
   family-scoped \code{vars}.
 }
 \seealso{
-\code{\link{bart}}, \code{\link{bart2}}, \code{\link{summary.bart}}
+\code{\link{bart}}, \code{\link{bartBT}}, \code{\link{summary.bart}}
 }
 \examples{
 \donttest{
-fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
+fit <- bart(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
 d <- draws(fit)

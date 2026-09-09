@@ -85,6 +85,14 @@ Case 2: n = 1e6, p = 50, 200 trees, 1 chain, everything else as above.
 
 ## Context
 
+- Step 1 landed [docs/design/memory-footprint.md](../design/memory-footprint.md),
+  which now carries the authoritative derivation; its "Where this
+  disagrees with the plan's Context" section corrects three points below:
+  the four owned conditioning vectors are already unconditional in the
+  baseline, not added by dec-B87; the per-chain block is 163.0 MB, not
+  162.5 (move scratch and per-tree object overhead were unlisted); and
+  dec-B104's 2.8x ratio is fixture-specific, holding near n = 1700, not
+  as a general rule.
 - Widths: [`xint_t`](../../src/bartcore/data.hpp) codes two bytes,
   [`index_t`](../../src/bartcore/data.hpp) indices four,
   [`Node`](../../src/bartcore/tree.hpp) 56 and
@@ -274,7 +282,15 @@ choice; fork 3 is the plan's own call.
    compares whole result objects at one seed for gaussian, probit and one
    multi-chain uncombined case); the script's before and after rows show
    the peak drop, expected from about 5.5 GB to about 2.2 GB in case 1 and
-   14 GB to 6 GB in case 2.
+   14 GB to 6 GB in case 2. "Two transient copies" is the general count
+   the note's Reference cases section confirms: `combineChains = TRUE`
+   (the reference cases' default) reaches three live arrays for every
+   family, not only non-binary ones, via `matrix()` and `t()`; a
+   non-binary fit under `combineChains = FALSE` still reaches three via
+   `apply`'s `aperm`. Only a binary fit under `combineChains = FALSE`
+   already peaks at two (one transient copy), so its own test case in the
+   "multi-chain uncombined" assertion above should be a binary family, to
+   cover that one-copy floor rather than the general two-copy case.
 
 ## Verification
 

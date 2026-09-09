@@ -86,6 +86,10 @@ These pairings are current and deliberate - navigate them:
   action-plan-shaped file on the same gaps, CLOSED/SUPERSEDED.
 - `docs/design/monotone.md` <-> `docs/plans/archive/monotone-bart.md` - design doc
   and plan file do not share a basename.
+- `docs/design/memory-footprint.md` <-> `docs/plans/memory-footprint-audit.md` -
+  same mismatch pattern: the closed-form model lives in the design doc,
+  the measurement script and manual/ranked-list steps that validate it in
+  the plan file.
 - `docs/design/ordinal.md` <-> `docs/plans/archive/ordinal-outcomes.md` - same
   mismatch pattern.
 - `docs/plans/archive/within-chain-threading.md` is a full plan file (goal,
