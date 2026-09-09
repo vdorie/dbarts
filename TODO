@@ -278,7 +278,8 @@ items
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
-front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
+front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
+  LANDED ecb319aa; S2-S4 open)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
   one release; the BayesTree-style names and defaults move to a new
   function, bartBT (VD 2026-09-08); for one release bart forwards

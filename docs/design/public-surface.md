@@ -7,6 +7,11 @@ Section 6 is SUPERSEDED by [pure-c-header](../plans/pure-c-header.md#pure-c-head
 and carrying no state or tree entry, and the entry list there is the
 twenty-four the trim leaves. The `retired:` cites in section 6 name constructs
 that are gone.
+Sections 3 and 3a are AMENDED by [front-door](../plans/front-door.md#front-door),
+LANDED 2026-09-09 (ecb319aa): `bart` now carries the modern (former `bart2`)
+formals and body, `bart2` is a one-release alias, and the BayesTree-compatible
+door is `bartBT`, not `bart` - every `bart2`/`bart` naming below predates the
+swap.
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so

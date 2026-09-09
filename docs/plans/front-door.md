@@ -352,3 +352,79 @@ at one seed; `bart(x.train = x, y.train = y)` gives the legacy door's
 draws and one warning per session; the legacy door at 0.9-34's defaults
 reproduces today's `bart` draws for gaussian and probit; a hand-built
 0.9-x fit object fails `predict` with the version message.
+
+## Landing note, S1 (2026-09-09)
+
+LANDED at ecb319aa00a7d3d70a80131b11c24a081dcbcdc2, eight commits:
+
+- 417a7a41f1b42a399f5d06df947872901fe4908b Rename the BayesTree-style door to bartBT and make bart the modern one
+- 533cba8e8084dabb98338e834d16b7896e7c621c Add the tombstone registry, the bart2 alias and the startup message
+- 282d18044b4f85539f7ec94e55052f00050ec05c Spell the creation-time estimate sigest, retire the hurdle aliases, refuse a 0.9-x state
+- a01436cee459adac84c25a9c843b307a44860146 Update the test suite for the two doors and the tombstones
+- 94588cc3e5e88f4d0a5e95a362f1f8fe85d5d778 Update the manual and the reference index for the rename
+- 215925aaff9fab43a86ebfa372f128cc0c749ba9 Apply air formatting
+- 6a393a74fd30bea3a0853cc2a1781bcc40180b05 Repoint the design cites the front-door rename moved
+- ecb319aa00a7d3d70a80131b11c24a081dcbcdc2 Address review: hurdle component calls, the legacy door's formula-path factor refusal, the 0.9-x state shape test, and the remedy call forms
+
+[`bart`](../../R/bart.R) carries the former `bart2` formals and body;
+[`bart2`](../../R/tombstones.R) is an alias, real formals, forwarding a
+matched call, once-per-session message, expiry 1.1-0. [`bartBT`](../../R/bart.R)
+has 0.9-34's 31 formals byte-identical in name, order and default
+(checked against the CRAN 0.9-34 tarball in review), none of the five
+bartcore-era extras, result class `bart`, and refuses a 3+-level factor
+response on both paths with the two-remedy message. The shim forwards
+22 BayesTree spellings to `bartBT` after `warnOnce`; a fourth-or-later
+positional `bart` argument stops naming both doors; `.onAttach` emits a
+`packageStartupMessage`. `...` on `bart`, `dbartsControl` and `xbart`
+still refuses an unknown name through [`foreignArgsFor`](../../R/generics.R).
+[`dbartsTombstones`](../../R/tombstones.R) holds 16 entries at expiry
+1.1-0 (`rbart_vi` and its four methods, `$startThreads`/`$stopThreads`
+no-ops, `rngSeed` as `seed` on `bart` and `dbartsControl`, `twopart`
+naming `hurdle.lognormal`, `sigma` as `sigest` on `dbarts` and
+`dbartsSpec`, `bart2`); one test checks the registry against NAMESPACE,
+its NEWS half deferred to S4 by an `exit_file` skip. `sigest` replaces
+`sigma` on `dbarts()`/`dbartsSpec()`; [`dbartsData`](../../R/data.R)'s
+`sigma` slot is unchanged. `hurdle.lognormal`/`twopart` leave
+`dbarts()`'s family list, refused there by name;
+[`bart2Hurdle`](../../R/bart.R) is reached from `bart` only.
+[`getPointer`](../../R/dbarts.R) and `setState` refuse a 0.9-x state by
+the plan's message, reached from [`predict.bart`](../../R/generics.R);
+`pdbart`/`pd2bart` redirect to `bartBT`. man/bart.Rd and man/bartBT.Rd
+swap and man/dbarts-deprecated.Rd is new (usage/alias/arguments correct
+for check, prose rewrite left to S4); ten design-doc cites the rename
+broke were repointed.
+
+Real diff: 131 files including the header slice underneath; front-door
+alone roughly R 665+/231-, tests 1070+/629- over 77 files, man
+845+/808- - over budget because ~70 test files moved bart2 to bart and
+two Rd files were renamed.
+
+Gates, run independently by review and again on the merged tree with
+the header slice: tinytest 8085/0 alone, 7877/0 on the stack;
+equivalence 50/12/11 identical, 0 skipped, no "max |z|" line;
+`R CMD check --as-cran` OK, 0 notes, clean tarball; `lint_package`,
+`air format --check`, pkgdown check clean; NEWS parses;
+check-doc-freshness.R, check-rc-codoc.R exit 0; `bartBT` at 0.9-34
+defaults reproduces pre-slice `bart`'s gaussian/probit draws bitwise
+against a throwaway install of 642f1a54; modern `bart` equals old
+`bart2` bitwise; the shim equals `bartBT` bitwise, one warning per
+session. Mutation probes: disabling the positional guard and the
+shim's `warnOnce` each fail their tests, as do a no-op
+`refuseLegacyState` and a dropped `x.train` from the shim's name list.
+
+Review findings fixed before landing: [`bart2Hurdle`](../../R/bart.R)'s
+two component calls forwarded through `bart2` and each raised its
+warning (now call `bart` directly, zero warnings); the legacy door's
+formula-path factor refusal was unreachable and the `dbarts()` message
+pointed at `bart2` (fixed at the spec.R caller string, the data.R
+suggestions, `bartBT`'s `tryCatch`); [`setState`](../../R/dbarts.R)
+called any non-state object a 0.9-x fit (now gated on the 0.9-x shape);
+remedy strings spelled `bart(x.train, y.train, ...)`, which the shim
+would itself capture (now `bart(x, y, ...)`); one false sentence in
+man/bartBT.Rd.
+
+Remaining: S2 (family objects, consolidation, na.action), S3 (xbart),
+S4 (manual, NEWS, records, consumer ports); the ~40 error strings and
+~100 manual references still naming `bart2()` go with S4;
+docs/design/multinomial-mutation-arc.md names man/bart2.Rd by line
+number in backticked prose, not a cite - S4 decides what to do with it.

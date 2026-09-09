@@ -8,7 +8,12 @@ recommendations as written); D3 and D4 LANDED 6446ddce
 three pre-RC lens reports tracked at
 docs/plans/review-2026-08-24/memos/prerc-lens1-surface.md,
 prerc-lens2-backlog.md, prerc-lens3-external.md (findings cited by
-their labels there).
+their labels there). D5 is AMENDED by [front-door](front-door.md#front-door),
+LANDED 2026-09-09 (ecb319aa): its premise, that nothing is released to
+deprecate from, no longer holds for 0.9-34's CRAN-released names -
+[`dbartsTombstones`](../../R/tombstones.R) is this codebase's first
+one-release deprecation-shim registry. D5's own action (deleting
+predict.rbart's dev-cycle shims) is unaffected.
 
 Why now: 1.0-0 locks the R API and the flat C API. Each decision below
 is a change that would be BREAKING after release and is cheap before
