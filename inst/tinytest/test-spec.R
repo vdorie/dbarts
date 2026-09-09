@@ -37,7 +37,7 @@ samples <- sampler$run()
 expect_identical(samples$train, referenceSamples$train)
 expect_identical(samples$sigma, referenceSamples$sigma)
 
-## the resolved family is the token dbarts_sampler_create() takes, and it is
+## the resolved family is the one the sampler is built with, and it is
 ## never left as "auto"
 expect_equal(spec$model@family, "gaussian")
 

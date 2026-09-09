@@ -31,11 +31,17 @@ struct dbarts_sampler_t {
   bool keepTrainingFits;
 
   // COPY-ON-SET: the four value vectors the engine borrows for the sampler's
-  // lifetime. Every creation route sizes them to its own counts and copies
-  // into them, so no R vector and no flat caller's array is ever retained, and
-  // a later set is a copy into storage that already exists (see adoptVector).
-  // Default-initialized so a creation site lists only the three fields above
-  // and every owned buffer defaults to empty (no partial-aggregate hazard).
+  // lifetime. No R vector and no flat caller's array is ever retained. Every
+  // route a dbartsSampler object's pointer can come from - and so every handle
+  // the flat C API can be given - sizes all four at creation, whether the
+  // specification fills them or not, so a later set is a copy into storage
+  // that already exists (see adoptVector). bartcore_createFromHandle is the
+  // exception and is allowed to be: it sizes ownedResponse alone, leaving the
+  // three optional buffers empty unless the view carries them, and its holder
+  // is xbart-internal - it lives in a plain environment and never becomes an
+  // R5 object's pointer, so no handle names it. Default-initialized so a
+  // creation site lists only the three fields above and every owned buffer
+  // defaults to empty (no partial-aggregate hazard).
   std::vector<double> ownedResponse{}, ownedWeights{}, ownedOffset{},
                       ownedTestOffset{};
 
@@ -74,11 +80,14 @@ namespace bartcore_bridge {
 using BartcoreHolder = ::dbarts_sampler_t;
 
 /// Copies \p count values into \p owned and returns the pointer the engine
-/// borrows, resizing only where a conduit has moved a count: creation sizes
-/// every buffer, so an ordinary set allocates nothing, which is the
-/// no-allocation-after-creation guarantee the flat C header states. A null
-/// \p values installs nothing and returns null, which is the removal the
-/// offset conduits admit.
+/// borrows, resizing only where the buffer is not already that wide: every
+/// creation route a flat C handle can name sizes all four buffers, so an
+/// ordinary set there allocates nothing, which is the
+/// no-allocation-after-creation guarantee the flat C header states. The resize
+/// is what the two R conduits that MOVE a count go through, and what covers
+/// the R-only route (bartcore_createFromHandle) that sizes the response alone.
+/// A null \p values installs nothing and returns null, which is the removal
+/// the offset conduits admit.
 const double* adoptVector(std::vector<double>& owned, const double* values,
                           std::size_t count);
 

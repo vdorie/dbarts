@@ -136,10 +136,12 @@ namespace bartcore_bridge {
 
 // COPY-ON-SET, both surfaces': the engine borrows a value vector for the
 // sampler's lifetime, so what it borrows is a holder-owned buffer rather than
-// an R vector or a flat caller's array. Creation sizes each buffer to the
-// sampler's own counts, so this is a copy into storage that already exists;
-// the resize is what the two R conduits that move a count (bartcore_setData,
-// bartcore_setTestPredictor) go through, and it is the only allocation any set
+// an R vector or a flat caller's array. Every creation route a flat C handle
+// can name sizes each buffer to the sampler's own counts, so a set there is a
+// copy into storage that already exists; the resize is what the two R conduits
+// that move a count (bartcore_setData, bartcore_setTestPredictor) go through,
+// and what covers bartcore_createFromHandle, which sizes ownedResponse alone
+// and whose holder no handle can name. It is the only allocation any set
 // performs. A null \c values installs nothing, which is the removal the offset
 // conduits admit.
 const double* adoptVector(std::vector<double>& owned, const double* values,

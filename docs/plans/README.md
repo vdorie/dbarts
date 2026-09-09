@@ -209,6 +209,21 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
   uninstrumented static libraries). On macOS symbolization spawns `atos`,
   which raises the Developer Tool Access prompt; a prompt means a
   diagnostic fired, so read the count.
+- That bullet covers tests/cpp; the R-loaded path (the bridge, the flat C
+  entry file, anything only a `.Call` reaches) needs its own run, and it
+  IS reachable on macOS. SIP strips `DYLD_INSERT_LIBRARIES` from the
+  `bin/R` shell wrapper, not from `$(R RHOME)/bin/exec/R`. Build with
+  `R_MAKEVARS_USER=<file adding -fsanitize=address to CFLAGS, CXXFLAGS
+  and LDFLAGS> R CMD INSTALL --preclean --no-test-load -l <lib> .` (the
+  load test runs under the wrapper and would fail on uninstalled
+  interceptors), then run the suite as
+  `R_HOME=$(R RHOME) R_LIBS=<lib>
+  DYLD_INSERT_LIBRARIES=<.../libclang_rt.asan_osx_dynamic.dylib>
+  ASAN_OPTIONS=detect_container_overflow=0 $(R RHOME)/bin/exec/R --vanilla
+  --no-echo -f <driver.R>`; `R_HOME` is not optional, the exec binary not
+  setting it itself. Skip any test file that spawns a worker R process -
+  the child goes through the wrapper and aborts on "Interceptors are not
+  working".
 - A renamed OPTIONAL state block is a silent misread, not an error, unless
   the format floor moves with it; see the registry rule at
   [`stateFormatVersion`](../../src/R_interface_bartcore.cpp).

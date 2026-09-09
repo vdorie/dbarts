@@ -811,8 +811,12 @@ specCopyB <- dbarts(x, y, control = control)
 yConditioned <- y + 3
 yClobber <- y - 99
 expect_equal(
-  CALL("capi_set_response_clobber", specCopyA$getPointer(), yConditioned,
-       yClobber),
+  CALL(
+    "capi_set_response_clobber",
+    specCopyA$getPointer(),
+    yConditioned,
+    yClobber
+  ),
   1L
 )
 expect_equal(
@@ -840,8 +844,12 @@ specOffA <- dbarts(x, y, control = control)
 specOffB <- dbarts(x, y, control = control)
 offsetConditioned <- rep(2, n)
 expect_equal(
-  CALL("capi_set_offset_clobber", specOffA$getPointer(), offsetConditioned,
-       rep(-50, n)),
+  CALL(
+    "capi_set_offset_clobber",
+    specOffA$getPointer(),
+    offsetConditioned,
+    rep(-50, n)
+  ),
   1L
 )
 expect_equal(
