@@ -117,11 +117,12 @@ xbart(
   the burn-in when a chain is freshly started against a data split
   and 2) the burn-in when moving from one parameter setting to another
   over the same split. A longer vector is an error naming the argument
-  rather than being silently truncated to its first two entries. Chains
-  are never carried between data splits or folds - the held-out
-  observations of one were training observations of the previous, so
-  continuing a chain lets slowly-mixing settings score against data they
-  have effectively seen.
+  rather than being silently truncated to its first two entries; dbarts
+  0.9-x read a third element as a per-replication burn-in, which no
+  longer exists. Chains are never carried between data splits or folds -
+  the held-out observations of one were training observations of the
+  previous, so continuing a chain lets slowly-mixing settings score
+  against data they have effectively seen.
 
 - loss:
 
@@ -138,11 +139,12 @@ xbart(
 
 - n.threads:
 
-  Replications are independent, and for `n.threads > 1` they are divided
-  into approximately equal chunks and executed on that many parallel
-  workers (a
+  Every (replication, fold) pair is an independent unit of work, and for
+  `n.threads > 1` the units are divided into approximately equal chunks
+  and executed on that many parallel workers (a
   [`makeCluster`](https://rdrr.io/r/parallel/makeCluster.html) cluster).
-  The default uses
+  A `k`-fold run of a single replication therefore uses up to `k`
+  workers. The default uses
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md),
   which should work across the most common operating system/hardware
   pairs.
@@ -155,20 +157,26 @@ xbart(
 
 - k:
 
-  A vector of positive real numbers, setting the BART hyperparameter for
-  the node-mean prior standard deviation. If `NULL`, the grid default of
-  2 is used for every response family. Binary responses do not inherit
-  `bart2`'s Chi hyperprior default: a hyperprior is not a grid, so
-  taking it here would drop the `k` axis from the result array entirely,
-  rather than leave it a swept dimension (see ‘Value’). Hyperprior
-  crossvalidation not possible at this time. A hyperprior `k` is held,
-  not swept, and is DRAWN every sweep in every cell, so the reported
-  loss is computed under a shrinkage that moves within each fit rather
-  than under the named value. A numeric grid is always swept largest to
-  smallest and the reported `k` axis un-permuted back to the order
-  given, so results do not depend on the order `k` is listed in; cells
-  still warm-start off the previous one, so this is order-invariance,
-  not an unbiased estimate for each cell taken alone.
+  The grid for the BART hyperparameter setting the node-mean prior
+  standard deviation: a vector of positive real numbers, each a cell of
+  its own, or a [`list`](https://rdrr.io/r/base/list.html) whose entries
+  are positive numbers and `k` hyperpriors
+  ([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
+  so that `k = list(1, 2, chi())` sweeps two fixed values against the
+  modelled one. A modelled cell holds its hyperprior and DRAWS `k` every
+  sweep, so its loss is computed under a shrinkage that moves within the
+  fit rather than under a named value; it is labelled in the result by
+  the constructor call that rebuilds it. If `NULL`, one cell is run at
+  the default
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) would fit
+  for the response type: fixed 2 for a continuous response and
+  `chi(1.5, 2)` for a binary one. A `k` carried by a supplied
+  `node.prior` stands in for a missing argument. Fixed cells are always
+  swept largest to smallest, with a modelled cell last, and the reported
+  `k` axis is un-permuted back to the order given, so results do not
+  depend on the order `k` is listed in; cells still warm-start off the
+  previous one, so this is order-invariance, not an unbiased estimate
+  for each cell taken alone.
 
 - power:
 
@@ -219,9 +227,12 @@ xbart(
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). Results are reproducible
-  for a fixed pair of `seed` and `n.threads`; the caller's random stream
-  is left untouched when a seed is given. Without one,
+  [seed](https://rdrr.io/r/base/Random.html). Each replication takes its
+  data split, and each unit of work its fits, from a seed derived from
+  this one and the unit's own index, so results are reproducible for a
+  fixed `seed` at any `n.threads`; the caller's random stream is left
+  untouched when a seed is given, and advanced only by the derivation of
+  those seeds when one is not. Without one,
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices.
 
 - factors:
@@ -337,22 +348,20 @@ continuous responses.
 
 An array with up to six dimensions, in order `rep` (length `n.reps`),
 `n.trees`, `k`, `power`, `base`, and `loss`. `rep` is always present.
-`n.trees`, `power`, and `base` are each omitted when `drop` is `TRUE`
-and the corresponding argument has length 1; with `drop = FALSE` they
-are always present. `k` follows a different rule: it is omitted whenever
-`k` was NOT given as a numeric grid (i.e. it resolved to a hyperprior;
-see the `k` argument above) REGARDLESS of `drop`, and otherwise follows
-the same drop-if-length-1 rule as the other three. The trailing `loss`
-dimension, sized to however many values a single call to `loss` returns,
-is present only when that count is greater than one - independent of
-`drop` entirely; the default losses and an ordinary scalar-returning
-custom `loss` never contribute it. When none of the above survive, the
-result collapses to a plain vector of length `n.reps`. When the result
-remains an array, its `dimnames` name the swept values on each surviving
-hyperparameter axis - exact integer labels for `n.trees`, values rounded
-to 2 significant digits for the double-valued `k`/`power`/`base` axes;
-the `loss` axis, when present, carries no per-slot names, and neither
-does `rep`.
+`n.trees`, `k`, `power`, and `base` are each omitted when `drop` is
+`TRUE` and the corresponding grid has length 1; with `drop = FALSE` they
+are always present, an absent `k` included, whose single cell is then
+named for the default it ran at. The trailing `loss` dimension, sized to
+however many values a single call to `loss` returns, is present only
+when that count is greater than one - independent of `drop` entirely;
+the default losses and an ordinary scalar-returning custom `loss` never
+contribute it. When none of the above survive, the result collapses to a
+plain vector of length `n.reps`. When the result remains an array, its
+`dimnames` name the swept values on each surviving hyperparameter axis -
+exact integer labels for `n.trees`, values rounded to 2 significant
+digits for the double-valued `k`/`power`/`base` axes, and the
+constructor call for a modelled `k` cell; the `loss` axis, when present,
+carries no per-slot names, and neither does `rep`.
 
 For method `"k-fold"`, each element is an average across the \\K\\ fits.
 For `"random subsample"`, each element represents a single fit.
