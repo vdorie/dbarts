@@ -1,7 +1,15 @@
 # Memory footprint
 
-Status: OPEN until step 2 of [memory-footprint-audit.md](../plans/memory-footprint-audit.md)
-validates it against measured peak RSS.
+Status: VALIDATED against measured peak resident set size by
+[benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R) at
+80ff32b4 on arm64 macOS. Every one of the 29 grid cells falls within
+max(10 pct, 20 MB) of the model and the median absolute relative residual is
+2.0 pct over the twelve cells predicting more than 100 MB; the worst cell
+(n = 1e5, p = 10, T = 200) is 13.5 MB high against a 24.0 MB tolerance. The
+relative half of the tolerance is scored only above 100 MB: below it the
+residual is set by page-level allocator behaviour rather than by any row
+here, so a relative criterion there measures the host. "What the measurement
+moved" below records the rows the run changed.
 
 The closed-form model of what a fit allocates, per component, in the units the
 allocations have. Every byte count is read off the element type and the
@@ -25,7 +33,7 @@ differently.
 | column metadata | [`ColumnStore::numCuts`](../../src/bartcore/data.hpp), [`ColumnStore::categoryCounts`](../../src/bartcore/data.hpp), [`ColumnSource`](../../src/bartcore/data.hpp) | sampler | ~70 per column per row set | p | always |
 | sparse column | [`SparseColumnData`](../../src/bartcore/data.hpp) | sampler | 0.1875*n + 2*nnz | per rank-stored column, replacing its 2*n codes | a CSC column at or below 20 pct density |
 | owned dense raw | [`ColumnStore::ownedDenseValues`](../../src/bartcore/data.hpp), [`ColumnStore::ownedTestValues`](../../src/bartcore/data.hpp) | sampler | 8 | n (nTest) per real dense-backed column | CSC/mixed build; test side on any test build |
-| gathered leaf raw | [`ColumnStore::gatheredRawValues`](../../src/bartcore/data.hpp) | sampler | 8 | n*q | a designated-covariate leaf (linear, gp) |
+| gathered leaf raw | [`ColumnStore::gatheredRawValues`](../../src/bartcore/data.hpp) and the leaf's standardized copy of it | sampler | 16 | n*q | a designated-covariate leaf (linear, gp) |
 | owned conditioning vectors | [`BartcoreHolder::ownedResponse`](../../src/R_interface_bartcore_common.hpp), [`BartcoreHolder::ownedWeights`](../../src/R_interface_bartcore_common.hpp), [`BartcoreHolder::ownedOffset`](../../src/R_interface_bartcore_common.hpp) | sampler | 8 | 3*n | always, sized in [`createHolder`](../../src/R_interface_bartcore.cpp) whether filled or not |
 | owned test offset | [`BartcoreHolder::ownedTestOffset`](../../src/R_interface_bartcore_common.hpp) | test row | 8 | nTest | always, same site |
 | predictor-update cache | [`UpdateSessionImpl`](../../src/bartcore/sampler.hpp) | sampler | 4 | n per tree splitting on the column | an open update session, over every chain |
@@ -55,7 +63,11 @@ differently.
 | yhat.train transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra n*L*S*C live at peak; 1 under combineChains = FALSE on a binary fit | keepTrainingFits |
 | yhat.test transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
-| raw predictors | [`dbartsData`](../../R/A_class.R) | sampler | 8 | n*p, plus nTest*p | always, beside the store's 2*n*p codes |
+| raw predictors, three live copies | [`dbartsData`](../../R/A_class.R) | sampler | 24 | n*p, plus nTest*p | always, beside the store's 2*n*p codes: the caller's matrix, the one the data object keeps, and the ingestion copy, all resident at the peak |
+| starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R) | sampler | 8 | about 4*n*(p+1) transiently, at the `summary.lm` instant - base R's model frame, na filter, model matrix and QR | no `sigest` given and the family estimates a residual sd (not binary) |
+| leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per cached node, over every chain, capped at the leaf's 256 MiB total budget | a designated-covariate leaf (linear, gp) |
+| training-fit mean churn | [`packageBartResults`](../../R/bart.R)'s `apply` | saved sample | not a byte count | two small R objects per observation, resident until the collector's next cycle | keepTrainingFits on a non-binary fit |
+| fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
 | ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
 | quantile collector | [`QuantileGrid`](../../src/bartcore/data.hpp)'s [`sortedUnique`](../../src/bartcore/data.hpp) | sampler | 8 | n reserved per column, one column at a time | usequants |
 | retained sampler | [`keepSampler`](../../R/bart.R) | sampler | the whole engine total above | 1 | keepTrees or keepSampler |
@@ -69,12 +81,27 @@ reaches the same three through `apply`'s `aperm`, which copies even when the
 permutation is the identity. Only a binary fit under combineChains = FALSE
 peaks at two.
 
-Which INSTANT a total describes matters. The reference cases are the peak of a
-full-length run, where the result channels and their copies dominate. A short
-run (n.burn = 0, small n.samples, as step 2's cells are) collapses that term
-and max RSS lands instead at ingestion and quantization - the two transient
-sampler rows, up to 2*n*p doubles at once, 800 MB at n = 1e6, p = 50. Hundreds
-of MB at a small S is that, not a missing term.
+Which INSTANT a total describes matters, and the measurement settled which
+one wins. Two instants compete: ingestion, where the predictor copies and the
+starting-sigma linear model are live, and packaging, where the result channels
+and their copies are. On the matrix door a short run (n.burn = 0, small
+n.samples, as the audit's cells are) peaks at PACKAGING, not at ingestion: the
+per-chain n*T pair is already resident by then and dominates both. Ingestion
+wins only when no `sigest` is given, and then by base R's `lm`, not by the
+store: on this host that estimate raised the peak by 21.0 MB at p = 10,
+58.3 MB at p = 20 and 147.7 MB at p = 50 (n = 1e5, T = 200, S = 10), about
+30 further bytes per n*p as p grows. The formula and data-frame doors add
+their own model-frame transients on top; the audit measures the matrix door,
+where they do not exist.
+
+Two rows above are not byte counts and are measured per host rather than
+derived: the fit-path warm-up (6.5 MB on this host) and the training-fit
+mean's collector churn. `apply` over the observation margin allocates two
+small R objects per observation and R's collector leaves them resident until
+its next cycle, so the peak carries 2.8 MB at n = 1e4, 16.2 MB at n = 1e5 and
+120.4 MB at n = 1e6 (10 draws) that no byte count predicts. Both vanish from
+the model the moment the mean is taken with a colMeans-style reduction
+instead.
 
 ## The one non-derived input
 
@@ -82,9 +109,13 @@ m, the mean live node count of a tree, is the only quantity not fixed by the
 source. It enters the live-tree rows (negligible: 0.09 MB at T = 200, m = 8)
 and the saved-tree and stored-state rows (where it is the whole term). The
 current estimate is 3.8 at n = 2e3, growing slowly with n; the reference cases
-below assume 8 at n >= 1e5. Step 2 measures it per grid cell by summing the
-`tree.sizes` blocks [`storeFlatTrees`](../../src/R_interface_bartcore.cpp)
-writes and dividing by C*T. Two node counts exist and differ: the flattened
+below assume 8 at n >= 1e5. The audit measures it by summing the `tree.sizes`
+blocks [`storeFlatTrees`](../../src/R_interface_bartcore.cpp) writes and
+dividing by C*T: 5.73 at n = 2e4, T = 75, C = 2. That is a SHORT-RUN count -
+the audit's cells run n.burn = 0, so the trees never reach their stationary
+size - and so it neither confirms nor moves the reference cases' 8; it is a
+lower bound on it, and it is the value the leaf statistics cache row was
+checked against. Two node counts exist and differ: the flattened
 live count m that storeState and saved trees write, and the arena length
 [`Tree::nodes`](../../src/bartcore/tree.hpp) holds. The arena only grows -
 a death recycles its pair through [`freePairs`](../../src/bartcore/tree.hpp)
@@ -112,9 +143,9 @@ Case 1: n = 1e5, p = 20, T = 200, C = 4, S = 500.
 | live trees, leaf values, Tree objects | chain | 0.17 |
 | per chain | | 162.97 |
 | engine total, 4.02 + 2.40 + 4*162.97 | | 658.3 |
-| x 8*n*p, y 8*n, sigma, varcount | R | 17.0 |
+| x, three live copies 24*n*p, y 8*n, sigma, varcount | R | 49.0 |
 | yhat.train, three copies live at peak, 24*n*S*C | R | 4800.0 |
-| peak, of which the engine is 12 pct | | 5475.3 |
+| peak, of which the engine is 12 pct | | 5507.3 |
 
 Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 
@@ -129,9 +160,9 @@ Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 | live trees, leaf values, Tree objects | chain | 0.17 |
 | per chain | | 1628.17 |
 | engine total | | 1752.2 |
-| x, y, sigma, varcount | R | 408.1 |
+| x, three live copies 24*n*p, y, sigma, varcount | R | 1208.1 |
 | yhat.train, three copies live at peak, 24*n*S | R | 12000.0 |
-| peak, of which the engine is again 12 pct | | 14160.3 |
+| peak, of which the engine is again 12 pct | | 14960.3 |
 
 What the consuming arcs read off this: the three owned conditioning vectors
 plus the test offset (dec-B87, [docs/decisions.md](../decisions.md)) are
@@ -162,5 +193,40 @@ within-chain threading is not in the tree, and dec-B89's arc measures it.
   whole explanation and R list overhead is not part of it. That auto-store is
   gone, reverted by dec-B33 and confirmed by dec-B104. retired:
   [R/bart.R:144-150](https://github.com/vdorie/dbarts/blob/6c740a41e5bb7da90d2e58494e8f622e8131ce87/R/bart.R#L144-L150)
-  Step 2 measures the ratio at every cell; the manual carries it with its
-  condition.
+  The audit anchors the arithmetic: at n = 2e4, T = 75, m = 5.73, C = 2 and
+  S = 100 one draw's stored state is 0.00035 of the run's whole prediction
+  array (13*T*m/(8*n*S)) and 0.035 of a single draw's (13*T*m/(8*n)). Neither
+  reaches 2.8 anywhere but at n in the hundreds, so the manual carries the
+  per-draw form with its condition and not the decision's bare number.
+
+## What the measurement moved
+
+The run at 80ff32b4 changed five rows and added none that a byte count
+could have been read off without it.
+
+- Raw predictors went from 8*n*p to 24*n*p. Three copies of the predictor
+  matrix are resident at the peak, not one: the caller's, the one the data
+  object keeps beside the codes, and a third the ingestion path makes. The
+  p slope of the measured peak is 25 to 28 bytes per n*p against the 10 the
+  single-copy model gave.
+- The starting-sigma linear model is a new row and, on a short run with no
+  `sigest`, the largest single R-side term. It is base R's `lm`, not a
+  sampler allocation, which is why the audit's cells supply `sigest` and
+  price it on a paired excursion instead.
+- The leaf statistics cache is a new row and the largest single term of a
+  designated-covariate fit: 268 MB at n = 1e5, T = 200, C = 1, where the
+  whole rest of the fit is 350 MB. Without it the linear cell missed by
+  274 MB, the only cell that missed at all; with it the same cell lands
+  1.7 MB high. It is capped, so it does not scale past 256 MiB, but it
+  reaches the cap at every cell above n*T*m*C = 6.7e7.
+- Gathered leaf raw doubled, 8*n*q to 16*n*q: the leaf keeps its own
+  standardized copy beside the store's gather.
+- Two rows are not byte counts at all and are measured per host: the
+  fit-path warm-up and the training-fit mean's collector churn. Naming them
+  is the honest form; folding them into a per-unit coefficient would have
+  hidden an R-collector effect inside an allocation model.
+
+Nothing in the engine's own rows moved. The n*T pair measured 8.02 to 8.06
+bytes per n*T under a constant leaf across every cell, against the derived
+8, and the per-chain and per-sampler rows carried the chain excursion to
+within 2 pct.
