@@ -147,8 +147,9 @@ expandDiscreteTimeHazard <- function(
       Nprime,
       " rows, over the cap of ",
       max.rows,
-      "; coarsen the time grid with 'breaks' (a boundary vector or an ",
-      "integer period count) or raise 'max.rows'"
+      "; coarsen the time grid with family = hazard(breaks = ) (a boundary ",
+      "vector or an integer period count), or raise the cap with ",
+      "family = hazard(max.rows = )"
     )
   }
 

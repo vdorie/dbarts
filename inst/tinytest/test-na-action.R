@@ -179,3 +179,85 @@ frameNoResponse <- stats::model.frame(
 )
 expect_equal(nrow(frameNoResponse), n)
 expect_null(attr(frameNoResponse, "na.action"))
+
+# --- an amplitude basis follows the rows the na.action dropped -------------
+
+# a forests = declaration's basis is validated against the caller's own row
+# count and then restricted to whatever rows the fit kept, exactly as it is
+# restricted by 'subset'; the na.action's drop is the same kind of
+# restriction, on both interfaces and with no 'subset' in sight.
+nBasis <- 40L
+set.seed(88L)
+aBasis <- runif(nBasis)
+zBasis <- rbinom(nBasis, 1L, 0.5)
+yBasis <- aBasis + zBasis * (1 + aBasis) + rnorm(nBasis, sd = 0.2)
+droppedRow <- 7L
+yBasis[droppedRow] <- NA_real_
+dBasis <- data.frame(y = yBasis, a = aBasis, z = zBasis)
+basisMatrix <- unname(cbind(1 - zBasis, zBasis))
+keptBasis <- nBasis - 1L
+
+basisControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 4L,
+  n.burn = 2L,
+  updateState = FALSE,
+  seed = 7L
+)
+
+# formula path, no subset
+formulaBasis <- dbarts::dbarts(
+  y ~ a,
+  dBasis,
+  forests = list(forest(), forest(basis = ~z)),
+  control = basisControl
+)
+expect_equal(length(formulaBasis$data@y), keptBasis)
+expect_equal(nrow(formulaBasis$data@bases[[2L]]), keptBasis)
+expect_equal(
+  formulaBasis$data@bases[[2L]][, 1L],
+  zBasis[-droppedRow]
+)
+
+# formula path, a supplied basis matrix at the caller's own row count
+formulaBasisMatrix <- dbarts::dbarts(
+  y ~ a,
+  dBasis,
+  forests = list(forest(), forest(basis = basisMatrix)),
+  control = basisControl
+)
+expect_equal(nrow(formulaBasisMatrix$data@bases[[2L]]), keptBasis)
+expect_equal(
+  formulaBasisMatrix$data@bases[[2L]],
+  basisMatrix[-droppedRow, , drop = FALSE]
+)
+
+# matrix path, through dbartsData's own bases argument
+matrixBasis <- dbarts::dbartsData(
+  cbind(a = aBasis),
+  yBasis,
+  bases = list(NULL, basisMatrix)
+)
+expect_equal(length(matrixBasis@y), keptBasis)
+expect_equal(nrow(matrixBasis@x), keptBasis)
+expect_equal(
+  matrixBasis@bases[[2L]],
+  basisMatrix[-droppedRow, , drop = FALSE]
+)
+
+# and na.omit, which drops a further row for the missing predictor
+aWithNA <- aBasis
+aWithNA[13L] <- NA_real_
+matrixBasisOmit <- dbarts::dbartsData(
+  cbind(a = aWithNA),
+  yBasis,
+  bases = list(NULL, basisMatrix),
+  na.action = na.omit
+)
+expect_equal(length(matrixBasisOmit@y), nBasis - 2L)
+expect_equal(
+  matrixBasisOmit@bases[[2L]],
+  basisMatrix[-sort(c(droppedRow, 13L)), , drop = FALSE]
+)

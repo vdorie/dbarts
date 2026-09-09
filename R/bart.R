@@ -801,6 +801,10 @@ bart <- function(
   )
   familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
   family <- familySpec@token
+  # the caller's own 'family' expression, kept for the stored call: the
+  # resolved object below is a forwarding detail, and a fit whose call was
+  # never written with a family should not print one
+  suppliedFamily <- matchedCall$family
   matchedCall$family <- familySpec
 
   # A data object carrying an n x K count matrix declares the multinomial
@@ -887,7 +891,9 @@ bart <- function(
     control@levelGibbs <- validateLevelGibbs(levelGibbs)
   }
 
-  control@call <- if (keepCall) matchedCall else call("NULL")
+  storedCall <- matchedCall
+  storedCall$family <- suppliedFamily
+  control@call <- if (keepCall) storedCall else call("NULL")
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
   # printEvery counts post-thinning samples and must stay positive: thinning

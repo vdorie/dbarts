@@ -299,3 +299,72 @@ grid[, 4L] <- seq(0, 1, length.out = 25L)
 along <- colMeans(predict(monotoneFit, grid))
 expect_true(all(diff(along) >= -1e-8))
 rm(monotoneFit, grid, along, df, fitAt, leafSumError, testData)
+
+# ---- the setting is declared on the tree prior (dec-B98) ----
+
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
+
+# both structure priors carry it, and each validates it as the control does
+expect_true("levelGibbs" %in% names(formals(dbarts:::cgm)))
+expect_true("levelGibbs" %in% names(formals(dbarts:::dart)))
+expect_true(is.na(dbarts::dbartsPriors$cgm()@levelGibbs))
+expect_true(dbarts::dbartsPriors$cgm(levelGibbs = TRUE)@levelGibbs)
+expect_false(dbarts::dbartsPriors$dart(levelGibbs = FALSE)@levelGibbs)
+expect_error(
+  dbarts::dbartsPriors$cgm(levelGibbs = "not-a-logical"),
+  "'levelGibbs' must be TRUE, FALSE, or NA"
+)
+expect_error(
+  dbarts::dbartsPriors$dart(levelGibbs = c(TRUE, TRUE)),
+  "'levelGibbs' must be TRUE, FALSE, or NA"
+)
+
+# a value declared on the prior reaches the control the bridge reads, and
+# takes the extra step: the draws move against a fit that declared nothing
+fitWithTreePrior <- function(treePrior) {
+  dbarts::bart(
+    testData$x,
+    testData$y,
+    tree.prior = treePrior,
+    n.trees = 15L,
+    n.samples = 30L,
+    n.burn = 30L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepSampler = TRUE,
+    verbose = FALSE,
+    seed = 21L
+  )
+}
+levelGibbsDefault <- fitWithTreePrior(dbarts::dbartsPriors$cgm())
+levelGibbsOn <- fitWithTreePrior(dbarts::dbartsPriors$cgm(levelGibbs = TRUE))
+levelGibbsOff <- fitWithTreePrior(dbarts::dbartsPriors$cgm(levelGibbs = FALSE))
+expect_true(is.na(levelGibbsDefault$fit$control@levelGibbs))
+expect_true(levelGibbsOn$fit$control@levelGibbs)
+expect_false(levelGibbsOff$fit$control@levelGibbs)
+# an undeclared prior leaves the control's own setting in force; a declared
+# one overrides it
+expect_false(identical(
+  levelGibbsDefault$yhat.train,
+  levelGibbsOn$yhat.train
+))
+expect_identical(levelGibbsDefault$yhat.train, levelGibbsOff$yhat.train)
+
+# and the same from a DART prior
+dartOn <- fitWithTreePrior(dbarts::dbartsPriors$dart(levelGibbs = TRUE))
+dartDefault <- fitWithTreePrior(dbarts::dbartsPriors$dart())
+expect_true(dartOn$fit$control@levelGibbs)
+expect_true(is.na(dartDefault$fit$control@levelGibbs))
+expect_false(identical(dartOn$yhat.train, dartDefault$yhat.train))
+
+rm(
+  fitWithTreePrior,
+  levelGibbsDefault,
+  levelGibbsOn,
+  levelGibbsOff,
+  dartOn,
+  dartDefault
+)

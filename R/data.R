@@ -109,12 +109,31 @@ applyNaActionToXY <- function(na.action, y, x) {
 ## na.action then dropped some by position within that choice. Anything the
 ## caller supplied at the full, pre-'subset' shape - a forest's amplitude
 ## basis - is restricted through this.
-alignSubsetRowsToFrame <- function(subsetRows, naOmitted) {
-  if (is.null(subsetRows) || is.null(naOmitted)) {
+alignSubsetRowsToFrame <- function(subsetRows, naOmitted, keptRows) {
+  if (is.null(naOmitted)) {
     return(subsetRows)
+  }
+  if (is.null(subsetRows)) {
+    # no 'subset' at all, so the frame's rows ARE the data's - less whatever
+    # the na.action dropped, which is still a restriction a full-data basis
+    # has to follow
+    full <- keptRows + length(naOmitted)
+    return(list(full = full, index = seq_len(full)[-unclass(naOmitted)]))
   }
   subsetRows$index <- subsetRows$index[-unclass(naOmitted)]
   subsetRows
+}
+
+## The same restriction on the matrix interface, where the bases were
+## already validated and subset against the caller's own row count before
+## the na.action ran: forest f's basis loses exactly the rows y did.
+restrictBasesToRows <- function(bases, keep) {
+  if (is.null(bases) || all(keep)) {
+    return(bases)
+  }
+  lapply(bases, function(basis) {
+    if (is.null(basis)) NULL else basis[keep, , drop = FALSE]
+  })
 }
 
 ## An out-of-range 'subset' is silent in base R: row indexing pads an
@@ -1449,7 +1468,8 @@ dbartsData <- function(
           if (dataIsMissing) NULL else data,
           matchedCall$subset
         ),
-        naOmitted
+        naOmitted,
+        numObservations
       )
     }
     bases <- validateForestBases(
@@ -1610,6 +1630,7 @@ dbartsData <- function(
         keep <- naResult$keep
         y <- y[keep]
         x <- x[keep, , drop = FALSE]
+        bases <- restrictBasesToRows(bases, keep)
         if (!is.null(weights)) {
           weights <- weights[keep]
         }
@@ -1714,6 +1735,7 @@ dbartsData <- function(
       } else {
         x[completeCases, , drop = FALSE]
       }
+      bases <- restrictBasesToRows(bases, completeCases)
       if (length(attributes(formula)) > 0L) {
         for (attributeName in names(attributes(formula))) {
           if (attributeName == "dim") {
@@ -1733,6 +1755,7 @@ dbartsData <- function(
       keep <- naResult$keep
       y <- y[keep]
       x <- x[keep, , drop = FALSE]
+      bases <- restrictBasesToRows(bases, keep)
       if (!is.null(weights)) {
         weights <- weights[keep]
       }

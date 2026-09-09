@@ -473,8 +473,8 @@ applyConsolidatedFamilyArgs <- function(family, consolidated) {
         residDist@token %not_in% c("gaussian", "student")
     ) {
       stop(
-        "'resid.dist' takes gaussian() or student(df); it is now spelled ",
-        "family = ",
+        "'resid.dist' takes gaussian() or student(df), and is now spelled ",
+        "family = gaussian() or family = student(df)",
         call. = FALSE
       )
     }

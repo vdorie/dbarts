@@ -208,3 +208,35 @@ expect_error(
   ),
   "max.rows"
 )
+
+# --- the stored call is the caller's own ------------------------------------
+
+# the resolved object is a forwarding detail: a fit that named no family
+# records none, and one that named a family records the expression written
+callArgs <- list(
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+callDefaulted <- do.call(dbarts::bart, c(list(x, y), callArgs))
+expect_false("family" %in% names(callDefaulted$call))
+callToken <- do.call(
+  dbarts::bart,
+  c(list(x, y), callArgs, list(family = "gaussian"))
+)
+expect_identical(callToken$call$family, "gaussian")
+callObject <- dbarts::bart(
+  x,
+  y,
+  family = student(3),
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(callObject$call$family, quote(student(3)))
