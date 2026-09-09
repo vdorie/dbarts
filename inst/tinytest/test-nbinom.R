@@ -21,9 +21,9 @@ n.samples <- 60L
 n.burn <- 30L
 n.trees <- 15L
 
-# --- explicit family = "nbinom" on a bart2 fit: no auto, a distinct class ---
+# --- explicit family = "nbinom" on a bart fit: no auto, a distinct class ---
 
-fit <- bart2(
+fit <- bart(
   x,
   y,
   test = x.test,
@@ -42,7 +42,7 @@ expect_equal(fit$family, "nbinom")
 # a count response under family = "auto" is a plain numeric (gaussian) fit -
 # counts carry no unambiguous class, so nbinom is never inferred
 suppressMessages(
-  fitAuto <- bart2(
+  fitAuto <- bart(
     x,
     y,
     n.samples = 20L,
@@ -112,7 +112,7 @@ expect_equal(evDoubled, 2 * evPlain)
 
 # --- predict requires keepTrees ---
 
-fitNoTrees <- bart2(
+fitNoTrees <- bart(
   x,
   y,
   family = "nbinom",
@@ -125,7 +125,7 @@ fitNoTrees <- bart2(
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
 # --- keepSampler retains $fit independent of keepTrees ---
-fitKeepSampler <- bart2(
+fitKeepSampler <- bart(
   x,
   y,
   family = "nbinom",
@@ -159,7 +159,7 @@ expect_true(any(grepl("dispersion", printed)))
 
 # --- multi-chain shapes, uncombined ---
 
-fit2c <- bart2(
+fit2c <- bart(
   x,
   y,
   family = "nbinom",
@@ -180,7 +180,7 @@ expect_equal(
 
 # --- fixed dispersion: r held at the supplied integer, no grid draw ---
 
-fitFixed <- bart2(
+fitFixed <- bart(
   x,
   y,
   family = "nbinom",
@@ -367,7 +367,7 @@ muRec <- exp(fRec)
 rTrue <- 5L
 yRec <- rnbinom(nRec, size = rTrue, mu = muRec)
 
-fitRec <- bart2(
+fitRec <- bart(
   xRec,
   yRec,
   family = "nbinom",

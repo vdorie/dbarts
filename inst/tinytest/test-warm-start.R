@@ -8,7 +8,7 @@ y <- testData$y
 
 ## a warm-started forest reproduces the donor sample it was seeded from:
 ## same split structure, same partition, and the same training fit
-donor <- dbarts::bart2(
+donor <- dbarts::bart(
   x,
   y,
   n.trees = 8L,
@@ -43,7 +43,7 @@ expect_equal(as.vector(dest$predict(x)), donor$yhat.train[3L, ])
 
 ## incompatible donors refuse, touching nothing
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.trees = 5L,
@@ -58,7 +58,7 @@ expect_error(
 # a donor on a different cut grid is no longer refused: its splits remap onto
 # the destination grid (collapsing any the coarser grid starves) and the fit
 # runs to a well-formed, finite result
-crossGrid <- dbarts::bart2(
+crossGrid <- dbarts::bart(
   x,
   y,
   n.trees = 8L,
@@ -72,7 +72,7 @@ crossGrid <- dbarts::bart2(
 )
 expect_true(all(is.finite(as.vector(crossGrid$yhat.train))))
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.trees = 8L,
@@ -116,7 +116,7 @@ expect_true(all(is.finite(dest$run(0L, 3L)$sigma)))
 rm(liveSampler, rawState, emptyForests)
 
 ## DART state transfers between two DART fits
-donorDart <- dbarts::bart2(
+donorDart <- dbarts::bart(
   x,
   y,
   n.trees = 8L,
@@ -129,7 +129,7 @@ donorDart <- dbarts::bart2(
   verbose = FALSE,
   seed = 1L
 )
-warmDart <- dbarts::bart2(
+warmDart <- dbarts::bart(
   x,
   y,
   n.trees = 8L,
@@ -145,7 +145,7 @@ expect_true(all(is.finite(as.vector(warmDart$yhat.train))))
 
 ## the measurable claim: with a converged deep-tree donor and no burn-in, a
 ## warm start beats a cold start on early-iteration training RMSE
-deepDonor <- dbarts::bart2(
+deepDonor <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -163,7 +163,7 @@ earlyRMSEWarmStart <- function(fit) {
   perSample <- sqrt(rowMeans(sweep(yh, 2L, y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
 }
-coldFit <- dbarts::bart2(
+coldFit <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -174,7 +174,7 @@ coldFit <- dbarts::bart2(
   verbose = FALSE,
   seed = 2L
 )
-warmFit <- dbarts::bart2(
+warmFit <- dbarts::bart(
   x,
   y,
   n.trees = 50L,

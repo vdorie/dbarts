@@ -29,7 +29,7 @@ n.samples <- 7L
 # the combined total (n.samples * n.chains).
 
 set.seed(3301)
-fitCombined <- bart2(
+fitCombined <- bart(
   x,
   y,
   family = "multinomial",
@@ -42,7 +42,7 @@ fitCombined <- bart2(
   combineChains = TRUE
 )
 set.seed(3301)
-fitSplit <- bart2(
+fitSplit <- bart(
   x,
   y,
   family = "multinomial",
@@ -64,7 +64,7 @@ expect_false(
 
 # single chain: division by n.chains == 1 is a no-op, so this path was never
 # buggy, but must stay correct
-fitSingle <- bart2(
+fitSingle <- bart(
   x,
   y,
   family = "multinomial",
@@ -110,7 +110,7 @@ counts.c <- t(vapply(
   integer(3L)
 ))
 colnames(counts.c) <- c("lo", "mid", "hi")
-fitCounts <- bart2(
+fitCounts <- bart(
   x.c,
   counts.c,
   family = "multinomial",
@@ -176,7 +176,7 @@ if (havePosterior) {
 
 x.test <- x[seq_len(20L), , drop = FALSE]
 set.seed(3302)
-fitKeep <- bart2(
+fitKeep <- bart(
   x,
   y,
   family = "multinomial",
@@ -294,7 +294,7 @@ expect_error(fitted(fitKeep, type = "loglik"), "type must be in")
 
 set.seed(5501)
 categoryOffset <- matrix(rnorm(n * 3L, sd = 0.4), n, 3L)
-fitOffset <- bart2(
+fitOffset <- bart(
   x,
   y,
   family = "multinomial",
@@ -350,7 +350,7 @@ expect_false(identical(
 # ---- extract's combineChains formal must be honoured, not ignored (which
 # would silently return the fit's own stored layout) ----
 
-fitMC <- bart2(
+fitMC <- bart(
   x,
   y,
   family = "multinomial",

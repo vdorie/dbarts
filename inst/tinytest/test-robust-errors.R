@@ -88,7 +88,7 @@ expect_null(attr(samplerBinary$model, "resid.df"))
 # --- smoke fit in both df modes, predict/fitted shapes ---------------------
 
 set.seed(7L)
-fitFixed <- dbarts::bart2(
+fitFixed <- dbarts::bart(
   x,
   y,
   n.trees = 25L,
@@ -106,7 +106,7 @@ expect_equal(dim(predsFixed), c(40L, length(y)))
 expect_equal(length(fitted(fitFixed)), length(y))
 
 set.seed(7L)
-fitEstimate <- dbarts::bart2(
+fitEstimate <- dbarts::bart(
   x,
   y,
   n.trees = 25L,

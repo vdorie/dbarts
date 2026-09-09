@@ -17,7 +17,7 @@ x <- runif(n)
 y <- 2 * x + ifelse(x < 0.5, 0.3, 1.5) * rnorm(n)
 x.test <- matrix(seq.int(0.01, 0.99, length.out = 40L), 40L, 1L)
 
-fit <- bart2(
+fit <- bart(
   x,
   y,
   test = x.test,
@@ -65,7 +65,7 @@ expect_true(sum(expected) - sum(atScalar) > 1000)
 # ---- a case weight is a precision multiplier on s(x), not on sigma ----
 set.seed(22, sample.kind = "Rejection")
 w <- runif(n, 0.5, 2)
-fitWeighted <- bart2(
+fitWeighted <- bart(
   x,
   y,
   weights = w,
@@ -95,7 +95,7 @@ expect_equal(
 
 # ---- the draw and the scale pair correctly across chains ----
 set.seed(23, sample.kind = "Rejection")
-fitChains <- bart2(
+fitChains <- bart(
   x,
   y,
   variance = varianceForest(n.trees = 20L),
@@ -171,7 +171,7 @@ expect_true(meanS$sd > 0)
 
 # a homoscedastic fit keeps reporting sigma
 set.seed(41, sample.kind = "Rejection")
-fitHom <- bart2(
+fitHom <- bart(
   x,
   y,
   n.trees = 25L,

@@ -39,7 +39,7 @@ expect_silent(
 )
 
 # xbart's own resid.prior default is the literal chisq() object - it has no
-# sigdf/sigquant shorthands for bart2's NULL-triggers-shorthand sentinel to
+# sigdf/sigquant shorthands for bart's NULL-triggers-shorthand sentinel to
 # build from - so an unsupplied resid.prior is byte-identical to naming the
 # default explicitly
 expect_identical(
@@ -227,7 +227,7 @@ expect_identical(
 
 # collision refusals: dart/split.probs would only duplicate what a supplied
 # tree.prior already specifies; power/base/k stay legal alongside it, since
-# they are grid axes, not duplicates (unlike bart2's tree.prior)
+# they are grid axes, not duplicates (unlike bart's tree.prior)
 expect_error(
   quickXbart(tree.prior = dbarts::dbartsPriors$cgm(), dart = TRUE),
   pattern = paste0(
@@ -290,7 +290,7 @@ expect_equal(
 rm(xval)
 
 # the binary grid default is the same FIXED k the continuous arm defaults to
-# (2), not bart2's chi hyperprior: a hyperprior is held rather than swept and
+# (2), not bart's chi hyperprior: a hyperprior is held rather than swept and
 # is drawn every sweep, so it would collapse the k axis onto a single cell.
 # A default binary run is therefore identical to the same run naming k = 2 -
 # a hyperprior reaching a cell would draw and move the stream - and reports

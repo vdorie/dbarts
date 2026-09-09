@@ -11,7 +11,7 @@ n <- 100L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 
-fit <- bart2(
+fit <- bart(
   y ~ x,
   n.samples = 80L,
   n.burn = 40L,
@@ -47,7 +47,7 @@ rm(ll, ev, fit, i)
 # 2. gaussian, weighted: the residual sd for observation i is
 # sigma_s / sqrt(w_i)
 w <- rep_len(c(1, 4), n)
-fit.w <- bart2(
+fit.w <- bart(
   y ~ x,
   weights = w,
   n.samples = 60L,
@@ -78,7 +78,7 @@ rm(ll.w, ev.w, fit.w, j4, j1, w)
 # both non-finite, and only one of them survives a sum over rows)
 w0 <- rep_len(c(1, 1, 0), n)
 fit.0 <- withCallingHandlers(
-  bart2(
+  bart(
     y ~ x,
     weights = w0,
     n.samples = 60L,
@@ -105,7 +105,7 @@ rm(ll.0, ev.0, fit.0, j0, jw, w0)
 # 3. probit: matches the bernoulli log-likelihood of the fitted probability
 set.seed(3, sample.kind = "Rejection")
 y.b <- rbinom(n, 1L, pnorm(0.8 * x[, 1L] - 0.4))
-fit.p <- bart2(
+fit.p <- bart(
   y.b ~ x,
   n.samples = 60L,
   n.burn = 40L,
@@ -127,7 +127,7 @@ rm(ll.p, ev.p, fit.p, i)
 # 4. weighted logistic: integer weights are observation counts, so the
 # log-likelihood is w_i times the unweighted bernoulli form on its ev
 w.l <- rep_len(c(1L, 3L, 5L), n)
-fit.l <- bart2(
+fit.l <- bart(
   y.b ~ x,
   weights = w.l,
   family = "logistic",
@@ -155,7 +155,7 @@ rm(ll.l, ev.l, fit.l, j5, j1, w.l, y.b)
 # chain pairs with its own sigma draws, and the stored layout does not
 # matter (combineChains at fit time only changes packaging)
 set.seed(6, sample.kind = "Rejection")
-fit.mc <- bart2(
+fit.mc <- bart(
   y ~ x,
   n.samples = 30L,
   n.burn = 20L,
@@ -184,7 +184,7 @@ expect_equal(dim(ll.comb), dim(ev.comb))
 expect_identical(ll.comb[7L, 5L], ll.unc[1L, 7L, 5L])
 expect_identical(ll.comb[37L, 5L], ll.unc[2L, 7L, 5L])
 
-fit.mc2 <- bart2(
+fit.mc2 <- bart(
   y ~ x,
   n.samples = 30L,
   n.burn = 20L,
@@ -217,7 +217,7 @@ status <- as.integer(event.time <= censor.time)
 # both event and censored rows present, so both branches are exercised
 expect_true(sum(status) > 0L && sum(status == 0L) > 0L)
 
-fit.aft <- bart2(
+fit.aft <- bart(
   x,
   cbind(obs.time, status),
   family = "aft",
@@ -327,7 +327,7 @@ n.t <- 60L
 x.t <- matrix(runif(n.t * 2L), n.t, 2L)
 y.t <- x.t[, 1L] - x.t[, 2L] + rt(n.t, 4) * 0.5
 
-fit.t <- bart2(
+fit.t <- bart(
   y.t ~ x.t,
   resid.dist = student(df = 4),
   n.samples = 20L,
@@ -368,7 +368,7 @@ expect_error(
 # an ESTIMATED df moves draw to draw, so the pairing is per draw and not a
 # constant folded out: two chains, and the same identity across both margins
 set.seed(11, sample.kind = "Rejection")
-fit.te <- bart2(
+fit.te <- bart(
   y.t ~ x.t,
   resid.dist = student(),
   n.samples = 15L,

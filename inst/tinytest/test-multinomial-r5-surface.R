@@ -350,14 +350,14 @@ expect_error(
 )
 
 # --- the single-location entry points refuse a count-carrying data object ----
-# every channel bart2() and xbart() report - the chain/sample reshaping, the
+# every channel bart() and xbart() report - the chain/sample reshaping, the
 # sigma vector, the losses - is written against ONE location per observation,
 # and a K-location fit would be reshaped and scored without a word. The refusal
 # is at the entry, not at a family branch: family = "auto" resolves counts to
 # multinomial during spec resolution, so no branch keyed on the token sees it.
 countsData <- dbartsData(x, counts = oneHot)
 expect_error(
-  bart2(
+  bart(
     countsData,
     n.samples = 4L,
     n.burn = 2L,
@@ -368,7 +368,7 @@ expect_error(
   "does not support a data object carrying an n x K count matrix"
 )
 expect_error(
-  bart2(
+  bart(
     countsData,
     n.samples = 4L,
     n.burn = 2L,
@@ -381,7 +381,7 @@ expect_error(
 # and under an explicit token, which reaches a different refusal but must also
 # never fit
 expect_error(
-  bart2(
+  bart(
     countsData,
     family = "multinomial",
     n.samples = 4L,
@@ -411,7 +411,7 @@ expect_error(
   "does not support a data object carrying an n x K count matrix"
 )
 # an ordinary data object is untouched by the gate
-expect_silent(invisible(bart2(
+expect_silent(invisible(bart(
   x,
   rnorm(n),
   n.samples = 4L,

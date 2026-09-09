@@ -1,5 +1,5 @@
 # bart() carries $weights/$weights.test on its returned fit, matching
-# bart2's tail: a weighted fit's loglik/ppd otherwise silently computes
+# bart's tail: a weighted fit's loglik/ppd otherwise silently computes
 # unweighted quantities. Oracle follows test-pointwise-loglik.R's own
 # gaussian-weighted form: residual sd for observation i is sigma_s / sqrt(w_i).
 set.seed(6, sample.kind = "Rejection")
@@ -32,8 +32,8 @@ expect_identical(
 j1 <- which(w == 1)[1L]
 expect_identical(ll[, j1], dnorm(y[j1], ev[, j1], fit$sigma, log = TRUE))
 
-# reachable cross-check: bart2's tail has always attached $weights this way
-fit2 <- bart2(
+# reachable cross-check: bart's tail has always attached $weights this way
+fit2 <- bart(
   y ~ x,
   weights = w,
   n.samples = 60L,

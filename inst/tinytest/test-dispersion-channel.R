@@ -277,11 +277,11 @@ expect_equal(
   )
 )
 
-# --- end to end: bart2(family = "nbinom") reads the channel rather than
+# --- end to end: bart(family = "nbinom") reads the channel rather than
 # serializing state per sweep, and its reported draws still pair with the
 # latent psi through mu = r exp(psi)
 
-fit <- bart2(
+fit <- bart(
   x,
   yCount,
   family = "nbinom",

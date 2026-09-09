@@ -198,7 +198,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart2(xTiny, yTiny, n.trees = 50.5),
+  dbarts::bart(xTiny, yTiny, n.trees = 50.5),
   "'n.trees' must be a whole number; got '50.5'",
   fixed = TRUE
 )
@@ -249,7 +249,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart2(yTiny ~ xTiny, n.chains = 2.5),
+  dbarts::bart(yTiny ~ xTiny, n.chains = 2.5),
   "'n.chains' must be a whole number; got '2.5'",
   fixed = TRUE
 )

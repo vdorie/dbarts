@@ -51,7 +51,7 @@ pathHasAll <- function(vars, want) {
   bad
 }
 # group a getTrees data.frame into one tree per (chain, sample, tree), using
-# whichever of those columns the format carries (bart2 extract has all three,
+# whichever of those columns the format carries (bart extract has all three,
 # the BCF current-tree query only 'tree')
 source(
   system.file("common", "splitTrees.R", package = "dbarts"),
@@ -86,7 +86,7 @@ fitArgs <- list(
 )
 doFitInteractions <- function(interactions = NULL) {
   do.call(
-    bart2,
+    bart,
     c(list(y ~ x1 + x2 + x3, df, interactions = interactions), fitArgs)
   )
 }
@@ -160,12 +160,12 @@ expect_silent(doFitInteractions(interactions(groups = list(c(1, 3), 2))))
 
 donorArgs <- modifyList(fitArgs, list(keepSampler = TRUE, n.burn = 80L))
 donor <- do.call(
-  bart2,
+  bart,
   c(list(y ~ x1 + x2 + x3, df, interactions = NULL), donorArgs)
 )
 expect_error(
   do.call(
-    bart2,
+    bart,
     c(
       list(
         y ~ x1 + x2 + x3,

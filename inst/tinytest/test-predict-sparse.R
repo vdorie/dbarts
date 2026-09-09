@@ -21,7 +21,7 @@ train <- data.frame(x1 = x1.tr, g = g.tr)
 sampler <- dbarts(
   train,
   y.tr,
-  sigma = 1.0,
+  sigest = 1.0,
   control = dbartsControl(
     n.trees = 20L,
     n.chains = 1L,
@@ -82,7 +82,7 @@ expect_false(anyNA(pred.mat))
 
 # predict.bart routes newdata through the same path; a mixed frame (dense +
 # sparseFactor) predicts identically whichever way the factor column arrives
-fit <- bart2(
+fit <- bart(
   train,
   y.tr,
   n.samples = 20L,
@@ -136,7 +136,7 @@ y.num <- x.num[, 1L] - 0.5 * x.num[, 3L] + rnorm(n.num)
 sampler.num <- dbarts(
   x.num,
   y.num,
-  sigma = 1.0,
+  sigest = 1.0,
   control = dbartsControl(
     n.trees = 15L,
     n.chains = 1L,
@@ -192,7 +192,7 @@ expect_error(
 sampler.leaf <- dbarts(
   x.num,
   y.num,
-  sigma = 1.0,
+  sigest = 1.0,
   node.prior = linear("a"),
   control = dbartsControl(
     n.trees = 15L,
@@ -221,7 +221,7 @@ y.pool <- 0.05 * codes.pool + rnorm(n.pool)
 sampler.pool <- dbarts(
   train.pool,
   y.pool,
-  sigma = 1.0,
+  sigest = 1.0,
   control = dbartsControl(
     n.trees = 20L,
     n.chains = 1L,
@@ -250,7 +250,7 @@ expect_identical(
 # s^2(x) replays the variance forest over the same rows; both channels of the
 # returned pair must agree with the dense twin, attributes included
 set.seed(73L)
-fit.var <- bart2(
+fit.var <- bart(
   train,
   y.tr,
   n.samples = 15L,

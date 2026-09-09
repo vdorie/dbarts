@@ -18,7 +18,7 @@ prior.normal <- dbartsPriors$normal(dbartsPriors$chi(1.1, 2))
 expect_inherits(prior.normal@k, "dbartsChiHyperprior")
 expect_equal(prior.normal@k@degreesOfFreedom, 1.1)
 
-# string forms remain accepted for bart2 compatibility
+# string forms remain accepted for bart compatibility
 expect_inherits(dbartsPriors$normal("chi(1.5, 3)")@k, "dbartsChiHyperprior")
 expect_equal(dbartsPriors$normal("2.5")@k, 2.5)
 
@@ -163,10 +163,10 @@ expect_error(
   pattern = "changing a DART tree prior is not available"
 )
 
-# bart2 exposes DART through the dart flag and packages varprobs
+# bart exposes DART through the dart flag and packages varprobs
 # combineChains = FALSE pinned deliberately: the shape assertions below
 # expect the raw uncombined (n.chains x n.samples x n.vars) array
-fit.dart <- bart2(
+fit.dart <- bart(
   y.dart ~ x.dart,
   dart = TRUE,
   n.samples = 25L,
@@ -183,18 +183,18 @@ expect_equal(
   matrix(1, 2L, 25L)
 )
 expect_error(
-  bart2(y.dart ~ x.dart, dart = TRUE, split.probs = rep(0.1, 10L)),
+  bart(y.dart ~ x.dart, dart = TRUE, split.probs = rep(0.1, 10L)),
   pattern = paste0(
     "'split.probs' cannot be combined with 'dart': a DART prior samples ",
     "its split probabilities"
   )
 )
 expect_error(
-  bart2(y.dart ~ x.dart, dart = 2),
+  bart(y.dart ~ x.dart, dart = 2),
   pattern = "'dart' must be TRUE, FALSE, or a prior created by dbartsPriors"
 )
 expect_null(
-  bart2(
+  bart(
     y.dart ~ x.dart,
     n.samples = 5L,
     n.burn = 5L,
@@ -206,7 +206,7 @@ expect_null(
 )
 
 # a full spec object overrides power/base with its own settings
-fit.spec <- bart2(
+fit.spec <- bart(
   y.dart ~ x.dart,
   dart = dbartsPriors$dart(a = 0.75, update.delay = 5),
   n.samples = 5L,

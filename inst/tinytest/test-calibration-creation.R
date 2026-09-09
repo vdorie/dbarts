@@ -51,7 +51,7 @@ composeProbit <- function(
       dbartsPriors$normal(k = 2, scale = priorScale)
     },
     resid.prior = dbartsPriors$fixed(1),
-    sigma = 1
+    sigest = 1
   )
   if (useRecipe) {
     # the documented location lever: prior.mean is the response transform's
@@ -214,7 +214,7 @@ expect_error(
 )
 # (iii) the multinomial creation path, whose leaf scales come from the softmax
 # calibration map: the low-level handle still refuses at the bridge (no
-# R-level resolution runs on it), while bart2 now builds directly through
+# R-level resolution runs on it), while bart now builds directly through
 # dbarts()'s own resolveSamplerSpec, whose multinomial-specific check catches
 # a named prior.scale earlier, with the same "a named 'prior.scale'" text
 # (i)/(ii) above use, before any sampler is created at all
@@ -230,7 +230,7 @@ expect_error(
   "softmax calibration map"
 )
 expect_error(
-  bart2(
+  bart(
     xRef,
     factor(labels),
     family = "multinomial",
@@ -250,7 +250,7 @@ expect_error(dbartsPriors$normal(sd = Inf), "'sd' must be positive")
 expect_error(dbartsPriors$normal(sd = c(1, 2)), "single number")
 expect_error(dbartsPriors$normal(sd = 1, scale = 1), "at most one")
 expect_error(
-  bart2(
+  bart(
     xRef,
     yRef,
     prior.scale = -1,

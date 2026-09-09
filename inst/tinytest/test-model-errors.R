@@ -23,12 +23,12 @@ expect_error(
 )
 
 expect_error(
-  dbarts::dbarts(y ~ x, testData, sigma = -1.0),
-  "'sigma' argument to dbarts must be positive"
+  dbarts::dbarts(y ~ x, testData, sigest = -1.0),
+  "'sigest' argument to dbarts must be positive"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, sigma = "not-an-integer"),
-  "'sigma' argument to dbarts must be coercible to numeric type"
+  dbarts::dbarts(y ~ x, testData, sigest = "not-an-integer"),
+  "'sigest' argument to dbarts must be coercible to numeric type"
 )
 
 # test that prior model arguments raise errors

@@ -118,7 +118,7 @@ expect_error(
   ),
   "xbart does not fit a 3-level factor response"
 )
-# --- bart2: formula + 2-level factor probit matches x/y bit for bit ---
+# --- bart: formula + 2-level factor probit matches x/y bit for bit ---
 b.args <- list(
   n.trees = 20L,
   n.chains = 1L,
@@ -130,14 +130,14 @@ b.args <- list(
 )
 set.seed(9)
 b.form <- suppressMessages(
-  do.call(bart2, c(list(yf2 ~ x1 + x2 + x3, data = df), b.args))
+  do.call(bart, c(list(yf2 ~ x1 + x2 + x3, data = df), b.args))
 )
 set.seed(9)
-b.xy <- suppressMessages(do.call(bart2, c(list(x, yf2), b.args)))
+b.xy <- suppressMessages(do.call(bart, c(list(x, yf2), b.args)))
 expect_equal(b.form$family, "probit")
 expect_identical(b.form$yhat.train, b.xy$yhat.train)
 
-# --- bart2: auto 3-level factor -> multinomial == explicit, with verdict ---
+# --- bart: auto 3-level factor -> multinomial == explicit, with verdict ---
 m.args <- list(
   n.trees = 20L,
   n.chains = 1L,
@@ -148,10 +148,10 @@ m.args <- list(
 )
 set.seed(11)
 expect_message(
-  m.auto <- do.call(bart2, c(list(x, y3), m.args)),
+  m.auto <- do.call(bart, c(list(x, y3), m.args)),
   "3-level factor response detected, fitting family = \"multinomial\""
 )
 set.seed(11)
-m.exp <- do.call(bart2, c(list(x, y3, family = "multinomial"), m.args))
+m.exp <- do.call(bart, c(list(x, y3, family = "multinomial"), m.args))
 expect_inherits(m.auto, "bartMultinomial")
 expect_identical(m.auto$yhat.train, m.exp$yhat.train)

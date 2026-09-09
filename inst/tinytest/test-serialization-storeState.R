@@ -35,9 +35,9 @@ bartFit$fit$storeState()
 preds.new <- predict(roundTripStoreState(bartFit), x)
 expect_equal(preds.old, preds.new)
 
-# --- bart2 ----------------------------------------------------------------
+# --- bart ----------------------------------------------------------------
 set.seed(99L)
-bart2Fit <- dbarts::bart2(
+bart2Fit <- dbarts::bart(
   x,
   y,
   n.trees = 5L,

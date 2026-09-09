@@ -48,7 +48,7 @@ tinyArgs <- list(
 
 fit <- function(formula, ...) {
   do.call(
-    dbarts::bart2,
+    dbarts::bart,
     c(list(formula = formula, data = d), tinyArgs, list(...))
   )
 }
@@ -78,7 +78,7 @@ expect_silent(fit(y ~ a + offset(o)))
 expect_silent(fit(as.formula("y ~ `weird name`")))
 expect_silent(fit(y ~ a, subset = 1:40))
 expect_silent(fit(y ~ a, weights = w, offset = o))
-expect_silent(dbarts::bart2(
+expect_silent(dbarts::bart(
   cbind(a, b),
   y,
   seed = 1L,
@@ -253,7 +253,8 @@ refuses(
   "family = \"hurdle.lognormal\"",
   family = "hurdle.lognormal"
 )
-refuses(termFormula, "family = \"hurdle.lognormal\"", family = "twopart")
+# "twopart" is refused as a retired spelling before the term is looked at
+refuses(termFormula, "hurdle.lognormal", family = "twopart")
 for (family in c("aft", "ordinal", "nbinom")) {
   refuses(termFormula, paste0("family \"", family, "\""), family = family)
 }

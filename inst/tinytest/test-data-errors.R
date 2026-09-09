@@ -39,9 +39,9 @@ expect_error(
 )
 # an out-of-range numeric subset pads unmatched rows with NA the same way
 # (base R data.frame row indexing, not a dbarts choice) and is named the
-# same; bart2() reaches the identical formula-route check
+# same; bart() reaches the identical formula-route check
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     modelFormula,
     testData_df,
     subset = seq_len(nrow(testData_df) + 20L),

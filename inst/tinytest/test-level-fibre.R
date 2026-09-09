@@ -32,7 +32,7 @@ expect_error(
   "'levelGibbs' must be of length 1"
 )
 
-# the value rides the sampler's own control, and bart2 carries the formal
+# the value rides the sampler's own control, and bart carries the formal
 onControl <- dbarts::dbartsControl(
   levelGibbs = TRUE,
   n.chains = 1L,
@@ -98,7 +98,7 @@ rm(onSampler, offSampler, reloaded, savedState, changed, turnedOn, onControl)
 # ---- a fit with the flag on runs, and its trees still sum to its fits ----
 
 fitAt <- function(levelGibbs, ...) {
-  dbarts::bart2(
+  dbarts::bart(
     testData$x,
     testData$y,
     levelGibbs = levelGibbs,
@@ -131,10 +131,10 @@ expect_true(leafSumError(fitOff) < 1e-10)
 
 # the step is live: the same seed draws a different path with it on
 expect_false(identical(fitOn$yhat.train, fitOff$yhat.train))
-# and where structure is being proposed - which is every bart2 fit that does
+# and where structure is being proposed - which is every bart fit that does
 # not freeze it - the NA default takes no step, so naming FALSE changes
 # nothing at all
-fitDefault <- dbarts::bart2(
+fitDefault <- dbarts::bart(
   testData$x,
   testData$y,
   n.trees = 25L,
@@ -224,7 +224,7 @@ rm(frozenDefault, frozenTail, freeze, frozenThroughout, alwaysFrozen)
 # ---- the answer is the same: held-out fits agree within Monte Carlo error ----
 
 heldOut <- function(levelGibbs, seed) {
-  fit <- dbarts::bart2(
+  fit <- dbarts::bart(
     testData$x[1:70, ],
     testData$y[1:70],
     test = testData$x[71:100, ],
@@ -258,7 +258,7 @@ rm(reference, heldOut, worstGap)
 df <- data.frame(testData$x[, 1:3], y = testData$y)
 names(df)[1:3] <- c("x1", "x2", "x3")
 linearAt <- function(levelGibbs) {
-  dbarts::bart2(
+  dbarts::bart(
     y ~ x1 + x2 + x3,
     df,
     node.prior = linear("x2"),
@@ -277,7 +277,7 @@ rm(linearAt)
 
 # ---- the monotone leaf is in scope, and the constraint survives ----
 
-monotoneFit <- dbarts::bart2(
+monotoneFit <- dbarts::bart(
   testData$x,
   testData$y,
   monotone = c(0L, 0L, 0L, 1L, 0L, 0L, 0L, 0L, 0L, 0L),

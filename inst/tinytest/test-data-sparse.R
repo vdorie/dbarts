@@ -62,10 +62,10 @@ expect_true(is.finite(fit.sparse$sigest) && fit.sparse$sigest > 0)
 expect_equal(colnames(fit.sparse$varcount), colnames(x.dense))
 
 # missing values are stored NaN entries and route through MIA (bart pins
-# missing = "error", so the NA fit goes through bart2)
+# missing = "error", so the NA fit goes through bart)
 x.na <- x.sparse
 x.na[3L, 1L] <- NA_real_
-fit.na <- bart2(
+fit.na <- bart(
   x.na,
   y,
   n.samples = 20L,
@@ -278,8 +278,8 @@ run.permuted.denseTest <- dbarts(
 )$run()
 expect_identical(run.permuted.sparseTest$test, run.permuted.denseTest$test)
 
-# predict() on a bart2 fit takes a bare dgCMatrix newdata the same path
-fit.forPredict <- bart2(
+# predict() on a bart fit takes a bare dgCMatrix newdata the same path
+fit.forPredict <- bart(
   x.dense,
   y,
   n.samples = 10L,

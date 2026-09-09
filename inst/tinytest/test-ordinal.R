@@ -27,7 +27,7 @@ n.trees <- 15L
 # --- auto-dispatch on an ordered factor, with announcement ---
 
 expect_message(
-  fit <- bart2(
+  fit <- bart(
     x,
     y,
     test = x.test,
@@ -125,7 +125,7 @@ expect_true(any(grepl("lo < mid < hi", printed)))
 # --- predict requires keepTrees ---
 
 suppressMessages(
-  fitNoTrees <- bart2(
+  fitNoTrees <- bart(
     x,
     y,
     n.samples = 20L,
@@ -139,7 +139,7 @@ expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
 # --- keepSampler retains $fit independent of keepTrees ---
 suppressMessages(
-  fitKeepSampler <- bart2(
+  fitKeepSampler <- bart(
     x,
     y,
     n.samples = 20L,
@@ -166,7 +166,7 @@ expect_silent(invisible(fit$fit$run(0L, 1L)))
 # --- multi-chain shapes, uncombined ---
 
 suppressMessages(
-  fit2c <- bart2(
+  fit2c <- bart(
     x,
     y,
     n.samples = 20L,
@@ -189,7 +189,7 @@ expect_equal(
 
 yUnordered <- factor(lv[codes], levels = lv)
 expect_message(
-  fitUn <- bart2(
+  fitUn <- bart(
     x,
     yUnordered,
     family = "ordinal",
@@ -205,7 +205,7 @@ expect_equal(fitUn$levels, lv)
 
 # --- explicit family on a numeric response: sort(unique(y)) levels ---
 
-fitNum <- bart2(
+fitNum <- bart(
   x,
   codes,
   family = "ordinal",
@@ -222,7 +222,7 @@ expect_equal(fitNum$levels, c("1", "2", "3"))
 
 y2 <- ordered(c("lo", "hi")[1L + (z > 0)], levels = c("lo", "hi"))
 suppressMessages(
-  fitBin <- bart2(
+  fitBin <- bart(
     x,
     y2,
     n.samples = 20L,
@@ -239,7 +239,7 @@ expect_equal(fitBin$family, "probit")
 
 expect_error(
   bart(x, y, ndpost = 10L, nskip = 5L, verbose = FALSE),
-  pattern = "bart2"
+  pattern = "bart"
 )
 expect_error(
   xbart(x, y, n.samples = 10L, n.reps = 1L),
@@ -252,7 +252,7 @@ expect_error(
 # a single-category response has no threshold to place, and is refused by count
 # rather than left to fail on an empty threshold vector downstream
 expect_error(
-  bart2(
+  bart(
     x,
     ordered(rep_len("only", n)),
     family = "ordinal",
@@ -267,7 +267,7 @@ expect_error(
 # a continuous response has no plausible ordered-category reading; the
 # distinct sorted values would otherwise silently become one category apiece
 expect_error(
-  bart2(
+  bart(
     x,
     rnorm(n),
     family = "ordinal",
@@ -282,7 +282,7 @@ expect_error(
 )
 # an integer-valued numeric response is accepted, exactly as a factor is
 expect_inherits(
-  bart2(
+  bart(
     x,
     codes,
     family = "ordinal",
@@ -393,7 +393,7 @@ trueProbs <- cbind(
   1 - pnorm(0.8 - fRec)
 )
 
-fitRec <- bart2(
+fitRec <- bart(
   xRec,
   yRec,
   family = "ordinal",
@@ -528,7 +528,7 @@ plot(fit)
 mfrowK3 <- par("mfrow")
 
 y2 <- ordered(ifelse(z > 0, "hi", "lo"), levels = c("lo", "hi"))
-fit2 <- bart2(
+fit2 <- bart(
   x,
   y2,
   family = "ordinal",

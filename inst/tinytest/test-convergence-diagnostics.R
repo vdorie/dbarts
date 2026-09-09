@@ -10,10 +10,10 @@ source(
 
 ## combineChains = FALSE pinned deliberately: this fit exercises
 ## bartDrawsArray's reconstruction of the chain axis from an uncombined
-## (n.chains x n.samples[ x n.vars]) stored shape, now that bart2's own
+## (n.chains x n.samples[ x n.vars]) stored shape, now that bart's own
 ## stored-object default is combined (see the TRUE/FALSE pair below for the
 ## combined-shape side of the same reconstruction)
-fit <- dbarts::bart2(
+fit <- dbarts::bart(
   testData$y ~ testData$x,
   n.chains = 3L,
   n.samples = 20L,
@@ -66,7 +66,7 @@ expect_equal(
 )
 
 # single chain: no chain axis on the fields to begin with
-singleFit <- dbarts::bart2(
+singleFit <- dbarts::bart(
   testData$y ~ testData$x,
   n.chains = 1L,
   n.samples = 15L,
@@ -90,7 +90,7 @@ expect_equal(s$stats$variable, "sigma")
 n.bin <- 60L
 x.bin <- matrix(runif(n.bin * 2), n.bin, 2)
 y.bin <- rbinom(n.bin, 1L, plogis(3 * x.bin[, 1] - 1.5))
-noScalarFit <- dbarts::bart2(
+noScalarFit <- dbarts::bart(
   y.bin ~ x.bin,
   k = 2.0,
   n.samples = 10L,
@@ -241,7 +241,7 @@ rm(combinedVc, uncombinedVc, sVcCombined, sVcUncombined)
 # (n.chains, n) exactly as sigma is. Mistaking that shape for a
 # per-variable field's (n.chains * n, n.vars) layout mis-splits the chain
 # margin into one spurious variable per sample.
-studentFit <- dbarts::bart2(
+studentFit <- dbarts::bart(
   testData$y ~ testData$x,
   resid.dist = student(5),
   n.chains = 3L,

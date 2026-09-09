@@ -28,12 +28,12 @@ rm(modelFormula)
 # it to zeros for a composed sampler, but a fitting entry point used to
 # return that all-zero fit silently instead of refusing it by name
 expect_error(
-  dbarts::bart(~ x.1 + x.2, data, nskip = 0L, ndpost = 1L, verbose = FALSE),
-  "bart() requires a two-sided formula",
+  dbarts::bartBT(~ x.1 + x.2, data, nskip = 0L, ndpost = 1L, verbose = FALSE),
+  "bartBT() requires a two-sided formula",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     ~ x.1 + x.2,
     data,
     n.samples = 3L,
@@ -42,7 +42,7 @@ expect_error(
     n.threads = 1L,
     verbose = FALSE
   ),
-  "bart2() requires a two-sided formula",
+  "bart() requires a two-sided formula",
   fixed = TRUE
 )
 expect_error(
@@ -55,7 +55,7 @@ expect_error(
 # selected"; refused by name instead, naming what IS supported
 interactionReason <- "':' and '*' terms are not supported in 'formula'"
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     y ~ x.1 * x.2,
     data,
     n.samples = 3L,
@@ -68,7 +68,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     y ~ x.1:x.2 + x.3,
     data,
     n.samples = 3L,
@@ -84,7 +84,7 @@ rm(interactionReason)
 
 # poly()/log()/offset() terms are unaffected - each still fits
 expect_inherits(
-  dbarts::bart2(
+  dbarts::bart(
     y ~ poly(x.1, 2) + log(abs(x.2) + 1) + offset(x.3),
     data,
     n.samples = 3L,

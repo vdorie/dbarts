@@ -181,7 +181,7 @@ heldOut <- dbarts::xbart(
   seed = 1011L,
   loss = "rmse"
 )
-fit <- dbarts::bart2(
+fit <- dbarts::bart(
   y ~ x,
   n.trees = 50L,
   k = 0.5,

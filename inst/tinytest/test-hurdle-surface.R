@@ -1,4 +1,4 @@
-# The public bart2(family = "hurdle.lognormal") surface: family-token
+# The public bart(family = "hurdle.lognormal") surface: family-token
 # routing (both spellings), the y >= 0 / require-a-zero / require-a-positive
 # validation errors, and the family-vector refusals shared with every
 # composed family (dbarts() cannot express two samplers; xbart omits the
@@ -26,48 +26,44 @@ fitArgs <- list(
 
 # --- family routing: both spellings reach a bartHurdle, printing/reading the
 # canonical token ---
-fit <- do.call(bart2, c(list(x, y, family = "hurdle.lognormal"), fitArgs))
+fit <- do.call(bart, c(list(x, y, family = "hurdle.lognormal"), fitArgs))
 expect_inherits(fit, "bartHurdle")
 expect_false(inherits(fit, "bart"))
 expect_equal(fit$family, "hurdle.lognormal")
 
-fitAlias <- do.call(bart2, c(list(x, y, family = "twopart"), fitArgs))
-expect_inherits(fitAlias, "bartHurdle")
-expect_equal(fitAlias$family, "hurdle.lognormal")
-# the alias resolves to the canonical token before anything RNG-affecting
-# runs, so a "twopart" fit at the same seed reproduces the
-# "hurdle.lognormal" fit's two component fits bit for bit
-expect_identical(fitAlias$occupancy$yhat.train, fit$occupancy$yhat.train)
-expect_identical(fitAlias$positive$yhat.train, fit$positive$yhat.train)
+# "twopart" is a retired spelling of the same model: refused by name at both
+# doors rather than folded, so the package carries one token per model
+expect_error(
+  do.call(bart, c(list(x, y, family = "twopart"), fitArgs)),
+  "hurdle.lognormal"
+)
 
 printed <- capture.output(print(fit))
 expect_true(any(grepl("hurdle.lognormal", printed, fixed = TRUE)))
-printedAlias <- capture.output(print(fitAlias))
-expect_true(any(grepl("hurdle.lognormal", printedAlias, fixed = TRUE)))
 
 # --- y >= 0 validation and the require-a-zero / require-a-positive edges
 # (splitHurdleResponse) ---
 expect_error(
-  bart2(x, y - 10, family = "hurdle.lognormal"),
+  bart(x, y - 10, family = "hurdle.lognormal"),
   "non-negative"
 )
 expect_error(
-  bart2(x, c(NA_real_, y[-1L]), family = "hurdle.lognormal"),
+  bart(x, c(NA_real_, y[-1L]), family = "hurdle.lognormal"),
   "non-negative"
 )
 expect_error(
-  bart2(x, rep(0, n), family = "hurdle.lognormal"),
+  bart(x, rep(0, n), family = "hurdle.lognormal"),
   "at least one positive"
 )
 expect_error(
-  bart2(x, abs(rnorm(n)) + 0.1, family = "hurdle.lognormal"),
+  bart(x, abs(rnorm(n)) + 0.1, family = "hurdle.lognormal"),
   "at least one exact zero"
 )
 
-# --- dbarts() cannot express the two-sampler composition; directs to
-# bart2() (both spellings hit the same redirect) ---
-expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart2")
-expect_error(dbarts(x, y, family = "twopart"), "bart2")
+# --- dbarts() cannot express the two-sampler composition; directs to the
+# front door ---
+expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x.train")
+expect_error(dbarts(x, y, family = "twopart"), "hurdle.lognormal")
 
 # --- xbart does not fit it (its family vector is the refusal, the
 # nbinom/hazard precedent) ---

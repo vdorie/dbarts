@@ -16,7 +16,7 @@ p <- plogis(f)
 y <- rbinom(n, 1L, p)
 w <- rep_len(c(1L, 3L, 5L), n)
 
-fit <- bart2(
+fit <- bart(
   y ~ x,
   weights = w,
   family = "logistic",
@@ -80,7 +80,7 @@ x <- matrix(runif(n * 2L), n, 2L)
 y <- rbinom(n, 1L, 0.5)
 w <- c(5L, rep(1L, n - 1L))
 
-fit.align <- bart2(
+fit.align <- bart(
   y ~ x,
   weights = w,
   family = "logistic",
@@ -104,7 +104,7 @@ n <- 60L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- rbinom(n, 1L, plogis(0.6 * x[, 1L] - 0.3))
 
-fit.unweighted <- bart2(
+fit.unweighted <- bart(
   y ~ x,
   family = "logistic",
   n.samples = 100L,
@@ -128,7 +128,7 @@ x <- matrix(runif(n * 2L), n, 2L)
 y <- rbinom(n, 1L, plogis(0.6 * x[, 1L] - 0.3))
 w <- rep_len(c(1L, 3L, 5L), n)
 
-fit.mc <- bart2(
+fit.mc <- bart(
   y ~ x,
   weights = w,
   family = "logistic",

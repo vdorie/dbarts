@@ -32,7 +32,7 @@ expect_true(
 rm(bartFit.flat, bartFit, n.burn, n.sims)
 
 # test_that binary model with k hyperprior is reproducible when multithreaded
-fit1 <- dbarts::bart2(
+fit1 <- dbarts::bart(
   testData$X[1L:100L, ],
   testData$Z[1L:100L],
   n.trees = 5L,
@@ -43,7 +43,7 @@ fit1 <- dbarts::bart2(
   seed = 99L,
   verbose = FALSE
 )
-fit2 <- dbarts::bart2(
+fit2 <- dbarts::bart(
   testData$X[1L:100L, ],
   testData$Z[1L:100L],
   n.trees = 5L,

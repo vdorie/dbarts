@@ -107,7 +107,7 @@ set.seed(6001)
 nBin <- 120L
 xBin <- matrix(rnorm(nBin * 3L), nBin, 3L)
 yBin <- rbinom(nBin, 1L, pnorm(xBin %*% c(0.12, -0.05, 0.3)))
-binaryFit <- dbarts::bart2(
+binaryFit <- dbarts::bart(
   xBin,
   yBin,
   n.trees = 5L,
@@ -145,7 +145,7 @@ yMulti <- factor(
   )],
   levels = c("lo", "mid", "hi")
 )
-multinomialFit <- dbarts::bart2(
+multinomialFit <- dbarts::bart(
   xMulti,
   yMulti,
   family = "multinomial",
@@ -169,7 +169,7 @@ set.seed(717)
 nVar <- 150L
 xVar <- matrix(runif(nVar), nVar, 1L)
 yVar <- 2 * xVar[, 1L] + ifelse(xVar[, 1L] < 0.5, 0.3, 1.5) * rnorm(nVar)
-varianceFit <- dbarts::bart2(
+varianceFit <- dbarts::bart(
   xVar,
   yVar,
   variance = dbarts::varianceForest(n.trees = 5L),

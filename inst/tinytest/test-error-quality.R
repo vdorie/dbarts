@@ -35,14 +35,14 @@ expect_error(
 )
 
 # (c) a zero (or thinned-to-zero) sample count is named, by one shared
-# message across bart2/xbart (dbarts()/dbartsControl() accept it -
+# message across bart/xbart (dbarts()/dbartsControl() accept it -
 # a host-loop-driven sampler - so the message states the split too)
 zeroSampleMessage <- paste0(
   "'n.samples' must leave at least one draw after thinning \\(n.samples ",
   "%/% n.thin = 0\\)"
 )
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     testData$x,
     testData$y,
     n.samples = 0L,

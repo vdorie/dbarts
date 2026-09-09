@@ -87,9 +87,9 @@ expect_identical(
   unthinned$yhat.train[2L * keepevery, ]
 )
 
-# bart2 carries the same convention through its own control construction
+# bart carries the same convention through its own control construction
 burnFit2 <- function(x, y, draws, thin) {
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.samples = draws,
@@ -135,7 +135,8 @@ bartFit <- dbarts::bart(
   nskip = n.burn,
   ntree = n.trees
 )
-expect_equal(bartFit$call[[1L]], quote(dbarts::bart))
+# a BayesTree-spelled call is the legacy door's fit, and says so
+expect_equal(bartFit$call[[1L]], quote(dbarts::bartBT))
 
 bartFit <- dbarts::bart(
   y ~ x,
@@ -152,7 +153,7 @@ rm(bartFit, sampler, control, n.trees, n.burn, n.samples)
 
 # printEvery is expressed in post-thinning samples, so thinning heavier than
 # the default print interval must still leave a positive one
-thinFit <- dbarts::bart2(
+thinFit <- dbarts::bart(
   testData$x,
   testData$y,
   n.samples = 400L,

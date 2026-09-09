@@ -3,10 +3,10 @@ source(
   local = TRUE
 )
 
-# test that bart2 yields similar results to bart
+# the legacy door and the modern door fit the same data to the same place
 n.burn <- 200L
 n.sims <- 400L
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = n.sims,
@@ -17,7 +17,7 @@ bartFit <- dbarts::bart(
   verbose = FALSE
 )
 
-bart2Fit <- dbarts::bart2(
+bart2Fit <- dbarts::bart(
   testData$x,
   testData$y,
   n.samples = n.sims,
@@ -41,14 +41,14 @@ rm(bart2Fit, bartFit, n.sims, n.burn)
 
 rm(testData)
 
-# bart() gains subset, storage, and family, appended and forwarded to
-# dbarts(). Each is exercised tiny.
+# The legacy door is 0.9-34's argument list exactly: the five settings it
+# briefly carried on this branch and never on CRAN are gone, so each is an
+# ordinary unused argument rather than a silently honoured extra.
 
 set.seed(202)
 nS10 <- 30L
 xS10 <- matrix(rnorm(nS10 * 2L), nS10, dimnames = list(NULL, c("a", "b")))
 yS10 <- rnorm(nS10)
-yBinS10 <- rbinom(nS10, 1L, 0.5)
 quickS10 <- list(
   ndpost = 5L,
   nskip = 2L,
@@ -58,112 +58,63 @@ quickS10 <- list(
   verbose = FALSE
 )
 
-# subset actually subsets, and reaches dbarts() the same way pre-subsetting
-# x/y directly would: both build the same @x/@y, so the draws are identical
-idxS10 <- c(1:10, 15:20)
-subsetFit <- do.call(
-  dbarts::bart,
-  c(list(xS10, yS10, subset = idxS10, seed = 11L), quickS10)
-)
-directFit <- do.call(
-  dbarts::bart,
-  c(list(xS10[idxS10, ], yS10[idxS10], seed = 11L), quickS10)
-)
-expect_equal(length(subsetFit$yhat.train.mean), length(idxS10))
-expect_identical(subsetFit$yhat.train, directFit$yhat.train)
-expect_identical(subsetFit$sigma, directFit$sigma)
-
-# storage reaches the control and changes the returned draws
-doubleFit <- do.call(
-  dbarts::bart,
-  c(list(xS10, yS10, seed = 22L, keepsampler = TRUE), quickS10)
-)
-singleFit <- do.call(
-  dbarts::bart,
-  c(
-    list(xS10, yS10, seed = 22L, storage = "single", keepsampler = TRUE),
-    quickS10
+for (extra in list(
+  list(subset = 1:10),
+  list(storage = "single"),
+  list(family = "logistic"),
+  list(resid.dist = quote(gaussian)),
+  list(prior.scale = 2.0)
+)) {
+  expect_error(
+    do.call(dbarts::bartBT, c(list(xS10, yS10), extra, quickS10)),
+    pattern = "unused argument"
   )
-)
-expect_equal(doubleFit$fit$control@storage, "double")
-expect_equal(singleFit$fit$control@storage, "single")
-expect_false(identical(doubleFit$yhat.train, singleFit$yhat.train))
+}
 
-# family = "logistic"/"aft" reach the right path and package as "bart"
-logisticFit <- do.call(
-  dbarts::bart,
-  c(list(xS10, yBinS10, family = "logistic", seed = 33L), quickS10)
-)
-expect_inherits(logisticFit, "bart")
-expect_equal(logisticFit$family, "logistic")
-
-aftYS10 <- cbind(abs(yS10) + 0.1, rep(1L, nS10))
-aftFit <- do.call(
-  dbarts::bart,
-  c(list(xS10, aftYS10, family = "aft", seed = 44L), quickS10)
-)
-expect_inherits(aftFit, "bart")
-expect_equal(aftFit$family, "aft")
-
-# the four own-class families are refused by name, pointing at bart2 - not
-# match.arg's generic "should be one of" message
-expect_error(
-  dbarts::bart(xS10, yS10, family = "multinomial"),
-  pattern = "bart2"
-)
-expect_error(dbarts::bart(xS10, yS10, family = "ordinal"), pattern = "bart2")
-expect_error(dbarts::bart(xS10, yS10, family = "nbinom"), pattern = "bart2")
-expect_error(
-  dbarts::bart(xS10, yS10, family = "hurdle.lognormal"),
-  pattern = "bart2"
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "nbinom"),
-  pattern = "\"nbinom\""
+# every one of the five is still reachable at the modern door, which is
+# where the message that names it points
+expect_inherits(
+  dbarts::bart(
+    xS10,
+    yS10,
+    subset = 1:20,
+    storage = "single",
+    n.samples = 5L,
+    n.burn = 2L,
+    n.trees = 3L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  "bart"
 )
 
-# the other six of bart2's ten tokens are refused by name too, each echoing
-# the typed spelling (never a resolved alias or the binary link a hazard
-# token remaps to)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "gaussian"),
-  pattern = "\"gaussian\""
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "probit"),
-  pattern = "\"probit\""
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "hazard.probit"),
-  pattern = "\"hazard.probit\""
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "hazard"),
-  pattern = "\"hazard\""
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "hazard.logistic"),
-  pattern = "\"hazard.logistic\""
-)
-expect_error(
-  dbarts::bart(xS10, yS10, family = "twopart"),
-  pattern = "\"twopart\""
-)
-# "twopart" is never resolved to its alias in the message
-twopartMsg <- tryCatch(
-  dbarts::bart(xS10, yS10, family = "twopart"),
+# a factor response of three or more levels was fit as its integer level
+# codes by 0.9-x; refused here, naming both remedies
+y3S10 <- factor(sample(c("a", "b", "c"), nS10, replace = TRUE))
+factorMsg <- tryCatch(
+  do.call(dbarts::bartBT, c(list(xS10, y3S10), quickS10)),
   error = function(e) conditionMessage(e)
 )
-expect_false(grepl("hurdle.lognormal", twopartMsg, fixed = TRUE))
+expect_true(grepl("family = \"multinomial\"", factorMsg, fixed = TRUE))
+expect_true(grepl("as.integer(y) - 1L", factorMsg, fixed = TRUE))
+# an ORDERED 3+-level response reaches the same refusal through the
+# formula path, where dbarts() resolves it to ordinal first
+dfS10 <- data.frame(a = xS10[, 1L], b = xS10[, 2L], y = ordered(y3S10))
+expect_error(
+  do.call(dbarts::bartBT, c(list(y ~ a + b, dfS10), quickS10)),
+  pattern = "three or more levels"
+)
+rm(y3S10, factorMsg, dfS10)
 
 # a keepSampler fit carries $n.chains too, not only when the sampler itself
 # is dropped
 keptBartFit <- do.call(
-  dbarts::bart,
+  dbarts::bartBT,
   c(list(xS10, yS10, keepsampler = TRUE), quickS10)
 )
 expect_equal(keptBartFit$n.chains, 1L)
-keptBart2Fit <- dbarts::bart2(
+keptBart2Fit <- dbarts::bart(
   xS10,
   yS10,
   n.samples = 5L,
@@ -176,8 +127,8 @@ keptBart2Fit <- dbarts::bart2(
 )
 expect_equal(keptBart2Fit$n.chains, 2L)
 
-# the appended formals break no existing bart() abbreviation
-abbrevFit1 <- dbarts::bart(
+# partial matching still reaches every legacy formal
+abbrevFit1 <- dbarts::bartBT(
   xS10,
   yS10,
   ntre = 3L,
@@ -189,7 +140,7 @@ abbrevFit1 <- dbarts::bart(
   seed = 55L
 )
 expect_inherits(abbrevFit1, "bart")
-abbrevFit2 <- dbarts::bart(
+abbrevFit2 <- dbarts::bartBT(
   xS10,
   yS10,
   ntree = 3L,
@@ -202,23 +153,7 @@ abbrevFit2 <- dbarts::bart(
 )
 expect_inherits(abbrevFit2, "bart")
 
-rm(
-  nS10,
-  xS10,
-  yS10,
-  yBinS10,
-  quickS10,
-  idxS10,
-  subsetFit,
-  directFit,
-  doubleFit,
-  singleFit,
-  logisticFit,
-  aftYS10,
-  aftFit,
-  abbrevFit1,
-  abbrevFit2
-)
+rm(nS10, xS10, yS10, quickS10, abbrevFit1, abbrevFit2)
 
 # keeptrees = TRUE, keepsampler = FALSE keeps $fit anyway (keepsampler's
 # default IS keeptrees; an explicit FALSE override must not lose it) -
@@ -227,7 +162,7 @@ set.seed(303)
 nKT <- 40L
 xKT <- matrix(rnorm(nKT * 2L), nKT, 2L)
 yKT <- xKT[, 1L] + rnorm(nKT)
-fitKT <- dbarts::bart(
+fitKT <- dbarts::bartBT(
   xKT,
   yKT,
   ndpost = 5L,
@@ -246,7 +181,7 @@ expect_silent(extract(fitKT, "trees"))
 
 rm(nKT, xKT, yKT, fitKT)
 
-# bart()'s x/y route (factors = "indicators", no stored level table) names
+# bartBT()'s x/y route (factors = "indicators", no stored level table) names
 # the mismatching factor and its levels rather than blaming the column
 # count when a test factor's levels differ from training's
 set.seed(404)
@@ -265,7 +200,7 @@ teFewer <- dF[41:60, c("x1", "f")]
 teFewer <- teFewer[teFewer$f != "c", ]
 teFewer$f <- droplevels(teFewer$f)
 expect_error(
-  dbarts::bart(
+  dbarts::bartBT(
     trF,
     ytrF,
     teFewer,
@@ -286,7 +221,7 @@ teExtra$f <- factor(teExtra$f, levels = c("a", "b", "c", "d"))
 teMany <- dF[41:60, c("x1", "f")]
 teMany$f <- factor(teMany$f, levels = c("a", "b", "c", paste0("z", 1:5000)))
 expect_error(
-  dbarts::bart(
+  dbarts::bartBT(
     trF,
     ytrF,
     teExtra,
@@ -300,7 +235,7 @@ expect_error(
   pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
 )
 expect_error(
-  dbarts::bart(
+  dbarts::bartBT(
     trF,
     ytrF,
     teMany,
@@ -314,7 +249,7 @@ expect_error(
   pattern = "'test' factor 'f' declares 5003 levels"
 )
 # predict() reaches the same funnel with the fit's stored drop pattern
-fitF <- dbarts::bart(
+fitF <- dbarts::bartBT(
   trF,
   ytrF,
   ndpost = 5L,
@@ -348,8 +283,8 @@ expect_error(
 )
 rm(nF, dF, trF, ytrF, teFewer, teExtra, teMany, teChar, fitF)
 
-# bart()'s missing-predictor refusal cannot advise an argument bart()
-# itself rejects (missing = "incorporate", bart2()/dbarts() only); it
+# bartBT()'s missing-predictor refusal cannot advise an argument bartBT()
+# itself rejects (missing = "incorporate", bart()/dbarts() only); it
 # points at those front doors instead
 set.seed(505)
 nMiss <- 40L
@@ -357,7 +292,7 @@ xMiss <- matrix(rnorm(nMiss * 2L), nMiss, 2L)
 xMiss[1L, 1L] <- NA_real_
 yMiss <- rnorm(nMiss)
 expect_error(
-  dbarts::bart(
+  dbarts::bartBT(
     xMiss,
     yMiss,
     ndpost = 3L,
@@ -365,10 +300,10 @@ expect_error(
     ntree = 3L,
     verbose = FALSE
   ),
-  pattern = "use bart2\\(\\) or dbarts\\(\\)"
+  pattern = "use bart\\(\\) or dbarts\\(\\)"
 )
 expect_error(
-  dbarts::bart(
+  dbarts::bartBT(
     xMiss,
     yMiss,
     ndpost = 3L,

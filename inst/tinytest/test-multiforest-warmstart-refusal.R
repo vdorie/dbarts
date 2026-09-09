@@ -77,12 +77,12 @@ expect_error(
   "bartcore_installForests: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )
 
-# --- the modelling surface: a data object carrying forest bases reaches bart2
+# --- the modelling surface: a data object carrying forest bases reaches bart
 # as an ordinary fit, so the donor argument refuses there by the name the
 # caller wrote ---
 basesData <- dbartsData(x, y, bases = list(NULL, zBasis))
 expect_error(
-  bart2(
+  bart(
     basesData,
     warm.start = donor,
     n.samples = 5L,
@@ -97,7 +97,7 @@ expect_error(
 
 # ... while the OTHER initialization argument is unaffected on the same object:
 # grow-from-root starts a two-forest fit and the fit comes back finite
-grownFit <- bart2(
+grownFit <- bart(
   basesData,
   n.grow.sweeps = 2L,
   n.samples = 5L,

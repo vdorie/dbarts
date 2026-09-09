@@ -72,7 +72,7 @@ n <- 200L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- x[, 1L] + rnorm(n, 0, 0.3)
 w <- rep(c(100, 0.01), each = n / 2L)
-weightedFit <- dbarts::bart2(
+weightedFit <- dbarts::bart(
   x,
   y,
   weights = w,

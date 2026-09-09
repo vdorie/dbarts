@@ -258,7 +258,7 @@ rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 # neither the "bart" nor the dbartsSampler branch, and used to
 # fall through to the generic "'x.train' must be a matrix, ..." message,
 # naming neither the fit nor why it fails; refused by name instead
-negbinFit <- dbarts::bart2(
+negbinFit <- dbarts::bart(
   testData$x,
   rpois(nrow(testData$x), 3L),
   family = "nbinom",

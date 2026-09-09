@@ -56,7 +56,7 @@ makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
     y,
     weights = weights,
     control = control,
-    sigma = 1,
+    sigest = 1,
     n.samples = 10L,
     ...
   )
@@ -102,7 +102,7 @@ masked.bcf <- dbarts::dbarts(
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w,
   control = control,
-  sigma = 1
+  sigest = 1
 )
 masked.bcf$setActiveRows(a)
 composed.bcf <- dbarts::dbarts(
@@ -111,7 +111,7 @@ composed.bcf <- dbarts::dbarts(
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w * a,
   control = control,
-  sigma = 1
+  sigest = 1
 )
 draws.masked.bcf <- masked.bcf$run(20L, 10L)
 draws.composed.bcf <- composed.bcf$run(20L, 10L)
@@ -262,7 +262,7 @@ heteroSampler <- function(weights) {
     weights = weights,
     variance = dbarts::varianceForest(n.trees = 10L),
     control = control,
-    sigma = 1,
+    sigest = 1,
     n.samples = 10L
   )
 }
@@ -289,7 +289,7 @@ gp <- dbarts::dbarts(
     updateState = FALSE,
     seed = 7L
   ),
-  sigma = 1,
+  sigest = 1,
   n.samples = 10L,
   node.prior = dbarts:::gp("x1", max.leaf.size = 100L)
 )
@@ -409,7 +409,7 @@ aftHandle <- function(logTime, mask = a) {
     x,
     logTime,
     control = control,
-    sigma = 1,
+    sigest = 1,
     n.samples = 10L
   )
   ctrl <- sampler$control

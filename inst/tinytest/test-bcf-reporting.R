@@ -245,8 +245,8 @@ expect_identical(
   plainCounts$getForestVariableCounts(1L)
 )
 
-# --- the multi-forest varcount packaging: the bart2 packaging path. A
-# dbartsData carrying bases reaches bart2
+# --- the multi-forest varcount packaging: the bart packaging path. A
+# dbartsData carrying bases reaches bart
 # today, and its varcount is the one channel that widens, so it is packaged
 # through the same K-margin reshape multinomial's per-category counts take:
 # draws-first, predictor names on the lead margin, engine-vocabulary forest
@@ -262,12 +262,12 @@ bcfFitArgs <- list(
   verbose = FALSE,
   seed = 51L
 )
-combinedFit <- do.call(bart2, c(bcfFitArgs, list(n.chains = 2L)))
+combinedFit <- do.call(bart, c(bcfFitArgs, list(n.chains = 2L)))
 uncombinedFit <- do.call(
-  bart2,
+  bart,
   c(bcfFitArgs, list(n.chains = 2L, combineChains = FALSE))
 )
-oneChainFit <- do.call(bart2, c(bcfFitArgs, list(n.chains = 1L)))
+oneChainFit <- do.call(bart, c(bcfFitArgs, list(n.chains = 1L)))
 
 expect_equal(dim(combinedFit$varcount), c(2L * numSamples, p, 2L))
 expect_equal(dim(uncombinedFit$varcount), c(2L, numSamples, p, 2L))
@@ -283,7 +283,7 @@ expect_identical(
 expect_identical(combinedFit$n.forests, 2L)
 expect_identical(uncombinedFit$n.forests, 2L)
 expect_null(
-  bart2(
+  bart(
     x,
     y,
     n.samples = 2L,
@@ -300,7 +300,7 @@ expect_null(
 # margin folds chain-major (chain c's last draw is row c * n.samples), pinned
 # against the live per-forest read of the sampler that produced it
 keptFit <- do.call(
-  bart2,
+  bart,
   c(bcfFitArgs, list(n.chains = 2L, keepSampler = TRUE))
 )
 for (chain in seq_len(2L)) {

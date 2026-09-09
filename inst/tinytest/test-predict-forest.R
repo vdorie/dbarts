@@ -136,7 +136,7 @@ expect_error(
   pattern = "no per-forest fits"
 )
 yMulti <- factor(c("lo", "mid", "hi")[1L + (z + as.integer(x[, 3L] > 0.5))])
-multiFit <- bart2(
+multiFit <- bart(
   x,
   yMulti,
   family = "multinomial",

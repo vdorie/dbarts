@@ -12,7 +12,7 @@ fTrue <- 2 * x
 sTrue <- ifelse(x < 0.5, 0.3, 1.5)
 y <- fTrue + sTrue * rnorm(n)
 
-fit <- bart2(
+fit <- bart(
   x,
   y,
   variance = varianceForest(n.trees = 25L),
@@ -147,7 +147,7 @@ wideData <- data.frame(
 )
 wideSd <- ifelse(wideData$z < 0.5, 0.3, 1.2)
 wideData$y <- as.numeric(wideData$g) / 40 + wideData$z + wideSd * rnorm(nWide)
-fitWide <- bart2(
+fitWide <- bart(
   y ~ g + z,
   wideData,
   variance = varianceForest(n.trees = 8L),
@@ -174,7 +174,7 @@ unlink(wideFile)
 set.seed(11, sample.kind = "Rejection")
 xHom <- runif(n)
 yHom <- 2 * xHom + 0.8 * rnorm(n)
-fitHom <- bart2(
+fitHom <- bart(
   xHom,
   yHom,
   variance = varianceForest(n.trees = 25L),
@@ -193,7 +193,7 @@ expect_true(sd(sHom) / mean(sHom) < 0.35)
 expect_true(mean(sHom) > 0.55 && mean(sHom) < 1.15)
 
 # ---- a homoscedastic fit (no variance forest) carries no s channel ----
-fitPlain <- bart2(
+fitPlain <- bart(
   x,
   y,
   n.trees = 50L,
@@ -206,7 +206,7 @@ expect_null(fitPlain$s.train)
 
 # ---- the variance forest is gaussian only ----
 expect_error(
-  bart2(
+  bart(
     x,
     as.integer(y > median(y)),
     variance = TRUE,
@@ -223,7 +223,7 @@ expect_error(
 # resid.dist is NSE (parsed in
 # dbarts's own vocabulary), so these stay literal calls rather than do.call.
 expect_error(
-  bart2(
+  bart(
     xHom,
     yHom,
     resid.dist = student(3),
@@ -236,7 +236,7 @@ expect_error(
   "variance forest does not support"
 )
 expect_inherits(
-  bart2(
+  bart(
     xHom,
     yHom,
     resid.dist = student(3),

@@ -16,7 +16,7 @@ n.samples <- 10L
 
 # One BCF-shaped fit from a dbartsData carrying the two bases.
 bcfLoglikFit <- function(data, family = "auto", n.chains = 1L, ...) {
-  bart2(
+  bart(
     data,
     family = family,
     n.samples = n.samples,

@@ -157,7 +157,7 @@ expect_identical(scanC$run(0L, 3L)$train, scanBase)
 ## cut grid respectively.
 
 warmDonor <- function(design, ...) {
-  bart2(
+  bart(
     design,
     y,
     ...,

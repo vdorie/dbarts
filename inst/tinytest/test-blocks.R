@@ -60,7 +60,7 @@ fitArgs <- list(
   verbose = FALSE
 )
 doFitBlocks <- function(blocks = NULL) {
-  do.call(bart2, c(list(y ~ x1 + x2 + x3, df, blocks = blocks), fitArgs))
+  do.call(bart, c(list(y ~ x1 + x2 + x3, df, blocks = blocks), fitArgs))
 }
 
 # ---- a blocks() fit runs and confines every tree to its group -----------------
@@ -92,7 +92,7 @@ x4 <- runif(n)
 dfC3 <- data.frame(y, x1, x2, x3, x4)
 groupsC3 <- list(1L, c(2L, 3L), 4L)
 fitC3 <- do.call(
-  bart2,
+  bart,
   c(
     list(
       y ~ x1 + x2 + x3 + x4,
@@ -216,7 +216,7 @@ expect_error(
 # more groups than trees, with the default even split
 expect_error(
   do.call(
-    bart2,
+    bart,
     c(
       list(
         y ~ x1 + x2 + x3,
@@ -232,7 +232,7 @@ expect_error(
 # ---- blocks() and interactions() compose on one forest ------------------------
 
 fitBoth <- do.call(
-  bart2,
+  bart,
   c(
     list(
       y ~ x1 + x2 + x3,
@@ -251,7 +251,7 @@ expect_true(allConfined(extract(fitBoth, type = "trees"), groups))
 # selection - orthogonal seams; the fit must run and confinement must still
 # hold
 fitMono <- do.call(
-  bart2,
+  bart,
   c(
     list(
       y ~ x1 + x2 + x3,

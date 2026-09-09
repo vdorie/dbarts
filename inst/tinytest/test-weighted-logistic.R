@@ -14,7 +14,7 @@ y <- rbinom(n, 1L, p)
 w <- sample(1:3, n, replace = TRUE)
 
 # an integer-weighted logistic model fits and recovers the signal
-fit.w <- bart2(
+fit.w <- bart(
   y ~ x,
   weights = w,
   family = "logistic",
@@ -36,7 +36,7 @@ expect_true(cor(phat.w, p) > 0.5)
 idx <- rep(seq_len(n), times = w)
 yr <- y[idx]
 xr <- x[idx, , drop = FALSE]
-fit.rep <- bart2(
+fit.rep <- bart(
   yr ~ xr,
   family = "logistic",
   n.samples = 200L,
@@ -53,7 +53,7 @@ expect_true(mean(abs(phat.w - phat.rep)) < 0.06)
 
 # non-integer weights are not counts and are refused
 expect_error(
-  bart2(
+  bart(
     y ~ x,
     weights = runif(n, 0.5, 2),
     family = "logistic",
@@ -69,7 +69,7 @@ expect_error(
 
 # a zero count is a dropped row, also refused
 expect_error(
-  suppressWarnings(bart2(
+  suppressWarnings(bart(
     y ~ x,
     weights = c(0, w[-1L]),
     family = "logistic",
@@ -85,7 +85,7 @@ expect_error(
 
 # probit (the default binary family) refuses weights entirely
 expect_error(
-  bart2(
+  bart(
     y ~ x,
     weights = w,
     n.samples = 5L,

@@ -35,7 +35,7 @@ fitZeroWeight <- function(resp, nodePrior) {
     updateState = FALSE,
     seed = 5L
   )
-  args <- list(x, resp, weights = w, control = ctrl, sigma = 1.0)
+  args <- list(x, resp, weights = w, control = ctrl, sigest = 1.0)
   if (!is.null(nodePrior)) {
     args$node.prior <- nodePrior
   }

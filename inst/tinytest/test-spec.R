@@ -41,7 +41,7 @@ expect_identical(samples$sigma, referenceSamples$sigma)
 ## never left as "auto"
 expect_equal(spec$model@family, "gaussian")
 
-## a binary response resolves to probit through the same path bart2() uses
+## a binary response resolves to probit through the same path bart() uses
 binaryData <- dbarts::dbartsData(x, as.double(y > median(y)))
 binarySpec <- suppressMessages(dbarts::dbartsSpec(
   binaryData,
@@ -136,7 +136,7 @@ sigmaData <- dbarts::dbartsData(x, y)
 sigmaData@sigma <- 2.5
 expect_equal(dbarts::dbartsSpec(sigmaData, control = control)$data@sigma, 2.5)
 expect_equal(
-  dbarts::dbartsSpec(sigmaData, control = control, sigma = 1.5)$data@sigma,
+  dbarts::dbartsSpec(sigmaData, control = control, sigest = 1.5)$data@sigma,
   1.5
 )
 

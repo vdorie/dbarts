@@ -52,7 +52,7 @@ expect_error(dbarts::xbart(x, nx2), "'y' is an n x 2 matrix")
 # --- the formula interface reaches the same guards ---------------------------
 # A cbind(...) left-hand side is a multi-column response like any other. The
 # aft routes rewrite a (time, status) left-hand side to a plain numeric BEFORE
-# the data object is built, and bart2's multinomial cbind() route maps it to
+# the data object is built, and bart's multinomial cbind() route maps it to
 # 'counts', so only a caller reaching dbartsData directly lands here.
 frm <- data.frame(
   a = testData$y,

@@ -1,7 +1,7 @@
 # grow-from-root now places real categorical split rules (the v1
 # "categorical predictors are ordinal-only" contract inverted): a
 # categorical-heavy design should see the init forest
-# split on its signal factors, warm-start bart2 to a lower early RMSE than a
+# split on its signal factors, warm-start bart to a lower early RMSE than a
 # cold start, and feed real split counts into a concurrent DART update.
 
 makeFactorSignalData <- function(n = 400L, seed) {
@@ -42,14 +42,14 @@ expect_true(any(trees$var == 2L))
 # leaves report NA there
 expect_true(!anyNA(trees$directions[isSignalRule]))
 
-## a bart2 fit warm-started off two grow sweeps reaches a lower early training
-## RMSE than a cold start, shaped like test-bart2-grow-from-root.R's assertion
+## a bart fit warm-started off two grow sweeps reaches a lower early training
+## RMSE than a cold start, shaped like test-bart-grow-from-root.R's assertion
 earlyRMSEGrowFromRootCategorical <- function(fit) {
   yh <- fit$yhat.train
   perSample <- sqrt(rowMeans(sweep(yh, 2L, d$y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
 }
-coldFit <- dbarts::bart2(
+coldFit <- dbarts::bart(
   d$x,
   d$y,
   n.trees = 50L,
@@ -60,7 +60,7 @@ coldFit <- dbarts::bart2(
   verbose = FALSE,
   seed = 2L
 )
-growFit <- dbarts::bart2(
+growFit <- dbarts::bart(
   d$x,
   d$y,
   n.trees = 50L,
@@ -84,7 +84,7 @@ expect_true(
 ## draw following them) than a matched no-grow arm gets from the same n.burn
 ## = 0 first draw, which never saw a categorical split
 fitDart <- function(growSweeps) {
-  dbarts::bart2(
+  dbarts::bart(
     d$x,
     d$y,
     dart = TRUE,

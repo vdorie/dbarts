@@ -314,7 +314,7 @@ sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
 sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
-# test data can be removed (bart2's burn-in does this) and later restored
+# test data can be removed (bart's burn-in does this) and later restored
 sampler.engine$setTestPredictorAndOffset(NULL, NULL)
 expect_null(sampler.engine$data@x.test)
 expect_null(sampler.engine$run(0L, 2L)$test)
@@ -1050,7 +1050,7 @@ control.sc <- dbartsControl(
   n.trees = 25L,
   updateState = FALSE
 )
-sampler.sc <- dbarts(x, y, control = control.sc, sigma = 1)
+sampler.sc <- dbarts(x, y, control = control.sc, sigest = 1)
 bc.sc <- dbarts:::bartcoreSampler(sampler.sc)
 set.seed(31)
 invisible(bartcoreRun(bc.sc, 20L, 0L))
@@ -1061,7 +1061,7 @@ state.sc <- bartcoreStoreState(bc.sc)
 
 # the same specification: an explicit sigma keeps the creation-time lm from
 # folding the offset into a different variance prior
-sampler.sc2 <- dbarts(x, y, offset = offset.sc, control = control.sc, sigma = 1)
+sampler.sc2 <- dbarts(x, y, offset = offset.sc, control = control.sc, sigest = 1)
 bc.sc2 <- dbarts:::bartcoreSampler(sampler.sc2)
 bartcoreSetState(bc.sc2, state.sc)
 
@@ -1088,7 +1088,7 @@ states.g <- lapply(1:3, function(i) {
     n.samples = 6L,
     updateState = FALSE
   )
-  bc.g <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g, sigma = 1))
+  bc.g <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g, sigest = 1))
   invisible(bartcoreRun(bc.g, 7L, 6L))
   bartcoreStoreState(bc.g)
 })
@@ -1100,7 +1100,7 @@ control.g3 <- dbartsControl(
   n.samples = 6L,
   updateState = FALSE
 )
-bc.g3 <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g3, sigma = 1))
+bc.g3 <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g3, sigest = 1))
 state.g <- states.g[[1L]]
 state.g[[2L]] <- states.g[[2L]][[1L]]
 state.g[[3L]] <- states.g[[3L]][[1L]]
@@ -1121,7 +1121,7 @@ for (i in 1:3) {
     x,
     y,
     control = control.g1,
-    sigma = 1
+    sigest = 1
   ))
   bartcoreSetState(bc.g1, states.g[[i]])
   expect_equal(

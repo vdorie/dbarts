@@ -47,7 +47,7 @@ expect_error(
   fixed = TRUE
 )
 
-bart2Fit <- dbarts::bart2(
+bart2Fit <- dbarts::bart(
   testData$x,
   testData$y,
   n.samples = 20L,
@@ -87,7 +87,7 @@ rm(bartFit, bart2Fit)
 # typing the sibling family's offset formal name ('offset.test', used by
 # predict.bartNegbin) instead of this fit's own 'offset' had it silently
 # vanish into '...' instead of applied
-bart2FitKT <- dbarts::bart2(
+bart2FitKT <- dbarts::bart(
   testData$x,
   testData$y,
   n.samples = 10L,
@@ -188,7 +188,7 @@ rm(
 n <- 40L
 xSmall <- matrix(rnorm(n * 2L), n, 2L)
 
-multinomialFitKT <- dbarts::bart2(
+multinomialFitKT <- dbarts::bart(
   xSmall,
   factor(sample(letters[1:3], n, replace = TRUE)),
   family = "multinomial",
@@ -225,7 +225,7 @@ expect_error(
   fixed = TRUE
 )
 
-ordinalFitKT <- dbarts::bart2(
+ordinalFitKT <- dbarts::bart(
   xSmall,
   ordered(
     sample(c("lo", "mid", "hi"), n, replace = TRUE),
@@ -270,7 +270,7 @@ expect_error(
   fixed = TRUE
 )
 
-negbinFitKT <- dbarts::bart2(
+negbinFitKT <- dbarts::bart(
   xSmall,
   rpois(n, 3),
   family = "nbinom",
@@ -307,7 +307,7 @@ expect_error(
   fixed = TRUE
 )
 
-hurdleFitKT <- dbarts::bart2(
+hurdleFitKT <- dbarts::bart(
   xSmall,
   ifelse(runif(n) < 0.5, 0, rlnorm(n)),
   family = "hurdle.lognormal",
@@ -448,7 +448,7 @@ rm(samplerKT)
 # --- ci.level refused on all six residuals (section 7), sample refused on
 # --- the three residuals methods that did not already refuse it, and
 # --- n.threads on one fitted and one residuals ---
-bartFitPlain <- dbarts::bart2(
+bartFitPlain <- dbarts::bart(
   testData$x,
   testData$y,
   n.samples = 10L,

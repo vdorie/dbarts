@@ -133,7 +133,7 @@ status.s <- as.numeric(log.t <= cens)
 time.s <- exp(ifelse(status.s == 1, log.t, cens)) # observed time (not logged)
 
 # two-column (time, status) matrix with family = "aft"
-fit.2col <- bart2(
+fit.2col <- bart(
   x,
   cbind(time.s, status.s),
   family = "aft",
@@ -158,7 +158,7 @@ surv <- structure(
   class = "Surv",
   type = "right"
 )
-fit.surv <- bart2(
+fit.surv <- bart(
   x,
   surv,
   n.trees = 50L,
@@ -192,7 +192,7 @@ expect_true(all(sp[, -1L, ] <= sp[, -length(times), ] + 1e-8))
 # refusals through the public surface
 expect_error(dbarts(x, log.t, family = "aft"), "two-column|Surv")
 expect_error(
-  bart2(x, cbind(c(-1, time.s[-1]), status.s), family = "aft", n.chains = 1L),
+  bart(x, cbind(c(-1, time.s[-1]), status.s), family = "aft", n.chains = 1L),
   "positive"
 )
 # the training-fit path (no newdata) spans the training observations
@@ -202,7 +202,7 @@ expect_equal(dim(sp.train), c(n.draws, length(times), n))
 # an explicitly conflicting family with a Surv response errors instead of
 # silently becoming aft
 expect_error(
-  bart2(x, surv, family = "gaussian", n.chains = 1L, verbose = FALSE),
+  bart(x, surv, family = "gaussian", n.chains = 1L, verbose = FALSE),
   "aft"
 )
 expect_error(
@@ -249,13 +249,13 @@ if (requireNamespace("survival", quietly = TRUE)) {
     "matrix interface"
   )
   expect_error(
-    bart2(survival::Surv(t, s) ~ x1, surv.df, verbose = FALSE),
+    bart(survival::Surv(t, s) ~ x1, surv.df, verbose = FALSE),
     "matrix interface"
   )
 }
 
 # non-aft fits are refused by the bart method
-fit.gauss <- bart2(
+fit.gauss <- bart(
   x,
   log.t,
   n.trees = 25L,
@@ -268,7 +268,7 @@ fit.gauss <- bart2(
 expect_error(survivalProbabilities(fit.gauss, times = 1), "aft")
 
 # multi-chain conventions: combineChains collapses the chain margin
-fit.chains <- bart2(
+fit.chains <- bart(
   x,
   cbind(time.s, status.s),
   family = "aft",
@@ -292,7 +292,7 @@ expect_equal(sp.comb[51:100, , ], sp.unc[2L, , , ])
 # carries yhat.train and sigma with explicit chain margins; the probability
 # at any (chain, sample, time, obs) is the exact normal upper tail, which
 # pins the sigma-to-draw alignment
-fit.chains2 <- bart2(
+fit.chains2 <- bart(
   x,
   cbind(time.s, status.s),
   family = "aft",

@@ -91,7 +91,7 @@ verboseOutput <- capture.output(
 expect_true(any(grepl("x(1) cutoffs: 1.000000", verboseOutput, fixed = TRUE)))
 
 invisible(capture.output(
-  fit2 <- bart2(
+  fit2 <- bart(
     xConst,
     y,
     n.samples = 5L,

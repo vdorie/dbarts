@@ -196,10 +196,10 @@ fitArgs <- list(
   verbose = FALSE
 )
 fitMono <- do.call(
-  dbarts::bart2,
+  dbarts::bart,
   c(list(xRec, yRec, monotone = c(x1 = "+")), fitArgs)
 )
-fitFree <- do.call(dbarts::bart2, c(list(xRec, yRec), fitArgs))
+fitFree <- do.call(dbarts::bart, c(list(xRec, yRec), fitArgs))
 
 # the constrained posterior-mean fit is monotone in x (x is sorted)
 expect_true(all(diff(fitMono$yhat.train.mean) > -1e-8))
@@ -220,10 +220,10 @@ expect_true(sdMono < sdFree)
 set.seed(202L)
 yBump <- sin(2 * pi * xRec[, 1L]) + rnorm(nRec, 0, 0.3)
 fitBump <- do.call(
-  dbarts::bart2,
+  dbarts::bart,
   c(list(xRec, yBump, monotone = c(x1 = "+")), fitArgs)
 )
-fitBumpFree <- do.call(dbarts::bart2, c(list(xRec, yBump), fitArgs))
+fitBumpFree <- do.call(dbarts::bart, c(list(xRec, yBump), fitArgs))
 # the fit stays monotone (the true rise-then-fall is flattened, not recovered)
 expect_true(all(diff(fitBump$yhat.train.mean) > -1e-8))
 expect_true(all(is.finite(fitBump$yhat.train.mean)))

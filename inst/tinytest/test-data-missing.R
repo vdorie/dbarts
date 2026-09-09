@@ -231,9 +231,9 @@ expect_error(
   pattern = "'x2'"
 )
 
-# the S3 surface: predict.bart reaches the same refusal on a bart2() fit,
+# the S3 surface: predict.bart reaches the same refusal on a bart() fit,
 # so it is proven to reach a fit and not only a raw sampler
-fit.b2 <- bart2(
+fit.b2 <- bart(
   y ~ x1 + x2 + g,
   df,
   keepTrees = TRUE,

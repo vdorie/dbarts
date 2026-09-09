@@ -217,7 +217,7 @@ expect_error(
 
 set.seed(83)
 labels <- factor(rbinom(n, 1L, 0.5))
-fitMN <- bart2(
+fitMN <- bart(
   x,
   labels,
   family = "multinomial",

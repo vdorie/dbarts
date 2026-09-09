@@ -78,8 +78,8 @@ newModel@family <- "gaussian"
 sampler.logit$setModel(newModel)
 expect_equal(sampler.logit$model@family, "logistic")
 
-# bart2 forwards the argument
-fit.bart2 <- bart2(
+# bart forwards the argument
+fit.bart <- bart(
   y.binary ~ x,
   family = "gaussian",
   n.samples = 30L,
@@ -89,14 +89,14 @@ fit.bart2 <- bart2(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_true(!is.null(fit.bart2$sigma))
+expect_true(!is.null(fit.bart$sigma))
 
 # probit refuses weights at the R layer through the wrapper (the bridge keeps
 # the same refusal as a backstop for direct-API consumers): a weighted probit
 # has no tractable latent-variable form. Logistic weights are covered in
 # test-weighted-logistic.R
 expect_error(
-  bart2(
+  bart(
     y.binary ~ x,
     weights = runif(n, 0.5, 1.5),
     n.samples = 5L,
@@ -114,7 +114,7 @@ expect_error(
 # unconditionally); under the same creation seed the fit matches an
 # unweighted one draw for draw
 set.seed(7)
-fit.unweighted <- bart2(
+fit.unweighted <- bart(
   y.binary ~ x,
   n.samples = 5L,
   n.burn = 5L,
@@ -124,7 +124,7 @@ fit.unweighted <- bart2(
   verbose = FALSE
 )
 set.seed(7)
-fit.unitWeights <- bart2(
+fit.unitWeights <- bart(
   y.binary ~ x,
   weights = rep(1, n),
   n.samples = 5L,
@@ -137,7 +137,7 @@ fit.unitWeights <- bart2(
 expect_identical(fit.unitWeights$yhat.train, fit.unweighted$yhat.train)
 
 # the wrappers record the family and transform through its link
-fit.probit <- bart2(
+fit.probit <- bart(
   y.binary ~ x,
   n.samples = 40L,
   n.burn = 40L,
@@ -150,7 +150,7 @@ fit.probit <- bart2(
 expect_equal(fit.probit$family, "probit")
 expect_equal(extract(fit.probit, "ev"), pnorm(extract(fit.probit, "bart")))
 
-fit.logit <- bart2(
+fit.logit <- bart(
   y.binary ~ x,
   family = "logistic",
   n.samples = 40L,

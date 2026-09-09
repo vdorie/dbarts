@@ -158,7 +158,7 @@ expect_equal(data@x$sparseReference, c(NA_integer_, 1L))
 expect_equal(attr(data@x, "factor.levels")[[4L]], paste0("c", 1:5))
 
 # a short fit over the mixed frame runs and stays finite
-fit <- bart2(
+fit <- bart(
   frame,
   y,
   n.samples = 40L,
@@ -181,7 +181,7 @@ runGateFit <- function(frame, y) {
   sampler <- dbarts(
     frame,
     y,
-    sigma = 1.0,
+    sigest = 1.0,
     control = dbartsControl(
       n.trees = 25L,
       n.chains = 1L,
@@ -271,7 +271,7 @@ expect_equal(as.matrix(mm.mat)[, 2L], as.double(expectedCodes))
 sampler.mat <- dbarts(
   frame.mat,
   rnorm(n),
-  sigma = 1.0,
+  sigest = 1.0,
   control = dbartsControl(
     n.trees = 5L,
     n.chains = 1L,
@@ -313,7 +313,7 @@ runTestGate <- function(test, seed) {
   sampler <- dbarts(
     train.dense,
     y.tr,
-    sigma = 1.0,
+    sigest = 1.0,
     test = test,
     control = dbartsControl(
       n.trees = 20L,
@@ -361,7 +361,7 @@ set.seed(1234L)
 sampler.resident <- dbarts(
   train.dense,
   y.tr,
-  sigma = 1.0,
+  sigest = 1.0,
   test = test.sparse,
   control = dbartsControl(
     n.trees = 20L,
@@ -408,7 +408,7 @@ makeMixedSampler <- function(test, seed) {
   dbarts(
     train.mix,
     y.mix,
-    sigma = 1.0,
+    sigest = 1.0,
     test = test,
     control = dbartsControl(
       n.trees = 20L,
@@ -568,7 +568,7 @@ expect_error(
 sampler.leaf.mut <- dbarts(
   train.mix,
   y.mix,
-  sigma = 1.0,
+  sigest = 1.0,
   test = test.mix.dense,
   node.prior = linear("s"),
   control = dbartsControl(
@@ -850,7 +850,7 @@ dense.bound <- data.frame(
 )
 mutationGate <- function(frame, seed) {
   set.seed(seed)
-  sampler <- dbarts(frame, y.bound, sigma = 1.0, control = boundControl)
+  sampler <- dbarts(frame, y.bound, sigest = 1.0, control = boundControl)
   invisible(sampler$run(5L, 5L))
   invisible(sampler$setPredictor(new.codes, column = 2L, forceUpdate = TRUE))
   sampler$run(0L, 10L)
@@ -1008,7 +1008,7 @@ alignmentGateSparseFactor <- function(test, seed) {
   dbarts(
     train.bound,
     y.bound,
-    sigma = 1.0,
+    sigest = 1.0,
     test = test,
     control = boundControl
   )$run(5L, 10L)

@@ -5,7 +5,7 @@ source(
 
 # test that fixed sample mode when run sequentially gives same predictions as sequential updates mode
 set.seed(0L)
-pred.bart <- dbarts::bart2(
+pred.bart <- dbarts::bart(
   testData$x,
   testData$y,
   testData$x,

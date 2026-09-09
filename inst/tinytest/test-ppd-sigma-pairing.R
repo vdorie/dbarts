@@ -13,7 +13,7 @@ n <- 80L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 
-fit.mc <- bart2(
+fit.mc <- bart(
   y ~ x,
   n.samples = 20L,
   n.burn = 15L,
@@ -46,7 +46,7 @@ n <- 15L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 
-fit.vol <- bart2(
+fit.vol <- bart(
   y ~ x,
   n.samples = 12L,
   n.burn = 5L,
@@ -96,7 +96,7 @@ n <- 40L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 
-fit.sc <- bart2(
+fit.sc <- bart(
   y ~ x,
   n.samples = 25L,
   n.burn = 15L,
@@ -126,7 +126,7 @@ x <- matrix(runif(n * 2L), n, 2L)
 y <- x[, 1L] + rnorm(n, 0, 0.4)
 w <- rep_len(c(1, 4, 9), n)
 
-fit.w <- bart2(
+fit.w <- bart(
   y ~ x,
   weights = w,
   n.samples = 15L,
@@ -178,7 +178,7 @@ x <- matrix(runif(n * 2L), n, 2L)
 y.b <- rbinom(n, 1L, pnorm(0.8 * x[, 1L] - 0.4))
 
 # probit
-fit.pb <- bart2(
+fit.pb <- bart(
   y.b ~ x,
   n.samples = 20L,
   n.burn = 20L,
@@ -198,7 +198,7 @@ expect_identical(dbarts:::combineChains(ppd.pb.split), ppd.pb.comb)
 # weighted logistic: draws are binomial(w, p) counts, so also test that the
 # reshape composes with the per-observation weight recycling
 w <- rep_len(c(1L, 3L, 5L), n)
-fit.lg <- bart2(
+fit.lg <- bart(
   y.b ~ x,
   weights = w,
   family = "logistic",
@@ -242,7 +242,7 @@ y <- x[, 1L] + rnorm(n, 0, 0.5)
 
 n.chains <- 3L
 n.samples <- 8L
-fit.comb <- bart2(
+fit.comb <- bart(
   y ~ x,
   n.samples = n.samples,
   n.burn = 5L,
@@ -253,7 +253,7 @@ fit.comb <- bart2(
   seed = 123L,
   verbose = FALSE
 )
-fit.split <- bart2(
+fit.split <- bart(
   y ~ x,
   n.samples = n.samples,
   n.burn = 5L,

@@ -51,7 +51,7 @@ fitArgs <- list(
 # bart.Rd:75) are the unnamed fixture's counterpart. The re-expanded design's
 # appended period column used to go unnamed on the matrix-training and
 # matrix-newdata branches, so a named fit died in predict's column-name match;
-# a data.frame training input hit the same branch once bart2 converted it to
+# a data.frame training input hit the same branch once bart converted it to
 # a named matrix. Small and cheap: only the naming path is under test.
 set.seed(929L)
 n.named <- 60L
@@ -81,7 +81,7 @@ namedFitArgs <- modifyList(
 )
 
 fit.namedMat <- do.call(
-  bart2,
+  bart,
   c(
     list(x.named, cbind(d.named$time, d.named$status), family = "hazard"),
     namedFitArgs
@@ -110,10 +110,10 @@ sp.named.df <- survivalProbabilities(
 )
 expect_equal(sp.named.df, sp.named.mat)
 
-# a data.frame training input is coerced to a named matrix by bart2, so it
+# a data.frame training input is coerced to a named matrix by bart, so it
 # takes the same branch and must work identically
 fit.namedDf <- do.call(
-  bart2,
+  bart,
   c(
     list(
       as.data.frame(x.named),
@@ -148,7 +148,7 @@ rm(
 # ---- both tokens, marker, and the remap ($family reads the binary token) ----
 
 fit.probit <- do.call(
-  bart2,
+  bart,
   c(list(x, cbind(d$time, d$status), family = "hazard"), fitArgs)
 )
 expect_identical(fit.probit[["family"]], "probit")
@@ -158,7 +158,7 @@ expect_equal(fit.probit$periods, sort(unique(d$time)))
 expect_true(is.null(fit.probit[["sigma"]]))
 
 fit.logit <- do.call(
-  bart2,
+  bart,
   c(list(x, cbind(d$time, d$status), family = "hazard.logistic"), fitArgs)
 )
 expect_identical(fit.logit[["family"]], "logistic")
@@ -166,7 +166,7 @@ expect_false(is.null(fit.logit[["periods"]]))
 
 # hazard.probit is an accepted alias for the probit link
 fit.alias <- do.call(
-  bart2,
+  bart,
   c(list(x, cbind(d$time, d$status), family = "hazard.probit"), fitArgs)
 )
 expect_identical(fit.alias[["family"]], "probit")
@@ -192,7 +192,7 @@ surv <- structure(
   class = "Surv",
   type = "right"
 )
-fit.surv <- do.call(bart2, c(list(x, surv, family = "hazard"), fitArgs))
+fit.surv <- do.call(bart, c(list(x, surv, family = "hazard"), fitArgs))
 expect_identical(fit.surv[["family"]], "probit")
 expect_equal(fit.surv$yhat.train, fit.probit$yhat.train)
 
@@ -222,7 +222,7 @@ expect_equal(sp.sub[, 2L, ], sp.new[, 3L, ])
 
 # ---- keepTrees is required (the training design is ragged) ----
 fit.notrees <- do.call(
-  bart2,
+  bart,
   c(
     list(x, cbind(d$time, d$status), family = "hazard"),
     modifyList(fitArgs, list(keepTrees = FALSE))
@@ -236,12 +236,12 @@ expect_error(
 
 # ---- breaks: integer count and explicit boundary vector ----
 fit.k <- do.call(
-  bart2,
+  bart,
   c(list(x, cbind(d$time, d$status), family = "hazard", breaks = 3L), fitArgs)
 )
 expect_true(length(fit.k$periods) <= 3L)
 fit.b <- do.call(
-  bart2,
+  bart,
   c(
     list(
       x,
@@ -258,7 +258,7 @@ expect_equal(fit.b$periods, c(2, 4, 6))
 # than silently truncated (coerceOrError's integer branch)
 expect_error(
   do.call(
-    bart2,
+    bart,
     c(
       list(x, cbind(d$time, d$status), family = "hazard", breaks = 3.5),
       fitArgs
@@ -271,7 +271,7 @@ expect_error(
 # ---- the N' row guard refuses an over-fine grid, naming the levers ----
 expect_error(
   do.call(
-    bart2,
+    bart,
     c(
       list(x, cbind(d$time, d$status), family = "hazard", max.rows = 50),
       fitArgs
@@ -285,7 +285,7 @@ expect_error(
 # an integer-count logistic weight is accepted
 expect_error(
   do.call(
-    bart2,
+    bart,
     c(
       list(
         x,
@@ -299,7 +299,7 @@ expect_error(
   "weight"
 )
 fit.wt <- do.call(
-  bart2,
+  bart,
   c(
     list(
       x,
@@ -315,12 +315,12 @@ expect_identical(fit.wt[["family"]], "logistic")
 # ---- refusals: interface, conflicting family, subset, test, non-hazard ----
 # the formula interface is out of scope (matrix interface only, like aft)
 expect_error(
-  bart2(d$time ~ x, family = "hazard", verbose = FALSE),
+  bart(d$time ~ x, family = "hazard", verbose = FALSE),
   "matrix interface"
 )
 # a Surv response with an explicitly conflicting family errors
 expect_error(
-  bart2(x, surv, family = "gaussian", n.chains = 1L, verbose = FALSE),
+  bart(x, surv, family = "gaussian", n.chains = 1L, verbose = FALSE),
   "aft|hazard"
 )
 # subset and test are refused for hazard fits
@@ -338,7 +338,7 @@ expect_error(
   "test"
 )
 # a non-hazard, non-aft fit is refused by survivalProbabilities
-fit.gauss <- bart2(
+fit.gauss <- bart(
   x,
   f + rnorm(n),
   n.trees = 20L,
@@ -356,7 +356,7 @@ expect_error(xbart(x, f + rnorm(n), family = "hazard"), "should be one of")
 set.seed(202L)
 d.rec <- simulate("logistic")
 fit.rec <- do.call(
-  bart2,
+  bart,
   c(
     list(x, cbind(d.rec$time, d.rec$status), family = "hazard.logistic"),
     fitArgs

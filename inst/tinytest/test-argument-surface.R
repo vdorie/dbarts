@@ -1,6 +1,6 @@
-# Maintained contracts on bart2's argument surface live here: the
+# Maintained contracts on bart's argument surface live here: the
 # family-gating contract, the shared-default-text contract, the
-# dbartsControl-formal-parity contract, the bart-to-bart2 concept-map
+# dbartsControl-formal-parity contract, the bart-to-bart concept-map
 # contract, and the per-forest reconstruction-identity contract.
 
 # The family-gating contract. One diagnosis test per gated argument: the
@@ -33,7 +33,7 @@ y.count <- rpois(n, 4)
 y.aft <- cbind(abs(rnorm(n)) + 0.1, rep(1L, n))
 
 fit2 <- function(y, ...) {
-  do.call(dbarts::bart2, c(list(x, y), quick, list(...)))
+  do.call(dbarts::bart, c(list(x, y), quick, list(...)))
 }
 
 # one inventory row x one representative family/site each, class asserted
@@ -123,8 +123,8 @@ expect_match(
 )
 expect_inherits(warnings.hurdleDispersion[[1L]], "dbartsFamilyGatedWarning")
 
-# bart() never calls the helper - silence is preserved by construction
-expect_silent(dbarts::bart(
+# bartBT() never calls the helper - silence is preserved by construction
+expect_silent(dbarts::bartBT(
   x,
   y.binary,
   sigest = 5,
@@ -160,7 +160,7 @@ rNbinom <- samplerNbinom$run()
 expect_equal(dim(rNbinom$train), c(n, quick$n.samples))
 
 # samplerOnly: unblocked for multinomial too - direct construction means
-# the returned sampler IS the K-forest engine bart2 would have run, not a
+# the returned sampler IS the K-forest engine bart would have run, not a
 # discarded host
 samplerMultinomial <- fit2(y.multi, family = "multinomial", samplerOnly = TRUE)
 expect_inherits(samplerMultinomial, "dbartsSampler")
@@ -168,10 +168,10 @@ expect_equal(samplerMultinomial$model@family, "multinomial")
 rMultinomial <- samplerMultinomial$run()
 expect_equal(dim(rMultinomial$train), c(n, 3L, quick$n.samples))
 
-# The shared-default-text contract. For every name shared by bart2 and
+# The shared-default-text contract. For every name shared by bart and
 # dbarts, the deparsed default expressions agree, except the table below.
-# tree.prior/node.prior/resid.prior are bart2 formals too, so the loop now
-# walks all three; they stay excepted because bart2's NULL means "build
+# tree.prior/node.prior/resid.prior are bart formals too, so the loop now
+# walks all three; they stay excepted because bart's NULL means "build
 # from the shorthands" while dbarts's own defaults are the bare constructors.
 tbExceptions <- data.frame(
   name = c(
@@ -185,14 +185,14 @@ tbExceptions <- data.frame(
   reason = c(
     "fitters announce, constructors do not",
     "different roles; semantics differ (d2)",
-    "multinomial is a bart2-only composition",
-    "bart2's NULL means \"build from the shorthands\"",
+    "multinomial is a bart-only composition",
+    "bart's NULL means \"build from the shorthands\"",
     "same",
     "same"
   ),
   stringsAsFactors = FALSE
 )
-bart2Formals <- formals(dbarts::bart2)
+bart2Formals <- formals(dbarts::bart)
 dbartsFormals <- formals(dbarts::dbarts)
 sharedFormalNames <- setdiff(
   intersect(names(bart2Formals), names(dbartsFormals)),
@@ -209,16 +209,16 @@ expect_equal(diverged, character(0))
 # split.probs is not a shared-default-text exception (nor a candidate row):
 # dbarts() has no split.probs formal of its own (its tree.prior = cgm takes
 # the value through the object instead), so the shared-default-text loop
-# above never compares it. bart2's own default text moves to NULL,
+# above never compares it. bart's own default text moves to NULL,
 # identical by construction to the old 1 / num.vars (resolveSplitProbabilities
 # treats a NULL spec and a length-one spec the same way: uniform, dropped).
 # existence asserted before the value: formals(f)[["nosuch"]] is also NULL,
 # so the identity check alone would pass just as well if the formal were
 # removed outright
-expect_true("split.probs" %in% names(formals(dbarts::bart2)))
-expect_identical(formals(dbarts::bart2)[["split.probs"]], NULL)
+expect_true("split.probs" %in% names(formals(dbarts::bart)))
+expect_identical(formals(dbarts::bart)[["split.probs"]], NULL)
 
-# match.arg error messages for bad tokens: bart2 resolves factors/missing in
+# match.arg error messages for bad tokens: bart resolves factors/missing in
 # its own frame before forwarding, so a bad token errors here, naming the
 # choices, same as R's own match.arg does for any other formal
 expect_error(fit2(y.gaussian, factors = "bogus"), pattern = "should be one of")
@@ -257,11 +257,11 @@ dfFactor <- data.frame(
   x2 = factor(sample(letters[1:3], n, replace = TRUE))
 )
 defaultedFactors <- do.call(
-  dbarts::bart2,
+  dbarts::bart,
   c(list(y.gaussian ~ ., dfFactor), quick, list(seed = 77L))
 )
 explicitFactors <- do.call(
-  dbarts::bart2,
+  dbarts::bart,
   c(
     list(y.gaussian ~ ., dfFactor),
     quick,
@@ -275,17 +275,19 @@ explicitMissing <- fit2(y.gaussian, missing = "incorporate", seed = 77L)
 expect_true(sameDraws(defaultedMissing, explicitMissing))
 
 # proposal.probs' default is now the named vector, always forwarded - a
-# defaulted bart2 call still composes with monotone
+# defaulted bart call still composes with monotone
 expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
 
-# storage/updateState are the last two formals of both entry points; there
-# is no trailing '...' to skip past any more.
+# storage/updateState are the last two NAMED formals; the trailing '...'
+# exists for the transition release alone, to carry a retired spelling to a
+# message naming its successor rather than to R's own "unused argument".
 
 lastTwoNamed <- function(fn) {
-  fnFormals <- names(formals(fn))
+  fnFormals <- setdiff(names(formals(fn)), "...")
   fnFormals[length(fnFormals) - c(1L, 0L)]
 }
-expect_equal(lastTwoNamed(dbarts::bart2), c("storage", "updateState"))
+expect_equal(lastTwoNamed(dbarts::bart), c("storage", "updateState"))
+expect_identical(names(formals(dbarts::bart))[length(formals(dbarts::bart))], "...")
 
 # storage/updateState reach the control with explicit, non-default values
 explicitControl <- fit2(
@@ -300,22 +302,23 @@ defaultControl <- fit2(y.gaussian, samplerOnly = TRUE)
 expect_equal(defaultControl$control@storage, "double")
 expect_equal(defaultControl$control@updateState, TRUE)
 
-# no dots channel: bart2 has no '...' formal at all, so an unknown
+# no dots channel: bart has no '...' formal at all, so an unknown
 # name is R's own "unused argument" wall, unsuggested - the same wall
 # dbarts()/dbartsSpec()/xbart() already stood behind
 expect_error(fit2(y.gaussian, n.tres = 5), pattern = "unused argument")
 expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "unused argument")
 
-# rngSeed: no retired-spelling channel survives the dots removal either -
-# it is simply an unused argument like any other now
+# rngSeed: a retired spelling with a registry entry, so it reaches a message
+# naming its successor and its value is used (test-front-door.R pins the
+# warning and the value); an unregistered name is still refused
 expect_error(
-  fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE),
+  fit2(y.gaussian, zzzzretired = 99L, samplerOnly = TRUE),
   pattern = "unused argument"
 )
 
 # partial matching still works for a real formal
 partialFit <- do.call(
-  dbarts::bart2,
+  dbarts::bart,
   c(
     list(x, y.gaussian, n.sampl = 5L, samplerOnly = TRUE),
     quick[setdiff(names(quick), "n.samples")]
@@ -324,7 +327,7 @@ partialFit <- do.call(
 expect_equal(partialFit$control@n.samples, 5L)
 
 # The dbartsControl-formal-parity contract: every dbartsControl formal is a
-# bart2 formal, spelled identically - an explicit list of the 16 slots as of
+# bart formal, spelled identically - an explicit list of the 16 slots as of
 # 1.0-0, a freeze-time snapshot rather than a ratchet: a dbartsControl
 # formal added after 1.0-0 does not silently enlarge what this test checks.
 controlFormals1_0_0 <- c(
@@ -346,31 +349,33 @@ controlFormals1_0_0 <- c(
   "updateState"
 )
 # formals added after the 1.0-0 freeze. They carry the same parity contract -
-# every one is a bart2 formal, spelled identically - but stay off the frozen
+# every one is a bart formal, spelled identically - but stay off the frozen
 # list, which is what keeps that list a snapshot rather than a ratchet.
 controlFormalsAdded <- c(
   "levelGibbs"
 )
+# '...' is the transition release's retired-spelling channel on this entry
+# point, not a control field
 expect_equal(
-  sort(names(formals(dbarts::dbartsControl))),
+  sort(setdiff(names(formals(dbarts::dbartsControl)), "...")),
   sort(c(controlFormals1_0_0, controlFormalsAdded))
 )
 expect_true(setequal(
-  intersect(controlFormals1_0_0, names(formals(dbarts::bart2))),
+  intersect(controlFormals1_0_0, names(formals(dbarts::bart))),
   controlFormals1_0_0
 ))
-expect_true(all(controlFormalsAdded %in% names(formals(dbarts::bart2))))
+expect_true(all(controlFormalsAdded %in% names(formals(dbarts::bart))))
 # and the parity is of the DEFAULT too, not only the name: levelGibbs is a
-# tri-state logical whose NA is the automatic mode, so a bart2 default of
-# FALSE would quietly turn the automatic step off for every bart2 fit
-expect_identical(formals(dbarts::bart2)[["levelGibbs"]], NA)
+# tri-state logical whose NA is the automatic mode, so a bart default of
+# FALSE would quietly turn the automatic step off for every bart fit
+expect_identical(formals(dbarts::bart)[["levelGibbs"]], NA)
 expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
 
 # The variance quartet collapses to a dedicated varianceForest() constructor;
 # variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)
 # and additionally accepts a varianceForest object. The flat
 # n.trees.variance/power.variance/base.variance formals are gone from
-# bart2/dbarts/dbartsSpec; the base-vs-HEAD byte-identity gate for the
+# bart/dbarts/dbartsSpec; the base-vs-HEAD byte-identity gate for the
 # removed flat spelling rides an out-of-tree A/B probe (a second installed
 # build is needed to exercise a formal this build no longer has), recorded
 # in the landing notes. What lives here runs entirely against HEAD.
@@ -491,15 +496,15 @@ formatted <- format(
 expect_true(is.character(formatted))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
 
-# tree.prior/node.prior/resid.prior are bart2 formals (NULL, appended after
+# tree.prior/node.prior/resid.prior are bart formals (NULL, appended after
 # breaks/max.rows). A supplied object forwards unevaluated - exactly as k
 # already does - and a shorthand that would otherwise build the same prior is
 # a collision, refused by name; no object leaves the flat shorthand build
 # untouched.
 
 # reachability: node.prior = linear()/gp() and resid.prior = fixed() were
-# unreachable from bart2 before (no route existed to hand dbarts() a prior
-# OBJECT). samplerOnly = TRUE returns bart2's sampler before any tree
+# unreachable from bart before (no route existed to hand dbarts() a prior
+# OBJECT). samplerOnly = TRUE returns bart's sampler before any tree
 # initialization, so it is a fair byte-identity comparison against a fresh
 # dbarts() sampler built with the same object and control at the same seed -
 # real closure evidence, not merely "it does not error".
@@ -507,7 +512,7 @@ reachSeed <- 909L
 dfLeaf <- data.frame(x1 = rnorm(n), x2 = rnorm(n), x3 = rnorm(n))
 yLeaf <- rnorm(n)
 
-samplerViaBart2Linear <- dbarts::bart2(
+samplerViaBart2Linear <- dbarts::bart(
   yLeaf ~ x1 + x2 + x3,
   dfLeaf,
   node.prior = dbarts::dbartsPriors$linear("x2"),
@@ -539,7 +544,7 @@ samplesViaDbartsLinear <- samplerViaDbartsLinear$run()
 expect_identical(samplesViaBart2Linear$train, samplesViaDbartsLinear$train)
 expect_identical(samplesViaBart2Linear$sigma, samplesViaDbartsLinear$sigma)
 
-samplerViaBart2Fixed <- dbarts::bart2(
+samplerViaBart2Fixed <- dbarts::bart(
   x,
   y.gaussian,
   resid.prior = dbarts::dbartsPriors$fixed(1),
@@ -628,7 +633,7 @@ expect_equal(
 # 'resid.prior' with 'resid.dist' on 'resid.='; R's own ambiguous
 # partial-match error fires, not a package one
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y.gaussian,
     t = 3L,
@@ -641,7 +646,7 @@ expect_error(
   pattern = "matches multiple formal arguments"
 )
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y.gaussian,
     resid. = 1,
@@ -767,8 +772,10 @@ for (knob in xbartKnobs) {
   )
 }
 expect_false("control" %in% names(formals(dbarts::xbart)))
-expect_false("..." %in% names(formals(dbarts::xbart)))
-expect_equal(length(formals(dbarts::xbart)), 32L)
+# '...' is the transition release's retired-spelling channel; it carries no
+# name of its own here, so every '...' argument is refused
+expect_identical(names(formals(dbarts::xbart))[length(formals(dbarts::xbart))], "...")
+expect_equal(length(formals(dbarts::xbart)), 33L)
 expect_error(
   dbarts::xbart(
     x,
@@ -779,63 +786,22 @@ expect_error(
   ),
   pattern = "unused argument"
 )
-# The bart-to-bart2 concept-map contract: the disposition table,
-# transcribed as a data.frame. 'formal' names the underlying bart()/bart2()
-# argument a row concerns, NA where the row is not one appended-formal-shaped
-# capability.
-conceptMap <- data.frame(
-  capability = c(
-    "subset",
-    "storage",
-    "family = \"logistic\"",
-    "family = \"aft\"",
-    "family = \"gaussian\"/\"probit\"/\"hazard.probit\"",
-    "family = \"hazard\"/\"hazard.logistic\"",
-    "family = \"multinomial\"/\"ordinal\"/\"nbinom\"/\"hurdle.lognormal\"",
-    "offset.test/factors/missing/updateState",
-    "dart/monotone/interactions/blocks/variance/warm.start/n.grow.sweeps/dispersion/tree.prior/node.prior/resid.prior/forests"
-  ),
-  formal = c(
-    "subset",
-    "storage",
-    "family",
-    "family",
-    NA_character_,
-    NA_character_,
-    NA_character_,
-    NA_character_,
-    NA_character_
-  ),
-  disposition = c(
-    "CLOSE",
-    "CLOSE",
-    "CLOSE",
-    "CLOSE",
-    "LEAVE",
-    "LEAVE",
-    "LEAVE",
-    "LEAVE",
-    "LEAVE"
-  ),
-  stringsAsFactors = FALSE
+# The two-door contract (dec-B83): the legacy door is a strict compatibility
+# mode carrying 0.9-34's argument list and nothing else, and every capability
+# the branch had briefly appended to it lives at the modern door instead.
+legacyOnly <- c(
+  "subset",
+  "storage",
+  "family",
+  "resid.dist",
+  "prior.scale"
 )
+expect_false(any(legacyOnly %in% names(formals(dbarts::bartBT))))
+expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
 
-# totality (1): every row has a disposition
+# the modern door offers every family token the package fits from one
+# sampler, plus the hurdle composition it builds itself
 expect_true(all(
-  !is.na(conceptMap$disposition) & nzchar(conceptMap$disposition)
-))
-expect_true(all(conceptMap$disposition %in% c("CLOSE", "LEAVE")))
-
-# totality (2): every CLOSE row's formal exists on bart(), spelled identically
-closeFormals <- unique(conceptMap$formal[conceptMap$disposition == "CLOSE"])
-expect_true(all(closeFormals %in% names(formals(dbarts::bart))))
-
-# the CLOSE family tokens are the ones bart()'s own family formal offers
-expect_true(all(
-  c("logistic", "aft") %in% eval(formals(dbarts::bart)$family)
-))
-# the LEAVE own-class tokens are refused by name, not offered as choices
-expect_false(any(
-  c("multinomial", "ordinal", "nbinom", "hurdle.lognormal") %in%
+  c("logistic", "aft", "multinomial", "ordinal", "nbinom", "hurdle.lognormal") %in%
     eval(formals(dbarts::bart)$family)
 ))

@@ -136,7 +136,7 @@ occupied <- rbinom(n, 1L, pi.true) == 1L
 y <- numeric(n)
 y[occupied] <- exp(rnorm(sum(occupied), mu.true[occupied], 0.4))
 
-fit <- bart2(
+fit <- bart(
   x,
   y,
   family = "hurdle.lognormal",
@@ -174,7 +174,7 @@ prTrain <- predict(fit, x, type = "ev")
 expect_equal(apply(prTrain, 2L, mean), fittedTrain, tolerance = 1e-6)
 
 # predict requires keepTrees
-fitNoTrees <- bart2(
+fitNoTrees <- bart(
   x,
   y,
   family = "hurdle.lognormal",
@@ -191,13 +191,13 @@ expect_error(predict(fitNoTrees, x.new), pattern = "keepTrees")
 # checkFamilyUnsupportedArgs's per-caller allow.samplerOnly flag does not
 # unblock
 expect_error(
-  bart2(x, y, family = "hurdle.lognormal", samplerOnly = TRUE),
+  bart(x, y, family = "hurdle.lognormal", samplerOnly = TRUE),
   pattern = "does not support 'samplerOnly'"
 )
 
 # --- keepSampler retains $fit on both component fits, independent of
 # keepTrees ---
-fitKeepSampler <- bart2(
+fitKeepSampler <- bart(
   x,
   y,
   family = "hurdle.lognormal",
@@ -216,7 +216,7 @@ rm(fitKeepSampler)
 
 # multi-chain draw alignment (chain-interleaved sigma vs chain-blocked fits) and
 # combineChains reshaping
-fit2c <- bart2(
+fit2c <- bart(
   x,
   y,
   family = "hurdle.lognormal",
@@ -352,7 +352,7 @@ occupiedR <- rbinom(nR, 1L, pi.trueR) == 1L
 yR <- numeric(nR)
 yR[occupiedR] <- exp(rnorm(sum(occupiedR), mu.trueR[occupiedR], sigma.trueR))
 
-fitR <- bart2(
+fitR <- bart(
   xR,
   yR,
   family = "hurdle.lognormal",
@@ -391,7 +391,7 @@ expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)
 # --- (5) a hurdle-specific refusal: a covariate NA only on the zero rows is
 # complete for the positive part, but the positive part's own internal
 # 'test' call (forced to the full design so the combine covers every row)
-# would evaluate it there anyway. bart2() refuses AT CONSTRUCTION with a
+# would evaluate it there anyway. bart() refuses AT CONSTRUCTION with a
 # message naming the situation, rather than letting the generic replay
 # backstop answer a "test predictors" complaint the caller never made.
 # Placed at the file's end, after every seeded snapshot above, since it
@@ -412,7 +412,7 @@ xH3 <- runif(nH)
 xH3[!occupiedH] <- NA_real_
 xH <- cbind(x1 = xH1, x2 = xH2, x3 = xH3)
 expect_error(
-  bart2(
+  bart(
     xH,
     yH,
     family = "hurdle.lognormal",
@@ -436,7 +436,7 @@ zeroIdxH <- which(!occupiedH)[1L]
 xH4 <- runif(nH)
 xH4[c(posIdxH, zeroIdxH)] <- NA_real_
 xHBoth <- cbind(x1 = xH1, x2 = xH2, x4 = xH4)
-fitHBoth <- bart2(
+fitHBoth <- bart(
   xHBoth,
   yH,
   family = "hurdle.lognormal",

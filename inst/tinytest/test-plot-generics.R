@@ -1,5 +1,5 @@
 # smoke coverage for the plotting generics: plot.bart on a gaussian fit, on a
-# binary bart2 fit. Rendered to a null device;
+# binary bart fit. Rendered to a null device;
 # each plot is silent (no output, message, or warning) at these small sizes.
 
 set.seed(5)
@@ -25,8 +25,8 @@ pdf(NULL)
 expect_silent(plot(fit.bart))
 dev.off()
 
-# binary bart2
-fit.bart2 <- bart2(
+# binary bart
+fit.bartBin <- bart(
   x,
   z.bin,
   n.trees = 10L,
@@ -37,7 +37,7 @@ fit.bart2 <- bart2(
   verbose = FALSE
 )
 pdf(NULL)
-expect_silent(plot(fit.bart2))
+expect_silent(plot(fit.bartBin))
 dev.off()
 
 # plot.bart sets par(mfrow) to draw the sigma-trace and interval
@@ -53,9 +53,9 @@ expect_equal(restoredMfrow.bart, c(3L, 3L))
 rm(restoredMfrow.bart)
 
 # plotTree now dispatches at the fit level (previously reachable only through
-# $fit$plotTree). Kept bart and bart2 fits plot a single tree, the
+# $fit$plotTree). Kept bart and bart fits plot a single tree, the
 # sampler dispatches directly, and a fit without kept trees errors.
-pt.bart2 <- bart2(
+pt.bartBin <- bart(
   x,
   z.bin,
   n.trees = 10L,
@@ -69,11 +69,11 @@ pt.bart2 <- bart2(
 pdf(NULL)
 expect_silent(plotTree(fit.bart, treeNum = 1L))
 expect_silent(plotTree(fit.bart$fit, treeNum = 2L))
-expect_silent(plotTree(pt.bart2, treeNum = 1L, chainNum = 2L, sampleNum = 5L))
+expect_silent(plotTree(pt.bartBin, treeNum = 1L, chainNum = 2L, sampleNum = 5L))
 dev.off()
 
 expect_error(
-  plotTree(fit.bart2, treeNum = 1L),
+  plotTree(fit.bartBin, treeNum = 1L),
   pattern = "saved trees"
 )
 
@@ -83,12 +83,12 @@ expect_error(
 # used to partial-match the wrong formal and silently draw a different tree;
 # both are now refused by name before dispatch
 expect_error(
-  plotTree(pt.bart2, sample = 5L),
+  plotTree(pt.bartBin, sample = 5L),
   "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
   fixed = TRUE
 )
 expect_error(
-  plotTree(pt.bart2, chain = 2L),
+  plotTree(pt.bartBin, chain = 2L),
   "'chain' is not used by plotTree; the saved chain is 'chainNum'",
   fixed = TRUE
 )
@@ -96,18 +96,18 @@ expect_error(
 # plotTree.dbartsSampler now raises the same two strings directly, rather
 # than partial-matching 'sample'/'chain' onto its own 'sampleNum'/'chainNum'
 expect_error(
-  plotTree(pt.bart2$fit, sample = 5L),
+  plotTree(pt.bartBin$fit, sample = 5L),
   "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
   fixed = TRUE
 )
 expect_error(
-  plotTree(pt.bart2$fit, chain = 2L),
+  plotTree(pt.bartBin$fit, chain = 2L),
   "'chain' is not used by plotTree; the saved chain is 'chainNum'",
   fixed = TRUE
 )
 pdf(NULL)
 expect_silent(plotTree(
-  pt.bart2$fit,
+  pt.bartBin$fit,
   treeNum = 1L,
   chainNum = 2L,
   sampleNum = 5L
@@ -120,12 +120,12 @@ dev.off()
 # runs first inside the method itself, so the S3 path above (which already
 # stops before ever calling $plotTree) does not double-refuse
 expect_error(
-  pt.bart2$fit$plotTree(1L, sample = 5L),
+  pt.bartBin$fit$plotTree(1L, sample = 5L),
   "'sample' is not used by plotTree; the saved sample is 'sampleNum'",
   fixed = TRUE
 )
 expect_error(
-  pt.bart2$fit$plotTree(1L, chain = 2L),
+  pt.bartBin$fit$plotTree(1L, chain = 2L),
   "'chain' is not used by plotTree; the saved chain is 'chainNum'",
   fixed = TRUE
 )
@@ -148,10 +148,10 @@ expect_equal(
 # a fit with no kept trees keeps no control, so the two control-borne lines
 # drop out - and the family line is still the fit's own, not gaussian
 expect_equal(
-  tail(capture.output(print(fit.bart2)), 3L),
+  tail(capture.output(print(fit.bartBin)), 3L),
   c("family: probit", "n.chains: 1", "kept draws (per chain): 20")
 )
-fit.noCall <- bart2(
+fit.noCall <- bart(
   x,
   y.cont,
   n.trees = 10L,
@@ -170,7 +170,7 @@ rm(fit.noCall, noCallOutput)
 # keepTrainingFits = FALSE: plot/fitted/residuals must stop early and name
 # the control flag, instead of dying inside apply() on a NULL yhat.train
 # (plot) or silently returning NA (fitted/residuals)
-fit.noTrainFits <- bart2(
+fit.noTrainFits <- bart(
   x,
   y.cont,
   n.trees = 10L,
@@ -202,7 +202,7 @@ expect_error(
 )
 rm(residualsSampleReason)
 
-rm(fit.bart, fit.bart2, pt.bart2)
+rm(fit.bart, fit.bartBin, pt.bartBin)
 
 
 # multi-chain fits carry a matrix-shaped 'sigma', so the trace panel draws one
@@ -241,7 +241,7 @@ fit.qualified <- dbarts::bart(
 )
 expect_error(plot(fit.qualified), pattern = "keeptrainfits")
 
-fit2.qualified <- dbarts::bart2(
+fit2.qualified <- dbarts::bart(
   x,
   y.cont,
   n.trees = 10L,
@@ -260,7 +260,7 @@ rm(fit.qualified, fit2.qualified)
 # siblings: (x, plquants, cols, ...), so a positional second argument is a
 # plquants pair rather than a color vector
 y.multi <- factor(sample(letters[1:3], n, replace = TRUE))
-fit.multinomial <- bart2(
+fit.multinomial <- bart(
   x,
   y.multi,
   family = "multinomial",

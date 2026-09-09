@@ -7,7 +7,7 @@ x <- testData$x
 y <- testData$y
 
 ## warm.start and n.grow.sweeps both request an initialization: refuse
-donor <- dbarts::bart2(
+donor <- dbarts::bart(
   x,
   y,
   n.trees = 8L,
@@ -20,7 +20,7 @@ donor <- dbarts::bart2(
   seed = 1L
 )
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.trees = 8L,
@@ -36,7 +36,7 @@ expect_error(
 
 ## a negative sweep count is refused
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.samples = 4L,
@@ -51,7 +51,7 @@ expect_error(
 ## a fractional sweep count is refused, naming the argument, rather than
 ## silently truncated (coerceOrError's integer branch)
 expect_error(
-  dbarts::bart2(
+  dbarts::bart(
     x,
     y,
     n.samples = 4L,
@@ -65,7 +65,7 @@ expect_error(
 )
 
 ## seeded reproducibility of a grow-initialized fit
-fitA <- dbarts::bart2(
+fitA <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -76,7 +76,7 @@ fitA <- dbarts::bart2(
   seed = 3L,
   n.grow.sweeps = 2L
 )
-fitB <- dbarts::bart2(
+fitB <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -92,7 +92,7 @@ expect_true(all(is.finite(fitA$yhat.train)))
 
 ## the COUNT is forwarded, not just the request: one sweep and two from the
 ## same seed initialize differently, so their draws cannot coincide
-fitOne <- dbarts::bart2(
+fitOne <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -112,7 +112,7 @@ earlyRMSEBart2GrowFromRoot <- function(fit) {
   perSample <- sqrt(rowMeans(sweep(yh, 2L, y)^2))
   mean(perSample[seq_len(min(10L, length(perSample)))])
 }
-coldFit <- dbarts::bart2(
+coldFit <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -123,7 +123,7 @@ coldFit <- dbarts::bart2(
   verbose = FALSE,
   seed = 2L
 )
-growFit <- dbarts::bart2(
+growFit <- dbarts::bart(
   x,
   y,
   n.trees = 50L,
@@ -141,7 +141,7 @@ expect_true(
 )
 
 ## a longer grow-initialized run converges to a sensible fit
-convergedFit <- dbarts::bart2(
+convergedFit <- dbarts::bart(
   x,
   y,
   n.trees = 50L,

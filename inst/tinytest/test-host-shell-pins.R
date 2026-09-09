@@ -1,6 +1,6 @@
 # The dbartsSampler surface, post host-shell removal. Pointer adoption for
 # ordinal/nbinom and direct construction for multinomial mean every
-# bart2() alternate-family fit's $fit is now the sampler that actually
+# bart() alternate-family fit's $fit is now the sampler that actually
 # ran: no hostFor field, no refuseHostMutation/refuseHostRead guards, no
 # host-shell save/reload defect. This file used to pin those defects; it
 # now pins the census (the drift detector: any method added or removed
@@ -39,9 +39,9 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 46L)
+expect_equal(length(own), 48L)
 expect_equal(length(infrastructure), 5L)
-expect_equal(length(substantiveMethods), 41L)
+expect_equal(length(substantiveMethods), 43L)
 
 expect_identical(
   substantiveMethods,
@@ -83,6 +83,8 @@ expect_identical(
     "getForestAmplitudes",
     "getForestVariableCounts",
     "getCalibration",
+    "startThreads",
+    "stopThreads",
     "storeState",
     "printTrees",
     "getTrees",
@@ -101,7 +103,7 @@ ySpot <- factor(
   c("a", "b", "c")[1L + (xSpot[, 1L] > 0.5) + (xSpot[, 1L] > 0.8)],
   levels = c("a", "b", "c")
 )
-fitSpot <- bart2(
+fitSpot <- bart(
   xSpot,
   ySpot,
   family = "multinomial",
@@ -142,7 +144,7 @@ labels3 <- vapply(
 )
 y3 <- factor(c("a", "b", "c")[labels3 + 1L], levels = c("a", "b", "c"))
 set.seed(9402)
-fit3 <- bart2(
+fit3 <- bart(
   x3,
   y3,
   family = "multinomial",
@@ -162,7 +164,7 @@ x2 <- matrix(runif(n2 * p2), n2, p2)
 labels2 <- rbinom(n2, 1L, plogis(2 * (x2[, 1L] - 0.5) + x2[, 2L]))
 y2 <- factor(c("no", "yes")[labels2 + 1L], levels = c("no", "yes"))
 set.seed(9404)
-fit2 <- bart2(
+fit2 <- bart(
   x2,
   y2,
   family = "multinomial",
@@ -181,7 +183,7 @@ xOrd <- matrix(runif(nOrd * 3L), nOrd, 3L)
 zOrd <- 2 * (xOrd[, 1L] - 0.5) + rnorm(nOrd)
 codesOrd <- 1L + (zOrd > 0) + (zOrd > 0.8)
 yOrd <- ordered(c("lo", "mid", "hi")[codesOrd], levels = c("lo", "mid", "hi"))
-fitOrd <- bart2(
+fitOrd <- bart(
   xOrd,
   yOrd,
   family = "ordinal",
@@ -198,7 +200,7 @@ nNb <- 80L
 xNb <- matrix(runif(nNb * 3L), nNb, 3L)
 etaNb <- 0.9 * (xNb[, 1L] - 0.5)
 yNb <- rnbinom(nNb, size = 5L, mu = exp(etaNb))
-fitNb <- bart2(
+fitNb <- bart(
   xNb,
   yNb,
   family = "nbinom",
@@ -242,7 +244,7 @@ expect_false(fit2$fit$control@binary)
 # it announces probit directly and returns class "bart" ---
 autoWarnings <- 0L
 fitAuto <- withCallingHandlers(
-  bart2(
+  bart(
     x2,
     y2,
     family = "auto",

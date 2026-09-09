@@ -80,7 +80,7 @@ expect_error(
 # a mixed fit recovers the signal a fully dense fit of the same values
 # finds; sigma estimates differ by construction (marginal fallback), so the
 # comparison is on fit quality
-fit.mixed <- bart2(
+fit.mixed <- bart(
   x.frame,
   y,
   n.samples = 300L,
@@ -91,7 +91,7 @@ fit.mixed <- bart2(
   verbose = FALSE
 )
 x.dense.equiv <- as.matrix(data.mixed@x)
-fit.dense <- bart2(
+fit.dense <- bart(
   x.dense.equiv,
   y,
   n.samples = 300L,
@@ -127,14 +127,14 @@ quick <- list(
 )
 expect_equal(
   countWarnings(
-    do.call(bart2, c(list(x.frame, y), quick)),
+    do.call(bart, c(list(x.frame, y), quick)),
     "dbartsSparseSigmaFallbackWarning"
   ),
   1L
 )
 expect_equal(
   countWarnings(
-    do.call(bart2, c(list(x.dense.equiv, y), quick)),
+    do.call(bart, c(list(x.dense.equiv, y), quick)),
     "dbartsSparseSigmaFallbackWarning"
   ),
   0L
@@ -157,7 +157,7 @@ sv.na@x[1L] <- NA_real_
 x.frame.na <- data.frame(x1 = x1, f = f)
 x.frame.na$x1[2L] <- NA_real_
 x.frame.na$sv <- sv.na
-fit.na <- bart2(
+fit.na <- bart(
   x.frame.na,
   y,
   n.samples = 20L,
@@ -177,7 +177,7 @@ expect_error(
 x.test <- data.frame(x1 = x1[1:20], f = f[1:20])
 x.test$sv <- as.double(sv)[1:20]
 x.test$sm <- sm.dense[1:20, , drop = FALSE]
-fit.test <- bart2(
+fit.test <- bart(
   x.frame,
   y,
   test = x.test,
@@ -409,7 +409,7 @@ x.all.sparse$sm <- sm
 data.all.sparse <- dbartsData(x.all.sparse, y)
 expect_inherits(data.all.sparse@x, "dbartsMixedMatrix")
 expect_true(is.null(data.all.sparse@x$dense))
-fit.all.sparse <- bart2(
+fit.all.sparse <- bart(
   x.all.sparse,
   y,
   n.samples = 20L,

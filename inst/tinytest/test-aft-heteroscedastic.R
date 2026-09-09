@@ -41,7 +41,7 @@ x.test <- matrix(
 expect_true(mean(status == 0) > 0.15 && mean(status == 0) < 0.6)
 
 warnings.fit <- captureWarnings(
-  fit <- bart2(
+  fit <- bart(
     x,
     cbind(time, status),
     test = x.test,
@@ -143,7 +143,7 @@ expect_equal(
 )
 
 # ---- without saved trees there is no surface at newdata, and it is named ----
-fit.no.trees <- bart2(
+fit.no.trees <- bart(
   x,
   cbind(time, status),
   family = "aft",
@@ -206,7 +206,7 @@ expect_error(sampler$setData(sampler$data), "aft")
 
 # ---- the other latent families still refuse a variance forest ----
 expect_error(
-  bart2(
+  bart(
     x,
     as.integer(log.t > median(log.t)),
     family = "probit",

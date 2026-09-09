@@ -209,7 +209,7 @@ expect_equal(dim(band), c(nNew, 3L))
 expect_identical(colnames(band), c("est", "ci.lower", "ci.upper"))
 expect_equal(band[, "est"], apply(atZero, 2L, mean))
 
-# --- the bart2 forest() term route: the basis is re-derived from newdata, so
+# --- the bart forest() term route: the basis is re-derived from newdata, so
 # nothing has to be spelled twice, and an explicit 'bases' overrides that ---
 set.seed(812)
 nFrame <- 80L
@@ -219,7 +219,7 @@ frame <- data.frame(
   z = rbinom(nFrame, 1L, 0.5)
 )
 frame$y <- 2 * frame$x1 + frame$z * (1 + frame$x2) + rnorm(nFrame, sd = 0.2)
-termFit <- bart2(
+termFit <- bart(
   y ~ x1 + x2 + z:forest(x1 + x2),
   data = frame,
   n.trees = 8L,
@@ -264,7 +264,7 @@ expect_error(
 # what set the width at the new rows: an all-control arm still gets both
 # columns, in the order amplitude j is stated against, rather than the one
 # column factor(z) would derive from that newdata alone
-factorFit <- bart2(
+factorFit <- bart(
   y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z)),
   data = frame,
   n.trees = 8L,

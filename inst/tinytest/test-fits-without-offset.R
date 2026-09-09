@@ -215,7 +215,7 @@ expect_equal(cell$fits + offGauss, cell$train)
 # the low-level handle bartcoreMultinomialSampler builds (a bare $ptr/$x/$K
 # environment) - the same C entry a real dbartsSampler's own
 # $getFitsWithoutOffset() reaches, so this cell pins that backstop without
-# needing a full bart2(family = "multinomial") fit.
+# needing a full bart(family = "multinomial") fit.
 makeMultinomial <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
 fitsWithoutOffset <- bartcoreFitsWithoutOffset
 multinomialHost <- dbarts(

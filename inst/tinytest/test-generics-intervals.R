@@ -12,7 +12,7 @@ source(
 x <- testData$x
 y <- testData$y
 
-fit <- bart2(
+fit <- bart(
   x,
   y,
   n.samples = 100L,
@@ -89,7 +89,7 @@ source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 X <- testData$X
 Z <- testData$Z
 
-fit <- bart2(
+fit <- bart(
   X,
   Z,
   n.samples = 100L,
@@ -118,7 +118,7 @@ rm(testData)
 n <- 40L
 xSmall <- matrix(rnorm(n * 2L), n, 2L)
 
-fitM <- bart2(
+fitM <- bart(
   xSmall,
   factor(sample(letters[1:3], n, replace = TRUE)),
   family = "multinomial",
@@ -135,7 +135,7 @@ expect_identical(
 )
 rm(fitM)
 
-fitO <- bart2(
+fitO <- bart(
   xSmall,
   ordered(
     sample(c("lo", "mid", "hi"), n, replace = TRUE),
@@ -155,7 +155,7 @@ expect_identical(
 )
 rm(fitO)
 
-fitN <- bart2(
+fitN <- bart(
   xSmall,
   rpois(n, 3),
   family = "nbinom",
@@ -174,7 +174,7 @@ rm(fitN)
 
 # hurdle DOES discriminate: fitted.bartHurdle lost its 'sample' formal
 # outright (section 8), so slot 3 is ci.level with no other candidate
-fitH <- bart2(
+fitH <- bart(
   xSmall,
   ifelse(runif(n) < 0.5, 0, rlnorm(n)),
   family = "hurdle.lognormal",

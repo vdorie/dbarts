@@ -1,8 +1,8 @@
-# The public bart2(family = "multinomial") surface. The REPRODUCTION GATE
-# below is the condition that matters most: bart2's fit path must reproduce,
+# The public bart(family = "multinomial") surface. The REPRODUCTION GATE
+# below is the condition that matters most: bart's fit path must reproduce,
 # bit for bit, the internal bartcoreMultinomialSampler/bartcoreRun pattern
 # benchmarks/R/multinomial-equivalence.R exercises, on the same data and
-# seed. bart2 makes exactly one bartcore_create, so a comparator that first
+# seed. bart makes exactly one bartcore_create, so a comparator that first
 # builds and discards a throwaway host sampler (a SECOND create) no longer
 # shares its draw stream, no matter how carefully the two are seeded
 # together - that is precisely the bug this gate exists to catch, so the
@@ -10,8 +10,8 @@
 # below resolves its (control, model, data) triple through dbartsSpec()
 # instead, which creates no engine at all, so bartcoreMultinomialSampler's
 # own create is the comparator's ONLY one too - independently reached
-# (dbartsSpec never runs bart2's own code), through the same bartcore_create
-# dispatch. What the gate now proves: bart2's direct construction and a
+# (dbartsSpec never runs bart's own code), through the same bartcore_create
+# dispatch. What the gate now proves: bart's direct construction and a
 # hand-built dbartsSpec()-then-handle construction resolve the identical
 # engine from the identical inputs. Everything else is level-threading,
 # shape, and refusal coverage.
@@ -19,7 +19,7 @@
 # The internal-path comparator: resolves control/model/data (dbartsSpec, no
 # bartcore_create) and hands the triple to bartcoreMultinomialSampler, which
 # creates the one K-forest engine through the SAME bartcore_create dispatch
-# bart2's direct construction reaches. No throwaway host, so a single
+# bart's direct construction reaches. No throwaway host, so a single
 # set.seed() before each of the two constructions is expected to agree bit
 # for bit.
 source(
@@ -89,10 +89,10 @@ n.samples <- 12L
 
 # the shared knob block every plain multinomial fit below repeats; a caller
 # needing 'family = "auto"' detection (fit3Auto) or non-default knobs
-# (fitMulti/fitMultiSplit/fit3pMulti, the refusal checks) calls bart2()
+# (fitMulti/fitMultiSplit/fit3pMulti, the refusal checks) calls bart()
 # directly instead
 mfit <- function(...) {
-  bart2(
+  bart(
     ...,
     family = "multinomial",
     n.trees = n.trees,
@@ -216,7 +216,7 @@ expect_true(all(ppd2 %in% seq_len(2L)))
 
 # --- multi-chain smoke: combineChains toggles the reported shape, both K ---
 set.seed(431)
-fitMulti <- bart2(
+fitMulti <- bart(
   x3,
   y3,
   family = "multinomial",
@@ -231,7 +231,7 @@ fitMulti <- bart2(
 expect_equal(dim(fitMulti$yhat.train), c(10L, n, 3L))
 expect_equal(dim(fitMulti$varcount), c(10L, p, 3L))
 set.seed(431)
-fitMultiSplit <- bart2(
+fitMultiSplit <- bart(
   x3,
   y3,
   family = "multinomial",
@@ -343,7 +343,7 @@ rm(fit3ks)
 
 # multi-chain predict threads the chain margin like the run channels
 set.seed(431)
-fit3pMulti <- bart2(
+fit3pMulti <- bart(
   x3,
   y3,
   family = "multinomial",
@@ -361,7 +361,7 @@ predMultiSplit <- predict(fit3pMulti, x3.test, combineChains = FALSE)
 expect_equal(dim(predMultiSplit), c(2L, 5L, 20L, 3L))
 
 # --- count-matrix response: an n x K count matrix beside the factor
-# path, both routed through bart2's multinomial branch. The internal-path
+# path, both routed through bart's multinomial branch. The internal-path
 # comparator mirrors internalMultinomialFit above, substituting
 # bartcoreMultinomialCountSampler for bartcoreMultinomialSampler.
 internalMultinomialCountFit <- function(
@@ -471,7 +471,7 @@ expect_true(any(grepl("levels: lo, mid, hi", printed3c, fixed = TRUE)))
 
 # a one-hot count matrix (every row sum 1) reproduces the corresponding
 # factor fit's probabilities bit for bit - the single-trial reduction,
-# checked at the bart2 surface rather than the internal one above
+# checked at the bart surface rather than the internal one above
 onehot2 <- matrix(0L, n2, 2L, dimnames = list(NULL, c("no", "yes")))
 onehot2[cbind(seq_len(n2), labels2 + 1L)] <- 1L
 set.seed(seed2)
@@ -484,23 +484,23 @@ badCounts <- onehot2 + 0L
 negCounts <- badCounts
 negCounts[1L, 1L] <- -1L
 expect_error(
-  bart2(x2, negCounts, family = "multinomial"),
+  bart(x2, negCounts, family = "multinomial"),
   "non-negative"
 )
 fracCounts <- badCounts + 0.0
 fracCounts[1L, 1L] <- 1.5
 expect_error(
-  bart2(x2, fracCounts, family = "multinomial"),
+  bart(x2, fracCounts, family = "multinomial"),
   "whole numbers"
 )
 zeroRowCounts <- badCounts
 zeroRowCounts[1L, ] <- 0L
 expect_error(
-  bart2(x2, zeroRowCounts, family = "multinomial"),
+  bart(x2, zeroRowCounts, family = "multinomial"),
   "row sum"
 )
 expect_error(
-  bart2(x2, badCounts[, 1L, drop = FALSE], family = "multinomial"),
+  bart(x2, badCounts[, 1L, drop = FALSE], family = "multinomial"),
   "at least 2 columns"
 )
 
@@ -537,7 +537,7 @@ expect_identical(predFromFrame, predFromMatrix)
 # fit bit for bit (the peek is RNG-neutral) and announces the verdict
 set.seed(seed3)
 expect_message(
-  fit3Auto <- bart2(
+  fit3Auto <- bart(
     y3 ~ x1 + x2 + x3 + x4,
     data = df3,
     keepTrees = TRUE,
@@ -588,7 +588,7 @@ set.seed(seed3)
 fit3Char <- mfit(y3Char ~ x1 + x2 + x3 + x4, data = df3Char)
 expect_equal(fit3Char$levels, sort(levels(y3)))
 
-# --- category offset: bart2's own n x K matrix 'offset', threaded to
+# --- category offset: bart's own n x K matrix 'offset', threaded to
 # the internal creator's own offset argument, never to the host dbarts()
 # call (whose flat offset stays refused separately, below). The
 # reproduction gate extends to it on both response forms: a public offset
@@ -641,11 +641,11 @@ dimnames(probs3co.fit) <- NULL
 expect_identical(probs3co.fit, aperm(internal3co$train, c(3L, 1L, 2L)))
 expect_false(isTRUE(all.equal(fit3co$yhat.train, fit3c$yhat.train)))
 
-# a wrong-shape matrix refuses naming K (bart2 installs the offset through
+# a wrong-shape matrix refuses naming K (bart installs the offset through
 # $setCategoryOffset, post-construction, so this is that channel's own
 # refusal - the same one a direct sampler's $setCategoryOffset gives)
 expect_error(
-  bart2(
+  bart(
     x3,
     y3,
     family = "multinomial",
@@ -658,7 +658,7 @@ expect_error(
 )
 # a non-numeric matrix refuses by name, before it ever reaches validation
 expect_error(
-  bart2(
+  bart(
     x3,
     y3,
     family = "multinomial",
@@ -675,7 +675,7 @@ expect_error(
 # integer weight is already expressible as the count matrix's row-wise
 # replication, a non-integer one has no exact augmentation sampler
 expect_error(
-  bart2(
+  bart(
     x2,
     y2,
     family = "multinomial",
@@ -689,7 +689,7 @@ expect_error(
 # a flat vector stays refused - it is the softmax's own null direction and
 # identically inert (only an n x K matrix carries a meaningful offset)
 expect_error(
-  bart2(
+  bart(
     x2,
     y2,
     family = "multinomial",
@@ -700,7 +700,7 @@ expect_error(
   ),
   "softmax's own null direction"
 )
-# the internal constructor refuses a host offset for the same reason bart2
+# the internal constructor refuses a host offset for the same reason bart
 # does, rather than silently dropping it: the softmax is invariant to a common
 # per-observation shift, so a flat offset is inert and a meaningful one is n x K
 samplerOffset <- dbarts(
@@ -718,13 +718,13 @@ expect_error(
   dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
   "do not support a flat offset"
 )
-# offset is train-side only. bart2's own offset.test is caught at the R
+# offset is train-side only. bart's own offset.test is caught at the R
 # boundary, before it would otherwise fall through to the host dbarts() call
 # (does not support 'offset.test'); the underlying host-object flat test
 # offset refusal, reached only by building the internal sampler directly,
 # names the internal channel instead of an unqualified "do not support"
 expect_error(
-  bart2(
+  bart(
     x2,
     y2,
     family = "multinomial",
@@ -790,7 +790,7 @@ rm(samplerSigma, bcSigma)
 # both entry shapes to confirm that, the rest on the factor shape only.
 multinomialRefuses <- function(x, y, pattern, ...) {
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_error(bart2(x, y, family = "multinomial", ...), pattern)
+  expect_error(bart(x, y, family = "multinomial", ...), pattern)
 }
 multinomialRefuses(x2, y2, "'dart'", dart = TRUE)
 multinomialRefuses(x3c, counts3c, "'dart'", dart = TRUE)
@@ -799,7 +799,7 @@ multinomialRefuses(x2, y2, "'dart'", dart = dbartsPriors$dart())
 # direct call (not the '...'-forwarding helper above, which would itself
 # break dart()'s deferred resolution)
 expect_error(
-  bart2(x2, y2, family = "multinomial", tree.prior = dart()),
+  bart(x2, y2, family = "multinomial", tree.prior = dart()),
   "tree.prior"
 )
 multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5))
@@ -817,23 +817,23 @@ expect_error(fitted(fit3, type = "bart"), "non-identified")
 # fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
 expect_error(predict(fit3, x3), "keepTrees")
 expect_error(
-  bart2(x2, as.double(labels2), family = "multinomial"),
+  bart(x2, as.double(labels2), family = "multinomial"),
   "factor"
 )
 expect_error(
-  bart2(x2, addNA(y2), family = "multinomial"),
+  bart(x2, addNA(y2), family = "multinomial"),
   "NA"
 )
 expect_error(
-  bart2(x2, factor(rep("only", n2)), family = "multinomial"),
+  bart(x2, factor(rep("only", n2)), family = "multinomial"),
   "at least 2 levels"
 )
 expect_error(
-  bart2(dbartsData(x2, as.double(labels2)), family = "multinomial"),
+  bart(dbartsData(x2, as.double(labels2)), family = "multinomial"),
   "dbartsData"
 )
 expect_error(
-  bart2(y2 ~ x2, family = "multinomial"),
+  bart(y2 ~ x2, family = "multinomial"),
   "'data'"
 )
 # a fit built WITHOUT test data has no test channel to extract

@@ -1,4 +1,4 @@
-# summary() methods for the three bart2() families with no earlier method
+# summary() methods for the three bart() families with no earlier method
 # (bartOrdinal, bartNegbin, bartHurdle): before these existed, summary()
 # fell through to summary.default and printed a raw Length/Class/Mode table.
 # Pinned here: each returns a non-default summary object whose print output
@@ -25,7 +25,7 @@ yOrdinal <- ordered(
   levels = c("lo", "mid", "hi")
 )
 fitOrdinal <- do.call(
-  bart2,
+  bart,
   c(list(x, yOrdinal), seededControl)
 )
 expect_false(identical(class(summary(fitOrdinal)), "summary.default"))
@@ -38,7 +38,7 @@ expect_true(any(grepl("threshold\\[2\\]", ordinalOutput)))
 ## --- nbinom: dispersion, not summary.default -------------------------------
 yCount <- rpois(n, lambda = 4)
 fitNegbin <- do.call(
-  bart2,
+  bart,
   c(list(x, yCount, family = "nbinom"), seededControl)
 )
 expect_false(identical(class(summary(fitNegbin)), "summary.default"))
@@ -50,7 +50,7 @@ expect_true(any(grepl("^1 dispersion", negbinOutput)))
 ## --- hurdle: both components, not summary.default --------------------------
 yHurdle <- ifelse(runif(n) < 0.3, 0, rexp(n, rate = 0.5))
 fitHurdle <- do.call(
-  bart2,
+  bart,
   c(list(x, yHurdle, family = "hurdle.lognormal"), seededControl)
 )
 expect_false(identical(class(summary(fitHurdle)), "summary.default"))

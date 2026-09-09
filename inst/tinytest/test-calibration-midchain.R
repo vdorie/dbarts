@@ -487,7 +487,7 @@ expect_error(
 # is still refused, but for the softmax's own reason - its per-forest leaf
 # scales come from the softmax calibration map, not a settable prior.scale
 set.seed(43)
-multinomialFit <- bart2(
+multinomialFit <- bart(
   x,
   factor(labels),
   family = "multinomial",
