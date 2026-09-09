@@ -105,7 +105,7 @@ linearAlgebra_neon.o : linearAlgebra_neon.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_neon.c -o linearAlgebra_neon.c
 	@$(compile.linearAlgebra_neon)
 
-moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
+moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h $(INCLUDE_DIR)/misc/intrinsic.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c moments.c -o moments.o
 
 moments_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c moments_sse2.c -o moments_sse2.o

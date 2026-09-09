@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <misc/stats.h>
+#include <misc/intrinsic.h>
 
 // Mean, variance and sum-of-squared-residual reductions. Each has a vanilla
 // unrolled form and, where the accumulated round-off would matter, an "online"
@@ -238,6 +239,144 @@ void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const
   *sumWX = swx;
 }
 
+// The two WEIGHTED double suffstat kernels below exist twice. Under
+// DBARTS_REFERENCE_BUILD the scalar unroll-by-5 bodies are the ones that ship
+// and the draw law is theirs; otherwise a vector body replaces them, chosen by
+// BUILD MODE alone and never by misc_stat_setSIMDInstructionSet, so a dispatch
+// level cannot move a draw. The two associations differ, so the two builds
+// draw different (equally valid) posteriors; only the reference build
+// reproduces a recorded stream bitwise.
+#ifndef DBARTS_REFERENCE_BUILD
+
+// Accumulator layout of the vector bodies. 0 splits the sum into four fixed
+// banks laid out exactly as the engine's fused roll lays its own - the n % 4
+// prologue into bank 0, then element i into bank (i - n % 4) mod 4, combined
+// ((b0 + b1) + b2) + b3 - so the result is the same bytes on every
+// instruction set and at every lane width. 1 accumulates in the vector width
+// the host actually has, which is a different sum per ISA. Compile-time only,
+// and only while the two are being timed against each other.
+#define MISC_SUFFSTAT_NATURAL_WIDTH 0
+
+// A two-lane double, the width both baseline vector ISAs give (NEON on arm64,
+// SSE2 on x86-64 - AVX2 is not baseline anywhere and these kernels are
+// deliberately outside the runtime dispatch table). Where neither is
+// available the struct fallback keeps ONE body and, for the four-bank layout,
+// the same summation order and therefore the same bytes.
+#if defined(COMPILER_SUPPORTS_NEON) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+typedef float64x2_t vec2;
+#  define vec2_zero()      vdupq_n_f64(0.0)
+#  define vec2_seed(_A_)   vsetq_lane_f64(_A_, vdupq_n_f64(0.0), 0)
+#  define vec2_load(_P_)   vld1q_f64(_P_)
+#  define vec2_set(_A_, _B_) vsetq_lane_f64(_B_, vdupq_n_f64(_A_), 1)
+#  define vec2_add(_A_, _B_) vaddq_f64(_A_, _B_)
+#  define vec2_mul(_A_, _B_) vmulq_f64(_A_, _B_)
+#  define vec2_lane0(_V_)  vgetq_lane_f64(_V_, 0)
+#  define vec2_lane1(_V_)  vgetq_lane_f64(_V_, 1)
+#elif defined(COMPILER_SUPPORTS_SSE2) && defined(__SSE2__)
+typedef __m128d vec2;
+#  define vec2_zero()      _mm_setzero_pd()
+#  define vec2_seed(_A_)   _mm_set_pd(0.0, _A_)
+#  define vec2_load(_P_)   _mm_loadu_pd(_P_)
+#  define vec2_set(_A_, _B_) _mm_set_pd(_B_, _A_)
+#  define vec2_add(_A_, _B_) _mm_add_pd(_A_, _B_)
+#  define vec2_mul(_A_, _B_) _mm_mul_pd(_A_, _B_)
+#  define vec2_lane0(_V_)  _mm_cvtsd_f64(_V_)
+#  define vec2_lane1(_V_)  _mm_cvtsd_f64(_mm_unpackhi_pd(_V_, _V_))
+#else
+typedef struct { double lo, hi; } vec2;
+static inline vec2 vec2_make(double lo, double hi) { vec2 v; v.lo = lo; v.hi = hi; return v; }
+#  define vec2_zero()      vec2_make(0.0, 0.0)
+#  define vec2_seed(_A_)   vec2_make(_A_, 0.0)
+#  define vec2_load(_P_)   vec2_make((_P_)[0], (_P_)[1])
+#  define vec2_set(_A_, _B_) vec2_make(_A_, _B_)
+#  define vec2_add(_A_, _B_) vec2_make((_A_).lo + (_B_).lo, (_A_).hi + (_B_).hi)
+#  define vec2_mul(_A_, _B_) vec2_make((_A_).lo * (_B_).lo, (_A_).hi * (_B_).hi)
+#  define vec2_lane0(_V_)  (_V_).lo
+#  define vec2_lane1(_V_)  (_V_).hi
+#endif
+
+// Each product is named before it is accumulated: the sums must round w * x
+// before adding it, so no fused multiply-add may swallow that rounding. A
+// compiler contracting across statements would give this kernel a third
+// association, one that varies with the host's FMA support.
+#define VEC2_ACCUMULATE_WEIGHTED(_SW_, _SX_, _W_, _X_) \
+  do { vec2 wv_ = (_W_); vec2 p_ = vec2_mul(wv_, (_X_)); \
+       (_SW_) = vec2_add(_SW_, wv_); (_SX_) = vec2_add(_SX_, p_); } while (0)
+
+void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+#if MISC_SUFFSTAT_NATURAL_WIDTH
+  size_t i = 0, prologue = length % 2;
+  double sw0 = 0.0, swx0 = 0.0;
+  for ( ; i < prologue; ++i) { double wi = w[i], p = wi * x[i]; sw0 += wi; swx0 += p; }
+
+  vec2 sw = vec2_seed(sw0), sx = vec2_seed(swx0);
+  for ( ; i < length; i += 2)
+    VEC2_ACCUMULATE_WEIGHTED(sw, sx, vec2_load(w + i), vec2_load(x + i));
+
+  *sumW  = vec2_lane0(sw) + vec2_lane1(sw);
+  *sumWX = vec2_lane0(sx) + vec2_lane1(sx);
+#else
+  size_t i = 0, prologue = length % 4;
+  double sw0 = 0.0, swx0 = 0.0;
+  for ( ; i < prologue; ++i) { double wi = w[i], p = wi * x[i]; sw0 += wi; swx0 += p; }
+
+  // banks 0 and 1 in A, 2 and 3 in B; bank 0 carries the prologue first
+  vec2 swA = vec2_seed(sw0), swB = vec2_zero();
+  vec2 sxA = vec2_seed(swx0), sxB = vec2_zero();
+  for ( ; i < length; i += 4) {
+    VEC2_ACCUMULATE_WEIGHTED(swA, sxA, vec2_load(w + i), vec2_load(x + i));
+    VEC2_ACCUMULATE_WEIGHTED(swB, sxB, vec2_load(w + i + 2), vec2_load(x + i + 2));
+  }
+
+  *sumW  = ((vec2_lane0(swA) + vec2_lane1(swA)) + vec2_lane0(swB)) + vec2_lane1(swB);
+  *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
+#endif
+}
+
+void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+#if MISC_SUFFSTAT_NATURAL_WIDTH
+  size_t i = 0, prologue = length % 2;
+  double sw0 = 0.0, swx0 = 0.0;
+  for ( ; i < prologue; ++i) {
+    size_t j = indices[i];
+    double wi = w[j], p = wi * x[j];
+    sw0 += wi; swx0 += p;
+  }
+
+  vec2 sw = vec2_seed(sw0), sx = vec2_seed(swx0);
+  for ( ; i < length; i += 2) {
+    size_t j0 = indices[i], j1 = indices[i + 1];
+    VEC2_ACCUMULATE_WEIGHTED(sw, sx, vec2_set(w[j0], w[j1]), vec2_set(x[j0], x[j1]));
+  }
+
+  *sumW  = vec2_lane0(sw) + vec2_lane1(sw);
+  *sumWX = vec2_lane0(sx) + vec2_lane1(sx);
+#else
+  size_t i = 0, prologue = length % 4;
+  double sw0 = 0.0, swx0 = 0.0;
+  for ( ; i < prologue; ++i) {
+    size_t j = indices[i];
+    double wi = w[j], p = wi * x[j];
+    sw0 += wi; swx0 += p;
+  }
+
+  vec2 swA = vec2_seed(sw0), swB = vec2_zero();
+  vec2 sxA = vec2_seed(swx0), sxB = vec2_zero();
+  for ( ; i < length; i += 4) {
+    size_t j0 = indices[i], j1 = indices[i + 1], j2 = indices[i + 2], j3 = indices[i + 3];
+    VEC2_ACCUMULATE_WEIGHTED(swA, sxA, vec2_set(w[j0], w[j1]), vec2_set(x[j0], x[j1]));
+    VEC2_ACCUMULATE_WEIGHTED(swB, sxB, vec2_set(w[j2], w[j3]), vec2_set(x[j2], x[j3]));
+  }
+
+  *sumW  = ((vec2_lane0(swA) + vec2_lane1(swA)) + vec2_lane0(swB)) + vec2_lane1(swB);
+  *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
+#endif
+}
+
+#else // DBARTS_REFERENCE_BUILD
+
 void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
 {
   size_t i = 0;
@@ -291,6 +430,8 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
   *sumW = sw;
   *sumWX = swx;
 }
+
+#endif // DBARTS_REFERENCE_BUILD
 
 // fp32-residual variants of the four suffstat kernels above: the running
 // residual x is stored fp32, so these load float and PROMOTE each element

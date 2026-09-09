@@ -262,6 +262,134 @@ static void testFusedSuffstatBankCombine() {
   printf("ok: fused suffstat bank combine\n");
 }
 
+// The two WEIGHTED double suffstat entry points vectorize in the shipped
+// build and stay scalar in the reference build, selected by build mode alone.
+// Their sums must agree either way, so the scalar unroll-by-5 bodies are coded
+// again here as an independent reference: on the reference build the check is
+// exact by construction, on the shipped build it bounds the re-association.
+// The bound is mixed absolute/relative, since a well-fit leaf's weighted sum
+// passes through zero where a purely relative measure is meaningless.
+static void stockWeightedSuffstat(const double* x, size_t length,
+                                  const double* w, double* sumW,
+                                  double* sumWX) {
+  size_t i = 0, lengthMod5 = length % 5;
+  double sw = 0.0, swx = 0.0;
+  for ( ; i < lengthMod5; ++i) { double wi = w[i]; sw += wi; swx += wi * x[i]; }
+  for ( ; i < length; i += 5) {
+    double wv0 = w[i] * x[i], wv1 = w[i + 1] * x[i + 1],
+           wv2 = w[i + 2] * x[i + 2], wv3 = w[i + 3] * x[i + 3],
+           wv4 = w[i + 4] * x[i + 4];
+    sw += w[i] + w[i + 1] + w[i + 2] + w[i + 3] + w[i + 4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+  }
+  *sumW = sw;
+  *sumWX = swx;
+}
+
+static void stockIndexedWeightedSuffstat(const double* x,
+                                         const misc_index_t* indices,
+                                         size_t length, const double* w,
+                                         double* sumW, double* sumWX) {
+  size_t i = 0, lengthMod5 = length % 5;
+  double sw = 0.0, swx = 0.0;
+  for ( ; i < lengthMod5; ++i) {
+    size_t j = indices[i];
+    double wi = w[j];
+    sw += wi; swx += wi * x[j];
+  }
+  for ( ; i < length; i += 5) {
+    size_t j0 = indices[i], j1 = indices[i + 1], j2 = indices[i + 2],
+           j3 = indices[i + 3], j4 = indices[i + 4];
+    double wv0 = w[j0] * x[j0], wv1 = w[j1] * x[j1], wv2 = w[j2] * x[j2],
+           wv3 = w[j3] * x[j3], wv4 = w[j4] * x[j4];
+    sw += w[j0] + w[j1] + w[j2] + w[j3] + w[j4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+  }
+  *sumW = sw;
+  *sumWX = swx;
+}
+
+// deterministic and seedless: the fixture must not move with the rng stream,
+// so a later slice reading this test's numbers reads the same ones
+static double suffstatFixtureResidual(size_t i) {
+  double t = static_cast<double>(i);
+  return std::sin(0.9 * t) + 0.25 * std::cos(0.31 * t) - 0.05;
+}
+
+static double suffstatFixtureWeight(size_t i) {
+  double t = static_cast<double>(i);
+  return 0.5 + 0.75 * (1.0 + std::sin(0.13 * t));
+}
+
+static double suffstatGap(double got, double reference) {
+  return std::fabs(got - reference) / std::max(std::fabs(reference), 1.0);
+}
+
+static void testWeightedSuffstatKernels() {
+  const size_t n = 1001;
+  std::vector<double> x(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = suffstatFixtureResidual(i);
+    w[i] = suffstatFixtureWeight(i);
+  }
+  // a fixed permutation: 617 is coprime to 1001 = 7 * 11 * 13, so every
+  // observation appears once and no node sees an ascending run
+  std::vector<misc_index_t> indices(n);
+  for (size_t k = 0; k < n; ++k)
+    indices[k] = static_cast<misc_index_t>((k * 617 + 43) % n);
+
+  const double tolerance = 1e-12;
+  double worstContiguous = 0.0, worstIndexed = 0.0;
+
+  // every prologue residue of both layouts (mod 4 and mod 2) plus the shapes
+  // shorter than one vector step, where the prologue swallows the whole node
+  std::vector<size_t> lengths;
+  for (size_t length = 0; length <= 17; ++length) lengths.push_back(length);
+  for (size_t length = 993; length <= n; ++length) lengths.push_back(length);
+  for (size_t length : lengths) {
+    double vecW, vecWX, refW, refWX;
+    misc_computeWeightedSufficientStatisticsFast(x.data(), length, w.data(),
+                                                 &vecW, &vecWX);
+    stockWeightedSuffstat(x.data(), length, w.data(), &refW, &refWX);
+    worstContiguous = std::max(worstContiguous, suffstatGap(vecW, refW));
+    worstContiguous = std::max(worstContiguous, suffstatGap(vecWX, refWX));
+
+    misc_computeIndexedWeightedSufficientStatisticsFast(
+      x.data(), indices.data(), length, w.data(), &vecW, &vecWX);
+    stockIndexedWeightedSuffstat(x.data(), indices.data(), length, w.data(),
+                                 &refW, &refWX);
+    worstIndexed = std::max(worstIndexed, suffstatGap(vecW, refW));
+    worstIndexed = std::max(worstIndexed, suffstatGap(vecWX, refWX));
+  }
+  check(worstContiguous < tolerance,
+        "weighted suffstat: vector matches scalar at every tail shape");
+  check(worstIndexed < tolerance,
+        "indexed weighted suffstat: vector matches scalar at every tail shape");
+
+  // node sums: the permutation carved into bottom nodes of every small size
+  // and a few large ones, each starting at an arbitrary offset into the index
+  // array, which is how Tree::computeLeafStats calls in
+  double worstNode = 0.0;
+  size_t begin = 0, size = 1;
+  while (begin < n) {
+    size_t length = std::min(size, n - begin);
+    double vecW, vecWX, refW, refWX;
+    misc_computeIndexedWeightedSufficientStatisticsFast(
+      x.data(), indices.data() + begin, length, w.data(), &vecW, &vecWX);
+    stockIndexedWeightedSuffstat(x.data(), indices.data() + begin, length,
+                                 w.data(), &refW, &refWX);
+    worstNode = std::max(worstNode, suffstatGap(vecW, refW));
+    worstNode = std::max(worstNode, suffstatGap(vecWX, refWX));
+    begin += length;
+    size = size < 8 ? size + 1 : (size * 3) / 2;
+  }
+  check(worstNode < tolerance,
+        "weighted suffstat: node sums match scalar across node sizes");
+  printf("ok: weighted suffstat kernels (worst gap %.3g contiguous, %.3g "
+         "indexed, %.3g node)\n",
+         worstContiguous, worstIndexed, worstNode);
+}
+
 // The fused roll + suffstat pass reproduces rollTreeResidual's per-element
 // residual BITWISE - same expressions, same order - which is what makes the
 // suffstat's summation association the only draw change the fusion
@@ -7059,6 +7187,7 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndGaussianFp32(rng);
   testGatherTailShapes(rng);
   testFusedSuffstatBankCombine();
+  testWeightedSuffstatKernels();
   testFusedSuffstatMatchesStock(rng);
   testFusedSuffstatDeclines(rng);
   testRunCancellation(rng);
