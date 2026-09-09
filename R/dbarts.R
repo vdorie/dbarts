@@ -508,10 +508,15 @@ dbarts <- function(
   # survival response ingestion: a survival::Surv
   # object or an explicit family = "aft" with a two-column (time, status)
   # response fits the AFT log-normal model. The matrix (x.train, y.train)
-  # interface is supported here, the response being the second positional
-  # argument; the log event/censoring time replaces it and the status rides
-  # the control attribute the bartcore survival family reads. Formula-LHS Surv
-  # and a subset argument are deferred to a later surface pass.
+  # interface is handled directly here, the response being the second
+  # positional argument; the log event/censoring time replaces it and the
+  # status rides the control attribute the bartcore survival family reads.
+  # 'subset' is honoured (applied to the status vector alongside the
+  # matchedCall$subset dbartsData() still applies to x/y itself, below). A
+  # Surv left-hand side on 'formula' is ingested by dbartsData()'s own
+  # formula branch (R/data.R) - it cannot be detected here, before the model
+  # frame exists - so the matching conflict guard and auto-dispatch for that
+  # route run again, once dbartsData() returns, further down.
   survivalStatus <- NULL
   directResponse <- !is.formula(formula) &&
     !inherits(formula, "dbartsData") &&
@@ -543,14 +548,7 @@ dbarts <- function(
   # precedent). No status vector or attribute reaches C++ - the censoring is
   # baked into y'.
   hazardPeriods <- NULL
-  if (family %in% hazardTokens) {
-    if (!directResponse) {
-      stop(
-        "discrete-time hazard fits currently use the matrix interface - ",
-        "dbarts(x, y) or bart(x, y) with a ",
-        "survival::Surv or two-column (time, status) response"
-      )
-    }
+  if (family %in% hazardTokens && directResponse) {
     survival <- extractSurvivalTimes(data)
     if (is.null(survival)) {
       stop(
@@ -559,54 +557,110 @@ dbarts <- function(
         "\" needs a survival::Surv or two-column (time, status) response"
       )
     }
+    xForExpansion <- formula
+    timeForExpansion <- survival$time
+    statusForExpansion <- survival$status
+    offsetForExpansion <- if (missing(offset)) NULL else offset
+    weightsForExpansion <- if (missing(weights)) NULL else weights
+    # the original row indices no longer mean anything once the design is
+    # expanded to N' person-period rows (dec-B97), so 'subset' is applied
+    # HERE, before expansion, rather than forwarded to dbartsData()
     if (!missing(subset)) {
-      stop("survival responses do not support 'subset' in this version")
-    }
-    if (!missing(test)) {
-      stop(
-        "discrete-time hazard fits do not take a 'test' set; expand test ",
-        "subjects with survivalProbabilities(fit, times, newdata = )"
-      )
+      xForExpansion <- xForExpansion[subset, , drop = FALSE]
+      timeForExpansion <- timeForExpansion[subset]
+      statusForExpansion <- statusForExpansion[subset]
+      if (!is.null(offsetForExpansion) && length(offsetForExpansion) > 1L) {
+        offsetForExpansion <- offsetForExpansion[subset]
+      }
+      if (!is.null(weightsForExpansion) && length(weightsForExpansion) > 1L) {
+        weightsForExpansion <- weightsForExpansion[subset]
+      }
     }
     expansion <- expandDiscreteTimeHazard(
-      formula,
-      survival$time,
-      survival$status,
+      xForExpansion,
+      timeForExpansion,
+      statusForExpansion,
       breaks = breaks,
       max.rows = max.rows,
-      offset = if (missing(offset)) NULL else offset,
-      weights = if (missing(weights)) NULL else weights
+      offset = offsetForExpansion,
+      weights = weightsForExpansion
     )
     matchedCall$formula <- expansion$x
     matchedCall$data <- expansion$y
-    matchedCall$test <- NULL
-    matchedCall$offset.test <- NULL
+    if (!missing(subset)) {
+      matchedCall$subset <- NULL
+    }
     if (!is.null(expansion$offset)) {
       matchedCall$offset <- expansion$offset
     }
     if (!is.null(expansion$weights)) {
       matchedCall$weights <- expansion$weights
     }
+    K <- length(expansion$periods)
+    # a held-out subject has no event time to place it by, so 'test' expands
+    # to every one of the SAME K training periods (the shape
+    # hazardSurvivalProbabilities's own newdata expansion builds, reused here
+    # via appendHazardPeriodColumn); survivalProbabilities then reads the
+    # stored per-period draws straight off the fit (R/bart.R)
+    if (!missing(test)) {
+      n.test <- NROW(test)
+      matchedCall$test <- if (is.data.frame(test)) {
+        bigTest <- test[rep(seq_len(n.test), times = K), , drop = FALSE]
+        bigTest[["period"]] <- rep(seq_len(K), each = n.test)
+        bigTest
+      } else {
+        appendHazardPeriodColumn(
+          as.matrix(test)[rep(seq_len(n.test), times = K), , drop = FALSE],
+          rep(seq_len(K), each = n.test)
+        )
+      }
+      if (!missing(offset.test)) {
+        offsetTestForExpansion <- offset.test
+        if (length(offsetTestForExpansion) == 1L) {
+          offsetTestForExpansion <- rep_len(offsetTestForExpansion, n.test)
+        }
+        matchedCall$offset.test <- rep(offsetTestForExpansion, times = K)
+      }
+    } else {
+      matchedCall$test <- NULL
+      matchedCall$offset.test <- NULL
+    }
     hazardPeriods <- expansion$periods
     # the remap: the engine-facing family is now an ordinary binary link
     family <- if (identical(family, "hazard.logistic")) "logistic" else "probit"
     # the survival response is consumed; do not let the aft block fire on it
     responseIsSurv <- FALSE
+  } else if (
+    family %in% hazardTokens && !directResponse && !is.formula(formula)
+  ) {
+    stop(
+      "discrete-time hazard fits currently use the matrix interface - ",
+      "dbarts(x, y) or bart(x, y) with a survival::Surv or two-column ",
+      "(time, status) response, or a formula with a Surv left-hand side"
+    )
   }
-  # aft is reachable through the direct-response form, or through an internal
-  # channel that pre-sets the status on control@bartcore.survival and
-  # passes a ready dbartsData; every other indirect route (the public formula
-  # interface) is refused up front, before the response is materialized,
+  # else: a Surv-formula hazard request (family %in% hazardTokens,
+  # is.formula(formula)) is expanded further down, once dbartsData() has
+  # ingested and subsetted the response against the model frame's own rows -
+  # it cannot be detected here, before that frame exists
+
+  # aft is reachable through the direct-response form, through a Surv-formula
+  # response (dbartsData()'s own short-circuit, R/data.R; the matching
+  # conflict guard and auto-dispatch run again below, once 'data' is built),
+  # or through an internal channel that pre-sets the status on
+  # control@bartcore.survival and passes a ready dbartsData; every other
+  # indirect route is refused up front, before the response is materialized,
   # rather than failing hostilely downstream
   if (
     family == "aft" &&
       !directResponse &&
+      !is.formula(formula) &&
       is.null(attr(control, "bartcore.survival"))
   ) {
     stop(
       "survival (aft) fits currently use the matrix interface - ",
-      "dbarts(x, y) or bart(x, y) with a ",
-      "survival::Surv or two-column (time, status) response"
+      "dbarts(x, y) or bart(x, y) with a survival::Surv or two-column ",
+      "(time, status) response, or a formula with a Surv left-hand side"
     )
   }
   if (directResponse && (family == "aft" || responseIsSurv)) {
@@ -617,12 +671,16 @@ dbarts <- function(
         "(time, status) response"
       )
     }
-    if (!missing(subset)) {
-      stop("survival responses do not support 'subset' in this version")
-    }
     family <- "aft"
     matchedCall$data <- survival$log.time
     survivalStatus <- survival$status
+    # 'subset' still reaches dbartsData() unchanged (matchedCall$subset) and
+    # subsets x/y itself, reading the same value - aft's row count is
+    # unchanged, unlike hazard's, so only the status vector needs its own
+    # subsetting here
+    if (!missing(subset)) {
+      survivalStatus <- survivalStatus[subset]
+    }
   }
 
   # multinomial (K-forest softmax): the response is
