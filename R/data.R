@@ -1405,9 +1405,83 @@ dbartsData <- function(
     }
 
     # a sparseVector/dgCMatrix/sparseFactor column would die inside
-    # model.frame with a bare S4 type error; refuse it explicitly first (the
-    # formula path takes plain data-frame columns only, not S4 predictors)
-    if (!dataIsMissing && (is.list(data) || is.environment(data))) {
+    # model.frame with a bare S4 type error; a data-frame 'data' has row
+    # names to re-attach a pulled-out column by (below), so its sparse
+    # columns are lifted out here rather than refused. A plain list or an
+    # environment has no such row identity to align by, so those keep the
+    # plain refusal.
+    usedSparseNames <- character(0)
+    sparseColumns <- list()
+    if (!dataIsMissing && is.data.frame(data)) {
+      pulledOut <- pullOutSparseFormulaColumns(data)
+      if (length(pulledOut$sparseColumns) > 0L) {
+        denseData <- pulledOut$denseData
+        sparseColumns <- pulledOut$sparseColumns
+        # '.' has to be able to reach a sparse name too, so it is expanded
+        # by hand against a placeholder frame naming every column of the
+        # ORIGINAL 'data' - dense ones densely, sparse ones as zero-length
+        # stand-ins terms() never reads the values of, only the names -
+        # before 'formula' is rewritten to name only its dense terms
+        # explicitly (docs/plans/sparse-formula-audit.md's deferred checks,
+        # step 10)
+        placeholderFrame <- denseData[0L, , drop = FALSE]
+        for (sparseName in names(sparseColumns)) {
+          placeholderFrame[[sparseName]] <- numeric(0)
+        }
+        expandedTerms <- terms(formula, data = placeholderFrame)
+        denseTermLabels <- character(0)
+        for (label in attr(expandedTerms, "term.labels")) {
+          bareLabel <- sub("^`(.*)`$", "\\1", label)
+          sparseHits <- intersect(all.vars(str2lang(label)), names(sparseColumns))
+          if (length(sparseHits) == 0L) {
+            denseTermLabels <- c(denseTermLabels, label)
+          } else if (bareLabel %in% names(sparseColumns)) {
+            usedSparseNames <- c(usedSparseNames, bareLabel)
+          } else {
+            stop(
+              "sparse predictor '",
+              sparseHits[1L],
+              "' cannot appear inside '",
+              label,
+              "'; a sparse column must be its own term, not wrapped in ",
+              "poly(), ns(), log(), offset(), or a ':'/'*' interaction"
+            )
+          }
+        }
+        # offset() terms never reach term.labels (they carry their own
+        # "offset" attribute instead), so a sparse name inside one is
+        # checked separately
+        offsetPositions <- attr(expandedTerms, "offset")
+        if (!is.null(offsetPositions)) {
+          variables <- attr(expandedTerms, "variables")
+          for (position in offsetPositions) {
+            offsetHits <- intersect(
+              all.vars(variables[[position]]),
+              names(sparseColumns)
+            )
+            if (length(offsetHits) > 0L) {
+              stop(
+                "sparse predictor '",
+                offsetHits[1L],
+                "' cannot appear inside 'offset()'; a sparse column must ",
+                "be its own term"
+              )
+            }
+          }
+        }
+        formula <- stats::reformulate(
+          denseTermLabels,
+          response = formula[[2L]],
+          intercept = attr(expandedTerms, "intercept"),
+          env = environment(formula)
+        )
+        usedSparseNames <- unique(usedSparseNames)
+        sparseColumns <- sparseColumns[usedSparseNames]
+        data <- denseData
+        modelFrameCall$formula <- formula
+        modelFrameCall$data <- data
+      }
+    } else if (!dataIsMissing && (is.list(data) || is.environment(data))) {
       refuseSparseFormulaColumns(formula, data)
     }
 
@@ -1529,7 +1603,10 @@ dbartsData <- function(
 
     ## predictors
     modelTerms <- terms(modelFrame)
-    if (is.empty.model(modelTerms)) {
+    # a formula naming only sparse predictors rewrites to a dense-only RHS
+    # with no terms of its own (above) - empty in exactly the sense
+    # is.empty.model checks for, but not actually empty of predictors
+    if (is.empty.model(modelTerms) && length(sparseColumns) == 0L) {
       stop("predictors must be specified for regression tree analysis")
     }
 
@@ -1556,7 +1633,21 @@ dbartsData <- function(
       )
     }
 
-    x <- makeModelMatrix(modelFrame[termLabels])
+    predictorFrame <- modelFrame[termLabels]
+    if (length(sparseColumns) > 0L) {
+      # rownames(modelFrame) is character; a sparse column carries no row
+      # names of its own, so its rows are resolved by matching the model
+      # frame's back into the (already sparse-column-pulled) 'data' this
+      # sparse column itself still indexes by - a match that aligns under
+      # 'subset' and na.action together, since both already shaped
+      # modelFrame's own rows by the time this runs
+      pos <- match(rownames(modelFrame), rownames(data))
+      for (sparseName in names(sparseColumns)) {
+        predictorFrame[[sparseName]] <-
+          subsetSparseColumn(sparseColumns[[sparseName]], pos)
+      }
+    }
+    x <- makeModelMatrix(predictorFrame)
 
     if (!testIsMissing) {
       testCall <- matchedCall

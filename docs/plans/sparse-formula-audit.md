@@ -130,3 +130,60 @@ argument in the formula's environment, and appends the resulting
 columns to the dense block by name after the model frame is built. The
 row alignment machinery that a `forest()` basis already uses under
 `subset` covers the sparse columns unchanged.
+
+## Deferred checks (2026-09-09)
+
+dec-B100 chose the pull-out/re-attach runner-up over the `sparse()` term:
+"if there is a sparse matrix in a data frame, why do we need to identify it
+as sparse in the formula?" This section runs the checks this survey left
+open against a `d$S <- M` column (a 10-row frame, `M` a 3-column
+`dgCMatrix`), to confirm nothing else in a data frame's ordinary machinery
+trips on one before the pull-out ever reaches it.
+
+**order, row subsetting.** `d[order(d$b), ]` reorders `S` right along with
+every other column, rownames included; `d[i, ]` for an arbitrary row index
+does the same. Both are exact - this is the same base mechanism `merge`
+(next) and `model.frame`'s own row-dropping (below) rest on.
+
+**merge.** `merge(d, d3, by = "a")` realigns `S` correctly to the merged row
+order (verified by matching each output row's `S` back to its source row by
+`a`), because merge's own row reordering is implemented as ordinary `[`
+indexing over the whole frame, the same mechanism as plain subsetting.
+
+**split.** `split(d, g)` produces one sub-frame per group, each with `S`
+intact and correctly reduced to that group's rows (again plain `[`
+indexing per group).
+
+**rbind.** `rbind(d[1:5, ], d[6:10, ])` FAILS: "cannot set length of
+non-(vector or list)". `rbind.data.frame` tries to reassign into the
+combined `S` column directly rather than going through `[<-`, and an S4
+matrix is neither. Irrelevant to ingestion (dbartsData never rbinds a
+train and a test frame together) but worth knowing: a sparse column
+survives every reshaping this package's formula path performs, and fails
+the one it does not.
+
+**head/tail.** `head(d, 3)` slices `S` to its first 3 rows correctly - `[`
+again.
+
+**str.** Prints the column as `Formal class 'dgCMatrix' ... with 6 slots`
+and its raw `@i`/`@p`/`@x` - accurate, if not pretty; matches the survey's
+"printing... breaks" finding, which is about `print`/`format.data.frame`
+specifically, not `str`.
+
+**saveRDS round trip.** `identical(readRDS(saveRDS(d)), d)` holds; ordinary
+R serialization has no S4-column special case to get wrong.
+
+**model.frame's row-dropping under subset.** `model.frame(a ~ b, data =
+d5, subset = b > -100, na.action = na.omit)` where `d5` carries a sparse
+`S` column (untouched by the formula) and NAs in `a`: the returned frame
+drops exactly the NA rows, `attr(mf, "na.action")` records their original
+positions, and `rownames(mf)` is the surviving subset of `rownames(d5)` -
+confirms `pos <- match(rownames(modelFrame), rownames(data))` (step 12)
+recovers the right original rows regardless of whether `subset` ran,
+`na.action` ran, or both did, since both apply through the same row-name
+mechanism a sparse column never has to enter.
+
+Net: every check but `rbind` passes silently, and `rbind` never runs on
+these frames. The pull-out/re-attach implementation (step 10) follows
+directly - `data[!isSparse]`/`data[isSparse]` for the split, `match()`
+against `rownames()` for the re-attach.

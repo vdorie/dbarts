@@ -27,7 +27,13 @@ isSparseDataFrameColumn <- function(column) {
 
 ## None of sparseVector, dgCMatrix, or sparseFactor survive stats::model.frame
 ## (a bare S4 column raw-errors there); refuse any of them explicitly, ahead
-## of model.frame, for every formula-ingestion entry point.
+## of model.frame. dbartsData's own formula path no longer calls this - a
+## data-frame 'data' pulls its sparse columns out and re-attaches them
+## instead (pullOutSparseFormulaColumns, below) - but a plain list or an
+## environment 'data' has no row-name identity to align a pulled-out column
+## back by, and neither does bart2's multinomial formula ingestion
+## (R/bart.R), which still refuses every sparse column outright regardless of
+## 'data's kind.
 refuseSparseFormulaColumns <- function(formula, data) {
   for (variableName in intersect(all.vars(formula), names(data))) {
     column <- data[[variableName]]
@@ -45,6 +51,59 @@ refuseSparseFormulaColumns <- function(formula, data) {
       )
     }
   }
+}
+
+## Pulls every sparse (Matrix::sparseVector, dgCMatrix, or sparseFactor)
+## column out of a data frame BEFORE model.frame ever sees it - one of them
+## would die there with a bare S4 type error. Scans ALL of 'data' by class,
+## not just the names a formula happens to mention, since '.' must be able
+## to reach a sparse column too; the caller expands '.' afterward against a
+## placeholder frame built from this same split (dbartsData's formula
+## branch, R/data.R). Returns the data with those columns removed
+## (denseData, safe for model.frame) and the removed columns themselves, in
+## their original left-to-right order, keyed by name (sparseColumns, later
+## row-subset by subsetSparseColumn and re-attached to the assembled
+## predictor matrix).
+pullOutSparseFormulaColumns <- function(data) {
+  isSparse <- vapply(data, isSparseDataFrameColumn, FALSE)
+  if (!any(isSparse)) {
+    return(list(denseData = data, sparseColumns = list()))
+  }
+  list(denseData = data[!isSparse], sparseColumns = as.list(data[isSparse]))
+}
+
+## Row-subsets one pulled-out sparseFactor column by 1-based positions
+## 'pos' into its CURRENT rows - sparseVector and dgCMatrix already have a
+## '[' method (Matrix's own), but sparseFactor (R/sparseFactor.R) defines
+## none, so a fresh one is built here the same way
+## remapSparseFactorToTrainingLevels (R/utility.R) already builds one:
+## re-derive i/values/length for the subsetted object rather than
+## materialize a dense intermediate.
+subsetSparseFactorRows <- function(column, pos) {
+  storedRows <- column@i + 1L
+  matchIndex <- match(pos, storedRows)
+  keep <- which(!is.na(matchIndex))
+  newValidated(
+    "sparseFactor",
+    i = as.integer(keep - 1L),
+    values = as.integer(column@values[matchIndex[keep]]),
+    levels = column@levels,
+    reference = column@reference,
+    length = length(pos)
+  )
+}
+
+## Row-subsets any pulled-out sparse column by the SAME 'pos' (1-based
+## positions into the column's current rows) - dispatched once here so a
+## caller does not need to know which of the three kinds a given column is.
+subsetSparseColumn <- function(column, pos) {
+  if (methods::is(column, "sparseFactor")) {
+    return(subsetSparseFactorRows(column, pos))
+  }
+  if (methods::is(column, "sparseMatrix")) {
+    return(column[pos, , drop = FALSE])
+  }
+  column[pos]
 }
 
 ## The 0-based row indices and values of each predictor column a sparse
