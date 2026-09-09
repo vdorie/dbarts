@@ -322,6 +322,52 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   expect_identical(fit.matrix.subsetArg$yhat.train, fit.matrix.sub$yhat.train)
 
+  # a PRE-BUILT dbartsData object carrying the same Surv attributes
+  # (dbartsData(Surv(...) ~ ., data), called directly) is a legitimate
+  # explicit family = "aft" request too, not the unsupported-interface
+  # case the matrix-interface guards otherwise refuse - identical to the
+  # same object's own family = "auto" dispatch
+  dataObj <- dbartsData(surv ~ x1 + x2 + x3, surv.df)
+  fit.dataObj.auto <- do.call(
+    bart,
+    c(
+      list(dataObj),
+      list(
+        n.trees = 50L,
+        n.burn = 100L,
+        n.samples = 200L,
+        n.chains = 1L,
+        verbose = FALSE,
+        seed = 7L,
+        keepTrees = TRUE
+      )
+    )
+  )
+  expect_identical(fit.dataObj.auto[["family"]], "aft")
+  fit.dataObj.explicit <- do.call(
+    bart,
+    c(
+      list(dataObj, family = "aft"),
+      list(
+        n.trees = 50L,
+        n.burn = 100L,
+        n.samples = 200L,
+        n.chains = 1L,
+        verbose = FALSE,
+        seed = 7L,
+        keepTrees = TRUE
+      )
+    )
+  )
+  expect_identical(fit.dataObj.explicit[["family"]], "aft")
+  expect_identical(fit.dataObj.explicit$yhat.train, fit.dataObj.auto$yhat.train)
+  # the same route with NO Surv attributes still refuses an explicit "aft"
+  dataObjPlain <- dbartsData(x1 ~ x2, surv.df)
+  expect_error(
+    bart(dataObjPlain, family = "aft", verbose = FALSE),
+    "matrix interface"
+  )
+
   # a plain formula with family = "aft" and no Surv response
   expect_error(
     dbarts(survival::Surv(t, s) ~ x1, surv.df, family = "gaussian"),

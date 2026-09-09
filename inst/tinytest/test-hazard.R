@@ -415,6 +415,24 @@ if (requireNamespace("survival", quietly = TRUE)) {
     c(list(surv ~ x1 + x2 + x3, hazard.df), fitArgs)
   )
   expect_identical(fit.formula.autoAft[["family"]], "aft")
+
+  # a PRE-BUILT dbartsData object carrying the same Surv attributes
+  # (dbartsData(Surv(...) ~ ., data), called directly) is a legitimate
+  # explicit family = "hazard" request too, not the unsupported-interface
+  # case the matrix-interface guard otherwise refuses
+  dataObj <- dbartsData(surv ~ x1 + x2 + x3, hazard.df)
+  fit.dataObj.hazard <- do.call(
+    bart,
+    c(list(dataObj, family = "hazard"), fitArgs)
+  )
+  expect_identical(fit.dataObj.hazard[["family"]], "probit")
+  expect_identical(fit.dataObj.hazard$yhat.train, fit.formula$yhat.train)
+  # the same route with NO Surv attributes still refuses an explicit hazard
+  dataObjPlain <- dbartsData(x1 ~ x2, hazard.df)
+  expect_error(
+    bart(dataObjPlain, family = "hazard", verbose = FALSE),
+    "matrix interface"
+  )
 }
 
 # ---- the matrix interface's own 'test': person-period expanded on the SAME
