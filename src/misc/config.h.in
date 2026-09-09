@@ -45,6 +45,9 @@
 /* Define 1 to if your processor supports NEON. */
 #undef COMPILER_SUPPORTS_NEON
 
+/* Define to 1 to compile the scalar, fixed-order draw-path kernels. */
+#undef DBARTS_REFERENCE_BUILD
+
 /* Define to the integer type to be used to map the floating point x to
    integer types. Essentially limits the number of cut points allowable. */
 #undef XINT_TYPE

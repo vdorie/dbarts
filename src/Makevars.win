@@ -13,6 +13,16 @@ ifneq (,$(filter aarch64 arm64 arm,$(ARCH)))
   NEON_FLAG=-DCOMPILER_SUPPORTS_NEON
 endif
 
+# Windows has no configure, so --enable-reference-build has no route here:
+# setting DBARTS_REFERENCE_BUILD to any non-empty value in the environment
+# before R CMD INSTALL defines the same macro the autoconf flag defines
+# elsewhere, for the bridge below and for the sub-make that builds the
+# kernels. The checked-in config *.win headers stay untouched, so the macro is
+# recorded on tools/check-win-drift.R's expected-absent table.
+ifdef DBARTS_REFERENCE_BUILD
+  REFERENCE_BUILD_FLAG=-DDBARTS_REFERENCE_BUILD
+endif
+
 INST_DIR=../inst
 
 PTHREAD_CPPFLAGS=$(SHLIB_PTHREAD_FLAGS)
@@ -21,7 +31,7 @@ PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
 # the generalized core (bartcore/) requires C++20
 CXX_STD = CXX20
 
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS) $(REFERENCE_BUILD_FLAG)
 PKG_LIBS= external.a misc.a rc.a $(PTHREAD_LIBS)
 
 # as in Makevars.in: an empty ARFLAGS would run ar with no operation, so
@@ -53,7 +63,7 @@ sublibs:
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            NEON_FLAG="$(NEON_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
-           CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" RANLIB="$(RANLIB)") \
+           CPPFLAGS="$(CPPFLAGS) $(REFERENCE_BUILD_FLAG)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" RANLIB="$(RANLIB)") \
            || exit 1; \
 	done
 

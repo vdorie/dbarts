@@ -1328,6 +1328,14 @@
             needs no sampler: the functionals may be derived, the ranks are
             tie-broken, and the uniformity band is corrected over the
             functionals ranked in the call.
+      \item The package accepts a \code{--enable-reference-build} configure
+            flag (on Windows, the environment variable
+            \code{DBARTS_REFERENCE_BUILD} set to any non-empty value before
+            installation), which compiles the scalar, fixed-order draw-path
+            kernels. Draws from that build are bitwise reproducible where the
+            shipped build's follow the host's vector width, so it is what the
+            package's own bitwise gates are recorded and replayed on. It is a
+            development build: CRAN ships the default.
     }
   }
   \subsection{C API}{

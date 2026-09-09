@@ -703,6 +703,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+enable_reference_build
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1334,6 +1335,14 @@ if test -n "$ac_init_help"; then
      short | recursive ) echo "Configuration of dbarts 1.0-0:";;
    esac
   cat <<\_ACEOF
+
+Optional Features:
+  --disable-option-checking  ignore unrecognized --enable/--with options
+  --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+  --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+  --enable-reference-build
+                          compile the scalar, fixed-order draw-path kernels,
+                          whose draws are bitwise reproducible (default: no)
 
 Some influential environment variables:
   CC          C compiler command
@@ -3100,6 +3109,31 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 
 printf '%s\n' "#define XINT_TYPE uint16_t" >>confdefs.h
 
+
+# The reference build compiles the scalar, fixed-order draw-path kernels; the
+# shipped build is free to re-associate them, so its draws are not bitwise
+# comparable across vector widths. The recorded equivalence baselines and the
+# seed-locked snapshot tests are pinned to the reference build and must run
+# there. Default off: the vector build is what ships. The macro has to reach
+# both the bridge (src/config.hpp) and the kernels (src/misc/config.h), which
+# one AC_DEFINE does because both are AC_CONFIG_HEADERS above. Windows has no
+# configure: src/Makevars.win defines the same macro from an environment
+# variable of the same name.
+# Check whether --enable-reference-build was given.
+if test ${enable_reference_build+y}
+then :
+  enableval=$enable_reference_build;
+else case e in #(
+  e) enable_reference_build=no ;;
+esac
+fi
+
+if test "x$enable_reference_build" != xno
+then :
+
+printf '%s\n' "#define DBARTS_REFERENCE_BUILD 1" >>confdefs.h
+
+fi
 
 # Checks for programs.
 : ${R_HOME=`R RHOME`}

@@ -42,7 +42,9 @@ absentRaw <- c(
   "src/misc/config.h.win|HAVE_UNISTD_H|no unistd.h on Windows (POSIX-only header)",
   "src/misc/config.h.win|HAVE_CLOCK_GETTIME|no POSIX clock_gettime; falls back to HAVE_GETTIMEOFDAY (src/misc/thread.c, hierarchicalThreadManager.c)",
   "src/misc/config.h.win|HAVE_ALLOCA_H|no alloca.h on Windows; src/include/misc/alloca.h falls back to _alloca/malloc.h or __builtin_alloca",
-  "src/misc/config.h.win|HAVE_FFS|no BSD ffs() on Windows; src/include/misc/intrinsic.h's #elif chain resolves via _MSC_VER/__GNUC__ first"
+  "src/misc/config.h.win|HAVE_FFS|no BSD ffs() on Windows; src/include/misc/intrinsic.h's #elif chain resolves via _MSC_VER/__GNUC__ first",
+  "src/config.hpp.win|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; src/Makevars.win defines it from the environment variable of the same name, so no checked-in header carries it",
+  "src/misc/config.h.win|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; src/Makevars.win defines it from the environment variable of the same name, so no checked-in header carries it"
 )
 parts <- strsplit(absentRaw, "|", fixed = TRUE)
 field <- function(i) vapply(parts, `[[`, character(1L), i)
