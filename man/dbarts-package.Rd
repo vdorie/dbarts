@@ -38,6 +38,23 @@
 \section{Reproducibility}{
   Every chain runs its own random number generator, so results never depend on the thread count and sampling does not advance R's stream. Calling \code{\link{set.seed}} beforehand suffices; passing \code{seed} instead makes a fit reproducible without touching R's stream at all. See \code{\link{bart}}'s \sQuote{Reproducibility} section.
 }
+\section{Memory}{
+  Two arrays of 4 bytes per observation per tree per chain dominate what the sampler itself holds, so its footprint is linear in the number of observations, the number of trees, and the number of chains, and everything else is a rounding error beside them. The predictor store costs 2 bytes per cell once, whatever the chain count, because every chain reads the same store. A test set costs its own store, 2 bytes per test cell, plus 16 bytes per test row per chain.
+
+  Worked examples, for the sampler alone (the engine and its predictor store, not the returned draws):
+
+  \tabular{lllll}{
+    \bold{observations} \tab \bold{predictors} \tab \bold{trees} \tab \bold{chains} \tab \bold{sampler} \cr
+    10,000    \tab 10 \tab  75 \tab 1 \tab 7 MB     \cr
+    100,000   \tab 20 \tab 200 \tab 1 \tab 170 MB   \cr
+    100,000   \tab 20 \tab 200 \tab 4 \tab 660 MB   \cr
+    1,000,000 \tab 50 \tab 200 \tab 1 \tab 1.8 GB
+  }
+
+  A large-\eqn{n}{n} fit is usually limited not by the sampler but by the training predictions it returns. \code{yhat.train} is 8 bytes per observation per draw per chain, and three copies of it are live while the fit is packaged, so the 100,000-observation four-chain fit above at the default 500 draws peaks near 4.8 GB of returned array against 660 MB of sampler. The lever is \code{keepTrainingFits = FALSE} - an argument of \code{\link{bart}} and of \code{\link{dbartsControl}}, and \code{keeptrainfits} on \code{\link{bartBT}} - which drops the array and the fitted means taken from it; \code{\link[=predict.bart]{predict}} on a \code{keepTrees} fit recovers them for whichever rows are wanted.
+
+  Two options cost more than their names suggest. \code{keepTrees} keeps every draw's trees, about 24 bytes per node per tree per draw per chain, which is 23 MB per chain at 200 trees and 500 draws and grows with the tree count and the draw count but not with \eqn{n}{n}. A designated-covariate leaf (\code{node.prior = linear(...)} or \code{gp(...)}) caches sufficient statistics at 4 bytes per observation per cached node, capped across all chains at 256 MiB, which it reaches at any moderately large fit; it also replaces one of the two 4-byte arrays above with an 8-byte one.
+}
 \section{Using dbarts from another package}{
   Calling the R interface needs no special linkage. A package that drives the sampler from C should declare \code{LinkingTo: dbarts} and use the flat C API declared in the installed header \file{dbarts/dbarts.h}, whose entry points are reached through \code{R_GetCCallable} and versioned by the two-component handshake \code{DBARTS_C_API_MAJOR}/\code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an opt-in exact-ABI check, which moves on additive releases as well. That header creates no sampler and names no R type: the sampler is built in R - \code{\link{dbarts}} or \code{\link{dbartsSpec}} - and the handle the entry points take is the address in that object's external pointer, read with \code{R_ExternalPtrAddr}. See \code{\link{dbarts-embedding}}. The C++ interface of releases before 1.0-0, \file{dbarts/R_C_interface.hpp}, has been removed.
 }
