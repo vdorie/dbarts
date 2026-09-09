@@ -1387,6 +1387,42 @@ makeScenarios <- function() {
     )
   }
 
+  # WIDE-FACTOR AUTO-SPARSE (interfaces-and-dependencies.md S3): a
+  # factors = "indicators" fit where one predictor is a factor past
+  # sparseIndicatorLevelCutoff (100 levels here vs. the 100 default) -
+  # its dummy expansion builds sparse automatically (dec-B100, no
+  # user-facing marker), on the SAME dense friedman() recipe every other
+  # scenario uses, plus the wide factor's own contribution to y. A PLAIN
+  # ADDITION (MANIFEST P17): the switch changes only the design-matrix
+  # REPRESENTATION, never the codes or the draws, so it carries no
+  # oracle of its own - only a clean first recording.
+  set.seed(5149L)
+  x.wf <- matrix(runif(500L * 10L), 500L)
+  colnames(x.wf) <- paste0("x", 1:10)
+  K.wf <- 120L
+  f.wf <- factor(sample.int(K.wf, 500L, replace = TRUE))
+  d.wf <- as.data.frame(x.wf)
+  d.wf$f <- f.wf
+  x.test.wf <- matrix(runif(n.test * 10L), n.test)
+  colnames(x.test.wf) <- paste0("x", 1:10)
+  d.test.wf <- as.data.frame(x.test.wf)
+  # drawn from training's OWN realized LABELS, not a fresh sample.int() over
+  # 1:K.wf - a level 500 rows over 120 levels never happened to realize has
+  # no indicator column to route a test row to (refuseTestMissingness); as
+  # LABELS, not as.integer()'s position codes, which f.wf's own (contiguous,
+  # gap-free) level table can renumber out from under a raw code sample
+  d.test.wf$f <- factor(
+    sample(as.character(f.wf), n.test, replace = TRUE),
+    levels = levels(f.wf)
+  )
+  result$wideFactorIndicators <- list(
+    x = d.wf,
+    y = friedman(x.wf) + ((as.integer(f.wf) %% 5L) - 2) + rnorm(500L),
+    x.test = d.test.wf,
+    binary = FALSE,
+    wideFactorFit = TRUE
+  )
+
   result
 }
 
@@ -1904,6 +1940,30 @@ fitViaAftFormula <- function(scenario) {
   )
 }
 
+# 'factors = "indicators"' has no bartBT()-forwarded spelling (the frozen
+# shim carries no such argument), so this calls the modern bart() front
+# door directly by its own argument names, the fitViaAftFormula precedent
+# for a new-code-path scenario.
+fitViaWideFactorIndicators <- function(scenario) {
+  fit <- bart(
+    scenario$x,
+    scenario$y,
+    test = scenario$x.test,
+    factors = "indicators",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  list(
+    yhat.test = fit$yhat.test,
+    varcount = fit$varcount,
+    sigma = as.vector(fit$sigma)
+  )
+}
+
 fitSummaries <- function(scenario, seed) {
   set.seed(seed)
   # Test-data weights are irrelevant here (no posterior-predictive use);
@@ -1930,6 +1990,8 @@ fitSummaries <- function(scenario, seed) {
     fitViaAft(scenario)
   } else if (!is.null(scenario$aftFormulaFit)) {
     fitViaAftFormula(scenario)
+  } else if (!is.null(scenario$wideFactorFit)) {
+    fitViaWideFactorIndicators(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
     fitViaOrdinal(scenario)
   } else if (!is.null(scenario$nbinomFit)) {
