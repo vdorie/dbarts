@@ -355,9 +355,9 @@ S4, DESCRIPTION wording and configure stubs (independent of S1-S3):
 ```
 R CMD INSTALL -l <lib> .
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-fbff1989.rds
-R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-fbff1989.rds
-R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-fbff1989.rds
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-c42b72af.rds
+R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-c42b72af.rds
+R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-c42b72af.rds
   # 50/12/11 identical, no "max |z|" line (51 gaussian once step 13's new scenario is recorded)
 R_LIBS=<lib> Rscript -e 'lintr::lint_package()'
 R CMD build <clean copy> && R CMD check --as-cran dbarts_*.tar.gz
