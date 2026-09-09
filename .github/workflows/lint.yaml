@@ -1,12 +1,15 @@
-# Enforces the checked-in .lintr config and the air formatter (air.toml).
-# Both jobs hard-fail on any finding. Workflow derived from
+# Enforces the checked-in .lintr config, the air formatter (air.toml), and
+# the removed-configure-option stubs (dec-B107). All jobs hard-fail on any
+# finding. Workflow derived from
 # https://github.com/r-lib/actions/tree/v2/examples and
 # https://github.com/posit-dev/setup-air
 on:
   push:
     branches: [main, bartcore]
-    # lintr and air check R files only; benchmarks/R stays linted, so
-    # only non-code trees are ignored
+    # lintr and air check R files only, and configure-stubs checks
+    # configure/configure.ac directly, so only non-code trees are ignored;
+    # neither configure nor configure.ac is in this list, so a
+    # configure-only push still runs configure-stubs
     paths-ignore:
       - 'docs/**'
       - 'TODO'
@@ -91,3 +94,45 @@ jobs:
       # No package build: verify-anchors just greps the mutation sites.
       - name: Check mutation-battery anchors against the current tree
         run: Rscript benchmarks/R/mutation-battery.R verify-anchors
+
+  configure-stubs:
+    # Needs only sh and the checked-in configure script; no R install.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the removed configure options stop with a message (dec-B107)
+        run: |
+          fail=0
+
+          check_stub() {
+            dir=$(mktemp -d)
+            (cd "$dir" && "$GITHUB_WORKSPACE/configure" "$1" >out.log 2>&1)
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "FAIL: $1 exited 0, expected nonzero"
+              cat "$dir/out.log"
+              fail=1
+            elif ! grep -q "removed for 1.0-0" "$dir/out.log" \
+              || ! grep -q "$2" "$dir/out.log"; then
+              echo "FAIL: $1 did not name the removal"
+              cat "$dir/out.log"
+              fail=1
+            fi
+          }
+
+          check_stub --enable-match-bayes-tree match-bayes-tree
+          check_stub --enable-thread-safe-unload thread-safe-unload
+          check_stub --with-xint-size=32 xint-size
+
+          dir=$(mktemp -d)
+          (cd "$dir" && "$GITHUB_WORKSPACE/configure" >out.log 2>&1)
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FAIL: configure with no flags exited $status, expected 0"
+            cat "$dir/out.log"
+            fail=1
+          fi
+
+          exit "$fail"

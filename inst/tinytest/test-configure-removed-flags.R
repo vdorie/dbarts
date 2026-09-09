@@ -10,20 +10,21 @@ if (identical(.Platform$OS.type, "windows")) {
   )
 }
 
-# tinytest runs against the INSTALLED package, which ships only inst/* and
-# the compiled shared object - not configure, configure.ac, or the src/*.in
-# templates AC_OUTPUT reads. This check can only run against a package
-# source tree, which is not what dbarts installs; skip cleanly rather than
-# guess at a source location (e.g. relative to getwd() or an env var), which
-# would be fragile under a plain tinytest::test_package() run.
+# configure is not part of the installed package (only inst/* and the
+# compiled shared object are); run_test_file/run_test_dir set the working
+# directory to this file's own directory, so a source checkout's copy is two
+# levels up from inst/tinytest.
 configurePath <- system.file("configure", package = "dbarts")
 if (!nzchar(configurePath)) {
-  exit_file(paste(
-    "configure is not part of the installed package tree;",
-    "this check needs a package source checkout",
-    "(see docs/plans/interfaces-and-dependencies.md's Verification block",
-    "for the equivalent manual shell check)"
-  ))
+  sourceConfigure <- file.path("..", "..", "configure")
+  if (file.exists(sourceConfigure)) {
+    configurePath <- normalizePath(sourceConfigure)
+  }
+}
+if (!nzchar(configurePath)) {
+  exit_file(
+    "configure found in neither the installed package nor the source tree"
+  )
 }
 
 # Runs configure out-of-tree (cwd is a scratch build dir; configure resolves
