@@ -523,6 +523,14 @@ dbarts <- function(
     !inherits(formula, "dgCMatrix") &&
     !missing(data)
   responseIsSurv <- directResponse && inherits(data, "Surv")
+  # a caller-built dbartsData object (dbartsData(Surv(...) ~ ., data), called
+  # directly rather than through dbarts()) can ALREADY carry the same
+  # attributes the formula route stashes below - dbartsData() returns such
+  # an object unchanged (R/data.R), so an explicit family = "aft"/hazard
+  # token on it is a legitimate request, not the unsupported-interface case
+  # the guards further down otherwise refuse
+  survivalDataObject <- inherits(formula, "dbartsData") &&
+    !is.null(attr(formula, "survivalStatus"))
   hazardTokens <- c("hazard", "hazard.probit", "hazard.logistic")
   # a Surv response declares the model, so it auto-dispatches to aft from
   # "auto"; an explicit hazard token selects the discrete-time model instead
@@ -631,7 +639,11 @@ dbarts <- function(
     # the survival response is consumed; do not let the aft block fire on it
     responseIsSurv <- FALSE
   } else if (
-    family %in% hazardTokens && !directResponse && !is.formula(formula)
+    family %in%
+      hazardTokens &&
+      !directResponse &&
+      !is.formula(formula) &&
+      !survivalDataObject
   ) {
     stop(
       "discrete-time hazard fits currently use the matrix interface - ",
@@ -640,21 +652,24 @@ dbarts <- function(
     )
   }
   # else: a Surv-formula hazard request (family %in% hazardTokens,
-  # is.formula(formula)) is expanded further down, once dbartsData() has
-  # ingested and subsetted the response against the model frame's own rows -
-  # it cannot be detected here, before that frame exists
+  # is.formula(formula)) OR one on a pre-built dbartsData object carrying
+  # the same attributes (survivalDataObject) is expanded further down, once
+  # dbartsData() has ingested and subsetted the response against the model
+  # frame's own rows - it cannot be detected here, before that frame exists
 
   # aft is reachable through the direct-response form, through a Surv-formula
-  # response (dbartsData()'s own short-circuit, R/data.R; the matching
-  # conflict guard and auto-dispatch run again below, once 'data' is built),
-  # or through an internal channel that pre-sets the status on
-  # control@bartcore.survival and passes a ready dbartsData; every other
-  # indirect route is refused up front, before the response is materialized,
-  # rather than failing hostilely downstream
+  # response or a pre-built dbartsData object carrying the same attributes
+  # (dbartsData()'s own short-circuit, R/data.R; the matching conflict guard
+  # and auto-dispatch run again below, once 'data' is built), or through an
+  # internal channel that pre-sets the status on control@bartcore.survival
+  # and passes a ready dbartsData; every other indirect route is refused up
+  # front, before the response is materialized, rather than failing
+  # hostilely downstream
   if (
     family == "aft" &&
       !directResponse &&
       !is.formula(formula) &&
+      !survivalDataObject &&
       is.null(attr(control, "bartcore.survival"))
   ) {
     stop(
