@@ -560,45 +560,51 @@ static void testRunCancellation(ext_rng* rng) {
   // verbose: progress lines still reach the console THROUGH the loop, not
   // only in the flush after the join - bounding that flush is why the wait
   // keeps a timeout. The poll and every flush run on the main thread, so the
-  // poll can read the capture and see what has been printed so far.
+  // poll can read the capture and see what has been printed so far. The run
+  // has to outlast a timeout for that to mean anything, so its length is
+  // grown until it does rather than fixed against one host's speed.
   {
-    std::vector<ext_rng*> rngs = makeRngs(4000);
     SamplerOptions options = workerOptions;
     options.verbose = true;
     options.printEvery = 50;
-    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                           ResponseFamily::gaussian, 1.0, 3.0,
-                           0.37804942330213542, options, rngs.data());
-    // long enough to outlast a 100ms timeout on any machine this builds on,
-    // and printing from its first fifty sweeps
-    const size_t numSamples = 12000;
-    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
-    Results results;
-    results.sigma = sigmaDraws.data();
-    std::string text;
-    bool flushedDuringRun = false;
-    std::function<bool()> watch = [&text, &flushedDuringRun]() {
-      if (text.find("iteration: ") != std::string::npos)
-        flushedDuringRun = true;
-      return false;
-    };
-    beginPrintCapture(text);
-    auto start = std::chrono::steady_clock::now();
-    bool cancelled = sampler.run(0, numSamples, results, watch);
-    double msec = msecSince(start);
-    endPrintCapture();
-    check(!cancelled, "verbose: multi-chain run completes");
-    // the next check's premise, so a machine fast enough to finish inside one
-    // timeout says so rather than failing obscurely
-    check(msec >= 100.0, "verbose: the sized run outlasts a wait timeout");
-    check(flushedDuringRun, "verbose: queued lines flush before the join");
+    size_t numSamples = 4000;
+    double msec = 0.0;
+    bool cancelled = false, flushedDuringRun = false;
     size_t lines = 0;
-    for (size_t at = text.find("iteration: "); at != std::string::npos;
-         at = text.find("iteration: ", at + 1))
-      ++lines;
+    for (int attempt = 0; attempt < 8 && msec < 100.0; ++attempt) {
+      std::vector<ext_rng*> rngs = makeRngs(4000);
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                             ResponseFamily::gaussian, 1.0, 3.0,
+                             0.37804942330213542, options, rngs.data());
+      std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+      Results results;
+      results.sigma = sigmaDraws.data();
+      std::string text;
+      flushedDuringRun = false;
+      std::function<bool()> watch = [&text, &flushedDuringRun]() {
+        if (text.find("iteration: ") != std::string::npos)
+          flushedDuringRun = true;
+        return false;
+      };
+      beginPrintCapture(text);
+      auto start = std::chrono::steady_clock::now();
+      cancelled = sampler.run(0, numSamples, results, watch);
+      msec = msecSince(start);
+      endPrintCapture();
+      lines = 0;
+      for (size_t at = text.find("iteration: "); at != std::string::npos;
+           at = text.find("iteration: ", at + 1))
+        ++lines;
+      destroyRngs(rngs);
+      if (msec < 100.0) numSamples *= 2;
+    }
+    check(!cancelled, "verbose: multi-chain run completes");
+    // the next check's premise; only a host that stays under a timeout
+    // through every doubling can fail it
+    check(msec >= 100.0, "verbose: the grown run outlasts a wait timeout");
+    check(flushedDuringRun, "verbose: queued lines flush before the join");
     check(lines == numChains * (numSamples / options.printEvery),
           "verbose: every chain's progress lines reach the console");
-    destroyRngs(rngs);
   }
 
   printf("ok: run cancellation\n");

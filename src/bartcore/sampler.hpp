@@ -418,10 +418,12 @@ public:
       // sweep)
       QueuedProgressSink progress;
       // the caller blocks on chainsDone rather than on a timer: a worker takes
-      // chainsMutex for its decrement, so the count cannot reach zero between
-      // this thread's test of it and its wait, and the last chain's notify
-      // cannot be missed. The timeout that remains bounds only the interrupt
-      // poll and the progress flush, both main-thread-only work.
+      // chainsMutex for its decrement, and wait_for re-tests the count under
+      // that same lock before it sleeps, so a chain that finishes while the
+      // lock is free - it is released for the flush and the poll - is seen
+      // rather than slept through, and the last chain's notify cannot be
+      // missed. The timeout that remains bounds only the progress flush and
+      // the interrupt poll, both main-thread-only work.
       std::mutex chainsMutex;
       std::condition_variable chainsDone;
       size_t numChainsRunning = numChains;
