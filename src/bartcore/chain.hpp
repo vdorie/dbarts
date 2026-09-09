@@ -4713,6 +4713,14 @@ private:
       const double* __restrict mu = forest.muByTree[t].data();
       const std::uint32_t* __restrict leaf = forest.leafOf.data() + t * n;
       const double* __restrict w = forestWeights;
+      // The stock node-average gather walked this tree's whole indices[]
+      // permutation, which the move phase then partitions; the fused pass
+      // does not, so the move phase pays cache misses the suffstat used to
+      // absorb. Warm it here instead, paced with the pass: one line per four
+      // elements is 16 index bytes against a 64-byte line, so the stream
+      // stays four times ahead of where the move phase will read. Prefetch
+      // hints move no value and are outside the exactness contract.
+      const index_t* __restrict warm = forest.trees[t].indices;
       double* __restrict accW = acc + numNodes * fusedSuffstatBanks;
       size_t i = 0, nMod4 = n % 4;
 
@@ -4738,6 +4746,7 @@ private:
           scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
+          __builtin_prefetch(warm + i);
           double r0 = y_[i] - total[i] + mu[leaf[i]];
           double r1 = y_[i + 1] - total[i + 1] + mu[leaf[i + 1]];
           double r2 = y_[i + 2] - total[i + 2] + mu[leaf[i + 2]];
@@ -4761,6 +4770,7 @@ private:
           scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
+          __builtin_prefetch(warm + i);
           double r0 = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
           double r1 =
             resid[i + 1] + (mu[leaf[i + 1]] - muPrev[leafPrev[i + 1]]);
