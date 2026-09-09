@@ -426,8 +426,16 @@ sparseIndicatorLevelCutoff <- 100L
 ## factor through both paths: an unexported, undocumented option, read
 ## fresh per call so a test can toggle it around two otherwise-identical
 ## fits. "auto" (the default) applies sparseIndicatorLevelCutoff; "sparse"
-## and "dense" force one path regardless of level count.
+## and "dense" force one path regardless of level count. Matrix is a
+## Suggests, not a Depends (assembleMixedMatrix refuses outright without
+## it), so a wide factor without Matrix installed builds dense regardless
+## of level count - this switch changes only a representation an ordinary
+## "indicators" fit already worked without, and must not turn into a new
+## hard dependency for crossing a level count the caller never chose.
 sparseIndicatorModeFor <- function(numLevels) {
+  if (!requireNamespace("Matrix", quietly = TRUE)) {
+    return(FALSE)
+  }
   mode <- getOption("dbarts.sparseIndicators", "auto")
   if (identical(mode, "sparse")) {
     return(TRUE)
