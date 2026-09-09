@@ -1293,7 +1293,7 @@
             stored on it. \code{bart} defaults to
             \code{combineChains = TRUE}: a multi-chain fit's draw channels
             arrive with the chain and sample margins already merged,
-            matching what \code{summary}, \code{as_draws_df}, and most
+            matching what \code{summary}, \code{\link{draws}}, and most
             downstream consumers expect without a reshape;
             \code{combineChains = FALSE} keeps them separate, as the
             previous default did. Finally, MCMC runs are now
@@ -1358,16 +1358,14 @@
             \code{aperm(x, c(2, 1, 3))}). Separately,
             \code{\link{summary.bart}} reports a
             per-variable posterior summary of a fit's scalar parameters
-            (\code{sigma} and \code{k}),
-            with split-\eqn{\hat{R}}{Rhat} and effective sample size when the
-            \pkg{posterior} package is installed, and a built-in fallback
-            summary when it is not; \code{as_draws_array} and
-            \code{as_draws_df} methods for \code{bart} fits
-            convert a fit's chain-dimensioned draws to \pkg{posterior}'s
-            array/data frame conventions. Those two are methods for
-            \pkg{posterior}'s own generics and are registered only when it
-            loads, \pkg{posterior} being a \code{Suggests} rather than a
-            hard dependency; \code{summary} is always available.
+            (\code{sigma} and \code{k}), with split-\eqn{\hat{R}}{Rhat} and
+            bulk/tail effective sample size computed in-package and always
+            reported, no \pkg{posterior} install consulted or required.
+            \code{\link{draws}(object)} returns the same scalar parameters,
+            chain-dimensioned, as a plain (iteration, chain, variable) array
+            - the shape \code{posterior::as_draws_array} accepts directly
+            for a caller who has that package, though dbarts itself does
+            not depend on it.
       \item A flat C interface for packages compiling against dbarts,
             \code{dbarts/dbarts.h}: an opaque sampler handle over the
             rewritten engine, read out of the external pointer of a sampler
@@ -2275,10 +2273,7 @@
             \code{bart} own-class families, and \code{plot} for the
             three that lacked one (\code{bartOrdinal}, \code{bartNegbin},
             \code{bartHurdle}; \code{bartMultinomial}'s gains a second
-            panel). \code{as_draws_array}/\code{as_draws_df} are
-            registered for all four when \pkg{posterior} is installed,
-            previously failing inside \pkg{posterior} with an opaque
-            \sQuote{All list elements must be lists themselves}. See
+            panel). \code{\link{draws}} covers all four families too. See
             \code{\link{bart}}'s \sQuote{Value} section for each
             family's formula and shape.
       \item \code{extract(type = "trees")} on a fit with no saved trees
