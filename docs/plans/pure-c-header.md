@@ -244,9 +244,9 @@ cd tests/cpp && make && ./test_bartcore            # includes header-compiles
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
 R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-c42b72af.rds
   # 50 "identical draws (same RNG stream)" lines, no "max |z|" line
-R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-c42b72af.rds
+R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-fbff1989.rds
   # 12 scenarios, every channel identical
-R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-c42b72af.rds
+R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-fbff1989.rds
   # 11 scenarios, every channel identical
 gcc -std=c99 -pedantic -Wall -x c -fsyntax-only inst/include/dbarts/dbarts.h   # no R include path
 sh tools/check-api-hash.sh                          # "no release tag, skipped" today

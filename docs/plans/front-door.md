@@ -93,13 +93,16 @@ work over folds, and reproduces a seed at any thread count. A saved
   together in [`validateArgumentsInEnvironment`](../../R/dbarts.R); the
   sampler method [`dbartsSampler$setSigma`](../../man/dbartsSampler-class.Rd)
   is untouched.
-- xbart: [`xbart`](../../R/xbart.R) chunks replications across workers
-  ([`xbartRunChunk`](../../R/xbart.R) takes a replication range and one
-  seed), so k-fold with one replication runs on one worker (2.1x slower
-  wall than 0.9-34 at four threads, measured 2026-09-08); k is a numeric
-  grid or, when absent, the fixed value 2 or the node prior's k; a
-  hyperprior is held, not swept. `control=` already has no formal; a
-  three-element n.burn errors by length.
+- xbart (landed, S3 below): [`xbart`](../../R/xbart.R) now distributes
+  (replication, fold) units across workers, each unit seeded from the
+  call seed and its own index so a seed reproduces at any `n.threads`;
+  [`xbartRunChunk`](../../R/xbart.R) runs one worker's list of units
+  (`unitRows`, `unitSeeds`), not a replication range and one seed. `k`
+  takes a numeric vector or a list mixing fixed values and hyperpriors;
+  an absent `k` runs one cell at the response type's front-door default
+  (fixed 2 continuous, `chi(1.5, 2)` binary); a hyperprior cell is swept
+  last, not held. `control=` and a three-element `n.burn` are registry
+  tombstones (`dbartsTombstones`).
 - Tombstone infrastructure: none. [`warnOnce`](../../R/utility.R) and
   `onceWarnState` are the once-per-session primitive. rbart_vi,
   rngSeed, startThreads and stopThreads survive only in NEWS.
