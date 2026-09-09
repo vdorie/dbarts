@@ -430,3 +430,74 @@ S4 (manual, NEWS, records, consumer ports); the ~40 error strings and
 ~100 manual references still naming `bart2()` go with S4;
 docs/design/multinomial-mutation-arc.md names man/bart2.Rd by line
 number in backticked prose, not a cite - S4 decides what to do with it.
+
+## Landing note, S2 (2026-09-09)
+
+LANDED at 44b3fa6dcf7966b1b2547243c58b39cee2e9fcc1, five commits:
+
+- c70aa99bffd82d9e15791b7d2fbd7557ec4dd528 Move family settings onto family objects and consolidate the front-door formals
+- d52ea1d3c4f1eaa531dca027cb6962d056fc0760 Update the test suite for the family objects, the consolidation and na.action
+- 7b1b03f9cd3dac0f92bc4811c35479e030a4b20d Document the family objects and na.keepPredictors, and repoint the benchmark harnesses
+- 04cc4040df3ca28b21e091d15a8b499d1f8ddf31 Apply air formatting and repoint the cites the residual-law move broke
+- 44b3fa6dcf7966b1b2547243c58b39cee2e9fcc1 Align amplitude bases to the rows na.action dropped, cover the tree-prior levelGibbs, and keep the caller's family on the stored call
+
+[`dbartsFamily`](../../R/family.R): an S4 class (token slot, settings
+list); ten unexported constructors (`gaussian`, `student(df)`, `probit`,
+`logistic`, `multinomial`, `ordinal`, `nbinom(dispersion)`, `aft`,
+`hazard(breaks, max.rows, link)`, `hurdle.lognormal`) resolved by bare
+name inside `family` only (the vocabulary shadows the caller's frame for
+those ten names; `stats::gaussian` is not masked); exported
+[`dbartsFamilies`](../../R/family.R) mirrors `dbartsPriors`. `family`
+takes a token or a pre-built object; resolution stays in
+[`dbartsSpec`](../../R/spec.R). `breaks`, `max.rows`, `dispersion`,
+`resid.dist`, `dart` and `levelGibbs` left `bart`, `dbarts`, `xbart` and
+`dbartsSpec`, each a [`dbartsTombstones`](../../R/tombstones.R) entry
+(expiry 1.1-0, once-per-session warning, identical draws); `levelGibbs`
+lives on [`cgm`](../../R/model.R)/[`dart`](../../R/model.R), copied onto
+the control. `dbarts()`/`dbartsSpec()` gained `...` for the tombstone
+channel; [`familyGatingInventory`](../../R/utility.R)'s warning shrank
+to sigest, sigdf, sigquant, resid.prior; the 1e7 row cap moved to
+`hazard()`'s `max.rows` default. `na.action` is a formal on `bart`,
+`dbarts`, [`dbartsData`](../../R/data.R), default
+[`na.keepPredictors`](../../R/data.R) (own page: drops missing-response
+rows, keeps missing predictors, `exclude`-class attribute
+[`padOmittedRows`](../../R/data.R) pads `fitted` back out); `missing`
+left `bart`, `dbarts`, `dbartsData`, `xbart` with no tombstone
+(dbartsData slot survives at "incorporate"); base na.* keep their
+meaning; `bartBT` keeps 0.9-34's `na.omit` rule; secondary `na.pass`
+sites and amplitude bases align to the kept rows on both paths; an
+out-of-range `subset` is refused by name. `control@call` keeps the
+caller's own family expression, not a resolved object. benchmarks/R
+moved to the new spellings, draws identical. man/dbartsFamilies.Rd
+(dec-B81 mapping table) and man/na.keepPredictors.Rd are new, pkgdown
+indexed.
+
+Real diff: R+NAMESPACE +1079/-256, tests +890/-133, man+pkgdown
++225/-63, other +19/-22 - three times budget, no fork; excess is
+R/family.R (new), the registry's thirteen entries, na.action row
+bookkeeping in R/data.R.
+
+Gates, independently and again on the merged tree with
+engine-performance S1: tinytest 8087/0 alone, 8069/0 on the stack;
+equivalence 50/12/11 identical, 0 skipped, no "max |z|" line; `R CMD
+check --as-cran` OK, 0 notes, clean tarball; `lint_package`, `air format
+--check`, pkgdown check clean; NEWS parses; check-doc-freshness.R,
+check-rc-codoc.R, check-win-drift exit 0. Mutation probes: a no-op
+`padOmittedRows` fails 9/64 in
+[test-na-action.R](../../inst/tinytest/test-na-action.R); skipping the
+response-NA drop errors the file; an off-by-one student df fails 7
+across two files; dropping the levelGibbs copy in R/spec.R fails 5 in
+[test-level-fibre.R](../../inst/tinytest/test-level-fibre.R).
+
+Review findings fixed before landing: amplitude bases not aligned to
+rows `na.action` dropped absent a `subset`, on both paths; the
+tree-prior `levelGibbs` spelling had no behavioural test;
+`control@call` stamped a resolved family object, not the caller's
+expression; one truncated tombstone message; stale prose naming retired
+spellings in R/dbarts.R and man/bart.Rd; the vocabulary-shadowing rule
+now documented in man/dbartsFamilies.Rd.
+
+Remaining: S3 (xbart worker units, per-unit seeds, list-valued k), S4
+(manual, NEWS, records, consumer ports); ~40 test sites still use old
+spellings through the tombstones; `family = c("probit", "logistic")`
+takes the first element under the vocabulary rule.

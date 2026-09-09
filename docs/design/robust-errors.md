@@ -1,6 +1,11 @@
 # Robust (Student-t) errors: design
 
-Status: LANDED 2026-07-17 (b4f818e). Plan: docs/plans/archive/robust-errors.md (this is its
+Status: LANDED 2026-07-17 (b4f818e). Section 8 is AMENDED by
+[front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
+(44b3fa6d): the Student-t spelling is `family = student(df)`, a
+[`dbartsFamily`](../../R/family.R) constructor object, not `resid.dist =
+student()`; `resid.dist` and the bare `student()`/`gaussian()` constructors
+below are retired to a tombstone (expiry 1.1-0). Plan: docs/plans/archive/robust-errors.md (this is its
 step 1). Continuous responses gain a Student-t residual law by the classic
 Gaussian scale-mixture augmentation, riding the per-observation precisions the
 workingWeights hook already carries for logistic.

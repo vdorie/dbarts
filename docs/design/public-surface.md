@@ -11,7 +11,12 @@ Sections 3 and 3a are AMENDED by [front-door](../plans/front-door.md#front-door)
 LANDED 2026-09-09 (ecb319aa): `bart` now carries the modern (former `bart2`)
 formals and body, `bart2` is a one-release alias, and the BayesTree-compatible
 door is `bartBT`, not `bart` - every `bart2`/`bart` naming below predates the
-swap.
+swap. S2, LANDED 2026-09-09 (44b3fa6d): `family` in section 3 now accepts a
+token or a pre-built [`dbartsFamily`](../../R/family.R) object (`gaussian()`,
+`student(df)`, `probit()`, `logistic()`, `multinomial()`, `ordinal()`,
+`nbinom(dispersion)`, `aft()`, `hazard(breaks, max.rows, link)`,
+`hurdle.lognormal()`), exported as `dbartsFamilies` beside section 3a's
+`dbartsPriors` and resolved by the same bare-name vocabulary rule.
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so

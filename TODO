@@ -279,7 +279,7 @@ items
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
-  LANDED ecb319aa; S2-S4 open)
+  ecb319aa, S2 44b3fa6d landed; S3-S4 open)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
   one release; the BayesTree-style names and defaults move to a new
   function, bartBT (VD 2026-09-08); for one release bart forwards
@@ -322,7 +322,8 @@ factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
   Plan: docs/plans/front-door.md.
 
 front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
-  dec-B79, B80, B81; sigest S1 LANDED ecb319aa, manual table S4 open)
+  dec-B79, B80, B81; sigest S1 LANDED ecb319aa, manual table S2 LANDED
+  44b3fa6d)
   names may change until the CRAN push, then lock; sigest replaces
   dbarts()'s sigma argument (the creation-time estimate only; setSigma
   is untouched), with a one-release warning; the manual gets one table
@@ -436,7 +437,7 @@ survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
   docs/plans/interfaces-and-dependencies.md.
 
 family objects and front-door consolidation (decided, VD 2026-09-08;
-  docs/decisions.md dec-B98)
+  docs/decisions.md dec-B98; S2 LANDED 44b3fa6d)
   pre-release: family accepts a token or a family object carrying its
   settings (hazard(breaks, max.rows), nbinom(dispersion), later aft and
   others); the three family-only formals leave bart with tombstones;

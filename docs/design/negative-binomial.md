@@ -1,6 +1,10 @@
 # Negative-binomial count outcomes: design
 
-Status: LANDED 2026-07-18 (9c28b31). Plan: docs/plans/archive/negative-binomial.md (this is
+Status: LANDED 2026-07-18 (9c28b31). Section 4 is AMENDED by
+[front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
+(44b3fa6d): dispersion is not a `bart()`/`dbarts()` formal; it is the
+`nbinom(dispersion = NA)` [`dbartsFamily`](../../R/family.R) constructor's
+argument, and `family = "nbinom"` resolves to `nbinom()`'s default. Plan: docs/plans/archive/negative-binomial.md (this is
 its step 1). Non-negative integer counts fit natively by the Polya-Gamma
 negative-binomial augmentation (Polson-Scott-Windle 2013; Zhou-Li-Dunson-Carin
 2012), riding the per-observation working weights the LogisticResponse port
