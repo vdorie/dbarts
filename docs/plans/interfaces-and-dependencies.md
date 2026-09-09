@@ -358,11 +358,12 @@ S4, DESCRIPTION wording and configure stubs (independent of S1-S3):
 ```
 R CMD INSTALL -l <lib> .
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-2085cba2.rds
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-3a1db387.rds
 R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-fbff1989.rds
 R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-fbff1989.rds
-  # 51/12/11 identical, no "max |z|" line (S2 recorded the 51st scenario,
-  # aftformula, at 2085cba2; step 13's S3 scenario adds a 52nd)
+  # 52/12/11 identical, no "max |z|" line (S2 recorded the 51st scenario,
+  # aftformula, at 2085cba2; S3 recorded the 52nd, wideFactorIndicators,
+  # at 3a1db387)
 R_LIBS=<lib> Rscript -e 'lintr::lint_package()'
 R CMD build <clean copy> && R CMD check --as-cran dbarts_*.tar.gz
 R_LIBS=<lib> Rscript -e 'pkgdown::check_pkgdown(".")'
