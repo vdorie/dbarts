@@ -9,13 +9,13 @@ accepts unchanged from a caller who has that package installed
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
 is built on the same array.
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
-`"bartNegbin"`, `"bartHurdle"`; see
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
-have their own `draws` methods, each exposing the scalar posterior
-parameters that family carries rather than its per-observation
-channels - never `yhat.train` itself.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s four
+own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
+`"bartHurdle"`; see
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) have their
+own `draws` methods, each exposing the scalar posterior parameters that
+family carries rather than its per-observation channels - never
+`yhat.train` itself.
 
 ## Usage
 
@@ -38,9 +38,9 @@ draws(x, vars = c("sigma", "k", "tau"), ...)
 - x:
 
   An object of class `bart`, as returned by
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md);
-  for the four own-class methods, a `bart2` fit of the matching class.
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) or
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); for the
+  four own-class methods, a `bart` fit of the matching class.
 
 - vars:
 
@@ -64,8 +64,8 @@ draws(x, vars = c("sigma", "k", "tau"), ...)
 
   For the four own-class methods, `vars` is scoped to that family's own
   vocabulary (see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)):
-  a `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)): a
+  `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
   (pinned at 0) through `threshold[K - 1]`; a `"bartNegbin"` fit's
   `"dispersion"` contributes the per-draw dispersion \\r\\; a
   `"bartMultinomial"` fit has a single channel, so its `vars` only ever
@@ -90,17 +90,16 @@ family-scoped `vars`.
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
 
 ## Examples
 
 ``` r
 # \donttest{
-fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
+fit <- bart(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
-#> Warning: 'bart2' is now 'bart'; this call was forwarded. The alias is removed in dbarts 1.1-0
 d <- draws(fit)
 dim(d)
 #> [1] 20  2  1

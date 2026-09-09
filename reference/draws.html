@@ -5,9 +5,9 @@
   unchanged from a caller who has that package installed
   (as_draws_array(draws(fit))). summary.bart is
   built on the same array.
-bart2's four own-class fits (&quot;bartMultinomial&quot;,
+bart's four own-class fits (&quot;bartMultinomial&quot;,
   &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;; see
-  bart2) have their own draws methods, each
+  bart) have their own draws methods, each
   exposing the scalar posterior parameters that family carries rather
   than its per-observation channels - never yhat.train itself."><meta property="og:description" content="Converts a fit's chain-dimensioned draws to a plain array with
   dimensions (iteration, chain, variable) and dimnames on the
@@ -15,9 +15,9 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
   unchanged from a caller who has that package installed
   (as_draws_array(draws(fit))). summary.bart is
   built on the same array.
-bart2's four own-class fits (&quot;bartMultinomial&quot;,
+bart's four own-class fits (&quot;bartMultinomial&quot;,
   &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;; see
-  bart2) have their own draws methods, each
+  bart) have their own draws methods, each
   exposing the scalar posterior parameters that family carries rather
   than its per-observation channels - never yhat.train itself."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -65,9 +65,9 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
   unchanged from a caller who has that package installed
   (<code>as_draws_array(draws(fit))</code>). <code><a href="summary.bart.html">summary.bart</a></code> is
   built on the same array.</p>
-<p><code><a href="dbarts-deprecated.html">bart2</a></code>'s four own-class fits (<code>"bartMultinomial"</code>,
+<p><code><a href="bart.html">bart</a></code>'s four own-class fits (<code>"bartMultinomial"</code>,
   <code>"bartOrdinal"</code>, <code>"bartNegbin"</code>, <code>"bartHurdle"</code>; see
-  <code><a href="dbarts-deprecated.html">bart2</a></code>) have their own <code>draws</code> methods, each
+  <code><a href="bart.html">bart</a></code>) have their own <code>draws</code> methods, each
   exposing the scalar posterior parameters that family carries rather
   than its per-observation channels - never <code>yhat.train</code> itself.</p>
     </div>
@@ -91,8 +91,8 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>An object of class <code>bart</code>, as returned by <code><a href="bart.html">bart</a></code> or
-    <code><a href="dbarts-deprecated.html">bart2</a></code>; for the four own-class methods, a <code>bart2</code>
+<dd><p>An object of class <code>bart</code>, as returned by <code><a href="bartBT.html">bartBT</a></code>
+    or <code><a href="bart.html">bart</a></code>; for the four own-class methods, a <code>bart</code>
     fit of the matching class.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
@@ -114,7 +114,7 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     <code>s.train</code> itself is reachable by name, contributing one variable
     per observation.</p>
 <p>For the four own-class methods, <code>vars</code> is scoped to that
-    family's own vocabulary (see <code><a href="dbarts-deprecated.html">bart2</a></code>): a
+    family's own vocabulary (see <code><a href="bart.html">bart</a></code>): a
     <code>"bartOrdinal"</code> fit's <code>"thresholds"</code> contributes
     <code>threshold[1]</code> (pinned at 0) through <code>threshold[K - 1]</code>; a
     <code>"bartNegbin"</code> fit's <code>"dispersion"</code> contributes the
@@ -140,16 +140,15 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="bart.html">bart</a></code>, <code><a href="dbarts-deprecated.html">bart2</a></code>, <code><a href="summary.bart.html">summary.bart</a></code></p></div>
+    <div class="dont-index"><p><code><a href="bart.html">bart</a></code>, <code><a href="bartBT.html">bartBT</a></code>, <code><a href="summary.bart.html">summary.bart</a></code></p></div>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># \donttest{</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts-deprecated.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
 <span class="r-in"><span>             n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>, n.trees <span class="op">=</span> <span class="fl">5L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>             verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>'bart2' is now 'bart'; this call was forwarded. The alias is removed in dbarts 1.1-0</span>
 <span class="r-in"><span><span class="va">d</span> <span class="op">&lt;-</span> <span class="fu">draws</span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">d</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 20  2  1</span>
