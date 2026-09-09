@@ -13,10 +13,10 @@ returns one whenever `x` carries a sparse column;
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
 x/y interface (and so
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s and
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s) returns
-one under the same condition and stores it in the resulting `dbartsData`
-object's `x`/`x.test` slot. The formula interface refuses a sparse
-column outright (a bare S4 column does not survive
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s)
+returns one under the same condition and stores it in the resulting
+`dbartsData` object's `x`/`x.test` slot. The formula interface refuses a
+sparse column outright (a bare S4 column does not survive
 [`model.frame`](https://rdrr.io/r/stats/model.frame.html)), so a
 `dbartsMixedMatrix` only ever arises from one of those two entrances.
 

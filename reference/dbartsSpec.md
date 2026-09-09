@@ -19,11 +19,11 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
     forests = NULL,
-    sigma = NA_real_, seed = NA_integer_,
+    sigest = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     dispersion = NA_real_, survival = NULL,
-    parentEnv = parent.frame())
+    parentEnv = parent.frame(), sigma = NA_real_)
 ```
 
 ## Arguments
@@ -42,7 +42,7 @@ dbartsSpec(
 
 - control, tree.prior, node.prior, resid.prior, resid.dist,
   proposal.probs, monotone, interactions, blocks, variance, forests,
-  sigma, seed, family, dispersion:
+  sigest, sigma, seed, family, dispersion:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   including the frozen `proposal.probs` mixture - all four structural
@@ -64,8 +64,8 @@ dbartsSpec(
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s by
   design - multinomial's K-forest engine and `hurdle.lognormal`'s
   two-sampler composition build through
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), never
-  through this construct-only bypass; the wider set lives there.
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+  never through this construct-only bypass; the wider set lives there.
 
 - survival:
 

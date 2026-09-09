@@ -4,9 +4,9 @@ Build an interaction-constraint specification restricting which
 predictors may jointly shape a BART fit. Pass the result as the
 `interactions` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). The
-constraint is applied per forest, so in a multi-forest model one forest
-can be held additive-or-low-order while another stays free.
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+The constraint is applied per forest, so in a multi-forest model one
+forest can be held additive-or-low-order while another stays free.
 
 ## Usage
 
@@ -59,7 +59,7 @@ every value is validated: an unrecognized name, an empty group, a
 are each an error there. Supplying none of the three arguments is
 instead an error immediately, at construction: `interactions()` with no
 arguments never produces an object to pass to
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
 
 Monotone constraints (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
@@ -88,7 +88,7 @@ built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
 
 ## Examples

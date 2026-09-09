@@ -92,9 +92,9 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
   hard dependency.</p>
 <p><code>bart2</code>'s four own-class fits (<code>"bartMultinomial"</code>,
   <code>"bartOrdinal"</code>, <code>"bartNegbin"</code>, <code>"bartHurdle"</code>; see
-  <code><a href="bart2.html">bart2</a></code>) are draws objects too, through their own
+  <code><a href="dbarts-deprecated.html">bart2</a></code>) are draws objects too, through their own
   <code>summary</code>/<code>as_draws_array</code>/<code>as_draws_df</code> methods
-  (documented under <code><a href="bart2.html">bart2</a></code>'s ‘Value’), each exposing
+  (documented under <code><a href="dbarts-deprecated.html">bart2</a></code>'s ‘Value’), each exposing
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never <code>yhat.train</code> itself.</p>
     </div>
@@ -138,7 +138,7 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     <p></p>
 <dl><dt id="arg-object-x">object, x<a class="anchor" aria-label="anchor" href="#arg-object-x"></a></dt>
 <dd><p>An object of class <code>bart</code>, as returned by
-    <code><a href="bart.html">bart</a></code> or <code><a href="bart2.html">bart2</a></code>;
+    <code><a href="bart.html">bart</a></code> or <code><a href="dbarts-deprecated.html">bart2</a></code>;
     for the four own-class methods, a <code>bart2</code> fit of the matching
     class.</p></dd>
 
@@ -161,7 +161,7 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     reported as a parameter. <code>s.train</code> itself is reachable by
     name, contributing one variable per observation.</p>
 <p>For the four own-class methods, <code>vars</code> is scoped to that
-    family's own vocabulary (see <code><a href="bart2.html">bart2</a></code>): a
+    family's own vocabulary (see <code><a href="dbarts-deprecated.html">bart2</a></code>): a
     <code>"bartOrdinal"</code> fit's <code>"thresholds"</code> contributes
     <code>threshold[1]</code> (pinned at 0) through <code>threshold[K - 1]</code>; a
     <code>"bartNegbin"</code> fit's <code>"dispersion"</code> contributes the
@@ -201,21 +201,21 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="bart.html">bart</a></code>, <code><a href="bart2.html">bart2</a></code></p></div>
+    <div class="dont-index"><p><code><a href="bart.html">bart</a></code>, <code><a href="dbarts-deprecated.html">bart2</a></code></p></div>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># \donttest{</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts-deprecated.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
 <span class="r-in"><span>             n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>, n.trees <span class="op">=</span> <span class="fl">5L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>             verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Call:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     n.threads = 1L, verbose = FALSE, factors = "categorical", </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> dbarts::bart(formula = y ~ x, data = data.frame(y = rnorm(100), </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     x = rnorm(100)), n.trees = 5L, n.samples = 20L, n.burn = 20L, </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     n.chains = 2L, n.threads = 1L, verbose = FALSE, factors = "categorical", </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     ))</span>

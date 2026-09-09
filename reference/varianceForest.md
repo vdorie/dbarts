@@ -5,13 +5,14 @@ Pratola, Chipman, George, and McCulloch 2020). Pass the result as the
 `variance` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-or [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) - the
-same argument that already accepts the plain selector (`NULL`/`FALSE`
-for none, `TRUE`/a one-sided formula/a character or integer column
-selector for the predictors driving the variance). This constructor is
-the other accepted type of that one argument, adding the variance
-forest's own tree count and structure prior alongside the column
-selection.
+or
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md) -
+the same argument that already accepts the plain selector
+(`NULL`/`FALSE` for none, `TRUE`/a one-sided formula/a character or
+integer column selector for the predictors driving the variance). This
+constructor is the other accepted type of that one argument, adding the
+variance forest's own tree count and structure prior alongside the
+column selection.
 
 ## Usage
 
@@ -68,7 +69,7 @@ Computational and Graphical Statistics*, **29**(2), 405–417.
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
 
 ## Examples
 

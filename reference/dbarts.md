@@ -20,14 +20,13 @@ dbarts(
     blocks = NULL,
     variance = NULL,
     forests = NULL,
-    control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
+    control = dbarts::dbartsControl(), sigest = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
                "ordinal",
-               "nbinom", "hazard", "hazard.probit", "hazard.logistic",
-               "hurdle.lognormal", "twopart"),
+               "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     missing = c("incorporate", "error"), dispersion = NA_real_,
-    breaks = NULL, max.rows = 1e7)
+    breaks = NULL, max.rows = 1e7, sigma = NA_real_)
 ```
 
 ## Arguments
@@ -388,27 +387,35 @@ dbarts(
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   function.
 
+- sigest:
+
+  A positive numeric estimate of the residual standard deviation
+  supplied at creation. If `NA`, a linear model is used with all of the
+  predictors to obtain one. Spelled the same way on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md); the
+  sampler's own `setSigma`, which sets the parameter rather than an
+  estimate of it, is a different thing and keeps its own name. That
+  estimate falls back to the marginal standard deviation of the response
+  when the linear model's residual standard error comes out non-finite,
+  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
+  with sparse-backed predictor columns skips the linear model altogether
+  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
+  a `dbartsSigmaFallbackWarning`).
+
 - sigma:
 
-  A positive numeric estimate of the residual standard deviation. If
-  `NA`, a linear model is used with all of the predictors to obtain one.
-  Same concept as `sigest` in
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
-  and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
-  That estimate falls back to the marginal standard deviation of the
-  response when the linear model's residual standard error comes out
-  non-finite, warning as it does so (class
-  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
-  columns skips the linear model altogether and falls back the same way
-  (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`).
+  The 0.9-x spelling of `sigest`, accepted for one release with a
+  once-per-session warning and removed in dbarts 1.1-0. Supplying both
+  is an error.
 
 - seed:
 
   Optional integer seed for the random number generator, a convenience
   mirror of `dbartsControl(seed = )`. When not `NA` it overrides the
   seed in `control`; the fitting-function wrappers
-  ([`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
+  ([`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept
   the same argument.
 
@@ -439,7 +446,7 @@ dbarts(
   fit as probit, reporting the choice in a one-line message, while a
   factor (or character) response with three or more levels is an error
   directing to
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
   `family = "multinomial"` (which `dbarts` does not fit). An explicit
   family that a factor response cannot support (e.g. `"gaussian"`) is
   also an error rather than a silent fit of the integer level codes.
@@ -514,7 +521,7 @@ dbarts(
   Like probit, the latent scale is fixed at 1, fits are on the latent
   scale, and weights are not supported. `bart2` reports ordinal fits as
   \\n \times K\\ category probabilities; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
 
   `"nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation: the forest
@@ -529,7 +536,7 @@ dbarts(
   1, fits are on the latent (log-odds) scale, and weights are not
   supported (exposure belongs in the offset). `bart2` reports mean
   counts; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
 
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
   model by person-period expansion (`"hazard.probit"` is an accepted
@@ -570,14 +577,14 @@ dbarts(
   posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
   x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive part's single
   \\\sigma\\ per draw (the positive part is always homoscedastic); see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) for the
-  full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
-  and the refusal list (`weights`, `subset`, `offset`, and `test` are
-  all unsupported this arc). `dbarts()` does not fit this family: it
-  composes two samplers, which only
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) builds,
-  so requesting it here is an error directing to
-  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md).
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  for the full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal
+  `"ppd"`) and the refusal list (`weights`, `subset`, `offset`, and
+  `test` are all unsupported this arc). `dbarts()` does not fit this
+  family: it composes two samplers, which only
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  builds, so requesting it here is an error directing to
+  [`bart2()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
 
 - dispersion:
 
@@ -636,7 +643,7 @@ for which a variety of methods exist.
 Data frame input is stored columnar: no \\n \times p\\ predictor matrix
 is retained. Code that previously reached into the sampler's stored data
 expecting a plain matrix should call
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)`(sampler, "predictors")` -
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(sampler, "predictors")` -
 or `as.matrix` on it - to obtain the numeric predictor matrix, factor
 columns as their integer codes. See
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
@@ -684,8 +691,8 @@ response units: it is the prior standard deviation of the forest total
 for the latent-scale families). `normal(sd = )` names the same quantity
 at the resolved `k`, and is refused under a `k` hyperprior.
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) take it as
-a `prior.scale` argument directly. Unset, nothing changes.
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+take it as a `prior.scale` argument directly. Unset, nothing changes.
 
 The named quantity is the LEAF-PARAMETER scale of the forest total. It
 equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the

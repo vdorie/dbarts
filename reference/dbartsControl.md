@@ -20,10 +20,17 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE)
+    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE, ...)
 ```
 
 ## Arguments
+
+- ...:
+
+  Not used for new code: the channel that lets a retired argument
+  spelling reach a message naming its successor, instead of R's own
+  “unused argument” error. Any other name is refused. Removed in dbarts
+  1.1-0.
 
 - verbose:
 
@@ -97,8 +104,8 @@ dbartsControl(
   is
   [`run`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
   This is a per-`run()` RETURN count, unaffected by `n.thin` - unlike
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s (and
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+  (and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   `ndpost`) same-named argument, which is a one-shot sweep budget
   divided by thinning; see `bart2`'s `n.samples` item for the full
   boundary. `0` is accepted here (and by

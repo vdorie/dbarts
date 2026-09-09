@@ -18,10 +18,10 @@ a `Suggests`, not a hard dependency.
 
 `bart2`'s four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
 `"bartNegbin"`, `"bartHurdle"`; see
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)) are draws
-objects too, through their own `summary`/`as_draws_array`/`as_draws_df`
-methods (documented under
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
+are draws objects too, through their own
+`summary`/`as_draws_array`/`as_draws_df` methods (documented under
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
 ‘Value’), each exposing the scalar posterior parameters that family
 carries rather than its per-observation channels - never `yhat.train`
 itself.
@@ -67,8 +67,8 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
   An object of class `bart`, as returned by
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md); for the
-  four own-class methods, a `bart2` fit of the matching class.
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md);
+  for the four own-class methods, a `bart2` fit of the matching class.
 
 - vars:
 
@@ -91,8 +91,8 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
   For the four own-class methods, `vars` is scoped to that family's own
   vocabulary (see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)): a
-  `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)):
+  a `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
   (pinned at 0) through `threshold[K - 1]`; a `"bartNegbin"` fit's
   `"dispersion"` contributes the per-draw dispersion \\r\\; a
   `"bartMultinomial"` fit has a single channel, so its `vars` only ever
@@ -129,7 +129,7 @@ their own family-scoped `vars`.
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
 
 ## Examples
 
@@ -141,9 +141,9 @@ fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
 summary(fit)
 #> 
 #> Call:
-#> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
-#>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
-#>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
+#> dbarts::bart(formula = y ~ x, data = data.frame(y = rnorm(100), 
+#>     x = rnorm(100)), n.trees = 5L, n.samples = 20L, n.burn = 20L, 
+#>     n.chains = 2L, n.threads = 1L, verbose = FALSE, factors = "categorical", 
 #>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, 
 #>     swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5
 #>     ))

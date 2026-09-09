@@ -96,6 +96,10 @@ setCalibration(
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
+startThreads(n.threads = control@n.threads)
+# S4 method for class 'dbartsSampler'
+stopThreads()
+# S4 method for class 'dbartsSampler'
 storeState(ptr = getPointer())
 # S4 method for class 'dbartsSampler'
 setState(newState)
@@ -870,12 +874,12 @@ scheme: they return engine primitives on the engine's own terms. The R
 modelling conventions -
 [`fitted`](https://rdrr.io/r/stats/fitted.values.html),
 [`predict`](https://rdrr.io/r/stats/predict.html),
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md) - apply
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) - apply
 to FIT objects instead, the results of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). Those
-accessors read the stored `yhat.train`/`yhat.test` channels the engine
-already wrote the offset into, and no `type` arm removes it:
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+Those accessors read the stored `yhat.train`/`yhat.test` channels the
+engine already wrote the offset into, and no `type` arm removes it:
 `type = "bart"` returns those draws as they stand, `"ev"` maps them
 through the response transform, `"ppd"` samples from them, and
 `"loglik"` evaluates against them - all offset-inclusive. (`extract` on

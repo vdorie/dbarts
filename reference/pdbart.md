@@ -208,9 +208,9 @@ remaining components are `bartcall`, `yhat.train`, `first.sigma`,
 `sigma`, `yhat.train.mean`, `sigest`, and `binaryOffset` are absent as
 well, on top of the continuous-case omissions. `pd2bart` follows the
 same rules. The function
-[`plot.bart`](https://vdorie.github.io/dbarts/reference/bart.md) can be
-applied to the object returned by `pdbart` or `pd2bart` to examine the
-BART run.
+[`plot.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md) can
+be applied to the object returned by `pdbart` or `pd2bart` to examine
+the BART run.
 
 ## References
 
@@ -293,6 +293,7 @@ set.seed(99)
 bartFit <- bart(
     y ~ rob + hugh + ed, df,
     keepevery = 10, ntree = 100, keeptrees = TRUE, verbose = FALSE)
+#> Warning: 'keepevery' is dbarts 0.9-x's BayesTree-style 'bart' argument; that function is now 'bartBT' and this call was forwarded to it. 'bart' is the modern front door and takes different names and defaults. Forwarding is removed in dbarts 1.1-0.
 pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 # }
 ```

@@ -22,10 +22,10 @@ sampler to completion and returns posterior draws.
   trees, one chain, factors expanded to indicator columns, binary
   responses probit, missing data rejected).
 
-- [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) - the
-  current interface, taking a formula or matrices and reaching the full
-  feature set, including every response `family`. This is the one to
-  reach for first.
+- [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md) -
+  the current interface, taking a formula or matrices and reaching the
+  full feature set, including every response `family`. This is the one
+  to reach for first.
 
 - [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) -
   crossvalidates over `k`, `power`, `base`, and the tree count.
@@ -34,11 +34,11 @@ sampler to completion and returns posterior draws.
   partial dependence plots for one or two variables.
 
 Fits support
-[`predict`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`fitted`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`residuals`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`plot`](https://vdorie.github.io/dbarts/reference/bart.md), and
+[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`fitted`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`residuals`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`plot`](https://vdorie.github.io/dbarts/reference/bartBT.md), and
 [`summary`](https://vdorie.github.io/dbarts/reference/summary.bart.md);
 see [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
 ‘Generics’ section for what each returns and on which scale.
@@ -68,9 +68,9 @@ packages that embed dbarts and supply their own design matrix.
 ## Model features
 
 Reached through
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) unless
-noted.
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+and [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+unless noted.
 
 - Response families (`family`): `"gaussian"`, `"probit"`, `"logistic"`,
   accelerated failure time (`"aft"`), discrete-time survival hazard
@@ -142,9 +142,10 @@ McCulloch. See `citation("dbarts")` for how to cite the package.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) to fit a
-model, [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-to build a sampler, and the package vignettes:
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+to fit a model,
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) to build
+a sampler, and the package vignettes:
 [`vignette("gibbs_sampler_mixture_model", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.md)
 and
 [`vignette("working_with_saved_trees", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/working_with_saved_trees.md).

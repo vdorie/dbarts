@@ -79,11 +79,11 @@
   <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
 <dd><p><code>"ev"</code> draws \(E[y \mid x]\) under the prior: the forest sum on the response
     scale for a gaussian sampler, or the link-transformed probability for a probit/logistic one -
-    matching what <code><a href="bart.html">extract</a></code> and <code>predict</code> call <code>"ev"</code>. <code>"ppd"</code> adds the
+    matching what <code><a href="bartBT.html">extract</a></code> and <code>predict</code> call <code>"ev"</code>. <code>"ppd"</code> adds the
     observation model on top: gaussian noise with sigma freshly drawn from its own prior for each
     sample, or a bernoulli draw from the <code>"ev"</code> probabilities for a binary sampler; on an aft
     (survival) sampler the draw is on the log-time scale (the model fits \(\log T\)).
-    Unlike <code><a href="bart.html">extract</a></code>'s posterior <code>"ppd"</code>, prior predictive draws are weight-blind:
+    Unlike <code><a href="bartBT.html">extract</a></code>'s posterior <code>"ppd"</code>, prior predictive draws are weight-blind:
     they use unit weights rather than a weighted precision (\(\sigma / \sqrt{w}\)
     for gaussian) or a \(\mathrm{Binomial}(w, p)\) success count (weighted
     logistic); supply any weighted precision downstream.</p></dd>
@@ -127,14 +127,14 @@
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A matrix with <code>n.samples</code> rows and one column per row of <code>x.test</code> (or of the training
-  predictors, when <code>x.test</code> is <code>NULL</code>) - the combined-draws convention <code><a href="bart.html">extract</a></code>
+  predictors, when <code>x.test</code> is <code>NULL</code>) - the combined-draws convention <code><a href="bartBT.html">extract</a></code>
   uses for a single chain, with no chain dimension.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="dbartsSampler-class.html">dbartsSampler</a></code> for <code>sampleTreesFromPrior</code>, <code>sampleNodeParametersFromPrior</code>,
   and <code>predict</code>, the building blocks this function composes. <code><a href="dbarts.html">dbarts</a></code> for
-  creating a sampler. <code><a href="bart.html">extract</a></code> for the same <code>"ev"</code>/<code>"ppd"</code> vocabulary applied to
+  creating a sampler. <code><a href="bartBT.html">extract</a></code> for the same <code>"ev"</code>/<code>"ppd"</code> vocabulary applied to
   posterior draws.</p></div>
     </div>
 

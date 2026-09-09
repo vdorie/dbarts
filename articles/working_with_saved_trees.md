@@ -43,6 +43,11 @@ illustrative purposes, a model can be fit thusly:
 ``` r
 
 library(dbarts, quietly = TRUE)
+```
+
+    ## dbarts: 'bart' is the modern front door (formerly 'bart2'); 'bartBT' is the BayesTree-style one, with 0.9-x's argument names and defaults. A BayesTree-spelled 'bart' call is forwarded to 'bartBT' with a warning for this release.
+
+``` r
 
 bartFit <- bart(
     y ~ ., data,
@@ -55,6 +60,12 @@ bartFit <- bart(
     keeptrees = TRUE,
     verbose = FALSE)
 ```
+
+    ## Warning in warnOnce("tombstone.bartShim", "'", legacy[1L], "' is dbarts 0.9-x's
+    ## BayesTree-style 'bart' argument; that function is ", : 'ndpost' is dbarts
+    ## 0.9-x's BayesTree-style 'bart' argument; that function is now 'bartBT' and this
+    ## call was forwarded to it. 'bart' is the modern front door and takes different
+    ## names and defaults. Forwarding is removed in dbarts 1.1-0.
 
 ## Extracting Trees
 
@@ -135,6 +146,14 @@ y.cat <- ifelse(g %in% c("a", "b"), 5, -5) + rnorm(n.cat, 0, 0.5)
 catFit <- bart2(y ~ g, data.frame(y = y.cat, g = g),
                n.trees = 3L, n.samples = 1L, n.burn = 20L, n.chains = 1L,
                n.threads = 1L, keepTrees = TRUE, seed = 0, verbose = FALSE)
+```
+
+    ## Warning in warnOnce("tombstone.bart2", "'bart2' is now 'bart'; this call was
+    ## forwarded. The alias is removed ", : 'bart2' is now 'bart'; this call was
+    ## forwarded. The alias is removed in dbarts 1.1-0
+
+``` r
+
 catTrees <- extract(catFit, "trees")
 print(subset(catTrees, var != -1))
 ```

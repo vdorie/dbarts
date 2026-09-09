@@ -38,7 +38,7 @@ sparse one's. The fallback warns (class
 is current behavior, not a documented guarantee; supply
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
 `sigma` (`sigest` in
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md))
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
 explicitly if the default matters to you.
 
 ## Usage

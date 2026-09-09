@@ -15,8 +15,8 @@ mechanism.
 ## Features
 
 - Response families, via `family =` on
-  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md) and
-  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md):
+  [`bart2()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  and [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md):
   `"gaussian"`, `"probit"`, `"logistic"`, accelerated-failure-time
   survival (`"aft"`), discrete-time survival hazard (`"hazard"`,
   `"hazard.probit"`, `"hazard.logistic"`), multinomial

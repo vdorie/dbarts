@@ -17,13 +17,13 @@ is created once by
 run one sweep at a time with `run(0L, 1L)`, its inputs replaced between
 sweeps. The fitting functions
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) own their
-own loop and are not the surface for this; they return fit objects, and
-the R modelling accessors
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+own their own loop and are not the surface for this; they return fit
+objects, and the R modelling accessors
 ([`fitted`](https://rdrr.io/r/stats/fitted.values.html),
 [`predict`](https://rdrr.io/r/stats/predict.html),
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)) apply to
-those.
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)) apply
+to those.
 
 ### The channels an outer block writes
 

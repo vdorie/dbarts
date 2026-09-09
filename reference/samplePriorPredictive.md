@@ -46,13 +46,13 @@ samplePriorPredictive(
   `"ev"` draws \\E\[y \mid x\]\\ under the prior: the forest sum on the
   response scale for a gaussian sampler, or the link-transformed
   probability for a probit/logistic one - matching what
-  [`extract`](https://vdorie.github.io/dbarts/reference/bart.md) and
+  [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
   `predict` call `"ev"`. `"ppd"` adds the observation model on top:
   gaussian noise with sigma freshly drawn from its own prior for each
   sample, or a bernoulli draw from the `"ev"` probabilities for a binary
   sampler; on an aft (survival) sampler the draw is on the log-time
   scale (the model fits \\\log T\\). Unlike
-  [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   posterior `"ppd"`, prior predictive draws are weight-blind: they use
   unit weights rather than a weighted precision (\\\sigma / \sqrt{w}\\
   for gaussian) or a \\\mathrm{Binomial}(w, p)\\ success count (weighted
@@ -115,8 +115,8 @@ meaningfully.
 A matrix with `n.samples` rows and one column per row of `x.test` (or of
 the training predictors, when `x.test` is `NULL`) - the combined-draws
 convention
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md) uses for
-a single chain, with no chain dimension.
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) uses
+for a single chain, with no chain dimension.
 
 ## See also
 
@@ -125,7 +125,7 @@ for `sampleTreesFromPrior`, `sampleNodeParametersFromPrior`, and
 `predict`, the building blocks this function composes.
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
 creating a sampler.
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md) for the
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) for the
 same `"ev"`/`"ppd"` vocabulary applied to posterior draws.
 
 ## Examples

@@ -2,17 +2,17 @@
 
 Minimalist visualization of the branching and leaf contents of one tree
 in a fitted
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
 model, or in a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
 A fit-level convenience wrapper around the sampler's `plotTree` method,
 so the trees can be plotted without reaching into the sampler stored on
 the fit.
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s four
-own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
-`"bartHurdle"`) refuse by name instead: their trees live on the
-sampler(s) those fits carry (`object$fit` for the first three,
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
+`"bartNegbin"`, `"bartHurdle"`) refuse by name instead: their trees live
+on the sampler(s) those fits carry (`object$fit` for the first three,
 `object$occupancy$fit`/ `object$positive$fit` for the hurdle), which
 `plotTree` can be called on directly.
 
@@ -46,7 +46,8 @@ plotTree(object, ...)
 
   A fitted model of class `bart` (from
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)), or a
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)),
+  or a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
   Fits must have been made with the trees kept (`keeptrees`/`keepTrees`
   equal to `TRUE`).

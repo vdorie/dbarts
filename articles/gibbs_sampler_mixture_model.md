@@ -106,6 +106,11 @@ samples_mu0 <- matrix(NA_real_, n_samples, n)
 samples_mu1 <- matrix(NA_real_, n_samples, n)
 
 library(dbarts, quietly = TRUE)
+```
+
+    ## dbarts: 'bart' is the modern front door (formerly 'bart2'); 'bartBT' is the BayesTree-style one, with 0.9-x's argument names and defaults. A BayesTree-spelled 'bart' call is forwarded to 'bartBT' with a warning for this release.
+
+``` r
 
 # We only need to draw one sample at a time, although for illustrative purposes
 # a small degree of thinning is done to the BART component.
@@ -467,6 +472,10 @@ fit.miss <- bart2(y ~ x + g, df.miss, n.trees = 10L, n.chains = 1L,
                   n.threads = 1L, n.samples = 20L, n.burn = 20L,
                   verbose = FALSE)
 ```
+
+    ## Warning in warnOnce("tombstone.bart2", "'bart2' is now 'bart'; this call was
+    ## forwarded. The alias is removed ", : 'bart2' is now 'bart'; this call was
+    ## forwarded. The alias is removed in dbarts 1.1-0
 
 `g` above ingests as one categorical predictor with three levels rather
 than two indicator columns, and the ten missing values of `x` are

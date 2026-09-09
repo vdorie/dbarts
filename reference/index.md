@@ -10,44 +10,44 @@
 Fit BART models to fixed data.
 
 - [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`plot(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`predict(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`print(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`extract()`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`fitted(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`residuals(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  : Bayesian Additive Regression Trees
-- [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`extract(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`fitted(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`predict(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`print(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`residuals(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`extract(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`fitted(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`predict(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`print(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`residuals(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`extract(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`fitted(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`predict(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`print(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`residuals(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`extract(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`fitted(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`predict(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`print(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`residuals(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`plot(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`plot(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`plot(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`plot(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`summary(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`summary(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`summary(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`summary(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
-  [`print(`*`<summary.bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`extract(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`fitted(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`predict(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`residuals(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`extract(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`fitted(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`predict(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`residuals(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`extract(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`fitted(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`predict(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`residuals(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`extract(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`fitted(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`predict(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`residuals(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`plot(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`plot(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`plot(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`plot(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`summary(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`summary(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`summary(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`summary(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`print(`*`<summary.bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   : Bayesian Additive Regression Trees with Extended Response Families
+- [`bartBT()`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`plot(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`predict(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`print(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`extract()`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`fitted(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  [`residuals(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  : Bayesian Additive Regression Trees
 - [`xbart()`](https://vdorie.github.io/dbarts/reference/xbart.md) :
   Crossvalidation For Bayesian Additive Regression Trees
 - [`pdbart()`](https://vdorie.github.io/dbarts/reference/pdbart.md)
@@ -102,6 +102,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`getCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`startThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`stopThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`storeState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
@@ -161,6 +163,17 @@ Convergence summaries, and calibration of a sampler composed around one.
   : Convergence Diagnostics and Posterior-Package Draws for BART Fits
 - [`dbartsValidateComposition()`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md)
   : Validate A Composed Sampler By Simulation-Based Calibration
+
+## Deprecated
+
+Names kept reachable for one release past their removal or rename.
+
+- [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  : Deprecated and Removed Functions in dbarts
 
 ## Utilities
 

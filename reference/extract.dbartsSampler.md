@@ -27,7 +27,7 @@ extract(object, type = "predictors", ...)
 - ...:
 
   Unused; included for compatibility with the
-  [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)
   generic.
 
 ## Details
@@ -56,7 +56,7 @@ per predictor, carrying the predictors' column names.
 
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md),
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)
 
 ## Examples
 

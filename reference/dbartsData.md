@@ -140,7 +140,7 @@ that storage, materializing no dense matrix of their own.
 Data frame input is stored columnar: no \\n \times p\\ double matrix is
 retained. Code that previously reached into the data object's `x` slot
 expecting a plain matrix should call
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)`(sampler, "predictors")` -
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(sampler, "predictors")` -
 or `as.matrix` on the slot - to obtain the numeric predictor matrix,
 factor columns as their integer codes.
 

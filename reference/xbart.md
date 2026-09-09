@@ -22,10 +22,17 @@ xbart(
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
-    storage = c("double", "single"), tree.prior = NULL)
+    storage = c("double", "single"), tree.prior = NULL, ...)
 ```
 
 ## Arguments
+
+- ...:
+
+  Not used for new code: the channel that lets a retired argument
+  spelling reach a message naming its successor, instead of R's own
+  “unused argument” error. Any other name is refused. Removed in dbarts
+  1.1-0.
 
 - formula:
 
@@ -178,9 +185,9 @@ xbart(
 - split.probs:
 
   Prior probabilities that a variable is used in a splitting rule, as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). A
-  single value or `NULL` yields the uniform default; a named or unnamed
-  vector assigns per-column probabilities. Fixed for the whole
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+  A single value or `NULL` yields the uniform default; a named or
+  unnamed vector assigns per-column probabilities. Fixed for the whole
   crossvalidation, not part of the swept grid. Cannot be combined with
   `dart`.
 
@@ -243,9 +250,9 @@ xbart(
   does not cross-validate the multinomial model. The built-in binary
   losses transform test predictions through the family's link. This
   vocabulary is narrower than
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s by
-  design - `xbart` cross-validates a single scalar loss per fold, which
-  the own-class families' K-forest or two-part fits have no single
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+  by design - `xbart` cross-validates a single scalar loss per fold,
+  which the own-class families' K-forest or two-part fits have no single
   counterpart of; the wider family set lives on `bart2`.
 
 - missing:

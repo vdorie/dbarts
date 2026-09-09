@@ -2,16 +2,17 @@
 
 Posterior draws of the survival probability \\S(t \mid x)\\ from a
 survival fit: an accelerated failure time (AFT) log-normal fit produced
-by [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) (or
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
+by
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+(or [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
 `family = "aft"`, or a discrete-time hazard fit produced by
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) with
-`family = "hazard"` (or `"hazard.logistic"`).
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+with `family = "hazard"` (or `"hazard.logistic"`).
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s four
-own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
-`"bartHurdle"`) refuse by name instead: none of the four is a survival
-model, so none carries a hazard channel.
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
+`"bartNegbin"`, `"bartHurdle"`) refuse by name instead: none of the four
+is a survival model, so none carries a hazard channel.
 
 ## Usage
 
@@ -82,8 +83,8 @@ Under the log-normal AFT model \\\log T = f(x) + \sigma \epsilon\\ with
 1 - \Phi\left(\frac{\log t - f(x)}{\sigma}\right),\$\$ where \\f(x)\\ is
 the linear predictor \\E\[\log T \mid x\]\\ - the log-time-scale
 quantity that
-[`predict`](https://vdorie.github.io/dbarts/reference/bart.md) and
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md) return
+[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) return
 for an `"aft"` fit - and \\\sigma\\ the residual standard deviation. The
 probability is evaluated at every posterior draw of \\f(x)\\ and
 \\\sigma\\, following the package's convention that draw-level functions
@@ -111,9 +112,9 @@ training data when `newdata` is `NULL`.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
-[`predict`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)
 
 ## Author
 
