@@ -939,11 +939,11 @@ requires copying the full predictor matrix when the sampler was built
 from a matrix, so tight loops that mutate predictors every iteration are
 better served by data-frame input. The remaining per-call overhead is a
 few tens of microseconds of R method dispatch and bookkeeping - the
-price of R-level consistency. Clients for which that matters can drive
-the sampler through the C interface (see the `dbarts.h` header installed
-with the package), which invokes the engine directly and performs no
-R-side collection; such clients supply their own current predictor
-matrix when replaying saved trees.
+price of R-level consistency. Predictor mutation has no counterpart in
+the flat C interface (`dbarts.h`), which reaches the per-sweep
+conditioning channels and leaves every whole-data channel to these
+methods, so a client that mutates predictors every iteration is served
+by data-frame input rather than by dropping below R.
 
 ### Infrastructure methods
 
@@ -959,8 +959,7 @@ re-creation that fails leaves the sampler exactly as it was.
 `adoptPointer(ptr)` is the write side of the same relationship: it
 rebinds the sampler onto `ptr`, an `externalptr` some caller built
 directly, outside this object, from this sampler's own
-`(control, model, data)` triple - typically by driving the C interface
-described under ‘Mutation cost’ - in place of the engine this object
+`(control, model, data)` triple, in place of the engine this object
 created at construction; the abandoned engine becomes unreachable and is
 released once by its own finalizer. `adoptPointer` trusts the caller
 that `ptr` was built from this object's own triple and performs no
@@ -970,11 +969,13 @@ per-forest weight mirrored on the sampler onto a freshly (re-)created
 directly.
 
 These three are the only R-level primitives for exchanging engine
-pointers with code that drives the engine directly through `dbarts.h`.
-There is no other R-level path to that boundary: the low-level `.Call`
-wrappers this class's methods delegate to are internal to the package
-and unexported, so a consumer below this reference class has `dbarts.h`
-and nothing else.
+pointers with code that drives the engine directly through `dbarts.h`:
+`getPointer()` is where a compiled consumer obtains the handle that
+header's entry points take, since it declares no creation entry of its
+own. There is no other R-level path to that boundary: the low-level
+`.Call` wrappers this class's methods delegate to are internal to the
+package and unexported, so a consumer below this reference class has
+`dbarts.h` and nothing else.
 
 ### Multi-forest and heteroscedastic predictor mutation
 

@@ -115,6 +115,36 @@ with `resid.prior = fixed(1)`, rather than reimplementing the family.
 Their `fit` argument is offset-free, as `$getFitsWithoutOffset()`
 reports it.
 
+### Driving it from compiled code
+
+A package that runs its outer block in C or C++ declares
+`LinkingTo: dbarts` and includes `dbarts/dbarts.h`, the flat C API. It
+builds the sampler in R exactly as above -
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+from its own R code - and then reads the handle out of that object's
+external pointer with `R_ExternalPtrAddr` (`$getPointer()` is what hands
+the pointer down). There is no creation entry point and no R type in the
+header; the handle is the whole boundary.
+
+The handle is valid until the R object is garbage collected or replaces
+its pointer, which it does whenever it re-creates its engine from a
+stored state - after a [`load`](https://rdrr.io/r/base/load.html), or
+after `$setState`. Re-read the handle after any such restore, and keep
+the R object reachable for as long as the C side holds one.
+
+What the header reaches is the per-sweep loop: `dbarts_sampler_run` into
+caller-owned buffers, the conditioning channels `setResponse`,
+`setOffset` and `setSigma`, `getLatents`, `predict`, tree storage and
+printing, and the queries a host sizes its results struct from.
+Everything else in the table above - the predictor and weight channels,
+the active-row mask, the state round trip, tree extraction, the
+multi-forest surface - is an R method on the same object, and the two
+views drive one engine. The setters COPY what they are handed into
+buffers the sampler owns at creation, so the caller's array is free the
+moment the call returns and conditioning on new values means calling the
+setter again rather than writing through the array.
+
 ### Checking a composition
 
 Recovering a known truth on one simulated data set is weak evidence.

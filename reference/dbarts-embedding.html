@@ -129,6 +129,29 @@
 </div>
 
 <p></p><div class="section">
+<h3 id="driving-it-from-compiled-code">Driving it from compiled code<a class="anchor" aria-label="anchor" href="#driving-it-from-compiled-code"></a></h3>
+<p>A package that runs its outer block in C or C++ declares <code>LinkingTo: dbarts</code> and
+    includes <code class="file">dbarts/dbarts.h</code>, the flat C API. It builds the sampler in R exactly as above
+    - <code><a href="dbarts.html">dbarts</a></code> or <code><a href="dbartsSpec.html">dbartsSpec</a></code>, from its own R code - and then reads
+    the handle out of that object's external pointer with <code>R_ExternalPtrAddr</code>
+    (<code>$getPointer()</code> is what hands the pointer down). There is no creation entry point and
+    no R type in the header; the handle is the whole boundary.</p>
+<p>The handle is valid until the R object is garbage collected or replaces its pointer, which it
+    does whenever it re-creates its engine from a stored state - after a <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>, or
+    after <code>$setState</code>. Re-read the handle after any such restore, and keep the R object
+    reachable for as long as the C side holds one.</p>
+<p>What the header reaches is the per-sweep loop: <code>dbarts_sampler_run</code> into caller-owned
+    buffers, the conditioning channels <code>setResponse</code>, <code>setOffset</code> and
+    <code>setSigma</code>, <code>getLatents</code>, <code>predict</code>, tree storage and printing, and the
+    queries a host sizes its results struct from. Everything else in the table above - the
+    predictor and weight channels, the active-row mask, the state round trip, tree extraction, the
+    multi-forest surface - is an R method on the same object, and the two views drive one engine.
+    The setters COPY what they are handed into buffers the sampler owns at creation, so the
+    caller's array is free the moment the call returns and conditioning on new values means
+    calling the setter again rather than writing through the array.</p>
+</div>
+
+<p></p><div class="section">
 <h3 id="checking-a-composition">Checking a composition<a class="anchor" aria-label="anchor" href="#checking-a-composition"></a></h3>
 <p>Recovering a known truth on one simulated data set is weak evidence.
     <code><a href="dbartsValidateComposition.html">dbartsValidateComposition</a></code> runs simulation-based calibration over the composed

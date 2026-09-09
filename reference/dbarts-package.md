@@ -119,9 +119,13 @@ API declared in the installed header `dbarts/dbarts.h`, whose entry
 points are reached through `R_GetCCallable` and versioned by the
 two-component handshake `DBARTS_C_API_MAJOR`/`DBARTS_C_API_MINOR`, with
 `dbarts_apiHash()` as an opt-in exact-ABI check, which moves on additive
-releases as well.
-[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-produces the specification objects that API's sampler constructor takes.
+releases as well. That header creates no sampler and names no R type:
+the sampler is built in R -
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md) -
+and the handle the entry points take is the address in that object's
+external pointer, read with `R_ExternalPtrAddr`. See
+[`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md).
 The C++ interface of releases before 1.0-0, `dbarts/R_C_interface.hpp`,
 has been removed.
 
