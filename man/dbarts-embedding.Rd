@@ -92,10 +92,14 @@
 
   \subsection{Driving it from compiled code}{
     A package that runs its outer block in C or C++ declares \code{LinkingTo: dbarts} and
-    includes \file{dbarts/dbarts.h}, the flat C API. It builds the sampler in R exactly as above
-    - \code{\link{dbarts}} or \code{\link{dbartsSpec}}, from its own R code - and then reads
-    the handle out of that object's external pointer with \code{R_ExternalPtrAddr}
-    (\code{$getPointer()} is what hands the pointer down). There is no creation entry point and
+    includes \file{dbarts/dbarts.h}, the flat C API. It builds the sampler in R from its own
+    R code and then reads the handle out of that object's external pointer with
+    \code{R_ExternalPtrAddr} (\code{$getPointer()} is what hands the pointer down). \code{\link{dbarts}}
+    takes a formula or a matrix, not a model object, so a consumer starting from its own
+    already-built \code{(control, model, data)} triple (\code{\link{dbartsSpec}} resolves one
+    without constructing a sampler) builds the sampler instead with
+    \code{methods::new("dbartsSampler", control, model, data)}, then calls \code{$getPointer()}
+    on the result. There is no creation entry point and
     no R type in the header; the handle is the whole boundary.
 
     The handle is valid until the R object is garbage collected or replaces its pointer, which it

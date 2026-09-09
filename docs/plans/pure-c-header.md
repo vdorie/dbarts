@@ -223,8 +223,10 @@ built from the S1 tip):
 
 10. stan4bart bartcore branch: the two creation sites build the
     sampler in R (stan4bart's R side already constructs the control,
-    model and data objects; it calls `dbarts::dbarts` on them and hands
-    the sampler object down) and the C++ reads the handle; the restore
+    model and data objects; `dbarts()` takes a formula or a matrix, not
+    a model object, so the route from that triple is
+    `methods::new("dbartsSampler", control, model, data)` followed by
+    `$getPointer()`) and the C++ reads the handle; the restore
     path uses the R object's `setState`; `getTrees` becomes the R
     method; keep its destroy calls; drop `DBARTS_REQUIRE_EXACT_ABI`
     from both Makevars. Run stan4bart's tinytest suite and its

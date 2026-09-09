@@ -82,8 +82,13 @@
 ///   it is R_alloc-backed internally, and R_alloc is unsafe off that thread.
 /// - THE HANDLE. There is no creation entry here: a dbarts_sampler* is the
 ///   address stored in an R dbartsSampler object's external pointer, which a
-///   consumer builds from R (dbarts(), dbartsSpec()) and reads with
-///   R_ExternalPtrAddr in its own code. It is valid until that R object is
+///   consumer builds from R and reads with R_ExternalPtrAddr in its own
+///   code. dbarts() takes a formula or a matrix, not a model object, so a
+///   consumer starting from its own already-built (control, model, data)
+///   triple (dbartsSpec() resolves one without constructing a sampler)
+///   builds the sampler with methods::new("dbartsSampler", control, model,
+///   data) and reads the handle back with that object's $getPointer(). The
+///   handle is valid until that R object is
 ///   garbage collected or REPLACES its pointer, which the object does
 ///   whenever it re-creates its engine from a stored state, so re-read the
 ///   handle after any R-side restore and keep the R object reachable for as
