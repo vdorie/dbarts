@@ -507,7 +507,100 @@ this record.
 Open, if this becomes a slice: whether the n = 1e4 regression is
 accepted, n-gated, or refuted by a mechanism measurement; and whether
 step 5's vector weighted kernels, which would then only serve the
-per-move child statistic, still earn their per-ISA cost.
+per-move child statistic, still earn their per-ISA cost. The first of
+those is answered below.
+
+#### Mechanism of the n = 1e4 loss, and the fix (2026-09-09)
+
+The 7 percent above is not the weighted arithmetic. Profiled again with
+`/usr/bin/sample` at 1 ms, this time over FIXED WORK - 1500 sweeps,
+n = 1e4, p = 20, 200 trees, the window covering the whole fit - so the
+counts are ms of self time for the same number of sweeps rather than
+shares of an equal wall clock. Four legs: weighted through the stock
+pair, weighted through the fused pass, and the unweighted cell on both
+libraries, where BOTH fuse and which is therefore the control.
+
+| ms self time, 1500 sweeps | weighted, stock | weighted, fused | unwt, fused (tip) | unwt, fused (new) |
+|---|---|---|---|---|
+| whole fit under `Sampler::run` | 5424 | 5895 | 5276 | 5289 |
+| `rollTreeResidual` / `fusedRollPass` | 1358 | 2384 | 1941 | 1944 |
+| pre-move node-average suffstat | 1156 | in the pass | in the pass | in the pass |
+| per-move child suffstat | 517 | 517 | 233 | 242 |
+| `misc_partitionRange_neon` | 1321 | 1961 | 2110 | 2071 |
+| `misc_partitionIndices_neon` | 721 | 686 | 682 | 677 |
+
+The fused pass WINS its own work: 2514 ms of roll plus pre-move
+suffstat becomes 2384, a 130 ms saving. What costs 640 ms more is
+[`misc_partitionRange_neon`](../../src/misc/partition_body.c) - code
+this slice does not touch, in the move phase. Those two plus the small
+`partitionIndices` change account for the whole +471 ms.
+
+The cause is a PREFETCH TRANSFER, and the unweighted control proves it
+rather than arguing it. `Tree::setNodeAverages` gathers over the tree's
+whole `indices[]` permutation, and `Tree::partitionChildren` partitions
+that same array a few instructions later; the suffstat was absorbing
+the misses the partition would otherwise take. Fusing removes the
+gather and the move phase pays them instead. Hence `partitionRange` at
+1321 ms in the one leg that does NOT fuse and 1961 to 2110 ms in all
+three that do - the inflation tracks fusing, not weights, and not
+binary layout (the two unweighted legs are different libraries and
+agree to 2 percent).
+
+Two hypotheses are refuted, not merely unchosen. Per-node overhead: at
+this cell a tree carries 3.905 nodes and 2.453 leaves on average, so
+the doubled bank set is 31 doubles zeroed and combined per tree against
+10000 elements streamed - four orders of magnitude apart. Low leaf
+occupancy: mean occupancy is 4077 rows, and the bare-root share is
+8.3 percent (2.7 at n = 1e5), too small to carry 7 percent even if a
+stump's fused pass were free.
+
+The fix follows from the mechanism: the pass issues one
+`__builtin_prefetch` over `indices[]` per four elements, pacing the
+warm-up with its own stream - 16 index bytes per 64-byte line, so it
+stays four lines ahead of where the move phase reads. Hints move no
+value: the prefetched build reproduces the unprefetched one BITWISE on
+a weighted and an unweighted fit, and its gaussian equivalence compare
+against deb144d2 gives the identical partition (37 of 52 bitwise, the
+same 15 movers, all at max |z| = 0.00, 52 compared / 0 skipped).
+tests/cpp clean.
+
+Re-timed, same protocol - M1 Max, shipped build, one chain one thread,
+`sampler$run` only, seven interleaved repeats, median ms per sample,
+spread max - min in parentheses. "nofuse" is a throwaway library with
+the fusion disabled outright, run to price the SHIPPED unweighted pass
+against no fusion at all; it is not a candidate.
+
+| cell | nofuse | tip | weighted fused | + prefetch | fused/tip | prefetch/tip |
+|---|---|---|---|---|---|---|
+| weighted n = 1e4, p = 20, 200 trees   | -     |  4.88 (0.12) |  5.27 (0.07) |  4.72 (0.04) |  -7.5% |  +3.3% |
+| weighted n = 3e4, p = 20, 200 trees   | -     | 17.09 (0.34) | 16.53 (0.20) | 14.53 (0.03) |  +3.3% | +17.6% |
+| weighted n = 1e5, p = 20, 200 trees   | -     | 58.77 (1.36) | 48.65 (0.08) | 46.75 (0.37) | +20.8% | +25.7% |
+| weighted n = 1e5, p = 10, 200 trees   | -     | 60.08 (1.26) | 48.49 (0.06) | 46.67 (0.30) | +23.9% | +28.7% |
+| UNWEIGHTED n = 1e4, p = 20, 200 trees |  3.84 |  4.64 (0.07) |  4.65 (0.11) |  4.00 (0.02) |  -0.3% | +15.9% |
+| UNWEIGHTED n = 1e5, p = 10, 200 trees | 43.87 | 40.47 (0.67) | 40.41 (0.61) | 38.20 (0.05) |  +0.1% |  +5.9% |
+
+Three results. First, the prefetch KEEPS the gain and removes the loss:
+the weighted extension goes from -7.5 to +3.3 percent at n = 1e4 and
+from +20.8 to +25.7 at n = 1e5, so there is no crossover left in the
+measured range. Without it the crossover sits between n = 1e4 and
+n = 3e4 at p = 20. It is kept as a real commit.
+
+Second, the prefetch also speeds the ALREADY-SHIPPED unweighted path,
+by 16 percent at n = 1e4 and 6 percent at n = 1e5 - it lost the same
+warm-up when the fusion landed, and nothing was measuring for it.
+
+Third, and this is a finding about the SHIPPED kernel rather than about
+this prototype: at n = 1e4, p = 20, 200 trees the unweighted fusion is
+a 21 percent LOSS against not fusing (4.64 versus 3.84 ms per sample at
+identical work - 274.63 splits per sweep and sigma 1.020248794 on all
+three libraries), and even with the prefetch it is still 4 percent
+behind. At n = 1e5, p = 10 the same comparison is a 8.4 percent win,
+14.8 with the prefetch. memory-wall-frontier.md sec 12 recorded a
+5 percent arm64 loss at a no-signal n = 1e5 cell and sec 13 accepted
+it; a signal-carrying p = 20 cell one scale down was never measured and
+is four times worse. That belongs to the shipped fusion's own ledger,
+not to this measurement, and it is not decided here.
+
 
 
 S3, the run loop (dec-B88):
