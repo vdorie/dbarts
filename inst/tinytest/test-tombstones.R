@@ -265,6 +265,32 @@ if (!grepl("tombstone", version1, ignore.case = TRUE)) {
     "NEWS tombstone list is written in the manual/news slice of this arc"
   )
 }
+
+# The check above only proves the word "tombstone" appears somewhere in a
+# ~2000-line section - every registry name recurs elsewhere in there too
+# (sigma, dart, control, ... are all ordinary English or reused in other
+# bullets), so grepl-ing the whole section never discriminates a name
+# actually dropped from the tombstone list itself. Narrow to the one
+# \item that carries the list: it opens with a fixed marker sentence and
+# ends where the next \item at the same indent begins.
+markerStart <- "Every name and argument kept reachable"
+expect_true(
+  grepl(markerStart, version1, fixed = TRUE),
+  info = "the tombstone list's marker sentence in inst/NEWS.Rd moved or was reworded"
+)
+tombstoneItem <- regmatches(
+  version1,
+  regexpr(
+    paste0("(?s)", markerStart, ".*?(?=\\n      \\\\item )"),
+    version1,
+    perl = TRUE
+  )
+)
+expect_equal(length(tombstoneItem), 1L)
+expect_true(nzchar(tombstoneItem))
 for (nm in unique(names.t[kinds %in% c("function", "method", "argument")])) {
-  expect_true(grepl(nm, version1, fixed = TRUE))
+  expect_true(
+    grepl(nm, tombstoneItem, fixed = TRUE),
+    info = paste0("'", nm, "' is missing from NEWS's tombstone-list item")
+  )
 }

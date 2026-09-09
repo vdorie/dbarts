@@ -48,6 +48,9 @@
     \item{A fourth or later positional \code{\link{bart}} argument}{
       Refused, naming both doors: 0.9-x's \code{bart} read a fourth positional argument as \code{sigest}, where \code{bart}'s own fourth formal is \code{subset}.
     }
+    \item{The front-door startup message}{
+      Attaching the package prints one \code{packageStartupMessage} naming both doors, once per session (\code{suppressPackageStartupMessages} silences it); no successor, since nothing replaces it.
+    }
   }
 
   Every entry above, and \code{bart2} and the \code{rbart_vi} stubs, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
