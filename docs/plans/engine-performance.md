@@ -145,6 +145,15 @@ choice; none remains open.
    fork returns to VD with the table and the reproducibility cost
    stated (cross-host CI falls to its statistical tier). The design
    note records the table either way.
+   Continued (VD 2026-09-10): "Why don't we see how it works on weights
+   first before deciding. It doesn't seem that complicated (we had it
+   before), and if it makes a difference on weights then we'll already
+   have an instance where bit-wise equivalence won't apply." Step 5
+   therefore narrows to the two WEIGHTED double entry points, which the
+   re-profile puts at 31 to 54 percent of a weighted fit against 5 to
+   12 percent for the default path's single indexed kernel; the
+   unweighted pair and the four Float twins stay scalar, and the layout
+   rule above is settled on the weighted cells.
 3. Settled with fork 1.
 4. Within-chain threading's opt-in spelling (VD 2026-09-08: "No,
    n.threads shouldn't mean n.chains"): `n.threads` keeps 0.9-34's
