@@ -261,6 +261,10 @@ rankNormalizeMatrix <- function(x) {
   r <- rank(x, ties.method = "average")
   s <- length(r)
   z <- stats::qnorm((r - 3 / 8) / (s - 3 / 4 + 1))
+  # rank()'s default na.last = TRUE still assigns NA a (last) rank, so
+  # without this z would read as finite there; put the NA back so a
+  # non-finite input propagates to NA instead of a number.
+  z[is.na(x)] <- NA
   dim(z) <- dim(x)
   z
 }
@@ -360,7 +364,11 @@ essFromHalfChains <- function(x) {
   }
 
   ess <- nChains * n
-  tauHat <- -1 + 2 * sum(rhoHatT[seq_len(maxT)]) + rhoHatT[maxT + 1L]
+  # 1:maxT, not seq_len(maxT): posterior's own .ess indexes rho_hat_t[1:max_t]
+  # literally, and at max_t == 0 that 1:0 still selects element 1 (R drops
+  # the 0), giving tau_hat = 2 - not the empty sum seq_len(0) would give,
+  # which uncaps tau_hat toward 0 and inflates ESS by roughly log10(ess).
+  tauHat <- -1 + 2 * sum(rhoHatT[1:maxT]) + rhoHatT[maxT + 1L]
   tauBound <- 1 / log10(ess)
   if (tauHat < tauBound) {
     tauHat <- tauBound
@@ -384,8 +392,14 @@ essBulk <- function(x) {
 
 # One quantile's ESS: an indicator on the RAW, UNSPLIT, UNRANKED pooled
 # draws, split (never rank-normalized) and passed straight to the shared
-# estimator.
+# estimator. The NA/Inf/constant guard runs on the RAW draws, before
+# stats::quantile ever sees them - an NA/NaN draw would otherwise error
+# out of quantile() instead of propagating NA, and an Inf draw would
+# still produce a (meaningless) finite indicator.
 essQuantile <- function(x, prob) {
+  if (diagnosticsReturnNA(x)) {
+    return(NA_real_)
+  }
   indicator <- x <= stats::quantile(x, probs = prob, names = FALSE)
   essFromHalfChains(splitChainsMatrix(indicator))
 }
@@ -405,14 +419,23 @@ summariseDraws <- function(arr) {
     x <- arr[,, i, drop = TRUE]
     dim(x) <- d
     pooled <- as.vector(x)
+    # posterior's own quantile2.default checks anyNA(x) before calling
+    # quantile() and reports NA instead when it holds - quantile() itself
+    # errors on an NA/NaN input rather than propagating NA the way
+    # mean/median/sd/mad already do.
+    qs <- if (anyNA(pooled)) {
+      c(NA_real_, NA_real_)
+    } else {
+      stats::quantile(pooled, c(0.05, 0.95), names = FALSE)
+    }
     data.frame(
       variable = varNames[i],
       mean = mean(pooled),
       median = stats::median(pooled),
       sd = stats::sd(pooled),
       mad = stats::mad(pooled),
-      q5 = stats::quantile(pooled, 0.05, names = FALSE),
-      q95 = stats::quantile(pooled, 0.95, names = FALSE),
+      q5 = qs[1L],
+      q95 = qs[2L],
       rhat = splitRhat(x),
       ess_bulk = essBulk(x),
       ess_tail = essTail(x),

@@ -157,7 +157,7 @@ rm(
   goodFit
 )
 
-# summary()/as_draws_*() on a COMBINED (default) multi-chain fit must
+# summary()/draws() on a COMBINED (default) multi-chain fit must
 # reconstruct a non-scalar field's chain axis from its combined
 # (n.chains * n.samples) x n.vars layout, not the (n.chains, n.samples)
 # layout an uncombined scalar field has - the two 2-D shapes are otherwise
@@ -306,3 +306,98 @@ expect_equal(
 expect_true(dbarts:::splitRhat(xVarShift) > 1.05)
 
 rm(n.var, m.var, makeVarShiftChain, xVarShift)
+
+# ---- Geyer's initial monotone sequence indexes rho_hat_t[1:max_t], not
+# seq_len(max_t): at max_t == 0 (short chains, few draws) 1:0 still selects
+# element 1 in R, giving tau_hat = 2, exactly as posterior 1.7.0's own .ess
+# does - not the empty sum seq_len(0) would give, which uncaps tau_hat and
+# inflates ESS by roughly log10(ess). This exact shape (n.chains = 4L,
+# n.samples = 10L) is reachable through summary(bart(...)) and previously
+# reported ess_bulk 64.08 against posterior's 20 ----
+
+set.seed(1)
+xShort <- matrix(rnorm(40), 10, 4)
+expect_equal(dbarts:::splitRhat(xShort), 0.95671793361441093, tolerance = 1e-12)
+expect_equal(dbarts:::essBulk(xShort), 20, tolerance = 1e-12)
+expect_equal(dbarts:::essTail(xShort), 20, tolerance = 1e-12)
+rm(xShort)
+
+# same maxT == 0 shape, reached through a real fit's summary() rather than
+# a hand-built matrix, pinned against posterior 1.7.0's own rhat()/
+# ess_bulk() on the same draws array
+set.seed(1)
+xShort.x <- rnorm(50)
+xShort.y <- rnorm(50)
+fitShort <- dbarts::bart(
+  xShort.x,
+  xShort.y,
+  n.chains = 4L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+sShort <- summary(fitShort)
+expect_equal(sShort$stats$ess_bulk[1L], 20, tolerance = 1e-12)
+rm(xShort.x, xShort.y, fitShort, sShort)
+
+# ---- strongly negative lag-1 autocorrelation (alternating-sign draws),
+# pinned against posterior 1.7.0's own ess_bulk()/ess_tail()/rhat() on the
+# same array - a regime the fold/rank-normalize/Geyer-sequence machinery
+# above is not otherwise exercised against ----
+
+set.seed(2)
+n.alt <- 60L
+m.alt <- 4L
+makeAltChain <- function() {
+  e <- rnorm(n.alt)
+  z <- numeric(n.alt)
+  z[1L] <- e[1L]
+  for (i in 2:n.alt) {
+    z[i] <- -0.9 * z[i - 1L] + sqrt(1 - 0.81) * e[i]
+  }
+  z
+}
+xAlt <- sapply(seq_len(m.alt), function(j) makeAltChain())
+
+expect_equal(dbarts:::splitRhat(xAlt), 1.0927152820831476, tolerance = 1e-12)
+expect_equal(dbarts:::essBulk(xAlt), 571.25069801078541, tolerance = 1e-12)
+expect_equal(dbarts:::essTail(xAlt), 52.277707200464448, tolerance = 1e-12)
+
+rm(n.alt, m.alt, makeAltChain, xAlt)
+
+# ---- an NA or Inf draw must propagate to NA rather than crash or report
+# finite garbage: rank()'s na.last = TRUE default assigns NA a (last) rank
+# unless explicitly undone, and stats::quantile() errors outright on an
+# unguarded NA/NaN input. posterior 1.7.0's summarise_draws() reports NA in
+# every column for an NA draw; an Inf draw leaves most columns finite (only
+# the affected tail-ESS quantile goes NA) ----
+
+set.seed(9)
+xNA <- matrix(rnorm(80), 20, 4)
+xNA[3L, 2L] <- NA
+arrNA <- array(xNA, c(20L, 4L, 1L))
+dimnames(arrNA) <- list(NULL, NULL, "v")
+sNA <- dbarts:::summariseDraws(arrNA)
+expect_true(is.na(sNA$mean))
+expect_true(is.na(sNA$median))
+expect_true(is.na(sNA$sd))
+expect_true(is.na(sNA$mad))
+expect_true(is.na(sNA$q5))
+expect_true(is.na(sNA$q95))
+expect_true(is.na(sNA$rhat))
+expect_true(is.na(sNA$ess_bulk))
+expect_true(is.na(sNA$ess_tail))
+rm(xNA, arrNA, sNA)
+
+set.seed(9)
+xInf <- matrix(rnorm(80), 20, 4)
+xInf[3L, 2L] <- Inf
+arrInf <- array(xInf, c(20L, 4L, 1L))
+dimnames(arrInf) <- list(NULL, NULL, "v")
+sInf <- dbarts:::summariseDraws(arrInf)
+expect_equal(sInf$rhat, 1.0358481251143132, tolerance = 1e-12)
+expect_equal(sInf$ess_bulk, 73.115800088957201, tolerance = 1e-8)
+expect_true(is.na(sInf$ess_tail))
+rm(xInf, arrInf, sInf)
