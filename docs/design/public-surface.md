@@ -2,8 +2,8 @@
 
 Status: MIXED; reviewed 2026-07-03, updated through 2026-08-13 (dbarts-h-reshape S1,
 ab3aa2fa - sec 6). Decisions from that review are recorded inline as DECIDED.
-Section 6 is SUPERSEDED by [pure-c-header](../plans/pure-c-header.md#pure-c-header):
-"SEXPs at exactly two boundaries" is now none, the header creating no sampler
+Section 6 is SUPERSEDED by [pure-c-header](../plans/pure-c-header.md#pure-c-header), LANDED
+2026-09-09 (2d0b6d90): "SEXPs at exactly two boundaries" is now none, the header creating no sampler
 and carrying no state or tree entry, and the entry list there is the
 twenty-four the trim leaves. The `retired:` cites in section 6 name constructs
 that are gone.

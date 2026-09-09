@@ -9,7 +9,8 @@ Supersedes the original copy-raw plan (rejected, VD, 2026-07-06 - see
 "Considered and rejected"); docs/plans/archive/data-ownership.md tracks the
 plan-by-plan history and points here for the design record.
 
-Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header), LANDED 2026-09-09
+(2d0b6d90): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
 tree-extraction or augmentation entries - each is a method on the R sampler object the
 handle is now read from. The `retired:` cites below name constructs that are gone; what

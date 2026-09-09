@@ -253,3 +253,52 @@ gh workflow run revdep-smoke.yaml --ref <tip>       # three green
 
 Expected: header size roughly halved; `grep -c SEXP inst/include/dbarts/dbarts.h`
 is 0; both consumers build with no `DBARTS_REQUIRE_EXACT_ABI` and pass.
+
+## Landing note, S1 (2026-09-09)
+
+LANDED at 2d0b6d9044d36f2f575d1fbe36d0d290e6ddd35d, four commits:
+
+- d0403979bb41b19c64b88ff89bc1300fdb171726 Make dbarts.h a pure C header driven from an R-created handle
+- 813dab985846a334c66a0ec0476d10688df5ccfe Document the pure C header and amend the records it supersedes
+- d904fb140b8852fe5ce991961c24069d42542aeb Drop the last two references to entries the header no longer has
+- 2d0b6d9044d36f2f575d1fbe36d0d290e6ddd35d Correct the copy-on-set comments, two stale references and the format
+
+[`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h) trims to the
+twenty-four entries the plan named; `grep -c SEXP
+inst/include/dbarts/dbarts.h` is 0. The holder is the handle:
+[`BartcoreHolder`](../../src/R_interface_bartcore_common.hpp)'s
+`dbarts_sampler_t` is what `R_ExternalPtrAddr` on the R sampler object's
+pointer returns. `setResponse`/`setOffset` copy-on-set on both R routes -
+the pin and the move - into the holder's owned buffers, sized in
+[`createHolder`](../../src/R_interface_bartcore.cpp); both tokens re-baked
+([`dbarts_apiSignatureToken`](../../src/C_interface.cpp),
+`DBARTS_C_API_HASH`). The shipped test consumer
+(["consumer.c"](../../inst/tinytest/test-capi.R)) is rewritten to create
+through R, keeps the five handshake arms, and adds a copy-on-set probe, a
+handle-after-restore probe and a destroy probe; tests/cpp gains the
+two-compiler header-compiles target. Docs land with the code: the header's
+own contract prose, dbarts-embedding.Rd, NEWS's 1.0-0 UPGRADING entry.
+Real diff: 36 files, +812/-3895, about 1.9x the budget line - the excess
+is step 6's deletions in test-capi.R and the consumer, plus 48 `retired:`
+cites across 19 records where the plan named four.
+
+Gates, run independently: tests/cpp 283 ok plus header-compiles; tinytest
+7793/0; equivalence 50/12/11 identical, 0 skipped, no "max |z|" line;
+`R CMD check --as-cran` OK from a clean tarball; check-doc-freshness.R and
+check-rc-codoc.R exit 0; NEWS parses; `air format --check` clean; ASan on
+the R-loaded C entry path 126/126 and the R-path setter suites 747/747, 0
+diagnostics, via the exec/R recipe now in
+[Gate hygiene](README.md#gate-hygiene). Mutation probe: dropping both
+`adoptVector` calls fails exactly the two copy-on-set assertions.
+
+Review findings fixed before landing: air format on test-capi.R; the
+ASan-unreachable claim corrected into the R-loaded-path recipe above; two
+stale comments, in [`dbartsDrawLatents`](../../R/augmentation.R) and
+inst/tinytest/test-spec.R; the buffer-sizing comment in
+[`adoptVector`](../../src/R_interface_bartcore.cpp) and
+[`BartcoreHolder`](../../src/R_interface_bartcore_common.hpp) scoped to
+routes a flat C handle can name, `bartcore_createFromHandle` the
+exception; the plan's Verification block corrected to name all three
+equivalence harnesses.
+
+Remaining: S2's stan4bart and treatSens ports; S3's CI hash-bump assertion.
