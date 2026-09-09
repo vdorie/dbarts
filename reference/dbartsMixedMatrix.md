@@ -15,10 +15,12 @@ x/y interface (and so
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s and
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s) returns
 one under the same condition and stores it in the resulting `dbartsData`
-object's `x`/`x.test` slot. The formula interface refuses a sparse
-column outright (a bare S4 column does not survive
-[`model.frame`](https://rdrr.io/r/stats/model.frame.html)), so a
-`dbartsMixedMatrix` only ever arises from one of those two entrances.
+object's `x`/`x.test` slot. The formula interface accepts a sparse
+column too, named like any other (including through `.`): a bare S4
+column cannot survive
+[`model.frame`](https://rdrr.io/r/stats/model.frame.html), so it is
+lifted out of `data` first and re-attached, row-subset under `subset`
+and `na.action`, to the assembled predictor matrix afterward.
 
 ## Usage
 

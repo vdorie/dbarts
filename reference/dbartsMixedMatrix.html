@@ -9,9 +9,11 @@
   x/y interface (and so dbarts's and bart's)
   returns one under the same condition and stores it in the resulting
   dbartsData object's x/x.test slot. The formula
-  interface refuses a sparse column outright (a bare S4 column does not
-  survive model.frame), so a dbartsMixedMatrix only
-  ever arises from one of those two entrances."><meta property="og:description" content="The container a data frame's predictor columns assemble into whenever any
+  interface accepts a sparse column too, named like any other (including
+  through .): a bare S4 column cannot survive
+  model.frame, so it is lifted out of data first and
+  re-attached, row-subset under subset and na.action, to the
+  assembled predictor matrix afterward."><meta property="og:description" content="The container a data frame's predictor columns assemble into whenever any
   column is sparse-backed (a sparseFactor column, or a
   Matrix::sparseVector/dgCMatrix column assigned into the
   frame): dense columns stay a per-column list and sparse columns stay one
@@ -21,9 +23,11 @@
   x/y interface (and so dbarts's and bart's)
   returns one under the same condition and stores it in the resulting
   dbartsData object's x/x.test slot. The formula
-  interface refuses a sparse column outright (a bare S4 column does not
-  survive model.frame), so a dbartsMixedMatrix only
-  ever arises from one of those two entrances."></head><body>
+  interface accepts a sparse column too, named like any other (including
+  through .): a bare S4 column cannot survive
+  model.frame, so it is lifted out of data first and
+  re-attached, row-subset under subset and na.action, to the
+  assembled predictor matrix afterward."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -73,9 +77,11 @@
   x/y interface (and so <code><a href="dbarts.html">dbarts</a></code>'s and <code><a href="bart.html">bart</a></code>'s)
   returns one under the same condition and stores it in the resulting
   <code>dbartsData</code> object's <code>x</code>/<code>x.test</code> slot. The formula
-  interface refuses a sparse column outright (a bare S4 column does not
-  survive <code><a href="https://rdrr.io/r/stats/model.frame.html" class="external-link">model.frame</a></code>), so a <code>dbartsMixedMatrix</code> only
-  ever arises from one of those two entrances.</p>
+  interface accepts a sparse column too, named like any other (including
+  through <code>.</code>): a bare S4 column cannot survive
+  <code><a href="https://rdrr.io/r/stats/model.frame.html" class="external-link">model.frame</a></code>, so it is lifted out of <code>data</code> first and
+  re-attached, row-subset under <code>subset</code> and <code>na.action</code>, to the
+  assembled predictor matrix afterward.</p>
     </div>
 
     <div class="section level2">

@@ -85,8 +85,10 @@ Data frame columns - through the formula interface or a frame passed as
   levels down each branch; `factors = "indicators"` instead expands each
   factor into binary indicator columns, as previous versions always
   did - a factor past 100 levels builds this expansion as a sparse
-  (`dgCMatrix`-backed) block automatically, which changes only the
-  design-matrix representation and carries no argument of its own;
+  (`dgCMatrix`-backed) block automatically, with no user-facing
+  argument: the tree structure grown is the same as the dense
+  expansion's, though leaf-mean draws can differ from it in the last
+  bit;
 
 - ordered factors enter as their own predictor kind, coded numerically
   by level order and split at a threshold on those codes; the split grid

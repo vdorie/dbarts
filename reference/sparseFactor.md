@@ -8,16 +8,17 @@ whose implicit entry is zero.
 
 Accepted as a predictor by
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
-through the x/y interface: a data frame passed as `x.train` may mix
-dense numeric/factor columns with sparse ordinal columns
+through either interface: a data frame passed as `x.train` may mix dense
+numeric/factor columns with sparse ordinal columns
 ([`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
-or `dgCMatrix`) and `sparseFactor` columns in any combination. A
-`sparseFactor` column enters as one categorical predictor and bins
-bitwise-identically to a dense factor of the same values. **The formula
-interface does not accept it**: a bare S4 column cannot survive
-[`model.frame`](https://rdrr.io/r/stats/model.frame.html), so the
-formula path refuses a `sparseFactor` column explicitly, with a message
-to supply it through the x/y interface instead.
+or `dgCMatrix`) and `sparseFactor` columns in any combination, and a
+`formula`'s `data` accepts one too, named like any other column
+(including through `.`): a bare S4 column cannot survive
+[`model.frame`](https://rdrr.io/r/stats/model.frame.html), so
+`dbartsData` lifts it out of `data` first and re-attaches it, row-subset
+under `subset` and `na.action`, to the assembled predictor matrix
+afterward. A `sparseFactor` column enters as one categorical predictor
+and bins bitwise-identically to a dense factor of the same values.
 
 The same holds for a test set (`test`/`x.test`): a `sparseFactor` test
 column is recoded over the training level table and stays resident -
