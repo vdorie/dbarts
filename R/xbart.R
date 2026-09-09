@@ -474,9 +474,6 @@ xbart <- function(
     control,
     model,
     data,
-    method,
-    foldSizes,
-    numTest,
     n.samples = control@n.samples,
     n.burn,
     n.trees,
@@ -488,16 +485,45 @@ xbart <- function(
     lossFunction
   )
 
-  numChunks <- max(1L, min(n.threads, n.reps))
-  chunkIndices <- parallel::splitIndices(n.reps, numChunks)
+  # work is distributed over (replication, fold) UNITS rather than over
+  # replication ranges: each fold of a replication is an independent fit, so
+  # a k-fold call with a single replication fills every worker instead of
+  # running the whole sweep on one. Cells still run in a fixed order within a
+  # unit, which is what the k warm start inside a fold rides on.
+  numFolds <- if (method == "k-fold") length(foldSizes) else 1L
+  numUnits <- n.reps * numFolds
+  numChunks <- max(1L, min(n.threads, numUnits))
+  chunkIndices <- parallel::splitIndices(numUnits, numChunks)
 
-  # a supplied seed drives every chunk deterministically and leaves the
-  # caller's stream untouched; results are reproducible for a fixed
-  # (seed, n.threads) pair, since the chunking changes with the latter
-  chunkSeeds <- if (!is.na(seed)) {
-    withFixedSeed(seed, sample.int(.Machine$integer.max, numChunks))
+  # each replication draws its data split from its own seed and each unit its
+  # fits from its own, both derived from the call's seed alone, so a seed
+  # reproduces at any 'n.threads': no draw depends on which worker ran a unit
+  # or on how many there were. The splits are drawn HERE rather than on the
+  # worker that runs them, so a non-default RNGkind() in this process governs
+  # them at every thread count - a worker starts at the default kind.
+  seeds <- if (!is.na(seed)) {
+    withFixedSeed(seed, sample.int(.Machine$integer.max, n.reps + numUnits))
   } else {
-    sample.int(.Machine$integer.max, numChunks)
+    sample.int(.Machine$integer.max, n.reps + numUnits)
+  }
+  splitSeeds <- seeds[seq_len(n.reps)]
+  unitSeeds <- seeds[n.reps + seq_len(numUnits)]
+
+  unitRows <- vector("list", numUnits)
+  for (replication in seq_len(n.reps)) {
+    set.seed(splitSeeds[replication])
+    if (method == "k-fold") {
+      permutation <- sample.int(numObservations)
+      foldOffset <- 0L
+      for (fold in seq_len(numFolds)) {
+        unitRows[[(replication - 1L) * numFolds + fold]] <- sort(
+          permutation[foldOffset + seq_len(foldSizes[fold])]
+        )
+        foldOffset <- foldOffset + foldSizes[fold]
+      }
+    } else {
+      unitRows[[replication]] <- sort(sample.int(numObservations, numTest))
+    }
   }
 
   if (verbose) {
@@ -507,9 +533,9 @@ xbart <- function(
       " parameter combination",
       if (numCells > 1L) "s" else "",
       " x ",
-      n.reps,
-      " replication",
-      if (n.reps > 1L) "s" else "",
+      numUnits,
+      " (replication, fold) unit",
+      if (numUnits > 1L) "s" else "",
       " on ",
       numChunks,
       " worker",
@@ -520,11 +546,7 @@ xbart <- function(
   }
 
   if (numChunks == 1L) {
-    chunkResults <- list(xbartRunChunk(
-      spec,
-      chunkIndices[[1L]],
-      chunkSeeds[1L]
-    ))
+    chunkResults <- list(xbartRunChunk(spec, unitRows, unitSeeds))
   } else {
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
@@ -533,14 +555,25 @@ xbart <- function(
     chunkResults <- parallel::clusterMap(
       cluster,
       xbartRunChunk,
-      repIndices = chunkIndices,
-      chunkSeed = chunkSeeds,
+      unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
+      unitSeeds = lapply(chunkIndices, function(indices) unitSeeds[indices]),
       MoreArgs = list(spec = spec)
     )
   }
-  # rep-major, cells within: chunks hold contiguous rep ranges
-  lossValues <- do.call(rbind, chunkResults)
-  numResults <- ncol(lossValues)
+  # unit-major, cells within; the folds of one replication are contiguous, so
+  # the reported loss is their average, as it was when one worker ran every
+  # fold of a replication in sequence
+  unitLoss <- do.call(rbind, chunkResults)
+  numResults <- ncol(unitLoss)
+  lossValues <- matrix(
+    apply(
+      array(unitLoss, c(numCells, numFolds, n.reps, numResults)),
+      c(1L, 3L, 4L),
+      mean
+    ),
+    n.reps * numCells,
+    numResults
+  )
 
   # place by index so the array layout is independent of evaluation order
   dims <- c(n.reps, length(n.trees), kLength, length(power), length(base))
@@ -661,18 +694,19 @@ xbartLossFunction <- function(loss, control, family) {
   )
 }
 
-## One worker's share of the replications. The predictor store (cuts +
-## codes) is built once per chunk; each fold's sampler is a row-subset view
+## One worker's share of the (replication, fold) units, as the rows each
+## unit holds out and the seed its fits run under. The predictor store (cuts
+## + codes) is built once per chunk; each unit's sampler is a row-subset view
 ## over it, so every fold bins on the full data's cut grid and no fold
-## re-quantizes the predictors. Per data split, every tree count gets a
-## fresh sampler burned n.burn[1] iterations; the remaining parameter cells
+## re-quantizes the predictors. Within a unit every tree count gets a fresh
+## sampler burned n.burn[1] iterations and the remaining parameter cells
 ## sweep warm off it with n.burn[2] iterations each, sound because the
-## training data is unchanged. Chains never carry over between splits, whose
-## held-out rows the previous training set contained.
-## Returns a (reps x cells) x numResults matrix, cells in spec$cells order.
-xbartRunChunk <- function(spec, repIndices, chunkSeed) {
-  set.seed(chunkSeed)
-
+## training data is unchanged. Chains never carry over between units, whose
+## held-out rows the previous training set contained; seeding per unit rather
+## than per chunk is what keeps a result independent of how the units were
+## distributed.
+## Returns a (units x cells) x numResults matrix, cells in spec$cells order.
+xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   data <- spec$data
   cells <- spec$cells
   numCells <- nrow(cells)
@@ -764,25 +798,10 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
     lossValues
   }
 
-  results <- vector("list", length(repIndices))
-  for (i in seq_along(repIndices)) {
-    if (spec$method == "k-fold") {
-      permutation <- sample.int(numObservations)
-      repLoss <- NULL
-      foldOffset <- 0L
-      for (fold in seq_along(spec$foldSizes)) {
-        testRows <- sort(permutation[
-          foldOffset + seq_len(spec$foldSizes[fold])
-        ])
-        foldOffset <- foldOffset + spec$foldSizes[fold]
-        foldLoss <- sweepCells(testRows)
-        repLoss <- if (is.null(repLoss)) foldLoss else repLoss + foldLoss
-      }
-      results[[i]] <- repLoss / length(spec$foldSizes)
-    } else {
-      testRows <- sort(sample.int(numObservations, spec$numTest))
-      results[[i]] <- sweepCells(testRows)
-    }
+  results <- vector("list", length(unitRows))
+  for (i in seq_along(unitRows)) {
+    set.seed(unitSeeds[i])
+    results[[i]] <- sweepCells(unitRows[[i]])
   }
 
   do.call(rbind, results)
