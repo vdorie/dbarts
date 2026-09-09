@@ -17,6 +17,12 @@ token or a pre-built [`dbartsFamily`](../../R/family.R) object (`gaussian()`,
 `nbinom(dispersion)`, `aft()`, `hazard(breaks, max.rows, link)`,
 `hurdle.lognormal()`), exported as `dbartsFamilies` beside section 3a's
 `dbartsPriors` and resolved by the same bare-name vocabulary rule.
+Sections 1 and 5's "one handle per worker chunk" xbart description is
+AMENDED by [front-door](../plans/front-door.md#front-door) S3, LANDED
+2026-09-09 (cb5d4ef2): that names the pre-S3 scheme; xbart now
+distributes (replication, fold) units, not replication ranges, across
+workers, each unit's seed derived from the call seed and its
+(replication, fold) index.
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so

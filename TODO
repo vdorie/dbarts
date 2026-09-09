@@ -279,7 +279,7 @@ items
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
-  ecb319aa, S2 44b3fa6d landed; S3-S4 open)
+  ecb319aa, S2 44b3fa6d, S3 cb5d4ef2 landed; S4 open)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
   one release; the BayesTree-style names and defaults move to a new
   function, bartBT (VD 2026-09-08); for one release bart forwards
@@ -303,7 +303,8 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76; S1
   predict (dec-B109).
   Plan: docs/plans/front-door.md.
 
-xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
+xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77,
+  B102; S3 LANDED cb5d4ef2)
   tombstones for control= and a three-element n.burn (error naming the
   flat fields); distribute grid cells and folds across workers, not
   replications (today k-fold with n.reps = 1 runs on one worker: 2.1x

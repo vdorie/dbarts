@@ -502,3 +502,84 @@ Remaining: S3 (xbart worker units, per-unit seeds, list-valued k), S4
 (manual, NEWS, records, consumer ports); ~40 test sites still use old
 spellings through the tombstones; `family = c("probit", "logistic")`
 takes the first element under the vocabulary rule.
+
+## Landing note, S3 (2026-09-09)
+
+LANDED at cb5d4ef23dfbd69af6a8eed626c12c9a74ded354, seven commits:
+
+- 3fb7c2ac5e724b17b7c94e09175278c7a21ccde0 Distribute xbart over (replication, fold) units and seed each unit
+- c42b72af315ae33c1e1a77e95697930af9b55a72 Take a list-valued xbart k grid and tombstone control= and a three-element n.burn
+- f60564bdb3c6475fa7101d30b79728df7ea56643 Update the xbart tests and manual for the unit distribution, the seeds and the k grid
+- 5ce010eebce8e668e83c78b5329c6dd5bf456583 Replay the xbart seeded-drift snapshot on the reference build
+- d3ddfa91ca9e25cf6ee4603d03ef98904ca99927 Re-record the gaussian equivalence baseline at abf88654 and repoint its pins
+- 9f25cc55d79d88b252dd94d552f02e12ab292406 Keep the xbart thread-count pin inside the check core limit
+- cb5d4ef23dfbd69af6a8eed626c12c9a74ded354 Restore the caller's random stream across xbart's dispatch, and address review nits
+
+[`xbart`](../../R/xbart.R) dispatches (replication, fold) UNITS across
+workers instead of replication ranges, cells inside a unit running in
+their old fixed order so a fold's k warm start is unchanged and none
+crosses folds (a capturing-loss comparison against the base tip showed
+the full call sequence identical, only per-unit seeds moving the
+values). Each unit's seed derives from the call's seed and its
+(replication, fold) index; splits are drawn in the calling process under
+the caller's `RNGkind`, and results are identical at n.threads 1, 2, 3,
+4, 5, 8 and with folds exceeding threads. The whole dispatch runs under
+[`withPreservedSeed`](../../R/validateComposition.R) (`withFixedSeed`
+now wraps it), so a seeded call leaves `.Random.seed` as it found it and
+an unseeded call's end state is thread-count independent. `k` takes a
+numeric vector or a list of numbers and hyperprior objects, a modelled
+cell labelled by its constructor call ([`kGridLabel`](../../R/xbart.R))
+and swept last; an absent `k` runs one cell at the front-door default
+for the response type (fixed 2 continuous, `chi(1.5, 2)` binary,
+superseding dec-B12), and a supplied `node.prior` k still wins.
+[`dbartsTombstones`](../../R/tombstones.R) gained `control=` and a
+three-element `n.burn`, naming the flat fields; the xbart snapshot
+replayed on the reference build.
+
+The gaussian equivalence baseline re-recorded from the reference build,
+[test-xbart-fold-oracle.R](../../inst/tinytest/test-xbart-fold-oracle.R)
+the P17 oracle (its MANIFEST row states the oracle's arms and three
+poison figures: per-chunk seeding fails
+[test-xbart-reproducibility.R](../../inst/tinytest/test-xbart-reproducibility.R)
+6 of 24, 2 of 14 under CRAN's core limit; dispatch without the seed
+restore 3 of 24). Recorded as `equivalence-abf88654.rds` after its
+pre-rebase draw-moving commit, landing rebased that commit to c42b72af,
+and a separate records commit, 6970d5cc, renamed the file to
+[benchmarks/baselines/equivalence-c42b72af.rds](../../benchmarks/baselines/equivalence-c42b72af.rds)
+and every pin (both workflows, `benchmarks/R/mutation-battery.R`, the
+MANIFEST, feature-matrix.md, and the plan pins in engine-performance.md,
+interfaces-and-dependencies.md, memory-footprint-audit.md and
+pure-c-header.md), so the MANIFEST row names an ancestor of bartcore.
+Wall time for 10-fold, one-replication xbart at four threads: 2.53x over
+serial (1.00x at the base tip), results bitwise identical between
+thread counts; the thread pin caps at two workers under
+`_R_CHECK_LIMIT_CORES_`.
+
+Real diff: R +251/-109 against ~150 budgeted, tests +244/-49 against
+~120 (1.7x and 2.0x) - no fork; the excess is the k-grid helpers, the
+two tombstone entries with their refusal helpers, and the
+thread-invariance test.
+
+Gates, independently on both builds: tinytest 8105/0 shipped (the four
+snapshot files exit), 8132/0 reference; compare against the new baseline
+under `--strict-coverage` 50 identical / 0 skipped / no "max |z|" on
+both, shipped reproduces the reference recording bitwise; compare
+against fbff1989 partitions 48 identical, xbart (max |z| 2.31 over 8)
+and xbartmixed (1.86 over 8) the only movers; BCF 12/12 and multinomial
+11/11 bitwise on both (neither carries an xbart scenario);
+regenerate-snapshots from the reference build rewrites nothing further;
+`lint_package`, `air format --check` clean; `R CMD check --as-cran` OK,
+0 notes, clean tarball; doc-freshness and rc-codoc exit 0.
+
+Review findings fixed before landing: a seeded xbart clobbered the
+caller's random stream (now [`withPreservedSeed`](../../R/validateComposition.R),
+Rd promise restored and pinned); live plan pins to the demoted baseline;
+a stale MANIFEST poison figure; [`kGridLabel`](../../R/xbart.R) silently
+labelled any non-fixed hyperprior as chi (now stops by class name); a
+tombstone message nit.
+
+Remaining: S4 (manual, NEWS - owes lines for the control tombstone, the
+drop-shape change and the seed promise - records, consumer ports); a
+vocabulary argument forwarded through a wrapper's `...` arrives as
+`..1` and cannot resolve (pre-existing for `family`, `node.prior`,
+`tree.prior`; the affected test writes the call out).
