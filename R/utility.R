@@ -410,6 +410,101 @@ namedList <- function(...) {
   setNames(result, resultNames)
 }
 
+## The level count past which an "indicators" factor's dummy expansion is
+## built sparse (a dgCMatrix column per emitted level) instead of dense (the
+## C builder), automatically, no user-facing argument (dec-B100). One-hot
+## storage costs O(numObservations) no matter how many levels there are,
+## against the dense block's O(numObservations * numLevels), so the memory
+## gap widens linearly past the cutoff; a level-count sweep on this machine
+## (n = 1000-20000) found the dense block already 65-70x the sparse block's
+## bytes at 100 levels (0.8-16 MB against 0.01-0.24 MB) and growing linearly
+## beyond it, while construction TIME keeps favoring the dense C builder
+## throughout the range tested - this is a memory choice, not a speed one.
+sparseIndicatorLevelCutoff <- 100L
+
+## dec-B100's internal override for a test that must force the SAME wide
+## factor through both paths: an unexported, undocumented option, read
+## fresh per call so a test can toggle it around two otherwise-identical
+## fits. "auto" (the default) applies sparseIndicatorLevelCutoff; "sparse"
+## and "dense" force one path regardless of level count.
+sparseIndicatorModeFor <- function(numLevels) {
+  mode <- getOption("dbarts.sparseIndicators", "auto")
+  if (identical(mode, "sparse")) {
+    return(TRUE)
+  }
+  if (identical(mode, "dense")) {
+    return(FALSE)
+  }
+  numLevels > sparseIndicatorLevelCutoff
+}
+
+## One factor column's indicator expansion, built the way the C builder's own
+## FACTOR case decides it (src/makeModelMatrixFromDataFrame.c) but assembled
+## as sparseColumnSlices-shaped blocks instead of dense columns: a stored
+## entry is 1 at a row coded to the emitted level, NA at a row whose code is
+## missing, and every other row is the implicit (unstored) 0 - the same
+## values fillFactorIndicator writes, just not materialized. 'dropSpec' plays
+## the C builder's dropPatternExpr role: TRUE builds a fresh per-level
+## instance-count table from 'column' itself (the training/create-mode
+## call, tableFactor's own rule); an integer vector replays an
+## already-built one positionally (test-time, from the training column's
+## stored "drop" attribute - which is exactly this same per-level count
+## table regardless of whether the training column happened to build dense
+## or sparse); FALSE applies no filtering at all, matching every level. A
+## 2-level factor always collapses to its higher level's single indicator,
+## drop or no drop, the C builder's own rule.
+sparseFactorIndicatorSlices <- function(column, name, dropSpec) {
+  codes <- as.integer(column)
+  levs <- levels(column)
+  numLevels <- length(levs)
+  instanceCounts <- NULL
+  presentLevels <- seq_len(numLevels)
+  if (isTRUE(dropSpec) || is.numeric(dropSpec)) {
+    instanceCounts <- if (isTRUE(dropSpec)) {
+      tabulate(codes, numLevels)
+    } else {
+      if (length(dropSpec) < numLevels) {
+        stop(
+          "factor column '",
+          name,
+          "' has ",
+          numLevels,
+          " levels but its drop pattern was built for ",
+          length(dropSpec)
+        )
+      }
+      as.integer(dropSpec)
+    }
+    presentLevels <- which(instanceCounts > 0L)
+  }
+  selectedLevels <- if (length(presentLevels) == 2L) {
+    presentLevels[2L]
+  } else {
+    presentLevels
+  }
+  numOut <- length(selectedLevels)
+  i <- vector("list", numOut)
+  x <- vector("list", numOut)
+  outNames <- character(numOut)
+  for (k in seq_len(numOut)) {
+    level <- selectedLevels[k]
+    # ascending by construction (which() over a logical vector), the order a
+    # dgCMatrix column's stored entries require
+    storedRows <- which(codes == level | is.na(codes))
+    i[[k]] <- as.integer(storedRows - 1L)
+    x[[k]] <- ifelse(is.na(codes[storedRows]), NA_real_, 1)
+    outNames[k] <- paste0(name, ".", levs[level])
+  }
+  list(
+    i = i,
+    x = x,
+    names = outNames,
+    reference = rep(NA_integer_, numOut),
+    K = rep(0L, numOut),
+    instanceCounts = instanceCounts
+  )
+}
+
 ## Turns data.frame w/factors into matrices of indicator variables. Differs from
 ## model.matrix as it doesn't drop columns for co-linearity even with multiple
 ## factors
@@ -430,7 +525,16 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   }
 
   columnIsSparse <- vapply(x, isSparseDataFrameColumn, FALSE)
-  if (!any(columnIsSparse)) {
+  # a plain factor past sparseIndicatorLevelCutoff builds its dummy columns
+  # sparse too (dec-B100), decided per column from nlevels alone - never
+  # from a sparse S4 input, which columnIsSparse already flags
+  wideFactor <- !columnIsSparse & vapply(
+    x,
+    function(column) is.factor(column) && sparseIndicatorModeFor(nlevels(column)),
+    FALSE
+  )
+  isSparseBlock <- columnIsSparse | wideFactor
+  if (!any(isSparseBlock)) {
     result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
     attr(result, "term.labels") <- names(x)
     return(result)
@@ -465,6 +569,14 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
       if (!is.null(dropPattern)) {
         dropPattern[[j]] <- rep.int(FALSE, length(slices$i))
       }
+    } else if (wideFactor[j]) {
+      dropSpec <- if (is.list(drop)) drop[[j]] else drop
+      slices <- sparseFactorIndicatorSlices(x[[j]], names(x)[j], dropSpec)
+      columns[[j]] <- slices
+      blockNames[[j]] <- slices$names
+      if (!is.null(dropPattern)) {
+        dropPattern[[j]] <- if (is.list(drop)) drop[[j]] else slices$instanceCounts
+      }
     } else {
       block <- .Call(
         C_dbarts_makeModelMatrixFromDataFrame,
@@ -478,7 +590,7 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
       }
     }
   }
-  result <- assembleMixedMatrix(columns, columnIsSparse, blockNames, nrow(x))
+  result <- assembleMixedMatrix(columns, isSparseBlock, blockNames, nrow(x))
   attr(result, "term.labels") <- names(x)
   if (!is.null(dropPattern)) {
     names(dropPattern) <- names(x)
