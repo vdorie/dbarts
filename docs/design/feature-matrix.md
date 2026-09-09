@@ -95,7 +95,7 @@ follow from no column:
   replacement may change n, for aft too
   (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp) on that conduit; the status itself moves
   through `$setResponse(y, status = )`).
-- Hurdle's `-` cells are not "ask the two components": `bart2()` refuses `weights`, `subset`
+- Hurdle's `-` cells are not "ask the two components": `bart()` refuses `weights`, `subset`
   and `offset`/`offset.test` on that family at its own entrance
   (["does not support 'weights'"](../../R/bart.R)).
 
@@ -154,7 +154,7 @@ variance forest through `variance =` ([`dbartsSpec`](../../R/spec.R), [`variance
 stay out of its reach. A `forests =` fit resolves gaussian, probit or logistic only, aft,
 ordinal and nbinom being refused by name at the R layer, the bridge and the factory alike
 (["a treatment forest does not support family"](../../R/spec.R),
-[`refusedAmplitudeFamilyReason`](../../src/R_interface_bartcore.cpp), [`createAmplitudeSampler`](../../src/bartcore/facade.hpp)); `bart2()` reaches the
+[`refusedAmplitudeFamilyReason`](../../src/R_interface_bartcore.cpp), [`createAmplitudeSampler`](../../src/bartcore/facade.hpp)); `bart()` reaches the
 same machinery through a `forest()` formula term, under an identical gate ([f6]).
 
 ## 4. Composition rules
@@ -175,7 +175,7 @@ DART is refused for both multi-forest couplings by name - bcf at
 ["a DART tree prior"](../../R/spec.R), multinomial at ["'dart' or a DART 'tree.prior'"](../../R/bart.R) -
 and each coupling's forest builder hard-sets `forest.useDart = false` whatever the route asked
 for ([`buildSpecifiedForest`](../../src/bartcore/chain.hpp), [`buildMultinomialForest`](../../src/bartcore/chain.hpp)). Warm start and
-grow-from-root are refused, as `M` rather than `R`, for the four alternate-family `bart2` arcs
+grow-from-root are refused, as `M` rather than `R`, for the four alternate-family `bart` arcs
 and for the multi-forest donor warm start ([f12]); grow-from-root itself ships, covered at two
 forests, and is gated by the LEAF model rather than the family - linear and GP leaves are
 refused in [`growFromRoot`](../../R/dbarts.R) and a no-op in [`growForestFromRoot`](../../src/bartcore/chain.hpp), so every family
@@ -206,9 +206,9 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 
 | work item | unblocks | pointer |
 |---|---|---|
-| `xbart()` family coverage ([`xbart`](../../R/xbart.R) admits only auto/gaussian/probit/logistic) | student, nbinom, aft, hazard, hurdle, bcf, hetero | ordinal/multinom redirect to `bart2()` instead |
+| `xbart()` family coverage ([`xbart`](../../R/xbart.R) admits only auto/gaussian/probit/logistic) | student, nbinom, aft, hazard, hurdle, bcf, hetero | ordinal/multinom redirect to `bart()` instead |
 | Flat C reach for the K-forest softmax family | multinomial | [f4] |
-| Warm start / grow-from-root for the alternate-family `bart2` arcs | ordinal, nbinom, multinomial, hurdle | [`checkFamilyUnsupportedArgs`](../../R/bart.R), [f12] |
+| Warm start / grow-from-root for the alternate-family `bart` arcs | ordinal, nbinom, multinomial, hurdle | [`checkFamilyUnsupportedArgs`](../../R/bart.R), [f12] |
 | Multi-forest donor warm start | bcf (multinomial hits the same guard independently) | [`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp), [f12] |
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
@@ -271,7 +271,7 @@ model is built, adding no engine code. The row is therefore the probit row, or t
 one under that third spelling: case weights `S`, latents the Polya-Gamma omegas
 ([Discrete-time hazard (LANDED 2026-07-18, 4bcdccf)](survival.md#discrete-time-hazard-landed-2026-07-18-4bcdccf)).
 
-[f6] `treatment` is not a `bart2()` formal; the K-forest amplitude capability comes from a
+[f6] `treatment` is not a `bart()` formal; the K-forest amplitude capability comes from a
 `forest()` formula term, rewritten into the same `forests =` channel `dbarts()`/`dbartsSpec()`
 use ([`ingestFormulaTerms`](../../R/formulaTerms.R)).
 
@@ -288,7 +288,7 @@ the creation-time positive-integer policy holds on every conduit.
 blocks every mutation conduit that would touch it ([`refuseCountsMutation`](../../R/bartcore.R); full
 inventory [1. Problem statement and inventory](multinomial-mutation-arc.md#1-problem-statement-and-inventory)).
 
-[f10] Hurdle has no sampler of its own: [`bart2Hurdle`](../../R/bart.R) composes two ordinary `bart2()`
+[f10] Hurdle has no sampler of its own: [`bart2Hurdle`](../../R/bart.R) composes two ordinary `bart()`
 fits - occupancy probit and lognormal positive part - glued at report time
 ([2. Decision (fork 1, the gating question) - COMPOSE IN R, do not build in the engine](hurdle.md#2-decision-fork-1-the-gating-question---compose-in-r-do-not-build-in-the-engine)).
 
