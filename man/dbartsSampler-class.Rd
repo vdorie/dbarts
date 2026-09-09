@@ -42,6 +42,8 @@
 \alias{\S4method{getCalibration}{dbartsSampler}}
 \alias{\S4method{setCalibration}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
+\alias{\S4method{startThreads}{dbartsSampler}}
+\alias{\S4method{stopThreads}{dbartsSampler}}
 \alias{\S4method{storeState}{dbartsSampler}}
 \alias{\S4method{setState}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
@@ -101,6 +103,8 @@
   prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
 )
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
+\S4method{startThreads}{dbartsSampler}(n.threads = control@n.threads)
+\S4method{stopThreads}{dbartsSampler}()
 \S4method{storeState}{dbartsSampler}(ptr = getPointer())
 \S4method{setState}{dbartsSampler}(newState)
 \S4method{plotTree}{dbartsSampler}(

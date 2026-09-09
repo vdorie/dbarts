@@ -14,7 +14,7 @@ reference:
   desc: Fit BART models to fixed data.
   contents:
   - bart
-  - bart2
+  - bartBT
   - xbart
   - pdbart
 - title: The mutable sampler
@@ -47,6 +47,11 @@ reference:
   contents:
   - summary.bart
   - dbartsValidateComposition
+- title: Deprecated
+  desc: >
+    Names kept reachable for one release past their removal or rename.
+  contents:
+  - dbarts-deprecated
 - title: Utilities
   contents:
   - dbarts-embedding

@@ -18,9 +18,12 @@ xbart(
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
-    storage = c("double", "single"), tree.prior = NULL)
+    storage = c("double", "single"), tree.prior = NULL, \dots)
 }
 \arguments{
+  \item{\dots}{
+    Not used for new code: the channel that lets a retired argument spelling reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
+  }
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}. See \code{\link{dbarts}}.
   }

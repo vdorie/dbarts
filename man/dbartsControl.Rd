@@ -14,9 +14,12 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE)
+    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE, \dots)
 }
 \arguments{
+  \item{\dots}{
+    Not used for new code: the channel that lets a retired argument spelling reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
+  }
    \item{verbose}{
      Logical controlling sampler output to console.
    }

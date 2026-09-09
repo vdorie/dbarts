@@ -18,14 +18,13 @@ dbarts(
     blocks = NULL,
     variance = NULL,
     forests = NULL,
-    control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
+    control = dbarts::dbartsControl(), sigest = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
                "ordinal",
-               "nbinom", "hazard", "hazard.probit", "hazard.logistic",
-               "hurdle.lognormal", "twopart"),
+               "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     missing = c("incorporate", "error"), dispersion = NA_real_,
-    breaks = NULL, max.rows = 1e7)}
+    breaks = NULL, max.rows = 1e7, sigma = NA_real_)}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}, including a sparse \code{Matrix::dgCMatrix}: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface accepts both whole-matrix replacement, \code{setPredictor(x)}, and the column-granular \code{setPredictor(x, column = j)}, which replaces a sparse column whole; replacing a sparse-backed column densifies its storage permanently. Per-observation replacement of a sparse-backed column, and \code{setData}, are fixed at creation. Sparse inputs are not supported by the \code{node.prior = linear()} and \code{gp()} leaf models (a sparse-backed test column cannot serve a designated leaf covariate either). A sparse or data-frame test set stays resident (rank-bitmap or dense per column, the same rule as training) rather than densifying at ingestion, and \code{predict} and \code{getTrees(newdata = )} route its rows through the trees off that storage rather than densifying it either. A data frame may mix ordinary columns with \code{Matrix::sparseVector} or \code{dgCMatrix} columns (assign them into the frame; they do not survive \code{data.frame(...)} or \code{I()}): sparse columns behave as in an all-sparse design, while dense columns keep categorical splits and linear-leaf designation. A \code{\link{sparseFactor}} column is accepted here (the x/y, data-frame path) exactly as the other sparse columns are; a bare \code{formula} object cannot carry it through \code{model.frame} and refuses it, with a message to use the x/y interface instead. See \code{\link{dbartsData}} for the full data-frame-to-predictor mapping.
@@ -87,8 +86,11 @@ dbarts(
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
   }
+  \item{sigest}{
+    A positive numeric estimate of the residual standard deviation supplied at creation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Spelled the same way on \code{\link{bart}}, \code{\link{bartBT}} and \code{\link{xbart}}; the sampler's own \code{setSigma}, which sets the parameter rather than an estimate of it, is a different thing and keeps its own name. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
+  }
   \item{sigma}{
-    A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{xbart}}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
+    The 0.9-x spelling of \code{sigest}, accepted for one release with a once-per-session warning and removed in dbarts 1.1-0. Supplying both is an error.
   }
   \item{seed}{
     Optional integer seed for the random number generator, a convenience mirror of \code{dbartsControl(seed = )}. When not \code{NA} it overrides the seed in \code{control}; the fitting-function wrappers (\code{\link{bart2}}, \code{\link{xbart}}) accept the same argument.
