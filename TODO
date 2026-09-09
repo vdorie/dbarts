@@ -358,9 +358,8 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
   assertion fails a build whose API hash changed without a minor bump
   (dec-B111). Plan: docs/plans/pure-c-header.md.
 memory footprint at large n (VD concern, 2026-09-08; LANDED: note
-  13cb7e8a, script and validation 2f25e3d1, baseline
-  benchmarks/baselines/memory-footprint-cfbf74ed.csv, step 7's two-copy
-  removal on this branch. Follow-on, its own entry when opened: the last
+  13cb7e8a, script and validation 2f25e3d1, step 7's two-copy removal
+  fd104888, baseline benchmarks/baselines/memory-footprint-b184b6b2.csv. Follow-on, its own entry when opened: the last
   full-size copy needs the bridge to allocate the prediction channel
   draw-major and the engine to write it strided)
   audit the per-sampler footprint as a function of n, p, trees and

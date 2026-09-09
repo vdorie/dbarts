@@ -341,7 +341,8 @@ cell; the 256 MiB budget counts live member lists only and bound no cell);
 the gathered leaf design doubles for its standardized copy; and the
 starting-sigma `lm` gained a row. `man/dbarts-package.Rd` carries the
 Memory section (step 4) and the note the ranked list (step 5).
-Baseline benchmarks/baselines/memory-footprint-cfbf74ed.csv is the second
+Baseline benchmarks/baselines/memory-footprint-cfbf74ed.csv (superseded by
+memory-footprint-b184b6b2.csv at step 7) is the second
 reader's own full-grid recording at the script's last code commit.
 
 Review findings fixed before landing: the leaf-cache row multiplied by
@@ -354,6 +355,14 @@ restatement was reverted and the corrected model passes the plan's gate
 as written.
 
 ## Landing note, step 7 (2026-09-09)
+
+LANDED at fd10488821d4787e1e22f92c2c3fe2f067e325a5, five commits:
+
+- 4e76f93466564dc52bdd98a1956fd4edb38e9278 Stop packaging the prediction channels through extra full-size copies
+- b184b6b2f530a34979702715828fc3ed37bfb093 Re-derive the packaging rows of the footprint model
+- e32e4e0027678bd8feb7dc778e30e58ad56ac415 Record the two-copy removal in the note, the manual and the plan
+- 6cb6e141ffd68bf57b450cd074e257594f049a23 Tighten the packaging-copies test
+- fd10488821d4787e1e22f92c2c3fe2f067e325a5 Gate the two changed expressions directly, not through a shadowed packager
 
 The two transient copies of the training-prediction array are out of
 [`packageBartResults`](../../R/bart.R) and
