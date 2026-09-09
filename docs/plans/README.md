@@ -180,7 +180,12 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
   status. A `Rscript ... | tail -1` chain masks a failure behind tail's
   exit 0.
 - Build provenance before trusting a suite: the installed package's mtime
-  must postdate the source it claims to test.
+  must postdate the source it claims to test, and the build MODE must be
+  the one the gate expects: `dbarts:::buildInfo()$mode` on the library
+  under test. The objects under src/ do not depend on the generated
+  config headers, so a plain install after a reference install silently
+  keeps the reference objects; every change of `--configure-args` needs
+  `--preclean`.
 
 ## Gate hygiene
 
