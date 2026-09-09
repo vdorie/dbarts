@@ -378,6 +378,138 @@ stays inert (both builds identical code), and the reference arm of the
 gates keeps proving that. The weighted fused pass lands in its own slice
 with the re-record the P17 rule owes. S4 no longer waits on S2.
 
+### Fused pass, weighted families (measurement, 2026-09-09)
+
+A measurement slice, not a landing: VD asked whether extending
+[`rollAndSetNodeAveragesFused`](../../src/bartcore/chain.hpp) to the
+families it declines is worth it. Prototyped on wt/fused-weights, gated
+and timed; nothing re-recorded, and whether it ships is not decided
+here. Step 4's re-profile is what made it worth asking - the weighted
+gather it declines carries 31 to 54 percent of a weighted fit
+(x86-simd-plan.md, SUFFSTAT RE-PROFILE AT THE FUSED-PASS TIP), against
+5 to 12 percent on the default path the pass already takes.
+
+Design. `weights != nullptr` stops being an eligibility clause. The
+pass carries a SECOND bank set - sum w beside sum w r - four-banked at
+the same positional assignment (n % 4 prologue into bank 0, then
+element i into bank (i - n % 4) mod 4) and combined in the same
+left-to-right order, so a weighted bottom's pair is exactly what the
+stock weighted kernel delivers, one association apart. The product
+w[i] * r is NAMED before the accumulate: an unnamed product inside the
+add would let a contracting compiler emit an FMA, which rounds once
+instead of twice and would make the statistic depend on ISA and flag
+level - the one thing the exactness contract forbids. The
+observation-order body moved into `fusedRollPass`, templated on whether
+weights are in play, so the unweighted arithmetic is the same
+expressions it always was and the weighted branch costs it no runtime
+test. Unweighted keeps sumWeights as the member count and allocates no
+second bank set. The other clauses stand: constant leaf, ResidT =
+double, fresh leafOf. +143/-76 in chain.hpp, +50/-31 in
+tests/cpp/test_sampler.cpp.
+
+Timing. Apple M1 Max, macOS 26.6.2, shipped build, one chain one
+thread, `sampler$run` only (`bartcoreRun` for BCF), ingestion and
+burn-in excluded. Seven interleaved repeats, before and after
+back-to-back in each; the "before" library is the unchanged tip
+(src/ identical). Median ms per sample; the min-of-7 ratio is given
+beside it because the docs' earlier legs used minima.
+
+| cell | before | after | spread b / a | med ratio | min ratio | gain |
+|---|---|---|---|---|---|---|
+| weighted gaussian n = 1e4, p = 20, 200 trees, 300 + 300 |  4.91 |  5.28 | 0.23 / 0.27 | 0.930 | 0.920 |  -7.0% |
+| weighted gaussian n = 1e5, 200 trees, 100 + 100        | 59.74 | 47.44 | 2.67 / 0.76 | 1.259 | 1.229 | +25.9% |
+| weighted gaussian n = 1e5, 75 trees, 100 + 100         | 21.48 | 16.59 | 0.87 / 0.26 | 1.295 | 1.276 | +29.5% |
+| logistic n = 1e5, 75 trees, 50 + 50                    | 36.80 | 34.28 | 0.76 / 0.54 | 1.074 | 1.071 |  +7.4% |
+| BCF n = 1e5, 50 + 25 trees, 50 + 50                    | 23.62 | 20.24 | 0.40 / 0.66 | 1.167 | 1.167 | +16.7% |
+| UNWEIGHTED gaussian n = 1e5, 200 trees, 100 + 100      | 40.66 | 40.96 | 1.07 / 0.77 | 0.993 | 0.992 |  -0.7% |
+
+The unweighted cell is the control: the restructure into a template
+must not move it, and 0.7 percent sits inside the cells' own spread.
+
+The n = 1e4 cell is a real REGRESSION, not noise: after is slower in
+all seven repeats and the gap exceeds both spreads. It is not a
+workload difference - at that cell both libraries draw the same mean
+splits per sweep (287.13) and the same posterior sigma mean (1.123606)
+to every digit, so the trees are the same size and the shift is purely
+per-element cost. The same inversion shape the unweighted pass showed
+on arm64 at its no-signal cell (memory-wall-frontier.md sec 12), one
+scale further out: at n = 1e4 the arrays the stock gather walks are
+L2-resident, so the latency the fusion converts to bandwidth was not
+being paid, while the weighted pass now does two dependent read-add-
+write scatters per element against a five-way unrolled independent
+accumulation. That mechanism is UNMEASURED; an n-gate was not
+attempted, and the census that killed the unweighted pass's root gate
+(sec 13) says nothing about this one.
+
+Share after. `/usr/bin/sample` at 1 ms, self time by top of stack over
+the samples under `Sampler::run`, same cells, weighted. `fusedRollPass`
+is not inlined, so it reads directly.
+
+| cell | before: roll + weighted suffstat | after: fusedRollPass | after: weighted suffstat left |
+|---|---|---|---|
+| n = 1e4 | 24.9% + 29.8% | 41.4% | 9.3% |
+| n = 1e5 | 18.6% + 51.6% | 42.6% | 14.4% |
+
+What remains in the weighted kernel after is the per-move CHILD
+statistic through `Tree::refreshSubtree`, which the fusion never
+touched and step 5's vector kernels still own. The windows differ
+enough between profiled processes that the n = 1e4 rows do not
+themselves explain that cell's 7 percent; read them as shares, not as
+an accounting of the loss.
+
+Gates on the prototype, all on the shipped build. tests/cpp clean,
+plain and once under -fsanitize=address,undefined from `make clean`
+(`ASAN_OPTIONS=detect_container_overflow=0`, zero diagnostics);
+`testFusedSuffstatMatchesStock` gained a weighted twin over the same
+four prologue residues and the three n < 4 shapes, comparing BOTH
+statistics against the stock weighted kernel at a mixed absolute/
+relative bound (worst gap 4.4e-15 on the response sum, 8.3e-16 on
+sum w), and the three decline pins for weights, BCF and multinomial
+flipped to coverage pins. The weighted pin discriminates: a bank that
+counts instead of summing w fails it 7 of 7 shapes at a 0.53 gap.
+tinytest 8192 / 0 - no pin is tight enough to see a last-ULP weighted
+shift, so the suite is not the gate here. Equivalence, gaussian vs
+deb144d2: 37 of 52 bitwise, 52 compared / 0 skipped, and the 15 movers
+are EXACTLY the weighted and latent-weight scenarios - weighted,
+wtoffset, logistic, wtlogistic, zeroweights, maskprobit, maskordinal,
+student, nbinom, hetforce, hetswap, hetpartial, bart2gauss (it carries
+weights), bart2twoforest, bart2multinom - every one at max |z| = 0.00,
+no unweighted scenario moved. BCF vs bcf-equivalence-fbff1989 and
+multinomial vs multinomial-equivalence-fbff1989: all 12 and all 11
+scenarios move, every draws-axis channel at max |z| = 0.00, and the
+harnesses FAIL on the point-in-time snapshot channels (mu, tau, glue;
+forestFits), which have no statistical fallback by construction - that
+failure IS the shifting class, not a defect. Exact-posterior gates,
+quick mode, all twelve PASS: bd-balance, change-balance, perturb-
+balance (worst |z| 2.66, 0 of 8 Holm rejections), backfit-exact,
+linear-exact, categorical-exact (max gap 0.0027), heteroscedastic-exact
+(0.0008), multinomial-exact (0.0757 against tol 0.095), hazard-exact
+(0.0013), bcf-exact (0.0005), bcf-exact-weak (0.0182),
+bcf-exact-restricted (0.0014). None at |z| > 4.
+
+Landing cost, if it ships. It is a SHIFTING change on every weighted
+and latent-weight family, so: re-record equivalence-<tip> for the 15
+moved gaussian scenarios plus bcf-equivalence-<tip> and
+multinomial-equivalence-<tip> wholesale, all three on the REFERENCE
+build, with the twelve exact-posterior gates above as the P17 oracle
+(they cover gaussian weighted, heteroscedastic, multinomial, hazard and
+all three BCF arms; the ones they do not reach - logistic, student,
+nbinom, the mask families - ride the same one-association argument and
+the MANIFEST row must say so rather than imply an oracle it does not
+have). Snapshot tinytests regenerate per tools/regenerate-snapshots.R,
+whole file at a time; none moved on the shipped build, so the reference
+build decides which of the four actually need it. Three MANIFEST rows,
+each naming the oracle and the partition, and the neutrality claim the
+other rows carry becomes a claim about the UNWEIGHTED scenarios only.
+The bench-sampler speed baseline is maintainer-run and unaffected by
+this record.
+
+Open, if this becomes a slice: whether the n = 1e4 regression is
+accepted, n-gated, or refuted by a mechanism measurement; and whether
+step 5's vector weighted kernels, which would then only serve the
+per-move child statistic, still earn their per-ISA cost.
+
+
 S3, the run loop (dec-B88):
 
 7. Replace the sleep loop in [`Sampler::run`](../../src/bartcore/sampler.hpp)
