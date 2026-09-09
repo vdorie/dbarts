@@ -132,11 +132,22 @@ build goes to a private library, so the ordinary one is untouched.
 
 The development machine is arm64 macOS, which masks Linux and x86 bugs:
 a Linux-only build break, a CPUID-misdetected AVX2 kernel and an ABI
-mismatch segfault each surfaced first on the x86 box (dbarts-bench, an
-8-core Ryzen with SMT, so 16 logical cores; AVX2 and FMA, no AVX-512)
-and nowhere on macOS. An engine landing gets an x86 leg alongside the
-local battery, and it is the only place to time bench-sampler on x86 or
-to exercise a new SIMD kernel.
+mismatch segfault each surfaced first on an x86 box and nowhere on
+macOS. An engine landing gets an x86 leg alongside the local battery,
+and it is the only place to time bench-sampler on x86 or to exercise a
+new SIMD kernel.
+
+The box is an on-demand Linux container, off by default:
+`scratch/x86-box start` powers it on (`stop`, `status`, and
+`run -- <cmd>` likewise; the script is untracked, under scratch/), then
+`ssh dbarts-x86 '<cmd>'` and `rsync ... dbarts-x86:` work. Ubuntu 24.04,
+4 cores (one hardware thread per physical core: threading benches
+saturate at 4), AVX2 and FMA, 24 GiB with swap off (a larger cell is
+killed, not swapped), no perf (use `valgrind --tool=callgrind`), no
+~/.Renviron so `R_LIBS=` is the whole library path. Sanitizer binaries
+must run as `setarch $(uname -m) -R <cmd>` or abort on ASLR entropy.
+Stop it when done: its timings are trustworthy only when idle, and it
+holds its memory while up.
 
 Working pattern: ship the source (rsync excluding .git, or `git archive`
 of the exact sha when the local tree is dirty), install with
@@ -146,12 +157,13 @@ and ASAN), the full tinytest suite, and the equivalence trio.
 
 Expected verdicts there: tinytest FAILURES == 0 (test-simd.R is bitwise
 across dispatch levels 0/2/5/7/8 within that host; gate on failures, not
-the total count, which differs from arm); every equivalence scenario
-reports "max |z|" rather than "identical draws" against an arm64-recorded
-baseline, and passes in statistical mode (docs/architecture.md,
-"Reproducibility contract"). Timing runs need the box idle: it is shared,
-so check `/proc/loadavg` first, and threading benches saturate at the 8
-physical cores and regress past them.
+the total count, which differs from arm); on the shipped build every
+equivalence scenario reports "max |z|" rather than "identical draws"
+against an arm64-recorded baseline and passes in statistical mode
+(docs/architecture.md, "Reproducibility contract"); the reference build
+is where cross-ISA bitwise reproduction is asked for. Timing runs need
+the box idle: check `/proc/loadavg` first, and threading benches
+saturate at the 4 cores and regress past them.
 
 ## tests/cpp - bartcore component tests
 
