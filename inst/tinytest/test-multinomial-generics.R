@@ -139,7 +139,7 @@ dev.off()
 sm <- summary(fitCombined)
 expect_equal(class(sm), "summary.bart")
 expect_equal(sort(sm$stats$variable), sort(paste0("meanProb[", levels(y), "]")))
-expect_true(is.data.frame(sm$stats) || inherits(sm$stats, "tbl_df"))
+expect_true(is.data.frame(sm$stats))
 printedSummary <- capture.output(print(sm))
 expect_true(any(grepl("meanProb", printedSummary, fixed = TRUE)))
 

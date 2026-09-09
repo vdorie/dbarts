@@ -171,7 +171,9 @@ independent of S2-S4):
    2 pins against `posterior`'s recorded values). Per variable, a shared split
    feeds every leg below: split each chain in half (M chains of N draws -> 2M
    half-chains of N/2). Bulk Rhat: rank-normalize the POOLED SPLIT-CHAIN draws
-   (average ranks under ties, `qnorm((rank - 3/8)/(S - 1/4))`, S total draws),
+   (average ranks under ties, `qnorm((rank - 3/8)/(S + 1/4))`, S total draws;
+   Blom's constant c = 3/8 gives the denominator S - 2c + 1, i.e. S + 1/4, not
+   the S - 1/4 a literal reading of the paper's rounded prose might suggest),
    then the ordinary Gelman-Rubin formula over the 2M half-chains,
    `sqrt(((n-1)/n*W + B/n)/W)`. Folded (tail) Rhat: fold the RAW, PRE-SPLIT,
    PRE-RANK draws first - `abs(x - median(x))` over the whole pooled variable -
