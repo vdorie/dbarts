@@ -1423,7 +1423,12 @@ leaf model and is not addressable.
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
 `state` field, which [`save`](https://rdrr.io/r/base/save.html) then
-writes out. See ‘Saving’.
+writes out. See ‘Saving’. What it writes is one draw's trees, about 13
+bytes per node per tree per chain, which is 3.5 pct of a single draw's
+training predictions at 20,000 observations and 75 trees and falls like
+\\1/n\\; it exceeds those predictions only below a few hundred
+observations, and it is a small fraction of a whole run's `yhat.train`,
+not a multiple of it.
 
 ## See also
 
