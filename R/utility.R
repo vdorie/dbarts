@@ -415,11 +415,11 @@ namedList <- function(...) {
 ## C builder), automatically, no user-facing argument (dec-B100). One-hot
 ## storage costs O(numObservations) no matter how many levels there are,
 ## against the dense block's O(numObservations * numLevels), so the memory
-## gap widens linearly past the cutoff; a level-count sweep on this machine
-## (n = 1000-20000) found the dense block already 65-70x the sparse block's
-## bytes at 100 levels (0.8-16 MB against 0.01-0.24 MB) and growing linearly
-## beyond it, while construction TIME keeps favoring the dense C builder
-## throughout the range tested - this is a memory choice, not a speed one.
+## gap widens linearly past the cutoff; benchmarks/R/sparse-indicator-cutoff.R
+## measures it directly and finds the dense block already ~65-70x the sparse
+## block's bytes at 100 levels, growing linearly beyond it, while
+## construction TIME keeps favoring the dense C builder throughout the range
+## swept - this is a memory choice, not a speed one.
 sparseIndicatorLevelCutoff <- 100L
 
 ## dec-B100's internal override for a test that must force the SAME wide

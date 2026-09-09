@@ -3,11 +3,19 @@
 agent: sonnet for all four slices; opus only if the R-hat/ESS
   implementation (S1) needs a correctness review.
 rng: neutral throughout - no engine change - EXCEPT S3's wide-factor
-  auto-sparse switch (step 12), which changes only the design-matrix
-  REPRESENTATION (never the codes or the draws) for a `factors =
-  "indicators"` fit with a wide factor; step 13 adds one covering
-  scenario to the equivalence corpus, an ADDITION rather than a draw
-  change, so it owes no oracle under the baselines' rule (MANIFEST P17:
+  auto-sparse switch (step 12), which changes the design-matrix
+  REPRESENTATION for a `factors = "indicators"` fit with a wide factor;
+  an indicator column's density (1/K) always lands the switch in the
+  engine's RANK-BITMAP storage tier (`sparseDensityThreshold`,
+  [`src/bartcore/data.hpp`](../../src/bartcore/data.hpp)), never the
+  DENSIFIED tier a bitwise CSC-vs-dense claim is made for elsewhere
+  (Context below); codes and tree structure are unchanged (varcount
+  bit-identical), but the rank tier's leaf-mean sufficient statistics
+  differ from dense in the last bit from the first draw. No EXISTING
+  scenario is affected either way - none carries a wide factor - so
+  step 13 adds one covering scenario to the equivalence corpus, an
+  ADDITION rather than a draw change on any recorded scenario, and it
+  owes no oracle under the baselines' rule (MANIFEST P17:
   a re-record that CHANGES a recorded draw must name an oracle for the
   new values; an addition does not - the ordinal/nbinom precedent this
   plan already follows elsewhere). "The equivalence trio" names the
@@ -93,14 +101,21 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
   that audit and has no `[` method at all
   ([`R/sparseFactor.R`](../../R/sparseFactor.R) defines only `show` and
   `length`), so step 12 adds a dedicated row-subset helper for it. The engine
-  already stores a CSC column as a rank bitmap below `sparseDensityThreshold`
-  (0.2, [`src/bartcore/data.hpp`](../../src/bartcore/data.hpp)) and densifies
-  above - a densified build already reproduces a dense build of the same values
-  bitwise (docs/design/sparse-columns.md's own equivalence-style component
-  test, `testSparseEndToEnd`); step 12's wide-factor auto-sparse reuses that
-  same guarantee. Nothing builds an indicator-expanded factor's block as sparse
-  today (`makeCategoricalModelMatrix`/`makeModelMatrixFromDataFrame`,
-  [`R/utility.R`](../../R/utility.R) are always dense).
+  already stores a CSC column as a rank bitmap AT OR BELOW
+  `sparseDensityThreshold` (0.2,
+  [`src/bartcore/data.hpp`](../../src/bartcore/data.hpp)) and densifies
+  above - a DENSIFIED build already reproduces a dense build of the same
+  values bitwise (docs/design/sparse-columns.md's own equivalence-style
+  component test, `testSparseEndToEnd`), but that guarantee is NOT the one
+  step 12 gets: an indicator column's density is 1/K, so at any practical
+  level count the auto-sparse block sits in the RANK tier instead, which
+  `testSparseEndToEnd` never covers and which differs from dense in the
+  last bit of the leaf-mean sufficient statistics (tree structure and the
+  RNG path unmoved; step 13's own forced-sparse-vs-forced-dense test
+  states the actual bound). Nothing builds an indicator-expanded factor's
+  block as sparse today (`makeCategoricalModelMatrix`/
+  `makeModelMatrixFromDataFrame`, [`R/utility.R`](../../R/utility.R) are
+  always dense).
 - `posterior` (S1 LANDED - this bullet now describes history): was
   Suggests-only. `.onLoad` used to register `as_draws_array`/`as_draws_df`
   for five classes into `posterior`'s table via
@@ -319,11 +334,14 @@ S2, touches the predictor-handling code below it):
     `sparseFactor`/`dgCMatrix` column via `formula` bitwise-identical to the
     x/y interface; same under `subset`; same via `.`; same with response-NA
     rows dropped; using the step-12 override, the SAME wide-factor data forced
-    through the sparse path and forced through the dense path fit
-    bitwise-identically to EACH OTHER (never two different factors) - the
-    engine's own densified-CSC-vs-dense equivalence already guarantees this
-    (Context above, `testSparseEndToEnd`), so the test extends that guarantee
-    to the new auto-sparse indicator path. Also add one scenario to
+    through the sparse path and forced through the dense path fit the same
+    model to EACH OTHER (never two different factors) - NOT bitwise, since an
+    indicator column's density (1/K) puts the sparse path in the engine's
+    RANK tier rather than the DENSIFIED tier `testSparseEndToEnd`'s bitwise
+    claim covers (Context above); the rank tier's own last-bit divergence in
+    the leaf-mean sufficient statistics (tree structure and the RNG path
+    unmoved) is the bound the test actually checks against. Also add one
+    scenario to
     `benchmarks/R/equivalence.R`'s corpus - a `factors = "indicators"` fit with
     a wide factor past the (default) cutoff - recording the usual channels; per
     the rng note above this is an ADDITION, so the existing 50 scenarios still

@@ -1201,9 +1201,9 @@
             interaction among dense terms already was.
       \item A \code{factors = "indicators"} fit dummy-expands a factor
             past 100 levels as a sparse (\code{dgCMatrix}-backed) block
-            automatically: the switch changes only the design-matrix
-            representation, never the fitted model, and carries no
-            user-facing argument.
+            automatically, with no user-facing argument: the tree
+            structure grown is the same as the dense expansion's, though
+            leaf-mean draws can differ from it in the last bit.
       \item An ordered factor predictor splits between every adjacent pair of
             its levels. Such a column is coded ordinal on its level codes,
             and its split grid is the midpoints between consecutive
