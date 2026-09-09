@@ -430,10 +430,14 @@ regardless of thread count. Two execution paths:
 - **Worker threads** (more than one): each worker claims chains in a
   round-robin. Workers must never call into R, so progress lines are queued
   (`QueuedProgressSink`) for the main thread to flush and cancellation is a
-  relaxed atomic flag the main thread sets after polling. On POSIX platforms
-  `SIGINT` is blocked in worker threads, so a Ctrl-C reaches only the main
-  thread, whose poll turns it into a cooperative cancel rather than an R
-  longjmp across threads.
+  relaxed atomic flag the main thread sets after polling. The caller blocks on
+  a condition variable that the last chain notifies, having taken the mutex
+  guarding the running-chain count for its decrement, so the call returns when
+  the chains do rather than at a fixed tick; the 100ms timeout on that wait
+  survives only to bound the flush and the poll, which are main-thread-only.
+  On POSIX platforms `SIGINT` is blocked in worker threads, so a Ctrl-C
+  reaches only the main thread, whose poll turns it into a cooperative cancel
+  rather than an R longjmp across threads.
 - **routeTestRows** (`chain.hpp`): the one pool that runs inside a chain
   during sampling rather than across chains - a `misc_mt` pool
   (`testFitPool_`) fanning a tree's test-row routing across this chain's

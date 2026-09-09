@@ -1,5 +1,7 @@
 #include "common.hpp"
 
+#include <chrono>
+
 static void testViewSamplerMatchesFull() {
   const size_t n = 300, p = 4;
   std::vector<double> x(n * p), y(n);
@@ -485,21 +487,36 @@ static void testRunCancellation(ext_rng* rng) {
     check(calls >= 1, "cancellation: poll consulted");
   }
 
-  // multi-chain: the poll fires, every worker stops, and run returns true
-  {
-    const size_t numChains = 4;
+  // the worker-thread arms below all run four chains over four threads
+  const size_t numChains = 4;
+  SamplerOptions workerOptions;
+  workerOptions.numTrees = 25;
+  workerOptions.numChains = numChains;
+  workerOptions.numThreads = numChains;
+  auto makeRngs = [&](uint_least32_t seedBase) {
     std::vector<ext_rng*> rngs(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-      ext_rng_setSeed(rngs[c], 2000 + static_cast<uint_least32_t>(c));
+      ext_rng_setSeed(rngs[c], seedBase + static_cast<uint_least32_t>(c));
     }
-    SamplerOptions options;
-    options.numTrees = 25;
-    options.numChains = numChains;
-    options.numThreads = numChains;
+    return rngs;
+  };
+  auto destroyRngs = [](std::vector<ext_rng*>& rngs) {
+    for (size_t c = rngs.size(); c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+  };
+  auto msecSince = [](std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - start).count();
+  };
+
+  // multi-chain: the poll fires, every worker stops, and run returns true.
+  // The poll fires before the first wait and every worker tests the flag once
+  // a sweep, so the run unwinds at once rather than at a fixed tick.
+  {
+    std::vector<ext_rng*> rngs = makeRngs(2000);
     ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
-                           0.37804942330213542, options, rngs.data());
+                           0.37804942330213542, workerOptions, rngs.data());
     std::atomic<int> calls(0);
     std::function<bool()> always = [&calls]() {
       calls.fetch_add(1);
@@ -508,9 +525,80 @@ static void testRunCancellation(ext_rng* rng) {
     std::vector<double> sigmaDraws(numChains * 100000, 0.0);
     Results results;
     results.sigma = sigmaDraws.data();
+    auto start = std::chrono::steady_clock::now();
     bool cancelled = sampler.run(0, 100000, results, always);
     check(cancelled, "cancellation: multi-chain poll stops all workers");
-    for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+    check(msecSince(start) < 50.0,
+          "cancellation: multi-chain cancel returns promptly");
+    destroyRngs(rngs);
+  }
+
+  // multi-chain latency: a run whose chains take a millisecond returns in a
+  // millisecond, where the timer loop this replaced charged every call - the
+  // single sweep an embedding host makes in an outer loop included - up to a
+  // full 100ms tick, which no load could bring it under.
+  {
+    std::vector<ext_rng*> rngs = makeRngs(3000);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, workerOptions, rngs.data());
+    const size_t numSamples = 2;
+    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    std::function<bool()> never = []() { return false; };
+    auto start = std::chrono::steady_clock::now();
+    bool cancelled = sampler.run(0, numSamples, results, never);
+    double msec = msecSince(start);
+    check(!cancelled, "latency: short multi-chain run completes");
+    check(sigmaDraws[(numChains - 1) * numSamples + numSamples - 1] > 0.0,
+          "latency: every chain filled its slab");
+    check(msec < 50.0, "latency: multi-chain run returns without a tick wait");
+    destroyRngs(rngs);
+  }
+
+  // verbose: progress lines still reach the console THROUGH the loop, not
+  // only in the flush after the join - bounding that flush is why the wait
+  // keeps a timeout. The poll and every flush run on the main thread, so the
+  // poll can read the capture and see what has been printed so far.
+  {
+    std::vector<ext_rng*> rngs = makeRngs(4000);
+    SamplerOptions options = workerOptions;
+    options.verbose = true;
+    options.printEvery = 50;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, rngs.data());
+    // long enough to outlast a 100ms timeout on any machine this builds on,
+    // and printing from its first fifty sweeps
+    const size_t numSamples = 12000;
+    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    std::string text;
+    bool flushedDuringRun = false;
+    std::function<bool()> watch = [&text, &flushedDuringRun]() {
+      if (text.find("iteration: ") != std::string::npos)
+        flushedDuringRun = true;
+      return false;
+    };
+    beginPrintCapture(text);
+    auto start = std::chrono::steady_clock::now();
+    bool cancelled = sampler.run(0, numSamples, results, watch);
+    double msec = msecSince(start);
+    endPrintCapture();
+    check(!cancelled, "verbose: multi-chain run completes");
+    // the next check's premise, so a machine fast enough to finish inside one
+    // timeout says so rather than failing obscurely
+    check(msec >= 100.0, "verbose: the sized run outlasts a wait timeout");
+    check(flushedDuringRun, "verbose: queued lines flush before the join");
+    size_t lines = 0;
+    for (size_t at = text.find("iteration: "); at != std::string::npos;
+         at = text.find("iteration: ", at + 1))
+      ++lines;
+    check(lines == numChains * (numSamples / options.printEvery),
+          "verbose: every chain's progress lines reach the console");
+    destroyRngs(rngs);
   }
 
   printf("ok: run cancellation\n");
