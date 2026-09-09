@@ -799,6 +799,68 @@ dbarts <- function(
     )
   }
 
+  # a Surv formula response was ingested and subsetted by dbartsData()'s own
+  # short-circuit (R/data.R), which has no family vocabulary to dispatch on -
+  # decode its stashed status/time now, against the SAME conflict guard and
+  # auto-dispatch-to-aft the direct-response form applies above
+  formulaSurvivalStatus <- attr(data, "survivalStatus")
+  if (!is.null(formulaSurvivalStatus)) {
+    formulaSurvivalTime <- attr(data, "survivalTime")
+    attr(data, "survivalStatus") <- NULL
+    attr(data, "survivalTime") <- NULL
+    if (family %not_in% c("auto", "aft", hazardTokens)) {
+      stop(
+        "a survival (Surv) response cannot be fit with family \"",
+        family,
+        "\"; use family \"aft\", \"hazard\", or \"auto\""
+      )
+    }
+    if (family %in% hazardTokens) {
+      if (!is.null(data@x.test)) {
+        stop(
+          "a discrete-time hazard formula fit does not accept 'test'; ",
+          "expand test subjects with survivalProbabilities(fit, times, ",
+          "newdata = )"
+        )
+      }
+      expansion <- expandDiscreteTimeHazard(
+        data@x,
+        formulaSurvivalTime,
+        formulaSurvivalStatus,
+        breaks = breaks,
+        max.rows = max.rows,
+        offset = data@offset,
+        weights = data@weights
+      )
+      # makeModelMatrix already typed the original columns (categorical vs
+      # ordinal); the appended period column is ordinal by construction
+      # (dec-B97) and rides last, so one more entry keeps the two aligned
+      data@x <- expansion$x
+      data@varTypes <- c(data@varTypes, ORDINAL_VARIABLE)
+      data@y <- expansion$y
+      data@offset <- expansion$offset
+      data@weights <- expansion$weights
+      hazardPeriods <- expansion$periods
+      # the remap: the engine-facing family is now an ordinary binary link
+      family <- if (identical(family, "hazard.logistic")) {
+        "logistic"
+      } else {
+        "probit"
+      }
+    } else {
+      family <- "aft"
+      survivalStatus <- formulaSurvivalStatus
+    }
+  } else if (
+    is.formula(formula) && (family == "aft" || family %in% hazardTokens)
+  ) {
+    stop(
+      "family \"",
+      family,
+      "\" needs a survival::Surv or two-column (time, status) response"
+    )
+  }
+
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 

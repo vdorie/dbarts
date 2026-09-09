@@ -1260,6 +1260,14 @@ dbartsData <- function(
   # fits pad through; NULL until an na.action drops something
   naOmitted <- NULL
 
+  # a Surv formula response's raw event/censoring time and 0/1 status,
+  # parked as attributes on the returned object (below) rather than a slot -
+  # dbartsData() has no family vocabulary to log-transform or person-period
+  # expand it itself, so dbarts() decodes them once the caller's requested
+  # family is known. NULL for every response that is not Surv.
+  survivalStatus <- NULL
+  survivalTime <- NULL
+
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
   # the response's original type, recorded on the result so the fitters can
@@ -1430,28 +1438,37 @@ dbartsData <- function(
     ## trip "range not meaningful for factors" downstream); codeResponse then
     ## routes it exactly as the x/y path does
     y <- model.response(modelFrame)
-    # a Surv response reaches here only through the formula interface, which
-    # survival (aft) fits do not support; refuse with the supported surface
-    # before any arithmetic trips survival's Ops.Surv guard
+    # a Surv response short-circuits codeResponse, which has no vocabulary
+    # for it: the working response becomes the log event/censoring time (the
+    # aft transform, extractSurvivalResponse's own), and the raw time/status
+    # ride as attributes on the returned object (below) for whichever family
+    # dbarts() resolves this into - aft reads status directly, a hazard
+    # token additionally re-expands x/y by the raw time (R/dbarts.R). Read
+    # off THIS already-model.frame-subsetted response - subset and na.action
+    # both already applied - never re-evaluated.
     if (inherits(y, "Surv")) {
-      stop(
-        "survival (Surv) responses are not supported by the formula ",
-        "interface; use the matrix interface - dbarts(x, y) or ",
-        "bart(x, y) with a Surv or two-column (time, status) ",
-        "response and family = \"aft\""
+      survival <- extractSurvivalTimes(y)
+      survivalStatus <- survival$status
+      survivalTime <- survival$time
+      y <- log(survival$time)
+      responseInfo <- list(
+        type = "numeric",
+        n.levels = NA_integer_,
+        levels = NULL
       )
+    } else {
+      if (is.null(y)) {
+        y <- rep(0, NROW(modelFrame))
+      }
+      # the same by-kind guard the matrix branches carry: codeResponse
+      # flattens a multi-column response column-major, and the row count
+      # then reads as a mismatch against 'x' rather than naming the shape. A
+      # Surv left-hand side takes its own branch just above.
+      refuseMultiColumnResponse(y)
+      coded <- codeResponse(y)
+      y <- coded$y
+      responseInfo <- coded[c("type", "n.levels", "levels")]
     }
-    if (is.null(y)) {
-      y <- rep(0, NROW(modelFrame))
-    }
-    # the same by-kind guard the matrix branches carry: codeResponse flattens
-    # a multi-column response column-major, and the row count then reads as a
-    # mismatch against 'x' rather than naming the shape. A Surv left-hand side
-    # is already refused just above, with the formula interface's own pointer.
-    refuseMultiColumnResponse(y)
-    coded <- codeResponse(y)
-    y <- coded$y
-    responseInfo <- coded[c("type", "n.levels", "levels")]
     numObservations <- NROW(y)
     # a 'bases' entry is resolved the same way a forests = declaration's
     # basis is (validateForestBases's 'subsetRows' branch): checked against
@@ -2019,5 +2036,13 @@ dbartsData <- function(
   result@response.type <- responseInfo$type
   result@response.n.levels <- as.integer(responseInfo$n.levels)
   result@response.levels <- responseInfo$levels
+  # a Surv formula response's raw time/status, for dbarts() to decode
+  # (above) - not a slot, since every other creation route (the matrix
+  # interface, a pre-built dbartsData) has no use for it and carries it
+  # through its own channel instead (control@bartcore.survival)
+  if (!is.null(survivalStatus)) {
+    attr(result, "survivalStatus") <- survivalStatus
+    attr(result, "survivalTime") <- survivalTime
+  }
   result
 }
