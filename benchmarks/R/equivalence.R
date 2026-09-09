@@ -223,8 +223,7 @@ makeScenarios <- function() {
     y = ym,
     x.test = xm.test,
     binary = FALSE,
-    samplerApi = TRUE,
-    samplerArgs = list(missing = "incorporate")
+    samplerApi = TRUE
   )
 
   # adaptive DART tree prior: the Dirichlet split-probability updates
@@ -444,7 +443,7 @@ makeScenarios <- function() {
   )
 
   # Student-t (robust) residuals in the estimated-nu mode (TResponse,
-  # docs/design/robust-errors.md), newly reachable via resid.dist = student().
+  # docs/design/robust-errors.md), newly reachable via family = student().
   # Contaminated-normal data - a gaussian bulk with a 5% heavy-outlier tail -
   # so both mixture channels do real work: the per-observation lambda draws
   # downweight the contaminants and the capped-grid nu draw responds to the
@@ -463,7 +462,7 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = FALSE,
     samplerApi = TRUE,
-    samplerArgs = list(resid.dist = dbarts:::student())
+    samplerArgs = list(family = dbarts:::student())
   )
 
   # ordinal (cumulative-probit) responses (OrdinalResponse,
@@ -1033,8 +1032,7 @@ makeScenarios <- function() {
     x.test = x.test.nf,
     binary = FALSE,
     samplerApi = TRUE,
-    nTrees = 50L,
-    samplerArgs = list(missing = "incorporate")
+    nTrees = 50L
   )
 
   # a CSC-backed FACTOR column (a sparseFactor, docs/design/sparse-columns.md):
@@ -1171,7 +1169,6 @@ makeScenarios <- function() {
       binary = FALSE,
       samplerApi = TRUE,
       nTrees = 50L,
-      samplerArgs = list(missing = "incorporate"),
       testSwap = list(
         predictor = testFrame.ts(),
         predictorAndOffset = testFrame.ts(),

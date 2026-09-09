@@ -219,7 +219,7 @@ buildBase <- function(family, seed, extra = list()) {
       d$x,
       d$y,
       test = d$x[1:5, , drop = FALSE],
-      resid.dist = dbarts:::student(df = 5),
+      family = dbarts:::student(df = 5),
       control = ctl(seed)
     ),
     probit = list(
@@ -247,8 +247,7 @@ buildBase <- function(family, seed, extra = list()) {
       d$x,
       d$yNb,
       test = d$x[1:5, , drop = FALSE],
-      family = "nbinom",
-      dispersion = 5,
+      family = dbarts:::nbinom(dispersion = 5),
       control = ctl(seed)
     ),
     aft = list(
@@ -344,7 +343,7 @@ probeBart1 <- function(family, seed) {
     gaussian = do.call(bart, c(list(d$x, d$y), a())),
     student = do.call(
       bart,
-      c(list(d$x, d$y, resid.dist = dbarts:::student(df = 5)), a())
+      c(list(d$x, d$y, family = dbarts:::student(df = 5)), a())
     ),
     probit = do.call(bart, c(list(d$x, d$yBin), a())),
     logistic = do.call(bart, c(list(d$x, d$yBin, family = "logistic"), a())),
@@ -364,7 +363,7 @@ bart2Args <- function(family, d) {
   switch(
     family,
     gaussian = list(d$x, d$y),
-    student = list(d$x, d$y, resid.dist = dbarts:::student(df = 5)),
+    student = list(d$x, d$y, family = dbarts:::student(df = 5)),
     probit = list(d$x, d$yBin, family = "probit"),
     logistic = list(d$x, d$yBin, family = "logistic"),
     ordinal = list(d$x, d$yOrd, family = "ordinal"),
@@ -525,7 +524,7 @@ hurdleDart <- function(seed) {
     d$x,
     ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
     family = "hurdle.lognormal",
-    dart = TRUE,
+    tree.prior = dbarts::dbartsPriors$dart(),
     n.trees = 3L,
     n.burn = 0L,
     n.samples = 1L,

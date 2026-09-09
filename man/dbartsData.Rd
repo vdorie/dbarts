@@ -9,12 +9,12 @@ dbartsData(
     formula, data, test, subset, weights,
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
-    missing = c("incorporate", "error"),
+    na.action = dbarts::na.keepPredictors,
     bases = NULL,
     counts = NULL)
 }
 \arguments{
-   \item{formula, data, test, subset, weights, offset, offset.test, factors, missing}{
+   \item{formula, data, test, subset, weights, offset, offset.test, factors, na.action}{
      As in \code{\link{dbarts}}. Retains backwards compatibility with \code{\link{bart}}, so that \code{formula}/\code{data} can be a \code{\link{formula}}/\code{\link{data.frame}} pair, or a pair of \code{x.train}/\code{y.train} matrices/vector. \code{offset}/\code{offset.test} take the matrix interface's shape from whether \code{counts} is also supplied: with \code{counts}, an \code{n} x \code{K} (\code{nTest} x \code{K}) numeric matrix installs the per-category shift described under \code{counts} below, and a flat vector is refused; without \code{counts}, only a flat vector (or single number) is accepted, and a matrix is refused. \code{formula} may itself be a \code{dbartsData} object, in which case it is returned as-is; any other argument supplied alongside it is then ignored, with a warning (class \code{dbartsIgnoredArgWarning}).
    }
    \item{bases}{

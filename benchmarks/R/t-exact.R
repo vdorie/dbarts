@@ -174,7 +174,7 @@ fitSingleTree <- function(seed) {
       birth = 0.5
     ),
     resid.prior = fixed(sigmaFixed^2),
-    resid.dist = student(df = nu)
+    family = dbarts::dbartsFamilies$student(df = nu)
   )
   sampler$model@node.scale <- nodeScale
   bc <- dbarts:::bartcoreSampler(sampler)

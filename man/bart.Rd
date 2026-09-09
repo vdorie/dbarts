@@ -39,12 +39,11 @@ bart(
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = NULL, prior.scale = NA_real_,
     power = 2.0, base = 0.95, split.probs = NULL,
-    dart = FALSE,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
-    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = NA,
+    n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
@@ -64,10 +63,7 @@ bart(
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
                "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
-    missing = c("incorporate", "error"),
-    resid.dist = gaussian,
-    dispersion = NA_real_,
-    breaks = NULL, max.rows = 1e7,
+    na.action = dbarts::na.keepPredictors,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
     storage = c("double", "single"), updateState = TRUE, \dots)
 
@@ -218,9 +214,6 @@ bart(
    \item{split.probs}{
      Prior and transition probabilities of variables used to generate splits. \code{NULL} (the default) requests equiprobability; can also be a numeric vector of length equal to the number of variables, or a named numeric vector with only a subset of the variables specified and a \code{.default} named value. Values given for factor variables are replicated for each resulting column in the generated model matrix. The symbol \code{num.vars} is rebound before execution to the number of columns in the model matrix. Collides with a supplied \code{tree.prior} (see below).
    }
-   \item{dart}{
-     \code{TRUE} places a DART prior (a Dirichlet prior over the split-variable probabilities, inducing variable selection; Linero 2018) on the trees with default settings, using \code{power} and \code{base} for the growth probabilities; a prior created by \code{\link[=dbartsPriors]{dbartsPriors$dart}} supplies its own settings, overriding \code{power} and \code{base}. Cannot be combined with \code{split.probs}. Per-sample probabilities are returned in the \code{varprobs} element of the fit.
-   }
    \item{n.trees}{
      The number of trees in the sum-of-trees formulation.
    }
@@ -246,9 +239,6 @@ bart(
    }
    \item{useQuantiles}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable. See \code{\link{bart}}'s \sQuote{Decision Rules} details.
-   }
-   \item{levelGibbs}{
-     Logical, passed through to \code{\link{dbartsControl}}. When \code{TRUE}, each sampler iteration takes one extra Gibbs step before the trees are updated, adding a constant to every occupied leaf of each tree with the constants summing to zero over the trees: the sum-of-trees function is unchanged, the individual leaf values move, and the posterior being sampled is the same. \code{FALSE} never takes it; \code{NA}, the default, takes it exactly where the tree structures are frozen by an all-zero \code{proposal.probs}, and nowhere else, so an ordinary fit draws the values it drew in previous versions. See \code{dbartsControl}'s \code{levelGibbs} item.
    }
    \item{n.thin}{
      Every \code{n.thin} draw is kept to be returned to the user. Useful for \dQuote{thinning} samples against serial correlation; see \code{n.samples} above for how the two combine.
@@ -317,17 +307,8 @@ bart(
 
      \code{family = "hurdle.lognormal"} (alias \code{"twopart"}, which resolves and prints as \code{"hurdle.lognormal"}) fits a semicontinuous two-part (hurdle) model for a non-negative response with exact zeros: an OCCUPANCY probit fit of \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations, glued at report time to a POSITIVE-PART gaussian fit of \eqn{\log y}{log y} over the subset \eqn{\{i : y_i > 0\}}{{i : y_i > 0}}. The two component fits share no parameters and are composed entirely R-side from two ordinary \code{bart2} fits at independently derived seeds - no engine code, and no coupling between the parts - so a shared variable-selection prior across the occupancy and positive parts is foreclosed by this composition (a recorded limitation, alongside a Duan-smearing retransformation and a heteroscedastic positive part, both follow-ups). \code{y.train} must be non-negative and finite and must carry at least one exact zero and one positive value (a response with no zeros, or none positive, is refused by name). By default \code{predict}/\code{fitted}/\code{extract} report the NATURAL (response) scale via posterior-predictive Monte Carlo: \eqn{E[y \mid x] = P(y > 0 \mid x)\,e^{f(x) + \sigma^2 / 2}}{E[y | x] = Pr(y > 0 | x) * exp(f(x) + sigma^2 / 2)} computed per posterior draw from the positive part's single \eqn{\sigma} per draw, recycled across observations (the positive part is always homoscedastic; a heteroscedastic positive part is not reachable, see the recorded limitation above). \code{type = "prob"} returns the occupancy probability \eqn{\pi(x)} through the probit link; \code{type = "link"}/\code{"log"} the positive part's log-scale linear predictor \eqn{f(x)}; \code{type = "ppd"} draws the proper BIMODAL predictive - a Bernoulli(\eqn{\pi}) spike at zero, else a lognormal draw - which the plain gaussian ppd path cannot produce. Fits currently use the matrix interface only (\code{bart2(x.train, y.train, family = "hurdle.lognormal")}); \code{weights}, \code{subset}, \code{offset}/\code{offset.test}, and \code{test} are all refused with an error naming the limitation - the positive-part fit is instead given the full training \code{x} as its own \code{x.test}, so its in-sample fitted values cover the zero rows it never trained on. \code{predict} requires \code{keepTrees = TRUE} and replays both saved forests at \code{newdata}. \code{dbarts()} does not fit this family - it composes two samplers, which only \code{bart2()} builds, so requesting it there is an error directing here. \code{xbart} does not fit it either. The fit's class is \code{"bartHurdle"}, holding both component fits (\code{$occupancy}, a \code{"bart"} probit fit of the occupancy indicator; \code{$positive}, a \code{"bart"} gaussian fit of \eqn{\log y}{log y} on the positive subset) under their own \code{extract}/\code{fitted}/\code{predict}/\code{residuals}/\code{print} methods.
    }
-   \item{missing}{
-     How missing predictor values enter the model, exactly as in \code{\link{dbarts}}. The default \code{"incorporate"} keeps them, every split rule learning a direction for \code{NA}; \code{"error"} rejects predictors containing \code{NA} - the historical behavior \code{\link{bart}} always uses. The learned route is per column: an \code{NA} in \code{test} or \code{newdata} is refused, naming the column, wherever that column was complete in training.
-   }
-   \item{resid.dist}{
-     The residual error \emph{law} for a continuous (gaussian) response, passed through to \code{\link{dbarts}}. The default \code{gaussian()} gives normal errors; \code{student(df)} fits outlier-robust Student-t errors by a Gaussian scale-mixture augmentation, with \code{student(df = nu)} fixing the degrees of freedom and \code{student()} estimating them on a capped grid. Only continuous gaussian responses carry it (an error otherwise). Two caveats: with a flexible tree-forest mean, tail inference is partially confounded with fit flexibility, so an estimated \eqn{\nu} should be posterior-checked; and \eqn{\sigma} is then the \emph{conditional} scale, the marginal residual variance being \eqn{\sigma^2\,\nu/(\nu-2)}{sigma^2 nu / (nu - 2)}. See \code{\link{dbarts}} for the full description.
-   }
-   \item{dispersion}{
-     The negative-binomial dispersion \eqn{r} (\code{family = "nbinom"} only; ignored otherwise), passed through to \code{\link{dbarts}}. \code{NA} (the default) estimates \eqn{r} on a capped positive-integer grid under a renormalized \eqn{\mathrm{gamma}(2, 0.1)}{gamma(2, 0.1)} prior; a supplied value fixes it and must be a positive integer (v1 ships the exact integer envelope, so a real fixed dispersion is refused). Larger \eqn{r} approaches the Poisson limit; smaller \eqn{r} is more overdispersed.
-   }
-   \item{breaks, max.rows}{
-     Discrete-time hazard controls (\code{family = "hazard"} only; ignored otherwise), passed through to \code{\link{dbarts}}. \code{breaks} sets the period grid: \code{NULL} (the default) uses the sorted distinct observed times, a single positive integer bins at that many quantiles, and a numeric boundary vector gives explicit right-closed intervals. \code{max.rows} (default \eqn{10^7}) refuses an over-large person-period expansion, naming the coarsening levers.
+   \item{na.action}{
+     A function that filters incomplete rows, as \code{\link{lm}} takes one. The default \code{\link{na.keepPredictors}} drops rows with a missing RESPONSE and keeps rows with missing predictors, which the trees route; the base functions keep their usual meaning. See \code{\link{na.keepPredictors}}.
    }
    \item{tree.prior, node.prior, resid.prior}{
      The full \code{\link{dbarts}} prior objects, forwarded unevaluated so a bare \code{\link{dbartsPriors}} vocabulary name inside them (\code{cgm}, \code{dart}, \code{normal}, \code{linear}, \code{gp}, \code{chisq}, \code{fixed}) resolves exactly as it does for \code{dbarts}: \code{node.prior = linear(columns = 1:3)}, \code{gp(...)}, and \code{resid.prior = fixed(1)} are reachable this way. \code{NULL} (the default for all three) instead builds the tree/node/residual priors from \code{power}/\code{base}/\code{split.probs}/\code{dart}, \code{k}/\code{prior.scale}, and \code{sigdf}/\code{sigquant} respectively, exactly as before this argument existed. Supplying an object alongside a shorthand that would otherwise help build the same prior is an error naming both: \code{tree.prior} collides with any of \code{power}/\code{base}/\code{split.probs}/\code{dart}; \code{node.prior} with \code{k}/\code{prior.scale}; \code{resid.prior} with \code{sigdf}/\code{sigquant}/\code{sigest}. A supplied \code{resid.prior} under a fixed-unit-scale family (\code{"probit"}, \code{"logistic"}, \code{"ordinal"}, \code{"nbinom"}, the hazard families, \code{"multinomial"}) is diagnosed the same way \code{sigest}/\code{sigdf}/\code{sigquant} already are - a \code{dbartsFamilyGatedWarning}, since the family overwrites it with \code{fixed(1)} regardless. \code{tree.prior}/\code{node.prior} are honored on every family, including both component fits of \code{family = "hurdle.lognormal"}.

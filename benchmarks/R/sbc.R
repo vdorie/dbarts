@@ -319,7 +319,7 @@ sbcConfig <- function(
 }
 
 # The dbarts() family token for a configuration: the Student-t and multinomial
-# arms build a GAUSSIAN host (t adds resid.dist = student(); multinomial wraps
+# arms build a GAUSSIAN host (t adds family = student(); multinomial wraps
 # the host in the K-forest softmax sampler), everything else names itself.
 sbcSamplerFamily <- function(config) {
   switch(config$family, t = "gaussian", multinomial = "gaussian", config$family)
@@ -381,7 +381,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   if (is.null(y)) {
     y <- config$yBuild
   }
-  # The matrix (xy) interface DROPS NA rows even under missing = "incorporate"
+  # The matrix (xy) interface applies the na.action to the (y, x) pair
   # (dbartsData warns "row(s) dropped"); only the formula interface keeps them
   # (na.action = na.pass). NA designs therefore build through a formula.
   if (anyNA(config$x)) {
@@ -398,8 +398,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
       node.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
-      family = family,
-      missing = "incorporate"
+      family = family
     )
   } else {
     args <- list(
@@ -417,7 +416,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   # family; the constructor vocabulary is unexported, so reach it by namespace
   # exactly as the harness reaches the internal bartcore entry points.
   if (config$family == "t") {
-    args$resid.dist <- getFromNamespace("dbartsResidDists", "dbarts")$student()
+    args$family <- dbarts::dbartsFamilies$student()
   }
   if (!is.null(config$weights)) {
     args$weights <- config$weights

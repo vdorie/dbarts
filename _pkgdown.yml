@@ -28,6 +28,7 @@ reference:
   - dbartsData
   - dbartsSpec
   - dbartsPriors
+  - dbartsFamilies
   - interactions
   - blocks
   - forest
@@ -55,6 +56,7 @@ reference:
 - title: Utilities
   contents:
   - dbarts-embedding
+  - na.keepPredictors
   - plotTree
   - makeModelMatrixFromDataFrame
   - dbartsMixedMatrix
