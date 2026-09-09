@@ -126,18 +126,17 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
 
 ## Decision
 
-`draws()` naming/shape is NOT a fork here - dec-B99 already fixes the shape
-(Context above) - so only two real forks remain.
+`draws()` naming/shape is not a fork: dec-B99 fixes the shape (Context
+above). Both forks were put to VD on 2026-09-08 and are recorded with
+the choice; none remains open.
 
-1. `summary`'s column set. Recommended: keep the full set - `mean`, `median`,
-   `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, `ess_tail` - computed
-   internally. Six of nine are one `stats::` call each; only R-hat/ESS is new
-   work, so trimming saves nothing while breaking the documented contract.
-2. `family = "auto"` with a `Surv` LHS. Recommended: dispatch to `aft`,
-   mirroring the matrix interface (`responseIsSurv` + `"auto"` already means
-   `aft` there). Hazard still needs an explicit family on both interfaces - a
-   bare `Surv` is ambiguous, and formula-only explicitness would make the
-   interfaces disagree on identical input.
+1. `summary`'s column set (VD 2026-09-08, "Use your recommendation"):
+   the full set - `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
+   `ess_bulk`, `ess_tail` - computed internally, so the documented
+   shape is unchanged.
+2. `family = "auto"` with a `Surv` left-hand side (VD 2026-09-08, "Use
+   your recommendation"): dispatch to `aft`, mirroring the matrix
+   interface; the hazard family stays explicit on both interfaces.
 
 ## Constraints
 
