@@ -3,6 +3,12 @@
 
 extract <- function(object, ...) UseMethod("extract")
 
+# a fit's chain-dimensioned draws as a plain (iteration, chain, variable)
+# array with dimnames - the shape 'posterior::as_draws_array' accepts
+# unchanged from a caller who has that package installed (R/diagnostics.R's
+# methods)
+draws <- function(x, ...) UseMethod("draws")
+
 plotTree <- function(object, ...) UseMethod("plotTree")
 
 survivalProbabilities <- function(object, ...) {

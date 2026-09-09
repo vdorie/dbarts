@@ -1,12 +1,10 @@
-# convergence diagnostics: posterior-package draws accessors and a
-# summary() method for the scalar parameters of bart/bart2 fits.
-# posterior is Suggests-only; as_draws_array/as_draws_df are registered
-# for it conditionally in hooks.R. summary() itself is a base generic and
-# degrades to a plain quantile table when posterior is unavailable.
-
-# indirection point so tests can simulate posterior's absence without
-# uninstalling it
-posteriorAvailable <- function() requireNamespace("posterior", quietly = TRUE)
+# convergence diagnostics: a draws() extractor for the scalar parameters
+# of bart/bart2 fits, and a summary() method reporting per-variable
+# mean/median/sd/mad/quantiles plus split-Rhat and bulk/tail effective
+# sample size, computed in-package (no 'posterior' dependency). draws()
+# returns a plain (iteration, chain, variable) array with dimnames, the
+# shape 'posterior::as_draws_array' accepts unchanged from a caller who
+# has it installed.
 
 # n.chains survives on the object whether or not the sampler was kept (see
 # packageBartResults); fit is a single dbartsSampler
@@ -169,6 +167,63 @@ bartDrawsArray <- function(object, vars) {
     dim = c(dim(pieces[[1L]])[1L], n.chains, length(varNames)),
     dimnames = list(NULL, NULL, varNames)
   )
+}
+
+draws.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
+  bartDrawsArray(x, vars)
+}
+
+# matches summary.bartOrdinal's own default 'vars'; bartDrawsArray already
+# special-cases "thresholds" to ordinalThresholdsArray.
+draws.bartOrdinal <- function(
+  x,
+  vars = c("thresholds", "sigma", "k", "tau"),
+  ...
+) {
+  bartDrawsArray(x, vars)
+}
+
+# matches summary.bartNegbin's own default 'vars'; scalarFields already lists
+# "dispersion" as a sigma-shaped field.
+draws.bartNegbin <- function(
+  x,
+  vars = c("dispersion", "sigma", "k", "tau"),
+  ...
+) {
+  bartDrawsArray(x, vars)
+}
+
+# This family has no scalar parameter at all: the pooled per-category mean
+# predicted probability is its only convergence instrument, and 'summary'
+# already chose it (multinomialDrawsArray), so the two agree. 'vars' is
+# accepted for signature symmetry with the other classes but has only ever
+# one meaning here - never object$yhat.train's n x K per-observation draws.
+draws.bartMultinomial <- function(x, vars = "meanProb", ...) {
+  multinomialDrawsArray(x)
+}
+
+# The union of both components' present scalar fields, each labelled with
+# an "occupancy."/"positive." prefix (a dot, not a bracket: 'posterior'
+# parses a bracket as an index) - the same two blocks print.summary.bartHurdle
+# already prints under, so draws() and summary agree. Both components are
+# driven by one n.chains/n.samples schedule and indexed draw for draw, so
+# their (iteration, chain) margins match and the variable margins
+# concatenate directly.
+hurdleDrawsArray <- function(object, vars) {
+  occ <- bartDrawsArray(object$occupancy, vars)
+  pos <- bartDrawsArray(object$positive, vars)
+  dimnames(occ)[[3L]] <- paste0("occupancy.", dimnames(occ)[[3L]])
+  dimnames(pos)[[3L]] <- paste0("positive.", dimnames(pos)[[3L]])
+  arr <- array(
+    c(occ, pos),
+    dim = c(dim(occ)[1:2], dim(occ)[3L] + dim(pos)[3L])
+  )
+  dimnames(arr) <- list(NULL, NULL, c(dimnames(occ)[[3L]], dimnames(pos)[[3L]]))
+  arr
+}
+
+draws.bartHurdle <- function(x, vars = c("sigma", "k", "tau"), ...) {
+  hurdleDrawsArray(x, vars)
 }
 
 # ---- Rank-normalized split-Rhat and bulk/tail effective sample size, our
@@ -369,123 +424,20 @@ summariseDraws <- function(arr) {
   out
 }
 
-as_draws_array.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
-  posterior::as_draws_array(bartDrawsArray(x, vars))
-}
-
-as_draws_df.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
-  posterior::as_draws_df(bartDrawsArray(x, vars))
-}
-
-# matches summary.bartOrdinal's own default 'vars'; bartDrawsArray already
-# special-cases "thresholds" to ordinalThresholdsArray.
-as_draws_array.bartOrdinal <- function(
-  x,
-  vars = c("thresholds", "sigma", "k", "tau"),
-  ...
-) {
-  posterior::as_draws_array(bartDrawsArray(x, vars))
-}
-as_draws_df.bartOrdinal <- function(
-  x,
-  vars = c("thresholds", "sigma", "k", "tau"),
-  ...
-) {
-  posterior::as_draws_df(bartDrawsArray(x, vars))
-}
-
-# matches summary.bartNegbin's own default 'vars'; scalarFields already lists
-# "dispersion" as a sigma-shaped field.
-as_draws_array.bartNegbin <- function(
-  x,
-  vars = c("dispersion", "sigma", "k", "tau"),
-  ...
-) {
-  posterior::as_draws_array(bartDrawsArray(x, vars))
-}
-as_draws_df.bartNegbin <- function(
-  x,
-  vars = c("dispersion", "sigma", "k", "tau"),
-  ...
-) {
-  posterior::as_draws_df(bartDrawsArray(x, vars))
-}
-
-# This family has no scalar parameter at all: the pooled per-category mean
-# predicted probability is its only convergence instrument, and 'summary'
-# already chose it (multinomialDrawsArray), so the two agree. 'vars' is
-# accepted for signature symmetry with the other classes but has only ever
-# one meaning here - never object$yhat.train's n x K per-observation draws.
-as_draws_array.bartMultinomial <- function(x, vars = "meanProb", ...) {
-  posterior::as_draws_array(multinomialDrawsArray(x))
-}
-as_draws_df.bartMultinomial <- function(x, vars = "meanProb", ...) {
-  posterior::as_draws_df(multinomialDrawsArray(x))
-}
-
-# The union of both components' present scalar fields, each labelled with an
-# "occupancy."/"positive." prefix (a dot, not a bracket: posterior parses a
-# bracket as an index) - the same two blocks print.summary.bartHurdle already
-# prints under, so as_draws and summary agree. Both components are driven by
-# one n.chains/n.samples schedule and indexed draw for draw, so their
-# (iteration, chain) margins match and the variable margins concatenate
-# directly.
-hurdleDrawsArray <- function(object, vars) {
-  occ <- bartDrawsArray(object$occupancy, vars)
-  pos <- bartDrawsArray(object$positive, vars)
-  dimnames(occ)[[3L]] <- paste0("occupancy.", dimnames(occ)[[3L]])
-  dimnames(pos)[[3L]] <- paste0("positive.", dimnames(pos)[[3L]])
-  arr <- array(
-    c(occ, pos),
-    dim = c(dim(occ)[1:2], dim(occ)[3L] + dim(pos)[3L])
-  )
-  dimnames(arr) <- list(NULL, NULL, c(dimnames(occ)[[3L]], dimnames(pos)[[3L]]))
-  arr
-}
-
-as_draws_array.bartHurdle <- function(x, vars = c("sigma", "k", "tau"), ...) {
-  posterior::as_draws_array(hurdleDrawsArray(x, vars))
-}
-as_draws_df.bartHurdle <- function(x, vars = c("sigma", "k", "tau"), ...) {
-  posterior::as_draws_df(hurdleDrawsArray(x, vars))
-}
-
-# plain per-variable mean/sd/quantiles, pooling samples and chains; the
-# degrade path when posterior is not installed
-quantileSummary <- function(arr) {
-  pooled <- matrix(arr, prod(dim(arr)[1L:2L]), dim(arr)[3L])
-  data.frame(
-    variable = dimnames(arr)[[3L]],
-    mean = colMeans(pooled),
-    sd = apply(pooled, 2L, sd),
-    q2.5 = apply(pooled, 2L, quantile, probs = 0.025, names = FALSE),
-    median = apply(pooled, 2L, quantile, probs = 0.5, names = FALSE),
-    q97.5 = apply(pooled, 2L, quantile, probs = 0.975, names = FALSE),
-    row.names = NULL
-  )
-}
-
 # rhat > 1.01 is noted in the printed summary, not enforced: dbarts does not
 # refuse to summarize a non-converged fit
 summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
   present <- presentDrawsVars(object, vars)
-  havePosterior <- length(present) > 0L && posteriorAvailable()
   stats <- if (length(present) == 0L) {
     NULL
-  } else if (havePosterior) {
-    posterior::summarise_draws(posterior::as_draws_array(bartDrawsArray(
-      object,
-      present
-    )))
   } else {
-    quantileSummary(bartDrawsArray(object, present))
+    summariseDraws(bartDrawsArray(object, present))
   }
   structure(
     list(
       call = object[["call"]],
       stats = stats,
-      vars = vars,
-      posterior = havePosterior
+      vars = vars
     ),
     class = "summary.bart"
   )
@@ -577,13 +529,13 @@ multinomialSummaryVarsReason <- list(
 )
 
 # Convergence summary for a bart2(family = "multinomial") fit, mirroring
-# summary.bart's shape (posterior mean/sd/quantiles, R-hat/ESS when
-# 'posterior' is installed). This family has no sigma/k/tau scale to
-# summarize, so the scalar channel is each category's posterior mean
-# predicted probability, pooled over the training observations per draw -
-# enough to eyeball per-category convergence without dumping every
-# observation's draws. There is no other channel to pool instead, so 'vars'
-# is refused by name rather than silently ignored.
+# summary.bart's shape (mean/sd/quantiles plus R-hat/ESS, unconditionally).
+# This family has no sigma/k/tau scale to summarize, so the scalar channel
+# is each category's posterior mean predicted probability, pooled over the
+# training observations per draw - enough to eyeball per-category
+# convergence without dumping every observation's draws. There is no other
+# channel to pool instead, so 'vars' is refused by name rather than
+# silently ignored.
 summary.bartMultinomial <- function(object, ...) {
   refuseUnusedGenericArgs(
     list(...),
@@ -592,18 +544,11 @@ summary.bartMultinomial <- function(object, ...) {
     multinomialSummaryVarsReason
   )
   arr <- multinomialDrawsArray(object)
-  havePosterior <- posteriorAvailable()
-  stats <- if (havePosterior) {
-    posterior::summarise_draws(posterior::as_draws_array(arr))
-  } else {
-    quantileSummary(arr)
-  }
   structure(
     list(
       call = object[["call"]],
-      stats = stats,
-      vars = "meanProb",
-      posterior = havePosterior
+      stats = summariseDraws(arr),
+      vars = "meanProb"
     ),
     class = "summary.bart"
   )
@@ -624,9 +569,7 @@ printSummaryBartBody <- function(x, ...) {
     return(invisible(NULL))
   }
   print(x$stats, ...)
-  if (!x$posterior) {
-    cat("\nNote: install 'posterior' for R-hat/ESS convergence diagnostics.\n")
-  } else if (any(x$stats$rhat > 1.01, na.rm = TRUE)) {
+  if (any(x$stats$rhat > 1.01, na.rm = TRUE)) {
     cat(
       "\nNote: some R-hat values exceed 1.01; chains may not have converged.\n"
     )
