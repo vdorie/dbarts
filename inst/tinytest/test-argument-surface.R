@@ -287,7 +287,10 @@ lastTwoNamed <- function(fn) {
   fnFormals[length(fnFormals) - c(1L, 0L)]
 }
 expect_equal(lastTwoNamed(dbarts::bart), c("storage", "updateState"))
-expect_identical(names(formals(dbarts::bart))[length(formals(dbarts::bart))], "...")
+expect_identical(
+  names(formals(dbarts::bart))[length(formals(dbarts::bart))],
+  "..."
+)
 
 # storage/updateState reach the control with explicit, non-default values
 explicitControl <- fit2(
@@ -774,7 +777,10 @@ for (knob in xbartKnobs) {
 expect_false("control" %in% names(formals(dbarts::xbart)))
 # '...' is the transition release's retired-spelling channel; it carries no
 # name of its own here, so every '...' argument is refused
-expect_identical(names(formals(dbarts::xbart))[length(formals(dbarts::xbart))], "...")
+expect_identical(
+  names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
+  "..."
+)
 expect_equal(length(formals(dbarts::xbart)), 33L)
 expect_error(
   dbarts::xbart(
@@ -802,6 +808,13 @@ expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
 # the modern door offers every family token the package fits from one
 # sampler, plus the hurdle composition it builds itself
 expect_true(all(
-  c("logistic", "aft", "multinomial", "ordinal", "nbinom", "hurdle.lognormal") %in%
+  c(
+    "logistic",
+    "aft",
+    "multinomial",
+    "ordinal",
+    "nbinom",
+    "hurdle.lognormal"
+  ) %in%
     eval(formals(dbarts::bart)$family)
 ))

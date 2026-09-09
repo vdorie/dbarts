@@ -813,7 +813,8 @@ bart <- function(
   # the shared names are evaluated as defaults
   sharedFormals <- setdiff(names(formals(dbarts::bart)), "...")
   missingDefaultArgs <- sharedFormals[
-    sharedFormals %in% names(formals(dbarts::dbartsControl)) &
+    sharedFormals %in%
+      names(formals(dbarts::dbartsControl)) &
       sharedFormals %not_in% names(matchedCall)
   ]
   if (length(missingDefaultArgs) > 0L) {

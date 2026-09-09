@@ -15,12 +15,15 @@ expires <- field("expires")
 # every entry carries the four fields the registry is read by
 expect_true(all(vapply(
   registry,
-  function(e) all(c("name", "kind", "owner", "successor", "expires") %in% names(e)),
+  function(e) {
+    all(c("name", "kind", "owner", "successor", "expires") %in% names(e))
+  },
   logical(1L)
 )))
 expect_true(all(nzchar(names.t)))
 expect_true(all(
-  kinds %in% c("function", "method", "rcMethod", "argument", "family", "behaviour")
+  kinds %in%
+    c("function", "method", "rcMethod", "argument", "family", "behaviour")
 ))
 
 # one expiry for the whole set: the release that drops them deletes the file,
