@@ -428,6 +428,20 @@ stop on a shipped build; README's CI list was stale for cpp-tests; the
 timeout raised from 45 to 60; the reference install no longer skipped
 after a C++ failure. Remaining: S2, the vector suffstat kernel; S3, S4, S5.
 
+x86 leg, run 2026-09-09 at tip 777d0f1c on an x86-64 Linux host
+(AVX2/FMA, dispatch level 8, R 4.6.1) after this slice and S3 landed:
+both builds install; tests/cpp 283/283 plain, under ASan/UBSan and
+under ThreadSanitizer with zero diagnostics; tinytest 0 failures on
+both builds (8182 shipped, 8209 reference); the four RNG-locked
+snapshot files RUN AND PASS in full on the reference build there, so
+the reference build reproduces the arm64-recorded draws bitwise across
+ISA; and the equivalence trio against the arm64 baselines reports
+max |z| = 0.00 on all 50 gaussian scenarios and tier-1 PASS on all 12
+BCF and 11 multinomial scenarios under the cross-host compare, on the
+shipped build as well as the reference build. Until S2 lands the two
+builds are the same kernel, so this is the cross-ISA baseline S2's
+layout rule (Decision 2) is measured against.
+
 ## Landing note, S3 (2026-09-09)
 
 LANDED at 7030557578a9a6dd225ed8abc23d1dc654a531ff, three commits:
