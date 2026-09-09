@@ -4,16 +4,16 @@ Status: OPEN until step 2 of [memory-footprint-audit.md](../plans/memory-footpri
 validates it against measured peak RSS.
 
 The closed-form model of what a fit allocates, per component, in the units the
-allocations actually have. Every byte count below is read off the element type
-and the allocation site, not measured. Symbols: n rows, p predictors, T trees
-per forest, C chains, S kept draws, nTest test rows, K categories, q designated
-leaf covariates, nnz sparse nonzeros, and m the mean live node count of a tree
-(the one non-derived input, below). Widths that recur:
-[`xint_t`](../../src/bartcore/data.hpp) 2, [`index_t`](../../src/bartcore/data.hpp)
-4, [`Node`](../../src/bartcore/tree.hpp) 56, [`FlatNode`](../../src/bartcore/tree.hpp)
-24 - each confirmed by `sizeof` on arm64, and none of them changes with the
-reference build, which re-associates draw-path kernels and allocates nothing
-differently. No row below differs by build mode.
+allocations have. Every byte count is read off the element type and the
+allocation site, not measured. Symbols: n rows, p predictors, T trees per
+forest, C chains, S kept draws, nTest test rows, K categories, q designated
+leaf covariates, nnz sparse nonzeros, m the mean live node count of a tree (the
+one non-derived input, below). Recurring widths, each confirmed by `sizeof` on
+arm64: [`xint_t`](../../src/bartcore/data.hpp) 2,
+[`index_t`](../../src/bartcore/data.hpp) 4, [`Node`](../../src/bartcore/tree.hpp)
+56, [`FlatNode`](../../src/bartcore/tree.hpp) 24. No row differs by build mode:
+the reference build re-associates draw-path kernels and allocates nothing
+differently.
 
 ## The table
 
@@ -48,17 +48,33 @@ differently. No row below differs by build mode.
 | saved trees | [`Forest::savedTrees`](../../src/bartcore/combiner.hpp) | saved sample | 24 | S*T*m per forest per chain, plus about 40 per saved tree of vector object and allocator header | keepTrees |
 | stored state trees | [`storeFlatTrees`](../../src/R_interface_bartcore.cpp) | saved sample | 13 (4 variable + 8 value + 1 flags) | T*m per forest per chain, plus 4 per tree; times S again under keepTrees | storeState called |
 | result train channel | [`allocChannel`](../../src/R_interface_bartcore.cpp), [`installChannel`](../../src/R_interface_bartcore.cpp) | saved sample | 8 | n*L*S*C, L the reported locations (K for multinomial, else 1) | keepTrainingFits |
-| result test channel | same | saved sample | 8 | nTest*L*S*C | a test set |
-| result varcount | same | saved sample | 4 | p*F*S*C, F the forest axis | always |
-| result sigma, k, thresholds, dispersion | same | saved sample | 8 | S*C each; (K-1)*S*C for ordinal thresholds | per family |
-| result variance channel | same | saved sample | 8 | n*S*C, plus nTest*S*C | heteroscedastic |
-| yhat.train transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra n*L*S*C live at peak | keepTrainingFits, non-binary |
+| result test channel | [`testExpr`](../../src/R_interface_bartcore.cpp), filled from [`Results::testFits`](../../src/bartcore/chain.hpp) | saved sample | 8 | nTest*L*S*C | a test set |
+| result varcount | [`varcountExpr`](../../src/R_interface_bartcore.cpp), filled from [`Results::variableCounts`](../../src/bartcore/chain.hpp) | saved sample | 4 | p*F*S*C, F the forest axis | always |
+| result sigma, k, thresholds, dispersion | [`sigmaExpr`](../../src/R_interface_bartcore.cpp), [`ordinalThresholdsExpr`](../../src/R_interface_bartcore.cpp), filled from [`Results::sigma`](../../src/bartcore/chain.hpp), [`Results::ordinalThresholds`](../../src/bartcore/chain.hpp) | saved sample | 8 | S*C each; (K-1)*S*C for ordinal thresholds | per family |
+| result variance channel | [`varianceTrainExpr`](../../src/R_interface_bartcore.cpp), [`varianceTestExpr`](../../src/R_interface_bartcore.cpp) | saved sample | 8 | n*S*C, plus nTest*S*C | heteroscedastic |
+| yhat.train transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra n*L*S*C live at peak; 1 under combineChains = FALSE on a binary fit | keepTrainingFits |
+| yhat.test transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
 | raw predictors | [`dbartsData`](../../R/A_class.R) | sampler | 8 | n*p, plus nTest*p | always, beside the store's 2*n*p codes |
+| ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
+| quantile collector | [`QuantileGrid`](../../src/bartcore/data.hpp)'s [`sortedUnique`](../../src/bartcore/data.hpp) | sampler | 8 | n reserved per column, one column at a time | usequants |
 | retained sampler | [`keepSampler`](../../R/bart.R) | sampler | the whole engine total above | 1 | keepTrees or keepSampler |
 
 The engine writes recorded draws straight into the R vectors the bridge
-allocates, so there is no engine-side copy of any result channel.
+allocates, so no engine-side copy of any result channel exists. The transient
+copies are not a non-binary phenomenon: `bart`'s default combineChains = TRUE
+reaches three live full-size arrays on every fit, since `matrix()` and `t()`
+each allocate while the engine's array is still bound; the non-binary path
+reaches the same three through `apply`'s `aperm`, which copies even when the
+permutation is the identity. Only a binary fit under combineChains = FALSE
+peaks at two.
+
+Which INSTANT a total describes matters. The reference cases are the peak of a
+full-length run, where the result channels and their copies dominate. A short
+run (n.burn = 0, small n.samples, as step 2's cells are) collapses that term
+and max RSS lands instead at ingestion and quantization - the two transient
+sampler rows, up to 2*n*p doubles at once, 800 MB at n = 1e6, p = 50. Hundreds
+of MB at a small S is that, not a missing term.
 
 ## The one non-derived input
 
@@ -69,10 +85,13 @@ current estimate is 3.8 at n = 2e3, growing slowly with n; the reference cases
 below assume 8 at n >= 1e5. Step 2 measures it per grid cell by summing the
 `tree.sizes` blocks [`storeFlatTrees`](../../src/R_interface_bartcore.cpp)
 writes and dividing by C*T. Two node counts exist and differ: the flattened
-live count m that storeState and saved trees write, and the arena size
-[`Tree::nodes`](../../src/bartcore/tree.hpp) holds, a high-water mark that
-retains dead pairs. The 56-byte row uses the arena, so it is an upper bound of
-the same order.
+live count m that storeState and saved trees write, and the arena length
+[`Tree::nodes`](../../src/bartcore/tree.hpp) holds. The arena only grows -
+a death recycles its pair through [`freePairs`](../../src/bartcore/tree.hpp)
+rather than shrinking the vector - so it is a high-water mark at or above the
+live count, and 56*T*m is a LOWER bound on the live-tree row, not an upper one.
+Step 2 can measure only the flattened count; the arena high-water is not
+observable from R, and no channel reports it.
 
 ## Reference cases
 
@@ -118,8 +137,9 @@ What the consuming arcs read off this: the three owned conditioning vectors
 plus the test offset (dec-B87, [docs/decisions.md](../decisions.md)) are
 24*n + 8*nTest, 2.4 MB in case 1 (0.4 pct of the engine) and 24.0 MB in case 2
 (1.4 pct); one more chain costs the per-chain line, 163.0 MB and 1628.2 MB,
-while one more thread inside a chain costs under 1 MB (dec-B89); keepTrees
-costs 24*S*T*m + 40*S*T = 23.2 MB per chain in both.
+keepTrees costs 24*S*T*m + 40*S*T = 23.2 MB per chain in both. The cost of one
+more thread inside a chain is a FORWARD claim this note does not make:
+within-chain threading is not in the tree, and dec-B89's arc measures it.
 
 ## Where this disagrees with the plan's Context
 
@@ -130,9 +150,17 @@ costs 24*S*T*m + 40*S*T = 23.2 MB per chain in both.
   not 4*8*n. The reference-case engine totals rise by that amount.
 - The per-chain block is 163.0 MB, not 162.5: the move scratch's high-water
   4*n and the per-tree Tree/muByTree objects are real and were unlisted.
-- dec-B104's "about 2.8 times the training predictions" holds for no
-  configuration of what storeState writes. The stored live state is 13*T*m per
-  chain against an 8*n*S*C prediction array: 5e-5 of it in case 1. Saved trees
-  over all S draws reach 2.8 only near n = 1700 and fall like 1/n. Step 2
-  measures both ratios; the manual carries whichever survives, with its
+- dec-B104's "about 2.8 times the training predictions" is FIXTURE-SPECIFIC,
+  and the disagreement is with that decision's wording alone (the plan's step 4
+  already carries the caveat). What storeState writes under keepTrees is
+  13*T*m per chain per saved draw against an 8*n*S*C prediction array, so the
+  ratio is 13*T*m/(8*n) = 2600/n at T = 200 and m = 8: it crosses 2.8 near
+  n = 930 and falls like 1/n, reaching 0.03 in case 1. Its provenance is the
+  auto-store that fired only for keepTrees fits, gated on keepTrees, so the
+  ratio was measured on a review fixture's small n; the concatenated per-forest
+  vectors storeState writes were already the layout then, so small n is the
+  whole explanation and R list overhead is not part of it. That auto-store is
+  gone, reverted by dec-B33 and confirmed by dec-B104. retired:
+  [R/bart.R:144-150](https://github.com/vdorie/dbarts/blob/6c740a41e5bb7da90d2e58494e8f622e8131ce87/R/bart.R#L144-L150)
+  Step 2 measures the ratio at every cell; the manual carries it with its
   condition.
