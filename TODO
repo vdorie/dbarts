@@ -281,7 +281,7 @@ items
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
   one release; the BayesTree-style names and defaults move to a new
-  function (name open: bartBT or bart_bt); for one release bart forwards
+  function, bartBT (VD 2026-09-08); for one release bart forwards
   a legacy-style call (x.train/y.train, ntree, ndpost, nskip, keeptrees)
   to that function with a once-per-session warning. The legacy door is a
   strict compatibility mode: BayesTree's arguments and defaults, no new
@@ -289,7 +289,8 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75)
   chains, threads) stay is settled in the plan. Its factor-response
   refusal names both remedies. Consumers: bartCause
   calls bart2; 17 CRAN reverse dependencies call only bart. Settle before
-  contacting lorax's maintainer. Plan doc to write.
+  contacting lorax's maintainer.
+  Plan: docs/plans/front-door.md.
 
 removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
   rbart_vi and its methods return as stubs that error naming stan4bart;
@@ -298,6 +299,7 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
   in the release after 1.0-0. Land with the front-door rename. A saved
   0.9-x fit (no state format field) is refused by name at restore and
   predict (dec-B109).
+  Plan: docs/plans/front-door.md.
 
 xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
   tombstones for control= and a three-element n.burn (error naming the
@@ -308,12 +310,14 @@ xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77)
   reproduces at any n.threads. Warm starts across folds stay out. The
   k axis accepts fixed values and a "leave k modelled" entry (the
   family's hyperprior default) as grid points (dec-B102).
+  Plan: docs/plans/front-door.md.
 
 factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
   subset splits stay the modern default; the manual states the
   difference from BayesTree and why. Post-release research item:
   weighting a factor column's split probability by its level count,
   which the indicator encoding gave implicitly.
+  Plan: docs/plans/front-door.md.
 
 front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
   dec-B79, B80, B81)
@@ -321,12 +325,14 @@ front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
   dbarts()'s sigma argument (the creation-time estimate only; setSigma
   is untouched), with a one-release warning; the manual gets one table
   mapping front-door family tokens to engine families and entry points.
+  Plan: docs/plans/front-door.md.
 
 hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82)
   remove hurdle.lognormal and twopart from dbarts()'s family list and
   intercept the hurdle case in the front door before it forwards; drop
   the twopart alias (tombstone for one release). Post-release: a
   correlated hurdle family in the engine.
+  Plan: docs/plans/front-door.md.
 
 pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84)
   pre-release: drop dbarts_sampler_create, storeState, setState and
@@ -343,12 +349,13 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84)
   creation, never retain a caller pointer (dec-B87). The exact-ABI
   flag comes off both consumers at the merge and stays off; a dbarts CI
   assertion fails a build whose API hash changed without a minor bump
-  (dec-B111). Plan doc to write.
+  (dec-B111). Plan: docs/plans/pure-c-header.md.
 memory footprint at large n (VD concern, 2026-09-08)
   audit the per-sampler footprint as a function of n, p, trees and
   chains (owned conditioning vectors, cut codes, tree storage, per-chain
   state, test slabs) and record it in the manual; VD wants larger
-  datasets to fit and has had memory trouble before.
+  datasets to fit and has had memory trouble before. Plan:
+  docs/plans/memory-footprint-audit.md.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's
@@ -360,6 +367,7 @@ worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88)
   pre-release: the multi-chain run loop in src/bartcore/sampler.hpp waits
   on a completion signal instead of sleeping 100 ms per poll; keep the
   timed wake for the interrupt poll and progress flush.
+  Plan: docs/plans/engine-performance.md.
 
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   dec-B89)
@@ -369,9 +377,9 @@ within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   pre-release (VD 2026-09-08: a regression, so not deferred): revive
   archive/within-chain-threading as an explicit opt-in; first time the
   prototype against the tip on this machine, single chain at 1, 2 and 4
-  threads, and let the memory audit inform the default. Plan doc to
-  write; lands after the reference-build item so both share one gate
-  matrix.
+  threads, and let the memory audit inform the default. Plan:
+  docs/plans/engine-performance.md; lands after the reference-build
+  item so both share one gate matrix.
 
 vectorized draw path with a reference build (decided, VD 2026-09-08;
   docs/decisions.md dec-B90)
@@ -381,8 +389,8 @@ vectorized draw path with a reference build (decided, VD 2026-09-08;
   reference build and tinytest, sanitizers and statistical equivalence
   on the shipped build; a deterministic vector-vs-scalar sum test; the
   four snapshot files skip unless the build reports reference mode.
-  Plan doc to write. Principle (VD): regressions against 0.9-34 are not
-  deferred past the release.
+  Plan: docs/plans/engine-performance.md. Principle (VD): regressions
+  against 0.9-34 are not deferred past the release.
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91)
@@ -396,7 +404,8 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   measurements show binding; add gp()'s max.leaf.size to the audit and
   a post-fit warning keyed on the share of GP leaf evaluations that
   fell back to constant leaves (dec-B110). VD: "extremely worried that
-  they're artificially limiting". Plan doc to write.
+  they're artificially limiting".
+  Plan: docs/plans/engine-performance.md.
 
 engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
   dec-B92)
@@ -418,7 +427,8 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
 survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97)
   pre-release, R layer only: Surv on the formula left-hand side for aft
   and hazard; subset honoured; a test path for the hazard family that
-  person-period expands held-out subjects. Plan doc to write.
+  person-period expands held-out subjects. Plan:
+  docs/plans/interfaces-and-dependencies.md.
 
 family objects and front-door consolidation (decided, VD 2026-09-08;
   docs/decisions.md dec-B98)
@@ -432,7 +442,8 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   match dbartsPriors (dec-B101); add na.action with a package default
   that drops missing-response rows only, keeps missing predictors, and
   records dropped rows for padding (dec-B108); base na.* functions keep
-  their meaning. Plan doc to write; lands with the front-door rename.
+  their meaning. Plan: docs/plans/front-door.md; lands with the
+  front-door rename.
 
 remove the posterior dependency (decided, VD 2026-09-08;
   docs/decisions.md dec-B99)
@@ -445,6 +456,7 @@ remove the posterior dependency (decided, VD 2026-09-08;
   Suggests (recommended packages). Principle (VD): no bad
   dependencies - recommended packages, or ones that understand less is
   more.
+  Plan: docs/plans/interfaces-and-dependencies.md.
 
 sparse factors on the formula interface (decided, VD 2026-09-08;
   docs/decisions.md dec-B100)
@@ -461,7 +473,8 @@ sparse factors on the formula interface (decided, VD 2026-09-08;
   Matrix column in a data frame: the audit checked nrow, row
   subsetting and na.omit; also check order, split, merge, rbind,
   head, str, saveRDS round trip, and model.frame's subset path.
-  Audit: docs/plans/sparse-formula-audit.md. Plan doc to write.
+  Audit: docs/plans/sparse-formula-audit.md. Plan:
+  docs/plans/interfaces-and-dependencies.md.
 
 rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   stays removed; tombstone names stan4bart and says the group-spread
@@ -489,6 +502,7 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   interface"; configure.ac keeps --enable-match-bayes-tree,
   --enable-thread-safe-unload and --with-xint-size as stubs that stop
   with a removal message for one release.
+  Plan: docs/plans/interfaces-and-dependencies.md.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   bump the DESCRIPTION Date at the RC.

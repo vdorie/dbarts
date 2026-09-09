@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (34 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (39 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -75,6 +75,9 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| front-door.md | PLANNED 2026-09-08 (decision-gated; VD read pending) | Makes `bart` the modern front door with a one-release `bart2` alias and a BayesTree-spelling shim, moves the BayesTree-style function to a new name at 0.9-34's formals, adds the tombstone registry, `sigest` everywhere, family objects with the consolidation pass, the Student-t family, `na.action` with a response-only default, xbart's fold distribution and modelled-k grid, and the saved-0.9-x-fit refusal. |
+| interfaces-and-dependencies.md | PLANNED 2026-09-08 (decision-gated; VD read pending) | Completes the survival formula interface (a Surv left-hand side, `subset`, a hazard test path), accepts sparse Matrix and sparseFactor columns on the formula path with no marker, removes the posterior package (internal split R-hat and ESS, a base-R draws extractor), rewords the BayesTree claim and stubs the three removed configure options. |
+| pure-c-header.md | PLANNED 2026-09-08 (decision-gated; VD read pending) | Makes `dbarts.h` pure C: the four R-object entries and destroy go, the list trims to the entries a consumer calls plus the sizing queries, every setter copies into buffers allocated at creation, the handle is read from the R sampler object, CI asserts a hash change carries a minor bump, and stan4bart and treatSens are ported on their compat branches. |
 | adoption-slate.md | LANDED, 2026-08-15 | Ships a slate of R-vs-C++ boundary fixes: per-family `getLatents` semantics, the nbinom dispersion as a per-draw channel, a relaxed grouped `setResponse`, exported augmentation helpers on R's RNG stream, and `dbartsValidateComposition` for validating a host's one-sweep step. |
 | capi-shape.md | LANDED 9df0cb50, 2026-08-26 | Freezes the pre-1.0 shape of `dbarts.h`: seven entries that refuse a request return an int capability answer rather than raising, `getTrees`/`printTrees` take `forest` after the sampler, and `setForestBasis` takes `basisRowMajor`. |
 | composition-refusals.md | LANDED 936825d7, 2026-08-25 | Makes grouped random effects with a variance forest a named validation error, and refuses an `NA` in test predictors wherever the training column was complete. |
@@ -88,6 +91,8 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| engine-performance.md | PLANNED 2026-09-08 (decision-gated; VD read pending) | One gate matrix for the four engine items: a scalar reference build behind a configure flag with the vectorized draw path shipped, the multi-worker wait loop, within-chain threading measured and revived as an explicit opt-in, and the audit of the fixed engine constants with measurements and control settings. |
+| memory-footprint-audit.md | PLANNED 2026-09-08 (decision-gated; VD read pending) | Derives and measures the per-sampler memory footprint in n, p, trees, chains and test rows, prices the R-layer duplicates beside the engine, records the model in the manual and ranks the avoidable allocations. |
 | repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene: widened concurrency and path filters landed; no codecov integration - coverage stays local-on-demand. |
 
 ## Review / retrospective programs
