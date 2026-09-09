@@ -307,3 +307,52 @@ R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equ
 Expected: record writes one row per cell per metric; fit prints the residual
 summary and exits non-zero on a missed step 2 tolerance; format, lint,
 freshness, codoc and check clean.
+
+## Landing note, steps 2-6 (2026-09-10)
+
+LANDED at 2f25e3d1f3ced3409b0a8866d6d7166ac6018333, nine commits:
+
+- 72430fbee5f8643c27aa9b083d0824ccb1f282a0 Add the memory footprint audit script
+- b6b628555c434d82539382eb15a46fab5c2c9b61 Validate the memory footprint note against measured peak RSS
+- 2b827c06aa0de89eeb8b9384e632e8eb3e610e52 Document the memory footprint in the manual
+- 156a3e3868be66b4721859683fff7aa01500d595 Rank the largest avoidable allocations in the memory note
+- 4d56b2ae6e2f4482b2023328b82e08d88de7e45e Price the stored state in the sampler manual
+- 644b19dbdd61a811f6dc4178cdfba51ccca3c83e Score the relative residual only where the prediction clears the floor
+- b2ad5f70061990507a8b645b6890eb6e473da17e Correct the ingestion and leaf-cache rows and score over the whole grid
+- cfbf74ed0a615d68adacaa50e6e15e57a767ddaa Record the three-run spread on the residual median
+- 2f25e3d1f3ced3409b0a8866d6d7166ac6018333 Tidy the memory note after review
+
+[benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R)
+records one subprocess per cell under `/usr/bin/time -l` (`-v` on Linux),
+subtracts a load-only baseline, prints the note's prediction beside each
+measurement with the warm-up, churn and ingestion allowances as separate
+columns, and scores the plan's tolerance over the whole grid (30 cells:
+the Decision 3 spine, the small full crossing, one S = 200 cell, two
+designated-covariate cells). The note's Status is VALIDATED: every cell
+within max(10 pct, 20 MB), median absolute relative residual 4.4 to 4.8
+pct across three runs (limit 5), worst cell n = 1e5, p = 20, T = 200,
+C = 2 at 20.8 to 24.3 MB low against 46.6 MB. The measurement moved four
+rows: raw predictors became a derived 8*n*p plus a measured ingestion
+allowance (two copies in [`dbartsData`](../../R/data.R), one persistent
+and one transient); the leaf statistics cache is 4*n per populated arena
+depth level per tree per chain from `assign`'s retained capacity in the
+never-pruned cache (about 3.2 levels, 276 MB at the reference linear
+cell; the 256 MiB budget counts live member lists only and bound no cell);
+the gathered leaf design doubles for its standardized copy; and the
+starting-sigma `lm` gained a row. `man/dbarts-package.Rd` carries the
+Memory section (step 4) and the note the ranked list (step 5).
+Baseline benchmarks/baselines/memory-footprint-cfbf74ed.csv is the second
+reader's own full-grid recording at the script's last code commit.
+
+Review findings fixed before landing: the leaf-cache row multiplied by
+the node count where leaf memberships partition n, so it fit only by
+saturating the budget (re-derived from the arena, second linear cell
+added); the raw-predictors row cited the class file rather than the two
+copying sites; the relative tolerance had been restated to score only
+above 100 MB, under which the plan's own wording failed (5.49 pct) - the
+restatement was reverted and the corrected model passes the plan's gate
+as written.
+
+Remaining: step 7, the two transient copies of the training-prediction
+array (ranked second in the note).
+

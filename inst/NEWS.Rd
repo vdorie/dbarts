@@ -428,6 +428,13 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{\link{dbarts-package}} gains a \dQuote{Memory} section
+            giving the peak footprint of a fit as a function of the data
+            size, tree count, chains and kept draws, with the options that
+            dominate it at large n (\code{keepTrainingFits},
+            \code{keepTrees}); the model behind it is validated against
+            measured peak resident set size by
+            \file{benchmarks/R/memory-footprint.R}.
       \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
             adding one Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of

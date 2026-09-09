@@ -7,8 +7,7 @@ max(10 pct, 20 MB) of the model, and the median absolute relative residual
 over the whole grid is 4.4 to 4.8 pct across three runs against a 5 pct
 limit; the worst cell is the same one each time (n = 1e5, p = 20, T = 200,
 C = 2), 20.8 to 24.3 MB low against a 46.6 MB tolerance. The margin on the
-median is thin, and it is thin
-for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
+median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
 byte model cannot reach. "What the measurement moved" below records the rows
 the run changed.
