@@ -386,13 +386,10 @@ static void testWeightedSuffstatKernels() {
   check(worstNode < tolerance,
         "weighted suffstat: node sums match scalar across node sizes");
 
-  // The four-wide body compiled for AVX2 accumulates the SAME four banks in
-  // the same order as the two-lane split, so a CPU check may install it
-  // without moving a draw. That is the claim, and it is asserted BITWISE:
-  // level 0 always installs the split, the host's own maximum installs the
-  // widest body it has. On a host without AVX2 both levels install the same
-  // body and this arm is a tautology - which still must hold, and which is
-  // why the shipped assertion lives here rather than behind an #ifdef.
+  // These two entry points are selected by BUILD MODE and must not vary with
+  // the SIMD dispatch level, so that a level change cannot move a draw. Pinned
+  // bitwise across every level the host has: today no branch here reads the
+  // level at all, and this is what says so.
   misc_simd_instructionSet maxLevel = misc_simd_getMaxSIMDInstructionSet();
   size_t widestMismatches = 0;
   for (size_t length : lengths) {
