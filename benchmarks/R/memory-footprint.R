@@ -403,11 +403,9 @@ reportResiduals <- function(rows) {
   wide$tolerance_mb <- pmax(0.10 * wide$predicted_mb, 20)
   wide$rel <- abs(wide$residual_mb) / wide$predicted_mb
   wide$flag <- ifelse(abs(wide$residual_mb) > wide$tolerance_mb, "MISS", "")
-  # the relative criterion only where the prediction clears the fixed floor
+  # the relative criterion only where the prediction clears the fixed floor;
+  # a grid with no such cell (quick mode) is scored on the absolute one alone
   scored <- wide$rel[wide$predicted_mb > 100]
-  if (length(scored) == 0L) {
-    scored <- wide$rel
-  }
 
   cat("\n")
   print(
@@ -421,14 +419,18 @@ reportResiduals <- function(rows) {
     worst$residual_mb,
     worst$tolerance_mb
   ))
-  cat(sprintf(
-    "median absolute relative residual %.1f pct over %d cell(s) above 100 MB",
-    100 * median(scored),
-    length(scored)
-  ))
-  cat(" (limit 5.0)\n")
+  if (length(scored) > 0L) {
+    cat(sprintf(
+      "median absolute relative residual %.1f pct over %d cell(s) above 100 MB",
+      100 * median(scored),
+      length(scored)
+    ))
+    cat(" (limit 5.0)\n")
+  } else {
+    cat("relative residual not scored: no cell predicts above 100 MB\n")
+  }
   misses <- sum(wide$flag == "MISS")
-  if (misses > 0L || median(scored) >= 0.05) {
+  if (misses > 0L || (length(scored) > 0L && median(scored) >= 0.05)) {
     cat(sprintf("\nFAIL: %d cell(s) outside tolerance\n", misses))
     return(FALSE)
   }
