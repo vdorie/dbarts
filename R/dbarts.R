@@ -427,7 +427,7 @@ dbarts <- function(
         "dbarts() does not fit family = \"hurdle.lognormal\": it composes ",
         "two independent samplers (an occupancy probit and a positive-part ",
         "gaussian) and dbarts() returns one - use ",
-        "bart(x.train, y.train, family = \"hurdle.lognormal\")"
+        "bart(x, y, family = \"hurdle.lognormal\")"
       )
     }
   }
@@ -509,7 +509,7 @@ dbarts <- function(
     if (!directResponse) {
       stop(
         "discrete-time hazard fits currently use the matrix interface - ",
-        "dbarts(x.train, y.train) or bart2(x.train, y.train) with a ",
+        "dbarts(x, y) or bart(x, y) with a ",
         "survival::Surv or two-column (time, status) response"
       )
     }
@@ -567,7 +567,7 @@ dbarts <- function(
   ) {
     stop(
       "survival (aft) fits currently use the matrix interface - ",
-      "dbarts(x.train, y.train) or bart2(x.train, y.train) with a ",
+      "dbarts(x, y) or bart(x, y) with a ",
       "survival::Surv or two-column (time, status) response"
     )
   }
@@ -601,7 +601,7 @@ dbarts <- function(
     if (!directResponse) {
       stop(
         "multinomial fits currently use the matrix interface - ",
-        "dbarts(x.train, y.train) or bart2(x.train, y.train) with a factor ",
+        "dbarts(x, y) or bart(x, y) with a factor ",
         "or an n x K count-matrix response"
       )
     }

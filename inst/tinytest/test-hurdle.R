@@ -136,18 +136,30 @@ occupied <- rbinom(n, 1L, pi.true) == 1L
 y <- numeric(n)
 y[occupied] <- exp(rnorm(sum(occupied), mu.true[occupied], 0.4))
 
-fit <- bart(
-  x,
-  y,
-  family = "hurdle.lognormal",
-  n.samples = 50L,
-  n.burn = 30L,
-  n.trees = 20L,
-  n.chains = 1L,
-  keepTrees = TRUE,
-  verbose = FALSE,
-  seed = 7L
+# the composition builds its two component fits by redirecting the caller's
+# own matched call, so a plain hurdle fit must raise NOTHING: a component
+# call spelled with a retired name would warn about a call the user never
+# made, and burn the once-per-session key that call's own warning needs
+hurdleWarnings <- character(0L)
+fit <- withCallingHandlers(
+  bart(
+    x,
+    y,
+    family = "hurdle.lognormal",
+    n.samples = 50L,
+    n.burn = 30L,
+    n.trees = 20L,
+    n.chains = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    seed = 7L
+  ),
+  warning = function(w) {
+    hurdleWarnings <<- c(hurdleWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
 )
+expect_equal(length(hurdleWarnings), 0L)
 expect_inherits(fit, "bartHurdle")
 
 fittedTrain <- fitted(fit, type = "ev")

@@ -120,17 +120,17 @@ resolveSamplerSpec <- function(
 ) {
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
-  # are multinomial, which only bart2(family = "multinomial") implements. A
+  # are multinomial, which only bart(family = "multinomial") implements. A
   # numeric response takes the 0/1-vs-continuous path.
-  # dbarts() is also reached anonymously through bart(), which never sets an
-  # explicit family; see resolveClassificationFamily's doc comment for why
+  # dbarts() is also reached anonymously through bartBT(), which has no family
+  # formal at all; see resolveClassificationFamily's doc comment for why
   # its auto-branch message lists every single-forest entry point instead of
   # naming itself. probit/logistic on a 2-level categorical response proceed
   # as binary.
   family <- resolveClassificationFamily(
     data,
     family,
-    "dbarts()/bart()/xbart",
+    "dbarts()/bartBT()/xbart",
     c("gaussian", "aft", "nbinom"),
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE

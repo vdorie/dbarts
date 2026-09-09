@@ -62,7 +62,7 @@ expect_error(
 
 # --- dbarts() cannot express the two-sampler composition; directs to the
 # front door ---
-expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x.train")
+expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x, y")
 expect_error(dbarts(x, y, family = "twopart"), "hurdle.lognormal")
 
 # --- xbart does not fit it (its family vector is the refusal, the

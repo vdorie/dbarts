@@ -420,16 +420,47 @@ noOpThreadMethod <- function(name) {
 ## reads a missing field as encoding 0 and would blame the encoding rather
 ## than the release. Named here instead, at both R-side restore points, so
 ## a saved 0.9-x fit reaching predict through object$fit says what it is.
-## An empty object is not a state under any version and falls through to
-## the ordinary class refusal; the version test applies to something that
-## carries per-chain content.
-refuseLegacyState <- function(state) {
-  if (length(state) > 0L && is.null(attr(state, "formatVersion"))) {
-    stop(
-      "this fit was saved by dbarts 0.9-x (no state format field); dbarts ",
-      "1.0-0 cannot read it; refit with this version",
-      call. = FALSE
-    )
+## 0.9-x held each chain's state as an S4 dbartsState carrying these fields;
+## a class definition that no longer exists still leaves the class attribute
+## on a loaded object, so either the class or the field names identifies the
+## shape. Recognizing the OLD SHAPE rather than merely the missing attribute
+## is what keeps an object that is no state at all - a bare list, a string -
+## on the ordinary type refusal instead of being called a 0.9-x fit.
+legacyStateFields <- c(
+  "fit.tree",
+  "fit.total",
+  "sigma",
+  "runningTime",
+  "trees",
+  "treeFits",
+  "savedTrees"
+)
+
+isLegacyState <- function(state) {
+  looksLegacy <- function(block) {
+    inherits(block, "dbartsState") ||
+      sum(legacyStateFields %in% names(block)) >= 3L
   }
-  invisible(NULL)
+  if (looksLegacy(state)) {
+    return(TRUE)
+  }
+  if (is.list(state)) {
+    for (block in state) {
+      if (looksLegacy(block)) {
+        return(TRUE)
+      }
+    }
+  }
+  FALSE
+}
+
+refuseLegacyState <- function(state) {
+  if (!is.null(attr(state, "formatVersion")) || !isLegacyState(state)) {
+    return(invisible(NULL))
+  }
+  stop(
+    "this fit was saved by dbarts 0.9-x (no state format field); dbarts ",
+    "1.0-0 cannot read it; refit with this version",
+    call. = FALSE
+  )
 }

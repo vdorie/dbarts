@@ -98,14 +98,22 @@ factorMsg <- tryCatch(
 )
 expect_true(grepl("family = \"multinomial\"", factorMsg, fixed = TRUE))
 expect_true(grepl("as.integer(y) - 1L", factorMsg, fixed = TRUE))
-# an ORDERED 3+-level response reaches the same refusal through the
-# formula path, where dbarts() resolves it to ordinal first
-dfS10 <- data.frame(a = xS10[, 1L], b = xS10[, 2L], y = ordered(y3S10))
-expect_error(
-  do.call(dbarts::bartBT, c(list(y ~ a + b, dfS10), quickS10)),
-  pattern = "three or more levels"
-)
-rm(y3S10, factorMsg, dfS10)
+# both 3+-level factor kinds reach the SAME refusal through the formula
+# path too: the ordered one after dbarts() resolves it to ordinal, the
+# unordered one from inside dbarts()'s own categorical refusal, whose
+# message names family tokens this door has no formal for
+dfOrderedS10 <- data.frame(a = xS10[, 1L], b = xS10[, 2L], y = ordered(y3S10))
+dfUnorderedS10 <- data.frame(a = xS10[, 1L], b = xS10[, 2L], y = y3S10)
+for (dfCase in list(dfOrderedS10, dfUnorderedS10)) {
+  formulaMsg <- tryCatch(
+    do.call(dbarts::bartBT, c(list(y ~ a + b, dfCase), quickS10)),
+    error = function(e) conditionMessage(e)
+  )
+  expect_true(grepl("three or more levels", formulaMsg, fixed = TRUE))
+  expect_true(grepl("as.integer(y) - 1L", formulaMsg, fixed = TRUE))
+  expect_false(grepl("bart2", formulaMsg, fixed = TRUE))
+}
+rm(y3S10, factorMsg, dfOrderedS10, dfUnorderedS10, formulaMsg, dfCase)
 
 # a keepSampler fit carries $n.chains too, not only when the sampler itself
 # is dropped

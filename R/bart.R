@@ -952,7 +952,7 @@ bart <- function(
       stop(
         "family = \"multinomial\" does not support a pre-built dbartsData ",
         "object; use the formula interface or the matrix ",
-        "interface: bart(x.train, y.train, family = \"multinomial\")"
+        "interface: bart(x, y, family = \"multinomial\")"
       )
     }
     if (is.formula(formula)) {
@@ -2318,8 +2318,8 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
 
 # The hurdle.lognormal fit path, reached from the front door's family =
 # "hurdle.lognormal" branch. Composed R-side from two ordinary single-forest
-# fits - never a coupled engine model - so this simply calls bart2() twice,
-# once per component, at two independently derived seeds (a shared seed
+# fits - never a coupled engine model - so this simply calls the front door
+# twice, once per component, at two independently derived seeds (a shared seed
 # would correlate the two chains and bias the combined credible interval).
 # The positive fit's 'test' is forced to the FULL training x so its
 # in-sample fitted()/extract() carries E[y | y > 0, x] at the zero rows it
@@ -2336,7 +2336,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   ) {
     stop(
       "family = \"hurdle.lognormal\" fits currently use the matrix interface ",
-      "- bart2(x.train, y.train, family = \"hurdle.lognormal\")"
+      "- bart(x, y, family = \"hurdle.lognormal\")"
     )
   }
 
@@ -2365,7 +2365,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   gatedOnBoth <- c("dispersion", "breaks", "max.rows")
   gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
-  occupancyCall <- redirectCall(matchedCall, dbarts::bart2)
+  occupancyCall <- redirectCall(matchedCall, dbarts::bart)
   occupancyCall[c(gatedOnBoth, gatedOnOccupancyOnly)] <- NULL
   occupancyCall$formula <- formula
   occupancyCall$data <- split$z
@@ -2374,7 +2374,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   occupancyCall$keepTrees <- control@keepTrees
   occupancy <- eval(occupancyCall, callingEnv)
 
-  positiveCall <- redirectCall(matchedCall, dbarts::bart2)
+  positiveCall <- redirectCall(matchedCall, dbarts::bart)
   positiveCall[gatedOnBoth] <- NULL
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
@@ -2645,7 +2645,7 @@ refuseLegacyFactorResponse <- function() {
   stop(
     "'bartBT' does not fit a factor response with three or more levels; ",
     "dbarts 0.9-x fit its integer level codes as numbers. Use ",
-    "bart(x.train, y.train, family = \"multinomial\") for a multinomial ",
+    "bart(x, y, family = \"multinomial\") for a multinomial ",
     "fit, or pass as.integer(y) - 1L to keep the old numeric behaviour",
     call. = FALSE
   )
@@ -2808,6 +2808,12 @@ bartBT <- function(
     do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
     error = function(e) {
       msg <- conditionMessage(e)
+      # the formula path's categorical response is refused inside dbarts(),
+      # whose message names the modern door's family tokens; this door has no
+      # 'family' formal, so its own two-remedy message stands in
+      if (grepl("response is multinomial; fit it with", msg, fixed = TRUE)) {
+        refuseLegacyFactorResponse()
+      }
       if (grepl("missing = \"incorporate\" to model them", msg, fixed = TRUE)) {
         stop(
           sub(

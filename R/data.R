@@ -602,7 +602,7 @@ resolveClassificationFamily <- function(
   responseType <- data@response.type
   K <- data@response.n.levels
   # ordinal (cumulative probit): only
-  # dbarts()/bart2() pass allowOrdinal = TRUE. family = "ordinal" is the
+  # dbarts()/bart() pass allowOrdinal = TRUE. family = "ordinal" is the
   # explicit primitive and forces the model on any response (numeric levels are
   # sort(unique(y)), resolved later); family = "auto" auto-dispatches an ORDERED
   # factor to it, announced. The other single-forest entries leave allowOrdinal
@@ -624,14 +624,14 @@ resolveClassificationFamily <- function(
   }
   if (K >= 3L) {
     # a 3+-level ORDERED factor is ordinal (reached here only from an entry that
-    # cannot fit it - xbart; dbarts/bart2 route ordinal above); every
+    # cannot fit it - xbart; dbarts/bart route ordinal above); every
     # other 3+-level factor/character is unordered multinomial
     isOrdered <- identical(responseType, "ordered factor")
     model <- if (isOrdered) "ordinal" else "multinomial"
     suggestion <- if (isOrdered) {
-      "bart2(family = \"ordinal\")"
+      "bart(x, y, family = \"ordinal\")"
     } else {
-      "bart2(family = \"multinomial\")"
+      "bart(x, y, family = \"multinomial\")"
     }
     if (!splitMultinomialMessage) {
       stop(
@@ -1245,8 +1245,8 @@ dbartsData <- function(
     if (inherits(y, "Surv")) {
       stop(
         "survival (Surv) responses are not supported by the formula ",
-        "interface; use the matrix interface - dbarts(x.train, y.train) or ",
-        "bart2(x.train, y.train) with a Surv or two-column (time, status) ",
+        "interface; use the matrix interface - dbarts(x, y) or ",
+        "bart(x, y) with a Surv or two-column (time, status) ",
         "response and family = \"aft\""
       )
     }

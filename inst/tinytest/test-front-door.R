@@ -296,7 +296,7 @@ expect_error(
 # --- hurdle tokens: one spelling at the front door, none at dbarts() ---
 expect_error(
   dbarts::dbarts(xFD, abs(yFD), family = "hurdle.lognormal"),
-  pattern = "bart\\(x.train, y.train, family = \"hurdle.lognormal\"\\)"
+  pattern = "bart\\(x, y, family = \"hurdle.lognormal\"\\)"
 )
 twopartMsgFD <- tryCatch(
   dbarts::dbarts(xFD, abs(yFD), family = "twopart"),
@@ -320,25 +320,50 @@ expect_true(
 )
 
 # --- a fit saved by dbarts 0.9-x is refused by name ---
-# built by hand: 0.9-x's state carried no format field at all, which is the
-# whole version test. The fit object is otherwise a live one, so the refusal
-# has to come from the state and not from a missing slot.
+# Built by hand from 0.9-x's own per-chain shape: an object of its
+# dbartsState class, and the same field names with no class at all, since a
+# class definition this version no longer carries leaves only the attribute
+# behind on a loaded object. Neither has a format field - the whole version
+# test. The fit object is otherwise a live one, so the refusal has to come
+# from the state and not from a missing slot.
+legacyChain <- list(
+  fit.tree = matrix(0.0, 1L, 1L),
+  fit.total = numeric(1L),
+  sigma = 1.0,
+  runningTime = 0.0,
+  trees = "",
+  treeFits = numeric(1L),
+  savedTrees = NULL
+)
+legacyState <- list(legacyChain)
+legacyStateClassed <- list(structure(legacyChain, class = "dbartsState"))
+
 stateFit <- do.call(
   dbarts::bart,
   c(list(xFD, yFD, keepTrees = TRUE, keepSampler = TRUE), modernFD)
 )
 stateFit$fit$storeState()
-legacyState <- stateFit$fit$state
-attr(legacyState, "formatVersion") <- NULL
-expect_error(
-  stateFit$fit$setState(legacyState),
-  pattern = "saved by dbarts 0.9-x"
-)
+for (fixture in list(legacyState, legacyStateClassed)) {
+  expect_error(
+    stateFit$fit$setState(fixture),
+    pattern = "saved by dbarts 0.9-x"
+  )
+}
+# an object that is no state under ANY version is a type error, not a
+# misdiagnosed 0.9-x fit
+for (notAState in list(list(), list(1, 2), "nope", 1:3)) {
+  notAStateMsg <- tryCatch(
+    stateFit$fit$setState(notAState),
+    error = function(e) conditionMessage(e)
+  )
+  expect_true(grepl("bartcoreState", notAStateMsg, fixed = TRUE))
+  expect_false(grepl("0.9-x", notAStateMsg, fixed = TRUE))
+}
 # and through the re-creation branch getPointer takes after a load, which
 # is what predict on a restored 0.9-x fit reaches: a round trip through
 # serialization leaves the engine pointer dead, exactly as a save/load does
 reloaded <- unserialize(serialize(stateFit, NULL))
-reloaded$fit$state <- legacyState
+reloaded$fit$state <- legacyStateClassed
 expect_error(
   predict(reloaded, xFD[1:3, ]),
   pattern = "refit with this version"
@@ -363,7 +388,10 @@ rm(
   sigmaSampler,
   stateFit,
   reloaded,
+  legacyChain,
   legacyState,
+  legacyStateClassed,
+  notAStateMsg,
   aliasWarnings,
   shimWarnings,
   seedWarnings,
