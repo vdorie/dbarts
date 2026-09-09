@@ -312,31 +312,99 @@ fit.wt <- do.call(
 )
 expect_identical(fit.wt[["family"]], "logistic")
 
-# ---- refusals: interface, conflicting family, subset, test, non-hazard ----
-# the formula interface is out of scope (matrix interface only, like aft)
+# ---- refusals: conflicting family, a non-Surv formula response ----
+# family = "hazard" with a formula response never wrapped in Surv() is
+# refused for lack of one, not for the interface itself
 expect_error(
   bart(d$time ~ x, family = "hazard", verbose = FALSE),
-  "matrix interface"
+  "survival::Surv"
 )
 # a Surv response with an explicitly conflicting family errors
 expect_error(
   bart(x, surv, family = "gaussian", n.chains = 1L, verbose = FALSE),
   "aft|hazard"
 )
-# subset and test are refused for hazard fits
-expect_error(
-  dbarts(x, cbind(d$time, d$status), family = "hazard", subset = 1:10),
-  "subset"
+
+# ---- the formula interface takes a Surv left-hand side too (dec-B97):
+# ---- formula vs matrix bitwise-identical, subset honoured, auto -> aft ----
+if (requireNamespace("survival", quietly = TRUE)) {
+  hazard.df <- data.frame(x1 = x[, 1L], x2 = x[, 2L], x3 = x[, 3L])
+  hazard.df$surv <- survival::Surv(d$time, d$status)
+
+  fit.formula <- do.call(
+    bart,
+    c(list(surv ~ x1 + x2 + x3, hazard.df, family = "hazard"), fitArgs)
+  )
+  expect_identical(fit.formula[["family"]], "probit")
+  expect_identical(fit.formula[["periods"]], fit.probit[["periods"]])
+  expect_identical(fit.formula$yhat.train, fit.probit$yhat.train)
+
+  # 'subset' via the formula honours the same rows a hand-subsetted matrix
+  # fit would use, bitwise (dec-B97: applied BEFORE person-period expansion,
+  # unlike aft's, since the expanded row indices no longer mean anything)
+  sub <- seq.int(1L, n, by = 2L)
+  fit.formula.sub <- do.call(
+    bart,
+    c(
+      list(surv ~ x1 + x2 + x3, hazard.df, family = "hazard", subset = sub),
+      fitArgs
+    )
+  )
+  fit.matrix.sub <- do.call(
+    bart,
+    c(
+      list(
+        x[sub, , drop = FALSE],
+        survival::Surv(d$time[sub], d$status[sub]),
+        family = "hazard"
+      ),
+      fitArgs
+    )
+  )
+  expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
+
+  # 'test' at fit time is refused on the formula route; expand held-out
+  # subjects with survivalProbabilities(fit, newdata = ) instead (the
+  # matrix interface's own 'test' acceptance is covered below)
+  expect_error(
+    do.call(
+      bart,
+      c(
+        list(
+          surv ~ x1 + x2 + x3,
+          hazard.df,
+          family = "hazard",
+          test = data.frame(x1 = 0.5, x2 = 0.5, x3 = 0.5)
+        ),
+        fitArgs
+      )
+    ),
+    "'test'"
+  )
+
+  # family = "auto" with a Surv response always dispatches to aft (Decision
+  # 2), never to hazard - the hazard family stays explicit on both interfaces
+  fit.formula.autoAft <- do.call(
+    bart,
+    c(list(surv ~ x1 + x2 + x3, hazard.df), fitArgs)
+  )
+  expect_identical(fit.formula.autoAft[["family"]], "aft")
+}
+
+# ---- the matrix interface's own 'test': person-period expanded on the SAME
+# ---- training grid, bitwise-identical to re-expansion via
+# ---- survivalProbabilities() on a keepTrees = TRUE twin, no keepTrees needed
+fit.htest <- do.call(
+  bart,
+  c(
+    list(x, cbind(d$time, d$status), family = "hazard", test = xn),
+    modifyList(fitArgs, list(keepTrees = FALSE))
+  )
 )
-expect_error(
-  dbarts(
-    x,
-    cbind(d$time, d$status),
-    family = "hazard",
-    test = matrix(runif(3L * p), 3L, p)
-  ),
-  "test"
-)
+expect_true(!is.null(fit.htest[["yhat.test"]]))
+sp.stored <- survivalProbabilities(fit.htest)
+sp.reexpand <- survivalProbabilities(fit.probit, newdata = xn)
+expect_identical(sp.stored, sp.reexpand)
 # a non-hazard, non-aft fit is refused by survivalProbabilities
 fit.gauss <- bart(
   x,

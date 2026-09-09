@@ -227,30 +227,87 @@ expect_error(
   "factor"
 )
 
-# the formula interface is documented out of scope for aft: every call shape
-# points at the matrix interface instead of failing hostilely downstream
-surv.df <- data.frame(t = time.s, s = status.s, x1 = x[, 1L])
-# a plain formula with family = "aft"
-expect_error(dbarts(t ~ x1, surv.df, family = "aft"), "matrix interface")
-# a Surv-like response through the formula path with family "auto" (guarded
-# in dbartsData, before any arithmetic can trip survival's Ops.Surv)
-expect_error(
-  dbarts(y ~ x1, data = list(y = surv, x1 = x[, 1L])),
-  "matrix interface"
+# the formula interface takes a Surv left-hand side directly (dec-B97): a
+# plain response never wrapped in Surv() is refused for lack of one, not for
+# the interface itself
+surv.df <- data.frame(
+  t = time.s,
+  s = status.s,
+  x1 = x[, 1L],
+  x2 = x[, 2L],
+  x3 = x[, 3L]
 )
-# as a survreg user would type them, with the real survival package
+expect_error(dbarts(t ~ x1, surv.df, family = "aft"), "survival::Surv")
+# a Surv-like response (built without importing survival, above) through the
+# formula path with family = "auto" auto-dispatches to aft, exactly as the
+# direct-response form does (Decision 2)
+fit.auto.formula <- dbarts(y ~ x1, data = list(y = surv, x1 = x[, 1L]))
+expect_identical(fit.auto.formula$model@family, "aft")
+
+# as a survreg user would type them, with the real survival package: formula
+# vs matrix bitwise-identical (both "auto" and explicit family = "aft"),
+# subset via formula bitwise-identical to hand-subsetting
 if (requireNamespace("survival", quietly = TRUE)) {
-  expect_error(
-    dbarts(survival::Surv(t, s) ~ x1, surv.df, family = "aft"),
-    "matrix interface"
+  surv.df$surv <- survival::Surv(time.s, status.s)
+
+  fitFormula <- function(formula, data, family, subset = NULL) {
+    args <- list(
+      formula,
+      data,
+      n.trees = 50L,
+      n.burn = 100L,
+      n.samples = 200L,
+      n.chains = 1L,
+      verbose = FALSE,
+      seed = 7L,
+      keepTrees = TRUE
+    )
+    if (!missing(family)) {
+      args$family <- family
+    }
+    if (!is.null(subset)) {
+      args$subset <- subset
+    }
+    do.call(bart, args)
+  }
+
+  # explicit family = "aft"
+  fit.formula.aft <- fitFormula(surv ~ x1 + x2 + x3, surv.df, family = "aft")
+  expect_identical(fit.formula.aft[["family"]], "aft")
+  expect_identical(fit.formula.aft$yhat.train, fit.2col$yhat.train)
+
+  # family = "auto" dispatches identically
+  fit.formula.autoFit <- fitFormula(surv ~ x1 + x2 + x3, surv.df)
+  expect_identical(fit.formula.autoFit[["family"]], "aft")
+  expect_identical(fit.formula.autoFit$yhat.train, fit.2col$yhat.train)
+
+  # 'subset' via the formula honours the same rows a hand-subsetted matrix
+  # fit would use, bitwise
+  sub <- seq.int(1L, n, by = 2L)
+  fit.formula.sub <- fitFormula(
+    surv ~ x1 + x2 + x3,
+    surv.df,
+    family = "aft",
+    sub
   )
-  expect_error(
-    dbarts(survival::Surv(t, s) ~ x1, surv.df),
-    "matrix interface"
+  fit.matrix.sub <- bart(
+    x[sub, , drop = FALSE],
+    survival::Surv(time.s[sub], status.s[sub]),
+    family = "aft",
+    n.trees = 50L,
+    n.burn = 100L,
+    n.samples = 200L,
+    n.chains = 1L,
+    verbose = FALSE,
+    seed = 7L,
+    keepTrees = TRUE
   )
+  expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
+
+  # a plain formula with family = "aft" and no Surv response
   expect_error(
-    bart(survival::Surv(t, s) ~ x1, surv.df, verbose = FALSE),
-    "matrix interface"
+    dbarts(survival::Surv(t, s) ~ x1, surv.df, family = "gaussian"),
+    "aft"
   )
 }
 
