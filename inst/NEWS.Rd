@@ -682,16 +682,15 @@
             above; the family must be requested explicitly - \code{"auto"}
             still selects \code{"aft"}) and honours \code{subset} on both
             interfaces, and weights follow the chosen binary family's
-            policy. The matrix interface additionally accepts a \code{test}
+            policy. Both interfaces additionally accept a \code{test}
             set, person-period-expanded on the SAME grid as training (every
             subject expands to every period, with no event time to place it
             by); \code{survivalProbabilities} then reads its hazards
             straight off the fit with no \code{keepTrees} needed.
-            \code{formula}'s own \code{test} is still refused - expand
-            held-out subjects with
-            \code{survivalProbabilities(fit, times, newdata = )} instead.
             \code{xbart} refuses hazard fits entirely (a cloglog
-            link and cross-validation losses for either are not supported).
+            link and cross-validation losses for either are not supported),
+            and also refuses a \code{Surv} response on either interface -
+            it does not cross-validate a survival model at all.
       \item Semicontinuous two-part (hurdle) responses:
             \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
             \code{bart} fits a non-negative response with

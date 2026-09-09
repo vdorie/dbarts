@@ -380,23 +380,32 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   expect_identical(fit.matrix.subsetArg$yhat.train, fit.matrix.sub$yhat.train)
 
-  # 'test' at fit time is refused on the formula route; expand held-out
-  # subjects with survivalProbabilities(fit, newdata = ) instead (the
-  # matrix interface's own 'test' acceptance is covered below)
-  expect_error(
-    do.call(
-      bart,
-      c(
-        list(
-          surv ~ x1 + x2 + x3,
-          hazard.df,
-          family = "hazard",
-          test = data.frame(x1 = 0.5, x2 = 0.5, x3 = 0.5)
-        ),
-        fitArgs
-      )
-    ),
-    "'test'"
+  # the formula interface accepts 'test' too: person-period expanded on the
+  # SAME training grid, coded against the SAME pre-expansion columns
+  # dbartsData() already built data@x.test from - bitwise-identical to the
+  # matrix interface's own 'test' acceptance (standalone below) at the same
+  # seed, both training and stored test draws
+  xn.df <- as.data.frame(xn)
+  colnames(xn.df) <- c("x1", "x2", "x3")
+  fit.formula.test <- do.call(
+    bart,
+    c(
+      list(surv ~ x1 + x2 + x3, hazard.df, family = "hazard", test = xn.df),
+      fitArgs
+    )
+  )
+  fit.matrix.test <- do.call(
+    bart,
+    c(
+      list(x, survival::Surv(d$time, d$status), family = "hazard", test = xn),
+      fitArgs
+    )
+  )
+  expect_identical(fit.formula.test$yhat.train, fit.matrix.test$yhat.train)
+  expect_identical(fit.formula.test$yhat.test, fit.matrix.test$yhat.test)
+  expect_identical(
+    survivalProbabilities(fit.formula.test),
+    survivalProbabilities(fit.matrix.test)
   )
 
   # family = "auto" with a Surv response always dispatches to aft (Decision

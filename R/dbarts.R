@@ -831,13 +831,6 @@ dbarts <- function(
       )
     }
     if (family %in% hazardTokens) {
-      if (!is.null(data@x.test)) {
-        stop(
-          "a discrete-time hazard formula fit does not accept 'test'; ",
-          "expand test subjects with survivalProbabilities(fit, times, ",
-          "newdata = )"
-        )
-      }
       expansion <- expandDiscreteTimeHazard(
         data@x,
         formulaSurvivalTime,
@@ -856,6 +849,34 @@ dbarts <- function(
       data@offset <- expansion$offset
       data@weights <- expansion$weights
       hazardPeriods <- expansion$periods
+      K <- length(expansion$periods)
+      # dbartsData()'s own 'test' handling already built data@x.test (and
+      # its offset/weights twins) family-agnostically, coded against the
+      # SAME pre-expansion training columns data@x just was - a held-out
+      # subject has no event time to place it by, so it expands to every
+      # one of the SAME K periods, exactly as the matrix interface's own
+      # hazard 'test' acceptance does (R/dbarts.R's directResponse block)
+      if (!is.null(data@x.test)) {
+        n.test <- nrow(data@x.test)
+        data@x.test <- appendHazardPeriodColumn(
+          data@x.test[rep(seq_len(n.test), times = K), , drop = FALSE],
+          rep(seq_len(K), each = n.test)
+        )
+        if (!is.null(data@offset.test)) {
+          offsetTestForExpansion <- data@offset.test
+          if (length(offsetTestForExpansion) == 1L) {
+            offsetTestForExpansion <- rep_len(offsetTestForExpansion, n.test)
+          }
+          data@offset.test <- rep(offsetTestForExpansion, times = K)
+        }
+        if (!is.null(data@weights.test)) {
+          weightsTestForExpansion <- data@weights.test
+          if (length(weightsTestForExpansion) == 1L) {
+            weightsTestForExpansion <- rep_len(weightsTestForExpansion, n.test)
+          }
+          data@weights.test <- rep(weightsTestForExpansion, times = K)
+        }
+      }
       # the remap: the engine-facing family is now an ordinary binary link
       family <- if (identical(family, "hazard.logistic")) {
         "logistic"
