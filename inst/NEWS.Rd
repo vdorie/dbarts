@@ -1187,6 +1187,23 @@
             container a mixed frame assembles into is documented as
             \code{\link{dbartsMixedMatrix}}, with its own \code{dim},
             \code{dimnames}, \code{[}, and \code{as.matrix} methods.
+      \item A \code{Matrix::sparseVector}, \code{dgCMatrix}, or
+            \code{sparseFactor} column assigned into a data frame (e.g.
+            \code{d$m <- M}) now works through the formula interface like
+            any other column, with no marker: \code{dbartsData} lifts
+            such columns out ahead of \code{model.frame} (which cannot
+            hold one) and re-attaches them, row-subset under
+            \code{subset} and \code{na.action} alike, to the assembled
+            predictor matrix afterward. \code{.} reaches a sparse column
+            the same way it reaches a dense one; a sparse name wrapped in
+            \code{poly()}, \code{ns()}, \code{log()}, \code{offset()}, or
+            a \code{':'}/\code{'*'} interaction is refused, as an
+            interaction among dense terms already was.
+      \item A \code{factors = "indicators"} fit dummy-expands a factor
+            past 100 levels as a sparse (\code{dgCMatrix}-backed) block
+            automatically: the switch changes only the design-matrix
+            representation, never the fitted model, and carries no
+            user-facing argument.
       \item An ordered factor predictor splits between every adjacent pair of
             its levels. Such a column is coded ordinal on its level codes,
             and its split grid is the midpoints between consecutive
