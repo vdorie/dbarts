@@ -87,7 +87,7 @@ xbart(
      A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Each replication takes its data split, and each unit of work its fits, from a seed derived from this one and the unit's own index, so results are reproducible for a fixed \code{seed} at any \code{n.threads}. Without one, \code{\link{set.seed}} beforehand suffices.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Each replication takes its data split, and each unit of work its fits, from a seed derived from this one and the unit's own index, so results are reproducible for a fixed \code{seed} at any \code{n.threads}; the caller's random stream is left untouched when a seed is given, and advanced only by the derivation of those seeds when one is not. Without one, \code{\link{set.seed}} beforehand suffices.
    }
    \item{factors}{
      How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.

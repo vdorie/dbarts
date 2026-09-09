@@ -23,11 +23,11 @@ sbcDiscreteRank <- function(draws, theta0) {
   below + sum(runif(ties) < tag0)
 }
 
-# The band and the KS jitter run off a FIXED stream, so a verdict is
-# reproducible from the ranks alone. An exported function must not leave that
-# fix behind: the caller's .Random.seed is restored on exit, and removed again
-# when this call is what created it.
-withFixedSeed <- function(seed, expr) {
+# Evaluates expr and leaves the caller's random stream where it found it:
+# .Random.seed is restored on exit, and removed again when this call is what
+# created it. Any on.exit inside expr binds to the frame expr is written in,
+# not to this one.
+withPreservedSeed <- function(expr) {
   hasSeed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
   oldSeed <- if (hasSeed) get(".Random.seed", envir = globalenv()) else NULL
   on.exit({
@@ -37,8 +37,17 @@ withFixedSeed <- function(seed, expr) {
       rm(".Random.seed", envir = globalenv())
     }
   })
-  set.seed(seed)
   expr
+}
+
+# The band and the KS jitter run off a FIXED stream, so a verdict is
+# reproducible from the ranks alone. An exported function must not leave that
+# fix behind, hence the restore above.
+withFixedSeed <- function(seed, expr) {
+  withPreservedSeed({
+    set.seed(seed)
+    expr
+  })
 }
 
 # Uniformity verdict for one functional's ranks. The headline is the

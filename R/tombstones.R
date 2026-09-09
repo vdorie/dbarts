@@ -434,10 +434,10 @@ consolidatedArgsFor <- list(
 ## 0.9-x caller reached through one is a formal of xbart itself now, so there
 ## is no control left to honour and the name is refused rather than mapped.
 xbartControlReason <- paste0(
-  "xbart builds its own control: the settings it carried are xbart's own ",
-  "arguments now (n.cuts, useQuantiles, n.thin, storage), and the sampler ",
-  "fields it shared with the sweep (n.trees, n.burn, seed) are grid axes ",
-  "here; 'control' is removed in dbarts ",
+  "the settings it carried are xbart's own arguments now (n.cuts, ",
+  "useQuantiles, n.thin, storage), and the sampler fields it shared with ",
+  "the sweep (n.trees, n.burn, seed) are grid axes here; 'control' is ",
+  "removed in dbarts ",
   tombstoneExpiry
 )
 

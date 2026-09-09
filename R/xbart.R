@@ -498,9 +498,9 @@ xbart <- function(
   # each replication draws its data split from its own seed and each unit its
   # fits from its own, both derived from the call's seed alone, so a seed
   # reproduces at any 'n.threads': no draw depends on which worker ran a unit
-  # or on how many there were. The splits are drawn HERE rather than on the
-  # worker that runs them, so a non-default RNGkind() in this process governs
-  # them at every thread count - a worker starts at the default kind.
+  # or on how many there were. A supplied seed leaves the caller's stream
+  # untouched; without one the seeds come off that stream, advancing it
+  # exactly that far and no further at any thread count.
   seeds <- if (!is.na(seed)) {
     withFixedSeed(seed, sample.int(.Machine$integer.max, n.reps + numUnits))
   } else {
@@ -509,21 +509,45 @@ xbart <- function(
   splitSeeds <- seeds[seq_len(n.reps)]
   unitSeeds <- seeds[n.reps + seq_len(numUnits)]
 
-  unitRows <- vector("list", numUnits)
-  for (replication in seq_len(n.reps)) {
-    set.seed(splitSeeds[replication])
-    if (method == "k-fold") {
-      permutation <- sample.int(numObservations)
-      foldOffset <- 0L
-      for (fold in seq_len(numFolds)) {
-        unitRows[[(replication - 1L) * numFolds + fold]] <- sort(
-          permutation[foldOffset + seq_len(foldSizes[fold])]
-        )
-        foldOffset <- foldOffset + foldSizes[fold]
+  # every stream below is one of those seeds, and at a single worker the
+  # units run in THIS process, so the caller's own stream is saved across the
+  # whole dispatch rather than left wherever the last fold stopped
+  runUnits <- function() {
+    # the splits are drawn here rather than on the worker that runs them, so
+    # a non-default RNGkind() in this process governs them at every thread
+    # count - a worker starts at the default kind
+    unitRows <- vector("list", numUnits)
+    for (replication in seq_len(n.reps)) {
+      set.seed(splitSeeds[replication])
+      if (method == "k-fold") {
+        permutation <- sample.int(numObservations)
+        foldOffset <- 0L
+        for (fold in seq_len(numFolds)) {
+          unitRows[[(replication - 1L) * numFolds + fold]] <- sort(
+            permutation[foldOffset + seq_len(foldSizes[fold])]
+          )
+          foldOffset <- foldOffset + foldSizes[fold]
+        }
+      } else {
+        unitRows[[replication]] <- sort(sample.int(numObservations, numTest))
       }
-    } else {
-      unitRows[[replication]] <- sort(sample.int(numObservations, numTest))
     }
+
+    if (numChunks == 1L) {
+      return(xbartRunChunk(spec, unitRows, unitSeeds))
+    }
+    cluster <- parallel::makeCluster(numChunks)
+    on.exit(parallel::stopCluster(cluster), add = TRUE)
+    # passing the namespace function itself serializes it by reference,
+    # loading dbarts on the workers without shipping this frame
+    chunkResults <- parallel::clusterMap(
+      cluster,
+      xbartRunChunk,
+      unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
+      unitSeeds = lapply(chunkIndices, function(indices) unitSeeds[indices]),
+      MoreArgs = list(spec = spec)
+    )
+    do.call(rbind, chunkResults)
   }
 
   if (verbose) {
@@ -545,25 +569,10 @@ xbart <- function(
     )
   }
 
-  if (numChunks == 1L) {
-    chunkResults <- list(xbartRunChunk(spec, unitRows, unitSeeds))
-  } else {
-    cluster <- parallel::makeCluster(numChunks)
-    on.exit(parallel::stopCluster(cluster), add = TRUE)
-    # passing the namespace function itself serializes it by reference,
-    # loading dbarts on the workers without shipping this frame
-    chunkResults <- parallel::clusterMap(
-      cluster,
-      xbartRunChunk,
-      unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
-      unitSeeds = lapply(chunkIndices, function(indices) unitSeeds[indices]),
-      MoreArgs = list(spec = spec)
-    )
-  }
   # unit-major, cells within; the folds of one replication are contiguous, so
   # the reported loss is their average, as it was when one worker ran every
   # fold of a replication in sequence
-  unitLoss <- do.call(rbind, chunkResults)
+  unitLoss <- withPreservedSeed(runUnits())
   numResults <- ncol(unitLoss)
   lossValues <- matrix(
     apply(
@@ -864,6 +873,16 @@ kGridSortKey <- function(entry) {
 kGridLabel <- function(entry) {
   if (is(entry, "dbartsFixedHyperprior")) {
     return(as.character(signif(entry@k, 2L)))
+  }
+  if (!is(entry, "dbartsChiHyperprior")) {
+    # a hyperprior class added without a label here would be reported under
+    # some other constructor's name, which no reader could tell from a real
+    # one; refused by class instead
+    stop(
+      "no k axis label for a hyperprior of class \"",
+      class(entry),
+      "\"; add one to kGridLabel"
+    )
   }
   paste0(
     "chi(",

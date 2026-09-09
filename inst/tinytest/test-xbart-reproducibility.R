@@ -93,6 +93,38 @@ for (n.threads in threadCounts) {
   )
 }
 
+# a seeded call leaves the caller's own stream where it found it, at every
+# thread count. At one worker the units run in THIS process, so without the
+# save across the dispatch the caller would be left wherever the last fold's
+# fits stopped, and at two workers where it started - a difference a caller
+# drawing after xbart would see.
+set.seed(1234L)
+seedBefore <- get(".Random.seed", envir = globalenv())
+invisible(runXval(1L))
+expect_identical(get(".Random.seed", envir = globalenv()), seedBefore)
+invisible(runXval(2L))
+expect_identical(get(".Random.seed", envir = globalenv()), seedBefore)
+
+# and an unseeded call advances it by its own seed draw and nothing else, so
+# where it leaves the caller does not depend on the thread count either
+unseededAt <- function(n.threads) {
+  set.seed(1234L)
+  invisible(dbarts::xbart(
+    x,
+    y,
+    method = "k-fold",
+    n.reps = 2L,
+    n.samples = 15L,
+    n.burn = c(10L, 5L),
+    n.test = 5,
+    k = k,
+    n.threads = n.threads
+  ))
+  get(".Random.seed", envir = globalenv())
+}
+expect_identical(unseededAt(1L), unseededAt(2L))
+expect_true(!identical(unseededAt(1L), seedBefore))
+
 # an unseeded run is not reproducible; the pin above is the seed's doing and
 # not an accident of the grid being deterministic
 unseeded <- function() {
@@ -111,6 +143,8 @@ unseeded <- function() {
 expect_true(any(unseeded() != unseeded()))
 
 rm(
+  unseededAt,
+  seedBefore,
   unseeded,
   folds.1,
   runFolds,
