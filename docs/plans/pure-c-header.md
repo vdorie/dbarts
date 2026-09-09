@@ -304,3 +304,65 @@ exception; the plan's Verification block corrected to name all three
 equivalence harnesses.
 
 Remaining: S2's stan4bart and treatSens ports; S3's CI hash-bump assertion.
+
+## Landing note, S2 (2026-09-08)
+
+stan4bart's bartcore branch lands at 4ace376: the two creation sites
+build the sampler with `methods::new("dbartsSampler", control, model,
+data)` then `$getPointer()` in place of the removed
+`dbarts_sampler_create`, the restore path uses the R object's
+`setState`, `getTrees` becomes the R method, and both Makevars drop
+`DBARTS_REQUIRE_EXACT_ABI`. Gates: tinytest 533/0, recompute-exactness
+3/3, compare-posterior 5/5, `R CMD check` one pre-existing NOTE
+(unrelated to the port). treatSens's dbarts-1.0 branch lands at
+6b274fb: the same route at its two creation sites, the per-file
+`DBARTS_REQUIRE_EXACT_ABI` define dropped from three files. Gates:
+testthat 184/0, `R CMD check` unchanged from before the port.
+`revdep-smoke` dispatched against this repo's bartcore tip (run
+34307400627, workflow_dispatch, at fecf94b0): all three jobs green -
+bartCause, stan4bart, treatSens.
+
+## Landing note, S3 (2026-09-08)
+
+Step 8:
+[`tools/check-api-hash.sh`](../../tools/check-api-hash.sh) reads
+`DBARTS_C_API_HASH`, `DBARTS_C_API_MAJOR` and `DBARTS_C_API_MINOR` from
+the working tree and from the newest `v1.*` tag, failing when the hash
+moved and the version pair did not; today it prints "no release tag,
+skipped" and exits 0, since no `v1.*` tag exists yet. Wired as its own
+job in check-standard.yaml with a full-history checkout - the
+R-CMD-check matrix's default checkout is shallow and fetches no tags,
+so the assertion could not run there. Proved discriminating in a
+throwaway scratch clone that never touched this repository's own tags:
+a `v1.0-0-scratch` tag at the tip, then an edited hash literal with no
+version bump fails and the same edit plus a minor bump passes.
+
+Step 9: the tag convention the check depends on,
+`v<major>.<minor>-<patch>`, is recorded under [CI](README.md#ci) in
+docs/plans/README.md, noting that this repository's own pre-1.0-0 tags
+(`0.8-7`, `bartcore-pre-cran-rebase`) predate it and do not match.
+
+Doc gap from S2: both ports needed the R route from an already-built
+`(control, model, data)` triple, which is
+`methods::new("dbartsSampler", control, model, data)` then
+`$getPointer()` - `dbarts()` takes a formula or a matrix, not a model
+object, and `dbartsSpec()` only resolves the triple without
+constructing a sampler. Corrected where a C consumer reads it: the
+header's THE HANDLE paragraph, `dbarts-embedding.Rd`'s C section, and
+this plan's own step 10 sentence, which had named `dbarts::dbarts` as
+stan4bart's route from its triple.
+
+Gates, run independently: `sh tools/check-api-hash.sh` prints "no
+release tag, skipped", exit 0; `R CMD INSTALL --preclean` clean, both
+the signature-token and recomputed-hash `static_assert`s hold after the
+header prose edit (the hash did not move); `tests/cpp`
+header-compiles clean under `gcc -std=c99 -pedantic -x c` and
+`g++ -std=c++11 -x c++`; tinytest 7877/0; `R CMD check --as-cran`
+Status OK, no NOTEs, from a clean tarball staged outside the tree;
+check-doc-freshness.R and check-rc-codoc.R exit 0; `air format --check`
+clean; the workflow YAML parses. Equivalence not run: no engine or
+bridge code changed on this slice, and the class is RNG-neutral by
+inspection. NEWS untouched: a CI assertion is a maintainer-process
+concern, not user-facing behavior.
+
+Real diff: 6 files, +102/-8.
