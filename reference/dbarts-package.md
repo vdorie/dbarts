@@ -133,10 +133,11 @@ store, not the returned draws):
 
 A large-\\n\\ fit is usually limited not by the sampler but by the
 training predictions it returns. `yhat.train` is 8 bytes per observation
-per draw per chain, and three copies of it are live while the fit is
-packaged, so the 100,000-observation four-chain fit above at the default
-500 draws peaks near 4.8 GB of returned array against 660 MB of sampler.
-The lever is `keepTrainingFits = FALSE` - an argument of
+per draw per chain, and two copies of it are live while the fit is
+packaged - the one the sampler wrote and the one the fit returns - so
+the 100,000-observation four-chain fit above at the default 500 draws
+peaks near 3.2 GB of returned array against 660 MB of sampler. The lever
+is `keepTrainingFits = FALSE` - an argument of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and of
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
 and `keeptrainfits` on
