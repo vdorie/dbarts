@@ -42,7 +42,7 @@ permissions: read-all
 jobs:
   cpp-tests:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -80,9 +80,11 @@ jobs:
 
       # Second half: the reference build and the gates that are only valid on
       # it. Installed after the C++ tests, which consume the shipped build's
-      # sublibraries.
+      # sublibraries; it runs even when those failed, so one run surfaces both
+      # arms' verdicts.
       - name: Install the reference build
         id: reference-install
+        if: ${{ !cancelled() }}
         run: |
           R CMD INSTALL --preclean --configure-args=--enable-reference-build .
           Rscript -e '

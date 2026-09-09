@@ -233,14 +233,21 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
 Per-push workflows and what they ignore (read the yaml for the current
 lists; this is the shape):
 
-- check-standard, cpp-tests, sanitizers: `docs/**`, `TODO`, `**.md`,
-  `benchmarks/**`. cpp-tests and sanitizers also ignore `inst/NEWS.Rd`;
-  cpp-tests ignores `man/**`.
+- check-standard, sanitizers: `docs/**`, `TODO`, `**.md`,
+  `benchmarks/**`. sanitizers also ignores `inst/NEWS.Rd`.
+- cpp-tests: `docs/**`, `TODO`, `**.md`, `inst/NEWS.Rd`, `man/**`. It
+  does NOT ignore `benchmarks/**`: its second half installs the
+  reference build (`--enable-reference-build`, the scalar fixed-order
+  draw path) and runs the four seeded-drift snapshot files and the three
+  bitwise equivalence compares, which read benchmarks/R and
+  benchmarks/baselines.
 - exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
   It does not ignore the rest of benchmarks/ and cancels an in-progress
   run on the same branch, so a records push that touches benchmarks/
   right after a slice push cancels the slice's run; space the pushes or
-  rerun.
+  rerun. Its gate loop runs on the shipped build; the two cross-host
+  equivalence compares that follow get their own reference install, the
+  tier-1 bound being tighter than the shipped draw path holds off-host.
 - lint: `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`.
 - pkgdown: `docs/**`, `TODO`, `benchmarks/**`, but not `**.md`
   (README is an input).

@@ -5,9 +5,10 @@
 
 # The pinned values only mean anything on the reference build: its draw path
 # is scalar and fixed-order, where the shipped build's is free to reassociate
-# and lands elsewhere from the same seed. Regenerate on the reference build
-# too - tools/regenerate-snapshots.R evaluates this file top to bottom, and
-# the exit below is not a function it defines.
+# and lands elsewhere from the same seed. This exit guards test runs only;
+# tools/regenerate-snapshots.R evaluates this file outside tinytest, where
+# exit_file() returns its message and stops nothing, so that tool carries its
+# own refusal.
 if (!identical(dbarts:::buildInfo()$mode, "reference")) {
   exit_file("seeded-drift snapshots are pinned to the reference build")
 }

@@ -15,6 +15,18 @@ suppressPackageStartupMessages({
   library(tinytest)
 })
 
+# The values these files pin are recorded on the reference build, whose draw
+# path is scalar and fixed-order. The files' own guard cannot stop this tool:
+# tinytest::exit_file only returns its message, and nothing but run_test_file
+# reads that as an exit, so a shipped-build run would rewrite all four with
+# values from a re-associated draw path.
+if (!identical(dbarts:::buildInfo()$mode, "reference")) {
+  stop(
+    "snapshot values are pinned to the reference build; reinstall with ",
+    "--configure-args=--enable-reference-build"
+  )
+}
+
 scriptPath <- sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))
 repoRoot <- normalizePath(file.path(dirname(scriptPath), ".."))
 
