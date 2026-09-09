@@ -28,7 +28,6 @@ Suggests:
   rmarkdown,
   tinytest,
   Matrix,
-  posterior,
   survival
 VignetteBuilder: knitr, rmarkdown
 Config/Needs/check: rcmdcheck

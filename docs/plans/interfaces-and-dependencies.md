@@ -101,17 +101,18 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
   same guarantee. Nothing builds an indicator-expanded factor's block as sparse
   today (`makeCategoricalModelMatrix`/`makeModelMatrixFromDataFrame`,
   [`R/utility.R`](../../R/utility.R) are always dense).
-- `posterior`: Suggests-only. [`.onLoad`](../../R/hooks.R) registers
-  `as_draws_array`/`as_draws_df` for five classes into `posterior`'s table via
+- `posterior` (S1 LANDED - this bullet now describes history): was
+  Suggests-only. `.onLoad` used to register `as_draws_array`/`as_draws_df`
+  for five classes into `posterior`'s table via
   `setHook(packageEvent("posterior", "onLoad"), ...)`. Each in
-  [`R/diagnostics.R`](../../R/diagnostics.R) calls
+  [`R/diagnostics.R`](../../R/diagnostics.R) called
   `posterior::as_draws_array`/`as_draws_df` on a base array shaped (iteration,
   chain, variable) by [`toDrawsArray`](../../R/diagnostics.R). `summary.bart`
-  calls `posterior::summarise_draws` when
-  [`posteriorAvailable`](../../R/diagnostics.R), else
-  [`quantileSummary`](../../R/diagnostics.R) (mean/sd/quantiles only);
-  `man/summary.bart.Rd` documents the column set (`mean`, `median`, `sd`,
-  `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, `ess_tail`). Five tinytest files call
+  called `posterior::summarise_draws` when `posteriorAvailable`, else
+  `quantileSummary` (mean/sd/quantiles only); `man/summary.bart.Rd` documented
+  the column set (`mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
+  `ess_bulk`, `ess_tail`) - now produced unconditionally by
+  [`summariseDraws`](../../R/diagnostics.R). Five tinytest files called
   `posterior::` directly (named in step 4). dec-B99 already fixes the
   replacement extractor's shape - "a base-R draws extractor returning an
   iterations by chains by variables array with dimnames" that `posterior`'s own
