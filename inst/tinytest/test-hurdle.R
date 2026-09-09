@@ -323,16 +323,13 @@ restoredMfrow <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
-# as_draws_array/df: the union of both components' present scalar fields,
+# draws(): the union of both components' present scalar fields,
 # dot-prefixed by component
-if (requireNamespace("posterior", quietly = TRUE)) {
-  ad <- posterior::as_draws_array(fit)
-  adNames <- dimnames(unclass(ad))[[3L]]
-  expect_true(any(startsWith(adNames, "occupancy.")))
-  expect_true(any(startsWith(adNames, "positive.")))
-  expect_true("positive.sigma" %in% adNames)
-  rm(ad, adNames)
-}
+adNames <- dimnames(draws(fit))[[3L]]
+expect_true(any(startsWith(adNames, "occupancy.")))
+expect_true(any(startsWith(adNames, "positive.")))
+expect_true("positive.sigma" %in% adNames)
+rm(adNames)
 
 rm(llFit2c, restoredMfrow)
 

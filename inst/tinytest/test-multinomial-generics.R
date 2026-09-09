@@ -143,34 +143,7 @@ expect_true(is.data.frame(sm$stats) || inherits(sm$stats, "tbl_df"))
 printedSummary <- capture.output(print(sm))
 expect_true(any(grepl("meanProb", printedSummary, fixed = TRUE)))
 
-havePosterior <- requireNamespace("posterior", quietly = TRUE)
-if (havePosterior) {
-  expect_true(sm$posterior)
-  expect_true("rhat" %in% names(sm$stats))
-} else {
-  expect_false(sm$posterior)
-  expect_true(is.data.frame(sm$stats))
-}
-
-# degrade path, simulated the same way test-convergence-diagnostics.R does
-if (havePosterior) {
-  oldPosteriorAvailable <- dbarts:::posteriorAvailable
-  tryCatch(
-    {
-      assignInNamespace("posteriorAvailable", function() FALSE, ns = "dbarts")
-      smDegraded <- summary(fitCombined)
-      expect_false(smDegraded$posterior)
-      expect_true(is.data.frame(smDegraded$stats))
-      expect_false("rhat" %in% names(smDegraded$stats))
-    },
-    finally = assignInNamespace(
-      "posteriorAvailable",
-      oldPosteriorAvailable,
-      ns = "dbarts"
-    )
-  )
-  rm(oldPosteriorAvailable, smDegraded)
-}
+expect_true(all(c("rhat", "ess_bulk", "ess_tail") %in% names(sm$stats)))
 
 # ---- predict.bartMultinomial's 'type' argument ----
 
@@ -491,16 +464,12 @@ dev.off()
 expect_equal(combinedMfrow, c(3L, 3L))
 expect_equal(countsMfrow, c(3L, 3L))
 
-# ---- as_draws_array/df expose meanProb[<level>], never yhat.train ----
+# ---- draws() exposes meanProb[<level>], never yhat.train ----
 
-if (havePosterior) {
-  meanProbNames <- paste0("meanProb[", levels(y), "]")
-  ad <- posterior::as_draws_array(fitCombined)
-  expect_equal(sort(dimnames(unclass(ad))[[3L]]), sort(meanProbNames))
-  adf <- posterior::as_draws_df(fitCombined)
-  expect_true(all(meanProbNames %in% names(adf)))
-  rm(meanProbNames, ad, adf)
-}
+meanProbNames <- paste0("meanProb[", levels(y), "]")
+d <- draws(fitCombined)
+expect_equal(sort(dimnames(d)[[3L]]), sort(meanProbNames))
+rm(meanProbNames, d)
 
 rm(
   parseKeptDraws,
@@ -530,7 +499,6 @@ rm(
   resCounts,
   sm,
   printedSummary,
-  havePosterior,
   x.test,
   fitKeep,
   seedBefore,

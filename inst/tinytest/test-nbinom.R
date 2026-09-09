@@ -494,14 +494,12 @@ restoredMfrow <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
-# --- as_draws_array/df default to vars = c("dispersion", "sigma", "k",
-# "tau"); this family has no sigma/k/tau, so only "dispersion" survives ---
+# --- draws() defaults to vars = c("dispersion", "sigma", "k", "tau"); this
+# family has no sigma/k/tau, so only "dispersion" survives ---
 
-if (requireNamespace("posterior", quietly = TRUE)) {
-  ad <- posterior::as_draws_array(fit)
-  expect_equal(dimnames(unclass(ad))[[3L]], "dispersion")
-  rm(ad)
-}
+d <- draws(fit)
+expect_equal(dimnames(d)[[3L]], "dispersion")
+rm(d)
 
 rm(
   combinedEv,

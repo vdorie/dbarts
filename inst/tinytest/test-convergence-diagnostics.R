@@ -4,9 +4,8 @@ source(
 )
 
 # ---- shape round-trip: bart-convention arrays -> (iteration, chain,
-# variable); this is dbarts:::bartDrawsArray, the mapping both
-# as_draws_array/as_draws_df and summary() build on. No posterior
-# dependency, so this runs unconditionally.
+# variable); this is dbarts:::bartDrawsArray, the mapping both draws() and
+# summary() build on.
 
 ## combineChains = FALSE pinned deliberately: this fit exercises
 ## bartDrawsArray's reconstruction of the chain axis from an uncombined
@@ -78,8 +77,7 @@ singleFit <- dbarts::bart(
 expect_null(dim(singleFit$sigma))
 expect_equal(dim(dbarts:::bartDrawsArray(singleFit, "sigma")), c(15L, 1L, 1L))
 
-# ---- summary() degrades to a plain per-variable table regardless of
-# posterior's availability
+# ---- summary() always produces a plain per-variable table
 
 s <- summary(fit)
 expect_equal(class(s), "summary.bart")
@@ -115,8 +113,7 @@ expect_error(
 poorFit <- structure(
   list(
     call = quote(f()),
-    stats = data.frame(variable = "x", rhat = 1.5),
-    posterior = TRUE
+    stats = data.frame(variable = "x", rhat = 1.5)
   ),
   class = "summary.bart"
 )
@@ -125,61 +122,23 @@ expect_true(any(grepl("R-hat", capture.output(print(poorFit)), fixed = TRUE)))
 goodFit <- structure(
   list(
     call = quote(f()),
-    stats = data.frame(variable = "x", rhat = 1.0),
-    posterior = TRUE
+    stats = data.frame(variable = "x", rhat = 1.0)
   ),
   class = "summary.bart"
 )
 expect_false(any(grepl("R-hat", capture.output(print(goodFit)), fixed = TRUE)))
 
-# ---- posterior-backed diagnostics: draws accessors, and summary()'s
-# rhat/ess against posterior's own reference computation on the same array
+# ---- draws() is the exported accessor over the same array bartDrawsArray
+# builds internally, and summary()'s rhat/ess_bulk/ess_tail columns are
+# always present (no 'posterior' branch to degrade) ----
 
-havePosterior <- requireNamespace("posterior", quietly = TRUE)
-if (havePosterior) {
-  da <- posterior::as_draws_array(fit)
-  expect_equal(class(da)[1L], "draws_array")
-  expect_equal(dim(da), c(20L, 3L, 1L))
+d <- draws(fit, "sigma")
+expect_equal(dim(d), c(20L, 3L, 1L))
+expect_equal(unclass(d), dbarts:::bartDrawsArray(fit, "sigma"))
 
-  df <- posterior::as_draws_df(fit)
-  expect_equal(class(df)[1L], "draws_df")
-
-  mu <- posterior::extract_variable_matrix(da, "sigma")
-  s <- summary(fit)
-  expect_true(s$posterior)
-  expect_true("rhat" %in% names(s$stats))
-  expect_equal(s$stats$rhat[s$stats$variable == "sigma"], posterior::rhat(mu))
-  expect_equal(
-    s$stats$ess_bulk[s$stats$variable == "sigma"],
-    posterior::ess_bulk(mu)
-  )
-  rm(da, df, mu)
-}
-
-# ---- graceful degrade without posterior, simulated via a namespace stub
-# so the test does not depend on posterior actually being uninstalled
-
-if (havePosterior) {
-  oldPosteriorAvailable <- dbarts:::posteriorAvailable
-  tryCatch(
-    {
-      assignInNamespace("posteriorAvailable", function() FALSE, ns = "dbarts")
-      sDegraded <- summary(fit)
-      expect_false(sDegraded$posterior)
-      expect_true(is.data.frame(sDegraded$stats))
-      expect_false("rhat" %in% names(sDegraded$stats))
-      printed <- capture.output(print(sDegraded))
-      expect_true(any(grepl("install 'posterior'", printed, fixed = TRUE)))
-    },
-    finally = assignInNamespace(
-      "posteriorAvailable",
-      oldPosteriorAvailable,
-      ns = "dbarts"
-    )
-  )
-  expect_true(summary(fit)$posterior)
-  rm(oldPosteriorAvailable, sDegraded, printed)
-}
+s <- summary(fit)
+expect_true(all(c("rhat", "ess_bulk", "ess_tail") %in% names(s$stats)))
+rm(d)
 
 rm(
   fit,
@@ -195,8 +154,7 @@ rm(
   noScalarFit,
   s0,
   poorFit,
-  goodFit,
-  havePosterior
+  goodFit
 )
 
 # summary()/as_draws_*() on a COMBINED (default) multi-chain fit must

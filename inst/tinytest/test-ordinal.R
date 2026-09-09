@@ -546,15 +546,12 @@ dev.off()
 expect_equal(mfrowK3, c(3L, 3L))
 expect_equal(mfrowK2, c(1L, 1L))
 
-# --- as_draws_array/df default to vars = c("thresholds", "sigma", "k",
-# "tau"); threshold[1] (pinned at 0) is kept ---
+# --- draws() defaults to vars = c("thresholds", "sigma", "k", "tau");
+# threshold[1] (pinned at 0) is kept ---
 
-if (requireNamespace("posterior", quietly = TRUE)) {
-  ad <- posterior::as_draws_array(fit)
-  adNames <- dimnames(unclass(ad))[[3L]]
-  expect_true(all(c("threshold[1]", "threshold[2]") %in% adNames))
-  rm(ad, adNames)
-}
+adNames <- dimnames(draws(fit))[[3L]]
+expect_true(all(c("threshold[1]", "threshold[2]") %in% adNames))
+rm(adNames)
 
 rm(
   combinedEv,
