@@ -509,7 +509,7 @@ binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
   First item of the resumed research programme.
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
-  docs/decisions.md dec-B107)
+  docs/decisions.md dec-B107; LANDED a98c4cad)
   DESCRIPTION and man/dbarts-package.Rd say "provides a
   BayesTree-compatible interface"; configure.ac's
   --enable-match-bayes-tree, --enable-thread-safe-unload and
