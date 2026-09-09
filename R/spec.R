@@ -809,7 +809,7 @@ dbartsSpec <- function(
   blocks = NULL,
   variance = NULL,
   forests = NULL,
-  sigma = NA_real_,
+  sigest = NA_real_,
   seed = NA_integer_,
   family = c(
     "auto",
@@ -823,9 +823,23 @@ dbartsSpec <- function(
   ),
   dispersion = NA_real_,
   survival = NULL,
-  parentEnv = parent.frame()
+  parentEnv = parent.frame(),
+  sigma = NA_real_
 ) {
   matchedCall <- match.call()
+
+  # the creation-time estimate is 'sigest' here as everywhere; 'sigma' is
+  # the 0.9-x spelling, accepted for one release. Both flags are read before
+  # either name is assigned: an assignment makes missing() false.
+  sigestSupplied <- !missing(sigest)
+  sigmaSupplied <- !missing(sigma)
+  sigest <- resolveRenamedSigma(
+    !sigmaSupplied,
+    !sigestSupplied,
+    sigma,
+    sigest,
+    "dbartsSpec"
+  )
 
   if (!inherits(data, "dbartsData")) {
     stop("'data' must be a dbartsData object; see ?dbartsData")
@@ -864,11 +878,11 @@ dbartsSpec <- function(
   if (length(data@n.cuts) != ncol(data@x) || anyNA(data@n.cuts)) {
     data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   }
-  # an explicit sigma overrides whatever the data carries; the default leaves it
-  # alone, so a consumer's own starting estimate survives (an NA is estimated
-  # during resolution, exactly as for dbarts())
-  if (!missing(sigma)) {
-    data@sigma <- coerceOrError(sigma, "numeric")
+  # an explicit sigest overrides whatever the data carries; the default leaves
+  # it alone, so a consumer's own starting estimate survives (an NA is
+  # estimated during resolution, exactly as for dbarts())
+  if (sigestSupplied || sigmaSupplied) {
+    data@sigma <- coerceOrError(sigest, "numeric")
   }
 
   # this surface does no data ingestion of its own, so a declared basis is

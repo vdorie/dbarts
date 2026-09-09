@@ -227,8 +227,19 @@ dbartsControl <- function(
   printEvery = 100L,
   printCutoffs = 0L,
   seed = NA_integer_,
-  updateState = TRUE
+  updateState = TRUE,
+  ...
 ) {
+  # '...' exists only so a retired argument name reaches a message naming
+  # its successor; R refuses an unknown name before any body runs
+  dots <- list(...)
+  refuseForeignFrontDoorArgs(
+    dots,
+    "dbartsControl",
+    names(formals(dbarts::dbartsControl))
+  )
+  seed <- resolveRenamedSeed(dots, "dbartsControl", seed)
+
   storage <- match.arg(storage)
   # NA is a VALUE for levelGibbs - the automatic mode - so an argument that
   # merely coerces to one, a misspelled character say, has to be refused here
@@ -269,7 +280,6 @@ validateArgumentsInEnvironment <- function(
   control,
   verbose,
   n.samples,
-  sigma,
   sigest
 ) {
   controlIsMissing <- missing(control)
@@ -312,29 +322,10 @@ validateArgumentsInEnvironment <- function(
     envir$control@n.samples <- formals(func)[["n.samples"]]
   }
 
-  if (!missing(sigma) && !is.na(sigma)) {
-    tryCatch(sigma <- as.double(sigma), warning = function(e) {
-      stop(
-        "'sigma' argument to ",
-        funcName,
-        " must be coercible to numeric type"
-      )
-    })
-    if (length(sigma) != 1L) {
-      stop("'sigma' must be of length 1")
-    }
-    if (is.null(sigma) || sigma <= 0.0) {
-      stop("'sigma' argument to ", funcName, " must be positive")
-    }
-
-    envir$sigma <- sigma
-  }
-
-  # Fitting functions (xbart) spell this 'sigest'; sampler constructors
-  # (dbarts) keep 'sigma'.
-  # Both route through this one validator under their own name, since the
-  # two callers are matched here by argument name (redirectCall) and cannot
-  # share a single formal without one silently dropping the other's value.
+  # One name for the residual-standard-deviation estimate supplied at
+  # creation, on every entry point; the sampler's setSigma, which sets the
+  # parameter rather than an estimate of it, is a different thing and keeps
+  # its own name.
   if (!missing(sigest) && !is.na(sigest)) {
     tryCatch(sigest <- as.double(sigest), warning = function(e) {
       stop(
@@ -382,7 +373,7 @@ dbarts <- function(
   variance = NULL,
   forests = NULL,
   control = dbarts::dbartsControl(),
-  sigma = NA_real_,
+  sigest = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
   family = c(
@@ -396,31 +387,55 @@ dbarts <- function(
     "nbinom",
     "hazard",
     "hazard.probit",
-    "hazard.logistic",
-    "hurdle.lognormal",
-    "twopart"
+    "hazard.logistic"
   ),
   missing = c("incorporate", "error"),
   dispersion = NA_real_,
   breaks = NULL,
-  max.rows = 1e7
+  max.rows = 1e7,
+  sigma = NA_real_
 ) {
   matchedCall <- match.call()
 
   evalEnv <- parent.frame(1L)
 
-  family <- match.arg(family)
-  # the caller's own token, ahead of the twopart fold and the hazard remap
-  # below - every downstream refusal that names 'family' echoes this, not
-  # the resolved spelling, which is an implementation detail
-  requestedFamily <- family
-  # hurdle.lognormal / twopart: the alias resolves to
-  # the canonical token immediately, so every downstream message and any
-  # packaged $family reads "hurdle.lognormal" regardless of which spelling
-  # was requested
-  if (identical(family, "twopart")) {
-    family <- "hurdle.lognormal"
+  # the creation-time estimate is 'sigest' here as everywhere; the 0.9-x
+  # spelling is folded in before the shared validator, which knows one name
+  sigmaSupplied <- !missing(sigma)
+  sigest <- resolveRenamedSigma(
+    !sigmaSupplied,
+    missing(sigest),
+    sigma,
+    sigest,
+    "dbarts"
+  )
+  if (sigmaSupplied) {
+    matchedCall$sigest <- matchedCall$sigma
+    matchedCall$sigma <- NULL
   }
+
+  # a hurdle response is a composition of two independent samplers, which
+  # this function cannot return; refused BY NAME ahead of match.arg, whose
+  # generic message would name neither the front door nor why. "twopart" is
+  # a retired spelling and is named as such rather than folded.
+  if (is.character(family) && length(family) == 1L) {
+    if (identical(family, "twopart")) {
+      refuseTwopartFamily("dbarts")
+    }
+    if (identical(family, "hurdle.lognormal")) {
+      stop(
+        "dbarts() does not fit family = \"hurdle.lognormal\": it composes ",
+        "two independent samplers (an occupancy probit and a positive-part ",
+        "gaussian) and dbarts() returns one - use ",
+        "bart(x.train, y.train, family = \"hurdle.lognormal\")"
+      )
+    }
+  }
+  family <- match.arg(family)
+  # the caller's own token, ahead of the hazard remap below - every
+  # downstream refusal that names 'family' echoes this, not the resolved
+  # spelling, which is an implementation detail
+  requestedFamily <- family
 
   # a forest() formula term declares an additional amplitude-coupled forest
   # (R/formulaTerms.R); checked against the requested family HERE, before any
@@ -450,18 +465,6 @@ dbarts <- function(
     }
     formula <- termIngestion$formula
     matchedCall$formula <- formula
-  }
-
-  if (identical(family, "hurdle.lognormal")) {
-    # a hurdle fit composes TWO independent samplers (an occupancy probit and
-    # a positive-part gaussian); dbarts()
-    # returns exactly one sampler and cannot express that composition - only
-    # bart2() (bart2Hurdle) builds it
-    stop(
-      "family \"",
-      requestedFamily,
-      "\" fits two component samplers and is only available through bart2()"
-    )
   }
 
   # survival response ingestion: a survival::Surv
@@ -701,7 +704,7 @@ dbarts <- function(
   }
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
-  data@sigma <- sigma
+  data@sigma <- sigest
 
   # a forest() term's bases were already evaluated against the model frame
   # (R/formulaTerms.R), post-subset - unlike a forests = declaration's, which
@@ -1964,6 +1967,7 @@ dbartsSampler <- setRefClass(
             "?`dbartsSampler-class`)"
           )
         }
+        refuseLegacyState(state)
         ptr <- .Call(
           C_dbarts_bartcore_create,
           control,
@@ -1991,6 +1995,7 @@ dbartsSampler <- setRefClass(
     },
     setState = function(newState) {
       "Sets the internal state from a cache."
+      refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
@@ -2018,6 +2023,14 @@ dbartsSampler <- setRefClass(
       selfEnv$pointer <- ptr
       selfEnv$state <- newState
       invisible(NULL)
+    },
+    startThreads = function(n.threads = control@n.threads) {
+      "Retired: threads are owned by each run. Does nothing."
+      noOpThreadMethod("startThreads")
+    },
+    stopThreads = function() {
+      "Retired: threads are owned by each run. Does nothing."
+      noOpThreadMethod("stopThreads")
     },
     storeState = function(ptr = getPointer()) {
       "Updates the cached internal state used for saving/loading."

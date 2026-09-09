@@ -30,9 +30,13 @@ xbart <- function(
   useQuantiles = FALSE,
   n.thin = 1L,
   storage = c("double", "single"),
-  tree.prior = NULL
+  tree.prior = NULL,
+  ...
 ) {
   matchedCall <- match.call()
+  # '...' exists only so a retired argument name reaches a message naming
+  # its successor; R refuses an unknown name before any body runs
+  refuseForeignFrontDoorArgs(list(...), "xbart", names(formals(dbarts::xbart)))
 
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
