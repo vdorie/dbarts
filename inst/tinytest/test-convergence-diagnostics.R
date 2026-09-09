@@ -228,6 +228,15 @@ rm(studentFit, sFirstSigma, sResidDf)
 # rank-normalized split-Rhat and bulk/tail ESS (no 'posterior' involved
 # anywhere in this file from here on) ----
 
+# every literal pinned below was computed from a set.seed() draw taken
+# under Mersenne-Twister/Inversion/Rejection; pin that kind explicitly
+# (restored at the end of the file) so an earlier test file's leftover
+# RNGkind() cannot change what these fixtures draw - both test_package's
+# run order and which RNGkind() the process happens to carry in are
+# outside this file's control
+oldRNGkind <- RNGkind()
+suppressWarnings(RNGkind("Mersenne-Twister", "Inversion", "Rejection"))
+
 set.seed(202)
 n.iid <- 1000L
 m.iid <- 4L
@@ -401,3 +410,6 @@ expect_equal(sInf$rhat, 1.0358481251143132, tolerance = 1e-12)
 expect_equal(sInf$ess_bulk, 73.115800088957201, tolerance = 1e-8)
 expect_true(is.na(sInf$ess_tail))
 rm(xInf, arrInf, sInf)
+
+suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
+rm(oldRNGkind)
