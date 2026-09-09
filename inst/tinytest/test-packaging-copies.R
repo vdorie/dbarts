@@ -1,14 +1,15 @@
 # packageBartResults used to hold three full-size copies of a prediction
 # channel at once: the engine's own array, the permuted one it returns, and a
 # third that matrix()/t() or apply()'s aperm allocated on the way. It now
-# holds two. This file pins both halves of that: every element of the
-# packaged fit is what the old pair produced bit for bit, and the permutation
-# really does allocate one array rather than two.
+# holds two. This file pins both halves of that: the two expressions that
+# changed return what the old ones did, bit for bit, over every shape
+# packaging feeds them, and they really do allocate one array rather than two.
 #
-# The old pair is re-declared here and injected into the shipped packager
-# rather than compared against recorded draws, which would hold only on the
-# build and instruction set they were recorded on while packaging is
-# value-neutral on any build.
+# The old expressions are re-declared here rather than compared against
+# recorded draws, which would hold only on the build and instruction set they
+# were recorded on while packaging is value-neutral on any build.
+
+# The packaging pair exactly as it stood before the copies came out.
 oldConvert <- function(samples, n.chains, combineChains) {
   d <- dim(samples)
   if (is.null(d)) {
@@ -29,19 +30,30 @@ oldChannelMeans <- function(samples) {
   apply(samples, length(dim(samples)), mean)
 }
 
-# the shipped packager with the old pair in scope of its own body, helpers
-# included, so nothing on the packaging path is left on the new expressions
-oldEnv <- new.env(parent = asNamespace("dbarts"))
-oldEnv$convertSamplesFromDbartsToBart <- oldConvert
-oldEnv$channelMeans <- oldChannelMeans
-for (helper in c("nameVarcount", "shapeMultinomialChannel")) {
-  copied <- get(helper, envir = asNamespace("dbarts"))
-  environment(copied) <- oldEnv
-  assign(helper, copied, envir = oldEnv)
+# One prediction channel in the engine's own layout, through both settings of
+# combineChains: the returned array and the posterior mean taken from it must
+# both be what the old pair produced.
+checkChannel <- function(raw, n.chains) {
+  for (combine in c(TRUE, FALSE)) {
+    old <- oldConvert(raw, n.chains, combine)
+    new <- dbarts:::convertSamplesFromDbartsToBart(raw, n.chains, combine)
+    expect_identical(new, old)
+    expect_identical(dbarts:::channelMeans(new), oldChannelMeans(old))
+  }
 }
-oldPackage <- dbarts:::packageBartResults
-environment(oldPackage) <- oldEnv
 
+# the shapes packaging feeds it: one chain (2-D) and several (3-D), and a
+# channel carrying names on its parameter margin, which only the combined
+# branch threads through
+set.seed(17L)
+checkChannel(array(rnorm(7L * 5L), c(7L, 5L)), 1L)
+checkChannel(array(rnorm(7L * 5L * 3L), c(7L, 5L, 3L)), 3L)
+named <- array(rnorm(7L * 5L * 3L), c(7L, 5L, 3L))
+dimnames(named) <- list(paste0("obs", seq_len(7L)), NULL, NULL)
+checkChannel(named, 3L)
+
+# and the same two expressions on real run channels, gaussian and binary,
+# at the chain counts the front door reaches
 set.seed(31L)
 n <- 100L
 p <- 4L
@@ -50,11 +62,14 @@ x.test <- matrix(rnorm(20L * p), 20L, p)
 y <- 2 * x[, 1L] - x[, 2L] + x[, 3L] * x[, 4L] + rnorm(n)
 z <- as.integer(y > 0)
 
-runAndPackage <- function(response, n.chains, combineChains) {
+for (case in list(
+  list(response = y, n.chains = 2L),
+  list(response = z, n.chains = 3L)
+)) {
   control <- dbarts::dbartsControl(
     n.samples = 12L,
     n.burn = 5L,
-    n.chains = n.chains,
+    n.chains = case$n.chains,
     n.trees = 10L,
     n.threads = 1L,
     verbose = FALSE,
@@ -62,63 +77,38 @@ runAndPackage <- function(response, n.chains, combineChains) {
   )
   sampler <- dbarts::dbarts(
     response ~ x,
-    data.frame(response = response, x = I(x)),
+    data.frame(response = case$response, x = I(x)),
     test = data.frame(x = I(x.test)),
     control = control
   )
   sampler$sampleTreesFromPrior(updateState = FALSE)
   samples <- sampler$run(5L, 12L)
-  list(
-    new = dbarts:::packageBartResults(
-      sampler,
-      samples,
-      NULL,
-      NULL,
-      combineChains,
-      FALSE
-    ),
-    old = oldPackage(sampler, samples, NULL, NULL, combineChains, FALSE)
-  )
-}
-
-# both families at combineChains = TRUE (the folded chain margin) and at
-# FALSE, which keeps it; the binary FALSE case is the one that already peaked
-# at two copies, so it must come through untouched
-for (case in list(
-  list(response = y, n.chains = 2L, combineChains = TRUE),
-  list(response = y, n.chains = 3L, combineChains = FALSE),
-  list(response = z, n.chains = 2L, combineChains = TRUE),
-  list(response = z, n.chains = 3L, combineChains = FALSE)
-)) {
-  packaged <- runAndPackage(
-    case$response,
-    case$n.chains,
-    case$combineChains
-  )
-  expect_identical(packaged$new, packaged$old)
+  checkChannel(samples$train, case$n.chains)
+  checkChannel(samples$test, case$n.chains)
 }
 
 # The allocation count itself: the old pair's extra copy is visible in the
 # heap high-water mark, with half an array as the margin. The reduction's own
 # summation order is why it runs after the permutation - mean() adds in the
 # order it is handed, and only there is an observation's draws contiguous.
+maxUsedMiB <- function() gc()[2L, "max used"] * 8 / 1048576
 raw <- array(rnorm(300000L), c(10000L, 10L, 3L))
-arrayMb <- 8 * length(raw) / 1048576
+arrayMiB <- 8 * length(raw) / 1048576
 invisible(gc(reset = TRUE))
 oldCombined <- oldConvert(raw, 3L, TRUE)
-oldPeak <- gc()[2L, 6L]
+oldPeak <- maxUsedMiB()
 rm(oldCombined)
 invisible(gc(reset = TRUE))
 newCombined <- dbarts:::convertSamplesFromDbartsToBart(raw, 3L, TRUE)
-newPeak <- gc()[2L, 6L]
-expect_true(newPeak < oldPeak - 0.5 * arrayMb)
+newPeak <- maxUsedMiB()
+expect_true(newPeak < oldPeak - 0.5 * arrayMiB)
 
 # and the reduction, which used to permute the whole channel again
 invisible(gc(reset = TRUE))
 oldMeans <- oldChannelMeans(newCombined)
-oldMeanPeak <- gc()[2L, 6L]
+oldMeanPeak <- maxUsedMiB()
 invisible(gc(reset = TRUE))
 newMeans <- dbarts:::channelMeans(newCombined)
-newMeanPeak <- gc()[2L, 6L]
+newMeanPeak <- maxUsedMiB()
 expect_identical(newMeans, oldMeans)
-expect_true(newMeanPeak < oldMeanPeak - 0.5 * arrayMb)
+expect_true(newMeanPeak < oldMeanPeak - 0.5 * arrayMiB)

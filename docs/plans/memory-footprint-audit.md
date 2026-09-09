@@ -389,9 +389,11 @@ pre-change tree: case 1 (n = 1e5, p = 20, T = 200, C = 4, S = 500)
 15172.7 MB before, 11161.5 MB after. Each drop is one prediction array to
 within a megabyte. The full 30-cell grid was re-recorded with the new
 library and passes the plan's tolerance: every cell within max(10 pct,
-20 MB), median absolute relative residual 4.1 to 4.2 pct across two runs
+20 MB), median absolute relative residual 3.0 to 4.7 pct across runs
 against the 5 pct limit, worst cell n = 1e5, p = 20, T = 200, C = 1,
 S = 200, keepTrees at 39.6 to 39.7 MB HIGH against a 55.8 MB tolerance.
+The top of that spread, and the one linear-cell miss seen with it, came
+from a run overlapping another job on the host.
 The model lost its collector-churn allowance: the R heap still churns
 under the reduction (1.47 times the array against `apply`'s 2.48 on the
 duplicates probe, the two exactly one array apart), but none of it reaches
@@ -399,14 +401,15 @@ peak RSS in a fit, and keeping the allowance put the grid's median at
 8.6 pct with every residual negative.
 
 Gate: [inst/tinytest/test-packaging-copies.R](../../inst/tinytest/test-packaging-copies.R)
-compares whole packaged fits, element for element, against the pre-change
-expressions re-declared in the file and injected into the shipped
-packager through a shadowing environment - gaussian and binary at
-`combineChains` TRUE and FALSE, four fits - and pins the allocation count
-itself through `gc()`'s high-water mark. Recorded draws were rejected for
-the fixture: they hold only on the build and instruction set they were
-recorded on, while packaging is value-neutral on any build, so a snapshot
-would have been dark on every run but one. Whole `bart` results were also
-compared across the two installed libraries out of band, identical on all
-four cases.
+compares the two changed expressions against the pre-change ones,
+re-declared in the file, over every shape packaging feeds them - one chain
+and several, a named parameter margin, and the train and test channels of
+real gaussian and binary sampler runs at two and three chains, each through
+both settings of `combineChains` - and pins the allocation count itself
+through `gc()`'s high-water mark. Recorded draws were rejected for a
+fixture: they hold only on the build and instruction set they were recorded
+on, while packaging is value-neutral on any build, so a snapshot would have
+been dark on every run but one. Whole `bart` results were also compared
+across the two installed libraries out of band, identical on all four cases
+(gaussian and probit, `combineChains` TRUE and FALSE).
 

@@ -367,7 +367,11 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   chains (owned conditioning vectors, cut codes, tree storage, per-chain
   state, test slabs) and record it in the manual; VD wants larger
   datasets to fit and has had memory trouble before. Plan:
-  docs/plans/memory-footprint-audit.md.
+  docs/plans/memory-footprint-audit.md. Post-release, same item at other
+  call sites: apply(..., mean) still reduces over full-size prediction
+  channels at four sites in R/generics.R and in R/partialDependence.R,
+  each permuting the whole channel for a per-observation mean that
+  channelMeans' shape takes without a copy.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's

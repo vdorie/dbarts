@@ -5,10 +5,13 @@ Status: VALIDATED against measured peak resident set size by
 arm64 macOS, first at 80ff32b4 and re-validated after the transient copies
 came out of packaging. Every one of the 30 grid cells falls within
 max(10 pct, 20 MB) of the model, and the median absolute relative residual
-over the whole grid is 4.1 to 4.2 pct across two runs against a 5 pct limit;
-the worst cell is the same one each time (n = 1e5, p = 20, T = 200, C = 1,
-S = 200, keepTrees), 39.6 to 39.7 MB high against a 55.8 MB tolerance, which
-is the collector churn the model no longer carries a row for. The margin on
+over the whole grid is 3.0 to 4.7 pct across runs against a 5 pct limit. The
+top of that spread, and the one linear-cell miss seen with it, came from a
+run that overlapped another job on the host; on a quiet machine the median is
+3.0 to 4.2 pct with no cell outside. The worst cell on a quiet run is
+n = 1e5, p = 20, T = 200, C = 1, S = 200, keepTrees, 39.6 to 39.7 MB high
+against a 55.8 MB tolerance, which is the collector churn the model no longer
+carries a row for. The margin on
 the median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
 byte model cannot reach. "What the measurement moved" records the rows the
@@ -333,7 +336,7 @@ second row is its own TODO entry rather than a change in this arc.
 
 | item | saved, case 1 | saved, case 2 | change | recommendation |
 | --- | --- | --- | --- | --- |
-| name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | taken, in the manual's Memory section |
+| name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 3200 MB | 8000 MB | one sentence | taken, in the manual's Memory section; the figures are the two live copies, down from three |
 | take the column means over the returned layout and build that layout in one permutation, so neither extra copy exists | 1600 MB | 4000 MB | the R reshape and mean | TAKEN, measured 1612.2 MB and 4011.2 MB; the last copy would need the bridge to allocate the channel draw-major and the engine to write into it strided, which is its own item |
 | drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
 | prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
