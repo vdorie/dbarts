@@ -370,7 +370,8 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   (bit-identical under R); a plain-spec creation entry and a
   host-neutral error contract in 1.x. Rewords the Python-binding entry.
 
-worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88)
+worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88; S3
+  LANDED 70305575)
   pre-release: the multi-chain run loop in src/bartcore/sampler.hpp waits
   on a completion signal instead of sleeping 100 ms per poll; keep the
   timed wake for the interrupt poll and progress flush.
@@ -389,7 +390,8 @@ within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   item so both share one gate matrix.
 
 vectorized draw path with a reference build (decided, VD 2026-09-08;
-  docs/decisions.md dec-B90; S1 LANDED 167e2c62; S2-S5 open)
+  docs/decisions.md dec-B90; S1 167e2c62, S3 70305575 landed; S2, S4, S5
+  open)
   pre-release: wire the measured SIMD node-sum kernels into the engine
   gather; a configure flag selects the scalar fixed-order reference
   build; CI runs the bitwise, exact-posterior and snapshot gates on the

@@ -427,3 +427,51 @@ Review findings fixed before landing: the regeneration tool did not
 stop on a shipped build; README's CI list was stale for cpp-tests; the
 timeout raised from 45 to 60; the reference install no longer skipped
 after a C++ failure. Remaining: S2, the vector suffstat kernel; S3, S4, S5.
+
+## Landing note, S3 (2026-09-09)
+
+LANDED at 7030557578a9a6dd225ed8abc23d1dc654a531ff, three commits:
+
+- 6c6582bf889438d65b67c9c3dc3206f0afe96cee Wait on chain completion in the multi-worker run loop
+- 1e895684169badbd87f1cb049f632b0ad4d1dd26 Cover the run loop's latency, cancel and flush paths
+- 7030557578a9a6dd225ed8abc23d1dc654a531ff Name the predicate re-check as the wait's guarantee, and size the verbose arm to the host
+
+[`Sampler::run`](../../src/bartcore/sampler.hpp)'s multi-worker branch waits
+on a condition variable instead of sleeping in 100ms ticks: a worker takes
+the mutex, does the final `numChainsRunning` decrement under it and
+notifies; the caller waits with the predicate overload of `wait_for` and a
+100ms timeout, so a completion landing while the lock is released for the
+flush and the interrupt poll is seen rather than slept through. A timeout
+wake still does what the tick did - flush, then poll - except the flush now
+precedes the poll, a benign reorder the plan did not call for, stated here
+because it can surface a queued line up to 100ms sooner. The mutex and
+condition variable are locals of `run()`, joined with every worker before
+going out of scope; the inline single-chain branch is untouched and the
+engine stays R-agnostic. [`testRunCancellation`](../../tests/cpp/test_sampler.cpp)
+gains a latency arm (a short four-chain run returns well under 50ms), a
+cancel arm and a verbose-sink arm that grows its run until it clears 100ms
+on the host; [Threading model](../architecture.md#threading-model) describes
+the wait.
+
+Measured: 200 calls of a 4-chain, 4-thread `run(0, 1)`: median 105ms
+before, 0.12ms after; the reviewer measured 0.09-0.20ms per call, a 250x
+margin under the bound, 2.4ms under ThreadSanitizer. Real diff:
+sampler.hpp +44/-12, test_sampler.cpp +104/-10, architecture.md +8/-4; the
+test line runs about 2.5x its ~40-line budget, inside the slice's 1.5x stop.
+
+Gates, independently: tests/cpp all passed three times in a row,
+ThreadSanitizer 0 diagnostics, ASan/UBSan 0 diagnostics, 25 repeats of the
+sampler suite 0 failures; tinytest 8069/0 at its base, 8105/0 on the merged
+tree with front-door S3; equivalence 50/12/11 identical, 0 skipped, no
+"max |z|" line (gaussian against equivalence-c42b72af.rds on the merged
+tree); `R CMD check --as-cran` OK from a clean tarball; doc-freshness,
+rc-codoc and check-win-drift exit 0; `air format --check` clean. Mutation:
+removing the notify fails the latency and cancel arms at about 101ms,
+removing the in-loop flush fails the verbose arm.
+
+Review findings fixed before landing: the comment above the mutex claimed
+the count could not reach zero between the test and the wait, false as
+written, and was reworded to name the predicate re-check as the guarantee;
+the verbose arm's fixed sample count had only 3.6x headroom on this host
+and now grows until the run clears a timeout. Remaining: S2, the vector
+suffstat kernel, still open; S4, S5.
