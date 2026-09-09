@@ -37,9 +37,8 @@
 /// signatures below are stable and function additions arrive under new names (a
 /// minor bump), while dbarts_results grows in place by appending fields - its
 /// leading structSize keeps callers compiled against an older layout safe, and
-/// the caller-filled structs below (dbarts_predictor_source,
-/// dbarts_forest_calibration) carry the same leading member for the same
-/// reason, in the other direction.
+/// the caller-filled struct below (dbarts_predictor_source) carries the same
+/// leading member for the same reason, in the other direction.
 ///
 /// Contracts common to all entry points:
 /// - Validation is deliberately partial: consumers are compiled packages, so
@@ -48,15 +47,14 @@
 ///   response value outside its family's support, a categorical code the
 ///   sampler does not hold, a capability the model does not carry. What is NOT
 ///   checked is the plain pointer: the sampler handle, an output buffer, and a
-///   required input vector are dereferenced as handed, so a null (or destroyed,
-///   or short) one crashes rather than raising.
+///   required input vector are dereferenced as handed, so a null (or
+///   destroyed, or short) one crashes rather than raising. The one exception
+///   is dbarts_sampler_destroy itself, which is idempotent.
 /// - A non-void return is one of three things, and each entry's own doc says
 ///   which. A VALUE: the number IS the answer and carries no refusal, which is
 ///   what the counts, dbarts_sampler_kIsSampled, dbarts_sampler_usesDart,
 ///   dbarts_sampler_family and the version accessors report - an int here is
-///   not a status. A TRANSACTION result (dbarts_sampler_setPredictor,
-///   dbarts_sampler_updatePredictor): 0 is a completed rollback, and a
-///   different argument would have worked. Or a CAPABILITY STATUS, whose rule
+///   not a status. Or a CAPABILITY STATUS, whose rule
 ///   is that 0 means the SAMPLER cannot do this at all - no argument would
 ///   have worked - and nothing was touched, so a host driving a sampler it did
 ///   not build probes the channel instead of unwinding through its own frames.
@@ -68,66 +66,49 @@
 ///   conditioned on what it held before; that answer is a fixed property of
 ///   the sampler, so test it once at setup rather than every sweep.
 /// - Where an entry names a forest, forest is the argument after the sampler:
-///   a 0-based index in [0, dbarts_sampler_numForests), qualifying every
-///   argument after it - a tree index list is read against THAT forest's tree
-///   count. An index past the last forest is a 0 only on the
-///   capability-status entries. It RAISES everywhere else: on the size_t
-///   probes (dbarts_sampler_numTrees, dbarts_sampler_numForestAmplitudes),
-///   whose value carries no refusal a caller could tell from a legitimate
-///   answer, and on dbarts_sampler_getTrees and dbarts_sampler_printTrees,
-///   where a caller assembling a data.frame could not tell an R_NilValue
-///   refusal from an empty answer.
-/// - Functions that draw (creation, run, the prior samplers, predictor
-///   updates, dbarts_drawLatents) manage R's RNG state internally and must be
-///   called from the main R thread. Do not wrap them in a GetRNGstate/
-///   PutRNGstate bracket that spans your own draws through R's API.
-///   dbarts_sampler_predict and dbarts_sampler_setTestPredictors are
-///   main-R-thread-only for a separate reason: both are R_alloc-backed
-///   internally, and R_alloc is unsafe off that thread.
-/// - Creation preserves the data specification object against garbage
-///   collection for the sampler's lifetime, and the engine borrows its
-///   predictors only to quantize them into owned codes at construction; the
-///   preserved data object is thereafter the sampler's own predictor GC anchor
-///   and the call-time raw source for saved-tree replay and state restore.
-///   The raw-array setters do NOT agree on what they retain, and each one's own
-///   doc states which it is. setResponse, setOffset, setTestOffset, setWeights
-///   and setForestWeights RETAIN the pointer they are handed: the caller owns
-///   the array and must keep it alive, and unmodified except where it means to
-///   condition the sampler, until it is replaced or the sampler is destroyed.
-///   That lifetime rule is the whole promise: a value changed by writing
-///   through the retained pointer is NOT guaranteed to be seen before the next
-///   call - gaussian bakes the response into its own working scale at set
-///   time and aft copies it into its own buffer at set time - so condition
-///   the sampler on new values by calling the setter again, not by mutating
-///   the array in place. The others borrow for the call alone: the
-///   predictor setters re-quantize into owned codes and retain no pointer, as
-///   setActiveRows consumes its mask, and setForestBasis copies the basis
-///   columns it is handed.
-/// - Matrices are column-major, with one exception:
-///   dbarts_sampler_setForestBasis takes basisRowMajor, row i at
-///   basisRowMajor + i * numColumns, that contraction being the engine's only
-///   read of a basis. Result and prediction layouts put samples and then
-///   chains in trailing dimensions.
+///   a 0-based index over the sampler's own forests, qualifying every argument
+///   after it - a tree index list is read against THAT forest's tree count.
+///   0 is the only index a single-forest sampler has, and a sampler this
+///   header can drive but not describe (a multi-forest one, built from R)
+///   states its count nowhere here. An index past the last forest RAISES on
+///   both entries that take one: dbarts_sampler_numTrees, whose size_t value
+///   carries no refusal a caller could tell from a legitimate answer, and
+///   dbarts_sampler_printTrees, which carries no status channel at all.
+/// - The functions that draw (dbarts_sampler_run,
+///   dbarts_sampler_sampleTreesFromPrior) manage R's RNG state internally and
+///   must be called from the main R thread. Do not wrap them in a
+///   GetRNGstate/PutRNGstate bracket that spans your own draws through R's
+///   API. dbarts_sampler_predict is main-R-thread-only for a separate reason:
+///   it is R_alloc-backed internally, and R_alloc is unsafe off that thread.
+/// - THE HANDLE. There is no creation entry here: a dbarts_sampler* is the
+///   address stored in an R dbartsSampler object's external pointer, which a
+///   consumer builds from R (dbarts(), dbartsSpec()) and reads with
+///   R_ExternalPtrAddr in its own code. It is valid until that R object is
+///   garbage collected or REPLACES its pointer, which the object does
+///   whenever it re-creates its engine from a stored state, so re-read the
+///   handle after any R-side restore and keep the R object reachable for as
+///   long as you hold one. Everything this header does not reach - creation,
+///   the predictor and weight conduits, the state round trip, tree
+///   extraction, the multi-forest surface - is an R method on that same
+///   object, and the two views drive one engine.
+/// - COPY-ON-SET. dbarts_sampler_setResponse and dbarts_sampler_setOffset
+///   COPY into buffers the sampler owns and allocated at creation: the
+///   caller's array is free the moment the call returns, and no set here
+///   allocates. (Changing the observation count or the test row count is an
+///   R-side conduit, and it is the one thing that resizes those buffers.) The
+///   copy is what the caller conditions on, so a value changed by writing
+///   through the array afterwards is not seen at all - call the setter again.
+///   Nothing else here retains a pointer either: dbarts_sampler_predict reads
+///   its source and its offset for the call alone.
+/// - Matrices are column-major. Result and prediction layouts put samples and
+///   then chains in trailing dimensions.
 
+// The only headers the prototype view needs: no R header is included here, so
+// this file's declarations compile as plain C (gcc -std=c99 -pedantic) with no
+// R include path. Nothing below names an R type. The stub view alone reaches
+// into R, and includes what it needs where it needs it.
 #include <stddef.h> // size_t
 #include <stdint.h> // uint32_t
-
-// Imports Rinternals.h for SEXP, under R_NO_REMAP so that this header's own
-// arrival brings no unprefixed R name (length, error, ...) into a consumer's
-// translation unit. INCLUDE ORDER MATTERS, because Rinternals.h has an include
-// guard and so is processed exactly once: a consumer that wants the unprefixed
-// spellings must include <Rinternals.h> ITSELF FIRST, or this header's include
-// of it wins and every later use of allocVector/isNull/asReal in that unit
-// fails to compile. Including <Rinternals.h> first is otherwise harmless here.
-#ifndef R_NO_REMAP
-#  define DBARTS_UNMAP_R_NO_REMAP
-#  define R_NO_REMAP
-#endif
-#include <Rinternals.h>
-#ifdef DBARTS_UNMAP_R_NO_REMAP
-#  undef R_NO_REMAP
-#  undef DBARTS_UNMAP_R_NO_REMAP
-#endif
 
 /// The C ABI version, two components. major changes are
 /// incompatible; minor changes are additive-only. The safe consumer handshake
@@ -154,14 +135,13 @@
 ///
 /// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
 /// (return types, names, parameter lists), the three ABI enums' enumerator
-/// names and values, dbarts_sampler_callback's parameter list, and the LAYOUT
-/// of every struct that crosses the ABI - dbarts_results,
-/// dbarts_predictor_source, dbarts_forest_calibration - as the compiler
+/// names and values, and the LAYOUT of every struct that crosses the ABI -
+/// dbarts_results, dbarts_predictor_source - as the compiler
 /// reports it: each struct's size, and each field's name paired with its
 /// offset, both in pointer units so the token is one number on every supported
 /// platform. So a field appended, removed, reordered or retyped to a different
-/// width, a renamed field, a renumbered or added enumerator, and a changed
-/// callback signature all move it. What it still does not see is an in-place
+/// width, a renamed field, and a renumbered or added enumerator all move it.
+/// What it still does not see is an in-place
 /// type swap of the SAME width (double* -> int64_t* under an unchanged name),
 /// which moves no offset and no name; that residue is announced to consumers
 /// by hand.
@@ -186,7 +166,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x616ffcda8c947777ULL
+#  define DBARTS_C_API_HASH 0xab4909b71853c7dfULL
 #endif
 
 #ifdef __cplusplus
@@ -195,12 +175,16 @@ extern "C" {
 
 // ---------------------------------------------------------------------------
 // ABI types, shared by both the prototype view and the stub view below. Every
-// type that crosses the ABI is defined here (dbarts_results and the callback
-// are inline; control/model/data/state cross as SEXP) so that the single-source
-// list and the compile-time token see the whole surface.
+// type that crosses the ABI is defined here, so that the single-source list and
+// the compile-time token see the whole surface. Nothing here is an R type: an R
+// object reaches the sampler through the R methods on the object the handle
+// came from, never through this file.
 // ---------------------------------------------------------------------------
 
-/// Opaque sampler handle.
+/// Opaque sampler handle: the address in an R dbartsSampler object's external
+/// pointer, read with R_ExternalPtrAddr (see THE HANDLE above). This header
+/// creates none and frees none - dbarts_sampler_destroy releases the engine
+/// early, and the R object owns what is left.
 typedef struct dbarts_sampler_t dbarts_sampler;
 
 /// Caller-owned, growable output buffers for dbarts_sampler_run. The caller
@@ -258,8 +242,8 @@ typedef struct dbarts_results_t {
 /// True when the caller's struct (per structSize) actually carries `field`.
 /// The sizeof operand is unevaluated, so this never dereferences past the
 /// caller's buffer. Every size-first struct here reads its optional members
-/// through it, whether the library writes them (dbarts_results,
-/// dbarts_forest_calibration) or reads them (dbarts_predictor_source).
+/// through it, whether the library writes them (dbarts_results) or reads them
+/// (dbarts_predictor_source).
 #define DBARTS_HAS_FIELD(type, ptr, field) \
   ((ptr)->structSize >= offsetof(type, field) + sizeof((ptr)->field))
 
@@ -294,17 +278,17 @@ typedef struct dbarts_results_t {
 #define DBARTS_ENUMERATOR(name, value) name = value,
 typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 
-/// A borrowed, self-describing view of predictor values: what the four
-/// predictor entries take instead of a bare pointer. The caller MUST set
+/// A borrowed, self-describing view of predictor values: what
+/// dbarts_sampler_predict takes instead of a bare pointer. The caller MUST set
 /// structSize to sizeof(dbarts_predictor_source) as it compiled it; the library
 /// reads only fields whose end offset falls within structSize, so a caller
 /// built against an older (smaller) header is never read past, and a zero
 /// structSize is an error rather than a source of silent nulls. Fields append
 /// monotonically below the marked boundary and never reorder. Nothing here is
-/// retained: the entries quantize or replay the values during the call.
+/// retained: the values are replayed during the call and nothing outlives it.
 ///
 /// numRows x numColumns is the shape the argument declares of ITSELF, which is
-/// what a caller's own width must agree with - the entries refuse a numColumns
+/// what a caller's own width must agree with - the entry refuses a numColumns
 /// that disagrees with the sampler rather than reading whatever lies past the
 /// caller's matrix.
 ///
@@ -317,9 +301,9 @@ typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 /// read its declared reference code when the sampler holds that column
 /// categorical, 0 otherwise.
 ///
-/// columnTypes and categoryCounts describe the view's own typing, and every
-/// entry that takes this struct is a mutation or a test/replay path, where the
-/// SAMPLER's store already fixes both for each column it names. They are
+/// columnTypes and categoryCounts describe the view's own typing, and the
+/// entry that takes this struct is a replay path, where the SAMPLER's store
+/// already fixes both for each column it names. They are
 /// therefore checked for well-formedness and otherwise IGNORED: no column's
 /// type or category count is ever taken from the argument, and declaring them
 /// against a sampler that holds otherwise changes nothing. referenceCodes, by
@@ -356,13 +340,9 @@ typedef struct dbarts_predictor_source_t {
   /// columns the SAMPLER holds as factors, with INT_MIN (R's NA_INTEGER)
   /// marking a missing code. It saves a caller whose factor columns are
   /// already integers the widening loop and the double block that loop needs.
-  /// The test-side entries save the block as well: they read the codes where
-  /// they lie rather than widening one. dbarts_sampler_predict routes each
-  /// row by comparing its code against an integer threshold;
-  /// dbarts_sampler_setTestPredictors quantizes off the same cells one value
-  /// at a time. A mutation entry is the exception - its kernels index a
-  /// column-major double block, so a coded source is widened into one for
-  /// that call.
+  /// The replay saves the block as well: it reads the codes where they lie
+  /// rather than widening one, dbarts_sampler_predict routing each row by
+  /// comparing its code against an integer threshold.
   /// A missing code is admitted only where the sampler's own training column
   /// had missing values; a test source carrying one on a column complete in
   /// training is refused, exactly as a NaN in the double channel is.
@@ -395,7 +375,7 @@ typedef struct dbarts_predictor_source_t {
     NULL, NULL, NULL, NULL, 0 }
 
 /// The dense spelling: a plain column-major numRows x numColumns block, which
-/// is the shape the predictor entries took before this struct existed.
+/// is the shape the predictor argument took before this struct existed.
 static inline dbarts_predictor_source
 dbarts_dense_predictor_source(const double* values, size_t numRows,
                               size_t numColumns) {
@@ -406,8 +386,9 @@ dbarts_dense_predictor_source(const double* values, size_t numRows,
   return source;
 }
 
-/// The leaf model a sampler's forests carry, which qualifies what a reported
-/// prior sd means (see dbarts_sampler_getForestCalibration).
+/// The leaf model a sampler's forests carry. No entry here reports one: the
+/// enumeration is the ABI's name for what an R-side calibration read answers,
+/// kept so the two surfaces number the leaf models alike.
 #define DBARTS_LEAF_MODEL_LIST(X) \
   X(DBARTS_LEAF_CONSTANT, 0) \
   X(DBARTS_LEAF_MONOTONE, 1) \
@@ -415,17 +396,15 @@ dbarts_dense_predictor_source(const double* values, size_t numRows,
   X(DBARTS_LEAF_GP, 3)
 typedef enum { DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR) } dbarts_leaf_model;
 
-/// The response family a sampler is built with, or (dbarts_sampler_create's
-/// default) dispatch on the response shape. 1-6 mirror the engine's own
-/// family order; 7 and 8 name two cases that order alone cannot carry:
-/// STUDENT is a Student-t residual law riding a gaussian family
-/// (dbarts_sampler_family never reports it - a Student-t sampler's family IS
-/// gaussian), and MULTINOMIAL is the K-forest softmax, reserved for
-/// multinomial creation - no entry here builds one. Admission narrows per
-/// entry point, each refusal naming both: dbarts_sampler_create takes AUTO,
-/// GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL and NBINOM; dbarts_drawLatents and
-/// dbarts_workingResponse take PROBIT, LOGISTIC, ORDINAL, AFT, NBINOM and
-/// STUDENT.
+/// The response family a sampler is built with, or (the R side's default)
+/// dispatch on the response shape. 1-6 mirror the engine's own family order;
+/// 7 and 8 name two cases that order alone cannot carry: STUDENT is a
+/// Student-t residual law riding a gaussian family (dbarts_sampler_family
+/// never reports it - a Student-t sampler's family IS gaussian), and
+/// MULTINOMIAL is the K-forest softmax. AUTO likewise never comes back: it is
+/// what an R-side specification may ask for, and creation resolves it. So
+/// dbarts_sampler_family is the only entry here that speaks this enumeration,
+/// and it reports 1-6 or 8.
 #define DBARTS_FAMILY_LIST(X) \
   X(DBARTS_FAMILY_AUTO, 0) \
   X(DBARTS_FAMILY_GAUSSIAN, 1) \
@@ -438,75 +417,6 @@ typedef enum { DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR) } dbarts_leaf_model;
   X(DBARTS_FAMILY_MULTINOMIAL, 8)
 typedef enum { DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR) } dbarts_family;
 #undef DBARTS_ENUMERATOR
-
-/// Caller-owned output buffers for dbarts_sampler_getForestCalibration, on the
-/// dbarts_results contract: set structSize; EVERY member is a pointer and is
-/// filled only when both present-by-size and non-null, each over numChains; a
-/// zero structSize errors. Fields append below the marked boundary and never
-/// reorder. All quantities are in RESPONSE units (the family's latent units
-/// where the response is not rescaled).
-///   dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
-typedef struct dbarts_forest_calibration_t {
-  size_t  structSize;      ///< caller sets to sizeof(dbarts_forest_calibration)
-  double* priorScale;      ///< numChains; forest-total prior sd at k = 1
-  double* priorSd;         ///< numChains; priorScale / k at the current k
-  double* priorMean;       ///< numChains; prior mean of the forest total
-  double* k;               ///< numChains
-  double* responseScale;   ///< numChains; internal-to-response multiplier
-  double* responseShift;   ///< numChains; internal-to-response offset
-  int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k law (not the
-                           ///< sampler-wide dbarts_sampler_kIsSampled,
-                           ///< which reads the sampler option and
-                           ///< disagrees on BCF and multinomial)
-  int32_t* leafModel;      ///< numChains; dbarts_leaf_model, qualifying
-                           ///< priorSd and priorMean (see below)
-  /* The multi-forest CALIBRATION MAP's decomposition of priorScale, which is
-   * factor * s / (divisor * rowNorm) at the family's latent anchor s: NaN on
-   * every forest with no map entry (any single-forest or multinomial sampler),
-   * so a caller reads "not map-derived" rather than a plausible 1.0. */
-  double* amplitudePriorVariance;  ///< numChains; the forest's amplitude prior
-                                   ///< variance, or NaN where the forest
-                                   ///< carries the half-Cauchy scale mixture
-                                   ///< instead - the two are EXCLUSIVE
-  double* amplitudePriorScale;     ///< numChains; the half-Cauchy median, or
-                                   ///< NaN on a fixed-variance forest
-  double* nodeScaleFactor;         ///< numChains; NaN once a state install has
-                                   ///< brought a leaf scale this map did not
-                                   ///< derive, until setForestBasis re-imposes
-                                   ///< it
-  double* nodeScaleDivisor;        ///< numChains; NaN on the same rule
-  double* basisRowNorm;            ///< numChains; median nonzero row norm of
-                                   ///< the forest's basis IN FORCE
-  /* 1.0-0 field boundary: every future append goes below this line, never
-     above. An append after 1.0-0 bumps DBARTS_C_API_MINOR; a pre-1.0-0 one
-     extends the initial field set above it and moves no version constant. */
-} dbarts_forest_calibration;
-
-/// Value-initializer: sets structSize (the leading member, offset 0) and
-/// zeroes the field pointers, so a caller fills in only what it wants. Every
-/// member is spelled out, on DBARTS_RESULTS_INIT's reason.
-#define DBARTS_FOREST_CALIBRATION_INIT \
-  { sizeof(dbarts_forest_calibration), NULL, NULL, NULL, NULL, NULL, NULL, \
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL }
-
-/// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
-/// calling thread before every sweep - each of the (numBurnIn + numSamples) x
-/// numThin iterations - passing the chain index, the 0-based sweep counter,
-/// and 1 while the sweep is discarded burn-in. Mutate conditioning state
-/// (dbarts_sampler_setSigma, dbarts_sampler_setOffset, ...) from inside it to
-/// reproduce a setState-then-run(0, 1) loop exactly, at no per-sweep R round
-/// trip; return 0 to stop the run early (the results filled so far are then
-/// undefined). It fires before dbarts_sampler_setSigma's held sigma or the
-/// gaussian sigma draw enters the sweep, so a value set here conditions it.
-///
-/// The parameter list is hoisted into a macro the compile-time token folds
-/// alongside the entry-point signatures: only the typedef's NAME reaches those,
-/// and a callback whose parameters moved is stack corruption inside a
-/// consumer-defined function rather than a field left unfilled.
-#define DBARTS_SAMPLER_CALLBACK_PARAMS \
-  (void* userData, dbarts_sampler* sampler, size_t chainIndex, \
-   size_t sweepIndex, int isBurnIn)
-typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
 
 // ---------------------------------------------------------------------------
 // The single source of truth for the entry-point surface. Each
@@ -522,9 +432,7 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
 #define DBARTS_C_API_LIST(X) \
   X(int, dbarts_apiMajorVersion, (void), ()) \
   X(int, dbarts_apiMinorVersion, (void), ()) \
-  X(dbarts_sampler*, dbarts_sampler_create, \
-    (SEXP control, SEXP model, SEXP data, int family), \
-    (control, model, data, family)) \
+  X(uint64_t, dbarts_apiHash, (void), ()) \
   X(void, dbarts_sampler_destroy, (dbarts_sampler* sampler), (sampler)) \
   X(void, dbarts_sampler_run, \
     (dbarts_sampler* sampler, size_t numBurnIn, size_t numSamples, \
@@ -532,39 +440,16 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
     (sampler, numBurnIn, numSamples, results)) \
   X(void, dbarts_sampler_sampleTreesFromPrior, (dbarts_sampler* sampler), \
     (sampler)) \
-  X(void, dbarts_sampler_sampleNodeParametersFromPrior, \
-    (dbarts_sampler* sampler), (sampler)) \
   X(int, dbarts_sampler_setResponse, \
     (dbarts_sampler* sampler, const double* y, int updateScale), \
     (sampler, y, updateScale)) \
   X(int, dbarts_sampler_setOffset, \
     (dbarts_sampler* sampler, const double* offset, int updateScale), \
     (sampler, offset, updateScale)) \
-  X(int, dbarts_sampler_setWeights, \
-    (dbarts_sampler* sampler, const double* weights), (sampler, weights)) \
   X(int, dbarts_sampler_setSigma, \
     (dbarts_sampler* sampler, double sigma), (sampler, sigma)) \
-  X(void, dbarts_sampler_setCallback, \
-    (dbarts_sampler* sampler, dbarts_sampler_callback callback, \
-     void* userData), \
-    (sampler, callback, userData)) \
   X(int, dbarts_sampler_getLatents, \
     (const dbarts_sampler* sampler, double* out), (sampler, out)) \
-  X(int, dbarts_sampler_setPredictor, \
-    (dbarts_sampler* sampler, const dbarts_predictor_source* x, \
-     int forceUpdate, int updateCutPoints), \
-    (sampler, x, forceUpdate, updateCutPoints)) \
-  X(int, dbarts_sampler_updatePredictor, \
-    (dbarts_sampler* sampler, const dbarts_predictor_source* x, \
-     const size_t* columns, size_t numColumns, int forceUpdate, \
-     int updateCutPoints), \
-    (sampler, x, columns, numColumns, forceUpdate, updateCutPoints)) \
-  X(int, dbarts_sampler_setTestPredictors, \
-    (dbarts_sampler* sampler, const dbarts_predictor_source* xTest), \
-    (sampler, xTest)) \
-  X(int, dbarts_sampler_setTestOffset, \
-    (dbarts_sampler* sampler, const double* offsetTest), \
-    (sampler, offsetTest)) \
   X(int, dbarts_sampler_predict, \
     (dbarts_sampler* sampler, const dbarts_predictor_source* xTest, \
      const double* offsetTest, size_t numThreads, double* out), \
@@ -572,13 +457,6 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
   X(void, dbarts_sampler_setTreeStorage, \
     (dbarts_sampler* sampler, int keepTrees, size_t numSamplesToStore), \
     (sampler, keepTrees, numSamplesToStore)) \
-  X(SEXP, dbarts_sampler_getTrees, \
-    (dbarts_sampler* sampler, size_t forest, const size_t* chainIndices, \
-     size_t numChainIndices, const size_t* sampleIndices, \
-     size_t numSampleIndices, const size_t* treeIndices, \
-     size_t numTreeIndices, int useLiveTrees), \
-    (sampler, forest, chainIndices, numChainIndices, sampleIndices, \
-     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees)) \
   X(void, dbarts_sampler_printTrees, \
     (dbarts_sampler* sampler, size_t forest, const size_t* chainIndices, \
      size_t numChainIndices, const size_t* sampleIndices, \
@@ -586,13 +464,8 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
      size_t numTreeIndices, int useLiveTrees), \
     (sampler, forest, chainIndices, numChainIndices, sampleIndices, \
      numSampleIndices, treeIndices, numTreeIndices, useLiveTrees)) \
-  X(SEXP, dbarts_sampler_storeState, (dbarts_sampler* sampler), (sampler)) \
-  X(void, dbarts_sampler_setState, \
-    (dbarts_sampler* sampler, SEXP state), (sampler, state)) \
   X(void, dbarts_sampler_setNumThreads, \
     (dbarts_sampler* sampler, size_t numThreads), (sampler, numThreads)) \
-  X(void, dbarts_sampler_setNumThin, \
-    (dbarts_sampler* sampler, size_t numThin), (sampler, numThin)) \
   X(void, dbarts_sampler_setVerbose, \
     (dbarts_sampler* sampler, int verbose, size_t printEvery), \
     (sampler, verbose, printEvery)) \
@@ -611,47 +484,6 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
   X(int, dbarts_sampler_kIsSampled, (const dbarts_sampler* sampler), \
     (sampler)) \
   X(int, dbarts_sampler_usesDart, (const dbarts_sampler* sampler), (sampler)) \
-  X(size_t, dbarts_sampler_numForests, (const dbarts_sampler* sampler), \
-    (sampler)) \
-  X(int, dbarts_sampler_setForestBasis, \
-    (dbarts_sampler* sampler, size_t forest, const double* basisRowMajor, \
-     size_t numColumns), \
-    (sampler, forest, basisRowMajor, numColumns)) \
-  X(int, dbarts_sampler_getForestFits, \
-    (const dbarts_sampler* sampler, size_t forest, double* out), \
-    (sampler, forest, out)) \
-  X(size_t, dbarts_sampler_numForestAmplitudes, \
-    (const dbarts_sampler* sampler, size_t forest), (sampler, forest)) \
-  X(int, dbarts_sampler_getForestAmplitudes, \
-    (const dbarts_sampler* sampler, size_t forest, double* out), \
-    (sampler, forest, out)) \
-  X(uint64_t, dbarts_apiHash, (void), ()) \
-  X(int, dbarts_sampler_setForestWeights, \
-    (dbarts_sampler* sampler, size_t forest, const double* weights), \
-    (sampler, forest, weights)) \
-  X(int, dbarts_sampler_getForestCalibration, \
-    (const dbarts_sampler* sampler, size_t forest, \
-     dbarts_forest_calibration* out), \
-    (sampler, forest, out)) \
-  X(int, dbarts_sampler_setForestPriorScale, \
-    (dbarts_sampler* sampler, size_t forest, double priorScale), \
-    (sampler, forest, priorScale)) \
-  X(int, dbarts_sampler_setActiveRows, \
-    (dbarts_sampler* sampler, const double* active), (sampler, active)) \
-  X(int, dbarts_sampler_getDispersion, \
-    (const dbarts_sampler* sampler, double* out), (sampler, out)) \
-  X(void, dbarts_drawLatents, \
-    (int family, size_t numObservations, const double* fit, \
-     const double* y, const double* weights, const double* offset, \
-     double sigma, double dispersion, const double* ordinalThresholds, \
-     size_t numOrdinalThresholds, double df, double* out), \
-    (family, numObservations, fit, y, weights, offset, sigma, dispersion, \
-     ordinalThresholds, numOrdinalThresholds, df, out)) \
-  X(void, dbarts_workingResponse, \
-    (int family, size_t numObservations, const double* latent, \
-     const double* y, const double* weights, const double* offset, \
-     double dispersion, double* out), \
-    (family, numObservations, latent, y, weights, offset, dispersion, out)) \
   X(int, dbarts_sampler_family, (const dbarts_sampler* sampler), (sampler))
 
 /// One stringized "returnType name(parameterList);" per list entry, adjacent
@@ -667,6 +499,7 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
 // first call resolves the symbol through R_GetCCallable and caches it in a
 // block-scope static; later calls forward directly. A consumer defines
 // DBARTS_USE_STUBS to opt in, and then never restates a signature.
+#include <R_ext/Error.h>    // Rf_error, raised by the handshake below
 #include <R_ext/Rdynload.h> // R_GetCCallable, DL_FUNC
 
 /// The ABI handshake, enforced. Every stub runs this once, on the resolution
@@ -771,8 +604,8 @@ int dbarts_apiMajorVersion(void);
 /// at least the caller's for a usable library).
 int dbarts_apiMinorVersion(void);
 /// Returns the installed package's DBARTS_C_API_HASH: the FNV-1a token over
-/// the entry-point signatures, the callback's parameters, the ABI enums'
-/// enumerators, and the ABI structs' compiler-reported layout. Equality with
+/// the entry-point signatures, the ABI enums' enumerators, and the ABI
+/// structs' compiler-reported layout. Equality with
 /// the caller's DBARTS_C_API_HASH says the two were built from the same ABI -
 /// the lockstep check, and the only runtime signal that moves while the
 /// version constants do not. It moves on additive appends as well, so
@@ -782,163 +615,13 @@ int dbarts_apiMinorVersion(void);
 /// defines DBARTS_REQUIRE_EXACT_ABI before including this header.
 uint64_t dbarts_apiHash(void);
 
-/// Creates a sampler from the R specification objects (dbartsControl,
-/// dbartsModel, dbartsData). family selects the response model for binary
-/// responses, on a single forest or on K of them: DBARTS_FAMILY_AUTO or
-/// DBARTS_FAMILY_PROBIT give probit latents, DBARTS_FAMILY_LOGISTIC the
-/// Polya-Gamma sampler; continuous responses are gaussian and accept
-/// DBARTS_FAMILY_AUTO or DBARTS_FAMILY_GAUSSIAN, or DBARTS_FAMILY_AFT for an
-/// accelerated failure time (log-normal) survival fit, in which case the
-/// response holds log survival/censoring times and a numeric status vector (1
-/// = event, 0 = right-censored) is read from the control's
-/// "bartcore.survival" attribute. A verbose control prints the initial
-/// summary here.
-///
-/// The data object's @sigma is a REQUIRED input for the gaussian (Student-t
-/// and heteroscedastic variants included) and aft families - keyed on family,
-/// not on whether a scalar sigma is drawn: a heteroscedastic gaussian's
-/// variance forest owns the residual variance row by row and draws no scalar
-/// sigma, yet is refused an unresolved @sigma exactly as its homoscedastic
-/// sibling is, because both read it at creation to seed sigma and to
-/// calibrate the residual-variance prior's scale. dbartsData() leaves it
-/// NA_real_ and only R's own resolution layer fills it (dbarts() and
-/// dbartsSpec() estimate it from a linear fit), so a consumer assembling a
-/// specification by hand must supply a positive value; an unresolved one is
-/// refused here rather than turned into NaN draws that no later
-/// dbarts_sampler_setSigma can repair. The fixed-unit-scale families (probit,
-/// logistic, ordinal, nbinom) never read it and take the NA as it stands.
-///
-/// The K-forest amplitude family is
-/// created through this same entry point. Each forest carries its own basis,
-/// whose row contracts with that forest's own amplitude vector into the scalar
-/// the forest's fit is multiplied by, so the location is
-/// sum_f dot(a_f, B_f(i, .)) * forestFits(f)[i]; a Bayesian causal forest
-/// is the K = 2 instance, forest 0 prognostic over an
-/// implicit intercept and forest 1 over a treatment indicator. The R
-/// specification dbartsSpec(data, control, forests = list(forest(), forest(
-/// basis = ~ factor(z)))) puts each declared forest's basis columns on the data
-/// object and those forests' configuration on the control, and creation reads
-/// both halves (either alone is an error); a K-length forests list builds K
-/// forests, and dbartsData(bases = ) carries a numeric basis directly. Such a
-/// sampler reports numForests == K, swaps any forest's basis with
-/// dbarts_sampler_setForestBasis, reads each forest's surface with
-/// dbarts_sampler_getForestFits and its ragged amplitude block with
-/// dbarts_sampler_numForestAmplitudes and dbarts_sampler_getForestAmplitudes,
-/// takes a scale-pinned response, offset or weight swap, and refuses the whole
-/// test surface (setTestPredictors, setTestOffset, predict), whose blend is
-/// undefined without a test basis. Gaussian, probit and logistic responses;
-/// the other families are refused at creation, naming what each is missing.
-/// Under a latent family the combined location IS the index, on the link's own
-/// fixed scale - so every forest's prior scale is stated in latent sd units,
-/// sigma is pinned, and there is no response transform to rescale.
-///
-/// SPECIFICATION ATTRIBUTES. Beyond the S4 slots of dbartsControl,
-/// dbartsModel and dbartsData, several families and compositions are selected
-/// by R ATTRIBUTES on the control or model object, not by the family argument
-/// and not by any slot. R's own fitting layer attaches them; a consumer
-/// assembling a specification by hand sets them itself, with
-/// Rf_setAttrib(control, Rf_install("<name>"), value), and a family below that
-/// has no DBARTS_FAMILY_* enumerator is reachable no other way. All are
-/// OPTIONAL: absent, creation builds the plain single-forest model the family
-/// argument and the response shape name. Each is read once, here, and the
-/// response SHAPE it declares is resolved in a fixed order - the control's
-/// binary slot first, then "bartcore.n.categories", then
-/// "bartcore.dispersion", then continuous - so a control declaring two shapes
-/// takes the first of them and the family argument is then checked against
-/// that one. Malformed values RAISE, except where an entry says IGNORED, where
-/// a value of the wrong type or length is treated as absent and the shape it
-/// would have declared is silently not declared.
-///
-/// On the control object:
-/// - "bartcore.n.categories": INTSXP, length 1, value K >= 2. Declares the
-///   ordered categorical shape and selects the cumulative-probit ORDINAL
-///   family over a response holding integer category indices in [1, K]; family
-///   must then be DBARTS_FAMILY_AUTO or DBARTS_FAMILY_ORDINAL, and any other
-///   raises. IGNORED when it is not an integer vector of length 1, or when its
-///   value is below 2.
-/// - "bartcore.dispersion": REALSXP, length 1. Its PRESENCE declares the count
-///   shape and selects the NBINOM family; family must then be
-///   DBARTS_FAMILY_AUTO or DBARTS_FAMILY_NBINOM, and any other raises. The
-///   VALUE is the dispersion spec: positive FIXES r at that value, and
-///   non-positive (R writes -1) estimates r on the shipped positive-integer
-///   grid. A fixed r is taken as an integer and its integrality is NOT checked
-///   here - R's own layer refuses a non-integer, and a flat consumer that
-///   passes one gets an engine reading it as one. IGNORED when it is not a
-///   real vector of length 1.
-/// - "bartcore.survival": REALSXP, length numObservations, each element 1
-///   (event) or 0 (right-censored). REQUIRED by DBARTS_FAMILY_AFT, which
-///   raises without it, and refused on every other family, which raises with
-///   it. A wrong type, a wrong length, or an element that is neither 0 nor 1
-///   raises.
-/// - "bartcore.variance": VECSXP with named elements "n.trees" (INTSXP length
-///   1, >= 1), "base" (REALSXP length 1 in (0, 1)), "power" (REALSXP length 1,
-///   positive) and "columns" (INTSXP of 1-based predictor indices the variance
-///   forest may split on, or R_NilValue for all of them). Selects the
-///   HETEROSCEDASTIC composition: a second forest modelling s^2(x), which owns
-///   the residual variance row by row. DBARTS_FAMILY_GAUSSIAN and
-///   DBARTS_FAMILY_AFT constant-leaf models only, and refused with Student-t
-///   residuals, a monotone constraint or a leaf covariate; the sampler still
-///   answers its own family and still requires a resolved data@sigma. Under
-///   DBARTS_FAMILY_AFT each censored latent is redrawn at its own row's s(x)
-///   rather than a shared sigma. Any missing or malformed element raises, as
-///   does a column index outside [1, numPredictors].
-/// - "bartcore.forests": VECSXP with named elements "params", "vars",
-///   "interactions" and "blocks". "params" is a VECSXP of K >= 2 length-8
-///   REALSXPs, one per forest: tree count, base, power, the calibration map's
-///   node-scale factor and divisor, the amplitude prior's variance and
-///   half-Cauchy scale, and a nonzero flag to update the amplitudes (forest 0
-///   takes its tree count, base and power from the control and model instead,
-///   and its params entry's first three values are unread). The other three
-///   are optional K-parallel VECSXPs, each element null for a forest that
-///   declares nothing: "vars" an INTSXP of 1-based columns that forest may
-///   split on, "interactions" a list of "max.order" and "forbidden" (an
-///   even-length INTSXP of 0-based (a, b) column pairs), "blocks" a list of
-///   "block.of.column" (INTSXP, one 0-based group per predictor) and
-///   "block.tree.counts" (INTSXP of positive per-group capacities summing to
-///   that forest's tree count). Selects the K-forest AMPLITUDE family
-///   described above. It is one half of a spec: the data object must carry K
-///   bases, and either half without the other raises, as does a basis count
-///   that disagrees with K.
-/// - "bartcore.hazard.periods": read only by R's own packaging layer. Creation
-///   never looks at it, so a flat consumer has nothing to set and setting it
-///   selects nothing.
-///
-/// On the model object:
-/// - "resid.df": REALSXP, length 1. A finite value selects the STUDENT-T
-///   residual law - positive fixes the degrees of freedom, 0 estimates them on
-///   a grid - over the gaussian family, which is the only one that carries it;
-///   any other family raises, as does a negative value. There is no
-///   DBARTS_FAMILY_* enumerator to select it with: the sampler still answers
-///   DBARTS_FAMILY_GAUSSIAN, and dbarts_sampler_getLatents then reports
-///   precisions. IGNORED when it is not a real vector of length 1.
-/// - "monotone": INTSXP, length numPredictors, each element -1, 0 or 1 (the
-///   direction the fit must be monotone in for that column; 0 leaves it
-///   unconstrained). All-zero is the unconstrained default. A wrong length, a
-///   non-integer vector, or an element outside [-1, 1] raises.
-/// - "interaction.max.order": INTSXP, length 1, non-negative. Caps the number
-///   of distinct columns any one tree may split on. Not length 1, or negative:
-///   raises.
-/// - "interaction.forbidden": INTSXP, an even-length flat stream of 0-based
-///   column pairs (a, b) that may not co-occur in a tree. A non-integer
-///   vector, an odd length, or an index outside [0, numPredictors) raises.
-/// - "block.of.column": INTSXP, length numPredictors, a 0-based block index
-///   per column (negative leaves a column in no block). Confines each whole
-///   tree to one block. A non-integer vector or a wrong length raises. It
-///   selects nothing on its own: the partition is installed only alongside
-///   "block.tree.counts", and without them it is read and then unused.
-/// - "block.tree.counts": INTSXP, one positive tree capacity per block, in
-///   block order, summing to the model's tree count. A non-integer vector, a
-///   non-positive capacity, a sum that disagrees with the tree count, or a
-///   "block.of.column" entry naming a block past the last capacity raises.
-///
-/// Absence is R_NilValue, equivalently no attribute at all. For the atomic
-/// attributes above a zero-length vector is absent too; for the two VECSXP
-/// control attributes ("bartcore.variance", "bartcore.forests") it is not, and
-/// an empty list raises as a malformed specification. "bartcore.survival" is
-/// the exception in the other direction: it is refused off DBARTS_FAMILY_AFT
-/// whatever its length, and required at exactly the observation count on it.
-dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
-                                      int family);
+/// Releases the engine behind the handle EARLY, before the R object that owns
+/// it is collected: for a host that wants a bounded lifetime rather than the
+/// collector's. The R object is left in its dead-pointer state, from which its
+/// own methods re-create the engine from a stored state or refuse for want of
+/// one, so this is a release and not a corruption - but the handle names no
+/// sampler afterwards, and passing it to anything else here is the crash a
+/// null one is. A second destroy is the one call that is safe: it is a no-op.
 void dbarts_sampler_destroy(dbarts_sampler* sampler);
 
 /// Runs numBurnIn discarded then numSamples recorded iterations per chain,
@@ -954,18 +637,6 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
-void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler);
-
-/// Registers callback for subsequent runs, or clears it when null; userData is
-/// passed back unchanged and its lifetime is the caller's. Raises an error
-/// while chains would run on worker threads (numThreads > 1 and numChains > 1),
-/// which must never call into R. Inline multi-chain runs execute chains
-/// sequentially - chain 0 completes all its sweeps before chain 1 starts - so
-/// the callback conditions each chain to completion in turn and cannot see one
-/// chain's progress while advancing another. (See dbarts_sampler_callback.)
-void dbarts_sampler_setCallback(dbarts_sampler* sampler,
-                                dbarts_sampler_callback callback,
-                                void* userData);
 
 /// y has numObservations values, which must lie in the family's support: 0/1
 /// for probit and logistic, an integer category index in [1, K] for ordinal, a
@@ -980,8 +651,8 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
 /// calibrations are stated against the transform it was built with, and on a
 /// heteroscedastic one, whose variance forest is calibrated the same way. The
 /// swap itself is refused outright on a coupling that caches per-forest state
-/// across sweeps rather than re-deriving it. Retained, not copied, on the
-/// raw-array setters' rule above.
+/// across sweeps rather than re-deriving it. COPIED, on the copy-on-set rule
+/// above: the caller's y is free on return.
 ///
 /// A CAPABILITY STATUS: 1 on a swap, or 0 touching nothing where the coupling
 /// admits no response conduit at all. The updateScale refusals above are the
@@ -992,30 +663,13 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, or a heteroscedastic one refuses
-/// true (see setResponse). Retained, not copied, on the raw-array setters'
-/// rule above.
+/// true (see setResponse). COPIED, on the copy-on-set rule above: the caller's
+/// offset is free on return.
 ///
 /// A CAPABILITY STATUS on dbarts_sampler_setResponse's rule: 1 on a swap, 0
 /// where the coupling carries no offset at all.
 int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                              int updateScale);
-/// weights has numObservations values. Gaussian and logistic accept a
-/// post-creation change; probit, ordinal, aft and nbinom carry no weights to
-/// change and refuse. A logistic sampler's weights are its observation counts,
-/// so they must be positive integers here as at creation, and the swap redraws
-/// the Polya-Gamma latents against the new counts before returning, from the
-/// sampler's own generators. There is no scale to pin, so a multi-forest
-/// sampler takes this as it stands, at any forest count, provided its coupling
-/// admits the conduit at all. Retained, not copied, on the raw-array setters'
-/// rule above.
-///
-/// A CAPABILITY STATUS: 1 on a swap, or 0 touching nothing where the family
-/// carries no weights or the coupling fixes them at creation. A value the
-/// family's likelihood cannot carry is the other channel and raises: a
-/// logistic count that is not a positive integer, or a gaussian case weight
-/// that is not finite and non-negative.
-int dbarts_sampler_setWeights(dbarts_sampler* sampler,
-                              const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)
 /// until the next call or gaussian draw; the Gibbs conditioning hook. Only a
 /// sampler that HAS a residual sd to set takes it: gaussian (Student-t
@@ -1024,10 +678,9 @@ int dbarts_sampler_setWeights(dbarts_sampler* sampler,
 /// variance forest owns it row by row, so both refuse rather than accept a
 /// value nothing would read - read dbarts_sampler_family before calling on a
 /// sampler whose family the caller did not choose. A heteroscedastic sampler
-/// is flat-creatable (its variance forest rides a control attribute), answers
-/// DBARTS_FAMILY_GAUSSIAN, and is still refused here, so the accessor does not
-/// by itself predict this refusal - but the return value does, without
-/// unwinding.
+/// answers DBARTS_FAMILY_GAUSSIAN and is still refused here, so the accessor
+/// does not by itself predict this refusal - but the return value does,
+/// without unwinding.
 ///
 /// A CAPABILITY STATUS: 1 on a write, 0 touching nothing on either pinned
 /// case.
@@ -1045,72 +698,9 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// working response and are not on the response scale at all. Note the last
 /// case - a sampler whose family is gaussian but whose residual distribution
 /// is Student-t DOES report latents, and they are precisions.
+///
+/// out is written, never read; nothing is retained.
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
-
-/// Copies the dispersion r in force on each chain (numChains values) into out:
-/// the same scalar dbarts_results::dispersion records once per kept draw, read
-/// mid-sweep and without serializing state, so a host composing a count block
-/// reads it between sweeps instead of through dbarts_sampler_storeState.
-/// Returns 1, or 0 without touching out when the response family carries no
-/// dispersion - every family but nbinom - so a caller tests the channel rather
-/// than a filler value. Under a fixed dispersion it repeats the value the
-/// sampler was created with; otherwise it is that sweep's grid draw.
-int dbarts_sampler_getDispersion(const dbarts_sampler* sampler, double* out);
-
-/// Replaces the full predictor matrix from a borrowed source: x declares
-/// numRows == numObservations and numColumns == numPredictors, and any source
-/// disagreeing with either is refused rather than read to the sampler's own
-/// width. Transactional: returns 1 when every tree still has non-empty leaves
-/// under the new values (or forceUpdate), 0 after rolling back. Errors when cut
-/// points would invalidate existing splits and updateCutPoints is false.
-///
-/// A MUTATION reads its source through one dense materialization, because
-/// every mutation kernel indexes values column-major: CSC storage buys the
-/// caller a uniform argument, an explicit shape and the validation below, not
-/// resident sparse mutation. The test-side entries below are where compressed
-/// storage stays compressed.
-int dbarts_sampler_setPredictor(dbarts_sampler* sampler,
-                                const dbarts_predictor_source* x,
-                                int forceUpdate, int updateCutPoints);
-/// Replaces numColumns columns, 0-indexed by columns; x declares those same
-/// numColumns columns, in ARGUMENT order, over numObservations rows. Same
-/// transaction contract as setPredictor.
-int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
-                                   const dbarts_predictor_source* x,
-                                   const size_t* columns, size_t numColumns,
-                                   int forceUpdate, int updateCutPoints);
-
-/// Installs test data from a borrowed source declaring numPredictors columns
-/// over its own numRows, or null to remove test data (clearing any test
-/// offset). A CSC-backed source is consumed as it stands - no dense
-/// materialization - except that a designated leaf covariate column must be
-/// dense, which is an error naming the repair. Refused on any sampler whose
-/// test blend is undefined - the predicate is the blend, not the forest count,
-/// so a multi-forest model whose test location IS defined passes through (see
-/// dbarts_sampler_create).
-///
-/// The test offset and the test rows it describes move TOGETHER, so this entry
-/// carries the pairing rule. A null xTest removes the test data whole, the
-/// offset included, and the next install starts from no offset. A non-null one
-/// declaring a different numRows while an offset is installed is refused, that
-/// offset having exactly the old row count's values: clear the offset first
-/// (dbarts_sampler_setTestOffset with null), then install the rows, then
-/// install the offset the new rows call for. A same-count replacement keeps the
-/// standing offset, which is the swap a per-sweep conditioning loop makes.
-///
-/// A CAPABILITY STATUS: 1 on an install or a removal, or 0 touching nothing
-/// where the sampler's test blend is undefined. Every source refusal, the
-/// offset-length pairing and the sparse leaf covariate are the other channel
-/// and raise.
-int dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
-                                     const dbarts_predictor_source* xTest);
-/// offsetTest has numTestObservations values - the count in force when it is
-/// installed - or is null to remove. Retained, not copied, on the raw-array
-/// setters' rule above. A CAPABILITY STATUS: 1 on an install or a removal, or
-/// 0 touching nothing on a multi-forest sampler, whose test offset would land
-/// after the forests are blended.
-int dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
-                                 const double* offsetTest);
 
 /// Fits for new data on the original response scale (binary families give
 /// the latent scale), from a borrowed source declaring numPredictors columns
@@ -1123,9 +713,10 @@ int dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 /// refused rather than answered from its unwritten slots. offsetTest, when
 /// non-null, is added to every sample's fits. A CSC-backed source routes its rows resident, without
 /// a dense materialization. Refused on any sampler whose blend is undefined -
-/// the predicate is the blend, not the forest count (see
-/// dbarts_sampler_create): read the forests separately with
-/// dbarts_sampler_getForestFits and combine them with the amplitudes.
+/// the predicate is the blend, not the forest count - which is a fixed
+/// property of how the sampler was built, so test it once at setup; a host
+/// driving such a model reads its forests through the R methods on the object
+/// the handle came from.
 /// numThreads is a PER-CALL override that does not persist: 0 means the
 /// sampler's own count (dbarts_sampler_setNumThreads), and a resolved count
 /// below 1 - including a sampler whose own count was set to 0 - is treated as
@@ -1147,39 +738,14 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 /// returns to 0.
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore);
-/// A data.frame of tree structure: pre-order rows of ([chain,] [sample,]
-/// tree, n, var, value), var 1-based with -1 marking leaves, leaf values on
-/// the engine's internal response scale. Indices are 0-based here. Saved
-/// trees are read unless useLiveTrees; sampleIndices is ignored when
-/// reading live trees. The caller must protect the result.
-///
-/// sampleIndices address RECORDED DRAWS on predict's oldest-first axis, in
-/// [0, dbarts_sampler_numSavedSamples), not store slots;
-/// dbarts_sampler_printTrees numbers its output the same way.
-///
-/// forest is a 0-based index in [0, dbarts_sampler_numForests(sampler)), so 0
-/// is the only legal value on a single-forest sampler (on a two-forest bcf one,
-/// forest 1 is the one carrying the basis - an example, not the range).
-/// treeIndices are read against THAT forest's tree count
-/// (dbarts_sampler_numTrees(sampler, forest)). An index at or above
-/// dbarts_sampler_numForests is an error: the returned object carries no
-/// status channel, a caller assembling a data.frame having no way to tell an
-/// R_NilValue refusal from an empty answer.
-///
-/// The n column replays the creation specification's predictors through each
-/// saved tree (the engine keeps no predictor matrix); it is left unpopulated
-/// for a sparse creation spec, and live trees carry their own counts.
-SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler, size_t forest,
-                             const size_t* chainIndices,
-                             size_t numChainIndices,
-                             const size_t* sampleIndices,
-                             size_t numSampleIndices,
-                             const size_t* treeIndices,
-                             size_t numTreeIndices, int useLiveTrees);
-/// Prints forest number forest's trees to R's console, on the same index
-/// contract as dbarts_sampler_getTrees, useLiveTrees included. Carries no
-/// status: an out-of-range index, like an out-of-range chain, sample or tree
-/// number, is recoverable and raises.
+/// Prints forest number forest's trees to R's console: pre-order, var 1-based
+/// with -1 marking leaves, leaf values on the engine's internal response
+/// scale. Every index here is 0-based. Saved trees are read unless
+/// useLiveTrees, which ignores sampleIndices; sampleIndices otherwise address
+/// RECORDED DRAWS on dbarts_sampler_predict's oldest-first axis, in
+/// [0, dbarts_sampler_numSavedSamples), not store slots. Carries no status: an
+/// out-of-range forest, chain, sample or tree number is recoverable and
+/// raises.
 void dbarts_sampler_printTrees(dbarts_sampler* sampler, size_t forest,
                                const size_t* chainIndices,
                                size_t numChainIndices,
@@ -1188,46 +754,7 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler, size_t forest,
                                const size_t* treeIndices,
                                size_t numTreeIndices, int useLiveTrees);
 
-/// A serializable R object holding the complete sampler state (trees,
-/// parameters, latents, rng); the caller must protect it. Restoring into a
-/// sampler created from the same specification continues the chain
-/// SEMANTICALLY, not bitwise: the restore reconstructs the model exactly - tree
-/// structure and leaf parameters - and the chain then draws the same moves in
-/// the same order from the same stream, but sigma rides the original response
-/// scale across the round trip and the fitted values are rebuilt by resumming
-/// the restored trees rather than carried over from the accumulator they were
-/// drawn against, so a continued chain's numbers agree with an uninterrupted
-/// one only to within those two reconstructions (last-bit differences, which
-/// do not accumulate). Use it for save/load and predict-after-reload; do not
-/// gate a reproducibility check on bitwise equality across a restore. States
-/// are one R list element per chain, so single-chain states may be gathered
-/// into a multi-chain restore; a stored generator of a different kind than the
-/// destination chain's is then left unrestored, and that chain keeps its own
-/// stream instead of continuing the stored one at all.
-///
-/// dbarts_sampler_setState enforces an encoding floor: a state whose format
-/// version predates the running library's minimum readable version is refused
-/// (naming both versions) rather than silently misread, and there is no
-/// cross-version migration. Blocks it does not recognize by name are skipped
-/// rather than errored, so a state written by a newer library restores its
-/// shared blocks and leaves the unknown ones to the destination's own draw.
-///
-/// The case weights do NOT ride the state, but a digest of the ones in force
-/// when it was stored does. When the destination's weights differ from that
-/// digest, dbarts_sampler_setState re-derives the weight-dependent latents
-/// against the destination's own weights before returning, so the install
-/// lands where dbarts_sampler_setWeights would rather than pairing one weight
-/// vector's latents with another's; the redraw takes each chain's own restored
-/// generator. This moves only a family whose augmentation is stated against
-/// the weights (logistic, whose Polya-Gamma latents carry the counts as their
-/// shape); for every other family it is a no-op. When the two agree - the
-/// ordinary save/load round trip - nothing is re-derived and the restore is
-/// exactly the install described above.
-SEXP dbarts_sampler_storeState(dbarts_sampler* sampler);
-void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
-
 void dbarts_sampler_setNumThreads(dbarts_sampler* sampler, size_t numThreads);
-void dbarts_sampler_setNumThin(dbarts_sampler* sampler, size_t numThin);
 /// printEvery counts kept iterations between progress lines and must be at
 /// least 1, verbose or not; 0 is an error rather than "never print".
 void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
@@ -1237,218 +764,25 @@ size_t dbarts_sampler_numObservations(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numPredictors(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numTestObservations(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numChains(const dbarts_sampler* sampler);
-/// Forest number forest's tree count; an index at or above
-/// dbarts_sampler_numForests is an error, since a size_t probe carries no
-/// refusal a caller could tell from a legitimate answer.
+/// Forest number forest's tree count; an index past the sampler's last forest
+/// is an error, since a size_t probe carries no refusal a caller could tell
+/// from a legitimate answer.
 size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest);
 /// The recorded draws the saved-tree store holds - 0 without tree storage,
 /// and 0 until a run records into it. The sample count predict produces and
-/// the bound on getTrees' and printTrees' sample indices. It stops at the
+/// the bound on printTrees' sample indices. It stops at the
 /// buffer size: the store is circular, so a longer run keeps the most recent
 /// draws.
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
-/// The dbarts_family this sampler was built with, or the one
-/// dbarts_sampler_create resolved DBARTS_FAMILY_AUTO to: never AUTO (creation
-/// always resolves it) and never STUDENT (a Student-t residual sampler's
-/// family IS gaussian). Total over every sampler this header, or any other
-/// construction path, can build: DBARTS_FAMILY_MULTINOMIAL on a K-forest
-/// softmax coupling, the matching enumerator otherwise.
+/// The dbarts_family this sampler was built with, or the one creation
+/// resolved DBARTS_FAMILY_AUTO to: never AUTO (creation always resolves it)
+/// and never STUDENT (a Student-t residual sampler's family IS gaussian).
+/// Total over every sampler any construction path can build:
+/// DBARTS_FAMILY_MULTINOMIAL on a K-forest softmax coupling, the matching
+/// enumerator otherwise.
 int dbarts_sampler_family(const dbarts_sampler* sampler);
-/// The number of forests the model fits, always at least 1: K for a sampler
-/// built from a K-length forests = specification (a Bayesian causal forest,
-/// whose forest 0 is prognostic and forest 1 the treatment effect, is the K = 2
-/// instance - see dbarts_sampler_create), K for a multinomial softmax sampler's
-/// category forests, and 1 otherwise. A heteroscedastic sampler's variance
-/// forest is NOT counted here - it is a separate member, not one of the
-/// combined forests - so such a sampler reports 1.
-size_t dbarts_sampler_numForests(const dbarts_sampler* sampler);
-
-/// Replaces the basis forest number forest's amplitudes multiply;
-/// basisRowMajor is ROW-major numObservations x numColumns - row i at
-/// basisRowMajor + i * numColumns, the one exception to this header's
-/// column-major rule - and is COPIED, so the caller's array need not outlive
-/// the call (a continuous basis cannot be coerced-and-copied incidentally the
-/// way a 0/1 indicator can, which is why the contract is stated). Row-major
-/// because the contraction with the forest's amplitude vector is the only read
-/// the engine makes of it, and named so in the signature because the two
-/// layouts differ by no type a compiler could catch. The one whole-data swap a
-/// multi-forest sampler supports - it routes through the combiner rather than
-/// rebuilding a forest - and the SOLE route by which any basis changes after
-/// creation.
-///
-/// A CAPABILITY STATUS: 0, touching nothing, when the model carries no
-/// amplitudes at all or forest names no forest, while a MALFORMED BASIS
-/// raises. Any forest takes a basis of any width from 1 up; the values must be
-/// finite. A basis that is not one of the canonical shapes (a dense all-ones
-/// column, or a complementary 0/1 pair) moves that forest onto the general
-/// amplitude conditional, which is a model fact and not revertible by a later
-/// data swap.
-int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
-                                  const double* basisRowMajor,
-                                  size_t numColumns);
-/// Copies forest number forest's current function values, numObservations x
-/// numChains, into out. The values are on the engine's internal response scale
-/// (the scale saved-tree leaf values carry), which the stored state's fit.scale
-/// maps back to the response scale. Returns 1, or 0 without touching out when
-/// forest names no forest.
-int dbarts_sampler_getForestFits(const dbarts_sampler* sampler, size_t forest,
-                                 double* out);
-/// The number of amplitudes forest number forest carries, so a reader can size
-/// its own buffer for a ragged vector: it is that forest's basis column count,
-/// whatever the forest count (on a two-forest bcf sampler, 1 for forest 0, the
-/// free amplitude a, and 2 for forest 1, the pair b0 and b1); 0 where the model
-/// composes its forests without amplitudes. An index at or above
-/// dbarts_sampler_numForests is an error (a size_t probe carries no refusal).
-size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
-                                          size_t forest);
-/// Copies forest number forest's amplitudes,
-/// numForestAmplitudes(forest) x numChains, into out. Observation i's
-/// internal-scale location is sum_f dot(a_f, B_f(i, .)) * forestFits(f)[i],
-/// contracting each forest's amplitude block with the row of the basis last
-/// installed on that forest. On a two-forest bcf sampler that is
-/// a * forestFits(0)[i] + b_{z_i} * forestFits(1)[i], where a is forest 0's
-/// single amplitude and (b0, b1) forest 1's pair against its 0/1 basis.
-/// Returns 1, or 0 without touching out when forest names no forest or the
-/// model carries no amplitudes.
-int dbarts_sampler_getForestAmplitudes(const dbarts_sampler* sampler,
-                                       size_t forest, double* out);
-
-/// Installs (or clears, at a null vector) a per-forest, per-observation weight
-/// on forest number forest: a multiplicative precision factor on that forest's
-/// own leaf conditionals, composing with the case weights rather than widening
-/// either channel. weights has numObservations finite non-negative values and
-/// is BORROWED until replaced - the one place a flat entry's contract differs
-/// from the R bridge's, which copies - so the caller owns the array for the
-/// sampler's life. Returns 1, or 0 without touching the sampler when the
-/// forest coupling admits no such weight or forest names no forest; a
-/// non-finite or negative element raises.
-///
-/// The precision channel and the mean channel stay two entries: this one
-/// scales forest f's own leaf conditionals and never enters the combined fit,
-/// while dbarts_sampler_setForestBasis scales forest f's contribution to it.
-int dbarts_sampler_setForestWeights(dbarts_sampler* sampler, size_t forest,
-                                    const double* weights);
-
-/// Fills out with forest number forest's leaf-prior calibration in RESPONSE
-/// units, each member over numChains: priorScale (the forest total's prior sd
-/// at k = 1, the quantity dbarts_sampler_setForestPriorScale writes), priorSd
-/// (priorScale / k at the chain's current k, which moves every sweep under
-/// kHasHyperprior while priorScale does not), priorMean, k, the response
-/// transform's multiplier and offset, this FOREST's own k law, the leaf
-/// model tag, and the multi-forest calibration map's own five: the forest's
-/// amplitude prior in whichever of its two EXCLUSIVE spellings it carries
-/// (amplitudePriorVariance or amplitudePriorScale, the other NaN), the node
-/// scale's factor and divisor, and the basis row norm the map divides out.
-/// Those five are NaN on every forest with no map entry - any single-forest
-/// or multinomial sampler - and the two node-scale members are NaN once a
-/// state install has brought a leaf scale the map did not derive, until
-/// dbarts_sampler_setForestBasis re-imposes it. They decompose priorScale as
-/// factor * s / (divisor * rowNorm), so the family's latent anchor s is
-/// recovered as priorScale * divisor * rowNorm / factor whenever
-/// nodeScaleFactor is not NaN.
-///
-/// prior.scale and prior.sd describe the LEAF-PARAMETER scale of the forest
-/// total, which equals the prior sd of f(x) at every x for the constant leaf
-/// (DBARTS_LEAF_CONSTANT) and bounds it otherwise. DBARTS_LEAF_LINEAR: a LOWER
-/// bound, attained at the standardized covariate origin, larger elsewhere by
-/// sqrt(1 + ||z(x)||^2). DBARTS_LEAF_GP: an UPPER bound, attained at rows
-/// reproducing a leaf member and on over-cap leaves, elsewhere
-/// priorSd^2 c(x)' C^-1 c(x), decaying to 0 as x leaves the leaf's data cloud,
-/// where every draw equals priorMean. DBARTS_LEAF_MONOTONE: a LOWER bound in
-/// the interior (the realized sd runs a few per cent to about 20% above it),
-/// and its priorMean is NOT the prior mean of f(x) under an active constraint,
-/// that marginal being skew with an x-dependent mean spanning several priorSd
-/// along the constrained axis. priorMean is exact for the constant, linear and
-/// gp leaves.
-///
-/// Returns 1, or 0 without touching out when forest names no forest; errors on
-/// a zero structSize.
-int dbarts_sampler_getForestCalibration(const dbarts_sampler* sampler,
-                                        size_t forest,
-                                        dbarts_forest_calibration* out);
-/// Restates forest number forest's leaf prior on EVERY chain so that the
-/// forest total's prior sd at k = 1 is priorScale, in response units. k, the
-/// response transform, sigma and the tree prior are untouched; it takes effect
-/// on the NEXT sweep and reinterprets no leaf value already drawn; a write
-/// reproducing the current internal scale bitwise is skipped, so a
-/// read-then-write is inert. To move the prior MEAN, shift the reported fit
-/// with dbarts_sampler_setOffset instead. The leaf model qualifies the write
-/// exactly as it qualifies the read (see dbarts_sampler_getForestCalibration).
-///
-/// Two channels: a CAPABILITY answer is the return value - 0, touching
-/// nothing, when forest names no forest, or a combiner owns this forest's
-/// calibration - any sampler whose forests are combined, which is every
-/// amplitude-family sampler at any forest count and every multinomial one -
-/// while a MALFORMED VALUE, a non-finite or non-positive priorScale, raises.
-/// Returns 1 on a write.
-int dbarts_sampler_setForestPriorScale(dbarts_sampler* sampler, size_t forest,
-                                       double priorScale);
-
-/// Installs (or clears, at a null pointer) a per-observation 0/1 mask saying
-/// which rows are in the data set each sweep: an inactive row leaves every
-/// sufficient statistic, every family-level parameter update and its own
-/// latent draw, while keeping its leaf occupancy and its fitted value. active
-/// has numObservations values, each exactly 0.0 or 1.0 (the entry reads the
-/// row count from the sampler, so there is no length argument); an all-ones
-/// vector is accepted and installs nothing.
-///
-/// The values are CONSUMED during the call - the entry retains no pointer, so
-/// the caller's array is free the moment it returns.
-///
-/// A CAPABILITY STATUS: 1 on an install or a clear, or 0 without touching the
-/// sampler when the response family implements no mask. An element that is
-/// neither 0 nor 1 is the other channel and raises - a fractional value is a
-/// weighted likelihood, which the latent families have no coherent form for;
-/// use dbarts_sampler_setWeights for that.
-int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
-                                 const double* active);
-
-/// Draws the augmentation variable a family's sweep draws, at a caller's fit
-/// rather than inside a sampler, and writes numObservations values into out.
-/// family is one of DBARTS_FAMILY_PROBIT, DBARTS_FAMILY_LOGISTIC,
-/// DBARTS_FAMILY_ORDINAL, DBARTS_FAMILY_AFT, DBARTS_FAMILY_NBINOM or
-/// DBARTS_FAMILY_STUDENT; WHAT the draw is per family is
-/// dbarts_sampler_getLatents's own contract, a location for the first three
-/// plus aft and a precision for the rest. fit is the location WITHOUT the
-/// offset (the convention
-/// dbarts_results::train reports), so the linear predictor is fit + offset and
-/// a null offset is zero.
-///
-/// Each remaining argument belongs to one family's law, which has no default to
-/// fall back on: weights are the logistic observation counts (null is unit),
-/// sigma the aft and student scale, dispersion the nbinom r (a positive WHOLE
-/// number - a fractional one is rounded into a different-shape draw, not
-/// refused), ordinalThresholds the ordinal's numOrdinalThresholds strictly
-/// increasing interior cut points (unordered ones corrupt the draw silently,
-/// the rejection loop
-/// degrading to its fallback rather than erroring), and df the Student-t
-/// degrees of freedom. Omitting what a family's law requires is an error; what
-/// it does not read is ignored. Out-of-support y raises, as it does at
-/// dbarts_sampler_setResponse - and, by the same rule, y is checked only where
-/// the family's support constrains it, so under DBARTS_FAMILY_AFT and
-/// DBARTS_FAMILY_STUDENT a non-finite y propagates NaN into out.
-///
-/// The draw comes from R's own stream through a per-call generator, so set.seed
-/// reproduces it and it advances the stream for whatever R draws next, while a
-/// sampler's chain generators are untouched.
-void dbarts_drawLatents(int family, size_t numObservations,
-                        const double* fit, const double* y,
-                        const double* weights, const double* offset,
-                        double sigma, double dispersion,
-                        const double* ordinalThresholds,
-                        size_t numOrdinalThresholds, double df, double* out);
-/// Turns a drawn latent into the quantity a host regresses on, numObservations
-/// values into out: for DBARTS_FAMILY_LOGISTIC and DBARTS_FAMILY_NBINOM the
-/// Polya-Gamma kappa divided by the drawn precision (which must be positive),
-/// for DBARTS_FAMILY_STUDENT the response itself (its latent weights the row
-/// instead), and for the location families the latent - each less the offset.
-/// Draws nothing; the arguments carry the meanings dbarts_drawLatents states.
-void dbarts_workingResponse(int family, size_t numObservations,
-                            const double* latent, const double* y,
-                            const double* weights, const double* offset,
-                            double dispersion, double* out);
 
 #endif // DBARTS_USE_STUBS
 

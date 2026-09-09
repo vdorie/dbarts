@@ -15,15 +15,25 @@
 
 #include "bartcore/bartcore.hpp"
 
-namespace bartcore_bridge {
-
-struct BartcoreHolder {
+/// The bridge's per-sampler holder, and - under this exact name - the opaque
+/// handle the flat C API declares (inst/include/dbarts/dbarts.h), so the
+/// address in a dbartsSampler object's external pointer IS what a consumer
+/// passes to the flat entries. It is named at global scope for that reason
+/// alone; the bridge spells it BartcoreHolder throughout.
+///
+/// \c sampler is null on exactly one state: dbarts_sampler_destroy has
+/// released the engine early. Every R entrance reads that as a dead pointer,
+/// which is the state the R5 object re-creates from a stored state or refuses
+/// in.
+struct dbarts_sampler_t {
   std::unique_ptr<bartcore::SamplerBase> sampler;
   std::vector<ext_rng*> rngs; // one per chain
   bool keepTrainingFits;
 
-  // a sampler created over a data handle owns its row-sliced vectors; the
-  // usual creation path leaves these empty and borrows from R instead.
+  // COPY-ON-SET: the four value vectors the engine borrows for the sampler's
+  // lifetime. Every creation route sizes them to its own counts and copies
+  // into them, so no R vector and no flat caller's array is ever retained, and
+  // a later set is a copy into storage that already exists (see adoptVector).
   // Default-initialized so a creation site lists only the three fields above
   // and every owned buffer defaults to empty (no partial-aggregate hazard).
   std::vector<double> ownedResponse{}, ownedWeights{}, ownedOffset{},
@@ -53,11 +63,24 @@ struct BartcoreHolder {
   // the test rows under one is refused rather than reinterpreted.
   std::vector<double> ownedCategoryTestOffset{};
 
-  ~BartcoreHolder() {
+  ~dbarts_sampler_t() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
   }
 };
+
+namespace bartcore_bridge {
+
+using BartcoreHolder = ::dbarts_sampler_t;
+
+/// Copies \p count values into \p owned and returns the pointer the engine
+/// borrows, resizing only where a conduit has moved a count: creation sizes
+/// every buffer, so an ordinary set allocates nothing, which is the
+/// no-allocation-after-creation guarantee the flat C header states. A null
+/// \p values installs nothing and returns null, which is the removal the
+/// offset conduits admit.
+const double* adoptVector(std::vector<double>& owned, const double* values,
+                          std::size_t count);
 
 /// Parses the R specification objects, builds the per-chain rngs (drawing
 /// through R's stream when unseeded), and creates the sampler; prints the

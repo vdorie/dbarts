@@ -33,7 +33,22 @@ SOURCES := main.cpp assert.cpp common.cpp test_data.cpp test_tree.cpp \
 OBJECTS := $(SOURCES:.cpp=.o)
 DEPS := $(SOURCES:.cpp=.d)
 
-all: test_bartcore
+# The shipped header's prototype view must compile as plain C with NO R include
+# path (a consumer that includes it before any R header, and the plain-C
+# specification stage it is being kept ready for), and as C++ for the LinkingTo
+# consumers that are C++. Both are syntax-only: nothing is linked, and nothing
+# here may add -I$(R_CPPFLAGS), which is the whole point of the target.
+HEADER := ../../inst/include/dbarts/dbarts.h
+CC ?= cc
+
+all: header-compiles test_bartcore
+
+# -Wno-unused-function: the header's one static inline helper
+# (dbarts_dense_predictor_source) has no caller when the header is compiled
+# alone, which is the only way this target compiles it.
+header-compiles:
+	$(CC) -std=c99 -pedantic -Wall -Wno-unused-function -x c -fsyntax-only $(HEADER)
+	$(CXX) -std=c++11 -Wno-unused-function -x c++ -fsyntax-only $(HEADER)
 
 test_bartcore: $(OBJECTS) $(LIBS)
 	$(CXX) $(OPT) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(OBJECTS) $(LIBS) $(R_LDFLAGS) -lpthread -lm
@@ -50,4 +65,4 @@ clean:
 	rm -f test_bartcore $(OBJECTS) $(DEPS)
 	rm -rf test_bartcore.dSYM
 
-.PHONY: all run clean
+.PHONY: all header-compiles run clean

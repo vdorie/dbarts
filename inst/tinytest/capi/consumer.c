@@ -6,6 +6,14 @@
  * for the R-side assertions. One entry point is still resolved by hand as a
  * deliberate canary (see p_apiHash_raw). */
 
+/* dbarts.h's prototype view is plain C and brings no R header with it, so a
+ * consumer that speaks SEXP - as every .Call wrapper below does - includes R's
+ * own headers itself, in whatever order it likes. R_NO_REMAP is this file's
+ * choice, not the header's. */
+#define R_NO_REMAP
+#include <R.h>
+#include <Rinternals.h>
+
 #define DBARTS_USE_STUBS
 #include <dbarts/dbarts.h>
 
@@ -31,13 +39,11 @@ static void initCanary(void) {
       (uint64_t (*)(void)) R_GetCCallable("dbarts", "dbarts_apiHash");
 }
 
-static void samplerFinalizer(SEXP ptrExpr) {
-  dbarts_sampler* sampler = (dbarts_sampler*) R_ExternalPtrAddr(ptrExpr);
-  if (sampler == NULL) return;
-  dbarts_sampler_destroy(sampler);
-  R_ClearExternalPtr(ptrExpr);
-}
-
+/* THE HANDLE: ptrExpr is the external pointer an R dbartsSampler object hands
+ * out (its getPointer method), and the address inside it IS the
+ * dbarts_sampler* the flat entries take - the whole creation route this
+ * consumer has. Nothing here owns it: the R object does, so this file
+ * registers no finalizer and frees nothing. */
 static dbarts_sampler* samplerFromExpr(SEXP ptrExpr) {
   dbarts_sampler* sampler = (dbarts_sampler*) R_ExternalPtrAddr(ptrExpr);
   if (sampler == NULL) Rf_error("consumer called on NULL sampler");
@@ -136,47 +142,6 @@ static dbarts_predictor_source sourceFromList(SEXP spec) {
   if (!Rf_isNull(element))
     source.numDenseCodeColumns = (size_t) Rf_asInteger(element);
   return source;
-}
-
-/* the string -> dbarts_family table every wrapper below that used to hand the
- * flat entries a bare family string now goes through, since dbarts_sampler_
- * create/drawLatents/workingResponse take the enum by value */
-static int familyFromString(const char* name) {
-  if (name[0] == '\0') return DBARTS_FAMILY_AUTO;
-  if (strcmp(name, "gaussian") == 0) return DBARTS_FAMILY_GAUSSIAN;
-  if (strcmp(name, "probit") == 0) return DBARTS_FAMILY_PROBIT;
-  if (strcmp(name, "logistic") == 0) return DBARTS_FAMILY_LOGISTIC;
-  if (strcmp(name, "aft") == 0) return DBARTS_FAMILY_AFT;
-  if (strcmp(name, "ordinal") == 0) return DBARTS_FAMILY_ORDINAL;
-  if (strcmp(name, "nbinom") == 0) return DBARTS_FAMILY_NBINOM;
-  if (strcmp(name, "student") == 0) return DBARTS_FAMILY_STUDENT;
-  if (strcmp(name, "multinomial") == 0) return DBARTS_FAMILY_MULTINOMIAL;
-  Rf_error("familyFromString: unrecognized family \"%s\"", name);
-  return DBARTS_FAMILY_AUTO; /* unreached */
-}
-
-SEXP capi_create(SEXP control, SEXP model, SEXP data, SEXP family) {
-  const char* familyName =
-    Rf_isNull(family) ? "" : CHAR(STRING_ELT(family, 0));
-  dbarts_sampler* sampler = dbarts_sampler_create(
-    control, model, data, familyFromString(familyName));
-  SEXP result = PROTECT(R_MakeExternalPtr(sampler, R_NilValue, R_NilValue));
-  R_RegisterCFinalizerEx(result, samplerFinalizer, FALSE);
-  UNPROTECT(1);
-  return result;
-}
-
-/* the admission probes: an unmapped int driven straight through, exactly as a
- * miscompiled or hand-rolled caller (never going through familyFromString)
- * would send it */
-SEXP capi_create_raw_family(SEXP control, SEXP model, SEXP data,
-                            SEXP familyInt) {
-  dbarts_sampler* sampler = dbarts_sampler_create(
-    control, model, data, Rf_asInteger(familyInt));
-  SEXP result = PROTECT(R_MakeExternalPtr(sampler, R_NilValue, R_NilValue));
-  R_RegisterCFinalizerEx(result, samplerFinalizer, FALSE);
-  UNPROTECT(1);
-  return result;
 }
 
 /* every dbarts_family value, in header order, so the R side can check that
@@ -345,92 +310,6 @@ SEXP capi_run_zero_structsize(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesE
   return Rf_ScalarLogical(1); /* unreachable: the guard must have errored */
 }
 
-/* per-sweep callback state: sets sigma[sweepIndex] when sigmas is non-null,
- * counts invocations, and returns 0 (stop) once the count reaches stopAt */
-typedef struct {
-  const double* sigmas;
-  size_t numSigmas;
-  int stopAt; /* < 0 disables early stop */
-  int count;
-} callbackState;
-
-static int sweepCallback(void* userData, dbarts_sampler* sampler,
-                         size_t chainIndex, size_t sweepIndex, int isBurnIn) {
-  callbackState* state = (callbackState*) userData;
-  (void) chainIndex;
-  (void) isBurnIn;
-  ++state->count;
-  /* the status cannot be discarded here and cannot be raised on either: an
-   * Rf_error out of a callback would longjmp through the engine's own sweep,
-   * so a refusal stops the run through the callback's own channel instead */
-  if (state->sigmas != NULL && sweepIndex < state->numSigmas)
-    if (dbarts_sampler_setSigma(sampler, state->sigmas[sweepIndex]) == 0)
-      return 0;
-  if (state->stopAt >= 0 && state->count >= state->stopAt) return 0;
-  return 1;
-}
-
-/* registers sweepCallback for one run then clears it, so the borrowed sigmas
- * stay live throughout; returns sigma/train/varcount plus the invocation
- * count. sigmasExpr may be NULL; stopAt < 0 disables early stop. */
-SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
-                            SEXP numSamplesExpr, SEXP sigmasExpr,
-                            SEXP stopAtExpr) {
-  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
-  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
-  size_t n = dbarts_sampler_numObservations(sampler);
-  size_t p = dbarts_sampler_numPredictors(sampler);
-  size_t chains = dbarts_sampler_numChains(sampler);
-
-  callbackState state;
-  state.sigmas = Rf_isNull(sigmasExpr) ? NULL : REAL(sigmasExpr);
-  state.numSigmas =
-    Rf_isNull(sigmasExpr) ? 0 : (size_t) Rf_xlength(sigmasExpr);
-  state.stopAt = Rf_asInteger(stopAtExpr);
-  state.count = 0;
-
-  SEXP sigmaExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
-  SEXP trainExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (n * numSamples * chains)));
-  uint32_t* varcount =
-    (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
-
-  dbarts_results results = DBARTS_RESULTS_INIT;
-  results.sigma = REAL(sigmaExpr);
-  results.train = REAL(trainExpr);
-  results.test = NULL;
-  results.varcount = varcount;
-  results.k = NULL;
-  results.varprobs = NULL;
-
-  dbarts_sampler_setCallback(sampler, sweepCallback, &state);
-  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
-  dbarts_sampler_setCallback(sampler, NULL, NULL);
-
-  SEXP varcountExpr = PROTECT(
-    Rf_allocVector(INTSXP, (R_xlen_t) (p * numSamples * chains)));
-  int* varcountOut = INTEGER(varcountExpr);
-  for (size_t i = 0; i < p * numSamples * chains; ++i)
-    varcountOut[i] = (int) varcount[i];
-
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
-  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
-  SET_VECTOR_ELT(resultExpr, 1, trainExpr);
-  SET_VECTOR_ELT(resultExpr, 2, varcountExpr);
-  SET_VECTOR_ELT(resultExpr, 3, Rf_ScalarInteger(state.count));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 4));
-  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("varcount"));
-  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("count"));
-  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
-
-  UNPROTECT(5);
-  return resultExpr;
-}
-
 /* runs with the logLikelihood channel set alongside sigma and train, and
  * returns all three, so the R side can check the per-draw log-likelihood
  * against a density recomputed on the same sigma/train draws */
@@ -469,11 +348,6 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return resultExpr;
 }
 
-SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
-  dbarts_sampler_sampleNodeParametersFromPrior(samplerFromExpr(ptrExpr));
-  return R_NilValue;
-}
-
 /* the conditioning setters answer a capability status, which the R side reads
  * as an integer: 1 on a mutation, 0 where the sampler carries no such channel
  * at all and nothing was touched */
@@ -481,17 +355,6 @@ SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   return Rf_ScalarInteger(dbarts_sampler_setResponse(
     samplerFromExpr(ptrExpr), REAL(yExpr),
     Rf_asLogical(updateScaleExpr) == TRUE));
-}
-
-SEXP capi_set_weights(SEXP ptrExpr, SEXP weightsExpr) {
-  return Rf_ScalarInteger(
-    dbarts_sampler_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr)));
-}
-
-SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
-  return Rf_ScalarInteger(dbarts_sampler_setTestOffset(
-    samplerFromExpr(ptrExpr),
-    Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr)));
 }
 
 /* prints the first tree of the first chain of the named forest, exercising the
@@ -514,11 +377,6 @@ SEXP capi_num_trees(SEXP ptrExpr, SEXP forestExpr) {
     samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr)));
 }
 
-SEXP capi_num_forests(SEXP ptrExpr) {
-  return Rf_ScalarInteger(
-    (int) dbarts_sampler_numForests(samplerFromExpr(ptrExpr)));
-}
-
 /* printEvery gets its own entrance: the run-control setter below always hands
  * over a legal one, so the entry point's refusal at 0 is otherwise unreachable
  * from here */
@@ -530,10 +388,9 @@ SEXP capi_set_verbose(SEXP ptrExpr, SEXP verboseExpr, SEXP printEveryExpr) {
 }
 
 SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
-                           SEXP numThinExpr, SEXP verboseExpr) {
+                           SEXP verboseExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   dbarts_sampler_setNumThreads(sampler, (size_t) Rf_asInteger(numThreadsExpr));
-  dbarts_sampler_setNumThin(sampler, (size_t) Rf_asInteger(numThinExpr));
   dbarts_sampler_setVerbose(sampler, Rf_asLogical(verboseExpr) == TRUE, 100);
   return R_NilValue;
 }
@@ -644,139 +501,12 @@ SEXP capi_run_residual_df(SEXP ptrExpr, SEXP numBurnInExpr,
   return result;
 }
 
-/* the mid-sweep getter, on the capability contract every reader here follows:
- * NULL stands for the 0 return a family carrying no dispersion answers with */
-SEXP capi_dispersion(SEXP ptrExpr) {
-  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  SEXP result = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) dbarts_sampler_numChains(sampler)));
-  int carries = dbarts_sampler_getDispersion(sampler, REAL(result));
-  UNPROTECT(1);
-  return carries ? result : R_NilValue;
-}
-
-/* the wrapped augmentation entries, over caller-supplied arrays: an R NULL is
- * the absent argument, and a scalar's NA is the one no law reads */
-static const double* optionalReal(SEXP x) {
-  return Rf_isNull(x) ? NULL : REAL(x);
-}
-
-SEXP capi_draw_latents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
-                       SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
-                       SEXP dispersionExpr, SEXP ordinalThresholdsExpr,
-                       SEXP dfExpr) {
-  size_t n = (size_t) Rf_xlength(fitExpr);
-  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
-  dbarts_drawLatents(familyFromString(CHAR(STRING_ELT(familyExpr, 0))), n,
-                     REAL(fitExpr), REAL(yExpr), optionalReal(weightsExpr),
-                     optionalReal(offsetExpr), Rf_asReal(sigmaExpr),
-                     Rf_asReal(dispersionExpr),
-                     optionalReal(ordinalThresholdsExpr),
-                     (size_t) Rf_xlength(ordinalThresholdsExpr),
-                     Rf_asReal(dfExpr), REAL(result));
-  UNPROTECT(1);
-  return result;
-}
-
-SEXP capi_working_response(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
-                           SEXP weightsExpr, SEXP offsetExpr,
-                           SEXP dispersionExpr) {
-  size_t n = (size_t) Rf_xlength(latentExpr);
-  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
-  dbarts_workingResponse(familyFromString(CHAR(STRING_ELT(familyExpr, 0))), n,
-                         REAL(latentExpr), REAL(yExpr),
-                         optionalReal(weightsExpr),
-                         optionalReal(offsetExpr), Rf_asReal(dispersionExpr),
-                         REAL(result));
-  UNPROTECT(1);
-  return result;
-}
-
 /* the dense spelling every wrapper below hands the entries: the header's own
  * constructor over an R matrix */
 static dbarts_predictor_source denseSource(SEXP xExpr) {
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
   return dbarts_dense_predictor_source(
     REAL(xExpr), (size_t) INTEGER(dims)[0], (size_t) INTEGER(dims)[1]);
-}
-
-SEXP capi_set_predictor(SEXP ptrExpr, SEXP xExpr) {
-  dbarts_predictor_source source = denseSource(xExpr);
-  return Rf_ScalarLogical(
-    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), &source, FALSE,
-                                TRUE));
-}
-
-SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
-  size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
-  dbarts_predictor_source source = denseSource(xExpr);
-  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), &source, &column, 1, FALSE, TRUE));
-}
-
-/* a transactional column update against the EXISTING cut grid: the flavor a
- * replacement that would empty leaves can reach at all, since refreshing the
- * cuts from a collapsed column is refused for its cut count first */
-SEXP capi_update_predictor_fixed_cuts(SEXP ptrExpr, SEXP xExpr,
-                                      SEXP columnExpr) {
-  size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
-  dbarts_predictor_source source = denseSource(xExpr);
-  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), &source, &column, 1, FALSE, FALSE));
-}
-
-/* the forced flavors of the two above, exercising the transactional guard's
- * accept arm: forceUpdate = TRUE bypasses the empty-leaf veto and always
- * installs */
-SEXP capi_set_predictor_forced(SEXP ptrExpr, SEXP xExpr) {
-  dbarts_predictor_source source = denseSource(xExpr);
-  return Rf_ScalarLogical(
-    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), &source, TRUE,
-                                TRUE));
-}
-
-SEXP capi_update_predictor_forced(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
-  size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
-  dbarts_predictor_source source = denseSource(xExpr);
-  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), &source, &column, 1, TRUE, TRUE));
-}
-
-SEXP capi_set_test_predictors(SEXP ptrExpr, SEXP xTestExpr) {
-  if (Rf_isNull(xTestExpr))
-    return Rf_ScalarInteger(
-      dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL));
-  {
-    dbarts_predictor_source source = denseSource(xTestExpr);
-    return Rf_ScalarInteger(
-      dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source));
-  }
-}
-
-/* the source-shaped flavors, over an R-built spec: dense, CSC, mixed, or
- * malformed. Every entry that takes a source has one, since the refusals are
- * stated once and must fire at every funnel. */
-SEXP capi_set_predictor_source(SEXP ptrExpr, SEXP specExpr) {
-  dbarts_predictor_source source = sourceFromList(specExpr);
-  return Rf_ScalarLogical(dbarts_sampler_setPredictor(
-    samplerFromExpr(ptrExpr), &source, FALSE, TRUE));
-}
-
-SEXP capi_update_predictor_source(SEXP ptrExpr, SEXP specExpr,
-                                  SEXP columnsExpr) {
-  dbarts_predictor_source source = sourceFromList(specExpr);
-  size_t numColumns = (size_t) Rf_xlength(columnsExpr);
-  size_t* columns = (size_t*) R_alloc(numColumns, sizeof(size_t));
-  for (size_t k = 0; k < numColumns; ++k)
-    columns[k] = (size_t) INTEGER(columnsExpr)[k]; /* already 0-based */
-  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), &source, columns, numColumns, FALSE, TRUE));
-}
-
-SEXP capi_set_test_predictors_source(SEXP ptrExpr, SEXP specExpr) {
-  dbarts_predictor_source source = sourceFromList(specExpr);
-  return Rf_ScalarInteger(
-    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source));
 }
 
 /* the predict wrappers hand back NULL on a capability 0, the shape
@@ -873,610 +603,41 @@ SEXP capi_predict_threads(SEXP ptrExpr, SEXP xTestExpr, SEXP nThreadsExpr) {
   return predicted ? result : R_NilValue;
 }
 
-/* sampleNumsExpr null reads every saved sample; otherwise its 1-based indices
- * select the saved samples, so the caller can compare the all-samples table
- * against a per-sample gather (the consistency stan4bart's extract relies on). */
-SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr,
-                    SEXP forestExpr) {
+
+/* COPY-ON-SET: the entry is handed a buffer THIS consumer owns, and that
+ * buffer is overwritten with clobber before returning. A setter that retained
+ * the pointer would leave the sampler conditioned on the clobber values; one
+ * that copied leaves it conditioned on y, which is what the R side's two runs
+ * compare. R_alloc is the right storage: it outlives the entry call and is
+ * released when this .Call returns, by which point the sampler holds its own
+ * copy and nothing points here. */
+SEXP capi_set_response_clobber(SEXP ptrExpr, SEXP yExpr, SEXP clobberExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
-  size_t forest = (size_t) Rf_asInteger(forestExpr);
-
-  size_t numChains = dbarts_sampler_numChains(sampler);
-  size_t numSaved = useLiveTrees ? 0 : dbarts_sampler_numSavedSamples(sampler);
-  size_t numTrees = dbarts_sampler_numTrees(sampler, forest);
-
-  size_t* chainIndices = (size_t*) R_alloc(numChains, sizeof(size_t));
-  for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
-  size_t* treeIndices = (size_t*) R_alloc(numTrees, sizeof(size_t));
-  for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
-
-  size_t numSampleIndices;
-  size_t* sampleIndices;
-  if (useLiveTrees || Rf_isNull(sampleNumsExpr)) {
-    numSampleIndices = numSaved;
-    sampleIndices =
-      numSaved > 0 ? (size_t*) R_alloc(numSaved, sizeof(size_t)) : NULL;
-    for (size_t i = 0; i < numSaved; ++i) sampleIndices[i] = i;
-  } else {
-    numSampleIndices = (size_t) Rf_xlength(sampleNumsExpr);
-    sampleIndices = (size_t*) R_alloc(numSampleIndices, sizeof(size_t));
-    for (size_t i = 0; i < numSampleIndices; ++i)
-      sampleIndices[i] = (size_t) INTEGER(sampleNumsExpr)[i] - 1;
-  }
-
-  return dbarts_sampler_getTrees(sampler, forest, chainIndices, numChains,
-                                 sampleIndices, numSampleIndices, treeIndices,
-                                 numTrees, useLiveTrees);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  double* buffer = (double*) R_alloc(n, sizeof(double));
+  int status;
+  memcpy(buffer, REAL(yExpr), n * sizeof(double));
+  status = dbarts_sampler_setResponse(sampler, buffer, FALSE);
+  memcpy(buffer, REAL(clobberExpr), n * sizeof(double));
+  return Rf_ScalarInteger(status);
 }
 
-SEXP capi_store_state(SEXP ptrExpr) {
-  return dbarts_sampler_storeState(samplerFromExpr(ptrExpr));
-}
-
-SEXP capi_set_state(SEXP ptrExpr, SEXP stateExpr) {
-  dbarts_sampler_setState(samplerFromExpr(ptrExpr), stateExpr);
-  return R_NilValue;
-}
-
-/* the per-observation 0/1 active-row mask; a NULL clears it. The values are
- * consumed during the call, so nothing here has to outlive it. */
-SEXP capi_set_active_rows(SEXP ptrExpr, SEXP activeExpr) {
-  return Rf_ScalarInteger(dbarts_sampler_setActiveRows(
-    samplerFromExpr(ptrExpr),
-    Rf_isNull(activeExpr) ? NULL : REAL(activeExpr)));
-}
-
-/* the per-forest precision weight. BORROWED until replaced, unlike the mask
- * above, so the R side keeps its vector alive for the sampler's life. */
-SEXP capi_set_forest_weights(SEXP ptrExpr, SEXP forestExpr,
-                             SEXP weightsExpr) {
-  return Rf_ScalarInteger(dbarts_sampler_setForestWeights(
-    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
-    Rf_isNull(weightsExpr) ? NULL : REAL(weightsExpr)));
-}
-
-/* the mean channel: the basis a forest's amplitudes multiply, ROW-major
- * numObservations x numColumns and copied by the entry. An R matrix is
- * column-major, so the transpose happens here rather than being handed to the
- * entry sideways - the two layouts differ by no type a compiler could catch. */
-SEXP capi_set_forest_basis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
-  SEXP dims = Rf_getAttrib(basisExpr, R_DimSymbol);
-  size_t numRows = Rf_isNull(dims) ? (size_t) Rf_xlength(basisExpr)
-                                   : (size_t) INTEGER(dims)[0];
-  size_t numColumns = Rf_isNull(dims) ? 1 : (size_t) INTEGER(dims)[1];
-  const double* columnMajor = REAL(basisExpr);
-  double* basisRowMajor =
-    (double*) R_alloc(numRows * numColumns, sizeof(double));
-  for (size_t i = 0; i < numRows; ++i)
-    for (size_t j = 0; j < numColumns; ++j)
-      basisRowMajor[i * numColumns + j] = columnMajor[j * numRows + i];
-  return Rf_ScalarInteger(dbarts_sampler_setForestBasis(
-    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr), basisRowMajor,
-    numColumns));
-}
-
-/* the ragged amplitude read: the count first, so the caller sizes its own
- * buffer, then the values as numForestAmplitudes x numChains */
-SEXP capi_forest_amplitudes(SEXP ptrExpr, SEXP forestExpr) {
+/* the offset twin, on the same contract */
+SEXP capi_set_offset_clobber(SEXP ptrExpr, SEXP offsetExpr, SEXP clobberExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t forest = (size_t) Rf_asInteger(forestExpr);
-  size_t numAmplitudes = dbarts_sampler_numForestAmplitudes(sampler, forest);
-  size_t numChains = dbarts_sampler_numChains(sampler);
-
-  SEXP valuesExpr = PROTECT(
-    Rf_allocVector(REALSXP, (R_xlen_t) (numAmplitudes * numChains)));
-  int accepted =
-    dbarts_sampler_getForestAmplitudes(sampler, forest, REAL(valuesExpr));
-
-  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
-  SET_VECTOR_ELT(result, 0, Rf_ScalarInteger((int) numAmplitudes));
-  SET_VECTOR_ELT(result, 1, valuesExpr);
-  SET_VECTOR_ELT(result, 2, Rf_ScalarInteger(accepted));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
-  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("count"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("values"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("accepted"));
-  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
-  UNPROTECT(3);
-  return result;
+  size_t n = dbarts_sampler_numObservations(sampler);
+  double* buffer = (double*) R_alloc(n, sizeof(double));
+  int status;
+  memcpy(buffer, REAL(offsetExpr), n * sizeof(double));
+  status = dbarts_sampler_setOffset(sampler, buffer, FALSE);
+  memcpy(buffer, REAL(clobberExpr), n * sizeof(double));
+  return Rf_ScalarInteger(status);
 }
 
-/* one forest's calibration through the size-first output struct. mode is the
- * caller's structSize: 0 carries the whole struct, 1 stops below leafModel
- * (the omitting caller the presence test exists for) and 2 stops at the
- * calibration-map append boundary - a PRE-APPEND caller, compiled against the
- * struct as it shipped before the five map fields, which must still read the
- * eight original members and leave the five it does not carry alone. Every
- * member past a mode's boundary is poisoned, so a fill that ignored structSize
- * would write through 0x1 and crash rather than quietly pass. skipK leaves the
- * k pointer null, the null-member-skips half of the same contract. */
-SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP modeExpr,
-                             SEXP skipKExpr) {
-  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t numChains = dbarts_sampler_numChains(sampler);
-  int mode = Rf_asInteger(modeExpr);
-  int skipK = Rf_asLogical(skipKExpr) == TRUE;
-
-  SEXP priorScaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP priorSdExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP priorMeanExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP kExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP scaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP shiftExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP hyperExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
-  SEXP leafExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
-  SEXP aVarExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP aScaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP factorExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP divisorExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  SEXP rowNormExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
-  for (size_t c = 0; c < numChains; ++c) {
-    REAL(kExpr)[c] = -1.0;
-    INTEGER(leafExpr)[c] = -1;
-    REAL(aVarExpr)[c] = -1.0;
-    REAL(aScaleExpr)[c] = -1.0;
-    REAL(factorExpr)[c] = -1.0;
-    REAL(divisorExpr)[c] = -1.0;
-    REAL(rowNormExpr)[c] = -1.0;
-  }
-
-  double* poison = (double*) (uintptr_t) 0x1; /* never read, never written */
-  dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
-  calibration.priorScale = REAL(priorScaleExpr);
-  calibration.priorSd = REAL(priorSdExpr);
-  calibration.priorMean = REAL(priorMeanExpr);
-  calibration.k = skipK ? NULL : REAL(kExpr);
-  calibration.responseScale = REAL(scaleExpr);
-  calibration.responseShift = REAL(shiftExpr);
-  calibration.kHasHyperprior = INTEGER(hyperExpr);
-  calibration.leafModel = mode == 1 ? (int32_t*) (uintptr_t) 0x1
-                                    : INTEGER(leafExpr);
-  if (mode == 0) {
-    calibration.amplitudePriorVariance = REAL(aVarExpr);
-    calibration.amplitudePriorScale = REAL(aScaleExpr);
-    calibration.nodeScaleFactor = REAL(factorExpr);
-    calibration.nodeScaleDivisor = REAL(divisorExpr);
-    calibration.basisRowNorm = REAL(rowNormExpr);
-  } else {
-    calibration.structSize =
-      mode == 1
-        ? offsetof(dbarts_forest_calibration, leafModel)
-        : offsetof(dbarts_forest_calibration, amplitudePriorVariance);
-    calibration.amplitudePriorVariance = poison;
-    calibration.amplitudePriorScale = poison;
-    calibration.nodeScaleFactor = poison;
-    calibration.nodeScaleDivisor = poison;
-    calibration.basisRowNorm = poison;
-  }
-
-  int accepted =
-    dbarts_sampler_getForestCalibration(sampler, (size_t) Rf_asInteger(forestExpr),
-                                        &calibration);
-
-  SEXP result = PROTECT(Rf_allocVector(VECSXP, 14));
-  SET_VECTOR_ELT(result, 0, priorScaleExpr);
-  SET_VECTOR_ELT(result, 1, priorSdExpr);
-  SET_VECTOR_ELT(result, 2, priorMeanExpr);
-  SET_VECTOR_ELT(result, 3, kExpr);
-  SET_VECTOR_ELT(result, 4, scaleExpr);
-  SET_VECTOR_ELT(result, 5, shiftExpr);
-  SET_VECTOR_ELT(result, 6, hyperExpr);
-  SET_VECTOR_ELT(result, 7, leafExpr);
-  SET_VECTOR_ELT(result, 8, aVarExpr);
-  SET_VECTOR_ELT(result, 9, aScaleExpr);
-  SET_VECTOR_ELT(result, 10, factorExpr);
-  SET_VECTOR_ELT(result, 11, divisorExpr);
-  SET_VECTOR_ELT(result, 12, rowNormExpr);
-  SET_VECTOR_ELT(result, 13, Rf_ScalarInteger(accepted));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 14));
-  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("prior.scale"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("prior.sd"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("prior.mean"));
-  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("k"));
-  SET_STRING_ELT(namesExpr, 4, Rf_mkChar("response.scale"));
-  SET_STRING_ELT(namesExpr, 5, Rf_mkChar("response.shift"));
-  SET_STRING_ELT(namesExpr, 6, Rf_mkChar("k.has.hyperprior"));
-  SET_STRING_ELT(namesExpr, 7, Rf_mkChar("leaf.model"));
-  SET_STRING_ELT(namesExpr, 8, Rf_mkChar("amplitude.prior.variance"));
-  SET_STRING_ELT(namesExpr, 9, Rf_mkChar("amplitude.prior.scale"));
-  SET_STRING_ELT(namesExpr, 10, Rf_mkChar("node.scale.factor"));
-  SET_STRING_ELT(namesExpr, 11, Rf_mkChar("node.scale.divisor"));
-  SET_STRING_ELT(namesExpr, 12, Rf_mkChar("basis.row.norm"));
-  SET_STRING_ELT(namesExpr, 13, Rf_mkChar("accepted"));
-  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
-  UNPROTECT(15);
-  return result;
-}
-
-/* the zero-structSize guard on the calibration buffers, the read-side twin of
- * capi_run_zero_structsize: this call must error rather than fill nothing */
-SEXP capi_forest_calibration_zero_structsize(SEXP ptrExpr) {
-  dbarts_forest_calibration calibration;
-  memset(&calibration, 0, sizeof(calibration)); /* structSize left 0 */
-  return Rf_ScalarInteger(dbarts_sampler_getForestCalibration(
-    samplerFromExpr(ptrExpr), 0, &calibration));
-}
-
-SEXP capi_set_forest_prior_scale(SEXP ptrExpr, SEXP forestExpr,
-                                 SEXP priorScaleExpr) {
-  return Rf_ScalarInteger(dbarts_sampler_setForestPriorScale(
-    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
-    Rf_asReal(priorScaleExpr)));
-}
-
-/* The two-forest (BCF) surface. Every verdict below is
- * reached HERE rather than in R: what is under test is that the flat API and
- * the R bridge apply one rule, so each acceptance, each refusal, and the reason
- * a refusal names are checked in the consumer, and the R side only reads the
- * per-leg results off the returned vector. A refusal arrives as an R error,
- * which longjmps out of the entry point, so every leg runs under
- * R_tryCatchError. */
-enum {
-  LEG_NUM_FORESTS,
-  LEG_RESPONSE_PINNED,
-  LEG_RESPONSE_RESCALED,
-  LEG_OFFSET_PINNED,
-  LEG_OFFSET_RESCALED,
-  LEG_WEIGHTS,
-  LEG_TEST_OFFSET,
-  LEG_TEST_PREDICTORS,
-  LEG_PREDICT,
-  LEG_BASIS,
-  LEG_BASIS_FOREST_0,
-  LEG_BASIS_WIDTH,
-  LEG_BASIS_CONTINUOUS,
-  LEG_BASIS_RANGE,
-  LEG_FOREST_FITS,
-  LEG_AMPLITUDES,
-  LEG_FOREST_WEIGHTS,
-  LEG_FOREST_WEIGHTS_RANGE,
-  LEG_CALIBRATION,
-  LEG_COUNT
-};
-
-static const char* const legNames[LEG_COUNT] = {
-  "numForests",
-  "response.pinned",
-  "response.rescaled",
-  "offset.pinned",
-  "offset.rescaled",
-  "weights",
-  "testOffset",
-  "setTestPredictors",
-  "predict",
-  "setForestBasis",
-  "setForestBasis.forest0",
-  "setForestBasis.width",
-  "setForestBasis.continuous",
-  "setForestBasis.range",
-  "forestFits",
-  "forestAmplitudes",
-  "setForestWeights",
-  "setForestWeights.range",
-  "forestCalibration"
-};
-
-/* The refusal each leg must draw, or NULL where it must be accepted.
- *
- * The response, offset and weight refusals come from the guard the R bridge
- * shares with this surface, which has a second branch naming a coupling whose
- * response is its own count matrix. BCF is not that coupling - it opts into the
- * response conduit - so these legs are also the pin that the branch stays
- * conditioned on the capability rather than on the forest count: were it to
- * fire here, the three accepting legs below would refuse. The branch's own
- * message is unreachable from this surface, which has no multinomial creation
- * entry (dbarts_sampler_create builds single-forest and BCF samplers only);
- * inst/tinytest/test-multinomial-counts-mutation.R pins the text. */
-static const char* const legRefusals[LEG_COUNT] = {
-  NULL,
-  NULL,
-  "a response swap only with updateScale = FALSE",
-  NULL,
-  "an offset swap only with updateScale = FALSE",
-  NULL,
-  /* the test-surface trio answers 0 rather than raising, so each leg's own
-   * body is what pins the refusal; only the two scale updates still carry a
-   * message, and they are the discriminating half of the split */
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  "a basis needs at least one column",
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-typedef struct {
-  dbarts_sampler* sampler;
-  const double* y;
-  const double* offset;
-  const double* weights;
-  const double* z;
-  const double* xTest;
-  size_t numTestObservations;
-  double* out;
-  int leg;
-  int accepted;
-  int errored;
-  char message[256];
-} bcfLegs;
-
-/* Reinstalls the constructed (1 - z, z) pair on forest 1, so a leg that moved
- * the basis leaves the layout the legs after it read. Reinstalling is the same
- * one operation an install is - there is no second, restoring route - and it is
- * the bitwise identity on the amplitudes while the width does not move. */
-static void restoreIndicatorBasis(bcfLegs* legs, size_t n) {
-  double* basis = (double*) R_alloc(2 * n, sizeof(double));
-  for (size_t i = 0; i < n; ++i) {
-    basis[2 * i] = 1.0 - legs->z[i];
-    basis[2 * i + 1] = legs->z[i];
-  }
-  if (dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2) != 1)
-    legs->accepted = 0;
-}
-
-static SEXP bcfLegBody(void* data) {
-  bcfLegs* legs = (bcfLegs*) data;
-  size_t n = dbarts_sampler_numObservations(legs->sampler);
-  size_t chains = dbarts_sampler_numChains(legs->sampler);
-  switch (legs->leg) {
-    case LEG_NUM_FORESTS:
-      legs->accepted = dbarts_sampler_numForests(legs->sampler) == 2;
-      break;
-    /* this coupling opts into the response conduit, so all three answer 1: the
-     * capability arm the three entries gained is not this sampler's */
-    case LEG_RESPONSE_PINNED:
-      legs->accepted =
-        dbarts_sampler_setResponse(legs->sampler, legs->y, 0) == 1;
-      break;
-    case LEG_RESPONSE_RESCALED:
-      dbarts_sampler_setResponse(legs->sampler, legs->y, 1);
-      break;
-    case LEG_OFFSET_PINNED:
-      legs->accepted =
-        dbarts_sampler_setOffset(legs->sampler, legs->offset, 0) == 1;
-      break;
-    case LEG_OFFSET_RESCALED:
-      dbarts_sampler_setOffset(legs->sampler, legs->offset, 1);
-      break;
-    case LEG_WEIGHTS:
-      legs->accepted =
-        dbarts_sampler_setWeights(legs->sampler, legs->weights) == 1;
-      break;
-    /* the three test-surface entries answer 0 without touching the sampler
-     * rather than raising: the blend a test fit needs is undefined here, which
-     * is a fixed property of this coupling and not a bad argument */
-    case LEG_TEST_OFFSET:
-      legs->accepted =
-        dbarts_sampler_setTestOffset(legs->sampler, legs->offset) == 0;
-      break;
-    case LEG_TEST_PREDICTORS: {
-      dbarts_predictor_source source = dbarts_dense_predictor_source(
-        legs->xTest, legs->numTestObservations,
-        dbarts_sampler_numPredictors(legs->sampler));
-      legs->accepted =
-        dbarts_sampler_setTestPredictors(legs->sampler, &source) == 0;
-      break;
-    }
-    case LEG_PREDICT: {
-      dbarts_predictor_source source = dbarts_dense_predictor_source(
-        legs->xTest, legs->numTestObservations,
-        dbarts_sampler_numPredictors(legs->sampler));
-      legs->accepted =
-        dbarts_sampler_predict(legs->sampler, &source, NULL, 0, legs->out) == 0;
-      break;
-    }
-    case LEG_BASIS: {
-      /* the two-column complementary indicator (1 - z, z) the amplitudes
-       * contrast on, laid ROW-major (row i at basis + i * numColumns) as the
-       * header states and the engine's own contraction reads it */
-      double* basis = (double*) R_alloc(2 * n, sizeof(double));
-      for (size_t i = 0; i < n; ++i) {
-        basis[2 * i] = 1.0 - legs->z[i];
-        basis[2 * i + 1] = legs->z[i];
-      }
-      legs->accepted = dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2);
-      break;
-    }
-    case LEG_BASIS_FOREST_0: {
-      /* forest 0 takes a basis like any other forest - an ACCEPTANCE, where
-       * this leg once pinned a capability answer - while an index past the
-       * last forest stays a capability answer rather than a raise */
-      double* basis = (double*) R_alloc(2 * n, sizeof(double));
-      for (size_t i = 0; i < n; ++i) {
-        basis[2 * i] = 1.0 - legs->z[i];
-        basis[2 * i + 1] = legs->z[i];
-      }
-      double* ones = (double*) R_alloc(n, sizeof(double));
-      for (size_t i = 0; i < n; ++i) ones[i] = 1.0;
-      legs->accepted =
-        dbarts_sampler_setForestBasis(legs->sampler, 0, basis, 2) == 1 &&
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 2 &&
-        dbarts_sampler_setForestBasis(legs->sampler, 2, basis, 2) == 0 &&
-        /* narrowing back is the same one operation, so the legs that follow
-         * see the constructed layout again */
-        dbarts_sampler_setForestBasis(legs->sampler, 0, ones, 1) == 1 &&
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 1;
-      break;
-    }
-    case LEG_BASIS_WIDTH:
-      /* a zero-width basis is malformed and RAISES */
-      dbarts_sampler_setForestBasis(legs->sampler, 1, legs->z, 0);
-      break;
-    case LEG_BASIS_CONTINUOUS: {
-      /* two columns, not complementary 0/1: LEGAL now, where this leg once
-       * pinned a raise. The forest keeps its two amplitudes and moves onto
-       * the general conditional, which no return value reports */
-      double* basis = (double*) R_alloc(2 * n, sizeof(double));
-      for (size_t i = 0; i < n; ++i) {
-        basis[2 * i] = 0.25;
-        basis[2 * i + 1] = 0.75;
-      }
-      legs->accepted =
-        dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2) == 1 &&
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 2;
-      restoreIndicatorBasis(legs, n);
-      break;
-    }
-    case LEG_BASIS_RANGE: {
-      /* a THREE-column basis widens the block, and the ragged read follows */
-      double* basis = (double*) R_alloc(3 * n, sizeof(double));
-      for (size_t i = 0; i < n; ++i) {
-        basis[3 * i] = 1.0;
-        basis[3 * i + 1] = legs->z[i];
-        basis[3 * i + 2] = 1.0 - legs->z[i];
-      }
-      legs->accepted =
-        dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 3) == 1 &&
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 3 &&
-        dbarts_sampler_getForestAmplitudes(legs->sampler, 1, legs->out) == 1;
-      for (size_t i = 0; i < 3 * chains; ++i)
-        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
-      restoreIndicatorBasis(legs, n);
-      break;
-    }
-    case LEG_FOREST_FITS:
-      /* both forests read, an index past the last one refuses, and every
-       * value written is finite */
-      legs->accepted =
-        dbarts_sampler_getForestFits(legs->sampler, 0, legs->out) &&
-        dbarts_sampler_getForestFits(legs->sampler, 1, legs->out + n * chains) &&
-        !dbarts_sampler_getForestFits(legs->sampler, 2, legs->out);
-      for (size_t i = 0; i < 2 * n * chains; ++i)
-        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
-      break;
-    case LEG_AMPLITUDES:
-      /* the ragged pair: one amplitude for the intercept forest, two for the
-       * indicator basis, every value finite, and an index past the last
-       * forest refuses the read while the count entry raises */
-      legs->accepted =
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 1 &&
-        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 2 &&
-        dbarts_sampler_getForestAmplitudes(legs->sampler, 0, legs->out) &&
-        dbarts_sampler_getForestAmplitudes(legs->sampler, 1,
-                                        legs->out + chains) &&
-        !dbarts_sampler_getForestAmplitudes(legs->sampler, 2, legs->out);
-      for (size_t i = 0; i < 3 * chains; ++i)
-        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
-      break;
-    case LEG_FOREST_WEIGHTS:
-      /* 1 = accepted, and a null clears; the weights are BORROWED, so the
-       * caller's vector outlives the call (the R side holds it) */
-      legs->accepted =
-        dbarts_sampler_setForestWeights(legs->sampler, 1, legs->weights) == 1 &&
-        dbarts_sampler_setForestWeights(legs->sampler, 1, NULL) == 1;
-      break;
-    case LEG_FOREST_WEIGHTS_RANGE:
-      /* 0 = refused, without touching the sampler: a forest past the last one
-       * is a capability answer, not a raise */
-      legs->accepted =
-        dbarts_sampler_setForestWeights(legs->sampler, 2, legs->weights) == 0;
-      break;
-    case LEG_CALIBRATION: {
-      /* both forests read, an index past the last one refuses, and the write
-       * is refused on every forest because the two-forest map owns it */
-      dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
-      calibration.priorScale = legs->out;
-      calibration.k = legs->out + chains;
-      /* the calibration map's own three, which only a mapped sampler reports:
-       * the prognostic forest leaves all three at 1 and the treatment forest
-       * carries the half-normal median as its divisor over the synthesized
-       * (1 - z, z) pair, whose rows are unit norm */
-      calibration.nodeScaleFactor = legs->out + 2 * chains;
-      calibration.nodeScaleDivisor = legs->out + 3 * chains;
-      calibration.basisRowNorm = legs->out + 4 * chains;
-      legs->accepted =
-        dbarts_sampler_getForestCalibration(legs->sampler, 0, &calibration);
-      double muAnchor = legs->out[0] * legs->out[3 * chains] *
-                        legs->out[4 * chains] / legs->out[2 * chains];
-      for (size_t c = 0; c < chains; ++c)
-        if (legs->out[2 * chains + c] != 1.0 ||
-            legs->out[3 * chains + c] != 1.0 ||
-            legs->out[4 * chains + c] != 1.0)
-          legs->accepted = 0;
-      if (!dbarts_sampler_getForestCalibration(legs->sampler, 1, &calibration))
-        legs->accepted = 0;
-      for (size_t c = 0; c < chains; ++c)
-        if (legs->out[3 * chains + c] != 0.674 ||
-            legs->out[4 * chains + c] != 1.0)
-          legs->accepted = 0;
-      /* and the anchor the map states both node scales against is the same one
-       * either forest's decomposition recovers */
-      double tauAnchor = legs->out[0] * legs->out[3 * chains] *
-                         legs->out[4 * chains] / legs->out[2 * chains];
-      if (!(fabs(tauAnchor - muAnchor) <= 1.0e-12 * fabs(muAnchor)))
-        legs->accepted = 0;
-      if (dbarts_sampler_getForestCalibration(legs->sampler, 2, &calibration) ||
-          dbarts_sampler_setForestPriorScale(legs->sampler, 0, 2.5) ||
-          dbarts_sampler_setForestPriorScale(legs->sampler, 1, 2.5))
-        legs->accepted = 0;
-      for (size_t i = 0; i < 2 * chains; ++i)
-        if (!R_FINITE(legs->out[i]) || legs->out[i] <= 0.0)
-          legs->accepted = 0;
-      break;
-    }
-  }
+/* the early release: the engine goes, the R object keeps the pointer and
+ * reads dead through its own methods. Called twice by the R side, since a
+ * second destroy is the one call a destroyed handle still takes. */
+SEXP capi_destroy(SEXP ptrExpr) {
+  dbarts_sampler_destroy(samplerFromExpr(ptrExpr));
   return R_NilValue;
-}
-
-static SEXP bcfLegHandler(SEXP condExpr, void* data) {
-  bcfLegs* legs = (bcfLegs*) data;
-  legs->errored = 1;
-  if (Rf_isVectorList(condExpr) && Rf_xlength(condExpr) > 0) {
-    SEXP messageExpr = VECTOR_ELT(condExpr, 0); /* conditionMessage */
-    if (Rf_isString(messageExpr) && Rf_xlength(messageExpr) > 0) {
-      strncpy(legs->message, CHAR(STRING_ELT(messageExpr, 0)),
-              sizeof(legs->message) - 1);
-      legs->message[sizeof(legs->message) - 1] = '\0';
-    }
-  }
-  return R_NilValue;
-}
-
-/* an accepting leg must return 1 without erroring; a refusing one must error
- * with a message naming its reason */
-static int runBCFLeg(bcfLegs* legs, int leg) {
-  legs->leg = leg;
-  legs->accepted = 1;
-  legs->errored = 0;
-  legs->message[0] = '\0';
-  R_tryCatchError(bcfLegBody, legs, bcfLegHandler, legs);
-  if (legRefusals[leg] == NULL) return !legs->errored && legs->accepted;
-  return legs->errored && strstr(legs->message, legRefusals[leg]) != NULL;
-}
-
-SEXP capi_bcf_surface(SEXP ptrExpr, SEXP yExpr, SEXP offsetExpr,
-                      SEXP weightsExpr, SEXP zExpr, SEXP xTestExpr) {
-  bcfLegs legs;
-  legs.sampler = samplerFromExpr(ptrExpr);
-  legs.y = REAL(yExpr);
-  legs.offset = REAL(offsetExpr);
-  legs.weights = REAL(weightsExpr);
-  legs.z = REAL(zExpr);
-  legs.xTest = REAL(xTestExpr);
-  legs.numTestObservations =
-    (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
-  /* the widest leg is the two forests' fits; the glue is 3 x chains and
-   * predict, refused before it reads anything, would want fewer rows still */
-  legs.out = (double*) R_alloc(
-    2 * dbarts_sampler_numObservations(legs.sampler) *
-      dbarts_sampler_numChains(legs.sampler),
-    sizeof(double));
-
-  SEXP result = PROTECT(Rf_allocVector(LGLSXP, LEG_COUNT));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, LEG_COUNT));
-  for (int leg = 0; leg < LEG_COUNT; ++leg) {
-    LOGICAL(result)[leg] = runBCFLeg(&legs, leg);
-    SET_STRING_ELT(namesExpr, leg, Rf_mkChar(legNames[leg]));
-  }
-  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
-  UNPROTECT(2);
-  return result;
 }

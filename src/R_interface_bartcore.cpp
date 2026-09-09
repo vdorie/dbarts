@@ -30,6 +30,7 @@
 
 using std::size_t;
 using std::uint32_t;
+using bartcore_bridge::adoptVector;
 using bartcore_bridge::AugmentationInputs;
 using bartcore_bridge::augmentationLaw;
 using bartcore_bridge::AugmentationLaw;
@@ -57,18 +58,15 @@ using bartcore_bridge::validateTestContainerAgainstStore;
 
 namespace {
 
-// The external pointer's protection slot pins the vectors the sampler
-// borrows, one fixed slot per borrowable so replacements do not accumulate.
-// Predictors are not among them: the engine owns its quantized codes and
-// borrows the raw only for the duration of a build or re-quantize call, so the
-// R data object (PROT_DATA at creation, plus the live sampler$data the R
-// methods hold) is the sole predictor GC anchor - no PROT_PREDICTORS slot.
+// The external pointer's protection slot pins the data specification object
+// and nothing else. No R VECTOR is retained: every value the engine borrows
+// for a sampler's lifetime lives in a holder-owned buffer (adoptVector below),
+// and the predictors are quantized into owned codes at build time, so the data
+// object is here as the creation contract and the call-time raw source for
+// saved-tree replay and cross-grid state restore, not as a lifetime anchor for
+// anything the engine points at.
 enum {
   PROT_DATA = 0,
-  PROT_RESPONSE,
-  PROT_OFFSET,
-  PROT_TEST_OFFSET,
-  PROT_WEIGHTS,
   PROT_COUNT
 };
 
@@ -123,8 +121,38 @@ BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
     static_cast<BartcoreHolder*>(R_ExternalPtrAddr(ptrExpr));
   if (holder == NULL)
     Rf_error("bartcore function called on NULL external pointer");
+  // dbarts_sampler_destroy releases the engine behind a live holder, so a
+  // non-null address is not by itself a live sampler; the R5 object reaches
+  // that state through its own dead-pointer branch (bartcore_isValidPointer)
+  // rather than here, and every method that skips the branch says so
+  if (holder->sampler == NULL)
+    Rf_error("bartcore function called on a destroyed sampler");
   return *holder;
 }
+
+} // namespace
+
+namespace bartcore_bridge {
+
+// COPY-ON-SET, both surfaces': the engine borrows a value vector for the
+// sampler's lifetime, so what it borrows is a holder-owned buffer rather than
+// an R vector or a flat caller's array. Creation sizes each buffer to the
+// sampler's own counts, so this is a copy into storage that already exists;
+// the resize is what the two R conduits that move a count (bartcore_setData,
+// bartcore_setTestPredictor) go through, and it is the only allocation any set
+// performs. A null \c values installs nothing, which is the removal the offset
+// conduits admit.
+const double* adoptVector(std::vector<double>& owned, const double* values,
+                          std::size_t count) {
+  if (values == NULL) return NULL;
+  if (owned.size() != count) owned.resize(count);
+  std::memcpy(owned.data(), values, count * sizeof(double));
+  return owned.data();
+}
+
+} // namespace bartcore_bridge
+
+namespace {
 
 // validates a column-major matrix of predictors against the store: matching
 // column count and representable categorical codes; returns the row count
@@ -3240,6 +3268,10 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  varianceColumns = std::vector<std::size_t>{},
                  amplitudeSpec = bartcore::AmplitudeSpec{},
                  amplitudeStorage = AmplitudeSpecStorage{},
+                 ownedResponse = std::vector<double>{},
+                 ownedWeights = std::vector<double>{},
+                 ownedOffset = std::vector<double>{},
+                 ownedTestOffset = std::vector<double>{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -3309,6 +3341,26 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       applyForestBases(data, amplitudeSpec, amplitudeStorage);
     }
 
+    // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
+    // for the sampler's lifetime, so it borrows buffers the holder owns rather
+    // than the R data object's vectors, and every one is sized to the
+    // sampler's own counts here whether the spec fills it or not - which is
+    // what leaves a later set a copy into storage that already exists. The
+    // vectors are moved into the holder below; a move keeps the buffer, so the
+    // pointers installed here stay valid.
+    ownedResponse.resize(data.numObservations);
+    ownedWeights.resize(data.numObservations);
+    ownedOffset.resize(data.numObservations);
+    ownedTestOffset.resize(data.numTestObservations);
+    const double* y =
+      adoptVector(ownedResponse, data.y, data.numObservations);
+    const double* weights =
+      adoptVector(ownedWeights, data.weights, data.numObservations);
+    const double* offset =
+      adoptVector(ownedOffset, data.offset, data.numObservations);
+    const double* testOffset =
+      adoptVector(ownedTestOffset, data.testOffset, data.numTestObservations);
+
     rngs = createChainRngs(control, options.numChains);
 
     // dispatches on the leaf model: a linear node prior's designated columns
@@ -3316,13 +3368,13 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     std::unique_ptr<bartcore::SamplerBase> sampler =
       carriesAmplitudes
         ? bartcore::createAmplitudeSampler(
-            data.predictors.denseValues, data.y, data.numObservations,
-            data.numPredictors, data.weights, data.offset, data.sigmaEstimate,
+            data.predictors.denseValues, y, data.numObservations,
+            data.numPredictors, weights, offset, data.sigmaEstimate,
             model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
             rngs.data())
         : bartcore::createSampler(
-            data.predictors.denseValues, data.y, data.numObservations,
-            data.numPredictors, data.weights, data.offset, family,
+            data.predictors.denseValues, y, data.numObservations,
+            data.numPredictors, weights, offset, family,
             data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
             rngs.data());
     if (sampler == NULL) {
@@ -3354,13 +3406,18 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
         sampler->setTestPredictors(data.testPredictors.denseValues,
                                data.numTestObservations);
       }
-      sampler->setTestOffset(data.testOffset);
+      sampler->setTestOffset(testOffset);
     }
 
     if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
+    // a move keeps each buffer, so the pointers the sampler holds stay valid
+    holder->ownedResponse = std::move(ownedResponse);
+    holder->ownedWeights = std::move(ownedWeights);
+    holder->ownedOffset = std::move(ownedOffset);
+    holder->ownedTestOffset = std::move(ownedTestOffset);
     // one empty per-forest weight slot per forest keeps the engine's
     // pass-through until a caller installs one; nothing else is owned here,
     // since every basis was copied into the chains at construction
@@ -3391,6 +3448,10 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  spec = bartcore::AmplitudeSpec{},
+                 ownedResponse = std::vector<double>{},
+                 ownedWeights = std::vector<double>{},
+                 ownedOffset = std::vector<double>{},
+                 ownedTestOffset = std::vector<double>{},
                  storage = AmplitudeSpecStorage{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     // the family is read off the model this route was handed rather than
@@ -3435,12 +3496,33 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                static_cast<unsigned long>(spec.forests.size()));
     applyForestBases(data, spec, storage);
 
+    // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
+    // for the sampler's lifetime, so it borrows buffers the holder owns rather
+    // than the R data object's vectors, and every one is sized to the
+    // sampler's own counts here whether the spec fills it or not - which is
+    // what leaves a later set a copy into storage that already exists. The
+    // vectors are moved into the holder below; a move keeps the buffer, so the
+    // pointers installed here stay valid.
+    ownedResponse.resize(data.numObservations);
+    ownedWeights.resize(data.numObservations);
+    ownedOffset.resize(data.numObservations);
+    ownedTestOffset.resize(data.numTestObservations);
+    const double* y =
+      adoptVector(ownedResponse, data.y, data.numObservations);
+    const double* weights =
+      adoptVector(ownedWeights, data.weights, data.numObservations);
+    const double* offset =
+      adoptVector(ownedOffset, data.offset, data.numObservations);
+    // no test offset is installed on this route, but the buffer is still
+    // sized so the R conduits that install one later copy rather than allocate
+    adoptVector(ownedTestOffset, data.testOffset, data.numTestObservations);
+
     rngs = createChainRngs(control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =
       bartcore::createAmplitudeSampler(
-        data.predictors.denseValues, data.y, data.numObservations,
-        data.numPredictors, data.weights, data.offset, data.sigmaEstimate,
+        data.predictors.denseValues, y, data.numObservations,
+        data.numPredictors, weights, offset, data.sigmaEstimate,
         model.sigmaDf, model.sigmaRawScale, options, spec, rngs.data());
     // the factory returns null on a composition it cannot build; storing that
     // unchecked would hand back a live external pointer wrapping a null
@@ -3452,6 +3534,11 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
+    // a move keeps each buffer, so the pointers the sampler holds stay valid
+    holder->ownedResponse = std::move(ownedResponse);
+    holder->ownedWeights = std::move(ownedWeights);
+    holder->ownedOffset = std::move(ownedOffset);
+    holder->ownedTestOffset = std::move(ownedTestOffset);
     // one empty per-forest weight slot per forest; nothing is installed until
     // a caller asks, so the engine keeps its pass-through
     holder->ownedForestWeights.resize(holder->sampler->shape().numForests);
@@ -4822,8 +4909,9 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
-  holder.sampler->setOffset(offset, updateScale == TRUE);
-  retain(ptrExpr, PROT_OFFSET, offsetExpr);
+  holder.sampler->setOffset(
+    adoptVector(holder.ownedOffset, offset, shape.numObservations),
+    updateScale == TRUE);
   return R_NilValue;
 }
 
@@ -4857,9 +4945,10 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   }
   GetRNGstate(); // probit latent redraw
   if (status != NULL) holder.sampler->setSurvivalStatus(status);
-  holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
+  holder.sampler->setResponse(
+    adoptVector(holder.ownedResponse, REAL(yExpr), shape.numObservations),
+    updateScale == TRUE);
   PutRNGstate();
-  retain(ptrExpr, PROT_RESPONSE, yExpr);
   return R_NilValue;
 }
 
@@ -4951,13 +5040,31 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
           Rf_error("%s", message);
     }
 
+    // COPY-ON-SET at the one conduit that MOVES the counts: the resize comes
+    // FIRST and covers every buffer, the ones a null replacement leaves
+    // uncopied included, so none is left the old n wide for a later set to
+    // fill; the copies that follow then reallocate nothing, which is what
+    // keeps the pointers handed to setData below valid past this block
+    holder.ownedResponse.resize(data.numObservations);
+    holder.ownedWeights.resize(data.numObservations);
+    holder.ownedOffset.resize(data.numObservations);
+    holder.ownedTestOffset.resize(data.numTestObservations);
+    const double* y =
+      adoptVector(holder.ownedResponse, data.y, data.numObservations);
+    const double* weights =
+      adoptVector(holder.ownedWeights, data.weights, data.numObservations);
+    const double* offset =
+      adoptVector(holder.ownedOffset, data.offset, data.numObservations);
+    const double* testOffset =
+      adoptVector(holder.ownedTestOffset, data.testOffset,
+                  data.numTestObservations);
     // the loop above bounds every factor cell on both sides against the same
     // fixed level table the engine re-tests, so this refusal is the backstop
     // a header-only host meets rather than a live arm here
-    if (!sampler.setData(data.predictors.denseValues, data.y,
-                         data.numObservations, data.weights, data.offset,
+    if (!sampler.setData(data.predictors.denseValues, y,
+                         data.numObservations, weights, offset,
                          data.testPredictors.denseValues,
-                         data.numTestObservations, data.testOffset))
+                         data.numTestObservations, testOffset))
       Rf_error("a predictor value is not an existing level code");
     // a family whose augmentation is STATED against the counts takes them
     // through the weight conduit as well, so the latents are drawn against the
@@ -4966,13 +5073,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     // this a sampler created with counts and handed weightless data would
     // carry omega = 1/4 into the next sweep's tree moves.
     if (shape.family == bartcore::ResponseFamily::logistic)
-      sampler.setWeights(data.weights);
+      sampler.setWeights(weights);
 
     // the new spec is the creation contract and the call-time raw source; the
     // engine re-quantized it and retains no predictor pointer
     retain(ptrExpr, PROT_DATA, dataExpr);
-    retain(ptrExpr, PROT_RESPONSE, R_NilValue);
-    retain(ptrExpr, PROT_OFFSET, R_NilValue);
 
     return R_NilValue;
   });
@@ -4987,7 +5092,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
                                   "bartcore_setTestPredictor");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
-    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
+    holder.ownedTestOffset.clear();
     return R_NilValue;
   }
   refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestPredictor");
@@ -5027,6 +5132,9 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
                          numTestObservations);
   // buildTest copies the test values into owned storage, so nothing is pinned
   holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
+  // the standing offset survives a same-count rebuild (the refusal above is
+  // what holds the two lengths together), so the buffer follows the rows
+  holder.ownedTestOffset.resize(numTestObservations);
   return R_NilValue;
 }
 
@@ -5035,7 +5143,6 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (Rf_isNull(offsetExpr)) {
     holder.sampler->setTestOffset(NULL);
-    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
   refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestOffset");
@@ -5046,8 +5153,8 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
   if (!Rf_isReal(offsetExpr) ||
       static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
     Rf_error("length of test offset must equal number of test observations");
-  holder.sampler->setTestOffset(REAL(offsetExpr));
-  retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
+  holder.sampler->setTestOffset(
+    adoptVector(holder.ownedTestOffset, REAL(offsetExpr), numTestObservations));
   return R_NilValue;
 }
 
@@ -5065,7 +5172,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
                                   "bartcore_setTestPredictorAndOffset");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
-    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
+    holder.ownedTestOffset.clear();
     return R_NilValue;
   }
   refuseUndefinedTestFits(*holder.sampler,
@@ -5091,9 +5198,9 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
       if (!installTestContainer(*holder.sampler, parsed))
         Rf_error("a leaf covariate column cannot be a sparse test column; "
                  "supply it as a dense test column");
-      holder.sampler->setTestOffset(Rf_isNull(offsetExpr) ? NULL
-                                                          : REAL(offsetExpr));
-      retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
+      holder.sampler->setTestOffset(adoptVector(
+        holder.ownedTestOffset,
+        Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), parsed.view.numRows));
       return R_NilValue;
     });
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
@@ -5113,13 +5220,14 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 
   // buildTest owns the test values; only the borrowed test offset is pinned
   holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
-  holder.sampler->setTestOffset(Rf_isNull(offsetExpr) ? NULL
-                                                      : REAL(offsetExpr));
-  retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
+  holder.sampler->setTestOffset(adoptVector(
+    holder.ownedTestOffset, Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
+    numTestObservations));
   return R_NilValue;
 }
 
-// Case weights: a pointer swap with nothing rescaled for gaussian, and for
+// Case weights: a copy into the holder's own buffer with nothing rescaled for
+// gaussian, and for
 // logistic a model change - the counts are the Polya-Gamma shape, so the
 // engine redraws the latents against them off the chain generator, never R's
 // stream, which is why no GetRNGstate bracket appears here.
@@ -5141,8 +5249,8 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   // fractional is silently rounded by the PG draw's lround and leaves a row
   // carrying a full PG(1, psi) precision it has no observation for
   enforceBinaryWeightPolicy(shape.family, weights, numObservations);
-  holder.sampler->setWeights(weights);
-  retain(ptrExpr, PROT_WEIGHTS, weightsExpr);
+  holder.sampler->setWeights(
+    adoptVector(holder.ownedWeights, weights, numObservations));
   return R_NilValue;
 }
 
@@ -5258,7 +5366,14 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
 }
 
 SEXP bartcore_isValidPointer(SEXP ptrExpr) {
-  return Rf_ScalarLogical(R_ExternalPtrAddr(ptrExpr) != NULL ? TRUE : FALSE);
+  // two ways to be dead: a pointer that never carried a holder (a
+  // deserialized one, whose address does not survive), and a holder whose
+  // engine dbarts_sampler_destroy released early. Both route the R5 object to
+  // the same re-creation branch.
+  BartcoreHolder* holder =
+    static_cast<BartcoreHolder*>(R_ExternalPtrAddr(ptrExpr));
+  return Rf_ScalarLogical(
+    holder != NULL && holder->sampler != NULL ? TRUE : FALSE);
 }
 
 SEXP bartcore_getSigmas(SEXP ptrExpr) {
