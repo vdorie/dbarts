@@ -1,4 +1,10 @@
 #include "config.hpp"
+// The compiled instruction-set macros buildInfo reports have to come from the
+// header the kernels themselves compile against: config.hpp does not carry
+// them on Windows, where SIMD support is decided by src/misc/config.h.win's
+// own preprocessor tests rather than by a configure probe. Quoted include, so
+// this resolves beside this file (src/misc/config.h), not through -Iinclude.
+#include "misc/config.h"
 
 #include <cstddef> // size_t
 #include <cstdint> // uint32_t
@@ -171,6 +177,62 @@ static SEXP getMaxSIMDInstructionSet() {
   return Rf_ScalarInteger(static_cast<int>(result));
 }
 
+/// list(mode, compiled.isa, simd.level) describing the loaded shared object.
+///
+/// mode is "reference" when DBARTS_REFERENCE_BUILD was defined at compile
+/// time and "shipped" otherwise. Recorded bitwise baselines and seed-locked
+/// snapshot values are pinned to the reference build, so this string is what
+/// decides whether such a test may run at all; it must never be derived from
+/// anything but the macro. simd.level is misc_simd_getMaxSIMDInstructionSet(),
+/// which is both the level misc_simd_init() installed at load and the value
+/// the R-level SIMD tests already dispatch on - one source of truth, not two.
+static SEXP buildInfo(void) {
+  const char* isaNames[8];
+  int numISA = 0;
+#ifdef COMPILER_SUPPORTS_SSE2
+  isaNames[numISA++] = "sse2";
+#endif
+#ifdef COMPILER_SUPPORTS_SSE4_1
+  isaNames[numISA++] = "sse4.1";
+#endif
+#ifdef COMPILER_SUPPORTS_AVX
+  isaNames[numISA++] = "avx";
+#endif
+#ifdef COMPILER_SUPPORTS_AVX2
+  isaNames[numISA++] = "avx2";
+#endif
+#ifdef COMPILER_SUPPORTS_NEON
+  isaNames[numISA++] = "neon";
+#endif
+
+#ifdef DBARTS_REFERENCE_BUILD
+  const char* mode = "reference";
+#else
+  const char* mode = "shipped";
+#endif
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(resultExpr, 0, Rf_mkString(mode));
+
+  SEXP isaExpr = PROTECT(Rf_allocVector(STRSXP, numISA));
+  for (int i = 0; i < numISA; ++i)
+    SET_STRING_ELT(isaExpr, i, Rf_mkChar(isaNames[i]));
+  SET_VECTOR_ELT(resultExpr, 1, isaExpr);
+
+  SET_VECTOR_ELT(resultExpr, 2,
+                 Rf_ScalarInteger(
+                   static_cast<int>(misc_simd_getMaxSIMDInstructionSet())));
+
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("mode"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("compiled.isa"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("simd.level"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+
+  UNPROTECT(3);
+  return resultExpr;
+}
+
 }
 
 extern "C" {
@@ -254,6 +316,7 @@ static R_CallMethodDef R_callMethods[] = {
            bartcore_setPredictParallelCutoff, 1),
   DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
   DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
+  DEF_FUNC("dbarts_buildInfo", buildInfo, 0),
 
   {NULL, NULL, 0}
 };
