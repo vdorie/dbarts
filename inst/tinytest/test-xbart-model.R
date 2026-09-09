@@ -289,12 +289,12 @@ expect_equal(
 
 rm(xval)
 
-# the binary grid default is the same FIXED k the continuous arm defaults to
-# (2), not bart's chi hyperprior: a hyperprior is held rather than swept and
-# is drawn every sweep, so it would collapse the k axis onto a single cell.
-# A default binary run is therefore identical to the same run naming k = 2 -
-# a hyperprior reaching a cell would draw and move the stream - and reports
-# the k axis under drop = FALSE exactly as a continuous run does
+# an absent k is ONE cell at the front door's own default for the response
+# type, so a default xbart call scores the model a default bart call fits:
+# fixed 2 for a continuous response, chi(1.5, 2) for a binary one (dec ruling
+# 6, superseding dec-B12's fixed-2 binary default). The modelled cell is
+# labelled by the constructor call that rebuilds it, and its draws move,
+# since k is drawn every sweep inside it
 binaryCV <- function(...) {
   dbarts::xbart(
     x,
@@ -311,10 +311,35 @@ binaryCV <- function(...) {
   )
 }
 binaryDefault <- binaryCV()
-expect_identical(binaryDefault, binaryCV(k = 2))
-expect_identical(dimnames(binaryDefault)[["k"]], "2")
+expect_identical(dimnames(binaryDefault)[["k"]], "chi(1.5, 2)")
+# the same run naming the hyperprior. Written out rather than forwarded
+# through the helper's '...': match.call() reports a dots argument as ..1,
+# which the prior vocabulary has no expression to resolve - the standing
+# limit of every vocabulary argument here, not one this axis adds
+binaryNamed <- dbarts::xbart(
+  x,
+  z,
+  n.samples = 5L,
+  n.burn = c(3L, 2L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 1L,
+  n.threads = 1L,
+  seed = 41L,
+  drop = FALSE,
+  k = chi(1.5, 2)
+)
+expect_identical(binaryDefault, binaryNamed)
+# and it is a different cell from the fixed 2 that used to be the default
+expect_true(all(binaryDefault != binaryCV(k = 2)))
+expect_identical(dimnames(binaryCV(k = 2))[["k"]], "2")
+# a continuous response keeps the fixed default, named or not
 expect_identical(dimnames(binaryCV(family = "gaussian"))[["k"]], "2")
-rm(binaryCV, binaryDefault)
+expect_identical(
+  binaryCV(family = "gaussian"),
+  binaryCV(family = "gaussian", k = 2)
+)
+rm(binaryCV, binaryDefault, binaryNamed)
 
 # family routes through to the folds: logistic and forced-gaussian fit 0/1
 # responses, binary families reject continuous ones

@@ -210,6 +210,26 @@ expect_error(
   pattern = "student residuals require a continuous gaussian response"
 )
 
+# --- xbart's own two (front-door S3) ---
+
+# 'control' is refused by a message naming the flat arguments its settings
+# became, not by R's own "unused argument": xbart builds its own control, so
+# there is nothing to honour and the tombstone adds no capability
+expect_error(
+  dbarts::xbart(xCons, yCons, n.reps = 1L, control = consControl),
+  pattern = "'control' has left 'xbart'"
+)
+expect_error(
+  dbarts::xbart(xCons, yCons, n.reps = 1L, control = consControl),
+  pattern = "n.cuts, useQuantiles, n.thin, storage"
+)
+# a three-element n.burn was 0.9-x's per-replication burn-in; chains are
+# never carried between replications now, so the element is named and gone
+expect_error(
+  dbarts::xbart(xCons, yCons, n.reps = 1L, n.burn = c(2L, 1L, 1L)),
+  pattern = "per-replication burn-in"
+)
+
 # and the consolidated names are gone from the signatures they left
 for (name in c("resid.dist", "dispersion", "breaks", "max.rows")) {
   expect_false(name %in% names(formals(dbarts::bart)))

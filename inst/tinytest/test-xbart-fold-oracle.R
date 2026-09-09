@@ -16,10 +16,12 @@ source(
 oldSampleKind <- RNGkind()[3L]
 suppressWarnings(RNGkind(sample.kind = "Rejection"))
 
-## fold assembly. At n.threads = 1, the only draws before replication
-## 1's row permutation are the chunk seed itself, so the permutation is
-## reconstructible outside xbart from (seed, n) alone. y is set to the row
-## index, so a capturing loss's y.test IS that fold's row numbers directly.
+## fold assembly. Every seed the run uses is drawn from the call's seed in
+## one pass - one split seed per replication, then one fit seed per
+## (replication, fold) unit - so the permutation is reconstructible outside
+## xbart from (seed, n, n.reps, fold count) alone, at any thread count. y is
+## set to the row index, so a capturing loss's y.test IS that fold's row
+## numbers directly.
 n <- 24L
 seed <- 7L
 set.seed(4441L)
@@ -27,11 +29,12 @@ x <- matrix(runif(n * 2L), n, 2L)
 y <- as.numeric(seq_len(n))
 
 n.test <- 4L
+n.reps <- 1L
 foldSizes <- rep.int(n %/% n.test, n.test) +
   rep.int(c(1L, 0L), c(n %% n.test, n.test - n %% n.test))
 set.seed(seed)
-chunkSeed <- sample.int(.Machine$integer.max, 1L)
-set.seed(chunkSeed)
+seeds <- sample.int(.Machine$integer.max, n.reps + n.reps * n.test)
+set.seed(seeds[1L])
 permutation <- sample.int(n)
 expectedFolds <- vector("list", n.test)
 foldOffset <- 0L
@@ -53,7 +56,7 @@ invisible(dbarts::xbart(
   n.burn = c(3L, 1L),
   method = "k-fold",
   n.test = n.test,
-  n.reps = 1L,
+  n.reps = n.reps,
   n.trees = 3L,
   n.threads = 1L,
   seed = seed,
@@ -61,6 +64,9 @@ invisible(dbarts::xbart(
 ))
 actualFolds <- captured$calls
 
+# the folds arrive in fold order even though each is an independent unit of
+# work now, and each holds exactly the rows the seed's own permutation gives
+# it
 expect_equal(actualFolds, expectedFolds)
 
 pairs <- combn(seq_len(n.test), 2L, simplify = FALSE)
@@ -84,8 +90,9 @@ rm(
   x,
   y,
   n.test,
+  n.reps,
   foldSizes,
-  chunkSeed,
+  seeds,
   permutation,
   expectedFolds,
   foldOffset,

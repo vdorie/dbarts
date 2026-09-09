@@ -98,8 +98,8 @@ expect_equal(eval(formals(dbarts::xbart)$n.burn), c(200L, 150L))
 # a length-3 (or longer) n.burn is refused by name instead of the third
 # (and any further) element being silently dropped: man/xbart.Rd documents
 # one or two, and 0.9-34's own three-element default honored the third as
-# the per-replication burn-in
-expect_error(
+# the per-replication burn-in, which a tombstone names
+threeElementBurn <- function() {
   dbarts::xbart(
     y ~ x,
     method = "k-fold",
@@ -109,9 +109,11 @@ expect_error(
     n.test = 5,
     n.threads = 1L,
     seed = 0L
-  ),
-  "'n.burn' must be of length 1 or 2"
-)
+  )
+}
+expect_error(threeElementBurn(), "'n.burn' must be of length 1 or 2")
+expect_error(threeElementBurn(), "per-replication burn-in")
+rm(threeElementBurn)
 # length-1 recycling is kept
 expect_equal(
   dbarts::xbart(
@@ -192,6 +194,22 @@ expect_error(
   dbarts::xbart(y ~ x, k = NA_real_),
   "'k' must contain only positive values"
 )
+# the list form is refused entry by entry, on the same terms as the vector
+expect_error(
+  dbarts::xbart(y ~ x, k = list(2, -1)),
+  "'k' must contain only positive values"
+)
+expect_error(
+  dbarts::xbart(y ~ x, k = list(2, "not-a-numeric")),
+  "'k' must be coercible to type: numeric"
+)
+# a list entry that is neither a number nor a hyperprior is named, rather
+# than reaching the leaf model as something the node prior cannot read
+expect_error(
+  dbarts::xbart(y ~ x, k = list(2, chisq(3, 0.9))),
+  "'k' must contain positive numbers and hyperprior specifications"
+)
+expect_error(dbarts::xbart(y ~ x, k = numeric(0)), "'k' must name at least")
 
 expect_error(
   dbarts::xbart(y ~ x, power = c(0, 0.5)),

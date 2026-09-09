@@ -786,8 +786,9 @@ for (knob in xbartKnobs) {
   )
 }
 expect_false("control" %in% names(formals(dbarts::xbart)))
-# '...' is the transition release's retired-spelling channel; it carries no
-# name of its own here, so every '...' argument is refused
+# '...' is the transition release's retired-spelling channel; a name it does
+# not carry is refused as unused, and 'control', which it does, is refused by
+# a message naming the flat arguments its settings became
 expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
@@ -801,7 +802,17 @@ expect_error(
     n.reps = 1L,
     n.threads = 1L
   ),
-  pattern = "unused argument"
+  pattern = "'control' has left 'xbart'"
+)
+expect_error(
+  dbarts::xbart(
+    x,
+    y.gaussian,
+    control = dbarts::dbartsControl(),
+    n.reps = 1L,
+    n.threads = 1L
+  ),
+  pattern = "n.cuts, useQuantiles, n.thin, storage"
 )
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
