@@ -49,8 +49,8 @@ What distinguishes dbarts from other BART implementations is that its sampler is
     <div class="section level2">
     <h2 id="fitting-a-model">Fitting a model<a class="anchor" aria-label="anchor" href="#fitting-a-model"></a></h2>
     <p>For an ordinary fit, use one of the fitting functions. Each runs the sampler to completion and returns posterior draws.</p>
-<p></p><ul><li><p><code><a href="bart.html">bart</a></code> - the <span class="pkg">BayesTree</span>-compatible interface, kept at its historical defaults (200 trees, one chain, factors expanded to indicator columns, binary responses probit, missing data rejected).</p></li>
-<li><p><code><a href="dbarts-deprecated.html">bart2</a></code> - the current interface, taking a formula or matrices and reaching the full feature set, including every response <code>family</code>. This is the one to reach for first.</p></li>
+<p></p><ul><li><p><code><a href="bart.html">bart</a></code> - the current interface, taking a formula or matrices and reaching the full feature set, including every response <code>family</code>. This is the one to reach for first.</p></li>
+<li><p><code><a href="bartBT.html">bartBT</a></code> - the <span class="pkg">BayesTree</span>-compatible interface, kept at its historical defaults (200 trees, one chain, factors expanded to indicator columns, binary responses probit, missing data rejected).</p></li>
 <li><p><code><a href="xbart.html">xbart</a></code> - crossvalidates over <code>k</code>, <code>power</code>, <code>base</code>, and the tree count.</p></li>
 <li><p><code><a href="pdbart.html">pdbart</a></code> - partial dependence plots for one or two variables.</p></li>
 </ul><p>Fits support <code><a href="bartBT.html">predict</a></code>, <code><a href="bartBT.html">fitted</a></code>, <code><a href="bartBT.html">residuals</a></code>, <code><a href="bartBT.html">extract</a></code>, <code><a href="bartBT.html">plot</a></code>, and <code><a href="summary.bart.html">summary</a></code>; see <code><a href="bart.html">bart</a></code>'s ‘Generics’ section for what each returns and on which scale. <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> turns a survival fit into survival-curve draws.</p>
@@ -61,8 +61,8 @@ What distinguishes dbarts from other BART implementations is that its sampler is
     </div>
     <div class="section level2">
     <h2 id="model-features">Model features<a class="anchor" aria-label="anchor" href="#model-features"></a></h2>
-    <p>Reached through <code><a href="dbarts-deprecated.html">bart2</a></code> and <code><a href="dbarts.html">dbarts</a></code> unless noted.</p>
-<p></p><ul><li><p>Response families (<code>family</code>): <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated failure time (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>, <code>bart2</code> only), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>, <code>bart2</code> only). <code>"auto"</code>, the default, resolves the family from the response.</p></li>
+    <p>Reached through <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code> unless noted.</p>
+<p></p><ul><li><p>Response families (<code>family</code>): <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated failure time (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>, <code>bart</code> only), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>, <code>bart</code> only). <code>"auto"</code>, the default, resolves the family from the response.</p></li>
 <li><p>Outlier-robust Student-t errors (<code>resid.dist = student(...)</code>) and a heteroscedastic variance forest (<code>variance</code>).</p></li>
 <li><p>Structural constraints: monotonicity (<code>monotone</code>), interaction limits (<code><a href="interactions.html">interactions</a></code>), and block-additivity (<code><a href="blocks.html">blocks</a></code>).</p></li>
 <li><p>Leaf models: constant, linear, or Gaussian-process (<code>node.prior</code>; see <code><a href="dbartsPriors.html">dbartsPriors</a></code>).</p></li>
@@ -92,7 +92,7 @@ What distinguishes dbarts from other BART implementations is that its sampler is
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts-deprecated.html">bart2</a></code> to fit a model, <code><a href="dbarts.html">dbarts</a></code> to build a sampler, and the package vignettes: <code><a href="../articles/gibbs_sampler_mixture_model.html">vignette("gibbs_sampler_mixture_model", package = "dbarts")</a></code> and <code><a href="../articles/working_with_saved_trees.html">vignette("working_with_saved_trees", package = "dbarts")</a></code>.</p></div>
+    <div class="dont-index"><p><code><a href="bart.html">bart</a></code> to fit a model, <code><a href="dbarts.html">dbarts</a></code> to build a sampler, and the package vignettes: <code><a href="../articles/gibbs_sampler_mixture_model.html">vignette("gibbs_sampler_mixture_model", package = "dbarts")</a></code> and <code><a href="../articles/working_with_saved_trees.html">vignette("working_with_saved_trees", package = "dbarts")</a></code>.</p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

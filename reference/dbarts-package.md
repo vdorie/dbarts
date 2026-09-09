@@ -18,14 +18,14 @@ For an ordinary fit, use one of the fitting functions. Each runs the
 sampler to completion and returns posterior draws.
 
 - [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) - the
+  current interface, taking a formula or matrices and reaching the full
+  feature set, including every response `family`. This is the one to
+  reach for first.
+
+- [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) - the
   BayesTree-compatible interface, kept at its historical defaults (200
   trees, one chain, factors expanded to indicator columns, binary
   responses probit, missing data rejected).
-
-- [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md) -
-  the current interface, taking a formula or matrices and reaching the
-  full feature set, including every response `family`. This is the one
-  to reach for first.
 
 - [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) -
   crossvalidates over `k`, `power`, `base`, and the tree count.
@@ -68,16 +68,16 @@ packages that embed dbarts and supply their own design matrix.
 ## Model features
 
 Reached through
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-and [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-unless noted.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) unless
+noted.
 
 - Response families (`family`): `"gaussian"`, `"probit"`, `"logistic"`,
   accelerated failure time (`"aft"`), discrete-time survival hazard
   (`"hazard"`, `"hazard.logistic"`), multinomial (`"multinomial"`,
-  `bart2` only), ordered categorical (`"ordinal"`), negative-binomial
+  `bart` only), ordered categorical (`"ordinal"`), negative-binomial
   counts (`"nbinom"`), and semicontinuous two-part
-  (`"hurdle.lognormal"`, `bart2` only). `"auto"`, the default, resolves
+  (`"hurdle.lognormal"`, `bart` only). `"auto"`, the default, resolves
   the family from the response.
 
 - Outlier-robust Student-t errors (`resid.dist = student(...)`) and a
@@ -142,10 +142,9 @@ McCulloch. See `citation("dbarts")` for how to cite the package.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-to fit a model,
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) to build
-a sampler, and the package vignettes:
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) to fit a
+model, [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+to build a sampler, and the package vignettes:
 [`vignette("gibbs_sampler_mixture_model", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.md)
 and
 [`vignette("working_with_saved_trees", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/working_with_saved_trees.md).
