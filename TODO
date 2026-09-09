@@ -337,8 +337,9 @@ hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82; S1
   correlated hurdle family in the engine.
   Plan: docs/plans/front-door.md.
 
-pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; S1 LANDED
-  2d0b6d90)
+pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
+  2026-09-09: S1 2d0b6d90, S3 56398169; ports stan4bart 4ace376,
+  treatSens 6b274fb; revdep-smoke green)
   pre-release: drop dbarts_sampler_create, storeState, setState and
   getTrees from inst/include/dbarts/dbarts.h; consumers create through
   the R interface and read the handle from the sampler object's
