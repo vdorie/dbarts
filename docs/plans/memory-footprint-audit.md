@@ -1,14 +1,22 @@
 # memory-footprint-audit
 
 agent: opus (steps 1 and 5, the derivation and the ranked list); sonnet
-  (steps 2 to 4, the script, the fit run and the manual). Step 1 lands the
-  note first: the script's predicted column is that model.
-rng: neutral. No draw path is touched; the script is a benchmark, not a gate.
+  (steps 2 to 4 and 7, the script, the fit run, the manual and the
+  two-copy removal). Step 1 lands the note first: the script's predicted
+  column is that model; step 7 lands last, after the script has recorded
+  the before row.
+rng: neutral. No draw path is touched; the script is a benchmark, not a
+  gate; step 7 changes how the result array is laid out and reduced, not
+  any draw, so the three bitwise equivalence baselines (gaussian, BCF,
+  multinomial) expect IDENTICAL and every packaged result is compared
+  element-wise against the pre-change fit.
 window: independent of the other pre-release arcs and wanted early: it sets
   the within-chain threading default (dec-B89) and prices the owned
   conditioning vectors the header arc adds ([pure-c-header.md](pure-c-header.md), dec-B87).
 budget: ~150 lines benchmarks/R/memory-footprint.R, ~100 lines
-  docs/design/memory-footprint.md, ~40 lines Rd. No src/ or R/ change.
+  docs/design/memory-footprint.md, ~40 lines Rd; step 7 ~40 lines R (and
+  bridge dimension changes if the implementer takes that route) plus
+  ~60 lines of tests.
 
 Decisions in [docs/decisions.md](../decisions.md): dec-B87 (this audit prices
 the owned copies), dec-B89 (it informs the threading default), dec-B104 (the
@@ -147,15 +155,17 @@ Case 2: n = 1e6, p = 50, 200 trees, 1 chain, everything else as above.
    baseline subtraction mostly removes, and the second host needs VD's grant.
    Evidence that would change it: a residual above the step 2 tolerance on
    arm64 with no code-side explanation.
-2. Whether any reduction lands pre-release. Recommended: none in this arc;
-   each ranked item then stands or falls on its own. The regression rule (a
-   footprint worse than 0.9-34 would not be deferred) binds nothing here,
-   verified rather than assumed: 0.9-34's classic engine allocated per chain
-   a size_t index array and a double tree-fits array at n*trees each, 16 bytes
-   per observation-tree pair against today's 8 under a constant leaf. retired:
+2. Whether any reduction lands pre-release (VD 2026-09-08, "Use your
+   recommendation" on adding the two-copy removal): the audit lands its
+   model and manual section, and the removal of the two transient copies
+   of the training-prediction array joins this arc as step 7; every
+   other ranked item stands on its own afterwards. The regression rule
+   binds nothing here, verified rather than assumed: 0.9-34's classic
+   engine allocated per chain a size_t index array and a double
+   tree-fits array at n*trees each, 16 bytes per observation-tree pair
+   against today's 8 under a constant leaf. retired:
    [src/dbarts/state.cpp:51-60](https://github.com/vdorie/dbarts/blob/edcdf735855ad331f785c3577f0305d7b2dc224f/src/dbarts/state.cpp#L51-L60),
-   in the since-deleted classic engine. Evidence that would change it: a cell
-   failing a fit 0.9-34 would have served.
+   in the since-deleted classic engine.
 3. Grid size against run time. Recommended: a spine, not the full crossing
    of the eight axes (384 cells, several hours). The model is additive and
    separable, so a base cell plus one-axis-at-a-time excursions (about 40
@@ -234,7 +244,7 @@ Case 2: n = 1e6, p = 50, 200 trees, 1 chain, everything else as above.
    | item | saved, case 1 | saved, case 2 | change | recommendation |
    | --- | --- | --- | --- | --- |
    | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | take it, in step 4 |
-   | have the bridge allocate the result in the layout the R side returns, and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dims plus the R reshape and mean | own TODO entry; the largest real reduction |
+   | have the bridge allocate the result in the layout the R side returns, and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dims plus the R reshape and mean | step 7 of this arc (VD 2026-09-08) |
    | a flat arena for saved trees instead of a vector per tree (keepTrees only; zero in both cases, which run keepTrees FALSE) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
    | drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |
    | leafOf as uint16 | 40 MB/chain | 400 MB/chain | declined by measurement | do not reopen |
@@ -246,6 +256,20 @@ Case 2: n = 1e6, p = 50, 200 trees, 1 chain, everything else as above.
 6. Records: close the TODO entry, naming the note and the script; add the
    CSV and its MANIFEST row; one NEWS line under 1.0-0. The feature matrix is
    untouched.
+7. Remove the two transient copies of the training-prediction array in
+   [`packageBartResults`](../../R/bart.R) and
+   [`convertSamplesFromDbartsToBart`](../../R/bart.R): the fitted means are
+   taken over the engine's own layout before any permutation (a
+   `colMeans`-style reduction over the observation-major array, not
+   `apply`), and the array reaches its returned layout either by the bridge
+   allocating it in that layout or by one permutation into a
+   preallocated array, so no moment holds more than one full-size copy
+   beyond the one returned. Same treatment for the test predictions.
+   Every returned element is identical to the pre-change fit (a test
+   compares whole result objects at one seed for gaussian, probit and one
+   multi-chain uncombined case); the script's before and after rows show
+   the peak drop, expected from about 5.5 GB to about 2.2 GB in case 1 and
+   14 GB to 6 GB in case 2.
 
 ## Verification
 
@@ -255,6 +279,8 @@ Rscript benchmarks/R/memory-footprint.R fit benchmarks/baselines/memory-footprin
 air format --check . && Rscript -e 'lintr::lint("benchmarks/R/memory-footprint.R")'
 Rscript tools/check-doc-freshness.R && Rscript tools/check-rc-codoc.R
 R CMD build . && R CMD check --as-cran dbarts_*.tar.gz
+R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'                      # step 7
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-fbff1989.rds   # step 7: 50 identical
 ```
 
 Expected: record writes one row per cell per metric; fit prints the residual
