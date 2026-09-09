@@ -2655,7 +2655,7 @@ plotTree.bartHurdle <- function(object, ...) {
 refuseSurvivalProbabilitiesMethod <- function(class) {
   stop(
     "survivalProbabilities applies to a discrete-time hazard fit ",
-    "(bart2(family = \"hazard\")); a ",
+    "(bart(family = \"hazard\")); a ",
     class,
     " fit has no hazard channel"
   )

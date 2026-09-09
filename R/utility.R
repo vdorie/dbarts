@@ -828,7 +828,7 @@ refuseWiderTestColumns <- function(x.test, drop) {
           nlevels(column),
           " levels but the training design declared ",
           trained,
-          "; use bart2() or dbarts(), which track levels across predict ",
+          "; use bart() or dbarts(), which track levels across predict ",
           "by default"
         )
       }

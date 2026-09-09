@@ -460,7 +460,7 @@ validateXTest <- function(x.test, x.train) {
           mismatched[1L],
           "' does not match training's indicator columns ('test' levels: ",
           toString(testFactorLevels[[mismatched[1L]]]),
-          "); use bart2() or dbarts(), which track levels across predict ",
+          "); use bart() or dbarts(), which track levels across predict ",
           "by default"
         )
       }
@@ -708,7 +708,7 @@ refuseMultiColumnResponse <- function(y) {
   if (inherits(y, "Surv")) {
     stop(
       "'y' is a survival response (Surv); dbartsData() takes a single-",
-      "column response - fit through dbarts()/bart2() with family = ",
+      "column response - fit through dbarts()/bart() with family = ",
       "\"aft\" or \"hazard\", which extract time and status first"
     )
   }
@@ -716,7 +716,7 @@ refuseMultiColumnResponse <- function(y) {
     if (ncol(y) == 2L) {
       stop(
         "'y' is an n x 2 matrix; dbartsData() takes a single-column ",
-        "response - a (time, status) pair goes to dbarts()/bart2() with ",
+        "response - a (time, status) pair goes to dbarts()/bart() with ",
         "family = \"aft\"/\"hazard\", per-category counts to ",
         "dbartsData(counts = )"
       )
