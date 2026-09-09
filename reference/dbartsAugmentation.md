@@ -29,7 +29,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   `"student"`, matched by
   [`match.arg`](https://rdrr.io/r/base/match.arg.html); there is no
   default. `"student"` is the Student-t residual distribution
-  (`resid.dist = student()` in
+  (`family = student()` in
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)), a
   gaussian response under a scale mixture.
 

@@ -63,11 +63,11 @@ What distinguishes dbarts from other BART implementations is that its sampler is
     <h2 id="model-features">Model features<a class="anchor" aria-label="anchor" href="#model-features"></a></h2>
     <p>Reached through <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code> unless noted.</p>
 <p></p><ul><li><p>Response families (<code>family</code>): <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated failure time (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>, <code>bart</code> only), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>, <code>bart</code> only). <code>"auto"</code>, the default, resolves the family from the response.</p></li>
-<li><p>Outlier-robust Student-t errors (<code>resid.dist = student(...)</code>) and a heteroscedastic variance forest (<code>variance</code>).</p></li>
+<li><p>Outlier-robust Student-t errors (<code>family = student(...)</code>) and a heteroscedastic variance forest (<code>variance</code>).</p></li>
 <li><p>Structural constraints: monotonicity (<code>monotone</code>), interaction limits (<code><a href="interactions.html">interactions</a></code>), and block-additivity (<code><a href="blocks.html">blocks</a></code>).</p></li>
 <li><p>Leaf models: constant, linear, or Gaussian-process (<code>node.prior</code>; see <code><a href="dbartsPriors.html">dbartsPriors</a></code>).</p></li>
-<li><p>Variable selection by the DART prior (<code>dart</code>).</p></li>
-<li><p>Predictors: missing values incorporated in place (<code>missing</code>), unordered factors split on level subsets (<code>factors</code>), and sparse or mixed dense/sparse input (<code>Matrix::dgCMatrix</code>, <code><a href="sparseFactor.html">sparseFactor</a></code>).</p></li>
+<li><p>Variable selection by the DART prior (<code>tree.prior = dart()</code>).</p></li>
+<li><p>Predictors: missing values incorporated in place unconditionally, unordered factors split on level subsets (<code>factors</code>), and sparse or mixed dense/sparse input (<code>Matrix::dgCMatrix</code>, <code><a href="sparseFactor.html">sparseFactor</a></code>).</p></li>
 <li><p>Warm starts from a previous fit (<code>warm.start</code>) or by XBART-style grow-from-root (<code>n.grow.sweeps</code>).</p></li>
 </ul></div>
     <div class="section level2">

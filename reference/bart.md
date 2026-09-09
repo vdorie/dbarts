@@ -569,8 +569,8 @@ print(x, ...)
   forest's `tree.prior`, exactly as the plain selector does). Gaussian
   and `"aft"` (survival) responses only - the latent families route
   their own precisions through the channel it divides into;
-  `resid.dist = student()` residuals are refused with it too,
-  unadjudicated rather than unsupported by design (see
+  `family = student()` residuals are refused with it too, unadjudicated
+  rather than unsupported by design (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
   `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
@@ -818,18 +818,20 @@ print(x, ...)
   `"probit"`/`"logistic"` fit on the expanded rows - a hazard fit is
   byte-identical, draw for draw, to the binary fit on the hand-expanded
   design with the same seed. The time grid defaults to the sorted
-  distinct observed times (the BART `surv.bart` convention); `breaks`
-  coarsens it (a single integer bins at that many quantiles, a boundary
-  vector gives explicit right-closed intervals), and `max.rows` guards
-  the expansion size. Offsets are on the link scale and replicate per
-  subject; `weights` replicate and then follow the chosen binary
-  family's policy (probit refuses non-unit weights, logistic requires
-  integer counts). A `Surv` response requires the family to be requested
-  explicitly (`family = "auto"` selects `"aft"`); the matrix interface
-  is required (no formula, `subset`, or `test` - expand held-out
-  subjects with `survivalProbabilities(fit, times, newdata = )`, which
-  needs `keepTrees`). The returned object is an ordinary `"bart"` fit
-  whose `$family` records the binary link (so every prediction generic
+  distinct observed times (the BART `surv.bart` convention);
+  `family = hazard(breaks = )` coarsens it (a single integer bins at
+  that many quantiles, a boundary vector gives explicit right-closed
+  intervals), and `hazard(max.rows = )` guards the expansion size (see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
+  Offsets are on the link scale and replicate per subject; `weights`
+  replicate and then follow the chosen binary family's policy (probit
+  refuses non-unit weights, logistic requires integer counts). A `Surv`
+  response requires the family to be requested explicitly
+  (`family = "auto"` selects `"aft"`); the matrix interface is required
+  (no formula, `subset`, or `test` - expand held-out subjects with
+  `survivalProbabilities(fit, times, newdata = )`, which needs
+  `keepTrees`). The returned object is an ordinary `"bart"` fit whose
+  `$family` records the binary link (so every prediction generic
   transforms correctly with no special case) and whose `$periods`
   element carries the grid; `predict`/`extract` return the per-(subject,
   period) hazards on the expanded rows, and
@@ -1476,7 +1478,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001251
+#> total seconds in loop: 0.001206
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1524,7 +1526,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001431
+#> total seconds in loop: 0.001329
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

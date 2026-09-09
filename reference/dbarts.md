@@ -289,7 +289,7 @@ dbarts(
   log-time is redrawn at its own \\s(x_i)\\;
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   then divides by that surface rather than a scalar.
-  `resid.dist = student()` residuals are also refused together with
+  `family = student()` residuals are also refused together with
   `variance` - unadjudicated (whether the variance forest's
   weight-channel routing composes with them) rather than unsupported by
   design. The per-tree leaf prior is calibrated from the residual

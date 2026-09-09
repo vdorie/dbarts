@@ -65,11 +65,11 @@
 </h2>
 <ul>
 <li>Response families, via <code>family =</code> on <code><a href="reference/bart.html">bart()</a></code> and <code><a href="reference/dbarts.html">dbarts()</a></code>: <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated-failure-time survival (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.probit"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>)</li>
-<li>Outlier-robust Student-t residuals (<code>resid.dist = student(...)</code>)</li>
+<li>Outlier-robust Student-t residuals (<code>family = student(...)</code>)</li>
 <li>Heteroscedastic variance forest (<code>variance = ~ x1 + x2</code>)</li>
 <li>Monotonicity (<code>monotone</code>), interaction (<code>interactions</code>), and block-additive (<code>blocks</code>) constraints</li>
-<li>Missing predictor values handled in place via MIA (<code>missing = "incorporate"</code>)</li>
-<li>DART variable selection prior (<code>dart = TRUE</code> or <code>tree.prior = dart()</code>)</li>
+<li>Missing predictor values handled in place via MIA, unconditionally</li>
+<li>DART variable selection prior (<code>tree.prior = dart()</code>)</li>
 <li>Linear and Gaussian-process leaf models (<code>node.prior = linear(...)</code> or <code>gp(...)</code>)</li>
 <li>Categorical predictors split on level subsets (<code>factors = "categorical"</code>); sparse <code>Matrix::dgCMatrix</code> and mixed dense/sparse predictor input</li>
 <li>Warm starts from a previous fit (<code>warm.start</code>) or XBART-style grow-from-root (<code>n.grow.sweeps</code>)</li>

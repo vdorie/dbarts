@@ -455,10 +455,10 @@ residuals(object, type = "ev", ...)
   \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw of \\f\\
   and \\\sigma\\ - or, for a heteroscedastic fit, \\y_i \mid x_i \sim
   N(\hat{f}(x_i), s^2(x_i) / w_i)\\ at each draw of \\f\\ and \\s\\, a
-  `resid.dist = student()` fit the corresponding marginal \\t\_\nu\\
-  density at that draw's \\\nu\\ (the fit's `$resid.df`) rather than the
-  normal one, binary fits evaluate the Bernoulli log-likelihood of the
-  fitted probability, multiplied for a weighted logistic fit by the
+  `family = student()` fit the corresponding marginal \\t\_\nu\\ density
+  at that draw's \\\nu\\ (the fit's `$resid.df`) rather than the normal
+  one, binary fits evaluate the Bernoulli log-likelihood of the fitted
+  probability, multiplied for a weighted logistic fit by the
   observation-count weight \\w_i\\, and an aft fit contributes the log
   density for an event and the log survival tail \\\log P(T \> C)\\ for
   a right-censored observation, both on the log-time scale. When chains
@@ -874,10 +874,10 @@ are returned. In the numeric \\y\\ case, the list has components:
   The residual error law the fit was made under, `"gaussian"` or
   `"student"` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `resid.dist`). `resid.df` is present only for a `student()` fit: the
-  degrees of freedom \\\nu\\ each draw was conditioned on, in `sigma`'s
-  layout - a fixed \\\nu\\ repeats its value, an estimated one gives
-  that draw's grid value. `extract(type = "loglik")` reads both.
+  `family = student()`). `resid.df` is present only for a `student()`
+  fit: the degrees of freedom \\\nu\\ each draw was conditioned on, in
+  `sigma`'s layout - a fixed \\\nu\\ repeats its value, an estimated one
+  gives that draw's grid value. `extract(type = "loglik")` reads both.
 
 - `y`:
 
@@ -1069,7 +1069,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.200320
+#> total seconds in loop: 0.200352
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
@@ -1111,8 +1111,8 @@ print(cor(fitmat))
 #> lm   0.8841787 0.9009389 1.0000000 0.8963237
 #> bart 0.9985355 0.9887035 0.8963237 1.0000000
 
-## fit with missing predictor values, using missing = "incorporate"
-## (the default): every split rule learns a direction for NAs
+## fit with missing predictor values: every split rule learns a
+## direction for NAs (MIA, always on; no argument selects it)
 set.seed(1)
 n <- 60L
 x.na <- matrix(runif(n * 2), n, 2)

@@ -80,7 +80,7 @@ noted.
   (`"hurdle.lognormal"`, `bart` only). `"auto"`, the default, resolves
   the family from the response.
 
-- Outlier-robust Student-t errors (`resid.dist = student(...)`) and a
+- Outlier-robust Student-t errors (`family = student(...)`) and a
   heteroscedastic variance forest (`variance`).
 
 - Structural constraints: monotonicity (`monotone`), interaction limits
@@ -91,9 +91,9 @@ noted.
 - Leaf models: constant, linear, or Gaussian-process (`node.prior`; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
 
-- Variable selection by the DART prior (`dart`).
+- Variable selection by the DART prior (`tree.prior = dart()`).
 
-- Predictors: missing values incorporated in place (`missing`),
+- Predictors: missing values incorporated in place unconditionally,
   unordered factors split on level subsets (`factors`), and sparse or
   mixed dense/sparse input (`Matrix::dgCMatrix`,
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)).

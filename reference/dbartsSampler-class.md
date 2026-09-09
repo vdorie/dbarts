@@ -1111,7 +1111,7 @@ at all: it is absent from the list, not `NULL` within it, so
 `run()$dispersion` is `NULL` on every non-`"nbinom"` sampler and a test
 of the channel must be `!is.null(...)` rather than a comparison, which
 `NULL` would satisfy vacuously. A sampler built with
-`resid.dist = student()` adds `resid.df` on exactly the same terms - the
+`family = student()` adds `resid.df` on exactly the same terms - the
 degrees of freedom \\\nu\\ each draw is conditioned on, shaped as
 `sigma`, written from settled state and consuming no random numbers,
 absent from the list under any other error law - fixed at the value
@@ -1260,8 +1260,8 @@ regresses on directly. It is a PRECISION, one per observation, for
 Student-t residual distribution (the scale-mixing \\\lambda_i\\); these
 WEIGHT a working response and are not on the response scale at all, so
 differencing them against a fit is meaningless. Note the last case: a
-sampler whose `family` is `"gaussian"` but whose `resid.dist` is
-`student()` (see
+sampler whose `family` is `"gaussian"` but built with
+`family = student()` (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) does
 report latents, and they are precisions.
 

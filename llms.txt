@@ -23,13 +23,12 @@ mechanism.
   (`"multinomial"`), ordered categorical (`"ordinal"`),
   negative-binomial counts (`"nbinom"`), and semicontinuous two-part
   (`"hurdle.lognormal"`)
-- Outlier-robust Student-t residuals (`resid.dist = student(...)`)
+- Outlier-robust Student-t residuals (`family = student(...)`)
 - Heteroscedastic variance forest (`variance = ~ x1 + x2`)
 - Monotonicity (`monotone`), interaction (`interactions`), and
   block-additive (`blocks`) constraints
-- Missing predictor values handled in place via MIA
-  (`missing = "incorporate"`)
-- DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)
+- Missing predictor values handled in place via MIA, unconditionally
+- DART variable selection prior (`tree.prior = dart()`)
 - Linear and Gaussian-process leaf models (`node.prior = linear(...)` or
   `gp(...)`)
 - Categorical predictors split on level subsets
