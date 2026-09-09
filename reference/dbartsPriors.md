@@ -149,7 +149,7 @@ American Statistical Association*, **103**(483), 1119–1130.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 
 ## Examples
 

@@ -439,11 +439,11 @@ documents the rest of `dart`’s arguments.
 
 ## Data Frames, Factors, and Missing Values
 
-`dbarts` and `bart2` take a `data.frame` directly, and
+`dbarts` and `bart` take a `data.frame` directly, and
 (`factors = "categorical"`, the default for both) an unordered factor
 predictor becomes a single categorical column: its splits send a subset
 of levels down each branch, rather than the one-indicator-per-level
-expansion `bart` still uses. `factors = "indicators"` recovers that
+expansion `bartBT` still uses. `factors = "indicators"` recovers that
 expansion on either function, useful for comparing the two. Ordered
 factors are their own predictor kind regardless of `factors`: coded on
 their integer levels and split at a threshold, with one candidate
@@ -468,14 +468,10 @@ y.miss <- ifelse(g == "a", 2, -1) +
     ifelse(is.na(x.miss), 0, x.miss) + rnorm(n.miss, 0, 0.2)
 
 df.miss <- data.frame(y = y.miss, x = x.miss, g = g)
-fit.miss <- bart2(y ~ x + g, df.miss, n.trees = 10L, n.chains = 1L,
+fit.miss <- bart(y ~ x + g, df.miss, n.trees = 10L, n.chains = 1L,
                   n.threads = 1L, n.samples = 20L, n.burn = 20L,
                   verbose = FALSE)
 ```
-
-    ## Warning in warnOnce("tombstone.bart2", "'bart2' is now 'bart'; this call was
-    ## forwarded. The alias is removed ", : 'bart2' is now 'bart'; this call was
-    ## forwarded. The alias is removed in dbarts 1.1-0
 
 `g` above ingests as one categorical predictor with three levels rather
 than two indicator columns, and the ten missing values of `x` are
@@ -588,7 +584,7 @@ across chains, so an outer loop that owns per-chain state runs one
 single-chain sampler per chain and threads them itself.
 
 This custom-loop bookkeeping is only needed when embedding BART in a
-larger sampler. A plain multi-chain `bart2` fit already tracks its chain
+larger sampler. A plain multi-chain `bart` fit already tracks its chain
 dimension: [`summary()`](https://rdrr.io/r/base/summary.html) reports
 split-R-hat and effective sample size for the scalar parameters (`sigma`
 and `k`) unconditionally, and

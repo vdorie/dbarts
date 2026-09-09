@@ -32,8 +32,8 @@ data <- data.frame(x, y)
 In order to interrogate the trees, they must be saved when the model is
 fit. This is accomplished by setting:
 
-- For `bart`: `keeptrees = TRUE`
-- For `bart2`: `keepTrees = TRUE`
+- For `bartBT`: `keeptrees = TRUE`
+- For `bart`: `keepTrees = TRUE`
 - For a custom `dbartsSampler`,
   `control = dbartsControl(keepTrees = TRUE)`
 
@@ -143,17 +143,9 @@ n.cat <- 60
 g <- factor(sample(letters[1:4], n.cat, replace = TRUE))
 y.cat <- ifelse(g %in% c("a", "b"), 5, -5) + rnorm(n.cat, 0, 0.5)
 
-catFit <- bart2(y ~ g, data.frame(y = y.cat, g = g),
+catFit <- bart(y ~ g, data.frame(y = y.cat, g = g),
                n.trees = 3L, n.samples = 1L, n.burn = 20L, n.chains = 1L,
                n.threads = 1L, keepTrees = TRUE, seed = 0, verbose = FALSE)
-```
-
-    ## Warning in warnOnce("tombstone.bart2", "'bart2' is now 'bart'; this call was
-    ## forwarded. The alias is removed ", : 'bart2' is now 'bart'; this call was
-    ## forwarded. The alias is removed in dbarts 1.1-0
-
-``` r
-
 catTrees <- extract(catFit, "trees")
 print(subset(catTrees, var != -1))
 ```

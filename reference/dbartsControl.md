@@ -104,14 +104,14 @@ dbartsControl(
   is
   [`run`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
   This is a per-`run()` RETURN count, unaffected by `n.thin` - unlike
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-  (and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s (and
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   `ndpost`) same-named argument, which is a one-shot sweep budget
-  divided by thinning; see `bart2`'s `n.samples` item for the full
+  divided by thinning; see `bart`'s `n.samples` item for the full
   boundary. `0` is accepted here (and by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) - a
   sampler meant to be driven by a host loop's own `run()` calls rather
-  than this one's; `bart2` and `xbart` both return posterior draws and
+  than this one's; `bart` and `xbart` both return posterior draws and
   refuse a thinned-to-zero budget instead.
 
 - n.cuts:
@@ -124,8 +124,8 @@ dbartsControl(
   unordered factor splits on level subsets and an ordered one at its
   declared level midpoints, a factor's grid following its level table
   rather than a count. See the ‘Decision Rules’ section of
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for how
-  the rules themselves are placed.
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for
+  how the rules themselves are placed.
 
 - n.burn:
 
@@ -136,7 +136,7 @@ dbartsControl(
 
   A positive integer giving the number of trees used in the sum-of-trees
   formulation. Default 75, dbarts's own historical choice; BayesTree's
-  and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  and [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   default is 200.
 
 - n.chains:

@@ -63,6 +63,45 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     </div>
 
     <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning (or refused by name, where noted), and removed in dbarts 1.1-0.</p>
+<p></p><dl><dt><code>rngSeed</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code> and <code><a href="dbartsControl.html">dbartsControl</a></code>: the engine seed, now <code>seed</code>.</p></dd>
+
+    <dt><code>sigma</code></dt>
+<dd><p>On <code><a href="dbarts.html">dbarts</a></code> and <code><a href="dbartsSpec.html">dbartsSpec</a></code>: the creation-time residual estimate, now <code>sigest</code>.</p></dd>
+
+    <dt><code>resid.dist</code>, <code>dispersion</code>, <code>breaks</code>, <code>max.rows</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>, <code><a href="dbarts.html">dbarts</a></code>, and (the first two) <code><a href="dbartsSpec.html">dbartsSpec</a></code>: family-only settings, now arguments of the <code><a href="dbartsFamilies.html">dbartsFamilies</a></code> constructor that owns each (<code>family = student(df)</code>, <code>family = nbinom(dispersion)</code>, <code>family = hazard(breaks)</code>, <code>family = hazard(max.rows)</code>).</p></dd>
+
+    <dt><code>dart</code>, <code>levelGibbs</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code> (<code>dart</code> also on <code><a href="xbart.html">xbart</a></code>): tree-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s tree priors (<code>tree.prior = dart()</code>, <code>tree.prior = cgm(levelGibbs = )</code>).</p></dd>
+
+    <dt><code>control</code> on <code><a href="xbart.html">xbart</a></code></dt>
+<dd><p>Refused outright, naming the flat arguments its settings became (<code>n.cuts</code>, <code>useQuantiles</code>, <code>n.thin</code>, <code>storage</code>): <code>xbart</code> builds its own control, so there is nothing left for one to set.</p></dd>
+
+    <dt>A three-element <code>n.burn</code> on <code><a href="xbart.html">xbart</a></code></dt>
+<dd><p>Refused outright, naming <code>n.burn = c(fresh, warm)</code>: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.</p></dd>
+
+    <dt><code>family = "twopart"</code></dt>
+<dd><p>Refused outright on every entry point that takes <code>family</code>, naming <code>family = "hurdle.lognormal"</code>.</p></dd>
+
+    <dt><code>dbartsSampler</code>'s <code>$startThreads</code>/<code>$stopThreads</code></dt>
+<dd><p>No-op methods (<code><a href="dbartsSampler-class.html">dbartsSampler</a></code>): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.</p></dd>
+
+    <dt>A BayesTree-spelled <code><a href="bart.html">bart</a></code> call</dt>
+<dd><p>Forwarded to <code><a href="bartBT.html">bartBT</a></code> after a once-per-session warning, when the call carries a name from <code>bartBT</code>'s own formals that <code>bart</code> does not take.</p></dd>
+
+    <dt>A fourth or later positional <code><a href="bart.html">bart</a></code> argument</dt>
+<dd><p>Refused, naming both doors: 0.9-x's <code>bart</code> read a fourth positional argument as <code>sigest</code>, where <code>bart</code>'s own fourth formal is <code>subset</code>.</p></dd>
+
+    <dt>The front-door startup message</dt>
+<dd><p>Attaching the package prints one <code>packageStartupMessage</code> naming both doors, once per session (<code>suppressPackageStartupMessages</code> silences it); no successor, since nothing replaces it.</p></dd>
+
+
+</dl><p>Every entry above, and <code>bart2</code> and the <code>rbart_vi</code> stubs, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
+    </div>
+    <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>

@@ -582,12 +582,12 @@ arguments.</p>
 <div class="section level2">
 <h2 id="data-frames-factors-and-missing-values">Data Frames, Factors, and Missing Values<a class="anchor" aria-label="anchor" href="#data-frames-factors-and-missing-values"></a>
 </h2>
-<p><code>dbarts</code> and <code>bart2</code> take a
+<p><code>dbarts</code> and <code>bart</code> take a
 <code>data.frame</code> directly, and
 (<code>factors = "categorical"</code>, the default for both) an
 unordered factor predictor becomes a single categorical column: its
 splits send a subset of levels down each branch, rather than the
-one-indicator-per-level expansion <code>bart</code> still uses.
+one-indicator-per-level expansion <code>bartBT</code> still uses.
 <code>factors = "indicators"</code> recovers that expansion on either
 function, useful for comparing the two. Ordered factors are their own
 predictor kind regardless of <code>factors</code>: coded on their
@@ -611,12 +611,9 @@ containing <code>NA</code>.</p>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">x.miss</span><span class="op">)</span>, <span class="fl">0</span>, <span class="va">x.miss</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n.miss</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">df.miss</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">y.miss</span>, x <span class="op">=</span> <span class="va">x.miss</span>, g <span class="op">=</span> <span class="va">g</span><span class="op">)</span></span>
-<span><span class="va">fit.miss</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts-deprecated.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="va">g</span>, <span class="va">df.miss</span>, n.trees <span class="op">=</span> <span class="fl">10L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span><span class="va">fit.miss</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="va">g</span>, <span class="va">df.miss</span>, n.trees <span class="op">=</span> <span class="fl">10L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>                  n.threads <span class="op">=</span> <span class="fl">1L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span>
 <span>                  verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## Warning in warnOnce("tombstone.bart2", "'bart2' is now 'bart'; this call was</span></span>
-<span><span class="co">## forwarded. The alias is removed ", : 'bart2' is now 'bart'; this call was</span></span>
-<span><span class="co">## forwarded. The alias is removed in dbarts 1.1-0</span></span></code></pre>
 <p><code>g</code> above ingests as one categorical predictor with three
 levels rather than two indicator columns, and the ten missing values of
 <code>x</code> are incorporated rather than dropped.</p>
@@ -651,7 +648,7 @@ and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
 - which the outer loop holds in response units - would come to mean
 something else from one sweep to the next.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">24</span><span class="op">)</span></span>
 <span><span class="va">n_ri</span>     <span class="op">&lt;-</span> <span class="fl">200L</span></span>
 <span><span class="va">n_groups</span> <span class="op">&lt;-</span> <span class="fl">8L</span></span>
@@ -737,11 +734,11 @@ slots are stored independently across chains, so an outer loop that owns
 per-chain state runs one single-chain sampler per chain and threads them
 itself.</p>
 <p>This custom-loop bookkeeping is only needed when embedding BART in a
-larger sampler. A plain multi-chain <code>bart2</code> fit already
-tracks its chain dimension: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports split-R-hat
-and effective sample size for the scalar parameters (<code>sigma</code>
-and <code>k</code>) unconditionally, and <code><a href="../reference/draws.html">draws()</a></code> returns
-its chain-dimensioned draws as a plain array, the shape
+larger sampler. A plain multi-chain <code>bart</code> fit already tracks
+its chain dimension: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports split-R-hat and
+effective sample size for the scalar parameters (<code>sigma</code> and
+<code>k</code>) unconditionally, and <code><a href="../reference/draws.html">draws()</a></code> returns its
+chain-dimensioned draws as a plain array, the shape
 <code><a href="https://mc-stan.org/posterior/reference/draws_array.html" class="external-link">posterior::as_draws_array</a></code> accepts unchanged from a caller
 who has that package installed.</p>
 </div>

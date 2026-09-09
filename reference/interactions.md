@@ -4,9 +4,9 @@ Build an interaction-constraint specification restricting which
 predictors may jointly shape a BART fit. Pass the result as the
 `interactions` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
-The constraint is applied per forest, so in a multi-forest model one
-forest can be held additive-or-low-order while another stays free.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md). The
+constraint is applied per forest, so in a multi-forest model one forest
+can be held additive-or-low-order while another stays free.
 
 ## Usage
 
@@ -59,7 +59,7 @@ every value is validated: an unrecognized name, an empty group, a
 are each an error there. Supplying none of the three arguments is
 instead an error immediately, at construction: `interactions()` with no
 arguments never produces an object to pass to
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 Monotone constraints (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
@@ -88,7 +88,7 @@ built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
 
 ## Examples
@@ -101,14 +101,14 @@ y <- 2 * x[, 1] + ifelse(x[, 2] > 0.5, 1, -1) + rnorm(n, 0, 0.2)
 df <- data.frame(y, x)
 
 ## additive fit: no tree splits on more than one predictor on any path
-fit.additive <- bart2(y ~ x1 + x2 + x3, df,
+fit.additive <- bart(y ~ x1 + x2 + x3, df,
                       interactions = interactions(max.order = 1),
                       n.trees = 25L, n.samples = 20L, n.burn = 20L,
                       n.chains = 1L, verbose = FALSE)
 
 ## forbid x1 and x2 from ever interacting, but allow order-2 interactions
 ## among the rest
-fit.forbid <- bart2(y ~ x1 + x2 + x3, df,
+fit.forbid <- bart(y ~ x1 + x2 + x3, df,
                     interactions = interactions(max.order = 2,
                                                 forbid = list(c("x1", "x2"))),
                     n.trees = 25L, n.samples = 20L, n.burn = 20L,

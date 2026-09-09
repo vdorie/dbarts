@@ -2,8 +2,8 @@
 
 Converts a data frame with numeric and factor contents into a matrix,
 suitable for use with
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md). Unlike in
-linear regression, factors containing more than two levels result in
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md). Unlike
+in linear regression, factors containing more than two levels result in
 dummy variables being created for each level.
 
 ## Usage
@@ -71,7 +71,8 @@ training data and use it when creating a matrix from the test data, as
 in the example given below.
 
 Use of these functions is not required when using
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), `bart2`, or
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md), `bart`,
+or
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md);
 they exist to allow the user finer control and to assist with writing
 packages that separate the creation of training from test data.

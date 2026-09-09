@@ -2,17 +2,17 @@
 
 Minimalist visualization of the branching and leaf contents of one tree
 in a fitted
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 model, or in a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
 A fit-level convenience wrapper around the sampler's `plotTree` method,
 so the trees can be plotted without reaching into the sampler stored on
 the fit.
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
-`"bartNegbin"`, `"bartHurdle"`) refuse by name instead: their trees live
-on the sampler(s) those fits carry (`object$fit` for the first three,
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s four
+own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
+`"bartHurdle"`) refuse by name instead: their trees live on the
+sampler(s) those fits carry (`object$fit` for the first three,
 `object$occupancy$fit`/ `object$positive$fit` for the hurdle), which
 `plotTree` can be called on directly.
 
@@ -45,9 +45,8 @@ plotTree(object, ...)
 - object:
 
   A fitted model of class `bart` (from
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)),
-  or a
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) or
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)), or a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
   Fits must have been made with the trees kept (`keeptrees`/`keepTrees`
   equal to `TRUE`).
@@ -109,7 +108,7 @@ x  <- matrix(runif(n * 10), n, 10)
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-fit <- bart2(x, y, n.samples = 40L, n.burn = 10L, n.trees = 25L,
+fit <- bart(x, y, n.samples = 40L, n.burn = 10L, n.trees = 25L,
              n.chains = 1L, keepTrees = TRUE, verbose = FALSE)
 
 plotTree(fit, treeNum = 1L, sampleNum = 40L)

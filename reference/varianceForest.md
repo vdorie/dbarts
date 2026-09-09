@@ -5,14 +5,13 @@ Pratola, Chipman, George, and McCulloch 2020). Pass the result as the
 `variance` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-or
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md) -
-the same argument that already accepts the plain selector
-(`NULL`/`FALSE` for none, `TRUE`/a one-sided formula/a character or
-integer column selector for the predictors driving the variance). This
-constructor is the other accepted type of that one argument, adding the
-variance forest's own tree count and structure prior alongside the
-column selection.
+or [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) - the
+same argument that already accepts the plain selector (`NULL`/`FALSE`
+for none, `TRUE`/a one-sided formula/a character or integer column
+selector for the predictors driving the variance). This constructor is
+the other accepted type of that one argument, adding the variance
+forest's own tree count and structure prior alongside the column
+selection.
 
 ## Usage
 
@@ -69,7 +68,7 @@ Computational and Graphical Statistics*, **29**(2), 405–417.
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 
 ## Examples
 
@@ -81,13 +80,13 @@ s <- ifelse(x[, 1] > 0.5, 0.3, 1.2)
 y <- 2 * x[, 1] + s * rnorm(n)
 
 ## every predictor drives the variance, 20 variance trees
-fit <- bart2(x, y,
+fit <- bart(x, y,
              variance = varianceForest(n.trees = 20L),
              n.trees = 25L, n.samples = 20L, n.burn = 20L,
              n.chains = 1L, verbose = FALSE)
 
 ## restricted to x1, with its own tree-structure prior
-fit.restricted <- bart2(x, y,
+fit.restricted <- bart(x, y,
                         variance = varianceForest(vars = ~x1, n.trees = 20L,
                                                   base = 0.9, power = 1.5),
                         n.trees = 25L, n.samples = 20L, n.burn = 20L,

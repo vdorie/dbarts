@@ -9,17 +9,14 @@ constrained by a prior to be a weak learner.
 - For binary response \\y\\, \\P(Y = 1 \mid x) = \Phi(f(x))\\, where
   \\\Phi\\ denotes the standard normal cdf (probit link).
 
-- `bart` is the BayesTree-compatible surface: besides the default
-  gaussian/probit response it reaches `family = "logistic"` and
-  `family = "aft"` directly (below), each packaging as an ordinary
-  `"bart"` object.
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  reaches further response families - logistic, accelerated failure
-  time, discrete-time survival hazard, K-category multinomial, ordered
+- `bartBT` is the BayesTree-compatible surface: 0.9-34's argument list
+  exactly, no new features, and no `family` argument at all - every fit
+  is the default gaussian/probit pair above.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) reaches
+  every other response family - logistic, accelerated failure time,
+  discrete-time survival hazard, K-category multinomial, ordered
   categorical, negative-binomial counts, and semicontinuous two-part
-  responses - plus its own formula-term multi-forest interface; naming
-  one of `bart2`'s remaining own-class families to `bart`'s `family` is
-  refused, pointing there.
+  responses - plus its own formula-term multi-forest interface.
 
 ## Usage
 
@@ -114,8 +111,8 @@ residuals(object, type = "ev", ...)
 - x.test:
 
   Explanatory variables for test (out of sample) data. Should have same
-  column structure as `x.train`. `bart` will generate draws of \\f(x)\\
-  for each \\x\\ which is a row of `x.test`.
+  column structure as `x.train`. `bartBT` will generate draws of
+  \\f(x)\\ for each \\x\\ which is a row of `x.test`.
 
 - sigest:
 
@@ -162,10 +159,10 @@ residuals(object, type = "ev", ...)
   span probit's \\\pm 3\\ covers. In both cases, the bigger \\k\\ is,
   the more conservative the fitting will be. The value can be either a
   fixed number, or a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.5, scale = 2)`. `bart`'s own default is the
-  fixed value 2; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-  `k` item for its `NULL` default, a `chi(1.5, 2)` hyperprior on binary
+  `chi(degreesOfFreedom = 1.5, scale = 2)`. `bartBT`'s own default is
+  the fixed value 2; see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `k` item
+  for its `NULL` default, a `chi(1.5, 2)` hyperprior on binary
   responses. The default of 2 for continuous responses follows Chipman,
   George, and McCulloch's argument (see References) that with node prior
   standard deviation \\\sigma\_\mu = 0.5 / (k \sqrt{m})\\ for \\m\\
@@ -214,12 +211,12 @@ residuals(object, type = "ev", ...)
   An optional vector of weights to be used in the fitting process. For a
   gaussian response, BART fits a model with observations \\y \mid x \sim
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function. A
-  probit fit (`bart`, or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  with the default binary family) does not support weights, except that
-  weights identically 1 are treated as absent; a `family = "logistic"`
-  fit treats them as observation counts and requires positive integers.
-  For a weighted logistic fit, the `"ppd"` draw at an observation with
+  probit fit (`bartBT`, or
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with the
+  default binary family) does not support weights, except that weights
+  identically 1 are treated as absent; a `family = "logistic"` fit
+  treats them as observation counts and requires positive integers. For
+  a weighted logistic fit, the `"ppd"` draw at an observation with
   weight \\w\\ is the number of successes among \\w\\ trials,
   \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted probability.
 
@@ -283,10 +280,10 @@ residuals(object, type = "ev", ...)
 - nchain:
 
   Integer specifying how many independent tree sets and fits should be
-  calculated. Default 1 for `bart`, BayesTree's historical single-chain
-  convention;
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-  default is 4.
+  calculated. Default 1 for `bartBT`, BayesTree's historical
+  single-chain convention;
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s default
+  is 4.
 
 - nthread, n.threads:
 
@@ -311,9 +308,9 @@ residuals(object, type = "ev", ...)
   single matrix/vector of `nchain` \\\times\\ `ndpost` rows (see ‘Value’
   for the row order); if `FALSE`, they are kept in arrays of dimensions
   equal to `nchain` \\\times\\ `ndpost` \\\times\\ number of
-  observations. Default `TRUE` across `bart` and
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md);
-  the number of chains is tracked regardless on the returned object's
+  observations. Default `TRUE` across `bartBT` and
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); the
+  number of chains is tracked regardless on the returned object's
   `n.chains` component (see ‘Value’).
 
 - keeptrees:
@@ -375,8 +372,8 @@ residuals(object, type = "ev", ...)
 
 - object:
 
-  An object of class `bart`, returned from either the function `bart` or
-  `bart2`.
+  An object of class `bart`, returned from either the function `bartBT`
+  or `bart`.
 
 - newdata:
 
@@ -401,11 +398,11 @@ residuals(object, type = "ev", ...)
 - sampleronly:
 
   Builds the sampler from its arguments and returns it without running
-  it. Useful to use the `bart` interface in more complicated models.
+  it. Useful to use the `bartBT` interface in more complicated models.
 
 - x:
 
-  Object of class `bart`, returned by function `bart`, which contains
+  Object of class `bart`, returned by function `bartBT`, which contains
   the information to be plotted.
 
 - plquants:
@@ -435,7 +432,7 @@ residuals(object, type = "ev", ...)
   multi-forest fit (see `forest`, `contribution`, and the
   `forestFits`/`glue`/`bases` components under ‘Value’); an error naming
   the reason on any other fit, a
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   multinomial one included, whose K forests are per-category latents
   rather than additive components of one location.
   `extract(type = "forest")` reads the stored in-sample channel, while
@@ -471,7 +468,7 @@ residuals(object, type = "ev", ...)
   with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`; the
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
   own set of types. For information on extracting trees, see the
   subsection below.
@@ -513,7 +510,7 @@ residuals(object, type = "ev", ...)
   single-level factor are accepted, since a constant arm is the point of
   a counterfactual. `NULL` (the default) re-derives each basis from
   `newdata` when the fit declared it as a
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
   (which then needs the variables that term names, coded against the
   fit's own factor levels), and is otherwise an error naming the forest.
@@ -569,7 +566,7 @@ BART is an Bayesian MCMC method. At each MCMC interation, we produce a
 draw from the joint posterior \\(f, \sigma) \mid (x, y)\\ in the numeric
 \\y\\ case and just \\f\\ in the binary \\y\\ case.
 
-Thus, unlike a lot of other modeling methods in R, `bart` does not
+Thus, unlike a lot of other modeling methods in R, `bartBT` does not
 produce a single model object from which fits and summaries may be
 extracted. The output consists of values \\f^\*(x)\\ (and \\\sigma^\*\\
 in the numeric case) where \* denotes a particular draw. The \\x\\ is
@@ -607,7 +604,7 @@ is 1 and \\s\\ is \\\infty\\, the prior is “flat”.
 
 For BART on binary outcomes, the degree of overfitting can be highly
 sensitive to `k` so it is encouraged to consider a number of values. The
-default hyperprior for binary `bart2`/`dbarts` fits, `chi(1.5, 2)`,
+default hyperprior for binary `bart`/`dbarts` fits, `chi(1.5, 2)`,
 centers the sampled `k` near the field-standard fixed value of 2 (prior
 median 1.9) while adapting to the data; pass `k = 2` for the fixed
 BART-package default. Crossvalidation may still be helpful, and running
@@ -616,7 +613,7 @@ for a short time with a flat prior (`scale = Inf`) can show the range of
 
 ### Generics
 
-`bart` supports [`fitted`](https://rdrr.io/r/stats/fitted.values.html)
+`bartBT` supports [`fitted`](https://rdrr.io/r/stats/fitted.values.html)
 to return the posterior mean of a predicted quantity, as well as
 [`predict`](https://rdrr.io/r/stats/predict.html) to return a set of
 posterior samples for a different sample. In addition, the `extract`
@@ -656,15 +653,13 @@ materialized only on request. A fit saved without it reloads, but
 `predict`, `extract(type = "trees")`, and `plotTree` all stop
 identically, each with an error naming `storeState()`. The same
 convention covers
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-own-class families - `family = "multinomial"`, `"ordinal"`, and
-`"nbinom"` - whose `$fit` is the sampler (K-forest or single-forest)
-that actually ran; see
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-Value section for each. A `family = "hurdle.lognormal"` fit has no
-`$fit` of its own: it is the pair `$occupancy` and `$positive`, each a
-`bart2` fit in its own right, so both of their samplers need the call
-before saving:
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own-class
+families - `family = "multinomial"`, `"ordinal"`, and `"nbinom"` - whose
+`$fit` is the sampler (K-forest or single-forest) that actually ran; see
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s Value
+section for each. A `family = "hurdle.lognormal"` fit has no `$fit` of
+its own: it is the pair `$occupancy` and `$positive`, each a `bart` fit
+in its own right, so both of their samplers need the call before saving:
 `fH$occupancy$fit$storeState(); fH$positive$fit$storeState()`.
 
 ### Reproducibility
@@ -683,22 +678,21 @@ at all: the seed drives a dedicated generator that hands each chain its
 own seed. A single-chain run with a given seed reproduces the first
 chain of a multi-chain run with the same seed.
 
-`bart` takes the default for
+`bartBT` takes the default for
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `levelGibbs`, the optional level-shifting Gibbs step: `NA`, which takes
-the step only where the tree structures are frozen. `bart` never freezes
-them, so it never takes it and its draws are those of previous versions;
-it has no formal for it. `TRUE` takes the step every iteration and
-`FALSE` never does, both reachable from
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-and from a
+the step only where the tree structures are frozen. `bartBT` never
+freezes them, so it never takes it and its draws are those of previous
+versions; it has no formal for it. `TRUE` takes the step every iteration
+and `FALSE` never does, both reachable from
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and from a
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
 sampler's control object, and turning it on changes the sampled values
 (the posterior is the same, the stream is not).
 
 ### Extracting Trees
 
-When a model is fit with `keeptrees` (`bart`) or `keepTrees` (`bart2`)
+When a model is fit with `keeptrees` (`bartBT`) or `keepTrees` (`bart`)
 equal to `TRUE`, the generic `extract` can be used to retrieve a data
 frame containing the tree fit information. In this case, `extract` will
 accept the additional, optional arguments: `chainNums`, `sampleNums`,
@@ -726,11 +720,11 @@ The result of `extract` will be a data frame with columns:
 The order of nodes in the result corresponds to a depth-first traversal,
 going down the left-side first. The names of variables used in splitting
 can be recovered by examining the column names of the `fit$data@x`
-element of a fitted `bart` or `bart2` model. See the package vignette
+element of a fitted `bartBT` or `bart` model. See the package vignette
 “Working with dbarts Saved Trees”.
 
 A fit made with `keeptrees`/`keepTrees` `FALSE` but a sampler kept
-anyway (`keepSampler = TRUE`, or a `bart2` fit with `fit` present per
+anyway (`keepSampler = TRUE`, or a `bart` fit with `fit` present per
 ‘Value’ below) still answers `extract(fit, "trees")`, the same fallback
 [`plotTree`](https://vdorie.github.io/dbarts/reference/plotTree.md)
 uses: the frame holds the sampler's CURRENT trees rather than a saved
@@ -740,14 +734,13 @@ a fixed draw.
 
 ## Value
 
-`bart` and
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+`bartBT` and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 return lists assigned the class `bart` for the shared
-gaussian/probit/logistic/aft/hazard\* families (`bart2` reaches further
+gaussian/probit/logistic/aft/hazard\* families (`bart` reaches further
 response families under their own list classes and generics; see
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-Value section). For applicable quantities, `ndpost / keepevery` samples
-are returned. In the numeric \\y\\ case, the list has components:
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s Value
+section). For applicable quantities, `ndpost / keepevery` samples are
+returned. In the numeric \\y\\ case, the list has components:
 
 - `call`:
 
@@ -813,11 +806,11 @@ are returned. In the numeric \\y\\ case, the list has components:
   Present only for an amplitude-coupled multi-forest fit: built through
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests =`, or through
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   formula term (see its ‘Formula Terms’ section); not reachable from
-  `bart` directly, which has no multi-forest front door. `n.forests` is
-  the forest count K. `forestFits` is a (`n.chains` \\\times\\, when
+  `bartBT` directly, which has no multi-forest front door. `n.forests`
+  is the forest count K. `forestFits` is a (`n.chains` \\\times\\, when
   uncombined) `n.samples` \\\times\\ number of training observations
   \\\times\\ K array: forest k's own RESPONSE-scale raw total at each
   draw, i.e. \\\mathrm{response.scale} \times f_k(x)\\, with NO
@@ -826,7 +819,7 @@ are returned. In the numeric \\y\\ case, the list has components:
   is named `forest1`, ..., `forestK`; a declaration's own names
   (`names(forests)` on the
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  route; a `bart2`
+  route; a `bart`
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
   supplies none) ride separately as a `"forest.labels"` attribute on the
   fit object when given. `glue` is the ragged (`n.chains` \\\times\\,
@@ -856,7 +849,7 @@ are returned. In the numeric \\y\\ case, the list has components:
   z^\*, z^\*)\\ indicator pair of whichever assignment is being
   predicted under - through its own `bases` argument, or re-derived from
   `newdata` on the
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
   route. Written out by hand it remains the fallback for a caller
   holding only these components and no sampler. A fit built through a
@@ -924,11 +917,11 @@ are returned. In the numeric \\y\\ case, the list has components:
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   gives survival-probability draws. A discrete-time hazard fit
   (`family = "hazard"`/`"hazard.logistic"`, reachable only through
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
-  records the binary link here (`"probit"`/`"logistic"`) - the fit IS
-  that binary fit on the expanded rows - and carries a separate
-  `$periods` element (the ordered period grid); `predict`/`extract`
-  return the per-(subject, period) hazard through the link, and
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) records
+  the binary link here (`"probit"`/`"logistic"`) - the fit IS that
+  binary fit on the expanded rows - and carries a separate `$periods`
+  element (the ordered period grid); `predict`/`extract` return the
+  per-(subject, period) hazard through the link, and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   dispatches its survival-curve branch on the `$periods` marker.
 
@@ -978,9 +971,9 @@ Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-for the formula-first interface, further response families, and
-formula-term multi-forest models.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for the
+formula-first interface, further response families, and formula-term
+multi-forest models.
 
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
 `$predictForests` for the same per-forest replay from a mutable sampler,
@@ -1055,21 +1048,21 @@ bartFit <- bart(x, y)
 #> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
 #> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.146498
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.151541
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

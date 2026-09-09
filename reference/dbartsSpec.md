@@ -64,8 +64,8 @@ dbartsSpec(
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s by
   design - multinomial's K-forest engine and `hurdle.lognormal`'s
   two-sampler composition build through
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
-  never through this construct-only bypass; the wider set lives there.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), never
+  through this construct-only bypass; the wider set lives there.
 
 - survival:
 

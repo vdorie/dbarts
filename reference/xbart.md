@@ -39,7 +39,7 @@ xbart(
   following an analogous model description syntax as
   [`lm`](https://rdrr.io/r/stats/lm.html). For backwards compatibility,
   can also be the
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) matrix
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
   `x.train`. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
 
@@ -47,7 +47,7 @@ xbart(
 
   An optional data frame, list, or environment containing predictors to
   be used with the model. For backwards compatibility, can also be the
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) vector
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) vector
   `y.train`.
 
 - subset:
@@ -113,14 +113,14 @@ xbart(
 
   Unlike the single-scalar `n.burn` of
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
-  `bart2`, here it is one or two non-negative integers, specifying 1)
-  the burn-in when a chain is freshly started against a data split
-  and 2) the burn-in when moving from one parameter setting to another
-  over the same split. A longer vector is an error naming the argument
-  rather than being silently truncated to its first two entries; dbarts
-  0.9-x read a third element as a per-replication burn-in, which no
-  longer exists. Chains are never carried between data splits or folds -
-  the held-out observations of one were training observations of the
+  `bart`, here it is one or two non-negative integers, specifying 1) the
+  burn-in when a chain is freshly started against a data split and 2)
+  the burn-in when moving from one parameter setting to another over the
+  same split. A longer vector is an error naming the argument rather
+  than being silently truncated to its first two entries; dbarts 0.9-x
+  read a third element as a per-replication burn-in, which no longer
+  exists. Chains are never carried between data splits or folds - the
+  held-out observations of one were training observations of the
   previous, so continuing a chain lets slowly-mixing settings score
   against data they have effectively seen.
 
@@ -192,11 +192,11 @@ xbart(
 - split.probs:
 
   Prior probabilities that a variable is used in a splitting rule, as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
-  A single value or `NULL` yields the uniform default; a named or
-  unnamed vector assigns per-column probabilities. Fixed for the whole
-  crossvalidation, not part of the swept grid. Cannot be combined with a
-  DART `tree.prior`.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). A single
+  value or `NULL` yields the uniform default; a named or unnamed vector
+  assigns per-column probabilities. Fixed for the whole crossvalidation,
+  not part of the swept grid. Cannot be combined with a DART
+  `tree.prior`.
 
 - drop:
 
@@ -213,7 +213,7 @@ xbart(
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
   Fitting functions (`xbart`,
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`)
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`)
   spell this `sigest`; sampler constructors
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   `dbartsSpec`) spell the same concept `sigma`. That estimate falls back
@@ -252,10 +252,10 @@ xbart(
   does not cross-validate the multinomial model. The built-in binary
   losses transform test predictions through the family's link. This
   vocabulary is narrower than
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-  by design - `xbart` cross-validates a single scalar loss per fold,
-  which the own-class families' K-forest or two-part fits have no single
-  counterpart of; the wider family set lives on `bart2`.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s by
+  design - `xbart` cross-validates a single scalar loss per fold, which
+  the own-class families' K-forest or two-part fits have no single
+  counterpart of; the wider family set lives on `bart`.
 
 - node.prior:
 

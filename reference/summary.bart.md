@@ -1,19 +1,19 @@
 # Convergence Diagnostics for BART Fits
 
 Reports a per-variable posterior summary of the scalar parameters
-(`sigma` and `k`) of a `bart`/`bart2` fit, along with split-\\\hat{R}\\
+(`sigma` and `k`) of a `bartBT`/`bart` fit, along with split-\\\hat{R}\\
 and bulk/tail effective sample size, computed by dbarts itself (no
 posterior dependency). A heteroscedastic fit
 ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
 `variance`) has no scalar residual scale and reports `mean.s` in place
 of `sigma`; see `vars`.
 
-`bart2`'s four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
+`bart`'s four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
 `"bartNegbin"`, `"bartHurdle"`; see
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
-summarize through this same method, each exposing the scalar posterior
-parameters that family carries rather than its per-observation
-channels - never `yhat.train` itself.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) summarize
+through this same method, each exposing the scalar posterior parameters
+that family carries rather than its per-observation channels - never
+`yhat.train` itself.
 
 [`draws`](https://vdorie.github.io/dbarts/reference/draws.md) returns
 the same fit's chain-dimensioned draws as a plain array, the shape this
@@ -33,9 +33,9 @@ print(x, ...)
 - object, x:
 
   An object of class `bart`, as returned by
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md);
-  for the four own-class fits, a `bart2` fit of the matching class.
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) or
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); for the
+  four own-class fits, a `bart` fit of the matching class.
 
 - vars:
 
@@ -76,22 +76,22 @@ non-converged fit.
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 [`draws`](https://vdorie.github.io/dbarts/reference/draws.md)
 
 ## Examples
 
 ``` r
 # \donttest{
-fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
+fit <- bart(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
 summary(fit)
 #> 
 #> Call:
-#> dbarts::bart(formula = y ~ x, data = data.frame(y = rnorm(100), 
-#>     x = rnorm(100)), n.trees = 5L, n.samples = 20L, n.burn = 20L, 
-#>     n.chains = 2L, n.threads = 1L, verbose = FALSE, factors = "categorical", 
+#> bart(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
+#>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
+#>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
 #>     proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, 
 #>     perturb = 0, rule_gibbs = 0, birth = 0.5))
 #> 

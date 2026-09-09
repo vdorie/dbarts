@@ -100,6 +100,7 @@ family-scoped `vars`.
 fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
+#> Warning: 'bart2' is now 'bart'; this call was forwarded. The alias is removed in dbarts 1.1-0
 d <- draws(fit)
 dim(d)
 #> [1] 20  2  1

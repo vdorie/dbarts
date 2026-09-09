@@ -2,17 +2,16 @@
 
 Posterior draws of the survival probability \\S(t \mid x)\\ from a
 survival fit: an accelerated failure time (AFT) log-normal fit produced
-by
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-(or [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
+by [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) (or
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)) with
 `family = "aft"`, or a discrete-time hazard fit produced by
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-with `family = "hazard"` (or `"hazard.logistic"`).
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with
+`family = "hazard"` (or `"hazard.logistic"`).
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
-`"bartNegbin"`, `"bartHurdle"`) refuse by name instead: none of the four
-is a survival model, so none carries a hazard channel.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s four
+own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
+`"bartHurdle"`) refuse by name instead: none of the four is a survival
+model, so none carries a hazard channel.
 
 ## Usage
 
@@ -112,7 +111,7 @@ training data when `newdata` is `NULL`.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)
 
@@ -131,7 +130,7 @@ censorTime <- exp(x[, 1L] + 0.25 + 0.5 * rnorm(n))
 status <- as.numeric(eventTime <= censorTime)
 observedTime <- pmin(eventTime, censorTime)
 
-fit <- bart2(
+fit <- bart(
   x,
   cbind(observedTime, status),
   family = "aft",

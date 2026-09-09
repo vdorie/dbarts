@@ -5,9 +5,9 @@ fit to one declared group of predictors, so the ensemble is exactly a
 sum of per-group functions \\f = \sum_G f_G\\ (a functional-ANOVA /
 grouped-GAMI decomposition). Pass the result as the `blocks` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
-The constraint is applied per forest, so in a multi-forest model each
-forest can carry its own partition.
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md). The
+constraint is applied per forest, so in a multi-forest model each forest
+can carry its own partition.
 
 ## Usage
 
@@ -72,7 +72,7 @@ A `dbartsBlocks` specification object, resolved when a sampler is built.
 
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 
 ## Examples
 
@@ -84,13 +84,13 @@ y <- 2 * x[, 1] + ifelse(x[, 2] > 0.5, 1, -1) + rnorm(n, 0, 0.2)
 df <- data.frame(y, x)
 
 ## block-additive fit: f(x) = f1(x1) + f2(x2, x3), no tree mixing the blocks
-fit <- bart2(y ~ x1 + x2 + x3, df,
+fit <- bart(y ~ x1 + x2 + x3, df,
              blocks = blocks(groups = list("x1", c("x2", "x3"))),
              n.trees = 20L, n.samples = 20L, n.burn = 20L,
              n.chains = 1L, verbose = FALSE)
 
 ## split the 20 trees explicitly: 5 to the first block, 15 to the second
-fit.split <- bart2(y ~ x1 + x2 + x3, df,
+fit.split <- bart(y ~ x1 + x2 + x3, df,
                    blocks = blocks(groups = list("x1", c("x2", "x3")),
                                    trees.per.group = c(5L, 15L)),
                    n.trees = 20L, n.samples = 20L, n.burn = 20L,

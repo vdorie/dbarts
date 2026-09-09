@@ -36,7 +36,7 @@ dbarts(
   following an analogous model description syntax as
   [`lm`](https://rdrr.io/r/stats/lm.html). For backwards compatibility,
   can also be the
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) matrix
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
   `x.train`, including a sparse `Matrix::dgCMatrix`: its columns enter
   as ordinal predictors, sufficiently sparse columns are stored in a
   compact rank-bitmap layout instead of being expanded, and the
@@ -71,7 +71,7 @@ dbarts(
 
   An optional data frame, list, or environment containing predictors to
   be used with the model. For backwards compatibility, can also be the
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) vector
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) vector
   `y.train`. The response, however supplied, is checked for
   near-degeneracy at double precision and warns when too few distinct
   values remain to fit against (class
@@ -402,7 +402,7 @@ dbarts(
   Optional integer seed for the random number generator, a convenience
   mirror of `dbartsControl(seed = )`. When not `NA` it overrides the
   seed in `control`; the fitting-function wrappers
-  ([`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+  ([`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept
   the same argument.
 
@@ -422,7 +422,7 @@ dbarts(
   ([`droplevels`](https://rdrr.io/r/base/droplevels.html) beforehand to
   model only the observed levels). `"indicators"` expands each factor
   into binary indicator columns, as previous versions always did and as
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) still
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) still
   does.
 
 - family:
@@ -433,7 +433,7 @@ dbarts(
   fit as probit, reporting the choice in a one-line message, while a
   factor (or character) response with three or more levels is an error
   directing to
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   `family = "multinomial"` (which `dbarts` does not fit). An explicit
   family that a factor response cannot support (e.g. `"gaussian"`) is
   also an error rather than a silent fit of the integer level codes.
@@ -506,9 +506,9 @@ dbarts(
   with a message that the category order is taken from the level order -
   and a numeric response, whose ordered levels are `sort(unique(y))`.
   Like probit, the latent scale is fixed at 1, fits are on the latent
-  scale, and weights are not supported. `bart2` reports ordinal fits as
+  scale, and weights are not supported. `bart` reports ordinal fits as
   \\n \times K\\ category probabilities; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
   `"nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation: the forest
@@ -521,9 +521,9 @@ dbarts(
   so it must be requested explicitly. The dispersion `r` is estimated by
   default (see `dispersion`); like probit, the latent scale is fixed at
   1, fits are on the latent (log-odds) scale, and weights are not
-  supported (exposure belongs in the offset). `bart2` reports mean
+  supported (exposure belongs in the offset). `bart` reports mean
   counts; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
   model by person-period expansion (`"hazard.probit"` is an accepted
@@ -543,10 +543,10 @@ dbarts(
   policy. A `Surv` response requires the family to be requested
   explicitly (`"auto"` selects `"aft"`). Survival curves come from
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
-  which requires `keepTrees`; `bart2` reports the fit with its
-  `$periods` grid, and its `$family` records the binary link. Like
-  `"aft"`, hazard fits use the matrix interface and do not support
-  `subset` or a `test` set (expand test subjects with
+  which requires `keepTrees`; `bart` reports the fit with its `$periods`
+  grid, and its `$family` records the binary link. Like `"aft"`, hazard
+  fits use the matrix interface and do not support `subset` or a `test`
+  set (expand test subjects with
   `survivalProbabilities(..., newdata = )`).
 
   `"hurdle.lognormal"` (alias `"twopart"`, which resolves and prints as
@@ -564,14 +564,14 @@ dbarts(
   posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
   x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive part's single
   \\\sigma\\ per draw (the positive part is always homoscedastic); see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  for the full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal
-  `"ppd"`) and the refusal list (`weights`, `subset`, `offset`, and
-  `test` are all unsupported this arc). `dbarts()` does not fit this
-  family: it composes two samplers, which only
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  builds, so requesting it here is an error directing to
-  [`bart2()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for the
+  full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
+  and the refusal list (`weights`, `subset`, `offset`, and `test` are
+  all unsupported this arc). `dbarts()` does not fit this family: it
+  composes two samplers, which only
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) builds, so
+  requesting it here is an error directing to
+  [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 ## Details
 
@@ -634,9 +634,9 @@ response units: it is the prior standard deviation of the forest total
 (`(max(y) + min(y)) / 2`, net of `offset`, for a continuous response; 0
 for the latent-scale families). `normal(sd = )` names the same quantity
 at the resolved `k`, and is refused under a `k` hyperprior.
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-take it as a `prior.scale` argument directly. Unset, nothing changes.
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) take it as a
+`prior.scale` argument directly. Unset, nothing changes.
 
 The named quantity is the LEAF-PARAMETER scale of the forest total. It
 equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the
