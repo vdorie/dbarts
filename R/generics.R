@@ -293,11 +293,11 @@ refuseWithoutTrees <- function(what, keepTrees = "keepTrees") {
   )
 }
 
-# bart spells it 'keeptrees', bart2 'keepTrees'. A fit kept with
+# bartBT spells it 'keeptrees', bart 'keepTrees'. A fit kept with
 # keepCall = FALSE stores call("NULL") and names neither, so it takes bart's
 # spelling, which is the surface such a fit most likely came from.
 bartKeepTreesArgument <- function(object) {
-  if (callName(object[["call"]]) == "bart2") "keepTrees" else "keeptrees"
+  if (callName(object[["call"]]) == "bartBT") "keeptrees" else "keepTrees"
 }
 
 # An offset shifts the latent at rows the sampler never saw, and these two
@@ -579,13 +579,13 @@ extract.bart <- function(
     )
   }
   if (sample == "train" && is.null(object[["yhat.train"]])) {
-    if (callName(object$call) == "bart2") {
+    if (callName(object$call) == "bartBT") {
       stop(
-        "cannot extract train sample predictions; bart2 must be called with 'keepTrainingFits' == TRUE"
+        "cannot extract train sample predictions; bartBT must be called with 'keeptrainfits' == TRUE"
       )
     } else {
       stop(
-        "cannot extract train sample predictions; bart must be called with 'keeptrainfits' == TRUE"
+        "cannot extract train sample predictions; bart must be called with 'keepTrainingFits' == TRUE"
       )
     }
   }

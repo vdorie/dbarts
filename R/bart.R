@@ -544,12 +544,12 @@ buildHostSamplerCall <- function(
     samplerCall$family <- family
   }
   if (!missing(sigest)) {
-    samplerCall$sigma <- as.numeric(sigest)
+    samplerCall$sigest <- as.numeric(sigest)
   }
   samplerCall
 }
 
-# The two-phase burn-in/sample split shared by bart and bart2's standard path.
+# The two-phase burn-in/sample split shared by both doors' standard path.
 # When burn-in is requested the test set is dropped and keepTrainingFits/verbose
 # forced FALSE for the burn run (a draw-neutral speedup - test fits do not feed
 # the MCMC), then restored for the kept-sample run, with keepTrees re-enabled
@@ -635,7 +635,7 @@ checkFamilyUnsupportedArgs <- function(
   }
 }
 
-bart2 <- function(
+bart <- function(
   formula,
   data,
   test,
@@ -698,8 +698,7 @@ bart2 <- function(
     "hazard",
     "hazard.probit",
     "hazard.logistic",
-    "hurdle.lognormal",
-    "twopart"
+    "hurdle.lognormal"
   ),
   missing = c("incorporate", "error"),
   resid.dist = gaussian,
@@ -710,17 +709,43 @@ bart2 <- function(
   node.prior = NULL,
   resid.prior = NULL,
   storage = c("double", "single"),
-  updateState = TRUE
+  updateState = TRUE,
+  ...
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
-  family <- match.arg(family)
-  # hurdle.lognormal / twopart: resolve the alias before anything reads
-  # 'family', so the token prints and dispatches as
-  # "hurdle.lognormal" regardless of which spelling was requested
-  if (identical(family, "twopart")) {
-    family <- "hurdle.lognormal"
+
+  # Two doors, one name for one release. A call carrying a BayesTree
+  # spelling is a 0.9-x call and is fit by the legacy door with 0.9-x's
+  # defaults; everything else is fit here. Both checks precede every other
+  # read of the arguments, so a forwarded call is never partly interpreted
+  # under the modern vocabulary first.
+  suppliedCall <- sys.call()
+  forwarded <- forwardToLegacyDoor(
+    suppliedCall,
+    names(matchedCall)[-1L],
+    callingEnv
+  )
+  if (!is.null(forwarded)) {
+    return(forwarded$value)
   }
+  refuseLegacyPositionalCall(suppliedCall)
+  dots <- list(...)
+  refuseForeignFrontDoorArgs(dots, "bart", names(formals(dbarts::bart)))
+  if (!is.null(dots[["rngSeed"]])) {
+    seed <- resolveRenamedSeed(dots, "bart", seed)
+    # stamped onto the matched call as well: the control is built by
+    # redirecting that call by name, which the old spelling never reaches
+    matchedCall$rngSeed <- NULL
+    matchedCall$seed <- seed
+  }
+
+  # one model, one token: "twopart" is a retired spelling, refused by name
+  # ahead of match.arg's generic message rather than folded in silence
+  if (identical(family, "twopart")) {
+    refuseTwopartFamily("bart")
+  }
+  family <- match.arg(family)
 
   # A data object carrying an n x K count matrix declares the multinomial
   # (softmax) model, whose fitted quantity is K probabilities per observation
@@ -730,8 +755,8 @@ bart2 <- function(
   # as if it were n rows and reported without a word. Refuse the object here,
   # ahead of every family branch, since family = "auto" resolves it downstream
   # and no branch below would see the token.
-  refuseCountsCarryingData(formula, "bart2()")
-  refuseResponseFreeFormula(formula, "bart2()")
+  refuseCountsCarryingData(formula, "bart()")
+  refuseResponseFreeFormula(formula, "bart()")
 
   # family = "auto" with a 3+-level UNORDERED factor/character response is
   # multinomial; a 3+-level ORDERED factor is ordinal (the disjoint
@@ -774,9 +799,9 @@ bart2 <- function(
   # factors/missing/proposal.probs are forwarded formal defaults:
   # redirectCall only carries a name into the host dbarts() call when the
   # caller supplied it, so an unsupplied one must be resolved here, in
-  # bart2's own frame, and stamped onto matchedCall unconditionally, or it
-  # would silently take dbarts()'s own default rather than the token/value
-  # this signature advertises.
+  # this function's own frame, and stamped onto matchedCall unconditionally,
+  # or it would silently take dbarts()'s own default rather than the
+  # token/value this signature advertises.
   factors <- match.arg(factors)
   missing <- match.arg(missing)
   matchedCall$factors <- factors
@@ -784,15 +809,17 @@ bart2 <- function(
   matchedCall$proposal.probs <- proposal.probs
 
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
-  missingDefaultArgs <- names(formals(dbarts::bart2))[
-    names(formals(dbarts::bart2)) %in%
-      names(formals(dbarts::dbartsControl)) &
-      names(formals(dbarts::bart2)) %not_in% names(matchedCall)
+  # '...' is a formal of both and names no value, so it is excluded before
+  # the shared names are evaluated as defaults
+  sharedFormals <- setdiff(names(formals(dbarts::bart)), "...")
+  missingDefaultArgs <- sharedFormals[
+    sharedFormals %in% names(formals(dbarts::dbartsControl)) &
+      sharedFormals %not_in% names(matchedCall)
   ]
   if (length(missingDefaultArgs) > 0L) {
     currentEnv <- sys.frame(sys.nframe())
     controlCall[missingDefaultArgs] <- lapply(
-      formals(dbarts::bart2)[missingDefaultArgs],
+      formals(dbarts::bart)[missingDefaultArgs],
       eval,
       envir = currentEnv
     )
@@ -808,13 +835,14 @@ bart2 <- function(
 
   # the multinomial branch below keeps its own family-named check
   if (family != "multinomial" && isTRUE(control@n.samples <= 0L)) {
-    refuseZeroSamples("bart2")
+    refuseZeroSamples("bart")
   }
 
   # multinomial: a K-forest softmax model over a factor response or an n x K
   # count matrix, validated and dispatched here rather than threaded through
-  # the rest of bart2 - it bypasses the standard single-forest packaging
-  # entirely, though bart2Multinomial/bart2MultinomialCounts build their
+  # the rest of this function - it bypasses the standard single-forest
+  # packaging entirely, though bart2Multinomial/bart2MultinomialCounts
+  # build their
   # sampler through dbarts()'s own family = "multinomial" dispatch, the same
   # one bartcoreMultinomialSampler/bartcoreMultinomialCountSampler route
   # through. Every refusal below names the limitation rather than silently
@@ -866,7 +894,7 @@ bart2 <- function(
         "offset is a sampler-level capability only - a dbartsSampler's own ",
         "$setCategoryTestOffset method, reached through keepSampler = TRUE, ",
         "or the internal creators' own offset.test argument - not reachable ",
-        "from bart2"
+        "from bart()"
       )
     }
     if (!missing(subset)) {
@@ -923,7 +951,7 @@ bart2 <- function(
       stop(
         "family = \"multinomial\" does not support a pre-built dbartsData ",
         "object; use the formula interface or the matrix ",
-        "interface: bart2(x.train, y.train, family = \"multinomial\")"
+        "interface: bart(x.train, y.train, family = \"multinomial\")"
       )
     }
     if (is.formula(formula)) {
@@ -1118,7 +1146,7 @@ bart2 <- function(
     ))
   }
 
-  # hurdle.lognormal / twopart: a semicontinuous two-part fit built from an
+  # hurdle.lognormal: a semicontinuous two-part fit built from an
   # occupancy probit on 1{y > 0} (all n) and a gaussian
   # on log(y) restricted to the y > 0 subset, glued at report time. Dispatched
   # here - not inside dbarts(), which returns a single sampler and cannot
@@ -1174,7 +1202,7 @@ bart2 <- function(
     control@keepTrees <- FALSE
   }
 
-  # k enters unevaluated: bart2 redirects its matched call, so the stored
+  # k enters unevaluated: bart redirects its matched call, so the stored
   # symbol resolves in the caller's frame
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1185,7 +1213,7 @@ bart2 <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -1471,7 +1499,7 @@ bart2Multinomial <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
   )
 
   # one bartcore_create, through the public multinomial dispatch: the factor
@@ -1560,7 +1588,7 @@ bart2MultinomialCounts <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -1786,7 +1814,7 @@ bart2Ordinal <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -2036,7 +2064,7 @@ bart2Negbin <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -2287,7 +2315,7 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
   )
 }
 
-# The hurdle.lognormal / twopart fit path, reached from bart2's family =
+# The hurdle.lognormal fit path, reached from the front door's family =
 # "hurdle.lognormal" branch. Composed R-side from two ordinary single-forest
 # fits - never a coupled engine model - so this simply calls bart2() twice,
 # once per component, at two independently derived seeds (a shared seed
@@ -2606,79 +2634,23 @@ survivalProbabilities.bart <- function(
   )
 }
 
-# bart2 is the door to the own-class families: multinomial and ordinal
-# package as their own S3 class, nbinom needs a count response bart() cannot
-# express, and hurdle.lognormal composes two samplers. match.arg's generic
-# "'arg' should be one of ..." names neither bart2 nor why, so all four
-# are refused BY NAME here - whether the token was typed explicitly (the
-# family formal) or, for ordinal alone, implied by an ordered-factor
-# response the matrix/formula interface detects before/after the dbarts()
-# call.
-bartOwnClassFamilies <- c(
-  "multinomial",
-  "ordinal",
-  "nbinom",
-  "hurdle.lognormal"
-)
-
-refuseBartOwnClassFamily <- function(family, callForm = "x.train, y.train") {
+# The BayesTree-style door is a strict compatibility mode: 0.9-34's argument
+# list, 0.9-34's defaults, no families beyond the numeric/binary pair the
+# response itself declares. A factor response of three or more levels was
+# fit as its integer level codes there, which is a model no one asks for on
+# purpose, so it is refused here naming both remedies - the modern door's
+# multinomial fit, or the explicit coding that reproduces the old numbers.
+refuseLegacyFactorResponse <- function() {
   stop(
-    "bart() does not fit family = \"",
-    family,
-    "\"; use ",
-    "bart2(",
-    callForm,
-    ", family = \"",
-    family,
-    "\")"
+    "'bartBT' does not fit a factor response with three or more levels; ",
+    "dbarts 0.9-x fit its integer level codes as numbers. Use ",
+    "bart(x.train, y.train, family = \"multinomial\") for a multinomial ",
+    "fit, or pass as.integer(y) - 1L to keep the old numeric behaviour",
+    call. = FALSE
   )
 }
 
-# The other six of bart2's ten families bart() itself cannot reach, each for
-# one of two further reasons beyond bartOwnClassFamilies: a token that
-# family = "auto" already resolves for this response (so it adds no
-# capability as a separate bart() token), or one whose discrete-time
-# expansion needs breaks/max.rows, which bart() has no formal for. Refused
-# BY NAME, ahead of match.arg, echoing the token the caller typed - so
-# "twopart" is named "twopart", never the alias it folds to.
-bartRedirectedFamilies <- c(
-  multinomial = "ownClass",
-  ordinal = "ownClass",
-  nbinom = "ownClass",
-  hurdle.lognormal = "ownClass",
-  twopart = "ownClass",
-  gaussian = "auto",
-  probit = "auto",
-  hazard.probit = "auto",
-  hazard = "hazard",
-  hazard.logistic = "hazard"
-)
-
-refuseBartRedirectedFamily <- function(family, callForm = "x.train, y.train") {
-  reason <- bartRedirectedFamilies[[family]]
-  if (identical(reason, "ownClass")) {
-    refuseBartOwnClassFamily(family, callForm)
-  }
-  redirect <- paste0("bart2(", callForm, ", family = \"", family, "\")")
-  if (identical(reason, "auto")) {
-    stop(
-      "bart() does not fit family = \"",
-      family,
-      "\" as a token; it is what family = \"auto\" already fits for this ",
-      "response - drop the argument, or use ",
-      redirect
-    )
-  }
-  stop(
-    "bart() does not fit family = \"",
-    family,
-    "\": the discrete-time expansion needs \"breaks\" and \"max.rows\", ",
-    "which bart() does not have - use ",
-    redirect
-  )
-}
-
-bart <- function(
+bartBT <- function(
   x.train,
   y.train,
   x.test = matrix(0.0, 0L, 0L),
@@ -2686,7 +2658,6 @@ bart <- function(
   sigdf = 3.0,
   sigquant = 0.90,
   k = 2.0,
-  prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
   splitprobs = 1 / numvars,
@@ -2710,33 +2681,15 @@ bart <- function(
   sampleronly = FALSE,
   seed = NA_integer_,
   proposalprobs = NULL,
-  keepsampler = keeptrees,
-  resid.dist = gaussian,
-  subset = NULL,
-  storage = c("double", "single"),
-  family = c("auto", "logistic", "aft")
+  keepsampler = keeptrees
 ) {
-  # by-name refusal for the ten redirected families, ahead of match.arg's
-  # generic message, which names neither the token nor bart2
-  if (
-    is.character(family) &&
-      length(family) == 1L &&
-      family %in% names(bartRedirectedFamilies)
-  ) {
-    refuseBartRedirectedFamily(family)
-  }
-  family <- match.arg(family)
-
   # a count-matrix data object declares the multinomial model, which this
   # frozen BayesTree shim reports none of: its packaging is one location per
   # observation, so a K-location fit would be reshaped and returned without a
   # word. The dbartsData passthrough is the only route one can arrive by
-  refuseCountsCarryingData(x.train, "bart()")
-  refuseResponseFreeFormula(x.train, "bart()")
+  refuseCountsCarryingData(x.train, "bartBT()")
+  refuseResponseFreeFormula(x.train, "bartBT()")
 
-  # forwarded to dbarts() unevaluated (as the prior expressions are), so a bare
-  # gaussian()/student() resolves in dbarts()'s residual-distribution vocabulary
-  residDist <- substitute(resid.dist)
   # coerce eagerly, naming the argument as the caller typed it - dbartsControl
   # re-coerces its own (already-integer) inputs and would otherwise blame its
   # internal slot names (n.burn/n.trees/...) for a bad ntree/nskip/... value
@@ -2760,25 +2713,22 @@ bart <- function(
     stop("'nskip' must be a non-negative integer")
   }
 
-  # bart() is the frozen BayesTree shim and does not package an ordinal fit; an
-  # ordered-factor response (which dbarts() would auto-dispatch to ordinal) is
-  # refused up front, pointing to bart2. The matrix interface names the
-  # response directly; a formula response is caught
-  # by the family backstop after the sampler is built.
+  # the matrix interface names the response directly; a formula response
+  # reaches the same refusal through the backstop below, after dbarts() has
+  # resolved it
   if (
     !is.formula(x.train) &&
+      !missing(y.train) &&
       is.factor(y.train) &&
-      is.ordered(y.train) &&
       nlevels(y.train) >= 3L
   ) {
-    refuseBartOwnClassFamily("ordinal")
+    refuseLegacyFactorResponse()
   }
 
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
     useQuantiles = as.logical(usequants),
     keepTrees = FALSE,
-    storage = storage,
     n.burn = nskip,
     n.trees = ntree,
     n.chains = nchain,
@@ -2796,8 +2746,8 @@ bart <- function(
   # heavier than it would otherwise drive it to 0, which the sampler refuses
   control@printEvery <- max(1L, control@printEvery %/% control@n.thin)
   # control@keepTrees is still FALSE here regardless of 'keeptrees' (set
-  # below, once burn-in is known); read the user's own argument, as bart2
-  # does through its differently-sequenced control construction
+  # below, once burn-in is known); read the user's own argument, as the
+  # modern door does through its differently-sequenced control construction
   keepsampler <- keepsampler || keeptrees
   if (control@n.burn == 0L && keeptrees == TRUE) {
     control@keepTrees <- TRUE
@@ -2807,8 +2757,8 @@ bart <- function(
   }
   ndpost <- ndpost %/% control@n.thin
   # a zero (or thinned-to-zero) sample count would otherwise fault deeper, in
-  # the empty-array reshape (dim(X) has no positive length); mirrors bart2's
-  # same-shaped guard on control@n.samples
+  # the empty-array reshape (dim(X) has no positive length); mirrors the
+  # modern door's same-shaped guard on control@n.samples
   if (isTRUE(ndpost <= 0L)) {
     stop("'ndpost' must be a positive integer")
   }
@@ -2820,19 +2770,18 @@ bart <- function(
     sigdf,
     sigquant,
     nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
-    priorScale = prior.scale,
+    priorScale = NA_real_,
     splitProbsName = "splitprobs",
-    splitProbsDefault = formals(dbarts::bart)[["splitprobs"]]
+    splitProbsDefault = formals(dbarts::bartBT)[["splitprobs"]]
   )
   tree.prior <- priors$tree.prior
   node.prior <- priors$node.prior
   resid.prior <- priors$resid.prior
 
-  # the frozen BayesTree-compatibility shim keeps dummy expansion. subset is
-  # left OUT of the list rather than forwarded as an explicit NULL: an
-  # ordinary fit treats missing(subset) and is.null(subset) identically, but
-  # an aft/Surv response does not (dbarts() refuses a non-missing subset on
-  # one), so an explicit NULL would silently foreclose family = "aft"
+  # the frozen BayesTree-compatibility shim keeps dummy expansion. Every
+  # setting 0.9-34 had no name for is left at dbarts()'s own default rather
+  # than forwarded: this door adds no capability, so a numeric or binary
+  # response is all it can be given.
   args <- list(
     formula = x.train,
     data = y.train,
@@ -2844,20 +2793,15 @@ bart <- function(
     tree.prior = tree.prior,
     node.prior = node.prior,
     resid.prior = resid.prior,
-    resid.dist = residDist,
     proposal.probs = proposalprobs,
     control = control,
-    sigma = as.numeric(sigest),
+    sigest = as.numeric(sigest),
     factors = "indicators",
-    missing = "error",
-    family = family
+    missing = "error"
   )
-  if (!is.null(subset)) {
-    args$subset <- subset
-  }
-  # bart() always builds with missing = "error" (above) and has no
+  # this door always builds with missing = "error" (above) and has no
   # 'missing' formal of its own, so dbarts()'s stock remedy - naming an
-  # argument bart() rejects - is rewritten to point at the front doors that
+  # argument it rejects - is rewritten to point at the front doors that
   # actually take it
   sampler <- tryCatch(
     do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
@@ -2867,7 +2811,7 @@ bart <- function(
         stop(
           sub(
             "; use missing = \"incorporate\" to model them",
-            "; use bart2() or dbarts(), which support missing = \"incorporate\", to model them",
+            "; use bart() or dbarts(), which support missing = \"incorporate\", to model them",
             msg,
             fixed = TRUE
           ),
@@ -2878,10 +2822,10 @@ bart <- function(
     }
   )
 
-  # formula-response backstop for the pre-check above: dbarts() auto-dispatched
-  # an ordered-factor response to ordinal, which bart() cannot package
+  # formula-response backstop for the pre-check above: dbarts() resolved an
+  # ordered-factor response to ordinal, which this door does not package
   if (identical(sampler$model@family, "ordinal")) {
-    refuseBartOwnClassFamily("ordinal", callForm = "...")
+    refuseLegacyFactorResponse()
   }
 
   if (sampleronly) {
@@ -2903,7 +2847,7 @@ bart <- function(
     combinechains,
     keepsampler
   )
-  # needed to extract ppd; mirrors bart2's packageBartResults
+  # needed to extract ppd; mirrors the modern door's packageBartResults
   if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
     result$weights <- sampler$data@weights
     if (

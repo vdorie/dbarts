@@ -1,7 +1,9 @@
 pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
-  isBart2 <- bartCall[[1L]] == quote(bart2) ||
-    bartCall[[1L]] == quote(dbarts::bart2)
-  samplerOnlyName <- if (isBart2) "samplerOnly" else "sampleronly"
+  # the two doors spell it differently; a stored call names the door it was
+  # made through, so the spelling follows the call rather than the caller
+  isLegacyDoor <- bartCall[[1L]] == quote(bartBT) ||
+    bartCall[[1L]] == quote(dbarts::bartBT)
+  samplerOnlyName <- if (isLegacyDoor) "sampleronly" else "samplerOnly"
   if (!is.null(bartCall[[samplerOnlyName]])) {
     stop(
       "'",
@@ -40,7 +42,10 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
 pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
   sampler <- fit <- NULL
   if (is.matrix(x.train) || is.data.frame(x.train) || is.formula(x.train)) {
-    bartCall <- redirectCall(matchedCall, dbarts::bart)
+    # pdbart/pd2bart carry the BayesTree spelling themselves (x.train,
+    # y.train, and BayesTree names through '...'), so the fit they build is
+    # the legacy door's, at 0.9-34's defaults
+    bartCall <- redirectCall(matchedCall, dbarts::bartBT)
     massign[sampler, fit] <- pdbart.getAndInitializeSampler(
       bartCall,
       callingEnv
