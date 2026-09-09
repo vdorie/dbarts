@@ -230,3 +230,30 @@ Nothing in the engine's own rows moved. The n*T pair measured 8.02 to 8.06
 bytes per n*T under a constant leaf across every cell, against the derived
 8, and the per-chain and per-sampler rows carried the chain excursion to
 within 2 pct.
+
+## The largest avoidable allocations, ranked
+
+By bytes saved per line of change, at the two reference cases. Everything
+below the second row is its own TODO entry rather than a change in this arc.
+
+| item | saved, case 1 | saved, case 2 | change | recommendation |
+| --- | --- | --- | --- | --- |
+| name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | taken, in the manual's Memory section |
+| have the bridge allocate the result in the layout the R side returns and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dimensions plus the R reshape and mean | step 7 of this arc (VD 2026-09-08); it also removes the collector churn row, 16 MB at n = 1e5 and 120 MB at n = 1e6 |
+| a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher), 67 MB once the row above is taken | 0 today, 1632 MB once it is | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; it becomes the peak the moment the returned array stops being it |
+| the leaf statistics cache's 256 MiB budget, or a smaller default | 0 (constant leaf) | 0 (constant leaf) | one constant | own TODO entry; 268 MB on any linear or gp fit above n*T*m*C = 6.7e7, where it is the single largest allocation |
+| drop the ingestion copy of the predictor matrix, so two live copies remain instead of three | 16 MB | 400 MB | the ingestion path | own TODO entry |
+| a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
+| drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |
+| leafOf as uint16 | 40 MB/chain | 400 MB/chain | declined by measurement | do not reopen |
+
+What the consuming arcs take from this. Within-chain threading (dec-B89,
+[docs/decisions.md](../decisions.md)) weighs the per-chain block, 163.0 MB in
+case 1 and 1628.2 MB in case 2, against a per-thread block this note contains
+no row for at all: no allocation here is indexed by thread, so at large n
+threads inside a chain are the cheap parallelism and chains are the expensive
+one. The header arc (dec-B87) takes its owned conditioning vectors as a share
+of the per-sampler total: 24*n + 8*nTest is 2.4 MB of case 1's 658.3 MB engine
+(0.4 pct) and 24.0 MB of case 2's 1752.2 MB (1.4 pct), and the measurement
+leaves both unchanged - the rows the audit moved are all R-side or leaf-model
+rows, none of them on the conditioning path.
