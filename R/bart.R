@@ -35,7 +35,17 @@ convertSamplesFromDbartsToBart <-
         if (n.chains <= 1L) t(samples) else as.vector(samples),
         {
           x <- NULL
-          res <- evalx(dim(samples), t(matrix(samples, x[1L], prod(x[-1L]))))
+          # ONE permutation, not matrix() then t(). Rotating the parameter
+          # margin to the end and flattening the rest with dim<- lands the
+          # same (n.samples * n.chains) x n.pars layout the pair produced,
+          # but through a single full-size allocation: dim<- rewrites an
+          # attribute of an array nothing else references. On a channel the
+          # size of yhat.train that second copy is the whole peak.
+          res <- evalx(dim(samples), {
+            permuted <- aperm(samples, c(seq_along(x)[-1L], 1L))
+            dim(permuted) <- c(prod(x[-1L]), x[1L])
+            permuted
+          })
           if (!is.null(dimnames(samples))) {
             colnames(res) <- dimnames(samples)[[1L]]
           }
@@ -44,6 +54,26 @@ convertSamplesFromDbartsToBart <-
       )
     }
   }
+
+# The per-parameter posterior mean of a channel already in the returned
+# layout, where the parameter margin is the LAST one and each parameter's
+# draws are therefore one contiguous slab. apply() would do the same
+# reduction, but it aperms its argument first - even when the permutation is
+# the identity - so on a channel the size of yhat.train it allocates a second
+# full-size array while the engine's own is still bound. The slab order is
+# load-bearing: mean() sums in the order it is handed, so reducing here
+# rather than over the engine's observation-major array is what keeps every
+# value bit-for-bit what apply() returned.
+channelMeans <- function(samples) {
+  numDims <- length(dim(samples))
+  means <- if (numDims == 2L) {
+    vapply(seq_len(dim(samples)[2L]), function(i) mean(samples[, i]), 0)
+  } else {
+    vapply(seq_len(dim(samples)[3L]), function(i) mean(samples[,, i]), 0)
+  }
+  names(means) <- dimnames(samples)[[numDims]]
+  means
+}
 
 # input n.samples x n.chains x n.pars, or n.samples x n.pars when n.chains = 1
 # output (n.samples * n.chains) x n.pars
@@ -146,7 +176,7 @@ packageBartResults <- function(
     if (!responseIsBinary) {
       yhat.train.mean <- padOmittedRows(
         fit$data@na.action,
-        apply(yhat.train, length(dim(yhat.train)), mean)
+        channelMeans(yhat.train)
       )
     }
   }
@@ -160,7 +190,7 @@ packageBartResults <- function(
       combineChains
     )
     if (!responseIsBinary) {
-      yhat.test.mean <- apply(yhat.test, length(dim(yhat.test)), mean)
+      yhat.test.mean <- channelMeans(yhat.test)
     }
   }
 
