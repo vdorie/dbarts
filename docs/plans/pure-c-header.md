@@ -327,20 +327,29 @@ bartCause, stan4bart, treatSens.
 Step 8:
 [`tools/check-api-hash.sh`](../../tools/check-api-hash.sh) reads
 `DBARTS_C_API_HASH`, `DBARTS_C_API_MAJOR` and `DBARTS_C_API_MINOR` from
-the working tree and from the newest `v1.*` tag, failing when the hash
-moved and the version pair did not; today it prints "no release tag,
-skipped" and exits 0, since no `v1.*` tag exists yet. Wired as its own
-job in check-standard.yaml with a full-history checkout - the
-R-CMD-check matrix's default checkout is shallow and fetches no tags,
-so the assertion could not run there. Proved discriminating in a
-throwaway scratch clone that never touched this repository's own tags:
-a `v1.0-0-scratch` tag at the tip, then an edited hash literal with no
-version bump fails and the same edit plus a minor bump passes.
+the working tree and from the newest release tag, failing when the
+hash moved and the version pair did not; today it prints "no release
+tag, skipped" and exits 0, since no matching tag exists yet. A release
+tag matches `v1.*` or unprefixed `1.*` - this repository's own tags
+predate the `v`-prefixed spelling - and the newest is picked by version
+across either form: git's own `--sort=-v:refname` groups a `v`-prefixed
+tag ahead of every unprefixed one rather than interleaving them by
+version, so the comparison is done by hand in `awk` on the
+major.minor.patch triple (the leading `v` stripped first) instead.
+Wired as its own job in check-standard.yaml with a full-history
+checkout - the R-CMD-check matrix's default checkout is shallow and
+fetches no tags, so the assertion could not run there. Proved
+discriminating in a throwaway scratch clone that never touched this
+repository's own tags, first with a `v1.0-0-scratch` tag and then again
+with the unprefixed spelling, `1.0-0-scratch`: the skipped case with no
+matching tag, an edited hash literal with no version bump failing, and
+the same edit plus a minor bump passing.
 
 Step 9: the tag convention the check depends on,
-`v<major>.<minor>-<patch>`, is recorded under [CI](README.md#ci) in
-docs/plans/README.md, noting that this repository's own pre-1.0-0 tags
-(`0.8-7`, `bartcore-pre-cran-rebase`) predate it and do not match.
+`v<major>.<minor>-<patch>` or the same without the `v`, is recorded
+under [CI](README.md#ci) in docs/plans/README.md, noting that this
+repository's own pre-1.0-0 tags (`0.8-7`, `bartcore-pre-cran-rebase`)
+predate the major-1 line and do not match either form.
 
 Doc gap from S2: both ports needed the R route from an already-built
 `(control, model, data)` triple, which is
@@ -365,4 +374,4 @@ bridge code changed on this slice, and the class is RNG-neutral by
 inspection. NEWS untouched: a CI assertion is a maintainer-process
 concern, not user-facing behavior.
 
-Real diff: 6 files, +102/-8.
+Real diff: 6 files, +183/-8.
