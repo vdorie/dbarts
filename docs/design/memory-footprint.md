@@ -6,7 +6,8 @@ Status: VALIDATED against measured peak resident set size by
 max(10 pct, 20 MB) of the model, and the median absolute relative residual
 over the whole grid is 4.4 to 4.8 pct across three runs against a 5 pct
 limit; the worst cell is the same one each time (n = 1e5, p = 20, T = 200,
-C = 2), 20.8 to 24.3 MB low against a 46.6 MB tolerance. The margin on the median is thin, and it is thin
+C = 2), 20.8 to 24.3 MB low against a 46.6 MB tolerance. The margin on the
+median is thin, and it is thin
 for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
 byte model cannot reach. "What the measurement moved" below records the rows
@@ -164,7 +165,9 @@ ever held, so a run that starts from stumps parks 4*n in the root's slot and
 648 bytes of inline crossproduct plus its vector header whatever q is. The
 resident total is therefore 4*n per populated arena depth level per tree per
 chain. Measured over six cells (n in {1e4, 1e5, 2e5}, T in {75, 200}, C in
-{1, 2}) it is 11.0 to 14.5 bytes per n*T*C, mean 12.9, so 3.2 levels; the
+{1, 2}; a hand excursion of the script's linear cell at those shapes, not
+part of its grid) it is 11.0 to 14.5 bytes per n*T*C, mean 12.9, so 3.2
+levels; the
 model carries 3.2 and the grid's two linear cells land 10.0 MB high at
 T = 200 and 1.4 MB low at T = 75. The budget never bound at any cell
 measured: at the largest, n = 2e5, T = 200, C = 1, the tracked figure is
@@ -298,8 +301,8 @@ second row is its own TODO entry rather than a change in this arc.
 | --- | --- | --- | --- | --- |
 | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | taken, in the manual's Memory section |
 | have the bridge allocate the result in the layout the R side returns and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dimensions plus the R reshape and mean | step 7 of this arc (VD 2026-09-08); it also removes the collector churn row, 16 MB at n = 1e5 and 120 MB at n = 1e6 |
-| prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
 | drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
+| prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
 | a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; CONDITIONAL - worth 67 MB in case 1 and 1632 MB in case 2, but only once the returned array above stops setting the peak |
 | a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
 | drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |
