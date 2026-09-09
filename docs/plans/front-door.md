@@ -121,8 +121,8 @@ work over folds, and reproduces a seed at any thread count. A saved
 
 ## Decision
 
-Open forks, each with a recommendation; they go to VD one at a time
-before S1 starts.
+All six forks were put to VD on 2026-09-08 and are recorded here with
+the choice; none remains open.
 
 1. The legacy door's name: `bartBT` (VD 2026-09-08, chosen over
    `bart_bt` and `bartCompat`).
@@ -140,21 +140,25 @@ before S1 starts.
    dropped, so `bartBT` is 0.9-34's argument list exactly (VD
    2026-09-08: "No one wrote any scripts against bartcore's branch.
    Drop all five.").
-4. The Student-t spelling. Since Student-t errors exist only for the
-   continuous gaussian response, the residual-law setting has one home.
-   Options: (a) `family = student(df)` as its own family object and
-   token, matching the engine's own family list; (b)
-   `family = gaussian(errors = student(df))`, a setting on gaussian.
-   Recommended: (a); `resid.dist` and `dbartsResidDists` retire.
-5. The `na.action` default's name. It behaves like `na.exclude` on the
-   response column only. Candidates: `na.excludeResponse` (exact,
-   long), `na.dbarts` (short, says nothing). Recommended:
-   `na.excludeResponse`.
-6. xbart's "leave k modelled" spelling. Options: (a) `k` accepts a list
-   whose entries are numbers or hyperprior objects, so
-   `k = list(1, 2, chi())` sweeps two fixed values and the modelled
-   default; (b) `NA` in the numeric grid means modelled. Recommended:
-   (a); an NA token is obscure and cannot name the hyperprior.
+4. The Student-t spelling: `family = student(df)` as its own family
+   object and token, matching the engine's family list; `resid.dist`
+   and `dbartsResidDists` retire (VD 2026-09-08, "Use your
+   recommendation", over a `gaussian(errors = student(df))` setting).
+5. The `na.action` default's name: `na.keepPredictors` (VD
+   2026-09-08, chosen for saying what differs from `na.omit`; rpart's
+   `na.rpart` is the behavioural precedent and the help page says so).
+   `missing` is retired outright, no tombstone (VD 2026-09-08): missing
+   predictors are always modelled for the rows `na.action` keeps;
+   `na.fail` covers the old `missing = "error"`.
+6. xbart's "leave k modelled" spelling (VD 2026-09-08): `k` accepts a
+   numeric vector as today or a list whose entries are numbers or
+   hyperprior objects, so `k = list(1, 2, chi())` sweeps two fixed
+   values and the modelled default; the modelled cell is labelled by
+   its constructor call. An absent `k` runs one cell at the front
+   door's default for the response type (fixed 2 continuous,
+   `chi(1.5, 2)` binary), so a default `xbart` call scores the model a
+   default `bart` call fits; this supersedes dec-B12's fixed-2 binary
+   default, and a supplied `node.prior` with its own k still wins.
 
 Fixed by the decisions: the consolidation's scope (dec-B98 says any
 remaining family-only or feature-only formal moves onto its object, so
@@ -181,7 +185,7 @@ message; no conversion of 0.9-x fits.
   the NEWS list, so the release after 1.0-0 removes them by deleting the
   file.
 - The legacy door and the modern door share `dbarts()`; the legacy door
-  keeps indicator expansion for factors (dec-B78) and `missing = "error"`.
+  keeps indicator expansion for factors (dec-B78) and 0.9-34's `na.omit` row rule.
 - Out of scope: any engine or bridge change; the survival formula
   interface and sparse columns (docs/plans/interfaces-and-dependencies.md);
   the rbart_vi fallback of dec-B105 (a stan4bart condition, tracked in
@@ -268,14 +272,17 @@ S2, family objects, consolidation, na.action:
    default and is measured in the constants audit
    (docs/plans/engine-performance.md).
 10. na.action (dec-B108): formal on `bart`, `dbarts` and `dbartsData`,
-    default the package function of fork 5. Ingestion passes the
+    default `na.keepPredictors`; the `missing` formal leaves `bart`,
+    `dbarts`, `dbartsData` and `xbart` with no tombstone, and the
+    incorporate path is always on for kept rows (`bartBT` keeps
+    0.9-34's `na.omit` behaviour). Ingestion passes the
     function to `model.frame` at the main site in `dbartsData` and
     applies it to the (y, x) pair on the matrix path; the other four
     `na.pass` sites (the test frame in R/data.R, the multinomial frame
     in R/bart.R, the forest-term bases in R/formulaTerms.R and the
     basis site in R/model.R) keep `na.pass` and align to the rows the
     main frame kept; the package default drops rows
-    with a missing response, keeps missing predictors for `missing`,
+    with a missing response, keeps missing predictors for the trees,
     and sets a `na.action` attribute of class `exclude` so `fitted` and
     the training-fit slots pad to the data's length through
     `stats::naresid`. `na.omit`, `na.exclude`, `na.fail`, `na.pass` keep
@@ -295,7 +302,10 @@ S3, xbart (dec-B77, B102):
     4 threads.
 13. k axis per fork 6: the grid holds numbers and hyperprior objects;
     a hyperprior cell hands the object to the node prior and reports
-    "modelled" in the result's dimnames. Tombstones for `control=` and a
+    the constructor call in the result's dimnames; an absent `k` is one
+    cell at the response type's front-door default (the binary default
+    cell therefore moves from fixed 2 to `chi(1.5, 2)`, a draw change
+    covered by the xbart re-record). Tombstones for `control=` and a
     three-element `n.burn` name the flat fields.
 14. Replay the xbart snapshot file; re-record the two xbart equivalence
     scenarios with the fold oracle as the P17 row.
@@ -309,7 +319,7 @@ S4, manual, records, consumers:
     `dbarts-deprecated.Rd`. A `dbartsFamilies.Rd` page documents the
     family objects and holds the one mapping table (dec-B81): front-door
     token, family object, engine family, entry points that accept it.
-    `na.excludeResponse` (or the chosen name) gets its page. pkgdown
+    `na.keepPredictors` gets its page. pkgdown
     reference entries for each.
 16. NEWS 1.0-0 UPGRADING: the rename, the shim, the legacy door, the
     tombstone list with expiry, sigest, family objects, na.action, the
