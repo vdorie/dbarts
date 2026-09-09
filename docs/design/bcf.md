@@ -410,7 +410,7 @@ the `weights` precedent) and the treatment forest's configuration rides
 precedent), cross-checked in both directions at creation
 ([`createHolder`](../../src/R_interface_bartcore.cpp)). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; [`setForestBasis`](../../R/dbarts.R), [`getForestFits`](../../R/dbarts.R), [`getForestAmplitudes`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R)). `dbarts_sampler_create` reaches
+339aeb0; [`setForestBasis`](../../R/dbarts.R), [`getForestFits`](../../R/dbarts.R), [`getForestAmplitudes`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R)). retired: [`dbarts_sampler_create`](../../inst/include/dbarts/dbarts.h) reached
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
 entries (retired: [`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)), and `setResponse` takes an

@@ -161,8 +161,9 @@ Absent slots mean no wide rules; states holding wide rules require them
 - plotTree reads the directions column and needs no change; printTrees
   and the live print dump read pooled words where they read the rule
   word.
-- The C API's dbarts_sampler_getTrees returns the same data.frame and
-  inherits the behavior; no signature changes.
+- retired: [`dbarts_sampler_getTrees`](../../inst/include/dbarts/dbarts.h) returned the same data.frame and
+  inherited the behavior, no signature change; `getTrees` is now the
+  R sampler object's method (pure-c-header.md).
 
 ## R surface
 

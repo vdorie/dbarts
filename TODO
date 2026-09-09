@@ -293,7 +293,8 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75; S1
   contacting lorax's maintainer.
   Plan: docs/plans/front-door.md.
 
-removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76)
+removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76; S1
+  LANDED ecb319aa)
   rbart_vi and its methods return as stubs that error naming stan4bart;
   the sampler's startThreads/stopThreads become no-ops; rngSeed is
   accepted with a once-per-session warning for one release. All expire
@@ -321,14 +322,15 @@ factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
   Plan: docs/plans/front-door.md.
 
 front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
-  dec-B79, B80, B81)
+  dec-B79, B80, B81; sigest S1 LANDED ecb319aa, manual table S4 open)
   names may change until the CRAN push, then lock; sigest replaces
   dbarts()'s sigma argument (the creation-time estimate only; setSigma
   is untouched), with a one-release warning; the manual gets one table
   mapping front-door family tokens to engine families and entry points.
   Plan: docs/plans/front-door.md.
 
-hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82)
+hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82; S1
+  LANDED ecb319aa)
   remove hurdle.lognormal and twopart from dbarts()'s family list and
   intercept the hurdle case in the front door before it forwards; drop
   the twopart alias (tombstone for one release). Post-release: a

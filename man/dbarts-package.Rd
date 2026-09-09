@@ -11,8 +11,8 @@
   For an ordinary fit, use one of the fitting functions. Each runs the sampler to completion and returns posterior draws.
 
   \itemize{
-    \item \code{\link{bart}} - the \pkg{BayesTree}-compatible interface, kept at its historical defaults (200 trees, one chain, factors expanded to indicator columns, binary responses probit, missing data rejected).
-    \item \code{\link{bart2}} - the current interface, taking a formula or matrices and reaching the full feature set, including every response \code{family}. This is the one to reach for first.
+    \item \code{\link{bart}} - the current interface, taking a formula or matrices and reaching the full feature set, including every response \code{family}. This is the one to reach for first.
+    \item \code{\link{bartBT}} - the \pkg{BayesTree}-compatible interface, kept at its historical defaults (200 trees, one chain, factors expanded to indicator columns, binary responses probit, missing data rejected).
     \item \code{\link{xbart}} - crossvalidates over \code{k}, \code{power}, \code{base}, and the tree count.
     \item \code{\link{pdbart}} - partial dependence plots for one or two variables.
   }
@@ -23,10 +23,10 @@
   \code{\link{dbarts}} builds a \code{\link[=dbartsSampler-class]{dbartsSampler}} without running it. The sampler is a \link[=ReferenceClasses]{reference class} whose methods - \code{run}, \code{setResponse}, \code{setPredictor}, \code{setOffset}, \code{setWeights}, and the rest - map onto the underlying C++ engine, so an outer sampler can alternate its own draws with BART's. \code{\link{dbartsData}} and \code{\link{dbartsControl}} build its data and control objects, \code{\link{dbartsPriors}} its priors, and \code{\link{samplePriorPredictive}} draws from the prior for calibration before any fitting. \code{\link{dbartsSpec}} resolves the same specification without constructing a sampler, for packages that embed dbarts and supply their own design matrix.
 }
 \section{Model features}{
-  Reached through \code{\link{bart2}} and \code{\link{dbarts}} unless noted.
+  Reached through \code{\link{bart}} and \code{\link{dbarts}} unless noted.
 
   \itemize{
-    \item Response families (\code{family}): \code{"gaussian"}, \code{"probit"}, \code{"logistic"}, accelerated failure time (\code{"aft"}), discrete-time survival hazard (\code{"hazard"}, \code{"hazard.logistic"}), multinomial (\code{"multinomial"}, \code{bart2} only), ordered categorical (\code{"ordinal"}), negative-binomial counts (\code{"nbinom"}), and semicontinuous two-part (\code{"hurdle.lognormal"}, \code{bart2} only). \code{"auto"}, the default, resolves the family from the response.
+    \item Response families (\code{family}): \code{"gaussian"}, \code{"probit"}, \code{"logistic"}, accelerated failure time (\code{"aft"}), discrete-time survival hazard (\code{"hazard"}, \code{"hazard.logistic"}), multinomial (\code{"multinomial"}, \code{bart} only), ordered categorical (\code{"ordinal"}), negative-binomial counts (\code{"nbinom"}), and semicontinuous two-part (\code{"hurdle.lognormal"}, \code{bart} only). \code{"auto"}, the default, resolves the family from the response.
     \item Outlier-robust Student-t errors (\code{resid.dist = student(...)}) and a heteroscedastic variance forest (\code{variance}).
     \item Structural constraints: monotonicity (\code{monotone}), interaction limits (\code{\link{interactions}}), and block-additivity (\code{\link{blocks}}).
     \item Leaf models: constant, linear, or Gaussian-process (\code{node.prior}; see \code{\link{dbartsPriors}}).
@@ -51,7 +51,7 @@ Chipman, H., George, E., and McCulloch, R. (2010)
   Vincent Dorie \email{vdorie@gmail.com}, with Hugh Chipman and Robert McCulloch. See \code{citation("dbarts")} for how to cite the package.
 }
 \seealso{
-  \code{\link{bart2}} to fit a model, \code{\link{dbarts}} to build a sampler, and the package vignettes: \code{vignette("gibbs_sampler_mixture_model", package = "dbarts")} and \code{vignette("working_with_saved_trees", package = "dbarts")}.
+  \code{\link{bart}} to fit a model, \code{\link{dbarts}} to build a sampler, and the package vignettes: \code{vignette("gibbs_sampler_mixture_model", package = "dbarts")} and \code{vignette("working_with_saved_trees", package = "dbarts")}.
 }
 \keyword{package}
 \keyword{nonparametric}
