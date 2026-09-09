@@ -304,6 +304,24 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
 
+  # the matrix interface's own 'subset' argument (dbarts()'s aft block,
+  # which subsets the status vector alongside dbartsData()'s own x/y
+  # subsetting) matches the same hand-subsetted fit bitwise
+  fit.matrix.subsetArg <- bart(
+    x,
+    survival::Surv(time.s, status.s),
+    family = "aft",
+    subset = sub,
+    n.trees = 50L,
+    n.burn = 100L,
+    n.samples = 200L,
+    n.chains = 1L,
+    verbose = FALSE,
+    seed = 7L,
+    keepTrees = TRUE
+  )
+  expect_identical(fit.matrix.subsetArg$yhat.train, fit.matrix.sub$yhat.train)
+
   # a plain formula with family = "aft" and no Surv response
   expect_error(
     dbarts(survival::Surv(t, s) ~ x1, surv.df, family = "gaussian"),

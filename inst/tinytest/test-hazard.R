@@ -363,6 +363,23 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
 
+  # the matrix interface's own 'subset' argument (dbarts()'s hazard block,
+  # which subsets covariates/time/status/offset/weights BEFORE the
+  # person-period expansion) matches the same hand-subsetted fit bitwise
+  fit.matrix.subsetArg <- do.call(
+    bart,
+    c(
+      list(
+        x,
+        survival::Surv(d$time, d$status),
+        family = "hazard",
+        subset = sub
+      ),
+      fitArgs
+    )
+  )
+  expect_identical(fit.matrix.subsetArg$yhat.train, fit.matrix.sub$yhat.train)
+
   # 'test' at fit time is refused on the formula route; expand held-out
   # subjects with survivalProbabilities(fit, newdata = ) instead (the
   # matrix interface's own 'test' acceptance is covered below)
