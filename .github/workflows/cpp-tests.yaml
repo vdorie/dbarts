@@ -85,7 +85,12 @@ jobs:
         id: reference-install
         run: |
           R CMD INSTALL --preclean --configure-args=--enable-reference-build .
-          Rscript -e 'str(dbarts:::buildInfo())'
+          Rscript -e '
+            info <- dbarts:::buildInfo()
+            str(info)
+            if (!identical(info$mode, "reference"))
+              stop("the reference install reports mode ", info$mode)
+          '
 
       # A file that reports zero assertions has exited at its build-mode
       # guard, which on the reference build means the install did not define

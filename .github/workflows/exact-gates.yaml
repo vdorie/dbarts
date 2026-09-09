@@ -152,14 +152,20 @@ jobs:
       # --preclean is not optional here: R tracks no dependency from the
       # sources to the generated config.hpp, so a second install with
       # different configure arguments would otherwise relink the first
-      # build's objects and silently report the wrong mode. The report is
-      # printed so a run's log says which build the compares below saw.
+      # build's objects and silently report the wrong mode. The mode is
+      # asserted, not just printed: a build whose report lies would send the
+      # compares below at the wrong draw path with nothing else to catch it.
       - name: Install the reference build for the cross-host compares
         id: reference-install
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           R CMD INSTALL --preclean --configure-args=--enable-reference-build .
-          Rscript -e 'str(dbarts:::buildInfo())'
+          Rscript -e '
+            info <- dbarts:::buildInfo()
+            str(info)
+            if (!identical(info$mode, "reference"))
+              stop("the reference install reports mode ", info$mode)
+          '
 
       # Outside the loop above on purpose: that loop passes `quick` to every
       # gate, and these baselines are recorded at FULL settings, which each
