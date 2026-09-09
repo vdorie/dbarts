@@ -5,6 +5,7 @@
 
 #include <misc/stats.h>
 #include <misc/intrinsic.h>
+#include <misc/simd.h>
 
 // Mean, variance and sum-of-squared-residual reductions. Each has a vanilla
 // unrolled form and, where the accumulated round-off would matter, an "online"
@@ -301,7 +302,7 @@ static inline vec2 vec2_make(double lo, double hi) { vec2 v; v.lo = lo; v.hi = h
   do { vec2 wv_ = (_W_); vec2 p_ = vec2_mul(wv_, (_X_)); \
        (_SW_) = vec2_add(_SW_, wv_); (_SX_) = vec2_add(_SX_, p_); } while (0)
 
-void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+static void computeWeightedSuffstatSplit(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
 {
   size_t i = 0, prologue = length % 4;
   double sw0 = 0.0, swx0 = 0.0;
@@ -319,7 +320,7 @@ void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size
   *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
 }
 
-void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+static void computeIndexedWeightedSuffstatSplit(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
 {
   size_t i = 0, prologue = length % 4;
   double sw0 = 0.0, swx0 = 0.0;
@@ -339,6 +340,47 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
 
   *sumW  = ((vec2_lane0(swA) + vec2_lane1(swA)) + vec2_lane0(swB)) + vec2_lane1(swB);
   *sumWX = ((vec2_lane0(sxA) + vec2_lane1(sxA)) + vec2_lane0(sxB)) + vec2_lane1(sxB);
+}
+
+// The four-wide AVX2 body of the SAME split, in its own translation unit
+// because it needs an AVX2 compile flag; selected below by CPU detection.
+#ifdef COMPILER_SUPPORTS_AVX2
+extern void misc_computeWeightedSufficientStatistics_avx2(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
+extern void misc_computeIndexedWeightedSufficientStatistics_avx2(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
+#endif
+
+// Initialized to the two-lane split rather than left null: these are reached
+// on the draw path, and a caller that never ran misc_simd_init must still get
+// a kernel. Every body they can point at returns identical bytes, so which
+// one is installed is a speed choice and never a draw change - the one place
+// in the package where a dispatch pointer may carry a draw-path reduction.
+static void (*computeWeightedSuffstat)(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX) = &computeWeightedSuffstatSplit;
+static void (*computeIndexedWeightedSuffstat)(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX) = &computeIndexedWeightedSuffstatSplit;
+
+/// Reinstalls the weighted suffstat bodies for a dispatch level. Byte-identical
+/// across every branch; misc_stat_setSIMDInstructionSet calls it.
+static void setWeightedSuffstatKernels(misc_simd_instructionSet i)
+{
+  (void) i;
+#ifdef COMPILER_SUPPORTS_AVX2
+  if (i >= MISC_INST_AVX2) {
+    computeWeightedSuffstat = &misc_computeWeightedSufficientStatistics_avx2;
+    computeIndexedWeightedSuffstat = &misc_computeIndexedWeightedSufficientStatistics_avx2;
+    return;
+  }
+#endif
+  computeWeightedSuffstat = &computeWeightedSuffstatSplit;
+  computeIndexedWeightedSuffstat = &computeIndexedWeightedSuffstatSplit;
+}
+
+void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+  computeWeightedSuffstat(x, length, w, sumW, sumWX);
+}
+
+void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+  computeIndexedWeightedSuffstat(x, indices, length, w, sumW, sumWX);
 }
 
 #else // DBARTS_REFERENCE_BUILD
@@ -1001,8 +1043,6 @@ static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const d
   return result;
 }
 
-#include <misc/simd.h>
-
 #ifdef COMPILER_SUPPORTS_SSE2
 extern double misc_computeUnrolledMean_sse2(const double* x, size_t length);
 extern double misc_computeIndexedUnrolledMean_sse2(const double* restrict x, const misc_index_t* restrict indices, size_t length);
@@ -1066,6 +1106,9 @@ void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i)
     computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c;
   }
 
+#ifndef DBARTS_REFERENCE_BUILD
+  setWeightedSuffstatKernels(i);
+#endif
 }
 
 double misc_computeSumOfSquaredResiduals(const double* restrict x, size_t length, const double* restrict x_hat)

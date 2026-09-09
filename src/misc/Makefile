@@ -39,7 +39,7 @@ simd.source.avx.true = linearAlgebra_avx.c
 simd.source.avx.false =
 simd.source.avx = $(simd.source.sse4.1) $(simd.source.avx.$(have.avx))
 
-simd.source.avx2.true = partition_avx2.c
+simd.source.avx2.true = moments_avx2.c partition_avx2.c
 simd.source.avx2.false = 
 simd.source.avx2 = $(simd.source.avx) $(simd.source.avx2.$(have.avx2))
 
@@ -115,6 +115,14 @@ compile.moments_sse2 = $(moments_sse2.$(have.sse2))
 moments_sse2.o : moments_sse2.c $(INCLUDE_DIR)/misc/stats.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c moments_sse2.c -o moments_sse2.o
 	@$(compile.moments_sse2)
+
+moments_avx2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX2_FLAG) -c moments_avx2.c -o moments_avx2.o
+moments_avx2.false = touch moments_avx2.o
+compile.moments_avx2 = $(moments_avx2.$(have.avx2))
+
+moments_avx2.o : moments_avx2.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/intrinsic.h
+	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX2_FLAG) -c moments_avx2.c -o moments_avx2.o
+	@$(compile.moments_avx2)
 
 partition.o : partition.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition.c -o partition.o

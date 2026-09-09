@@ -385,9 +385,43 @@ static void testWeightedSuffstatKernels() {
   }
   check(worstNode < tolerance,
         "weighted suffstat: node sums match scalar across node sizes");
+
+  // The four-wide body compiled for AVX2 accumulates the SAME four banks in
+  // the same order as the two-lane split, so a CPU check may install it
+  // without moving a draw. That is the claim, and it is asserted BITWISE:
+  // level 0 always installs the split, the host's own maximum installs the
+  // widest body it has. On a host without AVX2 both levels install the same
+  // body and this arm is a tautology - which still must hold, and which is
+  // why the shipped assertion lives here rather than behind an #ifdef.
+  misc_simd_instructionSet maxLevel = misc_simd_getMaxSIMDInstructionSet();
+  size_t widestMismatches = 0;
+  for (size_t length : lengths) {
+    double splitW, splitWX, widestW, widestWX;
+    misc_simd_setSIMDInstructionSet(MISC_INST_C);
+    misc_computeIndexedWeightedSufficientStatisticsFast(
+      x.data(), indices.data(), length, w.data(), &splitW, &splitWX);
+    misc_simd_setSIMDInstructionSet(maxLevel);
+    misc_computeIndexedWeightedSufficientStatisticsFast(
+      x.data(), indices.data(), length, w.data(), &widestW, &widestWX);
+    if (splitW != widestW || splitWX != widestWX) ++widestMismatches;
+
+    misc_simd_setSIMDInstructionSet(MISC_INST_C);
+    misc_computeWeightedSufficientStatisticsFast(x.data(), length, w.data(),
+                                                 &splitW, &splitWX);
+    misc_simd_setSIMDInstructionSet(maxLevel);
+    misc_computeWeightedSufficientStatisticsFast(x.data(), length, w.data(),
+                                                 &widestW, &widestWX);
+    if (splitW != widestW || splitWX != widestWX) ++widestMismatches;
+  }
+  misc_simd_setSIMDInstructionSet(maxLevel);
+  check(widestMismatches == 0,
+        "weighted suffstat: every dispatch level returns identical bytes");
+
   printf("ok: weighted suffstat kernels (worst gap %.3g contiguous, %.3g "
-         "indexed, %.3g node)\n",
-         worstContiguous, worstIndexed, worstNode);
+         "indexed, %.3g node; %lu shapes bitwise across levels 0 to %d)\n",
+         worstContiguous, worstIndexed, worstNode,
+         static_cast<unsigned long>(lengths.size()),
+         static_cast<int>(maxLevel));
 }
 
 // The fused roll + suffstat pass reproduces rollTreeResidual's per-element
