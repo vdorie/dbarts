@@ -1828,4 +1828,3 @@ dbartsPriors <- list(
   fixed = fixed,
   chi = chi
 )
-

@@ -59,11 +59,14 @@ for (entry in list(
 )) {
   expect_false("missing" %in% names(formals(entry)))
 }
-expect_false("missing" %in% vapply(
-  dbarts:::dbartsTombstones,
-  function(e) e$name,
-  character(1L)
-))
+expect_false(
+  "missing" %in%
+    vapply(
+      dbarts:::dbartsTombstones,
+      function(e) e$name,
+      character(1L)
+    )
+)
 
 dataFormula <- dbarts::dbartsData(y ~ x1 + x2, df)
 dataMatrix <- dbarts::dbartsData(xMat, y)
@@ -73,7 +76,9 @@ for (data in list(dataFormula, dataMatrix)) {
   # the missing predictors that survived are still there to be routed
   expect_true(anyNA(data@x[, "x1"]))
   expect_inherits(data@na.action, "exclude")
-  expect_equal(unclass(data@na.action), missingResponse,
+  expect_equal(
+    unclass(data@na.action),
+    missingResponse,
     check.attributes = FALSE
   )
 }

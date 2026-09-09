@@ -1,5 +1,6 @@
 \name{dbartsFamilies}
 \alias{dbartsFamilies}
+\alias{show,dbartsFamily-method}
 \docType{data}
 \title{Response Family Constructors}
 \description{
@@ -22,6 +23,15 @@
   \code{resid.dist}, \code{dispersion}, \code{breaks} and \code{max.rows}
   are accepted for one release with a once-per-session warning and are
   removed in dbarts 1.1-0.
+}
+\usage{
+\S4method{show}{dbartsFamily}(object)
+}
+\arguments{
+  \item{object}{
+    A family object, as one of the constructors below returns. Printing one
+    names the call that would build it.
+  }
 }
 \format{
   A list of functions:

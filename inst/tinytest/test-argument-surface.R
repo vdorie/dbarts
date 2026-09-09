@@ -45,7 +45,11 @@ expect_match(conditionMessage(warnings.multiSigest[[1L]]), "sigest")
 expect_inherits(warnings.multiSigest[[1L]], "dbartsFamilyGatedWarning")
 
 warnings.ordinalResidPrior <- captureWarnings(
-  fit2(y.ordinal, family = "ordinal", resid.prior = dbarts::dbartsPriors$chisq())
+  fit2(
+    y.ordinal,
+    family = "ordinal",
+    resid.prior = dbarts::dbartsPriors$chisq()
+  )
 )
 expect_equal(length(warnings.ordinalResidPrior), 1L)
 expect_match(
@@ -112,7 +116,11 @@ expect_equal(
 # rides the family object rather than this signature
 expect_equal(
   countWarnings(
-    fit2(y.hurdle, family = "hurdle.lognormal", resid.prior = dbarts::dbartsPriors$chisq()),
+    fit2(
+      y.hurdle,
+      family = "hurdle.lognormal",
+      resid.prior = dbarts::dbartsPriors$chisq()
+    ),
     "dbartsFamilyGatedWarning"
   ),
   0L

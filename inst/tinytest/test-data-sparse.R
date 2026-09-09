@@ -73,7 +73,10 @@ fit.na <- bart(
   verbose = FALSE
 )
 expect_equal(length(fitted(fit.na)), n)
-expect_error(dbartsData(x.na, y, na.action = na.fail), pattern = "missing values")
+expect_error(
+  dbartsData(x.na, y, na.action = na.fail),
+  pattern = "missing values"
+)
 expect_error(
   bart(
     x.na,

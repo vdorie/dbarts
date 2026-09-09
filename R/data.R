@@ -1610,7 +1610,9 @@ dbartsData <- function(
         keep <- naResult$keep
         y <- y[keep]
         x <- x[keep, , drop = FALSE]
-        if (!is.null(weights)) weights <- weights[keep]
+        if (!is.null(weights)) {
+          weights <- weights[keep]
+        }
         if (!is.null(offset)) offset <- offset[keep]
       }
     }
@@ -1731,7 +1733,9 @@ dbartsData <- function(
       keep <- naResult$keep
       y <- y[keep]
       x <- x[keep, , drop = FALSE]
-      if (!is.null(weights)) weights <- weights[keep]
+      if (!is.null(weights)) {
+        weights <- weights[keep]
+      }
       if (!is.null(offset)) offset <- offset[keep]
     }
   } else {

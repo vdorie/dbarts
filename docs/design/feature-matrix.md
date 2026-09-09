@@ -241,7 +241,7 @@ gone (retired: [`bartRedirectedFamilies`](../../R/bart.R), [`bartOwnClassFamilie
 response refusal is a factor of three or more levels, whose message names both remedies
 ([`refuseLegacyFactorResponse`](../../R/bart.R)). `resid.dist` is the separate Student-t lever, at the
 modern door alone. `"twopart"` is no longer an alias at either door: it is refused by name
-([`refuseTwopartFamily`](../../R/dbarts.R)).
+([`refuseTwopartFamily`](../../R/tombstones.R)).
 
 [f2] Student-t is no `family` token and not in `dbarts_sampler_create`'s admission list: a
 finite `resid.df` on the model SEXP selects it ([`parseSamplerSpecification`](../../src/R_interface_bartcore.cpp), [`residualDf`](../../src/R_interface_bartcore.cpp),

@@ -68,8 +68,10 @@ work over folds, and reproduces a seed at any thread count. A saved
   for the hazard trio). `twopart` folds to `hurdle.lognormal` at both
   doors; the composition is [`bart2Hurdle`](../../R/bart.R); `dbarts()`
   lists the hurdle tokens and refuses them.
-- Residual law: [`student`](../../R/model.R), [`gaussian`](../../R/model.R)
-  and the unexported [`dbartsResidDists`](../../R/model.R); the spec
+- Residual law: before S2, `student()`, `gaussian()` and the unexported
+  `dbartsResidDists` in R/model.R, reached through a `resid.dist` argument;
+  they are now the family constructors in
+  [`dbartsFamilies`](../../R/family.R). The spec
   refuses Student-t outside the continuous gaussian response
   (["student residuals require a continuous gaussian response"](../../R/spec.R)),
   and the header already carries

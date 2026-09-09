@@ -468,7 +468,10 @@ applyConsolidatedFamilyArgs <- function(family, consolidated) {
     if (is.function(residDist)) {
       residDist <- residDist()
     }
-    if (!is(residDist, "dbartsFamily") || residDist@token %not_in% c("gaussian", "student")) {
+    if (
+      !is(residDist, "dbartsFamily") ||
+        residDist@token %not_in% c("gaussian", "student")
+    ) {
       stop(
         "'resid.dist' takes gaussian() or student(df); it is now spelled ",
         "family = ",
@@ -487,7 +490,10 @@ applyConsolidatedFamilyArgs <- function(family, consolidated) {
       }
       family@settings <- c(
         family@settings,
-        residDist@settings[setdiff(names(residDist@settings), names(family@settings))]
+        residDist@settings[setdiff(
+          names(residDist@settings),
+          names(family@settings)
+        )]
       )
       family@token <- "student"
     }

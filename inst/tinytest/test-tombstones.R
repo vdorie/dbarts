@@ -145,12 +145,14 @@ expect_warning(
 )
 expect_equal(attr(samplerResidDist$model, "resid.df"), 5)
 # once per session: the second call is silent and still maps
-expect_silent(samplerResidDistAgain <- dbarts::dbarts(
-  xCons,
-  yCons,
-  control = consControl,
-  resid.dist = student(df = 5)
-))
+expect_silent(
+  samplerResidDistAgain <- dbarts::dbarts(
+    xCons,
+    yCons,
+    control = consControl,
+    resid.dist = student(df = 5)
+  )
+)
 expect_equal(attr(samplerResidDistAgain$model, "resid.df"), 5)
 
 resetConsolidatedWarning("dart", "bart")

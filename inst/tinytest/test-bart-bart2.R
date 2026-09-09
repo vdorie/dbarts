@@ -299,14 +299,16 @@ xMiss <- matrix(rnorm(nMiss * 2L), nMiss, 2L)
 xMiss[1L, 1L] <- NA_real_
 yMiss <- rnorm(nMiss)
 expect_equal(
-  length(dbarts::bartBT(
-    xMiss,
-    yMiss,
-    ndpost = 3L,
-    nskip = 2L,
-    ntree = 3L,
-    verbose = FALSE
-  )$y),
+  length(
+    dbarts::bartBT(
+      xMiss,
+      yMiss,
+      ndpost = 3L,
+      nskip = 2L,
+      ntree = 3L,
+      verbose = FALSE
+    )$y
+  ),
   nMiss - 1L
 )
 expect_error(

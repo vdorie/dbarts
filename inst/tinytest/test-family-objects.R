@@ -90,7 +90,12 @@ heldToken <- "probit"
 heldObject <- dbartsFamilies$probit()
 yBinary <- as.numeric(y > median(y))
 expect_equal(
-  dbarts::dbarts(x, yBinary, control = control, family = heldToken)$model@family,
+  dbarts::dbarts(
+    x,
+    yBinary,
+    control = control,
+    family = heldToken
+  )$model@family,
   "probit"
 )
 expect_equal(
@@ -140,7 +145,8 @@ expect_equal(
   0
 )
 expect_null(
-  attr(dbarts::dbarts(x, y, control = control, family = gaussian())$model,
+  attr(
+    dbarts::dbarts(x, y, control = control, family = gaussian())$model,
     "resid.df"
   )
 )
