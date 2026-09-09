@@ -647,10 +647,17 @@
             \code{survival::Surv} object (right-censoring only) or a two-column
             \code{(time, status)} matrix or data frame; under \code{family = "auto"} a
             \code{Surv} response selects \code{"aft"} on its own.
-            \code{dbarts}, \code{bartBT}, and \code{bart} take the
-            response through their x/y interface. None of them support
-            \code{weights} or \code{subset} for a survival fit.
-            \code{predict}, \code{extract}, and \code{fitted} return the
+            \code{bartBT} takes the response through its x/y interface
+            only; \code{dbarts} and \code{bart} also take a \code{Surv}
+            left-hand side on \code{formula} (e.g.
+            \code{Surv(time, status) ~ .}), and both interfaces honour
+            \code{subset} (applied to the status vector for \code{"aft"};
+            applied to the covariates, time, and status BEFORE the
+            person-period expansion for a hazard fit, since the expanded
+            row indices no longer correspond to the original ones
+            afterward). None of them support \code{weights} for a
+            survival fit. \code{predict}, \code{extract}, and \code{fitted}
+            return the
             log-time-scale linear predictor, never the time scale; the
             \code{\link{survivalProbabilities}} generic draws the survival probability
             over a user-supplied time grid instead. The same response also
@@ -669,9 +676,21 @@
             \code{"bart"} object whose \code{$family} records the binary
             link and whose \code{$periods} carries the grid;
             \code{survivalProbabilities} again produces the survival-curve
-            draws (requiring \code{keepTrees}). The matrix interface is
-            required for a hazard fit, and weights follow the chosen
-            binary family's policy. \code{xbart} refuses both (a cloglog
+            draws (requiring \code{keepTrees}, unless a \code{test} set
+            rode the fit call - below). A hazard fit also takes a
+            \code{Surv} left-hand side on \code{formula} (like \code{"aft"}
+            above; the family must be requested explicitly - \code{"auto"}
+            still selects \code{"aft"}) and honours \code{subset} on both
+            interfaces, and weights follow the chosen binary family's
+            policy. The matrix interface additionally accepts a \code{test}
+            set, person-period-expanded on the SAME grid as training (every
+            subject expands to every period, with no event time to place it
+            by); \code{survivalProbabilities} then reads its hazards
+            straight off the fit with no \code{keepTrees} needed.
+            \code{formula}'s own \code{test} is still refused - expand
+            held-out subjects with
+            \code{survivalProbabilities(fit, times, newdata = )} instead.
+            \code{xbart} refuses hazard fits entirely (a cloglog
             link and cross-validation losses for either are not supported).
       \item Semicontinuous two-part (hurdle) responses:
             \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in

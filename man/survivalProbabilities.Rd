@@ -44,7 +44,10 @@ survivalProbabilities(object, ...)
     model (its \code{family} element equals \code{"aft"}) or a discrete-time
     hazard model (it carries a \code{$periods} grid; its \code{family} records
     the binary link). A hazard fit must have been made with
-    \code{keepTrees = TRUE}.
+    \code{keepTrees = TRUE}, unless \code{newdata} is \code{NULL} and a
+    \code{test} set rode the fit call (the matrix interface's own hazard
+    \code{test} acceptance, person-period-expanded on the training grid) -
+    then the stored test draws are read directly and no trees are needed.
   }
   \item{times}{
     A numeric vector of times (on the original, non-logarithmic scale) at
@@ -54,8 +57,9 @@ survivalProbabilities(object, ...)
   }
   \item{newdata}{
     Optional predictors at which to evaluate. When \code{NULL} the training
-    observations are used; otherwise \code{object} must have been fit with
-    \code{keepTrees = TRUE}.
+    observations are used, EXCEPT for a hazard fit that also carries a
+    \code{test} set (below), whose stored draws are read instead; otherwise
+    \code{object} must have been fit with \code{keepTrees = TRUE}.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
@@ -90,7 +94,12 @@ survivalProbabilities(object, ...)
   subjects onto the full grid and replays the trees - so it requires
   \code{keepTrees = TRUE} even for the training data (\code{newdata = NULL}).
   With \code{newdata}, each new subject is expanded to one row per period and
-  its curve evaluated the same way.
+  its curve evaluated the same way. The one exception: a \code{test} set that
+  rode the fit call (the matrix interface's own hazard \code{test}
+  acceptance) was already person-period-expanded on the SAME training grid
+  at fit time, so its hazards are stored on the fit already -
+  \code{newdata = NULL} on such a fit reads them directly with no
+  re-expansion and no trees needed, in preference to the training data.
 }
 \value{
   An array of survival probabilities. With \code{combineChains = TRUE}
