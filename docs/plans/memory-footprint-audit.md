@@ -353,6 +353,60 @@ above 100 MB, under which the plan's own wording failed (5.49 pct) - the
 restatement was reverted and the corrected model passes the plan's gate
 as written.
 
-Remaining: step 7, the two transient copies of the training-prediction
-array (ranked second in the note).
+## Landing note, step 7 (2026-09-09)
+
+The two transient copies of the training-prediction array are out of
+[`packageBartResults`](../../R/bart.R) and
+[`convertSamplesFromDbartsToBart`](../../R/bart.R). The combined-chain
+branch builds the returned layout with one `aperm` whose flattening is a
+`dim<-` rather than `matrix()` then `t()`, and the posterior means are
+reduced over the returned layout by `channelMeans` rather than by `apply`,
+which permutes the whole channel again. Packaging now holds two full-size
+arrays of a prediction channel at once - the engine's own and the one the
+fit returns - on every family and either setting of `combineChains`.
+
+The bridge route the step named was NOT taken. Getting below two arrays
+needs the bridge to allocate the channel in the returned layout, which
+means the engine writing each draw strided across the observation margin
+instead of contiguously: an engine change on the draw path, outside both
+this arc's budget and its "no engine change" constraint. The R route
+reaches the count the step states - no moment holding more than one
+full-size copy beyond the one returned - and the note's ranked row is
+re-derived to what it saves, 1600 MB in case 1 and 4000 MB in case 2
+rather than 3200 and 8000. The last copy is its own item.
+
+Reducing over the returned layout rather than over the engine's own is
+forced, not preferred: `mean()` sums in the order it is handed and runs a
+correction pass over the same order, so a reduction over the
+observation-major array moves the last bits of every reported mean. After
+the permutation each observation's draws are one contiguous slab and the
+values are identical.
+
+Measured on this host, one `bart` call per cell under `/usr/bin/time -l`
+with n.burn = 0 and `sigest` supplied, against a library built from the
+pre-change tree: case 1 (n = 1e5, p = 20, T = 200, C = 4, S = 500)
+5847.0 MB before, 4234.8 MB after; case 2 (n = 1e6, p = 50, C = 1)
+15172.7 MB before, 11161.5 MB after. Each drop is one prediction array to
+within a megabyte. The full 30-cell grid was re-recorded with the new
+library and passes the plan's tolerance: every cell within max(10 pct,
+20 MB), median absolute relative residual 4.1 to 4.2 pct across two runs
+against the 5 pct limit, worst cell n = 1e5, p = 20, T = 200, C = 1,
+S = 200, keepTrees at 39.6 to 39.7 MB HIGH against a 55.8 MB tolerance.
+The model lost its collector-churn allowance: the R heap still churns
+under the reduction (1.47 times the array against `apply`'s 2.48 on the
+duplicates probe, the two exactly one array apart), but none of it reaches
+peak RSS in a fit, and keeping the allowance put the grid's median at
+8.6 pct with every residual negative.
+
+Gate: [inst/tinytest/test-packaging-copies.R](../../inst/tinytest/test-packaging-copies.R)
+compares whole packaged fits, element for element, against the pre-change
+expressions re-declared in the file and injected into the shipped
+packager through a shadowing environment - gaussian and binary at
+`combineChains` TRUE and FALSE, four fits - and pins the allocation count
+itself through `gc()`'s high-water mark. Recorded draws were rejected for
+the fixture: they hold only on the build and instruction set they were
+recorded on, while packaging is value-neutral on any build, so a snapshot
+would have been dark on every run but one. Whole `bart` results were also
+compared across the two installed libraries out of band, identical on all
+four cases.
 

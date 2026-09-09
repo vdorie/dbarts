@@ -1,16 +1,18 @@
 # Memory footprint
 
 Status: VALIDATED against measured peak resident set size by
-[benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R) at
-80ff32b4 on arm64 macOS. Every one of the 30 grid cells falls within
+[benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R) on
+arm64 macOS, first at 80ff32b4 and re-validated after the transient copies
+came out of packaging. Every one of the 30 grid cells falls within
 max(10 pct, 20 MB) of the model, and the median absolute relative residual
-over the whole grid is 4.4 to 4.8 pct across three runs against a 5 pct
-limit; the worst cell is the same one each time (n = 1e5, p = 20, T = 200,
-C = 2), 20.8 to 24.3 MB low against a 46.6 MB tolerance. The margin on the
-median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
+over the whole grid is 4.1 to 4.2 pct across two runs against a 5 pct limit;
+the worst cell is the same one each time (n = 1e5, p = 20, T = 200, C = 1,
+S = 200, keepTrees), 39.6 to 39.7 MB high against a 55.8 MB tolerance, which
+is the collector churn the model no longer carries a row for. The margin on
+the median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
-byte model cannot reach. "What the measurement moved" below records the rows
-the run changed.
+byte model cannot reach. "What the measurement moved" records the rows the
+first run changed and "What the removal moved" the rows the second did.
 
 The closed-form model of what a fit allocates, per component, in the units the
 allocations have. Every byte count is read off the element type and the
@@ -61,27 +63,28 @@ differently.
 | result varcount | [`varcountExpr`](../../src/R_interface_bartcore.cpp), filled from [`Results::variableCounts`](../../src/bartcore/chain.hpp) | saved sample | 4 | p*F*S*C, F the forest axis | always |
 | result sigma, k, thresholds, dispersion | [`sigmaExpr`](../../src/R_interface_bartcore.cpp), [`ordinalThresholdsExpr`](../../src/R_interface_bartcore.cpp), filled from [`Results::sigma`](../../src/bartcore/chain.hpp), [`Results::ordinalThresholds`](../../src/bartcore/chain.hpp) | saved sample | 8 | S*C each; (K-1)*S*C for ordinal thresholds | per family |
 | result variance channel | [`varianceTrainExpr`](../../src/R_interface_bartcore.cpp), [`varianceTestExpr`](../../src/R_interface_bartcore.cpp) | saved sample | 8 | n*S*C, plus nTest*S*C | heteroscedastic |
-| yhat.train transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra n*L*S*C live at peak; 1 under combineChains = FALSE on a binary fit | keepTrainingFits |
-| yhat.test transient copies | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 2 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
+| yhat.train transient copy | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 1 extra n*L*S*C live at peak, on every family and either setting of combineChains | keepTrainingFits |
+| yhat.test transient copy | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 1 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
 | raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
 | raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy and its complete-cases copy | sampler | 8 | up to 2*n*p, plus 2*nTest*p | always: the subset copy is persistent and the complete-cases copy transient, and both fire on a matrix with no subset and no missing values. Measured per host and shape, not derived - see below |
 | starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R) | sampler | 8 | about 4*n*(p+1) transiently, at the `summary.lm` instant - base R's model frame, na filter, model matrix and QR | no `sigest` given and the family estimates a residual sd (not binary) |
 | leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per POPULATED ARENA DEPTH LEVEL per tree per chain, about 3.2 levels measured | a designated-covariate leaf (linear, gp) |
-| training-fit mean churn | [`packageBartResults`](../../R/bart.R)'s `apply` | saved sample | not a byte count | two small R objects per observation, resident until the collector's next cycle | keepTrainingFits on a non-binary fit |
 | fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
 | ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
 | quantile collector | [`QuantileGrid`](../../src/bartcore/data.hpp)'s [`sortedUnique`](../../src/bartcore/data.hpp) | sampler | 8 | n reserved per column, one column at a time | usequants |
 | retained sampler | [`keepSampler`](../../R/bart.R) | sampler | the whole engine total above | 1 | keepTrees or keepSampler |
 
 The engine writes recorded draws straight into the R vectors the bridge
-allocates, so no engine-side copy of any result channel exists. The transient
-copies are not a non-binary phenomenon: `bart`'s default combineChains = TRUE
-reaches three live full-size arrays on every fit, since `matrix()` and `t()`
-each allocate while the engine's array is still bound; the non-binary path
-reaches the same three through `apply`'s `aperm`, which copies even when the
-permutation is the identity. Only a binary fit under combineChains = FALSE
-peaks at two.
+allocates, so no engine-side copy of any result channel exists. Packaging
+holds exactly two full-size arrays of a prediction channel at once, on every
+family and either setting of combineChains: the engine's own, and the
+permuted one the fit returns. It reached three until the two transient copies
+came out (below): `matrix()` then `t()` built the combined layout in two
+steps, and `apply` permuted the whole channel again to take the posterior
+mean. Getting below two would need the bridge to allocate the channel in the
+returned layout and the engine to write into it draw-major, which is a
+strided write on the draw path and no part of this note.
 
 Which INSTANT a total describes matters, and the measurement settled which
 one wins. Two instants compete: ingestion, where the predictor copies and the
@@ -96,18 +99,12 @@ store: on this host that estimate raised the peak by 21.0 MB at p = 10,
 their own model-frame transients on top; the audit measures the matrix door,
 where they do not exist.
 
-Three rows above are not byte counts and are measured per host rather than
+Two rows above are not byte counts and are measured per host rather than
 derived. The script reports each in its own column beside the closed form, so
 the gate never hides behind them.
 
-- The fit-path warm-up, 6.7 MB on this host: the R session's one-off growth
+- The fit-path warm-up, 5.8 MB on this host: the R session's one-off growth
   from byte-compiling the fit closures and populating the S4 dispatch tables.
-- The training-fit mean's collector churn. `apply` over the observation
-  margin allocates two small R objects per observation and R's collector
-  leaves them resident until its next cycle, so the peak carries 2.5 MB at
-  n = 1e4, 16.5 MB at n = 1e5 and 121.1 MB at n = 1e6 (10 draws) that no byte
-  count predicts. It vanishes the moment the mean is taken with a
-  colMeans-style reduction instead.
 - The ingestion high-water of the predictor copies.
   [`dbartsData`](../../R/data.R) makes two beyond the caller's matrix - a
   persistent subset copy and a transient complete-cases copy, both taken even
@@ -192,8 +189,8 @@ Case 1: n = 1e5, p = 20, T = 200, C = 4, S = 500.
 | per chain | | 162.97 |
 | engine total, 4.02 + 2.40 + 4*162.97 | | 658.3 |
 | x, three live copies 24*n*p, y 8*n, sigma, varcount | R | 49.0 |
-| yhat.train, three copies live at peak, 24*n*S*C | R | 4800.0 |
-| peak, of which the engine is 12 pct | | 5507.3 |
+| yhat.train, two copies live at peak, 16*n*S*C | R | 3200.0 |
+| peak, of which the engine is 17 pct | | 3907.3 |
 
 Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 
@@ -209,8 +206,18 @@ Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 | per chain | | 1628.17 |
 | engine total | | 1752.2 |
 | x, three live copies 24*n*p, y, sigma, varcount | R | 1208.1 |
-| yhat.train, three copies live at peak, 24*n*S | R | 12000.0 |
-| peak, of which the engine is again 12 pct | | 14960.3 |
+| yhat.train, two copies live at peak, 16*n*S | R | 8000.0 |
+| peak, of which the engine is again 16 pct | | 10960.3 |
+
+Both cases were measured on this host, each as a single `bart` call under
+`/usr/bin/time -l` with n.burn = 0 and `sigest` supplied, once against the
+library built before the transient copies came out and once after. Case 1:
+5847.0 MB before, 4234.8 MB after. Case 2: 15172.7 MB before, 11161.5 MB
+after. Each drop is one whole prediction array to within a megabyte -
+1612.2 MB against a derived 1600.0, and 4011.2 MB against 4000.0 - which is
+what a copy count, and not a coefficient, predicts. Both peaks read 4 to 6 pct
+above the derived totals above, the same direction and size as the grid's own
+residuals.
 
 What the consuming arcs read off this: the three owned conditioning vectors
 plus the test offset (dec-B87, [docs/decisions.md](../decisions.md)) are
@@ -276,17 +283,45 @@ could have been read off without it.
   budget counts the live lists only and bound no cell measured.
 - Gathered leaf raw doubled, 8*n*q to 16*n*q: the leaf keeps its own
   standardized copy beside the store's gather.
-- Three rows are not byte counts at all and are measured per host: the
-  fit-path warm-up, the training-fit mean's collector churn, and the
-  ingestion high-water. Naming them, and reporting each in its own column
-  beside the closed form, is the honest form; folding them into a per-unit
-  coefficient would have hidden R-collector effects inside an allocation
-  model.
+- Two rows are not byte counts at all and are measured per host: the
+  fit-path warm-up and the ingestion high-water. Naming them, and reporting
+  each in its own column beside the closed form, is the honest form; folding
+  them into a per-unit coefficient would have hidden R-collector effects
+  inside an allocation model. A third, the training-fit mean's collector
+  churn, was carried while the mean went through `apply` and is gone with it
+  (below).
 
 Nothing in the engine's own rows moved. The n*T pair measured 8.02 to 8.06
 bytes per n*T under a constant leaf across every cell, against the derived
 8, and the per-chain and per-sampler rows carried the chain excursion to
 within 2 pct.
+
+## What the removal moved
+
+The second ranked row landed inside this arc, and it moved three rows of the
+model above.
+
+- The transient-copy rows lost their extra copy and their conditional. The
+  combined-chain reshape is one `aperm` whose flattening is a `dim<-`, and
+  the posterior mean is reduced over the returned layout, where an
+  observation's draws are one contiguous slab. Measured on the duplicates
+  probe at a 32 MB channel, the reshape's heap high-water went from 2.00
+  times the array to 1.01 and the mean's from 2.48 to 1.47 - each exactly one
+  array apart.
+- The order the mean sums in is what fixes where the reduction can live.
+  `mean()` adds in the order it is handed and applies a second correction
+  pass over the same order, so a reduction over the engine's
+  observation-major array would change the last bits of every reported mean.
+  Reducing after the permutation keeps them identical, which is what lets the
+  removal be gated by comparing whole packaged fits.
+- The collector-churn allowance is gone from the model, not because the R
+  heap stopped churning - the duplicates probe still shows 1.47 times the
+  array under the reduction against `apply`'s 2.48 - but because none of it
+  reaches peak RSS in a fit any more. Scored with the allowance kept, the
+  grid's median absolute relative residual was 8.6 pct against a 5 pct limit
+  and every residual was negative; scored without it the median is 4.2 pct
+  and the residuals fall either side of zero. Its former size, 16.4 MB at
+  n = 1e5 and 121.2 MB at n = 1e6 (10 draws), was `apply`'s.
 
 ## The largest avoidable allocations, ranked
 
@@ -299,7 +334,7 @@ second row is its own TODO entry rather than a change in this arc.
 | item | saved, case 1 | saved, case 2 | change | recommendation |
 | --- | --- | --- | --- | --- |
 | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 4800 MB | 12000 MB | one sentence | taken, in the manual's Memory section |
-| have the bridge allocate the result in the layout the R side returns and take the column means over it, so neither extra copy exists | 3200 MB | 8000 MB | bridge dimensions plus the R reshape and mean | step 7 of this arc (VD 2026-09-08); it also removes the collector churn row, 16 MB at n = 1e5 and 120 MB at n = 1e6 |
+| take the column means over the returned layout and build that layout in one permutation, so neither extra copy exists | 1600 MB | 4000 MB | the R reshape and mean | TAKEN, measured 1612.2 MB and 4011.2 MB; the last copy would need the bridge to allocate the channel draw-major and the engine to write into it strided, which is its own item |
 | drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
 | prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
 | a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; CONDITIONAL - worth 67 MB in case 1 and 1632 MB in case 2, but only once the returned array above stops setting the peak |

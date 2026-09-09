@@ -435,6 +435,13 @@
             \code{keepTrees}); the model behind it is validated against
             measured peak resident set size by
             \file{benchmarks/R/memory-footprint.R}.
+      \item Packaging a fit no longer holds a third copy of
+            \code{yhat.train} (and of \code{yhat.test}): the returned layout
+            is built in one permutation and the posterior means are reduced
+            over it rather than through \code{apply}. Peak memory falls by
+            one whole prediction array - 1.6 GB on a 100,000-observation,
+            four-chain, 500-draw fit and 4.0 GB on a 1,000,000-observation,
+            500-draw one. Every returned value is unchanged.
       \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
             adding one Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of
