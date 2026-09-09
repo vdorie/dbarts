@@ -248,13 +248,15 @@ lists; this is the shape):
 - check-api-hash (part of check-standard.yaml): a dedicated job, full
   checkout history, running
   [`tools/check-api-hash.sh`](../../tools/check-api-hash.sh). It reads
-  the newest tag matching `v1.*` - `v<major>.<minor>-<patch>`, matching
-  R's own version string (`v1.0-0`, not `1.0-0`) - and fails when
+  the newest tag matching `v1.*` or `1.*` - `v<major>.<minor>-<patch>`,
+  matching R's own version string, or the same without the `v`, this
+  repo's existing spelling (`0.8-7`) - picking the newest by version
+  across either spelling, and fails when
   [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) moved since
-  that tag but the major/minor pair did not. No such tag exists yet, so
-  it prints "no release tag, skipped" and passes; this repo's pre-1.0-0
-  tags (`0.8-7`, `bartcore-pre-cran-rebase`) predate the `v`-prefixed
-  convention and do not match the pattern.
+  that tag but the major/minor pair did not. No `1.*`-or-later tag
+  exists yet, so it prints "no release tag, skipped" and passes; this
+  repo's pre-1.0-0 tags (`0.8-7`, `bartcore-pre-cran-rebase`) predate
+  the major-1 line and do not match either pattern.
 
 So a docs-only or TODO-only push fires doc-freshness alone; run the
 freshness guard locally and that is the whole gate. Any `.github/` touch

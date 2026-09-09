@@ -1,11 +1,13 @@
 #!/bin/sh
 # Fails CI when the C API header's hash (DBARTS_C_API_HASH) changed since
-# the newest v1.* tag but the version pair (DBARTS_C_API_MAJOR,
+# the newest release tag but the version pair (DBARTS_C_API_MAJOR,
 # DBARTS_C_API_MINOR) did not: an ABI change with no minor bump, the
 # discipline dec-B111's version-pair guard depends on. Armed only once a
-# v1.* tag exists (dbarts.h's own rule is that the hash moves freely and
-# the constants stay put pre-release, so there is nothing to compare
-# against before the first one).
+# release tag exists (dbarts.h's own rule is that the hash moves freely
+# and the constants stay put pre-release, so there is nothing to compare
+# against before the first one). A release tag is v1.* or 1.* - this
+# repo's own tags predate the v-prefixed spelling (0.8-7), so both arm
+# the check; the newest by version, across either spelling, wins.
 #
 # POSIX sh; no bashisms. Run from the repository root with full tag
 # history available (a shallow checkout sees no tags and this prints the
@@ -21,7 +23,22 @@ extract_macro() {
   sed -n "s/^#[ 	]*define[ 	]*$1[ 	]*\\([0-9A-Za-z]*\\).*/\\1/p" | head -n 1
 }
 
-tag=`git tag --sort=-v:refname -l 'v1.*' | head -n 1`
+# Newest tag matching v1.* or 1.*, compared numerically on
+# major.minor.patch after stripping an optional leading v: git's own
+# --sort=-v:refname groups a v-prefixed tag ahead of every unprefixed one
+# rather than interleaving them by version, which is wrong here since
+# both spellings name the same tag space.
+tag=`git tag -l 'v1.*' '1.*' | awk '
+  {
+    v = $0
+    sub(/^v/, "", v)
+    n = split(v, part, /[.-]/)
+    if (n < 3) next
+    key = sprintf("%010d.%010d.%010d", part[1], part[2], part[3])
+    if (key > best) { best = key; besttag = $0 }
+  }
+  END { print besttag }
+'`
 if [ -z "$tag" ]; then
   echo "no release tag, skipped"
   exit 0
