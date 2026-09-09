@@ -2554,7 +2554,7 @@
             fits; implementation thanks to Emil Hvitfeldt.
       \item \code{xbart} now accepts a \code{seed} argument to enhance
             reproducibility.
-      \item \code{bart}/\code{bart} (and \code{dbarts} through its
+      \item \code{bart}/\code{bart2} (and \code{dbarts} through its
             \code{tree.prior} argument) accept \code{splitprobs}/
             \code{split.probs} which controls the prior probability that any
             variable is used when splitting observations.
@@ -2580,9 +2580,9 @@
     \itemize{
       \item \code{dbarts} now exposes access to the underlying proposal
              rules and their probabilities through its \code{proposal.probs}
-             argument. \code{bart} response to the same argument, while
+             argument. \code{bart2} response to the same argument, while
              \code{bart} uses \code{proposalprobs}.
-      \item \code{bart}, \code{bart}, and \code{rbart_vi} accept a
+      \item \code{bart}, \code{bart2}, and \code{rbart_vi} accept a
              \code{seed} argument that will yield reproducible results, even
              when running with multiple threads and multiple chains.
     }
@@ -2595,7 +2595,7 @@
              are returned by \code{rbart_vi} when it modeled.
        \item Burn-in samples of the end-node sensitivity parameter,
              \code{k}, are included in the results of \code{bart},
-             \code{bart}, and \code{rbart_vi}.
+             \code{bart2}, and \code{rbart_vi}.
        \item \code{rbart_vi} will now look for \code{group.by} and
              \code{group.by.test} in the \code{data} and \code{test} arguments
              before looking in the \code{formula} or calling environments.
@@ -2622,7 +2622,7 @@
       \item Samplers now have method \code{sampleNodeParametersFromPrior}.
             When used in conjunction with \code{sampleTreesFromPrior} allow
             the model to fully make predictions from the prior distribution.
-      \item \code{dbartsControl} (and now \code{bart}/\code{bart} through
+      \item \code{dbartsControl} (and now \code{bart}/\code{bart2} through
             \code{...}) now accept \code{rngSeed} argument. This can be used
             to generate reproducible results with multiple threads. It should
             only be used for testing, as the thread-specific pRNGs are seeded
@@ -2775,7 +2775,7 @@
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
-      \item Hyperprior of \code{chi(1.25, Inf)} is now default for \code{bart}
+      \item Hyperprior of \code{chi(1.25, Inf)} is now default for \code{bart2}
             with binary outcomes. The default accuracy should improve substantially.
     }
   }
@@ -2825,8 +2825,8 @@
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{rbart_vi} new reports \code{varcount}.
-      \item \code{bart} now defaults to not storing trees due to the memory cost.
-      \item \code{bart} now defaults to using quantile rules to decide splits.
+      \item \code{bart2} now defaults to not storing trees due to the memory cost.
+      \item \code{bart2} now defaults to using quantile rules to decide splits.
     }
   }
   \subsection{BUG-FIXES}{
@@ -2852,7 +2852,7 @@
       \item Now natively supports multiple chains running in parallel.
       \item Objects fit by \code{bart} can be used with the predict generic
       when instructed to save the trees.
-      \item New function \code{bart} introduced, similar to \code{bart} but with
+      \item New function \code{bart2} introduced, similar to \code{bart} but with
       more efficient default parameters.
     }
   }
