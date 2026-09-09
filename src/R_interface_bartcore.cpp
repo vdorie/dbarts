@@ -6584,11 +6584,10 @@ SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
 
 namespace bartcore_bridge {
 
-// ---- the augmentation cores, called by both surfaces: the R helpers
-// dbartsDrawLatents/dbartsWorkingResponse above and the flat
-// dbarts_drawLatents/dbarts_workingResponse (C_interface.cpp). The laws are
-// RESTATED here rather than shared with the response models, which run against
-// a different generator.
+// ---- the augmentation cores, reached by the R helpers
+// dbartsDrawLatents/dbartsWorkingResponse above; the flat C header carries no
+// augmentation entry. The laws are RESTATED here rather than shared with the
+// response models, which run against a different generator.
 
 // Every dispatch below names every AugmentationLaw enumerator and carries no
 // default arm, which makes an unhandled law a -Wswitch warning; this assertion
