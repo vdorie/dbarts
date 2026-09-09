@@ -523,13 +523,18 @@ struct FusedSuffstatCheck {
   std::size_t numTreesFused = 0;
   /// The fused roll wrote treeY bit-for-bit as rollTreeResidual does.
   bool residualsAgreeBitwise = true;
-  /// sumWeights agreed bitwise (both sides report the member count).
+  /// sumWeights agreed bitwise. Meaningful only unweighted, where both sides
+  /// report the member count; a weighted sumWeights is itself a sum of the
+  /// two associations and is reported below instead.
   bool countsAgreeBitwise = true;
   /// Worst gap in sumWeightedResponse, relative to max(|stock|, 1): the two
   /// legitimately differ there, since the fused banks and the stock
   /// unroll-by-5 associate differently, and a well-fit leaf's sum passes
   /// through zero, where a purely relative measure is meaningless.
   double worstRelativeError = 0.0;
+  /// The same measure on sumWeights, which the weighted pass accumulates
+  /// rather than counts. Stays 0 unweighted.
+  double worstWeightRelativeError = 0.0;
 };
 
 /// One MCMC chain of the conjugate backfitting sampler: one-or-more forests
@@ -4024,8 +4029,16 @@ public:
         size_t b = 0;
         for (int32_t nodeIndex : tree.bottomScratch) {
           const Node& node(tree.at(nodeIndex));
-          if (node.sumWeights != stockSumWeights[b])
-            result.countsAgreeBitwise = false;
+          if (forestWeights == nullptr) {
+            if (node.sumWeights != stockSumWeights[b])
+              result.countsAgreeBitwise = false;
+          } else {
+            double wRef = stockSumWeights[b];
+            result.worstWeightRelativeError =
+              std::max(result.worstWeightRelativeError,
+                       std::fabs(node.sumWeights - wRef) /
+                         std::max(std::fabs(wRef), 1.0));
+          }
           double reference = stockSumResponse[b];
           double scale = std::max(std::fabs(reference), 1.0);
           result.worstRelativeError =
@@ -4677,72 +4690,44 @@ private:
     }
   }
 
-  /// The residual roll and the pre-move node-average suffstat in ONE
-  /// observation-order pass: roll resid[i] exactly as rollTreeResidual does,
-  /// then scatter-add it into acc[leafOf[i]], a node-indexed accumulator small
-  /// enough to stay L1-resident, so setNodeAverages' random gather over
-  /// indices[] never runs. That gather is 39-40% of a sweep; the fusion
-  /// measures 1.41x to 1.54x on Zen2 and 1.07x to 1.25x on M1 Max.
+  /// The observation-order body of the fused pass, templated on whether a
+  /// weight vector is in play so the unweighted arithmetic below is literally
+  /// the same expressions it always was and the weighted branch costs it no
+  /// runtime test. `acc` holds the sum w r banks (bank-major, `numNodes`
+  /// slots each) and, when Weighted, `acc + numNodes * fusedSuffstatBanks`
+  /// holds the sum w banks at the SAME positional assignment, so both
+  /// statistics of a node associate identically.
   ///
-  /// Returns false, having written nothing, when the fusion is not eligible;
-  /// the caller then runs the stock rollTreeResidual + Tree::setNodeAverages
-  /// pair, which stays the only path for every other caller of either.
-  /// Eligible iff every clause holds, each compile-time or O(1):
-  ///   leafIsConstant     - the scatter is into acc[leafOf[i]], and only the
-  ///                        constant leaf keeps a leafOf map
-  ///   ResidT == double   - the fp32 roll is deliberately left rolled, for the
-  ///                        codegen reason rollTreeResidual documents
-  ///   weights == nullptr - a weighted statistic needs a second bank set (sum
-  ///                        w as well as sum w r), unmeasured. This one clause
-  ///                        is what declines BCF, multinomial, logistic,
-  ///                        negbin, t and the heteroscedastic mean forest,
-  ///                        whose combiners and families always supply weights
-  ///   !leafOfStale[t]    - a stale map still describes the PREVIOUS
-  ///                        partition, so acc would be indexed by node ids the
-  ///                        current tree need not have
-  ///
-  /// Exactness contract. resid[i] is formed with the SAME expressions in the
-  /// SAME order as rollTreeResidual, so treeY comes out bit-for-bit identical
-  /// and the suffstat association is the only draw change anywhere - do not
-  /// "simplify" the arithmetic below. The association itself is: bank
-  /// assignment positional (the n % 4 prologue accumulates into bank 0, and
-  /// thereafter element i goes to bank (i - n % 4) mod 4), the combine
-  /// ((b0 + b1) + b2) + b3 left to right always, and the pass scalar
-  /// throughout - no SIMD reduce, no reassociation, and structurally no FMA
-  /// contraction on an accumulate that holds no multiply. The order therefore
-  /// depends only on n and the partition, not on ISA, lane width, or worker
-  /// count: within a host, draws stay bitwise identical across every SIMD
-  /// dispatch level and thread count.
-  bool rollAndSetNodeAveragesFused(Forest<L, ResidT>& forest, size_t t,
-                                   const double* forestY,
-                                   const double* forestWeights) {
-    if constexpr (!leafIsConstant || !std::is_same_v<ResidT, double>) {
-      (void) forest; (void) t; (void) forestY; (void) forestWeights;
-      return false;
-    } else {
-      if (forestWeights != nullptr || forest.leafOfStale[t] != 0) return false;
-
-      static_assert(fusedSuffstatBanks == 4,
-                    "the unrolled body below assigns four banks by hand");
+  /// The product w[i] * r is named before it is added. An unnamed product
+  /// inside the accumulate would let a contracting compiler fuse it into an
+  /// FMA, which rounds once instead of twice and would make the statistic
+  /// depend on the ISA and the flag level - the one thing the exactness
+  /// contract forbids.
+  template <bool Weighted>
+  void fusedRollPass(Forest<L, ResidT>& forest, size_t t, const double* forestY,
+                     const double* forestWeights, double* __restrict acc,
+                     size_t numNodes) {
+    if constexpr (leafIsConstant && std::is_same_v<ResidT, double>) {
       size_t n = data_.numObservations;
-      Tree& tree(forest.trees[t]);
-      size_t numNodes = tree.nodes.size();
-      fusedAcc_.assign(numNodes * fusedSuffstatBanks, 0.0);
-      double* __restrict acc = fusedAcc_.data();
-
       double* __restrict resid = forest.treeY.data();
       const double* __restrict mu = forest.muByTree[t].data();
       const std::uint32_t* __restrict leaf = forest.leafOf.data() + t * n;
+      const double* __restrict w = forestWeights;
+      double* __restrict accW = acc + numNodes * fusedSuffstatBanks;
       size_t i = 0, nMod4 = n % 4;
 
-#ifndef NDEBUG
-      // The map addresses acc and then the bottoms; a map that is fresh but
-      // wrong scatters into arena slots no bottom reads back. R's build
-      // defines NDEBUG, so this is live only in tests/cpp.
-      for (size_t j = 0; j < n; ++j)
-        assert(leaf[j] < numNodes &&
-               tree.at(static_cast<int32_t>(leaf[j])).isBottom());
-#endif
+      // one element's scatter: bank is its positional bank, fixed by i alone
+      auto scatter = [&](size_t idx, size_t bank, double r) {
+        size_t slot = bank * numNodes + leaf[idx];
+        if constexpr (Weighted) {
+          double wi = w[idx];
+          double wr = wi * r;
+          acc[slot] += wr;
+          accW[slot] += wi;
+        } else {
+          acc[slot] += r;
+        }
+      };
 
       if (t == 0) {
         const double* __restrict y_ = forestY;
@@ -4750,7 +4735,7 @@ private:
         for ( ; i < nMod4; ++i) {
           double r = y_[i] - total[i] + mu[leaf[i]];
           resid[i] = r;
-          acc[leaf[i]] += r;
+          scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
           double r0 = y_[i] - total[i] + mu[leaf[i]];
@@ -4761,10 +4746,10 @@ private:
           resid[i + 1] = r1;
           resid[i + 2] = r2;
           resid[i + 3] = r3;
-          acc[leaf[i]] += r0;
-          acc[numNodes + leaf[i + 1]] += r1;
-          acc[2 * numNodes + leaf[i + 2]] += r2;
-          acc[3 * numNodes + leaf[i + 3]] += r3;
+          scatter(i, 0, r0);
+          scatter(i + 1, 1, r1);
+          scatter(i + 2, 2, r2);
+          scatter(i + 3, 3, r3);
         }
       } else {
         const double* __restrict muPrev = forest.muByTree[t - 1].data();
@@ -4773,7 +4758,7 @@ private:
         for ( ; i < nMod4; ++i) {
           double r = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
           resid[i] = r;
-          acc[leaf[i]] += r;
+          scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
           double r0 = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
@@ -4787,23 +4772,104 @@ private:
           resid[i + 1] = r1;
           resid[i + 2] = r2;
           resid[i + 3] = r3;
-          acc[leaf[i]] += r0;
-          acc[numNodes + leaf[i + 1]] += r1;
-          acc[2 * numNodes + leaf[i + 2]] += r2;
-          acc[3 * numNodes + leaf[i + 3]] += r3;
+          scatter(i, 0, r0);
+          scatter(i + 1, 1, r1);
+          scatter(i + 2, 2, r2);
+          scatter(i + 3, 3, r3);
         }
       }
+    } else {
+      (void) forest; (void) t; (void) forestY; (void) forestWeights;
+      (void) acc; (void) numNodes;
+    }
+  }
+
+  /// The residual roll and the pre-move node-average suffstat in ONE
+  /// observation-order pass: roll resid[i] exactly as rollTreeResidual does,
+  /// then scatter-add it into acc[leafOf[i]], a node-indexed accumulator small
+  /// enough to stay L1-resident, so setNodeAverages' random gather over
+  /// indices[] never runs. That gather is 39-40% of a sweep; the fusion
+  /// measures 1.41x to 1.54x on Zen2 and 1.07x to 1.25x on M1 Max.
+  ///
+  /// Weighted families ride the same pass with a SECOND bank set: sum w
+  /// alongside sum w r, four-banked at the same positional assignment and
+  /// combined in the same order, so the pair is exactly what the stock
+  /// weighted kernel delivers, one association apart. Unweighted keeps
+  /// sumWeights as the member count and allocates no second set.
+  ///
+  /// Returns false, having written nothing, when the fusion is not eligible;
+  /// the caller then runs the stock rollTreeResidual + Tree::setNodeAverages
+  /// pair, which stays the only path for every other caller of either.
+  /// Eligible iff every clause holds, each compile-time or O(1):
+  ///   leafIsConstant     - the scatter is into acc[leafOf[i]], and only the
+  ///                        constant leaf keeps a leafOf map
+  ///   ResidT == double   - the fp32 roll is deliberately left rolled, for the
+  ///                        codegen reason rollTreeResidual documents
+  ///   !leafOfStale[t]    - a stale map still describes the PREVIOUS
+  ///                        partition, so acc would be indexed by node ids the
+  ///                        current tree need not have
+  ///
+  /// Exactness contract. resid[i] is formed with the SAME expressions in the
+  /// SAME order as rollTreeResidual, so treeY comes out bit-for-bit identical
+  /// and the suffstat association is the only draw change anywhere - do not
+  /// "simplify" the arithmetic below. The association itself is: bank
+  /// assignment positional (the n % 4 prologue accumulates into bank 0, and
+  /// thereafter element i goes to bank (i - n % 4) mod 4), the combine
+  /// ((b0 + b1) + b2) + b3 left to right always, and the pass scalar
+  /// throughout - no SIMD reduce, no reassociation, and no FMA contraction,
+  /// which the weighted branch keeps out by naming w * r before the add.
+  /// The order therefore depends only on n and the partition, not on ISA,
+  /// lane width, or worker count: within a host, draws stay bitwise identical
+  /// across every SIMD dispatch level and thread count.
+  bool rollAndSetNodeAveragesFused(Forest<L, ResidT>& forest, size_t t,
+                                   const double* forestY,
+                                   const double* forestWeights) {
+    if constexpr (!leafIsConstant || !std::is_same_v<ResidT, double>) {
+      (void) forest; (void) t; (void) forestY; (void) forestWeights;
+      return false;
+    } else {
+      if (forest.leafOfStale[t] != 0) return false;
+
+      static_assert(fusedSuffstatBanks == 4,
+                    "the unrolled body below assigns four banks by hand");
+      bool weighted = forestWeights != nullptr;
+      size_t n = data_.numObservations;
+      Tree& tree(forest.trees[t]);
+      size_t numNodes = tree.nodes.size();
+      size_t bankSlots = numNodes * fusedSuffstatBanks;
+      fusedAcc_.assign(weighted ? 2 * bankSlots : bankSlots, 0.0);
+      double* __restrict acc = fusedAcc_.data();
+
+#ifndef NDEBUG
+      // The map addresses acc and then the bottoms; a map that is fresh but
+      // wrong scatters into arena slots no bottom reads back. R's build
+      // defines NDEBUG, so this is live only in tests/cpp.
+      {
+        const std::uint32_t* leafCheck = forest.leafOf.data() + t * n;
+        for (size_t j = 0; j < n; ++j)
+          assert(leafCheck[j] < numNodes &&
+                 tree.at(static_cast<int32_t>(leafCheck[j])).isBottom());
+      }
+#endif
+
+      if (weighted)
+        fusedRollPass<true>(forest, t, forestY, forestWeights, acc, numNodes);
+      else
+        fusedRollPass<false>(forest, t, forestY, forestWeights, acc, numNodes);
 
       // the bottoms take the accumulated sums in place of the gather;
-      // unweighted, so sumWeights is the count the partition already knows -
+      // unweighted, sumWeights is the count the partition already knows -
       // which is what misc_computeIndexedSufficientStatisticsFast reports too
       tree.bottomScratch.clear();
       tree.fillBottom(0, tree.bottomScratch);
       for (int32_t b : tree.bottomScratch) {
         Node& node(tree.at(b));
-        node.sumWeights = static_cast<double>(node.numObservations());
+        size_t slot = static_cast<size_t>(b);
+        node.sumWeights =
+          weighted ? combineFusedSuffstatBanks(acc + bankSlots, slot, numNodes)
+                   : static_cast<double>(node.numObservations());
         node.sumWeightedResponse =
-          combineFusedSuffstatBanks(acc, static_cast<size_t>(b), numNodes);
+          combineFusedSuffstatBanks(acc, slot, numNodes);
       }
       ++fusedSuffstatRuns_;
       return true;
@@ -5707,7 +5773,8 @@ private:
   static constexpr size_t testFitParallelCutoff = 65536;
 
   // Node-indexed scatter-add accumulator for the fused roll, fusedSuffstatBanks
-  // copies laid out bank-major. Sized per tree (a handful of nodes), so it
+  // copies laid out bank-major, doubled for a weighted pass, which banks sum w
+  // in the upper half. Sized per tree (a handful of nodes), so it
   // stays L1-resident; it grows to the largest tree this chain has swept and
   // then stops reallocating. Chain-owned mutable scratch: it is safe only
   // because a chain's sweep is sequential, and any future in-chain parallelism

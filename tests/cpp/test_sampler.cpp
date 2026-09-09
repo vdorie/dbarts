@@ -274,17 +274,23 @@ static void testFusedSuffstatBankCombine() {
 // mode, the same reasoning testGatherTailShapes applies to the unrolled
 // gathers - plus the short shapes where n < 4 makes the whole vector prologue
 // and K collapses to 1.
-static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng) {
+static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng,
+                                    bool weighted) {
   const size_t p = 3;
-  std::vector<double> x(n * p), y(n);
+  std::vector<double> x(n * p), y(n), w(n);
   for (double& v : x) v = runif01();
-  for (size_t i = 0; i < n; ++i)
+  for (size_t i = 0; i < n; ++i) {
     y[i] = std::sin(3.0 * x[i]) + 2.0 * x[i + n] * x[i + 2 * n] +
            0.3 * (runif01() - 0.5);
+    // a wide spread, so a leaf's sum w is not near its member count and a
+    // pass that silently counted instead of accumulating would show up
+    w[i] = 0.05 + 4.0 * runif01();
+  }
 
   SamplerOptions options;
   options.numTrees = 12;
-  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p,
+                              weighted ? w.data() : nullptr, nullptr,
                               ResponseFamily::gaussian, 1.0, 3.0,
                               0.37804942330213542, options, &rng);
   Results empty;
@@ -292,32 +298,42 @@ static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng) {
 
   FusedSuffstatCheck fused =
     sampler.chain(0).checkFusedSuffstatAgainstStockForTesting();
-  char label[128];
+  const char* kind = weighted ? "weighted" : "unweighted";
+  char label[160];
   std::snprintf(label, sizeof(label),
-                "n %% 4 == %lu: fused roll matches the stock roll bitwise",
-                static_cast<unsigned long>(n % 4));
+                "%s n %% 4 == %lu: fused roll matches the stock roll bitwise",
+                kind, static_cast<unsigned long>(n % 4));
   check(fused.residualsAgreeBitwise, label);
   std::snprintf(label, sizeof(label),
-                "n %% 4 == %lu: fused sumWeights matches the stock count",
-                static_cast<unsigned long>(n % 4));
-  check(fused.countsAgreeBitwise, label);
+                "%s n %% 4 == %lu: fused sumWeights matches the stock kernel",
+                kind, static_cast<unsigned long>(n % 4));
+  // unweighted sumWeights is the member count on both sides, so it is pinned
+  // bitwise; weighted, it is a second banked sum and carries the same
+  // association gap as the response sum
+  check(weighted ? fused.worstWeightRelativeError < 1e-9
+                 : fused.countsAgreeBitwise, label);
   std::snprintf(label, sizeof(label),
-                "n %% 4 == %lu: fused suffstat matches the stock gather",
-                static_cast<unsigned long>(n % 4));
+                "%s n %% 4 == %lu: fused suffstat matches the stock gather",
+                kind, static_cast<unsigned long>(n % 4));
   check(fused.worstRelativeError < 1e-9, label);
   std::snprintf(label, sizeof(label),
-                "n = %lu: every tree took the fused pass",
-                static_cast<unsigned long>(n));
+                "%s n = %lu: every tree took the fused pass",
+                kind, static_cast<unsigned long>(n));
   check(fused.numTreesFused == sampler.chain(0).numTrees(), label);
-  printf("ok: fused suffstat at n = %lu (worst statistic gap %.3g)\n",
-         static_cast<unsigned long>(n), fused.worstRelativeError);
+  printf("ok: %s fused suffstat at n = %lu (worst statistic gap %.3g, worst "
+         "weight gap %.3g)\n",
+         kind, static_cast<unsigned long>(n), fused.worstRelativeError,
+         fused.worstWeightRelativeError);
 }
 
 static void testFusedSuffstatMatchesStock(ext_rng* rng) {
-  for (size_t n = 1000; n <= 1003; ++n) checkFusedSuffstatShape(n, 20, rng);
-  // n < 4: the prologue swallows the whole vector, so the pass is K = 1 and
-  // must agree with the stock root kernel, which sums in the same obs order
-  for (size_t n = 1; n <= 3; ++n) checkFusedSuffstatShape(n, 2, rng);
+  for (bool weighted : {false, true}) {
+    for (size_t n = 1000; n <= 1003; ++n)
+      checkFusedSuffstatShape(n, 20, rng, weighted);
+    // n < 4: the prologue swallows the whole vector, so the pass is K = 1 and
+    // must agree with the stock root kernel, which sums in the same obs order
+    for (size_t n = 1; n <= 3; ++n) checkFusedSuffstatShape(n, 2, rng, weighted);
+  }
 }
 
 // Every eligibility clause is otherwise a silent decline, so each one is
@@ -354,15 +370,16 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
           "the fused suffstat runs for every tree of a burned-in sweep");
   }
 
-  // declined: non-null weights, the one clause that also removes logistic,
-  // negbin, t, the heteroscedastic mean forest, BCF and multinomial
+  // covered: non-null weights, which take the second bank set rather than
+  // declining - with them logistic, negbin, t, the heteroscedastic mean
+  // forest, BCF and multinomial
   {
     ConstantLeafSampler sampler(x.data(), y.data(), n, p, w.data(), nullptr,
                                 ResponseFamily::gaussian, 1.0, 3.0,
                                 0.37804942330213542, options, &rng);
     sampler.run(2, 0, empty);
-    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 0,
-          "weights decline the fused suffstat");
+    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 2 * options.numTrees,
+          "weights take the fused suffstat");
   }
 
   // declined: the opt-in fp32 residual, whose roll is left rolled on purpose
@@ -400,8 +417,8 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
           "the function leaf declines the fused suffstat");
   }
 
-  // declined: both combiners always supply non-null weights, so the two
-  // multi-forest models ride the weights clause with no rule of their own
+  // covered: both combiners always supply non-null weights, so the two
+  // multi-forest models ride the weighted pass with no rule of their own
   {
     std::vector<double> z(n), yBcf(n);
     for (size_t i = 0; i < n; ++i) {
@@ -416,8 +433,9 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       x.data(), yBcf.data(), n, p, nullptr, nullptr, 1.0, 3.0,
       0.37804942330213542, options, spec, &rng);
     bcf.run(2, 0, empty);
-    check(bcf.chain(0).fusedSuffstatRunsForTesting() == 0,
-          "BCF declines the fused suffstat through its combiner weights");
+    check(bcf.chain(0).fusedSuffstatRunsForTesting() ==
+            2 * (spec.mu.numTrees + spec.tau.numTrees),
+          "BCF takes the fused suffstat through its combiner weights");
   }
   {
     const size_t K = 3;
@@ -434,11 +452,12 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
     Sampler<ConstantGaussianLeaf> multinomial(x.data(), n, p, options, spec,
                                               &rng);
     multinomial.run(2, 0, empty);
-    check(multinomial.chain(0).fusedSuffstatRunsForTesting() == 0,
-          "multinomial declines the fused suffstat through its omega weights");
+    check(multinomial.chain(0).fusedSuffstatRunsForTesting() ==
+            2 * K * spec.forest.numTrees,
+          "multinomial takes the fused suffstat through its omega weights");
   }
 
-  printf("ok: fused suffstat decline set\n");
+  printf("ok: fused suffstat clause set\n");
 }
 
 // The cooperative cancellation the R interrupt handler drives: run() polls the
