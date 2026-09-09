@@ -83,7 +83,10 @@ Data frame columns - through the formula interface or a frame passed as
 - unordered factors each become a single categorical predictor under the
   default `factors = "categorical"`, with splits sending a subset of
   levels down each branch; `factors = "indicators"` instead expands each
-  factor into binary indicator columns, as previous versions always did;
+  factor into binary indicator columns, as previous versions always
+  did - a factor past 100 levels builds this expansion as a sparse
+  (`dgCMatrix`-backed) block automatically, which changes only the
+  design-matrix representation and carries no argument of its own;
 
 - ordered factors enter as their own predictor kind, coded numerically
   by level order and split at a threshold on those codes; the split grid
@@ -97,22 +100,32 @@ Data frame columns - through the formula interface or a frame passed as
 - [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   and `dgCMatrix` columns (assigned into the frame; they do not survive
   `data.frame(...)` or [`I()`](https://rdrr.io/r/base/AsIs.html)) enter
-  as sparse ordinal predictors. Only the x/y interface accepts them for
+  as sparse ordinal predictors. Both interfaces accept them for
   training: a bare S4 column does not survive
   [`model.frame`](https://rdrr.io/r/stats/model.frame.html), so the
-  formula path refuses one explicitly, the same guarded message
-  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
-  columns get (see below), rather than raw-erroring inside
-  `model.frame`. `test`/`x.test` accepts them under either interface,
-  since a test set is never run through `model.frame`;
+  formula path lifts any such column out of `data` before `model.frame`
+  runs and re-attaches it, row-subset under `subset` and `na.action`
+  alike, to the assembled predictor matrix afterward - named in
+  `formula` like any other column, including through `.`, with no
+  marker. A sparse name wrapped in
+  [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()`,
+  [`log()`](https://rdrr.io/r/base/Log.html),
+  [`offset()`](https://rdrr.io/r/stats/offset.html), or a `':'`/`'*'`
+  interaction is refused by name, as an interaction among dense terms
+  already is. `test`/`x.test` accepts them under either interface, since
+  a test set is never run through `model.frame`;
 
 - [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
   columns enter as a single sparse categorical predictor, coded and
-  binned identically to a dense factor of the same values. Only the x/y
-  interface accepts them (a bare S4 column cannot survive
-  [`model.frame`](https://rdrr.io/r/stats/model.frame.html), so the
-  formula path refuses one explicitly).
+  binned identically to a dense factor of the same values. Both
+  interfaces accept them, the same pull-out/re-attach the other sparse
+  column kinds get on the formula path.
 
+On the formula path, a sparse column re-attaches after every dense term
+regardless of where it was named, each in the order its name appears in
+`formula` (after `.` expansion) rather than its position in `data`;
+`test` is matched to `x.train` by name (or by position when neither
+carries names), so the two stay aligned regardless of this reordering.
 Factor level tables are retained so that test data are coded
 identically, and a factor predictor's level count - ordered or
 unordered - is the *declared* level table rather than the levels the

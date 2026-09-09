@@ -61,9 +61,10 @@ dbarts(
   and linear-leaf designation. A
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
   column is accepted here (the x/y, data-frame path) exactly as the
-  other sparse columns are; a bare `formula` object cannot carry it
-  through `model.frame` and refuses it, with a message to use the x/y
-  interface instead. See
+  other sparse columns are; a `formula` object accepts one too, named
+  like any other column (including through `.`), since `dbartsData`
+  lifts it out of `data` ahead of `model.frame` (which cannot carry it)
+  and re-attaches it to the assembled predictor matrix afterward. See
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
   for the full data-frame-to-predictor mapping.
 
