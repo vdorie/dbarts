@@ -18,19 +18,20 @@
 # within max(10 pct, 20 MB) and a median absolute relative residual under
 # 5 pct over the grid.
 #
-# Three terms are measured rather than derived, each by the same subprocess
+# Two terms are measured rather than derived, each by the same subprocess
 # method as the cells themselves and each reported in its own column beside
 # the closed form, so the gate stays auditable:
 #   warmup_mb     the fit path's one-off session growth - byte-compiling the
 #                 fit closures and populating the S4 dispatch tables
-#   churn_mb      the training-fit mean's collector churn: apply allocates
-#                 two small R objects per observation and leaves them
-#                 resident until the collector's next cycle
 #   ingest_mb     the predictor copies dbartsData makes over and above the
 #                 caller's matrix - one persistent subset copy and one
 #                 transient complete-cases copy, of which only as much
 #                 reaches the peak as the collector has not reclaimed
-# All three are host-dependent; none is a byte count the source fixes.
+# Both are host-dependent; neither is a byte count the source fixes. The
+# training-fit mean carried a third, the collector churn apply() left behind
+# per observation; the reduction that replaced it leaves too little to
+# resolve against page granularity, so the model no longer carries a term
+# for it.
 #
 # Every cell supplies 'sigest'. Left unset, a gaussian fit estimates the
 # starting sigma with an lm() over the whole design, whose model frame, na
@@ -162,12 +163,7 @@ buildGrid <- function(quick) {
 # measured allowances are returned beside it, never folded into it.
 # ---------------------------------------------------------------------------
 
-predictBytes <- function(
-  cell,
-  warmup = 0,
-  churn = function(rows) 0,
-  ingest = function(n, p) 0
-) {
+predictBytes <- function(cell, warmup = 0, ingest = function(n, p) 0) {
   n <- cell$n
   p <- cell$p
   n.test <- cell$n.test
@@ -212,19 +208,17 @@ predictBytes <- function(
   # the R vectors the bridge allocates and the engine writes into
   channels <- 8 * draws * (n + n.test) + 4 * p * draws + 8 * draws
 
-  # R-layer transient copies of the prediction arrays, live at packaging.
-  # Gaussian reaches three (the engine's array, the reshape, apply's aperm);
-  # a binary fit takes no mean, so it reaches three only when the
-  # combineChains reshape is the two-step matrix()/t() of a 3-D channel.
-  copies <- if (!binary || cell$n.chains > 1L) 3 else 2
+  # R-layer copies of the prediction arrays, live at packaging: the engine's
+  # own array and the permuted one packaging returns, on every family and
+  # either setting of combineChains. The reshape is a single aperm and the
+  # posterior mean is reduced over the returned layout, so nothing allocates
+  # a third.
+  copies <- 2
   transients <- (copies - 1) * 8 * draws * (n + n.test)
 
   # the caller's own predictor matrix and response; the copies dbartsData
   # makes on top of them are the measured ingestion allowance
   predictors <- 8 * n * p + 24 * n.test * p + 8 * n
-
-  # the training-fit mean's collector churn, absent on a binary fit
-  mean.churn <- if (binary) 0 else churn(n) + churn(n.test)
 
   closed.form <- sampler +
     cell$n.chains * per.chain +
@@ -235,9 +229,8 @@ predictBytes <- function(
   list(
     closed.form = closed.form,
     warmup = warmup,
-    churn = mean.churn,
     ingest = ingest(n, p),
-    total = closed.form + warmup + mean.churn + ingest(n, p)
+    total = closed.form + warmup + ingest(n, p)
   )
 }
 
@@ -248,10 +241,7 @@ predictBytes <- function(
 WORKER.SOURCE <- '
 suppressPackageStartupMessages(library(dbarts))
 cell <- readRDS(commandArgs(trailingOnly = TRUE)[[1L]])
-if (identical(cell$what, "churn")) {
-  m <- matrix(rnorm(cell$rows * cell$draws), cell$draws, cell$rows)
-  invisible(apply(m, 2L, mean))
-} else if (identical(cell$what, "ingest")) {
+if (identical(cell$what, "ingest")) {
   set.seed(99L)
   n <- as.integer(cell$n)
   x <- runif(n * cell$p)
@@ -360,21 +350,6 @@ runGrid <- function(quick) {
     }
     allowance.cache[[key]]
   }
-  churnFor <- function(draws) {
-    function(rows) {
-      if (rows == 0) {
-        return(0)
-      }
-      cached(paste("churn", rows, draws), function() {
-        peak <- measure(
-          list(what = "churn", rows = rows, draws = draws),
-          worker.file
-        )
-        # the probe's own matrix and apply's aperm copy are modelled rows
-        max(0, peak - baseline - 16 * rows * draws)
-      })
-    }
-  }
   ingestFor <- function(n, p) {
     cached(paste("ingest", n, p), function() {
       peak <- measure(list(what = "ingest", n = n, p = p), worker.file)
@@ -394,38 +369,34 @@ runGrid <- function(quick) {
   addRow("_warmup", "peak_rss_mb", warmup / MB)
 
   cat(sprintf(
-    "%-34s %9s %9s %7s %7s %7s %9s\n",
+    "%-34s %9s %9s %7s %7s %9s\n",
     "cell",
     "measured",
     "predicted",
     "closed",
     "warmup",
-    "churn",
     "ingest"
   ))
   for (cell in buildGrid(quick)) {
     spec <- cell
     spec$what <- "cell"
     measured <- (measure(spec, worker.file) - baseline) / MB
-    draws <- cell$n.samples * cell$n.chains
-    parts <- predictBytes(cell, warmup, churnFor(draws), ingestFor)
+    parts <- predictBytes(cell, warmup, ingestFor)
     predicted <- parts$total / MB
     name <- cellName(cell)
     cat(sprintf(
-      "%-34s %9.1f %9.1f %7.1f %7.1f %7.1f %9.1f\n",
+      "%-34s %9.1f %9.1f %7.1f %7.1f %9.1f\n",
       name,
       measured,
       predicted,
       parts$closed.form / MB,
       parts$warmup / MB,
-      parts$churn / MB,
       parts$ingest / MB
     ))
     addRow(name, "peak_rss_mb", measured)
     addRow(name, "predicted_mb", predicted)
     addRow(name, "residual_mb", measured - predicted)
     addRow(name, "closed_form_mb", parts$closed.form / MB)
-    addRow(name, "churn_mb", parts$churn / MB)
     addRow(name, "ingest_mb", parts$ingest / MB)
   }
 
@@ -501,7 +472,7 @@ reportResiduals <- function(rows, score = TRUE) {
 
 # ---------------------------------------------------------------------------
 # The R-layer duplicates: gc()'s max-used column around each reshape and the
-# apply mean, object.size on what a fit retains, and the mean live node
+# posterior mean, object.size on what a fit retains, and the mean live node
 # count the saved-tree rows need.
 # ---------------------------------------------------------------------------
 
@@ -543,6 +514,10 @@ measureDuplicates <- function(quick) {
   )
   addRow("reshape-combined", "peak_heap_ratio", used / full.size)
   addRow("yhat.train-after-convert", "object_size_mb", sizeOf(combined))
+  # the reduction that replaced apply(), and apply() beside it: the ratio is
+  # what the extra permutation cost
+  used <- maxUsedMb(invisible(dbarts:::channelMeans(combined)))
+  addRow("reduce-mean-combined", "peak_heap_ratio", used / full.size)
   used <- maxUsedMb(invisible(apply(combined, length(dim(combined)), mean)))
   addRow("apply-mean-combined", "peak_heap_ratio", used / full.size)
   used <- maxUsedMb(
