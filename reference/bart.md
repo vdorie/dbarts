@@ -843,14 +843,20 @@ print(x, ...)
   replicate and then follow the chosen binary family's policy (probit
   refuses non-unit weights, logistic requires integer counts). A `Surv`
   response requires the family to be requested explicitly
-  (`family = "auto"` selects `"aft"`); the matrix interface is required
-  (no formula, `subset`, or `test` - expand held-out subjects with
-  `survivalProbabilities(fit, times, newdata = )`, which needs
-  `keepTrees`). The returned object is an ordinary `"bart"` fit whose
-  `$family` records the binary link (so every prediction generic
-  transforms correctly with no special case) and whose `$periods`
-  element carries the grid; `predict`/`extract` return the per-(subject,
-  period) hazards on the expanded rows, and
+  (`family = "auto"` selects `"aft"`), on either interface - a `Surv`
+  left-hand side on `formula` works too, and both interfaces honour
+  `subset` (applied before the person-period expansion). Both interfaces
+  accept a `test` set, person-period-expanded on the SAME period grid as
+  training (no event time - every subject expands to every period);
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  then reads its hazards straight off the fit with no `keepTrees`
+  needed. Any OTHER `newdata` passed to
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  still needs `keepTrees`. The returned object is an ordinary `"bart"`
+  fit whose `$family` records the binary link (so every prediction
+  generic transforms correctly with no special case) and whose
+  `$periods` element carries the grid; `predict`/`extract` return the
+  per-(subject, period) hazards on the expanded rows, and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   produces survival-curve draws \\S(t \mid x) = \prod\_{k :
   \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `xbart` does not fit
@@ -1519,7 +1525,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001499
+#> total seconds in loop: 0.001480
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1567,7 +1573,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001822
+#> total seconds in loop: 0.001684
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

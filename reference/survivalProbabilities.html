@@ -103,7 +103,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     model (its <code>family</code> element equals <code>"aft"</code>) or a discrete-time
     hazard model (it carries a <code>$periods</code> grid; its <code>family</code> records
     the binary link). A hazard fit must have been made with
-    <code>keepTrees = TRUE</code>.</p></dd>
+    <code>keepTrees = TRUE</code>, unless <code>newdata</code> is <code>NULL</code> and a
+    <code>test</code> set rode the fit call (the matrix interface's own hazard
+    <code>test</code> acceptance, person-period-expanded on the training grid) -
+    then the stored test draws are read directly and no trees are needed.</p></dd>
 
   <dt id="arg-times">times<a class="anchor" aria-label="anchor" href="#arg-times"></a></dt>
 <dd><p>A numeric vector of times (on the original, non-logarithmic scale) at
@@ -113,8 +116,9 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 
   <dt id="arg-newdata">newdata<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
 <dd><p>Optional predictors at which to evaluate. When <code>NULL</code> the training
-    observations are used; otherwise <code>object</code> must have been fit with
-    <code>keepTrees = TRUE</code>.</p></dd>
+    observations are used, EXCEPT for a hazard fit that also carries a
+    <code>test</code> set (below), whose stored draws are read instead; otherwise
+    <code>object</code> must have been fit with <code>keepTrees = TRUE</code>.</p></dd>
 
   <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>A logical determining whether the chain dimension is collapsed into the
@@ -149,7 +153,12 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   subjects onto the full grid and replays the trees - so it requires
   <code>keepTrees = TRUE</code> even for the training data (<code>newdata = NULL</code>).
   With <code>newdata</code>, each new subject is expanded to one row per period and
-  its curve evaluated the same way.</p>
+  its curve evaluated the same way. The one exception: a <code>test</code> set that
+  rode the fit call (the matrix interface's own hazard <code>test</code>
+  acceptance) was already person-period-expanded on the SAME training grid
+  at fit time, so its hazards are stored on the fit already -
+  <code>newdata = NULL</code> on such a fit reads them directly with no
+  re-expansion and no trees needed, in preference to the training data.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>

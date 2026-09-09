@@ -47,7 +47,11 @@ survivalProbabilities(object, ...)
   A fitted `bart` object from a survival model: an AFT model (its
   `family` element equals `"aft"`) or a discrete-time hazard model (it
   carries a `$periods` grid; its `family` records the binary link). A
-  hazard fit must have been made with `keepTrees = TRUE`.
+  hazard fit must have been made with `keepTrees = TRUE`, unless
+  `newdata` is `NULL` and a `test` set rode the fit call (the matrix
+  interface's own hazard `test` acceptance, person-period-expanded on
+  the training grid) - then the stored test draws are read directly and
+  no trees are needed.
 
 - times:
 
@@ -59,8 +63,9 @@ survivalProbabilities(object, ...)
 - newdata:
 
   Optional predictors at which to evaluate. When `NULL` the training
-  observations are used; otherwise `object` must have been fit with
-  `keepTrees = TRUE`.
+  observations are used, EXCEPT for a hazard fit that also carries a
+  `test` set (below), whose stored draws are read instead; otherwise
+  `object` must have been fit with `keepTrees = TRUE`.
 
 - combineChains:
 
@@ -98,7 +103,12 @@ training design is ragged (each subject carries only its at-risk rows),
 the method ALWAYS re-expands its subjects onto the full grid and replays
 the trees - so it requires `keepTrees = TRUE` even for the training data
 (`newdata = NULL`). With `newdata`, each new subject is expanded to one
-row per period and its curve evaluated the same way.
+row per period and its curve evaluated the same way. The one exception:
+a `test` set that rode the fit call (the matrix interface's own hazard
+`test` acceptance) was already person-period-expanded on the SAME
+training grid at fit time, so its hazards are stored on the fit
+already - `newdata = NULL` on such a fit reads them directly with no
+re-expansion and no trees needed, in preference to the training data.
 
 ## Value
 

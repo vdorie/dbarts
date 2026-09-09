@@ -454,10 +454,10 @@ dbarts(
   explicitly conflicting family (e.g. `"gaussian"`) with a `Surv`
   response is an error. A `Surv`-like object carrying no `type`
   attribute is treated as right-censored; `type`s other than `"right"`
-  are rejected. Survival fits currently use the matrix
-  (`x.train`/`y.train`) interface and do not support `subset` or case
-  weights. See `weights` for how the families differ in their support
-  for weights.
+  are rejected. The response may also be a `Surv` left-hand side on
+  `formula` (e.g. `Surv(time, status) ~ .`); both interfaces honour
+  `subset`. Case weights are not supported. See `weights` for how the
+  families differ in their support for weights.
 
   `"multinomial"` fits an unordered K-category response by a softmax of
   \\K\\ forests, one per category, with the interleaved one-vs-rest
@@ -541,13 +541,19 @@ dbarts(
   `breaks` coarsens it. The offset is on the link scale and replicates
   per subject; weights replicate and follow the chosen binary family's
   policy. A `Surv` response requires the family to be requested
-  explicitly (`"auto"` selects `"aft"`). Survival curves come from
+  explicitly (`"auto"` selects `"aft"`), on either interface - a `Surv`
+  left-hand side on `formula` works too, and both interfaces honour
+  `subset` (applied before the person-period expansion). Survival curves
+  come from
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
-  which requires `keepTrees`; `bart` reports the fit with its `$periods`
-  grid, and its `$family` records the binary link. Like `"aft"`, hazard
-  fits use the matrix interface and do not support `subset` or a `test`
-  set (expand test subjects with
-  `survivalProbabilities(..., newdata = )`).
+  which requires `keepTrees` unless reading a stored `test` set (below);
+  `bart` reports the fit with its `$periods` grid, and its `$family`
+  records the binary link. Both interfaces accept a `test` set,
+  person-period-expanded on the SAME period grid as training (no event
+  time - every subject expands to every period);
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  then reads its hazards straight off the fit with no `keepTrees`
+  needed.
 
   `"hurdle.lognormal"` (alias `"twopart"`, which resolves and prints as
   `"hurdle.lognormal"`) fits a semicontinuous two-part (hurdle) model

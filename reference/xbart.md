@@ -249,9 +249,12 @@ xbart(
   `"probit"` and `"logistic"` require a 0/1 response. A two-level
   factor, logical, or two-level character response is detected and fit
   as probit; a factor with three or more levels is an error, as `xbart`
-  does not cross-validate the multinomial model. The built-in binary
-  losses transform test predictions through the family's link. This
-  vocabulary is narrower than
+  does not cross-validate the multinomial model. A survival response - a
+  `Surv` object or two-column `(time, status)` pair, on `formula` or as
+  `data` directly - is likewise an error naming `bart`/`dbarts` with
+  `family = "aft"`/`"hazard"`: `xbart` does not cross-validate a
+  survival model. The built-in binary losses transform test predictions
+  through the family's link. This vocabulary is narrower than
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s by
   design - `xbart` cross-validates a single scalar loss per fold, which
   the own-class families' K-forest or two-part fits have no single
