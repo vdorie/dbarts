@@ -171,6 +171,204 @@ bartDrawsArray <- function(object, vars) {
   )
 }
 
+# ---- Rank-normalized split-Rhat and bulk/tail effective sample size, our
+# own implementation of Vehtari, Gelman, Simpson, Carpenter, Burkner (2021,
+# "Rank-normalization, folding, and localization"). Matched against the
+# 'posterior' package's own internals (its exact constants and split/fold
+# order, not merely the paper's prose) since summary()'s numbers must agree
+# with a caller who separately has 'posterior' installed and runs it on the
+# same array draws() returns.
+
+# Splits one (iteration, chain) matrix into 2 * ncol(x) half-chains, each
+# floor(nrow(x) / 2) draws long - the middle draw of an odd-length chain is
+# dropped rather than assigned to either half. Column order is [chain 1's
+# first half, ..., chain M's first half, chain 1's second half, ..., chain
+# M's second half].
+splitChainsMatrix <- function(x) {
+  x <- as.matrix(x)
+  n <- nrow(x)
+  if (n == 1L) {
+    return(x)
+  }
+  half <- n / 2
+  cbind(
+    x[seq_len(floor(half)), , drop = FALSE],
+    x[ceiling(half + 1):n, , drop = FALSE]
+  )
+}
+
+# Rank-normalizes every element of x as ONE POOL (ties averaged): the van
+# der Waerden transform qnorm((rank - 3/8) / (S - 3/4 + 1)), S = length(x).
+# Blom's constant c = 3/8 gives the S - 3/4 + 1 denominator (equivalently
+# S + 1/4) - not the S - 1/4 a literal reading of the paper's rounded prose
+# might suggest.
+rankNormalizeMatrix <- function(x) {
+  r <- rank(x, ties.method = "average")
+  s <- length(r)
+  z <- stats::qnorm((r - 3 / 8) / (s - 3 / 4 + 1))
+  dim(z) <- dim(x)
+  z
+}
+
+# Folds the whole pooled variable around its median before any split or
+# rank-normalization - the tail-Rhat/tail-ESS input.
+foldDraws <- function(x) abs(x - stats::median(x))
+
+# A constant (or NA/Inf-containing) input carries no information; every
+# statistic below reports NA for it rather than dividing by a zero
+# variance.
+diagnosticsReturnNA <- function(x) {
+  any(!is.finite(x)) || (abs(max(x) - min(x)) < .Machine$double.eps)
+}
+
+# Gelman-Rubin Rhat over an ALREADY split (and, for bulk, rank-normalized)
+# matrix of half-chains: sqrt(((n - 1) / n * W + B / n) / W), W the mean
+# within-half-chain variance, B = n * var(half-chain means).
+gelmanRubinRhat <- function(x) {
+  if (diagnosticsReturnNA(x)) {
+    return(NA_real_)
+  }
+  n <- nrow(x)
+  chainMeans <- colMeans(x)
+  chainVars <- apply(x, 2L, stats::var)
+  varBetween <- n * stats::var(chainMeans)
+  varWithin <- mean(chainVars)
+  sqrt((varBetween / varWithin + n - 1) / n)
+}
+
+# Per-half-chain autocovariance at every lag via FFT (Geyer 1992's trick):
+# zero-pad past twice the next highly composite length, multiply the
+# transform by its own conjugate (the power spectrum), inverse-transform
+# back, and rescale so lag 0 reads the ordinary sample variance.
+autocovariance <- function(x) {
+  n <- length(x)
+  varX <- stats::var(x)
+  if (varX == 0) {
+    return(rep(0, n))
+  }
+  m <- stats::nextn(n)
+  yc <- c(x - mean(x), rep(0, 2L * m - n))
+  ac <- Re(stats::fft(abs(stats::fft(yc))^2, inverse = TRUE)[seq_len(n)])
+  ac / ac[1L] * varX * (n - 1) / n
+}
+
+# The shared ESS estimator (Stan's, via Geyer's initial monotone sequence)
+# over an already split (and, for bulk, rank-normalized; for tail, a raw
+# 0/1 indicator) matrix of half-chains.
+essFromHalfChains <- function(x) {
+  nChains <- ncol(x)
+  n <- nrow(x)
+  if (n < 3L || diagnosticsReturnNA(x)) {
+    return(NA_real_)
+  }
+  acov <- apply(x, 2L, autocovariance)
+  acovMeans <- rowMeans(acov)
+  meanVar <- acovMeans[1L] * n / (n - 1)
+  varPlus <- meanVar * (n - 1) / n
+  if (nChains > 1L) {
+    varPlus <- varPlus + stats::var(colMeans(x))
+  }
+
+  rhoHatT <- rep(0, n)
+  rhoHatEven <- 1
+  rhoHatT[1L] <- rhoHatEven
+  rhoHatOdd <- 1 - (meanVar - acovMeans[2L]) / varPlus
+  rhoHatT[2L] <- rhoHatOdd
+  t <- 0L
+  while (
+    t < nrow(acov) - 5L &&
+      !is.nan(rhoHatEven + rhoHatOdd) &&
+      (rhoHatEven + rhoHatOdd > 0)
+  ) {
+    t <- t + 2L
+    rhoHatEven <- 1 - (meanVar - acovMeans[t + 1L]) / varPlus
+    rhoHatOdd <- 1 - (meanVar - acovMeans[t + 2L]) / varPlus
+    if (rhoHatEven + rhoHatOdd >= 0) {
+      rhoHatT[t + 1L] <- rhoHatEven
+      rhoHatT[t + 2L] <- rhoHatOdd
+    }
+  }
+  maxT <- t
+  if (rhoHatEven > 0) {
+    rhoHatT[maxT + 1L] <- rhoHatEven
+  }
+
+  # Geyer's initial monotone sequence: smooth consecutive pair sums so they
+  # never increase.
+  t <- 0L
+  while (t <= maxT - 4L) {
+    t <- t + 2L
+    if (rhoHatT[t + 1L] + rhoHatT[t + 2L] > rhoHatT[t - 1L] + rhoHatT[t]) {
+      rhoHatT[t + 1L] <- (rhoHatT[t - 1L] + rhoHatT[t]) / 2
+      rhoHatT[t + 2L] <- rhoHatT[t + 1L]
+    }
+  }
+
+  ess <- nChains * n
+  tauHat <- -1 + 2 * sum(rhoHatT[seq_len(maxT)]) + rhoHatT[maxT + 1L]
+  tauBound <- 1 / log10(ess)
+  if (tauHat < tauBound) {
+    tauHat <- tauBound
+  }
+  ess / tauHat
+}
+
+# Bulk Rhat: rank-normalize the pooled split-chain draws, then
+# Gelman-Rubin. Tail (folded) Rhat: fold the raw pooled draws FIRST, split
+# THAT, THEN rank-normalize; report the max of the two.
+splitRhat <- function(x) {
+  bulk <- gelmanRubinRhat(rankNormalizeMatrix(splitChainsMatrix(x)))
+  tail <- gelmanRubinRhat(rankNormalizeMatrix(splitChainsMatrix(foldDraws(x))))
+  max(bulk, tail)
+}
+
+# Bulk ESS: the same split-then-rank-normalize array Bulk Rhat uses.
+essBulk <- function(x) {
+  essFromHalfChains(rankNormalizeMatrix(splitChainsMatrix(x)))
+}
+
+# One quantile's ESS: an indicator on the RAW, UNSPLIT, UNRANKED pooled
+# draws, split (never rank-normalized) and passed straight to the shared
+# estimator.
+essQuantile <- function(x, prob) {
+  indicator <- x <= stats::quantile(x, probs = prob, names = FALSE)
+  essFromHalfChains(splitChainsMatrix(indicator))
+}
+
+# Tail ESS: the smaller of the 5% and 95% quantile ESS values.
+essTail <- function(x) min(essQuantile(x, 0.05), essQuantile(x, 0.95))
+
+# The nine-column per-variable summary: mean/median/sd/mad/q5/q95 (ordinary
+# pooled statistics, matching R's own mean/median/sd/mad/quantile) plus
+# rhat/ess_bulk/ess_tail above - the columns 'posterior::summarise_draws'
+# reports for a plain array, computed without it. Always run, unconditional
+# on any package's availability (Decision 1).
+summariseDraws <- function(arr) {
+  varNames <- dimnames(arr)[[3L]]
+  d <- dim(arr)[1:2]
+  rows <- lapply(seq_along(varNames), function(i) {
+    x <- arr[,, i, drop = TRUE]
+    dim(x) <- d
+    pooled <- as.vector(x)
+    data.frame(
+      variable = varNames[i],
+      mean = mean(pooled),
+      median = stats::median(pooled),
+      sd = stats::sd(pooled),
+      mad = stats::mad(pooled),
+      q5 = stats::quantile(pooled, 0.05, names = FALSE),
+      q95 = stats::quantile(pooled, 0.95, names = FALSE),
+      rhat = splitRhat(x),
+      ess_bulk = essBulk(x),
+      ess_tail = essTail(x),
+      stringsAsFactors = FALSE
+    )
+  })
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
+}
+
 as_draws_array.bart <- function(x, vars = c("sigma", "k", "tau"), ...) {
   posterior::as_draws_array(bartDrawsArray(x, vars))
 }

@@ -265,3 +265,86 @@ expect_equal(nrow(sResidDf), 1L)
 expect_equal(sResidDf$mean, 5)
 
 rm(studentFit, sFirstSigma, sResidDf)
+
+# ---- known-limit checks on splitRhat/essBulk/essTail, dbarts's own
+# rank-normalized split-Rhat and bulk/tail ESS (no 'posterior' involved
+# anywhere in this file from here on) ----
+
+set.seed(202)
+n.iid <- 1000L
+m.iid <- 4L
+xIid <- matrix(rnorm(n.iid * m.iid), n.iid, m.iid)
+expect_true(abs(dbarts:::splitRhat(xIid) - 1) < 0.01)
+expect_true(dbarts:::essBulk(xIid) > 0.8 * n.iid * m.iid)
+expect_true(dbarts:::essTail(xIid) > 0.8 * n.iid * m.iid)
+rm(n.iid, m.iid, xIid)
+
+set.seed(303)
+n.bad <- 300L
+half.bad <- n.bad %/% 2L
+badChain <- function() c(rnorm(half.bad, 0), rnorm(n.bad - half.bad, 6))
+xBad <- sapply(1:3, function(i) badChain())
+expect_true(dbarts:::splitRhat(xBad) > 1.01)
+rm(n.bad, half.bad, badChain, xBad)
+
+# ---- pinned against posterior 1.7.0's own rhat()/ess_bulk()/ess_tail() on
+# the same array, computed once by hand and recorded here as fixed literals
+# - this file must run correctly with 'posterior' absent from the library,
+# so nothing below calls it ----
+
+set.seed(101)
+n.pin <- 80L
+m.pin <- 4L
+phi.pin <- 0.5
+makePinChain <- function() {
+  e <- rnorm(n.pin)
+  x <- numeric(n.pin)
+  x[1L] <- e[1L]
+  for (i in 2:n.pin) {
+    x[i] <- phi.pin * x[i - 1L] + sqrt(1 - phi.pin^2) * e[i]
+  }
+  x
+}
+xPin <- sapply(seq_len(m.pin), function(j) makePinChain())
+
+expect_equal(dbarts:::splitRhat(xPin), 1.0348352822317353, tolerance = 1e-12)
+expect_equal(dbarts:::essBulk(xPin), 115.54086272289375, tolerance = 1e-12)
+expect_equal(dbarts:::essTail(xPin), 176.89073381346304, tolerance = 1e-12)
+
+arrPin <- array(xPin, c(n.pin, m.pin, 1L))
+dimnames(arrPin) <- list(NULL, NULL, "v")
+sPin <- dbarts:::summariseDraws(arrPin)
+expect_equal(sPin$mean, -0.048772852699491616, tolerance = 1e-12)
+expect_equal(sPin$median, -0.081883571354184684, tolerance = 1e-12)
+expect_equal(sPin$sd, 0.93261434511023389, tolerance = 1e-12)
+expect_equal(sPin$mad, 0.96465740153096868, tolerance = 1e-12)
+expect_equal(sPin$q5, -1.5566449864298746, tolerance = 1e-12)
+expect_equal(sPin$q95, 1.4312159689905077, tolerance = 1e-12)
+expect_equal(sPin$rhat, 1.0348352822317353, tolerance = 1e-12)
+expect_equal(sPin$ess_bulk, 115.54086272289375, tolerance = 1e-12)
+expect_equal(sPin$ess_tail, 176.89073381346304, tolerance = 1e-12)
+
+rm(n.pin, m.pin, phi.pin, makePinChain, xPin, arrPin, sPin)
+
+# ---- a within-chain variance shift (same mean, larger scale in the second
+# half) that the fold step exists to catch: bulk Rhat alone reads this as
+# converged, and only the folded (tail) leg - fold, THEN split, THEN
+# rank-normalize - reports the real non-convergence; pinned against
+# posterior 1.7.0's rhat() the same way as above ----
+
+set.seed(55)
+n.var <- 400L
+m.var <- 4L
+makeVarShiftChain <- function() {
+  c(rnorm(n.var / 2L, 0, 1), rnorm(n.var / 2L, 0, 3))
+}
+xVarShift <- sapply(seq_len(m.var), function(j) makeVarShiftChain())
+
+expect_equal(
+  dbarts:::splitRhat(xVarShift),
+  1.1780351396473598,
+  tolerance = 1e-12
+)
+expect_true(dbarts:::splitRhat(xVarShift) > 1.05)
+
+rm(n.var, m.var, makeVarShiftChain, xVarShift)
