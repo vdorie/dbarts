@@ -8,7 +8,9 @@ cpuid leaf-7 subleaf) is fixed in src/misc/simd.c, which now calls
 COMPILER_SUPPORTS_SSE4_1 configure.ac inconsistency, low priority); R2
 (SIMD indexed suffstat under a fast/reference toggle) and R3 (the
 do-not-bother list) were measured, not implemented, and remain open only if
-toggle infrastructure is built for other reasons.
+toggle infrastructure is built for other reasons. R2's 32 percent share
+was re-measured after the fused roll landed; see
+[SUFFSTAT RE-PROFILE AT THE FUSED-PASS TIP (2026-09-09)](#suffstat-re-profile-at-the-fused-pass-tip-2026-09-09).
 
 Job 120e5d72. Box: dbarts-bench, x86-64 Ubuntu, 16 core, gcc 13.3, R 4.3.3.
 CPU: fma sse4_1 sse4_2 avx f16c bmi1 avx2 bmi2 (NO avx512). perf present,
@@ -293,3 +295,101 @@ if toggle exists]. Everything else is measured not worth it.
 Investigation steps (build, profile, enumerate hot loops, microbench
 residual-roll, moments caller search, rank the plan above) are all done;
 see Status at the top of this file for what shipped.
+
+## SUFFSTAT RE-PROFILE AT THE FUSED-PASS TIP (2026-09-09)
+
+The 32 percent above was measured before the fused roll existed. This
+section is what [Steps](engine-performance.md#steps) S2 step 4 owes: the
+same shares re-taken at 1622aafaff43fe253deecf7a9e4645b256e662e8, with
+[`rollAndSetNodeAveragesFused`](../../src/bartcore/chain.hpp) live, on
+both hosts, shipped build, no code changed.
+
+Method, arm64 (Apple M1 Max, macOS 26.6.2, Apple clang 21.0.0, R 4.6.1,
+shipped build, NEON, dispatch level 1). No gprof and no Xcode there, so
+neither gprof nor xctrace: `/usr/bin/sample` at a 1 ms interval against a
+live R process running one sampler. Nothing had to be built to keep the
+eight visible - moments.c is its own translation unit inside misc.a and
+all eight are exported from dbarts.so (`nm` shows eight `T` symbols), so
+no engine call site can inline them. Self time per symbol is each
+call-graph node's count minus its children's counts; the denominator is
+the samples under [`Sampler::run`](../../src/bartcore/sampler.hpp), that
+is fit time, not process time (the fit is 99 percent of the process here
+either way).
+
+Method, the x86 box (4 cores, AVX2 and FMA, gcc 13.3, R 4.6.1, shipped
+build, dispatch level 8). No perf on that box, and gprof needs an
+instrumented `main`, which an R package .so does not get; gperftools'
+SIGPROF sampler at 1000 Hz instead (LD_PRELOAD of libprofiler with
+CPUPROFILE set, against R's exec binary - under Rscript the handler is
+lost and SIGPROF kills the process), run under `setarch -R` so repeated
+processes share load addresses and their profiles merge, symbolized with
+google-pprof. Same denominator, the cum count of `Sampler::run`. Nothing
+else ran on the box.
+
+Driver: this memo's own cell - n = 10000, p = 20, 200 trees, 300 burn +
+300 samples, gaussian, one chain, one thread - plus a larger cell,
+n = 100000, same p and trees, 100 burn + 100 samples, so the share is not
+a small-n artefact. Each cell is run twice: weights absent, the default
+path the fused pass takes, and weights supplied, which it declines. Five
+profiled processes per host at n = 1e4, four at n = 1e5; the profiler
+costs about 5 to 7 percent of wall time, so the fit seconds below are
+medians of the profiled runs, not of clean ones.
+
+Self time as a share of total fit time, percent. Only three of the eight
+appear; the other five are dashes because they are never called (below).
+
+| cell | host | fit s | indexed | indexed weighted | weighted | eight total |
+|---|---|---|---|---|---|---|
+| n = 1e4, default  | arm64 |  3.00 | 4.94 | -     | -    | 4.94 |
+| n = 1e4, default  | x86   |  1.66 | 9.09 | -     | -    | 9.09 |
+| n = 1e4, weighted | arm64 |  3.10 | -    | 31.35 | 1.03 | 32.38 |
+| n = 1e4, weighted | x86   |  2.05 | -    | 35.02 | 1.54 | 36.56 |
+| n = 1e5, default  | arm64 |  8.90 | 8.57 | -     | -    | 8.57 |
+| n = 1e5, default  | x86   |  5.55 | 12.08 | -    | -    | 12.08 |
+| n = 1e5, weighted | arm64 | 12.19 | -    | 47.95 | 0.51 | 48.46 |
+| n = 1e5, weighted | x86   |  9.81 | -    | 53.90 | 0.65 | 54.55 |
+
+Which of the eight run. Counted exactly, on a scratch copy of this tip
+whose [`misc_computeSufficientStatisticsFast`](../../src/misc/moments.c)
+family carried call counters (scratch only, never in the tree), at the
+n = 1e4 cell:
+
+- default gaussian: `misc_computeIndexedSufficientStatisticsFast` 176954
+  calls, every other one of the eight ZERO. The contiguous unweighted
+  twin is not merely cheap, it is dead on this path: the fused pass takes
+  every pre-move node average including a stump's root, so the only
+  surviving caller is
+  [`Tree::refreshSubtree`](../../src/bartcore/tree.hpp)'s per-move child
+  statistic through [`computeLeafStats`](../../src/bartcore/tree.hpp),
+  and a child is never the root, so it is always the indexed form.
+- weighted gaussian: `misc_computeIndexedWeightedSufficientStatisticsFast`
+  448869 calls and `misc_computeWeightedSufficientStatisticsFast` 12741
+  (the stump trees, whose root IS a bottom node), every other one ZERO.
+  The fused pass declines outright, so the whole per-sweep node-average
+  pass lands here as well as the per-move children - 2.6x the call count
+  of the default path.
+- the four Float twins: ZERO on both, on both hosts. They are reachable
+  only under the fp32 residual opt-in, which neither family enables.
+
+Neighbours, for context, as a share of fit on the same runs: the fused
+pass itself is 37.4 percent (arm64) and 40.2 percent (x86) at n = 1e4 and
+41.8 / 41.4 percent at n = 1e5 on the default path; partitionRange plus
+partitionIndices is 51.9 percent (arm64 NEON) and 30.3 percent (x86 AVX2)
+at n = 1e4 default. On the weighted path the fusion is absent and
+[`Chain::rollTreeResidual`](../../src/bartcore/chain.hpp) reappears at
+24.3 percent (arm64) and 24.5 percent (x86).
+
+VERDICT: the step-4 rule is "if the default-path share is under one
+percent the slice says so and stops". It is not. The default gaussian
+path still carries 4.94 to 9.09 percent at n = 1e4 and 8.57 to 12.08
+percent at n = 1e5, all in the single indexed double kernel; the weighted
+families carry 32 to 55 percent, and grow with n on both hosts. The
+fusion moved the default path from 32 percent to roughly 5 to 12 percent
+by removing the gather, not by making it cheaper - what is left is the
+per-move child statistic, which the fusion structurally cannot take.
+Step 4 does not stop the slice. The measured ceiling from the microbench
+above still applies: this kernel is gather-bound, SIMD buys about 1.05 to
+1.15x on it and FMA nothing, so the honest expectation for the default
+path is well under one percent of a whole fit, and for a weighted family
+2 to 6 percent. That trade - the reproducibility cost of a vector draw
+path against those numbers - is the maintainer's, not this measurement's.
