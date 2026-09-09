@@ -36,6 +36,7 @@ xbart <- function(
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(supplied, "xbart", names(formals(dbarts::xbart)))
+  refuseRetiredXbartControl(supplied)
   consolidated <- resolveConsolidatedArgs(
     matchedCall,
     supplied,
@@ -237,28 +238,31 @@ xbart <- function(
     }
   }
 
-  # the grid default is a fixed k for every family, binary included: a
-  # hyperprior k is held rather than swept and is drawn every sweep, so
-  # defaulting binary fits to bart2's chi hyperprior would collapse the k
-  # axis onto a single cell whose shrinkage moves within the fit
-  if (is.null(matchedCall[["k"]])) {
-    k <- if (!is.null(node.spec) && !is.null(node.spec@k)) {
-      node.spec@k
-    } else {
-      2
-    }
+  # the k axis is 0.9-x's numeric vector or a list whose entries are numbers
+  # and hyperprior objects, so one sweep scores fixed k against modelled k.
+  # Read off the unevaluated argument in the prior vocabulary, as every other
+  # prior argument here is, so k = list(1, chi()) resolves without the
+  # constructor standing on the caller's search path. An absent k is ONE cell
+  # at the front door's own default for the response type - fixed 2
+  # continuous, chi(1.5, 2) binary - so a default xbart call scores the model
+  # a default bart call fits; a k carried by a supplied node.prior stands in
+  # for a missing argument.
+  kSpec <- if (is.null(matchedCall[["k"]])) {
+    if (!is.null(node.spec)) node.spec@k else NULL
+  } else {
+    eval(matchedCall[["k"]], vocabularyEnv(dbartsPriors, evalEnv))
   }
-  kIsGrid <- is.numeric(k)
-  if (kIsGrid && (anyNA(k) || any(k <= 0))) {
-    stop("'k' must contain only positive values")
-  }
+  kGrid <- resolveKGrid(kSpec, control@binary)
   # swept largest (most-shrunk) k first, so every warm start comes from a
-  # simpler forest than the cell before it; kOrder un-permutes the reported
-  # k axis back to the caller's order once the result array is final
-  kOrder <- if (kIsGrid) order(k, decreasing = TRUE) else NULL
-  if (kIsGrid) {
-    k <- k[kOrder]
-  }
+  # simpler forest than the cell before it; a modelled cell has no fixed k to
+  # order by and sweeps last, in the order it was written. kOrder un-permutes
+  # the reported k axis back to the caller's order once the result array is
+  # final
+  kOrder <- order(
+    vapply(kGrid, kGridSortKey, 0.0),
+    decreasing = TRUE
+  )
+  kGrid <- kGrid[kOrder]
 
   power <- coerceOrError(power, "numeric")
   base <- coerceOrError(base, "numeric")
@@ -311,19 +315,15 @@ xbart <- function(
   }
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
 
+  # the leaf model is built at the first cell's k; cellModel swaps the
+  # hyperprior itself as the sweep moves along the axis
+  kValue <- kGridValue(kGrid[[1L]])
   if (is.null(node.spec)) {
     node.prior <- quote(normal(k))
     node.prior[[1L]] <- quoteInNamespace(normal)
-    # take the first grid element: k[1L] for a numeric grid, k[[1L]] for a
-    # list grid, otherwise k itself (a scalar or hyperprior spec)
-    node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
+    node.prior[[2L]] <- kValue
     node.prior <- eval(node.prior)
   } else {
-    # first grid element, as above: k[1L] numeric, k[[1L]] list, else k
-    kValue <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
-    if (is.call(kValue)) {
-      kValue <- eval(kValue)
-    }
     # the k argument replaces the supplied prior's own k, but its named
     # calibration is not a grid axis and rides every cell unchanged
     namedSd <- node.spec@prior.sd
@@ -349,10 +349,13 @@ xbart <- function(
       normal(kValue, namedSd, namedScale)
     }
   }
-  # xbart cells run a fixed k unless a hyperprior is named explicitly: the
-  # grid default is 2 for every family, so the binary family default is never
-  # taken here
-  node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
+  # every cell's hyperprior is checked against the leaf model, not just the
+  # first: a named prior sd is calibrated at a fixed k and cannot ride a
+  # modelled cell, and resolvePriorScale is where that is refused by name
+  node.hyperprior <- kGrid[[1L]]
+  for (kCell in kGrid[-1L]) {
+    invisible(resolvePriorScale(node.prior, kCell))
+  }
 
   # a binary family runs on a fixed unit latent scale (R/spec.R's
   # fixedUnitScale rule): any supplied resid.prior is overridden, not just a
@@ -426,9 +429,7 @@ xbart <- function(
     stop("'n.reps' must be a positive integer")
   }
   n.burn <- coerceOrError(n.burn, "integer")
-  if (length(n.burn) > 2L) {
-    stop("'n.burn' must be of length 1 or 2")
-  }
+  refuseThreeElementBurn(n.burn)
   n.burn <- rep_len(n.burn, 2L)
   if (anyNA(n.burn) || any(n.burn < 0L)) {
     stop("'n.burn' must contain non-negative integers")
@@ -461,7 +462,7 @@ xbart <- function(
   # remembering the previous fold and scoring optimistically on its own
   # held-out rows. Tree counts are fixed at a sampler's creation, so they
   # vary slowest and each count gets a fresh fit per split.
-  kLength <- if (kIsGrid) length(k) else 1L
+  kLength <- length(kGrid)
   cells <- expand.grid(
     iBase = seq_along(base),
     iPower = seq_along(power),
@@ -477,8 +478,7 @@ xbart <- function(
     n.samples = control@n.samples,
     n.burn,
     n.trees,
-    kValues = if (kIsGrid) k else NA_real_,
-    kIsGrid,
+    kHyperpriors = kGrid,
     power,
     base,
     cells,
@@ -594,25 +594,23 @@ xbart <- function(
   }
 
   # axis 3 is k, still in the decreasing sweep order; restore the caller's
-  # order on both the array and the k vector before anything is reported
-  if (kIsGrid && length(k) > 1L) {
+  # order on both the array and the k axis before anything is reported
+  if (length(kGrid) > 1L) {
     kOrderInv <- kOrder
     kOrderInv[kOrder] <- seq_along(kOrder)
     result <- result[,, kOrderInv, , , , drop = FALSE]
-    k <- k[kOrderInv]
+    kGrid <- kGrid[kOrderInv]
   }
+  # the k axis labels its cells: a fixed cell by its value, at the two
+  # significant digits every other axis prints, a modelled cell by the
+  # constructor call that rebuilds it
+  k <- vapply(kGrid, kGridLabel, "")
 
   varNames <- c("n.trees", "k", "power", "base")
   dimIncluded <- c(
     TRUE,
     if (drop) length(n.trees) > 1L else TRUE,
-    if (!kIsGrid) {
-      FALSE
-    } else if (drop) {
-      length(k) > 1L
-    } else {
-      TRUE
-    },
+    if (drop) length(k) > 1L else TRUE,
     if (drop) length(power) > 1L else TRUE,
     if (drop) length(base) > 1L else TRUE,
     numResults > 1L
@@ -729,12 +727,7 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
     result <- spec$model
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
     result@tree.prior@base <- spec$base[cells$iBase[cell]]
-    if (spec$kIsGrid) {
-      result@node.hyperprior <- new(
-        "dbartsFixedHyperprior",
-        k = spec$kValues[cells$iK[cell]]
-      )
-    }
+    result@node.hyperprior <- spec$kHyperpriors[[cells$iK[cell]]]
     result
   }
 
@@ -805,4 +798,78 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   }
 
   do.call(rbind, results)
+}
+
+## The k axis, normalized to one node hyperprior per grid cell: a numeric
+## vector is 0.9-x's fixed grid, a list mixes fixed values with hyperprior
+## objects, a bare number or hyperprior is a one-cell grid, and NULL takes
+## the response type's own front-door default.
+resolveKGrid <- function(k, binary) {
+  if (is.null(k)) {
+    return(list(resolveNodeHyperprior(NULL, binary = binary)))
+  }
+  entries <- if (is.list(k)) {
+    k
+  } else if (is.numeric(k) || is.character(k)) {
+    as.list(k)
+  } else {
+    list(k)
+  }
+  if (length(entries) == 0L) {
+    stop("'k' must name at least one value")
+  }
+  lapply(entries, resolveKEntry)
+}
+
+## One k grid entry: a positive number fixes k for its cell, a hyperprior
+## object models it there. A character entry keeps normal()'s own string
+## forms, so "2" and "chi(1.5)" read as they always did.
+resolveKEntry <- function(entry) {
+  if (is.character(entry)) {
+    entry <- normal(entry)@k
+  }
+  if (is.numeric(entry)) {
+    if (length(entry) != 1L || is.na(entry) || entry <= 0.0) {
+      stop("'k' must contain only positive values")
+    }
+    return(newValidated("dbartsFixedHyperprior", k = as.numeric(entry)))
+  }
+  if (is.function(entry)) {
+    entry <- entry()
+  }
+  if (!is(entry, "dbartsNodeHyperprior")) {
+    stop(
+      "'k' must contain positive numbers and hyperprior specifications; ",
+      "see ?dbartsPriors"
+    )
+  }
+  entry
+}
+
+## The k one grid cell builds its leaf model at: the value a fixed cell
+## holds, or the hyperprior object a modelled one is drawn under.
+kGridValue <- function(entry) {
+  if (is(entry, "dbartsFixedHyperprior")) entry@k else entry
+}
+
+## Sort key for the sweep order: fixed cells sweep from the most shrunk
+## down, and a modelled cell, having no fixed k to place, sweeps last.
+kGridSortKey <- function(entry) {
+  if (is(entry, "dbartsFixedHyperprior")) entry@k else -Inf
+}
+
+## One k axis label. A fixed cell prints its value at the two significant
+## digits every grid axis prints; a modelled cell prints the constructor
+## call that rebuilds it, so the two are told apart in the dimnames.
+kGridLabel <- function(entry) {
+  if (is(entry, "dbartsFixedHyperprior")) {
+    return(as.character(signif(entry@k, 2L)))
+  }
+  paste0(
+    "chi(",
+    format(entry@degreesOfFreedom),
+    ", ",
+    format(entry@scale),
+    ")"
+  )
 }

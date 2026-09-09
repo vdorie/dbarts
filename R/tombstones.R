@@ -192,6 +192,20 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "control",
+    kind = "argument",
+    owner = "xbart",
+    successor = "n.cuts = , useQuantiles = , n.thin = , storage =",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "three-element n.burn",
+    kind = "behaviour",
+    owner = "xbart",
+    successor = "n.burn = c(fresh, warm)",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "twopart",
     kind = "family",
     owner = NA_character_,
@@ -416,6 +430,17 @@ consolidatedArgsFor <- list(
   xbart = "dart"
 )
 
+## xbart builds its own control rather than accepting one: every setting a
+## 0.9-x caller reached through one is a formal of xbart itself now, so there
+## is no control left to honour and the name is refused rather than mapped.
+xbartControlReason <- paste0(
+  "xbart builds its own control: the settings it carried are xbart's own ",
+  "arguments now (n.cuts, useQuantiles, n.thin, storage), and the sampler ",
+  "fields it shared with the sweep (n.trees, n.burn, seed) are grid axes ",
+  "here; 'control' is removed in dbarts ",
+  tombstoneExpiry
+)
+
 tombstoneDotsReasons <- list(
   bart = c(
     list(rngSeed = seedRenameReason),
@@ -424,8 +449,39 @@ tombstoneDotsReasons <- list(
   dbarts = consolidatedArgReasons[consolidatedArgsFor$dbarts],
   dbartsSpec = consolidatedArgReasons[consolidatedArgsFor$dbartsSpec],
   dbartsControl = list(rngSeed = seedRenameReason),
-  xbart = consolidatedArgReasons[consolidatedArgsFor$xbart]
+  xbart = c(
+    consolidatedArgReasons[consolidatedArgsFor$xbart],
+    list(control = xbartControlReason)
+  )
 )
+
+## 'control' reaches xbart's '...' only so that it lands on this message
+## instead of R's own "unused argument", which fires before any body runs.
+refuseRetiredXbartControl <- function(supplied) {
+  if ("control" %in% supplied) {
+    stop("'control' has left 'xbart': ", xbartControlReason, ".", call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+## 0.9-x's xbart read a third n.burn element as a per-replication burn-in.
+## Chains are never carried between replications now, so the element names
+## nothing; refused by name rather than dropped in silence.
+refuseThreeElementBurn <- function(n.burn) {
+  if (length(n.burn) > 2L) {
+    stop(
+      "'n.burn' must be of length 1 or 2: the burn-in of a freshly started ",
+      "chain and the burn-in of a warm start onto the same data split. ",
+      "dbarts 0.9-x read a third element as a per-replication burn-in, and ",
+      "a chain is never carried between replications now. The three-element ",
+      "form is removed in dbarts ",
+      tombstoneExpiry,
+      ".",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
 
 ## Reads the consolidated names out of an entry point's '...', warning once
 ## per name and per entry point. The values come back under their old
