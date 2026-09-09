@@ -157,8 +157,8 @@ equivalence scenario reports "max |z|" rather than "identical draws"
 against an arm64-recorded baseline and passes in statistical mode
 (docs/architecture.md, "Reproducibility contract"); the reference build
 is where cross-ISA bitwise reproduction is asked for. Timing runs need
-the box idle: check `/proc/loadavg` first, and threading benches
-saturate at the 4 cores and regress past them.
+the host idle (`/proc/loadavg` first). Sanitizer binaries may need
+`setarch $(uname -m) -R` on hosts with high ASLR entropy.
 
 ## tests/cpp - bartcore component tests
 
