@@ -238,7 +238,7 @@ nbinom      reloaded predict: ERR: bartcore function called on NULL external poi
 ```
 
 The second line of each pair is the one that matters:
-`$fit$storeState()` - the documented `bart` escape at ["bartFit$fit$storeState()"](../../man/bart.Rd) -
+`$fit$storeState()` - the documented `bart` escape at ["bartFit$fit$storeState()"](../../man/bartBT.Rd) -
 does NOT help, because `predict` reaches through `$bc`, which has no
 state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in
@@ -496,7 +496,7 @@ the RC cleanup waves flag; re-adding 12 lines later is trivial.
 deleted, not rewritten), ["$getFitsWithoutOffset()"](../../inst/tinytest/test-fits-without-offset.R),
 ["the multinomial coupling, through the low-level handle"](../../inst/tinytest/test-calibration-midchain.R), ["log-sum-exp"](../../inst/tinytest/test-forest-weights-r5.R),
 `test-ordinal.R`, `test-nbinom.R`,
-["fit3pMulti <- bart2("](../../inst/tinytest/test-multinomial-surface.R). The
+["fit3pMulti <- bart("](../../inst/tinytest/test-multinomial-surface.R). The
 ordinal and nbinom blocks pinned the FAMILY-SPECIFIC message text
 (retired: `"host sampler of a bart2(family = \"ordinal\") fit"` no longer
 appears in either file - both cells have since inverted, see below), and
@@ -729,7 +729,7 @@ depend on the file's full execution history, not just the preceding
   four gates were `control@keepTrees || keepSampler`. Current
   `man/bart2.Rd` (e.g. line 332 for ordinal, 336 for nbinom) states only
   `fit`'s gate; there is no `bc` left to misdescribe.
-- [`family`](../../man/bart2.Rd) (the multinomial refusal set).
+- [`family`](../../man/bart.Rd) (the multinomial refusal set).
 - `man/dbartsSampler-class.Rd`: the host-shell sentences (retired: deleted
   under F1), the `getLatents`
   paragraph (Fork B1), `\item{forest}`, and the fit-surface table

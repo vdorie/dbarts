@@ -131,16 +131,16 @@ object's external pointer.
 | bcf | M [`xbart`](../../R/xbart.R) | S [`dbartsSpec`](../../R/spec.R), [`forests`](../../R/spec.R) |
 | hetero | M [`xbart`](../../R/xbart.R) | S [`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp) [f3] |
 
-Construction reach through `bart()`, `bart2()` and `dbarts()` + R5: gaussian, student, probit,
-logistic and aft reach all three ([`bart`](../../R/bart.R), [`bart2`](../../R/bart.R), [`dbarts`](../../R/dbarts.R)).
-Ordinal, nbinom, multinomial and hurdle are refused at `bart()` by name
-([`refuseBartOwnClassFamily`](../../R/bart.R)), hazard likewise
-([`refuseBartRedirectedFamily`](../../R/bart.R)), and bcf and hetero are no `family` tokens at all
-(each refusal at [f1]). `bart2()` ships all six: ordinal ([`bart2Ordinal`](../../R/bart.R)), nbinom
+Construction reach through `bart()`, `bartBT()` and `dbarts()` + R5: gaussian, student, probit,
+logistic and aft reach all three ([`bart`](../../R/bart.R), [`bartBT`](../../R/bart.R), [`dbarts`](../../R/dbarts.R)).
+Ordinal, nbinom, multinomial, hurdle, hazard, bcf and hetero are out of `bartBT()`'s reach
+entirely: it carries no `family` formal, so the by-name refusals it once held are gone
+(retired: [`refuseBartOwnClassFamily`](../../R/bart.R), [`refuseBartRedirectedFamily`](../../R/bart.R)), and its
+one response refusal is the categorical one at [f1]. `bart()` ships all six: ordinal ([`bart2Ordinal`](../../R/bart.R)), nbinom
 ([`bart2Negbin`](../../R/bart.R)), multinomial ([`bart2Multinomial`](../../R/bart.R)), hurdle ([f10]), hazard as
 person-period sugar ([f5]), bcf and hetero through `forests =` / `variance =` ([f6]).
 `dbarts()` + R5 ships every one but hurdle, which it refuses
-(["is only available through bart2()"](../../R/dbarts.R)): ordinal and nbinom
+(["two independent samplers"](../../R/dbarts.R)): ordinal and nbinom
 ([`dbarts`](../../R/dbarts.R), [`ordinal`](../../R/dbarts.R), [`dbarts`](../../R/dbarts.R), [`nbinom`](../../R/dbarts.R)), multinomial on the matrix
 interface only ([f4]), and hazard, bcf and hetero by the same routes.
 
@@ -235,11 +235,13 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 
 ## Footnotes
 
-[f1] `bart()`'s `family` formal is the narrow `c("auto", "logistic", "aft")`
-([`bart`](../../R/bart.R)); `resid.dist` is the separate Student-t lever. The ten other tokens of
-[`bartRedirectedFamilies`](../../R/bart.R) are refused BY NAME ahead of `match.arg`: five own-class
-ones - the four above plus the `"twopart"` alias - through [`bartOwnClassFamilies`](../../R/bart.R),
-and `"gaussian"`, `"probit"` and the three `"hazard"` spellings with their own message.
+[f1] `bartBT()` carries 0.9-34's argument list and no `family` formal at all
+([`bartBT`](../../R/bart.R)), so the by-name family refusals and the token tables behind them are
+gone (retired: [`bartRedirectedFamilies`](../../R/bart.R), [`bartOwnClassFamilies`](../../R/bart.R)); its one
+response refusal is a factor of three or more levels, whose message names both remedies
+([`refuseLegacyFactorResponse`](../../R/bart.R)). `resid.dist` is the separate Student-t lever, at the
+modern door alone. `"twopart"` is no longer an alias at either door: it is refused by name
+([`refuseTwopartFamily`](../../R/dbarts.R)).
 
 [f2] Student-t is no `family` token and not in `dbarts_sampler_create`'s admission list: a
 finite `resid.df` on the model SEXP selects it ([`parseSamplerSpecification`](../../src/R_interface_bartcore.cpp), [`residualDf`](../../src/R_interface_bartcore.cpp),

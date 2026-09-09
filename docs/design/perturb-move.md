@@ -231,8 +231,8 @@ safe to trust. The five loose probability assignments (three in tests/cpp/test_m
 twin, a new field with a zero default resolving itself. tests/cpp/test_moves.cpp also carries slice 1's interval-invariance
 assertion.
 
-**Four Rd files**: ["proposal.probs"](../../man/dbarts.Rd), ["proposal.probs"](../../man/bart2.Rd) and man/dbartsSpec.Rd - usage
-line and argument text in each - and ["proposalprobs"](../../man/bart.Rd), where `bart()` takes `NULL` so the Rd alone moves.
+**Four Rd files**: ["proposal.probs"](../../man/dbarts.Rd), ["proposal.probs"](../../man/bart.Rd) and man/dbartsSpec.Rd - usage
+line and argument text in each - and ["proposalprobs"](../../man/bartBT.Rd), where `bartBT()` takes `NULL` so the Rd alone moves.
 **SIX tinytest files**: ["a caller-supplied three-move mixture"](../../inst/tinytest/test-proposal-probs.R), the surface's own test
 and the one that pins the fill; the pinned default vector in test-argument-surface.R; the two-forest refusal's literal in
 test-bcf-creation.R; the slot reads in test-spec.R and test-monotone.R; and test-sum-to-one-tolerance.R below. **Plus inst/NEWS.Rd.**
