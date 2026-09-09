@@ -591,6 +591,8 @@ This custom-loop bookkeeping is only needed when embedding BART in a
 larger sampler. A plain multi-chain `bart2` fit already tracks its chain
 dimension: [`summary()`](https://rdrr.io/r/base/summary.html) reports
 split-R-hat and effective sample size for the scalar parameters (`sigma`
-and `k`) when the `posterior` package is installed, and
-`as_draws_array`/`as_draws_df` convert its chain-dimensioned draws to
-`posterior`’s array/data frame conventions.
+and `k`) unconditionally, and
+[`draws()`](https://vdorie.github.io/dbarts/reference/draws.md) returns
+its chain-dimensioned draws as a plain array, the shape
+[`posterior::as_draws_array`](https://mc-stan.org/posterior/reference/draws_array.html)
+accepts unchanged from a caller who has that package installed.

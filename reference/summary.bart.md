@@ -1,30 +1,23 @@
-# Convergence Diagnostics and Posterior-Package Draws for BART Fits
+# Convergence Diagnostics for BART Fits
 
-`summary` reports a per-variable posterior summary of the scalar
-parameters (`sigma` and `k`) of a `bart`/`bart2` fit, along with
-split-\\\hat{R}\\ and effective sample size when the posterior package
-is installed. A heteroscedastic fit
+Reports a per-variable posterior summary of the scalar parameters
+(`sigma` and `k`) of a `bart`/`bart2` fit, along with split-\\\hat{R}\\
+and bulk/tail effective sample size, computed by dbarts itself (no
+posterior dependency). A heteroscedastic fit
 ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
 `variance`) has no scalar residual scale and reports `mean.s` in place
 of `sigma`; see `vars`.
 
-`as_draws_array` and `as_draws_df` convert a fit's chain-dimensioned
-draws to posterior's array/data frame conventions. Both are methods for
-posterior's generics and so require it to be loaded
-([`library(posterior)`](https://mc-stan.org/posterior/) or a qualified
-[`posterior::as_draws_array`](https://mc-stan.org/posterior/reference/draws_array.html)
-call); dbarts registers them only when posterior is available, as it is
-a `Suggests`, not a hard dependency.
-
 `bart2`'s four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
 `"bartNegbin"`, `"bartHurdle"`; see
 [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md))
-are draws objects too, through their own
-`summary`/`as_draws_array`/`as_draws_df` methods (documented under
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)'s
-‘Value’), each exposing the scalar posterior parameters that family
-carries rather than its per-observation channels - never `yhat.train`
-itself.
+summarize through this same method, each exposing the scalar posterior
+parameters that family carries rather than its per-observation
+channels - never `yhat.train` itself.
+
+[`draws`](https://vdorie.github.io/dbarts/reference/draws.md) returns
+the same fit's chain-dimensioned draws as a plain array, the shape this
+summary is computed from.
 
 ## Usage
 
@@ -33,32 +26,6 @@ itself.
 summary(object, vars = c("sigma", "k", "tau"), ...)
 # S3 method for class 'summary.bart'
 print(x, ...)
-
-# S3 method for class 'bart'
-as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
-# S3 method for class 'bart'
-as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
-
-# S3 method for class 'bartMultinomial'
-as_draws_array(x, vars = "meanProb", ...)
-# S3 method for class 'bartMultinomial'
-as_draws_df(x, vars = "meanProb", ...)
-# S3 method for class 'bartOrdinal'
-as_draws_array(
-  x, vars = c("thresholds", "sigma", "k", "tau"), ...)
-# S3 method for class 'bartOrdinal'
-as_draws_df(
-  x, vars = c("thresholds", "sigma", "k", "tau"), ...)
-# S3 method for class 'bartNegbin'
-as_draws_array(
-  x, vars = c("dispersion", "sigma", "k", "tau"), ...)
-# S3 method for class 'bartNegbin'
-as_draws_df(
-  x, vars = c("dispersion", "sigma", "k", "tau"), ...)
-# S3 method for class 'bartHurdle'
-as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
-# S3 method for class 'bartHurdle'
-as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 ```
 
 ## Arguments
@@ -68,40 +35,26 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
   An object of class `bart`, as returned by
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
   [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md);
-  for the four own-class methods, a `bart2` fit of the matching class.
+  for the four own-class fits, a `bart2` fit of the matching class.
 
 - vars:
 
-  Character vector of fields to gather. Requested fields absent from
+  Character vector of fields to summarize. Requested fields absent from
   `object` (e.g. `k` when unmodeled, or `tau`, which no shipped family
   carries) are silently dropped. `sigma`, `k`, and `tau` contribute one
-  draws variable each; any other field (`varcount`, `varprobs`,
+  summarized variable each; any other field (`varcount`, `varprobs`,
   `yhat.train`, `yhat.test`) contributes one variable per column, named
-  `"field[column]"`. \\f(x)\\ draws (`yhat.*`) are reachable this way
-  but are not summarized automatically, as they carry one variable per
-  observation.
+  `"field[column]"`.
 
   On a heteroscedastic fit the `sigma` token resolves to `mean.s`: the
   mean over the training observations of that draw's variance surface
-  \\s(x)\\, one value per draw. The `sigma` such a fit stores is the
-  variance forest parameterization's fixed unit residual times the range
-  of the response, a constant with no posterior content, so it is not
-  reported as a parameter. `s.train` itself is reachable by name,
-  contributing one variable per observation.
+  \\s(x)\\, one value per draw; see
+  [`draws`](https://vdorie.github.io/dbarts/reference/draws.md) for the
+  full rule.
 
-  For the four own-class methods, `vars` is scoped to that family's own
-  vocabulary (see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)):
-  a `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
-  (pinned at 0) through `threshold[K - 1]`; a `"bartNegbin"` fit's
-  `"dispersion"` contributes the per-draw dispersion \\r\\; a
-  `"bartMultinomial"` fit has a single channel, so its `vars` only ever
-  means `"meanProb"` and it always reports `meanProb[<level>]`, its only
-  scalar posterior parameter (`summary` on such a fit carries no `vars`
-  at all and refuses one by name); a `"bartHurdle"` fit applies `vars`
-  to both components and labels the result
-  `occupancy.<field>`/`positive.<field>` (a dot, not a bracket, since
-  posterior parses a bracket as an index).
+  A `"bartMultinomial"` fit has no `vars` argument: its only scalar
+  posterior parameter is the per-category mean predicted probability,
+  reported as `meanProb[<level>]`.
 
 - ...:
 
@@ -109,27 +62,22 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
 ## Value
 
-`summary` returns an object of class `summary.bart` with elements
-`call`, `stats` (a data frame with one row per requested scalar, or
-`NULL` if none of `vars` are present on the fit), and `posterior`
-(whether posterior produced `stats`). When posterior is installed,
-`stats` is produced by its `summarise_draws` function, whose columns
-include `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`,
-and `ess_tail`; otherwise a built-in summary supplies `mean`, `sd`,
-`q2.5`, `median`, and `q97.5`, with no convergence diagnostics. Its
-print method notes when posterior is missing, and separately when any
-R-hat exceeds 1.01; neither withholds the rest of the summary or errors.
-
-`as_draws_array` and `as_draws_df` return a posterior
-`draws_array`/`draws_df`: the fit's native (chain, sample\[, variable\])
-storage, transposed to posterior's (iteration, chain, variable)
-convention. The four own-class methods return the same convention over
-their own family-scoped `vars`.
+An object of class `summary.bart` with elements `call`, `stats` (a data
+frame with one row per requested scalar, or `NULL` if none of `vars` are
+present on the fit), and `vars`. `stats` has columns `mean`, `median`,
+`sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, and `ess_tail` - the same
+columns
+[`posterior::summarise_draws`](https://mc-stan.org/posterior/reference/draws_summary.html)
+reports for a plain array, computed without that package. Its print
+method notes when any R-hat exceeds 1.01; this does not withhold the
+rest of the summary or error, as dbarts does not refuse to summarize a
+non-converged fit.
 
 ## See also
 
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md),
+[`draws`](https://vdorie.github.io/dbarts/reference/draws.md)
 
 ## Examples
 
@@ -147,37 +95,11 @@ summary(fit)
 #>     proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, 
 #>     perturb = 0, rule_gibbs = 0, birth = 0.5))
 #> 
-#> # A tibble: 1 × 10
-#>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail
-#>   <chr>    <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-#> 1 sigma    0.977  0.962 0.0615 0.0589 0.895  1.08  1.10     49.6     49.6
+#>   variable      mean    median        sd        mad       q5      q95     rhat
+#> 1    sigma 0.9767962 0.9624961 0.0614717 0.05889664 0.894719 1.084578 1.104571
+#>   ess_bulk ess_tail
+#> 1 49.57946 49.57265
 #> 
 #> Note: some R-hat values exceed 1.01; chains may not have converged.
-
-if (requireNamespace("posterior", quietly = TRUE)) {
-  library(posterior)
-  as_draws_array(fit)
-}
-#> This is posterior version 1.7.0
-#> 
-#> Attaching package: ‘posterior’
-#> The following objects are masked from ‘package:stats’:
-#> 
-#>     mad, sd, var
-#> The following objects are masked from ‘package:base’:
-#> 
-#>     %in%, match
-#> # A draws_array: 20 iterations, 2 chains, and 1 variables
-#> , , variable = sigma
-#> 
-#>          chain
-#> iteration    1    2
-#>         1 0.89 0.90
-#>         2 1.00 0.95
-#>         3 0.95 0.90
-#>         4 0.95 0.94
-#>         5 0.94 0.93
-#> 
-#> # ... with 15 more iterations
 # }
 ```

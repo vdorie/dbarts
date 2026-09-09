@@ -152,17 +152,13 @@ Convergence summaries, and calibration of a sampler composed around one.
 
 - [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`print(`*`<summary.bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_array(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  [`as_draws_df(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  : Convergence Diagnostics and Posterior-Package Draws for BART Fits
+  : Convergence Diagnostics for BART Fits
+- [`draws(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
+  [`draws(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
+  [`draws(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
+  [`draws(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
+  [`draws(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
+  : Chain-Dimensioned Draws From a BART Fit
 - [`dbartsValidateComposition()`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md)
   : Validate A Composed Sampler By Simulation-Based Calibration
 
