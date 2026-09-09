@@ -4,16 +4,16 @@
 \title{Convergence Diagnostics for BART Fits}
 \description{
   Reports a per-variable posterior summary of the scalar parameters
-  (\code{sigma} and \code{k}) of a \code{bart}/\code{bart2} fit, along
+  (\code{sigma} and \code{k}) of a \code{bartBT}/\code{bart} fit, along
   with split-\eqn{\hat{R}}{Rhat} and bulk/tail effective sample size,
   computed by dbarts itself (no \pkg{posterior} dependency). A
   heteroscedastic fit (\code{\link{dbarts}}'s \code{variance}) has no
   scalar residual scale and reports \code{mean.s} in place of
   \code{sigma}; see \code{vars}.
 
-  \code{bart2}'s four own-class fits (\code{"bartMultinomial"},
+  \code{bart}'s four own-class fits (\code{"bartMultinomial"},
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}; see
-  \code{\link{bart2}}) summarize through this same method, each exposing
+  \code{\link{bart}}) summarize through this same method, each exposing
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never \code{yhat.train} itself.
 
@@ -27,8 +27,8 @@
 \arguments{
   \item{object, x}{
     An object of class \code{bart}, as returned by
-    \code{\link{bart}} or \code{\link{bart2}}; for the four own-class
-    fits, a \code{bart2} fit of the matching class.
+    \code{\link{bartBT}} or \code{\link{bart}}; for the four own-class
+    fits, a \code{bart} fit of the matching class.
   }
   \item{vars}{
     Character vector of fields to summarize. Requested fields absent
@@ -63,11 +63,11 @@
   dbarts does not refuse to summarize a non-converged fit.
 }
 \seealso{
-\code{\link{bart}}, \code{\link{bart2}}, \code{\link{draws}}
+\code{\link{bart}}, \code{\link{bartBT}}, \code{\link{draws}}
 }
 \examples{
 \donttest{
-fit <- bart2(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
+fit <- bart(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
 summary(fit)
