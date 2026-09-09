@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -303,7 +304,9 @@ public:
   /// ask whether the user requested cancellation; run returns true if it
   /// stopped early, having joined every worker first so nothing outlives the
   /// call. It is called at most every ~100ms, so a normal run pays only a
-  /// clock read per sweep and stays bitwise identical.
+  /// clock read per sweep and stays bitwise identical. With worker chains the
+  /// call returns as soon as the last chain finishes, not at the next poll,
+  /// so a one-sweep run in a host's outer loop costs no added latency.
   ///
   /// onSweep, if set, is the host's per-sweep conditioning hook; it runs only
   /// when chains run inline (min(numThreads, numChains) <= 1), so the caller
@@ -410,10 +413,18 @@ public:
                                     &progress, c, shouldCancelPtr, onSweepPtr);
     } else {
       // workers never call into R: progress lines queue and the main thread
-      // flushes them every 0.1 seconds and polls for interrupts, setting the
-      // cancel flag the workers read (a relaxed atomic load per sweep)
+      // flushes them and polls for interrupts at least every 0.1 seconds,
+      // setting the cancel flag the workers read (a relaxed atomic load per
+      // sweep)
       QueuedProgressSink progress;
-      std::atomic<size_t> numChainsRunning(numChains);
+      // the caller blocks on chainsDone rather than on a timer: a worker takes
+      // chainsMutex for its decrement, so the count cannot reach zero between
+      // this thread's test of it and its wait, and the last chain's notify
+      // cannot be missed. The timeout that remains bounds only the interrupt
+      // poll and the progress flush, both main-thread-only work.
+      std::mutex chainsMutex;
+      std::condition_variable chainsDone;
+      size_t numChainsRunning = numChains;
       std::atomic<bool> cancelFlag(false);
       std::function<bool()> workerCancel = [&cancelFlag]() {
         return cancelFlag.load(std::memory_order_relaxed);
@@ -435,23 +446,42 @@ public:
       for (size_t w = 0; w < numWorkers; ++w) {
         workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
                               numSamples, &chainResults, &progress,
-                              &numChainsRunning, &workerCancel]() {
+                              &chainsMutex, &chainsDone, &numChainsRunning,
+                              &workerCancel]() {
           for (size_t c = w; c < numChains; c += numWorkers) {
             chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress,
                             c, &workerCancel);
-            numChainsRunning.fetch_sub(1);
+            bool last;
+            {
+              std::lock_guard<std::mutex> lock(chainsMutex);
+              last = --numChainsRunning == 0;
+            }
+            // notified with the mutex released: the one waiter wakes to an
+            // unheld lock, and the count it re-tests is already zero
+            if (last) chainsDone.notify_one();
           }
         });
       }
 #ifndef _WIN32
       pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
 #endif
-      while (numChainsRunning.load() > 0) {
-        if (pollInterrupt && !cancelFlag.load(std::memory_order_relaxed) &&
-            pollInterrupt())
-          cancelFlag.store(true, std::memory_order_relaxed);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        if (options_.verbose) progress.flush();
+      {
+        std::unique_lock<std::mutex> lock(chainsMutex);
+        while (numChainsRunning > 0) {
+          // the flush prints and the poll may re-enter the host (R's interrupt
+          // check), so both run off the lock, exactly as the timer tick did;
+          // the wait re-tests the count on reacquiring it
+          lock.unlock();
+          if (options_.verbose) progress.flush();
+          if (pollInterrupt && !cancelFlag.load(std::memory_order_relaxed) &&
+              pollInterrupt())
+            cancelFlag.store(true, std::memory_order_relaxed);
+          lock.lock();
+          chainsDone.wait_for(lock, std::chrono::milliseconds(100),
+                              [&numChainsRunning]() {
+                                return numChainsRunning == 0;
+                              });
+        }
       }
       for (std::thread& worker : workers) worker.join();
       if (options_.verbose) progress.flush();
