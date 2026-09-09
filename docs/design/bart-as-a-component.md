@@ -9,6 +9,12 @@ what engine state a mutation does not carry. A recipe there is correct only
 because a guarantee here holds; a guarantee here is worth stating only because
 a recipe there depends on it.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 The division of labour it serves is `r-c-division.md`'s principle: R addresses
 the conditionals, C++ addresses the integrand. The family this document's
 multi-forest clauses describe is `multiplier-combiner.md`'s; its "Surfaces"
@@ -134,7 +140,7 @@ the cell).
 
 The engine RETAINS the pointer it is handed for the raw conditioning vectors
 - response, offset, test offset, case weights, per-forest weights - which the
-caller owns and must keep alive; ["RETAIN the pointer they are handed"](../../inst/include/dbarts/dbarts.h) states
+caller owns and must keep alive; retired: ["RETAIN the pointer they are handed"](../../inst/include/dbarts/dbarts.h) states
 which setters retain and which borrow for the call alone. It holds no
 predictor matrix at all: predictors quantize into owned integer codes and the
 raw is borrowed for the build or re-quantize call only.
@@ -186,7 +192,7 @@ reproducibility - within-host across any SIMD dispatch only.
 
 Two ship, and neither is a mid-sweep hook.
 
-`dbarts_sampler_setCallback` ([`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)) takes
+`dbarts_sampler_setCallback` (retired: [`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop
 the run early. It fires at the top of each iteration, unthrottled by thinning,
 before sigma enters the sweep. It is refused when `numThreads > 1 &&

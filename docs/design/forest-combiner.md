@@ -14,6 +14,12 @@ docs/design/multiplier-combiner.md's; MultinomialForestCombiner<L>
 step plan, its binding contracts, and its resolved Open questions; this note
 records the shape as landed and what it does and does not anticipate.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 ## Goal
 
 A Chain that holds more than one forest (BCF today) needs somewhere to put
@@ -250,7 +256,7 @@ it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
 it is audited** ([`ForestCombiner::supportsCountsMutation`](../../src/bartcore/combiner.hpp), [`ForestCombiner::forestReportingIsDefined`](../../src/bartcore/combiner.hpp), [`ForestCombiner::supportsForestWeights`](../../src/bartcore/combiner.hpp)). And never a
 forest-count test, because a K-forest multinomial defeats one - which is why
-the bridge probes `totalAmplitudes() != 0` instead ([`dbarts_sampler_setForestBasis`](../../src/C_interface.cpp)).
+the bridge probes `totalAmplitudes() != 0` instead (retired: [`dbarts_sampler_setForestBasis`](../../src/C_interface.cpp)).
 
 What still does NOT generalize, after M4:
 

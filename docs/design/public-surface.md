@@ -2,6 +2,11 @@
 
 Status: MIXED; reviewed 2026-07-03, updated through 2026-08-13 (dbarts-h-reshape S1,
 ab3aa2fa - sec 6). Decisions from that review are recorded inline as DECIDED.
+Section 6 is SUPERSEDED by [pure-c-header](../plans/pure-c-header.md#pure-c-header):
+"SEXPs at exactly two boundaries" is now none, the header creating no sampler
+and carrying no state or tree entry, and the entry list there is the
+twenty-four the trim leaves. The `retired:` cites in section 6 name constructs
+that are gone.
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so
@@ -411,7 +416,7 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 - Additive evolution is free (name lookup), so deferred without cost:
   per-observation predictor updates and the joint session, setCutPoints,
   and setData - the per-iteration observer callback landed anyway, as
-  `dbarts_sampler_setCallback` ([`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)), ahead of classic
+  `dbarts_sampler_setCallback` (retired: [`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)), ahead of classic
   `Control::callback`'s reachable consumer.
 - STRUCK: C++ headers shipping for `LinkingTo` use without ABI promises. Not
   implemented and not wanted - the flat C header is the shipped surface, by design.
@@ -511,7 +516,7 @@ cross-checked both directions at creation.
 `$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`
 are R5 methods; `dbarts_sampler_numForests`/`setForestBasis`/`getForestFits`/
 `numForestAmplitudes`/`getForestAmplitudes` reach the same sampler from C
-([`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)); a run reports every forest's fits and
+(retired: [`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)); a run reports every forest's fits and
 the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 

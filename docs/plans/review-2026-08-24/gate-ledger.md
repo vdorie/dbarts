@@ -2,6 +2,12 @@
 
 Snapshot at b102e17c, 2026-08-24; counts below are as of that commit.
 
+Amended by [pure-c-header](../pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 At HEAD (8e8a63ad): .github/workflows/ now holds 12 files - doc-freshness.yaml
 was added after this snapshot and is not counted in section 1 below.
 benchmarks/baselines/ has been pruned to 11 files (the MANIFEST's row count
@@ -311,9 +317,9 @@ predictor, so the ordered-factor cut grid rests on those plus
 `inst/tinytest/test-capi.R` drives the whole single-forest family list through
 `dbarts_sampler_create` - `""`/`"probit"`, logistic, ordinal, aft and nbinom,
 each run and checked for finite, correctly-shaped output - plus
-heteroscedastic (["bartcore.variance"](../../../inst/tinytest/test-capi.R)) by control attribute,
+heteroscedastic (retired: ["bartcore.variance"](../../../inst/tinytest/test-capi.R)) by control attribute,
 and BCF
-(["zBCF"](../../../inst/tinytest/test-capi.R)) through `forests = list(forest(basis = ...))`.
+(retired: ["zBCF"](../../../inst/tinytest/test-capi.R)) through `forests = list(forest(basis = ...))`.
 Multinomial has no flat-C creation path to test (docs/design/feature-matrix.md).
 
 [f39] The equivalence gate replays a fixed scenario set against a recorded

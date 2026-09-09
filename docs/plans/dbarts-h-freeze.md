@@ -1,6 +1,9 @@
 # dbarts.h freeze fixes (D4) and the stub version check (D3)
 
-Status: LANDED 2026-08-25 at 6446ddce (design record f162d075).
+Status: LANDED 2026-08-25 at 6446ddce (design record f162d075). AMENDED by
+[pure-c-header](pure-c-header.md#pure-c-header): the reader-name set this froze is no longer the
+shipped one - the four SEXP entries and every reader outside the sizing queries left the header
+with the trim.
 
 Spec: docs/plans/prerc-surface-freeze.md D3, D4, Sequencing. TODO `dbarts-h-freeze-fixes` and `stub-version-check` are ONE slice - one hash re-bake, one lockstep consumer
 rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8, A9, A10, re-anchored live. No sampling code moves; zero baseline re-records expected.

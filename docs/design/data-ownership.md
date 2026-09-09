@@ -9,6 +9,12 @@ Supersedes the original copy-raw plan (rejected, VD, 2026-07-06 - see
 "Considered and rejected"); docs/plans/archive/data-ownership.md tracks the
 plan-by-plan history and points here for the design record.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 Summary: the engine now owns predictor data as a typed, quantized,
 XGBoost-DMatrix-style container (mixed categorical/ordinal, dense/sparse
 columns) ingested directly from a data.frame, replacing the old borrow of
@@ -231,8 +237,8 @@ dbarts.h's freeze was LIFTED for this program specifically (VD): stan4bart
 is the only ABI consumer and dbarts owns it, so the two update in
 lockstep rather than the C API being held rigid. As shipped the flat API
 needed neither door: getTrees replays the retained creation spec with no
-data parameter ([`dbarts_sampler_getTrees`](../../inst/include/dbarts/dbarts.h)), and setState installs a state with no raw
-values ([`dbarts_sampler_setState`](../../inst/include/dbarts/dbarts.h)); the replay matrix is an R-surface argument only.
+data parameter (retired: [`dbarts_sampler_getTrees`](../../inst/include/dbarts/dbarts.h)), and setState installs a state with no raw
+values (retired: [`dbarts_sampler_setState`](../../inst/include/dbarts/dbarts.h)); the replay matrix is an R-surface argument only.
 PROT_DATA itself stays, as the creation contract and the flat-C GC anchor.
 
 The state format changes too: the container serializes per-column

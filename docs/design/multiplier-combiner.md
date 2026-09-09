@@ -20,6 +20,12 @@ Under a latent family the combination is the
 INDEX, on the link's own fixed scale: sigma is pinned, the response transform
 is the identity, and every forest's prior scale is stated in latent sd units.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 This file documents ONE INSTANCE of the combiner hierarchy.
 docs/design/forest-combiner.md owns the abstraction - why `ForestCombiner<L>`
 exists beside `Forest<L>`, the null-short-circuit fast path, the
@@ -72,8 +78,8 @@ Storage is ROW-major, row i at `i * numColumns`, because the contraction is the
 only read the engine makes of a basis: a row is contiguous and the multiplier
 costs one stream per forest ([`forestMultiplier`](../../src/bartcore/combiner.hpp)).
 The flat surface states the same order
-([`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`basisRowMajor`](../../inst/include/dbarts/dbarts.h),
-[`dbarts_sampler_setForestBasis`](../../src/C_interface.cpp)).
+(retired: [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`basisRowMajor`](../../inst/include/dbarts/dbarts.h),
+retired: [`dbarts_sampler_setForestBasis`](../../src/C_interface.cpp)).
 
 ## The amplitude layout
 
@@ -582,12 +588,12 @@ and `$getForestAmplitudes(forest)`
 `resolveForestIndex` ([`resolveForestIndex`](../../R/bartcore.R)). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_getForestAmplitudes`, ragged and ROW-major
-([`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)).
+(retired: [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)).
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
 that rule in two independent places
-([`dbarts_sampler_numForests`](../../src/C_interface.cpp),
+(retired: [`dbarts_sampler_numForests`](../../src/C_interface.cpp),
 [`bartcore_setForestBasis`](../../src/R_interface_bartcore.cpp)).
 
 Per-forest SPLIT COUNTS are reported too: the combiner overrides

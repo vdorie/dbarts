@@ -1,6 +1,9 @@
 # dbarts.h shape freeze: the last breaking-if-deferred items
 
-Status: LANDED 2026-08-26 at 9df0cb50 (design record 37ab6ea9; see the landing note). Read at bartcore 9d0ee10f. One
+Status: LANDED 2026-08-26 at 9df0cb50 (design record 37ab6ea9; see the landing note). AMENDED by
+[pure-c-header](pure-c-header.md#pure-c-header): the entry count is twenty-four, not 48, and the
+getTrees reasoning below is moot - that entry is an R method now. The `retired:` cites name what
+is gone. Read at bartcore 9d0ee10f. One
 slice, one hash re-bake, one lockstep consumer rebuild - the shape of
 docs/plans/dbarts-h-freeze.md (D3/D4), which this continues and does not reopen.
 
@@ -638,10 +641,10 @@ file, which would produce two line maps neither of which is true.
    alongside the five, both LIVE.
 2. Item 4: rename (recommended) or transpose the contract. Decided: rename
    (B) - `dbarts_sampler_setForestBasis`'s parameter is `basisRowMajor`
-   ([`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`basisRowMajor`](../../inst/include/dbarts/dbarts.h)).
+   (retired: [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`basisRowMajor`](../../inst/include/dbarts/dbarts.h)).
 3. Item 2: move `forest` (recommended) or state the rule and leave the order.
    Decided: move (B) - `dbarts_sampler_getTrees` and `dbarts_sampler_printTrees`
-   both take `forest` as argument 2 ([`dbarts_sampler_getTrees`](../../inst/include/dbarts/dbarts.h)).
+   both take `forest` as argument 2 (retired: [`dbarts_sampler_getTrees`](../../inst/include/dbarts/dbarts.h)).
 
 ## Landing note (2026-08-26)
 

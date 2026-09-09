@@ -3,6 +3,12 @@
 Status: LANDED, 2026-08-24, in four slices (S0 5e586587, S1a b2d1749f,
 S2+S3 5a3bc276, S4/F1 2619ac9e).
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 Sections 1 through 4 describe the tree BEFORE the arc landed - the
 proposal's inventory, its forks and its prices - and are not statements
 about the live code. The live multinomial surface is documented in
@@ -115,8 +121,8 @@ whose multinomial arm is
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries
 (retired: [`C_dbarts_bartcore_createMultinomial`](../../src/R_interface_bartcore.cpp))
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
-(`feature-matrix.md` `[f4]`): [`dbarts_sampler_create`](../../src/C_interface.cpp)
-routes to [`createHolder`](../../src/C_interface.cpp), never to the
+(`feature-matrix.md` `[f4]`): retired: [`dbarts_sampler_create`](../../src/C_interface.cpp)
+routes to retired: [`createHolder`](../../src/C_interface.cpp), never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side

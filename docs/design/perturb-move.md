@@ -2,6 +2,12 @@
 
 Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110); SLICE 3 RUN 2026-09-07: KILL at w = 1, d = 0.16 (d73fb4e0).
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 A fourth tree kernel that keeps a node's split variable and displaces only its cut, by a small fixed number of grid positions.
 [4.2 A same-variable cut move ("perturb") - the first tree-space candidate](tree-mixing-proposals.md#42-a-same-variable-cut-move-perturb---the-first-tree-space-candidate)
 ranked it first among tree-space candidates on a first-principles argument and weak external evidence; Stage 0 has since run and its
@@ -252,7 +258,7 @@ structural probabilities and expects a sum error - under a naive widening `pertu
 the sum is exact and the expected error disappears. Resolving `perturb` to 0 ahead of the fill preserves it.
 
 **The flat C header does not move.** `dbarts_sampler_create` takes the model as a `SEXP`, so the mixture never crosses the C ABI and
-[`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) stays as it is: no `LinkingTo` consumer
+retired: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) stays as it is: no `LinkingTo` consumer
 recompiles. Nor does the stored state: `storeState` writes forests, sigma, scale, latents, DART, RNG, glue and the digests, and no
 proposal probability among them, so `stateFormatVersion` does not move. stan4bart on bartcore uses `formals(dbarts::dbartsSpec)`
 only for the allowed name set and forwards values from `bart_args`, so an unnamed caller inherits the new default; bartCause on

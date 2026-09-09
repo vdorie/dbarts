@@ -2,6 +2,12 @@
 
 Status: LANDED, 2026-09-06 (2468e76f)
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 Admits `variance =` under `family = "aft"`, giving log-normal AFT a covariate-dependent
 dispersion s(x) beside its mean surface. The refusal was R-side
 (["a variance forest requires family"](../../R/spec.R)) and engine-side ([`varianceForestIsRefused`](../../src/bartcore/facade.hpp)
@@ -89,7 +95,7 @@ constructor's `family == ResponseFamily::gaussian && options.numVarianceTrees > 
 both arms inside the constant-leaf `if constexpr` guard.
 
 Three texts change: spec.R's message; the flat header's `"bartcore.variance"` comment, "Gaussian
-constant-leaf models only" (["bartcore.variance"](../../inst/include/dbarts/dbarts.h)); and the bridge's null-factory message
+constant-leaf models only" (retired: ["bartcore.variance"](../../inst/include/dbarts/dbarts.h)); and the bridge's null-factory message
 (["variance forest is combined with a family other than"](../../src/R_interface_bartcore.cpp)). Only the third reaches a
 `LinkingTo` consumer, `applyVarianceAttributes` parsing the attribute with no family test, so the
 header comment is load-bearing.
@@ -136,7 +142,7 @@ where not - it needs saved trees.
 
 [`dbartsDrawLatents`](../../R/augmentation.R), the exported replay of `AFTResponse::refreshLatents`, takes
 `sigma` through [`augScalar`](../../R/augmentation.R) as one positive scalar. DECIDE it stays scalar and
-REFUSES a length-n sigma by a named message, because the flat header's [`dbarts_drawLatents`](../../inst/include/dbarts/dbarts.h)
+REFUSES a length-n sigma by a named message, because the flat header's retired: [`dbarts_drawLatents`](../../inst/include/dbarts/dbarts.h)
 takes `double sigma`: widening the R helper alone forks the two replays, widening both moves a
 signature on the only shipped header - a priced door; per-row calls are the workaround.
 

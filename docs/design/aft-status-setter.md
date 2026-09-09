@@ -3,6 +3,12 @@
 Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), and slice 2's harness half, 2026-09-07;
 the aft arm's matrix admission and slices 3-4 remain PROPOSED.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 Lets a live `family = "aft"` sampler take a new per-observation censoring status, so the censoring structure stops being
 fixed at creation. The enabled item is SBC coverage: aft is out of the matrix for exactly this reason
 ([Decision - scope](../plans/sbc-family-tiers.md#decision---scope)), and the heteroscedastic composition inherits the gap
@@ -123,10 +129,10 @@ restored latent sits below a bound a y change moved, healed by the next sweep's 
 ## 5. Flat C API
 
 R bridge only: the shipped header gains no entry beside
-[`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h), so the hash does not move and no
+retired: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h), so the hash does not move and no
 `LinkingTo` consumer recompiles. None wants it - stan4bart on bartcore maps an `"aft"` token but fits gaussian and probit
 only, calling no bridge entry, and bartCause on dbarts-1.0 has no survival code. The door is one X-macro entry shaped like
-[`dbarts_sampler_setActiveRows`](../../inst/include/dbarts/dbarts.h), a capability-status `int` return refusing off aft;
+retired: [`dbarts_sampler_setActiveRows`](../../inst/include/dbarts/dbarts.h), a capability-status `int` return refusing off aft;
 adding it re-bakes the hash, pre-release a note rather than a migration. One consumer-visible message does change:
 `bartcore_setData`'s aft refusal ("fix the censoring structure at creation") becomes false as stated. The refusal STAYS - a
 whole-data replacement may change n, which the status is stated over - but the reason is restated to name the channel that

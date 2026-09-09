@@ -57,6 +57,22 @@
             \code{dbarts/dbarts.h}. The C++ headers -
             \code{dbarts/R_C_interface.hpp}, \code{dbarts/bartFit.hpp} and
             the rest of that tree - are removed with the engine they exposed.
+      \item \code{dbarts/dbarts.h} declares no R type and creates no sampler.
+            A consumer builds the sampler in R (\code{dbarts},
+            \code{\link{dbartsSpec}}) and reads the handle out of the
+            object's external pointer with \code{R_ExternalPtrAddr}; that
+            handle is what the twenty-four remaining entry points take. Gone
+            with the four \code{SEXP} entries
+            (\code{dbarts_sampler_create}, \code{_getTrees},
+            \code{_storeState}, \code{_setState}) are the predictor, test
+            data, weight, active-row, per-forest and augmentation entries and
+            the per-sweep callback: each is a method on the sampler object the
+            handle came from. \code{dbarts_sampler_setResponse} and
+            \code{dbarts_sampler_setOffset} now COPY into buffers the sampler
+            owns, so a caller's array is free on return and conditioning on
+            new values means calling the setter again. The header's prototype
+            view compiles as C with no R header included, so a consumer that
+            uses \code{SEXP} includes \code{Rinternals.h} itself.
       \item \code{bart2} now defaults to
             \code{combineChains = TRUE}, so \code{yhat.train} and the other
             draw channels of a multi-chain fit come back with the chain and
@@ -1199,17 +1215,18 @@
             loads, \pkg{posterior} being a \code{Suggests} rather than a
             hard dependency; \code{summary} is always available.
       \item A flat C interface for packages compiling against dbarts,
-            \code{dbarts/dbarts.h}: an opaque sampler handle over the rewritten
-            engine, created from the R specification objects, with entry
-            points for running into caller-owned buffers, the mutation
-            surface (response, offset, weights, sigma, predictors, test
-            data), latents, prediction, tree storage and introspection,
-            and state save and restore. Entry points are reached through
+            \code{dbarts/dbarts.h}: an opaque sampler handle over the
+            rewritten engine, read out of the external pointer of a sampler
+            object built in R, with entry points for running into
+            caller-owned buffers, the per-sweep conditioning channels
+            (response, offset, sigma), latents, prediction, tree storage,
+            tree printing, and the queries a host sizes its results struct
+            from. Entry points are reached through
             \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_MAJOR}
             and \code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an
             opt-in exact-ABI check, which moves on additive releases as well.
             \code{DBARTS_C_API_HASH} folds every entry point's signature, the
-            callback's parameter list, the ABI enumerators, and the layout of
+            ABI enumerators, and the layout of
             every struct that crosses the ABI, so a consumer that checks it
             rebuilds in lockstep with every release that moves the ABI,
             additive ones included.

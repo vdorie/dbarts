@@ -2,6 +2,12 @@
 
 Status: LANDED, 2026-09-07; AMENDED 2026-09-07 (swap restored at default zero, section 9).
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 The swap move is removed from the MCMC kernel before 1.0 (VD, 2026-09-07, option A of the fork the mixing survey left open). This
 record states the decision, its evidence and exactly what the slice did; it does not reargue the call. Sections 2 to 5 are written
 in the present tense of the proposal and describe work that has since landed. Section 9 records the partial reversal: the move is
@@ -51,7 +57,7 @@ argument, the `SamplerOptions` copy, the two-forest refusal's hard-coded mixture
 `ModelParameters` copy. The refusal's literal is load-bearing: the two-forest path never reads a proposal probability off the model
 at all - `ForestStructureSpec`'s own defaults supply every BCF fit's mixture - so it is both the gate and the record of what BCF
 runs, and it moves to 0.6 / 0.4 with the struct defaults or refuses the new default outright. **Nothing in src/C_interface.cpp or
-the shipped header**: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) - the model crosses as a
+the shipped header**: retired: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) - the model crosses as a
 `SEXP` and no flat struct carries a proposal probability, so the hash and the major/minor pair stand and nothing recompiles.
 
 **tests/cpp: fourteen positional `MoveContext` initializers, plus five assignments.** The swap probability is the FOURTH element of

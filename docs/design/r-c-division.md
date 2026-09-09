@@ -15,6 +15,12 @@ the guide memo's own Part B demand census has since had its own
 refuting critique (2026-08-11) - verdict NOT SETTLED AS WRITTEN,
 amended below rather than treated as settled fact.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 ## VD's conjecture, adjudicated
 
 The question: "any model that is built on mutating a sampler can be
@@ -285,7 +291,7 @@ recommendation, and one other justification changes:
    decisive arm is K GAUSSIAN samplers with host-drawn latents against
    the combined fit, which measurement predicts will AGREE.
 3. Flat rename: ADOPTED and DONE - the dbarts.h reshape re-bake landed
-   setForestBasis/numForestAmplitudes/forestAmplitudes ([`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)),
+   setForestBasis/numForestAmplitudes/forestAmplitudes (retired: [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)),
    + KEPT setForestWeights; stakes were low (the flat C surface has
    exactly one consumer and it is in-house - 1 reverse LinkingTo vs 23
    R-level consumers).

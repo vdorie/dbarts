@@ -4,6 +4,12 @@ Status: reference, current. Documents the shipped channel as-is; not a design
 proposal and carries no landing date - update in place whenever the channel
 changes.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 A sampler holds a per-observation 0/1 vector saying which rows are in its data
 set this sweep.
 
@@ -53,7 +59,7 @@ A fractional element is refused rather than rounded or honoured: a value
 strictly between 0 and 1 is a weighted likelihood, which the latent families
 have no coherent form for, and belongs to `setWeights`
 ([`refuseNonBinaryMask`](../../src/R_interface_bartcore.cpp),
-[`dbarts_sampler_setActiveRows`](../../inst/include/dbarts/dbarts.h)). NaN fails both
+retired: [`dbarts_sampler_setActiveRows`](../../inst/include/dbarts/dbarts.h)). NaN fails both
 equality tests, so it is refused too.
 
 The mask and the case weights are absolute and independent: installing one
@@ -178,7 +184,7 @@ Three, all reaching the same scan. The reference-class method
 [`setActiveRows`](../../R/dbarts.R) validates length and values in R first, for the
 message. The bridge entry
 [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) and the flat C entry
-[`dbarts_sampler_setActiveRows`](../../src/C_interface.cpp) each probe
+retired: [`dbarts_sampler_setActiveRows`](../../src/C_interface.cpp) each probe
 [`SamplerShape::supportsActiveRows`](../../src/bartcore/facade.hpp) and never the
 family, since a Student-t sampler reports as gaussian and does accept a mask.
 That probe is read off the family, chain by chain, from the same predicate the
@@ -215,4 +221,4 @@ responses at the inactive rows leaving every active row's recorded draw bitwise
 gaussian, Student-t, BCF and heteroscedastic arms bitwise against
 `setWeights(w * a)` (["heteroSampler"](../../inst/tinytest/test-active-rows-pins.R));
 and the flat C pins for the all-ones no-op, the NULL clear and the fractional
-refusal (["capi_set_active_rows"](../../inst/tinytest/test-capi.R)).
+refusal (retired: ["capi_set_active_rows"](../../inst/tinytest/test-capi.R)).

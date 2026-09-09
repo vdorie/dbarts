@@ -2,6 +2,12 @@
 
 Status: living reference, updated in place whenever a cell changes.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 What each shipped response model can and cannot do, one row per model and one column per
 capability that bears on scheduling; every SHIPPED and REFUSED cell carries a cite verified
 against the live tree.
@@ -105,7 +111,10 @@ calibration map ([f11]).
 
 ## 2. Reach
 
-`xbart()` and the flat C API, cited by the token or by the refusal/absence.
+`xbart()` and the flat C API, cited by the token or by the refusal/absence. The flat column
+reads DRIVABILITY rather than construction: `dbarts.h` declares no creation entry, so every
+sampler named here is built in R and the handle a flat entry takes is the address in that
+object's external pointer.
 
 | model | `xbart()` | flat C `dbarts.h` |
 |---|---|---|
@@ -119,7 +128,7 @@ calibration map ([f11]).
 | aft | M [`xbart`](../../R/xbart.R) | S [`DBARTS_FAMILY_AFT`](../../inst/include/dbarts/dbarts.h) |
 | hazard | M [`xbart`](../../R/xbart.R) | M [f5] |
 | hurdle | M | M [f10] |
-| bcf | M [`xbart`](../../R/xbart.R) | S [`dbarts_sampler_create`](../../inst/include/dbarts/dbarts.h) |
+| bcf | M [`xbart`](../../R/xbart.R) | S [`dbartsSpec`](../../R/spec.R), [`forests`](../../R/spec.R) |
 | hetero | M [`xbart`](../../R/xbart.R) | S [`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp) [f3] |
 
 Construction reach through `bart()`, `bart2()` and `dbarts()` + R5: gaussian, student, probit,
@@ -240,14 +249,14 @@ augmentation entries alone.
 
 [f3] Ordinal and nbinom each ship a `DBARTS_FAMILY_*` enumerator; heteroscedastic has none,
 being a control-attribute decoration. The header's specification-attribute block
-(["SPECIFICATION ATTRIBUTES"](../../inst/include/dbarts/dbarts.h)) documents all three selectors - `bartcore.n.categories`,
+(retired: ["SPECIFICATION ATTRIBUTES"](../../inst/include/dbarts/dbarts.h)) documents all three selectors - `bartcore.n.categories`,
 `bartcore.dispersion` ([`parseControl`](../../src/R_interface_bartcore.cpp)) and `bartcore.variance`
 ([`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp)).
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) takes a counts matrix or a
 one-hot-expanded factor response ([`dbarts`](../../R/dbarts.R), [`multinomial`](../../R/dbarts.R),
 [`resolveMultinomialCounts`](../../R/data.R)); there is no separate creation entry and no `dbarts.h`
-one at all, [`creationFamilyName`](../../src/C_interface.cpp) refusing the token.
+one at all, retired: [`creationFamilyName`](../../src/C_interface.cpp) refusing the token.
 
 [f5] The three `"hazard"` spellings are person-period ingestion sugar:
 [`expandDiscreteTimeHazard`](../../R/dbarts.R) expands the design and remaps the token -

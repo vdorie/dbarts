@@ -1,6 +1,9 @@
 # dbarts-h-reshape
 
-Status: LANDED, 2026-08-13. S0 a262cd26, item 9 a14040de, S1 ab3aa2fa, S2
+Status: LANDED, 2026-08-13. AMENDED by
+[pure-c-header](../pure-c-header.md#pure-c-header): its "do not reopen" list is reopened and
+settled there - the header creates no sampler, names no R type, and keeps twenty-four entries.
+S0 a262cd26, item 9 a14040de, S1 ab3aa2fa, S2
 1bf2e69c (in-repo) plus the four sister-package migrations: stan4bart
 bartcore 9fb0305/7ce9a76, treatSens dbarts-1.0 0b85858/1d7c697, bartCause
 695c603 and bairrtt 6167423 (rebuild-only). No version constant moved

@@ -63,7 +63,7 @@ branches.
   [`Chain::setWeights`](../../src/bartcore/chain.hpp),
   [`ColumnStore`](../../src/bartcore/data.hpp) for the test offset).
   The R bridge keeps the engine's pointers alive by pinning the R
-  vectors ([`PROT_RESPONSE`](../../src/R_interface_bartcore.cpp) and its
+  vectors (retired: [`PROT_RESPONSE`](../../src/R_interface_bartcore.cpp) and its
   siblings) on the main path and by moving a fresh vector into the
   holder's `ownedResponse`, `ownedOffset`, `ownedWeights`,
   `ownedTestOffset` ([`BartcoreHolder`](../../src/R_interface_bartcore_common.hpp))

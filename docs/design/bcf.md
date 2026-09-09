@@ -11,6 +11,12 @@ and Carvalho (2020), "Bayesian Regression Tree Models for Causal Inference"
 (Bayesian Analysis 15(3), 965-1056), and the `bcf` R package; deviations from
 either are flagged.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 BCF fits two ensembles at once: a prognostic forest mu(x, pihat) and a
 treatment forest tau(x), combined as
 
@@ -407,7 +413,7 @@ precedent), cross-checked in both directions at creation
 339aeb0; [`setForestBasis`](../../R/dbarts.R), [`getForestFits`](../../R/dbarts.R), [`getForestAmplitudes`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R)). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
-entries ([`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)), and `setResponse` takes an
+entries (retired: [`dbarts_sampler_numForests`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_setForestBasis`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestFits`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_numForestAmplitudes`](../../inst/include/dbarts/dbarts.h), [`dbarts_sampler_getForestAmplitudes`](../../inst/include/dbarts/dbarts.h)), and `setResponse` takes an
 explicit `updateScale` argument. The flat surface carries no `setTreatment`
 and no `bcfGlue`: the first was re-signed as `setForestBasis(sampler, forest,
 basis, numColumns)` and the second replaced by the ragged

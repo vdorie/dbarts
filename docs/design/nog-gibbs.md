@@ -2,6 +2,12 @@
 
 Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
 is no reverse count - on the branch-rank stratum the empty-leaf veto's own lexicographic law makes current, which section 2.2 states
@@ -304,7 +310,7 @@ test-sum-to-one-tolerance.R, whose three-name regression must keep failing where
 **Twenty-four files.** Roughly 230 lines of kernel and scan, 60 across the surface sites, 150 of tests.
 
 **The flat C header does not move** and no stored state does:
-[`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) takes the model as a `SEXP`, so no proposal
+retired: [`dbarts_sampler_create`, `DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) takes the model as a `SEXP`, so no proposal
 probability crosses the ABI and no `LinkingTo` consumer recompiles.
 
 ## 5. Correctness: `rule-gibbs-balance.R`

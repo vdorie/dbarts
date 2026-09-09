@@ -17,6 +17,12 @@ slices so nothing is reworded twice. Text only - no function is renamed, no
 predicate changes (predicate reconciliation, e.g. `any(w < 0)` vs
 `!(w >= 0.0)`, is slice K6, scheduled after this lands).
 
+Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
+no longer declares the predictor, test-data, weight, active-row, per-forest, state,
+tree-extraction or augmentation entries - each is a method on the R sampler object the
+handle is now read from. The `retired:` cites below name constructs that are gone; what
+this record says about the R and engine sides still holds.
+
 Evidence: 610 `stop()` in `R/`, 365 `Rf_error()` in `src/R_interface_bartcore.cpp`
 + `src/C_interface.cpp` + `src/R_interface.cpp`, 3 `ext_throwError` in
 [`sampleTreesFromPrior`](../../src/bartcore/chain.hpp), [`sampleNodeParametersFromPrior`](../../src/bartcore/chain.hpp)
@@ -335,7 +341,7 @@ number of observations"`, C-only). A string shared across two languages by
 hand is identical by discipline, not by construction, and the discipline
 already lapsed once. Every C-side backstop should carry a one-line comment
 naming it as direct-API defense in depth, on the model of
-["defense in depth, since validateTestSource has already raised it"](../../src/C_interface.cpp)
+retired: ["defense in depth, since validateTestSource has already raised it"](../../src/C_interface.cpp)
 (`"defense in depth, since validateTestSource has already raised it"`). This
 is the message policy K6 reconciles predicates toward; K6 remains free to
 decide, guard by guard, whether a given C-side backstop is worth keeping.
