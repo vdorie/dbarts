@@ -37,7 +37,8 @@ TODO entry rather than a change here.
 ## Reference cases, from the code
 
 Computed from the sizes derived in Context. MB is 1e6 bytes. Both cases are
-`bart2` calls on its defaults except where named: S = 500 kept draws per
+`bart` calls (front-door.md S1 renamed `bart2` to `bart`) on its defaults
+except where named: S = 500 kept draws per
 chain, and 4 chains in case 1, are defaults; 200 trees is set explicitly (75
 is the default). Both assume a mean of 8 nodes per live tree (measured 3.8 at
 n = 2e3; it grows slowly with n and step 1 measures it) and the dense-matrix
@@ -229,8 +230,8 @@ choice; fork 3 is the plan's own call.
    count; a test set costs its own store plus 16 bytes per test row per
    chain), a table of worked examples at the grid corners, and that a
    large-n fit is usually limited by the returned yhat.train array, not by
-   the sampler, naming the lever `keepTrainingFits` (`bart2` and the control
-   object; `keeptrainfits` on legacy `bart`).
+   the sampler, naming the lever `keepTrainingFits` (`bart` and the control
+   object; `keeptrainfits` on the legacy door, `bartBT`).
    [`dbartsControl`](../../man/dbartsControl.Rd)'s `keepTrees` entry gains a
    sentence pricing saved trees;
    [`dbartsSampler$storeState`](../../man/dbartsSampler-class.Rd)'s entry one

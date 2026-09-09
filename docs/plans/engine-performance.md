@@ -111,7 +111,9 @@ measured where possible, and the ones that bind become settings.
   regresses 0.9-34, and re-measures under section 11's rule.
 - On the R side `n.threads` is a [`dbartsControl`](../../R/dbarts.R)
   slot defaulting to `dbarts::guessNumCores()` uncapped, capped to
-  `n.chains` only inside [`bart2`](../../R/bart.R), so above four cores
+  `n.chains` only inside [`bart`](../../R/bart.R) (front-door.md S1
+  renamed `bart2` to `bart`; the capping logic moved with the body), so
+  above four cores
   the control's own default exceeds its default chain count. The
   calibrated-cutoff precedent is threaded predict
   ([8. Measurement, honestly stated](../design/threaded-predict.md#8-measurement-honestly-stated)):

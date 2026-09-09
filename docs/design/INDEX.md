@@ -64,7 +64,7 @@ Columns: `file | STATUS | one-liner`.
 | data-store.md | REFERENCE | Standing technical reference for the predictor store's layout, mutation transaction, and ownership rules; required reading before data-adjacent engine work. |
 | sparse-columns.md | LANDED, 2026-07-04 | Adds a sparse-column representation for wide, mostly-zero designs (dense/sparse mixed input accepted), densifying automatically above 20% nonzero density. |
 | pooled-masks.md | LANDED, 2026-07-04 | Raises the categorical-predictor level cap to 65535 via pooled masks; the shipped inline/pooled boundary is 63 categories. |
-| mia-missingness.md | LANDED, 2026-07-04 | Adds Missing Incorporated in Attributes: every split learns a missing-value direction so predictor NAs route through splits instead of being dropped. |
+| mia-missingness.md | LANDED, 2026-07-04; AMENDED 2026-09-09 by [front-door](../plans/front-door.md#front-door) S2 (`missing` argument retired, incorporation unconditional) | Adds Missing Incorporated in Attributes: every split learns a missing-value direction so predictor NAs route through splits instead of being dropped. |
 
 ## Core/infra & surface
 
@@ -81,7 +81,7 @@ Columns: `file | STATUS | one-liner`.
 | public-surface.md | MIXED (reviewed 2026-07-03, updated through 2026-08-13; decisions recorded inline) | The major-version public R surface: engine cutover, factor/categorical ingestion, response-family exposure, DART, the standalone data handle, and the C API/callbacks. |
 | error-style.md | ADOPTED for new messages, 2026-08-17 | Sets the error-message style rule (quoting, case, templates per refusal kind) for new messages and the warning-class taxonomy under `dbartsWarning`, following published and measured practice from base R and CRAN packages. |
 | kernel-vocabulary.md | REFERENCE | Standing reference for the contract between the generic BART core and the compiled kernel library (`misc.a`). |
-| robust-errors.md | LANDED, 2026-07-17 | Adds outlier-robust Student-t residuals (`resid.dist = student(...)`) via scale-mixture augmentation. |
+| robust-errors.md | LANDED, 2026-07-17; AMENDED 2026-09-09 by [front-door](../plans/front-door.md#front-door) S2 (`resid.dist` retired to a tombstone) | Adds outlier-robust Student-t residuals (`family = student(...)`) via scale-mixture augmentation. |
 | prior-defaults.md | REFERENCE | A plain record of every current prior default and its source. |
 | active-rows-mask.md | REFERENCE | Standing reference for the per-observation 0/1 active-row mask (`$setActiveRows`): its contract, how each response family composes it, and what it leaves untouched. |
 | nameable-calibration.md | ARC COMPLETE | Lets a fit name its per-forest leaf-prior scale directly in response units (`prior.scale`), with a matching `$getCalibration`/`$setCalibration` pair, also reachable through the flat C API. |

@@ -1,6 +1,12 @@
 # MIA missingness
 
-LANDED 2026-07-04, as proposed. Deltas discovered while landing: the
+LANDED 2026-07-04, as proposed. AMENDED 2026-09-09 by
+[front-door](../plans/front-door.md#front-door) S2 (44b3fa6d): the `missing`
+argument this document designs is retired outright, no tombstone;
+incorporation is unconditional on every entry point that offered it, and
+`missing = "error"` is no longer reachable (the BayesTree-compatible door,
+`bartBT`, keeps its own hardcoded refusal of incomplete predictors instead).
+Deltas discovered while landing: the
 Rule union became a single uint64 with accessors outright (the moves and
 tests read through splitIndex()/categoryDirections()); validateXTest's
 model.frame needed na.pass like ingestion's (test data.frames were

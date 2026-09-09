@@ -368,8 +368,10 @@ sh -c 'cd $(mktemp -d) && /path/to/configure --enable-match-bayes-tree; echo "ex
   # non-zero, message names the removal
 ```
 
-Expected: `bart2(Surv(time, status) ~ ., data, family = "hazard")` with
+Expected: `bart(Surv(time, status) ~ ., data, family = "hazard")` with
 `subset`/`test` matches, draw for draw, the hand-subsetted, hand-expanded
-matrix-interface call at the same seed; `d$dtm <- M; bart2(y ~ ., data = d)`
-matches `bart2(x = cbind(other, M), y = y)` bitwise; the suite passes with
+matrix-interface call at the same seed (front-door.md S1 renamed `bart2` to
+`bart`; the alias now warns once per session, so the suite calls `bart`
+directly); `d$dtm <- M; bart(y ~ ., data = d)`
+matches `bart(x = cbind(other, M), y = y)` bitwise; the suite passes with
 `posterior` absent; `R CMD check --as-cran` OK.

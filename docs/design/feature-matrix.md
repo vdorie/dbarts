@@ -39,7 +39,7 @@ or rule says so.
 | key | model |
 |---|---|
 | gaussian | Gaussian (`ResponseFamily::gaussian`, [`GaussianResponse`](../../src/bartcore/model.hpp)) |
-| student | Gaussian + Student-t residuals (`resid.dist = student()`, [`TResponse`](../../src/bartcore/model.hpp)) |
+| student | Gaussian + Student-t residuals (`family = student()`, [`TResponse`](../../src/bartcore/model.hpp)) |
 | probit | Binary probit ([`ProbitResponse`](../../src/bartcore/model.hpp)) |
 | logistic | Binary logistic, weights = observation counts ([`LogisticResponse`](../../src/bartcore/model.hpp)) |
 | ordinal | Ordered categorical, cumulative probit ([`OrdinalResponse`](../../src/bartcore/model.hpp)) |
@@ -239,11 +239,15 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 ([`bartBT`](../../R/bart.R)), so the by-name family refusals and the token tables behind them are
 gone (retired: [`bartRedirectedFamilies`](../../R/bart.R), [`bartOwnClassFamilies`](../../R/bart.R)); its one
 response refusal is a factor of three or more levels, whose message names both remedies
-([`refuseLegacyFactorResponse`](../../R/bart.R)). `resid.dist` is the separate Student-t lever, at the
-modern door alone. `"twopart"` is no longer an alias at either door: it is refused by name
+([`refuseLegacyFactorResponse`](../../R/bart.R)). `family = student()` is the separate Student-t
+lever, at the modern door alone (`resid.dist` is retired to a
+[`dbartsTombstones`](../../R/tombstones.R) entry). `"twopart"` is no
+longer an alias at either door: it is refused by name
 ([`refuseTwopartFamily`](../../R/tombstones.R)).
 
-[f2] Student-t is no `family` token and not in `dbarts_sampler_create`'s admission list: a
+[f2] Student-t is no `family` token and not in the family admission list
+[`parseSamplerSpecification`](../../src/R_interface_bartcore.cpp) reads (retired: [`dbarts_sampler_create`](../../inst/include/dbarts/dbarts.h),
+the flat C entry that once carried this list): a
 finite `resid.df` on the model SEXP selects it ([`parseSamplerSpecification`](../../src/R_interface_bartcore.cpp), [`residualDf`](../../src/R_interface_bartcore.cpp),
 gaussian-only, refused elsewhere by ["student residuals require a continuous"](../../R/spec.R)), and
 the engine family stays `gaussian`; the header's [`DBARTS_FAMILY_STUDENT`](../../inst/include/dbarts/dbarts.h) serves the

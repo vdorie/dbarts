@@ -23,7 +23,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   \item{family}{
     One of \code{"probit"}, \code{"logistic"}, \code{"ordinal"}, \code{"aft"}, \code{"nbinom"} or
     \code{"student"}, matched by \code{\link{match.arg}}; there is no default. \code{"student"} is
-    the Student-t residual distribution (\code{resid.dist = student()} in \code{\link{dbarts}}), a
+    the Student-t residual distribution (\code{family = student()} in \code{\link{dbarts}}), a
     gaussian response under a scale mixture.
   }
   \item{fit}{

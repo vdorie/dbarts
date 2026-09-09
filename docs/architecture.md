@@ -476,6 +476,13 @@ change that moves every level together is caught by the value-pinned
 tinytests and the equivalence baselines instead. tests/cpp initializes
 dispatch once at the host maximum and never re-dispatches.
 
+A second build mode sits alongside this default (shipped) one:
+`--enable-reference-build` at configure time, reported at runtime by
+[`buildInfo`](../R/buildInfo.R) (mode, compiled ISA set, dispatch level).
+The RNG-locked snapshot tests and the cross-host equivalence baselines are
+recorded against the reference build and require it to run; see
+docs/plans/engine-performance.md's S1 landing note.
+
 Across hosts the guarantee is statistical, never bitwise, for two reasons
 unrelated to the engine: the equivalence scenarios generate their data
 through the platform libm (the Friedman function calls `sin`), so the

@@ -89,14 +89,15 @@
             pass \code{factors = "indicators"} for the previous expansion.
             \code{bart} does not take it and expands as before.
       \item 0.9-x silently dropped every row with a missing predictor, on
-            the formula and matrix interfaces alike. \code{missing}, a new
-            argument on \code{dbarts}, \code{dbartsData}, \code{bart2},
-            and \code{xbart}, defaults to
-            \code{"incorporate"}: the rows are kept and their missingness is
-            modeled (Missingness Incorporated in Attributes; Twala et al.
-            2008). \code{missing = "error"} rejects them instead; neither
-            setting drops anything. \code{bart} takes no \code{missing}
-            argument and refuses incomplete predictors outright. An
+            the formula and matrix interfaces alike. \code{dbarts},
+            \code{dbartsData}, \code{bart2}, and \code{xbart} now keep the
+            rows and model their missingness unconditionally
+            (Missingness Incorporated in Attributes; Twala et al. 2008);
+            there is no argument to turn it off, only a
+            \code{dbartsData} slot an embedding host can set directly to
+            refuse new predictors instead of routing them. \code{bart}
+            takes no such argument either, and refuses incomplete
+            predictors outright. An
             \code{NA} in test predictors or \code{newdata} is an error
             wherever the corresponding training column was complete: a split
             rule learns a missing-direction route only where its own column
@@ -585,7 +586,7 @@
             are not the training rows, so no resident offset describes them -
             and passing the training offset back at the training rows
             reproduces \code{yhat.train}.
-      \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
+      \item Robust (Student-t) residuals: \code{family = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t
             errors by the classic Gaussian scale-mixture augmentation
@@ -778,7 +779,7 @@
             \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
             \code{predict} attaches \eqn{s(x)} at new data as an
             \code{"s"} attribute, which requires \code{keepTrees}. Gaussian
-            and \code{"aft"} responses only, and \code{resid.dist =
+            and \code{"aft"} responses only, and \code{family =
             student()} residuals alongside \code{variance} are refused at
             sampler creation on every entrance, the flat C API included. \code{$setPredictor} - whole
             matrix or single column, transactional or forced - together with
@@ -933,17 +934,16 @@
             level; such a rule's \code{value} is \code{NA}, as it has no
             scalar cut point. \code{plotTree} labels categorical rules with the
             levels sent down the left branch.
-      \item Missing values in the predictors are supported. Under
-            \code{missing = "incorporate"}, the default on \code{dbarts},
-            \code{dbartsData}, \code{bart2}, and \code{xbart}, every split
-            rule learns a direction for missing values of its variable,
-            so an \code{NA} observation follows that rule's chosen branch
-            (Missingness Incorporated in Attributes; Twala et al. 2008).
-            The route is learned per column, and only where that column's
-            training values were missing: an \code{NA} in test predictors or
-            \code{newdata} is refused, naming the column, wherever that
-            column was complete in training. \code{missing = "error"} rejects
-            incomplete predictors. The response, weights, and offset must
+      \item Missing values in the predictors are supported. Unconditionally
+            on \code{dbarts}, \code{dbartsData}, \code{bart2}, and
+            \code{xbart}, every split rule learns a direction for missing
+            values of its variable, so an \code{NA} observation follows
+            that rule's chosen branch (Missingness Incorporated in
+            Attributes; Twala et al. 2008). The route is learned per
+            column, and only where that column's training values were
+            missing: an \code{NA} in test predictors or \code{newdata} is
+            refused, naming the column, wherever that column was complete
+            in training. The response, weights, and offset must
             be complete, and predictor columns cannot be entirely
             missing; both interfaces previously dropped incomplete rows
             silently.
@@ -1153,7 +1153,7 @@
       \item \code{\link{xbart}} is reimplemented as an R-level driver over
             the sampler interface, so cross-validation reaches the sampler's
             own features rather than a separate engine path: \code{family},
-            \code{factors}, \code{missing}, \code{dart},
+            \code{factors},
             \code{node.prior}, \code{tree.prior}, \code{resid.prior}, and
             \code{storage} are all arguments of it, and it takes a sparse
             (\code{dgCMatrix}) design. Chains warm-start only
@@ -1193,7 +1193,7 @@
             each posterior draw under the family's own likelihood - the
             Bernoulli mass for a binary family, the marginal
             \eqn{t_\nu}{t_nu} density for
-            \code{resid.dist = student()}, the multinomial density of the
+            \code{family = student()}, the multinomial density of the
             observed count row, and so on, each documented under its
             family's own fit method; when chains are combined the result is
             a samples-by-observations matrix directly consumable by
@@ -1301,7 +1301,7 @@
             fit, and \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}}
             turns it into the quantity a host regresses on - which for
             \code{"logistic"}, \code{"nbinom"} and
-            \code{resid.dist = student()} is not the latent at all, those
+            \code{family = student()} is not the latent at all, those
             three reporting precisions. The draws come from R's own stream, so
             \code{\link{set.seed}} reproduces them and they compose with any
             other R draw; a sampler's chain generator is untouched, and both

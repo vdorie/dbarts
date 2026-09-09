@@ -503,8 +503,11 @@ version bump. Full detail: docs/plans/archive/dbarts-h-reshape.md.
   ones; dense-backed columns keep categorical splits and linear-leaf
   designation.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
-  mia-missingness.md; surface is missing = c("incorporate", "error"),
-  incorporate the default).
+  mia-missingness.md; surface was missing = c("incorporate", "error"),
+  incorporate the default). SUPERSEDED 2026-09-09 by front-door S2
+  (44b3fa6d): `missing` is retired outright, no tombstone; incorporation
+  is unconditional and "error" is no longer reachable through an
+  argument.
 - Wave-2 models (linear leaves): engine work, independent of this
   document. Linear leaves are LANDED in full (linear-leaves.md,
   2026-07-04): a designated column set per leaf regression via node.prior =

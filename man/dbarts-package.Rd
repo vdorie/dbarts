@@ -27,11 +27,11 @@
 
   \itemize{
     \item Response families (\code{family}): \code{"gaussian"}, \code{"probit"}, \code{"logistic"}, accelerated failure time (\code{"aft"}), discrete-time survival hazard (\code{"hazard"}, \code{"hazard.logistic"}), multinomial (\code{"multinomial"}, \code{bart} only), ordered categorical (\code{"ordinal"}), negative-binomial counts (\code{"nbinom"}), and semicontinuous two-part (\code{"hurdle.lognormal"}, \code{bart} only). \code{"auto"}, the default, resolves the family from the response.
-    \item Outlier-robust Student-t errors (\code{resid.dist = student(...)}) and a heteroscedastic variance forest (\code{variance}).
+    \item Outlier-robust Student-t errors (\code{family = student(...)}) and a heteroscedastic variance forest (\code{variance}).
     \item Structural constraints: monotonicity (\code{monotone}), interaction limits (\code{\link{interactions}}), and block-additivity (\code{\link{blocks}}).
     \item Leaf models: constant, linear, or Gaussian-process (\code{node.prior}; see \code{\link{dbartsPriors}}).
-    \item Variable selection by the DART prior (\code{dart}).
-    \item Predictors: missing values incorporated in place (\code{missing}), unordered factors split on level subsets (\code{factors}), and sparse or mixed dense/sparse input (\code{Matrix::dgCMatrix}, \code{\link{sparseFactor}}).
+    \item Variable selection by the DART prior (\code{tree.prior = dart()}).
+    \item Predictors: missing values incorporated in place unconditionally, unordered factors split on level subsets (\code{factors}), and sparse or mixed dense/sparse input (\code{Matrix::dgCMatrix}, \code{\link{sparseFactor}}).
     \item Warm starts from a previous fit (\code{warm.start}) or by XBART-style grow-from-root (\code{n.grow.sweeps}).
   }
 }
