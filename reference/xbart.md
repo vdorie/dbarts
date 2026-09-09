@@ -15,12 +15,11 @@ xbart(
     n.reps = 40L, n.burn = c(200L, 150L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
-    split.probs = NULL, dart = FALSE, drop = TRUE,
+    split.probs = NULL, drop = TRUE,
     resid.prior = chisq, sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
-    missing = c("incorporate", "error"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"), tree.prior = NULL, ...)
 ```
@@ -188,16 +187,8 @@ xbart(
   [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
   A single value or `NULL` yields the uniform default; a named or
   unnamed vector assigns per-column probabilities. Fixed for the whole
-  crossvalidation, not part of the swept grid. Cannot be combined with
-  `dart`.
-
-- dart:
-
-  Use the DART sparsity-inducing prior of Linero (2018) instead of a
-  fixed `split.probs`. `TRUE` enables it with default hyperparameters; a
-  prior created by `dbartsPriors$dart` supplies its own. The split
-  probabilities are then sampled rather than fixed, while `power` and
-  `base` are still swept.
+  crossvalidation, not part of the swept grid. Cannot be combined with a
+  DART `tree.prior`.
 
 - drop:
 
@@ -254,17 +245,6 @@ xbart(
   by design - `xbart` cross-validates a single scalar loss per fold,
   which the own-class families' K-forest or two-part fits have no single
   counterpart of; the wider family set lives on `bart2`.
-
-- missing:
-
-  How missing values in the predictors enter the model; as in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), with
-  one exception: `xbart`'s internal per-fold sampler construction does
-  not go through the entry points that check it, so the
-  test-`NA`-on-a-training-complete-column refusal described there does
-  not apply here - a held-out row that is `NA` on a column complete
-  within its own fold's training rows is never refused; it silently
-  takes that rule's default (left) branch instead.
 
 - node.prior:
 

@@ -11,7 +11,6 @@ dbarts(
     formula, data, test, subset, weights, offset, offset.test = offset,
     verbose = FALSE, n.samples = 800L,
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
-    resid.dist = gaussian,
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
@@ -22,11 +21,11 @@ dbarts(
     forests = NULL,
     control = dbarts::dbartsControl(), sigest = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
-               "ordinal",
+    family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
+               "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
-    missing = c("incorporate", "error"), dispersion = NA_real_,
-    breaks = NULL, max.rows = 1e7, sigma = NA_real_)
+    na.action = dbarts::na.keepPredictors,
+    sigma = NA_real_, ...)
 ```
 
 ## Arguments
@@ -172,41 +171,6 @@ dbarts(
   prior used on the residual/error variance, or a prior object built
   with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
-
-- resid.dist:
-
-  The residual error *law* for a continuous (gaussian) response,
-  orthogonal to `resid.prior` (which is the prior on the error
-  variance). The default
-  [`gaussian()`](https://rdrr.io/r/stats/family.html) gives the usual
-  normal errors. `student(df)` instead fits outlier-robust Student-t
-  errors by the classic Gaussian scale-mixture augmentation: each
-  observation carries a latent precision \\\lambda_i \sim
-  \mathrm{Gamma}(\nu/2, \nu/2)\\ so that \\\sqrt{w_i}\\\epsilon_i /
-  \sigma \sim t\_\nu\\, and a gross outlier draws a small \\\lambda_i\\,
-  downweighting its leverage on the fit and on \\\sigma\\.
-  `student(df = nu)` fixes the degrees of freedom at `nu` (a positive
-  number; `nu = 4` is a conventional robust default), while `student()`
-  (equivalently `student(df = NULL)`) estimates them on a capped grid
-  under a proper tail-bounding prior. Only a continuous gaussian
-  response carries this: `student()` with a `"probit"`, `"logistic"`, or
-  `"aft"` family is an error, as those have their own fixed latent
-  scale. Two caveats: (a) with a flexible tree-forest mean, tail
-  inference is partially confounded with fit flexibility, so an
-  estimated \\\nu\\ should be posterior-checked rather than read as a
-  pure noise property; (b) \\\sigma\\ is now the *conditional* scale, so
-  the marginal residual variance is \\\sigma^2\\\nu/(\nu-2)\\, not
-  \\\sigma^2\\. See “Response scaling” below - robust errors mitigate an
-  outlier's leverage but not the range compression that outlier causes.
-  A `student()` fit records the degrees of freedom in force at each draw
-  as `$resid.df` (a fixed \\\nu\\ repeats; an estimated one is that
-  draw's grid value), and its pointwise log-likelihood
-  (`extract(type = "loglik")`) is the marginal \\t\_\nu\\ density at
-  that draw's fitted value, \\\sigma\\ and \\\nu\\ - the
-  observation-level likelihood WAIC and PSIS-LOO are defined on, not the
-  gaussian working likelihood conditional on the latent precisions.
-  Posterior-predictive draws (`type = "ppd"`) remain unsupported for
-  `student()` and are refused.
 
 - proposal.probs:
 
@@ -404,6 +368,29 @@ dbarts(
   and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
   a `dbartsSigmaFallbackWarning`).
 
+- na.action:
+
+  A function that filters incomplete rows, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) takes one. The default
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
+  drops rows with a missing RESPONSE and keeps rows with missing
+  predictors, which every split rule routes by a learned direction;
+  [`na.omit`](https://rdrr.io/r/stats/na.fail.html),
+  [`na.exclude`](https://rdrr.io/r/stats/na.fail.html),
+  [`na.fail`](https://rdrr.io/r/stats/na.fail.html) and
+  [`na.pass`](https://rdrr.io/r/stats/na.fail.html) keep their usual
+  meaning, and under `na.pass` a missing response is an error. See
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
+
+- ...:
+
+  Not used for new code: the channel that lets a retired argument
+  spelling (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
+  which now ride `family`; see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md))
+  reach a message naming its successor instead of R's own “unused
+  argument” error. Any other name is refused. Removed in dbarts 1.1-0.
+
 - sigma:
 
   The 0.9-x spelling of `sigest`, accepted for one release with a
@@ -585,49 +572,6 @@ dbarts(
   [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
   builds, so requesting it here is an error directing to
   [`bart2()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md).
-
-- dispersion:
-
-  The negative-binomial dispersion \\r\\ (family `"nbinom"` only;
-  ignored otherwise). `NA` (the default) estimates \\r\\ on a capped
-  positive-integer grid under a renormalized \\\mathrm{gamma}(2, 0.1)\\
-  prior. A supplied value fixes \\r\\ and must be a positive integer: v1
-  ships the exact integer envelope, so a real fixed dispersion is
-  refused. Larger \\r\\ approaches the Poisson limit (variance \\\to\\
-  mean); smaller \\r\\ is more overdispersed.
-
-- missing:
-
-  How missing values in the predictors enter the model. The default
-  `"incorporate"` keeps them: every split rule learns a direction for
-  missing values on its variable, so an observation whose split value is
-  `NA` follows that rule's chosen branch (“Missingness Incorporated in
-  Attributes”, Twala et al. 2008). A route is learned per column, and
-  only where that column's training values were missing: test predictors
-  and `newdata` may carry `NA` in those columns, but a column complete
-  in training has no such route, and an `NA` there is refused, naming
-  the column. `"error"` rejects predictors containing `NA`. The
-  response, `weights`, and `offset` must always be complete; note that
-  previous versions silently dropped incomplete rows for formula inputs.
-
-- breaks:
-
-  The discrete-time grid for a `"hazard"` fit (ignored otherwise).
-  `NULL` (the default) uses the sorted distinct observed times, one
-  period per distinct time (the BART `surv.bart` convention). A single
-  positive integer bins the times at the \\(1{:}K)/K\\ quantiles, giving
-  \\K\\ periods. A numeric vector of length two or more gives explicit
-  strictly-increasing interval boundaries \\b_0 \< \ldots \< b_K\\,
-  defining right-closed periods \\(b\_{k-1}, b_k\]\\; every time must
-  lie in \\(b_1, b_K\]\\.
-
-- max.rows:
-
-  A guard on the person-period expansion for a `"hazard"` fit (ignored
-  otherwise). If the expanded design would exceed `max.rows` rows
-  (\\\sum_i t_i\\), the fit is refused with a message naming the
-  coarsening levers. The default \\10^7\\ catches an over-fine grid on
-  heavily continuous times; coarsen with `breaks` or raise `max.rows`.
 
 ## Details
 

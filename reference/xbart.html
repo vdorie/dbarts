@@ -50,12 +50,11 @@
 <span>    n.reps <span class="op">=</span> <span class="fl">40L</span>, n.burn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">200L</span>, <span class="fl">150L</span><span class="op">)</span>,</span>
 <span>    loss <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"rmse"</span>, <span class="st">"log"</span>, <span class="st">"mcr"</span><span class="op">)</span>, n.threads <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">75L</span>,</span>
 <span>    k <span class="op">=</span> <span class="cn">NULL</span>, power <span class="op">=</span> <span class="fl">2</span>, base <span class="op">=</span> <span class="fl">0.95</span>,</span>
-<span>    split.probs <span class="op">=</span> <span class="cn">NULL</span>, dart <span class="op">=</span> <span class="cn">FALSE</span>, drop <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>    split.probs <span class="op">=</span> <span class="cn">NULL</span>, drop <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    resid.prior <span class="op">=</span> <span class="va">chisq</span>, sigest <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span><span class="op">)</span>,</span>
-<span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>    node.prior <span class="op">=</span> <span class="cn">NULL</span>, n.cuts <span class="op">=</span> <span class="fl">100L</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>, n.thin <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>    storage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"double"</span>, <span class="st">"single"</span><span class="op">)</span>, tree.prior <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -118,10 +117,7 @@
 <dd><p>A vector of real numbers in \((0, 1)\), setting the BART hyperparameter for the tree prior's growth probability.</p></dd>
 
    <dt id="arg-split-probs">split.probs<a class="anchor" aria-label="anchor" href="#arg-split-probs"></a></dt>
-<dd><p>Prior probabilities that a variable is used in a splitting rule, as in <code><a href="dbarts-deprecated.html">bart2</a></code>. A single value or <code>NULL</code> yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with <code>dart</code>.</p></dd>
-
-   <dt id="arg-dart">dart<a class="anchor" aria-label="anchor" href="#arg-dart"></a></dt>
-<dd><p>Use the DART sparsity-inducing prior of Linero (2018) instead of a fixed <code>split.probs</code>. <code>TRUE</code> enables it with default hyperparameters; a prior created by <code>dbartsPriors$dart</code> supplies its own. The split probabilities are then sampled rather than fixed, while <code>power</code> and <code>base</code> are still swept.</p></dd>
+<dd><p>Prior probabilities that a variable is used in a splitting rule, as in <code><a href="dbarts-deprecated.html">bart2</a></code>. A single value or <code>NULL</code> yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with a DART <code>tree.prior</code>.</p></dd>
 
    <dt id="arg-drop">drop<a class="anchor" aria-label="anchor" href="#arg-drop"></a></dt>
 <dd><p>Logical, determining if dimensions with a single value are dropped from the result.</p></dd>
@@ -140,9 +136,6 @@
 
    <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
 <dd><p>The response model, resolved as in <code><a href="dbarts.html">dbarts</a></code>: <code>"auto"</code> fits gaussian models to continuous responses and probit models to those coded 0/1, <code>"gaussian"</code> forces a continuous fit, and <code>"probit"</code> and <code>"logistic"</code> require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as <code>xbart</code> does not cross-validate the multinomial model. The built-in binary losses transform test predictions through the family's link. This vocabulary is narrower than <code><a href="dbarts-deprecated.html">bart2</a></code>'s by design - <code>xbart</code> cross-validates a single scalar loss per fold, which the own-class families' K-forest or two-part fits have no single counterpart of; the wider family set lives on <code>bart2</code>.</p></dd>
-
-   <dt id="arg-missing">missing<a class="anchor" aria-label="anchor" href="#arg-missing"></a></dt>
-<dd><p>How missing values in the predictors enter the model; as in <code><a href="dbarts.html">dbarts</a></code>, with one exception: <code>xbart</code>'s internal per-fold sampler construction does not go through the entry points that check it, so the test-<code>NA</code>-on-a-training-complete-column refusal described there does not apply here - a held-out row that is <code>NA</code> on a column complete within its own fold's training rows is never refused; it silently takes that rule's default (left) branch instead.</p></dd>
 
    <dt id="arg-node-prior">node.prior<a class="anchor" aria-label="anchor" href="#arg-node-prior"></a></dt>
 <dd><p>An optional expression of the form <code>normal(k)</code>, <code>linear(columns, k)</code>, or <code>gp(columns, k, ...)</code> selecting the leaf model, as in <code><a href="dbarts.html">dbarts</a></code>. The default fits constant leaves. A <code>k</code> given inside the prior stands in for a missing <code>k</code> argument; the <code>k</code> argument otherwise drives the crossvalidation grid as usual.</p>

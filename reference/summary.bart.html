@@ -216,9 +216,8 @@ bart2's four own-class fits (&quot;bartMultinomial&quot;,
 <span class="r-out co"><span class="r-pr">#&gt;</span> dbarts::bart(formula = y ~ x, data = data.frame(y = rnorm(100), </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     x = rnorm(100)), n.trees = 5L, n.samples = 20L, n.burn = 20L, </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.chains = 2L, n.threads = 1L, verbose = FALSE, factors = "categorical", </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     missing = "incorporate", proposal.probs = c(birth_death = 0.6, </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     ))</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     perturb = 0, rule_gibbs = 0, birth = 0.5))</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail</span>

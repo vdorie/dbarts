@@ -117,6 +117,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Discrete Bayesian Additive Regression Trees Sampler Specification
 - [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
   : Prior Specification Constructors
+- [`show(`*`<dbartsFamily>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)
+  : Response Family Constructors
 - [`interactions()`](https://vdorie.github.io/dbarts/reference/interactions.md)
   : Interaction Constraints for BART
 - [`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) :
@@ -179,6 +181,8 @@ Names kept reachable for one release past their removal or rename.
 
 - [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
   : Embedding dbarts In A Larger Sampler
+- [`na.keepPredictors()`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
+  : Drop Rows With A Missing Response, Keep Missing Predictors
 - [`plotTree()`](https://vdorie.github.io/dbarts/reference/plotTree.md)
   : Plot a Single Tree From a Fitted BART Model
 - [`makeModelMatrixFromDataFrame()`](https://vdorie.github.io/dbarts/reference/makeind.md)

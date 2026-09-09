@@ -25,12 +25,11 @@ bart(
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = NULL, prior.scale = NA_real_,
     power = 2.0, base = 0.95, split.probs = NULL,
-    dart = FALSE,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
-    n.cuts = 100L, useQuantiles = FALSE, levelGibbs = NA,
+    n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
@@ -47,13 +46,10 @@ bart(
     warm.start = NULL,
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
-               "ordinal", "nbinom", "hazard", "hazard.probit",
+    family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
+               "multinomial", "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
-    missing = c("incorporate", "error"),
-    resid.dist = gaussian,
-    dispersion = NA_real_,
-    breaks = NULL, max.rows = 1e7,
+    na.action = dbarts::na.keepPredictors,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
     storage = c("double", "single"), updateState = TRUE, ...)
 
@@ -375,17 +371,6 @@ print(x, ...)
   columns in the model matrix. Collides with a supplied `tree.prior`
   (see below).
 
-- dart:
-
-  `TRUE` places a DART prior (a Dirichlet prior over the split-variable
-  probabilities, inducing variable selection; Linero 2018) on the trees
-  with default settings, using `power` and `base` for the growth
-  probabilities; a prior created by
-  [`dbartsPriors$dart`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
-  supplies its own settings, overriding `power` and `base`. Cannot be
-  combined with `split.probs`. Per-sample probabilities are returned in
-  the `varprobs` element of the fit.
-
 - n.trees:
 
   The number of trees in the sum-of-trees formulation.
@@ -450,20 +435,6 @@ print(x, ...)
   derived from the predictor variables. When `FALSE`, splits are
   determined using values equally spaced across the range of a variable.
   See `bart`'s ‘Decision Rules’ details.
-
-- levelGibbs:
-
-  Logical, passed through to
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
-  When `TRUE`, each sampler iteration takes one extra Gibbs step before
-  the trees are updated, adding a constant to every occupied leaf of
-  each tree with the constants summing to zero over the trees: the
-  sum-of-trees function is unchanged, the individual leaf values move,
-  and the posterior being sampled is the same. `FALSE` never takes it;
-  `NA`, the default, takes it exactly where the tree structures are
-  frozen by an all-zero `proposal.probs`, and nowhere else, so an
-  ordinary fit draws the values it drew in previous versions. See
-  `dbartsControl`'s `levelGibbs` item.
 
 - n.thin:
 
@@ -909,55 +880,15 @@ print(x, ...)
   y\\ on the positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
-- missing:
+- na.action:
 
-  How missing predictor values enter the model, exactly as in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). The
-  default `"incorporate"` keeps them, every split rule learning a
-  direction for `NA`; `"error"` rejects predictors containing `NA` - the
-  historical behavior `bart` always uses. The learned route is per
-  column: an `NA` in `test` or `newdata` is refused, naming the column,
-  wherever that column was complete in training.
-
-- resid.dist:
-
-  The residual error *law* for a continuous (gaussian) response, passed
-  through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). The
-  default [`gaussian()`](https://rdrr.io/r/stats/family.html) gives
-  normal errors; `student(df)` fits outlier-robust Student-t errors by a
-  Gaussian scale-mixture augmentation, with `student(df = nu)` fixing
-  the degrees of freedom and `student()` estimating them on a capped
-  grid. Only continuous gaussian responses carry it (an error
-  otherwise). Two caveats: with a flexible tree-forest mean, tail
-  inference is partially confounded with fit flexibility, so an
-  estimated \\\nu\\ should be posterior-checked; and \\\sigma\\ is then
-  the *conditional* scale, the marginal residual variance being
-  \\\sigma^2\\\nu/(\nu-2)\\. See
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
-  the full description.
-
-- dispersion:
-
-  The negative-binomial dispersion \\r\\ (`family = "nbinom"` only;
-  ignored otherwise), passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). `NA`
-  (the default) estimates \\r\\ on a capped positive-integer grid under
-  a renormalized \\\mathrm{gamma}(2, 0.1)\\ prior; a supplied value
-  fixes it and must be a positive integer (v1 ships the exact integer
-  envelope, so a real fixed dispersion is refused). Larger \\r\\
-  approaches the Poisson limit; smaller \\r\\ is more overdispersed.
-
-- breaks, max.rows:
-
-  Discrete-time hazard controls (`family = "hazard"` only; ignored
-  otherwise), passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  `breaks` sets the period grid: `NULL` (the default) uses the sorted
-  distinct observed times, a single positive integer bins at that many
-  quantiles, and a numeric boundary vector gives explicit right-closed
-  intervals. `max.rows` (default \\10^7\\) refuses an over-large
-  person-period expansion, naming the coarsening levers.
+  A function that filters incomplete rows, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) takes one. The default
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
+  drops rows with a missing RESPONSE and keeps rows with missing
+  predictors, which the trees route; the base functions keep their usual
+  meaning. See
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - tree.prior, node.prior, resid.prior:
 
@@ -970,11 +901,13 @@ print(x, ...)
   `node.prior = linear(columns = 1:3)`, `gp(...)`, and
   `resid.prior = fixed(1)` are reachable this way. `NULL` (the default
   for all three) instead builds the tree/node/residual priors from
-  `power`/`base`/`split.probs`/`dart`, `k`/`prior.scale`, and
+  `power`/`base`/`split.probs`, `k`/`prior.scale`, and
   `sigdf`/`sigquant` respectively, exactly as before this argument
-  existed. Supplying an object alongside a shorthand that would
-  otherwise help build the same prior is an error naming both:
-  `tree.prior` collides with any of `power`/`base`/`split.probs`/`dart`;
+  existed. A DART prior is `tree.prior = dart()`, which also carries the
+  categorical-split `levelGibbs` setting; neither has a shorthand of its
+  own on this signature. Supplying an object alongside a shorthand that
+  would otherwise help build the same prior is an error naming both:
+  `tree.prior` collides with any of `power`/`base`/`split.probs`;
   `node.prior` with `k`/`prior.scale`; `resid.prior` with
   `sigdf`/`sigquant`/`sigest`. A supplied `resid.prior` under a
   fixed-unit-scale family (`"probit"`, `"logistic"`, `"ordinal"`,
@@ -1012,8 +945,15 @@ print(x, ...)
   `bartMultinomial`/`bartOrdinal`/`bartNegbin`/`bartHurdle` methods
   below for S3 generic compatibility, but not silently discarded: a name
   foreign to the method called is refused by name, and any other
-  unrecognized name warns (class `dbartsUnusedArgsWarning`). See
-  `bart`'s own `...` item.
+  unrecognized name warns (class `dbartsUnusedArgsWarning`). On `bart`
+  itself `...` is instead the transition release's retired-spelling
+  channel, as on
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
+  retired name (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
+  which now ride `family`; `dart` and `levelGibbs`, which now ride
+  `tree.prior`) reaches a message naming its successor instead of R's
+  own “unused argument” error, and any other name is refused. Removed in
+  dbarts 1.1-0.
 
 - object:
 
@@ -1536,7 +1476,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001233
+#> total seconds in loop: 0.001251
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1584,7 +1524,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001334
+#> total seconds in loop: 0.001431
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

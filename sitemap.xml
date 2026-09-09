@@ -16,6 +16,7 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsAugmentation.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsControl.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsData.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbartsFamilies.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsPriors.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsSampler-class.html</loc></url>
@@ -27,6 +28,7 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/index.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/interactions.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/makeind.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/na.keepPredictors.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/pdbart.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/plotTree.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/samplePriorPredictive.html</loc></url>

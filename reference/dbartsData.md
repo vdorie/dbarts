@@ -10,7 +10,7 @@ dbartsData(
     formula, data, test, subset, weights,
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
-    missing = c("incorporate", "error"),
+    na.action = dbarts::na.keepPredictors,
     bases = NULL,
     counts = NULL)
 ```
@@ -18,7 +18,7 @@ dbartsData(
 ## Arguments
 
 - formula, data, test, subset, weights, offset, offset.test, factors,
-  missing:
+  na.action:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   Retains backwards compatibility with
@@ -255,6 +255,9 @@ data
 #> 
 #> Slot "missing":
 #> [1] "incorporate"
+#> 
+#> Slot "na.action":
+#> NULL
 #> 
 #> Slot "response.type":
 #> [1] "numeric"
