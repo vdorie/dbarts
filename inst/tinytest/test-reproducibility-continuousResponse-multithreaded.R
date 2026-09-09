@@ -3,6 +3,15 @@
 # shift, run tools/regenerate-snapshots.R and eyeball that the new values
 # move by a plausible magnitude.
 
+# The pinned values only mean anything on the reference build: its draw path
+# is scalar and fixed-order, where the shipped build's is free to reassociate
+# and lands elsewhere from the same seed. Regenerate on the reference build
+# too - tools/regenerate-snapshots.R evaluates this file top to bottom, and
+# the exit below is not a function it defines.
+if (!identical(dbarts:::buildInfo()$mode, "reference")) {
+  exit_file("seeded-drift snapshots are pinned to the reference build")
+}
+
 source(
   system.file("common", "multithreadData.R", package = "dbarts"),
   local = TRUE
