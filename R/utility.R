@@ -528,11 +528,14 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   # a plain factor past sparseIndicatorLevelCutoff builds its dummy columns
   # sparse too (dec-B100), decided per column from nlevels alone - never
   # from a sparse S4 input, which columnIsSparse already flags
-  wideFactor <- !columnIsSparse & vapply(
-    x,
-    function(column) is.factor(column) && sparseIndicatorModeFor(nlevels(column)),
-    FALSE
-  )
+  wideFactor <- !columnIsSparse &
+    vapply(
+      x,
+      function(column) {
+        is.factor(column) && sparseIndicatorModeFor(nlevels(column))
+      },
+      FALSE
+    )
   isSparseBlock <- columnIsSparse | wideFactor
   if (!any(isSparseBlock)) {
     result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
@@ -575,7 +578,11 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
       columns[[j]] <- slices
       blockNames[[j]] <- slices$names
       if (!is.null(dropPattern)) {
-        dropPattern[[j]] <- if (is.list(drop)) drop[[j]] else slices$instanceCounts
+        dropPattern[[j]] <- if (is.list(drop)) {
+          drop[[j]]
+        } else {
+          slices$instanceCounts
+        }
       }
     } else {
       block <- .Call(

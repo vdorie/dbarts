@@ -1226,11 +1226,17 @@ wideFitArgs <- list(
 )
 fit.wide.dense <- withSparseOption(
   "dense",
-  do.call(bart, c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs))
+  do.call(
+    bart,
+    c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs)
+  )
 )
 fit.wide.sparse <- withSparseOption(
   "sparse",
-  do.call(bart, c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs))
+  do.call(
+    bart,
+    c(list(y ~ ., data = d.wide, factors = "indicators"), wideFitArgs)
+  )
 )
 expect_false(dbarts:::predictorSourceIsSparse(fit.wide.dense$fit$data@x))
 expect_true(dbarts:::predictorSourceIsSparse(fit.wide.sparse$fit$data@x))
@@ -1241,7 +1247,19 @@ expect_equal(
 )
 
 rm(
-  n.wide, K.wide, f.wide, z.wide, y.wide, d.wide, mm.auto, f.narrow,
-  mm.narrow, withSparseOption, mm.forcedDense, mm.forcedSparse, wideFitArgs,
-  fit.wide.dense, fit.wide.sparse
+  n.wide,
+  K.wide,
+  f.wide,
+  z.wide,
+  y.wide,
+  d.wide,
+  mm.auto,
+  f.narrow,
+  mm.narrow,
+  withSparseOption,
+  mm.forcedDense,
+  mm.forcedSparse,
+  wideFitArgs,
+  fit.wide.dense,
+  fit.wide.sparse
 )

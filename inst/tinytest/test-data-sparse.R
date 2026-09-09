@@ -425,7 +425,24 @@ expect_error(
 )
 
 rm(
-  n.f, other.f, m.f, y.f, d.formula, x.forXY, data.viaFormula, data.viaXY,
-  fitArgs, fit.viaFormula, fit.viaXY, sub.f, fit.formula.sub, fit.xy.sub,
-  fit.viaExplicit, y.na, d.na, keep.na, fit.formula.na, fit.xy.na
+  n.f,
+  other.f,
+  m.f,
+  y.f,
+  d.formula,
+  x.forXY,
+  data.viaFormula,
+  data.viaXY,
+  fitArgs,
+  fit.viaFormula,
+  fit.viaXY,
+  sub.f,
+  fit.formula.sub,
+  fit.xy.sub,
+  fit.viaExplicit,
+  y.na,
+  d.na,
+  keep.na,
+  fit.formula.na,
+  fit.xy.na
 )

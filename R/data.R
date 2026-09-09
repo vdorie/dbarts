@@ -1432,7 +1432,10 @@ dbartsData <- function(
         denseTermLabels <- character(0)
         for (label in attr(expandedTerms, "term.labels")) {
           bareLabel <- sub("^`(.*)`$", "\\1", label)
-          sparseHits <- intersect(all.vars(str2lang(label)), names(sparseColumns))
+          sparseHits <- intersect(
+            all.vars(str2lang(label)),
+            names(sparseColumns)
+          )
           if (length(sparseHits) == 0L) {
             denseTermLabels <- c(denseTermLabels, label)
           } else if (bareLabel %in% names(sparseColumns)) {
