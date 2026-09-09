@@ -310,6 +310,59 @@ header and the equivalence-deb144d2 row still say the shipped build
 reproduces the baselines bitwise, which stops being true the moment
 this lands.
 
+AVX2 addendum (VD 2026-09-10, "Try the AVX2"). A four-wide body of the
+SAME split - one 256-bit register holding all four banks, lane b being
+bank b, the prologue into bank 0, the combine ((b0 + b1) + b2) + b3,
+products named before accumulation, no FMA, no hardware gather - was
+written into its own `-mavx2` translation unit and installed by CPU
+detection, the only draw-path reduction the package has ever put behind
+a dispatch pointer. Byte-identity is what makes that safe, and it was
+asserted directly: the tests/cpp arm compares the entry points at
+dispatch level 0 against the host's own maximum, bitwise, over 27
+shapes. On real AVX2 hardware it passed at level 8 against level 0, and
+a mutation - the AVX2 combine regrouped pairwise - failed it, so the
+assertion discriminates.
+
+Timed on a 4-core x86-64 Linux box with AVX2 and FMA, gcc 13.3, R 4.6.1,
+otherwise idle; same four cells, same protocol as the table above
+(7 repeats interleaved, median seconds, one chain, one thread):
+
+| cell | reference | split (SSE2) | AVX2 | AVX2 vs split |
+|---|---|---|---|---|
+| weighted, n = 1e4, 200 trees, 300 + 300 | 1.957 | 1.962 | 1.960 | +0.10% |
+| weighted, n = 1e5, 200 trees, 100 + 100 | 9.817 | 9.755 | 9.911 | -1.59% |
+| weighted, n = 1e5, 75 trees, 100 + 100 | 3.736 | 3.768 | 3.730 | +1.02% |
+| default (no weights), n = 1e4, 200 trees, 300 + 300 | 1.548 | 1.535 | 1.545 | -0.65% |
+
+Nothing there is a signal: the sign flips between cells, and the default
+cell - which calls neither kernel and cannot move - drifts by the same
+magnitude as the weighted ones, which fixes the noise floor at about
+1 percent on that box. The kernel-level A/B says why, in nanoseconds per
+call against the scalar body:
+
+| node rows | indexed: split / AVX2 | contiguous: split / AVX2 |
+|---|---|---|
+| 8 | 0.96x / 0.85x | 1.09x / 1.18x |
+| 32 | 1.16x / 0.94x | 1.52x / 1.86x |
+| 128 | 0.93x / 0.92x | 1.24x / 2.15x |
+| 1024 | 0.95x / 1.01x | 1.40x / 1.99x |
+
+The indexed weighted kernel - 35 to 54 percent of a weighted fit on that
+box - is gather-bound: neither width beats the scalar body at any node
+size, and AVX2 is the slower of the two more often than not, because
+packing four scattered doubles costs more than the three adds it saves.
+Where wide vectors do win, 2.15x, is the contiguous twin, which the
+re-profile puts at 1.5 percent of a fit.
+
+VERDICT: not worth keeping. Under the same rule the layout fork uses -
+under 2 percent of a whole fit at every cell - the shipped result stands
+and the AVX2 body is deleted; it was a new translation unit and a build
+rule on every platform, plus a standing obligation to keep two bodies
+byte-identical forever, for a measured zero. It is recoverable from
+813630e6 with its test if the premise ever changes. What survives is the
+level-invariance assertion, which now pins the constraint positively:
+these entry points are selected by build mode and by nothing else.
+
 S3, the run loop (dec-B88):
 
 7. Replace the sleep loop in [`Sampler::run`](../../src/bartcore/sampler.hpp)
