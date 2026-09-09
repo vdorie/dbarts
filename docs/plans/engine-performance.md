@@ -379,3 +379,49 @@ draws across within-chain thread counts, the default bitwise against the
 tip, the measured ratios in the design note whatever they say; S5 every
 default unchanged, each setting reaching the engine, the GP warning
 firing only on a degenerate fit.
+
+## Landing note, S1 (2026-09-09)
+
+LANDED at 167e2c62dff4576b35134518d7bdc026c2baf8db, six commits:
+
+- 7641bdd5d3754d3ecba4b633229797ee5ed2c58b Add the --enable-reference-build configure flag and its Windows route
+- eb7b137a08dff3a600c8c4486152fb3aee314131 Report the build mode, compiled ISA set and dispatch level to R
+- d748f6e1cdbc34245a441b025c276f5be38f7a82 Key the seeded-drift snapshots on the reference build
+- 6b4474b288cea158bc3481fb2dcfac130cb44867 Split the CI gates by build mode
+- 7ec2aa58b96f2b99952dbe1407442f32c09da67e Assert the mode on each CI reference install
+- 167e2c62dff4576b35134518d7bdc026c2baf8db Refuse snapshot regeneration off the reference build, and match the CI notes
+
+`--enable-reference-build` in configure.ac defines
+`DBARTS_REFERENCE_BUILD` in src/config.hpp and src/misc/config.h alike,
+regenerated with autoconf 2.73, byte-for-byte reproducible; Windows
+routes through an environment variable of the same name read by
+src/Makevars.win, joining
+[check-win-drift.R](../../tools/check-win-drift.R)'s expected-absent
+table. The bridge entry `dbarts_buildInfo`, reached as
+`dbarts:::buildInfo()`, reports mode, compiled ISA set and dispatch
+level from the source `simd.c` uses. The four snapshot files exit on
+the shipped build and run in full on the reference build (14, 3, 7, 3
+assertions), asserted by count in
+[test-build-info.R](../../inst/tinytest/test-build-info.R);
+regenerate-snapshots.R refuses a shipped build. cpp-tests.yaml gains a
+reference arm running the snapshot files and the three equivalence
+compares (benchmarks/** no longer ignored, timeout 60, no skip of the
+reference install on a C++ failure); exact-gates.yaml runs its two
+cross-host compares on a reference install, a mode assertion after
+each. NEWS's 1.0-0 entry and README's [CI](README.md#ci) section gain
+the reference arm. Real diff: 18 files, +396/-15 (362 insertions
+excluding the regenerated configure), inside budget.
+
+Gates, independently on both builds: equivalence 50/12/11 identical, 0
+skipped, no "max |z|" line either build - the inertness proof; tinytest
+7859/0 shipped (snapshots exit), 7886/0 reference; tests/cpp all
+passed; check-win-drift.R, check-doc-freshness.R and check-rc-codoc.R
+exit 0; `R CMD check --as-cran` OK from a clean tarball; NEWS parses;
+`air format --check` clean; regenerate-snapshots.R on the reference
+build rewrites the four files byte-identically. Mutation probe: a
+reference build forced to report "shipped" fails the CI mode assertion.
+
+Review findings fixed before landing: the regeneration tool did not
+stop on a shipped build; README's CI list was stale for cpp-tests; the
+timeout raised from 45 to 60; the reference install no longer skipped
+after a C++ failure. Remaining: S2, the vector suffstat kernel; S3, S4, S5.
