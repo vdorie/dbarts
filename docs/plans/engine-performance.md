@@ -487,8 +487,10 @@ Review findings fixed before landing: the comment above the mutex claimed
 the count could not reach zero between the test and the wait, false as
 written, and was reworded to name the predicate re-check as the guarantee;
 the verbose arm's fixed sample count had only 3.6x headroom on this host
-and now grows until the run clears a timeout. Remaining: S2, the vector
-suffstat kernel, still open; S4, S5.
+and now grows until the run clears a timeout - later replaced outright by
+a deterministic split rather than a clock-sized run, cb999b60,
+[Follow-up, S3 (2026-09-09)](#follow-up-s3-2026-09-09). Remaining: S2, the
+vector suffstat kernel, still open; S4, S5.
 
 ## Follow-up, S3 (2026-09-09)
 

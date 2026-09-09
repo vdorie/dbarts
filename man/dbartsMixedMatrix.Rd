@@ -16,9 +16,11 @@
   x/y interface (and so \code{\link{dbarts}}'s and \code{\link{bart}}'s)
   returns one under the same condition and stores it in the resulting
   \code{dbartsData} object's \code{x}/\code{x.test} slot. The formula
-  interface refuses a sparse column outright (a bare S4 column does not
-  survive \code{\link{model.frame}}), so a \code{dbartsMixedMatrix} only
-  ever arises from one of those two entrances.
+  interface accepts a sparse column too, named like any other (including
+  through \code{.}): a bare S4 column cannot survive
+  \code{\link{model.frame}}, so it is lifted out of \code{data} first and
+  re-attached, row-subset under \code{subset} and \code{na.action}, to the
+  assembled predictor matrix afterward.
 }
 \usage{
 \method{dim}{dbartsMixedMatrix}(x)
