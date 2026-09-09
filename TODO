@@ -357,7 +357,8 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
   flag comes off both consumers at the merge and stays off; a dbarts CI
   assertion fails a build whose API hash changed without a minor bump
   (dec-B111). Plan: docs/plans/pure-c-header.md.
-memory footprint at large n (VD concern, 2026-09-08)
+memory footprint at large n (VD concern, 2026-09-08; step 1 note LANDED
+  13cb7e8a, steps 2-7 open)
   audit the per-sampler footprint as a function of n, p, trees and
   chains (owned conditioning vectors, cut codes, tree storage, per-chain
   state, test slabs) and record it in the manual; VD wants larger
