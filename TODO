@@ -510,10 +510,13 @@ binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
   docs/decisions.md dec-B107)
-  pre-release: DESCRIPTION says "provides a BayesTree-compatible
-  interface"; configure.ac keeps --enable-match-bayes-tree,
-  --enable-thread-safe-unload and --with-xint-size as stubs that stop
-  with a removal message for one release.
+  DESCRIPTION and man/dbarts-package.Rd say "provides a
+  BayesTree-compatible interface"; configure.ac's
+  --enable-match-bayes-tree, --enable-thread-safe-unload and
+  --with-xint-size stop with a removal message and no replacement.
+  All three stubs expire after one release (1.0-0): delete them
+  outright, and configure.ac's comment naming them, in the release
+  after 1.0-0.
   Plan: docs/plans/interfaces-and-dependencies.md.
 
 release (deferred; the one ordered procedure, run when VD triggers it)

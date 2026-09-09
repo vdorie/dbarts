@@ -37,6 +37,26 @@ AS_IF([test "x$enable_reference_build" != xno],
   [AC_DEFINE([DBARTS_REFERENCE_BUILD], [1],
      [Define to 1 to compile the scalar, fixed-order draw-path kernels.])])
 
+# Three 0.9-x configure options, removed for 1.0-0 (dec-B107): DESCRIPTION no
+# longer claims a BayesTree drop-in, so nothing steers a matching build; the
+# exact-ABI flag (dbarts_apiHash()) and simd.c's runtime kernel dispatch cover
+# what the first two used to buy, and XINT_TYPE is fixed at uint16_t
+# engine-wide (above). Each errors only when the caller passes it explicitly,
+# so a build that never touched these flags is unaffected. Stubs for one
+# release only; NEWS and TODO track outright removal next release.
+AC_ARG_ENABLE([match-bayes-tree],
+  [AS_HELP_STRING([--enable-match-bayes-tree],
+    [removed for 1.0-0; dbarts no longer builds a BayesTree-matching stream])],
+  [AC_MSG_ERROR([--enable-match-bayes-tree was removed for 1.0-0 along with the BayesTree drop-in claim; there is no replacement, and this stub itself is deleted in the next release])])
+AC_ARG_ENABLE([thread-safe-unload],
+  [AS_HELP_STRING([--enable-thread-safe-unload],
+    [removed for 1.0-0; superseded by the exact-ABI flag and runtime SIMD kernel selection])],
+  [AC_MSG_ERROR([--enable-thread-safe-unload was removed for 1.0-0; the exact-ABI flag (dbarts_apiHash()) and runtime SIMD kernel selection (simd.c) cover its purpose, and this stub itself is deleted in the next release])])
+AC_ARG_WITH([xint-size],
+  [AS_HELP_STRING([--with-xint-size],
+    [removed for 1.0-0; XINT_TYPE is fixed at uint16_t engine-wide])],
+  [AC_MSG_ERROR([--with-xint-size was removed for 1.0-0; XINT_TYPE is fixed at uint16_t engine-wide with no build-time override, and this stub itself is deleted in the next release])])
+
 # Checks for programs.
 : ${R_HOME=`R RHOME`}
 if test -z "${R_HOME}"; then

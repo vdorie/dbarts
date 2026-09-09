@@ -704,6 +704,9 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_reference_build
+enable_match_bayes_tree
+enable_thread_safe_unload
+with_xint_size
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1343,6 +1346,18 @@ Optional Features:
   --enable-reference-build
                           compile the scalar, fixed-order draw-path kernels,
                           whose draws are bitwise reproducible (default: no)
+  --enable-match-bayes-tree
+                          removed for 1.0-0; dbarts no longer builds a
+                          BayesTree-matching stream
+  --enable-thread-safe-unload
+                          removed for 1.0-0; superseded by the exact-ABI flag
+                          and runtime SIMD kernel selection
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-xint-size        removed for 1.0-0; XINT_TYPE is fixed at uint16_t
+                          engine-wide
 
 Some influential environment variables:
   CC          C compiler command
@@ -3134,6 +3149,33 @@ then :
 printf '%s\n' "#define DBARTS_REFERENCE_BUILD 1" >>confdefs.h
 
 fi
+
+# Three 0.9-x configure options, removed for 1.0-0 (dec-B107): DESCRIPTION no
+# longer claims a BayesTree drop-in, so nothing steers a matching build; the
+# exact-ABI flag (dbarts_apiHash()) and simd.c's runtime kernel dispatch cover
+# what the first two used to buy, and XINT_TYPE is fixed at uint16_t
+# engine-wide (above). Each errors only when the caller passes it explicitly,
+# so a build that never touched these flags is unaffected. Stubs for one
+# release only; NEWS and TODO track outright removal next release.
+# Check whether --enable-match-bayes-tree was given.
+if test ${enable_match_bayes_tree+y}
+then :
+  enableval=$enable_match_bayes_tree; as_fn_error $? "--enable-match-bayes-tree was removed for 1.0-0 along with the BayesTree drop-in claim; there is no replacement, and this stub itself is deleted in the next release" "$LINENO" 5
+fi
+
+# Check whether --enable-thread-safe-unload was given.
+if test ${enable_thread_safe_unload+y}
+then :
+  enableval=$enable_thread_safe_unload; as_fn_error $? "--enable-thread-safe-unload was removed for 1.0-0; the exact-ABI flag (dbarts_apiHash()) and runtime SIMD kernel selection (simd.c) cover its purpose, and this stub itself is deleted in the next release" "$LINENO" 5
+fi
+
+
+# Check whether --with-xint-size was given.
+if test ${with_xint_size+y}
+then :
+  withval=$with_xint_size; as_fn_error $? "--with-xint-size was removed for 1.0-0; XINT_TYPE is fixed at uint16_t engine-wide with no build-time override, and this stub itself is deleted in the next release" "$LINENO" 5
+fi
+
 
 # Checks for programs.
 : ${R_HOME=`R RHOME`}

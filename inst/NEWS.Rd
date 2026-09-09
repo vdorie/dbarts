@@ -415,6 +415,15 @@
             no chain finishes first). A 4-chain, 4-thread
             \code{run(0, 1)}'s median latency drops from about 105ms to
             about 0.12ms; draws are unaffected.
+      \item DESCRIPTION and \code{\link{dbarts-package}} no longer call
+            dbarts a drop-in replacement for \pkg{BayesTree}; both now say
+            it \dQuote{provides a \pkg{BayesTree}-compatible interface}
+            (\code{bartBT}). Three configure options that used to steer a
+            BayesTree-matching build, \code{--enable-match-bayes-tree},
+            \code{--enable-thread-safe-unload}, and
+            \code{--with-xint-size}, stop \code{configure} with a message
+            naming the removal when passed explicitly; they are removed
+            outright, with no replacement, in the release after this one.
     }
   }
   \subsection{NEW FEATURES}{

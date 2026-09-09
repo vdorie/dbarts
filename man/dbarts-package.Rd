@@ -3,7 +3,7 @@
 \docType{package}
 \title{Discrete Bayesian Additive Regression Trees Sampler}
 \description{
-  Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch 2010), a Bayesian \dQuote{sum-of-trees} model in which each tree is held to be a weak learner by its prior. The package offers two ways in, described below, and serves as a drop-in replacement for package \pkg{BayesTree}.
+  Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch 2010), a Bayesian \dQuote{sum-of-trees} model in which each tree is held to be a weak learner by its prior. The package offers two ways in, described below, and provides a \pkg{BayesTree}-compatible interface.
 
   What distinguishes \pkg{dbarts} from other BART implementations is that its sampler is \emph{mutable}: predictors, response, offset, and weights can be swapped \emph{between} MCMC draws, so that BART can be a conditional model inside a larger Gibbs or Metropolis-Hastings sampler rather than only a standalone fit.
 }
