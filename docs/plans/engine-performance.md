@@ -120,52 +120,56 @@ measured where possible, and the ones that bind become settings.
 
 ## Decision
 
-Six open forks; each goes to VD before the slice that needs it.
+All six forks were put to VD on 2026-09-08 and are recorded with the
+choice; none remains open.
 
-1. The flag's name. Options: `--enable-reference-build` (says what it
-   produces; define `DBARTS_REFERENCE_BUILD`),
-   `--enable-bitwise-reference` (says why), `--disable-simd-suffstat`
-   (ages badly once a second kernel is vectorized). The kernel is chosen
-   at compile time, so the mode follows the flag, not the CPU.
-   Recommended: the first, CRAN shipping shipped everywhere.
-2. The vector kernel's accumulator layout. (a) A fixed four-bank layout
-   matching [`fusedSuffstatBanks`](../../src/bartcore/chain.hpp), so the
-   shipped build stays bitwise across ISAs and thread counts and
-   cross-host CI survives; the indexed win is gather-bound at 1.05 to
-   1.15x either way. (b) The natural per-ISA width, fastest on the
-   contiguous variant, its variation accepted by dec-B90, but the
-   shipped build then binds to arm64 macOS too. Recommended: (a).
-3. How Windows selects the reference build, with no configure and with
-   windows-arm64-neon the only NEON gate. (a) An environment variable
-   read by src/Makevars.win, `.win` headers untouched, macro on the
-   check-win-drift table; the NEON job stays shipped and keeps its
-   bitwise assertion, which build-mode selection leaves valid. (b) A
-   second windows-11-arm job with the variable set, doubling a job on an
-   experimental toolchain for a build no Windows user ships. (c) A
-   hand-edited `#define` in src/config.hpp.win, which drifts and defeats
-   check-win-drift. Recommended: (a).
-4. Within-chain threading's opt-in spelling. (a) A new `dbartsControl`
-   argument, recommended name `n.threads.within`, integer, default 1,
-   `n.threads` still meaning chains. (b) A two-element `n.threads` read
-   as `c(chains, within)`, which collides with the length-1 validity
-   check. Recommended: (a). Either way `n.threads > n.chains` alone does
-   NOT enable it.
-5. Whether the opt-in may carry its own summation law. The fixed-block
-   reduction is invariant across thread counts but is not the serial
-   association, so enabling it moves draws, and it is selectable at run
-   time - the knob the fused-bank comment refuses. (a) Its own law, off
-   by default, gated by thread-count invariance and statistical
-   equivalence, stated in the manual, with dec-B89 licensing the
-   override and the chain.hpp comment amended in the same slice to say
-   the law is single per thread setting. (b) Confine the opt-in to the
-   paths the fused pass declines, the weighted families, leaving the
-   default gaussian fit unthreaded. Recommended: (a); (b) threads
-   everything but the motivating case.
-6. The GP fallback warning threshold: the share of leaf evaluations that
-   fell back to a constant leaf because the node exceeded
-   [`maxLeafSize_`](../../src/bartcore/model.hpp). Candidates: 10 percent
-   (fires on a mostly-fine fit), 25 percent, 50 percent (fires only on a
-   barely-GP fit). Recommended: 25 percent.
+1. The flag's name and the Windows route (VD 2026-09-08, "Use your
+   recommendation"): `--enable-reference-build` defining
+   `DBARTS_REFERENCE_BUILD`; on Windows an environment variable read by
+   src/Makevars.win sets the same macro, the `.win` headers stay
+   untouched and the macro joins the check-win-drift table; the
+   windows-arm64-neon job stays on the shipped build with its bitwise
+   assertion. CRAN ships the vector build everywhere.
+2. The vector kernel's accumulator layout: decided by measurement (VD
+   2026-09-08, "Shouldn't we do research and evaluation to decide?").
+   S2 builds both layouts of each vectorized kernel, a fixed four-bank
+   split matching [`fusedSuffstatBanks`](../../src/bartcore/chain.hpp)
+   and the natural per-ISA width, and times them in the real sampler
+   loop on the arm64 Mac (and on the x86 bench box if VD grants it) at
+   n in {1e4, 1e5, 1e6} and 75 and 200 trees. Rule: if the natural
+   width buys under 2 percent of a whole fit at every cell, the fixed
+   split ships and the shipped build stays bitwise across machines,
+   thread counts and instruction sets; if it buys more anywhere, the
+   fork returns to VD with the table and the reproducibility cost
+   stated (cross-host CI falls to its statistical tier). The design
+   note records the table either way.
+3. Settled with fork 1.
+4. Within-chain threading's opt-in spelling (VD 2026-09-08: "No,
+   n.threads shouldn't mean n.chains"): `n.threads` keeps 0.9-34's
+   meaning, a total thread budget ("used for various internal
+   calculations, as well as the number of chains" in 0.9-34's manual);
+   chains run in parallel across it and, when the budget exceeds
+   `n.chains`, the surplus is divided among the chains and used inside
+   each. Supplying more threads than chains is the explicit opt-in; no
+   new argument and no warning; `dbartsControl`'s default budget stays
+   the core count as in 0.9-34. Step 11 changes accordingly.
+5. The summation law under within-chain threading (VD 2026-09-08, "I
+   don't care about recreating the exact result, but I do care about
+   preserving its speed"): two implementations. At or below the chain
+   count the fused four-bank pass runs unchanged, keeping its measured
+   speed; above it the fixed-block sum runs, identical at any surplus
+   size. The manual states that shipped-build draws depend on the
+   thread budget as they depend on the machine's vector width, and
+   that the reference build is where exact reproduction lives; the
+   chain.hpp comment on `fusedSuffstatBanks` is amended to say the
+   budget selects the implementation. Gates for the threaded path:
+   identical draws across surplus sizes and statistical equivalence
+   against the serial path.
+6. The GP fallback warning threshold (VD 2026-09-08, "Use your
+   recommendation"): 25 percent of leaf evaluations that fell back to a
+   constant leaf because the node exceeded
+   [`maxLeafSize_`](../../src/bartcore/model.hpp); the count itself is
+   exposed on the fit so any threshold can be checked by hand.
 
 ## Constraints
 
@@ -278,19 +282,20 @@ S4, within-chain threading (dec-B89):
     re-deriving the gather blocking over the fused pass, keeping the pool
     parked between sweeps and the size cutoff unchanged. The scatter half
     stays out unless step 9 measures it positive.
-11. R surface per fork 4: the new `dbartsControl` argument with its
-    validity check, plumbed through the bridge into the sampler options,
-    default 1 or the memory audit's number once that plan reports. Cap
-    `dbartsControl`'s `n.threads` default to `min(guessNumCores(),
-    n.chains)`, as bart2 does, so the package never warns at its own
-    default; then warn when a SUPPLIED `n.threads` exceeds `n.chains`,
-    naming the new argument. One test counts warnings with
-    `withCallingHandlers`, one asserts the default is silent.
-12. Tests: byte-identical draws at 1, 2, 4 and 8 within-chain threads at
-    a fixed seed; the default reproduces the serial draws; a
-    below-cutoff run takes the serial path.
-13. Manual: the control page states that within-chain threading is
-    opt-in, what it measured (0.9-34 about 10 percent at four threads on
+11. R surface per fork 4: no new argument. The bridge passes the
+    budget through; the sampler runs `min(n.threads, n.chains)` chains
+    at once and gives each chain `n.threads %/% n.chains` within-chain
+    workers (1 means serial, the law unchanged), so the surplus is
+    spent as 0.9-34 spent it. `dbartsControl`'s default stays the core
+    count. The memory audit's number, once that plan reports, decides
+    only the manual's recommendation, not a default. One test asserts
+    that a budget at or below the chain count takes the serial path.
+12. Tests: byte-identical draws at 2, 4 and 8 within-chain workers at
+    a fixed seed; a budget at or below the chain count reproduces the
+    serial draws; a below-cutoff run takes the serial path.
+13. Manual: the control page states that `n.threads` is a budget,
+    that a budget above `n.chains` turns within-chain threading on, what
+    it measured (0.9-34 about 10 percent at four threads on
     one chain; the barrier prototype 12 percent at best, and SLOWER than
     serial at eight threads on both hosts measured), that multi-chain
     parallelism is the effective use of cores, and (fork 5) that
