@@ -51,8 +51,9 @@ maxWorkers <- if (
 } else {
   4L
 }
+threadCounts <- unique(c(2L, if (maxWorkers >= 3L) 3L else NULL, maxWorkers))
 
-for (n.threads in c(2L, maxWorkers)) {
+for (n.threads in threadCounts) {
   xval.threaded <- runXval(n.threads)
   expect_true(all(!is.na(xval.threaded)))
   expect_equal(dim(xval.threaded), c(4L, length(k)))
@@ -84,7 +85,7 @@ runFolds <- function(n.threads) {
 }
 folds.1 <- runFolds(1L)
 expect_true(all(!is.na(folds.1)))
-for (n.threads in c(2L, 3L, maxWorkers)) {
+for (n.threads in threadCounts) {
   expect_identical(
     folds.1,
     runFolds(n.threads),
@@ -114,6 +115,7 @@ rm(
   folds.1,
   runFolds,
   maxWorkers,
+  threadCounts,
   n.threads,
   xval.threaded,
   xval.2,
