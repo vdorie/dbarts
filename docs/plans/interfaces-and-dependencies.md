@@ -378,3 +378,66 @@ matrix-interface call at the same seed (front-door.md S1 renamed `bart2` to
 directly); `d$dtm <- M; bart(y ~ ., data = d)`
 matches `bart(x = cbind(other, M), y = y)` bitwise; the suite passes with
 `posterior` absent; `R CMD check --as-cran` OK.
+
+## Landing note, S1 (2026-09-09)
+
+LANDED at 01634227616afa7e865bbab35bb8a0bc476db940, seven commits:
+
+- 7c9c9c6d68b7461bc1a6babebe2f27c2e78eefc4 Add rank-normalized split-Rhat and bulk/tail ESS to R/diagnostics.R
+- 15538877f44d3d74f1d6ebb0011ad46e567bd441 Rewrite the summary/draws path off posterior; add draws() generic
+- 3c88d5e40a8a5aa8f44f0c89f9faa30510b48620 Rewrite posterior:: test assertions against draws()
+- 62311f95c7a73cf2484e1721d91aae2100ddcb7b Drop posterior from Suggests; document draws(), update CI installs
+- 74040f32a36870cbaedf3a38582d8faa87c658d4 Fix the two remaining posterior-removal doc/vignette references
+- 68253ca3bd44e4349d82dad982e45ef26af14625 Fix three edge-case bugs in the Rhat/ESS estimator
+- 01634227616afa7e865bbab35bb8a0bc476db940 Nits: drop a dead tbl_df branch, fix the plan's rank-normalize formula
+
+[`summariseDraws`](../../R/diagnostics.R) computes rank-normalized split-Rhat
+(bulk and folded) and bulk/tail ESS per Vehtari, Gelman, Simpson, Carpenter
+and Burkner (2021), matching `posterior`'s own internals exactly - fold
+before split and rank-normalize, Blom ranks `(rank - 3/8)/(S + 1/4)`, FFT
+autocovariance, Geyer's initial monotone sequence. Against posterior 1.7.0
+on 42 arrays and edge cases the max relative differences are rhat 2.9e-16,
+ess_bulk 5.1e-15, ess_tail 1.7e-15; NA/NaN/Inf draws return NA as posterior
+does, except at 2-3 draws per chain, where posterior's dim-dropping split
+returns a number and dbarts's NA is the defensible one. `summary` always
+calls `summariseDraws`'s nine columns (retired: [`quantileSummary`](../../R/diagnostics.R),
+retired: [`posteriorAvailable`](../../R/diagnostics.R) deleted); the ten
+`as_draws_array`/`as_draws_df` methods are deleted and a
+[`draws`](../../R/generics.R) generic added (bart, bartMultinomial,
+bartOrdinal, bartNegbin, bartHurdle) returning the plain (iteration, chain,
+variable) array `posterior::as_draws_array` still accepts.
+retired: [`registerPosteriorMethods`](../../R/hooks.R) and `.onLoad` are
+deleted, `.onUnload` kept; `posterior` is off Suggests and off both CI
+install lists.
+[man/summary.bart.Rd](../../man/summary.bart.Rd) rewritten,
+[man/draws.Rd](../../man/draws.Rd) new (no `posterior::` example - an
+unstated dependency in examples fails check); tests rewritten against
+`draws()`, pinned to literals recorded from posterior 1.7.0, passing with
+posterior hidden. One design-doc cite and one vignette sentence updated too.
+
+Real diff: 18 files, +631/-362; R 361 changed lines against ~230 budgeted,
+tests 245 against ~150, Rd 226 against ~90 (summary.bart.Rd split in two) -
+about 1.8x the S1 budget line, no fork.
+
+Gates, run independently: tinytest 8128/0 with posterior visible and hidden
+(requireNamespace FALSE confirmed fresh); equivalence 50/12/11 identical, 0
+skipped, no "max |z|" line; `R CMD check --as-cran` OK, 0 notes, from a
+clean tarball with posterior hidden; `lint_package`, `air format --check`,
+`pkgdown::check_pkgdown` clean; doc-freshness and rc-codoc exit 0. Mutation:
+dropping the fold step fails the pinned tail-Rhat literal (1.178 to 0.999);
+dropping rank-normalization moves the pinned ess_bulk outside tolerance.
+
+Review findings fixed before landing (68253ca3):
+[`rhoHatT`](../../R/diagnostics.R) indexed `seq_len(maxT)` where posterior's
+`1:max_t` still selects element 1 at `max_t == 0`, inflating ESS on short
+chains (a 4-chain, 10-sample summary read 64 against posterior's 20; now
+20); [`essQuantile`](../../R/diagnostics.R) and `summariseDraws`'s q5/q95
+lacked posterior's NA guard, erroring on an NA draw;
+[`rankNormalizeMatrix`](../../R/diagnostics.R) ranked NA as finite, so rhat
+read 4.62 where posterior returns NA. 01634227 drops a dead tbl_df test
+branch and corrects the plan's formula to `S + 1/4`.
+
+Remaining: S2 (Surv on a formula), S3 (sparse formula columns), S4
+(DESCRIPTION wording, configure stubs); front-door S4 owns
+[man/bart.Rd](../../man/bart.Rd)'s own-class summary prose and the NEWS
+1.0-0 passages still describing as_draws.

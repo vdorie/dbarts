@@ -456,7 +456,7 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   front-door rename.
 
 remove the posterior dependency (decided, VD 2026-09-08;
-  docs/decisions.md dec-B99)
+  docs/decisions.md dec-B99; S1 LANDED 01634227; S2-S4 open)
   pre-release: drop posterior from DESCRIPTION; summary computes split
   R-hat and effective sample size in R/diagnostics.R itself; replace
   the as_draws methods with a base-R draws extractor (iterations x
