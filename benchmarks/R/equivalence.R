@@ -442,6 +442,36 @@ makeScenarios <- function() {
     aftFit = TRUE
   )
 
+  # A Surv-on-formula aft fit (interfaces-and-dependencies.md S2): the SAME
+  # generative recipe as 'aft' above, but ingested through the formula
+  # interface with a genuine survival::Surv left-hand side and 'subset'
+  # applied (350 of 400 rows kept) - the new code path this slice adds
+  # (dbartsData()'s Surv short-circuit, R/data.R; the status vector's own
+  # subsetting, R/dbarts.R), untouched by 'aft', which is matrix-only and
+  # carries no subset. A PLAIN ADDITION (MANIFEST P17): its own test suite
+  # (test-aft.R) already pins this route bitwise-identical to the matrix
+  # interface at one seed; this scenario exists to keep that draw stream
+  # under the same long-lived regression eyes every other family gets.
+  set.seed(5148L)
+  x <- matrix(runif(400L * 10L), 400L)
+  colnames(x) <- paste0("x", 1:10)
+  log.t <- 0.05 * friedman(x) + rnorm(400L)
+  cens.t <- 0.05 * friedman(x) + quantile(rnorm(4000L), 0.7) + rnorm(400L)
+  status <- as.numeric(log.t <= cens.t)
+  d <- as.data.frame(x)
+  d$surv <- survival::Surv(exp(ifelse(status == 1, log.t, cens.t)), status)
+  x.test.af <- matrix(runif(n.test * 10L), n.test)
+  colnames(x.test.af) <- paste0("x", 1:10)
+  result$aftformula <- list(
+    data = d,
+    formula = reformulate(colnames(x), response = "surv"),
+    subsetIdx = sort(sample.int(400L, 350L)),
+    x.test = as.data.frame(x.test.af),
+    aftTimes = as.numeric(quantile(exp(log.t), c(0.25, 0.5, 0.75))),
+    binary = FALSE,
+    aftFormulaFit = TRUE
+  )
+
   # Student-t (robust) residuals in the estimated-nu mode (TResponse,
   # docs/design/robust-errors.md), newly reachable via family = student().
   # Contaminated-normal data - a gaussian bulk with a 5% heavy-outlier tail -
@@ -1834,6 +1864,46 @@ fitViaAft <- function(scenario) {
   )
 }
 
+# runs the aft path through the formula interface's own Surv left-hand
+# side ingestion (dbartsData()'s Surv short-circuit, R/data.R) with
+# 'subset' honoured (interfaces-and-dependencies.md S2) - otherwise the
+# same recipe as fitViaAft, on the new code path.
+fitViaAftFormula <- function(scenario) {
+  # model.frame() evaluates 'subset =' in the FORMULA's own environment
+  # (its default 'env', per ?model.frame.default), which is wherever
+  # makeScenarios() created it - not this frame - so scenario$subsetIdx
+  # would resolve there and fail; rebase it to this call site (the
+  # fitViaBart2Gauss precedent)
+  formula <- scenario$formula
+  environment(formula) <- environment()
+  fit <- bart(
+    formula,
+    data = scenario$data,
+    test = scenario$x.test,
+    subset = scenario$subsetIdx,
+    family = "aft",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  sp <- survivalProbabilities(
+    fit,
+    scenario$aftTimes,
+    newdata = scenario$x.test
+  )
+  list(
+    yhat.test = predict(fit, scenario$x.test, type = "ev"),
+    varcount = fit$varcount,
+    sigma = as.vector(fit$sigma),
+    surv.test = apply(sp, c(2L, 3L), mean)
+  )
+}
+
 fitSummaries <- function(scenario, seed) {
   set.seed(seed)
   # Test-data weights are irrelevant here (no posterior-predictive use);
@@ -1858,6 +1928,8 @@ fitSummaries <- function(scenario, seed) {
   }
   fit <- if (!is.null(scenario$aftFit)) {
     fitViaAft(scenario)
+  } else if (!is.null(scenario$aftFormulaFit)) {
+    fitViaAftFormula(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
     fitViaOrdinal(scenario)
   } else if (!is.null(scenario$nbinomFit)) {
