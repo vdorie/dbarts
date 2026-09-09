@@ -130,7 +130,7 @@ jobs:
           fail=0
           echo "::group::equivalence"
           if Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-0ef4c560.rds --strict-coverage; then
+            benchmarks/baselines/equivalence-2085cba2.rds --strict-coverage; then
             echo "PASS equivalence"
           else
             echo "::error::bitwise gate equivalence FAILED"

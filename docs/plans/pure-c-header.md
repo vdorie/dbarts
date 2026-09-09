@@ -242,7 +242,7 @@ built from the S1 tip):
 R CMD INSTALL --preclean -l <lib> .
 cd tests/cpp && make && ./test_bartcore            # includes header-compiles
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-0ef4c560.rds
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-2085cba2.rds
   # 51 "identical draws (same RNG stream)" lines, no "max |z|" line
 R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-fbff1989.rds
   # 12 scenarios, every channel identical
