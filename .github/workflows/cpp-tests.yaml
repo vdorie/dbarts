@@ -4,16 +4,27 @@
 # baselines are recorded on, so the tight-tolerance and determinism checks do
 # not drift on last-ulp reduction-order differences; x86 engine coverage is
 # already provided by the R-CMD-check and sanitizer jobs.
+#
+# The same arm64 pin is why the REFERENCE build's bitwise gates run here too,
+# in a second half of this one job: --enable-reference-build compiles the
+# scalar, fixed-order draw path, and the three recorded equivalence baselines
+# and the four seeded-drift snapshot files are pinned to it (dec-B90). The
+# shipped build re-associates that path, so on it the snapshot files exit at
+# their own guard and the baselines are only comparable statistically -
+# equivalence.yaml carries that arm. Both installs are --preclean: R does not
+# track config.hpp as a header dependency, so a second install with different
+# configure arguments would otherwise link the first build's objects and
+# report the wrong mode.
 on:
   push:
     branches: [main, bartcore]
-    # documentation- and benchmark-only pushes cannot change what this
-    # builds and runs (src/ + tests/cpp)
+    # documentation-only pushes cannot change what this builds and runs
+    # (src/ + tests/cpp); benchmarks/ is NOT ignored, since the reference arm
+    # below runs the equivalence harnesses and their baselines from there
     paths-ignore:
       - 'docs/**'
       - 'TODO'
       - '**.md'
-      - 'benchmarks/**'
       - 'inst/NEWS.Rd'
       - 'man/**'
   pull_request:
@@ -31,7 +42,7 @@ permissions: read-all
 jobs:
   cpp-tests:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -66,3 +77,75 @@ jobs:
           cd tests/cpp
           make
           ./test_bartcore 3
+
+      # Second half: the reference build and the gates that are only valid on
+      # it. Installed after the C++ tests, which consume the shipped build's
+      # sublibraries.
+      - name: Install the reference build
+        id: reference-install
+        run: |
+          R CMD INSTALL --preclean --configure-args=--enable-reference-build .
+          Rscript -e 'str(dbarts:::buildInfo())'
+
+      # A file that reports zero assertions has exited at its build-mode
+      # guard, which on the reference build means the install did not define
+      # DBARTS_REFERENCE_BUILD - a silent pass otherwise, so it fails here.
+      - name: Run the seeded-drift snapshot tests
+        if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
+        run: |
+          Rscript -e '
+            library(dbarts); library(tinytest)
+            files <- c(
+              "test-reproducibility-continuousResponse-singleThreaded.R",
+              "test-reproducibility-continuousResponse-multithreaded.R",
+              "test-reproducibility-binaryResponse.R",
+              "test-reproducibility-xbart.R")
+            fail <- FALSE
+            for (f in files) {
+              r <- run_test_file(
+                system.file("tinytest", f, package = "dbarts"), verbose = 0)
+              bad <- sum(!vapply(r, isTRUE, logical(1)))
+              cat(f, ": ", length(r), " assertions, ", bad, " failed\n", sep = "")
+              if (length(r) == 0L || bad > 0L) fail <- TRUE
+            }
+            if (fail) quit(status = 1L)
+          '
+
+      # The three baselines are bitwise on the reference build: every scenario
+      # must report "identical draws (same RNG stream)", which is what a zero
+      # exit status from each harness means here. --strict-coverage turns a
+      # scenario the baseline predates into a failure rather than a warning;
+      # the bcf and multinomial harnesses have no such flag and compare their
+      # whole recorded set on-host.
+      - name: Run the bitwise equivalence compares
+        if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
+        run: |
+          fail=0
+          echo "::group::equivalence"
+          if Rscript benchmarks/R/equivalence.R compare \
+            benchmarks/baselines/equivalence-fbff1989.rds --strict-coverage; then
+            echo "PASS equivalence"
+          else
+            echo "::error::bitwise gate equivalence FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          echo "::group::bcf-equivalence"
+          if Rscript benchmarks/R/bcf-equivalence.R compare \
+            benchmarks/baselines/bcf-equivalence-fbff1989.rds; then
+            echo "PASS bcf-equivalence"
+          else
+            echo "::error::bitwise gate bcf-equivalence FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          echo "::group::multinomial-equivalence"
+          if Rscript benchmarks/R/multinomial-equivalence.R compare \
+            benchmarks/baselines/multinomial-equivalence-fbff1989.rds; then
+            echo "PASS multinomial-equivalence"
+          else
+            echo "::error::bitwise gate multinomial-equivalence FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          exit $fail

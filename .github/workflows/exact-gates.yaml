@@ -23,7 +23,11 @@
 # point-in-time snapshot channels and gates every draws-axis channel under a
 # two-tier verdict whose tier 1 is a tight deviation bound. That makes this
 # workflow the per-push half of the cross-host gate; equivalence.yaml carries
-# the weekly half and the gaussian arm.
+# the weekly half and the gaussian arm. Those two compares, and only those,
+# run against the REFERENCE build (--enable-reference-build, the scalar
+# fixed-order draw path), installed a second time in this job: the tier-1
+# bound is tighter than the shipped build's re-associated draw path can hold
+# across hosts. Everything above them is a shipped-build gate.
 #
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
@@ -70,7 +74,7 @@ permissions: read-all
 jobs:
   exact-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -145,6 +149,18 @@ jobs:
           done
           exit $fail
 
+      # --preclean is not optional here: R tracks no dependency from the
+      # sources to the generated config.hpp, so a second install with
+      # different configure arguments would otherwise relink the first
+      # build's objects and silently report the wrong mode. The report is
+      # printed so a run's log says which build the compares below saw.
+      - name: Install the reference build for the cross-host compares
+        id: reference-install
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          R CMD INSTALL --preclean --configure-args=--enable-reference-build .
+          Rscript -e 'str(dbarts:::buildInfo())'
+
       # Outside the loop above on purpose: that loop passes `quick` to every
       # gate, and these baselines are recorded at FULL settings, which each
       # harness settings guard refuses to compare against a quick run. Runs
@@ -153,12 +169,12 @@ jobs:
       # dbarts the runner happens to hold reports ratios in the millions and
       # says nothing about this commit.
       # Both compares finish in about a second on a 2020 desktop, against the
-      # ~4-minute install and 30-minute timeout of this job. The bcf and
+      # ~4-minute install and 40-minute timeout of this job. The bcf and
       # multinomial baseline hashes are pinned only here now - equivalence.yaml's
       # own copies were dropped as duplicates of this job's compares - so a
       # re-record repins this file alone.
       - name: Run the cross-host equivalence compares
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
         run: |
           fail=0
           echo "::group::bcf-equivalence --cross-host"
