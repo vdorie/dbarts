@@ -130,3 +130,23 @@ jobs:
         # whole-suite floor here. That whole-suite floor already runs on
         # every push/PR via sanitizers.yaml.
         run: Rscript -e 'res <- tinytest::run_test_file(system.file("tinytest", "test-simd.R", package = "dbarts")); print(res); stopifnot(length(res) >= 2L, all(sapply(res, isTRUE)))'
+
+  # dec-B111: an ABI change (the header's baked hash) with no minor-version
+  # bump since the last release tag is a CI failure, not just a documented
+  # rule. A dedicated job, not a step in R-CMD-check above: the assertion
+  # needs full tag history, which R-CMD-check's checkout does not fetch
+  # (its default fetch-depth is 1, one commit, no tags), and there is no
+  # reason to pay a full-history checkout five times over that matrix for
+  # a check that reads one file.
+  check-api-hash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    name: API hash vs newest release tag
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - run: sh tools/check-api-hash.sh
