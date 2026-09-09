@@ -192,6 +192,6 @@ Gramacy, R.B. and Lee, H.K.H. (2008)
         \emph{Journal of the American Statistical Association}, \bold{103}(483), 1119--1130.
 }
 \seealso{
-  \code{\link{dbarts}}, \code{\link{bart2}}
+  \code{\link{dbarts}}, \code{\link{bart}}
 }
 \keyword{datasets}

@@ -169,7 +169,7 @@ forest(
   anything today's engine cannot honour is refused there by name rather than
   dropped.
 
-  A \code{forest()} call written INSIDE a \code{\link{bart2}}/\code{\link{dbarts}}
+  A \code{forest()} call written INSIDE a \code{\link{bart}}/\code{\link{dbarts}}
   formula - bare, or as one operand of \code{:} - declares a second forest
   without a separate \code{forests =} list: \code{z:forest(x1 + x2)} and
   \code{factor(z):forest(x1 + x2)} desugar to
@@ -196,10 +196,10 @@ forest(
   A \code{dbartsForest} specification object, resolved when a sampler is built.
 }
 \seealso{
-  \code{\link{dbarts}}, \code{\link{bart2}}, \code{\link{dbartsSpec}},
+  \code{\link{dbarts}}, \code{\link{bart}}, \code{\link{dbartsSpec}},
   \code{\link{interactions}}, \code{\link{blocks}}
 
-  \code{\link{bart2}}'s \sQuote{Formula Terms} section is the full term
+  \code{\link{bart}}'s \sQuote{Formula Terms} section is the full term
   grammar - colon sugar, the factor forms, the symbolic unnamed slot, and
   the refusal list - of which the \sQuote{Details} paragraph above is the
   constructor-side summary.

@@ -13,7 +13,7 @@
   shared \code{dgCMatrix}, rather than materializing one \eqn{n \times
   p}{n x p} dense matrix. \code{\link{makeModelMatrixFromDataFrame}} returns
   one whenever \code{x} carries a sparse column; \code{\link{dbartsData}}'s
-  x/y interface (and so \code{\link{dbarts}}'s and \code{\link{bart2}}'s)
+  x/y interface (and so \code{\link{dbarts}}'s and \code{\link{bart}}'s)
   returns one under the same condition and stores it in the resulting
   \code{dbartsData} object's \code{x}/\code{x.test} slot. The formula
   interface refuses a sparse column outright (a bare S4 column does not

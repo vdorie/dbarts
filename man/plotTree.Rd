@@ -9,13 +9,13 @@
 \title{Plot a Single Tree From a Fitted BART Model}
 \description{
   Minimalist visualization of the branching and leaf contents of one tree
-  in a fitted \code{\link{bart}}/\code{\link{bart2}} model, or in a
+  in a fitted \code{\link{bartBT}}/\code{\link{bart}} model, or in a
   \code{\linkS4class{dbartsSampler}}.
   A fit-level convenience wrapper around the sampler's \code{plotTree}
   method, so the trees can be plotted without reaching into the sampler
   stored on the fit.
 
-  \code{\link{bart2}}'s four own-class fits (\code{"bartMultinomial"},
+  \code{\link{bart}}'s four own-class fits (\code{"bartMultinomial"},
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}) refuse
   by name instead: their trees live on the sampler(s) those fits carry
   (\code{object$fit} for the first three, \code{object$occupancy$fit}/
@@ -39,8 +39,8 @@ plotTree(object, \dots)
 }
 \arguments{
   \item{object}{
-    A fitted model of class \code{bart} (from \code{\link{bart}} or
-    \code{\link{bart2}}), or a
+    A fitted model of class \code{bart} (from \code{\link{bartBT}} or
+    \code{\link{bart}}), or a
     \code{\linkS4class{dbartsSampler}}. Fits must have been made with the
     trees kept (\code{keeptrees}/\code{keepTrees} equal to \code{TRUE}).
   }
@@ -91,7 +91,7 @@ x  <- matrix(runif(n * 10), n, 10)
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-fit <- bart2(x, y, n.samples = 40L, n.burn = 10L, n.trees = 25L,
+fit <- bart(x, y, n.samples = 40L, n.burn = 10L, n.trees = 25L,
              n.chains = 1L, keepTrees = TRUE, verbose = FALSE)
 
 plotTree(fit, treeNum = 1L, sampleNum = 40L)

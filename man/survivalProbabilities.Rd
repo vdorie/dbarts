@@ -9,12 +9,12 @@
 \description{
   Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
-  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"},
+  \code{\link{bart}} (or \code{\link{bartBT}}) with \code{family = "aft"},
   or a discrete-time hazard fit produced by
-  \code{\link{bart2}} with \code{family = "hazard"} (or
+  \code{\link{bart}} with \code{family = "hazard"} (or
   \code{"hazard.logistic"}).
 
-  \code{\link{bart2}}'s four own-class fits (\code{"bartMultinomial"},
+  \code{\link{bart}}'s four own-class fits (\code{"bartMultinomial"},
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}) refuse
   by name instead: none of the four is a survival model, so none carries
   a hazard channel.
@@ -102,7 +102,7 @@ survivalProbabilities(object, ...)
   \code{NULL}.
 }
 \seealso{
-  \code{\link{bart2}},
+  \code{\link{bart}},
   \code{\link[=predict.bart]{predict}}, \code{\link[=extract.bart]{extract}}
 }
 \examples{
@@ -114,7 +114,7 @@ censorTime <- exp(x[, 1L] + 0.25 + 0.5 * rnorm(n))
 status <- as.numeric(eventTime <= censorTime)
 observedTime <- pmin(eventTime, censorTime)
 
-fit <- bart2(
+fit <- bart(
   x,
   cbind(observedTime, status),
   family = "aft",

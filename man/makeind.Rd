@@ -4,7 +4,7 @@
 \alias{makeind}
 \alias{makeTestModelMatrix}
 \description{
-  Converts a data frame with numeric and factor contents into a matrix, suitable for use with \code{\link{bart}}. Unlike in linear regression, factors containing more than two levels result in dummy variables being created for each level.
+  Converts a data frame with numeric and factor contents into a matrix, suitable for use with \code{\link{bartBT}}. Unlike in linear regression, factors containing more than two levels result in dummy variables being created for each level.
 }
 \usage{
 makeModelMatrixFromDataFrame(x, drop = TRUE)
@@ -37,7 +37,7 @@ makeTestModelMatrix(data, newdata)
 
   Note that if you have train and test data frames, it may be best to \code{\link{rbind}} the two together, apply \code{makeModelMatrixFromDataFrame} to the result, and then pull them back apart. Alternatively, save the drop attribute used in creating the training data and use it when creating a matrix from the test data, as in the example given below.
 
-  Use of these functions is not required when using \code{\link{bart}}, \code{bart2}, or \code{\link{dbartsSampler}}; they exist to allow the user finer control and to assist with writing packages that separate the creation of training from test data.
+  Use of these functions is not required when using \code{\link{bartBT}}, \code{bart}, or \code{\link{dbartsSampler}}; they exist to allow the user finer control and to assist with writing packages that separate the creation of training from test data.
 }
 \value{
   A matrix with columns corresponding to the elements of the data frame. If \code{drop = TRUE} or is a list, the attribute \code{drop} on the result is set to the list used when creating the matrix.

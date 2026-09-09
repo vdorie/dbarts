@@ -24,10 +24,10 @@ xbart(
     Not used for new code: the channel that lets a retired argument spelling reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
   }
   \item{formula}{
-    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}. See \code{\link{dbarts}}.
+    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bartBT}} matrix \code{x.train}. See \code{\link{dbarts}}.
   }
   \item{data}{
-    An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bart}} vector \code{y.train}.
+    An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bartBT}} vector \code{y.train}.
   }
   \item{subset}{
     An optional vector specifying a subset of observations to be used in the fitting process.
@@ -54,7 +54,7 @@ xbart(
     A positive integer setting the number of cross validation steps that will be taken. For \code{"k-fold"}, each replication corresponds to fitting each of the \eqn{K} folds in turn, while for \code{"random subsample"} a replication is a single fit.
   }
   \item{n.burn}{
-    Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}} and \code{bart2}, here it is one or two non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. A longer vector is an error naming the argument rather than being silently truncated to its first two entries; dbarts 0.9-x read a third element as a per-replication burn-in, which no longer exists. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen.
+    Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}} and \code{bart}, here it is one or two non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. A longer vector is an error naming the argument rather than being silently truncated to its first two entries; dbarts 0.9-x read a third element as a per-replication burn-in, which no longer exists. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen.
   }
   \item{loss}{
     Either one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
@@ -75,7 +75,7 @@ xbart(
      A vector of real numbers in \eqn{(0, 1)}, setting the BART hyperparameter for the tree prior's growth probability.
    }
    \item{split.probs}{
-     Prior probabilities that a variable is used in a splitting rule, as in \code{\link{bart2}}. A single value or \code{NULL} yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with a DART \code{tree.prior}.
+     Prior probabilities that a variable is used in a splitting rule, as in \code{\link{bart}}. A single value or \code{NULL} yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with a DART \code{tree.prior}.
    }
    \item{drop}{
      Logical, determining if dimensions with a single value are dropped from the result.
@@ -84,7 +84,7 @@ xbart(
      An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance.
    }
    \item{sigest}{
-     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
+     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bartBT}}/\code{bart}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Each replication takes its data split, and each unit of work its fits, from a seed derived from this one and the unit's own index, so results are reproducible for a fixed \code{seed} at any \code{n.threads}; the caller's random stream is left untouched when a seed is given, and advanced only by the derivation of those seeds when one is not. Without one, \code{\link{set.seed}} beforehand suffices.
@@ -93,7 +93,7 @@ xbart(
      How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.
    }
    \item{family}{
-     The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as \code{xbart} does not cross-validate the multinomial model. The built-in binary losses transform test predictions through the family's link. This vocabulary is narrower than \code{\link{bart2}}'s by design - \code{xbart} cross-validates a single scalar loss per fold, which the own-class families' K-forest or two-part fits have no single counterpart of; the wider family set lives on \code{bart2}.
+     The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as \code{xbart} does not cross-validate the multinomial model. The built-in binary losses transform test predictions through the family's link. This vocabulary is narrower than \code{\link{bart}}'s by design - \code{xbart} cross-validates a single scalar loss per fold, which the own-class families' K-forest or two-part fits have no single counterpart of; the wider family set lives on \code{bart}.
    }
    \item{node.prior}{
      An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
