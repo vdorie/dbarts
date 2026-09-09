@@ -535,6 +535,12 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     branch; revisit these checks then.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
+    treatSens reaches dbarts:::parsePriors and
+    dbarts:::estimateSigmaFromLinearModel through asNamespace (its
+    resid.dist argument broke silently when front-door S2 retired the
+    formal; fixed on treatSens dbarts-1.0 aeb4bb0). Post-release: a
+    public entry returning the resolved prior quadruple, or an export,
+    so a consumer need not reach an internal (agent-noted 2026-09-09).
     The reshape is the last planned pre-release breaking change, and
     the C ABI constants (DBARTS_C_API_MAJOR/MINOR) read 1.0 through the
     window and become the initial contract at this release.
