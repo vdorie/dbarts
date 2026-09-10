@@ -285,20 +285,6 @@ struct CategoricalScanEntry {
   ConstantLeafScanBin bin;
 };
 
-/// Caller-owned scratch for the categorical scan. `bins` and `seen` are
-/// indexed by CATEGORY CODE and are never cleared wholesale: a column may
-/// declare 65536 levels, so an O(K) clear at every node of every tree would
-/// dominate the O(numMembers) histogram it precedes. First sight of a code
-/// initializes its bin and pushes the code onto `touched`; the clear at the end
-/// of the pass walks `touched` alone. Both arrays only ever grow, so the
-/// zero-fill invariant on `seen` survives a variable with fewer categories.
-struct CategoricalScanScratch {
-  std::vector<ConstantLeafScanBin> bins;
-  std::vector<std::uint8_t> seen;
-  std::vector<std::uint32_t> touched;
-  std::vector<CategoricalScanEntry> present;  // compact, sorted
-};
-
 /// Present-category count above which the exact enumeration gives way to the
 /// sorted-prefix family. 2^(P-1) - 1 = 511 candidates already cover every
 /// factor an R user constructs, and raising the cap relocates the boundary
@@ -312,17 +298,39 @@ struct CategoricalScanScratch {
 /// side, n = 2000, 200 trees), because the per-proposal cost is the O(node
 /// members) histogram ahead of the enumeration and not the candidate loop.
 /// Read only on the grow-from-root path; MH birth draws its categorical
-/// rules from the prior and never enumerates.
+/// rules from the prior and never enumerates. The DEFAULT of
+/// SamplerOptions::categoricalExhaustiveCap, which a caller may move.
 inline constexpr std::size_t categoricalExhaustiveCap = 10;
+
+/// Caller-owned scratch for the categorical scan. `bins` and `seen` are
+/// indexed by CATEGORY CODE and are never cleared wholesale: a column may
+/// declare 65536 levels, so an O(K) clear at every node of every tree would
+/// dominate the O(numMembers) histogram it precedes. First sight of a code
+/// initializes its bin and pushes the code onto `touched`; the clear at the end
+/// of the pass walks `touched` alone. Both arrays only ever grow, so the
+/// zero-fill invariant on `seen` survives a variable with fewer categories.
+struct CategoricalScanScratch {
+  /// The present-category count above which this scan emits prefixes instead
+  /// of the full partition set: categoricalExhaustiveCap unless a caller
+  /// moved it (SamplerOptions::categoricalExhaustiveCap). It rides the
+  /// scratch because the scratch is what every enumeration entry point
+  /// already has in hand, and it is per chain, so no scan reads another's.
+  std::size_t exhaustiveCap = categoricalExhaustiveCap;
+  std::vector<ConstantLeafScanBin> bins;
+  std::vector<std::uint8_t> seen;
+  std::vector<std::uint32_t> touched;
+  std::vector<CategoricalScanEntry> present;  // compact, sorted
+};
 
 /// How many candidates the enumeration emits for P present categories: the
 /// full partition set below the cap, the sorted prefixes above it, and nothing
 /// at all when the node holds fewer than two distinct categories (the variable
 /// still counts in availableSplitProbability, exactly as an ordinal column all
 /// of whose cuts are occupancy-empty already does).
-inline std::size_t categoricalNumEmitted(std::size_t numPresent) {
+inline std::size_t categoricalNumEmitted(
+  std::size_t numPresent, std::size_t cap = categoricalExhaustiveCap) {
   if (numPresent < 2) return 0;
-  return numPresent <= categoricalExhaustiveCap
+  return numPresent <= cap
     ? (static_cast<std::size_t>(1) << (numPresent - 1)) - 1
     : numPresent - 1;
 }
@@ -442,7 +450,8 @@ std::size_t scanCategoricalPartitions(const ColumnStore& data,
   std::size_t numPresent =
     scanCategoryHistogram(data, variable, indices, numMembers, y, weights, leaf,
                           k, residualVariance, scratch);
-  std::size_t numEmitted = categoricalNumEmitted(numPresent);
+  std::size_t numEmitted =
+    categoricalNumEmitted(numPresent, scratch.exhaustiveCap);
   logLikelihood.resize(numEmitted);
   if (numEmitted == 0) return 0;
 
@@ -460,7 +469,7 @@ std::size_t scanCategoricalPartitions(const ColumnStore& data,
                                      right.sumWeightedResponse);
   };
 
-  if (numPresent <= categoricalExhaustiveCap) {
+  if (numPresent <= scratch.exhaustiveCap) {
     // both sides accumulated from the compact array, so a candidate's suffstat
     // is a pure function of its index: no path-dependent add/subtract sequence,
     // no last-ulp drift into a negative sumWeights, and a trivial decode

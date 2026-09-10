@@ -215,6 +215,12 @@ struct ParsedControl {
   uint32_t treeThinningRate = 1;
   uint32_t printEvery = 100;
   uint32_t printCutoffs = 0;
+  // the four engine limits the control exposes; creation-time, like
+  // useQuantiles, so bartcore_setControl never pushes them
+  size_t categoricalExhaustiveCap = bartcore::categoricalExhaustiveCap;
+  size_t testFitParallelCutoff = 65536;
+  size_t predictParallelCutoff = 0;
+  double sparseDensityThreshold = bartcore::sparseDensityThreshold;
   bool haveRngSeed = false;
   std::uint_least32_t rngSeed = 0;
 };
@@ -457,6 +463,27 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
     ? bartcore::LevelGibbsMode::automatic
     : (levelGibbsValue != 0 ? bartcore::LevelGibbsMode::on
                             : bartcore::LevelGibbsMode::off);
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "categoricalExhaustiveCap", slotIndex);
+  control.categoricalExhaustiveCap = static_cast<size_t>(
+    rc_getInt(slotExpr, "categorical exhaustive cap", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 2, RC_END));
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "testFitParallelCutoff", slotIndex);
+  control.testFitParallelCutoff = static_cast<size_t>(
+    rc_getInt(slotExpr, "test fit parallel cutoff", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "predictParallelCutoff", slotIndex);
+  control.predictParallelCutoff = static_cast<size_t>(
+    rc_getInt(slotExpr, "predict parallel cutoff", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "sparseDensityThreshold", slotIndex);
+  control.sparseDensityThreshold =
+    rc_getDouble(slotExpr, "sparse density threshold", RC_LENGTH | RC_EQ,
+                 rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LEQ,
+                 1.0, RC_END);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "keepTrees", slotIndex);
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
@@ -2055,6 +2082,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
   options.useQuantiles = control.useQuantiles;
   options.levelGibbs = control.levelGibbs;
+  options.categoricalExhaustiveCap = control.categoricalExhaustiveCap;
+  options.testFitParallelCutoff = control.testFitParallelCutoff;
+  options.predictParallelCutoff = control.predictParallelCutoff;
+  options.sparseDensityThreshold = control.sparseDensityThreshold;
   // one borrowed view carries the storage and the typing channel (types,
   // declared level counts, CSC reference codes); consumed at build
   options.predictors = data.predictors;
@@ -3884,6 +3915,8 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     }
 
     bartcore::ColumnStore* handle = new bartcore::ColumnStore;
+    // the layout choice is read at build, so it is set before it
+    handle->sparseDensityCutoff = control.sparseDensityThreshold;
     // the build decides which of the declared columns it must own a copy of:
     // a mapped build already serves its real-valued dense-backed columns from
     // its own block and takes only the factor ones, and a CSC-backed column
@@ -6430,6 +6463,44 @@ SEXP bartcore_lastPredictPartition(void) {
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("worker"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
   UNPROTECT(3);
+  return resultExpr;
+}
+
+// Test-only companion to the above, for the OTHER parallel cutoff: the row
+// count the last test-fit routing saw and the workers it resolved. It exists
+// so a test can prove that control@testFitParallelCutoff reached the engine,
+// the two routing paths being byte-identical and so invisible in the fits. Its
+// single-chain contract is the channel's own (chain.hpp).
+SEXP bartcore_lastTestFitPartition(void) {
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(resultExpr, 0,
+                 Rf_ScalarInteger(static_cast<int>(
+                   bartcore::testFitPartition.numRows.load(
+                     std::memory_order_relaxed))));
+  SET_VECTOR_ELT(resultExpr, 1,
+                 Rf_ScalarInteger(static_cast<int>(
+                   bartcore::testFitPartition.numWorkers.load(
+                     std::memory_order_relaxed))));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("n.rows"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("n.workers"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+  UNPROTECT(2);
+  return resultExpr;
+}
+
+// Test-only too: which of a sampler's predictor columns took rank-bitmap hot
+// storage, the choice control@sparseDensityThreshold makes at build. The two
+// layouts answer identically, so nothing else can see the choice; no R surface
+// reads this.
+SEXP bartcore_columnStorageIsSparse(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  const bartcore::ColumnStore& store = holder.sampler->data();
+  size_t p = store.numPredictors;
+  SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(p)));
+  for (size_t j = 0; j < p; ++j)
+    LOGICAL(resultExpr)[j] = store.columnIsSparse(j) ? TRUE : FALSE;
+  UNPROTECT(1);
   return resultExpr;
 }
 

@@ -71,7 +71,7 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
                           leaf, k, residualVariance, scratch.categoryScan);
   const std::vector<CategoricalScanEntry>& present =
     scratch.categoryScan.present;
-  bool exact = numPresent <= categoricalExhaustiveCap;
+  bool exact = numPresent <= scratch.categoryScan.exhaustiveCap;
   bool orientation = ext_rng_simulateBernoulli(rng, 0.5) == 1;
   auto goesRight = [&](std::size_t position) {
     bool holds = exact ? exactPartitionHoldsPosition(candidate, position)

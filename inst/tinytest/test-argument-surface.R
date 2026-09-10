@@ -361,11 +361,16 @@ controlFormals1_0_0 <- c(
 # formals added after the 1.0-0 freeze. They carry the same parity contract -
 # every one is a bart formal, spelled identically - but stay off the frozen
 # list, which is what keeps that list a snapshot rather than a ratchet.
-# levelGibbs is this list's one documented exception to the parity contract
-# itself (see below); keepFits follows the rule.
+# levelGibbs and the four engine limits below are this list's documented
+# exceptions to the parity contract itself (see below); keepFits follows the
+# rule.
 controlFormalsAdded <- c(
   "levelGibbs",
-  "keepFits"
+  "keepFits",
+  "categoricalExhaustiveCap",
+  "testFitParallelCutoff",
+  "predictParallelCutoff",
+  "sparseDensityThreshold"
 )
 # '...' is the transition release's retired-spelling channel on this entry
 # point, not a control field
@@ -385,6 +390,20 @@ expect_true(setequal(
 # instead - present on both, spelled identically.
 expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
 expect_true("keepFits" %in% names(formals(dbarts::bart)))
+# the four engine limits are control-only for the same reason: they are tuning
+# and representation limits of the sampler, not modeling arguments of a fit,
+# and they are reached through dbarts(control = ) rather than mirrored onto
+# every fitting function
+for (limit in c(
+  "categoricalExhaustiveCap",
+  "testFitParallelCutoff",
+  "predictParallelCutoff",
+  "sparseDensityThreshold"
+)) {
+  expect_false(limit %in% names(formals(dbarts::bart)))
+  expect_true(limit %in% names(formals(dbarts::dbartsControl)))
+}
+rm(limit)
 expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
 expect_identical(
   formals(dbarts:::cgm)[["levelGibbs"]],

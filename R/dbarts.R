@@ -232,6 +232,10 @@ dbartsControl <- function(
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,
+  categoricalExhaustiveCap = 10L,
+  testFitParallelCutoff = 65536L,
+  predictParallelCutoff = 50000L,
+  sparseDensityThreshold = 0.2,
   seed = NA_integer_,
   updateState = TRUE,
   ...
@@ -282,6 +286,13 @@ dbartsControl <- function(
     n.thin = coerceOrError(n.thin, "integer"),
     printEvery = coerceOrError(printEvery, "integer"),
     printCutoffs = coerceOrError(printCutoffs, "integer"),
+    categoricalExhaustiveCap = coerceOrError(
+      categoricalExhaustiveCap,
+      "integer"
+    ),
+    testFitParallelCutoff = coerceOrError(testFitParallelCutoff, "integer"),
+    predictParallelCutoff = coerceOrError(predictParallelCutoff, "integer"),
+    sparseDensityThreshold = coerceOrError(sparseDensityThreshold, "numeric"),
     seed = coerceOrError(seed, "integer"),
     updateState = as.logical(updateState)
   )
@@ -758,19 +769,19 @@ dbarts <- function(
   # predict's fan-out - but is worth a word since it buys nothing for the
   # sampler's own sweep. Single site: bart() forwards here with its own
   # control already built, so this fires for both front doors, once per
-  # fit. 65536 is testFitParallelCutoff (src/bartcore/chain.hpp); not read
-  # from R (no query exists), so this literal must be kept in sync with the
-  # engine constant by hand.
+  # fit. The row count it names is the control's own testFitParallelCutoff,
+  # so a caller who moved that cutoff is told the number actually in force.
   if (control@n.threads > control@n.chains) {
     warning(warningCondition(
       sprintf(
         paste0(
           "n.threads (%d) exceeds n.chains (%d); tree sampling uses at ",
           "most one thread per chain, so the extra threads serve only ",
-          "test-set fitting above 65536 rows and predict"
+          "test-set fitting above %d rows and predict"
         ),
         control@n.threads,
-        control@n.chains
+        control@n.chains,
+        control@testFitParallelCutoff
       ),
       class = c("dbartsExcessThreadsWarning", "dbartsWarning")
     ))

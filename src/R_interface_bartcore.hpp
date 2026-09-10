@@ -70,6 +70,11 @@ SEXP bartcore_lastPredictPartition(void);
 /// Test-only: overrides the replay's traversal cutoff; 0 restores the derived
 /// one. Returns the value it replaced.
 SEXP bartcore_setPredictParallelCutoff(SEXP cutoff);
+/// Test-only: the last test-fit routing, list(n.rows, n.workers).
+SEXP bartcore_lastTestFitPartition(void);
+/// Test-only: per predictor, whether the store keeps it in rank-bitmap
+/// storage.
+SEXP bartcore_columnStorageIsSparse(SEXP ptr);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
                        SEXP trainingData, SEXP forest);

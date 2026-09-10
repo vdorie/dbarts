@@ -152,6 +152,7 @@ public:
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
     : options_(options), family_(family) {
+    data_.sparseDensityCutoff = options.sparseDensityThreshold;
     if (!data_.build(creationPredictorSource(options.predictors, x,
                                              numObservations, numPredictors),
                      options.maxNumCutsPerVariable, options.maxNumCuts,
@@ -203,6 +204,7 @@ public:
           const SamplerOptions& options, const AmplitudeSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(spec.family) {
+    data_.sparseDensityCutoff = options.sparseDensityThreshold;
     if (!data_.build(denseCreationPredictorSource(options.predictors, x,
                                                  numObservations,
                                                  numPredictors),
@@ -238,6 +240,7 @@ public:
           const SamplerOptions& options, const MultinomialSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(ResponseFamily::logistic) {
+    data_.sparseDensityCutoff = options.sparseDensityThreshold;
     if (!data_.build(denseCreationPredictorSource(options.predictors, x,
                                                  numObservations,
                                                  numPredictors),
@@ -678,10 +681,13 @@ public:
   /// about 200x lower: on four threads the fan-out is already 1.5x at 1e5
   /// traversals and saturates near 3.5x, while spawn and join together cost
   /// 60 to 70 microseconds, not the 26 msec the estimate budgeted for. The
-  /// crossover measures between 3e4 and 1e5 traversals, so every replay from
-  /// there up to this value - 46 msec of avoidable serial work at the top of
-  /// that range - runs inline with the fan-out available.
-  static constexpr size_t predictParallelCutoff = 10000000;
+  /// crossover measures between 3e4 and 1e5 traversals, which is where this
+  /// value sits; the estimate it replaces, 1e7, left every replay up to 46
+  /// msec of avoidable serial work running inline with the fan-out available.
+  /// A caller who measures otherwise on their own machine moves it through
+  /// SamplerOptions::predictParallelCutoff; this is the default that field's
+  /// 0 selects.
+  static constexpr size_t predictParallelCutoff = 50000;
 
   /// Every forest's tree count summed, the traversal weight of a replay that
   /// walks all of them (multi-location and per-forest).
@@ -731,8 +737,12 @@ public:
       predictPartition.workerForSlab.clear();
       return;
     }
+    // the test seam wins over the caller's setting, which wins over the
+    // calibrated default
     size_t cutoff = predictPartition.cutoffOverride != 0
-      ? predictPartition.cutoffOverride : predictParallelCutoff;
+      ? predictPartition.cutoffOverride
+      : (options_.predictParallelCutoff != 0 ? options_.predictParallelCutoff
+                                             : predictParallelCutoff);
     size_t numWorkers = resolved < numSlabs ? resolved : numSlabs;
     if (traversals < cutoff) numWorkers = 1;
 

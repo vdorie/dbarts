@@ -770,6 +770,12 @@ struct ColumnStore {
   size_t numObservations = 0;
   size_t numPredictors = 0;
   bool useQuantiles = false;
+  // The nonzero fraction in force for this store, sparseDensityThreshold
+  // unless a caller moved it (SamplerOptions::sparseDensityThreshold). Set
+  // BEFORE build: it decides each CSC-backed column's hot layout once and a
+  // later change would not relayout anything. Copies with the store, so a
+  // view built from a parent keeps the parent's choice.
+  double sparseDensityCutoff = sparseDensityThreshold;
   // Provenance: built from a parent store (buildFromParent). Gates only the
   // parent-derived standardization constants (suppliedStandardization);
   // refusal decisions read the capability predicates hasRequantizeSource and
@@ -1551,8 +1557,8 @@ struct ColumnStore {
   /// the view, read through whichever value channel holds it and quantized
   /// with the same dense arithmetic, categorical allowed; a negative one names
   /// CSC column ~sourceOf(j) of the triple, which takes rank-bitmap storage at
-  /// or below sparseDensityThreshold nonzero fraction and densified codes
-  /// above, its borrowed slice serving re-quantization either way. The CSC
+  /// or below the store's sparseDensityCutoff nonzero fraction and densified
+  /// codes above, its borrowed slice serving re-quantization either way. The CSC
   /// triple stays borrowed for the store's lifetime (until a column's first
   /// mutation repoints it at owned nonzeros).
   ///
@@ -1673,7 +1679,7 @@ struct ColumnStore {
                      end - begin };
       desc.refCode = source.referenceCodeOf(j);
       bool sparse = static_cast<double>(end - begin) <=
-        sparseDensityThreshold * static_cast<double>(n);
+        sparseDensityCutoff * static_cast<double>(n);
       if (sparse) {
         desc.kind = ColumnSourceKind::cscRank;
         desc.rankSlot = static_cast<std::int32_t>(train.sparseColumns.size());
@@ -1852,7 +1858,7 @@ struct ColumnStore {
   /// whichever value channel holds it, so a host whose factor columns are
   /// int32 level codes hands them over as integers - or CSC column ~sourceOf(j)
   /// of the triple otherwise, which takes rank-bitmap storage at or below
-  /// sparseDensityThreshold nonzero fraction and densified codes above, the
+  /// store's sparseDensityCutoff nonzero fraction and densified codes above, the
   /// training tier rule per column. An unmapped view is the plain test matrix,
   /// dense column for dense column. source.referenceCodes gives each
   /// CSC-backed categorical test column its reference level code (the code the
@@ -1952,7 +1958,7 @@ struct ColumnStore {
       desc.refCode = source.referenceCodeOf(j);
       cursor += numNonzero;
       bool sparse = static_cast<double>(numNonzero) <=
-        sparseDensityThreshold * static_cast<double>(numTest);
+        sparseDensityCutoff * static_cast<double>(numTest);
       if (sparse) {
         desc.kind = ColumnSourceKind::cscRank;
         desc.rankSlot = static_cast<std::int32_t>(test.sparseColumns.size());
@@ -2030,6 +2036,9 @@ struct ColumnStore {
     numObservations = numRows;
     numPredictors = columns != nullptr ? numColumns : parent.numPredictors;
     useQuantiles = parent.useQuantiles;
+    // the gathered columns densify regardless, but a test store built on this
+    // view later still lays out by the parent's choice
+    sparseDensityCutoff = parent.sparseDensityCutoff;
     // view-local column j reads parent column parentColumns[j]; the absent
     // list is the identity, so the full-span view stays byte-for-byte
     std::vector<size_t> parentColumns(numPredictors);

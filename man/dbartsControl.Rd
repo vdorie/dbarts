@@ -4,7 +4,7 @@
 \description{
   Convenience function to create a control object for use with a \code{\link{dbarts}} sampler.
 
-  Every integer-valued argument here (\code{n.samples}, \code{n.cuts}, \code{n.burn}, \code{n.trees}, \code{n.chains}, \code{n.threads}, \code{n.thin}, \code{printEvery}, \code{printCutoffs}, \code{seed}) refuses a fractional double, naming the argument, rather than silently truncating it - the same whole-number rule every other count formal in the package follows, since it too is coerced through this construction.
+  Every integer-valued argument here (\code{n.samples}, \code{n.cuts}, \code{n.burn}, \code{n.trees}, \code{n.chains}, \code{n.threads}, \code{n.thin}, \code{printEvery}, \code{printCutoffs}, \code{categoricalExhaustiveCap}, \code{testFitParallelCutoff}, \code{predictParallelCutoff}, \code{seed}) refuses a fractional double, naming the argument, rather than silently truncating it - the same whole-number rule every other count formal in the package follows, since it too is coerced through this construction.
 }
 \usage{
 dbartsControl(
@@ -15,7 +15,10 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE, \dots)
+    printCutoffs = 0L,
+    categoricalExhaustiveCap = 10L, testFitParallelCutoff = 65536L,
+    predictParallelCutoff = 50000L, sparseDensityThreshold = 0.2,
+    seed = NA_integer_, updateState = TRUE, \dots)
 }
 \arguments{
   \item{\dots}{
@@ -58,7 +61,7 @@ dbartsControl(
      A positive integer detailing the number of independent chains for the sampler to use.
    }
    \item{n.threads}{
-     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so within-chain parallelism is not shipped and a budget above \code{n.chains} buys the sampler's own sweep nothing - it was built and measured (best case about 3 percent faster at four threads on one chain, and slower than serial at two and at eight) and closed rather than shipped. The surplus is not wasted outright: it still feeds the test-fit pool, used above 65536 test rows, and \code{\link[=dbartsSampler-class]{predict}}'s own fan-out. Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}; a larger, explicit budget is accepted, and \code{\link{dbarts}} and \code{\link{bart}} warn once per fit, naming both counts, that the excess goes unused for sampling.
+     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so within-chain parallelism is not shipped and a budget above \code{n.chains} buys the sampler's own sweep nothing - it was built and measured (best case about 3 percent faster at four threads on one chain, and slower than serial at two and at eight) and closed rather than shipped. The surplus is not wasted outright: it still feeds the test-fit pool, used at or above \code{testFitParallelCutoff} test rows, and \code{\link[=dbartsSampler-class]{predict}}'s own fan-out. Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}; a larger, explicit budget is accepted, and \code{\link{dbarts}} and \code{\link{bart}} warn once per fit, naming both counts, that the excess goes unused for sampling.
    }
    \item{n.thin}{
      A positive integer determining how many iterations the MCMC chain should jump on the decision trees alone before recording a sample. Serves to \dQuote{thin} the samples against serial correlation. \code{n.samples} are returned regardless of the value of \code{n.thin}.
@@ -68,6 +71,18 @@ dbartsControl(
    }
    \item{printCutoffs}{
      A non-negative integer specifying how many of the decision rules for a variable are printed in verbose mode.
+   }
+   \item{categoricalExhaustiveCap}{
+     A positive integer of at least 2 and at most 30 giving the number of categories PRESENT at a node up to which the grow-from-root scan (\code{\link[=dbartsSampler-class]{growFromRoot}}, and \code{\link{bart}}'s \code{n.grow.sweeps}) scores every balanced partition of them, \eqn{2^{P-1} - 1}{2^(P-1) - 1} candidates. Above it the scan scores the \eqn{P - 1}{P - 1} sorted prefixes instead. This is the one setting here that changes the draws: the proposal family above the cap is a different one. Raising it is affordable in a narrow band and never beyond - the candidate set doubles per level - and cost is not what it protects at its default, where enumerating 511 candidates measures the same as emitting 11 prefixes, the per-proposal cost being the histogram over node members that precedes the enumeration. The Metropolis-Hastings birth move draws its categorical rules from the prior and never enumerates, so this reaches only the grow-from-root path. Fixed when the sampler is created.
+   }
+   \item{testFitParallelCutoff}{
+     A positive integer giving the number of test rows at or above which a chain fits its test matrix across its share of the thread budget instead of on its own thread. Time only: the two paths compute in the same order and return bit-for-bit the same fits. The default sits past the measured crossover on the machine it was measured on - four threads win 1.54 times at 65536 rows and 2.97 times at 262144, while the serial path already costs 16.5 msec per iteration at 32768 - so a caller with large test sets and threads to spare may lower it. Requires \code{n.threads} above \code{n.chains}; with no surplus budget no chain has a pool to route into. Fixed when the sampler is created.
+   }
+   \item{predictParallelCutoff}{
+     A positive integer giving the number of tree traversals (rows times trees times draws) at or above which \code{\link[=dbartsSampler-class]{predict}} spreads a replay over \code{n.threads} workers instead of running it inline. Time only: each worker owns its own output range and nothing is summed across workers, so a replay is identical however it is dealt out. The default is calibrated - the crossover measures between 3e4 and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and saturating near 3.5 times on four threads - and replaces an uncalibrated estimate of 1e7 that left mid-sized replays serial. Fixed when the sampler is created.
+   }
+   \item{sparseDensityThreshold}{
+     A number in \eqn{[0, 1]}{[0, 1]} giving the nonzero fraction at or below which a column of a sparse (\code{dgCMatrix}) design is stored as a rank bitmap rather than as one code per row. Memory against time, with no effect on the answers: at the default a rank-stored column costs about 38 percent of a sweep in decode and holds about 3.5 times less than the dense layout. Which side of that trade is worth taking depends on the design and the machine, which is why it is a setting. Read once, when the sampler's data are built; a later change does not relayout anything.
    }
    \item{seed}{
      Random number generator seed. Every chain runs its own generator; the seed drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. If equal to \code{NA}, chain generators are seeded from R's stream at creation, so \code{\link[=Random]{set.seed}} beforehand suffices for reproducibility; sampling itself never advances R's stream.

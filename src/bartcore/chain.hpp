@@ -2,6 +2,7 @@
 #define BARTCORE_CHAIN_HPP
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -29,6 +30,18 @@
 #include "tree.hpp"
 
 namespace bartcore {
+
+/// Test-only channel for a test-fit routing decision: the row count the last
+/// routing saw and the workers it resolved, written on whichever thread ran
+/// the chain and read by a test after the run joins. Relaxed atomics because
+/// concurrent chains all write it - nothing here orders anything, and none of
+/// it can change an answer. With more than one chain the last writer wins, so
+/// a test that reads it fixes numChains at 1.
+struct TestFitPartitionChannel {
+  std::atomic<std::size_t> numRows{0};
+  std::atomic<std::size_t> numWorkers{0};
+};
+inline TestFitPartitionChannel testFitPartition;
 
 /// When the level-fibre Gibbs step runs (SamplerOptions::levelGibbs).
 enum class LevelGibbsMode : std::uint8_t {
@@ -85,6 +98,34 @@ struct SamplerOptions {
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
   bool useQuantiles = false;
+
+  // The four engine limits a caller may move (dbartsControl's settings of the
+  // same names). Only the first is proposal law: moving it moves the draws,
+  // and the other three are time or memory against byte-identical results.
+  //
+  // Present-category count above which grow-from-root's exact partition
+  // enumeration gives way to the sorted prefixes; rides the scan scratch from
+  // here. Above ten the candidate set doubles per level, which is the reason
+  // the boundary exists at all, so a raised cap is an explicit trade of
+  // enumeration cost for the exact family.
+  std::size_t categoricalExhaustiveCap = bartcore::categoricalExhaustiveCap;
+  // Test rows below which a chain routes its test matrix on its own thread
+  // rather than borrowing its share of the thread budget. The two paths are
+  // byte-identical - routing draws no rng and each row writes its own slot -
+  // so this buys time only. The default sits past the measured crossover:
+  // four threads already win 1.54x at 65536 rows and 2.97x at 262144, while
+  // the serial path costs 16.5 msec per iteration at 32768.
+  std::size_t testFitParallelCutoff = 65536;
+  // Traversals below which an out-of-sample replay runs inline on the
+  // caller's thread; 0 takes Sampler::predictParallelCutoff, the calibrated
+  // default. Bitwise identical at any worker count, so this buys time only.
+  std::size_t predictParallelCutoff = 0;
+  // Nonzero fraction at or below which a CSC-built column takes rank-bitmap
+  // storage instead of densified codes. Predictor memory against gather time,
+  // both real at the default: the rank decode costs 38 percent of a sweep and
+  // the sparse store holds 3.5x less than the dense one. No draw depends on
+  // it. Read at BUILD, so it fixes each column's layout for the store's life.
+  double sparseDensityThreshold = bartcore::sparseDensityThreshold;
 
   // Every predictor value the store ingests, in one borrowed view: the dense
   // block and/or the CSC (dgCMatrix-layout) triple, the per-column source map
@@ -2150,6 +2191,8 @@ public:
       double* y = response_->workingResponse();
       const double* weights = response_->workingWeights();
       GrowScratch growScratch;
+      growScratch.categoryScan.exhaustiveCap =
+        options_.categoricalExhaustiveCap;
 
       for (size_t sweep = 0; sweep < numSweeps; ++sweep) {
         // heteroscedastic: the scan reads precisions, and under a variance
@@ -4250,16 +4293,20 @@ private:
   void routeTestRows(size_t numTest, F fn) {
     size_t chains = options_.numChains > 0 ? options_.numChains : 1;
     size_t budget = options_.numThreads / chains;
-    if (budget >= 2 && numTest >= testFitParallelCutoff) {
+    size_t cutoff = options_.testFitParallelCutoff;
+    testFitPartition.numRows.store(numTest, std::memory_order_relaxed);
+    testFitPartition.numWorkers.store(1, std::memory_order_relaxed);
+    if (budget >= 2 && numTest >= cutoff) {
       if (testFitPool_ == nullptr ||
           misc_mt_getNumThreads(testFitPool_) != budget) {
         if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
         misc_mt_create(&testFitPool_, budget);
       }
       size_t numThreads, perThread, offByOne;
-      misc_mt_getNumThreadsForJob(testFitPool_, numTest,
-                                  testFitParallelCutoff / 2, &numThreads,
-                                  &perThread, &offByOne);
+      misc_mt_getNumThreadsForJob(testFitPool_, numTest, cutoff / 2,
+                                  &numThreads, &perThread, &offByOne);
+      testFitPartition.numWorkers.store(numThreads,
+                                        std::memory_order_relaxed);
       if (numThreads > 1) {
         std::vector<TestFitRange<F>> ranges(numThreads);
         std::vector<void*> ptrs(numThreads);
@@ -5994,16 +6041,6 @@ private:
   // share of the thread budget; created lazily, never below the cutoff. The
   // forests borrow it through routeTestRows.
   misc_mt_manager_t testFitPool_ = nullptr;
-  // Test rows below which routing stays on the chain's own thread. Nothing
-  // breaks either side of it - the two paths are byte-identical, routing
-  // draws no rng and each row writes its own slot - so the only thing at
-  // stake is time, and this value sits PAST the crossover: at the cutoff
-  // itself four threads already run 1.54x faster (31.0 against 20.1 msec per
-  // iteration, n.train 2000, 75 trees), rising to 2.97x at 262144, while the
-  // serial cost is linear in the row count and already 16.5 msec at 32768.
-  // A test set between the crossover and this value pays for a pool it does
-  // not get.
-  static constexpr size_t testFitParallelCutoff = 65536;
 
   // Node-indexed scatter-add accumulator for the fused roll, fusedSuffstatBanks
   // copies laid out bank-major, doubled for a weighted pass, which banks sum w

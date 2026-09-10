@@ -250,6 +250,10 @@ methods::setClass(
     n.thin = "integer",
     printEvery = "integer",
     printCutoffs = "integer",
+    categoricalExhaustiveCap = "integer",
+    testFitParallelCutoff = "integer",
+    predictParallelCutoff = "integer",
+    sparseDensityThreshold = "numeric",
     seed = "integer",
     updateState = "logical",
     call = "language"
@@ -272,6 +276,10 @@ methods::setClass(
     n.thin = 1L,
     printEvery = 100L,
     printCutoffs = 0L,
+    categoricalExhaustiveCap = 10L,
+    testFitParallelCutoff = 65536L,
+    predictParallelCutoff = 50000L,
+    sparseDensityThreshold = 0.2,
     seed = NA_integer_,
     updateState = TRUE,
     call = quote(call("NA"))
@@ -379,6 +387,42 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (is.na(object@printCutoffs) || object@printCutoffs < 0L) {
     return("'printCutoffs' must be a non-negative integer")
+  }
+
+  ## the four engine limits: each is read once, when the sampler is created
+  if (
+    length(object@categoricalExhaustiveCap) != 1L ||
+      is.na(object@categoricalExhaustiveCap) ||
+      object@categoricalExhaustiveCap < 2L
+  ) {
+    return("'categoricalExhaustiveCap' must be a single integer >= 2")
+  }
+  ## 2^(P - 1) - 1 candidates are enumerated at P present levels, so a cap
+  ## past 30 asks for more candidates than an int can index
+  if (object@categoricalExhaustiveCap > 30L) {
+    return("'categoricalExhaustiveCap' must be at most 30")
+  }
+  if (
+    length(object@testFitParallelCutoff) != 1L ||
+      is.na(object@testFitParallelCutoff) ||
+      object@testFitParallelCutoff < 1L
+  ) {
+    return("'testFitParallelCutoff' must be a single positive integer")
+  }
+  if (
+    length(object@predictParallelCutoff) != 1L ||
+      is.na(object@predictParallelCutoff) ||
+      object@predictParallelCutoff < 1L
+  ) {
+    return("'predictParallelCutoff' must be a single positive integer")
+  }
+  if (
+    length(object@sparseDensityThreshold) != 1L ||
+      is.na(object@sparseDensityThreshold) ||
+      object@sparseDensityThreshold < 0.0 ||
+      object@sparseDensityThreshold > 1.0
+  ) {
+    return("'sparseDensityThreshold' must be a single number in [0, 1]")
   }
 
   if (is.na(object@updateState)) {
