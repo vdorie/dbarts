@@ -240,7 +240,9 @@ call sites):
    all - the neutrality pin.
 
 S2, the flat C header (inst/include/dbarts/dbarts.h, src/C_interface.cpp,
-tests/cpp, inst/tinytest/test-capi.R):
+tests/cpp, inst/tinytest/test-capi.R; landed also touching
+src/R_interface_bartcore_common.hpp, src/R_interface_bartcore.cpp,
+tests/cpp/Makefile, tests/cpp/main.cpp and tests/cpp/common.hpp):
 
 9. Declare `dbarts_draw` - size-first `structSize`, the indices, the shape
    counts, the channel pointers and the scalars - and
@@ -464,3 +466,81 @@ the CI evidence for this slice is therefore the 5a05d799 run.
 Remaining: S2 through S5 (the flat C header, the R surface wiring
 `callback` and the control slot, the vignette example and manual, the
 stan4bart record) are open, per the plan's Steps.
+
+## Landing note, S2 (2026-09-10)
+
+LANDED at e40631405ea04a8deb5cb1b50418ce81bb5633b0, six commits:
+
+- 886c25374ad34b6bee797a0eda8c1e6c5d9294a5 Stop the draw-callback stop test from chain 0 only so its count is pinned
+- 658f9f25756d8246158e75b504e66ed418234a85 Ship the per-draw callback types and the setter in dbarts.h
+- 34d2650ad93353709292b26b0841e5f21ba20212 Pin the shipped draw struct and the setter in tests/cpp
+- 752dd2d1641626d2618583120c594edade535599 Drive the shipped draw callback from the plain-C consumer
+- c5a77936d8465cce93625a866e2d84c3e0904846 Say what the ABI token folds for the per-draw struct
+- e40631405ea04a8deb5cb1b50418ce81bb5633b0 Drop the field-order mirror test and the setter's restated abort contract
+
+886c2537 precedes S2: CI failed the draw-stop test on 5a05d799 under
+four workers (any chain could trip the abort, leaving chain 0's count
+unpinned); chain 0 alone stops now, exactly.
+
+[`dbarts_draw`](../../inst/include/dbarts/dbarts.h) - size-first
+`structSize` filled by the library, the indices, shape counts, ten
+channel pointers, four by-value scalars, `DrawInfo`'s order, an
+optional field read through
+[`DBARTS_DRAW_HAS`](../../inst/include/dbarts/dbarts.h) - and
+`dbarts_draw_callback` and `dbarts_sampler_setDrawCallback` join
+`DBARTS_C_API_LIST`: a copying setter, a null `fn` clears and drops
+the context. Token re-baked: `DBARTS_C_API_HASH`
+`0x6380bf095d5cae3f`, signature literal `0xb6f41cfcbd996897`, version
+pair unchanged at 1/0. `dbarts_draw` is the first ABI struct with
+by-value doubles: its scalars fold by name, position and width rather
+than pointer-unit offset, so the token is one number on ILP32 too -
+the header now says so.
+
+One adapter, [`fillShippedDraw`](../../src/R_interface_bartcore_common.hpp)
+and [`ShippedDrawHook`](../../src/R_interface_bartcore_common.hpp),
+used by both routes: R's
+[`bartcore_run`](../../src/R_interface_bartcore.cpp) (now casts
+through `dbarts_draw_callback`) and the flat
+[`dbarts_sampler_setDrawCallback`](../../src/C_interface.cpp).
+[tests/cpp/test_capi.cpp](../../tests/cpp/test_capi.cpp) (new):
+registration, clear, re-registration, the adapter copying every
+field. The plain-C
+[inst/tinytest/capi/consumer.c](../../inst/tinytest/capi/consumer.c)
+gains `capi_draw_function`, `capi_draw_context`,
+`capi_draw_reset(stopAfter)` and `capi_draw_report` (per-chain
+counts, indices, sigma, status), driven by
+[inst/tinytest/test-capi.R](../../inst/tinytest/test-capi.R).
+
+Files beyond the plan's S2 list: src/R_interface_bartcore_common.hpp,
+src/R_interface_bartcore.cpp, tests/cpp/Makefile, tests/cpp/main.cpp,
+tests/cpp/common.hpp. About 660 added lines against the ~145 S2
+budget (header prose, the shared adapter, tests - none itemized
+there), reported by the implementer; the reviewer judged it not
+padded but cut about 40 lines at landing (e4063140: a field-order
+mirror test pinning a convention the code does not depend on, a
+restated abort paragraph on the setter's doc).
+
+Gates, the second reader's run on the rebased slice, all foreground:
+`R CMD INSTALL --preclean` exit 0; tests/cpp 299 ok lines, all
+passed; tinytest 8297 TRUE, 0 FALSE, 165 files, 0 skips, `test-capi.R`
+143 tests ran; equivalence against the f0236082 baselines 52 of 52,
+BCF 12 of 12, multinomial 11 of 11 "identical draws (same RNG
+stream)", zero "max |z|", zero skipped; `check-doc-freshness`,
+`check-rc-codoc`, `check-win-drift` exit 0; `check-api-hash.sh` "no
+release tag, skipped"; `R CMD check --as-cran` Status OK; mutation
+probe: dropping `numObservations` from the adapter fails "capi draw:
+the adapter copies every channel and scalar". Review findings fixed
+before landing: the header's token paragraph described the fold
+wrongly for `dbarts_draw` (fixed in c5a77936); one over-long comment
+line.
+
+Two notes to S3: a hook via `dbarts_sampler_setDrawCallback` does not
+fire on the R route - `bartcore_run` builds its own per-run hook from
+the R callback argument, so the R argument is the R route's only
+channel, and S3's Rd says so; the R route's shipped-struct path is
+proven structurally (one adapter chain) and is first executed by
+S3's tests.
+
+Remaining: S3 through S5 (the R surface wiring `callback` and the
+control slot, the vignette example and manual, the stan4bart record)
+are open, per the plan's Steps.
