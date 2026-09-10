@@ -259,7 +259,7 @@ above the derived totals above, the same direction and size as the grid's own
 residuals.
 
 Two channels carry no row above, both owed once
-[per-draw callbacks](per-draw-callbacks.md#6-memory-consequence)'s
+[6. Memory consequence](per-draw-callbacks.md#6-memory-consequence)'s
 `keepFits = FALSE` argues from their absence: a heteroscedastic fit's
 variance channel is one more n*S*C array, the same size as `yhat.train`'s own
 single copy - 1600.0 MB at case 1's shape, 4000.0 MB at case 2's; a BCF fit's
