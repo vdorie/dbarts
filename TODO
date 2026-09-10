@@ -368,8 +368,8 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
 memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   13cb7e8a, script and validation 2f25e3d1, step 7's two-copy removal
   fd104888, the follow-ons below at 5a05d799, baseline
-  benchmarks/baselines/memory-footprint-b184b6b2.csv (stale since the
-  follow-ons; re-record owed, below). Further follow-on, its own entry
+  benchmarks/baselines/memory-footprint-3388dc15.csv, recorded at
+  9171ff64 and scored below. Further follow-on, its own entry
   when opened: the last full-size copy needs the bridge to allocate the
   prediction channel draw-major and the engine to write it strided)
   audit the per-sampler footprint as a function of n, p, trees and
@@ -390,10 +390,13 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   n = 1e5, T = 200, C = 1 on the linear leaf: peak RSS 689.0 MB to
   518.2 MB, the fit 1.8 pct slower. The footprint model's ingestion
   allowance, starting-sigma and leaf statistics cache rows moved with
-  them, so a re-record of
-  benchmarks/baselines/memory-footprint-b184b6b2.csv, on a quiet
-  machine, is owed, and the cache's level multiplier rests on one
-  post-prune cell until it is.
+  them and the grid was re-recorded on a quiet machine, which put the
+  posterior-mean reduction's collector churn back in the model (180
+  bytes per reduced observation to a 20 MB ceiling, measured gaussian
+  against probit) - the ingestion allowance had been standing in for it.
+  The grid scores 3.7 pct median absolute relative residual with no cell
+  outside max(10 pct, 20 MB), and the cache's level multiplier now has
+  the whole grid behind it.
 
 per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
   LANDED 2026-09-11: S1 711942ad, S2 e4063140, S3 db3bd084, S4 4cf56b69,

@@ -521,3 +521,66 @@ only decides whether a value is recomputed must be. The 30-cell footprint
 grid was not re-recorded; the model's cache multiplier is the post-prune
 reading at the one cell, and the re-record already owed for the earlier
 follow-ons covers it.
+
+## Landing note, re-record (2026-09-11)
+
+LANDED on the model side only; the commits are named at landing. The
+recording itself is 9171ff64,
+[benchmarks/baselines/memory-footprint-3388dc15.csv](../../benchmarks/baselines/memory-footprint-3388dc15.csv):
+30 cells plus the probes, recorded 2026-09-10 at the tip 1456e999, one
+subprocess at a time on a quiet arm64 macOS host.
+
+Scored against the model as the recording found it, three cells missed:
+n = 1e5, p = 20, T = 75 and T = 200 and T = 200 with keepTrees, 23.3, 22.9
+and 23.3 MB high against a 20.0 MB tolerance, median absolute relative
+residual 2.8 pct. The three follow-ons all moved the model downward, so the
+misses had to be a row the model was not carrying rather than a row it
+carried wrong.
+
+It is the posterior-mean reduction's collector churn, and the paired
+measurements name it without a fitted constant.
+[`channelMeans`](../../R/bart.R) allocates one length-S*C vector per reported
+observation, and [`packageBartResults`](../../R/bart.R) calls it only when the
+family reports a posterior mean, which probit does not: the same cell reads
+250.8 MB gaussian against 232.9 MB probit at n = 1e5, p = 20, T = 200,
+C = 1, S = 10, and the gap closes to 1.4 MB (303.4 against 304.8) under
+`keepTrainingFits = FALSE`, which drops the training channel and its mean
+together. The row had been carried while the mean went through `apply` and
+was dropped at b184b6b2 because keeping it turned every residual negative -
+but the ingestion allowance then was 2.1 to 2.4 copies of 8*n*p and is now
+1.05 to 1.45, the transient complete-cases copy having left the probe. The
+allowance had been standing in for the churn at the cells that decided the
+removal.
+
+The model carries it again as 180 bytes per reduced observation to a 20 MB
+ceiling, both measured: the rate from the paired difference over n at n = 1e4
+and 1e5, the ceiling from n = 1e6, where the rate alone would be 180 MB and
+the measured difference is 20.4 MB. Two grid shapes sit outside it and the
+note says so - n = 1e5, p = 10, where the measured difference is 0.0 MB
+against a charged 18.0, and n = 1e5, S = 200, where it is 35.6 against 20.0.
+
+`fit` now re-scores rather than re-reports: the measurement columns stay the
+recording's and the two probed allowances with them, and the prediction is
+recomputed, so a model correction is scored against an existing grid instead
+of owing a new one. A recording pins measurements; a score quoted for one is
+the score at the model of its own day, which the MANIFEST rows now say.
+
+After: 3.7 pct median absolute relative residual, no cell outside
+max(10 pct, 20 MB), worst cell n = 1e5, p = 10 at -13.7 MB against 22.7 MB.
+The median rose from 2.8 because the sixteen n = 1e4 cells turn from about
+0.4 MB under to about 1.4 MB over on 20 to 50 MB predictions; the gate that
+moved is the per-cell one.
+
+Nothing engine-side moved and nothing shipped: the change is
+[benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R), the
+note, this plan, the MANIFEST and the TODO entry. The leaf-cache multiplier
+the prune took to 1.1 levels now has the whole grid behind it rather than one
+cell - the two linear cells land 9.4 MB high at T = 200 and 0.7 MB low at
+T = 75, against tolerances of 41.9 and 21.4 MB.
+
+Gates: `Rscript benchmarks/R/memory-footprint.R fit
+benchmarks/baselines/memory-footprint-3388dc15.csv` OK, every cell within
+tolerance, 30 cells; `quick` mode run to exercise the recording path's new
+column; `lintr::lint` no lints; `tools/check-doc-freshness.R` OK. The 30-cell
+grid was NOT re-run: the machine was not quiet and the recording is what the
+model is scored against.

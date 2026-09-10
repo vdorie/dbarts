@@ -9,7 +9,12 @@
 # Usage:
 #   Rscript memory-footprint.R                  run the grid and report
 #   Rscript memory-footprint.R record [out.csv] run and write a baseline CSV
-#   Rscript memory-footprint.R fit base.csv     re-report a recorded CSV
+#   Rscript memory-footprint.R fit base.csv     re-score a recorded CSV
+# 'fit' scores a recording against the model AS IT NOW STANDS: the
+# measurement columns are the recording's, the prediction is recomputed, so a
+# corrected model is scored against an existing grid without re-running it.
+# A recording therefore only pins the measurements; a score quoted for one in
+# the MANIFEST is the score at the model of its own day.
 # Append 'quick' for a three-cell smoke test of the plumbing; its cells are
 # far too small to discriminate the model, so quick mode reports but does not
 # score.
@@ -27,11 +32,10 @@
 #                 caller's matrix - one persistent subset copy and one
 #                 transient complete-cases copy, of which only as much
 #                 reaches the peak as the collector has not reclaimed
-# Both are host-dependent; neither is a byte count the source fixes. The
-# training-fit mean carried a third, the collector churn apply() left behind
-# per observation; the reduction that replaced it leaves too little to
-# resolve against page granularity, so the model no longer carries a term
-# for it.
+# Both are host-dependent; neither is a byte count the source fixes. A third
+# term, the posterior-mean reduction's collector churn, gets its own column
+# beside them but is derived from the measured per-observation coefficient
+# MEAN.CHURN below rather than probed per cell.
 #
 # Every cell supplies 'sigest'. Left unset, a gaussian fit estimates the
 # starting sigma with an lm() over the whole design, whose model frame, na
@@ -65,6 +69,23 @@ MEAN.NODES <- 5.73
 # statistics cache row of the design note for why a level count rather than
 # a node count is the right multiplier.
 CACHE.LEVELS <- 1.1
+
+# Bytes per reduced observation the posterior-mean reduction leaves resident
+# at the peak, and the ceiling the collector puts on their total.
+# channelMeans() allocates one length-(S*C) vector per reported observation,
+# for the training channel and the test channel, and how much of that is
+# still resident at packaging is a collector outcome, not a byte count: this
+# is the second non-derived input after MEAN.NODES. Measured as the paired
+# difference between the same cell fit gaussian and fit probit, which takes
+# no posterior mean, at n = 1e5, p = 20, T = 200, C = 1, S = 10: 250.8 MB
+# against 232.9 MB, and 303.4 against 304.8 for the same pair under
+# keepTrainingFits = FALSE, which drops the channel and its mean together.
+# The rate is that difference over n, confirmed at n = 1e4 (1.5 to 2.3 MB);
+# the ceiling is where the collector's own cycle bounds it, read off n = 1e6,
+# p = 20, where the rate alone would be 180 MB and the measured difference is
+# 20.4 MB.
+MEAN.CHURN <- 180
+CHURN.CEILING <- 20 * MB
 
 baseCell <- function() {
   list(
@@ -225,6 +246,14 @@ predictBytes <- function(cell, warmup = 0, ingest = function(n, p) 0) {
   # makes on top of them are the measured ingestion allowance
   predictors <- 8 * n * p + 24 * n.test * p + 8 * n
 
+  # the posterior-mean reduction's collector churn over the channels it
+  # reduces; a binary fit takes no posterior mean and pays none of it
+  mean.churn <- if (binary) {
+    0
+  } else {
+    min(MEAN.CHURN * (n + n.test), CHURN.CEILING)
+  }
+
   closed.form <- sampler +
     cell$n.chains * per.chain +
     saved.trees +
@@ -234,8 +263,9 @@ predictBytes <- function(cell, warmup = 0, ingest = function(n, p) 0) {
   list(
     closed.form = closed.form,
     warmup = warmup,
+    churn = mean.churn,
     ingest = ingest(n, p),
-    total = closed.form + warmup + ingest(n, p)
+    total = closed.form + warmup + mean.churn + ingest(n, p)
   )
 }
 
@@ -374,12 +404,13 @@ runGrid <- function(quick) {
   addRow("_warmup", "peak_rss_mb", warmup / MB)
 
   cat(sprintf(
-    "%-34s %9s %9s %7s %7s %9s\n",
+    "%-34s %9s %9s %7s %7s %7s %9s\n",
     "cell",
     "measured",
     "predicted",
     "closed",
     "warmup",
+    "churn",
     "ingest"
   ))
   for (cell in buildGrid(quick)) {
@@ -390,18 +421,20 @@ runGrid <- function(quick) {
     predicted <- parts$total / MB
     name <- cellName(cell)
     cat(sprintf(
-      "%-34s %9.1f %9.1f %7.1f %7.1f %9.1f\n",
+      "%-34s %9.1f %9.1f %7.1f %7.1f %7.1f %9.1f\n",
       name,
       measured,
       predicted,
       parts$closed.form / MB,
       parts$warmup / MB,
+      parts$churn / MB,
       parts$ingest / MB
     ))
     addRow(name, "peak_rss_mb", measured)
     addRow(name, "predicted_mb", predicted)
     addRow(name, "residual_mb", measured - predicted)
     addRow(name, "closed_form_mb", parts$closed.form / MB)
+    addRow(name, "churn_mb", parts$churn / MB)
     addRow(name, "ingest_mb", parts$ingest / MB)
   }
 
@@ -425,6 +458,37 @@ runGrid <- function(quick) {
   rows$rev <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
   rows$date <- format(Sys.Date())
   rows$quick <- quick
+  rows
+}
+
+# Replaces a recording's predicted and residual columns with the prediction
+# the model makes today, cell by cell. The measurements stay the recording's,
+# and so do the two measured allowances it carries - the _warmup row and each
+# cell's ingest_mb - so what moves is exactly what the model's own rows moved.
+# Cells are matched to the grid by name rather than parsed back out of it: a
+# recording whose scenarios the current grid does not build cannot be scored
+# against the current model at all, and says so.
+rescore <- function(rows) {
+  cells <- buildGrid(isTRUE(rows$quick[[1L]]))
+  names(cells) <- vapply(cells, cellName, character(1L))
+  warmup <- rows$value[rows$scenario == "_warmup"] * MB
+  measured <- rows$metric == "peak_rss_mb" & !startsWith(rows$scenario, "_")
+  for (name in rows$scenario[measured]) {
+    cell <- cells[[name]]
+    if (is.null(cell)) {
+      stop("recorded cell '", name, "' is not one the current grid builds")
+    }
+    ingest <- rows$value[rows$scenario == name & rows$metric == "ingest_mb"]
+    parts <- predictBytes(cell, warmup, function(n, p) ingest * MB)
+    predicted <- parts$total / MB
+    peak <- rows$value[rows$scenario == name & rows$metric == "peak_rss_mb"]
+    isCell <- rows$scenario == name
+    rows$value[isCell & rows$metric == "predicted_mb"] <- predicted
+    rows$value[isCell & rows$metric == "residual_mb"] <- peak - predicted
+    rows$value[isCell & rows$metric == "closed_form_mb"] <- parts$closed.form /
+      MB
+    rows$value[isCell & rows$metric == "churn_mb"] <- parts$churn / MB
+  }
   rows
 }
 
@@ -590,7 +654,9 @@ if (mode == "fit") {
   if (length(args) < 2L) {
     stop("usage: memory-footprint.R fit baseline.csv")
   }
-  if (!reportResiduals(read.csv(args[[2L]]), !quick)) quit(status = 1L)
+  if (!reportResiduals(rescore(read.csv(args[[2L]])), !quick)) {
+    quit(status = 1L)
+  }
 } else {
   results <- runGrid(quick)
   duplicates <- measureDuplicates(quick)

@@ -2,26 +2,22 @@
 
 Status: VALIDATED against measured peak resident set size by
 [benchmarks/R/memory-footprint.R](../../benchmarks/R/memory-footprint.R) on
-arm64 macOS, first at 80ff32b4 and re-validated after the transient copies
-came out of packaging. Every one of the 30 grid cells falls within
-max(10 pct, 20 MB) of the model, and the median absolute relative residual
-over the whole grid is 3.0 to 4.7 pct across runs against a 5 pct limit. The
-top of that spread, and the one linear-cell miss seen with it, came from a
-run that overlapped another job on the host; on a quiet machine the median is
-3.0 to 4.2 pct with no cell outside. The worst cell on a quiet run is
-n = 1e5, p = 20, T = 200, C = 1, S = 200, keepTrees, 39.6 to 39.7 MB high
-against a 55.8 MB tolerance, which is the collector churn the model no longer
-carries a row for. The margin on
+arm64 macOS, first at 80ff32b4, again after the transient copies came out of
+packaging, and again against
+[benchmarks/baselines/memory-footprint-3388dc15.csv](../../benchmarks/baselines/memory-footprint-3388dc15.csv),
+recorded once the follow-ons had moved the starting-sigma, ingestion and
+leaf-cache rows and landed at 9171ff64. Every one of the 30 grid cells falls within
+max(10 pct, 20 MB) of the model and the median absolute relative residual is
+3.7 pct against a 5 pct limit. The worst cell is n = 1e5, p = 10, 13.7 MB
+LOW against a 22.7 MB tolerance: the posterior-mean churn row is charged
+there and the collector reclaims it at that shape. An earlier run overlapping
+another job on the host read a 4.7 pct median with one linear-cell miss, so
+the grid is scored on a quiet machine and nowhere else. The margin on
 the median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
 byte model cannot reach. "What the measurement moved" records the rows the
-first run changed and "What the removal moved" the rows the second did.
-Two rows have moved since that validation without a re-recording - the
-ingestion allowance and the starting-sigma row, both cut by the follow-ons
-in "The largest avoidable allocations, ranked" - so a re-record of
-benchmarks/baselines/memory-footprint-b184b6b2.csv against the model as it
-now stands is OWED. Both moves are downward and neither touches the engine
-rows, so the grid's residuals can only have grown more negative.
+first run changed, "What the removal moved" the rows the second did, and
+"What the re-record moved" the row the third did.
 
 The closed-form model of what a fit allocates, per component, in the units the
 allocations have. Every byte count is read off the element type and the
@@ -74,6 +70,7 @@ differently.
 | result variance channel | [`varianceTrainExpr`](../../src/R_interface_bartcore.cpp), [`varianceTestExpr`](../../src/R_interface_bartcore.cpp) | saved sample | 8 | n*S*C, plus nTest*S*C | heteroscedastic |
 | yhat.train transient copy | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 1 extra n*L*S*C live at peak, on every family and either setting of combineChains | keepTrainingFits |
 | yhat.test transient copy | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 1 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
+| posterior-mean reduction churn | [`channelMeans`](../../R/bart.R), from [`packageBartResults`](../../R/bart.R) | saved sample | 180 measured | n + nTest, to a ceiling of 20 MB | any family that reports a posterior mean, which binary does not. One length-S*C vector per reported observation; how much survives to the peak is a collector outcome, so the coefficient is measured - see below |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
 | raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
 | raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy | sampler | 8 | up to n*p, plus nTest*p | always: the subset copy is persistent and fires on a matrix with no subset. The transient complete-cases copy beside it fired unconditionally too until this arc, and now only when a row is actually dropped. Measured per host and shape, not derived - see below |
@@ -102,17 +99,20 @@ and their copies are. On the matrix door a short run (n.burn = 0, small
 n.samples, as the audit's cells are) peaks at PACKAGING, not at ingestion: the
 per-chain n*T pair is already resident by then and dominates both. Ingestion
 wins only when no `sigest` is given, and then by the starting-sigma least
-squares, not by the store: on this host that estimate raises the peak by
-18.2 MB at p = 10, 16.2 MB at p = 20 and 101.3 MB at p = 50 (n = 1e5,
+squares, not by the store: on the 9171ff64 recording that estimate raises
+the peak by
+7.6 MB at p = 10, 32.0 MB at p = 20 and 85.3 MB at p = 50 (n = 1e5,
 T = 200, S = 10, each the paired difference between the same call with and
-without `sigest`). It was 48.0, 70.8 and 178.0 MB while the estimate went
-through `lm` (below). The formula and data-frame doors add
+without `sigest`). The same excursion read 51.6, 67.8 and 167.4 MB while the
+estimate went through `lm` (below). The formula and data-frame doors add
 their own model-frame transients on top; the audit measures the matrix door,
 where they do not exist.
 
-Two rows above are not byte counts and are measured per host rather than
+Three rows above are not byte counts and are measured per host rather than
 derived. The script reports each in its own column beside the closed form, so
-the gate never hides behind them.
+the gate never hides behind them. The first two are probed once per
+recording; the third, the posterior-mean churn, is a coefficient carried in
+the script ("The non-derived inputs" below).
 
 - The fit-path warm-up, 5.8 MB on this host: the R session's one-off growth
   from byte-compiling the fit closures and populating the S4 dispatch tables.
@@ -121,29 +121,34 @@ the gate never hides behind them.
   persistent subset copy and a transient complete-cases copy, both taken even
   when nothing was subset and nothing was missing - and the derived 16*n*p
   was an UPPER bound on what reached the peak, since the transient's pages
-  are the collector's to reclaim before packaging. Measured then, over and
-  above the caller's own matrix and response: 0.6 MB at n = 1e4 p = 10,
-  8.2 MB at n = 1e4 p = 50, 22.4 MB at n = 1e5 p = 10, 38.3 MB at n = 1e5
-  p = 20, 83.5 MB at n = 1e5 p = 50 and 376.5 MB at n = 1e6 p = 20 - between
-  0.8 and 2.8 copies, never the derived 2 flat. The transient copy is now
-  taken only when a row is actually dropped, so those figures are an upper
-  bound on the current allowance, and the derived bound is 8*n*p; they have
-  not been re-measured over the grid (below).
+  are the collector's to reclaim before packaging. The transient copy is now
+  taken only when a row is actually dropped, so the derived bound is 8*n*p.
+  Measured on the 9171ff64 recording, over and above the caller's own
+  matrix and response:
+  0.0 MB at n = 1e4 p = 10, 1.4 MB at n = 1e4 p = 20, 4.1 MB at n = 1e4
+  p = 50, 11.6 MB at n = 1e5 p = 10, 20.0 MB at n = 1e5 p = 20, 42.3 MB at
+  n = 1e5 p = 50 and 200.3 MB at n = 1e6 p = 20 - 1.05 to 1.45 copies, where
+  the same probe read 0.8 to 2.8 before the transient came out.
+- The posterior-mean reduction's churn, 180 bytes per reduced observation to
+  a 20 MB ceiling, below.
 
-The measured p slope of the fit's own peak carries the same spread: 14.9
-bytes per n*p between p = 10 and p = 20 at n = 1e5, 30.0 between p = 20 and
-p = 50 there, 18.8 to 28.5 between p = 10 and p = 50 at n = 1e4. Two copies
-plus the codes would be 18 flat and three plus codes 26; neither holds
-everywhere, because whether the transient copy is still resident at packaging
-is a collector outcome and not a byte count. Each allowance is the high-water
+The measured p slope of the fit's own peak carries the same spread: 37.0
+bytes per n*p between p = 10 and p = 20 at n = 1e5, 16.0 between p = 20 and
+p = 50 there, 18.5 to 19.7 between p = 10 and p = 50 at n = 1e4. One copy
+plus the codes is 18, which the n = 1e4 pairs give and the n = 1e5 pairs
+straddle. The n = 1e5 pair that straddles it high is not a predictor row at
+all: the posterior-mean churn appears between p = 16 and p = 18 there, its
+gaussian-minus-probit difference reading 0.3 MB at p = 16 and 17.7 MB at
+p = 18 and holding near 19 MB from p = 20 to p = 50, so the p = 10 to p = 20
+pair prices a collector step as if it were predictor bytes. Each allowance is the high-water
 of its OWN instant, and the model sums them, which over-counts wherever a
-later instant recycles an earlier one's pages: that is what the -5 to -7 MB
-residuals at n = 1e4, p = 50 and the -24 MB at the two-chain cell are.
+later instant recycles an earlier one's pages: that is what the -1 to -3 MB
+residuals at n = 1e4, p = 50 are.
 
 ## The non-derived inputs
 
 m, the mean live node count of a tree, is the first quantity not fixed by the
-source (the leaf statistics cache's level count, below, is the second). It
+source (the posterior-mean churn coefficient, below, is the second). It
 enters the live-tree rows (negligible: 0.09 MB at T = 200, m = 8) and the
 saved-tree and stored-state rows (where it is the whole term). The
 current estimate is 3.8 at n = 2e3, growing slowly with n; the reference cases
@@ -161,7 +166,24 @@ live count, and 56*T*m is a LOWER bound on the live-tree row, not an upper one.
 Step 2 can measure only the flattened count; the arena high-water is not
 observable from R, and no channel reports it.
 
-The leaf statistics cache's level count was the second, and is no longer one:
+The posterior-mean churn coefficient is the second. `channelMeans`
+([`R/bart.R`](../../R/bart.R)) reduces the training channel and the test
+channel one reported observation at a time, allocating a length-S*C vector
+per observation, and how much of that the collector has not reclaimed by the
+peak is not a byte count. It is measured as the paired difference between the
+same cell fit gaussian and fit probit, which reports no posterior mean:
+250.8 MB against 232.9 MB at n = 1e5, p = 20, T = 200, C = 1, S = 10. Under
+`keepTrainingFits = FALSE`, which drops the training channel and its mean
+together, the same pair reads 303.4 against 304.8 and the gap is gone. That is
+180 bytes an observation, which n = 1e4 confirms (1.5 to 2.3 MB). It does not
+hold past a ceiling: at n = 1e6, p = 20 the rate would be 180 MB and the
+measured difference is 20.4 MB, so the model carries 20 MB as the ceiling the
+collector's own cycle puts on it. Neither end of that is a byte the source
+fixes, and two grid shapes sit outside the fit: n = 1e5, p = 10, where the
+difference is 0.0 MB and the model charges 18.0, and n = 1e5, S = 200, where
+it is 35.6 MB and the model charges 20.0.
+
+The leaf statistics cache's level count was the third, and is no longer one:
 the cache is pruned, and what stays resident is one partition per tree. The
 mechanism, not a node count: a cached entry is one leaf's ordered member list
 plus an inline 81-double crossproduct, and the cache is indexed by ARENA slot
@@ -226,7 +248,8 @@ Case 1: n = 1e5, p = 20, T = 200, C = 4, S = 500.
 | engine total, 4.02 + 2.40 + 4*162.97 | | 658.3 |
 | x, two live copies 16*n*p, y 8*n, sigma, varcount | R | 33.0 |
 | yhat.train, two copies live at peak, 16*n*S*C | R | 3200.0 |
-| peak, of which the engine is 17 pct | | 3891.3 |
+| posterior-mean churn, 180*n to its ceiling | R | 18.0 |
+| peak, of which the engine is 17 pct | | 3909.3 |
 
 Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 
@@ -243,7 +266,8 @@ Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 | engine total | | 1752.2 |
 | x, two live copies 16*n*p, y, sigma, varcount | R | 808.1 |
 | yhat.train, two copies live at peak, 16*n*S | R | 8000.0 |
-| peak, of which the engine is again 17 pct | | 10560.3 |
+| posterior-mean churn, at its 20 MB ceiling | R | 20.0 |
+| peak, of which the engine is again 17 pct | | 10580.3 |
 
 Both cases were measured on this host, each as a single `bart` call under
 `/usr/bin/time -l` with n.burn = 0 and `sigest` supplied, once against the
@@ -254,9 +278,11 @@ further 8*n*p off each - 16.0 MB in case 1 and 400.0 MB in case 2 - and
 neither has been re-measured since. Each drop is one whole prediction array
 to within a megabyte - 1612.2 MB against a derived 1600.0, and 4011.2 MB
 against 4000.0 - which is
-what a copy count, and not a coefficient, predicts. Both peaks read 4 to 6 pct
-above the derived totals above, the same direction and size as the grid's own
-residuals.
+what a copy count, and not a coefficient, predicts. Against the model as it
+stood when they were measured - which is the totals above plus the ingestion
+guard's 16.0 and 400.0 MB - case 1 reads 7.9 pct high and case 2 1.6 pct,
+both in the direction of the grid's own n = 1e5 residuals and case 1 wider
+than any of them.
 
 Two channels carry no row above, both owed once
 [6. Memory consequence](per-draw-callbacks.md#6-memory-consequence)'s
@@ -342,8 +368,8 @@ could have been read off without it.
   each in its own column beside the closed form, is the honest form; folding
   them into a per-unit coefficient would have hidden R-collector effects
   inside an allocation model. A third, the training-fit mean's collector
-  churn, was carried while the mean went through `apply` and is gone with it
-  (below).
+  churn, was carried while the mean went through `apply`, came out with it
+  and is back as a coefficient (below).
 
 Nothing in the engine's own rows moved. The n*T pair measured 8.02 to 8.06
 bytes per n*T under a constant leaf across every cell, against the derived
@@ -368,14 +394,43 @@ model above.
   observation-major array would change the last bits of every reported mean.
   Reducing after the permutation keeps them identical, which is what lets the
   removal be gated by comparing whole packaged fits.
-- The collector-churn allowance is gone from the model, not because the R
-  heap stopped churning - the duplicates probe still shows 1.47 times the
-  array under the reduction against `apply`'s 2.48 - but because none of it
-  reaches peak RSS in a fit any more. Scored with the allowance kept, the
-  grid's median absolute relative residual was 8.6 pct against a 5 pct limit
-  and every residual was negative; scored without it the median is 4.2 pct
-  and the residuals fall either side of zero. Its former size, 16.4 MB at
-  n = 1e5 and 121.2 MB at n = 1e6 (10 draws), was `apply`'s.
+- The collector-churn allowance came out of the model, on the evidence that
+  scoring the grid with it kept gave an 8.6 pct median absolute relative
+  residual against a 5 pct limit with every residual negative, and 4.2 pct
+  either side of zero without it. That evidence was confounded and the row is
+  back; "What the re-record moved" has it.
+
+## What the re-record moved
+
+The recording at 9171ff64 prices the three follow-on rows, and scoring it
+brought one row back.
+
+- The ingestion allowance halved, 2.1 to 2.4 copies of 8*n*p down to 1.05 to
+  1.45, which is the transient complete-cases copy leaving the probe. The
+  fit's own peak did not follow it down everywhere: at n = 1e5, p = 20 the
+  probe fell 18.2 MB and the cell fell 4.1, while at n = 1e5, p = 50 the
+  probe fell 41.1 and the cell fell 39.4. Whether a transient's pages are
+  still resident at packaging was never a byte count, and the allowance had
+  been standing in for a row that is.
+- That row is the posterior-mean reduction's churn, dropped when `apply` was
+  replaced. The reduction that replaced it churns less, not too little to
+  resolve: the same cell reads 250.8 MB gaussian and 232.9 MB probit at
+  n = 1e5, p = 20, T = 200, C = 1, S = 10, and 303.4 against 304.8 under
+  `keepTrainingFits = FALSE`, which drops the training channel and its
+  posterior mean together. The 17.9 MB is the mean's, and probit takes none
+  because it reports none. The removal looked right against the grid because
+  the ingestion allowance was over-counting by about the same amount at the
+  cells that decided it; with the ingestion allowance honest, the three
+  n = 1e5, p = 20 gaussian cells missed the tolerance by 22.9, 23.3 and
+  23.3 MB and nothing else did.
+- Restored at 180 bytes per reduced observation to a 20 MB ceiling, the grid
+  scores 3.7 pct with no cell outside, against 2.8 pct with three cells
+  outside. The median rose because the n = 1e4 cells turn from about 0.4 MB
+  under to about 1.4 MB over, which is a megabyte and a half read against a
+  20 to 50 MB prediction; the per-cell gate is what moved.
+- No engine row moved. The leaf-cache multiplier the prune took from 3.2 to
+  1.1 levels holds over the grid's two linear cells: 9.4 MB high at T = 200
+  and 0.7 MB low at T = 75, against tolerances of 41.9 and 21.4 MB.
 
 ## The largest avoidable allocations, ranked
 
