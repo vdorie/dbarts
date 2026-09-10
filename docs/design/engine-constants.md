@@ -145,7 +145,7 @@ a percent, which is the check that the sweep measures the routing and nothing
 else. At the cutoff itself threading already wins 1.54x, and the serial cost
 is linear in n.test: at 32768 a caller pays 16.5 msec per iteration on one
 thread where the threaded path, extrapolating its own 131072-to-262144 slope
-back, would cost roughly 11. The cutoff is above the point where fanning out
+back, would cost roughly 8. The cutoff is above the point where fanning out
 pays.
 
 Verdict: BINDS. The cutoff sits past the crossover; the serial path is
