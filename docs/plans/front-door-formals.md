@@ -136,3 +136,36 @@ S2, manual, NEWS, pkgdown, consumers:
     (BCF and multinomial compares per MANIFEST; identical)
     R CMD check --as-cran <tarball>
     R_LIBS=<lib> Rscript -e 'length(formals(dbarts::bart))'   # 45
+
+## Landing note, S1 (2026-09-10)
+
+LANDED at 1a6da4d8313b6a086939ad7947161c8d320711f4, four commits (the fold and the control formal, then
+one refinement and two reviewer fixes):
+
+- babe360c3a7b9244ca8933c8ce8f78dc0f0e95ff Fold bart's prior scalars onto their objects and open both front doors to a control
+- 64278e15ed7f67eb47c206808b9eed50389927cf Let a control speak for a slot it named, not only for one that differs
+- 7fb7c498929f6cd55c7fbea56387d948e30ca9d3 Let a control speak for the settings the doors read as locals
+- 1a6da4d8313b6a086939ad7947161c8d320711f4 Refuse the retired mixture beside a control that named the same slot
+
+`bart` has 45 formals (was 51), `xbart` 32, `dbarts` 26, `dbartsControl`
+24. The seven retired names ride [`consolidatedArgsFor`](../../R/tombstones.R)
+with reasons naming their objects; `k` and `sigest` stay. The tree-move
+mixture is a `dbartsControl` slot and formal read by
+[`parseProposalProbs`](../../src/R_interface_bartcore.cpp) from the
+control; a mid-run change still reaches the engine, through
+`$setControl` re-installing the model, and a refused install rolls the
+stored control back. Both doors merge a supplied control through
+[`mergeFrontDoorControl`](../../R/dbarts.R): a flat name in the door's
+matched call wins; otherwise the control's slot is taken when the
+constructor's `dbarts.supplied` record names it or the slot differs from
+a fresh control, so an explicit default and a post-construction slot
+edit both speak. A control carrying a `bartcore.*` attribute is refused
+by [`refuseFitStateControl`](../../R/dbarts.R). Review found and fixed:
+`keepTrees` and `seed` re-read as locals after the merge; xbart's cell
+samplers all seeded from a control-carried seed; the stale control
+after a refused mixture install; the retired `proposal.probs` beside a
+control naming the slot not refused like the other six. Gates at the
+tip: tinytest 8539/0; tests/cpp all passed; equivalence 52/52, BCF
+12/12, multinomial 11/11 identical; `R CMD check --as-cran` OK; air,
+lintr, doc-freshness, rc-codoc, pkgdown, NEWS parse clean. S2 (manual
+prose, argument grouping, NEWS, consumers) open.
