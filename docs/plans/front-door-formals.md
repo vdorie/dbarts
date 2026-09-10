@@ -186,7 +186,7 @@ seven retired spellings are one paragraph under `...`, each naming its
 object, and `split.probs` names `cgm()` alone since `dart()` has no
 such formal. `control` is documented on both doors with the precedence
 rule and the fit-state refusal; `proposal.probs` is documented on
-[dbartsControl](../../man/dbartsControl.Rd) with its six elements and
+[`proposal.probs`](../../man/dbartsControl.Rd) with its six elements and
 the frozen mixture; the stale xbart-control text in
 man/dbarts-deprecated.Rd and NEWS is corrected. Consumers, each
 installed against this tip and run in full: bartCause dbarts-1.0 764
