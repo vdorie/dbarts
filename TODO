@@ -484,28 +484,49 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   pre-release, small: categoricalExhaustiveCap's validity ceiling of 30
   admits a 2^29-candidate exact enumeration; the Rd's recommended range
   of 8 to 14 warns against going that high, the error message does not.
-  door (measured 2026-09-10, x86 box idle, AVX2): making the sparse
+  door (measured 2026-09-10 on the x86 box, replicated independently
+  the same day on the box and on the arm64 Mac): making the sparse
   layout bitwise - the sparse root writes the identity order before
-  partitioning in place, 3 engine lines - costs about 3.2 percent of
-  sampler time on a 120-sparse-column n = 1e5 fit (floor 1 to 2
-  percent) and nothing on dense fits, and moves five equivalence
-  scenarios (sparse, mixedmatrix, leaffactormixed, factorpartial,
-  wideFactorIndicators), all at max |z| = 0.00. The reverse - the
-  dense root partitioning in place instead of rewriting the identity -
-  is a 1.6 to 2.9 percent regression on the standard bench, because
-  the identity rewrite reads the column sequentially where the
-  in-place partition gathers through the indices (kernel bench: the
-  range partition wins at every size). Bitwise agreement is a testing
-  property no user observes, so the sparse path stays as it is unless
-  VD rules otherwise; the sparse-layout test should run 20 sweeps, not
-  one, to discriminate the layouts (the tip passes bitwise at one
-  sweep and differs by 6e-16 at twenty).
-  post-release, from the same measurement: the in-place root partition
-  makes setPredictor updates 19 percent (accept) and 29 percent
-  (reject) faster on the standard bench, the path the
-  sampler-inside-a-larger-model use hammers. Draw-changing everywhere,
-  so it waits for a release; scope it as the in-place root on the
-  setPredictor path only, with its own oracle and a full re-record.
+  partitioning in place, 3 engine lines - costs 3.2 to 3.4 percent of
+  sampler time on x86 and 7.1 percent on arm64 for a 120-sparse-column
+  n = 1e5 fit (floor 1 to 2 percent), nothing on dense fits, and moves
+  five equivalence scenarios (sparse, mixedmatrix, leaffactormixed,
+  factorpartial, wideFactorIndicators), all at max |z| = 0.00. The
+  reverse - the dense root partitioning in place instead of rewriting
+  the identity - regresses the standard bench 1.6 to 3.5 percent (x86)
+  and 3 to 4.6 percent (arm64) at n = 1000, fading toward zero by
+  n = 1e5 as the root's share of partition work shrinks: during
+  sampling the root's span is almost never already partitioned (75 of
+  about 7400 root partitions per 100 sweeps at 75 trees), so both
+  kernels swap alike and the identity rewrite wins on sequential
+  column reads over gathers through the index span (typed kernel
+  bench: range 15 to 30 percent faster on a shuffled span, 2.4 to 4.7x
+  slower on a pre-partitioned one). Bitwise agreement is a testing
+  property no user observes, so the sparse path stays as it is; the
+  sparse-layout test should run 20 sweeps, not one, to discriminate
+  the layouts (the tip passes bitwise at one sweep and differs by
+  6e-16 to 9e-16 at twenty).
+  door, from the same measurement (VD to rule): setPredictor's
+  re-partition (repartitionSubtree from the root) always receives a
+  span already partitioned under the live rules - 7400 of 7400 root
+  partitions on the accept path had zero misplaced elements - so the
+  in-place kernel does one comparison scan and no index writes where
+  the identity rewrite writes the whole span (9.9M writes per 100
+  updates at n = 1000, 75 trees; callgrind: partition cost 14.8 to
+  7.6 percent of the program on accept, 21.3 to 11.4 on reject). Taking
+  the in-place root ONLY on that path (about 30 lines, no sampling
+  change) makes setPredictor updates 19 percent (accept) and 30
+  percent (reject) faster on x86, 25 and 37 percent on arm64, at no
+  cost elsewhere (1.000 on every run scenario). It is NOT bitwise with
+  the current draws: the member order differs and leaf sums
+  reassociate at the last bit, varcount identical, so it needs a
+  re-record of every equivalence scenario that calls setPredictor and
+  its own oracle. Draw-changing, so a decision, not a defect.
+  defect, small: benchmarks/kernels/bench.c declares its index arrays
+  size_t where the partition kernels take misc_index_t (uint32), so
+  its correctness check aborts on both arm64 and x86 and its
+  range-vs-indices rows read half-zero index words; the typed rerun
+  above supersedes them until the bench is fixed.
   post-release: a size gate on the fused roll + suffstat pass, two
   thresholds rather than one - fuse weighted at n >= 1e4, unweighted at
   n >= 2e4 - since the fusion loses up to 8 percent below those and
