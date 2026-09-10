@@ -851,6 +851,115 @@ silently clamped in `ColumnStore::build` where level counts refuse by
 name; step 16 turns the clamp into a refusal. Reviewed LAND; one
 extrapolation figure corrected before landing.
 
+## Landing note, S5 steps 14, 16-18 (2026-09-11)
+
+LANDED at 1456e9994a2b4ff89f7fc4a3d5cec4c4d5222381, with the CI
+follow-up b7802bfa29d4fc238385f3cc200252607bf75a9d; ten commits on top
+of c9144267, rebased late from an earlier 9afe681d, 32864b05, 7aca4146,
+c075a19c, 346bba12 (pre-rebase):
+
+- 89c169909c89f03198bbda68e320e8be753903b3 Document each fixed engine constant at its definition, and refuse an over-cap cut request
+- 6f92e5c3581a905f6f6691150aea27823dc64500 Expose the categorical cap, the two parallel cutoffs and the sparse density threshold as control settings
+- 02639c1aedaf2c1e38548a73e94dc44dcb53116d Count Gaussian-process constant-leaf fallbacks and warn when most of a fit takes them
+- 2e41cfb87ed1a0035dccd2ec91c97bce4adc1992 Document the engine limits in the manual and NEWS, and record what each measurement led to
+- e6be25d9d1b60b15a43117731c3c2b7a75e8ebda Format the engine limits test file
+- 9f8418899131a6fb0ed9863afde0fdb9430fd394 Refuse a change to the four creation-fixed engine limits on an existing sampler
+- 2626fcfef5e71225d65f0fe4f1c7bccf4fadb47b Warn once per Gaussian-process fit, not once per sampler run
+- cc6248dd0e2f5cfb3d5304ad1e5a834c2f12dbb9 Cover the store's own refusal of an over-cap cut request
+- 93afa57422f54965155423238244622783c06844 Drop the measurements the sampler options restate from their definitions
+- 1456e9994a2b4ff89f7fc4a3d5cec4c4d5222381 Reflow the sparse density comment and restore a dropped article
+
+Step 14: every constant from the table above is now documented at its
+own definition with origin and limit -
+[`maxNumCutsRepresentable`](../../src/bartcore/data.hpp),
+[`maxCategories`](../../src/bartcore/data.hpp) and
+[`maxLevelsForKind`](../../src/bartcore/data.hpp);
+[`categoricalExhaustiveCap`](../../src/bartcore/scan.hpp);
+[`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp);
+[`perturbWidth`](../../src/bartcore/moves.hpp);
+[`testFitParallelCutoff`](../../src/bartcore/chain.hpp);
+[`predictParallelCutoff`](../../src/bartcore/sampler.hpp);
+[`sparseDensityThreshold`](../../src/bartcore/data.hpp); and
+[`maxLeafSize_`](../../src/bartcore/model.hpp). `ColumnStore::build`'s
+silent xint clamp above `maxNumCutsRepresentable` becomes a refusal
+naming the cap, on both the bridge path
+([`src/R_interface_bartcore.cpp`](../../src/R_interface_bartcore.cpp))
+and the engine path (`ColumnStore::build` itself), each tested.
+
+Step 16: four new `dbartsControl` settings - `categoricalExhaustiveCap`,
+`testFitParallelCutoff`, `predictParallelCutoff`,
+`sparseDensityThreshold` - each with a validity check and bridge
+plumbing through the single
+[`optionsFromParsed`](../../src/R_interface_bartcore.cpp) seam, so BCF,
+multinomial and survival samplers see them too since they share that
+seam. `setControl` refuses a change to any of the four on an existing
+sampler (a review finding: it had accepted one silently, leaving the
+stored control disagreeing with the engine); each setting gets a test
+that it reaches the engine and that the default reproduces today's
+draws. The predict cutoff moves from the uncalibrated 1e7 to 50000
+traversals - the crossover measures between 3e4 and 1e5, the isolated
+spawn-plus-join cost about 60 to 70 microseconds - with a test that
+predict is bitwise identical at n.threads 1 and 4 across the moved
+boundary.
+
+Step 17: the GP constant-leaf fallback tally at
+[`maxLeafSize_`](../../src/bartcore/model.hpp)'s four call sites rides
+the fit as `gp.fallback`, and `bart()` warns once above dec-B110's
+quarter-share threshold (a review finding: the standard front door
+runs burn-in and sampling as two `run()` calls, so a default fit raised
+the warning twice; the burn-in run's copy is now muffled).
+
+Step 18: [`dbartsControl`](../../man/dbartsControl.Rd)'s Engine limits
+table lists every constant, its default, recommended range and whether
+it is settable; the GP page states what the fallback warning means;
+NEWS carries the settings, the calibrated predict default, the refused
+cut request and the GP warning.
+
+Files beyond the plan's own list: `inst/tinytest/test-argument-surface.R`,
+`tests/cpp/test_facade.cpp`, `benchmarks/R/constant-xint-caps.R`,
+`R/bart.R` (the burn-in warning muffle) and `R/family.R` (`hazard()`'s
+row cap, moved there by front-door's family-object slice). Real diff:
+25 files, +1130/-64 against about 670 budgeted for steps 16-18 (step
+15's own ~200-line scripts budget was already spent at its separate
+landing) - about 1.7x, judged mostly commissioned prose (step 14) and
+tests rather than a fork; a cut list of about 30 lines of measurement
+figures repeated in shipped comments was identified and NOT applied.
+
+Gates (reviewer's run): preclean install; tests/cpp all passed;
+tinytest 8403/0; equivalence 52/12/11 identical, 0 skipped; `R CMD
+check --as-cran` OK; doc-freshness, rc-codoc, check-win-drift, lintr
+and `air format --check` clean. Mutation (tally every evaluation) fails
+two GP assertions.
+
+Follow-up (CI), 2026-09-11: b7802bfa corrects the sparse layout's
+answer-neutrality claim. CI's x86 legs (ubuntu, windows, both
+sanitizer legs) failed the sparse-layout test's bitwise assertion while
+arm64 passed; diagnosed on the x86 box as summation order, not an
+instruction-set effect - forcing every SIMD kernel off reproduces the
+same figures. A dense root column partitions through
+`misc_partitionRange`, which rewrites indices to the identity order,
+while a rank-stored column partitions in place over whatever order the
+previous partition left, so from the second root partition on a leaf
+holds the same members in a different order and `computeLeafStats`
+reassociates. Tree shapes, split counts, split variables and varcounts
+are bit-for-bit equal over 200 draws; the fits drift from about 1e-16
+at draw 2 to 4.3e-15 at draw 200. The test now runs one sweep, pins
+varcount exactly and compares fits at 1e-14 tolerance;
+[`dbartsControl`](../../man/dbartsControl.Rd),
+[engine-constants.md](../design/engine-constants.md)'s sparse section,
+and three shipped comments (`src/R_interface_bartcore.cpp`,
+`src/bartcore/chain.hpp`, `src/bartcore/tree.hpp`) now say the layout
+proposes identically but is not bitwise.
+
+Open decision (agent-made, pending VD): the four settings above are
+control-only, not `bart()` formals. The reviewer recommends keeping the
+three cutoffs (`testFitParallelCutoff`, `predictParallelCutoff`,
+`sparseDensityThreshold`) control-only, and, if `bart()` reach is
+wanted for `categoricalExhaustiveCap`, putting it on `cgm()` as
+`levelGibbs` already is ([R/model.R](../../R/model.R)), rather than
+adding four new `bart()` formals (dec-B98 removed feature-only
+formals).
+
 ## Verification
 
 ```
