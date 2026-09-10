@@ -179,9 +179,13 @@ packageBartResults <- function(
   responseIsBinary <- fit$control@binary
   n.chains <- fit$control@n.chains
 
+  # the channel's own presence, not fit$control@keepTrainingFits alone: the
+  # bridge nulls samples$train whenever EITHER keepTrainingFits or keepFits
+  # is FALSE, so testing the channel directly covers both switches without
+  # restating their conjunction here
   yhat.train <- NULL
   yhat.train.mean <- NULL
-  if (fit$control@keepTrainingFits) {
+  if (!is.null(samples$train)) {
     yhat.train <- convertSamplesFromDbartsToBart(
       samples$train,
       n.chains,
@@ -195,9 +199,12 @@ packageBartResults <- function(
     }
   }
 
+  # likewise: NROW(fit$data@x.test) > 0 says a test set exists, but
+  # samples$test is additionally null when keepFits dropped it, which
+  # keepTrainingFits alone never did
   yhat.test <- NULL
   yhat.test.mean <- NULL
-  if (NROW(fit$data@x.test) > 0) {
+  if (NROW(fit$data@x.test) > 0 && !is.null(samples$test)) {
     yhat.test <- convertSamplesFromDbartsToBart(
       samples$test,
       n.chains,
@@ -286,6 +293,15 @@ packageBartResults <- function(
 
   # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
   # original scale; NULL for a homoscedastic fit
+  #
+  # hasVariance is whether the MODEL is heteroscedastic, which survives
+  # keepFits = FALSE where !is.null(samples$variance) would not: the bridge
+  # names the "variance" slot in samples whenever the model carries the
+  # channel, even when keepFits nulls its VALUE, so a caller reading
+  # object$hasVariance below can still tell a homoscedastic fit from a
+  # heteroscedastic one whose s.train/s.test keepFits dropped - predict()'s
+  # posterior-predictive guard needs exactly that (see predict.bart)
+  hasVariance <- "variance" %in% names(samples)
   s.train <- NULL
   s.test <- NULL
   if (!is.null(samples[["variance"]])) {
@@ -417,6 +433,11 @@ packageBartResults <- function(
   # the packaged rank alone cannot do
   if (numForests > 1L) {
     result$n.forests <- numForests
+  }
+  # absent (not FALSE) off a homoscedastic fit, the same "absent, not NULL"
+  # convention the rest of this list uses
+  if (hasVariance) {
+    result$hasVariance <- TRUE
   }
   if (hasForestReporting) {
     result$forestFits <- forestFits
@@ -622,7 +643,14 @@ buildHostSamplerCall <- function(
 # the MCMC), then restored for the kept-sample run, with keepTrees re-enabled
 # after burn when requested. Returns the kept samples plus the burn-in
 # sigma/k channels.
-runWithBurnIn <- function(sampler, control, keepTrees) {
+#
+# 'callback' is installed on the KEPT-sample run only. Every burn-in sweep is
+# a recorded draw at this layer (the burn phase is its own sampler$run(...)
+# call, so nothing here tells the engine those draws are burn-in), so a hook
+# installed for both calls would see - and average - burn-in draws into
+# whatever it accumulates; the engine's own rule ("fires on saved draws") is
+# left exactly as stated, the split just never hands it the burn call.
+runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
   burnInSigma <- NULL
   burnInK <- NULL
   if (control@n.burn > 0L) {
@@ -657,20 +685,32 @@ runWithBurnIn <- function(sampler, control, keepTrees) {
     }
     sampler$setControl(control)
 
-    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
+    samples <- sampler$run(
+      0L,
+      control@n.samples,
+      updateState = FALSE,
+      callback = callback
+    )
   } else {
-    samples <- sampler$run(updateState = FALSE)
+    samples <- sampler$run(updateState = FALSE, callback = callback)
   }
   list(samples = samples, burnInSigma = burnInSigma, burnInK = burnInK)
 }
 
 # The alternate-family bart2 arcs (multinomial/ordinal/nbinom/hurdle.lognormal)
-# all refuse warm.start/n.grow.sweeps and keepTrainingFits = FALSE, differing
-# only in the family name and the keepTrainingFits reason (which completes
-# "requires keepTrainingFits = TRUE (the default): "). samplerOnly is refused
-# by default too, but allow.samplerOnly lets a caller whose returned sampler
-# is load-bearing (ordinal, nbinom) opt back in; hurdle.lognormal's $fit is a
+# all refuse warm.start/n.grow.sweeps, keepTrainingFits = FALSE, and
+# keepFits = FALSE, differing only in the family name and the reason (which
+# completes "requires keepTrainingFits = TRUE (the default): " /
+# "requires keepFits = TRUE (the default): "). samplerOnly is refused by
+# default too, but allow.samplerOnly lets a caller whose returned sampler is
+# load-bearing (ordinal, nbinom) opt back in; hurdle.lognormal's $fit is a
 # PAIR of samplers, so it stays refused.
+#
+# keepFits = FALSE reaches here two ways: the caller wrote it, or 'callback'
+# set it AUTOMATICALLY (bart()'s own default expression). Both are refused
+# alike - these families' packaging reads the training channel keepFits
+# drops - but the message names 'callback' too, since the automatic path is
+# the one a caller is least likely to expect.
 checkFamilyUnsupportedArgs <- function(
   family,
   samplerOnly,
@@ -697,6 +737,15 @@ checkFamilyUnsupportedArgs <- function(
       "family = \"",
       family,
       "\" requires keepTrainingFits = TRUE (the default): ",
+      reason
+    )
+  }
+  if (!control@keepFits) {
+    stop(
+      "family = \"",
+      family,
+      "\" requires keepFits = TRUE (the default; a supplied 'callback' ",
+      "sets it FALSE automatically unless 'keepFits' is given explicitly): ",
       reason
     )
   }
@@ -772,6 +821,8 @@ bart <- function(
   resid.prior = NULL,
   storage = c("double", "single"),
   updateState = TRUE,
+  keepFits = is.null(callback),
+  callback = NULL,
   ...
 ) {
   matchedCall <- match.call()
@@ -797,6 +848,9 @@ bart <- function(
   # (resid.dist = student()), which would not resolve in the caller's frame
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
+  # ahead of sampler construction below, so a malformed pair fails here
+  # rather than after the (possibly expensive) sampler is already built
+  validateCallback(callback)
   # the names dec-B98's consolidation moved onto the family and prior
   # objects: read once, then cleared from the matched call so no forwarding
   # can carry an old spelling on to dbarts()
@@ -1384,7 +1438,7 @@ bart <- function(
     sampler$sampleTreesFromPrior(updateState = FALSE)
   }
 
-  burn <- runWithBurnIn(sampler, control, keepTrees)
+  burn <- runWithBurnIn(sampler, control, keepTrees, callback)
   samples <- burn$samples
   burnInSigma <- burn$burnInSigma
   burnInK <- burn$burnInK

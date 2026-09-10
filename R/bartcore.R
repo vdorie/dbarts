@@ -139,10 +139,42 @@ bartcoreSamplerSetCategoryTestOffset <- function(sampler, offset.test) {
   invisible(ptr)
 }
 
+# Validates a 'callback' argument's shape - NULL, or a list carrying 'fn'
+# and 'context' elements, 'fn' an external pointer and 'context' an external
+# pointer or NULL - and returns list(fn = , context = ) with both NULL when
+# 'callback' itself is NULL, the shape .Call's two separate arguments take.
+# Nothing else is checked: the address is dereferenced exactly as handed, on
+# the chain's own worker thread, so a callback pointing at the wrong kind of
+# function crashes the session with no condition to catch.
+validateCallback <- function(callback) {
+  if (is.null(callback)) {
+    return(list(fn = NULL, context = NULL))
+  }
+  if (!is.list(callback) || !all(c("fn", "context") %in% names(callback))) {
+    stop(
+      "'callback' must be NULL or a list with 'fn' and 'context' elements"
+    )
+  }
+  fn <- callback$fn
+  context <- callback$context
+  if (is.null(fn) || typeof(fn) != "externalptr") {
+    stop("'callback$fn' must be an external pointer")
+  }
+  if (!is.null(context) && typeof(context) != "externalptr") {
+    stop("'callback$context' must be an external pointer or NULL")
+  }
+  list(fn = fn, context = context)
+}
+
 # Drives a dbartsSampler (the R-level sampler layer), reading its control
 # defaults and delegating through its external pointer; cf. bartcoreRun,
 # which drives a low-level bartcore handle directly.
-bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
+bartcoreSamplerRun <- function(
+  sampler,
+  numBurnIn,
+  numSamples,
+  callback = NULL
+) {
   control <- sampler$control
   numBurnIn <- coerceOrError(numBurnIn, "integer")
   numSamples <- coerceOrError(numSamples, "integer")
@@ -156,16 +188,21 @@ bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
     stop("bartcore engine samplers require 'numSamples' to be specified")
   }
 
-  # no per-draw callback and every fits channel kept: the run's historical
-  # behaviour, which the R surface for the two arrives to change
+  resolved <- validateCallback(callback)
+
+  # keepFits is a per-RUN argument at the .Call boundary, but this layer's
+  # own callers all read it off the control slot rather than passing an
+  # independent value: the sampler's run method takes 'callback' but not
+  # its own 'keepFits', so the control's own value is always what a run
+  # honours
   result <- .Call(
     C_dbarts_bartcore_run,
     sampler$getPointer(),
     numBurnIn,
     numSamples,
-    NULL,
-    NULL,
-    TRUE
+    resolved$fn,
+    resolved$context,
+    control@keepFits
   )
   if (is.null(result)) {
     return(invisible(NULL))

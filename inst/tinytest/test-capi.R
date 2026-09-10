@@ -286,6 +286,87 @@ expect_equal(sum(reportChains$status), 0L)
 rm(ptrChains, specChains)
 invisible(gc(FALSE))
 
+# THE R ROUTE. bart()'s own 'callback' argument builds a per-run hook from
+# the SAME two pointers, independent of dbarts_sampler_setDrawCallback above:
+# a hook registered through that C entry does not fire here, and one
+# registered through 'callback' does not fire through capi_run's own
+# 'callback' slot either - the two channels never see each other's draws.
+callbackFn <- CALL("capi_draw_function")
+callbackContext <- CALL("capi_draw_context")
+
+# exactly n.samples calls at bart()'s own n.burn/n.samples defaults (500,
+# 500): the burn-in regression. A hook that saw the burn phase too would
+# report 1000 calls, not 500 - the split bart()'s runWithBurnIn makes
+# installs the callback on the kept-sample run alone. Kept small everywhere
+# BUT n.burn/n.samples so 1000 total sweeps stays fast.
+set.seed(101)
+nBurnIn <- 16L
+xBurnIn <- matrix(runif(nBurnIn * 2L), nBurnIn, 2L)
+yBurnIn <- xBurnIn[, 1L] + rnorm(nBurnIn, 0, 0.2)
+CALL("capi_draw_reset", -1L)
+fitBurnIn <- bart(
+  xBurnIn,
+  yBurnIn,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  callback = list(fn = callbackFn, context = callbackContext),
+  verbose = FALSE
+)
+reportBurnIn <- CALL("capi_draw_report")
+expect_equal(sum(reportBurnIn$calls), 500L)
+expect_equal(reportBurnIn$calls[1L], 500L)
+expect_equal(reportBurnIn$last.draw.index[1L], 499L)
+expect_equal(sum(reportBurnIn$status), 0L)
+# a callback fit's automatic keepFits = FALSE means no train channel at all
+expect_null(fitBurnIn$yhat.train)
+
+# per-chain counts under n.threads > 1, driven the same way through bart()
+nMulti <- 20L
+xMulti <- matrix(runif(nMulti * 2L), nMulti, 2L)
+yMulti <- xMulti[, 1L] + rnorm(nMulti, 0, 0.2)
+CALL("capi_draw_reset", -1L)
+fitMulti <- bart(
+  xMulti,
+  yMulti,
+  n.chains = 2L,
+  n.threads = 2L,
+  n.trees = 5L,
+  n.burn = 3L,
+  n.samples = 6L,
+  callback = list(fn = callbackFn, context = callbackContext),
+  verbose = FALSE
+)
+reportMulti <- CALL("capi_draw_report")
+expect_equal(reportMulti$calls[1:2], c(6L, 6L))
+expect_equal(sum(reportMulti$calls), 12L)
+expect_equal(reportMulti$last.draw.index[1:2], c(5L, 5L))
+expect_equal(sum(reportMulti$status), 0L)
+
+# a stop-flag run: the callback aborts partway through the kept-sample run,
+# and bart() surfaces that as an error distinct from an interrupt, exactly as
+# capi_run does above
+nStop <- 20L
+xStop <- matrix(runif(nStop * 2L), nStop, 2L)
+yStop <- xStop[, 1L] + rnorm(nStop, 0, 0.2)
+CALL("capi_draw_reset", 2L)
+expect_error(
+  bart(
+    xStop,
+    yStop,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    n.burn = 0L,
+    n.samples = 6L,
+    callback = list(fn = callbackFn, context = callbackContext),
+    verbose = FALSE
+  ),
+  "callback"
+)
+expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
+CALL("capi_draw_reset", -1L)
+
 # null buffers skip quantities
 r3 <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
 expect_null(r3$train)

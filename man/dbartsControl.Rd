@@ -8,7 +8,8 @@
 }
 \usage{
 dbartsControl(
-    verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
+    verbose = FALSE, keepTrainingFits = TRUE, keepFits = TRUE,
+    useQuantiles = FALSE,
     levelGibbs = NA,
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NA_integer_,
@@ -25,6 +26,9 @@ dbartsControl(
    }
    \item{keepTrainingFits}{
      Logical controlling whether or not training fits are returned when the sampler runs. These are always computed as part of the fitting procedure, so disabling will not substantially impact running time.
+   }
+   \item{keepFits}{
+     Logical controlling whether every per-observation channel - training fits, test fits, the heteroscedastic variance surface, and per-forest fits - is returned when the sampler runs; \code{keepTrainingFits} is the narrower, longstanding switch over the training channel alone, unaffected by this one. \code{FALSE} allocates a per-chain one-draw SCRATCH buffer for each opted-out channel instead of an \code{n.samples}-wide array, which a per-draw \code{callback} (see \code{\link{bart}}, \code{\link{dbarts}}, and \code{\link[=dbartsSampler-class]{run}}) can read as each draw is produced without the run ever materializing the full array; variable counts and the scalar channels (\code{sigma}, \code{k}, ...) are kilobytes and are always kept, and \code{keepTrees} is the separate, unaffected recompute-from-saved-trees path. \code{FALSE} is the automatic default of \code{\link{bart}} (not \code{\link{dbarts}}) when \code{callback} is supplied and \code{keepFits} is not itself named. \strong{Three warnings apply to \code{callback}}: a callback that crashes takes down the whole R session with no condition to catch; an interrupt cannot land while a call is running, so a callback that blocks hangs the session; and \code{keepFits = FALSE} means the sampler's \code{run()} returns those channels as \code{NULL} (present in the returned list, holding nothing) rather than omitting them - \code{\link{bart}}'s packaged fit instead OMITS them outright, and its \code{plot}/\code{extract}/\code{fitted}/\code{residuals}/\code{predict} name \code{keepFits} in the resulting error rather than failing on a bare \code{NULL}. On a \code{family = "hazard"}/\code{"hazard.probit"}/\code{"hazard.logistic"} fit, a per-draw \code{callback}'s draw struct counts person-period-EXPANDED rows, not subjects - the mapping back to (subject, period) is done in R and is not available to the callback.
    }
    \item{useQuantiles}{
      Logical to determine if the empirical quantiles of the columns of predictors should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced uniformly throughout the range of covariate values.

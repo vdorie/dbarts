@@ -218,6 +218,7 @@ appendHazardPeriodColumn <- function(x, period) {
 dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
+  keepFits = TRUE,
   useQuantiles = FALSE,
   levelGibbs = NA,
   keepTrees = FALSE,
@@ -267,6 +268,7 @@ dbartsControl <- function(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
+    keepFits = as.logical(keepFits),
     useQuantiles = as.logical(useQuantiles),
     levelGibbs = as.logical(levelGibbs),
     keepTrees = as.logical(keepTrees),
@@ -403,6 +405,7 @@ dbarts <- function(
   ),
   na.action = dbarts::na.keepPredictors,
   sigma = NA_real_,
+  callback = NULL,
   ...
 ) {
   matchedCall <- match.call()
@@ -420,6 +423,12 @@ dbarts <- function(
     "dbarts",
     evalEnv
   )
+
+  # dbarts() never runs the sampler itself, so 'callback' has nothing to
+  # drive here; it is validated anyway, ahead of the (possibly expensive)
+  # sampler construction below, so a malformed pair fails at THIS call
+  # rather than silently doing nothing until a later $run()
+  validateCallback(callback)
 
   # the creation-time estimate is 'sigest' here as everywhere; the 0.9-x
   # spelling is folded in before the shared validator, which knows one name
@@ -1210,7 +1219,8 @@ dbartsSampler <- setRefClass(
       numBurnIn,
       numSamples,
       updateState = NA,
-      n.threads = control@n.threads
+      n.threads = control@n.threads,
+      callback = NULL
     ) {
       "Runs the posterior sampler and returns a list with the results."
       if (missing(numBurnIn)) {
@@ -1220,7 +1230,7 @@ dbartsSampler <- setRefClass(
         numSamples <- NA_integer_
       }
 
-      samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples)
+      samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples, callback)
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
           identical(updateState, TRUE)

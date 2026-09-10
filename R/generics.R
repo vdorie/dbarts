@@ -462,6 +462,23 @@ predict.bart <- function(
     }
 
     if (type == "ppd") {
+      # object$s.train is the "is this fit heteroscedastic" signal below,
+      # but keepFits = FALSE nulls it on a heteroscedastic fit too - checked
+      # first, by object$hasVariance, which survives that drop, so this
+      # refuses rather than silently sampling as if homoscedastic
+      if (
+        is.null(s) &&
+          is.null(object[["s.train"]]) &&
+          isTRUE(object[["hasVariance"]])
+      ) {
+        stop(
+          "posterior predictive sampling needs this heteroscedastic fit's ",
+          "'s.train' draws to tell it apart from a homoscedastic one here, ",
+          "and 'keepFits = FALSE' dropped them (automatically, when a ",
+          "'callback' was supplied, unless overridden); refit with ",
+          "'keepFits = TRUE'"
+        )
+      }
       # the replayed s(x) above IS the noise scale at these rows; a
       # heteroscedastic fit whose sampler replays none cannot be drawn from
       if (is.null(s) && !is.null(object[["s.train"]])) {
@@ -581,7 +598,10 @@ extract.bart <- function(
 
   if (sample == "test" && is.null(object[["yhat.test"]])) {
     stop(
-      "cannot extract test sample predictions if no test data exists; use 'predict' instead"
+      "cannot extract test sample predictions: either no test data exists ",
+      "(use 'predict' instead), or the fit was run with 'keepFits' == ",
+      "FALSE (set automatically when 'callback' is supplied, unless ",
+      "overridden), which drops the channel even when test data exists"
     )
   }
   if (sample == "train" && is.null(object[["yhat.train"]])) {
@@ -591,7 +611,9 @@ extract.bart <- function(
       )
     } else {
       stop(
-        "cannot extract train sample predictions; bart must be called with 'keepTrainingFits' == TRUE"
+        "cannot extract train sample predictions; bart must be called with ",
+        "'keepTrainingFits' == TRUE and 'keepFits' == TRUE (the latter set ",
+        "FALSE automatically when 'callback' is supplied, unless overridden)"
       )
     }
   }
@@ -629,6 +651,21 @@ extract.bart <- function(
 
   if (type == "ppd") {
     s <- if (sample == "train") object[["s.train"]] else object[["s.test"]]
+    # object$hasVariance survives keepFits = FALSE where object$s.train
+    # would not, so this catches a heteroscedastic fit whose s.train/s.test
+    # keepFits dropped before the narrower "no s.test at all" check below
+    if (
+      is.null(s) &&
+        is.null(object[["s.train"]]) &&
+        isTRUE(object[["hasVariance"]])
+    ) {
+      stop(
+        "posterior predictive sampling needs this heteroscedastic fit's ",
+        "'s.train'/'s.test' draws, which 'keepFits = FALSE' dropped ",
+        "(automatically, when a 'callback' was supplied, unless ",
+        "overridden); refit with 'keepFits = TRUE'"
+      )
+    }
     if (is.null(s) && !is.null(object[["s.train"]])) {
       stop(
         "posterior predictive sampling is not available at the test rows of a ",

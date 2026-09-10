@@ -236,6 +236,7 @@ methods::setClass(
     binary = "logical",
     verbose = "logical",
     keepTrainingFits = "logical",
+    keepFits = "logical",
     useQuantiles = "logical",
     levelGibbs = "logical",
     keepTrees = "logical",
@@ -257,6 +258,7 @@ methods::setClass(
     binary = FALSE,
     verbose = FALSE,
     keepTrainingFits = TRUE,
+    keepFits = TRUE,
     useQuantiles = FALSE,
     levelGibbs = NA,
     keepTrees = FALSE,
@@ -282,6 +284,9 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (length(object@keepTrainingFits) != 1L) {
     return("'keepTrainingFits' must be of length 1")
+  }
+  if (length(object@keepFits) != 1L) {
+    return("'keepFits' must be of length 1")
   }
   if (length(object@useQuantiles) != 1L) {
     return("'useQuantiles' must be of length 1")
@@ -331,6 +336,9 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (is.na(object@keepTrainingFits)) {
     return("'keepTrainingFits' must be TRUE/FALSE")
+  }
+  if (is.na(object@keepFits)) {
+    return("'keepFits' must be TRUE/FALSE")
   }
   if (is.na(object@useQuantiles)) {
     return("'useQuantiles' must be TRUE/FALSE")

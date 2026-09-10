@@ -60,7 +60,11 @@ plot.bart <- function(
     if (callName(x$call) == "bartBT") {
       stop("plot requires bartBT to be called with 'keeptrainfits' == TRUE")
     } else {
-      stop("plot requires bart to be called with 'keepTrainingFits' == TRUE")
+      stop(
+        "plot requires bart to be called with 'keepTrainingFits' == TRUE ",
+        "and 'keepFits' == TRUE (the latter set FALSE automatically when ",
+        "'callback' is supplied, unless overridden)"
+      )
     }
   }
 

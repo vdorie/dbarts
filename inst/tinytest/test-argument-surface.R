@@ -284,15 +284,16 @@ expect_true(sameDraws(defaultedNaAction, explicitNaAction))
 # defaulted bart call still composes with monotone
 expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
 
-# storage/updateState are the last two NAMED formals; the trailing '...'
-# exists for the transition release alone, to carry a retired spelling to a
-# message naming its successor rather than to R's own "unused argument".
+# keepFits/callback are the last two NAMED formals, added after
+# storage/updateState; the trailing '...' exists for the transition release
+# alone, to carry a retired spelling to a message naming its successor
+# rather than to R's own "unused argument".
 
 lastTwoNamed <- function(fn) {
   fnFormals <- setdiff(names(formals(fn)), "...")
   fnFormals[length(fnFormals) - c(1L, 0L)]
 }
-expect_equal(lastTwoNamed(dbarts::bart), c("storage", "updateState"))
+expect_equal(lastTwoNamed(dbarts::bart), c("keepFits", "callback"))
 expect_identical(
   names(formals(dbarts::bart))[length(formals(dbarts::bart))],
   "..."
@@ -360,8 +361,11 @@ controlFormals1_0_0 <- c(
 # formals added after the 1.0-0 freeze. They carry the same parity contract -
 # every one is a bart formal, spelled identically - but stay off the frozen
 # list, which is what keeps that list a snapshot rather than a ratchet.
+# levelGibbs is this list's one documented exception to the parity contract
+# itself (see below); keepFits follows the rule.
 controlFormalsAdded <- c(
-  "levelGibbs"
+  "levelGibbs",
+  "keepFits"
 )
 # '...' is the transition release's retired-spelling channel on this entry
 # point, not a control field
@@ -376,8 +380,11 @@ expect_true(setequal(
 # levelGibbs is a control field the consolidation took off the fitting
 # functions: it is declared on the tree prior, whose own default is the same
 # tri-state NA (the automatic mode), so nothing quietly turns the automatic
-# step off
-expect_false(any(controlFormalsAdded %in% names(formals(dbarts::bart))))
+# step off. It is the one item of controlFormalsAdded absent from bart's own
+# formals; keepFits, added alongside it, follows the general parity rule
+# instead - present on both, spelled identically.
+expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
+expect_true("keepFits" %in% names(formals(dbarts::bart)))
 expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
 expect_identical(
   formals(dbarts:::cgm)[["levelGibbs"]],

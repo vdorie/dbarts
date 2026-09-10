@@ -440,6 +440,40 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{bart}, \code{dbarts}, and the sampler's \code{run} method
+            gain \code{callback}: a compiled per-draw observer, registered
+            as a pair of external pointers (\code{fn}, \code{context}), that
+            fires once per saved draw per chain over const pointers into the
+            run's own result buffers, on the thread that owns that chain -
+            no R closure, no re-entering R. \code{\link{dbartsControl}}
+            gains the paired \code{keepFits}, a logical over every
+            per-observation channel (training, test, the heteroscedastic
+            variance surface, per-forest fits) at once, defaulting to
+            \code{TRUE} except that it becomes \code{FALSE} automatically
+            whenever \code{callback} is supplied and \code{keepFits} is not
+            itself named; an explicit \code{keepFits} always wins.
+            \code{FALSE} allocates a per-chain one-draw scratch buffer for
+            each opted-out channel instead of an \code{n.samples}-wide
+            array, so a caller reducing draws as they are produced - a
+            running posterior mean, say - never materializes the array this
+            release's memory audit found to be five sixths of a large fit's
+            peak. The flat C header (\code{inst/include/dbarts/dbarts.h})
+            ships the matching \code{dbarts_draw} struct, the
+            \code{dbarts_draw_callback} signature, and the
+            \code{dbarts_sampler_setDrawCallback} setter, so a compiled
+            consumer registers one without hand-declaring an unversioned
+            layout; that C entry is independent of the R \code{callback}
+            argument above (a hook set through it does not fire on the R
+            run route, and vice versa). Multinomial, ordinal, negative-
+            binomial, and hurdle-lognormal fits require \code{keepFits =
+            TRUE} and refuse an automatic or explicit \code{FALSE} by name,
+            since their packaging reads the training channel. A crashing
+            callback takes the whole session down with no condition to
+            catch, an interrupt cannot land while a call is running, and
+            the automatic \code{keepFits = FALSE} means a fit built with
+            only the default settings and a \code{callback} returns no
+            fitted values at all - whatever the callback itself
+            accumulated is the only answer.
       \item \code{\link{dbarts-package}} gains a \dQuote{Memory} section
             giving the peak footprint of a fit as a function of the data
             size, tree count, chains and kept draws, with the options that
