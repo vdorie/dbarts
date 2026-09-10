@@ -111,8 +111,9 @@ struct dbarts_sampler_t {
   std::vector<ext_rng*> rngs; // one per chain
   bool keepTrainingFits;
 
-  // The flat C API's registered per-draw observer (dbarts_sampler_setDrawCallback),
-  // in force for every run through the handle until it is cleared or replaced.
+  // The flat C API's registered per-draw observer
+  // (dbarts_sampler_setDrawCallback), in force for every run through the
+  // handle until it is cleared or replaced.
   // Empty by default, so a sampler nobody registered against installs no hook
   // and runs exactly as it did before the entry existed. It is NOT part of a
   // saved state: a re-created engine starts with nothing registered.

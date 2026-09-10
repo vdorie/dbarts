@@ -144,7 +144,11 @@
 /// dbarts_results, dbarts_predictor_source, dbarts_draw - as the compiler
 /// reports it: each struct's size, and each field's name paired with its
 /// offset, both in pointer units so the token is one number on every supported
-/// platform. So a field appended, removed, reordered or retyped to a different
+/// platform. dbarts_draw is the exception that rule needs: it is the one
+/// struct carrying by-value doubles, whose offset in pointer units is not the
+/// same number everywhere, so it folds its FIELD COUNT in place of its size
+/// and folds those doubles by name, declaration position and width instead of
+/// by offset. So a field appended, removed, reordered or retyped to a different
 /// width, a renamed field, and a renumbered or added enumerator all move it.
 /// What it still does not see is an in-place
 /// type swap of the SAME width (double* -> int64_t* under an unchanged name),
@@ -161,7 +165,8 @@
 /// symbols by hand checks it alongside the major/minor handshake by the same
 /// choice.
 ///
-/// It moves on ADDITIVE changes too, since an append moves a struct's size:
+/// It moves on ADDITIVE changes too, since an append moves a struct's size -
+/// its field count, for dbarts_draw:
 /// after 1.0-0 such an append bumps DBARTS_C_API_MINOR and re-bakes this token
 /// together, so a consumer that wants append-COMPATIBILITY gates on
 /// major-equality plus a minor floor (plus each struct's structSize contract)
