@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
   if (suiteSelected(filter, "sampler")) runSamplerTests(rng);
   if (suiteSelected(filter, "shape")) runShapeTests(rng);
   if (suiteSelected(filter, "facade")) runFacadeTests();
+  if (suiteSelected(filter, "capi")) runCapiTests();
   if (suiteSelected(filter, "state")) runStateTests(rng);
   // takes no shared rng and restores rngState, so it can sit anywhere here
   // without moving a downstream suite's draws

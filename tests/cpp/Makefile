@@ -4,7 +4,9 @@ CXX ?= c++
 OPT ?= -O2 -g
 # external/io.h (ext_printf) pulls in R's print headers
 R_CPPFLAGS := $(shell R CMD config --cppflags)
-CPPFLAGS += -I../../src/include -I../../src $(R_CPPFLAGS)
+# -I../../inst/include: the shipped header, which the bridge's shared
+# internals include for the flat C API's per-draw struct
+CPPFLAGS += -I../../src/include -I../../src -I../../inst/include $(R_CPPFLAGS)
 # Scaffolding builds append their own defines here rather than through
 # CPPFLAGS, which a command-line assignment would replace wholesale:
 #   make EXTRA_CPPFLAGS=-DBARTCORE_MOVE_CENSUS
@@ -28,7 +30,7 @@ R_LDFLAGS := $(shell R CMD config --ldflags)
 SOURCES := main.cpp assert.cpp common.cpp test_data.cpp test_tree.cpp \
            test_scan.cpp test_grow.cpp test_moves.cpp test_interaction.cpp \
            test_model.cpp test_sampler.cpp test_shape.cpp test_facade.cpp \
-           test_state.cpp \
+           test_state.cpp test_capi.cpp \
            test_ensemble.cpp test_fuzz.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 DEPS := $(SOURCES:.cpp=.d)

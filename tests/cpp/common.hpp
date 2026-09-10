@@ -191,6 +191,8 @@ void runShapeTests(ext_rng* rng);
 // and the suite restores the shared runif01 stream, so it neither shifts nor
 // is shifted by any other suite's draws
 void runFacadeTests();
+// the flat C API's per-draw struct and its registration; takes no rng
+void runCapiTests();
 void runStateTests(ext_rng* rng);
 // no rng argument on purpose: the ensemble oracle owns its generator and
 // restores the shared runif01 stream, so it neither shifts nor is shifted by

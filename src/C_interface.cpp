@@ -341,42 +341,18 @@ static_assert(sizeof(dbarts_predictor_source) ==
               "dbarts_predictor_source layout changed; update these offsets");
 
 // The same lock for the struct the library fills PER DRAW and the callback
-// only reads. Its eleven counts and ten channel pointers are one width, so
-// their offsets are pinned exactly; the four trailing scalars are pinned
-// against sigma instead, since a host that aligns a double more strictly than
-// a pointer pads before it - the one thing about this layout that is not the
-// same everywhere, and the reason the fold below does not carry their offsets.
+// only reads. Only the boundaries are pinned here, since the token fold below
+// carries every field's own name and offset and so fails on a reorder or an
+// insertion by itself: what these add is the PORTABILITY of the layout. The
+// eleven counts and ten channel pointers are one width and pack without
+// padding; the four trailing scalars are pinned against sigma rather than
+// against the prefix, because a host that aligns a double more strictly than a
+// pointer pads before it - the one thing about this layout that is not the
+// same everywhere, and the reason the fold does not carry their offsets.
 static_assert(offsetof(dbarts_draw, structSize) == 0);
-static_assert(offsetof(dbarts_draw, chainIndex) == 1 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, drawIndex) == 2 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numObservations) == 3 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numTestObservations) == 4 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numPredictors) == 5 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numReportedLocations) == 6 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numVariableCountForests) ==
-              7 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numForests) == 8 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, numAmplitudes) == 9 * sizeof(size_t));
 static_assert(offsetof(dbarts_draw, numOrdinalThresholds) ==
               10 * sizeof(size_t));
-static_assert(offsetof(dbarts_draw, train) ==
-              11 * sizeof(size_t) + 0 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, test) ==
-              11 * sizeof(size_t) + 1 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, varianceFits) ==
-              11 * sizeof(size_t) + 2 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, varianceTestFits) ==
-              11 * sizeof(size_t) + 3 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, forestFits) ==
-              11 * sizeof(size_t) + 4 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, glue) ==
-              11 * sizeof(size_t) + 5 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, splitProbabilities) ==
-              11 * sizeof(size_t) + 6 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, logLikelihood) ==
-              11 * sizeof(size_t) + 7 * sizeof(double*));
-static_assert(offsetof(dbarts_draw, ordinalThresholds) ==
-              11 * sizeof(size_t) + 8 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, train) == 11 * sizeof(size_t));
 static_assert(offsetof(dbarts_draw, varcount) ==
               11 * sizeof(size_t) + 9 * sizeof(double*));
 static_assert(offsetof(dbarts_draw, k) ==
