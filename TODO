@@ -464,10 +464,10 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   a post-fit warning keyed on the share of GP leaf evaluations that
   fell back to constant leaves (dec-B110). VD: "extremely worried that
   they're artificially limiting".
-  pre-release, small: bartcoreRun (xbart and the BCF, multinomial and
-  survival paths in R/bartcore.R) does not call warnOnGPFallback, so a
-  gp() fit through those doors gets the tally but no warning. In
-  progress, a small-fixes slice.
+  DONE 2026-09-11 (89e9b1d4): bartcoreRun's doors (xbart, multinomial,
+  ordinal, nbinom) now call warnOnGPFallback once per fit; BCF and
+  survival already ran through runWithBurnIn. None of those doors
+  packages gp.fallback onto its returned object; post-release if wanted.
   pre-release, small: categoricalExhaustiveCap's validity ceiling of 30
   admits a 2^29-candidate exact enumeration; the Rd's recommended range
   of 8 to 14 warns against going that high, the error message does not.
@@ -612,6 +612,12 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     branch; revisit these checks then.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
+    Verified 2026-09-11 against 9171ff64 (hash 0x6380bf095d5cae3f):
+    stan4bart bartcore 458/458, bartCause dbarts-1.0 737/737 (the three
+    basis-alignment failures no longer reproduce), treatSens dbarts-1.0
+    184/184, bairrtt main 206/206; every dbarts.h entry each C consumer
+    calls is present with its signature. Repeat only if dbarts.h moves
+    again.
     bartCause's bcf() defaults n.threads to guessNumCores() with its own
     n.chains, so under dec-B115 every multi-core fit warns about the
     excess; cap its default at min(cores, n.chains) on its dbarts-1.0
@@ -628,10 +634,8 @@ release (deferred; the one ordered procedure, run when VD triggers it)
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause releases from its dbarts-1.0 branch,
     re-verified against the final header at the freeze.
-  drop DBARTS_REQUIRE_EXACT_ABI from stan4bart (src/Makevars.in,
-    src/Makevars.win) and treatSens (src/R_interface.cpp,
-    src/bartTreatmentModel.cpp, src/sensitivityAnalysis.cpp) at the
-    coordinated 1.0 merge.
+  DBARTS_REQUIRE_EXACT_ABI is already off stan4bart's and treatSens's
+    compat branches (pure-c-header S2); nothing to drop at the merge.
   close GitHub issue #80 at release: the setResponse updateScale switch
     resolves it - default FALSE locks the creation-time prior scale,
     the safe embedded-Gibbs behavior the issue asks for, and latent
