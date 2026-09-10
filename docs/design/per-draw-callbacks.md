@@ -479,8 +479,23 @@ on every scenario; and `bench-sampler.R compare` on a quiet machine, the hook
 sitting on the draw path. The new entry is ADDITIVE and re-bakes
 `DBARTS_C_API_HASH`; under dec-B111 the version pair is the guard and CI
 asserts a changed hash comes with a minor bump, so pre-release the constants
-stay at 1/0 with one re-bake. Neither stan4bart nor treatSens calls the new
-type or entry.
+stay at 1/0 with one re-bake. treatSens calls neither the new type nor entry.
+
+stan4bart is dec-B86's second named consumer, and its source confirms the
+claim at this landing. It calls neither `dbarts_draw_callback` nor
+`dbarts_sampler_setDrawCallback`, so there is nothing to port. Its load-time
+handshake bakes in the major/minor pair its own `dbarts.h` copy defines
+(1/0) and refuses to load on a mismatch, so S2's re-baked
+`DBARTS_C_API_HASH` with the pair held at 1/0 under dec-B111 admits
+stan4bart's existing compiled binary unchanged. Its embedding already has
+the shape this entry serves: `stan4bart_fit_worker` builds one
+single-chain, single-sample `dbartsSampler` per chain (`n.chains = 1L,
+n.samples = 1L`) and drives it a draw at a time from R into its own
+caller-owned buffers via its per-sweep R closure - so it may adopt
+`dbarts_sampler_setDrawCallback` in that closure's place post-release,
+without being obliged to. Its `keep_fits` argument - "Logical that, when
+false, prevents the sampler from storing each draw. Intended to be used
+with `callback`." - is the precedent `keepFits` mirrors (Decision, above).
 
 ## 9. Open forks for VD
 

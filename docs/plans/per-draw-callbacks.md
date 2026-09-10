@@ -544,3 +544,23 @@ S3's tests.
 Remaining: S3 through S5 (the R surface wiring `callback` and the
 control slot, the vignette example and manual, the stan4bart record)
 are open, per the plan's Steps.
+
+## Landing note, S5 (2026-09-11)
+
+LANDED, recorded in the commit that carries this note. One commit.
+
+Records stan4bart as dec-B86's second named consumer in
+[8. Scope and sequencing](../design/per-draw-callbacks.md#8-scope-and-sequencing):
+verified against its current source, it calls neither
+`dbarts_draw_callback` nor `dbarts_sampler_setDrawCallback`, so nothing
+ports; the unchanged 1/0 version pair (dec-B111) admits its existing
+compiled binary against S2's re-baked hash; its per-iteration,
+one-draw-at-a-time embedding, each chain a separate single-chain sampler,
+is the shape the entry serves, so it may adopt it post-release; and its
+`keep_fits` argument, quoted in full, is the documented precedent
+`keepFits` mirrors. Docs-only: no code, no engine gates.
+
+Gate: `Rscript tools/check-doc-freshness.R` exit 0.
+
+Remaining: S3 and S4 (the R surface wiring `callback` and the control
+slot, the vignette example and manual) are open, per the plan's Steps.
