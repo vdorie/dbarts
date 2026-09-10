@@ -580,6 +580,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     branch; revisit these checks then.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
+    bartCause's bcf() defaults n.threads to guessNumCores() with its own
+    n.chains, so under dec-B115 every multi-core fit warns about the
+    excess; cap its default at min(cores, n.chains) on its dbarts-1.0
+    branch (agent-noted 2026-09-10).
     treatSens reaches dbarts:::parsePriors and
     dbarts:::estimateSigmaFromLinearModel through asNamespace (its
     resid.dist argument broke silently when front-door S2 retired the
