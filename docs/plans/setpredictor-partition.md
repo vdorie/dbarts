@@ -97,3 +97,44 @@ S2:
     R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-f0236082.rds
     (bcf and multinomial likewise; then record, then compare against the new files: 52/12/11 identical)
     R_LIBS=<lib> Rscript benchmarks/R/bench-sampler.R compare benchmarks/baselines/bench-sampler-127f04ee.csv
+
+## Landing note, S1 and S2 (2026-09-10)
+
+LANDED at merge 28b3ac2a (the slice merged rather than rebased so the
+engine commit its baselines are named after stays an ancestor), seven
+commits:
+
+- b129e21f8a5882f6c0674c186924a0c639da0353 Fix kernel bench index widths for misc_index_t
+- 80b1c8d467d7137f3f7665a6ce63811756d90355 Partition the dense root in place on the revalidation path
+- 19a14d2faa02ca37b70d69de629a3a0494340242 Pin the in-place root against the identity rewrite
+- bcf4f5fab1cf19d50fa1e333031f805fbf64a5a3 Re-record the three equivalence baselines at 80b1c8d4
+- ea23d7279b4bad98266016cb829ba7a2d227eeab Point the mutation battery at the current equivalence baseline
+- ba20491cb1c1d815aa754ea5ec59c0c5bf9e6f34 Restore the gp regather's bitwise pin and record the vehicle change
+- b5cc939510c6782681a5527d42c825ce3d8de20a Say which callers the in-place root's constraint covers
+
+S1: [`partitionChildren`](../../src/bartcore/tree.hpp) takes an
+in-place-root flag that only [`repartitionSubtree`](../../src/bartcore/tree.hpp)
+sets; the sampling-time callers keep the identity rewrite. Of its
+callers in chain.hpp, the revalidation, rollback and forced-refresh
+paths hand it a span already partitioned under the live rules; the
+state-restore and rebuild paths hand it a fresh identity span, on
+which the two kernels agree elementwise; data replacement that keeps
+n hands it the span the old rules partitioned, which the comment
+names. Oracle (P17): `testRepartitionRootAgreesWithRewrite` in
+tests/cpp compares both roots over the same pre-update state, member
+sets and ranges equal, sufficient statistics within 1e-12 (observed
+6.2e-16); poison, the in-place left count decremented by one, fails
+it. Re-record: equivalence, BCF and multinomial baselines at 80b1c8d4;
+against the predecessors 43, 6 and 5 scenarios bitwise and 9, 6 and 6
+movers, every mover a predictor mutation, all at max |z| = 0.00; the
+new files reproduce 52/52, 12/12, 11/11 from a second --preclean
+install. The gp cache test's bitwise clone-vs-warm assertion was an
+artifact of the rewrite (the two diverge without any update at the
+old tip) and is replaced by a leaf-level pin recorded in
+docs/design/gp-leaves.md. Gates: tests/cpp 299 ok; sanitizer tests/cpp
+and the R-loaded ASan leg over the mutation files, 0 diagnostics;
+tinytest 8539/0 with no snapshot moved; air, doc-freshness clean.
+Bench against bench-sampler-127f04ee on the quiet Mac, twice:
+setPredictor accept 0.763, reject 0.631 to 0.638; the five run rows
+0.984 to 1.018. S2: benchmarks/kernels/bench.c index buffers typed
+misc_index_t, its self-check passing on arm64.

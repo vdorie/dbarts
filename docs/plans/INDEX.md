@@ -36,7 +36,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| setpredictor-partition.md | DECIDED 2026-09-10 (dec-B117), S1 and S2 open | Partitions a dense root in place on the setPredictor re-partition path, where the span is already partitioned, for 19 to 37 percent faster predictor updates; re-records the setPredictor scenarios; fixes the kernel bench index width. |
+| setpredictor-partition.md | LANDED 2026-09-10 (28b3ac2a) | Partitions a dense root in place on the setPredictor re-partition path, where the span is already partitioned, for 19 to 37 percent faster predictor updates; re-records the setPredictor scenarios; fixes the kernel bench index width. |
 | simd-survey.md | REFERENCE (READ-ONLY survey) | Surveyed arm64 SIMD candidates; recommends a fused residual-roll kernel and closing x86 dispatch gaps, keeps the sufficient-statistic kernel scalar for bitwise reproducibility. |
 | x86-simd-plan.md | PARTLY LANDED (stats.h and AVX2 fixes shipped; three x86 items open) | Investigated x86 SIMD gaps; fixed a missing stats.h extern and an AVX2 CPU-detection bug, the remaining items stay open. |
 
