@@ -108,6 +108,21 @@ enum class WarmStartResult {
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
 /// fits rebuild at the end. Type-erased so several samplers sharing an
 /// index-aligned column can be swept jointly, committing all-or-none.
+/// Relays a host's per-draw observer and records that one returned nonzero, so
+/// a true return from Sampler::run can be told apart from an interrupt. One
+/// relay serves every chain: it holds no per-chain state and the flag is a
+/// relaxed set-once, read only after every worker has joined.
+struct DrawRelay {
+  DrawHook hook;
+  std::atomic<bool> stopped{false};
+  static int call(void* context, const DrawInfo* draw) {
+    DrawRelay& relay = *static_cast<DrawRelay*>(context);
+    int result = relay.hook.fn(relay.hook.context, draw);
+    if (result != 0) relay.stopped.store(true, std::memory_order_relaxed);
+    return result;
+  }
+};
+
 class PredictorUpdateSession {
 public:
   virtual ~PredictorUpdateSession() = default;
@@ -312,10 +327,23 @@ public:
   /// when chains run inline (min(numThreads, numChains) <= 1), so the caller
   /// must not set it alongside worker-thread chains. Chains then run
   /// sequentially, so onSweep sees chain c completed before chain c + 1 begins.
+  ///
+  /// onDraw, if set, is the host's per-draw observer; unlike onSweep it is
+  /// forwarded UNCHANGED on both paths - no lock, no queue, no hop to this
+  /// thread - so it must be callable from a worker thread. A nonzero return
+  /// aborts the run exactly as an interrupt does, and sets *stoppedByCallback
+  /// (when non-null) so the caller can tell the two apart on a true return.
+  /// An abort leaves the sampler INCONSISTENT with the results: this call
+  /// returns before advancing the sample cursors, while storeSavedTreeRecord
+  /// has already written saved trees into the slots those cursors count, so
+  /// the caller must discard both the results and any saved trees.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
-           const SweepCallback& onSweep = {}) {
+           const SweepCallback& onSweep = {},
+           const DrawHook& onDraw = DrawHook(),
+           bool* stoppedByCallback = nullptr) {
     size_t numChains = chains_.size();
+    if (stoppedByCallback != nullptr) *stoppedByCallback = false;
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     // the per-observation fits carry numReportedLocations channels per sample
     // (one everywhere but a multi-location combiner), so the per-chain slab
@@ -334,20 +362,42 @@ public:
     // the per-sample threshold slab carries numOrdinalThresholds entries (0 off
     // ordinal), so the per-chain threshold stride folds it in
     size_t numOrdinalThresholds = results.numOrdinalThresholds;
+    // per-draw strides for the per-observation channels, resolved ONCE from the
+    // caller's fields: a chain's slab is numSamples of them, except at a stride
+    // of zero, where the chain owns a single draw's buffer and the C buffers
+    // are laid out contiguously. storeSample resolves the same field the same
+    // way, which is why the stride is a field rather than a repeated formula.
+    size_t n = data_.numObservations, nTest = data_.numTestObservations;
+    size_t trainDraw = n * numLocations, testDraw = nTest * numLocations;
+    size_t forestDraw = n * numForests();
+    size_t trainStride = Results::strideOr(results.trainingFitsStride, trainDraw);
+    size_t testStride = Results::strideOr(results.testFitsStride, testDraw);
+    size_t varianceStride = Results::strideOr(results.varianceFitsStride, n);
+    size_t varianceTestStride =
+      Results::strideOr(results.varianceTestFitsStride, nTest);
+    size_t forestStride =
+      Results::strideOr(results.forestFitsStride, forestDraw);
+    auto chainSlab = [numSamples](size_t stride, size_t drawExtent) {
+      return stride == 0 ? drawExtent : numSamples * stride;
+    };
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
       r.numReportedLocations = numLocations;
       r.numVariableCountForests = numVarCountForests;
       r.numOrdinalThresholds = numOrdinalThresholds;
+      r.trainingFitsStride = trainStride;
+      r.testFitsStride = testStride;
+      r.varianceFitsStride = varianceStride;
+      r.varianceTestFitsStride = varianceTestStride;
+      r.forestFitsStride = forestStride;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
-        r.trainingFits = results.trainingFits +
-          c * numSamples * data_.numObservations * numLocations;
+        r.trainingFits =
+          results.trainingFits + c * chainSlab(trainStride, trainDraw);
       if (results.testFits != nullptr)
-        r.testFits = results.testFits +
-          c * numSamples * data_.numTestObservations * numLocations;
+        r.testFits = results.testFits + c * chainSlab(testStride, testDraw);
       if (results.variableCounts != nullptr)
         r.variableCounts = results.variableCounts +
           c * numSamples * data_.numPredictors * numVarCountForests;
@@ -366,17 +416,17 @@ public:
         r.residualDf = results.residualDf + c * numSamples;
       if (results.varianceFits != nullptr)
         r.varianceFits =
-          results.varianceFits + c * numSamples * data_.numObservations;
+          results.varianceFits + c * chainSlab(varianceStride, n);
       if (results.varianceTestFits != nullptr)
-        r.varianceTestFits = results.varianceTestFits +
-          c * numSamples * data_.numTestObservations;
+        r.varianceTestFits =
+          results.varianceTestFits + c * chainSlab(varianceTestStride, nTest);
       // the per-forest slab carries every forest's own fits per sample, and the
       // glue slab the ragged amplitude vector; both are filled only by a
       // coupling that defines them, so the strides are reached on that path
       // alone
       if (results.forestFits != nullptr)
-        r.forestFits = results.forestFits +
-          c * numSamples * data_.numObservations * numForests();
+        r.forestFits =
+          results.forestFits + c * chainSlab(forestStride, forestDraw);
       if (results.glue != nullptr)
         r.glue = results.glue + c * numSamples * totalAmplitudes();
     }
@@ -387,6 +437,17 @@ public:
 
     size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
                                                         : numChains;
+    // the observer is forwarded to every chain on BOTH paths, unwrapped except
+    // for the relay that records its stop; it is a plain function pointer over
+    // plain arrays, so a worker thread can call it where onSweep cannot
+    DrawRelay drawRelay;
+    drawRelay.hook = onDraw;
+    DrawHook relayHook;
+    if (onDraw.fn != nullptr) {
+      relayHook.fn = &DrawRelay::call;
+      relayHook.context = &drawRelay;
+    }
+    const DrawHook* onDrawPtr = onDraw.fn != nullptr ? &relayHook : nullptr;
     bool cancelled = false;
     if (numWorkers <= 1) {
       // chains run on the main thread, so progress prints directly and the
@@ -410,7 +471,8 @@ public:
       const SweepCallback* onSweepPtr = onSweep ? &onSweep : nullptr;
       for (size_t c = 0; c < numChains && !cancelled; ++c)
         cancelled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                    &progress, c, shouldCancelPtr, onSweepPtr);
+                                    &progress, c, shouldCancelPtr, onSweepPtr,
+                                    onDrawPtr);
     } else {
       // workers never call into R: progress lines queue and the main thread
       // flushes them and polls for interrupts at least every 0.1 seconds,
@@ -449,10 +511,15 @@ public:
         workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
                               numSamples, &chainResults, &progress,
                               &chainsMutex, &chainsDone, &numChainsRunning,
-                              &workerCancel]() {
+                              &workerCancel, &cancelFlag, onDrawPtr]() {
           for (size_t c = w; c < numChains; c += numWorkers) {
-            chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress,
-                            c, &workerCancel);
+            // a chain that stopped itself - its observer returned nonzero -
+            // publishes the stop, so every other chain, this worker's own
+            // remaining ones included, sees it at its next sweep boundary
+            if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+                                &progress, c, &workerCancel, nullptr,
+                                onDrawPtr))
+              cancelFlag.store(true, std::memory_order_relaxed);
             bool last;
             {
               std::lock_guard<std::mutex> lock(chainsMutex);
@@ -489,6 +556,9 @@ public:
       if (options_.verbose) progress.flush();
       cancelled = cancelFlag.load(std::memory_order_relaxed);
     }
+
+    if (stoppedByCallback != nullptr)
+      *stoppedByCallback = drawRelay.stopped.load(std::memory_order_relaxed);
 
     // a cancelled run is aborted by the caller, so skip the completion cursor
     // advance and terminal summary that assume every requested sample landed

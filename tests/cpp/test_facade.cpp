@@ -93,8 +93,9 @@ public:
   SPY_RET(SamplerShape, shape, () const, ())
   SPY_RET(bool, run,
           (std::size_t b, std::size_t s, Results& r,
-           const std::function<bool()>& p, const SweepCallback& c),
-          (b, s, r, p, c))
+           const std::function<bool()>& p, const SweepCallback& c,
+           const DrawHook& d, bool* stopped),
+          (b, s, r, p, c, d, stopped))
   SPY_VOID(setOffset, (const double* o, bool u), (o, u))
   SPY_VOID(setResponse, (const double* y, bool u), (y, u))
   SPY_VOID(setWeights, (const double* w), (w))

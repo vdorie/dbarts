@@ -156,11 +156,16 @@ bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
     stop("bartcore engine samplers require 'numSamples' to be specified")
   }
 
+  # no per-draw callback and every fits channel kept: the run's historical
+  # behaviour, which the R surface for the two arrives to change
   result <- .Call(
     C_dbarts_bartcore_run,
     sampler$getPointer(),
     numBurnIn,
-    numSamples
+    numSamples,
+    NULL,
+    NULL,
+    TRUE
   )
   if (is.null(result)) {
     return(invisible(NULL))
@@ -1112,7 +1117,10 @@ bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
     C_dbarts_bartcore_run,
     bcSampler$ptr,
     as.integer(numBurnIn),
-    as.integer(numSamples)
+    as.integer(numSamples),
+    NULL,
+    NULL,
+    TRUE
   )
 }
 

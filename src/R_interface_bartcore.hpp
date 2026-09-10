@@ -29,7 +29,8 @@ SEXP bartcore_getFitsWithoutOffset(SEXP ptr);
 SEXP bartcore_getCalibration(SEXP ptr, SEXP forest);
 SEXP bartcore_setCalibration(SEXP ptr, SEXP forest, SEXP priorScale);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
-SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
+SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
+                  SEXP callbackFn, SEXP callbackContext, SEXP keepFits);
 SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                               SEXP results, SEXP callback, SEXP rho);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);

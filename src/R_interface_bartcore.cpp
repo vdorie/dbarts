@@ -4564,12 +4564,41 @@ static bool bartcore_userInterrupted() {
   return R_ToplevelExec(bartcore_checkInterrupt, nullptr) == FALSE;
 }
 
-SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+// The per-draw observer's two halves, read out of external pointers: the
+// function address (R_MakeExternalPtrFn, so no function-to-object-pointer cast
+// crosses the boundary) and the caller's context, handed back untouched. A
+// null function clears the hook. The address is dereferenced exactly as handed
+// - nothing here can check that it points at a callable of the right shape.
+static bartcore::DrawHook bartcore_drawHook(SEXP fnExpr, SEXP contextExpr) {
+  bartcore::DrawHook hook;
+  if (Rf_isNull(fnExpr)) return hook;
+  if (TYPEOF(fnExpr) != EXTPTRSXP)
+    Rf_error("callback function must be an external pointer");
+  if (!Rf_isNull(contextExpr) && TYPEOF(contextExpr) != EXTPTRSXP)
+    Rf_error("callback context must be an external pointer or NULL");
+  DL_FUNC address = R_ExternalPtrAddrFn(fnExpr);
+  if (address == NULL) return hook;
+  hook.fn = reinterpret_cast<bartcore::DrawCallback>(address);
+  hook.context =
+    Rf_isNull(contextExpr) ? NULL : R_ExternalPtrAddr(contextExpr);
+  return hook;
+}
+
+SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
+                  SEXP callbackFnExpr, SEXP callbackContextExpr,
+                  SEXP keepFitsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
 
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
   size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+  bartcore::DrawHook drawHook =
+    bartcore_drawHook(callbackFnExpr, callbackContextExpr);
+  // FALSE keeps no per-observation channel: each becomes a per-chain one-draw
+  // scratch buffer the observer reads and the next draw overwrites, and the
+  // run returns no R array for it. The counts and the scalars are kilobytes
+  // and are allocated either way.
+  bool keepFits = Rf_asLogical(keepFitsExpr) != FALSE;
 
   bartcore::SamplerShape shape = sampler.shape();
   size_t numObservations = shape.numObservations;
@@ -4680,12 +4709,17 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   };
 
   SEXP sigmaExpr = installChannel("sigma", allocScalarChannel());
+  // a channel the run keeps at all: the existing gate, and then keepFits. A
+  // gated-out channel keeps its slot and its name with a null value, exactly
+  // as keepTrainingFits = FALSE has always left the training slot.
+  bool hasTrain = holder.keepTrainingFits;
+  bool hasTest = numTestObservations > 0;
   SEXP trainExpr = installChannel(
-    "train", !holder.keepTrainingFits
+    "train", !(hasTrain && keepFits)
                ? R_NilValue
                : allocWideChannel(REALSXP, numObservations, numLocations));
   SEXP testExpr = installChannel(
-    "test", numTestObservations == 0
+    "test", !(hasTest && keepFits)
               ? R_NilValue
               : allocWideChannel(REALSXP, numTestObservations, numLocations));
   SEXP varcountExpr = installChannel(
@@ -4711,10 +4745,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP varianceTrainExpr = R_NilValue;
   SEXP varianceTestExpr = R_NilValue;
   if (hasVariance) {
-    varianceTrainExpr =
-      installChannel("variance", allocChannel(REALSXP, {numObservations}));
+    varianceTrainExpr = installChannel(
+      "variance",
+      !keepFits ? R_NilValue : allocChannel(REALSXP, {numObservations}));
     varianceTestExpr = installChannel(
-      "varianceTest", numTestObservations == 0
+      "varianceTest", !(hasTest && keepFits)
                         ? R_NilValue
                         : allocChannel(REALSXP, {numTestObservations}));
   }
@@ -4725,7 +4760,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     // multi-forest coupling), so this is n x numForests x numSamples
     // (x numChains)
     forestFitsExpr = installChannel(
-      "forestFits", allocChannel(REALSXP, {numObservations, numForests}));
+      "forestFits",
+      !keepFits ? R_NilValue
+                : allocChannel(REALSXP, {numObservations, numForests}));
     // the glue axis is the RAGGED amplitude vector, sum_f q_f long,
     // forest-major within a draw; bcf's q = (1, 2) makes it the 3 rows
     // (a, b0, b1) it shipped with
@@ -4736,10 +4773,44 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
 
+  // Every opted-out per-observation channel's C scratch, in ONE allocation:
+  // per channel, numChains one-draw buffers laid out contiguously, which is
+  // what a per-draw stride of zero makes Sampler::run address (chain c takes
+  // the c-th draw-sized block and every draw of that chain lands in it).
+  size_t trainDraw = numObservations * numLocations;
+  size_t testDraw = numTestObservations * numLocations;
+  size_t forestDraw = numObservations * numForests;
+  size_t scratchTrain = 0, scratchTest = 0, scratchVariance = 0,
+         scratchVarianceTest = 0, scratchForest = 0, scratchSize = 0;
+  if (!keepFits) {
+    auto claim = [&](size_t& offset, bool present, size_t drawExtent) {
+      offset = scratchSize;
+      if (present) scratchSize += drawExtent * numChains;
+    };
+    claim(scratchTrain, hasTrain, trainDraw);
+    claim(scratchTest, hasTest, testDraw);
+    claim(scratchVariance, hasVariance, numObservations);
+    claim(scratchVarianceTest, hasVariance && hasTest, numTestObservations);
+    claim(scratchForest, hasForestReporting, forestDraw);
+  }
+  std::vector<double> scratch(scratchSize);
+  auto scratchAt = [&](size_t offset) { return scratch.data() + offset; };
+
   bartcore::Results results;
   results.sigma = REAL(sigmaExpr);
-  results.trainingFits = holder.keepTrainingFits ? REAL(trainExpr) : NULL;
-  results.testFits = numTestObservations > 0 ? REAL(testExpr) : NULL;
+  results.trainingFits = !hasTrain ? NULL
+    : (keepFits ? REAL(trainExpr) : scratchAt(scratchTrain));
+  results.testFits = !hasTest ? NULL
+    : (keepFits ? REAL(testExpr) : scratchAt(scratchTest));
+  // zero is the whole of the opt-out at the engine seam: one draw per chain,
+  // overwritten in place, so the observer's pointer is live for its call alone
+  if (!keepFits) {
+    results.trainingFitsStride = 0;
+    results.testFitsStride = 0;
+    results.varianceFitsStride = 0;
+    results.varianceTestFitsStride = 0;
+    results.forestFitsStride = 0;
+  }
   results.variableCounts = variableCounts.data();
   results.k = shape.kIsSampled ? REAL(kExpr) : NULL;
   results.splitProbabilities = shape.usesDart ? REAL(varprobsExpr) : NULL;
@@ -4764,20 +4835,32 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // the residual df nu each draw is conditioned on; null off a Student-t error
   // law, the guard storeSample's write shares
   results.residualDf = hasResidualDf ? REAL(residualDfExpr) : NULL;
-  results.varianceFits = hasVariance ? REAL(varianceTrainExpr) : NULL;
-  results.varianceTestFits =
-    (hasVariance && numTestObservations > 0) ? REAL(varianceTestExpr) : NULL;
+  results.varianceFits = !hasVariance ? NULL
+    : (keepFits ? REAL(varianceTrainExpr) : scratchAt(scratchVariance));
+  results.varianceTestFits = !(hasVariance && hasTest) ? NULL
+    : (keepFits ? REAL(varianceTestExpr) : scratchAt(scratchVarianceTest));
   // each forest's own internal-scale fits and the (a, b0, b1) that recombines
-  // them, per draw; both null unless the coupling defines the channels
-  results.forestFits = hasForestReporting ? REAL(forestFitsExpr) : NULL;
+  // them, per draw; both null unless the coupling defines the channels. The
+  // glue is three doubles a draw, so it is kept either way.
+  results.forestFits = !hasForestReporting ? NULL
+    : (keepFits ? REAL(forestFitsExpr) : scratchAt(scratchForest));
   results.glue = hasForestReporting ? REAL(glueExpr) : NULL;
 
+  bool stoppedByCallback = false;
   GetRNGstate();
-  bool cancelled = sampler.run(numBurnIn, numSamples, results,
-                               bartcore_userInterrupted);
+  bool cancelled =
+    sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
+                bartcore::SweepCallback(), drawHook, &stoppedByCallback);
   PutRNGstate();
   if (cancelled) {
-    std::vector<std::uint32_t>().swap(variableCounts);  // free before longjmp
+    // free before longjmp: Rf_error runs no destructor between here and the
+    // handler
+    std::vector<std::uint32_t>().swap(variableCounts);
+    std::vector<double>().swap(scratch);
+    // an abort the observer asked for is not an interrupt, and the two are
+    // told apart the way the sweep-callback entry tells its own stop from one:
+    // the sampler reports which arm set the flag
+    if (stoppedByCallback) Rf_error("sampler run stopped by the callback");
     Rf_error("sampler run interrupted");
   }
 

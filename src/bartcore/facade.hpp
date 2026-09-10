@@ -142,7 +142,9 @@ public:
   virtual bool run(std::size_t numBurnIn, std::size_t numSamples,
                    Results& results,
                    const std::function<bool()>& pollInterrupt = {},
-                   const SweepCallback& onSweep = {}) = 0;
+                   const SweepCallback& onSweep = {},
+                   const DrawHook& onDraw = DrawHook(),
+                   bool* stoppedByCallback = nullptr) = 0;
   virtual void setOffset(const double* offset, bool updateScale) = 0;
   virtual void setResponse(const double* y, bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
@@ -472,8 +474,11 @@ public:
 
   bool run(std::size_t numBurnIn, std::size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
-           const SweepCallback& onSweep = {}) override {
-    return impl_.run(numBurnIn, numSamples, results, pollInterrupt, onSweep);
+           const SweepCallback& onSweep = {},
+           const DrawHook& onDraw = DrawHook(),
+           bool* stoppedByCallback = nullptr) override {
+    return impl_.run(numBurnIn, numSamples, results, pollInterrupt, onSweep,
+                     onDraw, stoppedByCallback);
   }
   void setOffset(const double* offset, bool updateScale) override {
     impl_.setOffset(offset, updateScale);

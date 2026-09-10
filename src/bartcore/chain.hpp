@@ -384,6 +384,29 @@ struct Results {
   // Sampler strides per chain by it; storeSample reads the count from the
   // response directly.
   std::size_t numOrdinalThresholds = 0;
+
+  /// Distance in elements between one draw's slot and the next WITHIN a chain,
+  /// per per-observation channel. naturalStride asks for the channel's own
+  /// per-draw extent (the packed numSamples-deep layout every caller that keeps
+  /// its fits wants); zero lands every draw of a chain in that chain's single
+  /// one-draw buffer, which is what a caller keeping no fits allocates - C of
+  /// them, contiguously, one per chain.
+  ///
+  /// These are FIELDS rather than a per-site computation because two readers
+  /// must agree on the answer: Sampler::run's per-chain slab base and
+  /// storeSample's per-draw offset. A stride recomputed at each site could be
+  /// changed at one and not the other, and the resulting overlap is silent.
+  static constexpr std::size_t naturalStride = static_cast<std::size_t>(-1);
+  std::size_t trainingFitsStride = naturalStride;
+  std::size_t testFitsStride = naturalStride;
+  std::size_t varianceFitsStride = naturalStride;
+  std::size_t varianceTestFitsStride = naturalStride;
+  std::size_t forestFitsStride = naturalStride;
+
+  /// Resolves one stride field against the channel's natural per-draw extent.
+  static std::size_t strideOr(std::size_t stride, std::size_t natural) {
+    return stride == naturalStride ? natural : stride;
+  }
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -394,6 +417,74 @@ struct Results {
 using SweepCallback =
   std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
                      bool isBurnIn)>;
+
+/// One saved draw, as const views into the Results slabs the caller owns.
+/// Engine-internal and host-agnostic: it is a plain POD over plain arrays, and
+/// the entry point that has a host converts it to whatever that host declares.
+///
+/// A channel pointer is null wherever the fit does not carry the channel AND
+/// wherever the coupling declares it undefined (testFitsAreDefined,
+/// logLikelihoodIsDefined), which the Results slab NaN-fills instead: the
+/// observer has no other channel in which to tell absent from present-but-NaN.
+/// A scalar is NaN where it is inapplicable to the family.
+///
+/// Pointer validity is the call and no longer. A kept channel points into the
+/// caller's numSamples-deep slab and outlives the call, but a channel whose
+/// stride is zero points at a one-draw scratch buffer this chain's NEXT draw
+/// overwrites, and the observer cannot tell the two apart.
+struct DrawInfo {
+  std::size_t chainIndex = 0;
+  // 0-based over the saved draws of THIS run call, not over the sampler's life
+  std::size_t drawIndex = 0;
+  std::size_t numObservations = 0;
+  std::size_t numTestObservations = 0;
+  std::size_t numPredictors = 0;
+  // per-observation channels the fits carry: 1 for every additive model, K for
+  // a multi-location combiner
+  std::size_t numReportedLocations = 1;
+  // varcount slabs per draw, the count Sampler::run clamped to what the
+  // coupling can report; varcount is numPredictors * this, forest-major
+  std::size_t numVariableCountForests = 1;
+  std::size_t numForests = 1;
+  std::size_t numAmplitudes = 0;
+  std::size_t numOrdinalThresholds = 0;
+  const double* train = nullptr;             // numObservations x L
+  const double* test = nullptr;              // numTestObservations x L
+  const double* varianceFits = nullptr;      // numObservations
+  const double* varianceTestFits = nullptr;  // numTestObservations
+  const double* forestFits = nullptr;        // numObservations x numForests
+  const double* glue = nullptr;              // numAmplitudes, forest-major
+  const double* splitProbabilities = nullptr;  // numPredictors
+  const double* logLikelihood = nullptr;       // numObservations
+  const double* ordinalThresholds = nullptr;   // numOrdinalThresholds
+  // numPredictors x numVariableCountForests, forest-major within the draw
+  const std::uint32_t* varcount = nullptr;
+  double sigma = 0.0;
+  double k = 0.0;
+  double dispersion = 0.0;
+  double residualDf = 0.0;
+};
+
+/// A host's per-draw observer, invoked once per SAVED draw on the thread that
+/// owns the chain, immediately after storeSample settles that draw; a sweep
+/// discarded as burn-in never reaches it. Returning nonzero ABORTS the run:
+/// every chain stops at its next sweep boundary and the caller discards the
+/// results and any saved trees, exactly as on the cancellation path.
+///
+/// It observes and must not mutate sampler state, and it must not re-enter a
+/// host whose evaluator, allocator or error mechanism is single-threaded: it
+/// runs on a worker thread whenever chains do.
+using DrawCallback = int (*)(void* context, const DrawInfo* draw);
+
+/// A draw observer with the context handed back to it. Calls for different
+/// chains may run CONCURRENTLY and the engine takes no lock: a hook touching
+/// shared state owns its own synchronization. A lock here would make every
+/// chain wait on the slowest hook, which is the cost the whole mechanism
+/// exists to avoid. Calls within a chain are ordered by drawIndex.
+struct DrawHook {
+  DrawCallback fn = nullptr;
+  void* context = nullptr;
+};
 
 /// The heteroscedastic variance ensemble (HBART): a second forest of
 /// ConstantVarianceLeaf trees whose product
@@ -1373,13 +1464,15 @@ public:
   /// progress, when non-null under verbose, receives one formatted line per
   /// printEvery kept iterations.
   /// Runs the chain, returning true if it stopped early because shouldCancel
-  /// (polled once per sweep, called only on the thread that owns this chain)
-  /// or onSweep asked it to. Both touch no sampled state, so a run with neither
-  /// set is bitwise identical to one without them.
+  /// (polled once per sweep, called only on the thread that owns this chain),
+  /// onSweep or onDraw asked it to. None of the three touches sampled state or
+  /// draws from the generator, so a run with none set is bitwise identical to
+  /// one without them.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
            const std::function<bool()>* shouldCancel = nullptr,
-           const SweepCallback* onSweep = nullptr) {
+           const SweepCallback* onSweep = nullptr,
+           const DrawHook* onDraw = nullptr) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
@@ -1633,7 +1726,17 @@ public:
         }
       }
 
-      if (record) storeSample(results, sampleNum);
+      if (record) {
+        storeSample(results, sampleNum);
+        // the observer fires only here, so it sees exactly the draws the
+        // caller kept and never a sweep discarded as burn-in; the draw is
+        // settled before the call, so every channel it views is this draw's
+        if (onDraw != nullptr && onDraw->fn != nullptr) {
+          DrawInfo draw;
+          fillDraw(draw, results, sampleNum, chainIndex);
+          if (onDraw->fn(onDraw->context, &draw) != 0) return true;
+        }
+      }
     }
     return false;
   }
@@ -5553,6 +5656,96 @@ private:
                      : forests_[0].totalFits.data();
   }
 
+  /// Views of the draw storeSample just settled, one field per channel it
+  /// settles - the whole of it, not a selection. A channel this fit does not
+  /// carry, and a channel the coupling declares undefined, is handed over as a
+  /// NULL pointer rather than the NaN buffer the Results slab keeps, the slab's
+  /// shape being part of the caller's returned object while the observer has
+  /// only the pointer to read absence from. Every offset reads the same stride
+  /// field storeSample's write did, so the two cannot address different slots.
+  void fillDraw(DrawInfo& draw, const Results& results, size_t sampleNum,
+                size_t chainIndex) {
+    size_t n = data_.numObservations;
+    size_t nTest = data_.numTestObservations;
+    size_t numLocations = combiner_ ? combiner_->numReportedLocations() : 1;
+    size_t numVCForests = results.numVariableCountForests;
+    std::size_t reportedIndex = combiner_ ? combiner_->reportedForest() : 0;
+    const Forest<L, ResidT>& forest = forests_[reportedIndex];
+
+    draw.chainIndex = chainIndex;
+    draw.drawIndex = sampleNum;
+    draw.numObservations = n;
+    draw.numTestObservations = nTest;
+    draw.numPredictors = data_.numPredictors;
+    draw.numReportedLocations = numLocations;
+    draw.numVariableCountForests = numVCForests;
+    draw.numForests = forests_.size();
+    draw.numAmplitudes = combiner_ ? combiner_->totalAmplitudes() : 0;
+    draw.numOrdinalThresholds = response_->carriesOrdinalThresholds()
+      ? response_->numOrdinalThresholds() : 0;
+
+    draw.train = results.trainingFits == nullptr ? nullptr
+      : results.trainingFits +
+          sampleNum * Results::strideOr(results.trainingFitsStride,
+                                        n * numLocations);
+    // a coupling with no test blend to report (BCF, which carries no test
+    // treatment vector) NaN-fills the slab; the observer gets null
+    draw.test = (results.testFits == nullptr || nTest == 0 ||
+                 (combiner_ && !combiner_->testFitsAreDefined()))
+      ? nullptr
+      : results.testFits +
+          sampleNum * Results::strideOr(results.testFitsStride,
+                                        nTest * numLocations);
+    draw.varianceFits = (results.varianceFits == nullptr || !varianceForest_)
+      ? nullptr
+      : results.varianceFits +
+          sampleNum * Results::strideOr(results.varianceFitsStride, n);
+    draw.varianceTestFits =
+      (results.varianceTestFits == nullptr || !varianceForest_ || nTest == 0)
+      ? nullptr
+      : results.varianceTestFits +
+          sampleNum * Results::strideOr(results.varianceTestFitsStride, nTest);
+    bool forestReporting = combiner_ && combiner_->forestReportingIsDefined();
+    draw.forestFits = (results.forestFits == nullptr || !forestReporting)
+      ? nullptr
+      : results.forestFits +
+          sampleNum * Results::strideOr(results.forestFitsStride,
+                                        n * forests_.size());
+    draw.glue = (results.glue == nullptr || !forestReporting)
+      ? nullptr : results.glue + sampleNum * combiner_->totalAmplitudes();
+    draw.splitProbabilities =
+      (results.splitProbabilities == nullptr || !forest.useDart)
+      ? nullptr
+      : results.splitProbabilities + sampleNum * data_.numPredictors;
+    // NaN-filled in the slab under a coupling whose blended location the
+    // response model cannot score; null here, as the test channel is
+    draw.logLikelihood =
+      (results.logLikelihood == nullptr ||
+       (combiner_ && !combiner_->logLikelihoodIsDefined()))
+      ? nullptr : results.logLikelihood + sampleNum * n;
+    draw.ordinalThresholds =
+      (results.ordinalThresholds == nullptr ||
+       !response_->carriesOrdinalThresholds())
+      ? nullptr
+      : results.ordinalThresholds +
+          sampleNum * response_->numOrdinalThresholds();
+    // forest-major within the draw, at the count Sampler::run clamped: one
+    // slab for a single-forest model, K for multinomial and for a multi-forest
+    // amplitude model
+    draw.varcount = results.variableCounts == nullptr ? nullptr
+      : results.variableCounts +
+          sampleNum * numVCForests * data_.numPredictors;
+
+    // the scalars come from the state the sweep settled rather than from the
+    // slabs, so they are readable whether or not the caller kept the channel
+    draw.sigma = sigma_ * response_->sigmaScale();
+    draw.k = forest.k;
+    draw.dispersion = response_->carriesDispersion()
+      ? response_->dispersion() : std::numeric_limits<double>::quiet_NaN();
+    draw.residualDf = response_->carriesResidualDf()
+      ? response_->residualDf() : std::numeric_limits<double>::quiet_NaN();
+  }
+
   void storeSample(Results& results, size_t sampleNum) {
     // the scalar channels (k, variable counts, split probabilities) and the
     // single-forest fit paths address the reported forest; the combiner names
@@ -5574,12 +5767,14 @@ private:
       double varScale = response_->sigmaScale() * response_->sigmaScale();
       const VarianceForest& vf = *varianceForest_;
       if (results.varianceFits != nullptr) {
-        double* out = results.varianceFits + sampleNum * n;
+        double* out = results.varianceFits +
+          sampleNum * Results::strideOr(results.varianceFitsStride, n);
         for (size_t i = 0; i < n; ++i) out[i] = varScale * vf.combinedVariance[i];
       }
       if (results.varianceTestFits != nullptr && data_.numTestObservations > 0) {
         size_t nTest = data_.numTestObservations;
-        double* out = results.varianceTestFits + sampleNum * nTest;
+        double* out = results.varianceTestFits +
+          sampleNum * Results::strideOr(results.varianceTestFitsStride, nTest);
         for (size_t i = 0; i < nTest; ++i)
           out[i] = varScale * vf.combinedVarianceTest[i];
       }
@@ -5591,7 +5786,9 @@ private:
     size_t numLocations = combiner_ ? combiner_->numReportedLocations() : 1;
 
     if (results.trainingFits != nullptr) {
-      double* out = results.trainingFits + sampleNum * n * numLocations;
+      double* out = results.trainingFits +
+        sampleNum * Results::strideOr(results.trainingFitsStride,
+                                      n * numLocations);
       const double* offset = response_->offset();
       // the combiner owns the blend; recompute it against the post-glue scalars
       // this sweep settled on (combinedFits at the sweep top ran before the
@@ -5623,7 +5820,9 @@ private:
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
       size_t nTest = data_.numTestObservations;
-      double* out = results.testFits + sampleNum * nTest * numLocations;
+      double* out = results.testFits +
+        sampleNum * Results::strideOr(results.testFitsStride,
+                                      nTest * numLocations);
       if (combiner_ && !combiner_->testFitsAreDefined()) {
         // A BCF test blend a * mu + b_z * tau is ill-defined here: the API
         // carries no test treatment vector, so only the bare prognostic
@@ -5662,7 +5861,9 @@ private:
     // mutate no state.
     if (combiner_ && combiner_->forestReportingIsDefined()) {
       if (results.forestFits != nullptr) {
-        double* out = results.forestFits + sampleNum * n * forests_.size();
+        double* out = results.forestFits +
+          sampleNum * Results::strideOr(results.forestFitsStride,
+                                        n * forests_.size());
         for (std::size_t f = 0; f < forests_.size(); ++f)
           std::memcpy(out + f * n, forests_[f].totalFits.data(),
                       n * sizeof(double));
