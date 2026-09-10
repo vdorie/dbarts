@@ -273,14 +273,18 @@ dbartsControl(
 
   A number in \\\[0, 1\]\\ giving the nonzero fraction at or below which
   a column of a sparse (`dgCMatrix`) design is stored as a rank bitmap
-  rather than as one code per row. Memory against time, with no effect
-  on the answers: at the default a rank-stored column costs about 38
-  percent of a sweep in decode and holds about 3.5 times less than the
-  dense layout. Which side of that trade is worth taking depends on the
-  design and the machine, which is why it is a setting. Read once, when
-  the sampler's data are built, and fixed thereafter: a change through
-  `setControl` is refused by name rather than silently relayouting
-  nothing.
+  rather than as one code per row. Memory against time: at the default a
+  rank-stored column costs about 38 percent of a sweep in decode and
+  holds about 3.5 times less than the dense layout. The layout changes
+  no proposal - the same splits are drawn either way, and the split
+  counts are identical - but it is not bitwise: a rank-stored column
+  hands a leaf its rows in a different order, so the leaf's sufficient
+  statistic reassociates and fits and `sigma` can differ in their last
+  bits, by an amount that grows slowly with the number of samples. Which
+  side of that trade is worth taking depends on the design and the
+  machine, which is why it is a setting. Read once, when the sampler's
+  data are built, and fixed thereafter: a change through `setControl` is
+  refused by name rather than silently relayouting nothing.
 
 - seed:
 
