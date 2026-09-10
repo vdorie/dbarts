@@ -90,11 +90,16 @@ static void report(const char* kernel, const char* variant, const char* inst,
          (double) elapsed / ((double) reps * (double) n));
 }
 
-// Shared buffers, sized once.
+// Shared buffers, sized once. The u16 kernels (misc_partitionRange,
+// misc_partitionIndices, misc_computeIndexed*) gather through misc_index_t
+// (uint32) index words; the local u8 kernels (partition_u8.h) keep their own
+// size_t vocabulary. Two widths, so two families of index buffers.
 static misc_xint_t codes[MAX_N];
 static uint8_t codesU8[MAX_N];
-static size_t indices[MAX_N];
-static size_t pristineIndices[MAX_N];
+static misc_index_t indices[MAX_N];
+static misc_index_t pristineIndices[MAX_N];
+static size_t narrowIndices[MAX_N];
+static size_t pristineNarrowIndices[MAX_N];
 static double z[MAX_N], w[MAX_N], y2[MAX_N];
 
 static void fillInputs(void) {
@@ -104,21 +109,33 @@ static void fillInputs(void) {
     z[i] = nextUniform() - 0.5;
     w[i] = nextUniform() + 0.5;
     y2[i] = nextUniform();
-    pristineIndices[i] = i;
+    pristineNarrowIndices[i] = i;
   }
   // Fisher-Yates so indexed kernels see scattered access.
   for (size_t i = MAX_N - 1; i > 0; --i) {
     size_t j = nextRand() % (i + 1);
-    size_t temp = pristineIndices[i];
-    pristineIndices[i] = pristineIndices[j];
-    pristineIndices[j] = temp;
+    size_t temp = pristineNarrowIndices[i];
+    pristineNarrowIndices[i] = pristineNarrowIndices[j];
+    pristineNarrowIndices[j] = temp;
   }
+  // Same permutation, narrowed to the u16 kernels' index width.
+  for (size_t i = 0; i < MAX_N; ++i)
+    pristineIndices[i] = (misc_index_t) pristineNarrowIndices[i];
+}
+
+// Element-wise compare across the two index widths; memcmp cannot be used
+// since misc_index_t (uint32) and size_t (uint64) buffers differ in stride.
+static bool indicesMatch(const misc_index_t* restrict a, const size_t* restrict b, size_t n) {
+  for (size_t i = 0; i < n; ++i)
+    if (a[i] != (misc_index_t) b[i]) return false;
+  return true;
 }
 
 // u8 codes must split exactly like the u16 reference on the same values;
 // the NEON block-skip must agree with the u8 scalar walk it accelerates.
 static void checkU8Correctness(void) {
-  static size_t ref[4096], test[4096];
+  static misc_index_t ref[4096];
+  static size_t test[4096];
   const size_t n = 4096;
   const misc_xint_t cut16 = (misc_xint_t) (MAX_CODE / 3);
   const uint8_t cut8 = (uint8_t) cut16;
@@ -127,16 +144,16 @@ static void checkU8Correctness(void) {
 
   size_t nRef = misc_partitionRange(codes, cut16, ref, n);
   size_t nTest = partitionRange_u8_c(codesU8, cut8, test, n);
-  if (nRef != nTest || memcmp(ref, test, n * sizeof(size_t)) != 0) {
+  if (nRef != nTest || !indicesMatch(ref, test, n)) {
     fprintf(stderr, "FAIL: partitionRange_u8 scalar diverges from u16 scalar reference\n");
     exit(1);
   }
 
-  memcpy(ref, pristineIndices, n * sizeof(size_t));
-  memcpy(test, pristineIndices, n * sizeof(size_t));
+  memcpy(ref, pristineIndices, n * sizeof(misc_index_t));
+  memcpy(test, pristineNarrowIndices, n * sizeof(size_t));
   nRef = misc_partitionIndices(codes, cut16, ref, n);
   nTest = partitionIndices_u8_c(codesU8, cut8, test, n);
-  if (nRef != nTest || memcmp(ref, test, n * sizeof(size_t)) != 0) {
+  if (nRef != nTest || !indicesMatch(ref, test, n)) {
     fprintf(stderr, "FAIL: partitionIndices_u8 scalar diverges from u16 scalar reference\n");
     exit(1);
   }
@@ -151,8 +168,8 @@ static void checkU8Correctness(void) {
     exit(1);
   }
 
-  memcpy(neon, pristineIndices, n * sizeof(size_t));
-  memcpy(test, pristineIndices, n * sizeof(size_t));
+  memcpy(neon, pristineNarrowIndices, n * sizeof(size_t));
+  memcpy(test, pristineNarrowIndices, n * sizeof(size_t));
   nNeon = partitionIndices_u8_neon(codesU8, cut8, neon, n);
   nTest = partitionIndices_u8_c(codesU8, cut8, test, n);
   if (nNeon != nTest || memcmp(neon, test, n * sizeof(size_t)) != 0) {
@@ -182,18 +199,18 @@ static void benchPartition(const char* inst) {
 
       // partitionIndices permutes its input, so restore a shuffled index set
       // each rep; report the memcpy alone so it can be subtracted.
-      memcpy(indices, pristineIndices, n * sizeof(size_t));
+      memcpy(indices, pristineIndices, n * sizeof(misc_index_t));
       misc_partitionIndices(codes, cuts[c].cut, indices, n);
       start = nsecNow();
       for (size_t r = 0; r < reps; ++r) {
-        memcpy(indices, pristineIndices, n * sizeof(size_t));
+        memcpy(indices, pristineIndices, n * sizeof(misc_index_t));
         sink_s = misc_partitionIndices(codes, cuts[c].cut, indices, n);
       }
       report("partitionIndices", cuts[c].name, inst, n, reps, nsecNow() - start);
 
       start = nsecNow();
       for (size_t r = 0; r < reps; ++r) {
-        memcpy(indices, pristineIndices, n * sizeof(size_t));
+        memcpy(indices, pristineIndices, n * sizeof(misc_index_t));
         sink_s = indices[r % n];
       }
       report("memcpyBaseline", cuts[c].name, inst, n, reps, nsecNow() - start);
@@ -228,27 +245,27 @@ static void benchPartitionWidths(const char* inst, bool useNeon) {
         sink_s = misc_partitionRange(codes, cuts[c].cut16, indices, n);
       report("partitionRange_u16", cuts[c].name, inst, n, reps, nsecNow() - start);
 
-      rangeU8(codesU8, cuts[c].cut8, indices, n);
+      rangeU8(codesU8, cuts[c].cut8, narrowIndices, n);
       start = nsecNow();
       for (size_t r = 0; r < reps; ++r)
-        sink_s = rangeU8(codesU8, cuts[c].cut8, indices, n);
+        sink_s = rangeU8(codesU8, cuts[c].cut8, narrowIndices, n);
       report("partitionRange_u8", cuts[c].name, inst, n, reps, nsecNow() - start);
 
-      memcpy(indices, pristineIndices, n * sizeof(size_t));
+      memcpy(indices, pristineIndices, n * sizeof(misc_index_t));
       misc_partitionIndices(codes, cuts[c].cut16, indices, n);
       start = nsecNow();
       for (size_t r = 0; r < reps; ++r) {
-        memcpy(indices, pristineIndices, n * sizeof(size_t));
+        memcpy(indices, pristineIndices, n * sizeof(misc_index_t));
         sink_s = misc_partitionIndices(codes, cuts[c].cut16, indices, n);
       }
       report("partitionIndices_u16", cuts[c].name, inst, n, reps, nsecNow() - start);
 
-      memcpy(indices, pristineIndices, n * sizeof(size_t));
-      indicesU8(codesU8, cuts[c].cut8, indices, n);
+      memcpy(narrowIndices, pristineNarrowIndices, n * sizeof(size_t));
+      indicesU8(codesU8, cuts[c].cut8, narrowIndices, n);
       start = nsecNow();
       for (size_t r = 0; r < reps; ++r) {
-        memcpy(indices, pristineIndices, n * sizeof(size_t));
-        sink_s = indicesU8(codesU8, cuts[c].cut8, indices, n);
+        memcpy(narrowIndices, pristineNarrowIndices, n * sizeof(size_t));
+        sink_s = indicesU8(codesU8, cuts[c].cut8, narrowIndices, n);
       }
       report("partitionIndices_u8", cuts[c].name, inst, n, reps, nsecNow() - start);
     }
