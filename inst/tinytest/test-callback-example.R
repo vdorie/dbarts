@@ -14,7 +14,9 @@ source(
   local = TRUE
 )
 consumer <- compileCapiConsumer("capi-mean", "the callback-example consumer")
-if (!is.null(consumer$skip)) exit_file(consumer$skip)
+if (!is.null(consumer$skip)) {
+  exit_file(consumer$skip)
+}
 CALL <- consumer$CALL
 
 meanFn <- CALL("capi_mean_function")

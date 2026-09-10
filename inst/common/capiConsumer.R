@@ -28,7 +28,9 @@ compileCapiConsumer <- function(prefix, label) {
   headerPath <- file.path(includeDir, "dbarts", "dbarts.h")
   if (!nzchar(includeDir) || !file.exists(headerPath)) {
     msg <- paste0("dbarts.h not found under includeDir '", includeDir, "'")
-    if (nzchar(Sys.getenv("CI", ""))) stop(msg)
+    if (nzchar(Sys.getenv("CI", ""))) {
+      stop(msg)
+    }
     return(list(skip = msg))
   }
 

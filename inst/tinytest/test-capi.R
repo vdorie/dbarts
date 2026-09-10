@@ -9,7 +9,9 @@ source(
   local = TRUE
 )
 consumer <- compileCapiConsumer("capi", "the C API consumer")
-if (!is.null(consumer$skip)) exit_file(consumer$skip)
+if (!is.null(consumer$skip)) {
+  exit_file(consumer$skip)
+}
 consumerSource <- consumer$consumerSource
 includeDir <- consumer$includeDir
 dll <- consumer$dll

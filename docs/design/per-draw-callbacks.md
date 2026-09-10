@@ -395,7 +395,7 @@ stan4bart's embedding pattern - per-iteration caller-owned buffers, one draw
 at a time, chains in separate single-chain samplers - is this shape reached
 from C, and is the second consumer. Rcpp itself is not a dbarts dependency:
 the repo's precedent for a compiled example under test is
-["consumer source not installed"](../../inst/tinytest/test-capi.R), plain C
+["consumer source not installed"](../../inst/common/capiConsumer.R), plain C
 through `R CMD SHLIB`, self-gating on the toolchain. Fork 6.
 
 ## 6. Memory consequence
@@ -468,7 +468,7 @@ Minimum shippable surface, pre-release (VD raised the priority, 2026-09-10):
 4. The example, a seventh recipe in `vignettes/dbarts-as-a-component.Rmd`.
 5. Tests: a plain-C callback compiled with `R CMD SHLIB`, its accumulated
    mean checked against the same fit's `yhat.train` mean and self-gating like
-   ["consumer source not installed"](../../inst/tinytest/test-capi.R); a
+   ["consumer source not installed"](../../inst/common/capiConsumer.R); a
    multi-chain run asserting per-chain call counts and ordering; a run
    asserting exactly `n.samples` calls at the `bart()` defaults (the burn-in
    regression); a stop-flag run; heteroscedastic and BCF fits asserting the

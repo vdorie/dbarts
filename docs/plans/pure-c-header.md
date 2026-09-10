@@ -80,7 +80,7 @@ branches.
   destroy and the version pair. Both define `DBARTS_USE_STUBS` and
   `DBARTS_REQUIRE_EXACT_ABI` (stan4bart in its Makevars, treatSens per
   file). The shipped test consumer
-  ["consumer.c"](../../inst/tinytest/test-capi.R) exercises 40
+  [`capi_hash`](../../inst/tinytest/capi/consumer.c) exercises 40
   entries including the whole multi-forest block, and five handshake
   arms (a consumer compiled with a wrong hash, with the wrong hash under
   the exact-ABI flag, with a wrong major, with a wrong minor, and with
@@ -275,7 +275,7 @@ the pin and the move - into the holder's owned buffers, sized in
 [`createHolder`](../../src/R_interface_bartcore.cpp); both tokens re-baked
 ([`dbarts_apiSignatureToken`](../../src/C_interface.cpp),
 `DBARTS_C_API_HASH`). The shipped test consumer
-(["consumer.c"](../../inst/tinytest/test-capi.R)) is rewritten to create
+([`capi_hash`](../../inst/tinytest/capi/consumer.c)) is rewritten to create
 through R, keeps the five handshake arms, and adds a copy-on-set probe, a
 handle-after-restore probe and a destroy probe; tests/cpp gains the
 two-compiler header-compiles target. Docs land with the code: the header's

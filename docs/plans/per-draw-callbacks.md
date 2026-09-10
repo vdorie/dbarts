@@ -107,7 +107,7 @@ implementer needs from the code:
   layout. [`tools/check-api-hash.sh`](../../tools/check-api-hash.sh)
   enforces dec-B111's pair rule and prints "no release tag, skipped".
 - The compiled-consumer precedent under test is
-  ["consumer source not installed"](../../inst/tinytest/test-capi.R): plain
+  ["consumer source not installed"](../../inst/common/capiConsumer.R): plain
   C through `R CMD SHLIB`, self-gating on the toolchain. Rcpp is not a
   dbarts dependency.
 
