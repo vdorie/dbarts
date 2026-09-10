@@ -782,6 +782,25 @@ S5, the constants audit (dec-B91, B93, B110):
     10 to 25 tree guidance and gains the warning's meaning; NEWS carries
     the settings and the warning.
 
+Step 15 outcome (2026-09-10, landed d06fbe5e; scripts cd2be9ff, note
+b69cc332): nine `benchmarks/R/constant-*.R` scripts and
+[docs/design/engine-constants.md](../design/engine-constants.md), Status
+MEASURED, one section per constant. Binding on this host: the test-fit
+parallel cutoff (2.97x threaded above 65536, serial already 16.5 ms per
+iteration at 32768); the predict cutoff (crossover between 3e4 and 1e5
+traversals against a constant of 1e7, so step 16 calibrates it near
+5e4); the sparse density threshold (a real memory-versus-time trade at
+0.2); the GP leaf size (83 percent of rows on the constant-leaf fallback
+at the default 256, the dec-B110 case); the person-period cap (1.9 GB at
+1e7 rows). Not binding: the categorical exhaustive cap (enumeration costs
+the same as the scan at ten levels), the linear leaf's covariate cap (12
+and 16 refused, 8 costs 5 percent over 4), the perturb width (acceptance
+falls with width, ESS unordered), and the xint caps (a 65533-cut grid
+costs nothing). One defect: cut requests past 65533 are accepted and
+silently clamped in `ColumnStore::build` where level counts refuse by
+name; step 16 turns the clamp into a refusal. Reviewed LAND; one
+extrapolation figure corrected before landing.
+
 ## Verification
 
 ```
