@@ -343,10 +343,13 @@
             and \code{dbarts} (successor \code{family = hazard(max.rows)});
             \code{dart} on \code{bart} and \code{xbart} (successor
             \code{tree.prior = dart()}); \code{levelGibbs} on \code{bart}
-            (successor \code{tree.prior = cgm(levelGibbs)}); \code{power},
-            \code{base}, and \code{split.probs} on \code{bart} (successor
+            (successor \code{tree.prior = cgm(levelGibbs)}); \code{power}
+            and \code{base} on \code{bart} (successor
             \code{tree.prior = cgm()} or \code{tree.prior = dart()});
-            \code{prior.scale} on \code{bart} (successor
+            \code{split.probs} on \code{bart} (successor
+            \code{tree.prior = cgm(split.probs)}, refused together with a
+            DART tree prior, which draws its own); \code{prior.scale} on
+            \code{bart} (successor
             \code{node.prior = normal(scale)}); \code{sigdf} and
             \code{sigquant} on \code{bart} (successor
             \code{resid.prior = chisq()}); \code{proposal.probs} on

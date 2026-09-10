@@ -30,8 +30,11 @@
     \item{\code{dart}, \code{levelGibbs}}{
       On \code{\link{bart}} (\code{dart} also on \code{\link{xbart}}): tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s tree priors (\code{tree.prior = dart()}, \code{tree.prior = cgm(levelGibbs = )}).
     }
-    \item{\code{power}, \code{base}, \code{split.probs}}{
-      On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()}/\code{dart()} (\code{tree.prior = cgm(power, base, split.probs)}).
+    \item{\code{power}, \code{base}}{
+      On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()} or \code{dart()} (\code{tree.prior = cgm(power, base)} or \code{tree.prior = dart(power, base)}).
+    }
+    \item{\code{split.probs}}{
+      On \code{\link{bart}}: a tree-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{cgm()} only (\code{tree.prior = cgm(split.probs = )}); a DART tree prior draws its own split probabilities, so combining it with \code{dart} or \code{tree.prior = dart()} is refused.
     }
     \item{\code{prior.scale}}{
       On \code{\link{bart}}: a node-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{normal()} (\code{node.prior = normal(scale = )}).
