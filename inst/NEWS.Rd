@@ -1625,6 +1625,38 @@
             shipped build's follow the host's vector width, so it is what the
             package's own bitwise gates are recorded and replayed on. It is a
             development build: CRAN ships the default.
+      \item Every fixed limit in the engine is documented where it is
+            defined, with what it bounds and what happens at it, and the four
+            that a real workload can profitably move are
+            \code{\link{dbartsControl}} settings:
+            \code{categoricalExhaustiveCap}, the present-category count up
+            to which grow-from-root enumerates every partition rather than
+            the sorted prefixes; \code{testFitParallelCutoff}, the test-row
+            count at which test fitting borrows the surplus thread budget;
+            \code{predictParallelCutoff}, the traversal count at which
+            \code{predict} fans out; and
+            \code{sparseDensityThreshold}, the nonzero fraction at or below
+            which a sparse predictor column keeps rank-bitmap storage. Only
+            the first changes what is sampled; the others buy time or memory
+            and return bit-for-bit the same draws either side of themselves,
+            and every default is the value the engine used before it was
+            settable. \code{predictParallelCutoff}'s default is now 50000
+            traversals rather than the uncalibrated 1e7, so mid-sized
+            replays are threaded where they were serial - identically, since
+            each worker owns its own output range. A table of all of them,
+            with defaults, recommended ranges and which are settable, is on
+            the \code{\link{dbartsControl}} page.
+      \item \code{n.cuts} above 65533, the most a predictor's grid can
+            represent, is refused by name rather than silently clamped to it,
+            as a factor with too many levels always has been.
+      \item A fit with Gaussian-process leaves
+            (\code{\link[=dbartsPriors]{gp}}) counts the leaf evaluations
+            that exceeded \code{max.leaf.size} and were scored and drawn as
+            constant leaves instead. The counts ride the fit as
+            \code{gp.fallback}, and a run in which more than a quarter of
+            evaluations took that path warns once, giving the share: the
+            substitution is coherent but is not the model that was asked
+            for, and nothing said so before.
     }
   }
   \subsection{C API}{

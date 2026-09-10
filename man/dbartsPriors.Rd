@@ -92,6 +92,15 @@
       grows deeper trees and is the effective way to bring leaves under the
       cap, whereas lowering \code{max.leaf.size} only sends more leaves to the
       constant fallback.
+      Because that fallback is silent - the fit stays coherent, it is simply
+      not a Gaussian process over the leaves that took it - every leaf
+      evaluation is counted. The counts ride the fit as \code{gp.fallback}
+      (a named pair, \code{evaluations} and \code{fallbacks}), and a run in
+      which more than a quarter of evaluations fell back warns once, giving
+      the share: at the default cap on a design of any size that is the
+      normal outcome, not an error, and the warning is the notice that the
+      cap rather than the kernel is doing the modeling. The remedies are the
+      two the paragraph above names, in the order it names them.
       Function-valued fits ride prediction only: \code{getTrees} reports
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification

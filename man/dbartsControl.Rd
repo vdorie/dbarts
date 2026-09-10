@@ -91,6 +91,35 @@ dbartsControl(
      Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.
    }
 }
+\section{Engine limits}{
+  Nine fixed values decide what the engine will represent and where it
+  switches strategy. Each was measured on one machine (arm64 macOS, 10 cores);
+  the four that a workload can profitably move are settings here, and the rest
+  are limits of the representation or of a proposal family, with nothing found
+  that moving would buy. A recommended range is given where a measurement
+  supports one.
+
+  \tabular{lllll}{
+    \strong{Limit} \tab \strong{Where} \tab \strong{Default} \tab \strong{Recommended} \tab \strong{Settable} \cr
+    Cuts per predictor \tab quantized predictor code \tab 65533 \tab up to the cap \tab no; \code{n.cuts} above it is refused \cr
+    Categorical levels \tab quantized predictor code \tab 65535 \tab any real factor \tab no; a wider factor is refused by name \cr
+    Ordered-factor levels \tab quantized predictor code \tab 65534 \tab any real factor \tab no; one code goes to the cut grid \cr
+    Exact categorical enumeration \tab grow-from-root scan \tab 10 present levels \tab 8 to 14 \tab yes, \code{categoricalExhaustiveCap} \cr
+    Leaf-regression columns \tab \code{\link[=dbartsPriors]{linear}} leaves \tab 8 \tab 1 to 8 \tab no; a fixed stack scratch is sized for it \cr
+    Perturb window \tab the perturb proposal \tab 1 grid position \tab 1 \tab no; acceptance falls with width and nothing gains \cr
+    Test-fit parallel cutoff \tab test-set fitting \tab 65536 rows \tab 8192 to 65536 \tab yes, \code{testFitParallelCutoff} \cr
+    Predict parallel cutoff \tab \code{\link[=dbartsSampler-class]{predict}} \tab 50000 traversals \tab 3e4 to 1e5 \tab yes, \code{predictParallelCutoff} \cr
+    Sparse density threshold \tab \code{dgCMatrix} storage \tab 0.2 \tab 0.05 to 0.5 \tab yes, \code{sparseDensityThreshold} \cr
+    Gaussian-process leaf size \tab \code{\link[=dbartsPriors]{gp}} leaves \tab 256 observations \tab 256 to 512 \tab yes, \code{gp(max.leaf.size = )} \cr
+    Person-period expansion \tab \code{\link[=dbartsFamilies]{hazard}} \tab 1e7 rows \tab host-dependent \tab yes, \code{hazard(max.rows = )} \cr
+  }
+
+  Only the categorical enumeration cap changes what is sampled; the two
+  parallel cutoffs and the density threshold trade time against memory and
+  return bit-for-bit the same draws either side of themselves. Every default
+  above is the value the engine used before it was settable, so a fit that
+  names none of them reproduces earlier results exactly.
+}
 \value{
   An object of class \code{dbartsControl}.
 }

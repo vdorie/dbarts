@@ -1,6 +1,16 @@
 # Engine constants
 
-Status: MEASURED (2026-09-10) on arm64 macOS (10 cores, 32 GB), one
+Status: MEASURED (2026-09-10), and the four rows that bind are now settings:
+[`categoricalExhaustiveCap`](../../src/bartcore/scan.hpp),
+[`testFitParallelCutoff`](../../src/bartcore/chain.hpp),
+[`predictParallelCutoff`](../../src/bartcore/sampler.hpp) and
+[`sparseDensityThreshold`](../../src/bartcore/data.hpp) are the
+[`SamplerOptions`](../../src/bartcore/chain.hpp) fields of the same names,
+reached from R as the `dbartsControl` slots of the same names; the predict
+cutoff's default moved to the calibrated 50000. Each per-constant verdict
+below closes with what became of it.
+
+Measured on arm64 macOS (10 cores, 32 GB), one
 measurement at a time on an otherwise quiet machine, against the shipped
 build at 650510f6. Every row below comes from a script under benchmarks/R
 named after its constant; each is re-runnable, prints a table, and has no
@@ -55,6 +65,15 @@ Verdict: does NOT bind on time - the enumeration is free at the cap - and the
 acceptance evidence for raising it is weak; a cap arm at P = 12 or 14 exact
 needs a scratch build and was not run.
 
+EXPOSED anyway, as `SamplerOptions::categoricalExhaustiveCap` and the
+`categoricalExhaustiveCap` control slot, since it is exactly the scratch build
+the arm above wanted: the value rides
+[`CategoricalScanScratch`](../../src/bartcore/scan.hpp)'s `exhaustiveCap`, per
+chain, and [`growCategoricalRule`](../../src/bartcore/grow.hpp) reads the same
+field so the decode matches the enumeration. It is the one setting of the four
+that moves the draws, and the control validity caps it at 30, where the
+candidate count stops being indexable.
+
 ## Linear leaf covariate cap
 
 Value 8, at
@@ -87,6 +106,10 @@ Verdict: BINDS as a refusal - nine columns is a stop, not a slowdown - but
 nothing measured says eight is the right place to stop; neither time nor
 conditioning is near a limit there.
 
+NOT exposed: the scratch is a fixed-size stack array sized from the constant,
+so moving it is a recompile and not a setting. The comment at the definition
+now carries the measurement.
+
 ## Perturb width
 
 Value 1, at [`perturbWidth`](../../src/bartcore/moves.hpp). Origin, from the
@@ -117,6 +140,10 @@ Two chains would be needed to separate the sigma column from noise.
 
 Verdict: does NOT bind. The measurement reproduces the comment's premise and
 finds no mixing the wider window buys back.
+
+NOT exposed: nothing measured wants a wider window, and a setting no evidence
+supports is worse than a constant. The comment at the definition now carries
+the numbers.
 
 ## Test-fit parallel cutoff
 
@@ -150,6 +177,14 @@ pays.
 
 Verdict: BINDS. The cutoff sits past the crossover; the serial path is
 charged to test sets that would already profit from the pool.
+
+EXPOSED as `SamplerOptions::testFitParallelCutoff` and the control slot of the
+same name, DEFAULT UNMOVED at 65536: the crossover is a property of the host
+and of the test-set width, and the two routing paths are byte-identical, so
+the value a caller measures for their own machine is the one worth taking.
+[`routeTestRows`](../../src/bartcore/chain.hpp) reads the option, and the
+excess-threads warning in [`dbarts`](../../R/dbarts.R) now names the count in
+force rather than a hand-copied literal.
 
 ## Predict parallel cutoff
 
@@ -194,6 +229,15 @@ roughly 5e4 traversals; at the shipped 1e7 every replay up to 1e7
 traversals - 46 msec of avoidable serial work at the top of that range - runs
 inline on one thread with the fan-out available.
 
+EXPOSED as `SamplerOptions::predictParallelCutoff` and the control slot of the
+same name, and the DEFAULT MOVED to 50000, per dec-B93. The constant
+[`Sampler::predictParallelCutoff`](../../src/bartcore/sampler.hpp) is that
+default; the option overrides it and
+[`PredictPartitionChannel::cutoffOverride`](../../src/bartcore/sampler.hpp)
+still overrides both, so the test seam is unchanged. Mid-sized replays are
+threaded where they were serial, which is a bitwise-neutral change by the
+partition's own construction and is tested as one.
+
 ## Sparse density threshold
 
 Value 0.2, at [`sparseDensityThreshold`](../../src/bartcore/data.hpp).
@@ -236,6 +280,12 @@ time bought for 3.5x of predictor memory - and the threshold is a memory
 choice, which is what the sparse-columns note claims. Whether 0.2 is the
 right price is a per-workload question a fixed number cannot answer.
 
+EXPOSED for that reason, as `SamplerOptions::sparseDensityThreshold` and the
+control slot of the same name, DEFAULT UNMOVED at 0.2. It reaches the store as
+[`ColumnStore::sparseDensityCutoff`](../../src/bartcore/data.hpp), set before
+the build that reads it and carried onto a view built from a parent, since the
+choice is made once per column and a later change would relayout nothing.
+
 ## GP leaf max leaf size
 
 Value 256, at [`maxLeafSize_`](../../src/bartcore/model.hpp), set from
@@ -268,6 +318,16 @@ on most of the data, and moving it is unaffordable by a factor of ten per
 step - which is the case for dec-B110's counter and warning: a user needs to
 be told which regime the fit landed in.
 
+The counter and the warning are built. Each of the four entry points bumps
+[`GPGaussianLeaf`](../../src/bartcore/model.hpp)'s `tally_`, a plain per-leaf
+pair of counters (one leaf per forest per chain, so no atomic and no shared
+line), summed at packaging through
+[`SamplerBase::gpFallbackTally`](../../src/bartcore/facade.hpp); the pair
+rides the run as a `gp.fallback` attribute and the packaged fit as
+`gp.fallback`, and [`warnOnGPFallback`](../../R/bartcore.R) warns above the
+quarter-share threshold dec-B110's fork names, the share included. The cap
+itself was already settable and its default is unmoved.
+
 ## Person-period row cap
 
 Value 1e7, the max.rows argument of [`hazard`](../../R/family.R), enforced by
@@ -295,7 +355,8 @@ its own; the 3e7 arm, which only runs with the cap raised, holds 5.7 GB.
 Verdict: BINDS at a defensible place. 1e7 rows is where the expansion stops
 being something a 16 GB machine absorbs, and the cap is already settable per
 fit, which is the right shape for a number that depends on the column count
-and the host.
+and the host. Already exposed, so nothing changed but the comment at
+[`hazard`](../../R/family.R), which now carries these numbers.
 
 ## The xint caps
 
@@ -337,3 +398,10 @@ object still: it needs at least that many rows to be non-degenerate.
 Verdict: does NOT bind. No design that arrives on its own gets near either
 cap. The one defect the probe finds is the asymmetry: the cut cap clamps
 silently where the level caps refuse by name.
+
+FIXED, not exposed: widening the code is out of scope, but the clamp is gone.
+[`ColumnStore::build`](../../src/bartcore/data.hpp) now refuses a request past
+`maxNumCutsRepresentable` instead of quantizing onto a grid the caller did not
+ask for, and the bridge's own `n.cuts` read names the cap in the message, as
+the level ceilings always have. The probe's table reads REFUSED at 65534 and
+100000 now.
