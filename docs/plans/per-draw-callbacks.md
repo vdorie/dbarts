@@ -318,7 +318,9 @@ R/bartcore.R and inst/tinytest/test-argument-surface.R):
 
 S4, the example, its test and the manual
 (vignettes/dbarts-as-a-component.Rmd, inst/tinytest, man/dbarts-package.Rd,
-docs/design/memory-footprint.md, benchmarks/):
+docs/design/memory-footprint.md, benchmarks/; landed also touching
+inst/common/capiConsumer.R, docs/design/per-draw-callbacks.md and
+docs/plans/pure-c-header.md):
 
 21. A seventh recipe in the component vignette: the running posterior mean
     of
@@ -611,6 +613,140 @@ run too fails six test-capi assertions (call counts 500 to 1000).
 
 Remaining: S4 (the vignette example, its test and the manual) is open,
 per the plan's Steps.
+
+## Landing note, S4 (2026-09-11)
+
+LANDED at 4cf56b69bca5f1855c856cdb6fbe524b876e4561, twelve commits, the
+slice then its review fixes:
+
+- 2ff936265fa6d6b762a7dfb8fdcbc14ed81af985 Drive the vignette's
+  running-mean recipe from a plain-C copy under test
+- 6a66a2d14750fb0a6063a9d5250fefd725704dd4 Add the per-draw callback
+  recipe to the component vignette
+- 1256078a0e7bd88e1f7692cd29cefc352baa0c7c Name the per-draw callback
+  route beside keepTrainingFits, and the two rows the memory note owed
+- 2f43401484f3f34b1f0c52f79b40f55c515a3105 Add no-op and running-mean
+  callback scenarios to bench-sampler.R
+- 1bfd93888d1fa947831dfcad0e1d47d0aecfde6d Fix the memory note's
+  cross-reference link text to match its target heading
+- 4e9f969a013c0e30221c5b6fa4cc470c715ec32e Reconcile the callback
+  memory figures with the post-guard reference cases
+- d22a0c01d9e8cd597674e9172683ceb0b55b738e Share the capi consumer
+  compile between its two test files
+- 85a36fefe7c0bc8016557f494304e954d9027acd Guard the running-mean
+  recipe on the training channel's column count
+- 55b4ac882084241b63a735f96ffd6f19c355f1dc State the no-R-API rule in
+  the callback recipe's prose
+- 683ed71e2a88ab35d2d1b5af56fd2142f9730dd2 Fold the callback bench
+  scenarios into one loop and document the mode
+- 8455f73ca26703d2b89a50f8c83336c44096d1e3 Retarget the
+  compiled-consumer cites at the shared helper and the source
+- 4cf56b69bca5f1855c856cdb6fbe524b876e4561 State the callback's
+  pointer shape rather than quoting the request for it
+
+Recipe 7 in
+[dbarts-as-a-component.Rmd](../../vignettes/dbarts-as-a-component.Rmd) is
+the running posterior mean of
+[5. The Rcpp example](../design/per-draw-callbacks.md#5-the-rcpp-example),
+Rcpp form, unevaluated - `Rcpp` is not a dbarts dependency, so the chunk
+does not run as part of building the vignette. `R_MakeExternalPtrFn`
+casts the callback's function pointer without the plain cast
+`-Wpedantic` flags under `R CMD check`, and the caller-owned accumulator
+goes in the external pointer's PROTECTED slot, the only thing keeping it
+alive across the run. The prose states the lifetime rules - `REAL(acc)`
+read exactly once before the fit starts, chains writing DISJOINT slices
+so no lock is needed, a context built PER RUN because `drawIndex`
+restarts at 0 on every call, and the return value an ABORT switch, not an
+error channel - and, after review, the no-R-API rule in the Constraints'
+own terms: no `Rf_allocVector`, no `PROTECT`, no `Rf_error`, and in C++
+no construction or destruction of an `Rcpp` proxy type. The reviewer
+compiled and ran the chunk out of band with `-Wall -Wpedantic`,
+reproducing `yhat.train.mean` to 1.1e-16.
+
+A plain-C mirror of the same callback,
+[inst/tinytest/capi/consumer.c](../../inst/tinytest/capi/consumer.c)'s
+`capi_meanDraw` (guarded, after review, on `numReportedLocations == 1`
+beside the checks the recipe itself states), is driven by
+[inst/tinytest/test-callback-example.R](../../inst/tinytest/test-callback-example.R)
+at tolerance 1e-12 - the measured gap is 1.1e-16 absolute, so the
+tolerance covers summation order (an incremental per-chain mean then
+`rowMeans`, against `yhat.train.mean`'s own whole-array reduction) and
+nothing else. [inst/common/capiConsumer.R](../../inst/common/capiConsumer.R)
+is the compile/self-gate helper `test-capi.R` and this new file now
+share (`compileCapiConsumer`, lifting what had been duplicated in both);
+`exit_file` itself stays in each test file rather than moving into the
+helper, since tinytest masks it only in the test file's own environment
+and a call from the sourced helper would silently reach the namespace
+version instead.
+
+The manual gained one sentence:
+[dbarts-package.Rd](../../man/dbarts-package.Rd)'s Memory section names
+the callback route beside `keepTrainingFits`.
+[memory-footprint.md](../../docs/design/memory-footprint.md)'s Reference
+cases gained the two rows it owed - a heteroscedastic fit's variance
+channel and a BCF fit's per-forest fits, neither reachable by
+`keepTrainingFits` - both formula-derived, not measured on an actual fit.
+Reconciling those against the post-ingestion-guard reference-case rows
+mid-slice moved the design note's own figures (section 1 and
+[6. Memory consequence](../design/per-draw-callbacks.md#6-memory-consequence))
+and the manual sentence together: 3891.3 to 697.7 MB at n = 1e5, p = 20,
+C = 4, S = 500 (engine 658.3 + R 33.0 + two `yhat.train` copies 3200.0
+MB, against engine + R + 3.2 MB per-draw scratch + 3.2 MB accumulator)
+and 10560.3 to 2576.3 MB at n = 1e6, p = 50, C = 1.
+
+`benchmarks/R/bench-sampler.R` gained a `callback` mode (`Rscript
+bench-sampler.R callback [record|compare ...]`, opt-in like the big
+grid, own `sampler-callback.csv`), timing three variants - none, a
+no-op C callback, and the running-mean recipe's own compiled copy, the
+SAME source `test-callback-example.R` checks - at both reference
+shapes. The consumer library is compiled once per invocation and the
+mean context built once per shape, reused across that shape's timing
+repetitions (only the elapsed time is read off; the correctness test
+needs a fresh context per run, this scenario does not). NOT yet run:
+the scenario lands with this slice but its numbers are maintainer-run
+on a quiet machine, per Verification, and
+[7. Threading interaction](../design/per-draw-callbacks.md#7-threading-interaction)'s
+"measured at landing:" placeholder is still open.
+
+Review fixes before landing: a docs/ path cite dropped from two shipped
+comments (`inst/tinytest/capi/consumer.c` and
+`inst/tinytest/test-callback-example.R` each named
+`docs/design/per-draw-callbacks.md`, against the house rule that shipped
+comments cite no docs/ path); the running-mean guard checks
+`numReportedLocations` too, in both the vignette and its plain-C mirror,
+since the recipe's reduction is written for a single reported location;
+the no-R-API rule stated in the vignette's own prose, in the
+Constraints' terms; a quoted VD request replaced by a statement of the
+callback's actual pointer shape; and five doc cites retargeted from
+`inst/tinytest/test-capi.R` to the new shared helper after its
+extraction, two of them in `docs/plans/pure-c-header.md`.
+
+Files beyond the plan's S4 list: `inst/common/capiConsumer.R` (new,
+the shared helper, not itemized there), `docs/design/per-draw-callbacks.md`
+(the memory reconciliation and the doc-cite retargeting) and
+`docs/plans/pure-c-header.md` (two of the retargeted cites); the S4
+header above is updated to list them. About 395 added lines before
+review against a budget of about 150 (~70 vignette + ~60 tinytest C +
+~20 manual and memory note); the reviewer judged the overage the
+unbudgeted bench mode and the test file's boilerplate, the latter
+removed at landing by the shared helper.
+
+Gates (reviewer's run): `R CMD INSTALL --preclean` exit 0; tinytest
+8351 TRUE, 0 FALSE, both `test-callback-example.R` and `test-capi.R`
+ran (neither skipped); the equivalence trio against the f0236082
+baselines 52 of 52, BCF 12 of 12, multinomial 11 of 11 "identical draws
+(same RNG stream)", zero "max |z|", zero skipped; `R CMD build` and `R
+CMD check --as-cran` from a tarball staged outside the tree OK, 0 NOTE;
+`check-doc-freshness`, `check-rc-codoc`, `air format --check .` and
+`lintr::lint_package()` all clean. Mutation: collapsing the per-chain
+slice offset in the running-mean recipe fails
+`test-callback-example.R`'s comparison against `yhat.train.mean`,
+relative difference 0.5.
+
+Remaining: the bench-sampler callback numbers owed to the design note's
+section 7 ("measured at landing:" placeholder) are recorded separately,
+by the maintainer, on a quiet machine. S5 (the sister-package record)
+is open, per the plan's Steps.
 
 ## Landing note, S5 (2026-09-11)
 
