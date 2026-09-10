@@ -344,7 +344,7 @@ S4, manual, records, consumers:
 ```
 R CMD INSTALL -l <lib> .
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-deb144d2.rds
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-f0236082.rds
   # this plan's own S1-S4 read 50 identical from S3 on (against
   # equivalence-fbff1989.rds, S1/S2/S4 read 50 identical and S3 48, xbart
   # and xbartmixed re-recorded) - equivalence-c42b72af.rds at the time;

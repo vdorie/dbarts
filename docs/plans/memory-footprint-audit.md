@@ -301,7 +301,7 @@ air format --check . && Rscript -e 'lintr::lint("benchmarks/R/memory-footprint.R
 Rscript tools/check-doc-freshness.R && Rscript tools/check-rc-codoc.R
 R CMD build . && R CMD check --as-cran dbarts_*.tar.gz
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'                      # step 7
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-deb144d2.rds   # step 7: 52 identical
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-f0236082.rds   # step 7: 52 identical
 ```
 
 Expected: record writes one row per cell per metric; fit prints the residual

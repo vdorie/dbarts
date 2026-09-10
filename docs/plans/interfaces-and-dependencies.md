@@ -376,9 +376,9 @@ S4, DESCRIPTION wording and configure stubs (independent of S1-S3):
 ```
 R CMD INSTALL -l <lib> .
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'
-R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-deb144d2.rds
-R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-fbff1989.rds
-R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-fbff1989.rds
+R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-f0236082.rds
+R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare benchmarks/baselines/bcf-equivalence-f0236082.rds
+R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare benchmarks/baselines/multinomial-equivalence-f0236082.rds
   # 52/12/11 identical, no "max |z|" line (S2 recorded the 51st scenario,
   # aftformula, at 2085cba2; S3 recorded the 52nd, wideFactorIndicators,
   # at deb144d2)

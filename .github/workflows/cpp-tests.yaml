@@ -130,7 +130,7 @@ jobs:
           fail=0
           echo "::group::equivalence"
           if Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-deb144d2.rds --strict-coverage; then
+            benchmarks/baselines/equivalence-f0236082.rds --strict-coverage; then
             echo "PASS equivalence"
           else
             echo "::error::bitwise gate equivalence FAILED"
@@ -139,7 +139,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::bcf-equivalence"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-fbff1989.rds; then
+            benchmarks/baselines/bcf-equivalence-f0236082.rds; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::bitwise gate bcf-equivalence FAILED"
@@ -148,7 +148,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::multinomial-equivalence"
           if Rscript benchmarks/R/multinomial-equivalence.R compare \
-            benchmarks/baselines/multinomial-equivalence-fbff1989.rds; then
+            benchmarks/baselines/multinomial-equivalence-f0236082.rds; then
             echo "PASS multinomial-equivalence"
           else
             echo "::error::bitwise gate multinomial-equivalence FAILED"

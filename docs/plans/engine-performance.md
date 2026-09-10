@@ -216,8 +216,8 @@ choice; none remains open.
   passing on both builds. S2 must not touch the fused pass. S4 does:
   fork 5(a) overrides that pass's standing refusal of a knob under
   dec-B89 and amends its comment in the same slice.
-- The reference build must reproduce equivalence-deb144d2.rds,
-  bcf-equivalence-fbff1989.rds and multinomial-equivalence-fbff1989.rds
+- The reference build must reproduce equivalence-f0236082.rds,
+  bcf-equivalence-f0236082.rds and multinomial-equivalence-f0236082.rds
   bitwise on arm64 macOS at every slice; if it cannot, the slice stops
   and the re-record owes a P17 oracle
   ([MANIFEST](../../benchmarks/baselines/MANIFEST)). The four RNG-locked
@@ -307,9 +307,9 @@ FAIL on all 12 and all 11 scenarios even though every draws-axis
 channel reports max |z| = 0.00 - only their reference-build and
 `--cross-host` runs stay meaningful, which is where every workflow
 already runs them; and benchmarks/baselines/MANIFEST's build-mode
-header and the equivalence-deb144d2 row still say the shipped build
-reproduces the baselines bitwise, which stops being true the moment
-this lands.
+header and the then-current equivalence-deb144d2 row still said the
+shipped build reproduces the baselines bitwise, which would stop being
+true the moment this landed.
 
 AVX2 addendum (VD 2026-09-10, "Try the AVX2"). A four-wide body of the
 SAME split - one 256-bit register holding all four banks, lane b being
@@ -787,11 +787,11 @@ R_LIBS=<ref> Rscript -e 'tinytest::test_package("dbarts")'
   # per snapshot file, by count: length(run_test_file(f)) is 0 under <lib>
   # (exit_file leaves no skip attribute), its recorded count under <ref>
 R_LIBS=<ref> Rscript benchmarks/R/equivalence.R compare \
-  benchmarks/baselines/equivalence-deb144d2.rds --strict-coverage
+  benchmarks/baselines/equivalence-f0236082.rds --strict-coverage
   # 52 "identical draws (same RNG stream)", no "max |z|"; bcf 12, multi 11
 R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare \
-  benchmarks/baselines/equivalence-deb144d2.rds
-  # shipped, S2 onward: statistical mode everywhere, none at |z| > 4
+  benchmarks/baselines/equivalence-f0236082.rds
+  # shipped: 52 identical too, the two builds being identical code
 for g in bd-balance change-balance perturb-balance backfit-exact linear-exact \
   categorical-exact heteroscedastic-exact multinomial-exact hazard-exact \
   bcf-exact bcf-exact-weak bcf-exact-restricted
