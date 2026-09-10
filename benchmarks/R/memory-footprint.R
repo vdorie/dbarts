@@ -183,12 +183,13 @@ predictBytes <- function(cell, warmup = 0, ingest = function(n, p) 0) {
   if (!constant.leaf) {
     # the gathered raw columns and the standardized copy the leaf keeps, plus
     # the leaf's sufficient-statistic cache. Leaf memberships partition the
-    # observations, so the member lists LIVE in one tree sum to at most 4*n -
-    # but the cache is arena-indexed and never pruned, and each slot's member
-    # vector keeps the capacity of the largest membership that slot ever held,
-    # so the resident total is 4*n per populated arena depth level per tree
-    # per chain. The 256 MiB budget bounds the tracked live bytes only, and
-    # at every cell here those stay well under it.
+    # observations, so the member lists LIVE in one tree sum to at most 4*n,
+    # and the draw's prune releases the arena slots that are no longer live
+    # leaves while the store caps a live slot's retained capacity at twice
+    # its membership, so the resident total is that live partition plus the
+    # retained capacity beside it - CACHE.LEVELS above carries the measured
+    # ratio. The 256 MiB budget bounds the tracked live bytes only, and at
+    # every cell here those stay well under it.
     sampler <- sampler +
       16 * n * length(cell$leaf.columns) +
       4 * n * n.trees * cell$n.chains * CACHE.LEVELS

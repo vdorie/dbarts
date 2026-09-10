@@ -479,7 +479,7 @@ records-only pass, no benchmark run).
 
 ## Landing note, leaf-cache prune (2026-09-10)
 
-LANDED at 8394ddbe4e612352969068c94b4e06c7364522f7, one commit, with the note rows and the TODO entry.
+LANDED at 3388dc15b47f5eff48f924d74b4e62c67fabcd03, one commit, with the note rows and the TODO entry.
 
 The ranked list's leaf-cache item is taken as the prune rather than as an
 honest budget. [`drawFromPosteriorForNode`](../../src/bartcore/model.hpp)
