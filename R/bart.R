@@ -1056,6 +1056,14 @@ bart <- function(
     control@levelGibbs <- validateLevelGibbs(levelGibbs)
   }
 
+  # the two shared settings this function reads again as LOCALS below - the
+  # tree retention the burn-in split re-enables, and the seed the hurdle
+  # split derives its two component seeds from - are taken off the merged
+  # control, which already holds the flat value where the caller named one.
+  # Reading the formal instead would drop a control that speaks for either.
+  keepTrees <- control@keepTrees
+  seed <- control@seed
+
   storedCall <- matchedCall
   storedCall$family <- suppliedFamily
   control@call <- if (keepCall) storedCall else call("NULL")

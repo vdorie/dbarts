@@ -435,3 +435,113 @@ rm(
   editedFit,
   bareControl
 )
+
+# ---- a slot the control speaks for reaches every reader of its value -------
+
+# The settings the doors read again as their OWN locals, after the merge: a
+# control that speaks for one of them must reach that reader too, or the slot
+# is honored on the control and dropped where the fit actually consumes it.
+
+# keepTrees: bart re-enables tree retention after burn-in from its own local,
+# so a control-carried one is only visible with n.burn > 0
+treeControlFit <- dbarts::bart(
+  xFC,
+  yFC,
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 17L,
+  control = dbarts::dbartsControl(keepTrees = TRUE)
+)
+expect_equal(dim(predict(treeControlFit, xFC)), c(10L, nFC))
+rm(treeControlFit)
+
+# seed: the hurdle split derives its two component seeds from bart's local,
+# so a control-carried seed must make both halves reproducible
+set.seed(271L)
+nHurdle <- 40L
+xHurdle <- matrix(
+  runif(nHurdle * 2L),
+  nHurdle,
+  2L,
+  dimnames = list(NULL, c("a", "b"))
+)
+yHurdle <- ifelse(
+  rbinom(nHurdle, 1L, 0.6) == 1L,
+  exp(xHurdle[, 1L] + rnorm(nHurdle, 0, 0.3)),
+  0
+)
+hurdleFit <- function(...) {
+  fit <- dbarts::bart(
+    xHurdle,
+    yHurdle,
+    family = "hurdle.lognormal",
+    n.trees = 3L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+  list(fit$occupancy$yhat.train, fit$positive$yhat.train)
+}
+expect_identical(
+  hurdleFit(control = dbarts::dbartsControl(seed = 13L)),
+  hurdleFit(control = dbarts::dbartsControl(seed = 13L))
+)
+rm(hurdleFit, xHurdle, yHurdle, nHurdle)
+
+# and xbart's seed is the sweep's own: a control carrying one seeds the sweep
+# exactly as the flat name does, rather than additionally seeding every cell
+xbartArgs <- list(
+  xFC,
+  yFC,
+  n.samples = 6L,
+  n.burn = c(4L, 2L),
+  n.reps = 2L,
+  n.trees = 5L,
+  k = c(1, 4),
+  n.threads = 1L,
+  method = "k-fold",
+  n.test = 5
+)
+expect_equal(
+  do.call(dbarts::xbart, c(xbartArgs, list(seed = 9L))),
+  do.call(
+    dbarts::xbart,
+    c(xbartArgs, list(control = dbarts::dbartsControl(seed = 9L)))
+  )
+)
+rm(xbartArgs)
+
+# ---- a refused mixture install leaves the control where it was -------------
+
+# The prior install carries refusals of its own (a DART prior is fixed at
+# creation); a mixture change that trips one must not leave the stored control
+# naming a mixture the engine never took.
+dartSampler <- dbarts::dbarts(
+  xFC,
+  yFC,
+  tree.prior = dbarts::dbartsPriors$dart(),
+  control = dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 3L,
+    n.burn = 0L,
+    n.samples = 5L,
+    updateState = FALSE
+  )
+)
+invisible(dartSampler$run())
+movedControl <- dartSampler$control
+movedControl@proposal.probs[["birth_death"]] <- 1
+movedControl@proposal.probs[["change"]] <- 0
+expect_error(dartSampler$setControl(movedControl), "DART tree prior")
+expect_equal(dartSampler$control@proposal.probs[["birth_death"]], 0.6)
+expect_equal(dartSampler$control@proposal.probs[["change"]], 0.4)
+expect_true(all(is.finite(dartSampler$run()$train)))
+rm(dartSampler, movedControl)

@@ -71,9 +71,9 @@ xbart <- function(
   # One precedence rule: a flat formal the caller named wins over the control's
   # slot, and a slot they did not name flat stands. n.burn is xbart's own grid
   # axis and n.threads its sweep width - neither is the control field of the
-  # same name - so they are excluded. The six fields below are forced after
-  # both: a sweep runs one chain per cell, keeps no trees or training fits,
-  # stores no state and prints nothing.
+  # same name - so they are excluded. The fields below are forced after both:
+  # a sweep runs one chain per cell, keeps no trees or training fits, stores
+  # no state, prints nothing, and seeds each cell itself.
   control <- refuseFitStateControl(control, "xbart")
   resolved <- mergeFrontDoorControl(
     control,
@@ -105,6 +105,11 @@ xbart <- function(
   control@keepTrainingFits <- FALSE
   control@updateState <- FALSE
   control@verbose <- FALSE
+  # the seed is the sweep's own: it is read above as 'seed' and drives the
+  # per-replication and per-unit streams every cell sampler is created under.
+  # Left on the control it would additionally seed each cell's chain
+  # directly, giving every cell of every fold one stream.
+  control@seed <- NA_integer_
 
   validateCall <- redirectCall(
     matchedCall,

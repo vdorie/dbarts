@@ -1603,13 +1603,23 @@ dbartsSampler <- setRefClass(
       )
 
       ptr <- getPointer()
+      oldControl <- control
       selfEnv$control <- newControl
       .Call(C_dbarts_bartcore_setControl, ptr, control)
       # the engine reads the mixture off the control when the priors are
       # installed, so a changed one is pushed through the prior install and
-      # meets every refusal that install already carries
+      # meets every refusal that install already carries. A refusal rolls the
+      # whole control back: the stored one must never name a mixture the
+      # engine does not have.
       if (mixtureMoved) {
-        .self$setModel(model)
+        tryCatch(
+          .self$setModel(model),
+          error = function(e) {
+            selfEnv$control <- oldControl
+            .Call(C_dbarts_bartcore_setControl, ptr, oldControl)
+            stop(e)
+          }
+        )
       }
 
       invisible(NULL)
