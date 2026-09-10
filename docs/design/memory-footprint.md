@@ -258,6 +258,16 @@ what a copy count, and not a coefficient, predicts. Both peaks read 4 to 6 pct
 above the derived totals above, the same direction and size as the grid's own
 residuals.
 
+Two channels carry no row above, both owed once
+[per-draw callbacks](per-draw-callbacks.md#6-memory-consequence)'s
+`keepFits = FALSE` argues from their absence: a heteroscedastic fit's
+variance channel is one more n*S*C array, the same size as `yhat.train`'s own
+single copy - 1600.0 MB at case 1's shape, 4000.0 MB at case 2's; a BCF fit's
+per-forest fits channel is n*F*S*C at F = 2 forests (mu and tau), twice
+that - 3200.0 MB and 8000.0 MB. Both are the formula alone, not measured on
+an actual heteroscedastic or BCF fit, and whether packaging duplicates either
+channel the way it still duplicates `yhat.train` above is unmeasured.
+
 What the consuming arcs read off this: the three owned conditioning vectors
 plus the test offset (dec-B87, [docs/decisions.md](../decisions.md)) are
 24*n + 8*nTest, 2.4 MB in case 1 (0.4 pct of the engine) and 24.0 MB in case 2
