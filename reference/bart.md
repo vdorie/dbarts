@@ -53,7 +53,8 @@ bart(
                "hazard.logistic", "hurdle.lognormal"),
     na.action = dbarts::na.keepPredictors,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
-    storage = c("double", "single"), updateState = TRUE, ...)
+    storage = c("double", "single"), updateState = TRUE,
+    keepFits = is.null(callback), callback = NULL, ...)
 
 # S3 method for class 'bartMultinomial'
 extract(
@@ -962,6 +963,54 @@ print(x, ...)
   methods with regards to the immediate updating of the cached state of
   the object; see `dbartsControl`'s `updateState`.
 
+- keepFits:
+
+  Passed through to
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  A logical over EVERY per-observation channel (training, test,
+  heteroscedastic variance, per-forest) at once, defaulting to `TRUE`
+  except that it becomes `FALSE` automatically whenever `callback` is
+  supplied and `keepFits` is not itself named - an explicit `keepFits`
+  always wins, so `keepFits = TRUE` together with `callback` keeps every
+  channel while still firing the hook. `keepTrainingFits` is the
+  narrower, longstanding switch over the training channel alone and is
+  unaffected by this one; variable counts and the scalar channels
+  (`sigma`, `k`, ...) are kilobytes and are always kept. See
+  `dbartsControl`'s `keepFits` for what `FALSE` costs the returned
+  object. `multinomial`, `ordinal`, `nbinom`, and `hurdle.lognormal`
+  require `keepFits = TRUE` (their packaging reads the training channel)
+  and refuse an automatic or explicit `FALSE` by name.
+
+- callback:
+
+  `NULL` (the default, no hook) or a list with two elements, `fn` and
+  `context`, each an R external pointer (`externalptr`): `fn` the
+  address of a compiled `dbarts_draw_callback`
+  (`inst/include/dbarts/dbarts.h`) and `context` an opaque pointer
+  handed back to it unchanged, or `NULL`. Only that both are external
+  pointers is checked - the address is dereferenced exactly as handed,
+  on the worker thread that owns the draw's chain, so the callback and
+  its context must already be alive and of the right shape; nothing here
+  can verify either. Registering one is a compiled task (Rcpp or plain
+  C), not an R closure: see
+  [`vignette("dbarts-as-a-component")`](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md)
+  for a worked example and the recipe for building the two pointers.
+  **Three warnings.** A callback that crashes takes the whole R session
+  down with it - no R condition is raised, there is nothing to
+  `tryCatch`. An interrupt (`Ctrl-C`) cannot land while a call is
+  running, so a callback that blocks or loops hangs the session. And the
+  automatic `keepFits = FALSE` this argument triggers means a fit built
+  with only the default settings and a `callback` returns NO fitted
+  values at all (no `yhat.train`, no `yhat.test`, ...) - whatever the
+  callback itself accumulated is the only answer, unless
+  `keepFits = TRUE` is also given explicitly. On
+  `family = "hazard"`/`"hazard.probit"`/`"hazard.logistic"`, the draw
+  struct's `numObservations` counts the person-period-EXPANDED rows the
+  R layer builds (one per subject per at-risk period), not the original
+  subjects - the row-to-(subject, period) mapping is R-side and is not
+  carried across to the callback. `bartBT` (the 0.9-34 legacy door) does
+  not take this argument.
+
 - ...:
 
   Present on the
@@ -1159,7 +1208,15 @@ argument above. A discrete-time hazard fit
 (`family = "hazard"`/`"hazard.logistic"`) additionally carries
 `periods`, the ordered period grid the person-period expansion used;
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-dispatches its survival-curve branch on it.
+dispatches its survival-curve branch on it. Under `keepFits = FALSE`,
+`yhat.train`/`yhat.train.mean`/`yhat.test`/`yhat.test.mean`,
+`s.train`/`s.test`, and `forestFits`/`glue`/`bases` are all ABSENT (not
+`NULL` within the list) rather than present-but-empty;
+`plot`/`extract`/`fitted`/`residuals`/`predict` then name `keepFits` in
+their error rather than failing on a bare `NULL`. `n.forests` (a
+multi-forest fit) and `hasVariance` (a heteroscedastic one) are internal
+markers that survive `keepFits = FALSE` regardless, so the fit's own
+SHAPE stays readable even with every per-observation channel dropped.
 
 The remaining families - `"multinomial"`, `"ordinal"`, `"nbinom"`, and
 `"hurdle.lognormal"`/`"twopart"` - return their own list class instead,
@@ -1525,7 +1582,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001444
+#> total seconds in loop: 0.001597
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1573,7 +1630,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001731
+#> total seconds in loop: 0.001988
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

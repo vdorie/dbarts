@@ -9,7 +9,8 @@ started all while maintaining its own state.
 ``` r
 # S4 method for class 'dbartsSampler'
 run(
-  numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads
+  numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads,
+  callback = NULL
 )
 # S4 method for class 'dbartsSampler'
 sampleTreesFromPrior(updateState = NA)
@@ -134,6 +135,40 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A positive integer determining how many posterior samples should be
   returned. If missing or `NA`, the default is also filled in from the
   control object.
+
+- callback:
+
+  `NULL` (the default) or a list with two elements, `fn` and `context`,
+  each an R external pointer (`externalptr`): `fn` the address of a
+  compiled `dbarts_draw_callback` (`inst/include/dbarts/dbarts.h`) and
+  `context` an opaque pointer handed back to it unchanged, or `NULL`. It
+  fires once per SAVED draw of this call, per chain, on the thread that
+  owns that chain, over const pointers into this run's own result
+  buffers (or, under `control@keepFits == FALSE`, a per-chain one-draw
+  scratch buffer the chain's next draw overwrites); a nonzero return
+  aborts the run. Only that both list elements are external pointers is
+  checked - the address is dereferenced exactly as handed, so a
+  malformed pair or a stale pointer crashes the session with no
+  condition to catch. Registering one is a compiled task (Rcpp or plain
+  C), not an R closure: see
+  [`vignette("dbarts-as-a-component")`](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md).
+  **Three warnings.** A callback that crashes takes the whole session
+  down with it. An interrupt (`Ctrl-C`) cannot land while a call is
+  running, so a callback that blocks or loops hangs the session. And
+  under `control@keepFits == FALSE` the per-observation channels this
+  call returns are `NULL` - present in the returned list, holding
+  nothing - so whatever the callback itself accumulated is the only
+  record of the run's per-observation fits. On a
+  `family = "hazard"`/`"hazard.probit"`/`"hazard.logistic"` sampler the
+  draw struct's `numObservations` counts the person-period-EXPANDED
+  rows, one per subject per at-risk period, not the original subjects;
+  the row-to-(subject, period) mapping is built in R and is not carried
+  across to the callback. A hook set through the flat C entry
+  `dbarts_sampler_setDrawCallback` does NOT fire on this route:
+  `bartcore_run` (which this method calls) builds its own per-run hook
+  from THIS argument, so the two channels are independent - a C caller
+  mixing both must register the same callback on each to see it fire on
+  both.
 
 - updateState:
 
@@ -1119,7 +1154,16 @@ grid draw when the degrees of freedom are estimated. A run can be
 interrupted with `Ctrl-C`: it stops between iterations - joining any
 worker threads first - and signals an error, returning no samples from
 the interrupted run. The sampler's chains are left at the iteration they
-reached, which is a valid state to run again from.
+reached, which is a valid state to run again from. Under
+`control@keepFits == FALSE`, `train`, `test`, and (when the model
+carries them) the variance and forest channels come back `NULL` rather
+than an array - present in the list, holding nothing, unlike
+`dispersion`/`resid.df` above, which are absent outright when
+inapplicable; see `callback` above and
+[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+`keepFits`. A `callback` that returns nonzero ABORTS the run the same
+way an interrupt does: the results are discarded and `run` signals an
+error, naming that a callback (rather than an interrupt) stopped it.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor

@@ -62,7 +62,7 @@
 <span>               <span class="st">"multinomial"</span>, <span class="st">"ordinal"</span>,</span>
 <span>               <span class="st">"nbinom"</span>, <span class="st">"hazard"</span>, <span class="st">"hazard.probit"</span>, <span class="st">"hazard.logistic"</span><span class="op">)</span>,</span>
 <span>    na.action <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="va"><a href="na.keepPredictors.html">na.keepPredictors</a></span>,</span>
-<span>    sigma <span class="op">=</span> <span class="cn">NA_real_</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span>    sigma <span class="op">=</span> <span class="cn">NA_real_</span>, callback <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -136,6 +136,9 @@
 
   <dt id="arg-sigma">sigma<a class="anchor" aria-label="anchor" href="#arg-sigma"></a></dt>
 <dd><p>The 0.9-x spelling of <code>sigest</code>, accepted for one release with a once-per-session warning and removed in dbarts 1.1-0. Supplying both is an error.</p></dd>
+
+  <dt id="arg-callback">callback<a class="anchor" aria-label="anchor" href="#arg-callback"></a></dt>
+<dd><p><code>NULL</code> (the default) or a list with two elements, <code>fn</code> and <code>context</code>, each an R external pointer (<code>externalptr</code>): <code>fn</code> the address of a compiled <code>dbarts_draw_callback</code> (<code>inst/include/dbarts/dbarts.h</code>) and <code>context</code> an opaque pointer handed back to it unchanged, or <code>NULL</code>. Only that both are external pointers is checked here - the address is dereferenced exactly as handed, so a malformed pair crashes the session with no condition to catch, once the returned sampler is actually run. <code>dbarts</code> itself never runs the sampler it builds, so this argument has no other effect here beyond that validation; register it again on the actual <code><a href="dbartsSampler-class.html">run</a></code> call (or use <code><a href="bart.html">bart</a></code>, which threads a single <code>callback</code> through both). See <code><a href="bart.html">bart</a></code>'s <code>callback</code> item for the three warnings and <code><a href="dbartsControl.html">dbartsControl</a></code>'s <code>keepFits</code> for the storage opt-out this argument does not, by itself, set here.</p></dd>
 
   <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Optional integer seed for the random number generator, a convenience mirror of <code>dbartsControl(seed = )</code>. When not <code>NA</code> it overrides the seed in <code>control</code>; the fitting-function wrappers (<code><a href="bart.html">bart</a></code>, <code><a href="xbart.html">xbart</a></code>) accept the same argument.</p></dd>

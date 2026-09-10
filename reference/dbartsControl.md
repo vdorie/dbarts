@@ -14,7 +14,8 @@ coerced through this construction.
 
 ``` r
 dbartsControl(
-    verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
+    verbose = FALSE, keepTrainingFits = TRUE, keepFits = TRUE,
+    useQuantiles = FALSE,
     levelGibbs = NA,
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NA_integer_,
@@ -41,6 +42,41 @@ dbartsControl(
   Logical controlling whether or not training fits are returned when the
   sampler runs. These are always computed as part of the fitting
   procedure, so disabling will not substantially impact running time.
+
+- keepFits:
+
+  Logical controlling whether every per-observation channel - training
+  fits, test fits, the heteroscedastic variance surface, and per-forest
+  fits - is returned when the sampler runs; `keepTrainingFits` is the
+  narrower, longstanding switch over the training channel alone,
+  unaffected by this one. `FALSE` allocates a per-chain one-draw SCRATCH
+  buffer for each opted-out channel instead of an `n.samples`-wide
+  array, which a per-draw `callback` (see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), and
+  [`run`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
+  can read as each draw is produced without the run ever materializing
+  the full array; variable counts and the scalar channels (`sigma`, `k`,
+  ...) are kilobytes and are always kept, and `keepTrees` is the
+  separate, unaffected recompute-from-saved-trees path. `FALSE` is the
+  automatic default of
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) (not
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) when
+  `callback` is supplied and `keepFits` is not itself named. **Three
+  warnings apply to `callback`**: a callback that crashes takes down the
+  whole R session with no condition to catch; an interrupt cannot land
+  while a call is running, so a callback that blocks hangs the session;
+  and `keepFits = FALSE` means the sampler's `run()` returns those
+  channels as `NULL` (present in the returned list, holding nothing)
+  rather than omitting them -
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s packaged
+  fit instead OMITS them outright, and its
+  `plot`/`extract`/`fitted`/`residuals`/`predict` name `keepFits` in the
+  resulting error rather than failing on a bare `NULL`. On a
+  `family = "hazard"`/`"hazard.probit"`/`"hazard.logistic"` fit, a
+  per-draw `callback`'s draw struct counts person-period-EXPANDED rows,
+  not subjects - the mapping back to (subject, period) is done in R and
+  is not available to the callback.
 
 - useQuantiles:
 
@@ -230,6 +266,9 @@ control
 #> [1] FALSE
 #> 
 #> Slot "keepTrainingFits":
+#> [1] TRUE
+#> 
+#> Slot "keepFits":
 #> [1] TRUE
 #> 
 #> Slot "useQuantiles":

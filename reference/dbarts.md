@@ -25,7 +25,7 @@ dbarts(
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     na.action = dbarts::na.keepPredictors,
-    sigma = NA_real_, ...)
+    sigma = NA_real_, callback = NULL, ...)
 ```
 
 ## Arguments
@@ -397,6 +397,28 @@ dbarts(
   The 0.9-x spelling of `sigest`, accepted for one release with a
   once-per-session warning and removed in dbarts 1.1-0. Supplying both
   is an error.
+
+- callback:
+
+  `NULL` (the default) or a list with two elements, `fn` and `context`,
+  each an R external pointer (`externalptr`): `fn` the address of a
+  compiled `dbarts_draw_callback` (`inst/include/dbarts/dbarts.h`) and
+  `context` an opaque pointer handed back to it unchanged, or `NULL`.
+  Only that both are external pointers is checked here - the address is
+  dereferenced exactly as handed, so a malformed pair crashes the
+  session with no condition to catch, once the returned sampler is
+  actually run. `dbarts` itself never runs the sampler it builds, so
+  this argument has no other effect here beyond that validation;
+  register it again on the actual
+  [`run`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  call (or use
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), which
+  threads a single `callback` through both). See
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `callback` item for the three warnings and
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  `keepFits` for the storage opt-out this argument does not, by itself,
+  set here.
 
 - seed:
 
