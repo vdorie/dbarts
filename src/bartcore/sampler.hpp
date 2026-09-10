@@ -280,6 +280,13 @@ public:
   /// unchecked store.
   bool ingestionRefused() const { return ingestionRefused_; }
 
+  /// The GP fallback census of the last run, summed over chains.
+  GPFallbackTally gpFallbackTally() const {
+    GPFallbackTally total;
+    for (const auto& chain : chains_) total.add(chain->gpFallbackTally());
+    return total;
+  }
+
   /// Replace the test predictors from a borrowed view, keeping any test offset:
   /// the caller guarantees the row count still matches it (the bridge refuses
   /// otherwise). Passing a new offset too goes through setTestOffset. The test
@@ -347,6 +354,9 @@ public:
            bool* stoppedByCallback = nullptr) {
     size_t numChains = chains_.size();
     if (stoppedByCallback != nullptr) *stoppedByCallback = false;
+    // the census covers THIS run, so a caller reading it after run() sees the
+    // draws it just took and not everything the sampler has ever done
+    for (auto& chain : chains_) chain->resetGPFallbackTally();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     // the per-observation fits carry numReportedLocations channels per sample
     // (one everywhere but a multi-location combiner), so the per-chain slab

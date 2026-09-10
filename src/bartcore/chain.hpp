@@ -4009,6 +4009,21 @@ public:
 
   ext_rng* rng() const { return rng_; }
   const L& leaf() const { return forests_[0].leaf; }
+
+  /// This chain's GP fallback census, summed over its forests. Zero for every
+  /// leaf model without a size cap, which is every one but the GP leaf.
+  GPFallbackTally gpFallbackTally() const {
+    GPFallbackTally total;
+    if constexpr (L::hasFunctionParams)
+      for (const Forest<L, ResidT>& forest : forests_)
+        total.add(forest.leaf.fallbackTally());
+    return total;
+  }
+  void resetGPFallbackTally() {
+    if constexpr (L::hasFunctionParams)
+      for (Forest<L, ResidT>& forest : forests_)
+        forest.leaf.resetFallbackTally();
+  }
   /// On the original response scale, symmetric with setSigma.
   double sigma() const { return sigma_ * response_->sigmaScale(); }
   double k() const { return forests_[0].k; }

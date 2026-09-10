@@ -4937,6 +4937,23 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
        ++i)
     varcountOut[i] = static_cast<int>(variableCounts[i]);
 
+  // a GP fit's fallback census, as an attribute rather than a result slot:
+  // every existing consumer of this list reads it by name, and a leaf model
+  // with no size cap has nothing to report, so the attribute is absent
+  // everywhere but a GP fit
+  bartcore::GPFallbackTally tally = sampler.gpFallbackTally();
+  if (tally.evaluations > 0) {
+    SEXP tallyExpr = PROTECT(Rf_allocVector(REALSXP, 2));
+    REAL(tallyExpr)[0] = static_cast<double>(tally.evaluations);
+    REAL(tallyExpr)[1] = static_cast<double>(tally.fallbacks);
+    SEXP tallyNames = PROTECT(Rf_allocVector(STRSXP, 2));
+    SET_STRING_ELT(tallyNames, 0, Rf_mkChar("evaluations"));
+    SET_STRING_ELT(tallyNames, 1, Rf_mkChar("fallbacks"));
+    Rf_setAttrib(tallyExpr, R_NamesSymbol, tallyNames);
+    Rf_setAttrib(resultExpr, Rf_install("gp.fallback"), tallyExpr);
+    UNPROTECT(2);
+  }
+
   UNPROTECT(1);
   return resultExpr;
 }

@@ -41,7 +41,8 @@ enum class FacadeVirtual {
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
   predictVariance, getState, setState, installForests, sampleTreesFromPrior,
   sampleNodeParametersFromPrior, growFromRoot, setNumThreads, setNumThin,
-  setVerbose, fitScale, setTreeStorage, setModel, sumOfSquaredResiduals,
+  setVerbose, fitScale, gpFallbackTally, setTreeStorage, setModel,
+  sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, dispersion, setForestBasis,
   setForestWeights, forestCalibration, setForestPriorScale, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
@@ -183,6 +184,7 @@ public:
   SPY_VOID(setNumThin, (std::size_t t), (t))
   SPY_VOID(setVerbose, (bool v, std::size_t e), (v, e))
   SPY_RET(double, fitScale, () const, ())
+  SPY_RET(GPFallbackTally, gpFallbackTally, () const, ())
   SPY_VOID(setTreeStorage, (bool k, std::size_t n), (k, n))
   SPY_VOID(setModel, (const ModelParameters& m), (m))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
@@ -975,6 +977,14 @@ const Row rows[] = {
     check(f.g.base().fitScale() == f.g.impl().fitScale() &&
             f.g.base().fitScale() != 1.0,
           "facade fitScale: the boundary reports the impl's transform");
+  }},
+  {FacadeVirtual::gpFallbackTally, "gpFallbackTally", [](Fixtures& f) {
+    // a constant leaf has no size cap to fall back from, so the census is
+    // empty and the boundary reports the impl's own
+    GPFallbackTally tally = f.g.base().gpFallbackTally();
+    check(tally.evaluations == f.g.impl().gpFallbackTally().evaluations &&
+            tally.fallbacks == 0 && tally.evaluations == 0,
+          "facade gpFallbackTally: the boundary reports the impl's census");
   }},
   {FacadeVirtual::setTreeStorage, "setTreeStorage", [](Fixtures& f) {
     check(f.d.impl().savedTreeCapacity() == 0,

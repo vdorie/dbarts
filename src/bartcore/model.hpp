@@ -78,6 +78,22 @@ struct FunctionLeafDrawStats {
   double numParams = 0.0;
 };
 
+/// How much of a Gaussian-process fit was actually a Gaussian process: leaf
+/// evaluations reaching a GP entry point, and the ones that found the leaf
+/// over the size cap and scored or drew it as a constant leaf instead. A leaf
+/// too large for the cubic kernel math is a silent substitution otherwise -
+/// the fit is coherent, but it is not the model that was asked for - so the
+/// share is carried out to the caller. Zero on every non-GP leaf model.
+struct GPFallbackTally {
+  std::size_t evaluations = 0;
+  std::size_t fallbacks = 0;
+
+  void add(const GPFallbackTally& other) {
+    evaluations += other.evaluations;
+    fallbacks += other.fallbacks;
+  }
+};
+
 /// Function-valued leaves: draws write one value per member observation into
 /// the caller's fit vector, so parameters need no per-tree storage. Test
 /// rows evaluate through a per-draw cache the chain resets with
@@ -1462,6 +1478,9 @@ struct GPGaussianLeaf {
   double scale = 1.0;  // nodeScale / sqrt(numTrees)
 
   std::size_t numCovariates() const { return numCovariates_; }
+  /// Leaf evaluations and constant-leaf fallbacks since the last reset.
+  GPFallbackTally fallbackTally() const { return tally_; }
+  void resetFallbackTally() { tally_ = GPFallbackTally(); }
   const std::vector<std::size_t>& covariateColumns() const { return columns_; }
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
@@ -1572,7 +1591,9 @@ struct GPGaussianLeaf {
     const Node& node(tree.at(nodeIndex));
     std::size_t numObs = node.numObservations();
     if (numObs == 0) return 0.0;
+    ++tally_.evaluations;
     if (numObs > maxLeafSize_) {
+      ++tally_.fallbacks;
       ConstantGaussianLeaf fallback{scale};
       return fallback.logIntegratedLikelihoodForNode(tree, y, weights, k,
                                                      residualVariance,
@@ -1640,7 +1661,9 @@ struct GPGaussianLeaf {
       setConstantCache(nodeIndex, 0.0);
       return FunctionLeafDrawStats();
     }
+    ++tally_.evaluations;
     if (numObs > maxLeafSize_) {
+      ++tally_.fallbacks;
       ConstantGaussianLeaf fallback{scale};
       double value = fallback.drawFromPosteriorForNode(rng, tree, k,
                                                        residualVariance,
@@ -1714,7 +1737,9 @@ struct GPGaussianLeaf {
       setConstantCache(nodeIndex, 0.0);
       return FunctionLeafDrawStats();
     }
+    ++tally_.evaluations;
     if (numObs > maxLeafSize_) {
+      ++tally_.fallbacks;
       ConstantGaussianLeaf fallback{scale};
       double value = fallback.drawFromPrior(rng, k);
       for (std::size_t m = node.begin; m < node.end; ++m)
@@ -1780,7 +1805,9 @@ struct GPGaussianLeaf {
       blocks.push_back(0.0);
       return;
     }
+    ++tally_.evaluations;
     if (numObs > maxLeafSize_) {
+      ++tally_.fallbacks;
       blocks.push_back(0.0);
       blocks.push_back(fits[tree.indices[node.begin]]);
       return;
@@ -2219,8 +2246,14 @@ private:
   // doubling: 22.0 msec per iteration at 256 against 276 at 512 and 2233 at
   // 1024, for an rmse that improves slightly and flattens by 512. Because
   // neither regime announces itself, a fit cannot be read without knowing
-  // which one it landed in.
+  // which one it landed in - which is what tally_ carries out.
   std::size_t maxLeafSize_ = 256;
+  // Fallback census over the four entry points above. Plain counters, not
+  // atomics: one leaf model belongs to one forest of one chain and no two
+  // chains share one, so nothing here is written concurrently and the leaf
+  // draw pays an increment rather than a synchronized one. Mutable because
+  // every one of those entry points is const.
+  mutable GPFallbackTally tally_;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
   std::vector<double> lengthscales_, suppliedLengthscales_;

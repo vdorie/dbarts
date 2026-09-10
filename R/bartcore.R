@@ -207,7 +207,43 @@ bartcoreSamplerRun <- function(
   if (is.null(result)) {
     return(invisible(NULL))
   }
+  warnOnGPFallback(result)
   result
+}
+
+# A Gaussian-process leaf larger than max.leaf.size is scored and drawn as a
+# CONSTANT leaf: the fit stays coherent, but over most of the data it is not
+# the model that was asked for, and nothing else says so. The engine counts
+# every GP leaf evaluation and every one that took that path, and attaches the
+# pair to the run; above a quarter of evaluations this says so, with the share.
+# The counts ride the result either way, so a caller who wants a different
+# threshold reads them directly. One site, so both front doors and a bare
+# sampler are covered; it therefore fires once per run() call, which is once
+# per fit for bart() and once per step for a sampler driven in a Gibbs loop.
+warnOnGPFallback <- function(result) {
+  tally <- attr(result, "gp.fallback")
+  if (is.null(tally) || tally[["evaluations"]] <= 0) {
+    return(invisible(NULL))
+  }
+  share <- tally[["fallbacks"]] / tally[["evaluations"]]
+  if (share <= 0.25) {
+    return(invisible(NULL))
+  }
+  warning(warningCondition(
+    sprintf(
+      paste0(
+        "%.1f%% of Gaussian-process leaf evaluations fell back to a ",
+        "constant leaf because the leaf held more than 'max.leaf.size' ",
+        "observations, so most of this fit is not a Gaussian process; ",
+        "raise the cap with gp(max.leaf.size = ), which costs roughly ten ",
+        "times per doubling, or use more trees so that leaves hold fewer ",
+        "observations"
+      ),
+      100.0 * share
+    ),
+    class = c("dbartsGPFallbackWarning", "dbartsWarning")
+  ))
+  invisible(NULL)
 }
 
 # Resolves a character 'column' against source's colnames into a 1-based

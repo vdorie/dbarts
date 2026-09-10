@@ -238,3 +238,101 @@ expect_error(dbarts::dbartsControl(predictParallelCutoff = 0L), "positive intege
 expect_error(dbarts::dbartsControl(sparseDensityThreshold = 1.5), "in \\[0, 1\\]")
 
 rm(defaults, fitAt, growTrees, testFitWorkers, predictWorkers)
+
+
+## ---------------------------------------------------------------------------
+## the Gaussian-process leaf size cap: not a limit a caller can hit by accident
+## but a default that silently substitutes a constant leaf, so the substitution
+## is counted and a fit that is mostly not a Gaussian process says so.
+
+set.seed(3L)
+nGP <- 300L
+gpFrame <- data.frame(x1 = runif(nGP), x2 = runif(nGP))
+gpY <- sin(3 * gpFrame$x1) + gpFrame$x2 + rnorm(nGP, 0, 0.2)
+gpControl <- dbarts::dbartsControl(
+  n.trees = 10L,
+  n.chains = 1L,
+  n.samples = 5L,
+  n.burn = 0L,
+  updateState = FALSE,
+  verbose = FALSE
+)
+
+## a cap of 32 on 300 rows over 10 trees leaves most leaves over it: the fit
+## warns, naming the share, and carries the counts behind it
+degenerate <- dbarts::dbarts(
+  gpY ~ x1 + x2,
+  gpFrame,
+  control = gpControl,
+  node.prior = gp("x1", max.leaf.size = 32L)
+)
+warned <- NULL
+degenerateSamples <- withCallingHandlers(
+  degenerate$run(0L, 5L),
+  dbartsGPFallbackWarning = function(w) {
+    warned <<- conditionMessage(w)
+    invokeRestart("muffleWarning")
+  }
+)
+expect_true(!is.null(warned))
+expect_true(grepl("fell back to a constant leaf", warned, fixed = TRUE))
+expect_true(grepl("max.leaf.size", warned, fixed = TRUE))
+tally <- attr(degenerateSamples, "gp.fallback")
+expect_equal(names(tally), c("evaluations", "fallbacks"))
+expect_true(tally[["evaluations"]] > 0)
+# the share the message reports is the one the counts give
+expect_true(
+  grepl(
+    sprintf("%.1f%%", 100 * tally[["fallbacks"]] / tally[["evaluations"]]),
+    warned,
+    fixed = TRUE
+  )
+)
+expect_true(tally[["fallbacks"]] / tally[["evaluations"]] > 0.25)
+
+## a cap above every leaf takes the fallback nowhere, so nothing warns
+healthy <- dbarts::dbarts(
+  gpY ~ x1 + x2,
+  gpFrame,
+  control = gpControl,
+  node.prior = gp("x1", max.leaf.size = 4096L)
+)
+quiet <- TRUE
+healthySamples <- withCallingHandlers(
+  healthy$run(0L, 5L),
+  dbartsGPFallbackWarning = function(w) {
+    quiet <<- FALSE
+    invokeRestart("muffleWarning")
+  }
+)
+expect_true(quiet)
+expect_equal(attr(healthySamples, "gp.fallback")[["fallbacks"]], 0)
+expect_true(attr(healthySamples, "gp.fallback")[["evaluations"]] > 0)
+
+## a leaf model with no size cap has nothing to report
+plainSamples <- dbarts::dbarts(
+  gpY ~ x1 + x2,
+  gpFrame,
+  control = gpControl
+)$run(0L, 5L)
+expect_null(attr(plainSamples, "gp.fallback"))
+
+## and the census rides the packaged fit, so any other threshold can be
+## checked by hand
+packaged <- suppressWarnings(dbarts::bart(
+  gpY ~ x1 + x2,
+  gpFrame,
+  node.prior = gp("x1", max.leaf.size = 32L),
+  n.trees = 10L,
+  n.chains = 1L,
+  n.samples = 5L,
+  n.burn = 0L,
+  verbose = FALSE
+))
+expect_equal(names(packaged$gp.fallback), c("evaluations", "fallbacks"))
+expect_true(packaged$gp.fallback[["fallbacks"]] > 0)
+
+rm(
+  degenerate, degenerateSamples, healthy, healthySamples, plainSamples,
+  packaged, tally, warned, quiet, gpControl, gpFrame, gpY
+)

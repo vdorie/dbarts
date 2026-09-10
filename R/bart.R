@@ -461,6 +461,13 @@ packageBartResults <- function(
   if (keepSampler) {
     result$fit <- fit
   }
+  # the Gaussian-process fallback census of the run that produced this fit:
+  # the leaf evaluations that reached a GP entry point and the ones that found
+  # the leaf over max.leaf.size and scored it as a constant leaf instead. NULL
+  # (and so dropped below) on every other leaf model. The warning that fires
+  # above a quarter is raised at the run, not here; these are the counts behind
+  # it, so any other threshold can be checked by hand.
+  result$gp.fallback <- attr(samples, "gp.fallback")
   result$n.chains <- n.chains
   if (!is.null(samples[["k"]])) {
     result[["k"]] <- convertSamplesFromDbartsToBart(
