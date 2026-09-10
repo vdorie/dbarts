@@ -75,9 +75,10 @@ Dorie</h4>
 -->
 <p>A <code>dbartsSampler</code> is a mutable object that runs one sweep
 at a time, so BART can be a conditional model inside a larger Gibbs or
-Metropolis-Hastings scheme rather than the whole of it. Six recipes
-follow. Each is a complete, runnable outer sampler; each answers the
-same three questions, which are the ones a composition gets wrong:</p>
+Metropolis-Hastings scheme rather than the whole of it. Seven recipes
+follow. The first six are complete, runnable outer samplers; each
+answers the same three questions, which are the ones a composition gets
+wrong:</p>
 <ul>
 <li>
 <strong>which channel</strong> the outer block writes – response,
@@ -91,9 +92,15 @@ reporting methods do not report the same quantity
 does not re-anchor the leaf prior the sampler was built with.</li>
 </ul>
 <p><code>?dbarts-embedding</code> is the reference page for the channels
-and the reads; this vignette is the worked set. Every recipe here is
-also a cell in the package’s test suite, because a composition that runs
-to completion can still be sampling the wrong posterior.</p>
+and the reads; this vignette is the worked set. Recipes 1 through 6 are
+each also a cell in the package’s test suite, because a composition that
+runs to completion can still be sampling the wrong posterior. The
+seventh recipe is different in kind: it drives <code><a href="../reference/bart.html">bart()</a></code>
+itself through a compiled per-draw callback rather than a
+<code>dbartsSampler</code> loop, and is not evaluated here – it needs a
+C++ compiler <code>dbarts</code> does not depend on – so its own check
+is a plain-C copy of the same callback under <code>inst/tinytest</code>,
+not a chunk in this file.</p>
 <p>Throughout, <code>run(0L, 1L)</code> advances the sampler exactly one
 sweep, and every recipe builds its sampler the same way:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
@@ -529,14 +536,141 @@ from 1.37 to about 0.29, roughly seventeen oracle standard errors below
 the truth, on a run that reports no error at all.</p>
 </div>
 <div class="section level2">
+<h2 id="a-per-draw-callback-that-never-returns-the-array">7. A per-draw callback that never returns the array<a class="anchor" aria-label="anchor" href="#a-per-draw-callback-that-never-returns-the-array"></a>
+</h2>
+<p>Every recipe above drives a <code>dbartsSampler</code> from R, one
+sweep at a time. This one drives <code><a href="../reference/bart.html">bart()</a></code> itself and reads no
+returned fit back at all. <code>callback</code> fires a
+<em>compiled</em> function once per saved draw per chain, over
+<code>const</code> pointers into the engine’s own buffers, on the thread
+that owns that chain – so a reduction is taken as each draw is produced
+instead of over the <code>n</code> x <code>S</code> x <code>C</code>
+array <code><a href="../reference/bart.html">bart()</a></code> would otherwise build only to have the caller
+reduce it afterward. The shape is the one a compiled consumer wants: raw
+pointers and an opaque <code>void*</code> context, no <code>SEXP</code>
+crossing into the callback and nothing blocking on R. <code>Rcpp</code>
+is not a dependency of <code>dbarts</code>, so the code below does not
+run as part of building this vignette; <code><a href="../reference/bart.html">?bart</a></code>’s
+<code>callback</code> and <code>keepFits</code> entries document the
+contract in full, and <code>inst/tinytest/capi/consumer.c</code> carries
+a plain-C copy of the same callback, checked against a fit’s own
+<code>yhat.train.mean</code>.</p>
+<p>The task: a running posterior mean of the training fit, over
+<code>x</code>/<code>y</code> as in the recipes above, without ever
+holding the training draws at all.</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">Rcpp</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Rcpp/man/sourceCpp.html" class="external-link">sourceCpp</a></span><span class="op">(</span><span class="st">"drawMean.cpp"</span><span class="op">)</span>     <span class="co"># makeMeanContext, meanCallbackPtr</span></span>
+<span></span>
+<span><span class="va">nChains</span> <span class="op">&lt;-</span> <span class="fl">4L</span></span>
+<span><span class="va">acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">*</span> <span class="va">nChains</span><span class="op">)</span>   <span class="co"># the ONLY per-observation allocation</span></span>
+<span><span class="va">ctx</span> <span class="op">&lt;-</span> <span class="fu">makeMeanContext</span><span class="op">(</span><span class="va">acc</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>, <span class="va">nChains</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">bart</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, n.chains <span class="op">=</span> <span class="va">nChains</span>,</span>
+<span>            callback <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>fn <span class="op">=</span> <span class="fu">meanCallbackPtr</span><span class="op">(</span><span class="op">)</span>, context <span class="op">=</span> <span class="va">ctx</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">means</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="va">acc</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>, <span class="va">nChains</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu">contextStatus</span><span class="op">(</span><span class="va">ctx</span><span class="op">)</span> <span class="op">==</span> <span class="fl">0L</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;Rcpp.h&gt;</span></span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;dbarts/dbarts.h&gt;</span><span class="pp">   </span><span class="co">// dbarts_draw; PKG_CPPFLAGS -I the include dir</span></span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a><span class="kw">struct</span> MeanContext <span class="op">{</span></span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>  <span class="dt">double</span><span class="op">*</span> out<span class="op">;</span>           <span class="co">// REAL() of the R vector, taken BEFORE the run</span></span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>  <span class="bu">std::</span>size_t n<span class="op">,</span> numChains<span class="op">;</span></span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>  <span class="bu">std::</span>size_t<span class="op">*</span> counts<span class="op">;</span>   <span class="co">// per chain: no chain reads another's counter</span></span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a>  <span class="dt">int</span> status<span class="op">;</span>            <span class="co">// set here, read from R after the run</span></span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" tabindex="-1"></a><span class="at">extern</span> <span class="st">"C"</span> <span class="dt">int</span> meanCallback<span class="op">(</span><span class="dt">void</span><span class="op">*</span> context<span class="op">,</span> <span class="at">const</span> dbarts_draw<span class="op">*</span> draw<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb21-12"><a href="#cb21-12" tabindex="-1"></a>  MeanContext<span class="op">*</span> ctx <span class="op">=</span> <span class="kw">static_cast</span><span class="op">&lt;</span>MeanContext<span class="op">*&gt;(</span>context<span class="op">);</span></span>
+<span id="cb21-13"><a href="#cb21-13" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>draw<span class="op">-&gt;</span>train <span class="op">==</span> <span class="kw">nullptr</span> <span class="op">||</span> draw<span class="op">-&gt;</span>numObservations <span class="op">!=</span> ctx<span class="op">-&gt;</span>n <span class="op">||</span></span>
+<span id="cb21-14"><a href="#cb21-14" tabindex="-1"></a>      draw<span class="op">-&gt;</span>numReportedLocations <span class="op">!=</span> <span class="dv">1</span> <span class="op">||</span>    <span class="co">// train is n x L; this reduces L = 1</span></span>
+<span id="cb21-15"><a href="#cb21-15" tabindex="-1"></a>      draw<span class="op">-&gt;</span>chainIndex <span class="op">&gt;=</span> ctx<span class="op">-&gt;</span>numChains<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb21-16"><a href="#cb21-16" tabindex="-1"></a>    ctx<span class="op">-&gt;</span>status <span class="op">=</span> <span class="dv">1</span><span class="op">;</span>     <span class="co">// record and continue; nonzero would ABORT the run</span></span>
+<span id="cb21-17"><a href="#cb21-17" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb21-18"><a href="#cb21-18" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb21-19"><a href="#cb21-19" tabindex="-1"></a>  <span class="dt">double</span><span class="op">*</span> out <span class="op">=</span> ctx<span class="op">-&gt;</span>out <span class="op">+</span> draw<span class="op">-&gt;</span>chainIndex <span class="op">*</span> ctx<span class="op">-&gt;</span>n<span class="op">;</span>    <span class="co">// disjoint slice</span></span>
+<span id="cb21-20"><a href="#cb21-20" tabindex="-1"></a>  <span class="at">const</span> <span class="dt">double</span> m <span class="op">=</span> <span class="kw">static_cast</span><span class="op">&lt;</span><span class="dt">double</span><span class="op">&gt;(++</span>ctx<span class="op">-&gt;</span>counts<span class="op">[</span>draw<span class="op">-&gt;</span>chainIndex<span class="op">]);</span></span>
+<span id="cb21-21"><a href="#cb21-21" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">(</span><span class="bu">std::</span>size_t i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> ctx<span class="op">-&gt;</span>n<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span></span>
+<span id="cb21-22"><a href="#cb21-22" tabindex="-1"></a>    out<span class="op">[</span>i<span class="op">]</span> <span class="op">+=</span> <span class="op">(</span>draw<span class="op">-&gt;</span>train<span class="op">[</span>i<span class="op">]</span> <span class="op">-</span> out<span class="op">[</span>i<span class="op">])</span> <span class="op">/</span> m<span class="op">;</span>             <span class="co">// running mean</span></span>
+<span id="cb21-23"><a href="#cb21-23" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb21-24"><a href="#cb21-24" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb21-25"><a href="#cb21-25" tabindex="-1"></a></span>
+<span id="cb21-26"><a href="#cb21-26" tabindex="-1"></a><span class="co">// freeMeanContext (not shown) deletes counts and the context</span></span>
+<span id="cb21-27"><a href="#cb21-27" tabindex="-1"></a></span>
+<span id="cb21-28"><a href="#cb21-28" tabindex="-1"></a><span class="co">// [[Rcpp::export]]</span></span>
+<span id="cb21-29"><a href="#cb21-29" tabindex="-1"></a>SEXP meanCallbackPtr<span class="op">()</span> <span class="op">{</span>   <span class="co">// ...PtrFn: casting a function pointer to void* is</span></span>
+<span id="cb21-30"><a href="#cb21-30" tabindex="-1"></a>                           <span class="co">// what -Wpedantic flags under R CMD check</span></span>
+<span id="cb21-31"><a href="#cb21-31" tabindex="-1"></a>  <span class="cf">return</span> R_MakeExternalPtrFn<span class="op">(</span><span class="kw">reinterpret_cast</span><span class="op">&lt;</span>DL_FUNC<span class="op">&gt;(&amp;</span>meanCallback<span class="op">),</span></span>
+<span id="cb21-32"><a href="#cb21-32" tabindex="-1"></a>                             R_NilValue<span class="op">,</span> R_NilValue<span class="op">);</span></span>
+<span id="cb21-33"><a href="#cb21-33" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb21-34"><a href="#cb21-34" tabindex="-1"></a></span>
+<span id="cb21-35"><a href="#cb21-35" tabindex="-1"></a><span class="co">// [[Rcpp::export]]</span></span>
+<span id="cb21-36"><a href="#cb21-36" tabindex="-1"></a>SEXP makeMeanContext<span class="op">(</span>Rcpp<span class="op">::</span>NumericVector acc<span class="op">,</span> <span class="bu">std::</span>size_t n<span class="op">,</span> <span class="bu">std::</span>size_t C<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb21-37"><a href="#cb21-37" tabindex="-1"></a>  MeanContext<span class="op">*</span> ctx <span class="op">=</span> <span class="kw">new</span> MeanContext<span class="op">{</span>REAL<span class="op">(</span>acc<span class="op">),</span> n<span class="op">,</span> C<span class="op">,</span> <span class="kw">new</span> <span class="bu">std::</span>size_t<span class="op">[</span>C<span class="op">](),</span> <span class="dv">0</span><span class="op">};</span></span>
+<span id="cb21-38"><a href="#cb21-38" tabindex="-1"></a>  <span class="co">// acc goes in the PROTECTED slot (third argument): that is what keeps the</span></span>
+<span id="cb21-39"><a href="#cb21-39" tabindex="-1"></a>  <span class="co">// array alive as long as the context is</span></span>
+<span id="cb21-40"><a href="#cb21-40" tabindex="-1"></a>  SEXP ptr <span class="op">=</span> PROTECT<span class="op">(</span>R_MakeExternalPtr<span class="op">(</span>ctx<span class="op">,</span> R_NilValue<span class="op">,</span> acc<span class="op">));</span></span>
+<span id="cb21-41"><a href="#cb21-41" tabindex="-1"></a>  R_RegisterCFinalizerEx<span class="op">(</span>ptr<span class="op">,</span> <span class="op">&amp;</span>freeMeanContext<span class="op">,</span> TRUE<span class="op">);</span></span>
+<span id="cb21-42"><a href="#cb21-42" tabindex="-1"></a>  UNPROTECT<span class="op">(</span><span class="dv">1</span><span class="op">);</span></span>
+<span id="cb21-43"><a href="#cb21-43" tabindex="-1"></a>  <span class="cf">return</span> ptr<span class="op">;</span></span>
+<span id="cb21-44"><a href="#cb21-44" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Four rules make this recipe correct rather than merely running, and
+every one is the caller’s to keep, not the engine’s.
+<code>REAL(acc)</code> is read exactly ONCE, before the fit starts: a
+later reassignment of <code>acc</code> in R builds a DIFFERENT vector,
+and the callback goes on writing the old one, so nothing between
+<code>makeMeanContext</code> and <code><a href="../reference/bart.html">bart()</a></code> may touch
+<code>acc</code>. Chains write DISJOINT slices –
+<code>draw-&gt;chainIndex * ctx-&gt;n</code> onward – which is what lets
+every chain’s calls run concurrently with no lock at all; two chains
+sharing a slice would need an atomic or a lock, giving up the bitwise
+reproducibility <code>dbarts</code> otherwise guarantees, for nothing
+this recipe needs. A context is built PER RUN, because
+<code>drawIndex</code> restarts at 0 on every <code><a href="../reference/bart.html">bart()</a></code> call
+(and every <code>$run</code>, for a <code>dbartsSampler</code> driven
+directly) – reusing one context across two fits overwrites the first
+fit’s slots rather than extending them. And the return value is an ABORT
+switch, not an error channel: nonzero stops the whole run at that draw
+and discards every chain’s results immediately, so a callback that
+merely disagrees with a draw’s shape – the <code>if</code> above –
+records a <code>status</code> and returns 0, leaving the caller to check
+<code>contextStatus(ctx)</code> (not shown; it reads
+<code>ctx-&gt;status</code> back) once the fit returns. Getting either
+of the last two wrong does not raise an R condition: it crashes the
+session outright, with nothing to <code>tryCatch</code>. Under all four
+sits the rule the header states in these terms: NO R API inside the
+callback, ever – not <code>Rf_allocVector</code>, not
+<code>PROTECT</code>, not <code>Rf_error</code>, and in C++ not the
+construction or destruction of an <code>Rcpp</code> proxy type, since
+<code>Rcpp::NumericVector</code> and its siblings touch R’s protection
+stack on both, allocation visible or not. R’s evaluator, allocator and
+protection stack belong to the main thread, and <code>Rf_error</code>
+would longjmp out of a context that thread established. That is the
+whole reason <code>REAL(acc)</code> is taken in
+<code>makeMeanContext</code> and only a raw <code>double*</code> crosses
+into <code>meanCallback</code>.</p>
+<p>Supplying <code>callback</code> defaults <code>keepFits</code> to
+<code>FALSE</code> automatically, so this fit returns no
+<code>yhat.train</code> at all – <code>means</code> above, not a
+component of <code>fit</code>, is the only fitted value there is;
+passing <code>keepFits = TRUE</code> alongside <code>callback</code>
+keeps the array too, at the memory cost the callback exists to avoid. A
+strided variant that keeps every draw rather than reducing it on the fly
+is the same shape with a <code>numDraws</code> field added to
+<code>MeanContext</code> and the loop body replaced by one
+<code>memcpy</code> into
+<code>out + (draw-&gt;chainIndex * numDraws + draw-&gt;drawIndex) * ctx-&gt;n</code>.</p>
+</div>
+<div class="section level2">
 <h2 id="where-to-look-next">Where to look next<a class="anchor" aria-label="anchor" href="#where-to-look-next"></a>
 </h2>
 <p><code>?dbarts-embedding</code> collects the channels, the reads and
 the rules the recipes above apply. <code><a href="../reference/dbartsSampler-class.html">?dbartsSampler</a></code> documents
 each method, including which quantity each reporting method returns;
 <code><a href="../reference/dbartsAugmentation.html">?dbartsAugmentation</a></code> documents the two augmentation helpers;
-and <code><a href="../reference/dbartsValidateComposition.html">?dbartsValidateComposition</a></code> documents the calibration
-check.</p>
+<code><a href="../reference/dbartsValidateComposition.html">?dbartsValidateComposition</a></code> documents the calibration check;
+and <code><a href="../reference/bart.html">?bart</a></code>’s <code>callback</code> and <code>keepFits</code>
+entries document recipe 7’s contract, including the crash and
+lost-fitted-value warnings the recipe states in prose.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

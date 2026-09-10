@@ -144,7 +144,13 @@ and `keeptrainfits` on
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) - which
 drops the array and the fitted means taken from it;
 [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md) on a
-`keepTrees` fit recovers them for whichever rows are wanted.
+`keepTrees` fit recovers them for whichever rows are wanted. A per-draw
+`callback` (see
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) goes
+further alongside `keepFits = FALSE` by never allocating the array at
+all, taking the 100,000-observation four-chain fit above from about 3891
+MB to about 698 MB, and a 1,000,000-observation one-chain fit at 50
+predictors from about 10560 MB to about 2576 MB.
 
 Two options cost more than their names suggest. `keepTrees` keeps every
 draw's trees, about 24 bytes per node per tree per draw per chain, which
