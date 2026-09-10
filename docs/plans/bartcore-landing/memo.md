@@ -118,9 +118,9 @@ Decisions with maintainer evidence: 117
   BayesTree-style bartBT() keeps indicator expansion (B78). The two fit
   different models on the same data by default.
 - **Binary node hyperprior** (A07): the default moves, and so does the scale
-  default of chi(). Every probit fit's posterior moves. The maintainer keeps
-  the new default and has scheduled the evidence it rests on (B106), which is
-  not yet in the tree.
+  default of chi(), so every probit fit's posterior moves. The maintainer
+  keeps the new default and has scheduled the evidence it rests on (B106),
+  which is not yet in the tree.
 - **Combined chains** (A08): bart() defaults combineChains to TRUE and
   flattens results chain-major, so code indexing the chain margin breaks.
   The recorded decision was a default of FALSE family-wide.
@@ -149,9 +149,9 @@ Decisions with maintainer evidence: 117
 - **Scalar draw path** (B90): the maintainer's ruling keeps a configure flag
   selecting a scalar, fixed-order reference build for development, gated
   statistically before release. The vector kernels that would make the
-  shipped build differ were measured with no meaningful gain and did not
-  ship (B113), so both builds stay identical code. A fused pass over the
-  weighted families landed instead, moving those draws in the last bits.
+  shipped build differ showed no meaningful gain and did not ship (B113),
+  so both builds stay identical code, with a fused pass over the weighted
+  families landed instead that moves those draws in the last bits.
 - **The published C boundary** (A29): the header exposes calls over an opaque
   handle, families selected by string-named attributes. The maintainer's
   ruling (B84) keeps it pure C: a consumer builds the sampler through R, and
