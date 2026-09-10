@@ -91,4 +91,48 @@ expect_true(all(sd.highWeight < sd.lowWeight))
 
 rm(n, x, y, w, weightedFit, ppd.weighted, sd.highWeight, sd.lowWeight)
 
+# predict(type = "ppd") on a fit whose sampler was kept but whose trees were
+# not: object$fit$predict replays only the current trees (one evaluation,
+# not one per posterior draw), so ppd sampling must refuse by name instead
+# of failing deep inside rep_len's length mismatch
+set.seed(0L)
+n <- 40L
+x <- matrix(runif(n * 2L), n, 2L)
+y <- x[, 1L] + rnorm(n, 0, 0.3)
+noTreesFit <- dbarts::bart(
+  x,
+  y,
+  n.samples = 20L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 2L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = FALSE,
+  keepSampler = TRUE
+)
+expect_error(
+  predict(noTreesFit, x, type = "ppd"),
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+# extract's ppd arm reads the stored yhat.train/test channels, which
+# keepTrees does not gate, so it still succeeds on the same fit
+expect_true(is.matrix(extract(noTreesFit, type = "ppd")))
+
+keptTreesFit <- dbarts::bart(
+  x,
+  y,
+  n.samples = 20L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 2L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_true(is.matrix(predict(keptTreesFit, x, type = "ppd")))
+
+rm(n, x, y, noTreesFit, keptTreesFit)
+
 rm(testData)

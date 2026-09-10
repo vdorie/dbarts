@@ -170,14 +170,6 @@ items
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
-  predict-ppd-notrees-refusal: predict(type = "ppd") on a homoscedastic
-    bart fit run without keepTrees errors "invalid 'length.out' value"
-    instead of refusing by name the way predict's amplitude/forest arms
-    do (R/generics.R's refuseWithoutTrees). Reproduces with keepFits ==
-    TRUE, so it predates and is independent of
-    docs/plans/per-draw-callbacks.md; surfaced by that plan's S3
-    reviewer (2026-09-11). Small - a pre-release candidate if the fix
-    is a guard naming keepTrees rather than a deeper investigation.
   python-bindings: a pybind11 facade wrapper is prototype-scale now
     that the engine is R-free below the bridge. Horizon, likely
     out-of-repo. Two contracts a non-R host would have to take over:

@@ -2562,6 +2562,14 @@
             fold bins the predictors identically to a fit on all of the
             data and creation does not re-quantize per fold; numeric
             results shift accordingly.
+      \item \code{predict(type = "ppd")} on a fit without \code{keepTrees}
+            now refuses by name, naming \code{keepTrees}, instead of
+            erroring \sQuote{invalid 'length.out' value}: without the saved
+            trees the sampler replays only the current trees, one
+            evaluation rather than one per posterior draw, which posterior
+            predictive sampling needs. \code{extract(type = "ppd")} was
+            already unaffected, reading the fit's stored channels rather
+            than replaying the sampler.
     }
   }
 }

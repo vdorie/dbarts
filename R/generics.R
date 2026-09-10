@@ -488,6 +488,22 @@ predict.bart <- function(
           "heteroscedastic fit whose sampler replays no variance surface"
         )
       }
+      # ppd sampling pairs one draw of noise with one draw of ev, one per
+      # posterior sample; without the tree store, object$fit$predict above
+      # replayed only the current trees (one evaluation, not one per draw),
+      # the same shape refuseWithoutTrees's callers see, so refuse the same
+      # way rather than let the length mismatch reach rnorm/rep_len below.
+      # Checked after the heteroscedastic-specific stops above, which name
+      # the more informative cause (keepFits) when either one applies.
+      if (!object$fit$control@keepTrees) {
+        stop(
+          "predict requires the fit's saved trees; refit with ",
+          bartKeepTreesArgument(object),
+          " = TRUE: posterior predictive sampling draws one sample per ",
+          "posterior draw, and without the tree store only the current ",
+          "trees replay, one evaluation for every draw"
+        )
+      }
       result <- sampleFromPPD(
         result,
         object,
