@@ -1587,6 +1587,25 @@ void testIngestionRefusals() {
           "the two ceilings are one apart");
   }
 
+  // the CUT count has a ceiling of its own, and the build refuses past it
+  // rather than quantizing onto a grid the caller did not ask for. Only a host
+  // driving the store directly reaches this: the R bridge names the cap first
+  {
+    std::vector<double> ordinal(n, 0.0);
+    for (size_t i = 0; i < n; ++i) ordinal[i] = static_cast<double>(i);
+    const std::uint32_t pastCap[1] = { maxNumCutsRepresentable + 1u };
+    ColumnStore atCap, scalarPastCap, perVariablePastCap;
+    check(atCap.build(ordinal.data(), n, 1, maxNumCutsRepresentable),
+          "a cut request at the cap is accepted");
+    check(atCap.maxNumCuts[0] == maxNumCutsRepresentable,
+          "and is carried, not lowered");
+    check(!scalarPastCap.build(ordinal.data(), n, 1,
+                               maxNumCutsRepresentable + 1u),
+          "a cut request past the cap is refused, not clamped");
+    check(!perVariablePastCap.build(ordinal.data(), n, 1, pastCap, false),
+          "the per-variable spelling refuses the same way");
+  }
+
   // the mapped entrance: a CSC-backed factor column's stored nonzeros carry
   // the same check, and its reference code rides the count it implies
   {
