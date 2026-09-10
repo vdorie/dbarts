@@ -169,3 +169,31 @@ tip: tinytest 8539/0; tests/cpp all passed; equivalence 52/52, BCF
 12/12, multinomial 11/11 identical; `R CMD check --as-cran` OK; air,
 lintr, doc-freshness, rc-codoc, pkgdown, NEWS parse clean. S2 (manual
 prose, argument grouping, NEWS, consumers) open.
+
+## Landing note, S2 (2026-09-10)
+
+LANDED at b1d2ba6b0c80b1fdd25b4a96049bfd3418e297f1, three commits (the manual and NEWS, then one reviewer
+fix):
+
+- ee8a2ae23e689bff87e2c8310fe1a37d8900a033 Group bart's Arguments block and finish the front-door manual prose
+- 219aa0fe50b38db1f672113d36a04f7ffd88e623 Record the control formal and proposal.probs move in NEWS
+- b1d2ba6b0c80b1fdd25b4a96049bfd3418e297f1 Split split.probs out of the power/base tombstone entry
+
+The `bart` Arguments block is grouped by bold lead-ins inside
+`\arguments` (data and formula; family and priors; sampling run;
+output; engine), the same 51 items reordered and none dropped; the
+seven retired spellings are one paragraph under `...`, each naming its
+object, and `split.probs` names `cgm()` alone since `dart()` has no
+such formal. `control` is documented on both doors with the precedence
+rule and the fit-state refusal; `proposal.probs` is documented on
+[dbartsControl](../../man/dbartsControl.Rd) with its six elements and
+the frozen mixture; the stale xbart-control text in
+man/dbarts-deprecated.Rd and NEWS is corrected. Consumers, each
+installed against this tip and run in full: bartCause dbarts-1.0 764
+tests, 0 failures, no retired name in its sources; stan4bart bartcore
+542 tests, 0 failures, its formals filter admitting `proposal.probs`
+through both constructors harmlessly. Gates: `R CMD check --as-cran`
+OK; doc-freshness, rc-codoc, pkgdown, air, NEWS parse clean;
+test-tombstones.R 139/0, test-front-door-control.R 100/0. The arc is
+complete; the residual prior onto the family object stays the recorded
+follow-on in the TODO.
