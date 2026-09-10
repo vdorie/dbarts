@@ -48,6 +48,7 @@ Columns: `file | STATUS | one-liner`.
 | reduced-precision-storage.md | LANDED / COMPLETE, 2026-07-20/21 | Adds optional narrowed hot-path storage: bitwise-preserving uint32 indices shipped, and an opt-in fp32 residual (`storage = "single"`) shipped for the gaussian constant leaf; a further fp32 scratch bundle was tried and measured not worth it. |
 | block-fusion.md | CLOSED, WONT-DO | Tried block-fused sub-sweeps to cut memory traffic; the single-tree refactor shipped as the default, and fusing multiple trees measured 4-9x slower than hoped, so nothing fused ships. |
 | gpu-bart.md | NO-GO (survey; no direction earns a prototype yet) | Surveyed seven GPU-acceleration directions; recommends none for a prototype yet, ranking grow-from-root's cut-scan kernel the best future candidate. |
+| engine-constants.md | MEASURED, 2026-09-10 | Measures the nine fixed engine constants - the categorical enumeration cap, the linear-leaf covariate cap, the perturb width, the two parallel cutoffs, the sparse density threshold, the GP leaf ceiling, the person-period row cap and the xint caps - and records for each whether its value binds. |
 
 ## Leaf models
 
