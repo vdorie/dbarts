@@ -382,6 +382,29 @@ packaged <- suppressWarnings(dbarts::bart(
 expect_equal(names(packaged$gp.fallback), c("evaluations", "fallbacks"))
 expect_true(packaged$gp.fallback[["fallbacks"]] > 0)
 
+## and it warns ONCE per fit, not once per sampler run: the standard front
+## door runs burn-in and sampling as two run() calls
+gpWarnings <- 0L
+invisible(withCallingHandlers(
+  dbarts::bart(
+    gpY ~ x1 + x2,
+    gpFrame,
+    node.prior = gp("x1", max.leaf.size = 32L),
+    n.trees = 10L,
+    n.chains = 1L,
+    n.samples = 5L,
+    n.burn = 5L,
+    verbose = FALSE
+  ),
+  dbartsGPFallbackWarning = function(w) {
+    gpWarnings <<- gpWarnings + 1L
+    invokeRestart("muffleWarning")
+  }
+))
+expect_equal(gpWarnings, 1L)
+
+rm(gpWarnings)
+
 rm(
   degenerate,
   degenerateSamples,

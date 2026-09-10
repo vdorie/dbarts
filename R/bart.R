@@ -674,7 +674,14 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
     control@verbose <- FALSE
     sampler$setControl(control)
 
-    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
+    # the Gaussian-process fallback share is a property of the model and the
+    # data, so the burn run would raise the same warning the kept-sample run
+    # raises just below; muffled here so one fit warns once, as the burn run's
+    # verbose output is silenced for the same reason
+    samples <- withCallingHandlers(
+      sampler$run(0L, control@n.burn, updateState = FALSE),
+      dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning")
+    )
     if (!is.null(samples$sigma)) {
       burnInSigma <- samples$sigma
     }
