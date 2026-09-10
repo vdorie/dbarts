@@ -506,7 +506,8 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   sparse-layout test should run 20 sweeps, not one, to discriminate
   the layouts (the tip passes bitwise at one sweep and differs by
   6e-16 to 9e-16 at twenty).
-  door, from the same measurement (VD to rule): setPredictor's
+  decided, VD 2026-09-10, land before release (docs/decisions.md
+  dec-B117; plan docs/plans/setpredictor-partition.md): setPredictor's
   re-partition (repartitionSubtree from the root) always receives a
   span already partitioned under the live rules - 7400 of 7400 root
   partitions on the accept path had zero misplaced elements - so the
@@ -521,8 +522,8 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   the current draws: the member order differs and leaf sums
   reassociate at the last bit, varcount identical, so it needs a
   re-record of every equivalence scenario that calls setPredictor and
-  its own oracle. Draw-changing, so a decision, not a defect.
-  defect, small: benchmarks/kernels/bench.c declares its index arrays
+  its own oracle.
+  defect, small (S2 of the same plan): benchmarks/kernels/bench.c declares its index arrays
   size_t where the partition kernels take misc_index_t (uint32), so
   its correctness check aborts on both arm64 and x86 and its
   range-vs-indices rows read half-zero index words; the typed rerun
