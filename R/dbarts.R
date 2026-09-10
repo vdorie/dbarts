@@ -209,8 +209,12 @@ appendHazardPeriodColumn <- function(x, period) {
 ## function's own defaults are what apply, not A_class.R's prototype;
 ## only `binary` and `call`, which this constructor never sets, fall
 ## through to it. n.threads is deliberately one of the explicit ones:
-## this default probes guessNumCores(), while the prototype's is the
-## conservative n.threads = 1L for a bare new("dbartsControl").
+## this default probes guessNumCores() capped to n.chains (dec-B115 -
+## within-chain threading does not ship, so a budget above n.chains buys
+## tree sampling nothing and is worth warning about, not defaulting to),
+## while the prototype's is the conservative n.threads = 1L for a bare
+## new("dbartsControl"). n.threads still keeps its own meaning, a total
+## thread budget, distinct from n.chains; only the default is capped.
 dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
@@ -223,7 +227,7 @@ dbartsControl <- function(
   n.burn = 200L,
   n.trees = 75L,
   n.chains = 4L,
-  n.threads = dbarts::guessNumCores(),
+  n.threads = min(dbarts::guessNumCores(), n.chains),
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,
@@ -738,6 +742,29 @@ dbarts <- function(
   seed <- coerceOrError(seed, "integer")
   if (!is.na(seed)) {
     control@seed <- seed
+  }
+  # dec-B115: within-chain threading does not ship, so tree sampling never
+  # sees more than one thread per chain; a caller-supplied budget above
+  # n.chains is not silently wasted - it still feeds the test-fit pool and
+  # predict's fan-out - but is worth a word since it buys nothing for the
+  # sampler's own sweep. Single site: bart() forwards here with its own
+  # control already built, so this fires for both front doors, once per
+  # fit. 65536 is testFitParallelCutoff (src/bartcore/chain.hpp); not read
+  # from R (no query exists), so this literal must be kept in sync with the
+  # engine constant by hand.
+  if (control@n.threads > control@n.chains) {
+    warning(warningCondition(
+      sprintf(
+        paste0(
+          "n.threads (%d) exceeds n.chains (%d); tree sampling uses at ",
+          "most one thread per chain, so the extra threads serve only ",
+          "test-set fitting above 65536 rows and predict"
+        ),
+        control@n.threads,
+        control@n.chains
+      ),
+      class = c("dbartsExcessThreadsWarning", "dbartsWarning")
+    ))
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))

@@ -13,7 +13,7 @@ dbartsControl(
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
-    n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
+    n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L, seed = NA_integer_, updateState = TRUE, \dots)
 }
 \arguments{
@@ -54,7 +54,7 @@ dbartsControl(
      A positive integer detailing the number of independent chains for the sampler to use.
    }
    \item{n.threads}{
-     A positive integer controlling how many threads will be used for various internal calculations, as well as the number of chains. Internal calculations are highly optimized so that single-threaded performance tends to be superior unless the number of observations is very large (>10k), so that it is often not necessary to have the number of threads exceed the number of chains.
+     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so within-chain parallelism is not shipped and a budget above \code{n.chains} buys the sampler's own sweep nothing - it was built and measured (best case about 3 percent faster at four threads on one chain, and slower than serial at two and at eight) and closed rather than shipped. The surplus is not wasted outright: it still feeds the test-fit pool, used above 65536 test rows, and \code{\link[=dbartsSampler-class]{predict}}'s own fan-out. Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}; a larger, explicit budget is accepted, and \code{\link{dbarts}} and \code{\link{bart}} warn once per fit, naming both counts, that the excess goes unused for sampling.
    }
    \item{n.thin}{
      A positive integer determining how many iterations the MCMC chain should jump on the decision trees alone before recording a sample. Serves to \dQuote{thin} the samples against serial correlation. \code{n.samples} are returned regardless of the value of \code{n.thin}.

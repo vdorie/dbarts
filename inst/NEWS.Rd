@@ -415,6 +415,18 @@
             no chain finishes first). A 4-chain, 4-thread
             \code{run(0, 1)}'s median latency drops from about 105ms to
             about 0.12ms; draws are unaffected.
+      \item Within-chain threading was re-measured against the current
+            engine and, still no faster than serial (best case about 3
+            percent at four threads on one chain, slower at two and at
+            eight), does not ship: \code{n.threads} keeps its 0.9-34
+            meaning, a total thread budget distinct from \code{n.chains},
+            but tree sampling now uses at most one thread per chain.
+            \code{\link{dbartsControl}}'s own default caps the core probe
+            at \code{n.chains} rather than handing out an unused budget;
+            \code{\link{dbarts}} and \code{\link{bart}} warn once per fit,
+            naming both counts, when an explicit \code{n.threads} exceeds
+            \code{n.chains}, since the surplus still reaches the test-fit
+            pool and \code{predict}'s fan-out but nothing else.
       \item DESCRIPTION and \code{\link{dbarts-package}} no longer call
             dbarts a drop-in replacement for \pkg{BayesTree}; both now say
             it \dQuote{provides a \pkg{BayesTree}-compatible interface}
