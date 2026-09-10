@@ -480,7 +480,9 @@ struct DrawProbe {
   std::vector<char> orderBroken, shapeBroken, trainMoved;
   std::vector<const double*> firstTrain;
   size_t numObservations = 0;
-  // draw index at which the observer asks for an abort; never, by default
+  // draw index at which the observer asks for an abort, from chain 0 only:
+  // any chain may run ahead of another, so a stop from whichever chain gets
+  // there first would leave chain 0's count unpinned; never, by default
   size_t stopAtDraw = static_cast<size_t>(-1);
   // single-chain observations
   size_t numVCForests = 0, numForests = 0, numAmplitudes = 0, locations = 0;
@@ -519,7 +521,7 @@ static int drawProbeCallback(void* context, const DrawInfo* draw) {
       probe.lastVarcount.assign(draw->varcount, draw->varcount + width);
     }
   }
-  return draw->drawIndex >= probe.stopAtDraw ? 1 : 0;
+  return c == 0 && draw->drawIndex >= probe.stopAtDraw ? 1 : 0;
 }
 
 static std::vector<ext_rng*> makeDrawRngs(size_t numChains,
@@ -709,7 +711,9 @@ static void testDrawCallbackStop() {
     // count is not pinned - only that the run stopped far short of finishing
     check(total < numChains * numSamples / 2,
           "draw stop: the run aborts well short of its samples");
-    check(probe.calls[0] >= stopAt + 1,
+    // chain 0 is the only chain that stops, and it stops itself on the draw
+    // it refuses, so its count is exact whatever the other chains did
+    check(probe.calls[0] == stopAt + 1,
           "draw stop: the stopping chain saw the draws up to its stop");
   }
 
