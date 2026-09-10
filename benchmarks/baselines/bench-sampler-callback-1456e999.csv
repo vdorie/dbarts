@@ -1,0 +1,7 @@
+"scenario","metric","value","rev","date","quick"
+"callback-none-n1e5-p20","ms_per_iteration",38.978,"b7802bfa","2026-09-10",FALSE
+"callback-noop-n1e5-p20","ms_per_iteration",39.134,"b7802bfa","2026-09-10",FALSE
+"callback-mean-n1e5-p20","ms_per_iteration",39.256,"b7802bfa","2026-09-10",FALSE
+"callback-none-n1e6-p50","ms_per_iteration",378.308,"b7802bfa","2026-09-10",FALSE
+"callback-noop-n1e6-p50","ms_per_iteration",375.13,"b7802bfa","2026-09-10",FALSE
+"callback-mean-n1e6-p50","ms_per_iteration",374.116,"b7802bfa","2026-09-10",FALSE
