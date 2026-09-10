@@ -15,13 +15,13 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dbarts, quietly = TRUE)
 ```
 
-A `dbartsSampler` is a mutable object that runs one sweep at a time, so BART can be a conditional model inside a larger Gibbs or Metropolis-Hastings scheme rather than the whole of it. Six recipes follow. Each is a complete, runnable outer sampler; each answers the same three questions, which are the ones a composition gets wrong:
+A `dbartsSampler` is a mutable object that runs one sweep at a time, so BART can be a conditional model inside a larger Gibbs or Metropolis-Hastings scheme rather than the whole of it. Seven recipes follow. The first six are complete, runnable outer samplers; each answers the same three questions, which are the ones a composition gets wrong:
 
 * **which channel** the outer block writes -- response, offset, weights, sigma, or a predictor column;
 * **which fit** the outer block reads back, since the six reporting methods do not report the same quantity (`?dbartsSampler`, "Reading the fit");
 * **whose prior** is in force, since a swapped response does not re-anchor the leaf prior the sampler was built with.
 
-`?dbarts-embedding` is the reference page for the channels and the reads; this vignette is the worked set. Every recipe here is also a cell in the package's test suite, because a composition that runs to completion can still be sampling the wrong posterior.
+`?dbarts-embedding` is the reference page for the channels and the reads; this vignette is the worked set. Recipes 1 through 6 are each also a cell in the package's test suite, because a composition that runs to completion can still be sampling the wrong posterior. The seventh recipe is different in kind: it drives `bart()` itself through a compiled per-draw callback rather than a `dbartsSampler` loop, and is not evaluated here -- it needs a C++ compiler `dbarts` does not depend on -- so its own check is a plain-C copy of the same callback under `inst/tinytest`, not a chunk in this file.
 
 Throughout, `run(0L, 1L)` advances the sampler exactly one sweep, and every recipe builds its sampler the same way:
 
@@ -346,6 +346,75 @@ c(mean = mean(keepGamma), truth = gammaTrue,
 
 The last column is zero by construction, which is the point: `z - train` and `z - f` differ by the installed offset exactly. Substituting `train` for `f` above pulls the posterior mean of $\gamma$ from `r round(mean(keepGamma), 2)` to about 0.29, roughly seventeen oracle standard errors below the truth, on a run that reports no error at all.
 
+## 7. A per-draw callback that never returns the array
+
+Every recipe above drives a `dbartsSampler` from R, one sweep at a time. This one drives `bart()` itself and reads no returned fit back at all. `callback` fires a *compiled* function once per saved draw per chain, over `const` pointers into the engine's own buffers, on the thread that owns that chain -- so a reduction is taken as each draw is produced instead of over the `n` x `S` x `C` array `bart()` would otherwise build only to have the caller reduce it afterward. It is the shape requested directly: "a C callback write to a preallocated array ... since that wouldn't require blocking ... raw pointers or lists or void*, just not SEXPs." `Rcpp` is not a dependency of `dbarts`, so the code below does not run as part of building this vignette; `?bart`'s `callback` and `keepFits` entries document the contract in full, and `inst/tinytest/capi/consumer.c` carries a plain-C copy of the same callback, checked against a fit's own `yhat.train.mean`.
+
+The task: a running posterior mean of the training fit, over `x`/`y` as in the recipes above, without ever holding the training draws at all.
+
+```{r recipe7_r, eval=FALSE}
+Rcpp::sourceCpp("drawMean.cpp")     # makeMeanContext, meanCallbackPtr
+
+nChains <- 4L
+acc <- numeric(nrow(x) * nChains)   # the ONLY per-observation allocation
+ctx <- makeMeanContext(acc, nrow(x), nChains)
+
+fit <- bart(x, y, n.chains = nChains,
+            callback = list(fn = meanCallbackPtr(), context = ctx))
+means <- rowMeans(matrix(acc, nrow(x), nChains))
+stopifnot(contextStatus(ctx) == 0L)
+```
+
+```cpp
+#include <Rcpp.h>
+#include <dbarts/dbarts.h>   // dbarts_draw; PKG_CPPFLAGS -I the include dir
+
+struct MeanContext {
+  double* out;           // REAL() of the R vector, taken BEFORE the run
+  std::size_t n, numChains;
+  std::size_t* counts;   // per chain: no chain reads another's counter
+  int status;            // set here, read from R after the run
+};
+
+extern "C" int meanCallback(void* context, const dbarts_draw* draw) {
+  MeanContext* ctx = static_cast<MeanContext*>(context);
+  if (draw->train == nullptr || draw->numObservations != ctx->n ||
+      draw->chainIndex >= ctx->numChains) {
+    ctx->status = 1;     // record and continue; nonzero would ABORT the run
+    return 0;
+  }
+  double* out = ctx->out + draw->chainIndex * ctx->n;    // disjoint slice
+  const double m = static_cast<double>(++ctx->counts[draw->chainIndex]);
+  for (std::size_t i = 0; i < ctx->n; ++i)
+    out[i] += (draw->train[i] - out[i]) / m;             // running mean
+  return 0;
+}
+
+// freeMeanContext (not shown) deletes counts and the context
+
+// [[Rcpp::export]]
+SEXP meanCallbackPtr() {   // ...PtrFn: casting a function pointer to void* is
+                           // what -Wpedantic flags under R CMD check
+  return R_MakeExternalPtrFn(reinterpret_cast<DL_FUNC>(&meanCallback),
+                             R_NilValue, R_NilValue);
+}
+
+// [[Rcpp::export]]
+SEXP makeMeanContext(Rcpp::NumericVector acc, std::size_t n, std::size_t C) {
+  MeanContext* ctx = new MeanContext{REAL(acc), n, C, new std::size_t[C](), 0};
+  // acc goes in the PROTECTED slot (third argument): that is what keeps the
+  // array alive as long as the context is
+  SEXP ptr = PROTECT(R_MakeExternalPtr(ctx, R_NilValue, acc));
+  R_RegisterCFinalizerEx(ptr, &freeMeanContext, TRUE);
+  UNPROTECT(1);
+  return ptr;
+}
+```
+
+Four rules make this recipe correct rather than merely running, and every one is the caller's to keep, not the engine's. `REAL(acc)` is read exactly ONCE, before the fit starts: a later reassignment of `acc` in R builds a DIFFERENT vector, and the callback goes on writing the old one, so nothing between `makeMeanContext` and `bart()` may touch `acc`. Chains write DISJOINT slices -- `draw->chainIndex * ctx->n` onward -- which is what lets every chain's calls run concurrently with no lock at all; two chains sharing a slice would need an atomic or a lock, giving up the bitwise reproducibility `dbarts` otherwise guarantees, for nothing this recipe needs. A context is built PER RUN, because `drawIndex` restarts at 0 on every `bart()` call (and every `$run`, for a `dbartsSampler` driven directly) -- reusing one context across two fits overwrites the first fit's slots rather than extending them. And the return value is an ABORT switch, not an error channel: nonzero stops the whole run at that draw and discards every chain's results immediately, so a callback that merely disagrees with a draw's shape -- the `if` above -- records a `status` and returns 0, leaving the caller to check `contextStatus(ctx)` (not shown; it reads `ctx->status` back) once the fit returns. Getting either of the last two wrong does not raise an R condition: it crashes the session outright, with nothing to `tryCatch`.
+
+Supplying `callback` defaults `keepFits` to `FALSE` automatically, so this fit returns no `yhat.train` at all -- `means` above, not a component of `fit`, is the only fitted value there is; passing `keepFits = TRUE` alongside `callback` keeps the array too, at the memory cost the callback exists to avoid. A strided variant that keeps every draw rather than reducing it on the fly is the same shape with a `numDraws` field added to `MeanContext` and the loop body replaced by one `memcpy` into `out + (draw->chainIndex * numDraws + draw->drawIndex) * ctx->n`.
+
 ## Where to look next
 
-`?dbarts-embedding` collects the channels, the reads and the rules the recipes above apply. `?dbartsSampler` documents each method, including which quantity each reporting method returns; `?dbartsAugmentation` documents the two augmentation helpers; and `?dbartsValidateComposition` documents the calibration check.
+`?dbarts-embedding` collects the channels, the reads and the rules the recipes above apply. `?dbartsSampler` documents each method, including which quantity each reporting method returns; `?dbartsAugmentation` documents the two augmentation helpers; `?dbartsValidateComposition` documents the calibration check; and `?bart`'s `callback` and `keepFits` entries document recipe 7's contract, including the crash and lost-fitted-value warnings the recipe states in prose.
