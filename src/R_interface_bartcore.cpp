@@ -4569,6 +4569,19 @@ static bool bartcore_userInterrupted() {
 // crosses the boundary) and the caller's context, handed back untouched. A
 // null function clears the hook. The address is dereferenced exactly as handed
 // - nothing here can check that it points at a callable of the right shape.
+//
+// The callback must RETURN; it must never longjmp. Inline it would skip
+// PutRNGstate and the scratch destructors below; on a worker thread it would
+// unwind a setjmp context this (the main) thread established, which is
+// undefined behaviour and in practice a crash. A callback that wants the run
+// to end records its own status and returns nonzero.
+//
+// Two facts about what the observer sees through this entry. The
+// log-likelihood channel is never allocated here, so draw.logLikelihood is
+// always null on the bridge path whatever the family reports. And with no test
+// rows the test channel's NATURAL per-draw stride is zero, which is also the
+// opt-out sentinel - harmless, because the same condition leaves the pointer
+// null and nothing addresses it.
 static bartcore::DrawHook bartcore_drawHook(SEXP fnExpr, SEXP contextExpr) {
   bartcore::DrawHook hook;
   if (Rf_isNull(fnExpr)) return hook;
@@ -4597,8 +4610,13 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // FALSE keeps no per-observation channel: each becomes a per-chain one-draw
   // scratch buffer the observer reads and the next draw overwrites, and the
   // run returns no R array for it. The counts and the scalars are kilobytes
-  // and are allocated either way.
-  bool keepFits = Rf_asLogical(keepFitsExpr) != FALSE;
+  // and are allocated either way. NA is refused rather than read as TRUE: it
+  // decides how much memory the run allocates and which slots come back null,
+  // so a caller that does not know what it asked for must be told.
+  int keepFitsFlag = Rf_asLogical(keepFitsExpr);
+  if (keepFitsFlag == NA_LOGICAL)
+    Rf_error("'keepFits' must be TRUE or FALSE");
+  bool keepFits = keepFitsFlag != FALSE;
 
   bartcore::SamplerShape shape = sampler.shape();
   size_t numObservations = shape.numObservations;
