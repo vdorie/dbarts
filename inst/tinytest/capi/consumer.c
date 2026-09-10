@@ -641,3 +641,138 @@ SEXP capi_destroy(SEXP ptrExpr) {
   dbarts_sampler_destroy(samplerFromExpr(ptrExpr));
   return R_NilValue;
 }
+
+/* ------------------------------------------------------------------------
+ * The per-draw callback. A counting observer in the shape the R side reads:
+ * one call counter and one last-seen draw index per chain, a per-chain status
+ * word for anything that looked wrong, and the shape and last sigma of the
+ * draws that arrived. Every per-chain slot is written by ONE chain, so
+ * concurrent calls need no synchronization here - the discipline the header
+ * names, a write addressed by chainIndex.
+ * ------------------------------------------------------------------------ */
+
+#define CAPI_DRAW_MAX_CHAINS 8
+
+/* status bits, ORed into the calling chain's own word */
+#define CAPI_DRAW_BAD_CHAIN 1  /* a chain index past this counter */
+#define CAPI_DRAW_BAD_ORDER 2  /* draw indices not 0, 1, 2, ... within a chain */
+#define CAPI_DRAW_BAD_SIZE 4   /* a library older than this consumer's header */
+#define CAPI_DRAW_BAD_TRAIN 8  /* the training channel absent under keepFits */
+
+typedef struct {
+  size_t calls[CAPI_DRAW_MAX_CHAINS];
+  size_t lastDrawIndex[CAPI_DRAW_MAX_CHAINS];
+  double lastSigma[CAPI_DRAW_MAX_CHAINS];
+  int status[CAPI_DRAW_MAX_CHAINS];
+  size_t structSize;
+  size_t numObservations;
+  size_t numPredictors;
+  size_t numReportedLocations;
+  long stopAfter; /* -1 never; else return nonzero once drawIndex reaches it */
+} capi_draw_counter;
+
+static capi_draw_counter capi_counter;
+
+/* NO R API IN HERE - no allocation, no PROTECT, no Rf_error, no longjmp of any
+ * kind: this runs on whichever worker thread owns the chain, where R's
+ * evaluator, allocator and protection stack are not ours to touch. A
+ * disagreement with a draw is RECORDED in status and returns 0; nonzero is
+ * reserved for the deliberate abort the R side drives through stopAfter. */
+static int capi_countingDraw(void* context, const dbarts_draw* draw)
+{
+  capi_draw_counter* counter = (capi_draw_counter*) context;
+  size_t chain = draw->chainIndex;
+  if (chain >= CAPI_DRAW_MAX_CHAINS) return 0;
+
+  if (counter->calls[chain] > 0 &&
+      draw->drawIndex != counter->lastDrawIndex[chain] + 1)
+    counter->status[chain] |= CAPI_DRAW_BAD_ORDER;
+  if (counter->calls[chain] == 0 && draw->drawIndex != 0)
+    counter->status[chain] |= CAPI_DRAW_BAD_ORDER;
+  /* the library fills structSize with ITS sizeof, so a smaller one means the
+   * installed dbarts predates a field this consumer knows */
+  if (draw->structSize < sizeof(dbarts_draw))
+    counter->status[chain] |= CAPI_DRAW_BAD_SIZE;
+  if (draw->train == NULL) counter->status[chain] |= CAPI_DRAW_BAD_TRAIN;
+
+  counter->lastDrawIndex[chain] = draw->drawIndex;
+  counter->lastSigma[chain] = draw->sigma;
+  counter->calls[chain] += 1;
+  /* the shape is chain-invariant, so one chain answers for all */
+  if (chain == 0) {
+    counter->structSize = draw->structSize;
+    counter->numObservations = draw->numObservations;
+    counter->numPredictors = draw->numPredictors;
+    counter->numReportedLocations = draw->numReportedLocations;
+  }
+  if (counter->stopAfter >= 0 &&
+      draw->drawIndex >= (size_t) counter->stopAfter)
+    return 1;
+  return 0;
+}
+
+/* the two halves as external pointers, which is what the R run argument takes:
+ * the FUNCTION through R_MakeExternalPtrFn, since casting a function pointer
+ * to void* is what -Wpedantic flags, and the context through the object form */
+SEXP capi_draw_function(void) {
+  return R_MakeExternalPtrFn((DL_FUNC) capi_countingDraw, R_NilValue,
+                             R_NilValue);
+}
+
+SEXP capi_draw_context(void) {
+  return R_MakeExternalPtr(&capi_counter, R_NilValue, R_NilValue);
+}
+
+/* zeroes the counter and arms (or disarms, at a negative value) the abort */
+SEXP capi_draw_reset(SEXP stopAfterExpr) {
+  memset(&capi_counter, 0, sizeof(capi_draw_counter));
+  capi_counter.stopAfter = (long) Rf_asInteger(stopAfterExpr);
+  return R_NilValue;
+}
+
+/* registers the counting callback against a sampler, or clears with a null
+ * function - the entry's whole surface */
+SEXP capi_set_draw_callback(SEXP ptrExpr, SEXP registerExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  if (Rf_asLogical(registerExpr) == TRUE)
+    dbarts_sampler_setDrawCallback(sampler, &capi_countingDraw, &capi_counter);
+  else
+    dbarts_sampler_setDrawCallback(sampler, NULL, NULL);
+  return R_NilValue;
+}
+
+/* what the callback accumulated, plus the sizeof this consumer compiled
+ * against so the R side can see the two structSizes agree */
+SEXP capi_draw_report(void) {
+  const char* names[] = { "calls", "last.draw.index", "last.sigma", "status",
+                          "struct.size", "expected.struct.size",
+                          "num.observations", "num.predictors",
+                          "num.reported.locations", "" };
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SEXP calls = PROTECT(Rf_allocVector(INTSXP, CAPI_DRAW_MAX_CHAINS));
+  SEXP last = PROTECT(Rf_allocVector(INTSXP, CAPI_DRAW_MAX_CHAINS));
+  SEXP sigma = PROTECT(Rf_allocVector(REALSXP, CAPI_DRAW_MAX_CHAINS));
+  SEXP status = PROTECT(Rf_allocVector(INTSXP, CAPI_DRAW_MAX_CHAINS));
+  size_t i;
+  for (i = 0; i < CAPI_DRAW_MAX_CHAINS; ++i) {
+    INTEGER(calls)[i] = (int) capi_counter.calls[i];
+    INTEGER(last)[i] = capi_counter.calls[i] == 0
+      ? NA_INTEGER : (int) capi_counter.lastDrawIndex[i];
+    REAL(sigma)[i] = capi_counter.calls[i] == 0
+      ? NA_REAL : capi_counter.lastSigma[i];
+    INTEGER(status)[i] = capi_counter.status[i];
+  }
+  SET_VECTOR_ELT(result, 0, calls);
+  SET_VECTOR_ELT(result, 1, last);
+  SET_VECTOR_ELT(result, 2, sigma);
+  SET_VECTOR_ELT(result, 3, status);
+  SET_VECTOR_ELT(result, 4, Rf_ScalarReal((double) capi_counter.structSize));
+  SET_VECTOR_ELT(result, 5, Rf_ScalarReal((double) sizeof(dbarts_draw)));
+  SET_VECTOR_ELT(result, 6,
+                 Rf_ScalarInteger((int) capi_counter.numObservations));
+  SET_VECTOR_ELT(result, 7, Rf_ScalarInteger((int) capi_counter.numPredictors));
+  SET_VECTOR_ELT(result, 8,
+                 Rf_ScalarInteger((int) capi_counter.numReportedLocations));
+  UNPROTECT(5);
+  return result;
+}

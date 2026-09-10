@@ -113,9 +113,13 @@ expect_false(identical(hashes$text, "0xca7b56a64c812b8d"))
 # the signature half of the fold sees, and the callback's parameter list and
 # dbarts_forest_calibration's layout leaving the fold is what the rest sees
 expect_false(identical(hashes$text, "0x616ffcda8c947777"))
+# the token before the per-draw callback: one entry added to the surface and
+# one struct added to the layout fold, so a token blind to either half would
+# still read this
+expect_false(identical(hashes$text, "0xab4909b71853c7df"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xab4909b71853c7df")
+expect_identical(hashes$text, "0x6380bf095d5cae3f")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -212,6 +216,75 @@ expectedLL <- dnorm(
   log = TRUE
 )
 expect_equal(rLL$loglik, expectedLL, tolerance = 1e-12)
+
+# THE PER-DRAW CALLBACK. A registered C observer fires once per RECORDED draw
+# per chain: five burn-in sweeps produce no call, so the count is nSamples and
+# not nSamples + 5, and the draw indices run 0, 1, ... within the chain. The
+# consumer's status word is how it reports a disagreement - a callback cannot
+# raise - so a nonzero sum here is a malformed draw, not a failed comparison.
+specDraw <- dbarts(x, y, test = x.test, control = control)
+ptrDraw <- specDraw$getPointer()
+CALL("capi_draw_reset", -1L)
+CALL("capi_set_draw_callback", ptrDraw, TRUE)
+rDraw <- CALL("capi_run", ptrDraw, 5L, nSamples, TRUE, TRUE)
+drawReport <- CALL("capi_draw_report")
+expect_equal(sum(drawReport$calls), as.integer(nSamples))
+expect_equal(drawReport$calls[1L], as.integer(nSamples))
+expect_equal(drawReport$last.draw.index[1L], nSamples - 1L)
+expect_equal(sum(drawReport$status), 0L)
+# the library fills structSize with its own sizeof, which for a consumer built
+# against this installed header is the size it compiled
+expect_equal(drawReport$struct.size, drawReport$expected.struct.size)
+expect_equal(drawReport$num.observations, n)
+expect_equal(drawReport$num.predictors, p)
+expect_equal(drawReport$num.reported.locations, 1L)
+# and the draw the callback saw IS the draw the run recorded
+expect_equal(drawReport$last.sigma[1L], rDraw$sigma[nSamples])
+
+# a null function clears: the next run fires nothing
+CALL("capi_set_draw_callback", ptrDraw, FALSE)
+CALL("capi_draw_reset", -1L)
+invisible(CALL("capi_run", ptrDraw, 0L, 3L, TRUE, FALSE))
+expect_equal(sum(CALL("capi_draw_report")$calls), 0L)
+
+# and a second registration takes effect on the run after it
+CALL("capi_set_draw_callback", ptrDraw, TRUE)
+CALL("capi_draw_reset", -1L)
+invisible(CALL("capi_run", ptrDraw, 0L, 4L, TRUE, FALSE))
+expect_equal(sum(CALL("capi_draw_report")$calls), 4L)
+
+# a nonzero return ABORTS the run at that draw, and the entry still returns
+# normally: no condition is raised, so the caller learns of the stop from its
+# own context and discards the results. This sampler is inconsistent with them
+# afterwards and is not reused.
+CALL("capi_draw_reset", 2L)
+invisible(CALL("capi_run", ptrDraw, 0L, 6L, TRUE, FALSE))
+expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
+rm(ptrDraw, specDraw)
+invisible(gc(FALSE))
+
+# two chains on two threads: each chain counts its own draws, and each chain
+# writes only its own slot - the header's (chainIndex, drawIndex) discipline,
+# which is what makes a callback safe with no engine lock
+controlChains <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 2L,
+  n.trees = 25L,
+  updateState = FALSE,
+  seed = 7L
+)
+specChains <- dbarts(x, y, control = controlChains)
+ptrChains <- specChains$getPointer()
+CALL("capi_draw_reset", -1L)
+CALL("capi_set_draw_callback", ptrChains, TRUE)
+invisible(CALL("capi_run", ptrChains, 2L, 4L, TRUE, FALSE))
+reportChains <- CALL("capi_draw_report")
+expect_equal(reportChains$calls[1:2], c(4L, 4L))
+expect_equal(sum(reportChains$calls), 8L)
+expect_equal(reportChains$last.draw.index[1:2], c(3L, 3L))
+expect_equal(sum(reportChains$status), 0L)
+rm(ptrChains, specChains)
+invisible(gc(FALSE))
 
 # null buffers skip quantities
 r3 <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
