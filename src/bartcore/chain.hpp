@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -27,6 +28,7 @@
 #include "moves.hpp"
 #include "scan.hpp"
 #include "tree.hpp"
+#include "wcpool.hpp"
 
 namespace bartcore {
 
@@ -4700,13 +4702,20 @@ private:
     }
   }
 
-  /// The observation-order body of the fused pass, templated on whether a
-  /// weight vector is in play so the unweighted arithmetic below is literally
-  /// the same expressions it always was and the weighted branch costs it no
-  /// runtime test. `acc` holds the sum w r banks (bank-major, `numNodes`
-  /// slots each) and, when Weighted, `acc + numNodes * fusedSuffstatBanks`
-  /// holds the sum w banks at the SAME positional assignment, so both
-  /// statistics of a node associate identically.
+  /// The observation-order body of the fused pass over ONE range [begin, end),
+  /// templated on whether a weight vector is in play so the unweighted
+  /// arithmetic below is literally the same expressions it always was and the
+  /// weighted branch costs it no runtime test. `acc` holds the sum w r banks
+  /// (bank-major, `numNodes` slots each) and, when Weighted,
+  /// `acc + numNodes * fusedSuffstatBanks` holds the sum w banks at the SAME
+  /// positional assignment, so both statistics of a node associate identically.
+  ///
+  /// `head` is n % 4, the global prologue length: an element below it goes to
+  /// bank 0 and element i at or above it to bank (i - head) mod 4. The bank is
+  /// a function of the index alone, never of the range the element arrived in,
+  /// so a caller may cut [0, n) into ranges without moving an element to a
+  /// different bank. A range other than [0, n) must start at head + a multiple
+  /// of four, or the unrolled body below would start mid-phase.
   ///
   /// The product w[i] * r is named before it is added. An unnamed product
   /// inside the accumulate would let a contracting compiler fuse it into an
@@ -4714,9 +4723,10 @@ private:
   /// depend on the ISA and the flag level - the one thing the exactness
   /// contract forbids.
   template <bool Weighted>
-  void fusedRollPass(Forest<L, ResidT>& forest, size_t t, const double* forestY,
-                     const double* forestWeights, double* __restrict acc,
-                     size_t numNodes) {
+  void fusedRollRange(Forest<L, ResidT>& forest, size_t t,
+                      const double* forestY, const double* forestWeights,
+                      double* __restrict acc, size_t numNodes, size_t begin,
+                      size_t end, size_t head) {
     if constexpr (leafIsConstant && std::is_same_v<ResidT, double>) {
       size_t n = data_.numObservations;
       double* __restrict resid = forest.treeY.data();
@@ -4734,7 +4744,7 @@ private:
       // contract.
       const index_t* __restrict warm = forest.trees[t].indices;
       double* __restrict accW = acc + numNodes * fusedSuffstatBanks;
-      size_t i = 0, nMod4 = n % 4;
+      size_t i = begin, headEnd = head < end ? head : end;
 
       // one element's scatter: bank is its positional bank, fixed by i alone
       auto scatter = [&](size_t idx, size_t bank, double r) {
@@ -4752,14 +4762,14 @@ private:
       if (t == 0) {
         const double* __restrict y_ = forestY;
         const double* __restrict total = forest.totalFits.data();
-        for ( ; i < nMod4; ++i) {
+        for ( ; i < headEnd; ++i) {
           double r = y_[i] - total[i] + mu[leaf[i]];
           resid[i] = r;
           scatter(i, 0, r);
         }
-        for ( ; i < n; i += 4) {
-          // i advances by 4 from nMod4, so this fires every fourth pass
-          if (((i - nMod4) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
+        for ( ; i < end; i += 4) {
+          // i advances by 4 from head, so this fires every fourth pass
+          if (((i - head) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
           double r0 = y_[i] - total[i] + mu[leaf[i]];
           double r1 = y_[i + 1] - total[i + 1] + mu[leaf[i + 1]];
           double r2 = y_[i + 2] - total[i + 2] + mu[leaf[i + 2]];
@@ -4777,13 +4787,13 @@ private:
         const double* __restrict muPrev = forest.muByTree[t - 1].data();
         const std::uint32_t* __restrict leafPrev =
           forest.leafOf.data() + (t - 1) * n;
-        for ( ; i < nMod4; ++i) {
+        for ( ; i < headEnd; ++i) {
           double r = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
           resid[i] = r;
           scatter(i, 0, r);
         }
-        for ( ; i < n; i += 4) {
-          if (((i - nMod4) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
+        for ( ; i < end; i += 4) {
+          if (((i - head) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
           double r0 = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
           double r1 =
             resid[i + 1] + (mu[leaf[i + 1]] - muPrev[leafPrev[i + 1]]);
@@ -4803,7 +4813,118 @@ private:
       }
     } else {
       (void) forest; (void) t; (void) forestY; (void) forestWeights;
-      (void) acc; (void) numNodes;
+      (void) acc; (void) numNodes; (void) begin; (void) end; (void) head;
+    }
+  }
+
+  /// This chain's within-chain worker budget: the thread budget divided by the
+  /// chain count, since a chain already occupies one cross-chain worker (the
+  /// arithmetic routeTestRows uses). DBARTS_WC_THREADS overrides it outright,
+  /// which is how the measurement drives the count without an R surface.
+  static size_t withinChainThreadOverride() {
+    static const size_t override = [] {
+      const char* spec = std::getenv("DBARTS_WC_THREADS");
+      if (spec == nullptr) return size_t(0);
+      long parsed = std::strtol(spec, nullptr, 10);
+      return parsed > 0 ? static_cast<size_t>(parsed) : size_t(0);
+    }();
+    return override;
+  }
+  size_t withinChainBudget() const {
+    size_t override = withinChainThreadOverride();
+    if (override > 0) return override;
+    size_t chains = options_.numChains > 0 ? options_.numChains : 1;
+    return options_.numThreads / chains;
+  }
+  /// The fixed-block law switches on at the size cutoff for EVERY worker
+  /// count, so a one-worker sweep and an eight-worker sweep walk the identical
+  /// block grouping; parallel execution needs the budget on top of it.
+  bool withinChainBlocked(size_t n) const { return n >= withinChainCutoff; }
+  WithinChainPool* ensureWorkerPool(size_t budget) {
+    if (workerPool_ == nullptr || workerPool_->size() != budget)
+      workerPool_ = std::make_unique<WithinChainPool>(budget);
+    return workerPool_.get();
+  }
+
+  /// Fixed-block form of the fused pass, for n at or above the cutoff. [0, n)
+  /// is cut into blocks whose boundaries are a function of n alone (block 0
+  /// carries the n % 4 prologue, every later block starts at head + g *
+  /// wcBlockSize, which is four-aligned in the bank phase); each block reduces
+  /// into its own copy of the bank accumulator; the block partials combine per
+  /// bank in BLOCK-INDEX order and the banks then combine left to right.
+  /// Nothing in that law names a worker, so laying the pool over the block
+  /// index yields byte-identical draws at any worker count, one included.
+  ///
+  /// It is NOT the serial pass's sum: grouping a bank's addition chain by
+  /// block regroups it, which is a different association and so a different
+  /// draw. The regroup is taken at every worker count above the cutoff so the
+  /// blocked path has ONE law rather than one law per budget.
+  template <bool Weighted>
+  void fusedBlockedPass(Forest<L, ResidT>& forest, size_t t,
+                        const double* forestY, const double* forestWeights,
+                        size_t numNodes, size_t bankSlots) {
+    size_t n = data_.numObservations;
+    size_t head = n % 4;
+    size_t numBlocks = (n - head + wcBlockSize - 1) / wcBlockSize;
+    if (numBlocks == 0) numBlocks = 1;
+    size_t slotsPerBlock = Weighted ? 2 * bankSlots : bankSlots;
+    if (fusedAcc_.size() < numBlocks * slotsPerBlock)
+      fusedAcc_.resize(numBlocks * slotsPerBlock);
+    double* base = fusedAcc_.data();
+
+    // A block owns its accumulator outright, so blocks share nothing but the
+    // read-only residual/leaf arrays and the disjoint slice of resid they
+    // write. Zeroing happens inside the block, on the worker that will fill
+    // it, rather than in one serial sweep of the whole arena.
+    auto runBlocks = [&](size_t g0, size_t g1) {
+      for (size_t g = g0; g < g1; ++g) {
+        size_t begin = g == 0 ? 0 : head + g * wcBlockSize;
+        size_t end = head + (g + 1) * wcBlockSize;
+        if (end > n) end = n;
+        double* acc = base + g * slotsPerBlock;
+        std::memset(acc, 0, slotsPerBlock * sizeof(double));
+        fusedRollRange<Weighted>(forest, t, forestY, forestWeights, acc,
+                                 numNodes, begin, end, head);
+      }
+    };
+
+    size_t budget = withinChainBudget();
+    if (budget > 1 && numBlocks > 1)
+      ensureWorkerPool(budget)->forRange(numBlocks, runBlocks);
+    else
+      runBlocks(0, numBlocks);
+
+    Tree& tree(forest.trees[t]);
+    const std::vector<int32_t>& bottoms(tree.bottomScratch);
+    size_t numBottoms = bottoms.size();
+    size_t lanes = Weighted ? 2 * fusedSuffstatBanks : fusedSuffstatBanks;
+    blockedBankTotals_.assign(numBottoms * lanes, 0.0);
+    for (size_t g = 0; g < numBlocks; ++g) {
+      const double* acc = base + g * slotsPerBlock;
+      for (size_t bi = 0; bi < numBottoms; ++bi) {
+        size_t slot = static_cast<size_t>(bottoms[bi]);
+        double* tot = blockedBankTotals_.data() + bi * lanes;
+        for (size_t k = 0; k < fusedSuffstatBanks; ++k)
+          tot[k] += acc[k * numNodes + slot];
+        if constexpr (Weighted)
+          for (size_t k = 0; k < fusedSuffstatBanks; ++k)
+            tot[fusedSuffstatBanks + k] += acc[bankSlots + k * numNodes + slot];
+      }
+    }
+    for (size_t bi = 0; bi < numBottoms; ++bi) {
+      Node& node(tree.at(bottoms[bi]));
+      const double* tot = blockedBankTotals_.data() + bi * lanes;
+      double sum = tot[0];
+      for (size_t k = 1; k < fusedSuffstatBanks; ++k) sum += tot[k];
+      node.sumWeightedResponse = sum;
+      if constexpr (Weighted) {
+        double sumW = tot[fusedSuffstatBanks];
+        for (size_t k = 1; k < fusedSuffstatBanks; ++k)
+          sumW += tot[fusedSuffstatBanks + k];
+        node.sumWeights = sumW;
+      } else {
+        node.sumWeights = static_cast<double>(node.numObservations());
+      }
     }
   }
 
@@ -4860,8 +4981,6 @@ private:
       Tree& tree(forest.trees[t]);
       size_t numNodes = tree.nodes.size();
       size_t bankSlots = numNodes * fusedSuffstatBanks;
-      fusedAcc_.assign(weighted ? 2 * bankSlots : bankSlots, 0.0);
-      double* __restrict acc = fusedAcc_.data();
 
 #ifndef NDEBUG
       // The map addresses acc and then the bottoms; a map that is fresh but
@@ -4875,16 +4994,32 @@ private:
       }
 #endif
 
-      if (weighted)
-        fusedRollPass<true>(forest, t, forestY, forestWeights, acc, numNodes);
-      else
-        fusedRollPass<false>(forest, t, forestY, forestWeights, acc, numNodes);
-
       // the bottoms take the accumulated sums in place of the gather;
       // unweighted, sumWeights is the count the partition already knows -
       // which is what misc_computeIndexedSufficientStatisticsFast reports too
       tree.bottomScratch.clear();
       tree.fillBottom(0, tree.bottomScratch);
+
+      if (withinChainBlocked(n)) {
+        if (weighted)
+          fusedBlockedPass<true>(forest, t, forestY, forestWeights, numNodes,
+                                 bankSlots);
+        else
+          fusedBlockedPass<false>(forest, t, forestY, forestWeights, numNodes,
+                                  bankSlots);
+        ++fusedSuffstatRuns_;
+        return true;
+      }
+
+      fusedAcc_.assign(weighted ? 2 * bankSlots : bankSlots, 0.0);
+      double* __restrict acc = fusedAcc_.data();
+      if (weighted)
+        fusedRollRange<true>(forest, t, forestY, forestWeights, acc, numNodes,
+                             0, n, n % 4);
+      else
+        fusedRollRange<false>(forest, t, forestY, forestWeights, acc, numNodes,
+                              0, n, n % 4);
+
       for (int32_t b : tree.bottomScratch) {
         Node& node(tree.at(b));
         size_t slot = static_cast<size_t>(b);
@@ -5803,6 +5938,18 @@ private:
   // because a chain's sweep is sequential, and any future in-chain parallelism
   // has to privatize it.
   std::vector<double> fusedAcc_;
+  // Per-bottom bank totals of the blocked pass, one lane set per bottom so the
+  // block arena is walked once rather than once per bottom.
+  std::vector<double> blockedBankTotals_;
+  // Persistent within-chain worker pool (std::barrier), sized to the budget;
+  // created lazily the first time a sweep engages the parallel block map and
+  // reused across run() calls, torn down with the chain.
+  std::unique_ptr<WithinChainPool> workerPool_;
+  // Observations per fixed block of the blocked fused pass. A multiple of four
+  // so a block never starts mid-bank-phase; a constant, never a function of n
+  // or of the worker count, which is what the invariance rests on.
+  static constexpr size_t wcBlockSize = 4096;
+  static constexpr size_t withinChainCutoff = 100000;
   // Level-fibre scratch, one entry per tree of whichever forest is being
   // shifted: the per-tree conditional variance v_t (zero marks a tree that
   // declined, which is what the projection and the apply pass skip on) and
