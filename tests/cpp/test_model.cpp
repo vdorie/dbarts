@@ -4037,15 +4037,21 @@ static void testGPLeafFormats(ext_rng* rng) {
   printf("ok: gp leaf formats\n");
 }
 
-// The cross-sweep kernel cache must be invisible. A cold clone is built
-// over the ORIGINAL data (sharing the cut grid), restored from the warm
-// sampler's pre-mutation state, and given the identical mutation, so its
-// empty cache recomputes what the warm sampler serves from cache. The
-// mutation perturbs the designated column WITHIN its quantization bins:
-// members stay identical, so only the regather-clears-the-cache path keeps
-// stale kernels from hitting. Member re-routing is checked separately on
-// one leaf, where shared buffers keep the bitwise comparison sound.
-static void testGPLeafKernelCache(ext_rng* rng) {
+// The cross-sweep kernel cache must be invisible. The regather path is
+// checked BETWEEN warm samplers rather than against a state-restored clone:
+// a predictor update no longer normalizes member ORDER (Tree::
+// repartitionSubtree partitions a dense root in place), and a clone restored
+// from state carries the order its rebuild left, so its gp leaves draw over a
+// different permutation of the same members and no bitwise comparison against
+// a long-running sampler survives. Three identically seeded samplers run the
+// same sweeps instead, entering the comparison bit-identical and warm:
+// `standing` takes no update, `identity` takes an update that changes
+// nothing, `mutated` takes a perturbation of the designated column WITHIN its
+// quantization bins, so members and codes stand and only the kernels' inputs
+// move. identity must continue bitwise with standing; mutated must separate
+// from it, which a stale cached kernel would prevent. Member re-routing and
+// the state round trip are checked separately below.
+static void testGPLeafKernelCache(ext_rng*) {
   const size_t n = 150, p = 2;
   std::vector<double> x(n * p), y(n);
   for (size_t i = 0; i < n; ++i) {
@@ -4069,56 +4075,62 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   options.numLeafCovariates = 1;
   options.gpMaxLeafSize = 60;
 
-  Sampler<GPGaussianLeaf> sampler(
-    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
-    ySd, 3.0, 0.37804942330213542, options, &rng);
-
-  std::vector<double> sigmaWarm(5);
-  Results warm;
-  warm.sigma = sigmaWarm.data();
-  sampler.run(40, 5, warm);
-
-  const size_t numContinued = 5;
-  auto mutateAndCompare = [&](const std::vector<double>& xMutated,
-                              const char* acceptLabel,
-                              const char* matchLabel) {
-    SamplerStateData state;
-    sampler.getState(state);
-
-    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(rngB, 99);
-    Sampler<GPGaussianLeaf> cold(
+  ext_rng* rngs[2];
+  std::unique_ptr<Sampler<GPGaussianLeaf>> samplers[2];
+  for (int s = 0; s < 2; ++s) {
+    rngs[s] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[s], 99);
+    samplers[s] = std::make_unique<Sampler<GPGaussianLeaf>>(
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
-      ySd, 3.0, 0.37804942330213542, options, &rngB);
-    bool installed = cold.setState(state, nullptr);
+      ySd, 3.0, 0.37804942330213542, options, &rngs[s]);
+    Results empty;
+    samplers[s]->run(45, 0, empty);
+  }
+  Sampler<GPGaussianLeaf>& mutated(*samplers[0]);
+  Sampler<GPGaussianLeaf>& identity(*samplers[1]);
+  check(mutated.chain(0).totalFits() == identity.chain(0).totalFits(),
+        "gp twins enter the mutation bit-identical");
 
-    bool accepted =
-      sampler.setPredictor(xMutated.data(), true, false) ==
-        PredictorUpdateResult::accepted &&
-      cold.setPredictor(xMutated.data(), true, false) ==
-        PredictorUpdateResult::accepted;
-    check(accepted, acceptLabel);
+  // a state round trip over a gp forest, which no other suite builds. Only
+  // the install is asserted: the draws a restored sampler continues with are
+  // another matter, its spans carrying the order the rebuild left rather than
+  // the order 45 sweeps left here.
+  SamplerStateData state;
+  mutated.getState(state);
+  ext_rng* rngCold = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngCold, 7);
+  Sampler<GPGaussianLeaf> cold(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rngCold);
+  check(cold.setState(state, nullptr), "gp state installs");
+  ext_rng_destroy(rngCold);
 
-    std::vector<double> sigmaA(numContinued), sigmaB(numContinued);
-    std::vector<double> trainA(n * numContinued), trainB(n * numContinued);
-    Results resultsA, resultsB;
-    resultsA.sigma = sigmaA.data();
-    resultsA.trainingFits = trainA.data();
-    resultsB.sigma = sigmaB.data();
-    resultsB.trainingFits = trainB.data();
-    sampler.run(0, numContinued, resultsA);
-    cold.run(0, numContinued, resultsB);
-    check(installed && sigmaA == sigmaB && trainA == trainB, matchLabel);
-    ext_rng_destroy(rngB);
-  };
-
-  // within-bin designated perturbation: partitions and member lists stay
-  // put while the kernels' inputs move
-  std::vector<double> xCurrent(x);
+  std::vector<double> xMoved(x);
   for (size_t i = 0; i < n; ++i)
-    xCurrent[i] += (static_cast<double>(i % 3) - 1.0) * 1.0e-9;
-  mutateAndCompare(xCurrent, "gp designated-column mutation accepted",
-                   "warm cache matches cold clone after designated mutation");
+    xMoved[i] += (static_cast<double>(i % 3) - 1.0) * 1.0e-9;
+  check(mutated.setPredictor(xMoved.data(), true, false) ==
+            PredictorUpdateResult::accepted &&
+          identity.setPredictor(x.data(), true, false) ==
+            PredictorUpdateResult::accepted,
+        "gp designated-column mutation accepted");
+
+  // Both took an update, so whatever else setPredictor does is common to the
+  // two and only the designated column's values differ. A leaf that never
+  // regathered would hold the old covariates in both and the two chains would
+  // stay identical; that they separate is the plumbing.
+  const size_t numContinued = 5;
+  std::vector<double> fits[2], sigmas[2];
+  for (int s = 0; s < 2; ++s) {
+    fits[s].resize(n * numContinued);
+    sigmas[s].resize(numContinued);
+    Results results;
+    results.sigma = sigmas[s].data();
+    results.trainingFits = fits[s].data();
+    samplers[s]->run(0, numContinued, results);
+  }
+  check(fits[0] != fits[1],
+        "a designated-column move reaches the warm gp leaves");
+  for (int s = 0; s < 2; ++s) ext_rng_destroy(rngs[s]);
 
   // member re-route: a leaf warmed over one member set then routed onto a
   // disjoint one must rebuild its kernel rather than serve the stale entry.
@@ -4152,6 +4164,27 @@ static void testGPLeafKernelCache(ext_rng* rng) {
     leafTree, y.data(), nullptr, k, sigmaSq, 0);
   check(reroutedScore != warmScore, "the re-routed members move the marginal");
   check(reroutedScore == rescannedScore, "member re-route rebuilds the kernel");
+
+  // covariate move under standing members: the cache cannot see it - the
+  // members are the key - so only the regather can drop it. This is the half
+  // the sampler-level comparison above cannot reach: a leaf that regathered
+  // its values but kept the kernel built over the old ones would separate the
+  // two chains up there just the same.
+  std::vector<double> xShifted(x);
+  for (size_t i = 0; i < n; ++i)
+    xShifted[i] += (static_cast<double>(i % 3) - 1.0) * 1.0e-3;
+  ColumnStore shiftedStore;
+  built(shiftedStore.build(xShifted.data(), n, p, 100, false, nullptr,
+                           leafGather, 1));
+  double heldScore = leaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  check(heldScore == rescannedScore,
+        "a covariate move alone leaves the cached score standing");
+  leaf.regatherTrainingCovariates(shiftedStore);
+  double shiftedScore = leaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  check(shiftedScore != rescannedScore,
+        "the regather rebuilds the kernel over the moved covariates");
 
   printf("ok: gp leaf kernel cache\n");
 }
