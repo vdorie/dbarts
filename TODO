@@ -372,6 +372,22 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   each permuting the whole channel for a per-observation mean that
   channelMeans' shape takes without a copy.
 
+per-draw callbacks (VD 2026-09-10, priority raised on the memory audit:
+  the R-side prediction array and its packaging copy are five sixths of a
+  large fit's peak)
+  pre-release: a per-draw C callback invoked once per saved draw per
+  chain from that chain's worker thread, over const pointers into engine
+  buffers and with no R API allowed inside it; an R callback argument on
+  bart/dbarts/$run taking a function and a context external pointer (the
+  non-blocking default); the storage opt-out that composes with it
+  (supplying a callback stops keeping the fitted-value channels); a
+  worked Rcpp example writing each draw into a preallocated array; and
+  the tests. The blocking R-closure variant and the flat-header setter
+  wait - the internal bartcore_runWithCallback is single-chain and
+  blocks, and dbarts_sampler_setCallback is retired under dec-B86 until
+  a consumer names it. RNG class neutral. Design:
+  docs/design/per-draw-callbacks.md; forks 1-7 there are open for VD.
+
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's
   Rmath, print and error touchpoints through src/external host hooks
