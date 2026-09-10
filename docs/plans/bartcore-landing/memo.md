@@ -32,7 +32,7 @@ loudly.
 
 | step | action |
 |---|---|
-| 1 | Pre-merge, pushing to no main: re-bake the header hash, drop the exact-hash flag from the consumer files, reinstall and test each consumer, push compatibility branches only |
+| 1 | Pre-merge, pushing to no main: re-bake the header hash, reinstall and test each consumer, push compatibility branches only |
 | 2 | Merge bartcore into dbarts main and push. The GitHub window opens |
 | 3 | In the same sitting, merge each consumer's compatibility branch into its own main. The GitHub window closes |
 | 4 | Point the consumer-build check at each consumer's main, take the consumer workflows off their branch pins and the branch notes out of the readmes, keep the temporary install steps |
@@ -43,10 +43,17 @@ CRAN serves dbarts 0.9-34 until the submission is accepted. A consumer's own
 resolver would install that older copy, so the temporary install steps have to
 survive the pin flip.
 
-The first step carries two obligations, and neither is discharged. Every
-consumer has to be re-verified against the final re-baked header. Dropping the
-exact-hash flag leaves the major and minor version pair as the only guard. A
-consumer built against a different header sharing that pair is admitted.
+The first step carries one obligation, and it is not discharged. Every
+consumer has to be re-verified against the final re-baked header. The checklist
+names two items inside that step: bartCause hands out a thread budget the new
+default would warn about, and treatSens reaches two dbarts internals by name.
+Each consumer has been run against an intermediate header, none against the
+final one.
+
+The exact-hash flag is already out of all five consumer files, so the version
+pair is the only guard. A consumer built against a different header sharing
+that pair is admitted. A check on dbarts's own side replaces the flag: a build
+fails when the baked token moves and the version pair does not.
 
 ## 2. Installer breakage in the intermediate states
 
@@ -56,9 +63,10 @@ answer. Four rows carry neither, and each says what it does instead.
 
 | state | who breaks | loud or silent | what happens |
 |---|---|---|---|
-| after the dbarts merge, GitHub | a 0.9-x user script | loud | rbart_vi, xbart's control argument, the sampler thread methods, renamed control arguments and fractional counts error |
+| after the dbarts merge, GitHub | a 0.9-x user script | loud | rbart_vi, xbart's control argument, a three-element burn-in, a factor response of three or more levels and fractional counts error |
 | after the dbarts merge, GitHub | a 0.9-x user script | silent | the proposal mixture, the binary k prior, categorical factors, missing-data incorporation and combined chains change the answer |
-| after the dbarts merge, GitHub | a 0.9-x user script | warns once per session | a second positional argument to setResponse means updateScale |
+| after the dbarts merge, GitHub | a 0.9-x user script | silent | a fitting call with two or three unnamed arguments takes the new front door, at the new defaults, rather than the old function |
+| after the dbarts merge, GitHub | a 0.9-x user script | warns once per session | a second positional argument to setResponse means updateScale; a renamed argument, a retired thread method and a call in the old vocabulary each name their successor and then do the right thing |
 | after the dbarts merge, GitHub | stan4bart main, treatSens main | loud | a source install fails to compile against a deleted header |
 | after the dbarts merge, GitHub | bartCause main | loud | the grouped route and the cross-validation call error |
 | after the dbarts merge, GitHub | bartCause main | silent | it installs, records one chain, and returns draws moved by the default changes |
@@ -81,7 +89,7 @@ matching the control constructor's formals, so the renamed seed is dropped and
 the engine seed the caller passed is lost. The filter is unchanged on the
 compatibility branch.
 
-User-visible changes that return a different answer: 26
+User-visible changes that return a different answer: 36
 
 The register lists every such change.
 
@@ -102,40 +110,49 @@ change or open item. A decision is the maintainer's only where a row quotes the
 maintainer choosing, or lays out alternatives and names the pick. An approval
 marker, a standing grant, or no record at all leaves it agent-made.
 
-Agent-made decisions carrying an identified cost: 69
+Agent-made decisions carrying an identified cost: 70
 
-Decisions with maintainer evidence: 73
+Decisions with maintainer evidence: 115
 
-- **Grouped random effects** (A01): rbart_vi and its S3 methods are deleted
-  with no warning cycle, so bartCause main breaks at load. The removal's own
-  gate compared the replacement's mixing against the deleted path and failed.
+- **Grouped random effects** (A01): rbart_vi and its S3 methods are deleted,
+  so bartCause main breaks at load. The removal's own gate compared the
+  replacement's mixing against the deleted path and failed. The maintainer has
+  since confirmed it on a condition (B105): stan4bart clears its mixing bar
+  first, or an R-only grouped intercept stands in.
 - **Equivalence evidence** (A61): the bitwise check compares only against a
   baseline this branch recorded. The old engine is deleted, so no further
   baseline can be recorded.
-- **Fixed engine constants** (A46): cut width, the categorical enumeration
-  limit, the leaf regression column cap and the perturb width are reachable
-  from no argument. Above that limit a split proposal cuts the sorted level
-  list rather than choosing a subset.
+- **Fixed engine constants** (A46): the leaf regression column cap, the
+  perturb width and the cut width are reachable from no argument, and above the
+  categorical enumeration limit a split proposal cuts the sorted level list
+  rather than choosing a subset. Four constants became settings on the
+  maintainer's ruling (B91). Whether they belong on the fitting function instead
+  is an open agent-made fork.
 - **Empty-leaf veto law** (A12): a leaf holding no positively weighted row is
   vetoed by rank rather than penalised. A vetoed chain mixes
   at constant likelihood, and the draw law differs from 0.9-x.
-- **Factor predictors** (A06): dbarts, dbartsData, bart2 and xbart default to
-  single categorical or ordinal columns while bart keeps indicator expansion.
-  bart and bart2 fit different models on the same data by default.
+- **Factor predictors** (A06): the modern front door, the data constructor and
+  cross-validation default to single categorical or ordinal columns, while the
+  legacy door keeps indicator expansion (B78). The two doors fit different
+  models on the same data by default, and the manual says so.
 - **Binary node hyperprior** (A07): the default moves, and so does the scale
   default of chi(), the node hyperprior constructor. Every probit fit's posterior
-  moves, while the maintainer's approval covers a relabel alone (B04).
-- **Combined chains** (A08): bart2 defaults combineChains to TRUE and flattens
-  chain-major, so code indexing the chain margin breaks. The recorded decision
-  was a default of FALSE family-wide.
+  moves. The maintainer keeps the new default for now and has scheduled the
+  evidence it rests on (B106). No such harness is in the tree.
+- **Combined chains** (A08): the modern front door defaults combineChains to
+  TRUE and flattens chain-major, so code indexing the chain margin breaks. The
+  recorded decision was a default of FALSE family-wide.
 - **RNG surface** (A04): rngKind and rngNormalKind are dropped and rngSeed
-  becomes seed. Only Mersenne-Twister is reachable, so no fit can match another package's stream.
-- **No deprecation cycle** (A02): nothing unreleased gets a warning cycle, by
-  standing rule. rbart_vi, the thread methods, xbart's control argument and the
-  old C++ ABI vanish without one.
+  becomes seed, the old spelling accepted with a warning for one release. Only
+  Mersenne-Twister is reachable, so no fit can match another package's stream.
+- **No deprecation cycle** (A02): the rule is replaced. The maintainer's own
+  removal rule (B76) keeps a removed or renamed name reachable for one release
+  as a marker naming its successor, and 31 of them ship. rbart_vi still errors,
+  and the old C++ interface vanishes without one.
 - **Cross-validation redesign** (A05): xbart drops its control argument and
   replaces its threaded fold loop with a cluster. A consumer passing a prebuilt
-  control breaks, and results depend on n.threads.
+  control breaks. The maintainer kept the redesign and required a deterministic
+  stream per grid cell (B77), so results no longer depend on the thread count.
 - **Family detection** (A16): family = "auto" reads a factor response and
   routes it to probit, ordinal or multinomial. 0.9-x fit gaussian on the same
   level codes.
@@ -147,18 +164,22 @@ Decisions with maintainer evidence: 73
   count rows with positive weight. A fit carrying zero-weight rows moves against
   0.9-x, and one with all-positive weights does not.
 - **Chains-only parallelism** (A37): a single-chain run gets no sampling
-  parallelism at any thread count. n.threads is accepted and ignored there.
-- **Worker run latency** (A38): the multi-worker run loop blocks the calling
-  thread in fixed sleeps until every chain finishes. A multi-chain sampler driven
-  one sweep at a time from R pays it every sweep.
-- **Scalar draw path** (A42): draw-path reductions stay scalar for bitwise
-  reproducibility within a host, leaving a measured vector win unclaimed. The
-  maintainer's own decision made bit-identity a toggle (B73) that was never
-  built.
+  parallelism at any thread count. Within-chain threading was re-measured and
+  closed (B115). The thread budget keeps its own meaning, its default is capped
+  at the chain count, and a larger budget warns rather than being ignored.
+- **Worker run latency** (A38): fixed on the maintainer's word (B88). The run
+  loop returns when the last chain finishes rather than on a fixed tick, and a
+  four-chain single-sweep call is a thousand times faster.
+- **Scalar draw path** (A42): the toggle the maintainer asked for (B73) is
+  built, as a development build flag carrying the bitwise gates (B90). The
+  vector kernels were then measured at under one percent and did not ship
+  (B113). A fused pass over the weighted families landed instead, and moves
+  those families' draws in the last bits.
 - **The published C boundary** (A29): the header exposes a flat set of calls
   over an opaque handle, with families selected by string-named attributes on
-  the R objects. A non-R host cannot create a sampler, and the S4 slot layout
-  becomes uncovered ABI.
+  the R objects. On the maintainer's ruling (B84) it is pure C and creates
+  nothing: a consumer builds the sampler through R. A non-R host cannot create
+  one at all, and the plan for that is post-release (B85).
 - **Error reporting** (A31): there are no error return codes, only R's error
   longjmp. A caller must sit in a frame safe to unwind, and sites in the C API
   leak across it.
@@ -181,18 +202,18 @@ less than the row claims. Confirm them first.
 
 - **Gaussian-process leaves** (B22): the ruling keeps them and flags a
   deliberate decision on whether they belong in the release. That fork is open,
-  so an engine component and a man page freeze in.
+  so an engine component and a man page freeze in. What has been settled is
+  narrower (B110): a fit that falls back to ordinary leaves now warns.
 - **Release-review rulings** (B40, B41): both are recorded as rulings in a
   batch, with no quoted words. One refuses a mid-chain rescale of a
-  heteroscedastic fit, and the other documents Gaussian-process leaves at a
-  tree count the package's default contradicts.
+  heteroscedastic fit; the other is superseded by the fallback warning above.
 - **Enabling value as a gate** (B48): the quoted standing rule licenses public
   entry points that freeze at release. It covers the uncalled C entries and the
   broad R argument list.
 - **The adoption slate** (B53): the quote settles that the R-versus-C++ slate lands and how it is framed. Its arcs add public entry points that freeze at the release, and the helpers' export shape is agent-made (A54).
 - **Single-chain workloads** (B50): the quoted standing fact keeps large-n
-  items live. No shipped path serves it, and the remnant is vectorized versions
-  of the draw-path loops.
+  items live. The vectorized draw-path loops it pointed at were measured and
+  declined. What serves it is the fused pass and the memory reductions.
 - **Veto-rate thresholds** (B66): the acceptance bands were ratified on a
   recommendation, over a recorded caveat that they were judged and not measured.
   They ran once, and their harness is not in the tree.
@@ -201,15 +222,15 @@ The register holds the rest.
 
 ## 4. Unfinished, abandoned and stale-gate work
 
-Unfinished, with no decision recorded: 47
+Unfinished, with no decision recorded: 50
 
 Abandoned: 4
 
-Blocked: 7
+Blocked: 8
 
-Deferred with no maintainer evidence: 24
+Deferred with no maintainer evidence: 26
 
-Deferred by the maintainer: 7
+Deferred by the maintainer: 9
 
 Done, but proven only by a gate that predates the tip: 9
 
@@ -233,29 +254,30 @@ The maintainer's own read of the branch and the release-candidate declaration
 block the merge. They also block registering the five scheduled workflows for
 memory checks, equivalence, calibration, protect balance and the reverse-
 dependency smoke test, whose triggers cannot fire from a non-default branch. A
-nonzero share for the leaf-pair rule draw is blocked on its own measurement. It
-clears the sample-size bar and regresses coverage past the margin. A bartCause
+nonzero share for the leaf-pair rule draw is settled the other way: it clears
+the sample-size bar and regresses coverage past the margin, and the maintainer
+has ruled that it stays at zero through the merge, its weight to be set with a
+rationale by the mixing research that resumes afterward. A bartCause
 route for grouped data is blocked because the deleted function was its only
 path. stan4bart owes a mixing bar on the random-effect scale, which the same
 removal named as a release prerequisite.
 
 The deferred rows without maintainer evidence include a Python binding whose
-stated premise the code contradicts, and vectorized versions of the draw-path
-loops. The rows deferred by the maintainer include real-valued negative-
+stated premise the code contradicts, and a size threshold below which the new
+fused per-sweep pass should be declined, which cannot land until the bitwise
+corpus carries a fit large enough to exercise it. The rows deferred by the
+maintainer include real-valued negative-
 binomial dispersion and arbitrary real binary weights. Both wait on an
 approximate data-augmentation draw the maintainer declined.
 
 The stale gates prove their items only at a commit before the branch tip. The
 protect-balance check, which verifies that R objects stay protected from
-garbage collection, failed. Its fix carries a local re-run alone. Four
-posterior checks sit at earlier commits. They compare posterior summaries
-against a recorded baseline, statistically for gaussian and exactly for causal-
-forest and multinomial. One checks that the sampler recovers parameters drawn
-from its own prior. Bitwise equivalence at the engine tip rests on maintainer-
-run local claims in commit bodies, with no log or artifact. The tinytest suite,
-the multi-platform package check, the C++ tests and the sanitizer builds for
-bad memory and undefined behaviour ran after the engine tip. No engine change
-is unexercised. Only the documentation workflow ran at the branch tip.
+garbage collection, failed, and its fix carries a local re-run alone. The
+comparisons against recorded baselines have since re-run and were green, three
+engine commits before the tip. The check that the sampler recovers parameters
+drawn from its own prior sits earlier still. Every slice records its own run of
+the test suite, the package check, the C++ tests and the sanitizer builds, so
+no engine change is unexercised.
 
 The CRAN reverse-dependency sweep is one of the stale gates. It ran in July at
 an earlier engine, with no script in the tree, and found the two breaks above.
@@ -314,3 +336,11 @@ completion register.
 | the stale gates | cmp-S01, cmp-S02, cmp-S03, cmp-S04, cmp-S05, cmp-S07, cmp-S09 |
 | the cross-engine statistical record | dec-A61 |
 | claims that hold at full strength | cmp-K07, cmp-K08 |
+| the two doors and the shim between them | chg-U66, chg-U67, chg-U68, chg-U69, dec-B75, dec-B83 |
+| a removed name reaches a marker rather than an error | chg-U71, dec-B76 |
+| the exact-hash flag is already out of all five consumer files | cmp-U16, chg-C32, dec-B111 |
+| the two named items inside the sister-verification step | cmp-U49, cmp-U50 |
+| the four engine settings, and the open fork above them | chg-U84, chg-U85, cmp-U47, dec-B91 |
+| the memory reductions, and the copy that is left | chg-U92, chg-I15, cmp-D27 |
+| the fused pass, and the size gate it owes | chg-U94, cmp-D26, dec-B113 |
+| within-chain threading closed, and the thread default capped | chg-U83, cmp-K21, dec-B115 |

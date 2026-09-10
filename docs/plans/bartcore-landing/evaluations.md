@@ -13,6 +13,12 @@ substance in `reason`. CLOSED means a later row in this register, or the
 register's own adjudication process, already answers the question; that
 row or process is named in `reason`.
 
+Rows cover docs/decisions.md's `not mine` set as it stood when the evaluations
+were made. Every row the register has gained since - dec-B74 onward, the
+maintainer's own adjudication of this file's questions and of the six arcs that
+followed - is marked `mine`, so the table gains no members; what those rows
+changed is recorded under the two headings below.
+
 ## All rows
 
 | id | decision | evaluator | critic | final | reason |
@@ -100,8 +106,9 @@ row or process is named in `reason`.
 - dec-A54: settled 2026-09-08, keep exported; the one-sweep contract is documented as stable.
 - dec-A70: settled 2026-09-08 as dec-B108, an na.action argument with a response-only default.
 - dec-B31: settled 2026-09-08 as dec-B109, recognize a 0.9-x fit by the missing format field and refuse by name.
-- dec-B41: settled 2026-09-08 as dec-B110, a warning keyed on the realized constant-leaf fallback share.
-- dec-B58: settled 2026-09-08 as dec-B111, flag off after the merge with a CI assertion tying hash changes to minor bumps.
+- dec-B41: settled 2026-09-08 as dec-B110, a warning keyed on the realized constant-leaf fallback share; landed with the engine-constants slice, and the warning fires through the cross-validation, multinomial, ordinal and negative-binomial doors too.
+- dec-B58: settled 2026-09-08 as dec-B111, flag off after the merge with a CI assertion tying hash changes to minor bumps; the assertion landed, and both consumers have already dropped the flag.
+- OPEN, no register row: the four engine limits that became settings under dec-B91 - categoricalExhaustiveCap, testFitParallelCutoff, predictParallelCutoff, sparseDensityThreshold - are dbartsControl slots and not bart() formals. The choice is agent-made and was flagged pending VD at the landing. Recommendation, from the same landing note: keep the three cutoffs control-only, since a caller who wants them is already holding a control object, and, if bart() reach is wanted for categoricalExhaustiveCap, put it on cgm() where levelGibbs already sits, rather than adding four formals - dec-B98 removed the licence for feature-only formals on the front door. Whichever way it goes, the four freeze at 1.0-0 in the shape it picks.
 
 ## Register cost lines corrected
 

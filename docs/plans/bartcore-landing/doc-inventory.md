@@ -8,6 +8,16 @@ Two parts. Part 1 is the per-file inventory of everything under the documentatio
 docs/architecture.md and docs/README.md; 179,652 of that is the
 review-2026-08-24 subtree. Status is each file's own live line.
 
+The counts and rows below are as the tree stood at b7266da9 and have not been
+recounted since. Eleven files have been added: the six plans of the arcs that
+landed after it - pure-c-header.md, front-door.md,
+interfaces-and-dependencies.md, engine-performance.md,
+memory-footprint-audit.md, per-draw-callbacks.md - plus sparse-formula-audit.md
+under docs/plans and this directory's own six files, and, under docs/design,
+memory-footprint.md, engine-constants.md, per-draw-callbacks.md and
+engine-generics-review.md. Every one is indexed and passes the documentation
+freshness check; none is inventoried here.
+
 ### docs/plans (active, 35 files)
 
 | plan doc | words | status | unique content not recorded elsewhere |
