@@ -875,7 +875,16 @@ public:
   static_assert(sizeof(index_t) == sizeof(misc_index_t));
 
   /// Partition a node's observations between its children by its rule.
-  void partitionChildren(const ColumnStore& data, int32_t nodeIndex) {
+  ///
+  /// inPlaceRoot picks the dense root's kernel. False (the sampling-time
+  /// default) rewrites the span as the identity and partitions that;
+  /// true partitions the span where it lies. Both answer the same
+  /// membership - the root's span is all of 0..n-1 in some order, so the
+  /// rewrite is free to discard the order it finds - and on an identity
+  /// span the two agree elementwise, so only a caller handing the root an
+  /// already-permuted span sees a difference.
+  void partitionChildren(const ColumnStore& data, int32_t nodeIndex,
+                         bool inPlaceRoot = false) {
     Node& node(at(nodeIndex));
     Node& left(at(node.leftChild));
     Node& right(at(node.leftChild + 1));
@@ -933,7 +942,7 @@ public:
                                              PartitionRule::missingAware>(
             column, node.rule, segment, numMembers);
         } else {
-          numOnLeft = isRoot
+          numOnLeft = isRoot && !inPlaceRoot
             ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
                                   segment, numMembers)
             : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
@@ -949,9 +958,20 @@ public:
 
   /// Structure-only re-route of a subtree's observations, for predictor
   /// mutation; leaf stats are left stale and refreshed by the next run().
+  ///
+  /// A dense root partitions IN PLACE here, unlike the sampling-time root.
+  /// The span arriving on this path is already partitioned under the live
+  /// rules - the callers re-route a tree whose partition the previous data
+  /// left standing - so the in-place scan finds nothing out of order and
+  /// writes no index, where the identity rewrite writes the whole span; the
+  /// callers that instead hand this a freshly initialized span pay nothing,
+  /// the two kernels agreeing elementwise on the identity. The member order
+  /// therefore differs from the sampling-time root's, and leaf sums over the
+  /// span reassociate, which is why fits reached through this path are
+  /// recorded separately from fits that only sample.
   void repartitionSubtree(const ColumnStore& data, int32_t nodeIndex) {
     if (at(nodeIndex).isBottom()) return;
-    partitionChildren(data, nodeIndex);
+    partitionChildren(data, nodeIndex, true);
     repartitionSubtree(data, at(nodeIndex).leftChild);
     repartitionSubtree(data, at(nodeIndex).leftChild + 1);
   }
