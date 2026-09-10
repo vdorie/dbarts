@@ -105,9 +105,7 @@ struct SamplerOptions {
   //
   // Present-category count above which grow-from-root's exact partition
   // enumeration gives way to the sorted prefixes; rides the scan scratch from
-  // here. Above ten the candidate set doubles per level, which is the reason
-  // the boundary exists at all, so a raised cap is an explicit trade of
-  // enumeration cost for the exact family.
+  // here. See categoricalExhaustiveCap in scan.hpp for what it protects.
   std::size_t categoricalExhaustiveCap = bartcore::categoricalExhaustiveCap;
   // Test rows below which a chain routes its test matrix on its own thread
   // rather than borrowing its share of the thread budget. The two paths are
@@ -121,10 +119,9 @@ struct SamplerOptions {
   // default. Bitwise identical at any worker count, so this buys time only.
   std::size_t predictParallelCutoff = 0;
   // Nonzero fraction at or below which a CSC-built column takes rank-bitmap
-  // storage instead of densified codes. Predictor memory against gather time,
-  // both real at the default: the rank decode costs 38 percent of a sweep and
-  // the sparse store holds 3.5x less than the dense one. No draw depends on
-  // it. Read at BUILD, so it fixes each column's layout for the store's life.
+  // storage instead of densified codes; the memory-against-time trade is
+  // priced at sparseDensityThreshold in data.hpp. No draw depends on it. Read
+  // at BUILD, so it fixes each column's layout for the store's life.
   double sparseDensityThreshold = bartcore::sparseDensityThreshold;
 
   // Every predictor value the store ingests, in one borrowed view: the dense
