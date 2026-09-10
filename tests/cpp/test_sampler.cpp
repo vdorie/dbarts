@@ -467,6 +467,465 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
 // The cooperative cancellation the R interrupt handler drives: run() polls the
 // supplied predicate and returns true when it stops early, on both the
 // single-chain (inline poll) and multi-chain (worker cancel flag) paths.
+static void oneHotCounts(const std::vector<int>& labels, size_t K,
+                         std::vector<int>& counts, std::vector<int>& trials);
+
+// The per-draw observer's own bookkeeping. Every write is addressed by the
+// chain index the engine hands over, so concurrent chains touch disjoint slots
+// and the probe needs no lock - the discipline the engine documents in place
+// of taking one itself. The single-chain fields below are written only when
+// the fixture runs one chain.
+struct DrawProbe {
+  std::vector<size_t> calls, lastDraw;
+  std::vector<char> orderBroken, shapeBroken, trainMoved;
+  std::vector<const double*> firstTrain;
+  size_t numObservations = 0;
+  // draw index at which the observer asks for an abort; never, by default
+  size_t stopAtDraw = static_cast<size_t>(-1);
+  // single-chain observations
+  size_t numVCForests = 0, numForests = 0, numAmplitudes = 0, locations = 0;
+  std::vector<std::uint32_t> lastVarcount;
+  char sawTest = 0, sawLogLikelihood = 0, sawForestFits = 0, sawGlue = 0;
+
+  explicit DrawProbe(size_t numChains)
+    : calls(numChains, 0), lastDraw(numChains, 0), orderBroken(numChains, 0),
+      shapeBroken(numChains, 0), trainMoved(numChains, 0),
+      firstTrain(numChains, nullptr) {}
+};
+
+static int drawProbeCallback(void* context, const DrawInfo* draw) {
+  DrawProbe& probe = *static_cast<DrawProbe*>(context);
+  size_t c = draw->chainIndex;
+  if (c >= probe.calls.size()) return 1;
+  // calls within a chain are ordered by drawIndex, counting this run's saved
+  // draws from 0
+  if (draw->drawIndex != probe.calls[c]) probe.orderBroken[c] = 1;
+  if (draw->numObservations != probe.numObservations) probe.shapeBroken[c] = 1;
+  if (probe.calls[c] == 0) probe.firstTrain[c] = draw->train;
+  else if (draw->train != probe.firstTrain[c]) probe.trainMoved[c] = 1;
+  probe.lastDraw[c] = draw->drawIndex;
+  ++probe.calls[c];
+  if (c == 0) {
+    probe.numVCForests = draw->numVariableCountForests;
+    probe.numForests = draw->numForests;
+    probe.numAmplitudes = draw->numAmplitudes;
+    probe.locations = draw->numReportedLocations;
+    probe.sawTest = draw->test != nullptr;
+    probe.sawLogLikelihood = draw->logLikelihood != nullptr;
+    probe.sawForestFits = draw->forestFits != nullptr;
+    probe.sawGlue = draw->glue != nullptr;
+    if (draw->varcount != nullptr) {
+      size_t width = draw->numPredictors * draw->numVariableCountForests;
+      probe.lastVarcount.assign(draw->varcount, draw->varcount + width);
+    }
+  }
+  return draw->drawIndex >= probe.stopAtDraw ? 1 : 0;
+}
+
+static std::vector<ext_rng*> makeDrawRngs(size_t numChains,
+                                          uint_least32_t seedBase) {
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], seedBase + static_cast<uint_least32_t>(c));
+  }
+  return rngs;
+}
+
+static void destroyDrawRngs(std::vector<ext_rng*>& rngs) {
+  for (size_t c = rngs.size(); c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+}
+
+// The observer fires once per recorded draw per chain, in draw order, at one
+// chain and at several running on their own worker threads.
+static void testDrawCallbackFiring() {
+  const size_t n = 200, numBurnIn = 15, numSamples = 12;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  const size_t chainCounts[3] = {1, 2, 4};
+  for (size_t which = 0; which < 3; ++which) {
+    size_t numChains = chainCounts[which];
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 4100);
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.numChains = numChains;
+    // one worker per chain: the hook runs off the calling thread whenever
+    // there is more than one
+    options.numThreads = numChains;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+
+    std::vector<double> sigma(numSamples * numChains, 0.0);
+    std::vector<double> fits(n * numSamples * numChains, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+
+    DrawProbe probe(numChains);
+    probe.numObservations = n;
+    DrawHook hook;
+    hook.fn = &drawProbeCallback;
+    hook.context = &probe;
+    bool stopped = true;
+    bool cancelled =
+      sampler.run(numBurnIn, numSamples, results, {}, {}, hook, &stopped);
+    destroyDrawRngs(rngs);
+
+    check(!cancelled && !stopped,
+          "draw callback: an observer that never stops runs to completion");
+    bool counts = true, ordered = true, shapes = true, strided = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      counts &= probe.calls[c] == numSamples;
+      ordered &= probe.orderBroken[c] == 0;
+      shapes &= probe.shapeBroken[c] == 0;
+      // the kept-fits layout moves the pointer one draw per call
+      strided &= probe.trainMoved[c] == 1;
+    }
+    check(counts, "draw callback: one call per recorded draw per chain");
+    check(ordered, "draw callback: draws arrive in order within a chain");
+    check(shapes, "draw callback: the draw carries the chain's own shape");
+    check(strided, "draw callback: a kept channel advances one draw per call");
+  }
+  printf("ok: per-draw callback firing at 1, 2 and 4 chains\n");
+}
+
+// A per-draw stride of zero gives each chain one draw's buffer, C of them
+// contiguous: every draw of a chain lands in that chain's block and no chain
+// writes outside its own. The blocks are a bare heap array so a stray write is
+// a heap overflow ASan reports rather than a silently clobbered neighbour.
+static void testDrawCallbackStride() {
+  const size_t n = 150, numChains = 3, numBurnIn = 10, numSamples = 9;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  options.numThreads = numChains;
+
+  // reference: the same seeds keeping every draw
+  std::vector<double> keptSigma(numSamples * numChains, 0.0);
+  std::vector<double> keptFits(n * numSamples * numChains, 0.0);
+  {
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 7700);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    Results results;
+    results.sigma = keptSigma.data();
+    results.trainingFits = keptFits.data();
+    sampler.run(numBurnIn, numSamples, results);
+    destroyDrawRngs(rngs);
+  }
+
+  std::unique_ptr<double[]> scratch(new double[n * numChains]);
+  for (size_t i = 0; i < n * numChains; ++i) scratch[i] = 0.0;
+  std::vector<double> scratchSigma(numSamples * numChains, 0.0);
+  DrawProbe probe(numChains);
+  probe.numObservations = n;
+  {
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 7700);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    Results results;
+    results.sigma = scratchSigma.data();
+    results.trainingFits = scratch.get();
+    results.trainingFitsStride = 0;
+    DrawHook hook;
+    hook.fn = &drawProbeCallback;
+    hook.context = &probe;
+    bool stopped = true;
+    bool cancelled =
+      sampler.run(numBurnIn, numSamples, results, {}, {}, hook, &stopped);
+    destroyDrawRngs(rngs);
+    check(!cancelled && !stopped, "draw stride: scratch run completes");
+  }
+
+  bool pinned = true, counted = true;
+  for (size_t c = 0; c < numChains; ++c) {
+    counted &= probe.calls[c] == numSamples;
+    // stride zero: the chain's pointer never moves, and it is that chain's
+    // own block
+    pinned &= probe.trainMoved[c] == 0 &&
+              probe.firstTrain[c] == scratch.get() + c * n;
+  }
+  check(counted, "draw stride: every draw still fires the observer");
+  check(pinned, "draw stride: each chain writes only its own one-draw block");
+
+  // each block holds that chain's LAST draw, which is the kept run's final
+  // slab for that chain: proof no chain overwrote a neighbour's block
+  bool lastDraws = true;
+  for (size_t c = 0; c < numChains; ++c) {
+    const double* kept = keptFits.data() + (c * numSamples + numSamples - 1) * n;
+    for (size_t i = 0; i < n; ++i) lastDraws &= scratch[c * n + i] == kept[i];
+  }
+  check(lastDraws, "draw stride: each block holds that chain's last draw");
+  check(scratchSigma == keptSigma,
+        "draw stride: dropping the fits channel moves no draw");
+  printf("ok: per-draw stride scratch buffers\n");
+}
+
+// A nonzero return aborts the run, and the return path says the observer did
+// it rather than the interrupt poll.
+static void testDrawCallbackStop() {
+  const size_t n = 150, numSamples = 400, stopAt = 3;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  const size_t chainCounts[2] = {1, 4};
+  for (size_t which = 0; which < 2; ++which) {
+    size_t numChains = chainCounts[which];
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 3300);
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.numChains = numChains;
+    options.numThreads = numChains;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    std::vector<double> sigma(numSamples * numChains, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+
+    DrawProbe probe(numChains);
+    probe.numObservations = n;
+    probe.stopAtDraw = stopAt;
+    DrawHook hook;
+    hook.fn = &drawProbeCallback;
+    hook.context = &probe;
+    bool stopped = false;
+    bool cancelled =
+      sampler.run(0, numSamples, results, {}, {}, hook, &stopped);
+    destroyDrawRngs(rngs);
+
+    check(cancelled, "draw stop: a nonzero return stops the run");
+    check(stopped, "draw stop: the return path names the observer, not a poll");
+    size_t total = 0;
+    for (size_t c = 0; c < numChains; ++c) total += probe.calls[c];
+    // every chain reads the flag at its next sweep boundary, so the exact
+    // count is not pinned - only that the run stopped far short of finishing
+    check(total < numChains * numSamples / 2,
+          "draw stop: the run aborts well short of its samples");
+    check(probe.calls[0] >= stopAt + 1,
+          "draw stop: the stopping chain saw the draws up to its stop");
+  }
+
+  // a poll-driven cancel is NOT reported as an observer stop
+  {
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, 3300);
+    SamplerOptions options;
+    options.numTrees = 20;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    std::vector<double> sigma(numSamples, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    DrawProbe probe(1);
+    probe.numObservations = n;
+    DrawHook hook;
+    hook.fn = &drawProbeCallback;
+    hook.context = &probe;
+    std::function<bool()> always = []() { return true; };
+    bool stopped = true;
+    bool cancelled =
+      sampler.run(0, numSamples, results, always, {}, hook, &stopped);
+    destroyDrawRngs(rngs);
+    check(cancelled && !stopped,
+          "draw stop: an interrupt is not reported as an observer stop");
+  }
+  printf("ok: per-draw callback stop path\n");
+}
+
+// The neutrality pin: the observer consumes no generator draw and moves no
+// state, so the recorded draws are what they are with no observer at all -
+// and dropping the fits channel to a one-draw scratch does not move them
+// either.
+static void testDrawCallbackNeutrality() {
+  const size_t n = 180, numChains = 2, numBurnIn = 20, numSamples = 15;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numChains = numChains;
+  options.numThreads = numChains;
+  const size_t p = 2;
+
+  auto runOnce = [&](bool withHook, bool scratchFits,
+                     std::vector<double>& sigma,
+                     std::vector<std::uint32_t>& varcounts,
+                     std::vector<double>& lastFits) {
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 5150);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    sigma.assign(numSamples * numChains, 0.0);
+    varcounts.assign(p * numSamples * numChains, 0u);
+    std::vector<double> fits(scratchFits ? n * numChains
+                                         : n * numSamples * numChains, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    results.variableCounts = varcounts.data();
+    results.trainingFits = fits.data();
+    if (scratchFits) results.trainingFitsStride = 0;
+
+    DrawProbe probe(numChains);
+    probe.numObservations = n;
+    DrawHook hook;
+    if (withHook) {
+      hook.fn = &drawProbeCallback;
+      hook.context = &probe;
+    }
+    sampler.run(numBurnIn, numSamples, results, {}, {}, hook);
+    destroyDrawRngs(rngs);
+
+    lastFits.assign(n * numChains, 0.0);
+    for (size_t c = 0; c < numChains; ++c) {
+      const double* src = scratchFits
+        ? fits.data() + c * n
+        : fits.data() + (c * numSamples + numSamples - 1) * n;
+      for (size_t i = 0; i < n; ++i) lastFits[c * n + i] = src[i];
+    }
+  };
+
+  std::vector<double> sigmaBare, sigmaHook, sigmaScratch;
+  std::vector<std::uint32_t> countsBare, countsHook, countsScratch;
+  std::vector<double> fitsBare, fitsHook, fitsScratch;
+  runOnce(false, false, sigmaBare, countsBare, fitsBare);
+  runOnce(true, false, sigmaHook, countsHook, fitsHook);
+  runOnce(true, true, sigmaScratch, countsScratch, fitsScratch);
+
+  check(sigmaBare == sigmaHook && countsBare == countsHook &&
+          fitsBare == fitsHook,
+        "draw neutrality: an observer moves no draw");
+  check(sigmaBare == sigmaScratch && countsBare == countsScratch &&
+          fitsBare == fitsScratch,
+        "draw neutrality: keeping no fits moves no draw");
+  printf("ok: per-draw callback draw neutrality\n");
+}
+
+// Multinomial widens the varcount channel on its own forest axis, so the draw
+// must expose numPredictors * numVariableCountForests, forest-major, at the
+// count the sampler clamped.
+static void testDrawCallbackVarcountForests() {
+  const size_t n = 300, p = 2, K = 3, numBurnIn = 20, numSamples = 10;
+  std::vector<double> x(n * p);
+  std::vector<int> labels(n);
+  for (size_t i = 0; i < n; ++i) {
+    double xi = runif01();
+    x[i] = xi;
+    x[i + n] = runif01();
+    labels[i] = xi < 0.34 ? 0 : (xi < 0.67 ? 1 : 2);
+  }
+  std::vector<int> counts, trials;
+  oneHotCounts(labels, K, counts, trials);
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 8801);
+  SamplerOptions options;
+  options.numTrees = 20;
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.counts = counts.data();
+  spec.trials = trials.data();
+  spec.forest.numTrees = 20;
+  Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec, &rng);
+
+  std::vector<double> fits(n * K * numSamples, 0.0);
+  std::vector<std::uint32_t> varcounts(p * K * numSamples, 0u);
+  Results results;
+  results.trainingFits = fits.data();
+  results.numReportedLocations = K;
+  results.variableCounts = varcounts.data();
+  results.numVariableCountForests = K;
+
+  DrawProbe probe(1);
+  probe.numObservations = n;
+  DrawHook hook;
+  hook.fn = &drawProbeCallback;
+  hook.context = &probe;
+  sampler.run(numBurnIn, numSamples, results, {}, {}, hook);
+  ext_rng_destroy(rng);
+
+  check(probe.calls[0] == numSamples, "multinomial draw: one call per draw");
+  check(probe.numVCForests == K && probe.locations == K,
+        "multinomial draw: K varcount forests and K reported locations");
+  bool axis = probe.lastVarcount.size() == p * K;
+  for (size_t j = 0; j < p * K && axis; ++j)
+    axis = probe.lastVarcount[j] == varcounts[(numSamples - 1) * K * p + j];
+  check(axis, "multinomial draw: varcount spans the forest axis, forest-major");
+  printf("ok: per-draw callback varcount forest axis\n");
+}
+
+// A coupling that declares a channel undefined NaN-fills the slab; the draw
+// hands the observer a NULL pointer instead, which is the only way it can tell
+// absent from present-but-NaN. BCF declares both its test blend and its
+// log-likelihood undefined, and defines the per-forest pair.
+static void testDrawCallbackBCFNullChannels() {
+  const size_t n = 300, p = 3, nTest = 25, numBurnIn = 20, numSamples = 8;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    y[i] = x[i] + z[i] * (1.0 + x[i + 2 * n]) + 0.1 * runif01();
+  }
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 6602);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  AmplitudeSpec spec;
+  spec.mu.numTrees = 20; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.tau.numTrees = 10; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.z = z.data();
+  Sampler<ConstantGaussianLeaf> sampler(x.data(), y.data(), n, p, nullptr,
+                                        nullptr, 1.0, 3.0,
+                                        0.37804942330213542, options, spec,
+                                        &rng);
+  std::vector<double> xTest(nTest * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < nTest; ++i) xTest[i + j * nTest] = x[i + j * n];
+  sampler.setTestPredictors(xTest.data(), nTest);
+
+  std::vector<double> sigma(numSamples), fits(n * numSamples),
+    testFits(nTest * numSamples), logLik(n * numSamples),
+    forestFits(n * 2 * numSamples), glue(3 * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = fits.data();
+  results.testFits = testFits.data();
+  results.logLikelihood = logLik.data();
+  results.forestFits = forestFits.data();
+  results.glue = glue.data();
+
+  DrawProbe probe(1);
+  probe.numObservations = n;
+  DrawHook hook;
+  hook.fn = &drawProbeCallback;
+  hook.context = &probe;
+  sampler.run(numBurnIn, numSamples, results, {}, {}, hook);
+  ext_rng_destroy(rng);
+
+  check(probe.calls[0] == numSamples, "BCF draw: one call per draw");
+  check(!probe.sawTest,
+        "BCF draw: the undefined test channel is null, not a NaN buffer");
+  check(!probe.sawLogLikelihood,
+        "BCF draw: the undefined log-likelihood channel is null");
+  check(probe.sawForestFits && probe.sawGlue,
+        "BCF draw: the defined per-forest channels are handed over");
+  check(probe.numForests == 2 && probe.numAmplitudes == 3,
+        "BCF draw: two forests and three amplitudes");
+  // the R channels keep their NaN fill, their shape being part of the object
+  bool nanKept = true;
+  for (double v : testFits) nanKept &= std::isnan(v);
+  check(nanKept, "BCF draw: the results slab still carries the NaN fill");
+  printf("ok: per-draw callback null channels under BCF\n");
+}
+
 static void testRunCancellation(ext_rng* rng) {
   const size_t n = 300, p = 3;
   std::vector<double> x(n * p), y(n);
@@ -7085,6 +7544,12 @@ void runSamplerTests(ext_rng* rng) {
   testFusedSuffstatMatchesStock(rng);
   testFusedSuffstatDeclines(rng);
   testRunCancellation(rng);
+  testDrawCallbackFiring();
+  testDrawCallbackStride();
+  testDrawCallbackStop();
+  testDrawCallbackNeutrality();
+  testDrawCallbackVarcountForests();
+  testDrawCallbackBCFNullChannels();
   testEndToEndProbit(rng);
   testMultiChain();
   testTestFitThreadInvariance();
