@@ -65,12 +65,9 @@ essPoints <- as.integer(round(seq(1, nTest, length.out = 25L)))
 
 # The frozen mixture: no structural proposal is made, so the trees stand where
 # the structural chain left them and only the leaf values and sigma move.
-freeze <- function(model) {
-  model@p.birth_death <- 0
-  model@p.swap <- 0
-  model@p.change <- 0
-  model@p.perturb <- 0
-  model
+freeze <- function(control) {
+  control@proposal.probs[c("birth_death", "swap", "change", "perturb")] <- 0
+  control
 }
 
 # One seed's sampler at the recorded cell. Both arms come from this call with
@@ -174,7 +171,7 @@ for (replicate in seq_len(nReplicates)) {
   structural <- rbind(first, second)
   rm(first, second)
 
-  frozenModel <- freeze(sampler$model)
+  frozenControl <- freeze(sampler$control)
   # both on arms are branched before either recorded chain runs, so each stands
   # at the forest its own partner is about to be frozen at
   onArms <- list()
@@ -186,10 +183,10 @@ for (replicate in seq_len(nReplicates)) {
     requireSameFreezePoint(onArms$frozenMidLevel, midpoint, "1250")
   }
 
-  sampler$setModel(frozenModel)
+  sampler$setControl(frozenControl)
   frozenLast <- essDraws(sampler$run(0L, nSamples))
 
-  midpoint$setModel(frozenModel)
+  midpoint$setControl(frozenControl)
   frozenMid <- essDraws(midpoint$run(0L, nSamples))
   elapsed <- (proc.time() - startedAt)[["elapsed"]]
 
@@ -202,7 +199,7 @@ for (replicate in seq_len(nReplicates)) {
   rm(structural, frozenLast, frozenMid)
   for (chain in names(onArms)) {
     onStartedAt <- proc.time()
-    onArms[[chain]]$setModel(frozenModel)
+    onArms[[chain]]$setControl(frozenControl)
     readouts[[chain]] <- chainReadout(
       essDraws(onArms[[chain]]$run(0L, nSamples))
     )

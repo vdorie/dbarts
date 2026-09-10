@@ -75,7 +75,7 @@ runSampler <- function(
     resid.prior = fixed(priorSigma^2),
     monotone = monotone
   )
-  stopifnot(sampler$model@p.birth_death == 1)
+  stopifnot(sampler$control@proposal.probs[["birth_death"]] == 1)
   stopifnot(is.null(sampler$data@offset))
 
   nBatch <- as.integer(ceiling(nKept / batch))
