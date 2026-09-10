@@ -111,6 +111,25 @@ the settings guard refuses to compare them against a `quick` run. Contrast the
 STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the
 nominal level and stay schedule / workflow_dispatch only.
 
+## R/constant-*.R - the engine-constants sweeps (measurement, not gates)
+
+One script per fixed engine constant (docs/design/engine-constants.md), named
+after the constant it measures: constant-categorical-cap,
+constant-linear-leaf-covariates, constant-perturb-width,
+constant-testfit-parallel-cutoff, constant-predict-parallel-cutoff,
+constant-sparse-density-threshold, constant-gp-max-leaf-size,
+constant-person-period-rows and constant-xint-caps. Each prints a table, takes
+`quick` for a smaller grid, and has no baseline and no pass/fail exit.
+
+    Rscript benchmarks/R/constant-predict-parallel-cutoff.R quick
+
+Run the timing ones on a quiet machine, one at a time. Two constants are
+compile-time with no knob: constant-perturb-width measures the build it is run
+against and takes `width=<w>` only as a table label, so a width arm means a
+scratch copy of the tree with the constant edited, installed into a private
+library - never the working tree. The xint sweep is a probe of what each
+channel does at its cap, not a timing run.
+
 ## R/move-census.R - the move census (measurement, not a gate)
 
 Stage 0 of the tree-mixing falsifier (docs/design/tree-mixing-proposals.md
