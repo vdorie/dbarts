@@ -372,21 +372,24 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   each permuting the whole channel for a per-observation mean that
   channelMeans' shape takes without a copy.
 
-per-draw callbacks (VD 2026-09-10, priority raised on the memory audit:
-  the R-side prediction array and its packaging copy are five sixths of a
-  large fit's peak)
+per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
+  priority raised on the memory audit: the R-side prediction array and
+  its packaging copy are five sixths of a large fit's peak)
   pre-release: a per-draw C callback invoked once per saved draw per
   chain from that chain's worker thread, over const pointers into engine
   buffers and with no R API allowed inside it; an R callback argument on
   bart/dbarts/$run taking a function and a context external pointer (the
-  non-blocking default); the storage opt-out that composes with it
-  (supplying a callback stops keeping the fitted-value channels); a
-  worked Rcpp example writing each draw into a preallocated array; and
-  the tests. Reverses dec-B62's worker-thread refusal for an OBSERVER
+  non-blocking default); the keepFits storage opt-out over every
+  per-observation channel, set FALSE automatically when a callback is
+  supplied; the flat C header's draw struct, callback typedef and setter
+  entry, with one ABI hash re-bake; a worked Rcpp example writing each
+  draw into a preallocated array, plus a plain-C copy the suite compiles;
+  and the tests. Reverses dec-B62's worker-thread refusal for an OBSERVER
   hook (the conditioning hook keeps it) and re-opens the header entry
   under dec-B86 with the example and stan4bart as named consumers; the
-  blocking R-closure variant waits. RNG class neutral. Design:
-  docs/design/per-draw-callbacks.md; forks 1-9 there are open for VD.
+  blocking R-closure variant waits. RNG class neutral. Plan:
+  docs/plans/per-draw-callbacks.md. Design:
+  docs/design/per-draw-callbacks.md.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's

@@ -1,9 +1,52 @@
 # Per-draw callbacks
 
-Status: DESIGN PROPOSAL (2026-09-10), revised 2026-09-10 after an independent
-verification against the code found sixteen defects in the first draft; the
-core proposal stands and the specifics below replace it. Anchor: bartcore
+Status: PLANNED, docs/plans/per-draw-callbacks.md. Proposed 2026-09-10 and
+revised the same day after an independent verification against the code found
+sixteen defects in the first draft; the core proposal stands and the specifics
+below replace it. All nine forks of section 9 are settled - see Decision below
+and dec-B114 in [docs/decisions.md](../decisions.md). Anchor: bartcore
 09a9c2a5.
+
+## Decision
+
+Settled by VD, 2026-09-10, verbatim; recorded as dec-B114 and carried into
+the plan's Decision section.
+
+- The arc's motivation: "That strikes me as an argument for more and better
+  callback support." / "we should bump up the priority. I also think it would
+  be good to have an Rcpp example showing how to have a C callback write to a
+  preallocated array, if that makes sense. That would be the default way to do
+  it in R, since that wouldn't require blocking. The callback would of course
+  use raw pointers or lists or void\*, just not SEXPs."
+- Fork 4 (storage opt-out): a new logical `keepFits` over every
+  per-observation channel (training, test, variance, per-forest), default
+  TRUE, set FALSE automatically when a callback is supplied unless the user
+  overrides; `keepTrainingFits` stays as the narrower existing switch;
+  variable counts and scalar channels are always kept; `keepTrees` stays the
+  recompute path. This mirrors stan4bart's `keep_fits` ("Intended to be used
+  with callback"). VD: "Sounds good." The spelling supersedes section 4's
+  `keep.fits`.
+- Fork 2 (registration): VD: "Ship the header entry and its two types now."
+  The flat C header gains the setter entry and the two types, one ABI hash
+  re-bake, dec-B86 argued as section 3 argues it.
+- Fork 5 (stop): VD: "Sure, option 1." The callback returns `int`, nonzero
+  aborts the run: a shared cancel flag any worker can set, the worker loop
+  reading it, the bridge distinguishing a callback stop from an interrupt, the
+  sampler's inconsistent-after-abort state documented.
+- Forks 1 and 3 are settled by those words: the hook runs on worker threads as
+  a const-pointer observer forbidden to call R, reversing dec-B62's premise as
+  section 2 argues; no blocking R-closure variant in this arc. If one is ever
+  revived, VD's shape for it is that the machinery calls the closure once to
+  learn its return length, preallocates, and copies each draw's result in
+  itself (stan4bart's `callbackResultLength` pattern) - the design for a
+  post-release item, not this arc.
+- Forks 6 through 9 are decided by the orchestrator on the recommendations
+  above, and are agent-made: the example is a recipe in
+  [dbarts-as-a-component.Rmd](../../vignettes/dbarts-as-a-component.Rmd) (Rcpp
+  form, unevaluated) plus a plain-C copy under `inst/tinytest` the suite
+  compiles; `xbart` does not get the argument; the hazard family's
+  expanded-row meaning is documented only; and undefined channels are handed
+  over as null pointers.
 
 ## 1. Why now
 
@@ -440,6 +483,9 @@ stay at 1/0 with one re-bake. Neither stan4bart nor treatSens calls the new
 type or entry.
 
 ## 9. Open forks for VD
+
+All nine are settled; the recommendations below are kept as the argument
+behind each ruling, and Decision above records the rulings themselves.
 
 1. **Reverse dec-B62's worker-thread refusal for an observer hook?**
    Recommend yes, scoped in words to the observer: dec-B62 refused a hook
