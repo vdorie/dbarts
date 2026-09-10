@@ -35,9 +35,8 @@ installed package's own token is refused loudly.
 | 5 | Clear the three release prerequisites, then submit dbarts 1.0-0 to CRAN. On acceptance, submit stan4bart 0.0-14 and bartCause the same day. The CRAN window opens |
 | 6 | When CRAN carries all of them, delete the temporary install and reinstall steps |
 
-CRAN serves dbarts 0.9-34 until the submission is accepted. A consumer's own
-resolver would install that older copy, so the temporary install steps have to
-survive the pin flip.
+CRAN serves dbarts 0.9-34 until the submission is accepted, so the temporary
+install steps must survive a consumer resolver installing that older copy.
 
 The first step's obligation is not yet discharged: every consumer must be
 re-verified against the final re-baked header. bartCause hands out a thread
@@ -54,7 +53,7 @@ flag: a build fails when the baked token moves and the version pair does not.
 
 A window is a span in which an installer gets a broken pairing. Loud means a
 compile or load error. Silent means the call succeeds and returns a different
-answer. Some rows carry neither, and each says what it does instead.
+answer.
 
 | state | who breaks | loud or silent | what happens |
 |---|---|---|---|
@@ -83,8 +82,6 @@ caller's engine seed. The filter is unchanged on the compatibility branch.
 
 User-visible changes that return a different answer: 36
 
-The register lists every such change.
-
 Neither window can be eliminated, only shortened: the GitHub window is as
 short as a sitting, and the CRAN window stays open because no published
 consumer bounds dbarts above and CRAN processes submissions serially.
@@ -109,6 +106,9 @@ Decisions with maintainer evidence: 117
   breaking bartCause main at load. The maintainer confirmed the removal on a
   condition (B105): stan4bart clears its mixing bar, or an R-only grouped
   intercept stands in.
+- **Equivalence evidence** (A61): the bitwise check compares only against a
+  baseline this branch recorded, and the deleted engine forecloses recording
+  any wider one.
 - **Fixed engine constants** (A46): the leaf regression column cap, perturb
   width and cut width stay reachable from no argument. Other engine limits
   became settings (B91), kept control-only under B116, reached from bart()
@@ -143,6 +143,9 @@ Decisions with maintainer evidence: 117
   only on an explicit updateState = TRUE, so a later save can write stale
   state. The cap on the sampled k is silent, unlike the cap on initial-forest
   draws, which errors.
+- **Chains-only parallelism** (A37): a single-chain run gets no sampling
+  parallelism at any thread count. Closed on remeasurement (B115): n.threads
+  is capped at the chain count by default, and a larger budget only warns.
 - **Scalar draw path** (B90): the maintainer's ruling keeps a configure flag
   selecting a scalar, fixed-order reference build for development, gated
   statistically before release. The vector kernels that would make the
@@ -175,9 +178,9 @@ less than the row claims. Confirm them first.
   no quoted words. One refuses a mid-chain rescale of a heteroscedastic fit,
   the other superseded by the fallback warning above.
 
-The register holds the rest. One row it marks the maintainer's does not hold
-up: the quote behind large-n workloads (B50) is an agent paraphrase the
-maintainer disowns, leaving no shipped path for that priority.
+One row the register marks as the maintainer's does not hold up: the quote
+behind large-n workloads (B50) is an agent paraphrase the maintainer
+disowns, leaving no shipped path for that priority.
 
 ## 4. Unfinished, abandoned and stale-gate work
 
@@ -191,9 +194,9 @@ Deferred with no maintainer evidence: 25
 
 Deferred by the maintainer: 10
 
-Done, but proven only by a gate that predates the tip: 9
+Done, but proven only by a gate that predates the tip: 5
 
-Some unfinished items touch the merge. Sites in the C API hold C++ objects
+Sites in the C API hold C++ objects
 that own heap memory across R's error longjmp and leak, unreachable by an
 ordinary refusal. The memory-check gate runs the suite under a leak detector
 but has only run once, so the merge is its first real test, and it has never
@@ -229,12 +232,10 @@ the maintainer declined.
 The stale gates prove their items only at a commit before the branch tip. The
 protect-balance check, which verifies that R objects stay protected from
 garbage collection, failed, and its fix carries a local re-run alone. The
-comparisons against recorded baselines have since re-run and were green, and
-the baselines were re-recorded to match the engine at the tip. The check that
-the sampler recovers parameters drawn from its own prior sits earlier still.
-Every landed change records its own run of the test suite, the package
-check, the C++ tests and the sanitizer builds, so no engine change is
-unexercised.
+check that the sampler recovers parameters drawn from its own prior sits
+earlier still. The equivalence comparisons, the exact-posterior gate
+scripts, the test suite, the package check, the C++ tests and the sanitizer
+builds have since rerun and passed at the branch tip, closing those gaps.
 
 The CRAN reverse-dependency sweep is one of the stale gates. It ran at an
 earlier engine, with no script in the tree, and found the breaks named
@@ -290,7 +291,8 @@ completion register.
 | what is blocked and on what | cmp-L01, cmp-L02, cmp-L03, cmp-L04, cmp-L05, cmp-L06 |
 | deferred without maintainer evidence | cmp-D10, cmp-D24 |
 | deferred by the maintainer | cmp-V02, cmp-V03 |
-| the stale gates | cmp-S01, cmp-S02, cmp-S03, cmp-S04, cmp-S05, cmp-S07, cmp-S09 |
+| the stale gates | cmp-S01, cmp-S04, cmp-S07, cmp-S09 |
+| the gates reconfirmed at the branch tip | cmp-S02, cmp-S03, cmp-S05, cmp-S06 |
 | the cross-engine statistical record | dec-A61 |
 | claims that hold at full strength | cmp-K07, cmp-K08 |
 | the two doors and the shim between them | chg-U66, chg-U67, chg-U68, chg-U69, dec-B75, dec-B83 |
