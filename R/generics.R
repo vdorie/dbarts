@@ -366,6 +366,7 @@ predict.bart <- function(
   # value is checked rather than only the one that reaches the sampler here
   n.threads <- validatePredictThreads(n.threads)
   refuseForestSelectionOutsideForestArm(type, forest)
+  refuseDroppedForestChannel(object)
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -710,6 +711,23 @@ resolveForestSelection <- function(forest, forestNames) {
   idx
 }
 
+# keepFits = FALSE drops forestFits but not n.forests, which is set off the
+# fit's own bases: a fit carrying n.forests with no forestFits is therefore an
+# amplitude-coupled one whose per-forest channel was opted out. Every arm that
+# reads the channel names that here, rather than falling through to "this fit
+# has none" (which is wrong - it had one) or, on the combined arm, to the
+# engine's own off-sample refusal, which names neither keepFits nor callback.
+refuseDroppedForestChannel <- function(object) {
+  if (is.null(object[["forestFits"]]) && !is.null(object[["n.forests"]])) {
+    stop(
+      "this amplitude-coupled fit's per-forest channel was dropped by ",
+      "'keepFits' == FALSE (set automatically when 'callback' is supplied, ",
+      "unless overridden); the combined surface is rebuilt from that ",
+      "channel, so refit with 'keepFits = TRUE'"
+    )
+  }
+}
+
 # extract(type = "forest"): the packaged per-forest response-scale raw total
 # by default (forestFits already carries response.scale), or its
 # per-observation contribution under contribution = TRUE, computed on
@@ -718,6 +736,7 @@ resolveForestSelection <- function(forest, forestNames) {
 # on a fit without forest reporting (the amplitude coupling, not the forest
 # count) and on sample = "test" (an amplitude-coupled fit has no test fits).
 extractForest <- function(object, sample, combineChains, forest, contribution) {
+  refuseDroppedForestChannel(object)
   if (is.null(object[["forestFits"]])) {
     stop(
       "type = \"forest\" is only available on a fit with per-forest ",

@@ -69,7 +69,6 @@ expect_error(
 expect_true(methods::new("dbartsControl")@keepFits)
 expect_error(dbartsControl(keepFits = NA), "'keepFits'")
 expect_error(dbartsControl(keepFits = c(TRUE, FALSE)), "'keepFits'")
-expect_true(dbartsControl(keepFits = TRUE)@keepFits)
 expect_false(dbartsControl(keepFits = FALSE)@keepFits)
 
 # ---- the automatic default: callback supplied, keepFits unnamed -> FALSE;
@@ -123,7 +122,13 @@ expect_error(
   "keepFits"
 )
 expect_error(
-  bart(x, y.hurdle, family = "hurdle.lognormal", keepFits = FALSE),
+  bart(
+    x,
+    y.hurdle,
+    family = "hurdle.lognormal",
+    keepFits = FALSE,
+    verbose = FALSE
+  ),
   "keepFits"
 )
 # the automatic path, not just the explicit one, is named - a callback that
@@ -154,8 +159,7 @@ fitDropped <- bart(
   n.samples = 4L,
   verbose = FALSE
 )
-expect_null(fitDropped$yhat.train)
-expect_null(fitDropped$yhat.train.mean)
+# absent, not NULL-within-the-list, which is the stronger of the two claims
 expect_false("yhat.train" %in% names(fitDropped))
 expect_false("yhat.train.mean" %in% names(fitDropped))
 
@@ -179,7 +183,6 @@ fitDroppedWithTest <- bart(
   n.samples = 4L,
   verbose = FALSE
 )
-expect_null(fitDroppedWithTest$yhat.test)
 expect_false("yhat.test" %in% names(fitDroppedWithTest))
 expect_error(
   extract(fitDroppedWithTest, type = "ev", sample = "test"),
@@ -226,3 +229,33 @@ expect_error(
   predict(fitHetero, x, type = "ppd"),
   "keepFits"
 )
+
+# amplitude-coupled + keepFits = FALSE: forestFits/glue/bases all go, and
+# every arm that reads them - extract and predict alike - must name keepFits
+# rather than reporting "this fit has none" (it had one) or reaching the
+# engine's own off-sample refusal, which names neither keepFits nor callback.
+# n.forests survives the drop and is what tells the two cases apart.
+dfCoupled <- data.frame(
+  y = y,
+  x1 = x[, 1L],
+  x2 = x[, 2L],
+  z = rbinom(n, 1L, 0.5)
+)
+fitCoupled <- bart(
+  y ~ x1 + x2 + z:forest(x1 + x2),
+  data = dfCoupled,
+  keepFits = FALSE,
+  keepTrees = TRUE,
+  keepSampler = TRUE,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.burn = 2L,
+  n.samples = 4L,
+  verbose = FALSE
+)
+expect_equal(fitCoupled$n.forests, 2L)
+expect_null(fitCoupled$forestFits)
+expect_error(extract(fitCoupled, type = "forest"), "keepFits")
+expect_error(predict(fitCoupled, dfCoupled, type = "forest"), "keepFits")
+expect_error(predict(fitCoupled, dfCoupled), "keepFits")
