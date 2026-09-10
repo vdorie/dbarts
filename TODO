@@ -484,11 +484,28 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   pre-release, small: categoricalExhaustiveCap's validity ceiling of 30
   admits a 2^29-candidate exact enumeration; the Rd's recommended range
   of 8 to 14 warns against going that high, the error message does not.
-  post-release: making the sparse layout bitwise - the sparse root path
-  would write the identity order before partitioning, about 3 engine
-  lines - moves the rank-tier draws and forces a re-record of
-  equivalence-f0236082.rds's wideFactorIndicators scenario. A decision,
-  not a defect.
+  door (measured 2026-09-10, x86 box idle, AVX2): making the sparse
+  layout bitwise - the sparse root writes the identity order before
+  partitioning in place, 3 engine lines - costs about 3.2 percent of
+  sampler time on a 120-sparse-column n = 1e5 fit (floor 1 to 2
+  percent) and nothing on dense fits, and moves five equivalence
+  scenarios (sparse, mixedmatrix, leaffactormixed, factorpartial,
+  wideFactorIndicators), all at max |z| = 0.00. The reverse - the
+  dense root partitioning in place instead of rewriting the identity -
+  is a 1.6 to 2.9 percent regression on the standard bench, because
+  the identity rewrite reads the column sequentially where the
+  in-place partition gathers through the indices (kernel bench: the
+  range partition wins at every size). Bitwise agreement is a testing
+  property no user observes, so the sparse path stays as it is unless
+  VD rules otherwise; the sparse-layout test should run 20 sweeps, not
+  one, to discriminate the layouts (the tip passes bitwise at one
+  sweep and differs by 6e-16 at twenty).
+  post-release, from the same measurement: the in-place root partition
+  makes setPredictor updates 19 percent (accept) and 29 percent
+  (reject) faster on the standard bench, the path the
+  sampler-inside-a-larger-model use hammers. Draw-changing everywhere,
+  so it waits for a release; scope it as the in-place root on the
+  setPredictor path only, with its own oracle and a full re-record.
   post-release: a size gate on the fused roll + suffstat pass, two
   thresholds rather than one - fuse weighted at n >= 1e4, unweighted at
   n >= 2e4 - since the fusion loses up to 8 percent below those and
