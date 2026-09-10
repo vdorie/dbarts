@@ -960,15 +960,16 @@ public:
   /// mutation; leaf stats are left stale and refreshed by the next run().
   ///
   /// A dense root partitions IN PLACE here, unlike the sampling-time root.
-  /// The span arriving on this path is already partitioned under the live
-  /// rules - the callers re-route a tree whose partition the previous data
-  /// left standing - so the in-place scan finds nothing out of order and
-  /// writes no index, where the identity rewrite writes the whole span; the
-  /// callers that instead hand this a freshly initialized span pay nothing,
-  /// the two kernels agreeing elementwise on the identity. The member order
-  /// therefore differs from the sampling-time root's, and leaf sums over the
-  /// span reassociate, which is why fits reached through this path are
-  /// recorded separately from fits that only sample.
+  /// The span the predictor-mutation and rollback callers hand it is already
+  /// partitioned under the live rules, so the in-place scan finds nothing out
+  /// of order and writes no index, where the identity rewrite writes the whole
+  /// span; the callers that instead hand this a freshly initialized span pay
+  /// nothing, the two kernels agreeing elementwise on the identity. (A data
+  /// replacement that keeps n arrives with a span its OLD rules partitioned,
+  /// which the scan re-partitions like any other - correct, not free.) The
+  /// member order therefore differs from the sampling-time root's, and leaf
+  /// sums over the span reassociate, which is why fits reached through this
+  /// path are recorded separately from fits that only sample.
   void repartitionSubtree(const ColumnStore& data, int32_t nodeIndex) {
     if (at(nodeIndex).isBottom()) return;
     partitionChildren(data, nodeIndex, true);
