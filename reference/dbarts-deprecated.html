@@ -77,8 +77,20 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     <dt><code>dart</code>, <code>levelGibbs</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code> (<code>dart</code> also on <code><a href="xbart.html">xbart</a></code>): tree-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s tree priors (<code>tree.prior = dart()</code>, <code>tree.prior = cgm(levelGibbs = )</code>).</p></dd>
 
-    <dt><code>control</code> on <code><a href="xbart.html">xbart</a></code></dt>
-<dd><p>Refused outright, naming the flat arguments its settings became (<code>n.cuts</code>, <code>useQuantiles</code>, <code>n.thin</code>, <code>storage</code>): <code>xbart</code> builds its own control, so there is nothing left for one to set.</p></dd>
+    <dt><code>power</code>, <code>base</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>: tree-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>cgm()</code> or <code>dart()</code> (<code>tree.prior = cgm(power, base)</code> or <code>tree.prior = dart(power, base)</code>).</p></dd>
+
+    <dt><code>split.probs</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>: a tree-prior-only setting, now an argument of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>cgm()</code> only (<code>tree.prior = cgm(split.probs = )</code>); a DART tree prior draws its own split probabilities, so combining it with <code>dart</code> or <code>tree.prior = dart()</code> is refused.</p></dd>
+
+    <dt><code>prior.scale</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>: a node-prior-only setting, now an argument of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>normal()</code> (<code>node.prior = normal(scale = )</code>).</p></dd>
+
+    <dt><code>sigdf</code>, <code>sigquant</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>: residual-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>chisq()</code> (<code>resid.prior = chisq(df, quant)</code>).</p></dd>
+
+    <dt><code>proposal.probs</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code>: the tree-move mixture, now a <code><a href="dbartsControl.html">dbartsControl</a></code> slot and formal (<code>control = dbartsControl(proposal.probs = )</code>).</p></dd>
 
     <dt>A three-element <code>n.burn</code> on <code><a href="xbart.html">xbart</a></code></dt>
 <dd><p>Refused outright, naming <code>n.burn = c(fresh, warm)</code>: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.</p></dd>
@@ -99,7 +111,8 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
 <dd><p>Attaching the package prints one <code>packageStartupMessage</code> naming both doors, once per session (<code>suppressPackageStartupMessages</code> silences it); no successor, since nothing replaces it.</p></dd>
 
 
-</dl><p>Every entry above, and <code>bart2</code> and the <code>rbart_vi</code> stubs, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
+</dl><p><code>control</code> on <code><a href="xbart.html">xbart</a></code> is no longer a tombstone: both <code>bart</code> and <code>xbart</code> now take a <code>control = <a href="dbartsControl.html">dbartsControl()</a></code> formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.</p>
+<p>Every entry above, and <code>bart2</code> and the <code>rbart_vi</code> stubs, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
     </div>
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>

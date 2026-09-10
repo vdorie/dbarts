@@ -70,12 +70,44 @@ in dbarts 1.1-0.
   tree priors (`tree.prior = dart()`,
   `tree.prior = cgm(levelGibbs = )`).
 
-- `control` on
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md):
+- `power`, `base`:
 
-  Refused outright, naming the flat arguments its settings became
-  (`n.cuts`, `useQuantiles`, `n.thin`, `storage`): `xbart` builds its
-  own control, so there is nothing left for one to set.
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
+  tree-prior-only settings, now arguments of
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
+  `cgm()` or `dart()` (`tree.prior = cgm(power, base)` or
+  `tree.prior = dart(power, base)`).
+
+- `split.probs`:
+
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): a
+  tree-prior-only setting, now an argument of
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
+  `cgm()` only (`tree.prior = cgm(split.probs = )`); a DART tree prior
+  draws its own split probabilities, so combining it with `dart` or
+  `tree.prior = dart()` is refused.
+
+- `prior.scale`:
+
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): a
+  node-prior-only setting, now an argument of
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
+  `normal()` (`node.prior = normal(scale = )`).
+
+- `sigdf`, `sigquant`:
+
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
+  residual-prior-only settings, now arguments of
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
+  `chisq()` (`resid.prior = chisq(df, quant)`).
+
+- `proposal.probs`:
+
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): the
+  tree-move mixture, now a
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  slot and formal (`control = dbartsControl(proposal.probs = )`).
 
 - A three-element `n.burn` on
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md):
@@ -116,6 +148,13 @@ in dbarts 1.1-0.
   Attaching the package prints one `packageStartupMessage` naming both
   doors, once per session (`suppressPackageStartupMessages` silences
   it); no successor, since nothing replaces it.
+
+`control` on
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) is no
+longer a tombstone: both `bart` and `xbart` now take a
+`control = `[`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+formal, reaching every setting neither door spells flatly, so the
+earlier retirement (which refused the argument outright) is reversed.
 
 Every entry above, and `bart2` and the `rbart_vi` stubs, is one row of
 `dbarts:::dbartsTombstones`, the registry this page documents by hand.

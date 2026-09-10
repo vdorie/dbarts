@@ -179,6 +179,8 @@ print(x, ...)
 
 ## Arguments
 
+**Data and formula.**
+
 - formula:
 
   An object of class [`formula`](https://rdrr.io/r/stats/formula.html)
@@ -284,273 +286,15 @@ print(x, ...)
   ‘Test offset synchronization’ details for how a live sampler keeps the
   two linked after fitting.
 
-- sigest:
+- na.action:
 
-  For continuous response models, an estimate of the residual standard
-  deviation (residual standard error), \\\sigma\\, used to calibrate an
-  inverse-chi-squared prior on the error variance. If not supplied, the
-  least-squares estimate is derived instead. That estimate falls back to
-  the marginal standard deviation of the response when the linear
-  model's residual standard error comes out non-finite, warning as it
-  does so (class `dbartsSigmaFallbackWarning`); a design with
-  sparse-backed predictor columns skips the linear model altogether and
-  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
-  Not applicable when \\y\\ is binary. Same concept as `sigma` in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
-  it `sigest` too.
-
-- k:
-
-  For numeric \\y\\, `k` is the number of prior standard deviations
-  \\E(Y\|x) = f(x)\\ is away from \\\pm 0.5\\. The response is
-  internally scaled to range from \\-0.5\\ to \\0.5\\. For binary \\y\\
-  fit with the default probit link, `k` is the number of prior standard
-  deviations \\f(x)\\ is away from \\\pm 3\\, the probit reference
-  scale; `family = "logistic"` widens this to \\\pm \pi \sqrt{3}\\,
-  three standard deviations of the standard logistic latent variable.
-  The value can be either a fixed number, or a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.5, scale = 2)`. The default, `NULL`, uses
-  the value 2 for continuous responses and the `chi(1.5, 2)` hyperprior
-  for binary ones, which centers the sampled `k` near the field-standard
-  fixed value of 2 (prior median 1.9) while adapting to the data; pass
-  `k = 2` for the fixed BART-package default, or `chi(1.5, Inf)` for the
-  old improper prior. See
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
-  item, and the ‘End-node prior parameter `k`’ details there, for the
-  full calibration argument and its outlier-sensitivity caveat.
-
-- n.trees:
-
-  The number of trees in the sum-of-trees formulation.
-
-- n.samples:
-
-  The number of posterior samples requested; `n.samples %/% n.thin`
-  draws are actually kept and returned. This is a SWEEP budget in the
-  BayesTree tradition - the same role
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  `ndpost` plays (`ndpost / keepevery` are what is actually returned).
-  It differs from
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-  (and the lower-level
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s)
-  `n.samples`, which already counts the draws one `run()` call returns
-  and is NOT divided by thinning: that layer's sampler can be `run()`
-  repeatedly with a different count each time, so its `n.samples` is a
-  per-call return count rather than a one-shot total budget.
-
-- n.burn:
-
-  Number of MCMC iterations to be treated as burn in.
-
-- n.chains:
-
-  Integer specifying how many independent tree sets and fits should be
-  calculated. Default 4;
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  default is 1, BayesTree's historical single-chain convention.
-
-- n.threads:
-
-  Integer specifying how many threads to use. Depending on the CPU
-  architecture, using more than the number of chains can degrade
-  performance for small/medium data sets. As such some calculations may
-  be executed single threaded regardless.
-
-  On `predict`, `n.threads` is a per-call worker count for the
-  saved-tree replay, defaulting to the fit's own: the replay is
-  partitioned by (chain, posterior draw), each partition writing its own
-  rows and nothing being reduced across workers, so the answer is
-  identical bit for bit at every value and only the time taken changes.
-
-- combineChains:
-
-  Logical; if `TRUE`, samples are returned collapsed across chains
-  rather than in a chains-by-samples array. Default `TRUE`, as for
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md); the
-  number of chains is tracked regardless on the returned object's
-  `n.chains` component (see ‘Value’).
-
-- n.cuts:
-
-  The maximum number of possible values used in decision rules (see
-  `useQuantiles`, and
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  ‘Decision Rules’ details). If a single number, it is recycled for all
-  variables; otherwise must be a vector of length equal to the number of
-  predictor columns. Fewer rules may be used if a covariate lacks enough
-  unique values. Factor predictors take no rules from it, of either
-  kind: a factor's grid follows its level table.
-
-- useQuantiles:
-
-  When `TRUE`, determine tree decision rules using estimated quantiles
-  derived from the predictor variables. When `FALSE`, splits are
-  determined using values equally spaced across the range of a variable.
-  See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  ‘Decision Rules’ details.
-
-- n.thin:
-
-  Every `n.thin` draw is kept to be returned to the user. Useful for
-  “thinning” samples against serial correlation; see `n.samples` above
-  for how the two combine.
-
-- keepTrainingFits:
-
-  If `TRUE` the draws of \\f(x)\\ for \\x\\ corresponding to the rows of
-  the training data are returned.
-
-- printEvery:
-
-  As the MCMC runs, a message is printed every `printEvery` draws.
-
-- printCutoffs:
-
-  The number of cutoff rules printed to screen before the MCMC is run.
-  Given a single integer, the same value is used for all variables. If
-  0, nothing is printed.
-
-- verbose:
-
-  Logical; if `FALSE` suppress printing.
-
-- keepTrees:
-
-  Logical; must be `TRUE` in order to use `predict` with the result of a
-  fit. Note that for models with a large number of observations or a
-  large number of trees, keeping the trees can be very memory intensive.
-
-- keepCall:
-
-  Logical; if `FALSE`, the returned object has `call` set to
-  `call("NULL")`, otherwise the call used to instantiate BART.
-
-- samplerOnly:
-
-  Builds the sampler from its arguments and returns it without running
-  it. Useful to use the `bart` interface in more complicated models.
-
-- seed:
-
-  Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). A
-  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
-  for reproducibility; supplying `seed` instead gives reproducible
-  results without touching R's stream. See
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  Reproducibility section.
-
-- monotone:
-
-  Optional per-predictor monotonicity constraints, passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
-  its `monotone` argument. A named vector selects predictors by
-  model-matrix column name, each direction one of
-  `"+"`/`"increasing"`/`1` or `"-"`/`"decreasing"`/`-1` - matching is
-  case-insensitive, so `"Increasing"` is accepted; only numeric and
-  ordered columns are eligible. A constraint forces birth/death-only
-  proposals and a fixed `k = 2`. `NULL` (the default) fits the
-  unconstrained model.
-
-- interactions:
-
-  Optional interaction constraints, passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
-  its `interactions` argument and
-  [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md).
-  Built with `interactions(max.order = , groups = , forbid = )`: cap the
-  distinct predictors per root-to-leaf path, confine interactions to
-  declared groups, and/or forbid named predictors from co-occurring.
-  `NULL` (the default) fits the unconstrained model.
-
-- blocks:
-
-  Optional block-additive constraint, passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
-  its `blocks` argument and
-  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md). Built
-  with `blocks(groups = , trees.per.group = )`: confine each whole tree
-  to one declared group of predictors so the ensemble is exactly a sum
-  of per-group functions. The groups must form a total, disjoint
-  partition of the predictors, validated at fit time. `NULL` (the
-  default) fits the ordinary model.
-
-- variance:
-
-  Heteroscedastic BART (Pratola et al. 2020): passed through to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  Declares a second forest modeling the residual variance surface
-  \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves, coupled
-  to the mean forest through the per-observation precision. Either the
-  plain selector naming which predictors drive the variance - a
-  one-sided formula or column selector (`~ x1 + x2`), `TRUE` for every
-  predictor, or `NULL` (the default) for a homoscedastic fit - or a
-  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
-  object, which additionally sets the variance forest's own tree count
-  and tree-structure prior (defaulting to `40` trees and the mean
-  forest's `tree.prior`, exactly as the plain selector does). Gaussian
-  and `"aft"` (survival) responses only - the latent families route
-  their own precisions through the channel it divides into;
-  `family = student()` residuals are refused with it too, unadjudicated
-  rather than unsupported by design (see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
-  fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
-  `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
-  \\s(x)\\ is the residual scale the reporting channels use:
-  `extract(type = "loglik")`, the `type = "ppd"` draws, and
-  [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
-  `mean.s` row all read it instead of the fixed `sigma` such a fit
-  stores (see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)).
-
-- keepSampler:
-
-  Logical that can be used to save the underlying
-  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  object even if `keepTrees` is false.
-
-- warm.start:
-
-  A previous fit whose forests seed the initial state instead of drawing
-  trees from the prior: either a `bart` object fit with
-  `keepSampler = TRUE` or a
-  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
-  The donor must share this fit's predictors, tree count, and DART
-  setting; a donor fit on a different cut grid is supported, its splits
-  remapped onto this fit's grid (collapsing any the grid starves), the
-  same way a data replacement remaps existing splits. Only its trees,
-  `sigma`, and `k` carry over, and each chain starts from a different
-  donor sample so multiple chains stay overdispersed. A warm start
-  biases early draws toward the donor, so it shortens burn-in rather
-  than removing it; keep a non-zero `n.burn`. Multi-forest samplers
-  refuse it: a fit whose forests carry amplitude bases (a
-  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-  term, or a data object built with `bases`) errors by name, naming its
-  forest count, because a donor install is not tested at more than one
-  forest; `n.grow.sweeps` is the initialization such a fit can take. See
-  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
-  `installTrees` method for finer control.
-
-- n.grow.sweeps:
-
-  A non-negative integer; when positive, the initial forest is built by
-  `n.grow.sweeps` sweeps of XBART-style grow-from-root (He, Yalov and
-  Hahn 2019) instead of a draw from the prior, an init-then-refine
-  workflow that reaches a good fit in far fewer sweeps before the exact
-  sampler takes over. The default `0L` draws trees from the prior,
-  exactly as before. Like `warm.start`, a grow-from-root start biases
-  the early draws toward the grown fit, so it shortens burn-in rather
-  than removing it; keep a non-zero (if smaller) `n.burn`. The posterior
-  the sampler targets is unchanged - only the starting point moves.
-  Constant-leaf models only, and mutually exclusive with `warm.start`
-  (both request an initialization). Unlike `warm.start` it is available
-  on a multi-forest fit, each forest grown against its own residual
-  inside the sweep. See
-  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
-  `growFromRoot` method.
+  A function that filters incomplete rows, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) takes one. The default
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
+  drops rows with a missing RESPONSE and keeps rows with missing
+  predictors, which the trees route; the base functions keep their usual
+  meaning. See
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - factors:
 
@@ -564,6 +308,8 @@ print(x, ...)
   `"indicators"` instead expands each factor into binary indicator
   columns, matching `bartBT`. A factor-predictor fit therefore changes
   if moved between the two interfaces.
+
+**Family and priors.**
 
 - family:
 
@@ -813,15 +559,42 @@ print(x, ...)
   y\\ on the positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
-- na.action:
+- sigest:
 
-  A function that filters incomplete rows, as
-  [`lm`](https://rdrr.io/r/stats/lm.html) takes one. The default
-  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
-  drops rows with a missing RESPONSE and keeps rows with missing
-  predictors, which the trees route; the base functions keep their usual
-  meaning. See
-  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
+  For continuous response models, an estimate of the residual standard
+  deviation (residual standard error), \\\sigma\\, used to calibrate an
+  inverse-chi-squared prior on the error variance. If not supplied, the
+  least-squares estimate is derived instead. That estimate falls back to
+  the marginal standard deviation of the response when the linear
+  model's residual standard error comes out non-finite, warning as it
+  does so (class `dbartsSigmaFallbackWarning`); a design with
+  sparse-backed predictor columns skips the linear model altogether and
+  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
+  `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
+  Not applicable when \\y\\ is binary. Same concept as `sigma` in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
+  it `sigest` too.
+
+- k:
+
+  For numeric \\y\\, `k` is the number of prior standard deviations
+  \\E(Y\|x) = f(x)\\ is away from \\\pm 0.5\\. The response is
+  internally scaled to range from \\-0.5\\ to \\0.5\\. For binary \\y\\
+  fit with the default probit link, `k` is the number of prior standard
+  deviations \\f(x)\\ is away from \\\pm 3\\, the probit reference
+  scale; `family = "logistic"` widens this to \\\pm \pi \sqrt{3}\\,
+  three standard deviations of the standard logistic latent variable.
+  The value can be either a fixed number, or a *hyperprior* of the form
+  `chi(degreesOfFreedom = 1.5, scale = 2)`. The default, `NULL`, uses
+  the value 2 for continuous responses and the `chi(1.5, 2)` hyperprior
+  for binary ones, which centers the sampled `k` near the field-standard
+  fixed value of 2 (prior median 1.9) while adapting to the data; pass
+  `k = 2` for the fixed BART-package default, or `chi(1.5, Inf)` for the
+  old improper prior. See
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
+  item, and the ‘End-node prior parameter `k`’ details there, for the
+  full calibration argument and its outlier-sensitivity caveat.
 
 - tree.prior, node.prior, resid.prior:
 
@@ -850,6 +623,243 @@ print(x, ...)
   `fixed(1)` regardless. `tree.prior`/`node.prior` are honored on every
   family, including both component fits of
   `family = "hurdle.lognormal"`.
+
+- monotone:
+
+  Optional per-predictor monotonicity constraints, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `monotone` argument. A named vector selects predictors by
+  model-matrix column name, each direction one of
+  `"+"`/`"increasing"`/`1` or `"-"`/`"decreasing"`/`-1` - matching is
+  case-insensitive, so `"Increasing"` is accepted; only numeric and
+  ordered columns are eligible. A constraint forces birth/death-only
+  proposals and a fixed `k = 2`. `NULL` (the default) fits the
+  unconstrained model.
+
+- interactions:
+
+  Optional interaction constraints, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `interactions` argument and
+  [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md).
+  Built with `interactions(max.order = , groups = , forbid = )`: cap the
+  distinct predictors per root-to-leaf path, confine interactions to
+  declared groups, and/or forbid named predictors from co-occurring.
+  `NULL` (the default) fits the unconstrained model.
+
+- blocks:
+
+  Optional block-additive constraint, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `blocks` argument and
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md). Built
+  with `blocks(groups = , trees.per.group = )`: confine each whole tree
+  to one declared group of predictors so the ensemble is exactly a sum
+  of per-group functions. The groups must form a total, disjoint
+  partition of the predictors, validated at fit time. `NULL` (the
+  default) fits the ordinary model.
+
+- variance:
+
+  Heteroscedastic BART (Pratola et al. 2020): passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  Declares a second forest modeling the residual variance surface
+  \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves, coupled
+  to the mean forest through the per-observation precision. Either the
+  plain selector naming which predictors drive the variance - a
+  one-sided formula or column selector (`~ x1 + x2`), `TRUE` for every
+  predictor, or `NULL` (the default) for a homoscedastic fit - or a
+  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
+  object, which additionally sets the variance forest's own tree count
+  and tree-structure prior (defaulting to `40` trees and the mean
+  forest's `tree.prior`, exactly as the plain selector does). Gaussian
+  and `"aft"` (survival) responses only - the latent families route
+  their own precisions through the channel it divides into;
+  `family = student()` residuals are refused with it too, unadjudicated
+  rather than unsupported by design (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
+  fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
+  `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
+  \\s(x)\\ is the residual scale the reporting channels use:
+  `extract(type = "loglik")`, the `type = "ppd"` draws, and
+  [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
+  `mean.s` row all read it instead of the fixed `sigma` such a fit
+  stores (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)).
+
+**Sampling run.**
+
+- n.trees:
+
+  The number of trees in the sum-of-trees formulation.
+
+- n.samples:
+
+  The number of posterior samples requested; `n.samples %/% n.thin`
+  draws are actually kept and returned. This is a SWEEP budget in the
+  BayesTree tradition - the same role
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  `ndpost` plays (`ndpost / keepevery` are what is actually returned).
+  It differs from
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  (and the lower-level
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s)
+  `n.samples`, which already counts the draws one `run()` call returns
+  and is NOT divided by thinning: that layer's sampler can be `run()`
+  repeatedly with a different count each time, so its `n.samples` is a
+  per-call return count rather than a one-shot total budget.
+
+- n.burn:
+
+  Number of MCMC iterations to be treated as burn in.
+
+- n.chains:
+
+  Integer specifying how many independent tree sets and fits should be
+  calculated. Default 4;
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  default is 1, BayesTree's historical single-chain convention.
+
+- n.threads:
+
+  Integer specifying how many threads to use. Depending on the CPU
+  architecture, using more than the number of chains can degrade
+  performance for small/medium data sets. As such some calculations may
+  be executed single threaded regardless.
+
+  On `predict`, `n.threads` is a per-call worker count for the
+  saved-tree replay, defaulting to the fit's own: the replay is
+  partitioned by (chain, posterior draw), each partition writing its own
+  rows and nothing being reduced across workers, so the answer is
+  identical bit for bit at every value and only the time taken changes.
+
+- combineChains:
+
+  Logical; if `TRUE`, samples are returned collapsed across chains
+  rather than in a chains-by-samples array. Default `TRUE`, as for
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md); the
+  number of chains is tracked regardless on the returned object's
+  `n.chains` component (see ‘Value’).
+
+- n.cuts:
+
+  The maximum number of possible values used in decision rules (see
+  `useQuantiles`, and
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  ‘Decision Rules’ details). If a single number, it is recycled for all
+  variables; otherwise must be a vector of length equal to the number of
+  predictor columns. Fewer rules may be used if a covariate lacks enough
+  unique values. Factor predictors take no rules from it, of either
+  kind: a factor's grid follows its level table.
+
+- useQuantiles:
+
+  When `TRUE`, determine tree decision rules using estimated quantiles
+  derived from the predictor variables. When `FALSE`, splits are
+  determined using values equally spaced across the range of a variable.
+  See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  ‘Decision Rules’ details.
+
+- n.thin:
+
+  Every `n.thin` draw is kept to be returned to the user. Useful for
+  “thinning” samples against serial correlation; see `n.samples` above
+  for how the two combine.
+
+- seed:
+
+  Optional integer specifying the desired pRNG
+  [seed](https://rdrr.io/r/base/Random.html). A
+  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
+  for reproducibility; supplying `seed` instead gives reproducible
+  results without touching R's stream. See
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  Reproducibility section.
+
+- warm.start:
+
+  A previous fit whose forests seed the initial state instead of drawing
+  trees from the prior: either a `bart` object fit with
+  `keepSampler = TRUE` or a
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+  The donor must share this fit's predictors, tree count, and DART
+  setting; a donor fit on a different cut grid is supported, its splits
+  remapped onto this fit's grid (collapsing any the grid starves), the
+  same way a data replacement remaps existing splits. Only its trees,
+  `sigma`, and `k` carry over, and each chain starts from a different
+  donor sample so multiple chains stay overdispersed. A warm start
+  biases early draws toward the donor, so it shortens burn-in rather
+  than removing it; keep a non-zero `n.burn`. Multi-forest samplers
+  refuse it: a fit whose forests carry amplitude bases (a
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+  term, or a data object built with `bases`) errors by name, naming its
+  forest count, because a donor install is not tested at more than one
+  forest; `n.grow.sweeps` is the initialization such a fit can take. See
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `installTrees` method for finer control.
+
+- n.grow.sweeps:
+
+  A non-negative integer; when positive, the initial forest is built by
+  `n.grow.sweeps` sweeps of XBART-style grow-from-root (He, Yalov and
+  Hahn 2019) instead of a draw from the prior, an init-then-refine
+  workflow that reaches a good fit in far fewer sweeps before the exact
+  sampler takes over. The default `0L` draws trees from the prior,
+  exactly as before. Like `warm.start`, a grow-from-root start biases
+  the early draws toward the grown fit, so it shortens burn-in rather
+  than removing it; keep a non-zero (if smaller) `n.burn`. The posterior
+  the sampler targets is unchanged - only the starting point moves.
+  Constant-leaf models only, and mutually exclusive with `warm.start`
+  (both request an initialization). Unlike `warm.start` it is available
+  on a multi-forest fit, each forest grown against its own residual
+  inside the sweep. See
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `growFromRoot` method.
+
+- samplerOnly:
+
+  Builds the sampler from its arguments and returns it without running
+  it. Useful to use the `bart` interface in more complicated models.
+
+**Output.**
+
+- keepTrainingFits:
+
+  If `TRUE` the draws of \\f(x)\\ for \\x\\ corresponding to the rows of
+  the training data are returned.
+
+- printEvery:
+
+  As the MCMC runs, a message is printed every `printEvery` draws.
+
+- printCutoffs:
+
+  The number of cutoff rules printed to screen before the MCMC is run.
+  Given a single integer, the same value is used for all variables. If
+  0, nothing is printed.
+
+- verbose:
+
+  Logical; if `FALSE` suppress printing.
+
+- keepTrees:
+
+  Logical; must be `TRUE` in order to use `predict` with the result of a
+  fit. Note that for models with a large number of observations or a
+  large number of trees, keeping the trees can be very memory intensive.
+
+- keepCall:
+
+  Logical; if `FALSE`, the returned object has `call` set to
+  `call("NULL")`, otherwise the call used to instantiate BART.
+
+- keepSampler:
+
+  Logical that can be used to save the underlying
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  object even if `keepTrees` is false.
+
+**Engine.**
 
 - storage:
 
@@ -938,6 +948,9 @@ print(x, ...)
   sampler carries that fit's model configuration and is refused by
   name - pass a fresh
   [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  For example, `control = dbartsControl(categoricalExhaustiveCap = 15)`
+  raises the grow-from-root exhaustive-enumeration cap while every other
+  engine setting, and every flat argument here, keeps its own default.
 
 - ...:
 
@@ -951,9 +964,12 @@ print(x, ...)
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
   retired name (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
   which now ride `family`; `dart` and `levelGibbs`, which now ride
-  `tree.prior`; `power`, `base`, `split.probs`, which ride `tree.prior`
-  too; `prior.scale`, which rides `node.prior`; `sigdf` and `sigquant`,
-  which ride `resid.prior`; `proposal.probs`, which rides `control`)
+  `tree.prior`, built with `dart()`/`cgm(levelGibbs = )`; `power`,
+  `base`, and `split.probs`, which ride `tree.prior` too, built with
+  `cgm()` or `dart()`; `prior.scale`, which rides `node.prior`, built
+  with `normal(scale = )`; `sigdf` and `sigquant`, which ride
+  `resid.prior`, built with `chisq(df, quant)`; `proposal.probs`, which
+  rides `control`, built with `dbartsControl(proposal.probs = )`)
   reaches a message naming its successor instead of R's own “unused
   argument” error, and any other name is refused. Removed in dbarts
   1.1-0.
@@ -1513,7 +1529,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001278
+#> total seconds in loop: 0.001556
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1561,7 +1577,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001507
+#> total seconds in loop: 0.001993
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

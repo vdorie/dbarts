@@ -324,7 +324,12 @@ dbartsControl(
   that rule's own full conditional over the available ordinal variables
   and their admissible cuts, so its acceptance is one; it defaults to
   zero, it acts only where the node's own rule is ordinal, and it is
-  inert on an all-categorical design.
+  inert on an all-categorical design. Unlike the four engine settings
+  above, this one is not fixed at creation:
+  [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  accepts a changed mixture between runs, installing it with the priors
+  exactly as at creation, and a refused install rolls the stored control
+  back.
 
 - seed:
 

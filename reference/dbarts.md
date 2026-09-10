@@ -183,9 +183,9 @@ dbarts(
   the number of columns assigns directions positionally, with `0` for
   unconstrained. Only numeric and ordered columns are eligible - a
   direction on a categorical (unordered factor) predictor is an error. A
-  constraint forces birth/death-only tree proposals (an explicit
-  non-default `proposal.probs` is then an error) and a fixed `k = 2` (an
-  explicit `k` hyperprior is an error); linear and Gaussian-process
+  constraint forces birth/death-only tree proposals (a `control` naming
+  a non-default `proposal.probs` is then an error) and a fixed `k = 2`
+  (an explicit `k` hyperprior is an error); linear and Gaussian-process
   leaves are not supported under the constraint. `NULL` (the default) or
   an all-zero vector fits the ordinary unconstrained model.
 
@@ -300,10 +300,10 @@ dbarts(
   declaration, replacing whatever bases it carried. Options a two-forest
   model does not read - `monotone`, `variance`, a DART tree prior,
   `split.probs`, a linear or Gaussian-process node prior, a `k`
-  hyperprior or non-default `k`, a non-default `proposal.probs`,
-  Student-t residuals, `storage = "single"`, per-column cut counts, and
-  a `test` set - are refused at creation rather than ignored, as is any
-  declaration the engine cannot honour.
+  hyperprior or non-default `k`, a `control` naming a non-default
+  `proposal.probs`, Student-t residuals, `storage = "single"`,
+  per-column cut counts, and a `test` set - are refused at creation
+  rather than ignored, as is any declaration the engine cannot honour.
 
 - control:
 
@@ -348,9 +348,10 @@ dbarts(
   spelling (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
   which now ride `family`; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md);
-  and `proposal.probs`, which now rides `control`) reach a message
-  naming its successor instead of R's own “unused argument” error. Any
-  other name is refused. Removed in dbarts 1.1-0.
+  and `proposal.probs`, which now rides `control`, built with
+  `dbartsControl(proposal.probs = )`) reach a message naming its
+  successor instead of R's own “unused argument” error. Any other name
+  is refused. Removed in dbarts 1.1-0.
 
 - sigma:
 
