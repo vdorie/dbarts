@@ -278,6 +278,19 @@ items
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
+front-door formals (decided, VD 2026-09-10; docs/decisions.md dec-B116)
+  pre-release, R plus one bridge read: bart sheds the seven scalars that
+  mirror prior-object slots (power, base, split.probs, prior.scale,
+  sigdf, sigquant) and proposal.probs, which becomes a dbartsControl
+  slot; k and sigest stay; the retired names ride the dots as
+  tombstones expiring at 1.1-0; bart and xbart gain control =
+  dbartsControl() (a supplied flat formal wins; a control carrying fit
+  state is refused); the manual groups bart's arguments. Follow-on,
+  may slip to 1.1-0 with its own tombstones: the residual prior rides
+  the family object (gaussian(sigma = chisq(3, 0.9))), retiring
+  resid.prior, sigdf's gating warning and the family-gating inventory.
+  Plan: docs/plans/front-door-formals.md.
+
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
   LANDED 2026-09-09: S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413)
   bart takes bart2's interface and defaults; bart2 becomes an alias for
