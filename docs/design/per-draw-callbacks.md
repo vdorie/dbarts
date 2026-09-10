@@ -52,10 +52,10 @@ the plan's Decision section.
 
 The memory audit priced a large fit and found the engine is not the problem.
 At its two reference cases ([Reference cases](memory-footprint.md#reference-cases))
-`yhat.train` and its packaging copy are 3200 MB of a 3907 MB peak (n = 1e5,
-p = 20, C = 4, S = 500) and 8000 MB of a 10960 MB peak (n = 1e6, p = 50,
+`yhat.train` and its packaging copy are 3200 MB of a 3891 MB peak (n = 1e5,
+p = 20, C = 4, S = 500) and 8000 MB of a 10560 MB peak (n = 1e6, p = 50,
 C = 1) - five sixths of the peak in the first case and three quarters in the
-second, against an engine share of 17 and 16 pct. Three copies were live
+second, against an engine share of 17 pct in both. Three copies were live
 before the audit's step 7; it removed ONE, measured at 1612.2 MB and
 4011.2 MB ("each drop is one whole prediction array to within a megabyte"),
 leaving the two priced above. The last packaging copy is its own TODO item;
@@ -400,30 +400,36 @@ through `R CMD SHLIB`, self-gating on the toolchain. Fork 6.
 
 ## 6. Memory consequence
 
-Case 1 (n = 1e5, p = 20, T = 200, C = 4, S = 500), gaussian single forest,
-against [Reference cases](memory-footprint.md#reference-cases):
+Case 1 (n = 1e5, p = 20, T = 200, C = 4, S = 500), gaussian single forest.
+Every `today` row below is a row of
+[Reference cases](memory-footprint.md#reference-cases) as it now stands, after
+the ingestion guard that note records took 8*n*p off the R-side predictor
+block - so its R row reads 33.0 MB here, not the 49.0 MB the pre-guard
+revision carried:
 
 | | today | callback, `keep.fits = FALSE` |
 | --- | --- | --- |
 | engine | 658.3 MB | 658.3 MB |
-| R, predictors and scalars | 49.0 MB | 49.0 MB |
+| R, predictors and scalars | 33.0 MB | 33.0 MB |
 | yhat.train, two copies | 3200.0 MB | 0 |
 | per-draw scratch, 8*n*L*C | 0 | 3.2 MB |
 | caller's accumulator, 8*n*C | 0 | 3.2 MB |
-| peak | 3907.3 MB | 713.7 MB |
+| peak | 3891.3 MB | 697.7 MB |
 
 Case 2 (n = 1e6, p = 50, C = 1) carries a much larger R-side predictor block
-(1208.1 MB): 8000.0 MB of `yhat.train` becomes 8.0 MB of scratch plus 8.0 MB
-of accumulator and the peak falls from 10960.3 MB to 2976.3 MB. The engine's
-share rises from 17 to 92 pct in case 1 and 16 to 59 pct in case 2, which is
+(808.1 MB): 8000.0 MB of `yhat.train` becomes 8.0 MB of scratch plus 8.0 MB
+of accumulator and the peak falls from 10560.3 MB to 2576.3 MB. The engine's
+share rises from 17 to 94 pct in case 1 and 17 to 68 pct in case 2, which is
 where the audit's remaining ranked items point.
 
-Two families the memory note carries no row for are worth more than this: a
-heteroscedastic fit adds an n*S*C variance channel and a BCF fit n*F*S*C
-forest fits, neither reachable by `keepTrainingFits` - the argument for
-`keep.fits` - and both owed a row in the memory note when this lands. The
-honest comparison is the manual's cheaper lever: `keepTrainingFits = FALSE`
-alone saves the same 3200 and 8000 MB for free, but DISCARDS the draws.
+Two families are worth more than this: a heteroscedastic fit adds an n*S*C
+variance channel and a BCF fit n*F*S*C forest fits, neither reachable by
+`keepTrainingFits` - the argument for `keep.fits` - and both now carry their
+formula-derived sizes under [Reference
+cases](memory-footprint.md#reference-cases), 1600.0 and 3200.0 MB at case 1's
+shape. The honest comparison is the manual's cheaper lever:
+`keepTrainingFits = FALSE` alone saves the same 3200 and 8000 MB for free, but
+DISCARDS the draws.
 
 ## 7. Threading interaction
 

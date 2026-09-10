@@ -337,9 +337,10 @@ docs/design/memory-footprint.md, benchmarks/):
     merely that it compiles.
 23. Manual: one sentence in the Memory section of
     [`dbarts-package`](../../man/dbarts-package.Rd) naming the callback
-    route beside `keepTrainingFits`, with the reference-case numbers (3907
-    MB to 714 MB at n = 1e5, p = 20, C = 4, S = 500; 10960 MB to 2976 MB at
-    n = 1e6, p = 50, C = 1); and the two rows
+    route beside `keepTrainingFits`, with the reference-case numbers (3891
+    MB to 698 MB at n = 1e5, p = 20, C = 4, S = 500; 10560 MB to 2576 MB at
+    n = 1e6, p = 50, C = 1, both re-derived from the post-ingestion-guard
+    rows); and the two rows
     [Reference cases](../design/memory-footprint.md#reference-cases) owes -
     the heteroscedastic variance channel and the BCF per-forest fits,
     neither reachable by `keepTrainingFits` today.
