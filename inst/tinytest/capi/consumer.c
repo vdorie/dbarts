@@ -779,9 +779,8 @@ SEXP capi_draw_report(void) {
 
 /* ------------------------------------------------------------------------
  * A plain-C copy of the running-mean recipe in
- * vignettes/dbarts-as-a-component.Rmd (docs/design/per-draw-callbacks.md
- * section 5), driven by test-callback-example.R against the SAME seeded
- * fit's yhat.train mean - proof the recipe is correct, not merely that it
+ * vignettes/dbarts-as-a-component.Rmd, driven by test-callback-example.R
+ * against the SAME seeded fit's yhat.train mean - proof the recipe is correct, not merely that it
  * compiles. One running mean per chain slice of a caller-owned accumulator:
  * chainIndex addresses a disjoint slice, so concurrent chains need no lock,
  * and drawIndex only ever counts up within a call, which is what makes the
@@ -808,7 +807,10 @@ static int capi_meanDraw(void* context, const dbarts_draw* draw)
   double* out;
   double m;
   size_t i;
+  /* numReportedLocations is train's column count: 1 on every model but a
+   * multi-location one, whose draw this reduction is not written for */
   if (draw->train == NULL || draw->numObservations != ctx->n ||
+      draw->numReportedLocations != 1 ||
       draw->chainIndex >= ctx->numChains) {
     ctx->status = 1;
     return 0;
@@ -844,9 +846,8 @@ SEXP capi_mean_status(void) {
   return Rf_ScalarInteger(capi_meanCtx.status);
 }
 
-/* the indirect call alone, with no body - benchmarks/R/bench-sampler.R's
- * callback scenarios use this to isolate the call's own cost from whatever
- * the callback above goes on to do */
+/* the indirect call alone, with no body - the callback benchmark uses this
+ * to isolate the call's own cost from whatever the callback above does */
 static int capi_noopDraw(void* context, const dbarts_draw* draw) {
   (void) context;
   (void) draw;
