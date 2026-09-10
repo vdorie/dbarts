@@ -1,11 +1,14 @@
 # Per-draw callbacks
 
-Status: PLANNED, docs/plans/per-draw-callbacks.md. Proposed 2026-09-10 and
-revised the same day after an independent verification against the code found
-sixteen defects in the first draft; the core proposal stands and the specifics
-below replace it. All nine forks of section 9 are settled - see Decision below
-and dec-B114 in [docs/decisions.md](../decisions.md). Anchor: bartcore
-09a9c2a5.
+Status: LANDED 2026-09-11 (S1 711942ad, S2 e4063140, S3 db3bd084, S4
+4cf56b69, S5 1e24bd55), docs/plans/per-draw-callbacks.md. Proposed 2026-09-10
+and revised the same day after an independent verification against the code
+found sixteen defects in the first draft; the core proposal stands and the
+specifics below replace it. All nine forks of section 9 are settled - see
+Decision below and dec-B114 in [docs/decisions.md](../decisions.md). Section
+7's per-draw cost is UNMEASURED: the bench-sampler.R scenario landed with S4
+but its numbers await a maintainer run on a quiet machine ("measured at
+landing:" placeholder, section 7). Anchor: bartcore 4cf56b69.
 
 ## Decision
 
@@ -25,7 +28,7 @@ the plan's Decision section.
   variable counts and scalar channels are always kept; `keepTrees` stays the
   recompute path. This mirrors stan4bart's `keep_fits` ("Intended to be used
   with callback"). VD: "Sounds good." The spelling supersedes section 4's
-  `keep.fits`.
+  `keepFits`.
 - Fork 2 (registration): VD: "Ship the header entry and its two types now."
   The flat C header gains the setter entry and the two types, one ABI hash
   re-bake, dec-B86 argued as section 3 argues it.
@@ -283,7 +286,7 @@ carry it: the test channel is gated only on `numTestObservations > 0` (see
 [`forestFitsExpr`](../../src/R_interface_bartcore.cpp) are gated only on the
 model carrying them. Those are n*S*C and n*F*S*C - as large as `yhat.train`
 or F times larger - so a train-only opt-out fails where the arrays are
-biggest. Proposal: one new logical `keep.fits`, FALSE when `callback` is
+biggest. Proposal: one new logical `keepFits`, FALSE when `callback` is
 supplied and TRUE otherwise, over every PER-OBSERVATION channel (train, test,
 variance train and test, forest fits); scalars and `varcount` are kilobytes
 and stay, and `keepTrainingFits` remains the legacy spelling for the train
@@ -407,7 +410,7 @@ the ingestion guard that note records took 8*n*p off the R-side predictor
 block - so its R row reads 33.0 MB here, not the 49.0 MB the pre-guard
 revision carried:
 
-| | today | callback, `keep.fits = FALSE` |
+| | today | callback, `keepFits = FALSE` |
 | --- | --- | --- |
 | engine | 658.3 MB | 658.3 MB |
 | R, predictors and scalars | 33.0 MB | 33.0 MB |
@@ -424,7 +427,7 @@ where the audit's remaining ranked items point.
 
 Two families are worth more than this: a heteroscedastic fit adds an n*S*C
 variance channel and a BCF fit n*F*S*C forest fits, neither reachable by
-`keepTrainingFits` - the argument for `keep.fits` - and both now carry their
+`keepTrainingFits` - the argument for `keepFits` - and both now carry their
 formula-derived sizes under [Reference
 cases](memory-footprint.md#reference-cases), 1600.0 and 3200.0 MB at case 1's
 shape. The honest comparison is the manual's cheaper lever:
@@ -462,7 +465,7 @@ Minimum shippable surface, pre-release (VD raised the priority, 2026-09-10):
    `dbarts_sampler_setDrawCallback` in `dbarts.h`, one hash re-bake, and the
    bridge's per-run function-pointer argument.
 3. R: the `callback` argument on `bart()`, `dbarts()` and
-   [`dbartsSampler$run`](../../man/dbartsSampler-class.Rd); `keep.fits` and
+   [`dbartsSampler$run`](../../man/dbartsSampler-class.Rd); `keepFits` and
    its C-draw buffers; `runWithBurnIn` installing the callback on the kept
    run only; the crash, interrupt and lost-fitted-value warnings in the Rd.
 4. The example, a seventh recipe in `vignettes/dbarts-as-a-component.Rmd`.
@@ -529,7 +532,7 @@ behind each ruling, and Decision above records the rulings themselves.
    serialized workers, plus `R_UnwindProtect` and a second error contract, to
    serve a user `$run(0, 1)` in a loop already serves. Reopen it if the
    crash-on-mistake cost of the C route is what users hit.
-4. **`keep.fits`, or reuse `keepTrainingFits`?** Recommend the new logical
+4. **`keepFits`, or reuse `keepTrainingFits`?** Recommend the new logical
    over every per-observation channel. Cost: one more control frozen at 1.0,
    and a default that silently drops `yhat.test`, which nothing drops today.
    Alternative, reuse `keepTrainingFits`: simpler, surprising nobody, and
