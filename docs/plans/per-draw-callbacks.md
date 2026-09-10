@@ -270,7 +270,8 @@ tests/cpp/Makefile, tests/cpp/main.cpp and tests/cpp/common.hpp):
     counter and a status field readable from R.
 
 S3, the R surface (R/A_class.R, R/dbarts.R, R/bart.R, R/generics.R,
-R/plot.R, man/, inst/NEWS.Rd, inst/tinytest):
+R/plot.R, man/, inst/NEWS.Rd, inst/tinytest; landed also touching
+R/bartcore.R and inst/tinytest/test-argument-surface.R):
 
 13. `callback` on `bart()`, `dbarts()` and the sampler's `run` method: a
     list of two external pointers, `fn` and `context`. Check that both are
@@ -544,6 +545,71 @@ S3's tests.
 Remaining: S3 through S5 (the R surface wiring `callback` and the
 control slot, the vignette example and manual, the stan4bart record)
 are open, per the plan's Steps.
+
+## Landing note, S3 (2026-09-11)
+
+LANDED at db3bd084db42141e986c961fc30884400c3983e1, three commits:
+
+- 93b8bf36bd60496c80b764309615ce1b04ccdef1 Wire callback and keepFits
+  through the R surface (bart, dbarts, sampler run)
+- e98cd22472c911724b39b78a63f2439bbfe0ca7d Name keepFits when a dropped
+  per-forest channel is asked for
+- db3bd084db42141e986c961fc30884400c3983e1 Say what numObservations
+  counts on a hazard sampler's callback
+
+`callback` - two external pointers, `fn`/`context`, validated by
+[`validateCallback`](../../R/bartcore.R) and passed to `bartcore_run`
+per run - lands on `bart()`, `dbarts()` and the sampler's `run` method,
+not `bartBT`. `dbarts()` validates but never persists its `callback`
+(it never runs the sampler; a later bare `$run()` must pass one again,
+`dbarts.Rd`) - the reviewer confirmed step 13 implies exactly this.
+[`dbartsControl`](../../R/A_class.R) gains `keepFits` (validity check
+beside `keepTrainingFits`), automatic default `keepFits =
+is.null(callback)` resolved through `bart()`'s shared-formal path so an
+explicit `TRUE` wins. `checkFamilyUnsupportedArgs` refuses an automatic
+or explicit `keepFits = FALSE` for multinomial, ordinal, nbinom and
+hurdle.lognormal, naming `keepFits` and `callback`; `runWithBurnIn`
+installs the callback on the kept-sample run only.
+
+`packageBartResults` omits the channels `keepFits = FALSE` drops and
+their means; `plot`, `extract`, `fitted`, `residuals`, `predict` name
+the absent channel and dropping argument rather than fail on a bare
+NULL. A new `hasVariance` marker survives `keepFits = FALSE` where
+`s.train` does not - a latent defect the implementer found: without it
+a heteroscedastic fit run with `keepFits = FALSE` and no saved trees
+silently skipped `s(x)` in `predict(type = "ppd")` instead of refusing.
+e98cd224: an amplitude-coupled fit that way kept `n.forests` but not
+`forestFits`, so `extract(type = "forest")`/`predict` fell to the
+engine's basis error, naming neither; `refuseDroppedForestChannel` now
+names both. db3bd084 adds the hazard row-counting note
+(`numObservations` counts person-period rows, not subjects) to the
+sampler class Rd's callback item, matching `bart.Rd`/`dbartsControl.Rd`.
+
+Rd on `bart.Rd`, `dbartsControl.Rd`, `dbartsSampler-class.Rd`: the
+three warnings (crash on a bad callback, no mid-call interrupt, the
+automatic default drops the fitted values) and the hazard note; one
+NEWS entry for the arc. Tests: `test-callback.R` (new), `test-capi.R`
+(extended: exactly `n.samples` calls at `bart()` defaults, per-chain
+counts under `n.threads = 2`, a stop run), `test-argument-surface.R`
+(the two new formals).
+
+Files beyond the plan's S3 list: R/bartcore.R (`validateCallback`),
+inst/tinytest/test-argument-surface.R (formal-parity contract). 605
+added / 35 removed against a budget of about 250; the reviewer judged
+it load-bearing (validation, the latent-defect fix, the per-family
+refusal tests, the arc's only NEWS entry) and cut four redundant
+assertions.
+
+Gates, the reviewer's run: preclean install exit 0; tinytest 8349
+TRUE, 0 FALSE, 166 files, 0 skips, `test-capi.R` 154 and
+`test-callback.R` 40 ran; equivalence 52/52, 12/12, 11/11 identical
+draws, zero max |z|, zero skipped; no file under src/, inst/include or
+tests/cpp touched; doc-freshness, rc-codoc, air, lintr clean; `R CMD
+check --as-cran` OK. Mutation: installing the callback on the burn-in
+run too fails six test-capi assertions (call counts 500 to 1000).
+
+Remaining: S4 (the vignette example, its test and the manual) is open,
+per the plan's Steps.
 
 ## Landing note, S5 (2026-09-11)
 
