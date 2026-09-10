@@ -2344,6 +2344,139 @@ static void testRuleGibbsMove() {
          static_cast<int>(states.size()), worstIdentity, chiSquare, numSteps);
 }
 
+// Cross-implementation oracle for the revalidation path's in-place dense root
+// (Tree::repartitionSubtree): after a predictor update, the leaf MEMBERSHIP
+// the in-place root produces must equal the membership the identity rewrite
+// produces from the same pre-update state, and the leaf sufficient statistics
+// must agree to summation reassociation. Both run on COPIES of the live trees,
+// so the sampler's state is neither read stale nor disturbed: copy A carries
+// the live post-update span (the in-place answer setPredictor just wrote),
+// copy B is re-seeded with the pre-update span and re-routed with its root
+// forced back onto the sampling-time kernel. Every tree of every forest.
+static void testRepartitionRootAgreesWithRewrite(ext_rng*) {
+  // own fixture rng and own sampler rng: whether the update below is accepted
+  // must not depend on which suites ran first
+  std::uint64_t savedRngState = rngState;
+  rngState = 0x243F6A8885A308D3ull;
+  const size_t n = 500;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  // a genuine predictor change: every value nudged, so codes move and the
+  // re-route has work to do
+  std::vector<double> xNew(x);
+  for (double& v : xNew) v = 0.99 * v + 0.01 * runif01();
+  rngState = savedRngState;
+
+  ext_rng* fixtureRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(fixtureRng, 314159);
+  SamplerOptions options;
+  options.numTrees = 25;
+  ConstantLeafSampler sampler(
+    x.data(), y.data(), n, size_t(2), nullptr, nullptr,
+    ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+    &fixtureRng);
+  Results empty;
+  sampler.run(100, 0, empty);
+  const auto& chain(sampler.chain(0));
+
+  // the pre-update spans, one per tree of every forest
+  std::vector<std::vector<index_t>> before;
+  for (size_t f = 0; f < chain.numForests(); ++f)
+    for (size_t t = 0; t < chain.numTreesInForest(f); ++t)
+      before.emplace_back(chain.treeInForest(f, t).indices,
+                          chain.treeInForest(f, t).indices + n);
+
+  std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
+  check(sampler.setPredictor(xNew.data(), false, false) ==
+          PredictorUpdateResult::accepted,
+        "repartition oracle: setPredictor accepted");
+  check(storageDigest(sampler.data()) != codesBefore,
+        "repartition oracle: the update moved codes");
+
+  // a residual and a weight vector spanning decades, so a reassociated sum is
+  // not accidentally exact
+  std::vector<double> resid(n), weights(n);
+  for (size_t i = 0; i < n; ++i) {
+    resid[i] = (i % 7 == 0 ? -1.0 : 1.0) * std::exp(-6.0 + 0.04 * double(i));
+    weights[i] = 0.05 + 4.0 * double((i * 37) % 101) / 101.0;
+  }
+
+  const ColumnStore& data(sampler.data());
+  std::vector<index_t> bufferA(n), bufferB(n), memberA, memberB;
+  std::vector<int32_t> bottoms;
+  size_t numLeaves = 0, numReordered = 0, numRangeMismatches = 0,
+         numSetMismatches = 0, k = 0;
+  double worstResponseGap = 0.0, worstWeightGap = 0.0;
+  for (size_t f = 0; f < chain.numForests(); ++f)
+    for (size_t t = 0; t < chain.numTreesInForest(f); ++t, ++k) {
+      const Tree& live(chain.treeInForest(f, t));
+      Tree inPlace(live);  // the live, in-place answer
+      std::copy(live.indices, live.indices + n, bufferA.begin());
+      inPlace.indices = bufferA.data();
+
+      Tree rewrite(live);  // same structure, same rules, pre-update span
+      std::copy(before[k].begin(), before[k].end(), bufferB.begin());
+      rewrite.indices = bufferB.data();
+      if (!rewrite.at(0).isBottom()) {
+        rewrite.partitionChildren(data, 0, false);  // the sampling-time root
+        rewrite.repartitionSubtree(data, rewrite.at(0).leftChild);
+        rewrite.repartitionSubtree(data, rewrite.at(0).leftChild + 1);
+      }
+
+      bottoms.clear();
+      inPlace.fillBottom(0, bottoms);
+      for (int32_t b : bottoms) {
+        const Node& a(inPlace.at(b));
+        const Node& r(rewrite.at(b));
+        ++numLeaves;
+        if (a.begin != r.begin || a.end != r.end) {
+          ++numRangeMismatches;
+          continue;
+        }
+        memberA.assign(bufferA.begin() + a.begin, bufferA.begin() + a.end);
+        memberB.assign(bufferB.begin() + r.begin, bufferB.begin() + r.end);
+        if (memberA != memberB) ++numReordered;
+        std::sort(memberA.begin(), memberA.end());
+        std::sort(memberB.begin(), memberB.end());
+        if (memberA != memberB) {
+          ++numSetMismatches;
+          continue;
+        }
+        inPlace.computeLeafStats(b, resid.data(), weights.data());
+        rewrite.computeLeafStats(b, resid.data(), weights.data());
+        double scale = std::abs(r.sumWeightedResponse);
+        worstResponseGap =
+          std::max(worstResponseGap,
+                   std::abs(a.sumWeightedResponse - r.sumWeightedResponse) /
+                     (scale > 0.0 ? scale : 1.0));
+        worstWeightGap =
+          std::max(worstWeightGap, std::abs(a.sumWeights - r.sumWeights) /
+                                     (r.sumWeights > 0.0 ? r.sumWeights : 1.0));
+      }
+    }
+  check(numLeaves > 0, "repartition oracle: the fixture has leaves");
+  check(numRangeMismatches == 0,
+        "repartition oracle: in-place and rewritten leaves span equal ranges");
+  check(numSetMismatches == 0,
+        "repartition oracle: in-place and rewritten leaves hold equal member "
+        "sets");
+  // non-vacuity: the two roots must actually order members differently, or
+  // the comparison above is between identical arrays
+  check(numReordered > 0,
+        "repartition oracle: the in-place root reorders at least one leaf");
+  // tolerance: the same members summed in two orders. One reassociation of at
+  // most 500 terms spanning e-6 to e+8 stays far inside this relative bound.
+  check(worstResponseGap < 1e-12 && worstWeightGap < 1e-12,
+        "repartition oracle: leaf sufficient statistics agree to summation "
+        "reassociation");
+
+  ext_rng_destroy(fixtureRng);
+  printf("ok: repartition root oracle (%d leaves, %d reordered, worst "
+         "relative gap %.2e sum wz, %.2e sum w)\n",
+         static_cast<int>(numLeaves), static_cast<int>(numReordered),
+         worstResponseGap, worstWeightGap);
+}
+
 void runMovesTests(ext_rng* rng) {
   testDartUpdate(rng);
   testLeafOfConsistency(rng);
@@ -2351,6 +2484,7 @@ void runMovesTests(ext_rng* rng) {
   testDartSparsityRecovery(rng);
   testSetPredictorTransaction(rng);
   testSetPredictorForced(rng);
+  testRepartitionRootAgreesWithRewrite(rng);
   testDegenerateReCutRoundTrips(rng);
   testCategoricalMissingRoundTrips(rng);
   testUpdatePredictorColumns(rng);

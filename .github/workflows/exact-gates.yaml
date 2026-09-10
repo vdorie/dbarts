@@ -185,7 +185,7 @@ jobs:
           fail=0
           echo "::group::bcf-equivalence --cross-host"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-f0236082.rds --cross-host; then
+            benchmarks/baselines/bcf-equivalence-80b1c8d4.rds --cross-host; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::cross-host gate bcf-equivalence FAILED"
@@ -194,7 +194,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::multinomial-equivalence --cross-host"
           if Rscript benchmarks/R/multinomial-equivalence.R compare \
-            benchmarks/baselines/multinomial-equivalence-f0236082.rds \
+            benchmarks/baselines/multinomial-equivalence-80b1c8d4.rds \
             --cross-host; then
             echo "PASS multinomial-equivalence"
           else
