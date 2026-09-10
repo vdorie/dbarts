@@ -233,14 +233,14 @@ inline bool levelCodeIsRepresentable(std::int32_t code) {
 }
 
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
-/// storage; denser ones densify their codes. It buys predictor memory with gather time, and both halves are real at
-/// 0.2: at n = 1e5 over 100 columns the rank decode costs 38 percent of a
-/// sweep (13.3 msec just below the threshold against 9.6 just above, the
-/// dense side flat in density), and the sparse store holds 3.5x less than the
-/// dense one there. Raising it trades more time for less memory and lowering
-/// it the reverse, and the right price depends on the workload rather than on
-/// anything the engine can measure for itself. Read at BUILD, so it fixes a
-/// column's layout for the store's life.
+/// storage; denser ones densify their codes. It buys predictor memory with
+/// gather time, and both halves are real at 0.2: at n = 1e5 over 100 columns
+/// the rank decode costs 38 percent of a sweep (13.3 msec just below the
+/// threshold against 9.6 just above, the dense side flat in density), and the
+/// sparse store holds 3.5x less than the dense one there. Raising it trades
+/// more time for less memory and lowering it the reverse, and the right price
+/// depends on the workload rather than on anything the engine can measure for
+/// itself. Read at BUILD, so it fixes a column's layout for the store's life.
 constexpr double sparseDensityThreshold = 0.2;
 
 /// Rank-bitmap hot storage of a sparse ordinal column: code(i) is zeroCode
@@ -1857,9 +1857,9 @@ struct ColumnStore {
   /// rebuilt). Column j reads dense column sourceOf(j) of the view - in
   /// whichever value channel holds it, so a host whose factor columns are
   /// int32 level codes hands them over as integers - or CSC column ~sourceOf(j)
-  /// of the triple otherwise, which takes rank-bitmap storage at or below
-  /// store's sparseDensityCutoff nonzero fraction and densified codes above, the
-  /// training tier rule per column. An unmapped view is the plain test matrix,
+  /// of the triple otherwise, which takes rank-bitmap storage at or below the
+  /// store's sparseDensityCutoff nonzero fraction and densified codes above,
+  /// the training tier rule per column. An unmapped view is the plain test matrix,
   /// dense column for dense column. source.referenceCodes gives each
   /// CSC-backed categorical test column its reference level code (the code the
   /// implicit rows take).
