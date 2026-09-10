@@ -91,9 +91,7 @@ summary(fit)
 #> Call:
 #> bart(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
-#>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
-#>     proposal.probs = c(birth_death = 0.6, swap = 0, change = 0.4, 
-#>     perturb = 0, rule_gibbs = 0, birth = 0.5))
+#>     n.threads = 1L, verbose = FALSE, factors = "categorical")
 #> 
 #>   variable      mean    median        sd        mad       q5      q95     rhat
 #> 1    sigma 0.9767962 0.9624961 0.0614717 0.05889664 0.894719 1.084578 1.104571

@@ -24,9 +24,7 @@ one of them to `bartBT`'s own `family` is refused, pointing back here.
 ``` r
 bart(
     formula, data, test, subset, weights, offset, offset.test = offset,
-    sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = NULL, prior.scale = NA_real_,
-    power = 2.0, base = 0.95, split.probs = NULL,
+    sigest = NA_real_, k = NULL,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -37,9 +35,6 @@ bart(
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
-    proposal.probs = c(
-        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
-        rule_gibbs = 0, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -54,7 +49,8 @@ bart(
     na.action = dbarts::na.keepPredictors,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
-    keepFits = is.null(callback), callback = NULL, ...)
+    keepFits = is.null(callback), callback = NULL,
+    control = dbarts::dbartsControl(), ...)
 
 # S3 method for class 'bartMultinomial'
 extract(
@@ -305,21 +301,6 @@ print(x, ...)
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
   it `sigest` too.
 
-- sigdf:
-
-  Degrees of freedom for error variance prior. Not applicable when \\y\\
-  is binary. Default 3, Chipman, George, and McCulloch's calibration
-  (see References); an aggressive choice rather than a derived one.
-
-- sigquant:
-
-  The quantile of the error variance prior that the rough estimate
-  (`sigest`) is placed at. The closer the quantile is to 1, the more
-  aggressive the fit will be as you are putting more prior weight on
-  error standard deviations (\\\sigma\\) less than the rough estimate.
-  Not applicable when \\y\\ is binary. Default 0.90, from the same
-  source as `sigdf`.
-
 - k:
 
   For numeric \\y\\, `k` is the number of prior standard deviations
@@ -339,46 +320,6 @@ print(x, ...)
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
   item, and the ‘End-node prior parameter `k`’ details there, for the
   full calibration argument and its outlier-sensitivity caveat.
-
-- prior.scale:
-
-  Names the leaf calibration in response units instead of inheriting it
-  from the range of the response: the prior standard deviation of the
-  forest total \\f\\ at `k = 1`, so the prior standard deviation in
-  force is `prior.scale / k` and the prior mean is the response
-  transform's shift. `NA` (the default) leaves the family's own
-  calibration in place and nothing changes. Useful when the fit is one
-  block of a larger sampler and the response it is handed varies in
-  scale between sweeps. For the leaf-model qualifications on what the
-  named quantity bounds, and for the `sd` spelling and its refusal under
-  a sampled `k`, see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  Details and
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
-
-- power:
-
-  Power parameter for tree prior. Default 2, Chipman, George, and
-  McCulloch's empirical recommendation (see References) for the
-  split-probability decay \\base (1 + depth)^{-power}\\, not derived
-  from a formula.
-
-- base:
-
-  Base parameter for tree prior. Default 0.95, from the same source as
-  `power`.
-
-- split.probs:
-
-  Prior and transition probabilities of variables used to generate
-  splits. `NULL` (the default) requests equiprobability; can also be a
-  numeric vector of length equal to the number of variables, or a named
-  numeric vector with only a subset of the variables specified and a
-  `.default` named value. Values given for factor variables are
-  replicated for each resulting column in the generated model matrix.
-  The symbol `num.vars` is rebound before execution to the number of
-  columns in the model matrix. Collides with a supplied `tree.prior`
-  (see below).
 
 - n.trees:
 
@@ -501,38 +442,6 @@ print(x, ...)
   results without touching R's stream. See
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   Reproducibility section.
-
-- proposal.probs:
-
-  Named numeric vector, optionally specifying the proposal rules and
-  their probabilities. Elements should be `"birth_death"`, `"swap"`,
-  `"change"`, `"perturb"` and `"rule_gibbs"` to control tree structure
-  proposals, and `"birth"` to give the relative frequency of birth/death
-  in the `"birth_death"` step. The default is the named vector
-  `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`,
-  identical to
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
-  default. All four structural probabilities zero is the frozen mixture:
-  no structural proposal is made, the tree structures stand where they
-  are, and only the leaf values, `sigma` and the family's latents keep
-  being drawn, which is how a fitted forest is re-sampled as a fixed
-  basis. Under
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-  default `levelGibbs = NA` a frozen forest additionally takes the
-  level-shifting Gibbs step each iteration, the leaf values then being
-  the only thing left to move. A `"swap"` element exchanges a parent's
-  split rule with a child's; it defaults to zero because at production
-  forest sizes it measures as a no-op, but with `n.trees = 1` it is the
-  only move that rotates a rule up the tree, so single-tree fits should
-  set it positive (0.1 was the historical default). A `"perturb"`
-  element displaces one node's split point by a single cut position
-  while keeping its variable and the tree's shape; it defaults to zero,
-  and only ordinal (numeric) columns can be perturbed. A `"rule_gibbs"`
-  element replaces one nog node's rule - a node whose two children are
-  both leaves - with a draw from that rule's own full conditional over
-  the available ordinal variables and their admissible cuts, so its
-  acceptance is one; it defaults to zero, it acts only where the node's
-  own rule is ordinal, and it is inert on an all-categorical design.
 
 - monotone:
 
@@ -1011,6 +920,25 @@ print(x, ...)
   carried across to the callback. `bartBT` (the 0.9-34 legacy door) does
   not take this argument.
 
+- control:
+
+  A
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  object carrying the sampler and engine settings, including the ones
+  `bart` spells no flat name for: `categoricalExhaustiveCap`,
+  `testFitParallelCutoff`, `predictParallelCutoff`,
+  `sparseDensityThreshold`, `levelGibbs`, and the tree-move mixture
+  `proposal.probs`. Precedence, one rule: a flat argument named in the
+  call wins over the control's slot of the same name, and a slot the
+  control speaks for - one its own
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  call named, or one edited afterwards to differ from a fresh
+  control's - wins over this function's default, while a slot it never
+  spoke for leaves that default standing. A control taken from a fitted
+  sampler carries that fit's model configuration and is refused by
+  name - pass a fresh
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+
 - ...:
 
   Present on the
@@ -1023,9 +951,12 @@ print(x, ...)
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
   retired name (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
   which now ride `family`; `dart` and `levelGibbs`, which now ride
-  `tree.prior`) reaches a message naming its successor instead of R's
-  own “unused argument” error, and any other name is refused. Removed in
-  dbarts 1.1-0.
+  `tree.prior`; `power`, `base`, `split.probs`, which ride `tree.prior`
+  too; `prior.scale`, which rides `node.prior`; `sigdf` and `sigquant`,
+  which ride `resid.prior`; `proposal.probs`, which rides `control`)
+  reaches a message naming its successor instead of R's own “unused
+  argument” error, and any other name is refused. Removed in dbarts
+  1.1-0.
 
 - object:
 
@@ -1582,7 +1513,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001672
+#> total seconds in loop: 0.001278
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1630,7 +1561,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002039
+#> total seconds in loop: 0.001507
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

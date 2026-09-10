@@ -21,7 +21,8 @@ xbart(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
-    storage = c("double", "single"), tree.prior = NULL, ...)
+    storage = c("double", "single"), tree.prior = NULL,
+    control = dbarts::dbartsControl(), ...)
 ```
 
 ## Arguments
@@ -32,6 +33,29 @@ xbart(
   spelling reach a message naming its successor, instead of R's own
   “unused argument” error. Any other name is refused. Removed in dbarts
   1.1-0.
+
+- control:
+
+  A
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  object carrying the sampler and engine settings, including the ones
+  `xbart` spells no flat name for: `categoricalExhaustiveCap`,
+  `testFitParallelCutoff`, `predictParallelCutoff`,
+  `sparseDensityThreshold`, `levelGibbs`, and the tree-move mixture
+  `proposal.probs`. Precedence, one rule: a flat argument named in the
+  call wins over the control's slot of the same name, and a slot the
+  control speaks for - one its own
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  call named, or one edited afterwards to differ from a fresh
+  control's - wins over this function's default, while a slot it never
+  spoke for leaves that default standing. The fields a sweep forces -
+  `n.chains`, the control's own `n.threads`, `keepTrees`,
+  `keepTrainingFits`, `updateState`, `verbose` - are applied after both,
+  and `n.burn` and `n.threads` here are the sweep's own grid axis and
+  worker count rather than the control fields of the same name. A
+  control taken from a fitted sampler carries that fit's model
+  configuration and is refused by name - pass a fresh
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
 
 - formula:
 
