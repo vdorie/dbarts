@@ -843,3 +843,16 @@ SEXP capi_mean_context_new(SEXP accExpr, SEXP nExpr, SEXP numChainsExpr) {
 SEXP capi_mean_status(void) {
   return Rf_ScalarInteger(capi_meanCtx.status);
 }
+
+/* the indirect call alone, with no body - benchmarks/R/bench-sampler.R's
+ * callback scenarios use this to isolate the call's own cost from whatever
+ * the callback above goes on to do */
+static int capi_noopDraw(void* context, const dbarts_draw* draw) {
+  (void) context;
+  (void) draw;
+  return 0;
+}
+
+SEXP capi_noop_function(void) {
+  return R_MakeExternalPtrFn((DL_FUNC) capi_noopDraw, R_NilValue, R_NilValue);
+}

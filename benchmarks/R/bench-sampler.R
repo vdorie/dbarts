@@ -32,6 +32,9 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 big.grid <- "biggrid" %in% args || identical(Sys.getenv("BENCH_BIGGRID"), "1")
 args <- setdiff(args, "biggrid")
+callback.bench <-
+  "callback" %in% args || identical(Sys.getenv("BENCH_CALLBACK"), "1")
+args <- setdiff(args, "callback")
 mode <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
@@ -227,8 +230,136 @@ runBigGrid <- function(quick) {
   rows
 }
 
-results <- if (big.grid) runBigGrid(quick) else runBenchmarks(quick)
-default.file <- if (big.grid) "sampler-biggrid.csv" else "sampler-baseline.csv"
+# The per-draw callback's own cost
+# (docs/design/per-draw-callbacks.md#7-threading-interaction): an indirect
+# call plus whatever the callback does, once per saved draw. Three variants
+# per shape isolate that cost from the sweep it rides on - none (today's
+# baseline path), a no-op C callback (the indirect call alone), and the
+# vignette's running-mean recipe (inst/tinytest/capi/consumer.c's
+# capi_mean_function, the SAME compiled copy test-callback-example.R checks
+# against yhat.train.mean, so the timed callback is the documented one and
+# not a stand-in) - at the memory note's two reference shapes
+# (docs/design/memory-footprint.md#reference-cases), n = 1e5/p = 20 and
+# n = 1e6/p = 50, T = 200 both. keepFits stays at newSampler's default TRUE
+# throughout, so only the callback itself varies between the three timings.
+# Opt-in like the big grid, own file, leaves the grids above untouched:
+# Rscript bench-sampler.R callback [record|compare ...] (or
+# BENCH_CALLBACK=1).
+runCallbackScenarios <- function(quick) {
+  reps <- if (quick) 1L else 7L
+  n.samps <- if (quick) 50L else 500L
+
+  consumerSource <-
+    system.file("tinytest", "capi", "consumer.c", package = "dbarts")
+  if (consumerSource == "") {
+    stop("consumer source (inst/tinytest/capi/consumer.c) not installed")
+  }
+  includeDir <- system.file("include", package = "dbarts")
+  buildDir <- tempfile("bench-callback")
+  dir.create(buildDir)
+  file.copy(consumerSource, file.path(buildDir, "consumer.c"))
+  writeLines(
+    sprintf('PKG_CPPFLAGS = -I"%s"', includeDir),
+    file.path(buildDir, "Makevars")
+  )
+  owd <- setwd(buildDir)
+  system2(
+    file.path(R.home("bin"), "R"),
+    c("CMD", "SHLIB", "consumer.c"),
+    stdout = FALSE,
+    stderr = FALSE
+  )
+  setwd(owd)
+  dll <- dyn.load(file.path(buildDir, paste0("consumer", .Platform$dynlib.ext)))
+  CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
+
+  noopFn <- CALL("capi_noop_function")
+  meanFn <- CALL("capi_mean_function")
+
+  shapes <- list(
+    list(name = "n1e5-p20", n = if (quick) 1e4 else 1e5, p = 20L),
+    list(name = "n1e6-p50", n = if (quick) 1e4 else 1e6, p = 50L)
+  )
+
+  rows <- data.frame()
+  addRow <- function(scenario, metric, value) {
+    rows <<- rbind(
+      rows,
+      data.frame(scenario = scenario, metric = metric, value = value)
+    )
+  }
+
+  for (shape in shapes) {
+    set.seed(4005L)
+    data <- genFriedman(shape$n, shape$p)
+    sampler <- newSampler(data$x, data$y, 200L)
+    invisible(sampler$run(200L, 1L))
+
+    elapsed <- timeMedian(function() invisible(sampler$run(0L, n.samps)), reps)
+    addRow(
+      paste0("callback-none-", shape$name),
+      "ms_per_iteration",
+      1000 * elapsed / n.samps
+    )
+
+    elapsed <- timeMedian(
+      function() {
+        invisible(sampler$run(
+          0L,
+          n.samps,
+          callback = list(fn = noopFn, context = NULL)
+        ))
+      },
+      reps
+    )
+    addRow(
+      paste0("callback-noop-", shape$name),
+      "ms_per_iteration",
+      1000 * elapsed / n.samps
+    )
+
+    # a per-shape context, rebuilt each time: drawIndex restarts at 0 on
+    # every $run call, so a context is per run
+    acc <- numeric(shape$n)
+    ctx <- CALL("capi_mean_context_new", acc, shape$n, 1L)
+    elapsed <- timeMedian(
+      function() {
+        invisible(sampler$run(
+          0L,
+          n.samps,
+          callback = list(fn = meanFn, context = ctx)
+        ))
+      },
+      reps
+    )
+    addRow(
+      paste0("callback-mean-", shape$name),
+      "ms_per_iteration",
+      1000 * elapsed / n.samps
+    )
+  }
+
+  rows$value <- round(rows$value, 4L)
+  rows$rev <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
+  rows$date <- format(Sys.Date())
+  rows$quick <- quick
+  rows
+}
+
+results <- if (big.grid) {
+  runBigGrid(quick)
+} else if (callback.bench) {
+  runCallbackScenarios(quick)
+} else {
+  runBenchmarks(quick)
+}
+default.file <- if (big.grid) {
+  "sampler-biggrid.csv"
+} else if (callback.bench) {
+  "sampler-callback.csv"
+} else {
+  "sampler-baseline.csv"
+}
 print.cols <- if (big.grid) {
   c("n", "m", "scenario", "value")
 } else {

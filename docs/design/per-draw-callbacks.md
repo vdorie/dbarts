@@ -433,8 +433,12 @@ per saved draw. A sweep at n = 1000, p = 10, T = 75 measures 0.174 ms
 touches 8 KB, so at that size it is a fraction of a percent. How it SCALES is
 not asserted: the sweep is cache-resident at small n while the callback is an
 O(n) streaming pass over 8 MB per draw at n = 1e6, so the ratio could move
-either way. The slice owes a bench-sampler scenario with a no-op callback and
-one with the example's, at both reference shapes.
+either way. `benchmarks/R/bench-sampler.R`'s `callback` scenario times a
+no-op C callback and the vignette's running-mean recipe against no callback
+at all, at both reference shapes (`callback-none-*`, `callback-noop-*`,
+`callback-mean-*`); maintainer-run on a quiet machine, per Verification.
+measured at landing: [pending - the orchestrator records the compared
+numbers here once bench-sampler.R has run on a quiet machine].
 
 The load-bearing point is the one VD named: a C callback is the only kind
 that can run under `n.threads > 1` without serializing the chains, an R
