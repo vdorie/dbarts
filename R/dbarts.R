@@ -248,6 +248,10 @@ dbartsControl <- function(
   updateState = TRUE,
   ...
 ) {
+  # the names THIS call carried, which the front doors' precedence rule reads
+  # off the object: a slot set to the same value the constructor would have
+  # chosen is otherwise indistinguishable from an untouched one
+  namedHere <- names(match.call())[-1L]
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
@@ -276,7 +280,7 @@ dbartsControl <- function(
   ) {
     stop("'levelGibbs' must be TRUE, FALSE, or NA")
   }
-  newValidated(
+  result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
@@ -307,6 +311,27 @@ dbartsControl <- function(
     seed = coerceOrError(seed, "integer"),
     updateState = as.logical(updateState)
   )
+  # a plain attribute, deliberately not a bartcore.* one (that prefix means
+  # fit state, which setControl carries forward and the front doors refuse)
+  # and deliberately not a slot (a slot would enter every validity check and
+  # every stored control's printed form)
+  attr(result, controlSuppliedAttr) <- unique(c(
+    intersect(namedHere, names(formals(dbarts::dbartsControl))),
+    # the retired spelling names the same slot
+    if ("rngSeed" %in% supplied) "seed"
+  ))
+  result
+}
+
+## The attribute dbartsControl() stamps with the names its call carried.
+controlSuppliedAttr <- "dbarts.supplied"
+
+## The slots a control was CONSTRUCTED with, empty for one that carries no
+## record (a bare new("dbartsControl"), or an object saved before the record
+## existed), which then falls back to the differs-from-the-default test.
+controlSuppliedSlots <- function(control) {
+  named <- attr(control, controlSuppliedAttr)
+  if (is.null(named)) character(0L) else named
 }
 
 ## The one precedence rule bart() and xbart() apply to a supplied control: a
@@ -314,10 +339,15 @@ dbartsControl <- function(
 ## and a slot they did not name flat stands. 'flat' names each shared setting
 ## and holds its flat value; the resolved list comes back under the same names,
 ## for the door to read and to write onto the control where it keeps one.
-## A slot still holding dbartsControl()'s own default names nothing: each door
-## carries its own defaults for the settings it also spells flat (bart's 500
-## samples against the control's unset one), so a control built to reach one
-## engine setting must not silently move every other one with it.
+## A slot the control never spoke for names nothing: each door carries its own
+## defaults for the settings it also spells flat (bart's 500 samples and
+## verbose = TRUE against the control's unset one and FALSE), so a control
+## built to reach one engine setting must not silently move every other one
+## with it. A slot SPEAKS when the control's own constructor call named it -
+## which is what the dbarts.supplied record is for, since a value equal to the
+## constructor's default is otherwise indistinguishable from an untouched slot
+## - or when it differs from a fresh control's, which is how a post-
+## construction edit (ctl@n.trees <- 200L) still speaks.
 mergeFrontDoorControl <- function(control, matchedCall, flat) {
   supplied <- names(matchedCall)
   # no control named, nothing to merge: the door's own defaults stand, and the
@@ -326,10 +356,14 @@ mergeFrontDoorControl <- function(control, matchedCall, flat) {
     return(flat)
   }
   fresh <- dbarts::dbartsControl()
+  namedOnControl <- controlSuppliedSlots(control)
   for (name in names(flat)) {
+    if (name %in% supplied) {
+      next
+    }
     if (
-      name %not_in%
-        supplied &&
+      name %in%
+        namedOnControl ||
         !identical(methods::slot(control, name), methods::slot(fresh, name))
     ) {
       flat[[name]] <- methods::slot(control, name)

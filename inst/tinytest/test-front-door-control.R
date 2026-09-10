@@ -339,3 +339,99 @@ expect_silent(legacySampler$setModel(legacyModel))
 expect_equal(legacySampler$control@proposal.probs[["birth_death"]], 0.6)
 expect_true(all(is.finite(legacySampler$run()$train)))
 rm(legacySampler, legacyModel)
+
+# ---- a control speaks for a slot it NAMED, default-valued or not -----------
+
+# The hole a differs-from-the-default test alone leaves: bart's own default
+# for verbose, n.samples, n.burn and keepFits is not dbartsControl()'s, so a
+# caller naming the control's value explicitly must still be honored.
+# dbartsControl() records the names its call carried, and the merge reads it.
+expect_equal(
+  attr(
+    dbarts::dbartsControl(verbose = FALSE, n.samples = 7L),
+    "dbarts.supplied"
+  ),
+  c("verbose", "n.samples")
+)
+
+# the flat names under test are left OUT of these calls, so only the control
+# can speak for them
+partialFC <- function(...) {
+  do.call(
+    dbarts::bart,
+    c(
+      list(xFC, yFC),
+      list(n.trees = 5L, n.burn = 5L, n.chains = 1L, n.threads = 1L),
+      list(...)
+    )
+  )
+}
+
+# verbose: bart's default is TRUE, the control's FALSE
+quietFit <- partialFC(
+  control = dbarts::dbartsControl(verbose = FALSE),
+  n.samples = 10L,
+  keepSampler = TRUE
+)
+expect_false(quietFit$fit$control@verbose)
+# invisible(): do.call does not preserve bart's own invisible return, so an
+# unassigned call would print the whole fit rather than nothing
+expect_equal(
+  length(capture.output(invisible(partialFC(
+    control = dbarts::dbartsControl(verbose = FALSE),
+    n.samples = 10L
+  )))),
+  0L
+)
+
+# n.samples: bart's default is 500, the control's NA
+samplesFit <- partialFC(
+  control = dbarts::dbartsControl(n.samples = 7L),
+  verbose = FALSE,
+  keepSampler = TRUE
+)
+expect_equal(samplesFit$fit$control@n.samples, 7L)
+
+# a name the control's call never carried leaves the door's own default
+# standing, which for verbose is TRUE
+defaultedFit <- partialFC(
+  control = dbarts::dbartsControl(predictParallelCutoff = 999L),
+  n.samples = 10L,
+  keepSampler = TRUE
+)
+expect_true(defaultedFit$fit$control@verbose)
+expect_equal(defaultedFit$fit$control@predictParallelCutoff, 999L)
+expect_equal(defaultedFit$fit$control@n.burn, 5L)
+
+# ---- a post-construction slot edit still speaks ----------------------------
+
+editedControl <- dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+editedControl@n.trees <- 11L
+editedFit <- dbarts::bart(
+  xFC,
+  yFC,
+  control = editedControl,
+  n.samples = 10L,
+  n.burn = 5L,
+  verbose = FALSE,
+  seed = 17L,
+  keepSampler = TRUE
+)
+expect_equal(editedFit$fit$control@n.trees, 11L)
+# the record is not a bartcore.* attribute, so the fit-state refusal ignores
+# it and setControl's attribute forwarding never carries it as fit state
+expect_false(any(startsWith(names(attributes(editedControl)), "bartcore.")))
+expect_silent(dbarts:::refuseFitStateControl(editedControl, "bart"))
+# a control carrying no record at all falls back to the differs-from-default
+# test, so an object saved before the record existed still merges
+bareControl <- methods::new("dbartsControl", n.chains = 1L, n.threads = 1L)
+expect_equal(dbarts:::controlSuppliedSlots(bareControl), character(0L))
+rm(
+  partialFC,
+  quietFit,
+  samplesFit,
+  defaultedFit,
+  editedControl,
+  editedFit,
+  bareControl
+)
