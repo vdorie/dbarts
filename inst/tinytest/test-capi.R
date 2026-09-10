@@ -4,59 +4,16 @@
 # conditional-sampling workout stan4bart performs. Skips wherever the
 # consumer cannot be compiled.
 
-consumerSource <- system.file(
-  "tinytest",
-  "capi",
-  "consumer.c",
-  package = "dbarts"
+source(
+  system.file("common", "capiConsumer.R", package = "dbarts"),
+  local = TRUE
 )
-if (consumerSource == "") {
-  exit_file("consumer source not installed")
-}
-
-buildDir <- tempfile("capi")
-dir.create(buildDir)
-file.copy(consumerSource, file.path(buildDir, "consumer.c"))
-
-includeDir <- system.file("include", package = "dbarts")
-headerPath <- file.path(includeDir, "dbarts", "dbarts.h")
-if (!nzchar(includeDir) || !file.exists(headerPath)) {
-  msg <- paste0("dbarts.h not found under includeDir '", includeDir, "'")
-  if (nzchar(Sys.getenv("CI", ""))) stop(msg) else exit_file(msg)
-}
-
-# system2's env= is not reliably passed through to the child process on
-# Windows; a Makevars in the build dir is the portable channel for
-# PKG_CPPFLAGS across all platforms including Rtools.
-writeLines(
-  sprintf('PKG_CPPFLAGS = -I"%s"', includeDir),
-  file.path(buildDir, "Makevars")
-)
-owd <- setwd(buildDir)
-compileOutput <- tryCatch(
-  suppressWarnings(system2(
-    file.path(R.home("bin"), "R"),
-    c("CMD", "SHLIB", "consumer.c"),
-    stdout = TRUE,
-    stderr = TRUE
-  )),
-  error = function(e) e
-)
-setwd(owd)
-
-sharedLib <- file.path(buildDir, paste0("consumer", .Platform$dynlib.ext))
-if (!file.exists(sharedLib)) {
-  if (nzchar(Sys.getenv("CI", ""))) {
-    stop(
-      "could not compile the C API consumer under CI:\n",
-      paste(compileOutput, collapse = "\n")
-    )
-  }
-  exit_file("could not compile the C API consumer")
-}
-
-dll <- dyn.load(sharedLib)
-CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
+consumer <- compileCapiConsumer("capi", "the C API consumer")
+if (!is.null(consumer$skip)) exit_file(consumer$skip)
+consumerSource <- consumer$consumerSource
+includeDir <- consumer$includeDir
+dll <- consumer$dll
+CALL <- consumer$CALL
 
 # the signature token, resolved BOTH ways: through the stubs and through the
 # raw R_GetCCallable canary, which is the un-stubbed per-symbol path a consumer
