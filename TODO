@@ -464,7 +464,7 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   a post-fit warning keyed on the share of GP leaf evaluations that
   fell back to constant leaves (dec-B110). VD: "extremely worried that
   they're artificially limiting".
-  DONE 2026-09-11 (89e9b1d4): bartcoreRun's doors (xbart, multinomial,
+  DONE 2026-09-11 (cdecec90): bartcoreRun's doors (xbart, multinomial,
   ordinal, nbinom) now call warnOnGPFallback once per fit; BCF and
   survival already ran through runWithBurnIn. None of those doors
   packages gp.fallback onto its returned object; post-release if wanted.
