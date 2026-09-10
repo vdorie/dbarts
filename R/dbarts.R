@@ -372,6 +372,21 @@ mergeFrontDoorControl <- function(control, matchedCall, flat) {
   flat
 }
 
+## The retired flat 'proposal.probs' beside a control whose own call NAMED the
+## same slot: one setting written twice, refused by name exactly as a prior
+## object supplied beside its shorthand is. A control whose slot merely DIFFERS
+## from a fresh one - a post-construction edit - is not a collision, and the
+## retired flat still wins there.
+refuseCollidingMixture <- function(control) {
+  if ("proposal.probs" %in% controlSuppliedSlots(control)) {
+    stop(
+      "'control' cannot be combined with 'proposal.probs': set the tree-move ",
+      "mixture in one place, dbartsControl(proposal.probs = )"
+    )
+  }
+  invisible(NULL)
+}
+
 ## A control taken from a fitted sampler carries that fit's model configuration
 ## on bartcore.* attributes - the variance forest, the dispersion, the survival
 ## status, the forest map - which a new fit over new data has no claim to.
@@ -527,8 +542,16 @@ dbarts <- function(
     evalEnv
   )
   # the tree-move mixture is a control setting now; the retired spelling is
-  # honored where the control's own slot would otherwise stand
+  # honored where the control's own slot would otherwise stand, and refused
+  # where the control's own call named that slot too
   proposal.probs <- consolidated[["proposal.probs"]]
+  if (
+    "proposal.probs" %in%
+      names(consolidated) &&
+      "control" %in% names(matchedCall)
+  ) {
+    refuseCollidingMixture(control)
+  }
 
   # dbarts() never runs the sampler itself, so 'callback' has nothing to
   # drive here; it is validated anyway, ahead of the (possibly expensive)

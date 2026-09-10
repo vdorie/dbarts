@@ -545,3 +545,52 @@ expect_equal(dartSampler$control@proposal.probs[["birth_death"]], 0.6)
 expect_equal(dartSampler$control@proposal.probs[["change"]], 0.4)
 expect_true(all(is.finite(dartSampler$run()$train)))
 rm(dartSampler, movedControl)
+
+# ---- the retired mixture beside a control that NAMED the same slot --------
+
+# One setting written twice, refused by name as a prior object supplied beside
+# its shorthand is; the control's own record is what says the caller set it
+# there. Both doors that carry the retired spelling refuse.
+namedMixture <- c(birth_death = 0.5, swap = 0.1, change = 0.4)
+expect_error(
+  suppressWarnings(fitFC(
+    proposal.probs = namedMixture,
+    control = dbarts::dbartsControl(proposal.probs = c(birth_death = 0.7))
+  )),
+  "cannot be combined with 'proposal.probs'"
+)
+expect_error(
+  suppressWarnings(dbarts::dbarts(
+    xFC,
+    yFC,
+    proposal.probs = namedMixture,
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      proposal.probs = c(birth_death = 0.7)
+    )
+  )),
+  "cannot be combined with 'proposal.probs'"
+)
+
+# a slot merely EDITED to differ from a fresh control's carries no record, so
+# it is not a collision and the retired flat wins, warning once
+editedMixture <- dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+editedMixture@proposal.probs[["birth_death"]] <- 0.7
+editedMixture@proposal.probs[["change"]] <- 0.3
+resetWarn("tombstone.consolidated.proposal.probs.bart")
+editedMixtureWarnings <- warningsOf(
+  editedMixtureFit <- fitFC(
+    proposal.probs = namedMixture,
+    control = editedMixture,
+    keepSampler = TRUE
+  )
+)
+expect_equal(length(editedMixtureWarnings), 1L)
+expect_true(grepl(
+  "'proposal.probs' has left 'bart'",
+  editedMixtureWarnings[1L]
+))
+expect_equal(editedMixtureFit$fit$control@proposal.probs[["birth_death"]], 0.5)
+expect_equal(editedMixtureFit$fit$control@proposal.probs[["swap"]], 0.1)
+rm(namedMixture, editedMixture, editedMixtureWarnings, editedMixtureFit)

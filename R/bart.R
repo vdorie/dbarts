@@ -1041,9 +1041,12 @@ bart <- function(
     )
   }
   control <- eval(controlCall, envir = callingEnv)
-  # the retired flat spelling of the mixture wins over the control's slot,
-  # as every other flat name does
-  if (!is.null(consolidated[["proposal.probs"]])) {
+  # the retired flat spelling of the mixture wins over the control's slot, as
+  # every other flat name does - unless the control's own call NAMED that slot,
+  # which is one setting written twice and is refused by name. A slot merely
+  # EDITED to differ from a fresh control's is not a collision.
+  if ("proposal.probs" %in% names(consolidated)) {
+    refuseCollidingMixture(suppliedControl)
     control@proposal.probs <- resolveProposalProbs(
       consolidated[["proposal.probs"]]
     )
