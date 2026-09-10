@@ -315,6 +315,10 @@ static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng,
   std::snprintf(label, sizeof(label),
                 "%s n %% 4 == %lu: fused suffstat matches the stock gather",
                 kind, static_cast<unsigned long>(n % 4));
+  // 1e-9 sits between what a correct pass produces and what a broken one
+  // does, with six orders of margin either way: the worst gap observed here
+  // is 4.4e-15, and dropping the weight from a bank - the mutation this
+  // exists to catch - reports 0.53.
   check(fused.worstRelativeError < 1e-9, label);
   std::snprintf(label, sizeof(label),
                 "%s n = %lu: every tree took the fused pass",

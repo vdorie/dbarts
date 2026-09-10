@@ -480,6 +480,16 @@ struct VarianceForest {
   }
 };
 
+/// Prefetch hint, guarded the way misc/intrinsic.h guards its builtins: gcc
+/// and clang take the builtin, anything else gets nothing. Expanding to
+/// nothing is correct, not a fallback - a hint moves no value, so its absence
+/// costs locality and changes no result.
+#if defined(__GNUC__) || defined(__clang__)
+#  define BARTCORE_PREFETCH(_P_) __builtin_prefetch(_P_)
+#else
+#  define BARTCORE_PREFETCH(_P_) ((void) 0)
+#endif
+
 /// Bank count of the fused roll + node-average suffstat pass. K fixes the
 /// summation order and so is part of the draw law: a knob here would mean the
 /// package has no single law, with every baseline and every bug report
@@ -4716,10 +4726,12 @@ private:
       // The stock node-average gather walked this tree's whole indices[]
       // permutation, which the move phase then partitions; the fused pass
       // does not, so the move phase pays cache misses the suffstat used to
-      // absorb. Warm it here instead, paced with the pass: one line per four
-      // elements is 16 index bytes against a 64-byte line, so the stream
-      // stays four times ahead of where the move phase will read. Prefetch
-      // hints move no value and are outside the exactness contract.
+      // absorb. Warm it here instead. index_t is 32 bits, so 16 elements are
+      // one 64-byte line and the hint below is issued once per line as the
+      // pass sweeps: a WARM-UP in step with the pass, not a lookahead running
+      // in front of it - by the time the move phase reads, the whole array
+      // has been touched. Hints move no value and are outside the exactness
+      // contract.
       const index_t* __restrict warm = forest.trees[t].indices;
       double* __restrict accW = acc + numNodes * fusedSuffstatBanks;
       size_t i = 0, nMod4 = n % 4;
@@ -4746,7 +4758,8 @@ private:
           scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
-          __builtin_prefetch(warm + i);
+          // i advances by 4 from nMod4, so this fires every fourth pass
+          if (((i - nMod4) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
           double r0 = y_[i] - total[i] + mu[leaf[i]];
           double r1 = y_[i + 1] - total[i + 1] + mu[leaf[i + 1]];
           double r2 = y_[i + 2] - total[i + 2] + mu[leaf[i + 2]];
@@ -4770,7 +4783,7 @@ private:
           scatter(i, 0, r);
         }
         for ( ; i < n; i += 4) {
-          __builtin_prefetch(warm + i);
+          if (((i - nMod4) & 15u) == 0) BARTCORE_PREFETCH(warm + i);
           double r0 = resid[i] + (mu[leaf[i]] - muPrev[leafPrev[i]]);
           double r1 =
             resid[i + 1] + (mu[leaf[i + 1]] - muPrev[leafPrev[i + 1]]);

@@ -404,7 +404,7 @@ weights are in play, so the unweighted arithmetic is the same
 expressions it always was and the weighted branch costs it no runtime
 test. Unweighted keeps sumWeights as the member count and allocates no
 second bank set. The other clauses stand: constant leaf, ResidT =
-double, fresh leafOf. +143/-76 in chain.hpp, +50/-31 in
+double, fresh leafOf. +153/-76 in chain.hpp, +50/-31 in
 tests/cpp/test_sampler.cpp.
 
 Timing. Apple M1 Max, macOS 26.6.2, shipped build, one chain one
@@ -468,7 +468,11 @@ sum w), and the three decline pins for weights, BCF and multinomial
 flipped to coverage pins. The weighted pin discriminates: a bank that
 counts instead of summing w fails it 7 of 7 shapes at a 0.53 gap.
 tinytest 8192 / 0 - no pin is tight enough to see a last-ULP weighted
-shift, so the suite is not the gate here. Equivalence, gaussian vs
+shift, so the suite is not the gate here. The second reader put a
+figure on that: on the reference build the weighted tripwire moves
+1.25e-14 relative on sigma and 1.53e-14 on train, with the RNG stream
+and every discrete decision unchanged - ULP scale, which is why no pin
+sees it. Equivalence, gaussian vs
 deb144d2: 37 of 52 bitwise, 52 compared / 0 skipped, and the 15 movers
 are EXACTLY the weighted and latent-weight scenarios - weighted,
 wtoffset, logistic, wtlogistic, zeroweights, maskprobit, maskordinal,
@@ -483,8 +487,9 @@ failure IS the shifting class, not a defect. Exact-posterior gates,
 quick mode, all twelve PASS: bd-balance, change-balance, perturb-
 balance (worst |z| 2.66, 0 of 8 Holm rejections), backfit-exact,
 linear-exact, categorical-exact (max gap 0.0027), heteroscedastic-exact
-(0.0008), multinomial-exact (0.0757 against tol 0.095), hazard-exact
-(0.0013), bcf-exact (0.0005), bcf-exact-weak (0.0182),
+(0.0217 against tol 0.110), multinomial-exact (0.0757 against tol
+0.095), hazard-exact (0.0019 against tol 0.008), bcf-exact (0.0005),
+bcf-exact-weak (0.0182),
 bcf-exact-restricted (0.0014). None at |z| > 4.
 
 Landing cost, if it ships. It is a SHIFTING change on every weighted
@@ -497,8 +502,9 @@ all three BCF arms; the ones they do not reach - logistic, student,
 nbinom, the mask families - ride the same one-association argument and
 the MANIFEST row must say so rather than imply an oracle it does not
 have). Snapshot tinytests regenerate per tools/regenerate-snapshots.R,
-whole file at a time; none moved on the shipped build, so the reference
-build decides which of the four actually need it. Three MANIFEST rows,
+whole file at a time, and the reference build decides which of the four
+need it - the shipped build says nothing either way, since all four
+exit_file there. Three MANIFEST rows,
 each naming the oracle and the partition, and the neutrality claim the
 other rows carry becomes a claim about the UNWEIGHTED scenarios only.
 The bench-sampler speed baseline is maintainer-run and unaffected by
@@ -531,7 +537,7 @@ libraries, where BOTH fuse and which is therefore the control.
 
 The fused pass WINS its own work: 2514 ms of roll plus pre-move
 suffstat becomes 2384, a 130 ms saving. What costs 640 ms more is
-[`misc_partitionRange_neon`](../../src/misc/partition_body.c) - code
+[`misc_partitionRange_neon`](../../src/misc/partition_neon.c) - code
 this slice does not touch, in the move phase. Those two plus the small
 `partitionIndices` change account for the whole +471 ms.
 
@@ -554,11 +560,11 @@ occupancy: mean occupancy is 4077 rows, and the bare-root share is
 8.3 percent (2.7 at n = 1e5), too small to carry 7 percent even if a
 stump's fused pass were free.
 
-The fix follows from the mechanism: the pass issues one
-`__builtin_prefetch` over `indices[]` per four elements, pacing the
-warm-up with its own stream - 16 index bytes per 64-byte line, so it
-stays four lines ahead of where the move phase reads. Hints move no
-value: the prefetched build reproduces the unprefetched one BITWISE on
+The fix follows from the mechanism: the pass issues one prefetch hint
+over `indices[]` per 16 elements, which at 32-bit index_t is one hint
+per 64-byte line, so the array is warmed in step with the pass rather
+than read ahead of it - by the time the move phase runs, the whole
+permutation has been touched. Hints move no value: the prefetched build reproduces the unprefetched one BITWISE on
 a weighted and an unweighted fit, and its gaussian equivalence compare
 against deb144d2 gives the identical partition (37 of 52 bitwise, the
 same 15 movers, all at max |z| = 0.00, 52 compared / 0 skipped).
@@ -679,9 +685,6 @@ corpora would exercise the fused pass on NOTHING, leaving tests/cpp and
 the exact-posterior gates as its only coverage. A gate would therefore
 have to arrive with corpus scenarios sized above it, or the equivalence
 harnesses stop being a gate on the kernel this arc exists to build.
-
-
-
 
 S3, the run loop (dec-B88):
 
