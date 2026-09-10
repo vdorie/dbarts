@@ -1637,10 +1637,17 @@
             \code{predict} fans out; and
             \code{sparseDensityThreshold}, the nonzero fraction at or below
             which a sparse predictor column keeps rank-bitmap storage. Only
-            the first changes what is sampled; the others buy time or memory
-            and return bit-for-bit the same draws either side of themselves,
-            and every default is the value the engine used before it was
-            settable. \code{predictParallelCutoff}'s default is now 50000
+            the first changes what is sampled; \code{testFitParallelCutoff}
+            and \code{predictParallelCutoff} buy time and return bit-for-bit
+            the same draws at any value, and at their defaults these two plus
+            \code{categoricalExhaustiveCap} reproduce the draws the engine
+            already made before they were settable.
+            \code{sparseDensityThreshold} buys memory and changes no
+            proposal - the same splits are drawn either way - but is not
+            bitwise: a rank-stored column hands a leaf its rows in a
+            different order, so fits and \code{sigma} can differ in their
+            last bits, by an amount that grows slowly with the number of
+            samples. \code{predictParallelCutoff}'s default is now 50000
             traversals rather than the uncalibrated 1e7, so mid-sized
             replays are threaded where they were serial - identically, since
             each worker owns its own output range. A table of all of them,
