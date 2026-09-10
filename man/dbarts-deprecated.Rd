@@ -30,8 +30,17 @@
     \item{\code{dart}, \code{levelGibbs}}{
       On \code{\link{bart}} (\code{dart} also on \code{\link{xbart}}): tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s tree priors (\code{tree.prior = dart()}, \code{tree.prior = cgm(levelGibbs = )}).
     }
-    \item{\code{control} on \code{\link{xbart}}}{
-      Refused outright, naming the flat arguments its settings became (\code{n.cuts}, \code{useQuantiles}, \code{n.thin}, \code{storage}): \code{xbart} builds its own control, so there is nothing left for one to set.
+    \item{\code{power}, \code{base}, \code{split.probs}}{
+      On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()}/\code{dart()} (\code{tree.prior = cgm(power, base, split.probs)}).
+    }
+    \item{\code{prior.scale}}{
+      On \code{\link{bart}}: a node-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{normal()} (\code{node.prior = normal(scale = )}).
+    }
+    \item{\code{sigdf}, \code{sigquant}}{
+      On \code{\link{bart}}: residual-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{chisq()} (\code{resid.prior = chisq(df, quant)}).
+    }
+    \item{\code{proposal.probs}}{
+      On \code{\link{bart}} and \code{\link{dbarts}}: the tree-move mixture, now a \code{\link{dbartsControl}} slot and formal (\code{control = dbartsControl(proposal.probs = )}).
     }
     \item{A three-element \code{n.burn} on \code{\link{xbart}}}{
       Refused outright, naming \code{n.burn = c(fresh, warm)}: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.
@@ -52,6 +61,8 @@
       Attaching the package prints one \code{packageStartupMessage} naming both doors, once per session (\code{suppressPackageStartupMessages} silences it); no successor, since nothing replaces it.
     }
   }
+
+  \code{control} on \code{\link{xbart}} is no longer a tombstone: both \code{bart} and \code{xbart} now take a \code{control = \link{dbartsControl}()} formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.
 
   Every entry above, and \code{bart2} and the \code{rbart_vi} stubs, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
 }
