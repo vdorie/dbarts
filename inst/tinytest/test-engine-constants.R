@@ -157,7 +157,8 @@ expect_identical(calibrated$values, predictWorkers(50000L, 1L)$values)
 rm(calibrated, uncalibrated)
 
 ## -- sparseDensityThreshold: the layout choice a CSC-built column takes at
-## build, invisible in the answers, so the store is asked directly.
+## build, which moves no proposal and reaches the answers only in the last
+## bits, so the store is asked directly.
 if (requireNamespace("Matrix", quietly = TRUE)) {
   set.seed(8L)
   nSparse <- 400L
@@ -187,13 +188,13 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
         sparseDensityThreshold = threshold
       )
     )
-    list(
-      sparse = .Call(
-        dbarts:::C_dbarts_bartcore_columnStorageIsSparse,
-        sampler$getPointer()
-      ),
-      fits = sampler$run(0L, 2L)$train
+    sparse <- .Call(
+      dbarts:::C_dbarts_bartcore_columnStorageIsSparse,
+      sampler$getPointer()
     )
+    # one sweep: see the tolerance comment below
+    samples <- sampler$run(0L, 1L)
+    list(sparse = sparse, fits = samples$train, varcount = samples$varcount)
   }
 
   atDefault <- storageAt(0.2)
@@ -201,8 +202,19 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   # a quarter-dense column is densified at the default and kept sparse above it
   expect_true(!any(atDefault$sparse))
   expect_true(all(raised$sparse))
-  # and the two layouts answer identically
-  expect_identical(atDefault$fits, raised$fits)
+  # the layouts propose the same splits: the discrete decisions are bitwise
+  # unmoved, which is the claim the threshold is a memory-time trade
+  expect_identical(atDefault$varcount, raised$varcount)
+  # the fits are not bitwise, and a tolerance is the honest contract. A dense
+  # root partition rewrites indices to the identity before it splits
+  # (misc_partitionRange) where the rank-bitmap one permutes in place, so a
+  # leaf receives the same members in a different order and its sufficient
+  # statistic reassociates. One sweep holds that to a single root partition
+  # from the identity both index arrays start at; over more sweeps the gap
+  # compounds through the residual and no fixed tolerance holds. The tolerance
+  # covers reassociation alone - a moved proposal fails varcount above, which
+  # no tolerance hides.
+  expect_equal(atDefault$fits, raised$fits, tolerance = 1e-14)
 
   rm(atDefault, raised)
 }

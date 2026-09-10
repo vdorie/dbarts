@@ -908,7 +908,11 @@ public:
         }
       } else if (data.columnIsSparse(variable)) {
         // in-place partition at the root too: misc_partitionRange assumes
-        // identity index content, which only the dense path maintains
+        // identity index content, which only the dense path maintains. So a
+        // rank-stored root hands its children the order the previous
+        // partition left where a dense one re-derives the identity, and
+        // computeLeafStats, summing over the span, reassociates: the two
+        // layouts propose identically but do not answer bitwise.
         const SparseColumnData& column = data.sparseColumn(variable);
         if (data.hasMissing[variable]) {
           numOnLeft = partitionIndicesScalar<CodeStorage::sparse,

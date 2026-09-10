@@ -120,8 +120,11 @@ struct SamplerOptions {
   std::size_t predictParallelCutoff = 0;
   // Nonzero fraction at or below which a CSC-built column takes rank-bitmap
   // storage instead of densified codes; the memory-against-time trade is
-  // priced at sparseDensityThreshold in data.hpp. No draw depends on it. Read
-  // at BUILD, so it fixes each column's layout for the store's life.
+  // priced at sparseDensityThreshold in data.hpp. No PROPOSAL depends on it -
+  // both layouts draw the same splits - but the fits are not bitwise across
+  // it: the two root partitions leave a leaf's members in different orders and
+  // the leaf sufficient statistic reassociates. Read at BUILD, so it fixes
+  // each column's layout for the store's life.
   double sparseDensityThreshold = bartcore::sparseDensityThreshold;
 
   // Every predictor value the store ingests, in one borrowed view: the dense

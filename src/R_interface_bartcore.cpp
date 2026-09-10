@@ -6508,8 +6508,8 @@ SEXP bartcore_lastTestFitPartition(void) {
 
 // Test-only too: which of a sampler's predictor columns took rank-bitmap hot
 // storage, the choice control@sparseDensityThreshold makes at build. The two
-// layouts answer identically, so nothing else can see the choice; no R surface
-// reads this.
+// layouts propose identically and their fits differ only by floating-point
+// reassociation, so nothing else can see the choice; no R surface reads this.
 SEXP bartcore_columnStorageIsSparse(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   const bartcore::ColumnStore& store = holder.sampler->data();

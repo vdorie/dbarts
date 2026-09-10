@@ -280,6 +280,22 @@ time bought for 3.5x of predictor memory - and the threshold is a memory
 choice, which is what the sparse-columns note claims. Whether 0.2 is the
 right price is a per-workload question a fixed number cannot answer.
 
+NOT BITWISE. The two layouts propose identically - split counts, tree shapes
+and split values are bit-for-bit equal over 200 draws - but they do not answer
+bitwise. [`Tree::partitionChildren`](../../src/bartcore/tree.hpp) sends a dense column
+at the root through `misc_partitionRange`, which rewrites `indices` to the
+identity before it splits, and a rank-stored one through
+`misc_partitionIndicesSparse`, which permutes in place over the order the
+previous partition left. So from the second root partition onward a leaf
+receives the same members in a different order, and
+[`Tree::computeLeafStats`](../../src/bartcore/tree.hpp), which sums over the
+node's index span, reassociates. Measured on a 400-row three-column
+quarter-dense design at 5 trees: draw 1 bitwise equal, 1.1e-16 by draw 2,
+4.3e-15 by draw 200, with `varcount` bit-identical throughout. It is not an
+instruction-set effect - forcing every SIMD kernel off reproduces the same
+figures - so a run that happens to agree bitwise on one machine is agreeing by
+rounding, not by construction.
+
 EXPOSED for that reason, as `SamplerOptions::sparseDensityThreshold` and the
 control slot of the same name, DEFAULT UNMOVED at 0.2. It reaches the store as
 [`ColumnStore::sparseDensityCutoff`](../../src/bartcore/data.hpp), set before
