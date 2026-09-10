@@ -533,6 +533,22 @@
             with the number of chains. The default \code{storage = "double"}
             changes nothing: it is the path every other fit takes. See
             \code{?dbartsControl}.
+      \item Weighted families now take the fused residual-and-sum pass that
+            previously served only unweighted gaussian fits: any fit
+            supplying \code{weights}, and \code{logistic}, \code{probit}
+            under a subset mask, Student-\eqn{t}{t}, negative binomial, the
+            heteroscedastic mean forest, BCF and multinomial, all of which
+            supply weights internally. Measured on one core of an Apple M1
+            Max, per iteration of the sampler loop: 26 to 29\% for weighted
+            gaussian at \eqn{n = 10^5}{n = 1e5}, 17\% for BCF and 7\% for
+            logistic. Draws for those families change in the last bits - the
+            pass sums each leaf's statistic in a different order, and nothing
+            else about the kernel moves - so a seeded fit of any of them no
+            longer reproduces 0.9-x or an earlier 1.0-0 development build
+            exactly, though the posterior is unchanged. Separately, the pass
+            now warms the tree's index permutation for the move phase that
+            follows it, worth 6 to 16\% on unweighted fits with draws
+            unchanged.
       \item The rewritten engine implements the full \code{dbartsSampler}
             interface: every method works, including \code{keepTrees},
             \code{getTrees}, \code{predict}, \code{plotTree}, \code{setWeights}, test offsets,

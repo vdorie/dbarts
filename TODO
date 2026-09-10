@@ -424,6 +424,18 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   a post-fit warning keyed on the share of GP leaf evaluations that
   fell back to constant leaves (dec-B110). VD: "extremely worried that
   they're artificially limiting".
+  post-release: a size gate on the fused roll + suffstat pass, two
+  thresholds rather than one - fuse weighted at n >= 1e4, unweighted at
+  n >= 2e4 - since the fusion loses up to 8 percent below those and
+  wins up to 24 above, and one threshold cannot serve both families
+  (at n = 1e4 it would have to fuse weighted and decline unweighted);
+  leaf occupancy is a worse key than n and is not even monotone in the
+  gain. It must arrive WITH equivalence scenarios sized above the
+  threshold: every fit in all three corpora today is under 2000 rows,
+  so a gate would revert all 75 to the stock association and leave the
+  fused pass with no equivalence coverage at all. Crossover grid and
+  corpus count: docs/plans/engine-performance.md, "Crossover grid for
+  a size gate".
   Plan: docs/plans/engine-performance.md.
 
 engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md

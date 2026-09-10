@@ -686,6 +686,13 @@ the exact-posterior gates as its only coverage. A gate would therefore
 have to arrive with corpus scenarios sized above it, or the equivalence
 harnesses stop being a gate on the kernel this arc exists to build.
 
+VD ruling (2026-09-10), "Proceed with option 3": the weighted fused
+pass and its index-permutation warm-up SHIP, with no size gate. The
+gate is deferred to a post-release item, which must arrive with
+equivalence scenarios sized above its thresholds - the crossover grid
+below records why one threshold cannot serve both families and what a
+gate would cost the corpora today.
+
 S3, the run loop (dec-B88):
 
 7. Replace the sleep loop in [`Sampler::run`](../../src/bartcore/sampler.hpp)
