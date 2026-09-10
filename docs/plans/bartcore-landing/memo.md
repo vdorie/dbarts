@@ -112,7 +112,7 @@ marker, a standing grant, or no record at all leaves it agent-made.
 
 Agent-made decisions carrying an identified cost: 70
 
-Decisions with maintainer evidence: 115
+Decisions with maintainer evidence: 116
 
 - **Grouped random effects** (A01): rbart_vi and its S3 methods are deleted,
   so bartCause main breaks at load. The removal's own gate compared the
@@ -148,7 +148,7 @@ Decisions with maintainer evidence: 115
   Mersenne-Twister is reachable, so no fit can match another package's stream.
 - **No deprecation cycle** (A02): the rule is replaced. The maintainer's own
   removal rule (B76) keeps a removed or renamed name reachable for one release
-  as a marker naming its successor, and 31 of them ship. rbart_vi still errors,
+  as a marker naming its successor, and 38 of them ship. rbart_vi still errors,
   and the old C++ interface vanishes without one.
 - **Cross-validation redesign** (A05): xbart drops its control argument and
   replaces its threaded fold loop with a cluster. A consumer passing a prebuilt
@@ -325,7 +325,7 @@ completion register.
 | count of user-visible changes that return a different answer | changes register, section 1, the rows marked behavioural |
 | loud breakage causes | dec-A01, dec-A02, dec-A03, dec-A04, dec-A05 |
 | silent breakage causes | dec-A06, dec-A07, dec-A08, dec-B01, dec-B02 |
-| the attribution rule and the two counts | dec-A01 through dec-A69, dec-B01 through dec-B73 |
+| the attribution rule and the two counts | dec-A01 through dec-A70, dec-B01 through dec-B116 |
 | capability foreclosed | dec-A01, dec-A61, dec-A46, dec-A12 |
 | results changed | dec-A06, dec-A07, dec-A08, dec-A04, dec-A02, dec-A05, dec-A16, dec-A14, dec-A10, dec-A13, dec-A11, dec-B04 |
 | speed and build time | dec-A37, dec-A38, dec-A42, dec-B73 |

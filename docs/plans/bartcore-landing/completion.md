@@ -2,7 +2,7 @@
 
 Merged and deduplicated from the five code-side slices, the plans-versus-code sweep and the downstream sweep. Rows are grouped by status in this order: unfinished, abandoned, blocked, deferred with no maintainer evidence, deferred by the maintainer with a quote, done but with a stale gate, and done. `gate evidence` names the test file, C++ test, baseline, workflow or run that proves "done", and reads "none" otherwise. Ids are stable handles, not status codes: a row that changes status keeps the id it was first given. Names that are shorthand are unpacked in the row that uses them.
 
-Branch tip is 992da112, a correction to one NEWS sentence; the last src/ commit is b7802bfa, the last inst/include commit e4063140 and the last R/ commit cdecec90, all dated 2026-09-10. Rows from cmp-U47, cmp-D25, cmp-V08 and cmp-K30 on come from the six arcs that landed after b7266da9.
+Branch tip is 3117cd93, bringing the landing review docs up to the front-door-formals tip; the last src/ commit is babe360c, the last inst/include commit e4063140 and the last R/ commit 1a6da4d8, all dated 2026-09-10. Rows from cmp-U47, cmp-D25, cmp-V08 and cmp-K30 on come from the six arcs that landed after b7266da9.
 
 ## 1. Unfinished
 
