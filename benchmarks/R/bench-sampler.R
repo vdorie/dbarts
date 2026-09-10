@@ -19,6 +19,12 @@
 #                                              grid above and its baselines
 #                                              untouched.
 #
+# Rscript bench-sampler.R callback [record|compare ...]  opt-in per-draw
+#                                              callback cost (or
+#                                              BENCH_CALLBACK=1); same
+#                                              grammar again, defaulting to
+#                                              sampler-callback.csv.
+#
 # The big grid times n in {1e4, 1e5, 1e6} x numTrees in {75, 200}. It is not
 # meant for routine/CI use: n = 1e6 with numTrees = 200 is a large fit by
 # itself, and the full grid at full reps can run upwards of an hour, so run
@@ -230,21 +236,17 @@ runBigGrid <- function(quick) {
   rows
 }
 
-# The per-draw callback's own cost
-# (docs/design/per-draw-callbacks.md#7-threading-interaction): an indirect
-# call plus whatever the callback does, once per saved draw. Three variants
-# per shape isolate that cost from the sweep it rides on - none (today's
-# baseline path), a no-op C callback (the indirect call alone), and the
-# vignette's running-mean recipe (inst/tinytest/capi/consumer.c's
-# capi_mean_function, the SAME compiled copy test-callback-example.R checks
-# against yhat.train.mean, so the timed callback is the documented one and
-# not a stand-in) - at the memory note's two reference shapes
-# (docs/design/memory-footprint.md#reference-cases), n = 1e5/p = 20 and
-# n = 1e6/p = 50, T = 200 both. keepFits stays at newSampler's default TRUE
-# throughout, so only the callback itself varies between the three timings.
-# Opt-in like the big grid, own file, leaves the grids above untouched:
-# Rscript bench-sampler.R callback [record|compare ...] (or
-# BENCH_CALLBACK=1).
+# The per-draw callback's own cost: an indirect call plus whatever the
+# callback does, once per saved draw. Three variants per shape isolate that
+# cost from the sweep it rides on - none (today's path), a no-op C callback
+# (the indirect call alone), and the running-mean recipe the component
+# vignette carries. The last two come out of inst/tinytest/capi/consumer.c,
+# compiled ONCE here, so the timed callback is the same copy
+# test-callback-example.R checks against yhat.train.mean and not a stand-in.
+# The shapes are the memory note's two reference cases, n = 1e5/p = 20 and
+# n = 1e6/p = 50 at T = 200; keepFits stays at newSampler's default TRUE
+# throughout, so the callback is the only thing that varies. Opt-in like the
+# big grid, own file, grids above untouched.
 runCallbackScenarios <- function(quick) {
   reps <- if (quick) 1L else 7L
   n.samps <- if (quick) 50L else 500L
@@ -273,70 +275,46 @@ runCallbackScenarios <- function(quick) {
   dll <- dyn.load(file.path(buildDir, paste0("consumer", .Platform$dynlib.ext)))
   CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
 
-  noopFn <- CALL("capi_noop_function")
-  meanFn <- CALL("capi_mean_function")
-
   shapes <- list(
     list(name = "n1e5-p20", n = if (quick) 1e4 else 1e5, p = 20L),
     list(name = "n1e6-p50", n = if (quick) 1e4 else 1e6, p = 50L)
   )
 
   rows <- data.frame()
-  addRow <- function(scenario, metric, value) {
-    rows <<- rbind(
-      rows,
-      data.frame(scenario = scenario, metric = metric, value = value)
-    )
-  }
-
   for (shape in shapes) {
     set.seed(4005L)
     data <- genFriedman(shape$n, shape$p)
     sampler <- newSampler(data$x, data$y, 200L)
     invisible(sampler$run(200L, 1L))
 
-    elapsed <- timeMedian(function() invisible(sampler$run(0L, n.samps)), reps)
-    addRow(
-      paste0("callback-none-", shape$name),
-      "ms_per_iteration",
-      1000 * elapsed / n.samps
-    )
-
-    elapsed <- timeMedian(
-      function() {
-        invisible(sampler$run(
-          0L,
-          n.samps,
-          callback = list(fn = noopFn, context = NULL)
-        ))
-      },
-      reps
-    )
-    addRow(
-      paste0("callback-noop-", shape$name),
-      "ms_per_iteration",
-      1000 * elapsed / n.samps
-    )
-
-    # a per-shape context, rebuilt each time: drawIndex restarts at 0 on
-    # every $run call, so a context is per run
+    # one context per shape, reused across this shape's repetitions: only the
+    # timing is read off, never the accumulator, and the incremental update
+    # costs the same whatever the running draw count has reached
     acc <- numeric(shape$n)
-    ctx <- CALL("capi_mean_context_new", acc, shape$n, 1L)
-    elapsed <- timeMedian(
-      function() {
-        invisible(sampler$run(
-          0L,
-          n.samps,
-          callback = list(fn = meanFn, context = ctx)
-        ))
-      },
-      reps
+    variants <- list(
+      none = NULL,
+      noop = list(fn = CALL("capi_noop_function"), context = NULL),
+      mean = list(
+        fn = CALL("capi_mean_function"),
+        context = CALL("capi_mean_context_new", acc, shape$n, 1L)
+      )
     )
-    addRow(
-      paste0("callback-mean-", shape$name),
-      "ms_per_iteration",
-      1000 * elapsed / n.samps
-    )
+
+    for (variant in names(variants)) {
+      callback <- variants[[variant]]
+      elapsed <- timeMedian(
+        function() invisible(sampler$run(0L, n.samps, callback = callback)),
+        reps
+      )
+      rows <- rbind(
+        rows,
+        data.frame(
+          scenario = paste0("callback-", variant, "-", shape$name),
+          metric = "ms_per_iteration",
+          value = 1000 * elapsed / n.samps
+        )
+      )
+    }
   }
 
   rows$value <- round(rows$value, 4L)
@@ -373,7 +351,7 @@ if (mode == "record") {
   print(results[print.cols], row.names = FALSE)
 } else if (mode == "compare") {
   if (length(args) < 2L) {
-    stop("usage: bench-sampler.R [biggrid] compare baseline.csv")
+    stop("usage: bench-sampler.R [biggrid|callback] compare baseline.csv")
   }
   baseline <- read.csv(args[[2L]])
   if (!identical(unique(baseline$quick), quick)) {
