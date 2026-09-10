@@ -182,7 +182,10 @@ over as null pointers, not NaN buffers.
 ## Steps
 
 S1, engine and bridge (src/bartcore/chain.hpp, src/bartcore/sampler.hpp,
-src/R_interface_bartcore.cpp, tests/cpp/test_sampler.cpp):
+src/R_interface_bartcore.cpp, tests/cpp/test_sampler.cpp; landed also
+touching src/bartcore/facade.hpp, src/R_interface.cpp, R/bartcore.R and
+tests/cpp/test_facade.cpp, the virtual `run` signature and its two R
+call sites):
 
 1. Give `Chain::run` a draw callback beside its sweep callback and cancel
    predicate: a function pointer and a context pointer, both null by
@@ -386,3 +389,78 @@ own exit status.
 - Maintainer-run, not a merge gate: `benchmarks/R/bench-sampler.R compare`
   against benchmarks/baselines/bench-sampler-127f04ee.csv on a quiet
   machine, plus step 24's two callback scenarios.
+
+## Landing note, S1 (2026-09-10)
+
+LANDED at 711942adbccbab4b7084d741bdf9483bcc72d089, three commits:
+
+- b91cabb951feb1327a682620ff866423329d1078 Fire a per-draw observer on
+  the chain's own thread
+- 0bb5b52a16e94229aef6922151eefe35d6e0d874 Pin the per-draw observer's
+  contract in tests/cpp
+- 711942adbccbab4b7084d741bdf9483bcc72d089 Cover the storage opt-out
+  and refuse an unknown keepFits
+
+[`Chain::run`](../../src/bartcore/chain.hpp) takes a plain-C
+[`DrawHook`](../../src/bartcore/chain.hpp) beside its sweep callback and
+cancel predicate, firing it once per SAVED draw, immediately after
+`storeSample` settles it, on the thread that already owns the chain - a
+sweep discarded as burn-in never reaches it. The struct handed over,
+[`DrawInfo`](../../src/bartcore/chain.hpp), carries every channel
+`storeSample` settles, null wherever the fit does not carry the channel
+or the coupling declares it undefined; `DrawCallback` returns `int` and a
+nonzero return aborts the run. `Results` gained one per-draw stride
+field per per-observation channel, read by both
+[`Sampler::run`](../../src/bartcore/sampler.hpp)'s per-chain slab base
+and `storeSample`'s per-draw offset so the two cannot disagree; a stride
+of zero lands every draw of a chain in that chain's own one-draw buffer.
+`Sampler::run` forwards the hook unchanged on both the inline and the
+spawned-worker path via `DrawRelay`, which also records whether an
+abort came from the callback rather than from an interrupt and reports
+that through an out-parameter. Changing the virtual `run` signature
+also touched [src/bartcore/facade.hpp](../../src/bartcore/facade.hpp) and its
+[tests/cpp/test_facade.cpp](../../tests/cpp/test_facade.cpp) spy - both
+beyond the plan's stated S1 file list, along with
+[`R/bartcore.R`](../../R/bartcore.R) and
+[src/R_interface.cpp](../../src/R_interface.cpp) below.
+
+The bridge's `bartcore_run` now takes six `.Call` arguments: the
+pointer, burn-in and sample counts, two external pointers for the
+callback function and context, and `keepFits`. `keepFits` is a per-RUN
+`.Call` argument, not a `dbartsControl` slot - `R/bartcore.R`'s two
+existing call sites pass `NULL, NULL, TRUE`, so today's behaviour is
+bitwise unchanged; S3 wires `bart()`/`dbarts()`/the sampler's `run`
+method and the control slot to these three arguments.
+[tests/cpp/test_sampler.cpp](../../tests/cpp/test_sampler.cpp) (465
+lines, new) pins the firing count and order at one, two and four
+chains, the stride arm's per-chain one-draw blocks, the stop arm at one
+and four chains distinguishing a callback stop from an interrupt, and a
+neutrality pin across no-hook, hooked and hooked-with-scratch runs.
+[inst/tinytest/test-bartcore-keepfits.R](../../inst/tinytest/test-bartcore-keepfits.R)
+(115 lines, new) drives `bartcore_run` directly at two chains, once
+heteroscedastic with a test set and once two-forest, asserting the
+opted-out channels come back null with the list's shape unchanged and
+the sigma draws and variable counts bit-for-bit what a keeping run
+drew. Review fix before landing: `Rf_asLogical(x) != FALSE` mapped an
+NA `keepFits` to TRUE; 711942ad refuses NA explicitly with `Rf_error`,
+since it decides how much the run allocates and which slots come back
+null. The slice was reviewed by a second reader and independently
+verified before landing.
+
+Gates: tinytest full suite 8243 of 8243, zero failures. Equivalence
+trio on the shipped build: gaussian 52 of 52 "identical draws (same RNG
+stream)" lines, BCF 12 of 12 and multinomial 11 of 11 "identical (all N
+channels: ...)" lines, zero "max |z|" lines and zero skipped across all
+three. `tests/cpp` passed whole under both ASan and TSan, and the
+compiled `test-bartcore-keepfits.R` arm passed 20 of 20 under ASan; the
+reviewer's mutation run shows the ASan gate discriminates - reverting
+the storage-opt-out stride guard produced a heap-buffer overflow
+AddressSanitizer caught at [`Chain::storeSample`](../../src/bartcore/chain.hpp).
+`check-doc-freshness`, `check-rc-codoc` and `check-win-drift` all report
+OK. CI ran on 711942ad but those runs were cancelled when 5a05d799
+(memory-footprint-audit's follow-ons, a sibling slice) pushed on top;
+the CI evidence for this slice is therefore the 5a05d799 run.
+
+Remaining: S2 through S5 (the flat C header, the R surface wiring
+`callback` and the control slot, the vignette example and manual, the
+stan4bart record) are open, per the plan's Steps.
