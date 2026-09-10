@@ -90,8 +90,17 @@ A list of functions:
   kernel to be used at all; lowering `n.trees` grows deeper trees and is
   the effective way to bring leaves under the cap, whereas lowering
   `max.leaf.size` only sends more leaves to the constant fallback.
-  Function-valued fits ride prediction only: `getTrees` reports `NA`
-  leaf values, and `keepTrees` storage grows with the leaf sizes.
+  Because that fallback is silent - the fit stays coherent, it is simply
+  not a Gaussian process over the leaves that took it - every leaf
+  evaluation is counted. The counts ride the fit as `gp.fallback` (a
+  named pair, `evaluations` and `fallbacks`), and a run in which more
+  than a quarter of evaluations fell back warns once, giving the share:
+  at the default cap on a design of any size that is the normal outcome,
+  not an error, and the warning is the notice that the cap rather than
+  the kernel is doing the modeling. The remedies are the two the
+  paragraph above names, in the order it names them. Function-valued
+  fits ride prediction only: `getTrees` reports `NA` leaf values, and
+  `keepTrees` storage grows with the leaf sizes.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specification through its own `node.prior` argument. `sd` and
   `scale` name the calibration as they do for `normal`.
@@ -195,4 +204,5 @@ fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)
+#> Warning: 35.6% of Gaussian-process leaf evaluations fell back to a constant leaf because the leaf held more than 'max.leaf.size' observations, so most of this fit is not a Gaussian process; raise the cap with gp(max.leaf.size = ), which costs roughly ten times per doubling, or use FEWER trees, which grows deeper trees and so smaller leaves
 ```

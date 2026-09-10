@@ -5,7 +5,8 @@ Convenience function to create a control object for use with a
 
 Every integer-valued argument here (`n.samples`, `n.cuts`, `n.burn`,
 `n.trees`, `n.chains`, `n.threads`, `n.thin`, `printEvery`,
-`printCutoffs`, `seed`) refuses a fractional double, naming the
+`printCutoffs`, `categoricalExhaustiveCap`, `testFitParallelCutoff`,
+`predictParallelCutoff`, `seed`) refuses a fractional double, naming the
 argument, rather than silently truncating it - the same whole-number
 rule every other count formal in the package follows, since it too is
 coerced through this construction.
@@ -21,7 +22,10 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE, ...)
+    printCutoffs = 0L,
+    categoricalExhaustiveCap = 10L, testFitParallelCutoff = 65536L,
+    predictParallelCutoff = 50000L, sparseDensityThreshold = 0.2,
+    seed = NA_integer_, updateState = TRUE, ...)
 ```
 
 ## Arguments
@@ -192,8 +196,8 @@ dbartsControl(
   nothing - it was built and measured (best case about 3 percent faster
   at four threads on one chain, and slower than serial at two and at
   eight) and closed rather than shipped. The surplus is not wasted
-  outright: it still feeds the test-fit pool, used above 65536 test
-  rows, and
+  outright: it still feeds the test-fit pool, used at or above
+  `testFitParallelCutoff` test rows, and
   [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   own fan-out. Defaults to
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
@@ -219,6 +223,65 @@ dbartsControl(
   A non-negative integer specifying how many of the decision rules for a
   variable are printed in verbose mode.
 
+- categoricalExhaustiveCap:
+
+  A positive integer of at least 2 and at most 30 giving the number of
+  categories PRESENT at a node up to which the grow-from-root scan
+  ([`growFromRoot`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
+  and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `n.grow.sweeps`) scores every balanced partition of them, \\2^{P-1} -
+  1\\ candidates. Above it the scan scores the \\P - 1\\ sorted prefixes
+  instead. This is the one setting here that changes the draws: the
+  proposal family above the cap is a different one. Raising it is
+  affordable in a narrow band and never beyond - the candidate set
+  doubles per level - and cost is not what it protects at its default,
+  where enumerating 511 candidates measures the same as emitting 11
+  prefixes, the per-proposal cost being the histogram over node members
+  that precedes the enumeration. The Metropolis-Hastings birth move
+  draws its categorical rules from the prior and never enumerates, so
+  this reaches only the grow-from-root path. Fixed when the sampler is
+  created.
+
+- testFitParallelCutoff:
+
+  A positive integer giving the number of test rows at or above which a
+  chain fits its test matrix across its share of the thread budget
+  instead of on its own thread. Time only: the two paths compute in the
+  same order and return bit-for-bit the same fits. The default sits past
+  the measured crossover on the machine it was measured on - four
+  threads win 1.54 times at 65536 rows and 2.97 times at 262144, while
+  the serial path already costs 16.5 msec per iteration at 32768 - so a
+  caller with large test sets and threads to spare may lower it.
+  Requires `n.threads` above `n.chains`; with no surplus budget no chain
+  has a pool to route into. Fixed when the sampler is created.
+
+- predictParallelCutoff:
+
+  A positive integer giving the number of tree traversals (rows times
+  trees times draws) at or above which
+  [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  spreads a replay over `n.threads` workers instead of running it
+  inline. Time only: each worker owns its own output range and nothing
+  is summed across workers, so a replay is identical however it is dealt
+  out. The default is calibrated - the crossover measures between 3e4
+  and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and
+  saturating near 3.5 times on four threads - and replaces an
+  uncalibrated estimate of 1e7 that left mid-sized replays serial. Fixed
+  when the sampler is created.
+
+- sparseDensityThreshold:
+
+  A number in \\\[0, 1\]\\ giving the nonzero fraction at or below which
+  a column of a sparse (`dgCMatrix`) design is stored as a rank bitmap
+  rather than as one code per row. Memory against time, with no effect
+  on the answers: at the default a rank-stored column costs about 38
+  percent of a sweep in decode and holds about 3.5 times less than the
+  dense layout. Which side of that trade is worth taking depends on the
+  design and the machine, which is why it is a setting. Read once, when
+  the sampler's data are built, and fixed thereafter: a change through
+  `setControl` is refused by name rather than silently relayouting
+  nothing.
+
 - seed:
 
   Random number generator seed. Every chain runs its own generator; the
@@ -239,6 +302,36 @@ dbartsControl(
   the object. A current, cached state is only useful when
   [saving](https://rdrr.io/r/base/save.html)/[loading](https://rdrr.io/r/base/load.html)
   the sampler.
+
+## Engine limits
+
+Eleven fixed values decide what the engine will represent and where it
+switches strategy. Each was measured on one machine (arm64 macOS, 10
+cores); the four that a workload can profitably move are settings here,
+and the rest are limits of the representation or of a proposal family,
+with nothing found that moving would buy. A recommended range is given
+where a measurement supports one.
+
+|  |  |  |  |  |
+|----|----|----|----|----|
+| **Limit** | **Where** | **Default** | **Recommended** | **Settable** |
+| Cuts per predictor | quantized predictor code | 65533 | up to the cap | no; `n.cuts` above it is refused |
+| Categorical levels | quantized predictor code | 65535 | any real factor | no; a wider factor is refused by name |
+| Ordered-factor levels | quantized predictor code | 65534 | any real factor | no; one code goes to the cut grid |
+| Exact categorical enumeration | grow-from-root scan | 10 present levels | 8 to 14 | yes, `categoricalExhaustiveCap` |
+| Leaf-regression columns | [`linear`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) leaves | 8 | 1 to 8 | no; a fixed stack scratch is sized for it |
+| Perturb window | the perturb proposal | 1 grid position | 1 | no; acceptance falls with width and nothing gains |
+| Test-fit parallel cutoff | test-set fitting | 65536 rows | 8192 to 65536 | yes, `testFitParallelCutoff` |
+| Predict parallel cutoff | [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md) | 50000 traversals | 3e4 to 1e5 | yes, `predictParallelCutoff` |
+| Sparse density threshold | `dgCMatrix` storage | 0.2 | 0.05 to 0.5 | yes, `sparseDensityThreshold` |
+| Gaussian-process leaf size | [`gp`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) leaves | 256 observations | 256 to 512 | yes, `gp(max.leaf.size = )` |
+| Person-period expansion | [`hazard`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md) | 1e7 rows | host-dependent | yes, `hazard(max.rows = )` |
+
+Only the categorical enumeration cap changes what is sampled; the two
+parallel cutoffs and the density threshold trade time against memory and
+return bit-for-bit the same draws either side of themselves. Every
+default above is the value the engine used before it was settable, so a
+fit that names none of them reproduces earlier results exactly.
 
 ## Value
 
@@ -309,6 +402,18 @@ control
 #> 
 #> Slot "printCutoffs":
 #> [1] 0
+#> 
+#> Slot "categoricalExhaustiveCap":
+#> [1] 10
+#> 
+#> Slot "testFitParallelCutoff":
+#> [1] 65536
+#> 
+#> Slot "predictParallelCutoff":
+#> [1] 50000
+#> 
+#> Slot "sparseDensityThreshold":
+#> [1] 0.2
 #> 
 #> Slot "seed":
 #> [1] 7
