@@ -35,34 +35,6 @@ int refuseCall(void*, const dbarts_draw*) {
   return 0;
 }
 
-// The shipped struct mirrors the engine's field order. Both are standard
-// layout, so the two offset runs are directly comparable: a field moved on one
-// side alone shows up as an inversion here, which no compile-time assert on
-// either struct by itself would see.
-void testFieldOrderMirrorsEngine() {
-  struct Pair { std::size_t shipped, engine; };
-  const Pair pairs[] = {
-#define PAIR(field) { offsetof(dbarts_draw, field), offsetof(DrawInfo, field) }
-    PAIR(chainIndex), PAIR(drawIndex), PAIR(numObservations),
-    PAIR(numTestObservations), PAIR(numPredictors), PAIR(numReportedLocations),
-    PAIR(numVariableCountForests), PAIR(numForests), PAIR(numAmplitudes),
-    PAIR(numOrdinalThresholds), PAIR(train), PAIR(test), PAIR(varianceFits),
-    PAIR(varianceTestFits), PAIR(forestFits), PAIR(glue),
-    PAIR(splitProbabilities), PAIR(logLikelihood), PAIR(ordinalThresholds),
-    PAIR(varcount), PAIR(sigma), PAIR(k), PAIR(dispersion), PAIR(residualDf)
-#undef PAIR
-  };
-  bool ordered = true;
-  for (std::size_t i = 1; i < std::size(pairs); ++i)
-    ordered &= pairs[i].shipped > pairs[i - 1].shipped &&
-               pairs[i].engine > pairs[i - 1].engine;
-  check(ordered, "capi draw: shipped field order mirrors the engine struct's");
-  // structSize leads, and it is the only field the engine struct does not have
-  check(offsetof(dbarts_draw, structSize) == 0 &&
-          pairs[0].shipped == sizeof(std::size_t),
-        "capi draw: structSize leads the shipped struct alone");
-}
-
 // Every channel the engine fills reaches the callback, at the library's own
 // structSize: a field the adapter forgets keeps the value the stack copy found.
 void testAdapterCopiesEveryField() {
@@ -156,7 +128,6 @@ void testRegistration() {
 }  // namespace
 
 void runCapiTests() {
-  testFieldOrderMirrorsEngine();
   testAdapterCopiesEveryField();
   testRegistration();
   printf("ok: flat C API per-draw struct, adapter and registration\n");

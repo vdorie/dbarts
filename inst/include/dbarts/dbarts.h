@@ -770,14 +770,8 @@ void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 /// function. Nothing is called through the pointer at registration time, so a
 /// wrong one crashes at the first draw of the next run rather than here.
 /// context is handed back untouched and may be null; the sampler neither reads
-/// nor frees what it points at.
-///
-/// The callback fires once per SAVED draw per chain (see dbarts_draw_callback
-/// for the contract the callback must keep, which is the whole of what makes
-/// this safe from a worker thread). A run it aborts returns NORMALLY, having
-/// stopped early: this entry and dbarts_sampler_run both report no status, so
-/// the caller learns of an abort from its own context and discards the
-/// results and any saved trees it holds.
+/// nor frees what it points at. The callback fires once per SAVED draw per
+/// chain, under the contract dbarts_draw_callback states.
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
                                     dbarts_draw_callback fn, void* context);
 
