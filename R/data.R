@@ -1842,19 +1842,25 @@ dbartsData <- function(
       naOmitted <- naResult$na.action
     }
     if (!xIsMixed) {
-      completeCases <- if (is.null(naResult)) {
-        rep_len(TRUE, length(y))
-      } else {
-        naResult$keep
+      # NULL means nothing was missing anywhere (applyNaActionToXY's own
+      # contract), and an all-TRUE mask selects every row: either way the
+      # row selection below would copy y, x, the bases, the weights and the
+      # offset to no effect. x is n*p doubles, the largest transient
+      # ingestion has, so the common case skips it rather than paying it.
+      completeCases <- if (is.null(naResult)) NULL else naResult$keep
+      if (!is.null(completeCases) && !all(completeCases)) {
+        y <- y[completeCases]
+        x <- if (!is.matrix(x)) {
+          x[completeCases]
+        } else {
+          x[completeCases, , drop = FALSE]
+        }
+        bases <- restrictBasesToRows(bases, completeCases)
+        if (!is.null(weights)) {
+          weights <- weights[completeCases]
+        }
+        if (!is.null(offset)) offset <- offset[completeCases]
       }
-
-      y <- y[completeCases]
-      x <- if (!is.matrix(x)) {
-        x[completeCases]
-      } else {
-        x[completeCases, , drop = FALSE]
-      }
-      bases <- restrictBasesToRows(bases, completeCases)
       if (length(attributes(formula)) > 0L) {
         for (attributeName in names(attributes(formula))) {
           if (attributeName == "dim") {
@@ -1866,10 +1872,6 @@ dbartsData <- function(
           attr(x, attributeName) <- attr(formula, attributeName)
         }
       }
-      if (!is.null(weights)) {
-        weights <- weights[completeCases]
-      }
-      if (!is.null(offset)) offset <- offset[completeCases]
     } else if (!is.null(naResult) && !all(naResult$keep)) {
       keep <- naResult$keep
       y <- y[keep]

@@ -461,6 +461,11 @@
             same design and in the same arithmetic order, so the estimate is
             bitwise what it was. Peak memory of a 100,000-observation,
             50-predictor fit falls by 77 MB.
+      \item Building a \code{\link{dbartsData}} object no longer copies the
+            predictor matrix, the response, the weights and the offset a
+            second time when no row is dropped for missing values, which is
+            the usual case. Peak memory of a 100,000-observation,
+            50-predictor fit falls by a further 42 MB.
       \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
             adding one Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of

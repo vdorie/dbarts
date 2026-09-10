@@ -16,6 +16,12 @@ the median is thin, and it is thin for a stated reason: sixteen of the thirty ce
 prediction of 20 to 60 MB is scored against page-level allocator behaviour a
 byte model cannot reach. "What the measurement moved" records the rows the
 first run changed and "What the removal moved" the rows the second did.
+Two rows have moved since that validation without a re-recording - the
+ingestion allowance and the starting-sigma row, both cut by the follow-ons
+in "The largest avoidable allocations, ranked" - so a re-record of
+benchmarks/baselines/memory-footprint-b184b6b2.csv against the model as it
+now stands is OWED. Both moves are downward and neither touches the engine
+rows, so the grid's residuals can only have grown more negative.
 
 The closed-form model of what a fit allocates, per component, in the units the
 allocations have. Every byte count is read off the element type and the
@@ -70,7 +76,7 @@ differently.
 | yhat.test transient copy | [`convertSamplesFromDbartsToBart`](../../R/bart.R), [`packageBartResults`](../../R/bart.R) | saved sample | 8 | 1 extra nTest*L*S*C live at peak, on the same arithmetic | a test set |
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
 | raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
-| raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy and its complete-cases copy | sampler | 8 | up to 2*n*p, plus 2*nTest*p | always: the subset copy is persistent and the complete-cases copy transient, and both fire on a matrix with no subset and no missing values. Measured per host and shape, not derived - see below |
+| raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy | sampler | 8 | up to n*p, plus nTest*p | always: the subset copy is persistent and fires on a matrix with no subset. The transient complete-cases copy beside it fired unconditionally too until this arc, and now only when a row is actually dropped. Measured per host and shape, not derived - see below |
 | starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R), [`residualStandardError`](../../R/utility.R) | sampler | 8 | about 2*n*(p+1) transiently - the design matrix and the QR's own copy of it | no `sigest` given and the family estimates a residual sd (not binary) |
 | leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per POPULATED ARENA DEPTH LEVEL per tree per chain, about 3.2 levels measured | a designated-covariate leaf (linear, gp) |
 | fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
@@ -111,15 +117,18 @@ the gate never hides behind them.
 - The fit-path warm-up, 5.8 MB on this host: the R session's one-off growth
   from byte-compiling the fit closures and populating the S4 dispatch tables.
 - The ingestion high-water of the predictor copies.
-  [`dbartsData`](../../R/data.R) makes two beyond the caller's matrix - a
+  [`dbartsData`](../../R/data.R) made two beyond the caller's matrix - a
   persistent subset copy and a transient complete-cases copy, both taken even
-  when nothing is subset and nothing is missing - and the derived 16*n*p is
-  an UPPER bound on what reaches the peak, since the transient's pages are
-  the collector's to reclaim before packaging. Measured, over and above the
-  caller's own matrix and response: 0.6 MB at n = 1e4 p = 10, 8.2 MB at
-  n = 1e4 p = 50, 22.4 MB at n = 1e5 p = 10, 38.3 MB at n = 1e5 p = 20,
-  83.5 MB at n = 1e5 p = 50 and 376.5 MB at n = 1e6 p = 20 - between 0.8 and
-  2.8 copies, never the derived 2 flat.
+  when nothing was subset and nothing was missing - and the derived 16*n*p
+  was an UPPER bound on what reached the peak, since the transient's pages
+  are the collector's to reclaim before packaging. Measured then, over and
+  above the caller's own matrix and response: 0.6 MB at n = 1e4 p = 10,
+  8.2 MB at n = 1e4 p = 50, 22.4 MB at n = 1e5 p = 10, 38.3 MB at n = 1e5
+  p = 20, 83.5 MB at n = 1e5 p = 50 and 376.5 MB at n = 1e6 p = 20 - between
+  0.8 and 2.8 copies, never the derived 2 flat. The transient copy is now
+  taken only when a row is actually dropped, so those figures are an upper
+  bound on the current allowance, and the derived bound is 8*n*p; they have
+  not been re-measured over the grid (below).
 
 The measured p slope of the fit's own peak carries the same spread: 14.9
 bytes per n*p between p = 10 and p = 20 at n = 1e5, 30.0 between p = 20 and
@@ -193,9 +202,9 @@ Case 1: n = 1e5, p = 20, T = 200, C = 4, S = 500.
 | live trees, leaf values, Tree objects | chain | 0.17 |
 | per chain | | 162.97 |
 | engine total, 4.02 + 2.40 + 4*162.97 | | 658.3 |
-| x, three live copies 24*n*p, y 8*n, sigma, varcount | R | 49.0 |
+| x, two live copies 16*n*p, y 8*n, sigma, varcount | R | 33.0 |
 | yhat.train, two copies live at peak, 16*n*S*C | R | 3200.0 |
-| peak, of which the engine is 17 pct | | 3907.3 |
+| peak, of which the engine is 17 pct | | 3891.3 |
 
 Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 
@@ -210,15 +219,17 @@ Case 2: n = 1e6, p = 50, C = 1, everything else as above.
 | live trees, leaf values, Tree objects | chain | 0.17 |
 | per chain | | 1628.17 |
 | engine total | | 1752.2 |
-| x, three live copies 24*n*p, y, sigma, varcount | R | 1208.1 |
+| x, two live copies 16*n*p, y, sigma, varcount | R | 808.1 |
 | yhat.train, two copies live at peak, 16*n*S | R | 8000.0 |
-| peak, of which the engine is again 16 pct | | 10960.3 |
+| peak, of which the engine is again 17 pct | | 10560.3 |
 
 Both cases were measured on this host, each as a single `bart` call under
 `/usr/bin/time -l` with n.burn = 0 and `sigest` supplied, once against the
-library built before the transient copies came out and once after. Case 1:
+library built before the packaging copies came out and once after. Case 1:
 5847.0 MB before, 4234.8 MB after. Case 2: 15172.7 MB before, 11161.5 MB
-after. Each drop is one whole prediction array to within a megabyte -
+after. Both readings predate the ingestion guard above, which takes a
+further 8*n*p off each - 16.0 MB in case 1 and 400.0 MB in case 2 - and
+neither has been re-measured since. Each drop is one whole prediction array to within a megabyte -
 1612.2 MB against a derived 1600.0, and 4011.2 MB against 4000.0 - which is
 what a copy count, and not a coefficient, predicts. Both peaks read 4 to 6 pct
 above the derived totals above, the same direction and size as the grid's own
@@ -266,9 +277,9 @@ could have been read off without it.
 
 - The single raw-predictor row split in two. The caller's own matrix, 8*n*p,
   is derived; the copies [`dbartsData`](../../R/data.R) makes on top of it -
-  the persistent subset copy and the transient complete-cases copy, both
-  taken on a plain matrix with nothing subset and nothing missing - are a
-  measured allowance, because the derived 16*n*p is an upper bound on how
+  the persistent subset copy and, when a row is dropped, a transient
+  complete-cases copy (taken unconditionally until this arc) - are a
+  measured allowance, because the derived bound is an upper bound on how
   much of them survives to the peak. The measured p slope of the fit's peak
   runs 14.9 to 30.0 bytes per n*p depending on the pair, straddling the 18 a
   two-copy model gives and the 26 a three-copy one does; the single-copy
@@ -343,7 +354,7 @@ second row is its own TODO entry rather than a change in this arc.
 | --- | --- | --- | --- | --- |
 | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 3200 MB | 8000 MB | one sentence | taken, in the manual's Memory section; the figures are the two live copies, down from three |
 | take the column means over the returned layout and build that layout in one permutation, so neither extra copy exists | 1600 MB | 4000 MB | the R reshape and mean | TAKEN, measured 1612.2 MB and 4011.2 MB; the last copy would need the bridge to allocate the channel draw-major and the engine to write into it strided, which is its own item |
-| drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
+| drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | TAKEN, one guard in [`dbartsData`](../../R/data.R): the row selection runs only when a row is actually dropped. Measured at n = 1e5, p = 50, T = 200, S = 10 with `sigest` supplied, 410.0 MB to 367.6 MB - 42.4 MB against the derived 8*n*p of 40.0 |
 | prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
 | a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | TAKEN: [`residualStandardError`](../../R/utility.R) calls the QR routine `lm` calls, on the design matrix `model.matrix` would have built, and takes `summary.lm`'s own expression for sigma over it, so the estimate is bitwise unchanged with no model frame and no second design. Measured at n = 1e5, T = 200, S = 10 with no `sigest`: 348.9 to 318.5 MB at p = 10, 411.8 to 357.3 MB at p = 20, 588.5 to 511.2 MB at p = 50. Zero at either reference case, which supplies `sigest` |
 | a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |

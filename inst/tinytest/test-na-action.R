@@ -261,3 +261,64 @@ expect_equal(
   matrixBasisOmit@bases[[2L]],
   basisMatrix[-sort(c(droppedRow, 13L)), , drop = FALSE]
 )
+
+# --- every row complete: the row selection is skipped, not run on an
+# all-TRUE mask ---
+# Nothing missing anywhere and na.pass over a missing predictor are the two
+# ways every row survives the na.action. In both the selection is a copy of
+# x, y, the weights and the offset that changes none of them, and x is the
+# largest allocation ingestion makes; what reaches the data object must be
+# exactly what the copying selection produced.
+nCC <- 50000L
+pCC <- 20L
+xCC <- matrix(rep_len(c(0.1, 0.4, 0.7, 0.9), nCC * pCC), nCC, pCC)
+colnames(xCC) <- paste0("v", seq_len(pCC))
+yCC <- rep_len(c(0.1, 0.5, 0.9), nCC)
+wCC <- rep_len(c(0.5, 1.5), nCC)
+oCC <- rep_len(c(-0.1, 0.2), nCC)
+
+dataCC <- dbarts::dbartsData(xCC, yCC, weights = wCC, offset = oCC)
+expect_identical(dataCC@x, xCC)
+expect_identical(dataCC@y, yCC)
+expect_identical(dataCC@weights, wCC)
+expect_identical(dataCC@offset, oCC)
+
+xCCPass <- xCC
+xCCPass[3L, 1L] <- NA_real_
+dataCCPass <- dbarts::dbartsData(
+  xCCPass,
+  yCC,
+  weights = wCC,
+  offset = oCC,
+  na.action = na.pass
+)
+expect_identical(dataCCPass@x, xCCPass)
+expect_identical(dataCCPass@y, yCC)
+expect_identical(dataCCPass@weights, wCC)
+expect_identical(dataCCPass@offset, oCC)
+
+# and the selection still runs when it has a row to drop
+yCCMissing <- yCC
+yCCMissing[5L] <- NA_real_
+dataCCOmit <- dbarts::dbartsData(
+  xCC,
+  yCCMissing,
+  weights = wCC,
+  offset = oCC
+)
+expect_identical(dataCCOmit@x, xCC[-5L, , drop = FALSE])
+expect_identical(dataCCOmit@y, yCC[-5L])
+expect_identical(dataCCOmit@weights, wCC[-5L])
+expect_identical(dataCCOmit@offset, oCC[-5L])
+
+# the skip itself, in the heap high-water mark: the copy is one whole x, and
+# ingestion's remaining transients are well under a second one
+maxUsedMiB <- function() gc()[2L, "max used"] * 8 / 1048576
+arrayMiB <- 8 * length(xCC) / 1048576
+invisible(dbarts::dbartsData(xCC, yCC))
+invisible(gc(reset = TRUE))
+baseMiB <- maxUsedMiB()
+invisible(gc(reset = TRUE))
+dataCCPeak <- dbarts::dbartsData(xCC, yCC)
+peakMiB <- maxUsedMiB()
+expect_true(peakMiB - baseMiB < 2 * arrayMiB)
